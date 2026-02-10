@@ -1,0 +1,44 @@
+#
+# MXFS configuration — /etc/mxfs/volumes.conf
+#
+# This file defines the local node identity, peer endpoints, shared
+# volumes, and tuning parameters for the mxfsd daemon.
+#
+
+[node]
+id       = 1
+name     = node1
+bind     = 0.0.0.0
+port     = 7600
+
+[peer]
+id       = 2
+name     = node2
+host     = 192.168.1.102
+port     = 7600
+
+[peer]
+id       = 3
+name     = node3
+host     = 192.168.1.103
+port     = 7600
+
+[volume]
+name     = shared0
+device   = /dev/sdb1
+
+[volume]
+name     = shared1
+device   = /dev/sdc1
+
+[timing]
+lease_duration_ms    = 5000
+lease_renew_ms       = 2000
+node_timeout_ms      = 15000
+lock_wait_timeout_ms = 30000
+
+[logging]
+file     = /var/log/mxfsd.log
+level    = info
+syslog   = yes
+daemonize = yes
