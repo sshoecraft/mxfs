@@ -21,6 +21,7 @@
 #include <linux/statfs.h>
 #include <linux/seq_file.h>
 #include <linux/namei.h>
+#include <linux/mm.h>
 #include <linux/kmod.h>
 #include <linux/sched/signal.h>
 #include <mxfs/mxfs_common.h>
