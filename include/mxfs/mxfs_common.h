@@ -17,7 +17,7 @@
 #endif
 
 #define MXFS_VERSION_MAJOR      0
-#define MXFS_VERSION_MINOR      1
+#define MXFS_VERSION_MINOR      3
 #define MXFS_VERSION_PATCH      0
 
 #define MXFS_MAX_NODES          64

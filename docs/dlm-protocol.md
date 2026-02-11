@@ -34,7 +34,7 @@ All daemon-to-daemon messages are length-prefixed and begin with
 
 **LOCK_REQ** — Request a distributed lock
 - Payload: `mxfs_dlm_lock_req` (resource ID, mode, flags)
-- Sent to the resource's master node (determined by hash)
+- Sent to the master node (lowest node ID in cluster)
 
 **LOCK_GRANT** — Lock has been granted
 - Payload: `mxfs_dlm_lock_resp` (resource, granted mode, status)
@@ -100,16 +100,17 @@ All daemon-to-daemon messages are length-prefixed and begin with
 
 ## Lock Mastering
 
-Each lock resource is mastered on a specific node determined by hashing
-the resource ID. The master maintains the authoritative lock queue for
-that resource:
+Currently using a single-master model: the node with the lowest ID in the
+cluster is the master for all resources. The master maintains the
+authoritative lock table. Non-master nodes forward lock requests to the
+master and block until receiving a LOCK_GRANT or LOCK_DENY response.
 
-```
-master_node = hash(resource_id) % active_node_count
-```
+When the master node dies, the next-lowest node ID becomes the new master.
+Lock table state must be reconstructed from the surviving nodes' local
+knowledge of their own held locks.
 
-When the node set changes (join/leave/death), lock mastering must be
-rebalanced. During rebalancing, affected locks are briefly frozen.
+Future optimization: per-resource mastering via `hash(resource_id) %
+active_node_count` to distribute lock traffic across nodes.
 
 ## Node Death Sequence
 

@@ -2,9 +2,10 @@
 
 ## Project State
 
-Version: 0.1.0 — Initial project structure with stub implementations.
-No functionality is implemented yet. All .c files contain function
-signatures matching their headers but with empty bodies.
+Version: 0.3.0 — All daemon subsystems and kernel module implemented.
+DLM message dispatch wired up: peer lock coordination, netlink kernel
+communication, master determination, grant callbacks, control socket.
+Cross-node lock contention tested on 2-node cluster.
 
 ## File Layout
 
@@ -36,6 +37,8 @@ mxfs/
 │   ├── mxfsd_log.{c,h}             # logging (file + syslog)
 │   ├── mxfsd_volume.{c,h}          # volume state tracking
 │   └── daemon.md                   # daemon architecture doc
+├── tools/
+│   └── mxfs_lock.c                  # DLM test tool (lock/unlock via control socket)
 ├── config/
 │   └── volumes.conf.example         # example configuration file
 └── docs/
@@ -51,9 +54,11 @@ This is the same model used by GFS2 and OCFS2. The compatibility matrix is
 fully defined in `mxfsd_dlm.c` as a static 6x6 array.
 
 ### Lock Mastering
-Each lock resource is mastered on a deterministic node via hash of the
-resource ID. The master maintains the authoritative queue. This avoids
-the need for a central lock server while keeping the protocol simple.
+The node with the lowest ID in the cluster is the master for all resources.
+The master maintains the authoritative DLM lock table. Non-master nodes
+forward lock requests to the master via TCP and wait for grant/deny responses.
+This simplifies the protocol at the cost of concentrating lock traffic on
+one node. Can evolve to per-resource hash-based mastering later if needed.
 
 ### Netlink vs Shared Memory
 Starting with Generic Netlink for kernel<->daemon communication. This is
