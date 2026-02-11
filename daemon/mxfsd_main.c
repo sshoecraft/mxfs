@@ -1511,7 +1511,8 @@ int main(int argc, char **argv)
 
 	/* Signal kernel that daemon is ready */
 	rc = mxfsd_netlink_send_daemon_ready(&nl_ctx, config.node_id,
-	                                     local_volume_uuid);
+	                                     local_volume_uuid,
+	                                     volume_ctx.volumes[0].id);
 	if (rc < 0)
 		mxfsd_warn("failed to send daemon ready (rc=%d) — "
 		           "kernel may not be listening yet", rc);

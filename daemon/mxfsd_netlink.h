@@ -61,6 +61,7 @@ int  mxfsd_netlink_send_recovery_done(struct mxfsd_netlink_ctx *ctx);
 /* Signal kernel that daemon is initialized and ready */
 int  mxfsd_netlink_send_daemon_ready(struct mxfsd_netlink_ctx *ctx,
                                      mxfs_node_id_t node_id,
-                                     const uint8_t volume_uuid[16]);
+                                     const uint8_t volume_uuid[16],
+                                     mxfs_volume_id_t volume_id);
 
 #endif /* MXFSD_NETLINK_H */

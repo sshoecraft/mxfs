@@ -413,7 +413,8 @@ int mxfsd_netlink_send_recovery_done(struct mxfsd_netlink_ctx *ctx)
 
 int mxfsd_netlink_send_daemon_ready(struct mxfsd_netlink_ctx *ctx,
                                     mxfs_node_id_t node_id,
-                                    const uint8_t volume_uuid[16])
+                                    const uint8_t volume_uuid[16],
+                                    mxfs_volume_id_t volume_id)
 {
 	char attrs[256];
 	int offset = 0;
@@ -422,8 +423,9 @@ int mxfsd_netlink_send_daemon_ready(struct mxfsd_netlink_ctx *ctx,
 	nla_put_u32(attrs, &offset, MXFS_NL_ATTR_DAEMON_PID, pid);
 	nla_put_u32(attrs, &offset, MXFS_NL_ATTR_NODE_ID, node_id);
 	nla_put(attrs, &offset, MXFS_NL_ATTR_UUID, volume_uuid, 16);
+	nla_put_u64(attrs, &offset, MXFS_NL_ATTR_VOLUME_ID, volume_id);
 
-	mxfsd_info("netlink: sending daemon ready (pid=%u node=%u)",
-	           pid, node_id);
+	mxfsd_info("netlink: sending daemon ready (pid=%u node=%u vol=0x%llx)",
+	           pid, node_id, (unsigned long long)volume_id);
 	return nl_send_cmd(ctx, MXFS_NL_CMD_DAEMON_READY, attrs, offset);
 }
