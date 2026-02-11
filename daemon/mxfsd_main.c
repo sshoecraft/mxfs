@@ -46,7 +46,6 @@ static struct mxfsd_config      config;
 static struct mxfsd_peer_ctx    peer_ctx;
 static struct mxfsd_dlm_ctx     dlm_ctx;
 static struct mxfsd_netlink_ctx nl_ctx;
-static struct mxfsd_lease_ctx   lease_ctx;
 static struct mxfsd_journal_ctx journal_ctx;
 static struct mxfsd_volume_ctx  volume_ctx;
 
@@ -58,7 +57,6 @@ enum subsystem {
 	SUB_DLM,
 	SUB_NETLINK,
 	SUB_PEER,
-	SUB_LEASE,
 	SUB_JOURNAL,
 	SUB_COUNT,
 };
@@ -157,12 +155,13 @@ static int daemonize(void)
 	return 0;
 }
 
-/* Lease expire callback — invoked when a peer's lease expires */
-static void on_lease_expire(mxfs_node_id_t node, void *user_data)
+/* Peer disconnect callback — invoked when a peer TCP connection drops.
+ * TCP connection state = liveness signal. */
+static void on_peer_disconnect(mxfs_node_id_t node, void *user_data)
 {
 	(void)user_data;
 
-	mxfsd_notice("node %u lease expired — purging locks and "
+	mxfsd_notice("node %u disconnected — purging locks and "
 		     "initiating journal recovery", node);
 
 	/* Purge all DLM locks held by the dead node */
@@ -171,16 +170,10 @@ static void on_lease_expire(mxfs_node_id_t node, void *user_data)
 	/* Mark journal slot for recovery */
 	mxfsd_journal_mark_needs_recovery(&journal_ctx, node);
 
-	/* Attempt to begin recovery (we may not be the one to do it) */
+	/* Attempt to begin recovery */
 	if (mxfsd_journal_begin_recovery(&journal_ctx, node) == 0) {
 		mxfsd_netlink_send_recovery_start(&nl_ctx);
 		mxfsd_netlink_send_node_status(&nl_ctx, node, MXFS_NODE_DEAD);
-
-		/* The actual XFS journal replay is triggered by the kernel
-		 * module when it receives RECOVERY_START. When it finishes,
-		 * it sends a status message back which we handle in the
-		 * netlink callback. For now, we finish recovery here since
-		 * we don't have the full kernel module loop yet. */
 		mxfsd_journal_finish_recovery(&journal_ctx, node);
 		mxfsd_netlink_send_recovery_done(&nl_ctx);
 	}
@@ -195,10 +188,6 @@ static void shutdown_subsystems(void)
 	if (sub_init[SUB_JOURNAL]) {
 		mxfsd_journal_shutdown(&journal_ctx);
 		sub_init[SUB_JOURNAL] = false;
-	}
-	if (sub_init[SUB_LEASE]) {
-		mxfsd_lease_shutdown(&lease_ctx);
-		sub_init[SUB_LEASE] = false;
 	}
 	if (sub_init[SUB_PEER]) {
 		mxfsd_peer_shutdown(&peer_ctx);
@@ -263,6 +252,9 @@ static int init_subsystems(void)
 	}
 	sub_init[SUB_PEER] = true;
 
+	/* Set disconnect callback — TCP state = liveness */
+	mxfsd_peer_set_disconnect_cb(&peer_ctx, on_peer_disconnect, NULL);
+
 	/* Add configured peers */
 	for (int i = 0; i < config.peer_count; i++) {
 		mxfsd_peer_add(&peer_ctx,
@@ -282,23 +274,6 @@ static int init_subsystems(void)
 			mxfsd_warn("initial connect to node %u failed (will retry)",
 				   config.peers[i].node_id);
 	}
-
-	/* Lease management */
-	rc = mxfsd_lease_init(&lease_ctx, config.node_id,
-			      config.lease_duration_ms,
-			      config.lease_renew_ms,
-			      config.node_timeout_ms);
-	if (rc) {
-		mxfsd_err("lease init failed: %d", rc);
-		return rc;
-	}
-	sub_init[SUB_LEASE] = true;
-
-	mxfsd_lease_set_expire_callback(&lease_ctx, on_lease_expire, NULL);
-
-	/* Register peers with the lease monitor */
-	for (int i = 0; i < config.peer_count; i++)
-		mxfsd_lease_register_node(&lease_ctx, config.peers[i].node_id);
 
 	/* Journal coordination */
 	rc = mxfsd_journal_init(&journal_ctx, config.node_id, MXFS_MAX_NODES);

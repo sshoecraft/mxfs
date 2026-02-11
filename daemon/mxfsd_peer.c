@@ -201,6 +201,27 @@ static void *accept_thread_fn(void *arg)
 }
 
 /*
+ * Mark a peer as disconnected and fire the disconnect callback.
+ * Caller must NOT hold peer->send_lock.
+ */
+static void peer_handle_disconnect(struct mxfsd_peer_ctx *ctx,
+                                   struct mxfsd_peer *peer)
+{
+	mxfs_node_id_t node = peer->node_id;
+
+	pthread_mutex_lock(&peer->send_lock);
+	if (peer->sockfd >= 0) {
+		close(peer->sockfd);
+		peer->sockfd = -1;
+	}
+	peer->state = MXFSD_CONN_DISCONNECTED;
+	pthread_mutex_unlock(&peer->send_lock);
+
+	if (ctx->disconnect_cb)
+		ctx->disconnect_cb(node, ctx->disconnect_cb_data);
+}
+
+/*
  * Receive thread: polls all active peer sockets for incoming messages.
  * Reads complete framed messages (header then payload if any).
  */
@@ -259,22 +280,14 @@ static void *recv_thread_fn(void *arg)
 			if (read_exact(pfds[i].fd, &hdr, sizeof(hdr)) < 0) {
 				mxfsd_warn("peer: read failed from node %u, "
 				           "disconnecting", peer->node_id);
-				pthread_mutex_lock(&peer->send_lock);
-				close(peer->sockfd);
-				peer->sockfd = -1;
-				peer->state = MXFSD_CONN_DISCONNECTED;
-				pthread_mutex_unlock(&peer->send_lock);
+				peer_handle_disconnect(ctx, peer);
 				continue;
 			}
 
 			if (hdr.magic != MXFS_DLM_MAGIC) {
 				mxfsd_warn("peer: bad magic 0x%08x from "
 				           "node %u", hdr.magic, peer->node_id);
-				pthread_mutex_lock(&peer->send_lock);
-				close(peer->sockfd);
-				peer->sockfd = -1;
-				peer->state = MXFSD_CONN_DISCONNECTED;
-				pthread_mutex_unlock(&peer->send_lock);
+				peer_handle_disconnect(ctx, peer);
 				continue;
 			}
 
@@ -288,11 +301,7 @@ static void *recv_thread_fn(void *arg)
 					mxfsd_err("peer: message too large "
 					          "(%u bytes) from node %u",
 					          hdr.length, peer->node_id);
-					pthread_mutex_lock(&peer->send_lock);
-					close(peer->sockfd);
-					peer->sockfd = -1;
-					peer->state = MXFSD_CONN_DISCONNECTED;
-					pthread_mutex_unlock(&peer->send_lock);
+					peer_handle_disconnect(ctx, peer);
 					continue;
 				}
 				if (read_exact(pfds[i].fd, payload,
@@ -300,11 +309,7 @@ static void *recv_thread_fn(void *arg)
 					mxfsd_warn("peer: payload read failed "
 					           "from node %u",
 					           peer->node_id);
-					pthread_mutex_lock(&peer->send_lock);
-					close(peer->sockfd);
-					peer->sockfd = -1;
-					peer->state = MXFSD_CONN_DISCONNECTED;
-					pthread_mutex_unlock(&peer->send_lock);
+					peer_handle_disconnect(ctx, peer);
 					continue;
 				}
 			}
@@ -692,6 +697,15 @@ struct mxfsd_peer *mxfsd_peer_find(struct mxfsd_peer_ctx *ctx,
 			return &ctx->peers[i];
 	}
 	return NULL;
+}
+
+void mxfsd_peer_set_disconnect_cb(struct mxfsd_peer_ctx *ctx,
+                                  mxfsd_peer_disconnect_cb cb, void *data)
+{
+	if (!ctx)
+		return;
+	ctx->disconnect_cb = cb;
+	ctx->disconnect_cb_data = data;
 }
 
 bool mxfsd_peer_is_alive(const struct mxfsd_peer *peer, uint64_t now,

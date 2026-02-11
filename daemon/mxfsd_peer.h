@@ -41,6 +41,9 @@ struct mxfsd_peer {
 	pthread_mutex_t     send_lock;
 };
 
+/* Called when a peer TCP connection drops */
+typedef void (*mxfsd_peer_disconnect_cb)(mxfs_node_id_t node, void *user_data);
+
 /* Peer subsystem context */
 struct mxfsd_peer_ctx {
 	struct mxfsd_peer   peers[MXFS_MAX_NODES];
@@ -50,6 +53,8 @@ struct mxfsd_peer_ctx {
 	pthread_t           accept_thread;
 	pthread_t           recv_thread;
 	bool                running;
+	mxfsd_peer_disconnect_cb disconnect_cb;
+	void               *disconnect_cb_data;
 };
 
 int  mxfsd_peer_init(struct mxfsd_peer_ctx *ctx, mxfs_node_id_t local_id,
@@ -70,5 +75,7 @@ struct mxfsd_peer *mxfsd_peer_find(struct mxfsd_peer_ctx *ctx,
                                    mxfs_node_id_t id);
 bool mxfsd_peer_is_alive(const struct mxfsd_peer *peer, uint64_t now_ms,
                          uint64_t timeout_ms);
+void mxfsd_peer_set_disconnect_cb(struct mxfsd_peer_ctx *ctx,
+                                  mxfsd_peer_disconnect_cb cb, void *data);
 
 #endif /* MXFSD_PEER_H */
