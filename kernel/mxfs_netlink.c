@@ -315,9 +315,17 @@ static int mxfs_nl_daemon_ready(struct sk_buff *skb, struct genl_info *info)
 	uint64_t volume_id;
 	uint32_t daemon_pid;
 
-	if (!info->attrs[MXFS_NL_ATTR_VOLUME_ID] ||
-	    !info->attrs[MXFS_NL_ATTR_DAEMON_PID])
+	pr_info("mxfs: daemon_ready handler called (portid=%u)\n",
+		info->snd_portid);
+
+	if (!info->attrs[MXFS_NL_ATTR_VOLUME_ID]) {
+		pr_warn("mxfs: daemon_ready: missing VOLUME_ID attr\n");
 		return -EINVAL;
+	}
+	if (!info->attrs[MXFS_NL_ATTR_DAEMON_PID]) {
+		pr_warn("mxfs: daemon_ready: missing DAEMON_PID attr\n");
+		return -EINVAL;
+	}
 
 	volume_id = nla_get_u64(info->attrs[MXFS_NL_ATTR_VOLUME_ID]);
 	daemon_pid = nla_get_u32(info->attrs[MXFS_NL_ATTR_DAEMON_PID]);
