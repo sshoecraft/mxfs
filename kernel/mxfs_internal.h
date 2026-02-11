@@ -21,6 +21,7 @@
 #include <linux/wait.h>
 #include <linux/atomic.h>
 #include <linux/slab.h>
+#include <linux/if.h>
 #include <mxfs/mxfs_common.h>
 
 /* MXFS filesystem magic number — "MXFS" in ASCII */
