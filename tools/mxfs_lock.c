@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdint.h>
+#include <strings.h>
 
 #include <mxfs/mxfs_common.h>
 
@@ -112,10 +113,17 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		req.cmd = 1;
-		req.mode = (uint8_t)atoi(argv[4]);
+		const char *marg = argv[4];
+		if (strcasecmp(marg, "NL") == 0) req.mode = 0;
+		else if (strcasecmp(marg, "CR") == 0) req.mode = 1;
+		else if (strcasecmp(marg, "CW") == 0) req.mode = 2;
+		else if (strcasecmp(marg, "PR") == 0) req.mode = 3;
+		else if (strcasecmp(marg, "PW") == 0) req.mode = 4;
+		else if (strcasecmp(marg, "EX") == 0) req.mode = 5;
+		else req.mode = (uint8_t)atoi(marg);
 		if (req.mode >= 6) {
-			fprintf(stderr, "invalid mode %d (must be 0-5)\n",
-				req.mode);
+			fprintf(stderr, "invalid mode '%s' (NL/CR/CW/PR/PW/EX or 0-5)\n",
+				marg);
 			return 1;
 		}
 		printf("Requesting %s lock on volume 0x%lx inode %lu...\n",
