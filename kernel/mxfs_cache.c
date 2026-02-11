@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include <linux/rwlock.h>
 #include <mxfs/mxfs_common.h>
+#include "mxfs_internal.h"
 
 /* ─── Volume->superblock mapping ───
  *

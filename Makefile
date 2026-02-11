@@ -5,7 +5,7 @@
 
 .PHONY: all daemon kernel clean
 
-all: daemon
+all: daemon kernel
 
 daemon:
 	$(MAKE) -C daemon

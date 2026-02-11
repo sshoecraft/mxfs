@@ -19,12 +19,7 @@
 #include <mxfs/mxfs_common.h>
 #include <mxfs/mxfs_netlink.h>
 #include <mxfs/mxfs_dlm.h>
-
-/* Forward declarations for handlers defined in other kernel files */
-extern int mxfs_cache_invalidate(uint64_t volume, uint64_t ino,
-				 uint64_t offset, uint64_t length);
-extern void mxfs_hooks_recovery_start(uint64_t volume);
-extern void mxfs_hooks_recovery_done(uint64_t volume);
+#include "mxfs_internal.h"
 
 /* ─── Pending lock request tracking ───
  *
@@ -51,9 +46,9 @@ static atomic_t seq_counter = ATOMIC_INIT(0);
 static u32 daemon_portid;
 static DEFINE_MUTEX(daemon_portid_lock);
 
-/* Node status tracking */
-static uint8_t node_states[MXFS_MAX_NODES];
-static DEFINE_RWLOCK(node_state_lock);
+/* Node status tracking (prefixed to avoid collision with linux/nodemask.h) */
+static uint8_t mxfs_node_states[MXFS_MAX_NODES];
+static DEFINE_RWLOCK(mxfs_node_state_lock);
 
 /* Hash a resource ID for the pending table */
 static u32 resource_hash(const struct mxfs_resource_id *res)
@@ -215,9 +210,9 @@ static int mxfs_nl_node_status(struct sk_buff *skb, struct genl_info *info)
 		return -EINVAL;
 	}
 
-	write_lock(&node_state_lock);
-	node_states[node_id] = state;
-	write_unlock(&node_state_lock);
+	write_lock(&mxfs_node_state_lock);
+	mxfs_node_states[node_id] = state;
+	write_unlock(&mxfs_node_state_lock);
 
 	pr_info("mxfs: node %u state -> %u\n", node_id, state);
 	return 0;
@@ -589,9 +584,9 @@ uint8_t mxfs_nl_get_node_state(uint32_t node_id)
 	if (node_id >= MXFS_MAX_NODES)
 		return MXFS_NODE_UNKNOWN;
 
-	read_lock(&node_state_lock);
-	state = node_states[node_id];
-	read_unlock(&node_state_lock);
+	read_lock(&mxfs_node_state_lock);
+	state = mxfs_node_states[node_id];
+	read_unlock(&mxfs_node_state_lock);
 
 	return state;
 }
@@ -603,7 +598,7 @@ int mxfs_netlink_init(void)
 	int ret;
 
 	hash_init(pending_reqs);
-	memset(node_states, MXFS_NODE_UNKNOWN, sizeof(node_states));
+	memset(mxfs_node_states, MXFS_NODE_UNKNOWN, sizeof(mxfs_node_states));
 	daemon_portid = 0;
 
 	ret = genl_register_family(&mxfs_nl_family);

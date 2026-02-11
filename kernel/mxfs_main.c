@@ -18,20 +18,9 @@
 #include <mxfs/mxfs_common.h>
 #include <mxfs/mxfs_netlink.h>
 #include <mxfs/mxfs_dlm.h>
+#include "mxfs_internal.h"
 
 #define MXFS_MODULE_NAME "mxfs"
-
-/* Defined in mxfs_netlink.c */
-int mxfs_netlink_init(void);
-void mxfs_netlink_exit(void);
-
-/* Defined in mxfs_hooks.c */
-int mxfs_hooks_init(void);
-void mxfs_hooks_exit(void);
-
-/* Defined in mxfs_cache.c */
-int mxfs_cache_init(void);
-void mxfs_cache_exit(void);
 
 static int __init mxfs_init(void)
 {

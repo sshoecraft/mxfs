@@ -20,16 +20,7 @@
 #include <mxfs/mxfs_common.h>
 #include <mxfs/mxfs_dlm.h>
 #include <mxfs/mxfs_netlink.h>
-
-/* From mxfs_netlink.c */
-extern int mxfs_nl_send_lock_req(const struct mxfs_resource_id *resource,
-				 uint8_t mode, uint32_t flags,
-				 uint8_t *granted_mode);
-extern int mxfs_nl_send_lock_release(const struct mxfs_resource_id *resource);
-
-/* From mxfs_cache.c */
-extern int mxfs_cache_invalidate(uint64_t volume, uint64_t ino,
-				 uint64_t offset, uint64_t length);
+#include "mxfs_internal.h"
 
 /* ─── Per-volume recovery state ───
  *
