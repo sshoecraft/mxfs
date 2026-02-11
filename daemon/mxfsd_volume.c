@@ -6,9 +6,9 @@
  * which peer nodes have each volume mounted. Coordinates with the kernel
  * module via netlink for mount/unmount events.
  *
- * Volume IDs are derived from the XFS superblock UUID by hashing the
- * first 8 bytes. This gives a deterministic mapping from device to
- * volume identity that is stable across nodes.
+ * Volume IDs are derived from the XFS superblock UUID using FNV-1a
+ * hash over all 16 bytes. This matches the kernel's computation and
+ * gives a deterministic mapping from device to volume identity.
  *
  * Copyright (c) 2026
  * SPDX-License-Identifier: GPL-2.0
@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <mxfs/mxfs_common.h>
 #include "mxfsd_volume.h"
 #include "mxfsd_log.h"
 
@@ -35,7 +36,7 @@
 
 /*
  * Read the XFS superblock UUID from a device and derive a volume ID.
- * We read the first 8 bytes of the UUID as a big-endian uint64.
+ * Uses FNV-1a hash over all 16 UUID bytes, matching the kernel.
  */
 static int read_volume_id(const char *device, mxfs_volume_id_t *id)
 {
@@ -78,10 +79,8 @@ static int read_volume_id(const char *device, mxfs_volume_id_t *id)
 
 	close(fd);
 
-	/* Derive volume ID from first 8 bytes of UUID (big-endian) */
-	*id = 0;
-	for (int i = 0; i < 8; i++)
-		*id = (*id << 8) | uuid[i];
+	/* FNV-1a hash all 16 UUID bytes — must match kernel computation */
+	*id = mxfs_uuid_to_volume_id(uuid, XFS_SB_UUID_LEN);
 
 	return 0;
 }

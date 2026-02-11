@@ -158,7 +158,7 @@ void mxfs_destroy_inode_cache(void);
 struct inode *mxfs_iget(struct super_block *sb, struct inode *lower_inode);
 int mxfs_interpose(struct dentry *dentry, struct super_block *sb,
 		   struct path *lower_path);
-mxfs_volume_id_t mxfs_uuid_to_volume_id(const u8 *uuid, unsigned int len);
+/* mxfs_uuid_to_volume_id() is static inline in mxfs_common.h */
 
 int mxfs_wait_for_recovery(struct mxfs_sb_info *sbi);
 

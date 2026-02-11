@@ -18,7 +18,7 @@
 
 #define MXFS_VERSION_MAJOR      1
 #define MXFS_VERSION_MINOR      0
-#define MXFS_VERSION_PATCH      0
+#define MXFS_VERSION_PATCH      1
 
 #define MXFS_MAX_NODES          64
 #define MXFS_MAX_VOLUMES        256
@@ -83,5 +83,24 @@ enum mxfs_node_state {
 	MXFS_NODE_DEAD,
 	MXFS_NODE_RECOVERING,    /* journal replay in progress */
 };
+
+/* ─── FNV-1a hash: UUID → volume_id ─── */
+
+#define MXFS_FNV1A_64_INIT   0xcbf29ce484222325ULL
+#define MXFS_FNV1A_64_PRIME  0x100000001b3ULL
+
+static inline mxfs_volume_id_t mxfs_uuid_to_volume_id(
+	const uint8_t *uuid, unsigned int len)
+{
+	mxfs_volume_id_t hash = MXFS_FNV1A_64_INIT;
+	unsigned int i;
+
+	for (i = 0; i < len; i++) {
+		hash ^= uuid[i];
+		hash *= MXFS_FNV1A_64_PRIME;
+	}
+
+	return hash;
+}
 
 #endif /* MXFS_COMMON_H */

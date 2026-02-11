@@ -77,23 +77,7 @@ static void mxfs_destroy_inode(struct inode *inode)
 	kmem_cache_free(mxfs_inode_cache, MXFS_INODE(inode));
 }
 
-/* ─── FNV-1a hash for UUID → volume_id ─── */
-
-#define FNV1A_64_INIT   0xcbf29ce484222325ULL
-#define FNV1A_64_PRIME  0x100000001b3ULL
-
-mxfs_volume_id_t mxfs_uuid_to_volume_id(const u8 *uuid, unsigned int len)
-{
-	mxfs_volume_id_t hash = FNV1A_64_INIT;
-	unsigned int i;
-
-	for (i = 0; i < len; i++) {
-		hash ^= uuid[i];
-		hash *= FNV1A_64_PRIME;
-	}
-
-	return hash;
-}
+/* mxfs_uuid_to_volume_id() is now in mxfs_common.h */
 
 /* ─── Mount option parsing ─── */
 
