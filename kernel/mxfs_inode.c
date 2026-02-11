@@ -20,6 +20,7 @@
 #include <linux/namei.h>
 #include <linux/xattr.h>
 #include <linux/slab.h>
+#include <linux/mount.h>
 #include <mxfs/mxfs_dlm.h>
 #include "mxfs_internal.h"
 

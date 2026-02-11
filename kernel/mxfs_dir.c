@@ -17,6 +17,7 @@
 #include <linux/fs.h>
 #include <linux/fs_stack.h>
 #include <linux/slab.h>
+#include <linux/file.h>
 #include <mxfs/mxfs_dlm.h>
 #include "mxfs_internal.h"
 
