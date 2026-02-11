@@ -115,3 +115,24 @@ Status key: `[ ]` = pending, `[~]` = in progress, `[x]` = done
 - [x] **T15** — Verify kernel module compiles clean (if headers available)
   - `make kernel` or verify syntax/structure is correct
   - Fix any issues
+
+## Phase 7: DLM Integration & Testing (depends on Phase 6)
+
+- [x] **T16** — Wire DLM message dispatch in mxfsd_main
+  - DLM grant callback (fires when queued locks promoted)
+  - Peer message callback (routes LOCK_REQ/GRANT/DENY/RELEASE)
+  - Netlink callback (kernel lock/unlock requests)
+  - Master determination (lowest node ID)
+  - Non-master forwards to master, master processes locally
+  - Pending request tracking for blocking control socket clients
+  - Control socket (/var/run/mxfsd.sock) for mxfs_lock test tool
+  - Update `daemon/daemon.md` when done
+
+- [x] **T17** — Build mxfs_lock test tool (tools/mxfs_lock.c)
+  - Lock/unlock via control socket
+  - Accepts mode names (NL/CR/CW/PR/PW/EX) or numeric
+
+- [x] **T18** — 2-node cluster integration test
+  - Local master lock/unlock: PASS
+  - Cross-node lock (non-master → master): PASS
+  - Cross-node EX contention (queue + grant after release): PASS

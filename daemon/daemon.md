@@ -16,9 +16,20 @@ lease management, journal recovery coordination, and kernel communication.
   /dev/null. PID file at /var/run/mxfsd.pid for stop/status. Subsystem
   init order: log -> config -> volume -> dlm -> netlink -> peer -> lease
   -> journal. Reverse-order shutdown with init tracking for partial
-  failure cleanup. Lease expire callback wires DLM purge + journal
+  failure cleanup. Peer disconnect callback wires DLM purge + journal
   recovery + netlink notifications + epoch advance. Main loop with
   250ms sleep for signal responsiveness.
+  **DLM dispatch**: Routes lock requests between kernel (netlink), peer
+  daemons (TCP), and local control socket. Master determination via
+  lowest node ID. Non-master nodes forward lock requests to master;
+  master processes locally via DLM engine. Grant callback fires when
+  queued locks are promoted — routes grant to local kernel (netlink) or
+  remote peer (TCP). Pending request tracking with condition variables
+  for blocking control socket clients.
+  **Control socket**: Unix domain socket at /var/run/mxfsd.sock for local
+  test tools (mxfs_lock). Binary protocol: ctrl_req (cmd, mode, flags,
+  resource) / ctrl_resp (status, mode). Lock requests block until
+  granted or denied (30s timeout).
 - **mxfsd_config** — INI-style config parser handling [node], [peer],
   [volume], [timing], [logging] sections. Multiple [peer] and [volume]
   sections supported. Validates required fields (node id/name). All string
@@ -39,6 +50,9 @@ lease management, journal recovery coordination, and kernel communication.
   (checks compatibility, queues if blocked as CONVERTING). Node purge
   removes all locks for a dead node and promotes blocked waiters across
   all buckets. Epoch tracking with mutex-protected counter.
+  **Grant callback**: When queued locks are promoted (after release or
+  purge), collects promoted lock info while holding the rwlock, then fires
+  callbacks outside the lock to avoid holding it during dispatch.
 - **mxfsd_netlink** — Raw AF_NETLINK/NETLINK_GENERIC socket (no libnl
   dependency). Resolves "mxfs" genetlink family via CTRL_CMD_GETFAMILY.
   Receive thread dispatches incoming kernel messages through callback.
@@ -73,10 +87,11 @@ lease management, journal recovery coordination, and kernel communication.
 
 - Main thread: signal handling, subsystem lifecycle
 - Peer accept thread: incoming TCP connections
-- Peer receive thread: reads DLM messages from peers
+- Peer receive thread: reads DLM messages from peers, dispatches via msg callback
 - Lease renewal thread: periodic lease renewal with peers
 - Lease monitor thread: detects expired peer leases
-- Netlink receive thread: messages from kernel module
+- Netlink receive thread: messages from kernel module, dispatches via nl callback
+- Control socket thread: accepts local tool connections, processes lock/unlock
 
 ### Build
 
@@ -98,3 +113,6 @@ Produces the `mxfsd` binary.
 - 0.1.7 — Implement mxfsd_lease: renewal/monitor threads, expire callback, suspect/dead transitions
 - 0.1.8 — Implement mxfsd_netlink: raw genetlink, family resolution, recv thread, NLA helpers
 - 0.2.0 — Implement mxfsd_main: CLI, daemonization, subsystem lifecycle, main loop
+- 0.3.0 — Wire DLM message dispatch: peer message routing, netlink lock handling,
+  master determination, grant callbacks, control socket, pending request tracking.
+  Add mxfs_lock test tool. Cross-node lock contention tested on 2-node cluster.
