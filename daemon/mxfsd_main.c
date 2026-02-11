@@ -271,8 +271,12 @@ static int init_subsystems(void)
 			       config.peers[i].port);
 	}
 
-	/* Connect to all known peers */
+	/* Connect to peers with lower node IDs.
+	 * Higher-ID nodes connect to us — this prevents simultaneous
+	 * outbound connections between the same pair of nodes. */
 	for (int i = 0; i < config.peer_count; i++) {
+		if (config.peers[i].node_id >= config.node_id)
+			continue;
 		rc = mxfsd_peer_connect(&peer_ctx, config.peers[i].node_id);
 		if (rc)
 			mxfsd_warn("initial connect to node %u failed (will retry)",
@@ -458,6 +462,7 @@ int main(int argc, char **argv)
 
 	/* ── Main loop ────────────────────────────────────────────── */
 	running = 1;
+	int reconnect_counter = 0;
 	while (running) {
 		if (reload) {
 			reload = 0;
@@ -472,6 +477,22 @@ int main(int argc, char **argv)
 			} else {
 				mxfsd_warn("config reload failed, "
 					   "keeping current config");
+			}
+		}
+
+		/* Periodically retry connections to disconnected peers.
+		 * Only connect to peers with lower IDs (convention). */
+		reconnect_counter++;
+		if (reconnect_counter >= 20) {  /* every ~5 seconds */
+			reconnect_counter = 0;
+			for (int i = 0; i < config.peer_count; i++) {
+				if (config.peers[i].node_id >= config.node_id)
+					continue;
+				struct mxfsd_peer *p = mxfsd_peer_find(
+					&peer_ctx, config.peers[i].node_id);
+				if (p && p->state != MXFSD_CONN_ACTIVE)
+					mxfsd_peer_connect(&peer_ctx,
+						config.peers[i].node_id);
 			}
 		}
 

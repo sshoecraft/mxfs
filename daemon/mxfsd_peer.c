@@ -25,6 +25,7 @@
 #include <netdb.h>
 
 #include "mxfsd_peer.h"
+#include "mxfsd_dlm.h"
 #include "mxfsd_log.h"
 
 /* Get monotonic time in milliseconds */
@@ -144,23 +145,30 @@ static void *accept_thread_fn(void *arg)
 		mxfsd_info("peer: incoming connection from %s:%d (fd %d)",
 		           ipstr, ntohs(addr.sin_port), fd);
 
-		/* Read the initial header to identify the peer */
-		struct mxfs_dlm_msg_hdr hdr;
-		if (read_exact(fd, &hdr, sizeof(hdr)) < 0) {
+		/* Read the full handshake message (NODE_JOIN) */
+		struct mxfs_dlm_node_msg join;
+		if (read_exact(fd, &join, sizeof(join)) < 0) {
 			mxfsd_warn("peer: failed to read handshake from %s",
 			           ipstr);
 			close(fd);
 			continue;
 		}
 
-		if (hdr.magic != MXFS_DLM_MAGIC) {
+		if (join.hdr.magic != MXFS_DLM_MAGIC) {
 			mxfsd_warn("peer: bad magic 0x%08x from %s",
-			           hdr.magic, ipstr);
+			           join.hdr.magic, ipstr);
 			close(fd);
 			continue;
 		}
 
-		mxfs_node_id_t sender = hdr.sender;
+		if (join.hdr.type != MXFS_MSG_NODE_JOIN) {
+			mxfsd_warn("peer: expected NODE_JOIN (got %u) from %s",
+			           join.hdr.type, ipstr);
+			close(fd);
+			continue;
+		}
+
+		mxfs_node_id_t sender = join.hdr.sender;
 
 		/* Find or associate this socket with the peer */
 		struct mxfsd_peer *peer = mxfsd_peer_find(ctx, sender);
@@ -181,8 +189,8 @@ static void *accept_thread_fn(void *arg)
 		peer->sockfd = fd;
 		peer->state = MXFSD_CONN_ACTIVE;
 		peer->last_seen_ms = now_ms();
-		peer->last_epoch = hdr.epoch;
-		peer->recv_seq = hdr.seq;
+		peer->last_epoch = join.hdr.epoch;
+		peer->recv_seq = join.hdr.seq;
 		pthread_mutex_unlock(&peer->send_lock);
 
 		mxfsd_info("peer: node %u (%s) connected", sender, peer->name);
