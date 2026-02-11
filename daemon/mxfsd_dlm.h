@@ -13,6 +13,8 @@
 #ifndef MXFSD_DLM_H
 #define MXFSD_DLM_H
 
+#include <stdbool.h>
+
 #include <mxfs/mxfs_common.h>
 #include <mxfs/mxfs_dlm.h>
 #include <pthread.h>
@@ -50,6 +52,11 @@ struct mxfsd_dlm_ctx {
 	pthread_mutex_t          epoch_lock;
 	mxfsd_dlm_grant_cb      grant_cb;
 	void                    *grant_cb_data;
+	struct {
+		mxfs_node_id_t  nodes[MXFS_MAX_NODES];
+		int             count;
+		pthread_mutex_t lock;
+	} active_nodes;
 };
 
 /* Lifecycle */
@@ -86,5 +93,13 @@ void mxfsd_dlm_set_grant_cb(struct mxfsd_dlm_ctx *ctx,
 /* Epoch management */
 mxfs_epoch_t mxfsd_dlm_advance_epoch(struct mxfsd_dlm_ctx *ctx);
 mxfs_epoch_t mxfsd_dlm_get_epoch(struct mxfsd_dlm_ctx *ctx);
+
+/* Distributed per-resource mastering */
+mxfs_node_id_t mxfsd_dlm_resource_master(struct mxfsd_dlm_ctx *ctx,
+                                           const struct mxfs_resource_id *resource);
+int  mxfsd_dlm_update_active_nodes(struct mxfsd_dlm_ctx *ctx,
+                                    const mxfs_node_id_t *nodes, int count);
+bool mxfsd_dlm_is_resource_master(struct mxfsd_dlm_ctx *ctx,
+                                    const struct mxfs_resource_id *resource);
 
 #endif /* MXFSD_DLM_H */

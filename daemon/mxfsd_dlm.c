@@ -54,11 +54,9 @@ static uint64_t now_ms(void)
 	return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
 }
 
-/* Hash a resource ID into a bucket index */
-static uint32_t resource_hash(const struct mxfs_resource_id *res,
-                              uint32_t bucket_count)
+/* FNV-1a hash over resource ID fields (raw, no modulo) */
+static uint32_t resource_hash_raw(const struct mxfs_resource_id *res)
 {
-	/* FNV-1a hash over the resource ID fields */
 	uint32_t hash = 2166136261u;
 	const uint8_t *data = (const uint8_t *)res;
 	size_t len = sizeof(*res);
@@ -67,7 +65,14 @@ static uint32_t resource_hash(const struct mxfs_resource_id *res,
 		hash ^= data[i];
 		hash *= 16777619u;
 	}
-	return hash % bucket_count;
+	return hash;
+}
+
+/* Hash a resource ID into a bucket index */
+static uint32_t resource_hash(const struct mxfs_resource_id *res,
+                              uint32_t bucket_count)
+{
+	return resource_hash_raw(res) % bucket_count;
 }
 
 /* Compare two resource IDs for equality */
@@ -165,6 +170,21 @@ int mxfsd_dlm_init(struct mxfsd_dlm_ctx *ctx, mxfs_node_id_t local_node,
 		return -rc;
 	}
 
+	rc = pthread_mutex_init(&ctx->active_nodes.lock, NULL);
+	if (rc != 0) {
+		mxfsd_err("dlm: pthread_mutex_init (active_nodes) failed: %s",
+		          strerror(rc));
+		pthread_mutex_destroy(&ctx->epoch_lock);
+		pthread_rwlock_destroy(&ctx->table.rwlock);
+		free(ctx->table.buckets);
+		ctx->table.buckets = NULL;
+		return -rc;
+	}
+
+	/* Start with just the local node as the sole active member */
+	ctx->active_nodes.nodes[0] = local_node;
+	ctx->active_nodes.count = 1;
+
 	mxfsd_info("dlm: initialized lock table with %u buckets for node %u",
 	           table_size, local_node);
 	return 0;
@@ -194,6 +214,7 @@ void mxfsd_dlm_shutdown(struct mxfsd_dlm_ctx *ctx)
 	pthread_rwlock_unlock(&ctx->table.rwlock);
 	pthread_rwlock_destroy(&ctx->table.rwlock);
 	pthread_mutex_destroy(&ctx->epoch_lock);
+	pthread_mutex_destroy(&ctx->active_nodes.lock);
 
 	free(ctx->table.buckets);
 	ctx->table.buckets = NULL;
@@ -693,4 +714,62 @@ mxfs_epoch_t mxfsd_dlm_get_epoch(struct mxfsd_dlm_ctx *ctx)
 	pthread_mutex_unlock(&ctx->epoch_lock);
 
 	return epoch;
+}
+
+/* ─── Distributed per-resource mastering ───────────────────── */
+
+static int node_id_cmp(const void *a, const void *b)
+{
+	mxfs_node_id_t na = *(const mxfs_node_id_t *)a;
+	mxfs_node_id_t nb = *(const mxfs_node_id_t *)b;
+	if (na < nb) return -1;
+	if (na > nb) return 1;
+	return 0;
+}
+
+mxfs_node_id_t mxfsd_dlm_resource_master(struct mxfsd_dlm_ctx *ctx,
+                                           const struct mxfs_resource_id *resource)
+{
+	if (!ctx || !resource)
+		return 0;
+
+	uint32_t hash = resource_hash_raw(resource);
+
+	pthread_mutex_lock(&ctx->active_nodes.lock);
+
+	mxfs_node_id_t master = ctx->local_node;
+	if (ctx->active_nodes.count > 0)
+		master = ctx->active_nodes.nodes[hash % (uint32_t)ctx->active_nodes.count];
+
+	pthread_mutex_unlock(&ctx->active_nodes.lock);
+
+	return master;
+}
+
+int mxfsd_dlm_update_active_nodes(struct mxfsd_dlm_ctx *ctx,
+                                   const mxfs_node_id_t *nodes, int count)
+{
+	if (!ctx || !nodes || count <= 0 || count > MXFS_MAX_NODES)
+		return -EINVAL;
+
+	pthread_mutex_lock(&ctx->active_nodes.lock);
+
+	memcpy(ctx->active_nodes.nodes, nodes,
+	       (size_t)count * sizeof(mxfs_node_id_t));
+	ctx->active_nodes.count = count;
+
+	/* Sort so all nodes compute the same hash-to-node mapping */
+	qsort(ctx->active_nodes.nodes, (size_t)count,
+	      sizeof(mxfs_node_id_t), node_id_cmp);
+
+	pthread_mutex_unlock(&ctx->active_nodes.lock);
+
+	mxfsd_info("dlm: active node list updated (%d nodes)", count);
+	return 0;
+}
+
+bool mxfsd_dlm_is_resource_master(struct mxfsd_dlm_ctx *ctx,
+                                    const struct mxfs_resource_id *resource)
+{
+	return mxfsd_dlm_resource_master(ctx, resource) == ctx->local_node;
 }

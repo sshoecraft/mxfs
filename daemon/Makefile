@@ -17,7 +17,10 @@ SRCS    := mxfsd_main.c \
            mxfsd_lease.c \
            mxfsd_journal.c \
            mxfsd_log.c \
-           mxfsd_volume.c
+           mxfsd_volume.c \
+           mxfsd_scsi_pr.c \
+           mxfsd_disklock.c \
+           mxfsd_discovery.c
 
 OBJS    := $(SRCS:.c=.o)
 

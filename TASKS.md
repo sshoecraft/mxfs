@@ -136,3 +136,117 @@ Status key: `[ ]` = pending, `[~]` = in progress, `[x]` = done
   - Local master lock/unlock: PASS
   - Cross-node lock (non-master → master): PASS
   - Cross-node EX contention (queue + grant after release): PASS
+
+## Phase 8: Fencing & Persistence (depends on Phase 7)
+
+- [x] **T19** — Implement distributed per-resource mastering
+  - Replace single-master (lowest node ID) with hash-based per-resource mastering
+  - FNV-1a(resource) % active_node_count → sorted active node list
+  - Remove is_master() / get_master_id(), add mxfsd_dlm_resource_master()
+  - Update all call sites in mxfsd_main.c
+  - Active node list rebuilt on connect/disconnect
+  - Update `daemon/daemon.md` when done
+
+- [x] **T20** — Implement SCSI-3 Persistent Reservations (mxfsd_scsi_pr.c)
+  - SG_IO ioctl for PERSISTENT RESERVE IN/OUT
+  - WRITE EXCLUSIVE REGISTRANTS ONLY reservation (type 5)
+  - Register, reserve, preempt, unregister, read keys/reservation
+  - Full SCSI sense data decoding
+  - Create `daemon/scsi_pr.md` when done
+
+- [x] **T21** — Implement on-disk lock state (mxfsd_disklock.c)
+  - .mxfs/lockstate file on shared XFS volume
+  - O_DIRECT + O_SYNC for sector-aligned atomic 512-byte records
+  - 64 heartbeat slots + 65536 lock record slots
+  - FNV-1a hash with linear probing for lock records
+  - Heartbeat writer thread (2-second interval)
+  - Pre-allocation with fallocate()
+  - Create `daemon/disklock.md` when done
+
+- [x] **T22** — Integrate fencing layers into mxfsd_main
+  - Wire SCSI PR init/register/reserve on startup
+  - Wire disklock init + heartbeat start
+  - All lock grants persisted to disk before grant response
+  - All lock releases cleared from disk after in-memory release
+  - Peer disconnect: SCSI preempt → disk purge → memory purge → recovery
+  - Clean shutdown: unregister SCSI PR, stop heartbeat
+  - Version bump to 0.4.0
+  - Update daemon/daemon.md, TASKS.md, INFO.md
+
+## Phase 9: Discovery & Config-Free Startup (depends on Phase 8)
+
+- [x] **T23** — Implement UDP peer discovery module (mxfsd_discovery.c)
+  - Multicast (239.66.83.1:7601) and broadcast modes
+  - Periodic announcement with node UUID, node ID, TCP port, volume UUID
+  - Receiver thread with duplicate tracking and peer callback
+  - Interface binding via SO_BINDTODEVICE
+  - Create daemon/mxfsd_discovery.h and daemon/mxfsd_discovery.c
+
+- [x] **T24** — Rewrite mxfsd_main CLI for config-free startup
+  - Device mode: `mxfsd start /dev/sdb1 [options]`
+  - Config mode: `mxfsd start --config <path> [options]`
+  - Persistent node UUID at /etc/mxfs/node.uuid (version 4, FNV-1a hash)
+  - New CLI options: --iface/-i, --broadcast/-b, --multicast/-m,
+    --peer/-P, --port/-p
+  - Discovery integration with peer callback for auto-add
+  - Manual peer mode (--peer flags, skips discovery)
+  - Dynamic peer addition in peer accept thread
+  - Active node list scans peer_ctx directly
+  - Version bump to 0.5.0
+  - Update daemon/daemon.md, TASKS.md, INFO.md
+
+- [x] **T25** — Fix discovery volume UUID and multicast mode bugs
+  - Read XFS sb_uuid (offset 32) from device into discovery announce packet
+  - Without this fix, volume_uuid was all-zero — nodes matched any peer
+  - Fix --multicast flag incorrectly enabling broadcast mode
+  - Version bump to 0.5.1
+
+## Phase 10: Stacking Filesystem Refactor (depends on Phase 9)
+
+- [x] **T26** — Rewrite kernel headers and data structures
+  - Rewrite `kernel/mxfs_internal.h` with stacking FS structs (mxfs_sb_info,
+    mxfs_inode_info, mxfs_dentry_info, mxfs_file_info) and accessor macros
+  - Add MXFSD_PATH, MXFS_DAEMON_STARTUP_TIMEOUT_S, MXFS_MNT_* to mxfs_common.h
+  - Add MXFS_NL_CMD_DAEMON_READY, MXFS_NL_ATTR_UUID, MXFS_NL_ATTR_DAEMON_PID
+    to mxfs_netlink.h
+
+- [x] **T27** — Create kernel stacking core (mxfs_super.c, rewrite mxfs_main.c)
+  - Create `kernel/mxfs_super.c`: mount/unmount, fill_super, inode cache,
+    dentry ops, statfs delegation, UUID-to-volume-ID conversion
+  - Rewrite `kernel/mxfs_main.c`: register_filesystem("mxfs"), init order:
+    inode_cache -> netlink -> cache -> register_filesystem
+
+- [x] **T28** — Create VFS operation files (mxfs_inode.c, mxfs_file.c, mxfs_dir.c)
+  - Create `kernel/mxfs_inode.c`: three inode_operations tables (dir, regular,
+    symlink) delegating to XFS via VFS helpers
+  - Create `kernel/mxfs_file.c`: file_operations delegating to lower XFS file
+  - Create `kernel/mxfs_dir.c`: directory file_operations with readdir wrapper
+
+- [x] **T29** — Rewrite daemon for kernel-spawned lifecycle
+  - Rewrite `daemon/mxfsd_main.c`: remove CLI (start/stop/status),
+    daemonization, PID file, SIGHUP reload, config file mode. Accept
+    --device, --mountpoint, --uuid from kernel. Signal ready via netlink.
+  - Add `mxfsd_netlink_send_daemon_ready()` to mxfsd_netlink.c
+
+- [x] **T30** — Add DAEMON_READY handler and daemon spawn/kill to kernel
+  - Add DAEMON_READY handler to `kernel/mxfs_netlink.c`
+  - Refactor to per-mount portid (removed global daemon_portid)
+  - Update RECOVERY_START/DONE for per-SBI state
+  - Add `mxfs_cache_find_sbi_by_volume()` to mxfs_cache.c
+  - Add `mxfs_spawn_daemon()` / `mxfs_kill_daemon()` to mxfs_super.c
+  - Wire daemon lifecycle into fill_super/kill_sb
+
+- [x] **T31** — Add DLM lock integration to all VFS operations
+  - Wrap inode operations with DLM locks (create/lookup/link/unlink/symlink/
+    mkdir/rmdir: EX on parent; rename: EX on both dirs in ino order;
+    permission: CR; getattr: PR; setattr: EX)
+  - Wrap file operations (open: CR, read: PR, write: EX, fsync: EX)
+  - Wrap directory operations (readdir: PR)
+  - Add recovery wait to all locked operations
+
+- [x] **T32** — Version bump, documentation, build verification
+  - Version bump 0.5.1 -> 1.0.0 (VERSION, mxfs_common.h, mxfs_main.c)
+  - Rewrite kernel/kernel.md for stacking FS architecture
+  - Update daemon/daemon.md for kernel-spawned lifecycle
+  - Update INFO.md file layout, architecture description
+  - Update TASKS.md with Phase 10 refactor tasks

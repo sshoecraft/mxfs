@@ -102,6 +102,27 @@ static struct super_block *find_sb_for_volume(uint64_t volume_id)
 }
 
 /*
+ * mxfs_cache_find_sbi_by_volume — Look up an mxfs_sb_info by volume ID.
+ *
+ * Used by the netlink DAEMON_READY and RECOVERY handlers to find the
+ * per-mount state for a given volume. Returns NULL if not found.
+ * Caller must hold no locks (we take sb_table_lock internally).
+ */
+struct mxfs_sb_info *mxfs_cache_find_sbi_by_volume(mxfs_volume_id_t volume_id)
+{
+	struct super_block *sb;
+	struct mxfs_sb_info *sbi = NULL;
+
+	read_lock(&sb_table_lock);
+	sb = find_sb_for_volume(volume_id);
+	if (sb)
+		sbi = MXFS_SB(sb);
+	read_unlock(&sb_table_lock);
+
+	return sbi;
+}
+
+/*
  * mxfs_cache_invalidate — Invalidate page cache for a given resource.
  *
  * Called by the netlink handler when the daemon sends CACHE_INVAL.

@@ -6,53 +6,56 @@ cluster stack required — no corosync, no pacemaker, no fencing agents.
 
 ## Overview
 
-MXFS adds a distributed lock coordination layer on top of standard XFS.
-Two components run on each node:
+MXFS is a stacking filesystem (like ecryptfs/overlayfs) that wraps XFS at
+the VFS layer. Two components run on each node:
 
-- **mxfs.ko** — Kernel module that hooks into XFS lock points and
-  communicates with the userspace daemon via Generic Netlink
+- **mxfs.ko** — Kernel module that registers filesystem type `mxfs`. On
+  mount, it internally mounts XFS, spawns the daemon, and wraps every VFS
+  operation with distributed lock acquire/release via Generic Netlink.
 - **mxfsd** — Userspace daemon that manages peer connections, runs the
-  DLM protocol, handles lease-based node liveness, and coordinates
-  journal recovery
-
-The core design folds everything into one smart DLM layer. Node liveness,
-fencing, recovery, and cache coherency all derive from lock state. A node
-that holds locks is alive. A node whose leases expire is dead — its locks
-are invalidated and its journal is replayed.
+  DLM protocol, handles lease-based node liveness, SCSI-3 PR hardware
+  fencing, on-disk lock persistence, and coordinates journal recovery.
+  Spawned automatically by the kernel module — no manual management.
 
 ## Architecture
 
 ```
 Node A                              Node B
 ┌──────────────┐                    ┌──────────────┐
-│  XFS kernel  │                    │  XFS kernel  │
+│   mxfs.ko    │                    │   mxfs.ko    │
+│  (stacking)  │                    │  (stacking)  │
 │      │       │                    │      │       │
-│  mxfs.ko     │                    │  mxfs.ko     │
+│  XFS (lower) │                    │  XFS (lower) │
 │      │       │                    │      │       │
 │  (netlink)   │                    │  (netlink)   │
 └──────┼───────┘                    └──────┼───────┘
        │                                   │
 ┌──────┼───────┐                    ┌──────┼───────┐
 │   mxfsd      │◄──────TCP────────►│   mxfsd      │
+│              │◄──────UDP────────►│              │
 └──────────────┘                    └──────────────┘
        │                                   │
        └──────── shared block device ──────┘
 ```
 
-## Target UX
+## Usage
 
 ```bash
-# Format with standard XFS
-mkfs.xfs /dev/sdb1
+# Format with standard XFS (one time)
+mkfs.xfs /dev/sdb
 
-# Node 1
-mxfsd start --config /etc/mxfs/volumes.conf
-mount -t xfs /dev/sdb1 /mnt/shared
+# Mount on each node — everything starts automatically
+mount -t mxfs /dev/sdb /mnt/shared
 
-# Node 2
-mxfsd start --config /etc/mxfs/volumes.conf
-mount -t xfs /dev/sdb1 /mnt/shared
+# Optional: specify interface, port, or discovery mode
+mount -t mxfs -o iface=eth0,port=7600 /dev/sdb /mnt/shared
+
+# Unmount — everything stops automatically
+umount /mnt/shared
 ```
+
+No config files. No manual daemon management. No separate start/stop.
+Zero-config multicast discovery (239.66.83.1:7601) finds peers automatically.
 
 ## Building
 
@@ -62,7 +65,8 @@ mount -t xfs /dev/sdb1 /mnt/shared
 make daemon
 ```
 
-Produces the `mxfsd` binary. Requires gcc with C11 support and pthreads.
+Produces the `mxfsd` binary. Install to `/usr/sbin/mxfsd`. Requires gcc
+with C11 support and pthreads.
 
 ### Kernel Module
 
@@ -72,18 +76,25 @@ make kernel
 
 Requires kernel headers for the target kernel.
 
-## Configuration
+## Mount Options
 
-See `config/volumes.conf.example` for a complete example. INI-style format
-with sections:
+All optional — defaults work for most configurations:
 
-- `[node]` — Local node identity (id, name, bind address, port)
-- `[peer]` — Remote peer endpoints (multiple sections allowed)
-- `[volume]` — Shared XFS volumes (multiple sections allowed)
-- `[timing]` — Lease and timeout parameters
-- `[logging]` — Log file, level, syslog, daemonize
+| Option | Default | Description |
+|--------|---------|-------------|
+| `iface=` | (auto) | Network interface for discovery and DLM traffic |
+| `port=` | 7600 | TCP port for DLM peer connections |
+| `multicast=` | 239.66.83.1 | Multicast group for UDP peer discovery |
+| `broadcast=` | (none) | Use broadcast instead of multicast for discovery |
 
-Default port: 7600
+## Three-Layer Fencing (VMFS-style)
+
+1. **SCSI-3 PR** (hardware) — WRITE EXCLUSIVE REGISTRANTS ONLY reservation.
+   Storage array rejects all I/O from fenced nodes. Zero cost on lock hot path.
+2. **On-disk lockstate** (persistent) — Lock grants written to `.mxfs/lockstate`
+   via O_DIRECT sector-aligned I/O. Survives daemon restarts.
+3. **TCP DLM** (performance) — In-memory distributed lock negotiation.
+   Per-resource mastering via FNV-1a hash across all active nodes.
 
 ## DLM Lock Modes
 
@@ -105,9 +116,10 @@ Lock types: Inode, Extent, Allocation Group, Journal, Superblock.
 ```
 mxfs/
 ├── include/mxfs/          Shared headers (common types, DLM protocol, netlink)
-├── kernel/                Kernel module (netlink, XFS hooks, cache invalidation)
-├── daemon/                Daemon (config, peer, DLM, netlink, lease, journal, volume, log)
-├── config/                Example configuration
+├── kernel/                Kernel module (stacking FS, netlink, cache invalidation)
+├── daemon/                Daemon (DLM, peer, discovery, SCSI PR, disklock, lease, journal)
+├── tools/                 Test tools (mxfs_lock)
+├── config/                Example configuration (legacy)
 └── docs/                  Architecture and protocol documentation
 ```
 

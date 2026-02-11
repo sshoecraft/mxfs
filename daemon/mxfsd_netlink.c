@@ -410,3 +410,20 @@ int mxfsd_netlink_send_recovery_done(struct mxfsd_netlink_ctx *ctx)
 	mxfsd_info("netlink: sending recovery done");
 	return nl_send_cmd(ctx, MXFS_NL_CMD_RECOVERY_DONE, NULL, 0);
 }
+
+int mxfsd_netlink_send_daemon_ready(struct mxfsd_netlink_ctx *ctx,
+                                    mxfs_node_id_t node_id,
+                                    const uint8_t volume_uuid[16])
+{
+	char attrs[256];
+	int offset = 0;
+	uint32_t pid = (uint32_t)getpid();
+
+	nla_put_u32(attrs, &offset, MXFS_NL_ATTR_DAEMON_PID, pid);
+	nla_put_u32(attrs, &offset, MXFS_NL_ATTR_NODE_ID, node_id);
+	nla_put(attrs, &offset, MXFS_NL_ATTR_UUID, volume_uuid, 16);
+
+	mxfsd_info("netlink: sending daemon ready (pid=%u node=%u)",
+	           pid, node_id);
+	return nl_send_cmd(ctx, MXFS_NL_CMD_DAEMON_READY, attrs, offset);
+}

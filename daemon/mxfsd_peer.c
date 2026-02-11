@@ -170,13 +170,26 @@ static void *accept_thread_fn(void *arg)
 
 		mxfs_node_id_t sender = join.hdr.sender;
 
-		/* Find or associate this socket with the peer */
+		/* Find or dynamically add this peer */
 		struct mxfsd_peer *peer = mxfsd_peer_find(ctx, sender);
 		if (!peer) {
-			mxfsd_warn("peer: connection from unknown node %u, "
-			           "rejecting", sender);
-			close(fd);
-			continue;
+			/* Dynamic peer addition — add this node on the fly */
+			int arc = mxfsd_peer_add(ctx, sender, ipstr,
+			                         join.port);
+			if (arc != 0) {
+				mxfsd_warn("peer: cannot add dynamic peer "
+				           "node %u: %d", sender, arc);
+				close(fd);
+				continue;
+			}
+			peer = mxfsd_peer_find(ctx, sender);
+			if (!peer) {
+				close(fd);
+				continue;
+			}
+			mxfsd_notice("peer: dynamically added node %u "
+			             "from %s:%u", sender, ipstr,
+			             join.port);
 		}
 
 		pthread_mutex_lock(&peer->send_lock);

@@ -29,6 +29,7 @@ enum mxfs_nl_cmd {
 	MXFS_NL_CMD_STATUS_RESP,     /* either direction: status response */
 	MXFS_NL_CMD_RECOVERY_START,  /* daemon -> kernel: freeze I/O, recovery starting */
 	MXFS_NL_CMD_RECOVERY_DONE,   /* daemon -> kernel: recovery complete, resume I/O */
+	MXFS_NL_CMD_DAEMON_READY,    /* daemon -> kernel: daemon initialized and ready */
 	__MXFS_NL_CMD_MAX,
 };
 
@@ -53,6 +54,8 @@ enum mxfs_nl_attr {
 	MXFS_NL_ATTR_STATUS_CODE,    /* u32: mxfs_error */
 	MXFS_NL_ATTR_DEV_PATH,       /* string: block device path */
 	MXFS_NL_ATTR_MOUNT_PATH,     /* string: mount point path */
+	MXFS_NL_ATTR_UUID,           /* binary: 16-byte volume UUID */
+	MXFS_NL_ATTR_DAEMON_PID,     /* u32: daemon process ID */
 	__MXFS_NL_ATTR_MAX,
 };
 

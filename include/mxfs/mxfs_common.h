@@ -16,8 +16,8 @@
 #include <stddef.h>
 #endif
 
-#define MXFS_VERSION_MAJOR      0
-#define MXFS_VERSION_MINOR      3
+#define MXFS_VERSION_MAJOR      1
+#define MXFS_VERSION_MINOR      0
 #define MXFS_VERSION_PATCH      0
 
 #define MXFS_MAX_NODES          64
@@ -28,6 +28,18 @@
 
 #define MXFS_NETLINK_FAMILY     "mxfs"
 #define MXFS_NETLINK_VERSION    1
+
+/* Default daemon binary path */
+#define MXFSD_PATH              "/usr/sbin/mxfsd"
+
+/* Timeout for daemon to signal readiness after spawn (seconds) */
+#define MXFS_DAEMON_STARTUP_TIMEOUT_S   30
+
+/* Mount option flags (bitfield for mxfs_sb_info) */
+#define MXFS_MNT_IFACE         (1 << 0)  /* iface= was specified */
+#define MXFS_MNT_PORT          (1 << 1)  /* port= was specified */
+#define MXFS_MNT_MULTICAST     (1 << 2)  /* multicast= was specified */
+#define MXFS_MNT_BROADCAST     (1 << 3)  /* broadcast= was specified */
 
 /* Node identifier — unique per cluster */
 typedef uint32_t mxfs_node_id_t;

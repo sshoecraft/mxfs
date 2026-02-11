@@ -2,9 +2,14 @@
  * MXFS — Multinode XFS
  * Kernel-side Generic Netlink interface
  *
- * Handles communication between mxfs.ko and the local mxfsd daemon.
- * Lock requests from XFS hooks are forwarded to mxfsd via genetlink.
- * Lock grants and cache invalidation commands arrive from mxfsd.
+ * Handles communication between mxfs.ko and the local mxfsd daemon(s).
+ * Lock requests from VFS operations are forwarded to mxfsd via genetlink.
+ * Lock grants, cache invalidation, and daemon lifecycle commands arrive
+ * from mxfsd.
+ *
+ * Per-mount portid: Each mounted MXFS volume has its own daemon with a
+ * unique netlink portid stored in mxfs_sb_info. Lock send functions
+ * accept a portid parameter to support multiple concurrent mounts.
  *
  * Copyright (c) 2026
  * SPDX-License-Identifier: GPL-2.0
@@ -42,10 +47,6 @@ static DEFINE_HASHTABLE(pending_reqs, MXFS_PENDING_HASH_BITS);
 static DEFINE_SPINLOCK(pending_lock);
 static atomic_t seq_counter = ATOMIC_INIT(0);
 
-/* Daemon's netlink port ID (set when daemon connects via STATUS_REQ) */
-static u32 daemon_portid;
-static DEFINE_MUTEX(daemon_portid_lock);
-
 /* Node status tracking (prefixed to avoid collision with linux/nodemask.h) */
 static uint8_t mxfs_node_states[MXFS_MAX_NODES];
 static DEFINE_RWLOCK(mxfs_node_state_lock);
@@ -74,6 +75,10 @@ static bool resource_eq(const struct mxfs_resource_id *a,
 	       a->type == b->type;
 }
 
+/* ─── Forward declaration of family (needed by alloc_msg) ─── */
+
+static struct genl_family mxfs_nl_family;
+
 /* ─── Netlink attribute policy ─── */
 
 static const struct nla_policy mxfs_nl_policy[MXFS_NL_ATTR_MAX + 1] = {
@@ -95,6 +100,8 @@ static const struct nla_policy mxfs_nl_policy[MXFS_NL_ATTR_MAX + 1] = {
 					.len  = MXFS_PATH_MAX },
 	[MXFS_NL_ATTR_MOUNT_PATH]  = { .type = NLA_NUL_STRING,
 					.len  = MXFS_PATH_MAX },
+	[MXFS_NL_ATTR_UUID]        = { .len = 16 },
+	[MXFS_NL_ATTR_DAEMON_PID]  = { .type = NLA_U32 },
 };
 
 /* ─── Handler: LOCK_GRANT (daemon -> kernel) ─── */
@@ -223,10 +230,7 @@ static int mxfs_nl_node_status(struct sk_buff *skb, struct genl_info *info)
 static int mxfs_nl_volume_mount(struct sk_buff *skb, struct genl_info *info)
 {
 	/* This command is sent kernel->daemon. If the daemon sends it
-	 * back, treat as a no-op ack. Record the daemon's portid. */
-	mutex_lock(&daemon_portid_lock);
-	daemon_portid = info->snd_portid;
-	mutex_unlock(&daemon_portid_lock);
+	 * back, treat as a no-op ack. */
 	return 0;
 }
 
@@ -241,12 +245,7 @@ static int mxfs_nl_volume_umount(struct sk_buff *skb, struct genl_info *info)
 
 static int mxfs_nl_status_req(struct sk_buff *skb, struct genl_info *info)
 {
-	/* Record daemon portid so we can send messages to it */
-	mutex_lock(&daemon_portid_lock);
-	daemon_portid = info->snd_portid;
-	mutex_unlock(&daemon_portid_lock);
-
-	pr_info("mxfs: daemon connected (portid %u)\n", daemon_portid);
+	pr_info("mxfs: status request from portid %u\n", info->snd_portid);
 	return 0;
 }
 
@@ -261,6 +260,7 @@ static int mxfs_nl_status_resp(struct sk_buff *skb, struct genl_info *info)
 
 static int mxfs_nl_recovery_start(struct sk_buff *skb, struct genl_info *info)
 {
+	struct mxfs_sb_info *sbi;
 	uint64_t volume;
 
 	if (!info->attrs[MXFS_NL_ATTR_VOLUME_ID])
@@ -268,8 +268,16 @@ static int mxfs_nl_recovery_start(struct sk_buff *skb, struct genl_info *info)
 
 	volume = nla_get_u64(info->attrs[MXFS_NL_ATTR_VOLUME_ID]);
 
-	pr_info("mxfs: recovery started for volume 0x%llx\n", volume);
-	mxfs_hooks_recovery_start(volume);
+	sbi = mxfs_cache_find_sbi_by_volume(volume);
+	if (!sbi) {
+		pr_warn("mxfs: recovery_start: unknown volume 0x%llx\n",
+			(unsigned long long)volume);
+		return -ENODEV;
+	}
+
+	atomic_set(&sbi->recovering, 1);
+	pr_info("mxfs: recovery started for volume 0x%llx\n",
+		(unsigned long long)volume);
 	return 0;
 }
 
@@ -277,6 +285,7 @@ static int mxfs_nl_recovery_start(struct sk_buff *skb, struct genl_info *info)
 
 static int mxfs_nl_recovery_done(struct sk_buff *skb, struct genl_info *info)
 {
+	struct mxfs_sb_info *sbi;
 	uint64_t volume;
 
 	if (!info->attrs[MXFS_NL_ATTR_VOLUME_ID])
@@ -284,8 +293,51 @@ static int mxfs_nl_recovery_done(struct sk_buff *skb, struct genl_info *info)
 
 	volume = nla_get_u64(info->attrs[MXFS_NL_ATTR_VOLUME_ID]);
 
-	pr_info("mxfs: recovery complete for volume 0x%llx\n", volume);
-	mxfs_hooks_recovery_done(volume);
+	sbi = mxfs_cache_find_sbi_by_volume(volume);
+	if (!sbi) {
+		pr_warn("mxfs: recovery_done: unknown volume 0x%llx\n",
+			(unsigned long long)volume);
+		return -ENODEV;
+	}
+
+	atomic_set(&sbi->recovering, 0);
+	wake_up_all(&sbi->recovery_wait);
+	pr_info("mxfs: recovery complete for volume 0x%llx\n",
+		(unsigned long long)volume);
+	return 0;
+}
+
+/* ─── Handler: DAEMON_READY (daemon -> kernel) ─── */
+
+static int mxfs_nl_daemon_ready(struct sk_buff *skb, struct genl_info *info)
+{
+	struct mxfs_sb_info *sbi;
+	uint64_t volume_id;
+	uint32_t daemon_pid;
+
+	if (!info->attrs[MXFS_NL_ATTR_VOLUME_ID] ||
+	    !info->attrs[MXFS_NL_ATTR_DAEMON_PID])
+		return -EINVAL;
+
+	volume_id = nla_get_u64(info->attrs[MXFS_NL_ATTR_VOLUME_ID]);
+	daemon_pid = nla_get_u32(info->attrs[MXFS_NL_ATTR_DAEMON_PID]);
+
+	sbi = mxfs_cache_find_sbi_by_volume(volume_id);
+	if (!sbi) {
+		pr_warn("mxfs: daemon_ready: unknown volume 0x%llx\n",
+			(unsigned long long)volume_id);
+		return -ENODEV;
+	}
+
+	sbi->daemon_portid = info->snd_portid;
+	sbi->daemon_pid = (pid_t)daemon_pid;
+	sbi->daemon_ready = true;
+	complete(&sbi->daemon_startup);
+
+	pr_info("mxfs: daemon ready (portid %u, pid %u, volume 0x%llx)\n",
+		info->snd_portid, daemon_pid,
+		(unsigned long long)volume_id);
+
 	return 0;
 }
 
@@ -342,6 +394,11 @@ static const struct genl_ops mxfs_nl_ops[] = {
 		.doit	= mxfs_nl_recovery_done,
 		.flags  = GENL_ADMIN_PERM,
 	},
+	{
+		.cmd	= MXFS_NL_CMD_DAEMON_READY,
+		.doit	= mxfs_nl_daemon_ready,
+		.flags  = GENL_ADMIN_PERM,
+	},
 };
 
 /* ─── Multicast groups ─── */
@@ -365,12 +422,12 @@ static struct genl_family mxfs_nl_family = {
 	.n_mcgrps	= ARRAY_SIZE(mxfs_nl_mcast_groups),
 };
 
-/* ─── Message sending helpers (called by hooks/cache) ─── */
+/* ─── Message sending helpers ─── */
 
 /*
- * Allocate a genetlink message targeted at the daemon.
+ * Allocate a genetlink message.
  * Returns the skb or NULL on failure. The caller must nla_put
- * attributes and then call mxfs_nl_send_msg().
+ * attributes and then call mxfs_nl_send_to_portid().
  */
 static struct sk_buff *mxfs_nl_alloc_msg(uint8_t cmd, void **hdr)
 {
@@ -390,16 +447,16 @@ static struct sk_buff *mxfs_nl_alloc_msg(uint8_t cmd, void **hdr)
 	return skb;
 }
 
-static int mxfs_nl_send_msg(struct sk_buff *skb, void *hdr)
+/*
+ * Send a genetlink message to a specific portid.
+ * Per-mount daemon support: callers provide the target portid
+ * from the relevant mxfs_sb_info.
+ */
+static int mxfs_nl_send_to_portid(struct sk_buff *skb, void *hdr, u32 portid)
 {
-	u32 portid;
 	int ret;
 
 	genlmsg_end(skb, hdr);
-
-	mutex_lock(&daemon_portid_lock);
-	portid = daemon_portid;
-	mutex_unlock(&daemon_portid_lock);
 
 	if (portid == 0) {
 		nlmsg_free(skb);
@@ -408,7 +465,8 @@ static int mxfs_nl_send_msg(struct sk_buff *skb, void *hdr)
 
 	ret = genlmsg_unicast(&init_net, skb, portid);
 	if (ret)
-		pr_warn("mxfs: failed to send netlink msg: %d\n", ret);
+		pr_warn("mxfs: failed to send netlink msg to portid %u: %d\n",
+			portid, ret);
 
 	return ret;
 }
@@ -416,8 +474,11 @@ static int mxfs_nl_send_msg(struct sk_buff *skb, void *hdr)
 /*
  * mxfs_nl_send_lock_req — Send a lock request to mxfsd and block until response.
  *
- * Called from mxfs_hooks when an XFS thread needs a distributed lock.
+ * Called from VFS operation wrappers when a distributed lock is needed.
  * The calling context must be sleepable (process context).
+ *
+ * The portid is extracted from the resource's volume_id via the cache
+ * module's SBI lookup.
  *
  * Returns 0 on grant, negative errno on failure.
  * On success, *granted_mode is set to the mode actually granted.
@@ -427,11 +488,22 @@ int mxfs_nl_send_lock_req(const struct mxfs_resource_id *resource,
 			   uint8_t *granted_mode)
 {
 	struct mxfs_pending_req pending;
+	struct mxfs_sb_info *sbi;
 	struct sk_buff *skb;
 	void *hdr;
 	u32 hash;
+	u32 portid;
 	unsigned long timeout;
 	int ret;
+
+	/* Look up the per-mount daemon portid */
+	sbi = mxfs_cache_find_sbi_by_volume(resource->volume);
+	if (!sbi || !sbi->daemon_ready) {
+		pr_warn("mxfs: lock_req: no daemon for volume 0x%llx\n",
+			(unsigned long long)resource->volume);
+		return -ENOTCONN;
+	}
+	portid = sbi->daemon_portid;
 
 	/* Set up the pending request with a completion */
 	memcpy(&pending.resource, resource, sizeof(*resource));
@@ -463,7 +535,7 @@ int mxfs_nl_send_lock_req(const struct mxfs_resource_id *resource,
 		goto out_remove;
 	}
 
-	ret = mxfs_nl_send_msg(skb, hdr);
+	ret = mxfs_nl_send_to_portid(skb, hdr, portid);
 	if (ret)
 		goto out_remove;
 
@@ -497,12 +569,19 @@ out_remove:
 /*
  * mxfs_nl_send_lock_release — Tell mxfsd we are releasing a distributed lock.
  *
- * Non-blocking. Fire and forget.
+ * Non-blocking. Fire and forget. Looks up portid from volume.
  */
 int mxfs_nl_send_lock_release(const struct mxfs_resource_id *resource)
 {
+	struct mxfs_sb_info *sbi;
 	struct sk_buff *skb;
 	void *hdr;
+	u32 portid;
+
+	sbi = mxfs_cache_find_sbi_by_volume(resource->volume);
+	if (!sbi || !sbi->daemon_ready)
+		return -ENOTCONN;
+	portid = sbi->daemon_portid;
 
 	skb = mxfs_nl_alloc_msg(MXFS_NL_CMD_LOCK_RELEASE, &hdr);
 	if (!skb)
@@ -514,7 +593,7 @@ int mxfs_nl_send_lock_release(const struct mxfs_resource_id *resource)
 		return -EMSGSIZE;
 	}
 
-	return mxfs_nl_send_msg(skb, hdr);
+	return mxfs_nl_send_to_portid(skb, hdr, portid);
 }
 
 /*
@@ -524,8 +603,15 @@ int mxfs_nl_send_volume_mount(uint64_t volume_id,
 			      const char *dev_path,
 			      const char *mount_path)
 {
+	struct mxfs_sb_info *sbi;
 	struct sk_buff *skb;
 	void *hdr;
+	u32 portid;
+
+	sbi = mxfs_cache_find_sbi_by_volume(volume_id);
+	if (!sbi || !sbi->daemon_ready)
+		return -ENOTCONN;
+	portid = sbi->daemon_portid;
 
 	skb = mxfs_nl_alloc_msg(MXFS_NL_CMD_VOLUME_MOUNT, &hdr);
 	if (!skb)
@@ -539,7 +625,7 @@ int mxfs_nl_send_volume_mount(uint64_t volume_id,
 		return -EMSGSIZE;
 	}
 
-	return mxfs_nl_send_msg(skb, hdr);
+	return mxfs_nl_send_to_portid(skb, hdr, portid);
 }
 
 /*
@@ -547,8 +633,15 @@ int mxfs_nl_send_volume_mount(uint64_t volume_id,
  */
 int mxfs_nl_send_volume_umount(uint64_t volume_id)
 {
+	struct mxfs_sb_info *sbi;
 	struct sk_buff *skb;
 	void *hdr;
+	u32 portid;
+
+	sbi = mxfs_cache_find_sbi_by_volume(volume_id);
+	if (!sbi || !sbi->daemon_ready)
+		return -ENOTCONN;
+	portid = sbi->daemon_portid;
 
 	skb = mxfs_nl_alloc_msg(MXFS_NL_CMD_VOLUME_UMOUNT, &hdr);
 	if (!skb)
@@ -560,7 +653,7 @@ int mxfs_nl_send_volume_umount(uint64_t volume_id)
 		return -EMSGSIZE;
 	}
 
-	return mxfs_nl_send_msg(skb, hdr);
+	return mxfs_nl_send_to_portid(skb, hdr, portid);
 }
 
 /*
@@ -589,7 +682,6 @@ int mxfs_netlink_init(void)
 
 	hash_init(pending_reqs);
 	memset(mxfs_node_states, MXFS_NODE_UNKNOWN, sizeof(mxfs_node_states));
-	daemon_portid = 0;
 
 	ret = genl_register_family(&mxfs_nl_family);
 	if (ret) {

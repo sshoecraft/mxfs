@@ -5,8 +5,11 @@
 obj-m := mxfs.o
 
 mxfs-y := mxfs_main.o \
+          mxfs_super.o \
+          mxfs_inode.o \
+          mxfs_file.o \
+          mxfs_dir.o \
           mxfs_netlink.o \
-          mxfs_hooks.o \
           mxfs_cache.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
