@@ -371,10 +371,19 @@ int mxfsd_dlm_lock_release(struct mxfsd_dlm_ctx *ctx,
 
 	free(found);
 
-	/* Try to promote waiters now that a lock was released */
+	/* Try to promote waiters now that a lock was released.
+	 * Collect promoted locks so we can fire callbacks after
+	 * releasing the rwlock. */
 	struct mxfsd_lock *chain = ctx->table.buckets[bucket];
-	/* We need to scan the chain for locks matching this resource */
 	int promoted = 0;
+
+	struct {
+		struct mxfs_resource_id resource;
+		mxfs_node_id_t owner;
+		enum mxfs_lock_mode mode;
+	} grants[32];
+	int grant_count = 0;
+
 	for (struct mxfsd_lock *lk = chain; lk; lk = lk->next) {
 		if (!resource_equal(&lk->resource, resource))
 			continue;
@@ -407,6 +416,12 @@ int mxfsd_dlm_lock_release(struct mxfsd_dlm_ctx *ctx,
 			lk->state = MXFS_LSTATE_GRANTED;
 			lk->granted_at_ms = now_ms();
 			promoted++;
+			if (grant_count < 32) {
+				grants[grant_count].resource = lk->resource;
+				grants[grant_count].owner = lk->owner;
+				grants[grant_count].mode = lk->mode;
+				grant_count++;
+			}
 		} else {
 			lk->state = MXFS_LSTATE_BLOCKED;
 		}
@@ -416,6 +431,14 @@ int mxfsd_dlm_lock_release(struct mxfsd_dlm_ctx *ctx,
 		mxfsd_dbg("dlm: promoted %d queued locks after release", promoted);
 
 	pthread_rwlock_unlock(&ctx->table.rwlock);
+
+	/* Fire grant callbacks outside the lock */
+	for (int i = 0; i < grant_count; i++) {
+		if (ctx->grant_cb)
+			ctx->grant_cb(&grants[i].resource, grants[i].owner,
+			              grants[i].mode, ctx->grant_cb_data);
+	}
+
 	return 0;
 }
 
@@ -578,6 +601,13 @@ int mxfsd_dlm_purge_node(struct mxfsd_dlm_ctx *ctx, mxfs_node_id_t node)
 	/* After purging, try to promote waiters in all buckets that may
 	 * have had locks from the dead node */
 	int promoted = 0;
+	struct {
+		struct mxfs_resource_id resource;
+		mxfs_node_id_t owner;
+		enum mxfs_lock_mode mode;
+	} grants[64];
+	int grant_count = 0;
+
 	for (uint32_t i = 0; i < ctx->table.bucket_count; i++) {
 		struct mxfsd_lock *chain = ctx->table.buckets[i];
 		if (!chain)
@@ -605,6 +635,12 @@ int mxfsd_dlm_purge_node(struct mxfsd_dlm_ctx *ctx, mxfs_node_id_t node)
 				lk->state = MXFS_LSTATE_GRANTED;
 				lk->granted_at_ms = now_ms();
 				promoted++;
+				if (grant_count < 64) {
+					grants[grant_count].resource = lk->resource;
+					grants[grant_count].owner = lk->owner;
+					grants[grant_count].mode = lk->mode;
+					grant_count++;
+				}
 			}
 		}
 	}
@@ -614,7 +650,23 @@ int mxfsd_dlm_purge_node(struct mxfsd_dlm_ctx *ctx, mxfs_node_id_t node)
 	mxfsd_notice("dlm: purged %d locks from node %u, promoted %d waiters",
 	             purged, node, promoted);
 
+	/* Fire grant callbacks outside the lock */
+	for (int i = 0; i < grant_count; i++) {
+		if (ctx->grant_cb)
+			ctx->grant_cb(&grants[i].resource, grants[i].owner,
+			              grants[i].mode, ctx->grant_cb_data);
+	}
+
 	return purged;
+}
+
+void mxfsd_dlm_set_grant_cb(struct mxfsd_dlm_ctx *ctx,
+                              mxfsd_dlm_grant_cb cb, void *data)
+{
+	if (!ctx)
+		return;
+	ctx->grant_cb = cb;
+	ctx->grant_cb_data = data;
 }
 
 mxfs_epoch_t mxfsd_dlm_advance_epoch(struct mxfsd_dlm_ctx *ctx)

@@ -20,7 +20,7 @@
 
 /* Callback for incoming kernel messages */
 typedef int (*mxfsd_nl_callback)(enum mxfs_nl_cmd cmd, void *attrs,
-                                void *user_data);
+                                int attrs_len, void *user_data);
 
 /* Netlink subsystem context */
 struct mxfsd_netlink_ctx {

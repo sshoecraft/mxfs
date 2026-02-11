@@ -240,8 +240,13 @@ static void *recv_thread(void *arg)
 
 		if (ctx->callback) {
 			void *attrs = (char *)genlh + GENL_HDRLEN;
+			int attrs_len = (int)(nlh->nlmsg_len -
+				NLMSG_HDRLEN - GENL_HDRLEN);
+			if (attrs_len < 0)
+				attrs_len = 0;
 			ctx->callback((enum mxfs_nl_cmd)genlh->cmd,
-				      attrs, ctx->callback_data);
+				      attrs, attrs_len,
+				      ctx->callback_data);
 		}
 	}
 

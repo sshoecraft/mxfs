@@ -321,6 +321,13 @@ static void *recv_thread_fn(void *arg)
 			mxfsd_dbg("peer: received msg type %u seq %u from "
 			          "node %u (%u bytes)",
 			          hdr.type, hdr.seq, hdr.sender, hdr.length);
+
+			/* Dispatch to message callback */
+			if (ctx->msg_cb) {
+				ctx->msg_cb(hdr.sender, &hdr,
+				            payload_len > 0 ? payload : NULL,
+				            payload_len, ctx->msg_cb_data);
+			}
 		}
 	}
 
@@ -706,6 +713,15 @@ void mxfsd_peer_set_disconnect_cb(struct mxfsd_peer_ctx *ctx,
 		return;
 	ctx->disconnect_cb = cb;
 	ctx->disconnect_cb_data = data;
+}
+
+void mxfsd_peer_set_msg_cb(struct mxfsd_peer_ctx *ctx,
+                            mxfsd_peer_msg_cb cb, void *data)
+{
+	if (!ctx)
+		return;
+	ctx->msg_cb = cb;
+	ctx->msg_cb_data = data;
 }
 
 bool mxfsd_peer_is_alive(const struct mxfsd_peer *peer, uint64_t now,

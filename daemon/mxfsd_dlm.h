@@ -36,12 +36,20 @@ struct mxfsd_lock_table {
 	pthread_rwlock_t        rwlock;
 };
 
+/* Callback fired when a queued lock gets promoted to GRANTED */
+typedef void (*mxfsd_dlm_grant_cb)(const struct mxfs_resource_id *resource,
+                                    mxfs_node_id_t owner,
+                                    enum mxfs_lock_mode mode,
+                                    void *user_data);
+
 /* DLM engine context */
 struct mxfsd_dlm_ctx {
 	struct mxfsd_lock_table  table;
 	mxfs_node_id_t           local_node;
 	mxfs_epoch_t             current_epoch;
 	pthread_mutex_t          epoch_lock;
+	mxfsd_dlm_grant_cb      grant_cb;
+	void                    *grant_cb_data;
 };
 
 /* Lifecycle */
@@ -70,6 +78,10 @@ int  mxfsd_dlm_modes_compatible(enum mxfs_lock_mode held,
 
 /* Node failure — release all locks held by a dead node */
 int  mxfsd_dlm_purge_node(struct mxfsd_dlm_ctx *ctx, mxfs_node_id_t node);
+
+/* Grant callback — fires when a queued lock is promoted */
+void mxfsd_dlm_set_grant_cb(struct mxfsd_dlm_ctx *ctx,
+                              mxfsd_dlm_grant_cb cb, void *data);
 
 /* Epoch management */
 mxfs_epoch_t mxfsd_dlm_advance_epoch(struct mxfsd_dlm_ctx *ctx);
