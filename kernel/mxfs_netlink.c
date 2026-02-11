@@ -293,18 +293,8 @@ static int mxfs_nl_recovery_done(struct sk_buff *skb, struct genl_info *info)
 
 static const struct genl_ops mxfs_nl_ops[] = {
 	{
-		.cmd	= MXFS_NL_CMD_LOCK_REQ,
-		.doit	= NULL,  /* kernel originates, does not receive */
-		.flags  = GENL_ADMIN_PERM,
-	},
-	{
 		.cmd	= MXFS_NL_CMD_LOCK_GRANT,
 		.doit	= mxfs_nl_lock_grant,
-		.flags  = GENL_ADMIN_PERM,
-	},
-	{
-		.cmd	= MXFS_NL_CMD_LOCK_RELEASE,
-		.doit	= NULL,  /* kernel originates */
 		.flags  = GENL_ADMIN_PERM,
 	},
 	{

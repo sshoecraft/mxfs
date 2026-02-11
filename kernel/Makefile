@@ -15,7 +15,7 @@ MXFS_INCLUDE := $(src)/../include
 ccflags-y := -I$(MXFS_INCLUDE)
 
 all:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
+	$(MAKE) -C $(KDIR) M=$(CURDIR) modules
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(CURDIR) clean
