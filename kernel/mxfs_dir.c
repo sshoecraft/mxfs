@@ -88,11 +88,15 @@ static int mxfs_filldir(struct dir_context *ctx, const char *name,
 			unsigned int d_type)
 {
 	struct mxfs_readdir_ctx *rctx;
+	int over;
 
 	rctx = container_of(ctx, struct mxfs_readdir_ctx, ctx);
-	rctx->caller_ctx->pos = offset;
 
-	return dir_emit(rctx->caller_ctx, name, namelen, ino, d_type);
+	/* Emit the entry to the caller's context at the lower offset */
+	rctx->caller_ctx->pos = ctx->pos;
+	over = !dir_emit(rctx->caller_ctx, name, namelen, ino, d_type);
+
+	return over;
 }
 
 static int mxfs_readdir(struct file *file, struct dir_context *ctx)
