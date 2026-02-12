@@ -553,7 +553,7 @@ static int mxfs_fill_super(struct super_block *sb, void *raw_data, int silent)
 	/* Register lower XFS superblock for cache invalidation.
 	 * Must happen before daemon spawn so the DAEMON_READY handler
 	 * can find the SBI by volume_id. */
-	ret = mxfs_cache_register_sb(sbi->volume_id, lower_sb);
+	ret = mxfs_cache_register_sb(sbi->volume_id, sb);
 	if (ret) {
 		pr_err("mxfs: failed to register cache: %d\n", ret);
 		goto err_root;

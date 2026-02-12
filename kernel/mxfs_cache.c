@@ -138,6 +138,7 @@ int mxfs_cache_invalidate(uint64_t volume, uint64_t ino,
 			  uint64_t offset, uint64_t length)
 {
 	struct super_block *sb;
+	struct mxfs_sb_info *sbi;
 	struct inode *inode;
 	pgoff_t start, end;
 
@@ -151,7 +152,15 @@ int mxfs_cache_invalidate(uint64_t volume, uint64_t ino,
 		return -ENODEV;
 	}
 
-	inode = ilookup(sb, (unsigned long)ino);
+	/* Use the lower XFS superblock for inode lookup */
+	sbi = MXFS_SB(sb);
+	if (!sbi || !sbi->lower_sb) {
+		pr_warn("mxfs: cache_inval: no lower sb for volume 0x%llx\n",
+			volume);
+		return -ENODEV;
+	}
+
+	inode = ilookup(sbi->lower_sb, (unsigned long)ino);
 	if (!inode) {
 		/*
 		 * Inode not in cache — nothing to invalidate.
