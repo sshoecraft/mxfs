@@ -22,6 +22,8 @@
 #include <linux/atomic.h>
 #include <linux/slab.h>
 #include <linux/if.h>
+#include <linux/spinlock.h>
+#include <linux/workqueue.h>
 #include <mxfs/mxfs_common.h>
 
 /* MXFS filesystem magic number — "MXFS" in ASCII */
@@ -63,6 +65,14 @@ struct mxfs_sb_info {
 
 struct mxfs_inode_info {
 	struct inode		*lower_inode;
+
+	/* Lock cache — holds DLM lock across VFS operations */
+	spinlock_t		lock_spin;
+	uint8_t			cached_mode;	/* MXFS_LOCK_NL if none */
+	bool			bast_pending;	/* daemon requested release */
+	atomic_t		lock_holders;	/* active VFS ops using lock */
+	struct work_struct	bast_work;
+
 	struct inode		vfs_inode;	/* must be last for container_of */
 };
 
@@ -193,6 +203,14 @@ int mxfs_nl_send_volume_mount(uint64_t volume_id,
 int mxfs_nl_send_volume_umount(uint64_t volume_id);
 uint8_t mxfs_nl_get_node_state(uint32_t node_id);
 
+/* ─── mxfs_lockcache.c ─── */
+
+int mxfs_lock_inode(struct inode *inode, uint8_t mode);
+void mxfs_unlock_inode(struct inode *inode);
+void mxfs_lockcache_evict(struct inode *inode);
+void mxfs_lockcache_init_inode(struct mxfs_inode_info *info);
+void mxfs_bast_work_fn(struct work_struct *work);
+
 /* ─── mxfs_cache.c ─── */
 
 int mxfs_cache_init(void);
@@ -202,5 +220,6 @@ int mxfs_cache_invalidate(uint64_t volume, uint64_t ino,
 int mxfs_cache_register_sb(uint64_t volume_id, struct super_block *sb);
 void mxfs_cache_unregister_sb(uint64_t volume_id);
 struct mxfs_sb_info *mxfs_cache_find_sbi_by_volume(mxfs_volume_id_t volume_id);
+struct super_block *mxfs_cache_find_sb_by_volume(mxfs_volume_id_t volume_id);
 
 #endif /* MXFS_INTERNAL_H */

@@ -20,6 +20,8 @@
 #include <linux/hashtable.h>
 #include <linux/completion.h>
 #include <linux/atomic.h>
+#include <linux/delay.h>
+#include <linux/workqueue.h>
 #include <net/genetlink.h>
 #include <mxfs/mxfs_common.h>
 #include <mxfs/mxfs_netlink.h>
@@ -307,6 +309,76 @@ static int mxfs_nl_recovery_done(struct sk_buff *skb, struct genl_info *info)
 	return 0;
 }
 
+/* ─── Handler: LOCK_BAST (daemon -> kernel) ─── */
+
+/* Defined in mxfs_lockcache.c */
+extern void mxfs_bast_work_fn(struct work_struct *work);
+
+static int mxfs_nl_lock_bast(struct sk_buff *skb, struct genl_info *info)
+{
+	struct mxfs_resource_id *res;
+	uint64_t volume_id;
+	struct super_block *sb;
+	struct inode *inode;
+	struct mxfs_inode_info *ii;
+
+	if (!info->attrs[MXFS_NL_ATTR_RESOURCE] ||
+	    !info->attrs[MXFS_NL_ATTR_VOLUME_ID])
+		return -EINVAL;
+
+	res = nla_data(info->attrs[MXFS_NL_ATTR_RESOURCE]);
+	volume_id = nla_get_u64(info->attrs[MXFS_NL_ATTR_VOLUME_ID]);
+
+	sb = mxfs_cache_find_sb_by_volume(volume_id);
+	if (!sb)
+		return -ENODEV;
+
+	/* Look up the MXFS inode by ino number */
+	inode = ilookup(sb, (unsigned long)res->ino);
+	if (!inode) {
+		/* Inode not in VFS cache — nothing to release.
+		 * Send immediate release to daemon. */
+		mxfs_nl_send_lock_release(res);
+		return 0;
+	}
+
+	ii = MXFS_INODE(inode);
+
+	spin_lock(&ii->lock_spin);
+	if (ii->cached_mode == MXFS_LOCK_NL) {
+		/* No cached lock — send release immediately */
+		spin_unlock(&ii->lock_spin);
+		mxfs_nl_send_lock_release(res);
+		iput(inode);
+		return 0;
+	}
+
+	/* Mark BAST pending so new VFS ops bypass cache */
+	ii->bast_pending = true;
+
+	if (atomic_read(&ii->lock_holders) == 0) {
+		/* No active users — release inline now */
+		uint8_t old_mode = ii->cached_mode;
+
+		ii->cached_mode = MXFS_LOCK_NL;
+		ii->bast_pending = false;
+		spin_unlock(&ii->lock_spin);
+
+		if (old_mode != MXFS_LOCK_NL)
+			mxfs_nl_send_lock_release(res);
+		iput(inode);
+		return 0;
+	}
+
+	/* Active holders exist — queue deferred release */
+	spin_unlock(&ii->lock_spin);
+	INIT_WORK(&ii->bast_work, mxfs_bast_work_fn);
+	schedule_work(&ii->bast_work);
+
+	iput(inode);
+	return 0;
+}
+
 /* ─── Handler: DAEMON_READY (daemon -> kernel) ─── */
 
 static int mxfs_nl_daemon_ready(struct sk_buff *skb, struct genl_info *info)
@@ -408,6 +480,12 @@ static const struct genl_ops mxfs_nl_ops[] = {
 		.cmd	  = MXFS_NL_CMD_DAEMON_READY,
 		.validate = GENL_DONT_VALIDATE_STRICT,
 		.doit	  = mxfs_nl_daemon_ready,
+		.flags    = GENL_ADMIN_PERM,
+	},
+	{
+		.cmd	  = MXFS_NL_CMD_LOCK_BAST,
+		.validate = GENL_DONT_VALIDATE_STRICT,
+		.doit	  = mxfs_nl_lock_bast,
 		.flags    = GENL_ADMIN_PERM,
 	},
 };

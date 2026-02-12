@@ -123,6 +123,23 @@ struct mxfs_sb_info *mxfs_cache_find_sbi_by_volume(mxfs_volume_id_t volume_id)
 }
 
 /*
+ * mxfs_cache_find_sb_by_volume — Look up the MXFS superblock by volume ID.
+ *
+ * Used by the BAST handler to find the MXFS superblock so it can
+ * ilookup inodes by number. Returns NULL if not found.
+ */
+struct super_block *mxfs_cache_find_sb_by_volume(mxfs_volume_id_t volume_id)
+{
+	struct super_block *sb;
+
+	read_lock(&sb_table_lock);
+	sb = find_sb_for_volume(volume_id);
+	read_unlock(&sb_table_lock);
+
+	return sb;
+}
+
+/*
  * mxfs_cache_invalidate — Invalidate page cache for a given resource.
  *
  * Called by the netlink handler when the daemon sends CACHE_INVAL.

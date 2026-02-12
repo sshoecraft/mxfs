@@ -1,13 +1,13 @@
 /*
  * MXFS — Multinode XFS
  * Directory file operations (passthrough to lower XFS)
- * with DLM lock integration
+ * with DLM lock integration via per-inode lock cache
  *
  * Implements iterate_shared (readdir) by wrapping iterate_dir on the
  * lower XFS directory file. A filldir callback translates entries
  * from the lower filesystem using dir_emit.
  *
- * DLM lock policy:
+ * DLM lock policy (cached per-inode):
  *   readdir — PR on dir inode (read-only directory scan)
  *
  * Copyright (c) 2026
@@ -15,23 +15,12 @@
  */
 
 #include <linux/fs.h>
+#include <linux/version.h>
 #include <linux/fs_stack.h>
 #include <linux/slab.h>
 #include <linux/file.h>
 #include <mxfs/mxfs_dlm.h>
 #include "mxfs_internal.h"
-
-/* ─── Resource ID builder ─── */
-
-static void mxfs_build_inode_resource(struct mxfs_resource_id *res,
-				      mxfs_volume_id_t volume_id,
-				      uint64_t ino)
-{
-	memset(res, 0, sizeof(*res));
-	res->volume = volume_id;
-	res->ino = ino;
-	res->type = MXFS_LTYPE_INODE;
-}
 
 /* ─── Open / Release ─── */
 
@@ -83,28 +72,35 @@ struct mxfs_readdir_ctx {
 	struct dir_context	*caller_ctx;
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
+static bool mxfs_filldir(struct dir_context *ctx, const char *name,
+			int namelen, loff_t offset, u64 ino,
+			unsigned int d_type)
+{
+	struct mxfs_readdir_ctx *rctx;
+
+	rctx = container_of(ctx, struct mxfs_readdir_ctx, ctx);
+
+	rctx->caller_ctx->pos = ctx->pos;
+	return dir_emit(rctx->caller_ctx, name, namelen, ino, d_type);
+}
+#else
 static int mxfs_filldir(struct dir_context *ctx, const char *name,
 			int namelen, loff_t offset, u64 ino,
 			unsigned int d_type)
 {
 	struct mxfs_readdir_ctx *rctx;
-	int over;
 
 	rctx = container_of(ctx, struct mxfs_readdir_ctx, ctx);
 
-	/* Emit the entry to the caller's context at the lower offset */
 	rctx->caller_ctx->pos = ctx->pos;
-	over = !dir_emit(rctx->caller_ctx, name, namelen, ino, d_type);
-
-	return over;
+	return !dir_emit(rctx->caller_ctx, name, namelen, ino, d_type);
 }
+#endif
 
 static int mxfs_readdir(struct file *file, struct dir_context *ctx)
 {
 	struct inode *inode = d_inode(file->f_path.dentry);
-	struct mxfs_sb_info *sbi = MXFS_SB(inode->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct file *lower_file = MXFS_FILE(file)->lower_file;
 	struct mxfs_readdir_ctx rctx = {
 		.ctx.actor = mxfs_filldir,
@@ -112,12 +108,7 @@ static int mxfs_readdir(struct file *file, struct dir_context *ctx)
 	};
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_PR, 0, &granted);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_PR);
 	if (ret)
 		return ret;
 
@@ -126,7 +117,7 @@ static int mxfs_readdir(struct file *file, struct dir_context *ctx)
 	ctx->pos = rctx.ctx.pos;
 	file->f_pos = lower_file->f_pos;
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return ret;
 }
 

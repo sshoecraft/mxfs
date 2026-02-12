@@ -13,6 +13,7 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <linux/fs.h>
 #include <linux/fs_stack.h>
 #include <linux/mount.h>
@@ -24,6 +25,9 @@
 #include <linux/mm.h>
 #include <linux/kmod.h>
 #include <linux/sched/signal.h>
+#include <linux/blkdev.h>
+#include <linux/pr.h>
+#include <linux/random.h>
 #include <mxfs/mxfs_common.h>
 #include <mxfs/mxfs_dlm.h>
 #include "mxfs_internal.h"
@@ -69,6 +73,7 @@ static struct inode *mxfs_alloc_inode(struct super_block *sb)
 		return NULL;
 
 	info->lower_inode = NULL;
+	mxfs_lockcache_init_inode(info);
 	return &info->vfs_inode;
 }
 
@@ -78,6 +83,185 @@ static void mxfs_destroy_inode(struct inode *inode)
 }
 
 /* mxfs_uuid_to_volume_id() is now in mxfs_common.h */
+
+/* ─── SCSI-3 PR early registration ───
+ *
+ * Before mounting XFS, register this node's SCSI PR key on the shared
+ * block device. With WRITE EXCLUSIVE - REGISTRANTS ONLY (type 5),
+ * only registered nodes can perform writes. If another node already
+ * holds the reservation, we must register first or XFS log recovery
+ * writes will be fenced, causing mount failure.
+ *
+ * Reads the node UUID from /etc/mxfs/node.uuid (created by mxfsd on
+ * first run) and derives the same FNV-1a 32-bit key the daemon uses.
+ */
+
+#define MXFS_NODE_UUID_PATH	"/etc/mxfs/node.uuid"
+
+/* FNV-1a 32-bit hash — identical to daemon's uuid_to_node_id() */
+static u32 mxfs_node_uuid_to_id(const u8 *uuid)
+{
+	u32 hash = 2166136261u;
+	int i;
+
+	for (i = 0; i < 16; i++) {
+		hash ^= uuid[i];
+		hash *= 16777619u;
+	}
+	return hash ? hash : 1;
+}
+
+/*
+ * Read the node UUID from /etc/mxfs/node.uuid, or generate one if
+ * it doesn't exist. The UUID is shared with the daemon — both derive
+ * the same FNV-1a node_id from it, which becomes the SCSI PR key.
+ */
+static int mxfs_ensure_node_uuid(u8 uuid[16])
+{
+	struct file *f;
+	loff_t pos = 0;
+	ssize_t n;
+
+	/* Try to read existing UUID */
+	f = filp_open(MXFS_NODE_UUID_PATH, O_RDONLY, 0);
+	if (!IS_ERR(f)) {
+		n = kernel_read(f, uuid, 16, &pos);
+		filp_close(f, NULL);
+		if (n == 16)
+			return 0;
+	}
+
+	/* Generate a v4 UUID */
+	get_random_bytes(uuid, 16);
+	uuid[6] = (uuid[6] & 0x0F) | 0x40;
+	uuid[8] = (uuid[8] & 0x3F) | 0x80;
+
+	/* Create /etc/mxfs/ directory if needed */
+	{
+		char *argv[] = { "/bin/mkdir", "-p", "/etc/mxfs", NULL };
+		char *envp[] = {
+			"HOME=/",
+			"PATH=/sbin:/bin:/usr/sbin:/usr/bin",
+			NULL
+		};
+		call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	}
+
+	/* Save the UUID for daemon to find */
+	f = filp_open(MXFS_NODE_UUID_PATH,
+		      O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (!IS_ERR(f)) {
+		pos = 0;
+		kernel_write(f, uuid, 16, &pos);
+		filp_close(f, NULL);
+		pr_info("mxfs: generated node UUID, saved to %s\n",
+			MXFS_NODE_UUID_PATH);
+	} else {
+		pr_warn("mxfs: generated node UUID but cannot save "
+			"to %s: %ld\n",
+			MXFS_NODE_UUID_PATH, PTR_ERR(f));
+	}
+
+	return 0;
+}
+
+/*
+ * Register our PR key and optionally acquire the reservation.
+ * Non-fatal: returns 0 with a warning if PR is unavailable.
+ */
+static int mxfs_scsi_pr_early_register(const char *dev_name)
+{
+	u8 uuid[16];
+	u64 pr_key;
+	const struct pr_ops *ops;
+	int ret;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
+	struct bdev_handle *bh;
+	struct block_device *bdev;
+#else
+	struct block_device *bdev;
+#endif
+
+	ret = mxfs_ensure_node_uuid(uuid);
+	if (ret) {
+		pr_info("mxfs: no node UUID available, "
+			"skipping early SCSI PR registration\n");
+		return 0;
+	}
+
+	pr_key = (u64)mxfs_node_uuid_to_id(uuid);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
+	bh = bdev_open_by_path(dev_name, BLK_OPEN_READ | BLK_OPEN_WRITE,
+			       &mxfs_fs_type, NULL);
+	if (IS_ERR(bh)) {
+		pr_warn("mxfs: cannot open %s for SCSI PR: %ld\n",
+			dev_name, PTR_ERR(bh));
+		return 0;
+	}
+	bdev = bh->bdev;
+#else
+	bdev = blkdev_get_by_path(dev_name, FMODE_READ | FMODE_WRITE, NULL);
+	if (IS_ERR(bdev)) {
+		pr_warn("mxfs: cannot open %s for SCSI PR: %ld\n",
+			dev_name, PTR_ERR(bdev));
+		return 0;
+	}
+#endif
+
+	if (!bdev->bd_disk || !bdev->bd_disk->fops ||
+	    !bdev->bd_disk->fops->pr_ops) {
+		pr_info("mxfs: %s has no SCSI PR support, skipping\n",
+			dev_name);
+		ret = 0;
+		goto out;
+	}
+
+	ops = bdev->bd_disk->fops->pr_ops;
+	if (!ops->pr_register || !ops->pr_reserve) {
+		ret = 0;
+		goto out;
+	}
+
+	/* REGISTER_AND_IGNORE: set our key regardless of previous state */
+	ret = ops->pr_register(bdev, 0, pr_key, PR_FL_IGNORE_KEY);
+	if (ret) {
+		pr_warn("mxfs: SCSI PR register failed on %s: %d, "
+			"continuing without hardware fencing\n",
+			dev_name, ret);
+		ret = 0;
+		goto out;
+	}
+
+	/* WRITE EXCLUSIVE - REGISTRANTS ONLY */
+	ret = ops->pr_reserve(bdev, pr_key,
+			      PR_WRITE_EXCLUSIVE_REG_ONLY, 0);
+	if (ret == -EBUSY) {
+		/* Another node holds the reservation — we're registered,
+		 * which is all we need for type 5 access */
+		pr_info("mxfs: SCSI PR key 0x%llx registered on %s "
+			"(reservation held by another node)\n",
+			(unsigned long long)pr_key, dev_name);
+		ret = 0;
+	} else if (ret) {
+		pr_warn("mxfs: SCSI PR reserve failed on %s: %d, "
+			"continuing with registration only\n",
+			dev_name, ret);
+		ret = 0;
+	} else {
+		pr_info("mxfs: SCSI PR key 0x%llx registered, "
+			"reservation acquired on %s\n",
+			(unsigned long long)pr_key, dev_name);
+	}
+
+out:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,8,0)
+	bdev_release(bh);
+#else
+	blkdev_put(bdev, FMODE_READ | FMODE_WRITE);
+#endif
+	return ret;
+}
 
 /* ─── Mount option parsing ─── */
 
@@ -170,6 +354,9 @@ static int mxfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 static void mxfs_evict_inode(struct inode *inode)
 {
 	struct inode *lower_inode;
+
+	/* Release any cached DLM lock before eviction */
+	mxfs_lockcache_evict(inode);
 
 	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
@@ -479,6 +666,13 @@ static int mxfs_fill_super(struct super_block *sb, void *raw_data, int silent)
 
 	/* Parse mount options */
 	ret = mxfs_parse_options(sbi, ctx->options);
+	if (ret)
+		goto err_devname;
+
+	/* Register SCSI PR key before XFS mount.
+	 * On shared storage with WRITE EXCLUSIVE - REGISTRANTS ONLY,
+	 * we must register before XFS log recovery attempts writes. */
+	ret = mxfs_scsi_pr_early_register(ctx->dev_name);
 	if (ret)
 		goto err_devname;
 

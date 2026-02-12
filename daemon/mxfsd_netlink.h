@@ -64,4 +64,9 @@ int  mxfsd_netlink_send_daemon_ready(struct mxfsd_netlink_ctx *ctx,
                                      const uint8_t volume_uuid[16],
                                      mxfs_volume_id_t volume_id);
 
+/* Send blocking AST (BAST) to kernel — request release of cached lock */
+int  mxfsd_netlink_send_lock_bast(struct mxfsd_netlink_ctx *ctx,
+                                   const struct mxfs_resource_id *resource,
+                                   mxfs_volume_id_t volume_id);
+
 #endif /* MXFSD_NETLINK_H */

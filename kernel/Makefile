@@ -10,7 +10,8 @@ mxfs-y := mxfs_main.o \
           mxfs_file.o \
           mxfs_dir.o \
           mxfs_netlink.o \
-          mxfs_cache.o
+          mxfs_cache.o \
+          mxfs_lockcache.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 MXFS_INCLUDE := $(src)/../include

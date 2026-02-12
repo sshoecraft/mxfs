@@ -393,8 +393,9 @@ static void on_lock_granted(const struct mxfs_resource_id *resource,
 
 	/* Persist the grant to disk before notifying anyone.
 	 * Disk write happens before the response so that recovery
-	 * can see the grant even if the daemon crashes right after. */
-	if (disklock_ctx.fd >= 0) {
+	 * can see the grant even if the daemon crashes right after.
+	 * Skip disk I/O in single-node mode for performance. */
+	if (disklock_ctx.fd >= 0 && peer_ctx.peer_count > 0) {
 		mxfsd_disklock_write_grant(&disklock_ctx, resource, owner,
 		                           mode,
 		                           mxfsd_dlm_get_epoch(&dlm_ctx));
@@ -671,9 +672,17 @@ static int handle_lock_request(const struct mxfs_resource_id *resource,
 		/* We are the resource master — process locally */
 		int rc = mxfsd_dlm_lock_request(&dlm_ctx, resource,
 		                                 config.node_id, mode, flags);
+
+		/* Lock upgrade: if the node already holds a lower-mode lock,
+		 * try converting to the requested mode instead */
+		if (rc == -EEXIST)
+			rc = mxfsd_dlm_lock_convert(&dlm_ctx, resource,
+			                             config.node_id, mode);
+
 		if (rc == 0) {
-			/* Persist the grant to disk before returning */
-			if (disklock_ctx.fd >= 0)
+			/* Persist the grant to disk only if peers exist.
+			 * Single-node mode skips disk I/O for performance. */
+			if (disklock_ctx.fd >= 0 && peer_ctx.peer_count > 0)
 				mxfsd_disklock_write_grant(&disklock_ctx,
 				                           resource,
 				                           config.node_id,
@@ -716,8 +725,8 @@ static int handle_lock_release(const struct mxfs_resource_id *resource)
 {
 	if (mxfsd_dlm_is_resource_master(&dlm_ctx, resource)) {
 		mxfsd_dlm_lock_release(&dlm_ctx, resource, config.node_id);
-		/* Clear the disk lock record after in-memory release */
-		if (disklock_ctx.fd >= 0)
+		/* Clear the disk lock record only if peers exist */
+		if (disklock_ctx.fd >= 0 && peer_ctx.peer_count > 0)
 			mxfsd_disklock_clear_grant(&disklock_ctx, resource,
 			                           config.node_id);
 		/* Promotions handled by the grant callback */
@@ -787,6 +796,48 @@ static int on_netlink_msg(enum mxfs_nl_cmd cmd, void *attrs,
 	return 0;
 }
 
+/*
+ * flush_to_multinode — Transition from single-node to multi-node mode.
+ *
+ * Called when the first peer joins. Flushes all DLM-granted locks to
+ * disk (since we skipped disk writes in single-node mode) and sends
+ * BASTs to the kernel to release all cached locks.
+ */
+static void flush_to_multinode(void)
+{
+	struct mxfsd_lock_table *tbl = &dlm_ctx.table;
+	mxfs_volume_id_t vol = 0;
+
+	if (config.volume_count > 0)
+		vol = volume_ctx.volumes[0].id;
+
+	mxfsd_notice("transitioning to multi-node mode: flushing locks");
+
+	/* Walk the DLM table and persist + BAST all local grants */
+	pthread_rwlock_rdlock(&tbl->rwlock);
+	for (uint32_t b = 0; b < tbl->bucket_count; b++) {
+		struct mxfsd_lock *lk = tbl->buckets[b];
+		while (lk) {
+			if (lk->owner == config.node_id &&
+			    lk->state == MXFS_LSTATE_GRANTED) {
+				/* Write to disk */
+				if (disklock_ctx.fd >= 0)
+					mxfsd_disklock_write_grant(
+						&disklock_ctx,
+						&lk->resource,
+						lk->owner, lk->mode,
+						mxfsd_dlm_get_epoch(&dlm_ctx));
+				/* Send BAST to kernel */
+				mxfsd_netlink_send_lock_bast(&nl_ctx,
+				                              &lk->resource,
+				                              vol);
+			}
+			lk = lk->next;
+		}
+	}
+	pthread_rwlock_unlock(&tbl->rwlock);
+}
+
 /* ─── Discovery peer callback ────────────────────────────
  *
  * Fired by the discovery module when a new peer is discovered
@@ -809,11 +860,17 @@ static void on_peer_discovered(const uint8_t *node_uuid,
 	struct mxfsd_peer *existing = mxfsd_peer_find(&peer_ctx, node_id);
 	if (existing) return;
 
+	int was_alone = (peer_ctx.peer_count == 0);
+
 	mxfsd_notice("discovery: found peer node %u at %s:%u",
 	             node_id, host, tcp_port);
 
 	int rc = mxfsd_peer_add(&peer_ctx, node_id, host, tcp_port);
 	if (rc != 0 && rc != -EEXIST) return;
+
+	/* First peer joining: transition to multi-node mode */
+	if (was_alone && peer_ctx.peer_count > 0)
+		flush_to_multinode();
 
 	/* Lower ID initiates TCP connection */
 	if (node_id < config.node_id) {
@@ -1197,6 +1254,10 @@ static int init_subsystems(const char *mountpoint,
 		                          volume_ctx.volumes[0].mount_point,
 		                          config.node_id);
 		if (rc == 0) {
+			/* Purge any stale lock slots from a previous
+			 * daemon instance that crashed */
+			mxfsd_disklock_purge_node(&disklock_ctx,
+			                           config.node_id);
 			sub_init[SUB_DISKLOCK] = true;
 			mxfsd_disklock_start_heartbeat(&disklock_ctx);
 		} else {

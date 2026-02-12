@@ -429,3 +429,20 @@ int mxfsd_netlink_send_daemon_ready(struct mxfsd_netlink_ctx *ctx,
 	           pid, node_id, (unsigned long long)volume_id);
 	return nl_send_cmd(ctx, MXFS_NL_CMD_DAEMON_READY, attrs, offset);
 }
+
+int mxfsd_netlink_send_lock_bast(struct mxfsd_netlink_ctx *ctx,
+                                  const struct mxfs_resource_id *resource,
+                                  mxfs_volume_id_t volume_id)
+{
+	char attrs[256];
+	int offset = 0;
+
+	nla_put(attrs, &offset, MXFS_NL_ATTR_RESOURCE,
+		resource, sizeof(*resource));
+	nla_put_u64(attrs, &offset, MXFS_NL_ATTR_VOLUME_ID, volume_id);
+
+	mxfsd_dbg("netlink: sending lock BAST vol=%lu ino=%lu",
+		  (unsigned long)resource->volume,
+		  (unsigned long)resource->ino);
+	return nl_send_cmd(ctx, MXFS_NL_CMD_LOCK_BAST, attrs, offset);
+}

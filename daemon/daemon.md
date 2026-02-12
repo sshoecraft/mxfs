@@ -115,6 +115,8 @@ slot, shuts down subsystems in reverse order, and exits.
   commands. `mxfsd_netlink_send_daemon_ready()` sends PID, node ID, and
   volume UUID to the kernel to unblock `mxfs_fill_super()`.
   Gracefully handles kernel module not loaded (defers family resolution).
+  `mxfsd_netlink_send_lock_bast()` sends BAST to kernel requesting
+  release of a cached lock (used during single-to-multi-node transition).
 - **mxfsd_lease** — Lease-based node liveness with mutex-protected state.
   Renewal thread periodically refreshes local node timestamp. Monitor
   thread checks all remote nodes: transitions ACTIVE->SUSPECT when a
@@ -214,10 +216,16 @@ Produces the `mxfsd` binary. Installed to `/usr/sbin/mxfsd`.
   .mxfs/lockstate file with O_DIRECT sector-aligned I/O. Disk heartbeats.
   Survives daemon restarts; enables lock table reconstruction on failover.
   Layer 3: TCP DLM (existing) — fast in-memory lock negotiation.
-  All lock grants written to disk before grant response is sent. Peer
+  All lock grants written to disk before grant response is sent (multi-node
+  mode only; single-node mode skips disk I/O for performance). Peer
   disconnect triggers SCSI preempt -> disk purge -> memory purge -> recovery.
   SCSI PR and disklock are optional — daemon degrades gracefully if the
   device doesn't support SCSI PR or no mount point is available yet.
+  **Single-node fast path**: When peer_count == 0, disklock writes are
+  skipped entirely. On first peer join, flush_to_multinode() persists all
+  in-memory grants to disk and sends BASTs to the kernel to release all
+  cached locks. Lock upgrade support: -EEXIST from DLM triggers
+  mxfsd_dlm_lock_convert() for mode upgrades.
 - 0.5.0 — Config-free device-first startup with UDP peer discovery.
   New device mode: `mxfsd start /dev/sdb1` — no config file needed.
   Persistent node UUID at /etc/mxfs/node.uuid with FNV-1a hash for
@@ -244,3 +252,11 @@ Produces the `mxfsd` binary. Installed to `/usr/sbin/mxfsd`.
   is initialized. Mountpoint passed to disklock for immediate disk lock
   persistence. Discovery always enabled. File reduced from 1840 to ~1560
   lines. Added mxfsd_netlink_send_daemon_ready() to mxfsd_netlink.c.
+- 1.1.0 — Single-node fast path and lock caching support. Daemon skips
+  disklock writes (O_DIRECT|O_SYNC) when peer_count == 0. On first peer
+  join, flush_to_multinode() walks DLM table to persist all granted locks
+  to disk and sends BASTs to kernel to release all cached locks. Lock
+  request handler catches -EEXIST from DLM and falls through to
+  mxfsd_dlm_lock_convert() for mode upgrades. Stale disklock slots from
+  previous crashed daemon purged on startup via mxfsd_disklock_purge_node().
+  Added mxfsd_netlink_send_lock_bast() to mxfsd_netlink.c.

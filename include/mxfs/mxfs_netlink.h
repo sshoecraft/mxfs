@@ -30,6 +30,7 @@ enum mxfs_nl_cmd {
 	MXFS_NL_CMD_RECOVERY_START,  /* daemon -> kernel: freeze I/O, recovery starting */
 	MXFS_NL_CMD_RECOVERY_DONE,   /* daemon -> kernel: recovery complete, resume I/O */
 	MXFS_NL_CMD_DAEMON_READY,    /* daemon -> kernel: daemon initialized and ready */
+	MXFS_NL_CMD_LOCK_BAST,       /* daemon -> kernel: release cached lock (blocking AST) */
 	__MXFS_NL_CMD_MAX,
 };
 

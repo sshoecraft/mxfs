@@ -1,13 +1,13 @@
 /*
  * MXFS — Multinode XFS
  * File operations for regular files (passthrough to lower XFS)
- * with DLM lock integration
+ * with DLM lock integration via per-inode lock cache
  *
  * Each open file holds an mxfs_file_info with a reference to the
  * corresponding lower (XFS) file. Read/write operations swap ki_filp
  * to the lower file, invoke the lower op, then swap back and copy attrs.
  *
- * DLM lock policy:
+ * DLM lock policy (cached per-inode):
  *   open       — CR on file inode (coherent inode state)
  *   release    — no lock (cleanup only)
  *   read_iter  — PR on file inode (shared read)
@@ -19,6 +19,7 @@
  */
 
 #include <linux/fs.h>
+#include <linux/version.h>
 #include <linux/fs_stack.h>
 #include <linux/file.h>
 #include <linux/slab.h>
@@ -27,42 +28,22 @@
 #include <mxfs/mxfs_dlm.h>
 #include "mxfs_internal.h"
 
-/* ─── Resource ID builder ─── */
-
-static void mxfs_build_inode_resource(struct mxfs_resource_id *res,
-				      mxfs_volume_id_t volume_id,
-				      uint64_t ino)
-{
-	memset(res, 0, sizeof(*res));
-	res->volume = volume_id;
-	res->ino = ino;
-	res->type = MXFS_LTYPE_INODE;
-}
-
 /* ─── Open / Release ─── */
 
 static int mxfs_open(struct inode *inode, struct file *file)
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(inode->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct mxfs_file_info *finfo;
 	struct file *lower_file;
 	struct path lower_path;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_CR, 0, &granted);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_CR);
 	if (ret)
 		return ret;
 
 	finfo = kmalloc(sizeof(*finfo), GFP_KERNEL);
 	if (!finfo) {
-		mxfs_nl_send_lock_release(&res);
+		mxfs_unlock_inode(inode);
 		return -ENOMEM;
 	}
 
@@ -73,14 +54,14 @@ static int mxfs_open(struct inode *inode, struct file *file)
 	if (IS_ERR(lower_file)) {
 		ret = PTR_ERR(lower_file);
 		kfree(finfo);
-		mxfs_nl_send_lock_release(&res);
+		mxfs_unlock_inode(inode);
 		return ret;
 	}
 
 	finfo->lower_file = lower_file;
 	file->private_data = finfo;
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return 0;
 }
 
@@ -104,23 +85,15 @@ static ssize_t mxfs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = d_inode(file->f_path.dentry);
-	struct mxfs_sb_info *sbi = MXFS_SB(inode->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct file *lower_file = MXFS_FILE(file)->lower_file;
 	ssize_t ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_PR, 0, &granted);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_PR);
 	if (ret)
 		return ret;
 
 	if (!lower_file->f_op->read_iter) {
-		mxfs_nl_send_lock_release(&res);
+		mxfs_unlock_inode(inode);
 		return -EINVAL;
 	}
 
@@ -133,7 +106,7 @@ static ssize_t mxfs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 					d_inode(lower_file->f_path.dentry));
 	}
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return ret;
 }
 
@@ -141,23 +114,15 @@ static ssize_t mxfs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = d_inode(file->f_path.dentry);
-	struct mxfs_sb_info *sbi = MXFS_SB(inode->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct file *lower_file = MXFS_FILE(file)->lower_file;
 	ssize_t ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
 	if (!lower_file->f_op->write_iter) {
-		mxfs_nl_send_lock_release(&res);
+		mxfs_unlock_inode(inode);
 		return -EINVAL;
 	}
 
@@ -172,7 +137,7 @@ static ssize_t mxfs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 					d_inode(lower_file->f_path.dentry));
 	}
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return ret;
 }
 
@@ -222,24 +187,16 @@ static int mxfs_fsync(struct file *file, loff_t start, loff_t end,
 		      int datasync)
 {
 	struct inode *inode = d_inode(file->f_path.dentry);
-	struct mxfs_sb_info *sbi = MXFS_SB(inode->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct file *lower_file = MXFS_FILE(file)->lower_file;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
 	ret = vfs_fsync_range(lower_file, start, end, datasync);
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return ret;
 }
 
@@ -265,7 +222,11 @@ static ssize_t mxfs_splice_read(struct file *in, loff_t *ppos,
 	struct file *lower_file = MXFS_FILE(in)->lower_file;
 	ssize_t ret;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,5,0)
+	ret = filemap_splice_read(lower_file, ppos, pipe, len, flags);
+#else
 	ret = generic_file_splice_read(lower_file, ppos, pipe, len, flags);
+#endif
 	if (ret >= 0) {
 		fsstack_copy_attr_atime(d_inode(in->f_path.dentry),
 					d_inode(lower_file->f_path.dentry));

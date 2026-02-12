@@ -7,9 +7,10 @@
  *   mxfs_main_iops   — regular files and special files
  *   mxfs_symlink_iops — symbolic links
  *
- * All operations extract the lower (XFS) dentry/inode, acquire the
- * appropriate distributed lock via netlink to the daemon, call the
- * VFS helper, release the lock, and copy attributes back up.
+ * All operations acquire the appropriate distributed lock via the
+ * per-inode lock cache (mxfs_lockcache.c), call the VFS helper on the
+ * lower XFS filesystem, release the lock hold, and copy attributes
+ * back up.
  *
  * Copyright (c) 2026
  * SPDX-License-Identifier: GPL-2.0
@@ -21,20 +22,12 @@
 #include <linux/xattr.h>
 #include <linux/slab.h>
 #include <linux/mount.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+#include <linux/mnt_idmapping.h>
+#endif
 #include <mxfs/mxfs_dlm.h>
 #include "mxfs_internal.h"
-
-/* ─── Resource ID builders ─── */
-
-static void mxfs_build_inode_resource(struct mxfs_resource_id *res,
-				      mxfs_volume_id_t volume_id,
-				      uint64_t ino)
-{
-	memset(res, 0, sizeof(*res));
-	res->volume = volume_id;
-	res->ino = ino;
-	res->type = MXFS_LTYPE_INODE;
-}
 
 /* ─── Helper: copy attributes from lower inode after modification ─── */
 
@@ -48,24 +41,21 @@ static void mxfs_copy_attr(struct inode *inode)
 
 /* ─── Directory inode operations ─── */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_create(struct mnt_idmap *idmap, struct inode *dir,
+		       struct dentry *dentry, umode_t mode, bool excl)
+#else
 static int mxfs_create(struct inode *dir, struct dentry *dentry,
 		       umode_t mode, bool excl)
+#endif
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct dentry *lower_dir_dentry;
 	struct dentry *lower_dentry;
 	struct path lower_path;
 	struct inode *lower_dir;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -80,7 +70,11 @@ static int mxfs_create(struct inode *dir, struct dentry *dentry,
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = vfs_create(&nop_mnt_idmap, lower_dir, lower_dentry, mode, excl);
+#else
 	ret = vfs_create(lower_dir, lower_dentry, mode, excl);
+#endif
 	if (ret)
 		goto out_dput;
 
@@ -97,28 +91,20 @@ out_dput:
 	dput(lower_dentry);
 out:
 	mxfs_put_lower_path(dentry->d_parent, &lower_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return ret;
 }
 
 static struct dentry *mxfs_lookup(struct inode *dir, struct dentry *dentry,
 				  unsigned int flags)
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct dentry *lower_dir_dentry;
 	struct dentry *lower_dentry;
 	struct path lower_dir_path;
 	struct mxfs_dentry_info *info;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ERR_PTR(ret);
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_PR, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_PR);
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -130,7 +116,7 @@ static struct dentry *mxfs_lookup(struct inode *dir, struct dentry *dentry,
 	if (IS_ERR(lower_dentry)) {
 		ret = PTR_ERR(lower_dentry);
 		mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
-		mxfs_nl_send_lock_release(&res);
+		mxfs_unlock_inode(dir);
 		return ERR_PTR(ret);
 	}
 
@@ -139,7 +125,7 @@ static struct dentry *mxfs_lookup(struct inode *dir, struct dentry *dentry,
 	if (!info) {
 		dput(lower_dentry);
 		mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
-		mxfs_nl_send_lock_release(&res);
+		mxfs_unlock_inode(dir);
 		return ERR_PTR(-ENOMEM);
 	}
 
@@ -158,7 +144,7 @@ static struct dentry *mxfs_lookup(struct inode *dir, struct dentry *dentry,
 			kfree(info);
 			dentry->d_fsdata = NULL;
 			mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
-			mxfs_nl_send_lock_release(&res);
+			mxfs_unlock_inode(dir);
 			return ERR_PTR(ret);
 		}
 
@@ -169,27 +155,19 @@ static struct dentry *mxfs_lookup(struct inode *dir, struct dentry *dentry,
 	}
 
 	mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return NULL;
 }
 
 static int mxfs_link(struct dentry *old_dentry, struct inode *dir,
 		     struct dentry *new_dentry)
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_old_path, lower_dir_path;
 	struct dentry *lower_new_dentry;
 	struct inode *lower_dir;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -205,8 +183,13 @@ static int mxfs_link(struct dentry *old_dentry, struct inode *dir,
 		goto out;
 	}
 
-	ret = vfs_link(lower_old_path.dentry, lower_dir, lower_new_dentry,
-		       NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = vfs_link(lower_old_path.dentry, &nop_mnt_idmap, lower_dir,
+		       lower_new_dentry, NULL);
+#else
+	ret = vfs_link(lower_old_path.dentry, lower_dir,
+		       lower_new_dentry, NULL);
+#endif
 	if (ret)
 		goto out_dput;
 
@@ -224,25 +207,17 @@ out_dput:
 out:
 	mxfs_put_lower_path(new_dentry->d_parent, &lower_dir_path);
 	mxfs_put_lower_path(old_dentry, &lower_old_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return ret;
 }
 
 static int mxfs_unlink(struct inode *dir, struct dentry *dentry)
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_path, lower_dir_path;
 	struct inode *lower_dir;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -250,7 +225,11 @@ static int mxfs_unlink(struct inode *dir, struct dentry *dentry)
 	mxfs_get_lower_path(dentry->d_parent, &lower_dir_path);
 	lower_dir = d_inode(lower_dir_path.dentry);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = vfs_unlink(&nop_mnt_idmap, lower_dir, lower_path.dentry, NULL);
+#else
 	ret = vfs_unlink(lower_dir, lower_path.dentry, NULL);
+#endif
 	if (!ret) {
 		d_drop(dentry);
 		mxfs_copy_attr(dir);
@@ -258,27 +237,24 @@ static int mxfs_unlink(struct inode *dir, struct dentry *dentry)
 
 	mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
 	mxfs_put_lower_path(dentry, &lower_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_symlink(struct mnt_idmap *idmap, struct inode *dir,
+			struct dentry *dentry, const char *symname)
+#else
 static int mxfs_symlink(struct inode *dir, struct dentry *dentry,
 			const char *symname)
+#endif
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_dir_path;
 	struct dentry *lower_dentry;
 	struct inode *lower_dir;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -293,7 +269,11 @@ static int mxfs_symlink(struct inode *dir, struct dentry *dentry,
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = vfs_symlink(&nop_mnt_idmap, lower_dir, lower_dentry, symname);
+#else
 	ret = vfs_symlink(lower_dir, lower_dentry, symname);
+#endif
 	if (ret)
 		goto out_dput;
 
@@ -308,26 +288,23 @@ out_dput:
 	dput(lower_dentry);
 out:
 	mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_mkdir(struct mnt_idmap *idmap, struct inode *dir,
+		      struct dentry *dentry, umode_t mode)
+#else
 static int mxfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+#endif
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_dir_path;
 	struct dentry *lower_dentry;
 	struct inode *lower_dir;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -342,7 +319,11 @@ static int mxfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = vfs_mkdir(&nop_mnt_idmap, lower_dir, lower_dentry, mode);
+#else
 	ret = vfs_mkdir(lower_dir, lower_dentry, mode);
+#endif
 	if (ret)
 		goto out_dput;
 
@@ -357,25 +338,17 @@ out_dput:
 	dput(lower_dentry);
 out:
 	mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return ret;
 }
 
 static int mxfs_rmdir(struct inode *dir, struct dentry *dentry)
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dir->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_path, lower_dir_path;
 	struct inode *lower_dir;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, dir->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(dir, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -383,7 +356,11 @@ static int mxfs_rmdir(struct inode *dir, struct dentry *dentry)
 	mxfs_get_lower_path(dentry->d_parent, &lower_dir_path);
 	lower_dir = d_inode(lower_dir_path.dentry);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = vfs_rmdir(&nop_mnt_idmap, lower_dir, lower_path.dentry);
+#else
 	ret = vfs_rmdir(lower_dir, lower_path.dentry);
+#endif
 	if (!ret) {
 		d_drop(dentry);
 		mxfs_copy_attr(dir);
@@ -391,61 +368,55 @@ static int mxfs_rmdir(struct inode *dir, struct dentry *dentry)
 
 	mxfs_put_lower_path(dentry->d_parent, &lower_dir_path);
 	mxfs_put_lower_path(dentry, &lower_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(dir);
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_rename(struct mnt_idmap *idmap,
+		       struct inode *old_dir, struct dentry *old_dentry,
+		       struct inode *new_dir, struct dentry *new_dentry,
+		       unsigned int flags)
+#else
 static int mxfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		       struct inode *new_dir, struct dentry *new_dentry,
 		       unsigned int flags)
+#endif
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(old_dir->i_sb);
-	struct mxfs_resource_id res1, res2;
-	uint8_t granted;
 	struct path lower_old_path;
 	struct path lower_old_dir_path, lower_new_dir_path;
 	struct dentry *lower_old_dir_dentry;
 	struct dentry *lower_new_dir_dentry;
 	struct dentry *lower_new_dentry;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,12,0)
+	struct renamedata rd;
+#endif
 	int ret;
 
 	if (flags)
 		return -EINVAL;  /* no RENAME_NOREPLACE etc. for now */
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
 	/* Lock both parent dirs in inode number order to prevent deadlock */
 	if (old_dir->i_ino <= new_dir->i_ino) {
-		mxfs_build_inode_resource(&res1, sbi->volume_id,
-					  old_dir->i_ino);
-		ret = mxfs_nl_send_lock_req(&res1, MXFS_LOCK_EX, 0, &granted);
+		ret = mxfs_lock_inode(old_dir, MXFS_LOCK_EX);
 		if (ret)
 			return ret;
 
 		if (old_dir != new_dir) {
-			mxfs_build_inode_resource(&res2, sbi->volume_id,
-						  new_dir->i_ino);
-			ret = mxfs_nl_send_lock_req(&res2, MXFS_LOCK_EX, 0,
-						     &granted);
+			ret = mxfs_lock_inode(new_dir, MXFS_LOCK_EX);
 			if (ret) {
-				mxfs_nl_send_lock_release(&res1);
+				mxfs_unlock_inode(old_dir);
 				return ret;
 			}
 		}
 	} else {
-		mxfs_build_inode_resource(&res2, sbi->volume_id,
-					  new_dir->i_ino);
-		ret = mxfs_nl_send_lock_req(&res2, MXFS_LOCK_EX, 0, &granted);
+		ret = mxfs_lock_inode(new_dir, MXFS_LOCK_EX);
 		if (ret)
 			return ret;
 
-		mxfs_build_inode_resource(&res1, sbi->volume_id,
-					  old_dir->i_ino);
-		ret = mxfs_nl_send_lock_req(&res1, MXFS_LOCK_EX, 0, &granted);
+		ret = mxfs_lock_inode(old_dir, MXFS_LOCK_EX);
 		if (ret) {
-			mxfs_nl_send_lock_release(&res2);
+			mxfs_unlock_inode(new_dir);
 			return ret;
 		}
 	}
@@ -465,9 +436,23 @@ static int mxfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		goto out;
 	}
 
-	ret = vfs_rename(d_inode(lower_old_dir_dentry), lower_old_path.dentry,
-			 d_inode(lower_new_dir_dentry), lower_new_dentry,
-			 NULL, 0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,12,0)
+	memset(&rd, 0, sizeof(rd));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	rd.old_mnt_idmap = &nop_mnt_idmap;
+	rd.new_mnt_idmap = &nop_mnt_idmap;
+#endif
+	rd.old_dir = d_inode(lower_old_dir_dentry);
+	rd.old_dentry = lower_old_path.dentry;
+	rd.new_dir = d_inode(lower_new_dir_dentry);
+	rd.new_dentry = lower_new_dentry;
+	ret = vfs_rename(&rd);
+#else
+	ret = vfs_rename(d_inode(lower_old_dir_dentry),
+			 lower_old_path.dentry,
+			 d_inode(lower_new_dir_dentry),
+			 lower_new_dentry, NULL, 0);
+#endif
 	if (!ret) {
 		mxfs_copy_attr(old_dir);
 		if (old_dir != new_dir)
@@ -480,55 +465,53 @@ out:
 	mxfs_put_lower_path(old_dentry->d_parent, &lower_old_dir_path);
 	mxfs_put_lower_path(old_dentry, &lower_old_path);
 
-	mxfs_nl_send_lock_release(&res1);
+	mxfs_unlock_inode(old_dir);
 	if (old_dir != new_dir)
-		mxfs_nl_send_lock_release(&res2);
+		mxfs_unlock_inode(new_dir);
 
 	return ret;
 }
 
 /* ─── Shared inode operations (used by all three tables) ─── */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_permission(struct mnt_idmap *idmap, struct inode *inode,
+			   int mask)
+#else
 static int mxfs_permission(struct inode *inode, int mask)
+#endif
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(inode->i_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct inode *lower = mxfs_lower_inode(inode);
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_CR);
 	if (ret)
 		return ret;
 
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_CR, 0, &granted);
-	if (ret)
-		return ret;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = inode_permission(&nop_mnt_idmap, lower, mask);
+#else
 	ret = inode_permission(lower, mask);
+#endif
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_getattr(struct mnt_idmap *idmap, const struct path *path,
+			struct kstat *stat, u32 request_mask,
+			unsigned int query_flags)
+#else
 static int mxfs_getattr(const struct path *path, struct kstat *stat,
 			u32 request_mask, unsigned int query_flags)
+#endif
 {
 	struct dentry *dentry = path->dentry;
-	struct mxfs_sb_info *sbi = MXFS_SB(dentry->d_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_path;
 	int ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id,
-				  d_inode(dentry)->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_PR, 0, &granted);
+	ret = mxfs_lock_inode(d_inode(dentry), MXFS_LOCK_PR);
 	if (ret)
 		return ret;
 
@@ -542,31 +525,32 @@ static int mxfs_getattr(const struct path *path, struct kstat *stat,
 		mxfs_copy_attr(d_inode(dentry));
 	}
 
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(d_inode(dentry));
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+static int mxfs_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
+			struct iattr *ia)
+#else
 static int mxfs_setattr(struct dentry *dentry, struct iattr *ia)
+#endif
 {
-	struct mxfs_sb_info *sbi = MXFS_SB(dentry->d_sb);
-	struct mxfs_resource_id res;
-	uint8_t granted;
 	struct path lower_path;
 	struct dentry *lower_dentry;
 	struct inode *inode = d_inode(dentry);
 	struct inode *lower_inode;
 	int ret;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = setattr_prepare(&nop_mnt_idmap, dentry, ia);
+#else
 	ret = setattr_prepare(dentry, ia);
+#endif
 	if (ret)
 		return ret;
 
-	ret = mxfs_wait_for_recovery(sbi);
-	if (ret)
-		return ret;
-
-	mxfs_build_inode_resource(&res, sbi->volume_id, inode->i_ino);
-	ret = mxfs_nl_send_lock_req(&res, MXFS_LOCK_EX, 0, &granted);
+	ret = mxfs_lock_inode(inode, MXFS_LOCK_EX);
 	if (ret)
 		return ret;
 
@@ -582,7 +566,11 @@ static int mxfs_setattr(struct dentry *dentry, struct iattr *ia)
 	}
 
 	inode_lock(lower_inode);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,3,0)
+	ret = notify_change(&nop_mnt_idmap, lower_dentry, ia, NULL);
+#else
 	ret = notify_change(lower_dentry, ia, NULL);
+#endif
 	inode_unlock(lower_inode);
 
 	if (!ret)
@@ -590,7 +578,7 @@ static int mxfs_setattr(struct dentry *dentry, struct iattr *ia)
 
 out:
 	mxfs_put_lower_path(dentry, &lower_path);
-	mxfs_nl_send_lock_release(&res);
+	mxfs_unlock_inode(inode);
 	return ret;
 }
 

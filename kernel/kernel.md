@@ -31,24 +31,38 @@ via Generic Netlink (genetlink) to the daemon.
 - **mxfs_netlink.c** — Genetlink family registration, message send/receive
   with the local mxfsd daemon. Per-mount portid tracking (supports multiple
   concurrent mounts). DAEMON_READY handler. Recovery start/done per-SBI state.
+- **mxfs_lockcache.c** — Per-inode DLM lock cache. Caches the granted DLM
+  lock mode per inode so repeated VFS operations avoid netlink round-trips.
+  `mxfs_lock_inode()` checks cache first, sends netlink only on miss/upgrade.
+  `mxfs_unlock_inode()` decrements holders (no release sent). Locks held until
+  BAST from daemon, inode eviction, or unmount. `mxfs_bast_work_fn()` handles
+  deferred lock release when active holders must drain first.
 - **mxfs_cache.c** — Page cache invalidation. On DLM conflict (BAST), the
   daemon sends CACHE_INVAL, the kernel invalidates XFS pages. Volume-to-
-  superblock mapping table. `mxfs_cache_find_sbi_by_volume()` for netlink
-  handler lookups.
+  superblock mapping table. `mxfs_cache_find_sbi_by_volume()` and
+  `mxfs_cache_find_sb_by_volume()` for netlink handler lookups.
 
 ### Mount Sequence
 
 ```
-1. VFS calls mxfs_mount() / mxfs_fill_super()
-2. mxfs.ko calls vfs_kern_mount("xfs") on the device
-3. mxfs.ko reads lower_sb->s_uuid for volume UUID, FNV-1a hash -> volume_id
-4. mxfs.ko sets up root inode wrapping XFS root via mxfs_iget()
-5. mxfs.ko registers with cache subsystem (mxfs_cache_register_sb)
-6. mxfs.ko spawns mxfsd via call_usermodehelper():
-     /usr/sbin/mxfsd --device /dev/sdb --mountpoint /mnt/shared --uuid <hex>
-7. mxfsd initializes: SCSI PR, disklock, DLM, discovery, peers
-8. mxfsd sends DAEMON_READY via netlink
-9. mxfs.ko receives readiness, completes mount
+1.  VFS calls mxfs_mount() / mxfs_fill_super()
+2.  mxfs.ko reads /etc/mxfs/node.uuid (or generates one if missing)
+3.  mxfs.ko derives PR key via FNV-1a 32-bit hash of the node UUID
+4.  mxfs.ko opens the block device, registers SCSI PR key via pr_ops,
+    and acquires WRITE EXCLUSIVE - REGISTRANTS ONLY reservation
+    (or accepts that another node already holds it)
+5.  mxfs.ko releases the block device (PR registration persists on target)
+6.  mxfs.ko calls vfs_kern_mount("xfs") on the device
+    (XFS log recovery succeeds because we're now a registered initiator)
+7.  mxfs.ko reads lower_sb->s_uuid for volume UUID, FNV-1a hash -> volume_id
+8.  mxfs.ko sets up root inode wrapping XFS root via mxfs_iget()
+9.  mxfs.ko registers with cache subsystem (mxfs_cache_register_sb)
+10. mxfs.ko spawns mxfsd via call_usermodehelper():
+      /usr/sbin/mxfsd --device /dev/sdb --mountpoint /mnt/shared --uuid <hex>
+11. mxfsd initializes: SCSI PR (re-register same key, idempotent),
+    disklock, DLM, discovery, peers
+12. mxfsd sends DAEMON_READY via netlink
+13. mxfs.ko receives readiness, completes mount
 ```
 
 ### Unmount Sequence
@@ -63,7 +77,7 @@ via Generic Netlink (genetlink) to the daemon.
 6. mxfs.ko frees superblock info
 ```
 
-### VFS Operation Flow
+### VFS Operation Flow (with lock caching)
 
 ```
 Application calls open/read/write/create/unlink/etc.
@@ -72,10 +86,15 @@ Application calls open/read/write/create/unlink/etc.
 mxfs VFS op handler
         |
         v
-mxfs_wait_for_recovery(sbi)     ← block if recovery in progress
+mxfs_lock_inode(inode, mode)
+        |
+        +-- Cache hit (cached_mode >= requested)?
+        |       |
+        |       YES: increment holders, return immediately
+        |       NO:  fall through
         |
         v
-mxfs_build_inode_resource()      ← build DLM resource ID
+mxfs_wait_for_recovery(sbi)     ← block if recovery in progress
         |
         v
 mxfs_nl_send_lock_req()          ← acquire DLM lock via netlink
@@ -84,16 +103,24 @@ mxfs_nl_send_lock_req()          ← acquire DLM lock via netlink
 (blocks waiting for LOCK_GRANT)
         |
         v
+Cache the granted mode in inode
+        |
+        v
 Delegate to lower XFS operation  ← vfs_create/lookup_one_len/etc.
         |
         v
-mxfs_nl_send_lock_release()      ← release DLM lock
+mxfs_unlock_inode(inode)          ← decrement holders only (no release)
         |
         v
 fsstack_copy_attr_all()          ← sync attributes back
         |
         v
 Return result to caller
+
+Lock release only happens on:
+  - BAST from daemon (mxfs_nl_lock_bast handler)
+  - Inode eviction (mxfs_lockcache_evict)
+  - Filesystem unmount
 ```
 
 ### DLM Lock Policy
@@ -142,6 +169,11 @@ Per-mount state stored in `sb->s_fs_info`:
 ### Inode Private Data (mxfs_inode_info)
 
 - `lower_inode` — pointer to underlying XFS inode
+- `lock_spin` — spinlock protecting lock cache fields
+- `cached_mode` — currently held DLM lock mode (MXFS_LOCK_NL if none)
+- `bast_pending` — daemon requested lock release via BAST
+- `lock_holders` — atomic count of active VFS ops using the cached lock
+- `bast_work` — deferred BAST processing work struct
 - `vfs_inode` — embedded VFS inode (must be last for `container_of`)
 
 ### Dentry Private Data (mxfs_dentry_info)
@@ -170,6 +202,7 @@ All `MXFS_NL_CMD_*` commands are registered:
 - **STATUS_REQ** / **STATUS_RESP** — daemon registration handshake
 - **RECOVERY_START** / **RECOVERY_DONE** — per-SBI recovery state via `mxfs_cache_find_sbi_by_volume()`
 - **DAEMON_READY** — daemon signals readiness; sets portid/pid on SBI, completes `daemon_startup`
+- **LOCK_BAST** — daemon requests release of cached lock; handler looks up inode via `ilookup()`, releases inline if no holders, queues `bast_work` if holders active
 
 ### Per-Mount Portid
 - No global daemon_portid — each mount tracks its own `sbi->daemon_portid`
@@ -234,3 +267,22 @@ If any init step fails, previously initialized subsystems are torn down in rever
   with DAEMON_READY handler, per-mount portid, per-SBI recovery state.
   Updated mxfs_cache.c with mxfs_cache_find_sbi_by_volume(). User experience:
   `mount -t mxfs /dev/sdb /mnt/shared` — zero config, daemon auto-spawned.
+- 1.1.0 — Per-inode lock caching. New file: mxfs_lockcache.c. Caches DLM lock
+  grants per inode so repeated VFS operations skip the netlink round-trip.
+  All VFS hooks (inode, file, dir ops) replaced mxfs_nl_send_lock_req/release
+  with mxfs_lock_inode/mxfs_unlock_inode. Locks held until BAST, eviction,
+  or unmount. New MXFS_NL_CMD_LOCK_BAST handler in mxfs_netlink.c for
+  daemon-requested lock release. mxfs_cache.c gained mxfs_cache_find_sb_by_volume().
+  mxfs_super.c calls mxfs_lockcache_init_inode() and mxfs_lockcache_evict().
+  Fixed kernel 6.8 VFS API: mnt_idmap parameters, filemap_splice_read,
+  bool filldir return type.
+- 1.2.0 — Early SCSI PR registration in kernel module. Before mounting XFS,
+  the kernel reads (or generates) /etc/mxfs/node.uuid, derives the same
+  FNV-1a 32-bit PR key the daemon uses, and registers with the storage target
+  via the kernel pr_ops interface. This solves the SCSI PR chicken-and-egg
+  problem: on shared storage where another node holds a WRITE EXCLUSIVE -
+  REGISTRANTS ONLY reservation, the joining node must be registered before
+  XFS log recovery writes, but the daemon (which previously handled PR
+  registration) only starts after XFS mounts. Cross-version block device
+  API support: bdev_open_by_path/bdev_release on 6.8+,
+  blkdev_get_by_path/blkdev_put on 5.10.
