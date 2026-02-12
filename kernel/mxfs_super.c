@@ -236,9 +236,10 @@ static int mxfs_scsi_pr_early_register(const char *dev_name)
 	/* WRITE EXCLUSIVE - REGISTRANTS ONLY */
 	ret = ops->pr_reserve(bdev, pr_key,
 			      PR_WRITE_EXCLUSIVE_REG_ONLY, 0);
-	if (ret == -EBUSY) {
-		/* Another node holds the reservation — we're registered,
-		 * which is all we need for type 5 access */
+	if (ret == -EBUSY || ret == 0x18) {
+		/* -EBUSY or SCSI status 0x18 (RESERVATION CONFLICT):
+		 * another node holds the reservation. We're registered,
+		 * which is all we need for type 5 access. */
 		pr_info("mxfs: SCSI PR key 0x%llx registered on %s "
 			"(reservation held by another node)\n",
 			(unsigned long long)pr_key, dev_name);
