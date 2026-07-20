@@ -1,0 +1,7 @@
+Warning: Permanently added 'test1' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+/src/mxfs/tests/suite/df_diag.sh: line 20: /mnt/shared/.df_diag/n1_r1: Input/output error
+RESULT: FAIL | test=df_diag | nodes=2 | measured=checks=5 passed=4 failed=1 | reason=df node1 completed all rounds(exp=50 got=0)

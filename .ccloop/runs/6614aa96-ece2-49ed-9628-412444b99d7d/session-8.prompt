@@ -1,0 +1,117 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6614aa96-ece2-49ed-9628-412444b99d7d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6614aa96-ece2-49ed-9628-412444b99d7d, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991.jsonl`
+- approx context at last assistant turn: 361759 tokens
+- tools used: Bash×96 Read×31 Edit×13 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×4 ToolSearch×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; echo "=== done ==="; modinfo mxfs.ko 2>/dev/null | grep srcve
+    cd /src/mxfs; for k in 1 2 3 4 5 6 7 8; do timeout 6 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null'
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/leak_8.out; for w in $(seq 1 50); do if grep -q DRC_WRAPPER_EXIT $O
+    cd /src/mxfs; for k in 1 2 3 4 5 6 7 8; do r=$(timeout 8 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'dmesg 2>/dev/null | grep "P132-ILOCK-STUCK" | tail -1' 2>
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/leak_8.out; for w in $(seq 1 40); do p=$(for k in 1 2 3 4 5 6 7 8; 
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/leak_8.out; grep -E 'RUN|TOTAL|WRAPPER' $OUT | grep -vE '^Warning|^
+    cd /src/mxfs; grep -rn 'P-CREATE-ERR2\|dir_create_child' xfs/*.c | head; echo "=== xfs_trans_buf.c:313 context ==="; sed -n '300,320p' xfs/xfs_trans_buf.c
+    cd /src/mxfs; for k in 1 2 3 4; do timeout 6 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null' 2>/dev/
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/reg4b.out; for w in $(seq 1 52); do if grep -q DRC_WRAPPER_EXIT $OU
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/reg4b.out; grep -E 'RUN [0-9]:|TOTAL' $OUT | grep -oE 'RUN [0-9]:  
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/reg4b.out; grep -vE '^Warning|^Unauth|^If you' $OUT | grep -E 'RUN|
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/reg4b.out; tail -6 $OUT | grep -vE '^Warning|^Unauth|^If you' | sed
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/reg4b.out; for w in $(seq 1 40); do if grep -q DRC_WRAPPER_EXIT $OU
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/reg4b.out; grep 'RUN 3' $OUT | grep -vE '^Warning|^Unauth' | sed 's
+    cd /src/mxfs; grep -n 'DLM inode reload imap_to_bp failed' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; echo "=== done ==="; modinfo mxfs.ko 2>/dev/null | grep srcve
+    cd /src/mxfs; for k in 1 2 3 4; do timeout 6 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null' 2>/dev/
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/face2_4.out; for w in $(seq 1 55); do if grep -q DRC_WRAPPER_EXIT $
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/face2_4.out; for w in $(seq 1 55); do if grep -q DRC_WRAPPER_EXIT $
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/aa4f9ae2-0d13-4ffc-9d13-bbe1c84fe991/scratchpad/face2_4.out; for w in $(seq 1 50); do if grep -q DRC_WRAPPER_EXIT $
+
+## Last text from previous session
+
+e dir_reuse has **multiple probabilistic hard faces**: (1) the i_lock leak→hang, (2) inode-cluster reload EIO on the reused dir → create-fail → shutdown. The dir (ino 131) is freed+realloc'd every round; a reload during that window gets a transient EIO and the create path fails hard instead of retrying.
+
+I've used substantial context. Let me record the comprehensive state and verify 4/tcp isn't regressed by the (behavior-neutral) instrumentation build.
+Let me pursue FACE 2 (the dominant shutdown). Let me find where `dir_create_child err=-5` and the fatal cluster read originate.
+FACE 2's shutdown is upstream XFS behavior: a dir-block metadata read returns EIO (a reused dir block carrying a stale prior-incarnation image fails the dir3 verifier) on a DIRTY transaction → `SHUTDOWN_META_IO_ERROR`. This is the deep dir_reuse coherence problem. Both faces are genuinely hard and I've used substantial context.
+
+The critical thing before wrapping up: **confirm the current build doesn't regress the passing 1/2/4 columns.** The instrumentation is behavior-neutral, so 4/tcp should be 12/12. Let me verify.
+While the 4-node confirmation runs, I've reached a responsible stopping point for this session: both 8-node faces (leaked i_lock hang; reused-dir-block verifier EIO → shutdown) are genuinely hard coherence bugs, and my workarounds regressed 4-node so were correctly reverted. Let me confirm the 4-node result to ensure I'm leaving a non-regressed baseline.
+4/tcp **PASSES 2/2** with the current build — confirming the reverts restored the passing column (the earlier 0/4 was caused by the trylock-skip workarounds). Critically, the `imap_to_bp rc=-5` face appears even in these **PASSING** 4-node runs — confirming it's benign (logs+returns); the 8-node killer is specifically the cascade to a dir-block-read shutdown under higher contention. Let me confirm the TOTAL.
+RUN 3 still running; 2/2 PASS confirms **no regression** on 4/tcp. Build F5A90E91 is a safe, non-regressed baseline. Let me update the memory with the confirmation, then let RUN 3 finish.
+Let me confirm RUN 3 of the 4-node check completes (fully validating no regression).
+RUN 3 FAILED 0/4 — so **4/tcp is flaky (2/3), not solidly 100%**. The instrumentation is behavior-neutral (can't cause this), so dir_reuse_coherency is inherently flaky at 4 nodes too — the same coherence bug, just less frequent than at 8. Let me check RUN 3's face.
+RUN 3: test2 shut down (FACE 2 — the create-path metadata-EIO shutdown), no hang. So **FACE 2 hits 4-node too** — dir_reuse_coherency is inherently flaky at all node counts (sess6's "4/tcp 12/12" was optimistic). The core reused-dir-block coherence bug is the real blocker everywhere. Let me correct the handoff memory.
+I've made substantial diagnostic progress and left a safe, non-regressed baseline. Let me attempt a concrete FACE 2 fix since it hits both 4 and 8 nodes and I understand the mechanism. Let me look at the create path's dir refresh before `dir_create_child`.
+FACE 2's mechanism is now clear: the create's fast-path stale-refresh reload (`mxfs_dlm_reload_inode`) calls `xfs_imap_to_bp` which hits the transient reuse-window `rc=-5`, so the reload **bails without rebuilding the extent map** → the create then RMWs/reads through a stale extent map → stale/freed block → verifier EIO → shutdown. So `imap_to_bp rc=-5` is NOT benign on this path — when it makes the reload bail, the stale extent map causes the shutdown. Fix: bounded retry of `xfs_imap_to_bp` on EIO in the reload (the reuse window is sub-ms). Let me find the current site.
+Let me implement the bounded retry (the reuse-window EIO is transient; a successful reload rebuilds the extent map, preventing the downstream stale-block-read shutdown).
+Build and test the FACE 2 fix. Let me build, then run 4-node (where FACE 2 showed as 2/3) with more iterations for signal.
+RUN 1 FAIL / RUN 2 PASS — still flaky. Let me wait for all 5 and check RUN 1's face (did FACE 2 shutdown recur or a different face?).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

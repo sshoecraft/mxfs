@@ -1,0 +1,18 @@
+---
+name: sess55-FIX-tcp_dlm_scaling-three-faces-coresident-cluster
+description: sess55 FIX (build 2C60CCE9): tcp_dlm_scaling leak/revert = 3 faces of per-inode-EX vs 4KB-cluster-flush on shortform dirs. 4 fixes, 17/17 streak buil…
+metadata:
+  type: project
+---
+
+## sess55 — tcp_dlm_scaling reliably 17/17 (build 2C60CCE9C80CCC9E9876EC9). Criterion: 2-node dlm=tcp 17/17. Streak so far d3,d4,d7,d8 PASS (d5/d6 were intermediate builds missing a face fix).
+
+### ROOT (confirmed, GPT-5.5 RULE-5 consult on file): per-inode DLM authority (NL/PR/EX) vs **4KB inode-CLUSTER write granularity**. A SHORTFORM dir's dirents are inline in its dinode, which co-resides in a 4KB cluster with 7 other inodes (other churned dirs). Flushing inode X's cluster rewrites co-resident dir Y's on-disk dinode even when Y is held PR/NL. Under tcp_dlm_scaling churn (2 nodes create/mv/rm in ONE shared shortform dir, 150 rounds) this loses committed changes 3 ways.
+
+### THE 4 FIXES (all KEEP):
+1. **REVERTED sess54 fresh-RMW** in mxfs_inode_cluster_durable (xfs_mxfs_dlm.c ~1697). It did NOT fix the leak AND caused dir_reuse_coherency readdir=0/200 (12 rounds) — blind FUA-reading platter over a freshly-reused dir adopts empty disk. PROVEN net-negative.
+2. **FACE 1 (PR co-resident removal-resurrection)** — xfs_inode.c. (a) P119 (~4636): do NOT discard when S_ISDIR && i_dlm_mode==PR && same-incarnation(disk di_gen==i_generation) && disk di_mode!=0 && same S_IFMT && in_ail — FLUSH instead (PR<->EX exclusive => no peer EX => our committed in-core is authoritative; PR-hold => same incarnation). Added bool `mxfs_cores_commit_flush` + `&& !mxfs_cores_commit_flush` to P119 and P17B. (b) mirror in mxfs_iflush_cluster_merge_dirs flushing-bitmask builder (~5268): KEEP the flushing bit (skip the disk overlay) for a PR in_ail dir, BEFORE the sess134 non-EX revoke. Without (b) the merge overlaid stale disk AFTER P55's flush and undid it (merge runs at 5688, AFTER the iflush loop at 5640).
+3. **FACE 2 (create-revert)** — xfs_create (xfs_inode.c ~1804/1890) lacked the EX-pin that remove/rename have. Added `bool mxfs_create_dp_durable` (decl ~1282), `mxfs_dlm_dir_hold_ex(dp)` before iunlock(dp), `mxfs_dlm_ilock_end(dp,MXFS_LOCK_EX)` after mxfs_dlm_dir_inode_durable(dp). Without it a BAST demotes dp to NL in the iunlock..durable window -> P119 discards the new dirent -> create not on platter -> the mv's reload (P34D-RELOAD-FRESHSRC) adopts stale disk -> RENAME-REVALIDATE-MISS -> churn loop breaks (got=94/150).
+4. **FACE 3 (NL co-resident in_ail discard) — THE KEY ONE** — mxfs_inode_cluster_durable rc==0 path (xfs_mxfs_dlm.c ~1830, marker P55D-ICD-SELF-SKIPPED). xfs_iflush_cluster rc==0 means ">=1 inode flushed", NOT THIS one (it xfs_ilock_nowait-SHARED-SKIPS an ILOCK-held inode, flushing only a co-resident). The drain returned true (durable) while ip's committed change was still in_ail -> released to NL stranded -> a later co-resident flush discarded it at NL (P119 i_dlm_mode=0 in_ail=1) -> leak "drained got=N". FIX: after rc==0+blkdev_flush, if ip STILL in AIL -> msleep+continue (retry until ip itself destages). Mirrors sess31 P31-RELFLUSH-SELF-SKIPPED guard (release-loop @5610 had it; the shortform drain did not). VERIFIED LOAD-BEARING: P55D fired 10x on node1 in passing d7.
+
+### REMAINING/NEXT: confirm reliability streak (need ~6-8 consecutive clean-reboot PLAIN 17/17). Repro: reboot test1/test2, `PLAIN=1 NOREBOOT=1 bash tests/tcp/fg_one_run.sh dN`. dir_reuse_coherency still ~285s (sess34 6s-handoff slowness) = RULE-0 perf concern AFTER reliability. GPT's full fix (not yet needed): ICLUSTER DLM lock + fresh-RMW for every 4KB cluster write. See [[sess54-gpt-coresident-cluster-flush-design]].

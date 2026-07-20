@@ -1,0 +1,86 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `2b2eb910-df43-4da1-bef7-c7d6b9737644`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2b2eb910-df43-4da1-bef7-c7d6b9737644.jsonl`
+- approx context at last assistant turn: 54819 tokens
+- tools used: Bash×4 mcp__ccmemory__memory_get×3 ToolSearch×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat /src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met 2>/dev/null; echo "---criteria file above---"; ls /src/mxfs/.ccloop/runs/8ddb16a2-1
+    echo "===CRITERIA==="; cat /src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria.md 2>/dev/null; echo; echo "===TASK==="; cat /src/mxfs/.ccloop/r
+    cd /src/mxfs/tests/suite 2>/dev/null && ls -la && echo "===criteria.json===" && cat criteria.json 2>/dev/null | head -100
+    cd /src/mxfs/tests && find . -name 'run.sh' -o -name 'criteria.json' 2>/dev/null; echo "===suite manifest==="; cat suite/manifest; echo; echo "===suite/run_suit
+
+## Last text from previous session
+
+I'll start by orienting myself. Let me load the memory tools and check the criteria-specific context.
+The most recent memory (age ~15 min) is directly about the 2-node TCP harness. Let me read the freshest ones.
+Clear picture forming. Let me read the ship-gate criteria and look at the actual harness.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

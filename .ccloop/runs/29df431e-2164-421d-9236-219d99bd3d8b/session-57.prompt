@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 57 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 56
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `40c13542-421e-4c70-81b8-ab77b8eda003`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/40c13542-421e-4c70-81b8-ab77b8eda003.jsonl`
+- approx context at last assistant turn: 253773 tokens
+- tools used: Bash×39 Read×26 Edit×3 ToolSearch×2 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess89_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== AGF_INIT clear / pagf refresh attempts ==="; grep -rn "XFS_AGSTATE_AGF_INIT\|clear_bit.*AGF\|pagf_bno_level =\|pagf_cnt_level =\|mxfs.*p
+    cd /src/mxfs; echo "=== enclosing function of L6949 ==="; awk 'NR>=6790 && NR<=6960 && /^[a-z].*\(|^static|^void|^mxfs_/ {print NR": "$0}' xfs/xfs_mxfs_dlm.c | 
+    cd /src/mxfs; echo "=== function defs near 6790-6860 ==="; grep -n "^mxfs_\|^static void\|^static int\|^void\|^int" xfs/xfs_mxfs_dlm.c | awk -F: '$1<6949' | tai
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 $SSH $n.vm.localdomain $P "dmesg 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test1 full context around shutdown ==="; timeout 12 $SSH test1.vm.localdomain $P "dmesg 2>
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test1: ACQ-FRESH agno=1 count + any P102 gen>1 ==="; timeout 12 $SSH test1.vm.localdomain 
+    cd /src/mxfs; echo "=== criterion result ==="; grep -E "RESULT|passed=|failed=" /tmp/claude-1000/-src-mxfs/40c13542-421e-4c70-81b8-ab77b8eda003/tasks/bj79i8muk.
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=== $n: creation/alloc of AG1 inodes 209728x ==="; timeou
+    cd /src/mxfs; echo "=== xfs_alloc_fixup_trees (removes allocated extent from bno/cnt) ==="; grep -n "xfs_alloc_fixup_trees\|^xfs_alloc_fixup_trees\|STATIC int" 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test1: count agno=1 ACQ-FRESH (correct pattern) ==="; timeout 12 $SSH test1.vm.localdomain
+    cd /src/mxfs; echo "=== ALL callers of mxfs_v5_dlm_ag_unlock ==="; grep -rn "mxfs_v5_dlm_ag_unlock\b" xfs/ dlm/ | grep -v "int mxfs_v5_dlm_ag_unlock\|mxfs_v5_dl
+    cd /src/mxfs; grep -n "mxfs_ag_meta_track\|pag_dlm_meta_pending\|_XBF_MXFS.*TRACK\|b_mxfs_ag_tracked\|meta_pending" xfs/xfs_mxfs_dlm.c | head -30
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test2 test3 test4; do echo "=== $n: release path counts ==="; timeout 10 $SSH $n.vm.localdo
+    cd /src/mxfs; echo "=== where release_pending set true ==="; grep -n "pag_dlm_release_pending = true\|release_pending = true" xfs/xfs_mxfs_dlm.c; echo "=== cont
+    cd /src/mxfs; grep -n "release_pending" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; echo "=== buf submit entry points ==="; grep -n "^xfs_buf_submit\|^__xfs_buf_submit\|^void.*xfs_buf_submit\|xfs_buf_submit(\|__xfs_buf_submit(" pa
+    cd /src/mxfs; grep -n "pag_dlm_cached\|pag_dlm_holders\|pag_dlm_demoting\|pag_dlm_release_pending" xfs/libxfs/xfs_ag.h
+    cd /src/mxfs; timeout 400 make modules 2>&1 | tail -15; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 $SSH $n.vm.localdomain $P "uptime -s 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; echo "=== VM states ==="; virsh list --all 2>/dev/null | grep -iE "test|Name"; echo "=== ping test3 ===
+
+## Last text from previous session
+
+tes the node's stale in-core bnobt buffer to disk — clobbering the peer's allocation** (the lost removal). Re-acquire then skips invalidation (buffer IN_AIL) → poisoned cache → double-free.
+
+The decisive smoking-gun probe (Gemini Probe A): catch any node submitting an AG-meta buffer write while it does **not** hold the AG EX. Per RULE 4, I'll implement this cheap always-on probe FIRST to prove the post-release clobber before applying the fix. Let me find the AG-meta write submission point.
+`xfs_buf_submit` (L1619) is the write submission point — I'll add Probe A right after the verify_write check (L1659). Let me confirm the exact perag DLM-state field names to make the "do we hold EX?" check accurate.
+All four fields exist. Per RULE 4, I'll deploy **Probe A only** first to prove the post-release-clobber mechanism before investing in the non-trivial fix. Let me add it to `xfs_buf_submit`.
+Now let me build the module and verify it compiles.
+Build OK (srcversion `0BC933EE`). test1 shut down during the run — likely wedged (leaked module refcount). Let me check node states and recover test1 if needed before deploying the new module.
+test3 is unresponsive. Let me check VM states and recover test3 before resetting.
+I've reached the relay boundary. test3 has recovered (pingable; all 4 VMs running). Let me save a memory checkpoint of this session's decisive findings and the in-flight probe, then summarize.
+Memory checkpoint saved. Reached the relay boundary — summary below.
+
+## Session summary
+
+**Criterion NOT met** — `cache_coherency` still FAILs (`passed=0 failed=4`, cascade from a test1 shutdown). I did **not** write the criteria-met marker.
+
+**Decisive progress this session (RULE 4 + RULE 5):**
+
+1. **Reproduced and precisely characterized the shutdown** (build A18B3029, instr=0): a cross-node **bnobt double-allocation → double-free**. `xfs_free_ag_extent` tries to free `bno=10` in agno=1 but the bnobt already lists it free (`ltbno=10 ltlen=6`). `P47-INACT` proves inode 2097287 is **LIVE, same-gen** (not stale/reused — sess47's fix doesn't apply) and legitimately owns block 10, yet the bnobt's removal of block 10 was **LOST** → block 10 was owned by two inodes.
+
+2. **Refuted the prevailing framing.** The holder acquired agno=1 fresh **once** and held it continuously (only released at unmount); `pag_gen=1` is single-epoch, **NOT** a frozen-gen bug — this kills the sess46/52/80 "frozen `pag_dlm_meta_gen`" theory. The pagf counters matched the AGF, killing my own pagf-level-staleness theory. The holder **inherited** an already-corrupt on-disk state. Also found the deferred-iodone release path is **dead code** (`release_pending` never set true), so only `bast_work_fn` (full drain) releases — yet the removal is still lost.
+
+3. **Gemini RULE-5 consult identified the root:** a **post-release `xfsaild` clobber via a CIL→AIL race in the `bast_work_fn` handoff**. A deferred-op roll commits the bnobt change to the CIL *after* the drain's `log_force` returns (CIL→AIL insertion is async on `xc_commit_wq`); `drain_meta_buffers` misses it; after `ag_unlock` the peer allocates the block; then the releasing node's `xfsaild` writes its **stale in-core bnobt** to disk, erasing the peer's allocation = the lost removal.
+
+4. **Built Probe-A (srcversion `0BC933EE`, NOT yet deployed):** traps any AG-meta buffer WRITE in `xfs_buf_submit` when the node doesn't hold the AG (`!(cached||holders||demoting||relpend)`), dumping `current->comm` + stack. `comm=="xfsaild/*"` is 100% confirmation.
+
+**Next session (state in `sess89_lessons.md`):** all 4 VMs are running but mxfs is unloaded — run `reset4.sh 4` to deploy `0BC933EE`, run `cache_coherency.sh --nodes 4`, grep all nodes for `PROBE-A`. If it fires from xfsaild post-release, the mechanism is proven → implement Gemini's fix: `flush_workqueue(mp->m_log->l_cilp->xc_commit_wq)` after the `log_force` in `bast_work_fn` before `drain_meta_buffers` (optionally a per-AG active refcount carried across `xfs_trans_roll`).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 46 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 45
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `ef940f06-c2b0-474a-a230-c7e71a723a05`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ef940f06-c2b0-474a-a230-c7e71a723a05.jsonl`
+- approx context at last assistant turn: 249169 tokens
+- tools used: Bash×90 Edit×5 Read×4 ToolSearch×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess79_lessons.md
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; MKFS_OPTS=-f timeout 560 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; timeout 560 bash tests/criteria/rsync_paired.sh --nodes 4 --iters 1 > /tmp/rsync_run.log 2>&1; echo "EXIT=$?"; grep -E "RESULT:|ratio|ref_xfs|wors
+    cd /src/mxfs; echo "=== xfs_alloc.c around 2244 ==="; sed -n '2230,2250p' xfs/libxfs/xfs_alloc.c; echo "=== sess47 inactive stale-inode fix ==="; grep -n "sess4
+    cd /src/mxfs; sed -n '1944,2060p' xfs/xfs_inode.c
+    cd /src/mxfs; grep -n "blkdev_issue_flush(mp->m_ddev_targp->bt_bdev);" xfs/xfs_mxfs_dlm.c | head; echo "---"; sed -n '1330,1352p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined|implicit|warning:.*label|warning:.*reg_durable' | head; echo "=== srcversion ==="; modi
+    cd /src/mxfs; MKFS_OPTS=-f timeout 560 bash tests/reset4.sh 4 > /tmp/reset.log 2>&1; echo "EXIT=$?"; tail -2 /tmp/reset.log
+    cd /src/mxfs; until grep -qE "RESET_OK|RESET_FAIL|EXIT=" /tmp/reset.log 2>/dev/null; do sleep 8; done; tail -2 /tmp/reset.log
+    cd /src/mxfs; timeout 560 bash tests/criteria/rsync_paired.sh --nodes 4 --iters 1 > /tmp/rsync_run.log 2>&1; echo "EXIT=$?" >> /tmp/rsync_run.log
+    cd /src/mxfs; until grep -qE "RESULT:|EXIT=" /tmp/rsync_run.log 2>/dev/null; do sleep 8; done; grep -E "RESULT:|ratio" /tmp/rsync_run.log
+    cd /src/mxfs; for it in 1 2; do echo "=== cwr iter $it ==="; MXFS_TESTS_DIR=/src/mxfs/tests timeout 150 ./tests/run_tests.sh --nodes 4 --phase cluster --test te
+    O=/tmp/claude-1000/-src-mxfs/ef940f06-c2b0-474a-a230-c7e71a723a05/tasks/b9wa778g7.output; until grep -qE "cwr iter 2" "$O" 2>/dev/null && grep -cE "PASS:|FAIL:"
+    O=/tmp/claude-1000/-src-mxfs/ef940f06-c2b0-474a-a230-c7e71a723a05/tasks/b9wa778g7.output; sed 's/\x1b\[[0-9;]*m//g' "$O" | grep -E "cwr iter|PASS:|FAIL:|cross_w
+    O=/tmp/claude-1000/-src-mxfs/ef940f06-c2b0-474a-a230-c7e71a723a05/tasks/b9wa778g7.output; until grep -qE "Results:|PASS: [0-9].*\n.*FAIL" "$O" 2>/dev/null || [ 
+    O=/tmp/claude-1000/-src-mxfs/ef940f06-c2b0-474a-a230-c7e71a723a05/tasks/b9wa778g7.output; sed 's/\x1b\[[0-9;]*m//g' "$O" | grep -E "cwr iter|PASS:|FAIL:|cross_w
+    cd /src/mxfs; python3 - <<'EOF' import json,datetime f=".criteria_results.json" d=json.load(open(f)) d["rsync_paired"]={"status":"PASS","last_run_iso":datetime.
+    cd /src/mxfs; sed -n '2250,2290p' xfs/libxfs/xfs_alloc.c
+    cd /src/mxfs; grep -n "mxfs_ag_meta_invalidate_stale\|pag_dlm_meta_gen\|b_mxfs_ag_gen" xfs/xfs_mxfs_dlm.c | head -20
+    cd /src/mxfs; sed -n '3080,3200p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; MXFS_TESTS_DIR=/src/mxfs/tests timeout 200 ./tests/run_tests.sh --nodes 4 --phase cluster --test test_unlink_visibility --pass-file /tmp/.mxfs_pas
+
+## Last text from previous session
+
+full criterion** until I fix the unlink shutdown. So the bnobt double-free is now the critical path.
+
+Let me persist the verified win before continuing. Update state and save a memory.
+Now add the index pointer and update `.criteria_results.json` to reflect the confirmed rsync_paired PASS on the new build.
+Index updated. Now to the critical path: the unlink **bnobt double-free shutdown** that blocks cross_write_read from running. Let me look at the existing instrumentation at the corruption point and understand what the deferred free is freeing.
+The sess44/52 work proved the bnobt double-free root is a **bnobt lost-update**: a sole AG-EX holder writes a stale (pristine, low-numrecs) bnobt over a peer's durable one, then later frees legitimately-owned blocks that the clobbered bnobt shows free → overlap → shutdown. The next step (sess52) was the AG-meta acquire-side staleness. Let me examine the AG-meta invalidation on EX acquire — the root.
+I now have a clear model: with node-affine allocation, rsync is disjoint, but cache_coherency's tests deliberately **share a directory** — that shared dir's AG is the cross-node hotspot for both the dir-block staleness (visibility) and the bnobt lost-update (corruption). This is the deeply-characterized 30-session wall with all detectors (P88/P101/P86/P70) already in place.
+
+Let me update state.md with a sess79 handoff section so the continuation picks up correctly. Let me read the top first.
+Clean handoff recorded. The criteria are not met, so no marker. Let me continue on the critical path — capture fresh always-on detector data (P88/P15/P47) at the unlink shutdown to advance the bnobt investigation (sess52's planned next step). Run unlink_visibility in isolation on DA1CF4D8.
+I've reached the relay boundary. The unlink_visibility detector-capture run is in the background and will continue; the next session has full transcript access plus the updated `state.md` (sess79 section) and `sess79_lessons.md`.
+
+## Summary of this session
+
+**Corrected the framing:** The ccloop resume said `rsync_paired` was the sole blocker. That was stale. The current full source tree compiles to **F7BEB353** and on it `rsync_paired` already **PASSES**; the real blocker is **cache_coherency**. I verified this via forced rebuild + `.criteria_results.json` + fresh runs.
+
+**RULE-4 isolation:** Proved the dir-FUA-skip (`dir_unpub_skip`) is *not* the coherency culprit — cache_coherency fails identically with it on or off.
+
+**Landed a verified win (build `DA1CF4D8`, deployed, keep):** Consulted Gemini (RULE 5) and implemented its Priority-1 — replaced the non-deterministic 50×/100ms AIL-push loop in the regular-file BAST-release path with a deterministic `xfs_log_force(SYNC)` → `xfs_imap_to_bp` → `xfs_iflush_cluster` → `xfs_bwrite` → `blkdev_issue_flush`. Result: the `P-REG-DURABLE-FAIL` detector reads **0** on all nodes (writer durability now solid), and `cross_write_read` passes in isolation.
+- **Caught and fixed a self-inflicted regression:** v1 (`A8A048F5`) called `log_force` unconditionally → `rsync_paired` regressed 105%→137%. Added an already-durable early-out (`!in_ail && !pinned`); v2 (`DA1CF4D8`) restores **rsync_paired PASS 103%**. That early-out is load-bearing.
+
+**Identified the critical path:** cache_coherency runs sub-tests in order, and `unlink_visibility` triggers an FS **shutdown** (the recurring bnobt double-free, `xfs_alloc.c:2244`, via `xfs_defer_finish` on the shared test dir's contended AG). That shutdown unmounts node1, so `cross_write_read` never even runs in the full criterion. **The unlink shutdown must be fixed first** — it's the deeply-characterized AG bnobt lost-update (detectors P88/P101/P86/P70 already in place; sess52's next step is to add dirty/in_ail/pin to P88). After that: dir-block reader staleness (rename/unlink phantom) via the already-wired HB evict-ring generalized to dir-modify notifications.
+
+**Criteria not met → marker NOT written.** State and memory updated for continuation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 41 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 40
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `293983ae-ec9b-4323-9823-ea2b51059835`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/293983ae-ec9b-4323-9823-ea2b51059835.jsonl`
+- approx context at last assistant turn: 247869 tokens
+- tools used: Bash×68 Edit×2 Read×2 ScheduleWakeup×2 ToolSearch×2 Monitor×1 TaskStop×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/.claude/awareness/subsystems/tools.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -E '^(RESULT:|=== SHIP|criteria passed)' /tmp/vship_5D2D50C8.log | tail -3; tail -3 /tmp/claude-1000/-src-mxfs/293983ae-ec9b-4323-9823-ea2b51
+    cd /src/mxfs; pkill -f verify_ship.sh 2>/dev/null; sleep 1; echo "verify_ship procs remaining:"; pgrep -af verify_ship.sh | grep -v pgrep || echo "(none)"
+    echo "=== SCST device handlers: what backs each target's LUN ==="; sudo ls -l /sys/kernel/scst_tgt/handlers/*/disk1*/filename 2>/dev/null echo echo "=== read th
+    cd /src/mxfs; echo "build: $(modinfo mxfs.ko|grep -oP 'srcversion: *\K\S+')"; echo "start $(date -u +%H:%M:%S)"; bash tests/criteria/verify_ship.sh > /tmp/vship
+    cd /src/mxfs; sleep 8; grep -E 'warm-up done|ABORT|RESULT:|--- \[' /tmp/vship_5D2D50C8_run2.log 2>/dev/null | head -5; echo "now $(date -u +%H:%M:%S)"
+    cd /src/mxfs; echo "=== mkfs_timing failure detail ==="; grep -E 'rc=|mkfs|busy|mount|error|Error' /tmp/vship_5D2D50C8_run2.log 2>/dev/null | head -15; echo; ec
+    cd /src/mxfs; echo "=== run mkfs_timing in foreground, capture real error ==="; timeout 120 bash tests/criteria/mkfs_timing.sh --nodes 1 2>&1 | tail -30
+    cd /src/mxfs; echo "=== mkfs_timing.sh: device + mkfs invocation ==="; grep -nE 'DEV|dev=|mkfs|ssh_node|MXFS_DEV|/dev/sd|node1|rc=1|return' tests/criteria/mkfs_
+    cd /src/mxfs; source tests/criteria/lib.sh 2>/dev/null; NODE="${DEFAULT_NODES[0]:-test1}"; echo "NODE=$NODE MXFS_DEV=$MXFS_DEV MXFS_MKFS=$MXFS_MKFS"; echo "=== 
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 test1.vm.localdomain "echo '=== /tmp/mkfs.log ==='; cat /tmp/mkfs.log 2>/dev/null; echo '=== device state =
+    cd /src/mxfs; grep -nE 'ssh_node\(\)|sshpass|ssh .*-i |SSH_USER|SSHPASS|MXFS_SSH|root@|ssh_opts|ProxyCommand' tests/criteria/lib.sh | head -25
+    cd /src/mxfs; grep -nE 'MXFS_PASS|MXFS_USER|MXFS_DEV:=|DEFAULT_NODES=' tests/criteria/lib.sh | head; echo "=== sshpass wrapper usage ==="; head -20 tools/mxfs_s
+    cd /src/mxfs; W=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $W test1 $P "echo '=== last mkfs.log ==='; cat /tmp/mkfs.log 2>/dev/null; echo '=== sda state ==='; ls
+    cd /src/mxfs; ls -la tests/reset4.sh tests/reset*.sh scripts/cluster_reset.sh 2>/dev/null; echo "=== reset4.sh header/usage ==="; sed -n '1,40p' tests/reset4.sh
+    cd /src/mxfs; echo "start $(date -u +%H:%M:%S)"; timeout 480 bash tests/reset4.sh 16 2>&1 | tail -25; echo "end $(date -u +%H:%M:%S)"
+    cd /src/mxfs; timeout 120 bash tests/criteria/mkfs_timing.sh --nodes 1 2>&1 | grep -E 'RESULT:'
+    cd /src/mxfs; echo "start $(date -u +%H:%M:%S)"; bash tests/criteria/verify_ship.sh > /tmp/vship_5D2D50C8_run3.log 2>&1; echo "EXIT=$? end $(date -u +%H:%M:%S)"
+    cd /src/mxfs; grep -E 'warm-up done|ABORT|RESULT:|--- \[' /tmp/vship_5D2D50C8_run3.log 2>/dev/null | tail -4; echo "now $(date -u +%H:%M:%S)"
+    cd /src/mxfs/scripts; echo "=== files by mtime (today first) ==="; ls -la --time-style=+%Y-%m-%dT%H:%M | sort -k6 -r | head -30; echo; echo "=== scst_* files ==
+    cd /src/mxfs; echo "=== does ANY harness reference the scst_* files? (if none, they're inert) ==="; grep -rIl --exclude-dir=.git -E 'scst_block_diag|scst_mon|sc
+
+## Last text from previous session
+
+arted to clear their stuck mounts). The contamination from the kill is gone. Let me confirm the fix by running `mkfs_timing` in the foreground — it should pass now:
+`mkfs_timing` PASS (206ms) — confirms the cluster is clean and the earlier failure was purely the orphaned mount from the kill, not an MXFS bug.
+
+Now the full end-to-end gate. To be transparent about the background question: the ship contract requires `verify_ship.sh` to exit 0 in **one continuous run**, and that run is ~35 minutes — which structurally exceeds the 10-minute foreground cap, so it cannot be a single foreground call. This is the one case where backgrounding is unavoidable (per the rule's own "split long runs" carve-out, except this run can't be split and still count as one). I'll launch it once and wait for the **single** completion notification — no per-criterion poll streaming this time.
+Gate launched on the clean cluster (task `bex1k847p`, log `/tmp/vship_5D2D50C8_run3.log`). I'll wait for its single completion notification. On `=== SHIP_GATE: PASS ===` / exit 0 — every criterion passing in one continuous run — the ship contract is met and I'll write the marker. If any criterion fails, I'll diagnose it in the foreground.
+Gate running on the clean cluster. Waiting for the single completion notification — not polling. Will report the verdict when task `bex1k847p` completes.
+Past the prior failure point cleanly — mkfs_timing PASS (185ms), chk_clean PASS, now on dkms_install (3/19). The dirty-state issue is resolved. I'll now wait for the single completion notification rather than poll. Verdict to follow when task `bex1k847p` finishes.
+Gate progressing cleanly (3/19, 2 PASS). Waiting for the single completion notification from task `bex1k847p`.
+Gate progressing (3/19, 2 PASS). Waiting on the completion notification.
+Gate running end-to-end on the clean cluster (3/19, 2 PASS). The completion notification from task `bex1k847p
+Let me check exactly what that session touched in `/src/mxfs/scripts/` and whether any load-bearing script was modified.
+Only 4 files were touched, all isolated diagnostics between 13:26–14:21 today. No load-bearing harness (cluster_reset, reset4, stress, bench, or any `tests/criteria/*`) was modified. Let me verify they're inert (nothing calls them) and syntactically valid, and that the backup is intact.
+Verification complete — **that session didn't break anything.** The accounting checks out:
+
+**What was touched: only 4 standalone diagnostic files in `/src/mxfs/scripts/`** (13:26–14:21 today):
+- `scst_block_diag.py` — rewritten; **original safely preserved** as `scst_block_diag.py.backup` (confirmed: it's the genuine drgn-based original, intact and restorable).
+- `scst_mon.py`, `scst_caw_repro.sh`, `scst_delay_setup.sh` — new files.
+
+**Why nothing is at risk:**
+- **Inert** — grep confirms *nothing* in `tests/`, `scripts/`, `bench/`, or the `Makefile` references any of these four. They're hand-run diagnostics; no harness invokes them, so even a broken one couldn't affect the gate or the build.
+- **All 4 pass syntax checks** — `py_compile` clean on both Python files, `bash -n` clean on both shell scripts.
+- **No load-bearing script modified** — `cluster_reset.sh`, `reset4.sh`, `stress_session.sh`, the bench harnesses, and every `tests/criteria/*` are untouched (older mtimes).
+- The SCST repo (`/src/scst`) and `mxfs.ko` are untouched, as that session stated.
+
+So: no damage, the original is backed up, and the additions are isolated. If you want them gone, `scst_block_diag.py.backup` restores the original and the three new files can just be deleted — but they cost nothing sitting there.
+
+**Separately, the ship gate is still running** in the background (task `bex1k847p`, run3 on the clean cluster) — it was at 3/19 PASS when I last checked. I'm at the relay boundary now; the next session will pick up the gate's completion verdict (and write the criteria-met marker if it's `SHIP_GATE: PASS`). Criteria **not** yet met — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,54 @@
+=== FULL RUN 1 ===
+r1:   PASS  precond_readiness
+r1:   PASS  cache_coherency  (nodes_pass=2/2)
+r1:   PASS  strong_consistency  (nodes_pass=2/2)
+r1:   PASS  posix_multi  (nodes_pass=2/2)
+r1:   PASS  mmap_coherency  (nodes_pass=2/2)
+r1:   PASS  zero_silent_loss  (nodes_pass=2/2)
+r1:   PASS  dlm_fairness  (nodes_pass=2/2)
+r1:   PASS  dlm_membership  (nodes_pass=2/2)
+r1:   PASS  scaling_curve  (nodes_pass=2/2)
+r1:   PASS  dlm_scaling  (nodes_pass=2/2)
+r1:   PASS  rsync_paired  (nodes_pass=2/2)
+r1:   PASS  crash_consistency  (nodes_pass=2/2)
+r1:   PASS  fence_during_write  (nodes_pass=2/2)
+r1:   PASS  fault_netpartition  (nodes_pass=2/2)
+r1:   PASS  soak
+r1:   PASS  tcp_dlm_scaling  (nodes_pass=2/2)
+r1: === done: ran=16 pending=0 @ 2/tcp — see ./showstat.sh 2 tcp ===
+=== FULL RUN 2 ===
+r2:   PASS  precond_readiness
+r2:   PASS  cache_coherency  (nodes_pass=2/2)
+r2:   PASS  strong_consistency  (nodes_pass=2/2)
+r2:   PASS  posix_multi  (nodes_pass=2/2)
+r2:   PASS  mmap_coherency  (nodes_pass=2/2)
+r2:   PASS  zero_silent_loss  (nodes_pass=2/2)
+r2:   PASS  dlm_fairness  (nodes_pass=2/2)
+r2:   PASS  dlm_membership  (nodes_pass=2/2)
+r2:   PASS  scaling_curve  (nodes_pass=2/2)
+r2:   PASS  dlm_scaling  (nodes_pass=2/2)
+r2:   PASS  rsync_paired  (nodes_pass=2/2)
+r2:   PASS  crash_consistency  (nodes_pass=2/2)
+r2:   PASS  fence_during_write  (nodes_pass=2/2)
+r2:   PASS  fault_netpartition  (nodes_pass=2/2)
+r2:   PASS  soak
+r2:   PASS  tcp_dlm_scaling  (nodes_pass=2/2)
+r2: === done: ran=16 pending=0 @ 2/tcp — see ./showstat.sh 2 tcp ===
+=== FULL RUN 3 ===
+r3:   PASS  precond_readiness
+r3:   PASS  cache_coherency  (nodes_pass=2/2)
+r3:   PASS  strong_consistency  (nodes_pass=2/2)
+r3:   PASS  posix_multi  (nodes_pass=2/2)
+r3:   PASS  mmap_coherency  (nodes_pass=2/2)
+r3:   PASS  zero_silent_loss  (nodes_pass=2/2)
+r3:   FAIL  dlm_fairness  (nodes_pass=1/2)
+r3:   PASS  dlm_membership  (nodes_pass=2/2)
+r3:   PASS  scaling_curve  (nodes_pass=2/2)
+r3:   PASS  dlm_scaling  (nodes_pass=2/2)
+r3:   PASS  rsync_paired  (nodes_pass=2/2)
+r3:   FAIL  crash_consistency  (nodes_pass=1/2)
+r3:   PASS  fence_during_write  (nodes_pass=2/2)
+r3:   PASS  fault_netpartition  (nodes_pass=2/2)
+r3:   PASS  soak
+r3:   PASS  tcp_dlm_scaling  (nodes_pass=2/2)
+r3: === done: ran=16 pending=0 @ 2/tcp — see ./showstat.sh 2 tcp ===

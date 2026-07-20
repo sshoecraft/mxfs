@@ -1,0 +1,146 @@
+.\" resize_mxfs(8) man page
+.\" Copyright (c) 2026 MXFS Project
+.\" SPDX-License-Identifier: GPL-2.0
+.\"
+.TH RESIZE_MXFS 8 "2026-03-10" "MXFS 0.10.0" "System Administration"
+.SH NAME
+resize_mxfs \- grow an MXFS filesystem to fill an expanded device
+.SH SYNOPSIS
+.B resize_mxfs
+.RB [ \-n ]
+.RB [ \-v ]
+.RB [ \-V ]
+.I device
+.SH DESCRIPTION
+.B resize_mxfs
+grows an MXFS filesystem after the underlying block device has been
+expanded (e.g., after an iSCSI LUN resize or LVM
+.BR lvextend (8)).
+.PP
+The tool appends new XFS allocation groups at the end of the XFS data
+area and updates both the XFS and MXFS superblocks to reflect the new
+geometry.  The MXFS superblock, journal, and disklock regions are at
+fixed offsets at the start of the device and are never moved.
+.PP
+.B resize_mxfs
+only supports growing.  Shrinking a filesystem is not supported.
+.SS How Growing Works
+.nf
+Before:
+  [MXFS reserved ~96MB] [XFS data (AG 0, AG 1)]
+  0                      xfs_data_offset          old_dev_end
+
+After:
+  [MXFS reserved ~96MB] [XFS data (AG 0, AG 1, AG 2, AG 3, ...)]
+  0                      xfs_data_offset                          new_dev_end
+.fi
+.SS New AG Structure
+Each new allocation group contains 5 header blocks followed by free space:
+.TP
+.B Block 0
+XFS superblock (secondary copy) + AGF + AGI + AGFL (4 sectors)
+.TP
+.B Block 1
+BNO btree root (free space by block number, 1 record)
+.TP
+.B Block 2
+CNT btree root (free space by size, 1 record)
+.TP
+.B Block 3
+INO btree root (inode allocation, empty)
+.TP
+.B Block 4
+FINO btree root (free inode tracking, empty)
+.TP
+.B Block 5+
+Available as free space
+.PP
+Free blocks per new AG = AG size in blocks minus 5.
+.SH OPTIONS
+.TP
+.BR \-n
+Dry run.  Display what would be done without writing any changes to
+the device.  Useful for verifying resize geometry before committing.
+.TP
+.BR \-v
+Verbose output.  Show detailed per-AG information during the resize.
+.TP
+.BR \-V
+Print the version string and exit.
+.SH EXAMPLES
+Grow the filesystem after expanding the underlying LUN:
+.PP
+.RS
+.nf
+resize_mxfs /dev/sdb
+.fi
+.RE
+.PP
+Dry run to preview the resize plan:
+.PP
+.RS
+.nf
+resize_mxfs -n /dev/sdb
+.fi
+.RE
+.PP
+Typical workflow for expanding shared storage:
+.PP
+.RS
+.nf
+# 1. Expand the iSCSI LUN on the storage appliance
+# 2. Rescan the device on all nodes:
+iscsiadm -m session --rescan
+# 3. Unmount on all nodes:
+umount /mnt/shared
+# 4. Resize on one node:
+resize_mxfs /dev/sdb
+# 5. Remount on all nodes:
+mount -t mxfs /dev/sdb /mnt/shared
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Filesystem resized successfully, or dry run completed.
+.TP
+.B 1
+An error occurred (device not larger, invalid superblock, I/O error, etc.).
+.SH NOTES
+.IP \(bu 3
+The filesystem must be unmounted on all nodes before resizing.
+.IP \(bu 3
+The new device size must be strictly larger than the recorded device size
+in the MXFS superblock.
+.IP \(bu 3
+A new allocation group requires at least 64 blocks (256 KB with 4 KB
+blocks).  Any remainder smaller than 64 blocks is not used.
+.IP \(bu 3
+The tool writes new AG structures first, then updates the primary XFS
+superblock, then updates secondary superblock copies in existing AGs,
+and finally updates the MXFS superblock.  A crash during resize leaves
+the old filesystem intact if the superblock updates have not yet been
+written.
+.IP \(bu 3
+Multiple iterative resize operations are supported.  Each run adds new
+AGs for whatever space is available.
+.IP \(bu 3
+Both block devices
+.RB ( BLKGETSIZE64
+ioctl) and regular files
+.RB ( fstat (2))
+are supported.
+.IP \(bu 3
+The tool is standalone with no libmxfs linkage.
+.SH FILES
+.TP
+.I /usr/sbin/resize_mxfs
+The resize tool binary.
+.SH SEE ALSO
+.BR mxfs (5),
+.BR mkfs.mxfs (8),
+.BR chk_mxfs (8),
+.BR lvextend (8),
+.BR iscsiadm (8)
+.SH AUTHORS
+MXFS Project.

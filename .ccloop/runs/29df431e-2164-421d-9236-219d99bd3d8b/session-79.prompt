@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 79 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 78
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `f09f7e01-d145-4590-ad20-5127123446bd`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f09f7e01-d145-4590-ad20-5127123446bd.jsonl`
+- approx context at last assistant turn: 249394 tokens
+- tools used: Bash×56 Read×21 Edit×3 ToolSearch×2 mcp__ask_gemini__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== daddr=120 timeline (realns-sorted): node owner active count ===";  grep "daddr=120" /tmp/dirwr_all.txt | awk '{   node=$1; for(i=1;i<=NF
+    cd /src/mxfs; echo "=== owner=136 daddr=120 timeline (node active count realns), watch active for non-monotonic drops ===";  grep "daddr=120" /tmp/dirwr_all.txt
+    cd /src/mxfs; echo "=== owner=136 daddr=120: comm breakdown by active-count band ===";  for n in 1 2 3 4; do timeout 12 bash tools/mxfs_sshpass.sh test$n /tmp/.
+    cd /src/mxfs; grep -n "mxfs_dlm_bast_process\|inode_unlock\|i_dlm_state =\|i_dlm_mode =\|ISTATE_NONE\|ISTATE_CACHED" xfs/xfs_mxfs_dlm.c | sed -n '1,50p' | grep 
+    cd /src/mxfs; grep -n "mxfs_dlm_dir_modify_refresh" xfs/xfs_mxfs_dlm.c xfs/xfs_inode.c; echo "=== def ==="; sed -n '/mxfs_dlm_dir_modify_refresh(struct/,/^}/p' 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/
+    cd /src/mxfs; rm -f /tmp/dirwr_all.txt for n in 1 2 3 4; do timeout 12 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep 'P-DIRWR'" 2>/dev/null | 
+    cd /src/mxfs; grep "owner=12583041" /tmp/dirwr_all.txt | awk '{   node=$1; for(i=1;i<=NF;i++){if($i~/^active=/)a=$i;if($i~/^count=/)c=$i;if($i~/^stale=/)s=$i;if
+    cd /src/mxfs; echo "=== rm/cleanup in harness ==="; grep -rn "rm -rf\|rm -f\|cleanup\|mxfs_test\b" tests/run_tests.sh tests/lib/common.sh tests/lib/cluster.sh 2
+    cd /src/mxfs; grep -rn "if_nextents\|->if_nextents\|xfs_ifork_nextents\|if_format" xfs/libxfs/xfs_inode_fork.h 2>/dev/null | head; echo "=== usage examples ==="
+    cd /src/mxfs; timeout 590 make modules 2>&1 | grep -iE "error:|warning:.*dlm|undefined|implicit" | head; echo "buildrc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2 for n in 1 2 3 4; do echo -n "test$n: "; timeout 6 ba
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests LIBVIRT_DEFAULT_URI=qemu:///system for run in 1 2 3 4 5 6 7 8; do   for n in 1 2 3 4; do
+    cd /src/mxfs; D=$(ls -dt /home/steve/.mxfs/results/*/ | head -1);  echo "=== loser node + lost set ==="; for n in 1 2 3 4; do c=$(grep -cE "New name exists.*fil
+    cd /src/mxfs;  echo "=== inodes that ever reached nextents>=2 (multi-block dirs) ===" awk '{for(i=1;i<=NF;i++){if($i~/^ino=/)o=$i;if($i~/^nextents=/)n=$i};gsub(
+    cd /src/mxfs; rm -f /tmp/dirwr2.txt for n in 1 2 3 4; do timeout 12 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep 'P-DIRWR'" 2>/dev/null | sed
+    cd /src/mxfs; echo "=== node1's dir-block WRITES this run (comm + owner + daddr + active) ===";  grep "^node1 " /tmp/dirwr2.txt | awk '{for(i=1;i<=NF;i++){if($i
+    cd /src/mxfs;  echo "=== node1 P105-ACQ ino=23068801 realns (all) ===" timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep 'P105-ACQ-DIRIN
+    cd /src/mxfs; echo "=== node1: dir-evict events (dirty/in_ail) + reload + create-timeline for rename dir (ino=23068801) ===" timeout 12 bash tools/mxfs_sshpass.
+    cd /src/mxfs; sed -n '1100,1180p' xfs/xfs_inode.c | grep -nE "xfs_create\(|struct xfs_name|name->|args->name|xfs_dir_create_child|const char" | head
+
+## Last text from previous session
+
+ver hit this block. I need node1's **create/rename-phase** acquire timing vs node2/3/4's mv writes. Let me correlate realns.
+**Breakthrough**: node1's `mv` failed with `cannot stat node1_before_1: No such file or directory` — node1's 20 **before-files were never created/persisted**. The bug is in the concurrent **CREATE** phase, not rename. node1's 20 concurrent creates into the shared dir were lost cluster-wide (block only reaches 62 = node2/3/4's 60). Let me check if node1's own dirty/in-AIL dir buffer was evicted-before-flush (the self-discard).
+node1 only touches ino=23068801 at **teardown** (kernel 1625s+) — never during the create phase. So during create, node1's `.mxfs_test/rename_visibility` resolved to a **different (stale) directory inode** than node2/3/4's 23068801. node1 created its 20 files into a stale/orphaned dir → invisible. This is a **stale-dentry / directory-inode coherency** bug across the rm+recreate. Let me read the harness setup to confirm the rm+mkdir ordering.
+Confirmed: `ssh_node 1` (test1) does the rm+mkdir, AND test1 lost its files. Yet node2/3/4 built the live dir inode 23068801 while test1 never wrote it during create — meaning test1 created its files into a **different directory inode** than 23068801. This is a concurrent-mkdir / directory-inode divergence (multiple nodes' `mkdir -p` racing → orphaned dir inode). Let me add a decisive probe logging the parent-dir inode per create.
+That's xfs_remove. Let me look at xfs_create's modify_refresh site (line 1218) where the name is available.
+I've hit the relay boundary. Let me add the decisive parent-inode probe (so the next session can build+test immediately), then summarize.
+Let me record this session's major reframe in memory before wrapping up.
+Summary of this session (relay boundary reached; criteria NOT met — cache_coherency still 3/4):
+
+## Major reframe of the last cache_coherency ship-blocker
+
+Working on residual #1 (rename_visibility intermittent loss), I followed RULE 4 strictly and **disproved the long-standing framing**. The bug is **not a rename lost-update — it's a CREATE-phase directory-inode divergence.**
+
+**Proven evidence (clean single-run reproductions, build `3911B884` with new probes):**
+- Reliable reproducer: `virsh destroy+start` all 4 → `reset4.sh 4` → clear dmesg per pair → loop cross_visibility then rename_visibility. Fails clean (no shutdown) within 1–2 pairs; one node loses all 20 renames, durable on all nodes.
+- The rename dir is **single-block** (`P105`: nextents=1, size=4096) — this **refuted Gemini's multi-block-overflow theory**.
+- P-DIRWR write-trace: the live shared dir block (owner=23068801) is built to 62 entries by node2/3/4's before-files; **the loser (node1) never writes it during create/rename** — its 20 before-files are absent cluster-wide.
+- node1.log: `mv: cannot stat 'node1_before_1': No such file or directory` → the loser's before-files were never created/visible. **The loss is in the concurrent create phase, not rename.**
+- The loser's first acquire of the live dir inode is at rename/teardown time, never during create → during create it resolved the path to a *different* directory inode than its peers.
+
+**Root hypothesis (instrumented, awaiting confirmation):** concurrent-mkdir / stale-dentry directory-inode divergence — the loser creates its files into an orphaned dir inode while the parent dirent points at a peer's inode. (d_revalidate is disabled, so stale dentries aren't rechecked after a peer's rmdir+mkdir of the same name.)
+
+**Left ready for next session:** build `3911B884` carries probes `P105-REL/ACQ-DIRINODE` (refuted multi-block) and `P105-CREATE-PARENT` (logs parent dir inode per create). **Next step:** `make modules`, deploy, reproduce one clean fail, then compare `P105-CREATE-PARENT dp=` across nodes for the loser's `_before_` files. If the loser's parent ino ≠ peers' → divergence proven → fix targets directory dentry/inode coherency on create/lookup. Full detail in memory `sess105_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

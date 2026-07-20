@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `586b03db-0c67-4c73-8df3-d63ba32af1c9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/586b03db-0c67-4c73-8df3-d63ba32af1c9.jsonl`
+- approx context at last assistant turn: 504083 tokens
+- tools used: Bash×202 Edit×30 Read×6 TaskCreate×4 TaskUpdate×4 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_trans.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 20 $SSH test8 $PF "dmesg | grep -E 'ag=14' | grep -E 'P5U-AGUNLOCK|P5R|AGCONFLICT|P1-AG' | head
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 25 $SSH test8 $PF "dmesg | awk -F'[][]' '\$2+0>=157 && \$2+0<=281' | grep -iE 'ag=14|agno=14|P3
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 20 $SSH test2 $PF "dmesg | grep 'P1-AGCONFLICT ag=3 ' | head -4; dmesg | grep 'P1-AGCONFLICT ag
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 20 $SSH test8 $PF "dmesg | awk -F'[][]' '\$2+0>=155 && \$2+0<=230' | grep -E 'ag=3( |\$)|agno=3
+    grep -n "AGBAST\|ag_bast\|bast.*MXFS_LTYPE_AG\|LTYPE_AG.*bast" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -8; grep -rn "mxfs_dlm_ag_bast_notify\|ag_bast_notify" /src/m
+    sed -n '23000,23110p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "P1-AGWAIT" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2; grep -n "t_mxfs_ag_unlocks" /src/mxfs/xfs/xfs_trans.h /src/mxfs/xfs/*.h 2>/dev/null | head -3
+    sed -n '20790,20870p' /src/mxfs/xfs/xfs_mxfs_dlm.c; grep -n "struct mxfs_trans_ag_unlock\|mxfs_trans_ag_unlock {" /src/mxfs/xfs/xfs_trans.h /src/mxfs/xfs/xfs_mx
+    sed -n '20870,20940p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -rn "t_mxfs_ag_unlocks" /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c 2>/dev/null | head -6; grep -n "struct mxfs_ag_unlock\b\|mxfs_ag_unlock {" /src/mxfs/xfs
+    sed -n '22770,22830p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    awk 'NR<20830 && /^[a-z_]+.*\(/ && !/^\t/ {line=NR": "$0} END{}' /src/mxfs/xfs/xfs_mxfs_dlm.c | tail -1; awk 'NR>=20600 && NR<=20838 && /^mxfs_|^static|^int|^vo
+    awk 'NR>=20550 && NR<=20840' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "^[a-z]" | tail -3
+    grep -n "^mxfs_ag_dlm_lock\|^int$\|^static int$" /src/mxfs/xfs/xfs_mxfs_dlm.c | awk -F: '$1 > 20300 && $1 < 20830' | tail -4
+    make modules 2>&1 | grep -E "error:" | head -5; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 3; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system 
+    S=/tmp/claude-1000/-src-mxfs/586b03db-0c67-4c73-8df3-d63ba32af1c9/scratchpad; for i in $(seq 1 57); do if ! pgrep -f "run.sh 8 tcp" >/dev/null; then echo "RUN E
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 20 $SSH test8 $PF "dmesg | grep 'P1-AGWAIT' | head -10" 2>/dev/null; echo === ; timeout 20 $SSH
+    grep -n "xfs_extent_free_diff_items\|list_sort\|xefi_group\|agno" ~/src/linux/fs/xfs/xfs_extfree_item.c 2>/dev/null | head -10
+    sed -n '185,200p' /src/mxfs/xfs/xfs_trans.c; grep -n "mxfs_trans_drain_ag_unlocks" /src/mxfs/xfs/xfs_trans.c | head -3
+
+## Last text from previous session
+
+y be fallout). Pulling its context.
+Now the strike-counter fields and the P135 escalation arm:
+Now the P135-arm escalation:
+Build `8A85233D` clean. Launching the full 8/tcp suite on a fresh cycle (run95).
+dlm_fairness now 4/8 (was 7/8) and dlm_scaling 7/8 (was PASS) — the fairness family is the emerging blocker. Letting the suite finish.
+Build `5C571CCA`. Full suite rerun (run96) on a clean cycle.
+dlm_fairness 2/8, dlm_membership 0/8 — degradation, not improvement. Pulling reasons while the run continues.
+AG-14's master is test6. Checking its view: who held AG-14 and did releases arrive?
+Phantom AG-14 holder = test8, EX-granted from ≤158s with 90 conflicts. Checking test8's release side (P5U/P5R pairing was built for exactly this).
+Relay boundary — completing this one edit (it mirrors the already-documented inode-unlock design directly above it) and building, then wrapping up.
+Relay boundary reached — wrapping up. **Criteria not yet met; marker not written.**
+
+## Session 7 summary
+
+**Major milestone: first-ever full 8-node TCP dir_reuse_coherency PASS (run93, 8/8 nodes, 24/24 rounds, zero fail rounds)** — the historical #1 blocker — via four RULE-4-proven fixes, followed by the first full-suite landscape at 13/17 and a proven root for the biggest remaining failure family.
+
+**Fixes landed and verified this session (current build `20CD7654`, deployed):**
+1. **FIX-16** — the noino BAST release was blind to mxfs-seq dir blocks (never enter the AIL; run89 r6: `lseq=168 wseq=0` unlocked-past → peer read pre-add platter). Added a map-independent per-AG buffer-cache landing scan before the unlock. Fired 30× in the passing run.
+2. **FIX-17** — `dlm_lock_impl`'s still_safe check treated other-node WAITING entries as staleness evidence and freed the only GRANTED entry, orphaning the whole queue (run90: 184.5s timeouts, 6/8 nodes shutdown). Now only a conflicting GRANTED entry distrusts a grant.
+3. **FIX-18** — the demote-wait's rescue arms were dead code (inner `while` re-slept forever; run91: ghost ex_holder wedged a file inode 500s cluster-wide). Now every 30s timeout runs the rescue, plus a re-drive arm for dead instances with no holders.
+4. **FIX-19** — the buffer shrinker reclaimed committed-undestaged dir buffers (only copy = unreplayed journal; run92 round-1: uniform 795/800 durable loss). The LRU isolate now rotates undestaged dir-class buffers. Fired 74× in the passing run.
+5. **FIX-20b** — phantom master grants (requester's timeout retry discards the late grant) now get reconciled: a repeated no-mirror BAST triggers a serialized release whose mirror-empty arm sends a gen-0 wildcard release to the master. (First cut sent it on every ENOENT unlock — regressed fairness via wire flood; refined to the targeted one-shot.)
+6. **Pace levers** — P44 print cap 60000→2000 (~6MB of serial-console traffic per run), leafprobe default off, P60's per-hit FUA compare-read gated behind instr.
+
+**Root proven for the remaining blocker (dlm_fairness/tcp_dlm_scaling, and the cascade that killed test4):** a cross-AG hold-and-wait convoy — the new `P1-AGWAIT trans_held_ags=[…]` probe caught dirty `rm` transactions holding AG-4 while blocking on AG-0 (and AG-7 vs AG-3), because `xfs_trans_dup` migrates AG DLM grants across every defer roll, accumulating them for the whole chain. **Crucial constraint discovered before patching:** that migration is itself a proven fix for EFI-coordinate corruption — the fix must be ascending-order discipline or per-AG retention-while-pending, not splice removal. Design options are ranked in memory `sess7-part3-AG-convoy-design-constraint`; the 3-minute reproducer is `./run.sh 8 tcp dlm_fairness` after a clean cycle.
+
+**Remaining for the criteria** (full `./run.sh N tcp` suite at 1/2/4/8): fix the AG convoy, re-run the 8/tcp suite (dir_reuse in-suite pace should also benefit), fix any residue (soak was fallout-only), then measure 4/2/1. All evidence paths, build IDs, and procedures are in the three sess7 ccmemory entries.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

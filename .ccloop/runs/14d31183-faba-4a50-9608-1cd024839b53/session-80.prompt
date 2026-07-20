@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 80 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 79
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `f53cdf91-b4ea-4800-b0c0-975d66b6bbee`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f53cdf91-b4ea-4800-b0c0-975d66b6bbee.jsonl`
+- approx context at last assistant turn: 249210 tokens
+- tools used: Bash×53 Read×22 TaskCreate×4 ToolSearch×4 Edit×3 mcp__ccmemory__memory_write×2 mcp__ccteam__claim×2 TaskUpdate×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/repro_lost_entry.sh
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== kthread_fn_wrapper ==="; grep -rn "kthread_fn_wrapper\|mxfs_pal_thread_create" pal/ | head echo "=== preempt/spin/local_irq/rcu in the wr
+    cd /src/mxfs echo "=== xfs_iget_check_free_state in xfs_icache.c ===" grep -n "xfs_iget_check_free_state\|read_fua\|rcu_read_lock\|rcu_read_unlock\|spin_lock(&p
+    cd /src/mxfs echo "=== in_atomic/preempt includes present? ===" grep -nE '#include <linux/(preempt|hardirq|sched)\.h>|in_atomic' xfs/xfs_icache.c | head echo "=
+    cd /src/mxfs echo "=== top includes of xfs_icache.c ===" grep -nE '#include' xfs/xfs_icache.c | head -25 echo "=== other always-on sleeping ops (FUA read / buf_
+    cd /src/mxfs echo "=== build (foreground) ===" make modules 2>&1 | grep -iE "error|warning: .*in_atomic|undefined|xfs_icache" | head -20 echo "=== rc ${PIPESTAT
+    cd /src/mxfs echo "=== confirm reset uses /src/mxfs/mxfs.ko ===" grep -nE 'MXFS_MODULE|MXFS_DEV|MXFS_MOUNT' tests/criteria/lib.sh | head echo "=== fresh reset (
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== loaded srcversion on nodes ===" for n in test1 test2 test3 test4; do   v=$(timeout 8 $SS
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== scheduling-while-atomic / corruption / shutdown in dmesg (both nodes) ===" for n in test
+    cd /src/mxfs for r in A B; do   echo "===== cluster phase run $r ====="   MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 220 ./tests/run_tests.sh --
+    end=$((SECONDS+260)) while [ $SECONDS -lt $end ]; do   if grep -q "run B" /tmp/claude-1000/-src-mxfs/f53cdf91-b4ea-4800-b0c0-975d66b6bbee/tasks/b4c1aud5c.output
+    cd /src/mxfs echo "=== i_dlm_dir_gen references (where bumped / compared) ===" grep -rnE "i_dlm_dir_gen|b_mxfs_dir_gen|mxfs_dir.*gen|dir_gen" xfs/libxfs/xfs_da_
+    cd /src/mxfs echo "=== where i_dlm_dir_gen is INCREMENTED (bumped) ===" grep -rnE "i_dlm_dir_gen\s*(\+\+|\+=|=.*i_dlm_dir_gen\s*\+)" xfs/ 2>/dev/null | head ech
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== run A tail (did it timeout/wedge?) ===" grep -vE "Warning|Unauthorized|disconnect|^$" /t
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== mxfs module params (dirwr/instr) ===" timeout 8 $SSH test1 $PF 'ls /sys/module/mxfs/para
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2; do timeout 6 $SSH $n $PF 'echo 1 > /sys/module/mxfs/parameters/dirwr; dmesg 
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass R=$(ls -td /home/steve/.mxfs/results/2026* | head -1) echo "=== which node failed + missing entrie
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2; do   echo "=== $n: shutdown/corruption + atomic ==="   timeout 8 $SSH $n $PF
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2 test3 test4; do timeout 6 $SSH $n $PF 'echo 0 > /sys/module/mxfs/parameters/d
+    cd /src/mxfs for r in 1 2 3; do   echo "===== clean run $r ====="   MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 200 ./tests/run_tests.sh --nodes 
+    cd /src/mxfs echo "=== DIR_MODIFY publish sites (sender side) ===" grep -rnE "MXFS_EVICT_TYPE_DIR_MODIFY|evict_ring_publish|DIR_MODIFY|publish.*dir|mxfs_dlm_pub
+
+## Last text from previous session
+
+a clean baseline to separate real flakiness from contamination/instrumentation. Let me disable dirwr, do a fresh reset, and re-measure.
+Clean cluster. Now measure the true per-test flake rate on build 305641B7 (dirwr off) — 3 clean cluster-phase runs.
+While the clean runs execute, let me assess the eviction-ring DIR_MODIFY delivery (sess82 said it "never delivered in CAW" and added an auto-monitor) — that's the owner-reload notification path. Let me check the interim run output first.
+Run 1 still going. Let me study the DIR_MODIFY publish path while waiting — where a dir-modifier notifies peers via the eviction ring.
+The DIR_MODIFY machinery is extensive (publish at v5_mount.c:1099, disklock eviction ring). Let me read the disklock.c delivery comment to understand current cross-node delivery state, then check the clean-run results.
+The DIR_MODIFY eviction-ring is **heartbeat-paced** (~2s scan cycle) — eventually-consistent, racing the test's fixed `sleep 2`. That violates the project's "coherency must be prompt, not eventually-consistent" principle; the robust path is synchronous reload on DLM dir-lock acquire (6791), which the owner's cached-PR read can bypass. Let me get the clean-run flake rate to confirm it's reproducible on a clean cluster (what the gate uses).
+Runs still going. Let me read the sess43 note at line 3651 — it mentions a "bast-gen-bump candidate (`i_dlm_dir_gen++`)" that was apparently removed. If the BAST-release path doesn't bump the reader's gen, that's exactly the owner-staleness gap.
+I've reached the ccloop relay boundary — wrapping up.
+
+## Session summary
+
+**Orientation correction:** The `p` prompt (cache_coherency/P110) and `state.md`'s head (sess134) were both stale. Ground truth from `.criteria_results.json`: 16/19 criteria PASS (including zero_silent_loss). The real `verify_ship.sh` gate blockers are **rsync_paired** (perf), **tcp_dlm_scaling** (never run), and **posix_semantics --nodes 16** (correctness).
+
+**Proven root-cause fix this session (build `305641B7`, verified, KEEP):**
+- The always-on `P-IGET-ENOENT` diagnostic in `xfs_iget_check_free_state` (xfs_icache.c) did **sleeping I/O** (`xfs_buf_incore` + FUA SCSI read) on the mode==0 cache-hit path, which `xfs_iget_cache_hit` reaches holding `rcu_read_lock()` + `i_flags_lock` (preempt_count=2). Result: `BUG: scheduling while atomic` (via `bast_notify` INCORE iget) → RCU frees the inode under us → **inobt corruption in AG8 → fs shutdown**. The concurrent unlink/create storm triggered it constantly.
+- Fix: guard the probe with `if (!in_atomic() && xfs_buf_incore(...))` — diagnostic-only, no functional change.
+- **Verified:** 0 scheduling-while-atomic, 0 corruption, 0 shutdown after the fix (all present before); **`test_unlink_visibility` + `test_rename_vis_dbg` now PASS** (both failed before).
+
+**Remaining posix blocker (characterized, not yet fixed):** flaky concurrent shared-dir **read-staleness** — the parent-dir *owner* node misses a peer's later entries (durable on disk; a fresh reader sees them). The cross-node DIR_MODIFY eviction-ring is heartbeat-paced (~2s, eventually-consistent), and the owner's cached-PR read bypasses the synchronous slow-path gen-bump (xfs_mxfs_dlm.c:6791). The sess43 comment proves the naive BAST-side gen-bump was reverted (breaks own-write visibility) — the real direction is platter-durable dir writes, not a refresh mechanism.
+
+**Also done:** Recorded the feedback memory **ccmemory-unavailable-is-a-hard-stop** (your explicit instruction); fixed two infra gotchas (QNAP iSCSI flapping → power-cycle; `MXFS_TESTS_DIR=/src/mxfs/tests` required or run_tests yields fake rc=127 failures); updated `state.md` + wrote a detailed project memory.
+
+**Marker NOT written** — gate not green (posix staleness + rsync_paired perf + tcp_dlm_scaling remain). Cluster left healthy at 4 nodes on `305641B7`; 3 clean cluster-phase runs are still finishing in the background to measure the true staleness flake rate. Work continues next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

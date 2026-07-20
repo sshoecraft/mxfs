@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `81596e4f-53cb-447b-af62-850db6f9bc24`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24.jsonl`
+- approx context at last assistant turn: 496752 tokens
+- tools used: Bash×575 Read×25 Edit×10 TaskCreate×5 TaskUpdate×4 ToolSearch×4 mcp__ccmemory__memory_write×4 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; timeout 8 tools/mxfs_sshpass.sh test1 "$PASS" "dmesg | grep -oE 'mxfs-DRCph r=[0-9]+ rank=[0-9]+ PHASE=rm-do
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -3; echo "alive: $(kil
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; timeout 8 tools/mxfs_sshpass.sh test1 "$PASS" "dmesg | grep -oE 'mxfs-DRCph r=[0-9]+ rank=[0-9]+ PHASE=rm-do
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -3; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -3; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -4; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -4; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -4; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -4; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -3; echo "alive: 
+    echo .
+    cd /src/mxfs; grep -E "PASS|done:|FAIL|ABORT" /tmp/claude-1000/-src-mxfs/81596e4f-53cb-447b-af62-850db6f9bc24/scratchpad/verify2tcp_final.log | tail -3; echo "P
+
+## Last text from previous session
+
+tion notification (dir_reuse ~280s + tcp_dlm_scaling remaining).
+Round 7, no failures. I'll wait for the monitor `b5l0mmlnc` notification. After 2/tcp confirms, I'll attempt the data_init defensive guard (sess36's option-a: read the live block instead of zeroing it) at the proven clobber site.
+Round 10/24, no failures. I'll wait for the monitor `b5l0mmlnc` completion notification.
+2-node dir_reuse at round 12, no failures (passing as expected). I'll wait for the monitor `b5l0mmlnc` completion notification.
+Round 16/24, no failures. I'll wait for the monitor `b5l0mmlnc` completion notification.
+Round 20/24, no failures. I'll wait for the monitor `b5l0mmlnc` completion notification.
+Round 22/24, no failures. I'll wait for the monitor `b5l0mmlnc` completion notification.
+2-node dir_reuse completed all 24 rounds with FAIL=0. tcp_dlm_scaling (last test) running. I'll wait for the monitor `b5l0mmlnc` completion notification.
+dir_reuse_coherency PASS confirmed on the shipped build. soak + tcp_dlm_scaling + fence_during_write remain. I'll wait for the monitor `b5l0mmlnc`.
+fault_netpartition PASS too. soak + tcp_dlm_scaling remain. I'll wait for the monitor `b5l0mmlnc` completion.
+soak PASS. Only tcp_dlm_scaling (the last, slower test) remains. I'll wait for the monitor `b5l0mmlnc` completion notification.
+**2/tcp = 17/17 PASS, 0 FAIL** confirmed on the shipped build `91962D4A`. Let me update task tracking to reflect the honest state.
+I've reached the relay boundary. Let me record final task states and summarize.
+## Session 7 summary — criterion NOT met (marker NOT written)
+
+**Progress this session:** drove the tcp DLM criterion from "1 test failing across all node counts" to **1/tcp = 16/16 PASS and 2/tcp = 17/17 PASS** on a clean, proven shipped build, and produced a precise, evidence-backed root diagnosis for the remaining 4/8-node blocker.
+
+### Shipped build `91962D4A` (KEEP)
+- **`mxfs_dir_force_block = 1` default** — the one verified fix. Forces fresh multinode dirs to BLOCK format at mkdir, eliminating the cross-node sf→block conversion divergence on logical block0. **Verified: 1/tcp 16/16, 2/tcp 17/17** (full `./run.sh`, clean reboots — including dlm_fairness + cache_coherency that sess44 feared would regress; they don't, thanks to the sess49 P43 soundness gate).
+- All 4 sess67 experimental params (`dir_postread_reread`, `dir_iflush_owner_fence`, `dir_epoch_adopt`, `dir_modify_extent_adopt`) reverted to **default OFF** — code present but inert, so the build is behaviorally the proven baseline. They're gated/available for the relay.
+
+### 4/8-node blocker (still open) — `dir_reuse_coherency`, ~1 round in 15
+**Root (PROVEN, re-confirms sess36/sess62):** `xfs_dir3_data_init` (xfs_dir2_data.c:802, uses `xfs_da_get_buf`+zero) ZEROES a dir DATA block that already holds this dir's live dirents → durable whole-block loss.
+
+**Decisively refuted with direct probe evidence (do not retry):**
+1. Read-side stale RMW — P67-POSTREAD-REREAD + P60-GENMATCH-STALE both **never fired**.
+2. Release not home-durable — refuted (sess97 fence is unbounded bwrite-until-durable).
+3. Extent-map flip-flop / non-owner iflush — P-DIRIFLUSH shows block0 converged, NL flushes all legit RELFLUSH; owner-fence inert.
+4. Too-small extent map at grow — `incore_nextents` never `< disk_nextents`.
+
+**Key new finding → next step:** the extent maps diverge in **CONTENT** (same count, different daddr per logical block), not count — so a count comparison is useless. The next fix needs a **full per-logical-block daddr compare + MERGE-adopt** (keep the node's uncommitted appends, adopt the peer's daddrs), or fix the allocator/freespace coherency that hands out a daddr still holding this dir's live block. GPT-5.5 consulted twice (RULE 5).
+
+Full detail + repro in ccmemory `sess67-HANDOFF-state-and-4node-next-step` and `sess67-ROOT-datainit-zeroes-live-dirblock-4node`. test5-8 are booted-capable with shared LUN+NFS for 8/tcp once 4 passes. Tree builds clean; cluster left healthy.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,20 @@
+{
+  "source": [
+    "pal/linux/xfs_file.c",
+    "xfs/xfs_buf.h",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_inode_item.h",
+    "xfs/xfs_inode_item.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/disklock.h",
+    "dlm/disklock.c",
+    "dlm/dlm_caw.h",
+    "dlm/dlm_caw.c",
+    "dlm/v5_mount.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 3
+}

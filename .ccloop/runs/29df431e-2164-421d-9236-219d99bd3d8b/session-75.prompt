@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 75 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 74
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `9edf00c8-4705-42c6-8795-6fe38c8e2300`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9edf00c8-4705-42c6-8795-6fe38c8e2300.jsonl`
+- approx context at last assistant turn: 254975 tokens
+- tools used: Bash×74 Read×20 mcp__ccmemory__memory_get×5 ToolSearch×3 Edit×2 mcp__ask_gemini__query×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; rm -f /tmp/dirwr_all.txt; for n in 1 2 3 4; do timeout 15 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep 'P-DIRWR'" 2>/dev/null |
+    cd /src/mxfs; python3 - <<'EOF' import re lines=open('/tmp/dirwr_all.txt').read().splitlines() recs=[] for L in lines:     d=dict(re.findall(r'(\w+)=([\-0-9a-zA
+    cd /src/mxfs; echo "=== clock skew check ==="; for n in 1 2 3 4; do echo -n "test$n: "; timeout 8 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "date +%s.%N
+    cd /src/mxfs; echo "=== who submits dir-block writes (comm) across all nodes ==="; grep -oE "comm=[a-zA-Z0-9_/-]+" /tmp/dirwr_all.txt | sort | uniq -c | sort -r
+    cd /src/mxfs; echo "=== all xfsaild dir-block writes (node, daddr, active, state) ==="; grep "comm=xfsaild" /tmp/dirwr_all.txt | sed -E 's/realns=[0-9]+//' | aw
+    cd /src/mxfs; echo "=== P99 stale vs skip + xfsaild counts per node ==="; for n in 1 2 3 4; do echo -n "node$n: "; timeout 12 bash tools/mxfs_sshpass.sh test$n 
+    cd /src/mxfs; echo "=== sync clocks to host time ==="; HOST_NOW=$(date -u +"%Y-%m-%d %H:%M:%S"); echo "host UTC: $HOST_NOW"; for n in 1 2 3 4; do timeout 10 bas
+    cd /src/mxfs; for n in 1 2 3 4; do timeout 10 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1; done; echo "cleared"; export MXFS_NO
+    cd /src/mxfs; rm -f /tmp/dirwr2.txt; for n in 1 2 3 4; do timeout 15 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep 'P-DIRWR'" 2>/dev/null | gr
+    cd /src/mxfs; python3 - <<'EOF' import re recs=[] for L in open('/tmp/dirwr2.txt'):     d=dict(re.findall(r'(\w+)=([\-0-9a-zA-Z_/]+)', L))     node=L.split()[0]
+    cd /src/mxfs; python3 - <<'EOF' import re recs=[] for L in open('/tmp/dirwr2.txt'):     d=dict(re.findall(r'(\w+)=([\-0-9a-zA-Z_/]+)', L))     node=L.split()[0]
+    cd /src/mxfs; R=$(ls -td /home/steve/.mxfs/results/2026*/test_unlink_visibility 2>/dev/null | head -1); echo "results: $R"; echo "=== failure types per node ===
+    cd /src/mxfs; R=/home/steve/.mxfs/results/20260606_010329/test_unlink_visibility; echo "=== node3 raw rm errors (context around Failed to delete) ==="; grep -iE
+    cd /src/mxfs; echo "=== start continuous kmsg capture on each node ==="; for n in 1 2 3 4; do timeout 8 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg
+    cd /src/mxfs; rm -f /tmp/fulltrace.txt; for n in 1 2 3 4; do timeout 12 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "pkill -f 'dmesg --follow'; grep 'P-DI
+    cd /src/mxfs; for n in 1 2 3 4; do timeout 8 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C; pkill -f kmsgcap; setsid nohup bash -c 'cat /dev/kmsg 
+    cd /src/mxfs; for n in 1 2 3 4; do timeout 8 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "pkill -f '/dev/kmsg' 2>/dev/null; dmesg -C; setsid bash -c 'cat 
+    cd /src/mxfs; timeout 540 make modules 2>&1 | grep -iE "error:|undefined|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversio
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 200 bash tests/reset4.sh 4 2>&1 | tail -1; for n in 1 2 3 4; do echo -n "test$n: "; timeout 10 
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; t0=$(date +%s); timeout 200 bash tests/run_tests.sh --nodes 4 --phase cluster --test te
+
+## Last text from previous session
+
+tion:
+
+1. **Transport IS coherent now** — the sess99 stale-cold-read regression predated publish-before-notify. A plain cold-read now reliably sees the durable image.
+2. **Root cause = the `dirty/in_ail → SKIP` logic** in drain_evict. A node RMWs a stale in-AIL base during the create storm, durably erasing a peer's entries (→ later `rm` ENOENT on own contiguous range).
+3. **Safety**: clearing `XBF_DONE` on a clean-but-in-AIL buffer is 100% safe (BLI stays attached, AIL tracks the old LSN which is fine since publish-before-notify made it durable; next modify re-logs). `xfs_buf_stale` is dangerous (ghost/duplicate buffer).
+4. The extent-map iteration **already covers leaf/freeindex blocks** (they're daddrs in the dir's data fork).
+
+The fix: stop skipping in-AIL/dirty/delwri blocks — evict (clear DONE) any non-pinned dir block. Let me apply it.
+The drain_evict fix is in. The read-path `consumer_refresh` uses a separate `mxfs_dir_evict_data_blocks` (line 379) with the same skip logic. For reader-side freshness (survivor visibility), let me apply the same in-AIL-safe eviction there. Let me read it.
+The read-path `mxfs_dir_evict_data_blocks` has the same skip, but the primary failure is `rm`-ENOENT on the **write path** (now fixed via drain_evict). Per RULE 4 (one change at a time, clean attribution), I'll test the drain_evict fix alone first. Build it.
+Build clean: `286311EE`. I'm at the relay boundary but let me deploy and run the decisive test before wrapping up.
+`286311EE` deployed to all 4 nodes. Run the decisive unlink_visibility test.
+**unlink_visibility PASSED** (rc=0, 36s, clean). The drain_evict in-AIL fix resolved the root cause. Let me save this critical lesson before the relay boundary.
+Reached the relay boundary. Summary of this session's work:
+
+## Progress on `cache_coherency` — unlink_visibility FIXED
+
+**Build `286311EE` (KEEP)** — `unlink_visibility` now PASSES (rc=0, 36s, 4 nodes), the last failing subtest of the only remaining ship-gate criterion.
+
+### Root cause (proven, RULE-4 instrument + RULE-5 Gemini reconcile)
+The acquire-side `mxfs_dir_drain_evict_data_blocks` gated its dir-block eviction on `!dirty && !in_ail && !delwri`. That **`!in_ail` skip was the lost-update source**: during the concurrent create/delete storm, a node acquiring dir EX kept its own in-AIL cached dir block (committed but log-tail-pending) and RMW'd that **stale base**, durably dropping a peer's just-committed dirents. Signature: a node's own `rm` returning ENOENT on a *contiguous range of files it created* (`node3_file2..19`), no I/O error — a peer had clobbered them; other nodes then saw them as survivors.
+
+### The fix
+Evict (clear `XBF_DONE` only — **not** `xfs_buf_stale`) **all non-pinned** dir blocks; only PINNED stays a hard skip. Safe now because **publish-before-notify** (sess97) fences every committed dir change to the LUN before any peer is told, so a plain cold-read reliably sees the durable image (resolving the long-standing sess96/99-vs-sess69 "is transport coherent" contradiction — it is, post-publish).
+
+### Decisive instrument
+P-DIRWR write-trace + **synchronizing the 4 nodes' wall clocks** (they drift ~1.5s/node, which had been silently breaking every prior cross-node timeline merge) → proved the delete-phase writes are monotonic (no delete clobber), pointing to a create-phase acquire-stale-base, confirmed by the rm-ENOENT signature.
+
+### Criteria NOT yet met — marker NOT written
+**Next session**: clean reboot + `reset4.sh 4` (deploys `286311EE`), re-verify `rename_visibility` stays PASS + `cross_visibility` + `cross_write_read` (the drain_evict change could affect them), then full `cache_coherency.sh` must be 4/4, then `verify_ship.sh` end-to-end. The read-path twin `mxfs_dir_evict_data_blocks` (L379) still has the old `!in_ail` skip — apply the same in-AIL-safe evict there if a visibility residual appears. Watch the intermittent bnobt double-free shutdown (separate blocker). Full detail saved to memory `sess101_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 12 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 11
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `62f05c5f-baba-44b3-8fc2-90701bf94926`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/62f05c5f-baba-44b3-8fc2-90701bf94926.jsonl`
+- approx context at last assistant turn: 252384 tokens
+- tools used: Bash×98 Edit×17 Read×7 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_btree.c
+- /src/mxfs/scripts/p133_storm_errcap.sh
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; mkdir -p /tmp/p133e; for i in $(seq 1 16); do (timeout 30 ./tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "sudo dmesg" 2>/dev/null > /tmp/p133e/n$i
+    cd /tmp/p133e; grep -E "node3_dir6[2345]\b|node3_dir6[2345]\]" n3.txt | head -8; echo ===; grep -h "STALE-SKIP" n*.txt | sed 's/^\[ *[0-9.]*\] //' | awk '{print
+    cd /src/mxfs; grep -n "drain_meta_buffers\|mxfs_dir_push_data_ags\|xfs_buf_delwri_submit\|ail_delete\|xfs_buf_iodone" xfs/xfs_mxfs_dlm.c | head -20
+    cd /src/mxfs; sed -n '9186,9230p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -rn "mxfs_buf_is_undestaged" --include=*.c --include=*.h . | grep -v Binary | head -5; sed -n "$(grep -n '^mxfs_buf_is_undestaged\|^bool.*mxf
+    cd /src/mxfs; sed -n '5560,5642p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "xfs_dir3_block_buf_ops\|xfs_dir3_data_buf_ops\|xfs_dir3_leaf\|xfs_da3_node_buf_ops\|xfs_bmbt_buf_ops\|xfs_dir3_free_buf_ops" xfs/xfs_mxfs
+    cd /src/mxfs; make modules 2>&1 | grep -E "error|xfs_da_btree.c.*warning|xfs_mxfs_dlm.c:5[5-8][0-9][0-9].*warning" | head -8; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; grep -n "xfs_mxfs_dlm.h\|mxfs" xfs/libxfs/xfs_da_btree.c | head -6
+    cd /src/mxfs; make modules 2>&1 | grep -E "error" | head -5; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; timeout 280 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2 && time timeout 300 bash scripts/p133_storm_errcap.sh /src/mxfs/mxfs.ko 100 2>&1 | t
+    cd /src/mxfs; mkdir -p /tmp/p133f; for i in $(seq 1 16); do (timeout 30 ./tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "sudo dmesg" 2>/dev/null > /tmp/p133f/n$i
+    cd /src/mxfs; sed -n '1290,1340p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '1990,2110p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "mxfs_dir_flush_data_blocks\|^mxfs_dir_data_durable" xfs/xfs_mxfs_dlm.c | head -4; sed -n "$(grep -n '^mxfs_dir_flush_data_blocks' xfs/xfs
+    cd /src/mxfs; sed -n "$(grep -n '^mxfs_dlm_ag_drain_meta_buffers' xfs/xfs_mxfs_dlm.c | tail -1 | cut -d: -f1),+70p" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; s=$(grep -n '^mxfs_dlm_ag_drain_meta_buffers' xfs/xfs_mxfs_dlm.c | tail -1 | cut -d: -f1); sed -n "$((s+70)),$((s+170))p" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '108,150p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -E "error" | head -6; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; cat > /tmp/state_prepend.md << 'EOF' # Session State — MXFS (v5) — sess133 (ccloop run 14d31183, session 11)  ## sess133 RESULTS (zero_silent_loss
+
+## Last text from previous session
+
+Continuing session 11. Per startup protocol, checking RULES.md and current state.
+Finished well under 300s — no wedge — but there's a parse error at line 88 ("0find: value too great for base") that may invalidate the count. Checking the script and the actual state:
+All 16 nodes shut down. Looking at the shutdown reasons and whether the ILOCK-STUCK probe fired:
+Timed out at 300s — this run went the wedge way (the original symptom). Both P132-ILOCK-STUCK and P133 probes are live in this build. Harvesting all nodes:
+This run reproduced the wedge (no corruption; n13 has 5 `P132-ILOCK-STUCK` hits — the leaker forensics fired). Extracting them:
+Checking for other call sites of `xfs_dir_lookup` that might hold dp's ILOCK:
+Same bug exists in `xfs/xfs_mxfs_dentry.c:86-88`. Checking whether that file is built/wired or dead code:
+Run completed in 108s (no wedge) but the count step errored again. Checking live state on test1:
+The wedge is gone (run completed), but several nodes shut down with corruption mid-storm — the P133 probes should have caught the producer this time. Harvesting:
+Build `138F0689`. Reset and re-run:
+Now relaxing the `xfs_da_read_buf` guard:
+Adding an always-on probe for when the in-AIL override actually fires (RULE-4 verification), then the same relaxation in the bmbt helper:
+At the relay boundary — building to verify the changes compile, then updating state.md:
+Session 11 summary — three root causes found and fixed on the zero_silent_loss blocker, all via the RULE-4 loop:
+
+**1. The dpn=100 cluster wedge is SOLVED.** The ILOCK forensics built last session caught it live: `mxfs_drevalidate` wrapped `xfs_dir_lookup` in an outer `xfs_ilock(dp, SHARED)` while `xfs_dir_lookup` takes the same lock internally — a recursive rwsem read. When a storm writer queued between the two acquires, writer-fairness deadlocked the reader against itself, the BAST drain worker could never get the lock, and the node's on-disk EX bit never cleared, starving all 16 nodes. Removed the redundant outer lock; no wedge in any run since.
+
+**2. Stale bmbt child blocks fixed.** Once the shared dir's fork converts to BTREE under load, DLM reload refreshes the dinode root but cached bmbt child blocks were an uncovered invalidation class (dir data/leaf and AG btrees had hooks; bmbt didn't). Added `mxfs_dir_bmbt_invalidate_stale` in the btree read path — verified: 94 invalidations fired, the `ir.loaded != if_nextents` shutdowns went from 3 nodes to zero, and a clean run reached 1597/1600 visible with no shutdowns.
+
+**3. True silent dirent loss root-caused and fixed.** Two consecutive dirs vanished cluster-wide after successful creates. Producer: the sess43 in-AIL guard preserved stale cached dir blocks whose content was already destaged but whose log item lingered in the AIL (126 DIR-STALE-SKIP events in the losing run) — the next tenure's RMW clobbered peer entries. Added a payload-LSN discriminator so destaged-but-AIL-lingering blocks refresh while genuinely unwritten work stays protected.
+
+**4. Built, not yet tested:** the release drain's durability gate passed vacuously for BTREE-format dirs (`fmt != EXTENTS → return true`), and no path ever drained bmbt blocks before DLM unlock — explaining the remaining `xfs_iread_bmbt_block` corruption. Both helpers now accept BTREE forks and a new `mxfs_dir_bmbt_scan` checks/flushes bmbt buffers at release. Build `70C8C2CF` compiles clean and is ready to deploy.
+
+Next session: power-cycle, deploy `70C8C2CF`, re-run the errcap storm expecting 0 shutdowns / 0 silent loss, then the full 3-iter criterion within its 300s budget. State saved in `/src/mxfs/state.md`; criteria not met yet, marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 24 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 22
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `3cb66781-2426-4af0-ba4b-16f7282da178`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178.jsonl`
+- approx context at last assistant turn: 504733 tokens
+- tools used: Bash×85 Read×27 Edit×5 mcp__ccmemory__memory_write×5 Workflow×4 mcp__ccmemory__memory_get×4 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== actual invocations of mxfs_ag_meta_invalidate_stale (libxfs read paths) ==="; grep -rn 'mxfs_ag_meta_invalidate_stale(' xfs/libxfs/*.c; 
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/ww0pzmclc.output; if [ -f "$F" ]; then echo "WORKFLOW DONE"; wc -c "$F"; e
+    cd /src/mxfs; echo "=== brb7z3hf0 ==="; cat /tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/brb7z3hf0.output 2>/dev/null; echo; echo "=== 
+    cd /src/mxfs; echo "=== sess42: only advance b_mxfs_ag_gen when genuinely fresh ==="; grep -n 'b_mxfs_ag_gen =' xfs/xfs_mxfs_dlm.c xfs/xfs_buf.c xfs/libxfs/*.c 
+    cd /src/mxfs; D=/home/steve/.claude/projects/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/subagents/workflows/wf_c5870a8a-4d7; echo "=== workflow agent activi
+    cd /src/mxfs; echo "=== AG EX release/unlock + drain-before-unlock ==="; grep -rn 'ag_unlock\|ag_dlm_unlock\|dlm_ag_release\|v5_dlm_ag\|MXFS_LTYPE_AG.*unlock\|d
+    cd /src/mxfs; echo "=== mxfs_lazy_ag_drain definition + module_param ==="; grep -rn 'mxfs_lazy_ag_drain\b' xfs/*.c | grep -iE 'module_param|=\s*[01]|int mxfs_la
+    cd /src/mxfs; echo "=== insmod line(s) in prep ==="; grep -rn 'insmod\|modprobe\|mxfs.ko' tests/setup/prep_node.sh run.sh 2>/dev/null | head; echo "=== does pre
+    cd /src/mxfs; echo "=== run.sh prep invocation (env propagation) ==="; sed -n '100,135p' run.sh | grep -n 'prep\|MODARG\|MXFS_\|ssh\|env\|export' ; echo "---ful
+    cd /src/mxfs; echo "=== reboot ==="; timeout 300 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== DIAGNOSTIC: lazy_ag_drain=0, dir_reuse_coherency 2/tcp
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/ww0pzmclc.output; python3 -c " import json d=json.load(open('$F')) print('
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/ww0pzmclc.output; python3 -c " import json d=json.load(open('$F')) print('
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/ww0pzmclc.output; python3 -c " import json d=json.load(open('$F')) r=d['re
+    cd /src/mxfs; echo "=== existing alloc-time double-alloc / owner detectors ==="; grep -rn 'P54\|P-EMAP\|P90-PICK\|P33\|double.*alloc\|already.*alloc\|owner_ok\|
+    cd /src/mxfs; echo "=== inode partition impl (template) ==="; grep -n 'mxfs_ag_inode_owned\|partition_relaxed\|m_mxfs_log_node_count\|agno % \|% L\|node_slot\|g
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n: stale-inode/bmap detectors ====="; timeout 30 bash "$SSH" 
+    cd /src/mxfs; echo "=== reboot cluster to clean ready state ==="; timeout 300 bash tests/reboot_cluster.sh 2 2>&1 | tail -2
+    cd /src/mxfs; echo "=== xfs_iget_cache_hit + multi-node staleness/reload hooks ==="; grep -n 'xfs_iget_cache_hit\|xfs_iget_cache_miss\|i_dlm_stale\|ISTALE_CAW\|
+    cd /src/mxfs; echo "=== mxfs_buf_has_uncheckpointed_mods (P91 gate) ==="; grep -rn 'mxfs_buf_has_uncheckpointed_mods' xfs/*.c | head -3; sed -n "$(grep -n 'mxfs
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/wdur6o86j.output; if [ -s "$F" ]; then echo "WORKFLOW DONE ($(wc -c <$F) b
+
+## Last text from previous session
+
+get_cache_hit` (790–880) to see whether a stale-live inode (`i_dlm_stale` + mode≠0) gets reloaded at all — the likely hole.
+I now understand the cache-hit reload paths: they're gated on `mode==0` (free) or CREATE. A stale-**live** dir inode whose reload is requested but **kept** by `P91-RELOAD-PROTECT` (when `mxfs_buf_has_uncheckpointed_mods` says the in-core cluster buffer has un-checkpointed work) is my leading concrete hypothesis for how the stale bmap survives. Let me read that gate.
+Strong concrete lead: `mxfs_buf_has_uncheckpointed_mods` (the P91-RELOAD-PROTECT gate) returns true if a BLI is *attached at all* — the exact case-A/case-B contradiction sess120 documented (it can't tell "drained, content on disk, BLI lingers in AIL" [safe to adopt disk] from "un-destaged" [must keep]). For an **inode cluster** buffer it uses this crude heuristic, so a reload of a stale-live dir whose in-core cluster buffer has a lingering BLI is **kept stale** → stale bmap survives → reads reused daddr 0x78. This is precisely what the workflow's reload-reset reader is examining.
+
+Let me record this specific hypothesis and check whether the workflow has produced its verified candidate.
+Reached the relay boundary. Let me do a final quick check on the running workflow so the next session knows where to pick up.
+Criteria not met — wrapping up at the relay boundary. Concise summary for the next session:
+
+## Session 22 summary
+
+**Criteria scope corrected (key reframe):** "2 node dlm=tcp test 100% successful" = the **full `./run.sh 2 tcp` suite** (16 tests; best prior 13/16, variable). dir_reuse_coherency is a deterministic proxy for the gating bug.
+
+**Root cause CONFIRMED (RULE-4, live detectors — not guessing):** the clean-slate shutdown is **cross-node stale in-core INODE / BMAP** (the 90-session cache_coherency family):
+- `P81-DEXT … verdict=incore-extent-stale` (in-core BMAP stale; on-disk free-space tree correct)
+- `P47-INACT incore_gen=N disk_di_gen=N+1 disk_di_mode=00 verdict=DISK-FREE=>B-stale`
+A stale in-core extent map (one incarnation behind disk) aliases a reused daddr → dir ino 131 reads daddr 0x78 = `/dev/urandom` file data → EFSBADCRC. **Ruled out:** allocator/bnobt double-alloc (sess55 detectors 0×), AG data-block partitioning, dir-format bugs. Confirmed against sess111/sess55/handoff memories.
+
+**Strongest fix hypothesis (recorded):** `mxfs_buf_has_uncheckpointed_mods` (the P91-RELOAD-PROTECT gate at xfs_mxfs_dlm.c:5878) returns true on *any attached BLI* — the sess120 case-A/B contradiction applied to the **inode cluster** buffer — so a reload of a stale-live dir with a lingering BLI is **kept stale**, and the stale bmap survives. Fix direction: an exact li_lsn-vs-payload_lsn / coherent-plain-bio discriminator (as sess120 did for AG-meta) so a drained-on-disk advanced incarnation is *adopted*, not kept — without regressing genuine same-EX-tenure un-destaged work.
+
+**Landed this session (build `4F45F442`, KEEP — defensive/symptom-level):**
+- FIX1 torn-shortform flush skip (xfs_inode.c xfs_iflush) — prevents the `sf_verify` `SHUTDOWN_CORRUPT_INCORE`; proven to fire (`P22-SFTORN-SKIP`).
+- FIX2 authoritative data-scan lookup fallback (xfs_dir2_leaf.c `mxfs_dir2_datascan_lookup`) — heals the leaf-hash hole.
+
+**In flight:** workflow `wdur6o86j` (background) is adversarially finding the exact stale-inode/bmap hole + minimal verified fix across iget-recycle / bmap-resolve / reload-reset / free paths. Read its result at `/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/wdur6o86j.output` (or via the task notification). Cluster is **rebooted clean and ready** to build+test.
+
+**Next session:** read the workflow result, cross-check against the P91-keeps-stale hypothesis, implement the verified inode-reload coherency fix, then `bash tests/reboot_cluster.sh 2` + run dir_reuse_coherency (fast proxy) and finally the full `./run.sh 2 tcp` suite. Memories consolidated under `sess22-*` (CONSOLIDATED, DECISIVE, HYP-p91, progress).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

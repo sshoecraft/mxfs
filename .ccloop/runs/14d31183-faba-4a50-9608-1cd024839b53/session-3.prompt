@@ -1,0 +1,118 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 2
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `532faef8-184f-4dff-87a8-2268f248f359`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/532faef8-184f-4dff-87a8-2268f248f359.jsonl`
+- approx context at last assistant turn: 255120 tokens
+- tools used: Bash×38 Read×32 Edit×9 ToolSearch×3 mcp__ccmemory__memory_get×2 Monitor×1 ScheduleWakeup×1 TaskOutput×1 Write×1 mcp__ask_gemini__query×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== node results ===" for n in node1 node2 node3 node4; do   echo "----- $n.result -----"; cat /home/steve/.mxfs/results/20260609_190802/test
+    cd /src/mxfs echo "=== actual FAIL assertions in node1.log ===" grep -iE 'ASSERT (FAIL|MISMATCH)|FAIL:|not absent|still present|mismatch|expected=' /home/steve/
+    cd /src/mxfs echo "=== all [FAIL] lines node1 ===" grep -iE '\[FAIL\]|\[WARN\]' /home/steve/.mxfs/results/20260609_190802/test_unlink_visibility/node1.log 2>/de
+    cd /src/mxfs for n in test1 test2 test3 test4; do   echo "===== $n ====="   ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg | grep -iE 'BUG|oops|panic|hung|de
+    cd /src/mxfs ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -A 22 'Call Trace' | head -90" 2>/dev/null
+    cd /src/mxfs echo "=== is P124-ALLOC-REVERT pre-existing? (search source) ===" grep -rn "P124-ALLOC-REVERT\|ALLOC-REVERT" xfs/ dlm/ pal/ 2>/dev/null | head echo
+    cd /src/mxfs for n in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy $n >/dev/null 2>&1; done sleep 3 for n in test1 test2 test3 test4; do sud
+    cd /src/mxfs INSMOD_OPTS="fua_disable=1 instr=0 inode_mht_ms=0" bash tests/reset4.sh 4 2>&1 | tail -5 echo "=== verify mht=0 + clear dmesg ===" for n in test1 t
+    cd /src/mxfs for n in test1 test2 test3 test4; do   ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo 0 | sudo tee /sys/module/mxfs/parameters/inode_mht_ms >/dev
+    cd /src/mxfs MXFS_NODE_OFFSET=0 MXFS_TESTS_DIR=/src/mxfs/tests timeout 600 bash tests/run_tests.sh \   --nodes 4 --phase cluster --test test_unlink_visibility \
+    cd /src/mxfs echo "=== readdir / getdents ilock mode ===" grep -n "xfs_readdir\|xfs_file_readdir\|XFS_ILOCK_SHARED\|mxfs_dlm_ilock_begin\|->iterate" xfs/xfs_dir
+    cd /src/mxfs R=/home/steve/.mxfs/results/20260609_191955 echo "=== timing ==="; cat $R/timing/*.csv 2>/dev/null | grep unlink_30 echo "" echo "=== per-node resu
+    cd /src/mxfs echo "=== tenure_id stamping in xfs_btree.c ===" grep -n "b_tenure_id\|ag_dlm_tenure_id\|xfs_btree_read_buf\|mxfs_ag_meta_invalidate_stale\|XBF_DON
+    cd /src/mxfs for n in test1 test2 test3 test4; do   echo "===== $n ====="   ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo -n 'P124-ALLOC-REVERT: '; dmesg|gre
+    cd /src/mxfs echo "=== AG release drain functions ===" grep -n "drain_meta_buffers\|drain_alloc_buflist\|mxfs_ail_drain\|mxfs_v5_dlm_ag_unlock\|bast_work_fn\|Ph
+    cd /src/mxfs echo "=== AG drain functions + their log_force ===" grep -n "mxfs_dlm_ag_drain_meta_buffers\|mxfs_dlm_ag_drain_alloc_buflist\|mxfs_dlm_ag_bast\|xfs
+    cd /src/mxfs echo "=== actual mxfs_v5_dlm_ag_unlock call sites ===" grep -n "mxfs_v5_dlm_ag_unlock\|mxfs_ag_meta_coldread_discard\|mxfs_ag_meta_invalidate_stale
+    cd /src/mxfs echo "=== xfs_trans_log_buf location ===" grep -n "^xfs_trans_log_buf\|^xfs_trans_dirty_buf\|void$" xfs/libxfs/xfs_trans_buf.c 2>/dev/null | grep -
+    cd /src/mxfs grep -rln "xfs_trans_log_buf(" xfs/ | head echo "---" grep -rn "^xfs_trans_log_buf$\|xfs_trans_log_buf(\s*$\|^xfs_trans_dirty_buf" xfs/*.c xfs/libx
+    cd /src/mxfs grep -n "mxfs_suppress_stale_agwrite\|suppress_stale\|xfs_buf_ioend\|XBF_WRITE_FAIL\|b_tenure_id" pal/linux/xfs_buf.c | head -30
+
+## Last text from previous session
+
+g_force(SYNC)` + waiting `delwri_submit` + sess77 pinned-buffer handling — so the drain is not the obvious gap. The proven producer is xfsaild writing a prior-tenure `in_ail` buffer, and the read-time stamping makes `b_tenure_id` unreliable (re-stamps stale buffers to current). The coupled fix that directly targets case (b): **modify-time stamping** (reliable tenure) + **write-side fake-completion** gated on `b_tenure_id < current`. Let me look at `xfs_trans_log_buf` and confirm `b_pag` is set on AG-meta buffers:
+`xfs_trans_log_buf` already has an MXFS AG-meta hook (`mxfs_ag_meta_track`) — the ideal place for modify-time stamping. And the sess93 comment (line 6956) already documents a **known race**: the release worker yields the CAW slot *before* clearing `release_pending`, leaving in_ail bnobt that xfsaild later flushes over a peer's alloc. Let me read the actual AG release worker to find the exact yield point and the ghost-escape gap:
+The release worker only fires after all *tracked* writes complete, yet the ghost still appears — the gap is elusive by static reading. Let me check the existing suppression helper the P122/P124 comments reference (`mxfs_suppress_stale_agwrite`), since reusing a proven-shaped mechanism is safer than hand-rolling fake-completion:
+I've hit the ccloop relay boundary. The tree is in a clean state (MHT changes built as `4F692D9C`; no half-finished edits — I'd just finished investigation and hadn't started the next code change). Let me record the precise resume state, then summarize.
+## Summary
+
+Solid, verified progress this session on the `cache_coherency` ship-gate criterion (the only failing one; 11/12 pass).
+
+**Win — starvation fixed (KEEP, build `4F692D9C`).** Implemented Gemini's Minimum Hold Time (MHT) batching for inode-EX locks: a fresh EX grant stamps an acquire time, and a peer BAST within 50ms is deferred via a `delayed_work` (keeping the grant CACHED so the holder batches its queued ops in one tenure). This collapsed the parent-dir handoff storm that was the prior session's blocker: `unlink_30_files` went from **123174ms max → 116-2465ms**, and the 120s-CAW-timeout **force-shutdowns are gone on all 4 nodes**. 6 edits, all KEEP.
+
+**Disproof (RULE 4).** I suspected MHT might have regressed dir-visibility, but the control run (`inode_mht_ms=0`, functionally identical to the prior FA1D1C0D build) **also fails the content** (a node sees 96/120 files, can't delete its own). So the remaining failure is **independent of MHT** — MHT only changes timing/severity.
+
+**Proven root of the remaining FAIL.** Concurrent same-dir create/unlink hits a **dirent + bnobt lost-update**: `P124-ALLOC-REVERT` ×16 and `P-DIRWR clobber` ×90-126 on every node, with `P125=0` (the node *legitimately* holds the AG). A prior-tenure `in_ail` AG-meta buffer (committed in a tenure we since yielded, then superseded by a peer on disk) gets written back by xfsaild, reverting the peer's durable change. The precise gap: `b_tenure_id` is stamped at **read time including cache-hits** (xfs_btree.c:1433), so a stale ghost gets re-stamped "current" and the tenure guard protects it forever.
+
+**RULE-5 consult done.** Gemini gave a concrete 3-layer design: (1) stamp `b_tenure_id` at *modify* time (`xfs_trans_log_buf`), (2) write-side fake-I/O-completion to eject prior-tenure ghosts (gated on the now-reliable tenure — distinct from sess22's content-refresh that desynced siblings), (3) fallback drain-hardening. I identified the exact reuse point (existing `mxfs_suppress_stale_agwrite` at xfs_buf.c:2609).
+
+**State:** tree is clean (no half-finished edits — I stopped before the next code change at the relay boundary). Full diagnosis, Gemini's design, exact edit locations, and iteration rules are in `state.md` and memory `sess124-mht-fixes-starvation-real-root-is-inail-acquire-fence`. **Marker NOT written** — `cache_coherency` still RED. The next session implements the modify-time-stamp + write-side-suppress coupled fix and measures P124→0.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

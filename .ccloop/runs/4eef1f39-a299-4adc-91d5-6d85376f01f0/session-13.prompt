@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 13 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 12
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `523a2d32-40f4-4890-b526-52f1b4e4c106`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/523a2d32-40f4-4890-b526-52f1b4e4c106.jsonl`
+- approx context at last assistant turn: 257016 tokens
+- tools used: Bash×63 Read×6 Edit×4 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×2 mcp__ask_gemini__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/repro_fua_always.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/tests/repro_blockdir_visib.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 480 bash tests/repro_double_alloc.sh 25 2>&1 | grep -vE "^iter [0-9]+: clean$" | tail -40; echo "=== deployed srcversion check ==="; for n
+    sleep 240; cat /tmp/claude-1000/-src-mxfs/523a2d32-40f4-4890-b526-52f1b4e4c106/tasks/brmkput6h.output 2>/dev/null | grep -vE "^iter [0-9]+: clean$" | tail -45
+    until grep -q "=== DONE\|MOUNT_FAIL" /tmp/claude-1000/-src-mxfs/523a2d32-40f4-4890-b526-52f1b4e4c106/tasks/brmkput6h.output 2>/dev/null; do sleep 5; done; echo 
+    cd /src/mxfs; echo "=== corruption/shutdown across nodes (should be 0) ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_ssh
+    cd /src/mxfs; timeout 960 ./tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -40
+    until grep -qE "RESULT:|SHIP|criterion=cache_coherency|Traceback|MOUNT_FAIL" /tmp/claude-1000/-src-mxfs/523a2d32-40f4-4890-b526-52f1b4e4c106/tasks/bwg9x8w3u.out
+    until grep -qE "RESULT:|criterion=cache_coherency|MOUNT_FAIL" /tmp/claude-1000/-src-mxfs/523a2d32-40f4-4890-b526-52f1b4e4c106/tasks/bwg9x8w3u.output 2>/dev/null
+    cd /src/mxfs; echo "=== full criterion output ==="; grep -aiE "test_|PASS|FAIL|MISSING|ENOENT|EEXIST|visib|cross_write|rename|unlink|corrupt|shutdown" /tmp/clau
+    cd /src/mxfs; echo "=== per-subtest results in qy871B.log ==="; grep -aiE "test_cross_visibility|test_rename_visibility|test_unlink_visibility|test_cross_write_
+    cd /src/mxfs; echo "=== node1 unlink_visibility log ==="; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "cat /home/steve/.mxfs/results/20260607_02
+    cd /src/mxfs; echo "=== locate results dir (dev host vs node) ==="; ls -la /home/steve/.mxfs/results/20260607_020351/test_unlink_visibility/ 2>/dev/null; echo "
+    cd /src/mxfs; echo "=== node1 actual FAILED assertions ==="; grep -anE "ASSERT (FAIL|MISMATCH)|\[FAIL\]|expected=|unexpected|still (exists|present|visible)|shou
+    cd /src/mxfs; echo "=== test_unlink_visibility logic ==="; grep -rn "unlink_visibility\|All 120 files\|Failed to delete\|files exist before" tests/cluster/ test
+    cd /src/mxfs; echo "=== test body 13-52 ==="; sed -n '13,52p' tests/cluster/test_unlink_visibility.sh
+    cd /src/mxfs; echo "=== still mounted? ==="; for n in test1 test2; do echo -n "$n: "; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'mount | grep -c m
+    cd /src/mxfs; timeout 300 bash tests/repro_blockdir_visib.sh 30 5 2>&1 | tail -30
+    until grep -q "=== DONE\|MOUNT_FAIL" /tmp/claude-1000/-src-mxfs/523a2d32-40f4-4890-b526-52f1b4e4c106/tasks/b0r3lukgh.output 2>/dev/null; do sleep 10; done; echo
+    cd /src/mxfs; echo "=== xfs_log_force usage in dlm release/drain paths ==="; grep -n "xfs_log_force\|ail_push_all_sync\|ail_push\|mxfs_dir_push_data_ags\|mxfs_d
+    cd /src/mxfs; echo "=== find uv_1 dir inode ==="; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "stat -c '%i' /mnt/shared/.mxfs_test/uv_1 2>/dev/n
+    cd /src/mxfs; echo "=== re-run create-only, then COLD read on test2/test3 (drop_caches forces disk re-read) ==="; cat > /tmp/uv_cold.sh <<'EOF' source /src/mxfs
+
+## Last text from previous session
+
+ared dir block from a stale base missing peers' dirents. Per Gemini's point #3, the likely unifying root is the **leaky release drain** — a node releases the dir EX before its dir blocks are durable (CIL not forced to disk), so the next node FUA-reads stale. Let me check whether the dir-release drain does `xfs_log_force` before AIL push.
+The release path does `xfs_log_force(SYNC)` (line 1347), so it's not obviously leaky. Every node seeing exactly its own 30 suggests the 4 nodes RMW'd the dir from an empty/stale base independently — either not serialized on EX, or each EX-acquire read stale. The reproducer left the cluster mounted. Let me get the dir EX-serialization + size timeline for the uv_1 dir.
+ino=132 is the `uv_1` dir (fresh mkfs). The timeline shows it's **block format (fmt=2, size=4096)** with entries on disk — but each node sees only its own 30. The dir inode is coherent; the dir **DATA block** content is stale per-node (`P106-MR-SKIP` = eviction skipped). Key question: does disk have the merged 120 entries (→ pure read-staleness) or only the last writer's (→ on-disk lost-update)? Let me test with a cold-cache read.
+The cold-cache read is decisive: with the create-only workload + sleep 2, **all nodes see 120 both warm and cold** — so disk holds the fully-merged 120 entries. The `unlink_visibility` failure is **not** an on-disk lost-update; it's **timing-sensitive per-node stale cached dir-data-block read-staleness** (the `P106-MR-SKIP` eviction-skip), surfacing under tighter interleaving. Let me record this refined finding before the relay boundary.
+I've reached the relay boundary. Let me confirm the marker state and summarize.
+
+The criteria are **not** met — `cache_coherency` still fails on `test_unlink_visibility` (3/4 subtests pass). The marker must not be written.
+
+## Session summary (ccloop session 12, build `82BB2A09`, deployed all 4 nodes — KEEP)
+
+**Major verified advance: `cache_coherency` went 1/4 → 3/4 subtests passing.** `cross_visibility`, `rename_visibility`, and `cross_write_read` now all PASS with zero corruption/shutdown. One subtest remains (`unlink_visibility`).
+
+### Root cause fixed (RULE 4 proven, RULE 5 Gemini-designed, kernel-source-verified)
+The concurrent-create corruption was a **direct contradiction between two layered fixes** on the *same* in-AIL bnobt/cntbt buffer in a node's own affine AG:
+- `P117-INAIL-STALE-ARTIFACT` discarded the buffer (thinking it a drained log-tail artifact)
+- `P110-BIO-OVER-LOGGED` kept it (it carried logged mods)
+→ half-state buffer → cntbt CRC err74 → AGF corruption → FS shutdown.
+
+The in-core/in-AIL log-item flags **cannot** distinguish "already on disk" from "ahead of disk" because XFS leaves the BLI in the AIL until the next checkpoint, long after writeback. The fix is a **reliable LSN discriminator** `mxfs_buf_is_undestaged()`: the metadata payload LSN (`bb_u.s.bb_lsn`/`agf_lsn`/…) is stamped only at write-submit (verified in `xfs_btree.c:454`), while `bli_item.li_lsn` advances earlier at CIL→AIL — so `li_lsn > payload_lsn` reliably means "modified since last write = un-destaged = must keep." Gated the P117 discard on `!mxfs_buf_is_undestaged()`. Verified: `repro_double_alloc.sh 25` all clean (was iter-2 fail), P117/P110 contradiction probes both drop to 0.
+
+Files: `xfs/xfs_mxfs_dlm.c` (helper + P117 guard), `xfs/xfs_mxfs_dlm.h` (proto).
+
+### Remaining blocker isolated
+`test_unlink_visibility`: in a 120-entry shared **block-format** dir, nodes intermittently see only their own 30 entries. Proven **not** an on-disk lost-update — a cold-cache (`drop_caches`) read shows disk holds all 120. It's a **timing-sensitive per-node stale cached dir-data-block read** (`P106-MR-SKIP`: acquire-time evict skips a transiently pinned/in-AIL block, and CAW delivers no BAST for a peer's silent dir modify). New reproducer `tests/repro_blockdir_visib.sh` reproduces 100% with `sleep 1` + mkdir-first. Precise next-step diagnosis is in memory `sess120_lessons` for the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

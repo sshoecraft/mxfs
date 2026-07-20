@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 7
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `f8388ff6-c971-4bcf-b5e1-4dbfb32aa2ae`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f8388ff6-c971-4bcf-b5e1-4dbfb32aa2ae.jsonl`
+- approx context at last assistant turn: 257628 tokens
+- tools used: Bash×54 Read×17 Edit×3 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×3 mcp__ask_gemini__query×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_sb.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "iflush_cluster_merge\|cluster_merge\|merge.*disk\|overlaid\|foreign slot\|mxfs.*merge\|preserve.*slot\|not.*own.*slot" xfs/xfs_inode.c |
+    cd /src/mxfs; echo "=== fua_disable param ==="; for n in test1 test2; do echo -n "$n: "; timeout 6 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /sys/modul
+    cd /src/mxfs; grep -n "xfs_buf_submit_bio\|_xfs_buf_ioapply\|static void xfs_buf_submit\|^xfs_buf_submit\|bio_alloc\|submit_bio\|b_io_remaining\|xfs_buf_ioend\|
+    cd /src/mxfs; find . -name "xfs_buf.c" 2>/dev/null; echo "==="; grep -rln "xfs_buf_submit_bio\|_xfs_buf_ioapply\|b_io_remaining" --include=*.c . 2>/dev/null | h
+    cd /src/mxfs; grep -n "xfs_buf_submit_bio\|_xfs_buf_ioapply\|b_io_remaining\|bio_alloc\|submit_bio\|xfs_buf_ioend\|bio_add_folio\|bio_add_page\|b_ops\|inode_buf
+    cd /src/mxfs; sed -n '1,60p' pal/linux/xfs_buf.c | grep -nE "#include|xfs_inode_item|xfs_inode|xfs_buf_item|xfs_trans"; echo "=== symbols used already (inode lo
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:|implicit|undefined|LD \[M\]|CC \[M\].*xfs_buf" | grep -v "Clock skew\|modification time" | tail -15;
+    cd /src/mxfs; for n in test1 test2 test3 test4; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 5; for n in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; ./tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -5
+    grep -iE "Running:|cannot see|cannot touch|reads correct|\[FAIL\]|\[PASS\]|test_cross_visibility|test_rename|test_unlink|test_cross_write|PASS:|FAIL:" /tmp/cach
+    grep -iE "Running:|\[PASS\]|\[FAIL\]|cannot see|cannot touch|No such|reads correct|Is a directory|EISDIR|ENOTDIR|mismatch|expected" /tmp/cache_coherency.s6yniw.
+    grep -iE "WARN|FAILED|cannot|No such|Is a directory|EISDIR|ENOTDIR|expected=|content=|rename|unlink|cross_write" /tmp/cache_coherency.s6yniw.log | grep -viE "Un
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo -n "P115-PARTIAL-IWRITE cou
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -nA20 "xfs_sb_write_verify" | head -45' 2>/dev/null | grep -viE "Unautho
+    cd /src/mxfs; grep -n "xfs_validate_sb_write\|xfs_sb_write_verify\|XFS_IS_CORRUPT\|return -EFSCORRUPTED\|sb_fdblocks\|sb_icount\|sb_ifree\|sb_frextents\|too lar
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -iE "summary counter|sanity check|fdblocks|icount|ifree|SB-CLAMP|P62|cla
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -iE "P62-SBV|P62-SBCLAMP|Corruption detected in superblock|features|bad 
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | awk "/\[   5[5-9]\./" | grep -iE "umount|unmount|evict|fence|fenced|expel|hea
+    cd /src/mxfs; grep -rn "m_mxfs_dlm =\|m_mxfs_dlm=\|->m_mxfs_dlm\b" xfs/*.c pal/linux/*.c 2>/dev/null | grep -iE "= NULL|= ctx|= dlm|= mxfs|teardown|unmount|free
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|LD \[M\]|CC \[M\].*xfs_sb" | grep -v "Clock skew\|modification time" | tail -8; echo "=== 
+
+## Last text from previous session
+
+essages.
+Critical finding in the probe: `P62-SBV which=WRITE err=-117 ... dlm=0 single=0 fdblocks=5185440/5218294 icount=0 ifree=0`. The failure is `icount=0` failing `xfs_verify_icount`, and crucially **dlm=0** — `m_mxfs_dlm` is NULL at this write. This happens during **unmount** (PID 1194 Comm: umount), where the DLM is already torn down, so the sess62 SB-clamp (gated on `m_mxfs_dlm && !single_node`) is **skipped**, letting a benign transient `icount=0` trip the strict verifier → shutdown.
+
+But why is test1 unmounting mid-suite at 59s? Let me check the pre-shutdown timeline for a fence/eviction trigger.
+The 55-59s window is normal rename_visibility churn (heavy inode reuse, P115-PARENT-FREED, INACT-SKIP-STALE) — no explicit fence. The SB shutdown at 59.5s happens during an unmount with `dlm=0`. The defect is clear and safe to fix: the sess62 SB-clamp is gated on the **live** `m_mxfs_dlm` pointer, which is NULL during unmount teardown, so a benign transient `icount=0` trips the strict verifier and shuts down the FS. I need a **persistent** "this is a clustered mount" indicator. Let me find how mxfs marks a mount.
+I'm at the relay boundary. I've found the fix target: the sess62 SB-clamp is gated on the live `m_mxfs_dlm` pointer (NULL during unmount). `m_mxfs_has_envelope` is a **persistent** field (set from on-disk format, never cleared on DLM teardown) that identifies an MXFS mount. Let me make the clamp robust to the unmount case — if the DLM is live use the strict multi-node check, else fall back to the persistent envelope flag (at unmount, recovery recomputes counters, and a healthy single-node MXFS won't have out-of-range counters so the clamp body is a no-op there).
+Let me build to confirm it compiles cleanly, so the next session can deploy immediately.
+Clean build, srcversion `8987DFF3`. Let me update memory with the SB-clamp fix and current state before the relay boundary.
+I've reached the relay boundary at a clean stopping point. Summary of this session's work:
+
+## Session summary — substantial progress on `cache_coherency` (the last failing criterion)
+
+**Status: cache_coherency went from 0/4 → 1/4 sub-tests passing, with 4 fixes landed (3 verified, 1 built).**
+
+### Verified fixes
+1. **memcpy NULL-deref crash (sess114, `159EF451`)** — deployed and confirmed: the `xfs_iflush_fork` oops that killed xfsaild is gone.
+2. **P115 parent-freed-lookup guard** (`xfs/libxfs/xfs_dir2.c`) — when a parent dir is freed/reused by a peer mid-lookup, the reloaded mode=0 inode caused `xfs_dir2_node_lookup` to walk an empty extent map → `xfs_dabuf_map` HOLE → EFSCORRUPTED shutdown. Now returns clean `-ENOENT`. **Verified: that shutdown is gone.**
+3. **P115 PARTIAL inode-cluster WRITE (`D45BD27A`)** — the big one. Root cause (proven via cross-node `realns` timeline + Gemini RULE-5 consult): DLM is per-inode but the buffer cache is per-64-inode-cluster, so a node's stale cached copy of a shortform dir rode along on a co-resident cluster flush and reverted peer-committed dirents (3 of 4 lost). Fix writes only owned inode sectors (b_li_list), never foreign slots. **Verified: cross_visibility now PASSES.**
+
+### Built, not yet verified
+4. **SB-clamp survives DLM teardown (`8987DFF3`, current head)** — `xfs/libxfs/xfs_sb.c`. Proven defect: during unmount, `m_mxfs_dlm` is NULL, so the sess62 SB counter-clamp was skipped and a benign transient `icount=0` tripped the strict verifier → CORRUPT_INCORE shutdown in rename_visibility. Fixed by gating the clamp on the persistent `m_mxfs_has_envelope` flag when the DLM is torn down.
+
+### Next session
+Deploy `8987DFF3` (clean reboot all 4 → `cache_coherency.sh --nodes 4`; nodes load `/src/mxfs/mxfs.ko` via NFS, no copy needed). Confirm cross_visibility still passes and rename_visibility no longer SB-shuts-down (expect `P62-SBCLAMP` instead of the shutdown), then measure rename/unlink/cross_write_read. Full detail in memory `sess115_lessons`.
+
+**Criterion not yet met — marker not written; work continues.**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

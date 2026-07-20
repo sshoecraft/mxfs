@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 10
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `71d53b54-943a-4b90-9389-a18b3abba2d7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/71d53b54-943a-4b90-9389-a18b3abba2d7.jsonl`
+- approx context at last assistant turn: 273972 tokens
+- tools used: Bash×72 Read×21 Edit×14 ToolSearch×3 mcp__ccmemory__memory_get×3 mcp__ask_gemini__query×2 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; echo destroyed; sleep 4; for n in test1 test2 test3
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3; echo "=== build check ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1' 2>/dev/null; done; t0=$(da
+    cd /src/mxfs; L=$(ls -t /tmp/cache_coherency.*.log | head -1); echo "L=$L"; grep -nE "Running:|PASS\]|FAIL\]|\[[0-9.]+s\]|expected=|actual=" "$L" 2>/dev/null | 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|LD \[M\]" | grep -v "Clock skew\|modification time" | tail -5; echo "=== rc=${PIPESTATUS[0
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash tools/mxfs_sshpass.sh $n /t
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1' 2>/dev/null; done; t0=$(da
+    cd /src/mxfs; L=$(ls -t /tmp/cache_coherency.*.log | head -1); echo "L=$L"; grep -nE "Running:|PASS\]|FAIL\]|\[[0-9.]+s\]|cannot see|expected=|actual=" "$L" 2>/
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg|grep -aE "P118-IRESURRECT-SKIP"|head -12; echo "=== distinct inos ==="; dmesg|g
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|LD \[M\]" | grep -v "Clock skew\|modification time" | tail -5; echo "=== rc=${PIPESTATUS[0
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash tools/mxfs_sshpass.sh $n /t
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1' 2>/dev/null; done; t0=$(da
+    cd /src/mxfs; L=$(ls -t /tmp/cache_coherency.*.log | head -1); echo "L=$L"; grep -nE "Running:|PASS\]|FAIL\]|\[[0-9.]+s\]|cannot see|expected=|actual=" "$L" 2>/
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg|grep -aE "P118-IRESURRECT-SKIP"|head -10' 2>/dev/null | grep -aviE "Unauthor"
+    cd /src/mxfs; grep -rn "XFS_ISTALE_CAW" xfs/xfs_inode.h | head; echo "=== iflag defines around ISTALE_CAW ==="; grep -n "#define XFS_I" xfs/xfs_inode.h | tail -
+    cd /src/mxfs; grep -n "xfs_init_new_inode\|xfs_iflags_set(ip, XFS_INEW)\|XFS_INEW)" xfs/xfs_inode.c | head
+    cd /src/mxfs; grep -rn "xfs_iflags_set(ip, XFS_INEW)\|^xfs_init_new_inode\|xfs_init_new_inode(" xfs/*.c | head
+    cd /src/mxfs; grep -rn "xfs_init_new_inode" xfs/*.c | head; echo "=== or via IGET_CREATE in cache_miss ==="; grep -n "XFS_IGET_CREATE\|flags & XFS_IGET_CREATE" 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|warning: unused|LD \[M\]" | grep -v "Clock skew\|modification time" | tail -8; echo "=== r
+    f=/tmp/claude-1000/-src-mxfs/71d53b54-943a-4b90-9389-a18b3abba2d7/tasks/bth8sklmo.output; until grep -q "rc=" "$f" 2>/dev/null; do sleep 3; done; cat "$f"
+
+## Last text from previous session
+
+his is the right point for RULE-5 consult #2 — a precise sub-problem.
+Gemini's answer is decisive and matches my evidence perfectly. The reliable, memory-only discriminator: a custom in-core flag **`MXFS_IF_FIRST_FLUSH`**, set when *this node* allocates the inode (`xfs_init_new_inode`), cleared on first flush. Then `!FIRST_FLUSH && disk_gen != incore_gen` is reliable: after our first flush, disk_gen MUST equal our gen, so any later mismatch = a peer changed the incarnation = we're the ghost → skip. The flag eliminates the new-inode false positive without any disk I/O in xfsaild context.
+
+Let me find the XFS_ISTALE_CAW flag definition and `xfs_init_new_inode`.
+I've hit the relay boundary. The current source has a known-broken discriminator (`disk_gen > incore_gen`). Rather than hand off a broken state, let me complete the Gemini-validated `MXFS_IF_FIRST_FLUSH` fix (it compiles cleanly; the next session deploys + tests). First, define the flag:
+Now set the flag in `xfs_init_new_inode`. Let me find where INEW is set there:
+`XFS_IGET_CREATE` is the precise "this node is allocating a new incarnation" signal. I'll set the flag alongside INEW, gated on it:
+Now update the guard in `xfs_iflush` to use the flag:
+I opened a scope block `{` — I must close it after the guard's closing brace. Let me read the guard region to place the closing brace correctly:
+I need to close my scope block after line 3604 (`}` of the guard). Let me add the closing brace:
+Now build to confirm it compiles cleanly:
+Build clean (`DF34891E`), guard present (the warning is pre-existing in xfs_aops.c). Let me record this session's findings to memory before the relay.
+## Session summary
+
+**Criterion NOT met** — `cache_coherency` still fails; marker NOT written. Build `DF34891E` compiles cleanly but is **not yet deployed/tested** (relay boundary hit).
+
+### Refuted (RULE 4)
+The approved sess117 "hard cache-barrier step 1" — generalizing the AG-meta release-side evict from bnobt/cntbt to **all** AG-meta (agf/agi/inobt/finobt) — **reintroduced the bnobt double-free corruption** (`ltbno+ltlen>bno` shutdown) plus a 129s rename. Evicting AGF desyncs its cached freeblks/longest/btree-root from the bnobt leaves. **Reverted.** Also confirmed the acquire-side `mxfs_dlm_invalidate_ag_meta` *already* invalidates all AG-meta comprehensively — so AG-meta is not the residual blocker.
+
+### Proven root of the corruption-shutdown→barrier-stall→timeout
+The shutdown is `xfs_dialloc` → EFSCORRUPTED (badmagic) → `xfs_trans_cancel` on a dirty trans → FS shutdown, which hangs peers on the test barrier. It's **downstream of INODE RESURRECTION**: xfsaild's `xfs_iflush` copies a live in-core inode over a peer-freed on-disk dinode (proven via the sess102 `P-IRESURRECT` detector firing on comm=xfsaild immediately before each dialloc badmagic). Mutual exclusion holds (P106-STALE-EX=0); read-side coherency is fine — it's the xfsaild **write-side**.
+
+### Fix implemented (Gemini RULE-5 validated)
+Added `MXFS_IF_FIRST_FLUSH` in-core flag (set on `XFS_IGET_CREATE`, cleared on first flush) so `xfs_iflush` can reliably distinguish a legitimate new-inode first flush from a resurrection ghost — necessary because XFS `di_gen` is **random** (chunk-init vs per-alloc prandom), which defeated every gen-comparison discriminator I tried (each false-positived on new inodes → "cannot see <file>" + AIL stall). Guard: skip the disk copy when `!FIRST_FLUSH && disk_gen != incore_gen`.
+
+### Key verified signal
+On the interim build, the resurrection guard **eliminated the corruption** (`shutdown=0, ltbno=0` on all nodes — previously a node always crashed). The flag fix removes the only remaining regression (new-inode false positives).
+
+### Next session
+Deploy `DF34891E` (virsh destroy+start all 4 → reset4 → run cache_coherency ×3); expect no shutdown and cross_visibility restored. If a *visibility* residual remains without shutdown, that's the separate dir-block lost-update half. Full detail in memory `sess118_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

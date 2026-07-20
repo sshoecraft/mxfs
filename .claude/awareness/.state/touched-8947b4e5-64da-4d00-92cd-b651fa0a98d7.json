@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_log_priv.h",
+    "xfs/xfs_log_recover.c"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

@@ -1,0 +1,10 @@
+{
+  "source": [
+    "dlm/dlm.c",
+    "xfs/xfs_trans_ail.c",
+    "xfs/xfs_inode.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

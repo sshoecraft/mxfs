@@ -1,0 +1,16 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "include/mxfs/mxfs_dlm.h",
+    "dlm/v5_mount.c",
+    "dlm/mount.c",
+    "dlm/v5_mount.h",
+    "xfs/xfs_inode.h",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

@@ -1,0 +1,22 @@
+---
+name: sess19-PROVEN-xfsaild-stale-leaf-reflush-clobber
+description: sess19 PROVEN (caught in act): 2/tcp dir loss = xfsaild reflushing a STALE leaf buffer (buf_cnt=140) over durable disk leaf (disk_cnt=202), dropping…
+metadata:
+  type: project
+---
+
+## sess19 (ccloop 8ddb16a2) — DECISIVE RULE-4 capture of the 2/tcp dir lost-update clobber.
+
+## CAUGHT IN THE ACT (build F7911B10, dirwr=1, cc_blockdir_probe 30 50 → short iter16 188/200): P-LEAFWRITECLOBBER detector (pal/linux/xfs_buf.c submit chokepoint, reuses the sess56 coherent plain-bdev-read of the same daddr, compares xfs_dir3_leaf_hdr.count buffer-vs-disk):
+`P-LEAFWRITECLOBBER owner=131 daddr=4186520 buf_cnt=140 disk_cnt=202 comm=xfsaild/sda` — and the paired P16-DIRBLK-SUBMIT: `owner=131 daddr=4186520 ops=xfs_dir3_leaf1 mode=5 tenure=4574 epoch=4574 nl=0 tmism=0 comm=xfsaild/sda`.
+=> test1's XFSAILD (background writeback) flushed a STALE in-core leaf buffer holding 140 hash entries OVER the current durable on-disk leaf holding 202, durably DROPPING 62 hash entries. (P-LEAFWRITECLOBBER owner field is garbage — I read dir3_blk_hdr.owner but a leaf uses xfs_da3_blkinfo; P16 owner=131 is the correct dir ino. Minor detector cosmetic bug; the count compare is valid.)
+
+## WHY THE EXISTING GUARD MISSES IT: the sess17 chokepoint skip mxfs_buf_xfsaild_skip_dir_write only suppresses a dir-block write when the owner dir is NL-released (nl=1) OR (detector-only) tenure-mismatched. Here nl=0 (dir held EX, mode=5) and tmism=0 (buffer tenure 4574 == current EX epoch 4574). So the stale leaf is stamped with the CURRENT tenure yet holds STALE content (140<202). The tenure stamp does NOT detect this staleness; only a CONTENT compare (buf_cnt < coherent_disk_cnt) does.
+
+## HOW THE STALE LEAF ARISES: ties to DIR-STALE-SKIP (read keep-guard, xfs_da_read_buf) firing on the LEAF block (blk=0x800000) with pin=1 undest=1 — the read refuses to refresh test1's PINNED leaf (sess64 pin-guard MUST stay, else CORRUPT_INCORE). So test1 keeps its pinned 140-entry leaf (its own adds, MISSING the peer's entries that are durable on disk as 202). Then xfsaild flushes that pinned-stale 140-leaf → clobbers the peer's 62 hash entries. Net: readdir keeps dirents in data blocks; leaf loses hashes → lookup ENOENT (leaf-hash inconsistency) OR, when the data block is also affected, genuine readdir loss. Both observed (iter2/14 leaf-hash; iter9/16 readdir loss).
+
+## REFUTED detector hypothesis: the READ-side P-LEAFREADSTALE (buf<disk at leaf READ, xfs_da_btree.c) fired 0× — the clobber is a WRITE-time stale reflush, not a read-time count shortfall. Keep that detector or remove it; the WRITE-side P-LEAFWRITECLOBBER is the right probe.
+
+## FIX PLAN (next session — needs a SAFE discriminator, do NOT blind-skip buf<disk): a legit dir-entry REMOVE also flushes buf_cnt<disk_cnt (post-remove buffer over pre-remove disk) — blanket-skipping buf<disk would resurrect removed entries (the sess8/sess48 resurrection class). The clobber here is in a CREATE-ONLY growing dir. Discriminator candidates to ADD to P-LEAFWRITECLOBBER and re-capture FIRST (RULE 4): (a) i_dlm_dir_gen vs i_dlm_dir_loaded_gen/evicted_gen (peer-modified-pending = disk is a superset we failed to adopt → skip is safe); (b) b_mxfs_logged_seq vs b_mxfs_written_seq (is this buffer carrying current undestaged work, or a lingering already-written stale image?); (c) b_mxfs_dir_incarn vs dir i_generation (daddr/inode REUSE — ino=131 reused every iter). Then FIX: at the submit chokepoint, SKIP (emulate clean ioend, like P61) a dir leaf/data write where buf_cnt<coherent_disk_cnt AND (peer-modify-pending OR incarnation-ABA) — i.e. the buffer is provably a SUPERSEDED stale image, not authoritative current work. Equivalent GPT-aligned alternative: invalidate the stale leaf buffer at the dir-EX handoff so it never lingers in the AIL to be reflushed (drain+invalidate, not just drain). Validate: cc_blockdir_probe 30 50 → 0 short AND every readdir entry lookup-able, ×>=3 runs; + ./run.sh 2 tcp 16/16.
+
+## STATE: build F7911B10 deployed both nodes (= F13B9FB0 + P-LEAFREADSTALE read detector + P-LEAFWRITECLOBBER write detector). Official ./run.sh 2 tcp PASSES 16/16. Marker NOT written (bug reproduces under cc_blockdir_probe). Reset dirwr=0 at session end. [[sess19-ROOT-leaf-hash-inconsistency-not-data-loss]] [[sess19-GPT-fix-dinode-coherency-and-cluster-iflush-clobber]] [[sess19-handoff-leaf-hash-fix-plan]]

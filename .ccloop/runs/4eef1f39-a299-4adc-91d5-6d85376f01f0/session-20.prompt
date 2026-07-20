@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 20 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 19
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `7ff809be-e817-4cf2-936c-8cf23441d295`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7ff809be-e817-4cf2-936c-8cf23441d295.jsonl`
+- approx context at last assistant turn: 256975 tokens
+- tools used: Bash×57 Read×18 Edit×11 mcp__ccmemory__memory_get×3 ToolSearch×2 mcp__ask_gemini__query×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn 'P47-INACT\|inact_ino=\|A-lost-removal' xfs/libxfs/xfs_alloc.c xfs/xfs_inode.c xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|warning:.*(declaration|implicit|undefined)|MXFS_IF_LOCAL_UNLINK|di_nlink_coherent' | head -30; echo "=== exit
+    cd /src/mxfs; while pgrep -f 'make modules' >/dev/null 2>&1 || pgrep -f 'cc1' >/dev/null 2>&1; do sleep 5; done; echo "build settled"
+    cat /tmp/claude-1000/-src-mxfs/7ff809be-e817-4cf2-936c-8cf23441d295/tasks/b98d551ao.output
+    cd /src/mxfs; sed -n '1,50p' tests/reset4.sh 2>/dev/null | grep -nE 'virsh|insmod|mkfs|mount|deploy|cp .*mxfs.ko|NODES|for|ssh' | head -30; echo "=== does it po
+    export LIBVIRT_DEFAULT_URI=qemu:///system; echo "=== destroy all 4 ==="; for d in test1 test2 test3 test4; do virsh destroy "$d" 2>&1 | grep -v '^$'; done; slee
+    cd /src/mxfs; echo "=== ensure NFS /mnt/mxfs-src + check new .ko visible ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash tools/mxfs_s
+    cd /src/mxfs; n=test1; timeout 12 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "echo '--- fstab mxfs-src ---'; grep mxfs-src /etc/fstab 2>/dev/null; echo '--
+    cd /src/mxfs; grep -rln 'fresh_cluster_mount\|teardown_all' tests/ | head; echo "==="; grep -rn 'fresh_cluster_mount()\|deploy\|scp\|insmod\|mxfs.ko\|rsync' tes
+    cd /src/mxfs; sed -n '218,275p' tests/criteria/lib.sh
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | grep -vE 'Warning|Unauthorized|disconnect|^$' | tail -15; echo "=== loaded srcversion per node ==="; for
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 6 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C >/dev/null 2>&1" >/dev/null 2>&1; done; e
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "echo -n 'shutdown/corrupt hits
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -iE 'shutdown|ltbno|EFSCORRUPT|BUG|oops' | tail -10" 2>/dev/
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -iE 'P47-INACT|P81-DEXT|P82-ADD|P-IRESURRECT|INACT-SKIP|ltbn
+    cd /src/mxfs; grep -n 'P119\|MXFS_IF_FIRST_FLUSH\|IRESURRECT\|resurrect\|xfs_iflush_int\|NONEX-FLUSH\|di_mode.*0.*disk\|skip.*flush' xfs/xfs_inode.c | head -30
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -iE 'P28-INSTR|P33-INSTR|P85|P122|P93|disk_differs|REVERT-CL
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -iE '4194443|0x40008b|0x8001b|P119.*ino=4194443|P17B.*419444
+    cd /src/mxfs; for n in test2 test3 test4; do echo "=== $n : 4194443 / 0x8001b ==="; timeout 10 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg 2>/dev/nul
+    cd /src/mxfs; grep -n 'xfs_inode_from_disk\|reload\|RELOAD\|from_disk\|i_generation =' xfs/xfs_mxfs_dlm.c | head -25
+
+## Last text from previous session
+
+ free while the inode owns it). The huge free extent (whole AG) suggests test1's bnobt was **re-read stale**. Both Gemini consults flagged FUA-reads-hit-stale-platter. I need decisive proof: read the on-disk bnobt **both** ways at the failure site. Let me read the failure-site probe area:
+There's an existing P28-INSTR probe (`disk_differs` via FUA). Let me check what it reported at this shutdown, and get the full failure-site picture:
+Decisive new evidence: at the actual failure (agno=2), `P28 disk_differs=0` and `P33 nr=2 rec0=(9,6) recN=(24,260891)` — the bnobt is **consistent** (in-core == disk), both show block 27 free, yet the on-disk inode owns it. So this is a **durable inode-vs-bnobt double-state**, not bnobt read-staleness. Meanwhile P122 *did* fire (suppressed 2 agno=0 clobber writes). The question: was inode 4194443 **resurrected**? Let me trace its full lifecycle on test1:
+Inode 4194443 has a short lifecycle on test1 (only inactivation at 270s, flag was set so B3 correctly didn't skip). At the failure, the bnobt is coherent (disk_differs=0) yet shows block 27 free while the on-disk inode owns it — a clean durable inconsistency. Likely a **peer resurrected** 4194443. Let me check peers and confirm the frozen `pag_gen=1` root:
+Decisive cross-node root: inode 4194443 = **node3's** file `node3_before_10`→`node3_after_10` (node3 created it, legitimate first-flush). test1 is inactivating node3's LIVE file with the **same gen** (1083402091), `nlink=0`, and `local_unlink` flag **set** — a **torn reload of a reused inode number**: the flag is a *stale leftover* from test1's prior unlink of the same inode number, surviving the in-place reload to node3's incarnation. So my flag has a reuse hole: it must be **cleared on any reload that adopts a new incarnation**. Let me find the DLM reload site:
+I've hit the relay boundary. Let me capture the exact reload site for the fix, then record the decisive findings to memory.
+I've reached the relay boundary. Let me record the decisive findings and the precise next-step fix to memory.
+Reached the relay boundary. Brief summary of this session:
+
+## What I did
+Continued the `cache_coherency` ship-gate blocker (the only failing criterion). Found the cluster contaminated (test1 had shut down from a **bnobt double-free** — the recurring ~50-session blocker), so I diagnosed it cleanly per RULE 4 and consulted Gemini per RULE 5.
+
+## Decisive root found
+The bnobt `ltbno+ltlen>bno` shutdown is **test1 inactivating a peer's LIVE inode**. Cross-node trace proved inode 4194443 = node3's file `node3_before_10`→`node3_after_10` (node3 created/owns it, legit first-flush). test1 freed node3's block because test1 held a **torn in-place reload of a reused inode number** with stale `nlink=0`.
+
+## Fix landed (build `57B046347E1A23B0825822A`, deployed all 4) — correct but incomplete
+- New `MXFS_IF_LOCAL_UNLINK` flag (set on local `xfs_droplink`→0 and O_TMPFILE creation).
+- New coherent-nlink helper (plain-bio, not FUA — per both Gemini consults).
+- B3 inactivation guard: skip destructive free when `!local_unlink && coh_nlink>0`.
+
+## Why it didn't fully fix it (decisive, instrumented)
+Clean reproduction still shut down: the `local_unlink` flag was a **stale leftover** from test1's *prior* unlink of the same inode number, surviving the in-place DLM reload that adopted node3's incarnation → B3 wrongly proceeded. The flag is only cleared on iget-*recycle*, not on a DLM in-place reload.
+
+## Next step (high-confidence, one edit — recorded in memory `sess19-local-unlink-flag-reuse-hole`)
+Add `xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK)` at the top of `mxfs_dlm_reload_inode` (xfs/xfs_mxfs_dlm.c ~2678). Safe because legit unlink→inactivation never reloads. Then power-cycle + reset4, rebuild, rerun rename_visibility expecting no shutdown and `INACT-SKIP-STALE reason=torn-live-no-local-unlink local_unlink=0`.
+
+**Criteria NOT met** — `cache_coherency` still fails (bnobt double-free shutdown persists). Marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

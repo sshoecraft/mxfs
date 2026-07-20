@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/daf50d34-cc16-4192-9dda-6e2589c78764/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run daf50d34-cc16-4192-9dda-6e2589c78764, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f26bc7b6-bcc5-421f-b4cf-e45f69aa126d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f26bc7b6-bcc5-421f-b4cf-e45f69aa126d.jsonl`
+- approx context at last assistant turn: 502808 tokens
+- tools used: Bash×155 Edit×19 mcp__ccmemory__memory_get×8 TaskCreate×6 Read×5 TaskUpdate×5 Write×4 mcp__ccmemory__memory_write×4 ToolSearch×3 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/probe_sweep.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/scripts/revalidate_cell.sh
+- /src/mxfs/.claude/awareness/subsystems/tests.md
+- /src/mxfs/scripts/matrix_check.py
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/mkdir_storm.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "0.10.69" > VERSION; touch xfs/xfs_mxfs_dlm.c; make modules 2>&1 | grep -E "error|LD \[M\]" | head -5; modinfo mxfs.ko | grep srcversion
+    SP=/tmp/claude-1000/-src-mxfs/f26bc7b6-bcc5-421f-b4cf-e45f69aa126d/scratchpad; cd /src/mxfs; nohup setsid ./scripts/revalidate_cell.sh 32 t:dlm_scaling > "$SP/r
+    SP=/tmp/claude-1000/-src-mxfs/f26bc7b6-bcc5-421f-b4cf-e45f69aa126d/scratchpad; for i in 1 2 3; do timeout 290 bash -c "until grep -qE 'CELL-GROUP (OK|NOT-CLEAN)
+    for i in $(seq 1 32); do ( timeout 15 /src/mxfs/tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "echo 1 > /sys/module/mxfs/parameters/instr; echo 1 > /sys/module/m
+    SP=/tmp/claude-1000/-src-mxfs/f26bc7b6-bcc5-421f-b4cf-e45f69aa126d/scratchpad; mkdir -p "$SP/storm2" INO=$(timeout 15 /src/mxfs/tools/mxfs_sshpass.sh test1 /tmp
+    for n in test1 test17 test5; do printf "%s: " $n; timeout 15 /src/mxfs/tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "stat -c 'ino=%i' /mnt/shared/.mkdir_storm 2>&1;
+    sed -n 1075,1110p /src/mxfs/dlm/dlm_caw.c; echo ---PREBUMP---; grep -n "caw_grant_seq_prebump\|caw_grant_meta_seq" /src/mxfs/dlm/dlm_caw.c | head -8
+    sed -n 860,985p /src/mxfs/dlm/dlm_caw.c
+    grep -n "mxfs_noino_inflight_remove\|mxfs_noino_inflight_insert\|mxfs_noino_inflight" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -8; echo ---P23---; grep -n "P23-SLOWP
+    sed -n 14211,14265p /src/mxfs/xfs/xfs_mxfs_dlm.c; echo ===ACQ-CONTEXT===; sed -n 21010,21060p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "P15H-PRE-UNLOCK\|P15H-UNLOCK-DONE\|P15H-STRAND-TIMEOUT" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -5; L=$(grep -n "P15H-PRE-UNLOCK" /src/mxfs/xfs/xfs_mxfs_dl
+    echo "0.10.70" > VERSION; touch xfs/xfs_mxfs_dlm.c; make modules 2>&1 | grep -E "error|warning: unused|LD \[M\]" | head -6; modinfo mxfs.ko | grep srcversion
+    SP=/tmp/claude-1000/-src-mxfs/f26bc7b6-bcc5-421f-b4cf-e45f69aa126d/scratchpad; cd /src/mxfs; nohup setsid ./scripts/revalidate_cell.sh 32 t:dlm_scaling > "$SP/r
+    D=$(ls -dt /tmp/run_dlm_scaling_* | head -1); echo $D; for f in $D/test*; do grep -lE '^RESULT: FAIL' $f; done 2>/dev/null | head -3; grep -hE '^RESULT: FAIL' $
+    for i in $(seq 1 32); do ( timeout 15 /src/mxfs/tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "echo 1 > /sys/module/mxfs/parameters/instr; echo 1 > /sys/module/m
+    SP=/tmp/claude-1000/-src-mxfs/f26bc7b6-bcc5-421f-b4cf-e45f69aa126d/scratchpad; mkdir -p "$SP/storm3" INO=$(timeout 15 /src/mxfs/tools/mxfs_sshpass.sh test2 /tmp
+    sed -n 13560,13660p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "mxfs_inode_cluster_durable" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -4; L=$(grep -n "^mxfs_inode_cluster_durable\|static.*mxfs_inode_cluster_durable(" /src
+    sed -n 5480,5545p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -rn "mxfs_dlm_dir_inode_durable" /src/mxfs/xfs/*.c /src/mxfs/pal/linux/*.c 2>/dev/null | grep -v "^.*xfs_mxfs_dlm.c:5[0-9][0-9][0-9]" | head -10; echo ---W
+
+## Last text from previous session
+
+he drain-fallback into the fence:
+srcversion unchanged — the edit didn't trigger a recompile (NFS clock skew). Forcing it:
+6/12 PASS including both previous failures. Updating the root-cause memory with the complete proven chain:
+test4 completed ZERO ops — its private subdir creation failed (the documented concurrent-mkdir swallow face). Checking its forensics:
+**Reproduced in round 2** — node29 and node30 dirents durably vanished cluster-wide (all 32 nodes count 30, even the victims). Harvesting the instrumented evidence:
+32MB captured. Mining the timeline for the round-2 parent (ino=69206144): who converted shortform→block, and which write lost the victims:
+The upgrade was legal (0x80 was test30's own PR bit — sole holder). So something **cleared test30's freshly-written EX bit within 4ms**. Prime suspects: the stale-holder unlock paths. Reading the unlock/release-all code:
+Grep drowned again ("release" matched the BAST noise). Targeted tokens only:
+Now verifying the CAW-side unlock_gen actually compares against the same token grant_seq32 serves:
+**dlm_scaling PASS 32/32 on 0.10.69** (probe sweep clean). Now the correctness proof — 30 storm rounds with instrumentation live:
+Adding the inflight-contains helper and the acquire-side wait:
+0.10.70 built. Deploying via dlm_scaling (re-validates that cell on the new build), then the storm:
+I've hit the ccloop relay boundary mid-investigation. Recording the full state to memory so the next session resumes exactly here:
+Session 1 summary — criteria **not yet met**; work continues via relay.
+
+## What this session accomplished
+
+**Started from:** criteria.json showed the full 1/2/4/8/16/32 caw matrix green, but on mixed builds spanning six days. I completed run68 (third consecutive dir_reuse_coherency@32/caw pass on 0.10.66, probe sweep clean across all 32 rings) and began re-validating the whole matrix on one build — which immediately exposed real bugs the mixed-build history had been masking.
+
+**Four root-caused fixes (0.10.67→0.10.70), each RULE-4 instrumented:**
+
+1. **noino release fence impatience** (0.10.67): posix_multi's 3200-file `ls` storm made 5 nodes simultaneously misdiagnose a slow-but-advancing AIL as wedged and self-shutdown. Fence is now progress-based (wedges only on a provably frozen AIL min).
+2. **FLUSHING dead-end AIL freeze** (0.10.68, proven by the new P-AILMIN dump): fresh inode-cluster buffers carry `_XBF_DELWRI_Q|_XBF_MXFS_ALLOC_QUEUED`, which xfsaild can never write; create-only workloads never trigger the AG-release drains that land them. The fence now drains the mxfs alloc buflists on stall. Result: posix_multi, mmap_coherency, zero_silent_loss all went 0/32 → **32/32 PASS**.
+3. **Stale async release stripping fresh grants** (0.10.69/70): a queued no-inode release executing after its node re-acquired the lock cleared the new tenure's slot bit — proven double-EX (two nodes converting the same dir 4ms apart) and 15K "held-miss" events per 3 minutes. Added gen-anchor + in-core liveness re-checks + acquire-side serialization; dlm_scaling@32 then passed 32/32 (run73).
+4. Built fast tooling: `scripts/mkdir_storm.sh` (reproduces the concurrent-mkdir dirent loss in 1-5 rounds), `probe_sweep.sh`, `revalidate_cell.sh`, `matrix_check.py --since` (the honest YES gate).
+
+## Where it stands
+
+The storm repro still loses one dirent by round 5 on 0.10.70: the shared parent converted shortform→block **five times in one incarnation**, each EX holder reloading a stale dinode — the dinode-durability handoff (or its reader-side adopt) is the remaining hole. The exact next probe is documented in memory (`AAA-ccloopdaf5-sess1-END-storm-loss-chain-4-fixes-next-probe-durable-gating`): check the gating around `mxfs_dlm_dir_inode_durable` at xfs_inode.c:2236-2340, then either the enforcement's pin-bail budget or reader monotonicity. After that bug falls: g2@32, dir_reuse@32 on the final build, then the 16/8/4/2/1 ladder re-run and the `matrix_check --since` gate before any YES marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

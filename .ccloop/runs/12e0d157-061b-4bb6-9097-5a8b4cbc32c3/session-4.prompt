@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/12e0d157-061b-4bb6-9097-5a8b4cbc32c3/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 12e0d157-061b-4bb6-9097-5a8b4cbc32c3, after session 3
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `830cd9e7-d06c-4bc7-80b0-14eb0634fbf9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/830cd9e7-d06c-4bc7-80b0-14eb0634fbf9.jsonl`
+- approx context at last assistant turn: 499939 tokens
+- tools used: Bash×67 Read×18 mcp__ccmemory__memory_write×10 mcp__ccmemory__memory_get×9 Edit×4 ToolSearch×3 mcp__ccmemory__memory_search×2 mcp__ask_fable__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== VM state + LUN PR health (for clean relay start) ===" virsh -c qemu:///system list --all 2>/dev/null | grep -E 'test[1-4]\b' echo "--- LU
+    cd /src/mxfs echo "=== mxfs_v5_dlm_ag_held signature + a raw-slot popcount helper if any ===" grep -rn "mxfs_v5_dlm_ag_held\b" xfs/*.h dlm/*.h include/*.h 2>/de
+    cd /src/mxfs echo "=== 4/caw with dir_force_block=0: cache_coherency + zero_silent_loss + dir_reuse_coherency ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_
+    cd /src/mxfs echo "=== results recorded this run (force_block=0) ===" python3 -c " import json d=json.load(open('criteria.json')) for cat in d['categories']:   
+    cd /src/mxfs echo "=== 4/caw dir_reuse_coherency at dir_force_block=0 (RULE 0: budget ~250s) ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="di
+    cd /src/mxfs echo "=== node state + dir_reuse fb=0 failure mode ===" for n in test1 test2 test3 test4; do   echo -n "$n: "; timeout 12 tools/mxfs_sshpass.sh "$n
+    cd /src/mxfs echo "=== CONFIRM: 4/caw cache_coherency at fb=0, run #2 (repeatability) ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dir_force
+    cd /src/mxfs echo "=== how run.sh launches the per-node test + env forwarding ===" grep -n "DRC_\|run_one\|run_suite\|env\|RANK=\|NODES=\|MXFS_WATCH\|export\|CO
+    cd /src/mxfs echo "=== 4/caw dir_reuse_coherency at fb=0, FULL run.sh budget (560s internal) ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="di
+    cd /src/mxfs echo "=== 4/caw fb=0 regression batch: strong_consistency posix_multi mmap_coherency crash_consistency ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha
+    cd /src/mxfs echo "=== 4/caw fb=0 DLM/scale/perf batch ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dir_force_block=0" ./run.sh 4 caw dlm_fa
+    cd /src/mxfs echo "=== 4/caw fb=0 fault batch: dlm_membership fence_during_write fault_netpartition ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODA
+    cd /src/mxfs echo "=== 2/caw fb=0 validation batch (sess67 tuned fb=1 for 2-node — check no regression) ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_
+    cd /src/mxfs t0=$SECONDS && make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko|\.ko$" | tail -4; echo "RC=${PIPESTATUS[0]} wall=$((SECONDS-t0))s" echo "=== n
+    cd /src/mxfs echo "=== boot test5-8 (background, for 8/caw) ===" for i in 5 6 7 8; do virsh -c qemu:///system start test$i >/dev/null 2>&1 & done; wait; echo "b
+    cd /src/mxfs echo "=== 8/caw at DEFAULT (fb=0): coherency batch ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha ./run.sh 8 caw cache_coherency zero_silent_loss str
+    cd /src/mxfs echo "=== 8/caw at DEFAULT (fb=0): crash + dlm + scale + perf batch ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha ./run.sh 8 caw crash_consistency d
+    cd /src/mxfs echo "=== 8/caw at DEFAULT (fb=0): fault batch ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha ./run.sh 8 caw dlm_membership fence_during_write fault_
+    cd /src/mxfs echo "=== boot test9-16 (parallel) ===" for i in $(seq 9 16); do virsh -c qemu:///system start test$i >/dev/null 2>&1 & done; wait echo "booted; wa
+    cd /src/mxfs echo "=== 16/caw at DEFAULT (fb=0): coherency batch ===" t0=$SECONDS MXFS_DEV=/dev/mapper/mpatha ./run.sh 16 caw cache_coherency zero_silent_loss s
+
+## Last text from previous session
+
+2/caw coherency+DLM batch at fb=0:
+**2/caw fb=0: 8/8 PASS** (227s) — no regression at the node count sess67 tuned fb=1 for. fb=0 is validated at both 2 and 4 nodes. Since the current default fb=1 *fails* 4/caw coherency, fb=0 is the correct product default — the honest fix is to flip it. Let me read the exact default line and flip it.
+Default flipped fb=1→0 with a full explanatory comment. Let me rebuild (keeping the light P-AGLOW probes for now in case 8/16/32 need diagnosis) and confirm the new default builds clean.
+Build OK (srcversion 9731510A), default is now fb=0. Let me confirm the flip works end-to-end — run the two tests that FAILED at fb=1 (`cache_coherency`, `zero_silent_loss`) at the **new default (no modarg)** — and boot test5-8 in the background for the next ladder step:
+**Default flip confirmed** — at the new default (no modarg, build 9731510A), 4/caw cache_coherency + zero_silent_loss PASS 4/4. The fix works at ship config. (run.sh power-cycled test5-8 as it saw leftover mxfs on them — fine, they'll be prepped for 8/caw.) Now validate 8/caw at the default:
+**8/caw coherency: all 5 PASS 8/8** (103s) at the new default. fb=0 scales cleanly. Let me validate the 8/caw DLM/scale/perf tests at default:
+**8/caw DLM/scale/perf: all 6 PASS** (107s). Now the 8/caw fault batch:
+**8/caw fault batch: all 3 PASS.** 8/caw is comprehensively green at fb=0 (14 multi-node tests). Excellent scaling. Let me record this milestone, then push to 16/caw — booting test9-16:
+Now scale to 16 nodes. Booting shut-off nodes via run.sh's power-cycle path is slow (sequential), so I'll pre-boot test9-16 and use `caw_preflight` to get iSCSI/multipath ready (the documented workflow), then run 16/caw:
+All 16 nodes READY. Now the 16/caw coherency batch at the default:
+16/caw coherency: **all 5 PASS 16/16** (189s). fb=0 scales cleanly through 16 nodes. I've hit the ccloop relay boundary — let me record the milestone and summarize.
+## Session 3 summary — root cause SOLVED, ladder validation well underway
+
+**The breakthrough:** After deep diagnosis this session, I found the 4/caw coherency failures (`cache_coherency`, `zero_silent_loss`) were caused by `dir_force_block=1` forcing shared subdirectories into block format — making a single dir block (agbno 9/AG) a hot cross-node RMW hotspot that gets aliased with file data → dir3 CRC fail → FS shutdown → the "empty content" the previous session misdiagnosed as a coherency regression.
+
+**The fix:** Flipped the default `mxfs_dir_force_block` **1→0** (build `9731510A`). With shortform dirs (natural XFS, stored in-inode, no shared block), the coherency tests genuinely pass. The old sf→block race that made fb=0 flaky at sess4 is fixed by the ~30 dir_* coherence params added since. (A key error I corrected: the "fb=0 stalls dir_reuse" scare was just me shell-`timeout`ing run.sh at 300s — its real budget is 140×N=560s, and fb=0 dir_reuse passes in 336s.)
+
+**Validated at the fb=0 default (run.sh recorded PASS):**
+- **2/caw**: 8 coherency+DLM tests
+- **4/caw**: 15 multi-node tests (confirmed at default)
+- **8/caw**: 14 multi-node tests
+- **16/caw**: 5 coherency tests (16/16 each)
+
+The coherency-corruption blocker — this run's central struggle across 3 sessions — is **resolved and scaling cleanly through 16 nodes**.
+
+**Criteria NOT yet met** — remaining: 16/caw DLM/fault batch (expect PASS, not force_block-sensitive), **32/caw full suite** (needs test17-32; includes the *separate* `dlm_scaling` perf blocker — iSCSI read-command saturation, the last real risk), the slow `dir_reuse` at 8/16/32 (140×N budget exceeds the 600s foreground cap → run in background), 1/caw, then remove the light P-AGLOW probes + one clean full-ladder confirmation. All recorded in `caw-ladder-fb0-progress-2-4-8-green` and `caw-4node-RESOLVED-forceblock0-passes-all-three-tension-tests`.
+
+I am **not** writing the criteria marker (work remains). Nodes test1-16 are up and ready. The loop relays with full state to continue from 16/caw → 32/caw.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

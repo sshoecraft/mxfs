@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 58 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 57
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `d8b61af9-8e3b-4765-9ce1-8e2dcad4962c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d8b61af9-8e3b-4765-9ce1-8e2dcad4962c.jsonl`
+- approx context at last assistant turn: 250790 tokens
+- tools used: Bash×118 Read×40 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/repro_self_dirent_loss.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sleep 1; echo waiting-for-notification
+    cd /src/mxfs; until grep -qaE "RESULT:.*posix_semantics_multi16|SHIP_GATE|ABORT" /tmp/verify_ship_sess57.log 2>/dev/null || ! ps -p 2559994 >/dev/null 2>&1; do 
+    cd /src/mxfs; ps -p 2559994 >/dev/null 2>&1 && echo alive || echo done; grep -aE "RESULT:|ABORT|\[1[3-9]/19\]" /tmp/verify_ship_sess57.log | tail -12
+    cd /src/mxfs; until grep -qaE "SHIP_GATE:|ABORT" /tmp/verify_ship_sess57.log 2>/dev/null || ! ps -p 2559994 >/dev/null 2>&1; do sleep 45; done; echo "=== COMPLE
+    cd /src/mxfs; ls -t /tmp/zero_silent_loss.*.log 2>/dev/null | head -1 | xargs -r sh -c 'echo "=== $0 ==="; sed "s/\x1b\[[0-9;]*m//g" "$0" | grep -aiE "silent|lo
+    cd /src/mxfs; echo "gate: $(ps -p 2559994 >/dev/null 2>&1 && echo alive || echo done)" echo "=== test1 health NOW ==="; timeout 12 tools/mxfs_sshpass.sh test1 /
+    cd /src/mxfs; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -aiE 'ino=128|P138|P112|IFLUSH|unrecoverable|EDEADLK|Shutting dow
+    cd /src/mxfs; echo "gate: $(ps -p 2559994 >/dev/null 2>&1 && echo alive || echo done)"; grep -aE "RESULT:|SHIP_GATE:|ABORT|\[1[89]/19\]" /tmp/verify_ship_sess57
+    cd /src/mxfs; until grep -qaE "SHIP_GATE:" /tmp/verify_ship_sess57.log 2>/dev/null || ! ps -p 2559994 >/dev/null 2>&1; do sleep 45; done; echo "=== GATE COMPLET
+    cd /src/mxfs; grep -nE "mxfs_dlm_dir_inode_durable|mxfs_inode_cluster_durable" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; ps -p 2559994 >/dev/null 2>&1 && echo "gate alive (posix16 running)" || echo "gate done"; grep -aE "SHIP_GATE:|RESULT:.*multi16" /tmp/verify_ship_
+    cd /src/mxfs; until grep -qaE "SHIP_GATE:" /tmp/verify_ship_sess57.log 2>/dev/null || ! ps -p 2559994 >/dev/null 2>&1; do sleep 30; done; echo "=== GATE DONE ==
+    cd /src/mxfs; ps -p 2559994 >/dev/null 2>&1 && echo "still running posix16" || { echo "GATE DONE:"; grep -aE "SHIP_GATE:|RESULT:.*multi16" /tmp/verify_ship_sess
+    cd /src/mxfs; grep -aE "RESULT:.*multi16" /tmp/verify_ship_sess57.log; echo "=== FINAL DASHBOARD (clean re-run, build A1F53770) ==="; ./showstat.sh 2>/dev/null
+    cd /src/mxfs; echo "=== node health after gate (which wedged?) ==="; for h in $(seq 1 16); do   st=$(timeout 8 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "d=\
+    cd /src/mxfs; echo "=== EDEADLK / -35 in inode lock path ==="; grep -rnE "EDEADLK|deadlock" xfs/xfs_mxfs_dlm.c dlm/dlm_caw.c | head -20
+    cd /src/mxfs; grep -rnE "DLM inode lock failed|DLM inode lock unrecoverable|inode lock.*shut" xfs/xfs_mxfs_dlm.c | head; echo "=== P138-WAIT site ==="; grep -rn
+    cd /src/mxfs; echo "=== MHT / min-hold-time on inode locks ==="; grep -rniE "min.?hold|MHT|hold_time|held_ns|acquired_ns|i_dlm_acquired|min_hold_ms|yield_quantu
+    cd /src/mxfs; for h in 8 12 16; do echo "===== test$h shutdown signature ====="; timeout 10 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2>/dev/null | gr
+    cd /src/mxfs; grep -nE "mxfs_dlm_dir_modify_refresh|mxfs_dlm_reload_inode\b" xfs/xfs_mxfs_dlm.c | head; echo "=== callers of dir_modify_refresh ==="; grep -rn "
+
+## Last text from previous session
+
+qual `blksize`. It doesn't → EFSCORRUPTED → shutdown.
+- **The documented gap**: "the MODIFY paths (create/remove/rename) do NOT [consume MXFS_IF_DIR_RELOAD] — they hold ILOCK_EXCL and `mxfs_dlm_reload_inode` would self-deadlock on `down_write(i_lock)`." So `xfs_create` reaches here with a **stale in-core dir inode** (di_size and extent map from different incarnations) → corruption.
+
+sess56 fixed LOOKUP/READDIR but the **MODIFY path reload gap remains** — that's the dominant clean-gate failure. Let me read `mxfs_dlm_dir_modify_refresh` to see how the modify path currently (fails to) refresh.
+Now the gap is concrete: `mxfs_dlm_dir_modify_refresh` (xfs_mxfs_dlm.c:1248) only calls `mxfs_dir_evict_data_blocks(dp)` — it evicts cached dir DATA blocks but does **not** refresh `di_size` or the data-fork extent map (a full `mxfs_dlm_reload_inode` would self-deadlock on `down_write(i_lock)` under the held ILOCK_EXCL). So after a peer grows the dir, `xfs_create` cold-reads block 0 (rebuilding the extent map to 1 extent) while `di_size` stays at the **stale** value → `eof==1 block` but `di_size != blksize` → EFSCORRUPTED at xfs_dir2.c:287.
+
+This is the dominant clean-gate root (breaks zero_silent_loss + posix_semantics_multi16). Let me sharpen the memory, then add a probe at the corruption site to prove the di_size/extent-map divergence per RULE 4.
+Now let me verify the caller lock state — critical for the fix. Let me check xfs_create's call to `mxfs_dlm_dir_modify_refresh` (xfs_inode.c:3388) relative to ILOCK acquisition.
+I've reached the relay boundary. Confirmed: the modify-path calls (xfs_inode.c:3388 remove, :1323 create, :3775/3777 rename) all run with **ILOCK_EXCL already held**, which is why `mxfs_dlm_dir_modify_refresh` can only evict data blocks (a full reload would self-deadlock on `down_write(i_lock)`) — leaving `di_size` stale while the extent map gets rebuilt fresh. That's the corruption.
+
+## Session summary
+
+**Your request — done.** I cleared all 19 criteria to "not run" (backed up old results to `.criteria_results.json.bak.sess57`) and ran the full `verify_ship.sh --keep-going` end-to-end on the current build `A1F53770`.
+
+**True state: 15 PASS / 4 FAIL** (the stale dashboard's "18/19" was masking 3 regressions — those PASS entries had accumulated across different builds on 2026-06-12, never a single green run):
+
+- ❌ **zero_silent_loss** — `fs_silent=1600, completed=0/3` (FS shutdown mid-run)
+- ❌ **fence_during_write** — `lost=400` (test2/test4 each: 200 acked, 0 visible)
+- ❌ **rsync_paired** — `148%` (was 113%; perf regression)
+- ❌ **posix_semantics_multi16** — `elapsed>600s`
+- ✅ everything else, including `cache_coherency` 4/4 (the long-standing blocker)
+
+**Dominant root identified (breaks #13 + #19), with clean-gate proof:** 6 nodes shut down simultaneously during a concurrent create storm with identical signature — `dp->i_disk_size != geo->blksize` at `xfs_dir2.c:287` (`xfs_dir2_format` ← `xfs_create`) → `xfs_trans_cancel` → shutdown. The MODIFY paths can't reload the dir inode under the held ILOCK_EXCL, so `mxfs_dlm_dir_modify_refresh` only evicts data blocks; the subsequent cold-read rebuilds the extent map fresh while `di_size` stays stale → `eof==1 block` but `di_size≠4096` → corruption. This is the unfixed half of sess56's dir-format work (LOOKUP/READDIR fixed; MODIFY gap remains).
+
+**Recorded to memory:** `sess57-clean-rerun-true-state-ino128-deadlock` (full dashboard + the ino=128 EX-starvation secondary, which was test1-only/contaminated) and `sess57-dir2format-disize-corruption-modify-gap` (the dominant root + fix candidates + RULE-4 probe plan).
+
+**Next step** (per RULE 4): add a non-gated probe at xfs_dir2.c:287 capturing di_size / if_format / if_nextents / eof / dir_gen / reload-flag to prove the di_size-vs-extent-map divergence, then fix `mxfs_dlm_dir_modify_refresh` to refresh di_size+extent-map consistently without the `down_write` self-deadlock.
+
+Criteria marker **not** written — 4 criteria still failing.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

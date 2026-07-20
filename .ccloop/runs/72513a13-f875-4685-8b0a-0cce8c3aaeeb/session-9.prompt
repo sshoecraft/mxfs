@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 8
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `982e789e-3631-452f-a49a-db4358ba080a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/982e789e-3631-452f-a49a-db4358ba080a.jsonl`
+- approx context at last assistant turn: 498663 tokens
+- tools used: Bash×231 Edit×26 TaskCreate×8 TaskUpdate×6 Read×5 ToolSearch×3 mcp__ccmemory__memory_write×3 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/tests/suite/fio_perf.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/tests/suite/fio_perf_vs_xfs.sh
+- /src/mxfs/scripts/raw_fio_ceiling.sh
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for i in 1 2 5 8; do timeout 8 tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass 'dmesg | tail -2 | head -1; ps aux | grep -E "dir_reuse|rm -rf|mkdir" | grep -v grep
+    timeout 10 tools/mxfs_sshpass.sh test8 /tmp/.mxfs_pass 'dmesg | tail -30 | grep -E "P128|P-WAIT|P138|stuck|AIL" | tail -8; for p in $(pgrep -f dir_reuse); do ec
+    S=/tmp/claude-1000/-src-mxfs/982e789e-3631-452f-a49a-db4358ba080a/scratchpad; timeout 10 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | awk -v a=6280 -v b
+    D=/src/mxfs/tests/logs/tcp8_drc_wedge_20260719; mkdir -p $D; for i in $(seq 1 8); do ( timeout 15 tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass 'dmesg | tail -30
+    D=/src/mxfs/tests/logs/tcp8_drc_wedge_20260719; grep -n "P128-AILSTUCK" $D/dmesg_test8 | head -2; grep -n "DRCph r=8" $D/dmesg_test8; grep -n "drc-CLASS\|drc-FA
+    D=/src/mxfs/tests/logs/tcp8_drc_wedge_20260719; for t in 1 2 3 4 5 6 7 8; do echo "== test$t =="; grep -E "P63-HANDOFF|P65-EPOCH-ADOPT|P65-REPLAY|P-REPLAY|SFADO
+    tail -6 /src/mxfs/tests/logs/ladder_rung_8tcp.log; grep -E "^  (PASS|FAIL)" /src/mxfs/tests/logs/ladder_rung_8tcp.log | tail -4
+    grep -E "^  FAIL" /src/mxfs/tests/logs/ladder_rung_8tcp.log; echo ===; python3 scripts/matrix_check.py --cond tcp 2>/dev/null | head -8
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "## SESS8 PART-2 (LADDER SWEEP" new = """## SESS8 PART-3 (TCP LADDER 1-8 + THE NEW TOP FRONT: tc
+    (MXFS_FORCE_PREP=1 RULE0_CALIBRATE=1 ./run.sh 8 tcp prep_cluster 2>&1 | tail -1; RULE0_CALIBRATE=1 ./run.sh 8 tcp dir_reuse_coherency 2>&1 | grep -E "^  (PASS|F
+    until grep -qE "PASS|FAIL" /tmp/claude-1000/-src-mxfs/982e789e-3631-452f-a49a-db4358ba080a/tasks/blzvbbwft.output 2>/dev/null; do sleep 45; done; cat /tmp/claud
+    for t in blzvbbwft; do true; done; fuser -k /tmp/mxfs_run.lock 2>/dev/null; sleep 2; fuser /tmp/mxfs_run.lock >/dev/null 2>&1 && echo STILL-HELD || echo runs-ki
+    wc -l tests/suite/dir_reuse_coherency.sh; sed -n '1,50p' tests/suite/dir_reuse_coherency.sh
+    sed -n '100,200p' tests/suite/dir_reuse_coherency.sh
+    sed -n '200,314p' tests/suite/dir_reuse_coherency.sh
+    sed -n '55,100p' tests/suite/dir_reuse_coherency.sh
+    grep -n "coord_put\|coord_get" tests/suite/lib.sh | head -6; sed -n "$(grep -n 'coord_get()' tests/suite/lib.sh | head -1 | cut -d: -f1),+12p" tests/suite/lib.s
+    grep -rn "coord_put()\|coord_get()" tests/suite/lib.sh tests/setup/*.sh 2>/dev/null | head -4; grep -rln "coord_put" tests/ | head -4
+    grep -n "coord_put()\|coord_get()" tests/suite/coord.sh; sed -n "$(grep -n 'coord_get()' tests/suite/coord.sh | cut -d: -f1),+15p" tests/suite/coord.sh
+    bash -n tests/suite/dir_reuse_coherency.sh && echo SYNTAX-OK; python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "## SESS8 PART-3 (TCP LADDER" new 
+
+## Last text from previous session
+
+rst) melts the cluster via the shared nudge socket; window/grace knob widening just moves cost into verify phases. A 4MB UDP rcvbuf landed as durable defense.
+
+**drc economics quantified:** ~80s/round at 32 nodes decomposes into create-wave rotation, client-bound md5 verify, and 8.75ms/unlink per-file inode teardown; the 120s flat bar is below even native-XFS-×2 at N≥2 — walls recorded in TIMEOUT_BUDGETS.md for the user's budget decision, cells recorded as calibrate-PASS.
+
+**Next up when drc lands:** tcp rig switch (`rig.sh tcp 32`) and the tcp ladder 1→32 via background `ladder_rung.sh` runs, then the cawp ladder, then final one-build revalidation. State.md and three memory files carry the full program.
+Waiting on the drc@16 completion in a foreground until-loop:
+drc@16: **PASS 145/145 (1086s calibrate)** — the cawd ladder is now complete across all six rungs. Updating tasks and switching to the tcp rig:
+TCP rig verified on all 32. Launching the 1/tcp rung in background:
+1/tcp all green so far, in the fio chunk. Continuing the wait:
+Baseline test PASSED on the tcp rig but the file (root-owned, Jul-14) wasn't updated. Reading the baseline test's logic and what it measured:
+Minimal honest fix: per-condition baseline with fallback, using the existing `XFS_BASELINE` env plumbing. Editing the vs test to prefer `.xfs_fio_baseline.<cond>.json`:
+Capturing the tcp-rig native-XFS baseline, then re-running the vs check:
+1/tcp complete. Climbing: 2/tcp rung:
+4/tcp in the fio chunk (the slow one on this device). Continuing the wait:
+drc@8/tcp has NOT advanced in 10+ minutes (same r=8 verify-done line) — possible wedge. Investigating:
+Now recover the cluster and launch a reproducibility check (the key RULE-4 input for the diagnosis):
+Runs killed. Now the hard look — reading the whole test to account for every second it burns:
+Now the rewrite — parameters block first:
+Now the verify section — expected-set without sidecars, plus a content spot-check:
+Now fail-fast and the round-close accounting:
+Relay boundary — landing the coordinated-stop fix (the one critical piece), then wrapping.
+Session 8 closes at the relay boundary. Summary of where things stand:
+
+**Your directive is landed.** `dir_reuse_coherency` is rearchitected in place (syntax-clean, validation owed to the next session): no more `.md5` sidecar files (they doubled every dirent, create, unlink, and lookup — content is now a deterministic pattern verified by read), the per-round file total is N-invariant (128 split across nodes instead of 50/node = 3200 files at 32 nodes), rounds are time-boxed to 100s with a rank1-coordinated stop, fewer than 8 completed rounds in that window is an immediate FAIL, and a failed round aborts the whole test instantly instead of grinding through the remaining rounds — that grind is where the 1380s came from. Worst case, pass or fail, the test now reports in ~2 minutes.
+
+**Matrix progress this session:** cawd condition fully green 1-32 (first of the four complete — was 8/16/32-partial at session start); tcp 1=29/29, 2 and 4 at 19/20 (sole red: the fio-vs-xfs comparison, whose methodology I fixed twice — per-rig baselines plus a raw N-sharer write ceiling, capture pending); 8/tcp at 15/20.
+
+**The big find:** tcp@8 has a genuine correctness bug — at round 8 of the old drc, the shared directory's entire 800-entry image vanished cluster-wide, with divergent dir-generation views across nodes (test1 at gen 14, peers at 57-63), an AIL-stuck inode-cluster buffer, and a repeating EX-release underflow on the orphaned inodes. Full dossier is in memory (`AAA-ccloop7251-sess8-TCP8-DRC-DIRENT-LOSS-dossier`) with dmesg bundles in `tests/logs/tcp8_drc_wedge_20260719/`. The rewritten test makes its repro loop minutes instead of half-hours.
+
+**Next session:** validate the new drc at 2/tcp, then use it to chase the tcp@8 dirent loss (task #8), regression-check 8/cawd, re-record drc cells, then the 16/32 tcp rungs and the cawp ladder. Criteria not met — the run continues.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

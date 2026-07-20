@@ -1,0 +1,121 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 30 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 29
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6e529979-f221-4fd2-ac45-91e2c4667bcc`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6e529979-f221-4fd2-ac45-91e2c4667bcc.jsonl`
+- approx context at last assistant turn: 512638 tokens
+- tools used: Bash×81 Read×53 Edit×6 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_write×4 ToolSearch×3 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/vm_console_type.py
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== callers of consumer_refresh + evict_data_blocks ==="; grep -rn "mxfs_dlm_dir_consumer_refresh\|mxfs_dir_evict_data_blocks" xfs/ pal/ --i
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "========== $n =========="; timeout 15 $SSH $n "$PF" ' echo "--- RDMI
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "========== $n =========="; timeout 15 $SSH $n "$PF" ' echo "--- dirs
+    cd /src/mxfs; echo "=== dir release/drain functions ==="; grep -n "mxfs_dir_data_durable\|mxfs_dir_push_data_ags\|xfs_log_force\|xfs_buf_stale\|drain.*dir\|dir.
+    cd /src/mxfs; echo "=== callers of mxfs_dir_stale_data_blocks + the flush->stale loop ==="; grep -n "mxfs_dir_stale_data_blocks\|mxfs_dir_data_durable\|MXFS.*RE
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== merge param default + value on test1 ==="; grep -n "mxfs_dir_merge_enabled\b" xfs/xfs_mxf
+    cd /src/mxfs; echo "=== run dir_reuse with dir_merge=1 $(date -u +%T) ==="; MXFS_EXTRA_MODARGS="dir_merge=1" timeout 560 ./run.sh 2 tcp dir_reuse_coherency 2>&1
+    cd /src/mxfs; echo "=== dir_reuse timeout budget ==="; grep -iA3 "dir_reuse\|dir.reuse" tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head -20; echo "=== merg
+    cd /src/mxfs; echo "=== dir_leaf_rebuild param ==="; grep -n "module_param_named(dir_leaf_rebuild\|int mxfs_dir_leaf_rebuild" xfs/xfs_mxfs_dlm.c; echo "=== rebu
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 15 $SSH $n "$PF" ' echo "--- merge param --
+    cd /src/mxfs; echo "=== check rc on the shutdown + is modify_refresh called in xfs_create ==="; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 12 $SSH t
+    cd /src/mxfs; echo "=== build ==="; make modules 2>&1 | grep -iE "error|warning.*mxfs_dlm|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcvers
+    cd /src/mxfs; echo "=== dir_reuse: dir_merge=1 dir_leaf_rebuild=1 (once-per-tenure merge) $(date -u +%T) ==="; MXFS_EXTRA_MODARGS="dir_merge=1 dir_leaf_rebuild=
+    cd /src/mxfs; grep -rn "mxfs_dir_rebuild_leaf_from_data" xfs/libxfs/*.c | grep -v "= mxfs\|rval = " | head; echo "=== fn location ==="; grep -rln "^mxfs_dir_reb
+    cd /src/mxfs; echo "=== reboot cluster (2 nodes) $(date -u +%T) ==="; timeout 280 tests/reboot_cluster.sh 2 2>&1 | tail -15
+    cd /src/mxfs; echo "=== dir_reuse: dir_merge=1 dir_leaf_rebuild=1 $(date -u +%T) ==="; MXFS_EXTRA_MODARGS="dir_merge=1 dir_leaf_rebuild=1" timeout 540 ./run.sh 
+    cd /src/mxfs; grep -n "mxfs_dir2_datascan_lookup\|mxfs_collect_dir_hashes\|args->cmpresult" xfs/libxfs/xfs_dir2_leaf.c | head; echo "=== fn body ==="; awk '/^mx
+    cd /src/mxfs; echo "=== incremental build (xfs_dir2_leaf.c cmpresult fix) ==="; make modules 2>&1 | grep -iE "error|warning.*dir2_leaf|implicit|undefined" | hea
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 15 $SSH $n "$PF" ' echo "--- FAIL summary (
+    cd /src/mxfs; echo "=== callers of stale_data_blocks (release) + drain_evict (acquire) ==="; grep -rn "mxfs_dir_stale_data_blocks\|mxfs_dir_drain_evict_data_blo
+
+## Last text from previous session
+
+ed idea on this LIO cluster (sess96 reverted a similar drain on SCST where rereads were stale — but LIO plain-bio rereads ARE coherent). The fix: make the modify path **drain** the pin-only stale block (refresh the RMW base) instead of skipping it. Let me read `mxfs_dir_drain_evict_data_blocks`'s locking + the `force_evict` param to wire it minimally.
+Confirmed the locking constraint: `mxfs_dir_drain_evict_data_blocks` takes `i_lock` internally, so it can't be called from `modify_refresh` (which holds `ILOCK_EXCL` → self-deadlock), and any `log_force`/drain under `ILOCK_EXCL` re-extends the EX hold → same DLM-timeout. This is a genuine architectural wall: the merge class is refuted 3×, in-hold drain is locking-blocked + timeout-risky, and prior acquire-drain reverts were on SCST (this is LIO/coherent). I have a complete PROVEN diagnosis. Per RULE 5 (GPT first), let me consult on the architecture.
+GPT's design confirms and refines my direction. The key insight I was missing: **shift the pin-drain wait to NL/the fresh-grant boundary (where waiting doesn't block a peer), never in-hold; poison pin-only stale buffers so they're never an RMW base or xfsaild target; require purge-before-remodify.** The existing `mxfs_dir_drain_evict_data_blocks` runs at the slow-path acquire but the modify-path uses the clean-only evict (the gap). Let me read the drain loop's current wait bound to strengthen it (waiting at a fresh EX grant is safe — no peer blocked yet).
+I've reached the relay boundary. GPT delivered a complete architectural design that confirms and sharpens the direction. Let me record it for the next session, then summarize.
+At the relay boundary. **Criterion NOT met** — `dir_reuse_coherency` 2/tcp still fails; marker not written.
+
+## Session 29 summary
+
+**Infrastructure (fixed, reboot-stable):** test1 was unreachable — root cause was dynamic dnsmasq leases (test1 had drifted to .114). Added `dhcp-host` reservations (test1=.186, test2=.182) in `/etc/dnsmasq.d/lab.conf`; cluster now reboot-stable. Added reusable `scripts/vm_console_type.py` for VGA-console recovery. Recorded in `env-test1-dhcp-reservation-fix-sess29`.
+
+**Root cause (PROVEN, RULE 4):** Built a `P29-DATAWRITE` write-side detector that proved the durable dirent loss is `xfsaild` async-flushing **stale dir DATA/leaf blocks across DLM tenure boundaries while EX-held** (the sess65 async-writeback gap). The RMW base is stale because at re-acquire the cached dir block is pin-only (`pinned, !dirty, !in_ail, DONE`) and both the read-hook and the modify-path clean-only evict refuse to refresh a pinned buffer (can't clear XBF_DONE → corruption). Two faces: data-block dirent loss + leaf-hash hole. Recorded in `sess29-PROVEN-root-xfsaild-stale-dirblock-flush-at-EX`.
+
+**Approaches tested:**
+- `dir_merge=1` (union-merge) **fixes the DATA face** (readdir 187→200) but causes `rc=-110` DLM-timeout shutdown — confirmed the **merge-while-holding-EX class is dead** (sess17/18/29). Once-per-tenure variant also timed out.
+- Datascan `cmpresult` reset added (real lookup-skip bug, keep).
+
+**Path forward (GPT-5.5 design, recorded in `sess29-GPT-design-tenure-local-poison-purge-at-NL`):** epoch-driven **tenure-local buffer invalidation** — poison pin-only stale dir buffers at release, **purge them at NL** (after demote, before next acquire) where waiting doesn't block a peer, and gate re-acquire on purge completion so a stale buffer is **never** an RMW base or xfsaild target. This avoids extending the EX hold (no peer timeout) and never clears XBF_DONE on a pinned buffer. Much machinery exists (release stale loop, acquire drain, gen/incarn stamps, chokepoint guard) — the new piece is poison + purge-at-NL + acquire gate.
+
+**Build at relay:** `AB435ACC` (baseline + P29 detector + inert once-per-tenure merge [dir_merge default OFF] + datascan cmpresult fix). Next session: implement the GPT tenure-local-poison design; reboot cluster before each run (a shutdown leaves `/dev/sda` busy → prep fails).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

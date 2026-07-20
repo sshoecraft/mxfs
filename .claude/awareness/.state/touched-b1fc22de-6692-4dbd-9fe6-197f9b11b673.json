@@ -1,0 +1,12 @@
+{
+  "source": [
+    "dlm/net2_epoch.c",
+    "dlm/net2_membership.h",
+    "dlm/net2_membership.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

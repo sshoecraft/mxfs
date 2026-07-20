@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 32 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 31
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `2739b1db-7c42-4e33-b9aa-0805eaa8f883`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2739b1db-7c42-4e33-b9aa-0805eaa8f883.jsonl`
+- approx context at last assistant turn: 163807 tokens
+- tools used: Bash×45 Read×14 Edit×6
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/pal/linux/xfs_iops.c
+- /src/mxfs/pal/linux/xfs_file.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== latest test result dir ==="; ls -dt ~/.mxfs/results/*/ 2>/dev/null | head -3; latest=$(ls -dt ~/.mxfs/results/*/test_rename_visibility 2
+    cd /src/mxfs; sed -n '1780,1860p' pal/linux/xfs_super.c
+    cd /src/mxfs; sed -n '1860,1990p' pal/linux/xfs_super.c
+    cd /src/mxfs; echo "=== test_rename_visibility source ==="; f=$(grep -rl 'rename_visibility' tests/ --include='*.sh' | grep -iE 'test|cluster' | head -3); echo 
+    cd /src/mxfs; echo "=== xfs_dir_lookup signature ==="; grep -n 'xfs_dir_lookup' xfs/libxfs/xfs_dir2.c xfs/libxfs/xfs_dir2.h | head; echo "=== xfs_lookup ftype e
+    cd /src/mxfs; grep -n 'xfs_vn_lookup' pal/linux/xfs_super.c xfs/xfs_iops.c 2>/dev/null | head
+    cd /src/mxfs; grep -rn 'xfs_vn_lookup\|\.lookup\s*=\|->lookup' xfs/xfs_iops.c | head; echo "---"; grep -rln 'xfs_vn_lookup' xfs/ pal/
+    cd /src/mxfs; grep -n 'xfs_vn_lookup' pal/linux/xfs_iops.c
+    cd /src/mxfs; grep -n 'mxfs_v5_dlm_is_single_node\|m_mxfs_dlm\|xfs_mxfs_dlm.h\|#include' pal/linux/xfs_iops.c | head -20
+    cd /src/mxfs; grep -n 'mxfs' pal/linux/xfs_iops.c | grep -i 'include\|dlm' | head; echo "=== is the symbol declared? ==="; grep -rn 'mxfs_v5_dlm_is_single_node'
+    cd /src/mxfs; grep -rn 'bool mxfs_v5_dlm_is_single_node\|mxfs_v5_dlm_is_single_node(' xfs/*.h pal/linux/*.h include/*.h 2>/dev/null | head; echo "=== where decl
+    cd /src/mxfs; grep -rn 'mxfs_v5_dlm_is_single_node' --include='*.h' . | head; echo "=== does iops include mxfs dlm header? ==="; grep -n 'mxfs_dlm\|mxfs.h' pal/
+    cd /src/mxfs; make modules 2>&1 | grep -viE '^\s*CC |^\s*LD |^\s*MODPOST|^\s*GEN|^\s*AR |Building modules|^\s*$' | tail -25; echo "=== srcversion ==="; modinfo 
+    cd /src/mxfs; grep -n 'fresh_cluster_mount\|deploy\|insmod\|modprobe\|SCP\|scp\|cp .*mxfs.ko\|install.*ko' tests/criteria/lib.sh | head -20
+    cd /src/mxfs; grep -n 'MXFS_MODULE\b\|MXFS_MODULE=' tests/criteria/lib.sh | head -3; timeout 300 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -vE '
+    cd /src/mxfs; timeout 580 bash tests/catch_rename_fail.sh 10 2>&1 | grep -vE 'Warning: Permanently|Unauthorized access|authorized user, disconnect' | grep -aE '
+    cd /src/mxfs; latest=$(ls -dt ~/.mxfs/results/*/test_rename_visibility 2>/dev/null | head -1); echo "=== FAIL detail ($latest) ==="; for f in "$latest"/node*.lo
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "===== $n ====="; echo "-- P-DREVAL-TYPEMISS --"; timeout 10 bash tools/mxfs_sshpass.
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test2 test4; do echo "===== $n: all P-VNLOOKUP for node1_after_1 ====="; timeout 10 bash tools/mxfs_sshpass.sh "$n" "$
+    cd /src/mxfs; grep -rn 'xfs_file_open\|xfs_dir_open\|\.open\s*=\|d_splice_alias' pal/linux/*.c xfs/*.c | grep -iE 'open|splice' | head -20
+
+## Last text from previous session
+
+instrumentation — did `cat`'s walk reach `->lookup`, and did `mxfs_drevalidate` see the type mismatch?
+Decisive finding: **`P-DREVAL-TYPEMISS` fired ZERO times** — so `mxfs_drevalidate` never sees the mismatch. Yet **`INODE-REUSE-EVICT` fired and `P-EVICT-RESULT` shows `final_mode=0100644 final_ftype=1` (REG, correct!)** — the eviction in `xfs_lookup` repairs inode 131 to REG and returns it, yet `cat` still gets EISDIR. This reproduces sess70's exact paradox. I need to read `xfs_lookup`'s eviction/retry code carefully.
+The inode IS correctly REG after eviction (P-EVICT-RESULT), confirming sess70: the bug is in the **dcache/dentry layer**. Let me check the raw `P-VNLOOKUP` trace (my earlier grep filtered by name with trailing space and may have missed it) to see the full lookup sequence for ino 131:
+**Decisive timeline (test2):** `INODE-REUSE-EVICT` (58884.272) → `P-EVICT-RESULT` REG (58884.342) → `P-VNLOOKUP ino=131 mode=0100644` REG (58884.342, same lookup return). xfs_vn_lookup for node1_after_1 ran **exactly once**, returned REG, spliced the dentry. Then `cat` fails with EISDIR using a cached dentry (no 2nd lookup, no DREVAL mismatch). 
+
+The inode is REG but `cat`'s open binds a DIR. I need to see what `cat`'s open actually resolves. Let me find the file/dir open hooks:
+`xfs_dir_open` is the open hook used when the resolved inode is a directory. If `cat node1_after_1` triggers `xfs_dir_open`, I'll capture the exact inode object + name `cat` bound. Let me add a decisive log there:
+I've reached the relay boundary. Let me add the decisive instrumentation now (so the next session can build+deploy immediately), then summarize.
+Let me record the session's decisive finding in state.md for the next session, then summarize.
+Reached the ccloop relay boundary. Summary of this session:
+
+## What I did (RULE 4 loop, no guessing)
+
+**Read `./p`** (the original task) — it's the sess50 session summary. Established current state: criteria PASS=10, FAIL=2 (`cache_coherency`, `rsync_paired`). Marker not written (correct — work not done).
+
+**Verified cluster health**: all 4 nodes (test1-4.vm.localdomain) up, mounted, consistent on build `0E1CC377`.
+
+**Got fresh ground truth**: reset to pristine, reproduced `rename_visibility` failure (~1/3 iters). The dominant failure is **Face A — inode-reuse type confusion**: peers see `node1_after_1` (a regular file) as a directory → EISDIR → empty content. (The P88 bnobt detector noise is benign per sess69.)
+
+**Followed sess70's stated next step** (confirm whether `cat`'s walk reaches `->lookup`). Added 3 always-on detectors, built `B92F7D9E`, deployed, reproduced.
+
+## Decisive finding (hard evidence, build `B92F7D9E`)
+
+For a single failing `cat node1_after_1` on test2 (ino 131), in timestamp order:
+- `INODE-REUSE-EVICT ino=131 incore_ftype=2(DIR) dirent_ftype=1(REG)`
+- `P-EVICT-RESULT ino=131 final_mode=0100644 final_ftype=1` → **eviction repaired the inode to REG**
+- `P-VNLOOKUP ino=131 mode=0100644` → xfs_vn_lookup ran **once**, returned REG, spliced the dentry
+- `P-DREVAL-TYPEMISS` fired **0×**
+
+**Conclusion**: the inode/eviction layer is already correct (one in-core inode per ino, repaired to REG). `cat` still binds the directory file_operations → **the bug is purely in the VFS dcache layer**, not the inode. A stale dentry from inode 131's prior DIR incarnation isn't being dropped by the eviction's `d_prune_aliases`.
+
+## Left for next session (clean seam)
+- Coded but **not yet built**: `P-DIROPEN` in `xfs_dir_open` (pal/linux/xfs_file.c) — the decisive probe to see exactly which inode/dentry `cat`'s open binds. **Rebuild before next run.**
+- Likely fix (cheaper than the full sess55 CAW_EVICT_RING): sess70 Hyp-2 — on `INODE-REUSE-EVICT`, `d_invalidate`/`d_drop` the specific reused-name dentry (+ `shrink_dcache_parent`) so `cat` re-walks `->lookup`.
+- Full diagnosis + next experiment recorded in `state.md` (sess71 block).
+
+Cluster left pristine+mounted on `B92F7D9E`. Criteria NOT met — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

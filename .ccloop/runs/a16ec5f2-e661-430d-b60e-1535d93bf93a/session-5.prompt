@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a16ec5f2-e661-430d-b60e-1535d93bf93a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a16ec5f2-e661-430d-b60e-1535d93bf93a, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `76bb9656-252d-4ef9-90c4-0f2ab2265097`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/76bb9656-252d-4ef9-90c4-0f2ab2265097.jsonl`
+- approx context at last assistant turn: 495903 tokens
+- tools used: Bash×220 Edit×32 mcp__ccmemory__memory_write×4 Read×2 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/p29_replay.py
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/tests/setup/prep_node.sh
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/scripts/mxfs_dirdump.py
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    awk 'NR>=18930 && NR<=19010' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n 'dlm_stale\|i_generation\|gen ==\|gen !=\|VFS_I' | head -8
+    grep -n 'i_dlm_stale' /src/mxfs/xfs/xfs_icache.c | head -3; grep -rn 'i_dlm_stale = false\|i_dlm_stale = 0' /src/mxfs/xfs/*.c | wc -l; grep -rn 'i_dlm_stale' /s
+    grep -n 'xfs_inode_alloc' /src/mxfs/xfs/xfs_icache.c | head -2; awk '/^xfs_inode_alloc/,/^}/' /src/mxfs/xfs/xfs_icache.c | grep -c 'i_dlm_stale'
+    cat >> /src/mxfs/.ccmemory/sess4-END2-classB-root-freed-hint-no-generation.md <<'EOF'  ## Addendum 2 — CONFIRMED init bug (grep-proven, fix first next session) 
+    awk 'NR>=91 && NR<=180' /src/mxfs/xfs/xfs_icache.c | grep -n 'i_dlm\|return ip\|i_mxfs' | head -10
+    sed -n 130,143p /src/mxfs/xfs/xfs_icache.c
+    grep -n 'mxfs_dlm_inode_init' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2; awk '/^mxfs_dlm_inode_init/,/^}/' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -c 'i_dlm_stale'
+    cat >> /src/mxfs/.ccmemory/sess4-END2-classB-root-freed-hint-no-generation.md <<'EOF'  ## Addendum 3 — CORRECTION: Addendum-2 REFUTED `xfs_inode_alloc` calls `m
+    tail -5 /src/mxfs/.claude/awareness/subsystems/pal.md
+    make modules 2>&1 | grep -E 'error' | head -3; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    timeout 595 env MXFS_EXTRA_MODARGS="dirwr=1" ./run.sh 8 tcp dir_reuse_coherency 2>&1 | grep -E 'FAIL|PASS' | head -2
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k in 1 2 3 4 5 6 7 8; do r=$(timeout 30 $SSH test$k $PF 'grep -c P4ST-ENOENT-STACK /root/dmesg.stre
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 30 $SSH test1 $PF 'grep -h drc-FAIL /root/dmesg.stream | tail -2; echo =; grep -c P-IGET-ENOENT
+    S=/tmp/claude-1000/-src-mxfs/76bb9656-252d-4ef9-90c4-0f2ab2265097/scratchpad; mkdir -p $S/run28; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/76bb9656-252d-4ef9-90c4-0f2ab2265097/scratchpad/run28; grep -h 'drc-FAIL' $S/test*.dmesg | grep -oE 'round=1[1-6] rank=[0-9]+ readd
+    S=/tmp/claude-1000/-src-mxfs/76bb9656-252d-4ef9-90c4-0f2ab2265097/scratchpad/run28; grep -h 'drc-DIRID round=1[0-2] ' $S/test*.dmesg | grep -oE 'round=[0-9]+ ra
+    cat >> /src/mxfs/.ccmemory/sess4-END2-classB-root-freed-hint-no-generation.md <<'EOF'  ## Addendum 4 — run28 (build 0F5CD6D9518E9E062290730, P4ST armed): DIFFER
+    cat >> /src/mxfs/.claude/awareness/subsystems/pal.md <<'EOF' - (sess4 note) All three probe families above are dirwr-gated and were   verified live in runs 23-2
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+
+## Last text from previous session
+
+de_init` does run at alloc). The decisive next instrument is written into memory: a capped `dump_stack()` in `check_free_state`'s mode==0 branch to name the exact iget path, then fix the adopt gap.
+
+All findings, refutations, and the precise next-step ladder live in ccmemory (`sess4-ROOT-FIX…`, `sess4-MID…`, `sess4-END…`, `sess4-END2…` with three addenda), build `54803BDB` is deployed with the full probe set, and runs 19-27's complete ledgers are in the scratchpad for replay.
+The pal doc was already updated this session — verifying, then continuing with the decisive instrument:
+Doc is current (hook staleness). Adding the path-naming instrument to check_free_state:
+Different failure mode this run: `readdir=0` (whole dir empty) at r15-16, zero iget ENOENTs. Collecting for the full picture:
+Context is fully exhausted — the relay continues from the checkpointed memories. Honest closing state:
+
+**Criteria not met; marker not written.**
+
+This session's verified progress:
+- **Class A (concurrent-EX dirent loss) is fixed** — the `mxfs_dlm_unlock` fallback eating live lock requests is closed with `pend_waiter` ownership linkage. Eight consecutive runs with zero double-grants and zero readdir dirent loss, where previously every 8-node run lost entries.
+- **Class B (lookup dangler) is cornered**: disk provably valid, failure is a poisoned in-core shell (`mode=0, dlm_stale=1`) that bypasses both reuse-reload branches; slab-inheritance theory tested and refuted; the `P4ST` stack-namer probe is built and deployed (`0F5CD6D9`) — run28 happened not to trigger the dangler, revealing instead a third shape (dir drifts 131→132 at ~r10, then cluster-wide divergent readdir on the same dirino), all recorded with next-step directives.
+
+The next session's path is explicit in `sess4-END2…` addenda: loop the 8/tcp run until the dangler fires with P4ST armed (names the iget path definitively), fix the adopt gap, investigate the dir-reincarnation drift that precedes both remaining shapes, then climb the criteria ladder (8/tcp ×5 clean → 4/2/1 → full suites for N∈{1,2,4,8}).
+Relay boundary reached — the cluster is freshly booted and reset, ready for the next session to launch `./run.sh 8 tcp dir_reuse_coherency` (dirwr=1) immediately with build `0F5CD6D9` and the P4ST stack-namer armed.
+
+**Session 4 summary — criteria not met, marker not written.**
+
+**Landed and verified:**
+1. **Class A root fix (concurrent-EX → stale-base RMW → durable dirent loss).** Proven via P29 write-chain + P4L pointer-lifecycle ledgers: `mxfs_dlm_unlock`'s WAITING/BLOCKED fallback reaped concurrent live local lock requests; the dangling requester pointer then freed a kmalloc-recycled **live remote EX grant** at its 1s timeout → holder vanished → double-grant → two nodes RMW'd the same dir block. Fix: `pend_waiter` ownership linkage in `struct mxfs_lock` + unlock-fallback skip + timeout-free identity guard. **Eight consecutive 8-node runs: zero double-grants, zero readdir dirent loss** (previously universal), rounds 24-35s.
+2. Full inode-lifecycle instrumentation now in-tree (P4X-UNLINK, P4I-IFREE, P4C cluster-slot transitions, P27 hex masks, P4S/P-REUSE-RELOAD outcome probes, P4ST stack-namer), streaming dmesg capture in prep_node.sh, plus reusable `scripts/p29_replay.py` and `scripts/mxfs_dirdump.py`.
+
+**Remaining blockers (all mapped in ccmemory `sess4-END…`/`sess4-END2…` + 4 addenda):**
+- **Class B lookup-dangler** (~r7-10): disk provably valid; every node's in-core shell stuck `mode=0, dlm_stale=1`; bypasses both reuse-reload branches (measured 0 fires); slab-init theory refuted; P4ST stack dump will name the iget path on the next occurrence.
+- **run28's third shape**: dir drifts ino 131→132 at ~r10, then cluster-wide divergent readdir (0/668/707) on the same dirino — the drift precedes both shapes and may unify them.
+
+**Path to criteria:** fix class B (+ drift) → 8/tcp ×5 consecutive clean → 4/2/1 regression → full `./run.sh N tcp` suites for N∈{1,2,4,8} → only then write YES.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

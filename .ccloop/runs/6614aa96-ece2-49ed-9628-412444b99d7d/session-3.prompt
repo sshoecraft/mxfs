@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6614aa96-ece2-49ed-9628-412444b99d7d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6614aa96-ece2-49ed-9628-412444b99d7d, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f0ac2f79-5711-44b5-aabb-61d3290b069c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f0ac2f79-5711-44b5-aabb-61d3290b069c.jsonl`
+- approx context at last assistant turn: 504501 tokens
+- tools used: Bash×145 Read×27 mcp__ccmemory__memory_write×11 mcp__ccmemory__memory_get×7 Edit×6 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/.ccmemory/sess2-ccloop-BEST-CONFIG-epoch-fixes-plus-mht1500-3of3.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== TIMEOUT_BUDGETS.md ==="; cat tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head -60; echo "=== SUCCESS_CRITERIA / what is the tcp test
+    cd /src/mxfs; echo "=== timing run.sh 8 tcp dir_reuse_coherency @ mht=1500 (budget=480s) ==="; t0=$SECONDS; OUT=$(MXFS_EXTRA_MODARGS='inode_mht_ms=1500' ./run.s
+    cd /src/mxfs; cat > tests/tcp/drc_time_runsh.sh <<'EOF' #!/bin/bash # Time `run.sh N tcp dir_reuse_coherency` (the actual criterion cmd, NO reboot) # at a given
+    cd /src/mxfs; echo "=== run.sh usage / test selection ==="; sed -n '1,40p' run.sh | grep -nE "usage|TEST|tcp|dir_reuse|suite|case|for.*test" | head -20; echo "=
+    cd /src/mxfs; echo "=== default test list when no test arg given ==="; grep -nE "TESTS=|DEFAULT_TESTS|tests=|\"\\\$@\"|shift 2|TEST_LIST|ALL_TESTS" run.sh | hea
+    cd /src/mxfs; grep -nE "ONLY|coord_tests|TCP_TESTS|tests_to_run|^\s*run_coord|default.*test|tcp\)" run.sh | head -30
+    cd /src/mxfs; sed -n '275,360p' run.sh | grep -nE "in_only|run_coord|MATRIX|dir_reuse|tcp_dlm|min_nodes|coord|\".*\"\)" | head -40
+    cd /src/mxfs; grep -nE "MATRIX|read -r -d|<<.*MATRIX|tcp\b|both\b" run.sh | head; echo "=== matrix rows (tab-separated tests) ==="; awk '/MATRIX=|read.*MATRIX|<
+    cd /src/mxfs; grep -nE "dir_reuse_coherency|tcp_dlm_scaling|	tcp	|	both	" run.sh | head -40
+    cd /src/mxfs; sed -n '292,345p' run.sh
+    cd /src/mxfs; grep -n "ROWS=\|ROWS+=\|ROWS\b" run.sh | head; echo "=== ROWS content (tcp-relevant) ==="; awk '/ROWS=\(/{f=1} f{print NR": "$0} /^\)/{if(f)exit}'
+    cd /src/mxfs; CRIT=$(grep -nE "CRIT=" run.sh | head -1); echo "CRIT def: $CRIT"; cf=$(grep -oE "CRIT=\"[^\"]+\"|CRIT=[^ ]+" run.sh | head -1 | cut -d= -f2 | tr 
+    cd /src/mxfs; ls -la criteria.json 2>/dev/null; echo "=== transport=tcp rows from the jq the harness uses ==="; jq -r '.categories[] | .category as $c | .transp
+    cd /src/mxfs; echo "=== run.sh timing result ==="; cat /tmp/claude-1000/-src-mxfs/f0ac2f79-5711-44b5-aabb-61d3290b069c/tasks/b3cig8336.output 2>/dev/null; pgrep
+    cd /src/mxfs; echo "=== NON-PASS tcp entries (FAIL/pending/other) ==="; jq -r '.categories[].tests[]? | .name as $n | (.runs // {}) | to_entries[] | select(.key
+    cd /src/mxfs; python3 - <<'PY' import json crit=json.load(open('/src/mxfs/criteria.json')) NODES=[1,2,4,8] recorded={} tests=[] for cat in crit.get('categories'
+    cat /tmp/claude-1000/-src-mxfs/f0ac2f79-5711-44b5-aabb-61d3290b069c/tasks/b3cig8336.output 2>/dev/null
+    cd /src/mxfs; sed -n '203,272p' run.sh
+    cd /src/mxfs; echo "=== raw dir_reuse_coherency runs in criteria.json ==="; jq '.categories[].tests[]? | select(.name=="dir_reuse_coherency") | {name, runs}' cr
+    cd /src/mxfs; grep -n "^record()\|record() {\|^record\b" run.sh; echo "=== record fn ==="; awk '/^record\(\)|record\(\) \{/{f=1} f{print} f&&/^}/{exit}' run.sh 
+
+## Last text from previous session
+
+0 tests), not just dir_reuse — though dir_reuse is the known hard blocker. Let me check the timing result and the current full-suite status in criteria.json.
+Most tcp tests PASS. Let me find the NON-passing entries (FAIL/pending) — those are what block the criterion.
+There are no recorded FAILs — criteria.json only records completed PASSes; missing combos are the gap. Let me enumerate the expected (test × node) combos vs recorded PASS to find exactly what's left.
+The gap is much smaller than feared: only **dir_reuse_coherency 8/tcp** is the real blocker; the other 16 gaps are all **2/tcp tests simply never RUN** (they PASS at 4 and 8, so 2-node should pass — just needs a `./run.sh 2 tcp` to record). Let me check the timing result.
+The timing run hit a stale-cluster mkfs failure (the earlier capped foreground run.sh left it dirty). Key question: does `run_coord` enforce the 480s budget as a hard FAIL? If so, my 8/8 PASS at mht=1500 already means within-budget. Let me check.
+Important: `run_coord` enforces the 480s budget as a hard `timeout` — so my 8/8 PASS at mht=1500 **already means the dir_reuse 8/tcp test completes within its RULE-0 budget**. And those runs went through `run.sh`, which records to criteria.json. Let me check the actual recorded state for dir_reuse 8/tcp.
+criteria.json shows only yesterday's 2/tcp + 4/tcp — my runs didn't persist an 8/tcp record. Let me check the `record` function to understand how results persist, and why my runs didn't record.
+The relay boundary is reached. Let me record the critical scoping/budget clarification before wrapping up.
+Reached the relay boundary. Final summary:
+
+## Session 2 — major progress; criterion NOT yet met (marker NOT written)
+
+### Breakthroughs this session
+1. **Disproved** the prior session's "corruption fixed" claim — EA485CE6 still failed 8/tcp dir_reuse 0/8 (DABUF_MAP_HOLE + shutdown + dirent loss).
+2. **Proved the root** (RULE 4, instrumented): the addname epoch-staleness refresh existed only in NODE-format code; **LEAF and BLOCK formats had none** — and the dir_reuse dir is LEAF format, so its placements RMW'd a stale base unprotected (P2-EPOCHPLACE probe caught `b_ep<master_ep` placements).
+3. **Fixed it** (build **5240351B**, KEEP): ported the epoch refresh to the DATA-block and LEAF-HASH-block reads in leaf/block addname. → **eliminates ALL corruption** at default mht (where baseline deterministically shut down).
+4. **Best config**: epoch fixes + `inode_mht_ms=1500` → **8/8 consecutive clean PASS** of dir_reuse 8/tcp.
+
+### Key scoping correction (end of session)
+- The criterion is the **full `./run.sh {1,2,4,8} tcp` suite** (criteria.json). Computed the exact gaps: **only 17** — `dir_reuse_coherency 8/tcp` (the real blocker) + **16 tests at 2/tcp that were simply never RUN** (they pass at 4/8 → 2-node almost certainly passes; just needs `./run.sh 2 tcp`).
+- **RULE-0 correction**: `run_coord` enforces the 480s budget as a hard `timeout`, so my **8/8 PASS at mht=1500 already means dir_reuse 8/tcp completes WITHIN its RULE-0 budget** (my earlier "too slow" wrongly counted the VM reboot, which isn't part of the test budget). So dir_reuse 8/tcp is effectively solved at mht=1500.
+
+### What remains (recorded for next session)
+1. Clean `./run.sh 8 tcp dir_reuse_coherency` at mht=1500 → confirm it **records** PASS in criteria.json (my modarg runs didn't persist an 8/tcp record — needs a clean, non-mkfs-failing run).
+2. `./run.sh 2 tcp` → record the 16 missing 2-node tests (handle `soak` duration policy).
+3. Resolve the mht strategy: verify mht=1500 doesn't regress other 8-node tests (esp. tcp_dlm_scaling), **or** land the write-side serialization fix so default mht works (cleaner, zero regression risk — the residual at default mht is a write-side lost-update, ~2/3 reliable).
+
+All findings, the GPT-5.5 architectural design, build/probe state, and the prioritized plan are in the `sess2-ccloop-*` ccmemory entries. Build 5240351B is the keep. The relay continues from here.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 1
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `4007fde4-6608-403c-881f-744132b1ca71`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4007fde4-6608-403c-881f-744132b1ca71.jsonl`
+- approx context at last assistant turn: 254039 tokens
+- tools used: Bash×32 Read×29 Edit×7 mcp__ccmemory__memory_write×3 mcp__ask_gemini__query×2 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/libxfs/xfs_btree.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs MXFS_NODE_OFFSET=0 MXFS_TESTS_DIR=/src/mxfs/tests bash tests/run_tests.sh \   --nodes 4 --phase cluster --test test_unlink_visibility \   --pass-fi
+    cd /src/mxfs echo "===== dmesg per node (errors/shutdown/P110) =====" for n in test1 test2 test3 test4; do   ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg |
+    cd /src/mxfs ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -iE 'P71-INSTR|P82-ADD|RELOAD-TYPEFLIP|4174642|2097282' | tail -40" 2>/dev/null | grep 
+    cd /src/mxfs; grep -rn "P117-INAIL-STALE-ARTIFACT\|INAIL-STALE-ARTIFACT" pal/ xfs/ dlm/ 2>/dev/null
+    cd /src/mxfs for n in test1 test2 test3 test4; do   echo "===== $n ====="   ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg | grep -iE 'ino=4194433|agno=2 .*b
+    cd /src/mxfs echo "=== AG release / drain entry points ===" grep -rn "mxfs_ag_dlm_unlock\b\|mxfs_ag_dlm_unlock_deferred\|drain_meta_buffers\|drain_alloc_buflist
+    cd /src/mxfs echo "=== function containing the discard logic (find its start before 5300) ===" awk 'NR>=5230 && NR<=5300 && /^[a-zA-Z].*\(|^mxfs_|^static/' xfs/
+    cd /src/mxfs echo "=== call sites of mxfs_ag_meta_invalidate_stale ===" grep -rn "mxfs_ag_meta_invalidate_stale" pal/ xfs/ | grep -v "5282\|comment\|hook"  echo
+    make modules 2>&1 | grep -iE 'error|warning.*tenure|tenure|\bLD\b.*mxfs\.ko' | head -30; echo "=== exit ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null | gre
+    for n in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy $n >/dev/null 2>&1; done sleep 3 for n in test1 test2 test3 test4; do sudo virsh -c qe
+    cd /src/mxfs INSMOD_OPTS="fua_disable=1 instr=0" bash tests/reset4.sh 4 2>&1 | tail -8 echo "=== verify build + clear dmesg ===" for n in test1 test2 test3 test
+    cd /src/mxfs MXFS_NODE_OFFSET=0 MXFS_TESTS_DIR=/src/mxfs/tests bash tests/run_tests.sh \   --nodes 4 --phase cluster --test test_unlink_visibility \   --pass-fi
+    cd /src/mxfs for i in $(seq 1 40); do   if grep -qiE 'Results:|Time:' /tmp/claude-1000/-src-mxfs/4007fde4-6608-403c-881f-744132b1ca71/tasks/bov3v1h39.output 2>/
+    cd /src/mxfs for n in test1 test2 test3 test4; do   echo "===== $n ====="   ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg | grep -ciE 'P71-INSTR|shutting do
+    cd /src/mxfs ./tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass "dmesg | grep -iE 'ino=135|SESS50-STARVE|defer_for_waiter|P-DIR-SEQ.*135|waiters=' | tail -30" 2>/dev
+    cd /src/mxfs grep -n "defer_for_waiter\|waiter_mode\|SESS50-STARVE\|reclaim\|our_mode == NL\|compat.*grant\|MXFS_CAW_MAX_RETRIES" dlm/dlm_caw.c | head -40
+    cd /src/mxfs grep -n "yield_to *=\|yield_to =\|->yield_to\|yield_set_ms\|set_yield\|EVICT-RING-DIRMOD\|evict_ring\|dirmod" dlm/dlm_caw.c xfs/xfs_mxfs_dlm.c | gr
+    cd /src/mxfs echo "=== test definition ===" find tests -name "*unlink_visibility*" -o -name "*.sh" 2>/dev/null | xargs grep -ln "unlink_visibility\|unlink_30" 2
+    cd /src/mxfs grep -n "i_dlm_stale\|i_dlm_bast_pending\|bast_pending\|i_dlm_waiters\|peer.*wait\|i_dlm_demoting\b" xfs/xfs_mxfs_dlm.c | head -20 echo "--- bast_n
+    cd /src/mxfs grep -rn "MXFS_CAW_YIELD_TIMEOUT_MS\|MXFS_CAW_YIELD_BACKOFF_MS\|MXFS_CAW_MAX_RETRIES\b\|MXFS_CAW_RETRY.*_MS\|define MXFS_CAW.*MS\|define MXFS_CAW_M
+
+## Last text from previous session
+
+: with 4 nodes racing the compare-and-write (yield_to marks all waiters "priority" but doesn't impose an order), one node can lose CAS races repeatedly to the others for 120s — there's no FIFO/ticket fairness. This is the architectural concurrency question that sess49/50 only partially addressed, and a wrong fix here deadlocks (defer_for_waiter v1 did). Per RULE 5, let me consult Gemini with the precise picture. First, grab the relevant tunables.
+Now I have the full mechanism. Constants confirm it: `MXFS_CAW_WAIT_TIMEOUT_MS=120000` is the hard deadline → ETIMEDOUT → shutdown. The CAW slot has a `waiters` bitmap and `yield_to` priority, but **no FIFO ordering** among waiters — under sustained 4-node EX contention it's a CAS race with backoff, and one node can lose repeatedly for 120s. This is a disk-CAS DLM fairness problem (sess49/50 only partially solved it) and deadlock-prone — RULE 5 consult.
+Gemini's design is concrete: (1) strict `allowed_next` ticket handoff, (2) in-core `bast_pending` flag so the cached-EX fast-path yields without disk I/O, (3) **Minimum Hold Time** — defer BAST processing ~50ms so a holder batches many ops per tenure, collapsing 120 serialized handoffs into ~8.
+
+The evidence (6s vs 123s spread = unfairness, not uniform slowness) matches Gemini's bet: CAS-race + cached-EX monopolization. The lowest-risk, highest-leverage first move per RULE 4 is **MHT batching** — it collapses the handoff storm duration so starvation becomes moot, with no on-disk-format or CAW-protocol change (no deadlock risk). Let me record the design, then look at the inode BAST path to implement it.
+Now let me read the inode `bast_notify` branches to implement MHT (defer BAST when recently acquired):
+I've hit the ccloop relay boundary. Let me update `state.md` so the next session resumes cleanly, then summarize.
+## Summary
+
+Significant progress this session toward the `cache_coherency` ship-gate criterion.
+
+**Breakthrough — the 12-session AGI corruption is fixed.** The sess122 resume plan ("disable read-side P110 to restore 3/4") was wrong: I built it, tested under RULE 4, and proved P110 was a *backstop* masking the real bug, not the cause. With it disabled, the shutdown relocated to `xfs_iunlink_remove_inode` and the P71/P82/P117 probes gave the decisive mechanism — a node was discarding its **own** just-committed AGI unlinked-list insert mid-tenure, because the `b_mxfs_ag_gen`/LSN heuristics can't tell "this-node-ahead current work" from "prev-epoch drained artifact" (and under the default `fua_disable=1`, the gen was never even stamped).
+
+Per RULE 5 I took Gemini's architectural redesign: replace the gen/LSN guessing with a **DLM-tenure cache lifecycle** (`b_tenure_id`/`ag_dlm_tenure_id`) — a current-tenure buffer is authoritative and never discarded; only prior-tenure buffers cold-read. Build `FA1D1C0D`, verified on all 4 nodes: **the AGI corruption/shutdown is gone, and unlink_visibility content is now 100% correct** (all 120 cross-node deletions visible, verify=63ms). This is the bug that blocked ~12 sessions. All 5 edits are KEEP.
+
+**Remaining blocker (newly exposed):** CAW inode-EX **handoff starvation**. 4 nodes contending EX on the shared parent-dir inode — one node starves 123s, crossing the 120s CAW timeout → force-shutdown → barrier EIO → fail. The 6s-vs-123s spread is unfairness: the CAW slot has no FIFO order and the cached-EX fast-path bypasses the slot. Gemini gave a 3-part fix (strict `allowed_next` ticket handoff + in-core `bast_pending` yield + **Minimum Hold Time batching**). The MHT batching is the low-risk, high-leverage next step (collapses ~120 handoffs into ~8) and is the documented next action — I stopped at the relay boundary before editing, so the tree has no half-finished change.
+
+Everything is captured in three `sess123-*` memories and `state.md`. **Marker not written** — `cache_coherency` still fails on the starvation timeout; ship gate remains RED. The next session resumes at the MHT implementation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 34 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 33
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `407b292e-cd85-40a7-b06d-e2e81db859ab`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/407b292e-cd85-40a7-b06d-e2e81db859ab.jsonl`
+- approx context at last assistant turn: 503287 tokens
+- tools used: Bash×102 Read×27 Edit×15 mcp__ccmemory__memory_write×6 ToolSearch×3 mcp__ccmemory__memory_get×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccteam__peers×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/tests/reset2.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== call sites of drain_meta_buffers ==="; grep -n "mxfs_dlm_ag_drain_meta_buffers(" xfs/xfs_mxfs_dlm.c | grep -v "static void"; echo "=== c
+    cd /src/mxfs; grep -n "^xfs_alloc_ag_vextent\|args->agbno = \|args->wasfromfl\|^xfs_alloc_vextent_finish\|trace_xfs_alloc.*done\|args->len = " xfs/libxfs/xfs_al
+    cd /src/mxfs; grep -n "^xfs_alloc_fixup_trees\|STATIC int.*xfs_alloc_fixup_trees\|xfs_alloc_fixup_trees(" xfs/libxfs/xfs_alloc.c | head; echo "=== signature ===
+    cd /src/mxfs; echo "=== mxfs_v5_dlm_ag_unlock (on-disk AG release) call sites ==="; grep -n "mxfs_v5_dlm_ag_unlock\|mxfs_ag_dlm_unlock\b" xfs/xfs_mxfs_dlm.c | g
+    cd /src/mxfs; for ln in 14246 15257 15342; do echo "=== around line $ln (unlock; does it drain meta first?) ==="; sed -n "$((ln-22)),$((ln+2))p" xfs/xfs_mxfs_dl
+    cd /src/mxfs; grep -n "xfs_alloc_vextent_finish\|P55-ALLOC-OVER\|P30-ALLOC-OVER\|args->fsbno = \|XFS_FSB_TO_DADDR.*args" xfs/libxfs/xfs_alloc.c | head; echo "==
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member" | grep -v "warning:" | head; modinfo mxfs.k
+    cd /src/mxfs; echo "=== reset @ $(date -u +%T) ==="; timeout 280 bash tests/reset2.sh 2>&1 | grep -E "loaded=|TIMEOUT|done"; SSH=tools/mxfs_sshpass.sh; PF=/tmp/
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== recorded reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency")
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member" | grep -v "warning:" | head; modinfo mxfs.k
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs[
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member" | grep -v "warning:" | head; modinfo mxfs.k
+    cd /src/mxfs; echo "=== reset cluster to clean slate @ $(date -u +%T) ==="; timeout 280 bash tests/reset2.sh 2>&1 | grep -E "loaded=|TIMEOUT|done"; echo "=== fi
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do timeout 12 $SSH $n "$PF" 'dmesg -C' >/dev/null 2>&1; done; echo "=== run @
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs[
+    cd /src/mxfs; echo "=== reset @ $(date -u +%T) ==="; timeout 280 bash tests/reset2.sh 2>&1 | grep -E "loaded=|TIMEOUT|done"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do timeout 12 $SSH $n "$PF" 'dmesg -C' >/dev/null 2>&1; done; echo "=== run @
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== unmount test1 (FS shut down) + chk_mxfs ==="; timeout 90 $SSH test1 "$PF" '   umount -l /
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 90 $SSH test1 "$PF" '/src/mxfs/tools/chk_mxfs -v /dev/sda 2>&1 | grep -iE "FAIL|error|corru
+    cd /src/mxfs; echo "=== final reset to clean slate @ $(date -u +%T) ==="; timeout 280 bash tests/reset2.sh 2>&1 | grep -E "loaded=|TIMEOUT|done"; echo "build: $
+
+## Last text from previous session
+
+ees OK — and crucially, **AG 0 inobt rec 2: startino=3264 (=0xcc0) count=64 freecount=52** — the inobt records inode 3264's chunk as ALLOCATED, while the runtime found cluster 0xcc0 = urandom data. So the inode chunk WAS allocated (inobt+bnobt consistent) but its blocks got overwritten by file data. Since the bnobt is OK (no double-alloc at the btree level), this points to **M2 (stale file extent-map)**, not M1. Let me get the chk_mxfs summary/errors to confirm it cross-checks block ownership.
+chk_mxfs gives a decisive new finding: the **btrees (AGF/AGI/bnobt/cntbt/inobt) are internally consistent** (no btree-level double-alloc → weakly favors M2 over M1), BUT the **superblock summary counters are durably WRONG**: `ifree=0` (vs 1616 free inodes in inobt!), `icount=1728` (vs 1856), `fdblocks=12990486` (< AGF sum 13015695). This is a **cross-node SB-summary-counter coherency bug** — a node allocating with `ifree=0`/wrong free counts makes incorrect alloc decisions. Let me record this concrete new lead.
+I've reached the relay boundary. Let me leave the cluster clean for the next session, then summarize.
+**Criteria NOT met** — `dir_reuse_coherency` (the blocker for `./run.sh 2 tcp` 100%) still fails. Marker not written (honest). Cluster left clean (both nodes unloaded/unmounted), build clean at `DBD3A375`.
+
+## Session 33 summary — diagnosis substantially advanced (RULE 4, instrumented)
+
+**PROVEN ROOT (this session, unambiguous):** the failure is **block double-OWNERSHIP** — an inode cluster gets overwritten by file data. `xfs_inode_buf_verify` EFSCORRUPTED at inode cluster block 0xc40/0xcc0; the buffer holds **random urandom file data** (no "IN" magic); `P26-IGET-FAIL inum=3136`/`3264` == those block numbers == the exact `.md5` files that fail `stat`. The dir-extent-map and leaf faces I chased early are **downstream** of this.
+
+**Refuted / ruled out this session:**
+- sess32's intra-dir double-alloc framing (P32B = 0).
+- The "inode extent-map revert" I first chased — at the verify-phase miss, in-core == on-disk (nx=3/8192). My `P33-DIRGROW-REVERT-SKIP` reload guard fires **0× (no-op)**.
+- My size/nx-shrink detectors and per-alloc disk probe were either no-ops or **timed out the test** (RULE 0) — reverted.
+
+**Connected to prior work (sess30/sess55):** this is their FACE C / M2 "stale extent-map mis-write," NOT intra-node allocator double-alloc. Cross-node allocator double-alloc (M1) is *not* fully excluded but is now **disfavored**: `chk_mxfs` on a corrupted device shows **all AG btrees internally consistent** (no btree-level double-alloc).
+
+**NEW concrete lead — `chk_mxfs` found durable superblock-counter incoherence:** `ifree=0` (vs 1616 free inodes in the inobt!), `icount` and `fdblocks` also mismatched vs the AG btrees. This is a **cross-node SB-summary-counter coherency bug** — a node allocating with `ifree=0`/wrong free-counts makes bad allocation decisions, a plausible contributing root that's more tractable than the per-buffer dir-coherency patches.
+
+**Audited & found correct:** AG read-side coherency (TCP bumps `pag_dlm_meta_gen` every acquire → bnobt re-read) and release-side drain (`drain_meta_buffers` covers bnobt/cntbt/inobt + flush).
+
+**Infra added (RULE 3):** `tests/reset2.sh` — virsh-reboots both VMs to clear the recurring D-state unmount wedge; **run it before every run**.
+
+**Key lessons saved to memory:** dmesg ring-buffer **wraps** during 24-round runs → use `pr_warn_ratelimited`, not one-shot caps; extreme run-to-run **variance** (every run a different face) → run 3-5× before concluding.
+
+**Next session (documented in 4 memories, head: `sess33-NEXT-action-plan-...` and `sess33-chkmxfs-SB-counter-incoherence-new-lead`):** (1) probe SB counter coherence at alloc-time / confirm the SB drift exists without corruption; (2) consider the structural fix — force per-node AG affinity for shared-dir file allocations to kill the cross-node AG contention; (3) `chk_mxfs`-after-corruption is the zero-cost decisive on-disk test.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

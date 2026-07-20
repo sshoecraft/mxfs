@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 21 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 20
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `5ee7e95c-a133-4d41-bbe5-cad279fbe5ca`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5ee7e95c-a133-4d41-bbe5-cad279fbe5ca.jsonl`
+- approx context at last assistant turn: 248782 tokens
+- tools used: Bash×92 Edit×26 Read×11 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/scripts/repro_peer_find.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; time timeout 480 scripts/diag_2node_rsync.sh --cap 120 2>&1 | grep -E "SOLO_MS|teardown|solo rsync" | head -5
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 120 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg -C; umount /mnt/share
+    cd /src/mxfs; timeout 480 scripts/diag_2node_rsync.sh --cap 120 2>&1 | grep -E "SOLO_MS" | head -2; ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}');
+    cd /src/mxfs; for h in test1 test2; do ip=$(getent hosts $h.vm.localdomain | awk '{print $1}'); echo "=== $h ==="; timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp
+    cd /src/mxfs; grep -n "mxfs_buf_has_uncheckpointed_mods\|FUA_FRESH" pal/linux/xfs_buf.c | head -20
+    cd /src/mxfs; sed -n '2820,2930p' pal/linux/xfs_buf.c
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "NOINO|stall
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "P-EVICT|P-A
+    cd /src/mxfs; make modules 2>&1 | grep -E "error:|Error" | head -5; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; timeout 480 scripts/diag_2node_rsync.sh --cap 120 2>&1 | grep -E "SOLO_MS" | head -2; ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}');
+    cd /src/mxfs; for h in test1 test2; do ip=$(getent hosts $h.vm.localdomain | awk '{print $1}'); echo "=== $h ==="; timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp
+    cd /src/mxfs; chmod +x scripts/repro_peer_find.sh; timeout 580 scripts/repro_peer_find.sh 4 2>&1 | tail -45
+    cd /src/mxfs; make modules 2>&1 | grep -E "error:|Error" | head -5; modinfo mxfs.ko | grep srcversion; timeout 580 scripts/repro_peer_find.sh 4 2>&1 | grep -E "
+    cd /src/mxfs; for h in test1 test2; do ip=$(getent hosts $h.vm.localdomain | awk '{print $1}'); echo "=== $h ==="; timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp
+    cd /src/mxfs; for h in test1 test2; do ip=$(getent hosts $h.vm.localdomain | awk '{print $1}'); echo "=== $h ==="; timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp
+    cd /src/mxfs; timeout 580 scripts/repro_peer_find.sh 4 2>&1 | grep -E "SOLO_MS|PEER_FIND|probe_hits|TRIPPED|cycle.*clean|all .* cycles" | head -25
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "P20-|Bad in
+    cd /src/mxfs; grep -n "xfs_icreate_log\|ordered\|XFS_BLI_ORDERED\|inode_alloc_buf\|delwri" xfs/libxfs/xfs_ialloc.c | head -15
+    cd /src/mxfs; sed -n '440,500p' xfs/libxfs/xfs_ialloc.c
+    cd /src/mxfs; grep -rn "P124-ALLOC-REVERT\|P93-REVERT-CLOBBER" xfs/ pal/ | head -5
+
+## Last text from previous session
+
+lem again. Checking FS state:
+You've hit your session limit · resets 7:50am (America/Chicago)
+Adding the forensic instrumentation. First, the iflush bad-magic site — log buffer identity, log-item state, and a platter compare at the moment of failure:
+Now logging the two silent cluster-invalidation sites:
+Checking whether `mxfs_dlm_reload_inode`'s cluster invalidate logs:
+**6.3s solo, rc=0** — within target and under the 2× native ceiling. Now the AIL-push trigger:
+Peer find returned all 8714 files this time — the failure is timing-dependent. Checking what the probes caught:
+Relay boundary reached — wrapping up with state summary.
+
+## Session 20 summary
+
+**Perf fixes landed this session (solo 2-node rsync: 62s → ~6.2s when clean, target 5-10s met):**
+1. **NL-gated the three FUA oracles** in `mxfs_drevalidate` (GENMISS/RESURRECT/TYPEMISS, `pal/linux/xfs_super.c`) — only meaningful when `ip` is at NL.
+2. **In-AIL evict guard** (`xfs_mxfs_dlm.c` `mxfs_dir_drain_evict_data_blocks` ~line 1280): restored `!dirty && !delwri && (!in_ail || !undestaged)` to the sess101 evict — PROVEN root of the error-117 dir corruption (old-incarnation UUID `3efd6d02` in the verifier dump at daddr 0x78, `P-ACQ-DRAIN-EVICT in_ail=1` immediately prior). sess101's policy assumed publish-before-notify, which session 19 removed.
+3. **Removed synchronous publish-on-create** from `xfs_create` (10/13 samples; CAW slot I/O per file). Coverage argument: all three BAST paths drain the unpub list; **added the missing drain to the noino BAST path**.
+4. **Throttled P108/P106 slot-ownership verifies** to 100ms/inode (new `i_dlm_heldchk_j` in xfs_inode.h).
+5. **Instr-gated the `DIR-STALE-SKIP` FUA compare** in `xfs_da_btree.c`.
+
+**Open blocker — intermittent corruption, reproducer in `scripts/repro_peer_find.sh` (~50% of cycles, correlates with SLOW solo runs ~15-21s):**
+- **test1**: `xfs_iflush` bad-magic shutdown at AIL push. Forensic (`P20-IFLUSH-FORENSIC`): `disk_differs=0, li_empty=0`, NO `P20-CLUSTER-INVAL`, NO `P20-BIO-READ-LOGGED` even after widening to `b_log_item` — so the garbage entered via a **clean cache-miss read**: the ordered chunk-init buffer was gone from core without ever being written. Last lead (just found, unread): the AG-release **discard** path (`P124-ALLOC-REVERT` / `P93-REVERT-CLOBBER`, `xfs_mxfs_dlm.c` ~6244-6453) may discard `_XBF_MXFS_ALLOC_QUEUED` cluster buffers without writeback. **Next step: read those sites; hypothesis = discard drops the never-destaged init cluster buffer.**
+- **test2**: error 117 on dir daddr 0x78 (BAST release drain not destaging) + `site=reload` invalidating `li_empty=0` buffers (unguarded — needs the `mxfs_buf_has_uncheckpointed_mods` guard like icache got in sess91).
+- Forensic probes in place: `P20-IFLUSH-FORENSIC`, `P20-CLUSTER-INVAL` (4 sites), `P20-BIO-READ-LOGGED` (build `D825A57728D4413D78BB3AD`, VERSION 0.5.2).
+
+**On your posix_semantics question:** agreed, the current layout is wrong. `verify_ship.sh` runs posix_semantics twice (1-node and 16-node phases) but both write the same key in `.criteria_results.json`, so the dashboard's second row just mirrors the first — a 16-node failure could hide behind a 1-node pass recorded later (or vice versa). SUCCESS_CRITERIA.md has one entry because it was written as one criterion ("POSIX semantics hold") with the node count treated as a phase parameter rather than a distinct criterion. The fix is to split the results key — `posix_semantics_single` and `posix_semantics_multi16` (or `posix_semantics(nodes=1)` / `(nodes=16)`) — in verify_ship.sh and the JSON, and update SUCCESS_CRITERIA.md to list both explicitly so the gate, the results file, and the dashboard are 1:1. That's a small, mechanical change; the next session should make it before the final gate run so the end-to-end `verify_ship.sh` records both phases distinctly.
+
+Criteria marker **not** written — gate not green (corruption blocker open, scaling_curve + single_node_paired + final verify_ship.sh pending).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 22 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 21
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `6a6e3b82-43fe-4c7a-8920-ceee3d0b0c4e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6a6e3b82-43fe-4c7a-8920-ceee3d0b0c4e.jsonl`
+- approx context at last assistant turn: 161898 tokens
+- tools used: Bash×43 Read×6 Edit×1 ToolSearch×1 Write×1
+
+## Files written or edited in the previous session
+
+- /home/steve/.claude/projects/-src-mxfs/memory/reference_node_power_control.md
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== evict ring producer/consumer present? ==="; grep -rn "mxfs_disklock_note_freed\|evict_cb\|mxfs_evict_ring\|note_inode_freed\|ISTALE_CAW\
+    cd /src/mxfs; echo "=== is evict_cb REGISTERED (set_evict_cb called)? ==="; grep -rn "set_evict_cb\|mxfs_v5_dlm_set_evict_cb" dlm/v5_mount.c xfs/ 2>/dev/null | 
+    cd /src/mxfs; for n in test2 test3; do echo -n "$n: "; timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'uptime|grep -oE "up [^,]*"; lsmod|grep -q mxfs&
+    cd /src/mxfs; for n in test5 test6 test7 test8; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'uptime|grep -oE "up [^,]*"; lsmod|g
+    cd /src/mxfs; sleep 180; for n in test2 test3; do echo -n "$n: "; timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'uptime|grep -oE "up [^,]*"' 2>/dev/n
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo -n "$n: "; ip=$(getent hosts $n 2>/dev/null | awk '{print $1}'); echo -n "ip=$ip ping="; ping -c1 -W2 $n
+    virsh list 2>/dev/null; echo "=== running VMs only ==="; virsh list --state-running 2>/dev/null; echo "=== try map .143/.140 via DHCP leases ==="; virsh net-dhc
+    virsh -c qemu:///system list --all 2>&1 | head -25; echo "=== ip route to .120 net ==="; ip route get 192.168.120.143 2>/dev/null; echo "=== who serves .120.1 (
+    export LIBVIRT_DEFAULT_URI=qemu:///system; for n in test2 test3; do echo "=== $n: destroy+start ==="; virsh destroy $n 2>&1; sleep 2; virsh start $n 2>&1; done
+    cd /src/mxfs; sleep 70; for n in test1 test2 test3 test4; do echo -n "$n: "; ping -c1 -W2 $n >/dev/null 2>&1 && timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.m
+    cd /src/mxfs; echo "- [reference_node_power_control.md](reference_node_power_control.md) — recover wedged test1-4 via virsh -c qemu:///system destroy+start (NOT
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' 2>/dev/null & done; wait; echo "dmesg clea
+    cd /src/mxfs; echo "=== run rename_visibility ==="; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 150 ./tests/run_tests.sh --nodes 4 --phase cluste
+    cd /src/mxfs; f=$(find tests -name 'test_rename_visibility*' 2>/dev/null | head -1); echo "file: $f"; echo "=== test body ==="; sed -n '1,120p' "$f"
+    cd /src/mxfs; d=20260603_143732; echo "=== which 'New name' failures on node1 (pattern) ==="; grep -aE 'New name exists' /home/steve/.mxfs/results/$d/test_renam
+    cd /src/mxfs; echo "=== dmesg detectors across nodes ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.m
+    cd /src/mxfs; D=/mnt/shared/.mxfs_test/rename_visibility; echo "=== node3_after_5 on each node (creator=test3) ==="; for n in test1 test2 test3 test4; do echo -
+    cd /src/mxfs; echo "=== does rename_visibility dir exist + its inode/size ==="; for n in test1 test3; do echo "--- $n ---"; timeout 10 bash tools/mxfs_sshpass.s
+    cd /src/mxfs; grep -rn "DIR-STALE-SKIP" xfs/ pal/ 2>/dev/null
+    cd /src/mxfs; echo "=== actual DIR-STALE-SKIP values on test1 ==="; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -a "DIR-STALE-SKIP
+
+## Last text from previous session
+
+ed renames). Can't discard (lose own) or keep (miss peers') → needs a merge, and when this node's AIL block later writes, it **reverts the peer's renames** (lost update). The root: a node released the dir inode DLM letting a peer take EX, without fully draining its dirty dir DATA block first. Let me see the actual skip values and the dir-inode BAST drain path.
+Decisive data: `buf_gen=0 inode_gen=2 dirty=0 in_ail=0 pin=1` — the cached dir block is stale (peers advanced the inode's dir-gen to 2) and the **only** thing blocking invalidation is `pin=1` (buffer pinned in the CIL). Not dirty, not in-AIL. The reader can't drop XBF_DONE on a pinned buffer, so it serves the stale block and misses peers' renames.
+
+This dir-coherency class has failed across sess43/46/49/50/57/62 — far past RULE 5's threshold — and I now have a precise, instrumented diagnosis. Let me read the current dir-inode BAST drain/gen-bump path so my Gemini consult is accurate.
+Writer-side durability is thorough (BAST-release drains dir DATA blocks: waits for `!in_ail && !pinned && data_durable`, forcing log+AIL). The failure is **reader-side**: during verify, test1's cached dir block (blk=0) is stale (`buf_gen=0` vs `inode_gen=2`) and **pinned**, so the invalidation hook skips it and serves stale data — missing peers' (and even its own) renames.
+
+This dir-coherency class has failed across 6+ sessions with the same skip-on-pinned wall. Per RULE 5, I'll consult Gemini with the full instrumented diagnosis before coding another attempt. Let me load the tool.
+I've hit the relay boundary. Let me record the key findings at the head of state.md, then summarize.
+## Session summary (sess63)
+
+**Criteria NOT met** — `cache_coherency` and `rsync_paired` still FAIL. Marker not written.
+
+### What this session accomplished
+
+1. **Recovered a wedged cluster + documented how.** test2/3 were hard-wedged (network-down, `reboot`-over-ssh hung) from prior killed mid-test runs. Discovered the test1-4 VMs live on this host under `qemu:///system` (the default session URI misleadingly shows them "shut off"). Force-restarted via `virsh destroy/start` → saved to memory (`reference_node_power_control.md`). Established the lesson: a node leaving mid-test leaves a stale on-disk CAW EX slot on ino=128 → survivors starve forever + AGI corruption. **Always reboot+remkfs to pristine before judging cache_coherency** (the 14:17 FAIL was contaminated state).
+
+2. **Clean A/B on the sess62 build (`1F3573F9`), pristine cluster:**
+   - `test_cross_visibility`: **PASS** — the sess62 inode-cluster merge fix is validated. ✅
+   - `test_rename_visibility`: **FAIL** ~60/240, fast (9s, no barrier timeout).
+
+3. **Proved the rename_visibility mechanism (RULE 4).** Concurrent rename of 80 files in one shared dir → **block-format** dir (sess62's inode-cluster/shortform fix doesn't apply). The reader serves a stale cached dir DATA block. The gen-invalidation hook (`xfs_da_btree.c:2943`) wants to invalidate it (`buf_gen=0` vs `inode_gen=2`) but **skips because `pin=1`** — with `dirty=0, in_ail=0`, so it holds no un-logged local work, yet a pinned XBF_DONE buffer can't be safely cleared. Writer-side durability is already thorough (P-SF-DURABLE-FAIL didn't fire), so this is a **reader-side stale-pinned-block** problem, not writer durability.
+
+### Next step (already teed up)
+The dir-block reader-coherency fix class has failed across sess43/46/49/50/57/62 — well past RULE 5's threshold. I loaded `ask_gemini` (max_tokens omitted per RULE 5) to consult with this proven diagnosis when the relay boundary hit. **Next session: run that consult first** — core question is how to safely pull peers' committed dirents when the reader's stale dir block is pinned-but-not-dirty (candidate: `xfs_log_force` to unpin then invalidate+re-read, watching the sess43 read-path latency/deadlock constraints), plus verify why a read-only verify-phase block is pinned at all. Full diagnosis + pristine repro command recorded at the head of `state.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

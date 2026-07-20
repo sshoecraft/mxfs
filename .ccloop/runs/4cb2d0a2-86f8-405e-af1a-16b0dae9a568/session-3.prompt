@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `9fba051f-5a7f-4a96-b3d9-a01e7be6063c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9fba051f-5a7f-4a96-b3d9-a01e7be6063c.jsonl`
+- approx context at last assistant turn: 506118 tokens
+- tools used: Bash×130 Read×45 Edit×26 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×4 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_inode.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '/^uint8_t$/{N;/mxfs_dlm_held_mode/{p;q}}' dlm/dlm.c 2>/dev/null; echo "---"; awk '/^uint8_t mxfs_dlm_held_mode\(|^mxfs_dlm_held_mode\(/{f=
+    cd /src/mxfs; echo "=== i_dlm_dir_gen field decl ==="; grep -rn "i_dlm_dir_gen\|i_dlm_mode;\|i_dlm_loaded_gen\|uint.*i_dlm_dir_loaded_gen" xfs/xfs_inode.h | hea
+    cd /src/mxfs; echo "=== ctx->dlm field + struct ==="; grep -n "struct mxfs_dlm_ctx\s*\*dlm\|->dlm\b" dlm/v5_mount.c | head -5; echo "=== mxfs_dlm_held_mode used
+    cd /src/mxfs; echo "=== ilock_begin structure ==="; grep -n "mxfs_dlm_ilock_begin\|cache_hit\|cache_miss\|stat_cache_hit\|i_dlm_dir_gen++\|dir_ex_verify_held\|d
+    cd /src/mxfs; sed -n '9638,9642p' xfs/xfs_mxfs_dlm.c | cat -A | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|warning:.*grant_gen|LD \[M\].*mxfs.ko"; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev
+    sleep 5; cat /tmp/claude-1000/-src-mxfs/9fba051f-5a7f-4a96-b3d9-a01e7be6063c/tasks/be958xe4a.output 2>/dev/null | tail -15
+    cd /src/mxfs; make modules 2>&1 | tail -20 | grep -iE "error|implicit|undefined|LD \[M\]|srcversion" ; echo "=== final srcversion ==="; modinfo mxfs.ko 2>/dev/n
+    cd /src/mxfs; sleep 3; make modules 2>&1 | grep -iE "error:|implicit|undefined|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/nul
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|No such|fixdep" | head -10
+    cd /src/mxfs; make modules 2>&1 | grep -iE "^.*error:|LD \[M\].*mxfs.ko"; echo "rc=${PIPESTATUS[0]}"; echo "=== srcversion + probe strings ==="; modinfo mxfs.ko
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 4; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; for i in $(seq 1 34); do grep -qE "=== done:|ABORT" /tmp/drc_gg.log && break; sleep 8; done; tail -4 /tmp/drc_gg.log; echo "=== failing rounds per
+    cd /src/mxfs; grep -qE "=== done:|ABORT" /tmp/drc_gg.log && echo DONE || echo RUNNING; tail -4 /tmp/drc_gg.log; echo "=== per node ==="; for n in test1 test2 te
+    cd /src/mxfs; for i in $(seq 1 30); do grep -qE "=== done:|ABORT" /tmp/drc_gg.log && break; sleep 8; done; tail -4 /tmp/drc_gg.log; echo "=== final per node ===
+    cd /src/mxfs; grep -qE "=== done:|ABORT" /tmp/drc_gg.log && echo DONE || echo RUNNING; grep -E "PASS|FAIL|done:" /tmp/drc_gg.log|tail -3; echo "=== per node ===
+    cd /src/mxfs; for i in $(seq 1 30); do grep -qE "=== done:|ABORT" /tmp/drc_gg.log && break; sleep 8; done; echo "=== RUN VERDICT ==="; grep -E "PASS|FAIL|done:|
+    cd /src/mxfs; make modules 2>&1 | grep -iE "^.*error:|LD \[M\].*mxfs.ko"; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null|grep srcversion
+    cd /src/mxfs; echo "=== final build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== grant_gen infra present, action gated ==="; strings mxfs.ko |
+    cd /src/mxfs; grep -n "^mxfs_dir_drain_evict_data_blocks\|mxfs_dir_drain_evict_data_blocks(" xfs/xfs_mxfs_dlm.c | head; echo "=== def head ==="; awk '/^mxfs_dir
+
+## Last text from previous session
+
+ metadata (format/nextents/size) is never behind disk — the staleness is purely in the cached *data buffer*.
+2. **Refuted:** logical-block-0 split; read-side stale-serve; double sf→block conversion; DLM double-grant (already fixed in dlm.c); my own format/count `adopt_disk_format` fix; and **sess10's grant_gen fast-path fix** (implemented this session — `grant_gen` bumps on *every* grant promotion, not just cross-node handoffs, so it over-fires and regressed 2/24→16/24).
+3. **Built instrumentation** (per-failure dmesg snapshots, FUA disk-vs-incore block0 comparison, grant_gen infra) — gated off by default so the build is **baseline-equivalent (7B1FF03F)**, no regression.
+
+**Strong lead for next session (recorded):** the slow-path reacquire's `mxfs_dir_drain_evict_data_blocks` keeps a dirty/in-AIL `block0` that is content-behind-disk — likely draining our stale base over disk. The fix belongs in the data-block evict: on a genuine peer-handoff reacquire, a content-behind-disk dirty block0 must be drained-then-reread or merged, not kept.
+
+Two GPT-5.5 consults (justified per RULE 5: complete proven diagnosis + architectural) produced the tenure-cookie design now documented.
+
+The criterion is **not met** — I have not written the marker. The work continues from the documented lead.
+Criterion not met — continuing. My strongest lead: the slow-path reacquire's `mxfs_dir_drain_evict_data_blocks` (line ~10221) keeps/drains a dirty `block0` that's content-behind-disk. Let me examine it.
+Let me read how `mxfs_dir_drain_evict_data_blocks` disposes of each block (drain-write vs evict vs keep), especially dirty ones.
+I've reached the relay boundary. Let me capture the key disposition logic (what happens to a dirty stale block0) before wrapping up.
+I've reached the relay boundary. Let me record this final precise finding (the dirty-keep guard in the drain-evict is the exact gap) and wrap up.
+Reached the relay boundary. Criterion **not met** — marker not written.
+
+## Session summary
+
+**Criterion:** 1/2/4/8-node tcp DLM test 100%. State: 1/tcp ✅, 2/tcp ✅, **4/tcp fails `dir_reuse_coherency`** (~2/24 rounds), 8/tcp not run.
+
+**This session was a deep RULE-4 root-cause investigation that converged on the precise code gap**, refuting many theories (including two fix attempts) with direct kernel-probe evidence:
+
+- **PROVEN root:** the EX-holding writer RMWs a **dirty, content-stale `block0` buffer** (probe P61-BLK0: `dirty=1 bufgen=0 core_node1=0` while disk has 76+) and writes it over disk, durably clobbering peer dirents. The inode metadata is never behind disk — staleness is purely in the cached data buffer.
+- **The exact gap (final finding):** `mxfs_dir_drain_evict_data_blocks` (and the modify-evict) only evict `!dirty` blocks; a **dirty** stale block0 is **kept** and RMW'd. The code assumes "a peer-modified acquire can't have a dirty block (release drained it)" — violated here.
+- **Refuted:** logical-block split; read-side stale-serve; double sf→block conversion; DLM double-grant (already fixed); my format/count `adopt_disk_format` fix; and **sess10's grant_gen fast-path fix** — implemented this session, but `grant_gen` bumps on *every* grant (not just handoffs), so it over-fired and regressed 2/24→16/24. Reverted (gated off); infra kept.
+
+**Build 7B1FF03F is baseline-equivalent** (grant_gen action gated behind `mxfs.dirwr`; diagnostics behind `mxfs.instr`; per-failure dmesg snapshots in the test). Two GPT-5.5 consults produced the tenure-cookie design.
+
+**Next session (documented in ccmemory `sess61-FINAL-dirty-keep-guard-in-drain-evict-is-the-gap` + handoff):** instrument *why* a dirty content-behind-disk block0 exists at acquire (likely a `data_init`/conversion materializing block0 empty on a stale base — bufgen=0), then fix at materialization (adopt disk block0 if it already exists for this incarnation) or by safely draining+reloading the dirty block0 at a non-transaction point — never blind-evicting a buffer joined to the live transaction.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

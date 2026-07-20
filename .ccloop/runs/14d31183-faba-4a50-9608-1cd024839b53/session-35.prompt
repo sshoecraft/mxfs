@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 35 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 34
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `fc3aed7f-f119-4577-ab10-96303d16f50e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/fc3aed7f-f119-4577-ab10-96303d16f50e.jsonl`
+- approx context at last assistant turn: 257413 tokens
+- tools used: Bash×88 Edit×9 ToolSearch×2 mcp__ccmemory__memory_write×2 Read×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    make modules 2>&1 | grep -E "error|Error" | head -5; modinfo mxfs.ko | grep srcversion
+    for n in $(seq 1 16); do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in $(seq 1 16); do virsh -c qemu:///system start test$n >/
+    date -u +%F\ %T > /tmp/p34d_start; INSMOD_OPTS="dirwr=1" timeout 590 ./tests/criteria/zero_silent_loss.sh --iters 3 2>&1 | tail -3
+    L=$(ls -t /tmp/zero_silent_loss.*.log | head -1); echo $L; grep -E "iter [0-9]:|RESULT|FORENSIC|FAIL" $L | head -10; tail -2 $L
+    L=/tmp/zero_silent_loss.1rkUnf.log; grep -E "^  iter [0-9]+:|^--- iter|MISSING" $L | head -15
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 12 $S test$n $P "journalctl -k --since '2026-06-12 14:00:20' --utc 2>/dev
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 12 $S test$n $P "journalctl -k --since '2026-06-12 14:00:20' --utc 2>/dev
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 15 $S test$n $P "journalctl -k --since '2026-06-12 14:00:20' --utc 2>/dev
+    grep "test9 " /tmp/p34d_run.log | grep -E "startoff=7 |startoff=8 " ; S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 $S test9 $P "journalctl -
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 $S test9 $P "journalctl -k --since '2026-06-12 14:02:45' --until '2026-06-12 14:02:48' --utc -o
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 $S test9 $P "journalctl -k --since '2026-06-12 14:02:46' --until '2026-06-12 14:02:47' --utc -o
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 $S test9 $P "journalctl -k --since '2026-06-12 14:02:46' --until '2026-06-12 14:02:47' --utc -o
+    grep -rn "P119-NONEX-FLUSH-SKIP" /src/mxfs/xfs/*.c /src/mxfs/pal/linux/*.c | head -3
+    sed -n 3960,4075p /src/mxfs/xfs/xfs_inode.c
+    grep -n "MXFS_IF_DLM_RELFLUSH" /src/mxfs/xfs/*.c /src/mxfs/xfs/*.h /src/mxfs/pal/linux/*.c | head -15
+    sed -n 2700,2880p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "i_dlm_mode = MXFS_LOCK_NL\|i_dlm_mode = 0" /src/mxfs/xfs/xfs_mxfs_dlm.c | head; grep -n "mxfs_dlm_bast_process\|^mxfs_dlm_inode_bast_process\|static.*b
+    sed -n 1734,1800p /src/mxfs/xfs/xfs_mxfs_dlm.c; echo ====2300====; sed -n 2290,2340p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n 4290,4330p /src/mxfs/xfs/xfs_inode.c
+    make modules 2>&1 | grep -E "error|Error" | head -3; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+Continuing the relay. First, orienting: RULES.md check, criteria state, and the sess33 lessons.
+Adding the probe to `xfs_iread_bmbt_block` in xfs_bmap.c.
+Build `351F7577` with the P34B probe. Now check how the zsl harness is invoked and what the deploy flow was.
+The workload takes module params via `INSMOD_OPTS`. Power-cycling the cluster for a clean slate, then running zsl with `dirwr=1` on the probe build.
+Build `308D400A`. Power-cycling (last run shut down test4/test14) and re-running.
+0 losses this iter — variance. Collecting probe data anyway, then running the full 3-iter criterion to catch a lossy iter.
+You've hit your session limit · resets 10:30am (America/Chicago)
+Declared in the header — good. Building:
+Build `90A647F4`. Power-cycle and run the 3-iter criterion:
+Iter1 lost 156 (worse) and test12 wedged. Checking whether P34D fired and what went wrong:
+Now the critical 160ms window between test9's duplicate grows at 14:02:46:
+I'm at the relay boundary. Let me land the proven fix now — it's one small edit — then summarize.
+Session 34 summary — two zero_silent_loss root causes proven with instrumented timelines, two fixes landed (one verified-pending, one built-not-run):
+
+**Refuted first:** sess33's prime suspect (stale cached bmbt child buffers at `xfs_iread_extents`) is dead — the new P34B FUA-compare probe fired 0 STALEREADs across all runs. The dirs in question are EXTENTS-format anyway; the extent map lives in the dinode itself.
+
+**Root #1 (proven, fix in tree):** the P34C grow probe caught test10/test15 double-mapping dir offset 1 to different blocks 272ms apart. test15's reloads kept adopting a stale cached cluster buffer (nextents=2 vs disk's 3) because `P91-RELOAD-PROTECT` refused the invalidate — the buffer carried test15's own innocuous logged timestamp mods. Its next release-drain then wrote the stale dinode back, durably reverting test10's grow and orphaning its block of ~94 committed dirents. Fix: when the P91 guard keeps the buffer, the reload now snapshots the dinode from a private FUA platter read instead (`P34D-RELOAD-FRESHSRC`, build `90A647F4`). The next run had zero P91 fires, so this fix is plausible-but-unexercised.
+
+**Root #2 (proven, fix built):** the next run exposed a second producer — test9 double-mapped its *own* offsets 7/8, 160ms apart. Timeline: `bast_process` clears `i_dlm_mode` to NL early in the release; a concurrent xfsaild flush then hits the `P119-NONEX-FLUSH-SKIP` guard, whose skip path *consumes* the dirty inode state without copying it into the buffer. The stale buffer payload (size 28672) got written, the correct state (36864) never reached disk, the drain saw "clean" and released, and the next acquire reloaded the regressed dinode — losing the just-grown mappings. Fix: set `MXFS_IF_DLM_RELFLUSH` *before* the mode-clear in `bast_process`, so any flush in the release window writes the real in-core state. Build `91BB755E` compiles clean but has not been deployed or tested.
+
+Everything is saved in memory `sess34-run14d-zsl-p119-consume-skip-race`, including the exact verification checklist for the next session: deploy `91BB755E`, run zsl 3 iters with `dirwr=1`, and check for self-double-maps, P119 fires in release windows, and dinode write-size regressions.
+
+Criteria not met (`zero_silent_loss` still failing — 94/31/156 losses across this session's runs), so the marker stays unwritten; the relay continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

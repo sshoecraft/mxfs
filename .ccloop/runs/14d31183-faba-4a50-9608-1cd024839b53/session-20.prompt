@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 20 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 19
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `3c338cec-4c10-42ea-8403-1fc21246b4c3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3c338cec-4c10-42ea-8403-1fc21246b4c3.jsonl`
+- approx context at last assistant turn: 252259 tokens
+- tools used: Bash×78 Edit×37 Read×6 Write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/diag_2node_rsync.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '10905,10930p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '195,200p' xfs/xfs_mxfs_dlm.h
+    cd /src/mxfs; make modules 2>&1 | grep -E "error|Error" | head; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; time timeout 560 scripts/diag_2node_rsync.sh --cap 300 2>&1 | tail -42
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 12 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "IRESURRECT|
+    cd /src/mxfs; grep -rn "P-IRESURRECT" --include=*.c | head -3
+    cd /src/mxfs; sed -n '3720,3800p' xfs/xfs_inode.c
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 12 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -nE "Internal e
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 12 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | sed -n "1810,1832p"'
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 12 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | sed -n "1780,1810p"'
+    cd /src/mxfs; sed -n '900,1010p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '670,720p' xfs/xfs_inode.c
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 14 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "RELOAD|SFDI
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 14 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "P74-INSTR|P
+    cd /src/mxfs; ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 20 ./tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass '/mnt/mxfs-src/tools/chk_mx
+    cd /src/mxfs; ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 20 ./tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass '/mnt/mxfs-src/tools/chk_mx
+    cd /src/mxfs; ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 20 ./tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'ls /mnt/mxfs-src 2>&1 | he
+    cd /src/mxfs; ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 20 ./tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'echo HELLO; ls /mnt/mxfs-s
+    cd /src/mxfs; grep -rn "bt_sector_offset\|SECTOR_OFFSET\|XFS_SB_DADDR" tools/mkfs_mxfs.c tools/*.h include/*.h 2>/dev/null | head -8; ls tools/*.c | head
+    cd /src/mxfs; grep -rn "offset" tools/mkfs_mxfs.c | grep -iE "sector|sb|envelope|xfs_start" | head; grep -rn "define.*OFFSET\|xfs_region\|data_start" include/*.
+
+## Last text from previous session
+
+ nodes), posix_semantics (16 nodes), and the full `verify_ship.sh` green run. Getting oriented first.
+All 17 entries in `.criteria_results.json` read PASS, but `scaling_curve` is missing from the file and the gate requires one end-to-end run. Checking timestamps and the gate's criterion list:
+Timeout again — that's a FAIL and the stall needs diagnosis. Inspecting cluster state right now to see where it wedged:
+Phase A returned empty — the ssh command failed immediately. Checking ssh_node and running the command manually:
+rsync exited in 79ms — likely the FS is gone (phase B's rc=23 hinted at it). Checking mount state and dmesg for a shutdown:
+All six are genuine lock-loss sites. Making the edits:
+Now the init and the six bump sites in xfs_mxfs_dlm.c:
+Now the d_revalidate fast path in xfs_super.c:
+`xfs_ilock_nowait(ILOCK_SHARED)` skips the DLM hook — safe for the worker. Finding the mount-field init site, workqueue, and unmount cancel sites to mirror:
+Infrastructure located. Implementing the coalesced dirsig worker:
+Now declarations in the header, init in xfs_super.c, and the two cancel sites:
+Building:
+Now removing the rest of the worker infrastructure:
+Worker infrastructure fully removed; the tree now has the publish-only `durable_signal` plus the epoch fast path. Ending this session at the relay boundary.
+
+## Session 19 summary
+
+**State of the gate:** 17/19 criteria green in `.criteria_results.json`; the blockers are `scaling_curve --nodes 16` and the perf criteria, plus the final end-to-end `verify_ship.sh` run.
+
+**Root causes found this session (RULE 4, stack-sampled):**
+
+1. **`mxfs_drevalidate` did a synchronous SCSI FUA read per cached directory lookup** (sess86 GENMISS check) — 32/43 stack samples. Solo rsync with one *idle* peer mounted: 127s vs ~5s truly-single-node. **Fixed** with a DLM hold-epoch fast path: new `i_dlm_epoch` in xfs_inode (init=1, bumped at all six `i_dlm_mode→NL` sites in xfs_mxfs_dlm.c), stamped into `dentry->d_time` after coordinated validation; cached lookups with grant held + epoch match return valid with zero I/O (positive and negative dentries). Verified: FUA reads vanished from the profile, 127s → 62s.
+
+2. **`mxfs_dlm_dir_durable_signal` ran `xfs_log_force(SYNC)` + dir-block bwrite per create/remove/rename** (~7ms × 8714 files ≈ the remaining 62s; 12-13/21 samples). First fix attempt (coalesced 20ms delayed worker, build `499446C3`) **caused dir3 verifier shutdowns in <1s** — the async flush races the lockless FUA oracles that assume committed ⇒ on-platter. Reverted the worker entirely; `durable_signal` is now **publish-only** (ring staging, no disk I/O), on the argument that peer reads always coordinate through the DLM and our BAST release drain (invariant #1) makes blocks durable before any peer can read them.
+
+**Work remaining (next session, in order):**
+1. **Not yet done:** gate the three lockless FUA oracles in `mxfs_drevalidate` (GENMISS / RESURRECT / TYPEMISS, pal/linux/xfs_super.c) on `READ_ONCE(ip->i_dlm_mode) == MXFS_LOCK_NL` — with publish-only dirsig the platter lags until AIL push, and on a re-mkfs'd LUN those oracles read *previous-incarnation* dinodes (valid old gens) and falsely mark fresh dirs stale (the DIRMISS/`names=[]` clobber chain observed). Without this gate the publish-only build will likely corrupt again.
+2. Bump VERSION (still 0.5.1), `make modules`, deploy, re-run `scripts/diag_2node_rsync.sh` — target solo ≈ 5-10s, phase B concurrent without shutdown.
+3. Also still open: the **`xfs_trans_cancel` dirty-cancel shutdown in `xfs_rename`** seen on the *old* build (CB1C5FEF) under 2-node concurrent rsync — pre-existing, must be re-checked once perf fixes are in.
+4. Then the criteria battery (cache_coherency, strong_consistency, zero_silent_loss, crash_consistency, single_node_paired at 126-167% needs re-measuring, rsync_paired, scaling_curve 330s budget, posix_semantics 16) and the single end-to-end `verify_ship.sh`.
+
+Criteria marker **not** written — gate is not green.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 26 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 25
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `682bd7bb-5c40-4835-9844-9aa85a2880ac`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac.jsonl`
+- approx context at last assistant turn: 503194 tokens
+- tools used: Bash×61 Read×40 mcp__ccmemory__memory_get×14 Edit×10 mcp__ccmemory__memory_write×4 ScheduleWakeup×2 ToolSearch×2 mcp__ccmemory__memory_search×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_probe.sh
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== reboot + deploy 0302171A + run dir_reuse_coherency ==="; bash tests/reboot_cluster.sh 2 2>&1 | tail -1; timeout 700 ./run.sh 2 tcp dir_r
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/brqg7neuk.output; for i in $(seq 1 20); do if grep -qE 'EXIT|PASS  dir_reu
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/brqg7neuk.output; for i in $(seq 1 18); do if grep -qE 'EXIT [0-9]' "$F" 2
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n drc-FAIL + residual detectors ====="; timeout 12 "$SSH" "$n"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n shutdown context ====="; timeout 12 "$SSH" "$n" "$P" "dmesg 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== full drc-FAIL progression (test1) ==="; timeout 12 "$SSH" test1 "$P" "dmesg 2>/dev/null | 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -5; echo "EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== reboot + deploy 82050E75 + run dir_reuse_coherency ==="; bash tests/reboot_cluster.sh 2 2>&1 | tail -1; timeout 700 ./run.sh 2 tcp dir_r
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/blhlfc6yv.output; for i in $(seq 1 18); do if grep -qE 'EXIT [0-9]' "$F" 2
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/blhlfc6yv.output; for i in $(seq 1 16); do if grep -qE 'EXIT [0-9]' "$F" 2
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/blhlfc6yv.output; for i in $(seq 1 15); do grep -qE 'EXIT [0-9]' "$F" 2>/d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2; do timeout 8 "$SSH" "$n" "$P" 'echo 1 > /sys/module/mxfs/parameters/dirwr' 2>/
+    cd /src/mxfs; echo "=== i_flushiter in xfs_iflush + init ==="; grep -n "i_flushiter" xfs/xfs_inode.c xfs/libxfs/xfs_inode_buf.c xfs/libxfs/xfs_ialloc.c xfs/xfs_
+    cd /src/mxfs; echo "=== a dirwr-style param def (pattern + location) ==="; grep -n "module_param_named(dirwr\|int mxfs_dirwr_enabled" xfs/*.c pal/*.c pal/linux/
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning.*(xfs_inode|xfs_mxfs_dlm)|LD \[M\]|mxfs.ko" | tail -10; echo "EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 
+    cd /src/mxfs; echo "=== reboot + deploy 046691B9 + run dir_reuse_coherency (window=64 default) ==="; bash tests/reboot_cluster.sh 2 2>&1 | tail -1; timeout 700 
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/b0upv7ftf.output; for i in $(seq 1 16); do grep -qE 'EXIT [0-9]' "$F" 2>/d
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/b0upv7ftf.output; for i in $(seq 1 14); do grep -qE 'EXIT [0-9]' "$F" 2>/d
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/b0upv7ftf.output 2>/dev/null; echo "---END---"
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/682bd7bb-5c40-4835-9844-9aa85a2880ac/tasks/b0upv7ftf.output; for i in $(seq 1 12); do grep -qE 'EXIT [0-9]' "$F" 2>/d
+
+## Last text from previous session
+
+result arrives via task-notification. Ending this turn cleanly — pending background validation will re-invoke me.
+Test still running (prep complete, 24 rounds in progress). I'll wait for the completion notification. No further polling — the harness re-invokes me when b0upv7ftf finishes or the wakeup fires.
+**Decisive result:** bounded-delta-64 also caught **P25-SKIP=0** at real (dirwr=0) timing. So the dirwr=0 resurrections have gen deltas **outside [1,64]** — confirming **chunk-reinit fully re-randomizes gens** (sess119 was right: gens are cross-node incomparable). The gen-based discriminator is a **dead end** for the real timing.
+
+Also revealing: at dirwr=0 with the guard inert, the failure is **dirent-visibility divergence** (round 3: test1 reads its OWN dir as `readdir=0`, test2 sees `100`/200), `leafCRC=0`. The resurrection→leaf-CRC was largely a dirwr=1 (slow-timing) artifact; the real dirwr=0 blocker is dir-inode/dirent coherency — which may itself be **dir-inode resurrection with randomized gens** (uncatchable by gen, but catchable by a gen-free allocation check).
+
+The window=64 build is **safe/inert** (no regression: rounds 1-2 pass = baseline). Let me record this pivotal finding and the gen-free path for the next iteration.
+Per the wrapper, I keep working — unlimited sessions. The gen approach is dead; the gen-free inobt check is the path, but first I must CONFIRM (RULE 4) that the dirwr=0 dirent-visibility failure is actually resurrection (not a separate bug), and see the real gen-delta distribution. Let me add an always-on `P25-CANDIDATE` detector (logs every resurrection candidate: disk-free + in-core-live, with gen delta, capped) right before the guard, so I can characterize at dirwr=0 without the dirwr slowdown.
+Reached the ccloop relay boundary — wrapping up cleanly. The source is in a consistent, building state (build `046691B9` deployed; the guard is inert/safe at `window=64`), and I've recorded the full diagnostic trail to memory. I did **not** start the next build/run so nothing is left mid-step.
+
+## Session 25 summary — 2-node dlm=tcp criterion
+
+**Criterion** = full `./run.sh 2 tcp` suite passing; 16 applicable tests pass, sole blocker = `dir_reuse_coherency`. **Marker NOT written** (not met — honest).
+
+**Diagnostic progress (RULE 4, all instrumented/proven):**
+1. Confirmed the blocker is `dir_reuse_coherency` (a tracked suite test added sess20), failing on daddr aliasing under rm-rf reuse churn.
+2. **Proved the resurrection mechanism** (dirwr=1): `xfsaild` flushes stale-live inodes a peer already FREED (`P-IRESURRECT=201`, existing P119/P17B guards `0×`) → resurrected inodes double-claim reused blocks → dir leaf holds `.md5` data → leaf-CRC corruption.
+3. Built `P25-RESURRECT-SKIP` guard in `xfs_iflush` + runtime param `mxfs.resurrect_gen_window`.
+4. **Proved the gen-based discriminator is a DEAD END**: v1 `>` regressed (false-positive on chunk-init random gens), v2 `==+1` & v3 bounded-`[1,64]` both caught `0` at real (dirwr=0) timing because **chunk-reinit fully re-randomizes gens** (sess119 confirmed). 
+5. **Reframed the real blocker**: at dirwr=0 the failure is **dirent-visibility divergence** (rank1 reads its OWN dir empty; peer sees only its own half), not leaf-CRC — the leaf-CRC was largely a dirwr=1 slow-timing artifact.
+
+**Clear next step for the fresh session** (in memory `sess25-resurrection-guard-iteration`): replace the gen discriminator with a **gen-free inobt-allocation check** (inode FREE in inobt → resurrection → skip; use `XBF_TRYLOCK` on the AGI to bound deadlock risk), **or** a publish-on-create root fix; and re-characterize the dirwr=0 dirent-visibility without perturbing the race. Guard structure + param are correct and kept; only the discriminator needs replacing.
+
+Memories written: `sess25-drc-leaf-double-alloc-live-evidence`, `sess25-resurrection-guard-iteration`. Code in `xfs/xfs_inode.c`, `xfs/xfs_mxfs_dlm.c`, detector in `xfs/libxfs/xfs_alloc.c`, reproducer `tests/drc_probe.sh`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

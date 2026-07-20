@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 67 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 66
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `ccf05dff-f623-441c-84bb-da24f6d664cc`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ccf05dff-f623-441c-84bb-da24f6d664cc.jsonl`
+- approx context at last assistant turn: 258647 tokens
+- tools used: Bash×56 Read×18 Edit×9 ToolSearch×3 mcp__ccteam__claim×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_bmap_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_trans_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== xfs_bmbt_verify magic check ==="; sed -n '/^xfs_bmbt_verify(/,/bb_level/p' xfs/libxfs/xfs_bmap_btree.c | head -40; echo "=== magic defs 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*bmap_btree|LD \[M\]|implicit|undeclared" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev
+    cd /src/mxfs; timeout 300 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 5 "$SSH" test$n "$P" "dmesg -C 2>/dev/null; true" >/dev/null 2>&1 &
+    until grep -q "true_silent_loss=" /tmp/claude-1000/-src-mxfs/ccf05dff-f623-441c-84bb-da24f6d664cc/tasks/brr7m65rl.output 2>/dev/null; do sleep 5; done; echo DON
+    cd /src/mxfs; tail -6 /tmp/claude-1000/-src-mxfs/ccf05dff-f623-441c-84bb-da24f6d664cc/tasks/brr7m65rl.output 2>/dev/null; echo "---procs---"; ps aux | grep -E "
+    cd /src/mxfs; grep -c "true_silent_loss=" /tmp/claude-1000/-src-mxfs/ccf05dff-f623-441c-84bb-da24f6d664cc/tasks/brr7m65rl.output 2>/dev/null; ps aux | grep -E "
+    cd /src/mxfs; tail -4 /tmp/claude-1000/-src-mxfs/ccf05dff-f623-441c-84bb-da24f6d664cc/tasks/brr7m65rl.output; echo "=== P66-LEAFWRITE + P59 timeline on a node t
+    cd /src/mxfs; echo "=== xfs_buf_item_push ==="; grep -n "xfs_buf_item_push" xfs/xfs_buf_item.c; echo "=== existing mxfs hooks in buf_item push / write ==="; gre
+    cd /src/mxfs; f=$(find xfs -name "xfs_buf_item.c"); echo "file=$f"; grep -n "^xfs_buf_item_push\|STATIC.*xfs_buf_item_push\|xfs_buf_item_push(" $f; echo "=== mx
+    cd /src/mxfs; find . -name "xfs_buf_item*.c" 2>/dev/null; echo "---"; grep -rln "xfs_buf_item_push" xfs/ 2>/dev/null
+    cd /src/mxfs; echo "=== xfs_buf_item_push in pal/linux/xfs_buf_item.c ==="; grep -n "xfs_buf_item_push" pal/linux/xfs_buf_item.c; echo "=== function body ==="; 
+    cd /src/mxfs; awk '/mxfs_buf_xfsaild_skip_bmbt_write\(/{f=1} f{print NR": "$0} f&&/^}/{c++; if(c>=1 && /^}/) exit}' xfs/xfs_mxfs_dlm.c | head -90
+    cd /src/mxfs; echo "=== b_tenure_id stamping sites ==="; grep -rn "b_tenure_id" xfs/ pal/ | grep -v "\.backup" | head -20; echo "=== dir tenure id on inode? ===
+    cd /src/mxfs; echo "=== where b_mxfs_dir_gen is SET (stamp sites) ==="; grep -rn "b_mxfs_dir_gen =" xfs/ pal/ | grep -v "\.backup"; echo "=== bmbt leaf read sta
+    cd /src/mxfs; echo "=== mxfs_ag_meta_track ==="; awk '/^mxfs_ag_meta_track\(/{f=1} f{print NR": "$0} f&&/^}/{exit}' xfs/xfs_mxfs_dlm.c | head -70
+    cd /src/mxfs; echo "=== mxfs_ag_meta_track call site ==="; grep -rn "mxfs_ag_meta_track\b" xfs/ pal/ | grep -v "\.backup\|^.*:.*mxfs_ag_meta_track(struct\|12958
+    cd /src/mxfs; sed -n '550,610p' xfs/xfs_trans_buf.c
+    cd /src/mxfs; sed -n '12655,12675p' xfs/xfs_mxfs_dlm.c; echo "=== header decl region for skip_bmbt ==="; grep -n "mxfs_buf_xfsaild_skip_bmbt_write\|mxfs_ag_meta
+    cd /src/mxfs; grep -q "xfs_bmbt_buf_ops" xfs/xfs_trans_buf.c && echo "ops-symbol-referenced-ok"; grep -rn "extern const struct xfs_buf_ops xfs_bmbt_buf_ops" xfs
+
+## Last text from previous session
+
+xfs_dir_gen` — it's only ever set to 0 (evict) or to `i_dlm_dir_gen` (invalidate-for-reread). So a gen-based write gate would false-skip legitimate current writes → data loss. The AG-meta path solved exactly this with **modify-time tenure stamping** (sess125, `mxfs_ag_meta_track` in `xfs_trans_log_buf`). Let me read that mechanism to mirror it faithfully for the bmbt leaf.
+The AG-meta tenure mechanism is a clean, proven template I can mirror for the bmbt leaf: stamp `b_tenure_id` at **modify time** with the owner dir's `i_mxfs_ex_grant_seq` (the EX tenure epoch), then the xfsaild gate skips a leaf whose stamp ≠ the dir's current epoch (prior-tenure stale). Let me find the `xfs_trans_log_buf` hook where AG-meta tracking is installed.
+I have the proven AG-meta template and the hook point. I'll implement the **bmbt-leaf modify-time tenure stamp** + extend the xfsaild write gate. Let me read the exact area above the skip function to insert the new tracker.
+Now I'll implement the fix: (1) extend the xfsaild write gate with a tenure check, (2) add the modify-time tenure stamp `mxfs_dir_bmbt_track`, (3) wire it into `xfs_trans_log_buf`, (4) declare it, (5) quiet the P66 probe to rate-limited. First, the gate + new tracker:
+Now the header declaration and the `xfs_trans_log_buf` hook:
+I've hit the ccloop relay boundary, but I'm mid-implementation — let me land a complete, building state for the next session. Adding the header decl, the `xfs_trans_log_buf` hook, and quieting the probe.
+Now quiet the verbose P66 probe (it flooded dmesg) to rate-limited, and verify `xfs_bmbt_buf_ops` is visible in `xfs_trans_buf.c`, then build.
+Build clean — `88688A48` (the lone warning is pre-existing/unrelated). The tenure-gate fix is complete and compiles. Let me record the proven root + fix to memory for the next session, then summarize.
+## Session 66 summary
+
+**`zero_silent_loss` still FAILS** — marker NOT written. But this session **definitively proved the root cause** (after 6+ sessions of partial framings) and built a proven-template fix.
+
+### Decisive proof (RULE-4, the `P66-LEAFWRITE` write-side probe)
+The shared storm dir's single bmbt leaf (owner=131, daddr=29222600) is written **exclusively by `comm=xfsaild`**, and **different nodes write different stale record counts to the same shared on-disk block** (test3→14, test4→16, while a peer grew the dir to 30). The dinode is DLM-EX-gated (P119/P17B in `xfs_iflush`) so it advances correctly; the **bmbt leaf buffer has an independent xfsaild writeback path with no EX gate**, so a non-current-tenure node clobbers the peer's durable leaf → on-disk `di=N / leaf=N-k` torn pair → `P59-IREAD-MISMATCH` → EFSCORRUPTED → the whole 16-node, 1600-dirent cascade.
+
+### Fixes landed (build `88688A48`, compiles clean, NOT yet tested)
+1. **`need_iread` guard** on the lazy bmbt invalidate hook — **PROVEN GOOD**: eliminated `P64-LEFTCONTIG-DESYNC` entirely (the mid-transaction leaf revert).
+2. **drain-pin-then-evict** for pin-only stale leaves at acquire (mirrors sess74/sess97 dir-data idiom).
+3. **Tenure-authority write gate** (the root fix) — mirrors the proven AG-meta `b_tenure_id` mechanism (sess123/125): new `mxfs_dir_bmbt_track` stamps `b_tenure_id = i_mxfs_ex_grant_seq` at modify time (in `xfs_trans_log_buf`); `mxfs_buf_xfsaild_skip_bmbt_write` now also skips+stales a leaf whose stamp ≠ the dir's current EX epoch (superseded prior-tenure → don't clobber). A current-tenure leaf writes normally (no data loss).
+
+### Immediate next step (next session)
+`scripts/cluster_reset_n.sh 16` → clear dmesg → `scripts/p133_storm_errcap.sh /src/mxfs/mxfs.ko 100` (timeout 300). Expect visible≈1600, `true_silent_loss=0`, P59→0. Full proof, evidence, and the residual-debug plan are saved in memory **`sess66-zsl-bmbt-leaf-xfsaild-clobber-tenure-gate`**. Cluster is dirty from the storm runs — power-cycle before trusting any result. Other 3 criteria (fence_during_write, rsync_paired, posix_semantics_multi16) remain FAIL, untouched.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

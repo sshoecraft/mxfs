@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 3
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `31755fe8-c5e8-4d50-b3aa-b3811c24b0b1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/31755fe8-c5e8-4d50-b3aa-b3811c24b0b1.jsonl`
+- approx context at last assistant turn: 498696 tokens
+- tools used: Bash×223 Edit×40 Read×6 TaskCreate×5 ToolSearch×4 TaskUpdate×3 Write×2 mcp__ccmemory__memory_write×2 TaskList×1 TaskOutput×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/microbench_coldstat.sh
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/state.md
+- /src/mxfs/include/mxfs/mxfs_dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/pal/linux/xfs_super.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    python3 - <<'EOF' s = open('xfs/xfs_mxfs_dlm.c').read() s = s.replace('''#include "libxfs/xfs_defer.h"	/* sess8: trans-roll AG-grant migration walks 				 * t_df
+    sed -n '23895,23915p' xfs/xfs_mxfs_dlm.c
+    sed -n '23875,23896p' xfs/xfs_mxfs_dlm.c
+    python3 - <<'EOF' s = open('xfs/xfs_mxfs_dlm.c').read() s = s.replace("""		if (VFS_I(ip)->i_nlink == 0) 			mxfs_v5_dlm_inode_unlock_free(mp->m_mxfs_dlm, ip->i_i
+    grep -rn "insmod\|modprobe" scripts/ladder_rung.sh run.sh scripts/cluster_reset.sh 2>/dev/null | grep -v "^Binary\|#" | head -5; python3 - <<'EOF' s = open('/sr
+    grep -rn "insmod\|modprobe" run.sh scripts/rig.sh tests/suite/lib.sh tests/suite/precond_readiness.sh 2>/dev/null | head -6; grep -rln "insmod" scripts/ tools/ 
+    grep -rn "mxfs.ko" run.sh | head -6
+    sed -n '415,445p' run.sh
+    grep -n "prep_node\|insmod" run.sh | head -8
+    grep -n "MODARGS\|insmod" tests/setup/prep_node.sh | head -5
+    python3 - <<'EOF' s = open('/src/mxfs/state.md').read() s = s.replace("3. Build 0.11.16, deploy, icluster_dlm=1 on all 8, dir_reuse@8 6-round", """3. ⚠ BEFORE k
+    grep -n "mxfs_v5_dlm_inode_lock(dlm, ino" xfs/xfs_mxfs_dlm.c; sed -n "$(( $(grep -n 'mxfs_v5_dlm_inode_lock(dlm, ino, MXFS_LOCK_EX)' xfs/xfs_mxfs_dlm.c | head -
+    sed -n '23285,23320p' xfs/xfs_mxfs_dlm.c
+    sed -n '23245,23285p' xfs/xfs_mxfs_dlm.c | grep -n "for\|while\|ino =\|list_" | head -8; sed -n '23230,23260p' xfs/xfs_mxfs_dlm.c | head -32
+    python3 - <<'EOF' s = open('xfs/xfs_mxfs_dlm.c').read() # Walker 1: capture routed under the spinlock, use at the lock call old1 = """		if (match) { 			list_del
+    python3 - <<'EOF' s = open('xfs/xfs_mxfs_dlm.c').read() # bast_process no-anchor branch s = s.replace("""				if (mxfs_iclus_routed(ip)) 					/* ICLUSTER: ref--;
+    grep -n "i_dlm_unpublished = false" xfs/xfs_mxfs_dlm.c | head -8
+    sed -n '23988,23996p' xfs/xfs_mxfs_dlm.c
+    python3 - <<'EOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = """static int mxfs_dlm_inode_lock_routed(struct xfs_inode *ip, uint8_t mode) { 	if (mxfs_iclus_rou
+    python3 - <<'EOF' s = open('/src/mxfs/state.md').read() s = s.replace("STILL UNROUTED: 2 deferred-publish list walkers, site ~395", "STILL UNROUTED: publish wal
+
+## Last text from previous session
+
+ime-only (0444, preventing acquire/release path mismatch on a runtime flip), two of five lock sites are routed (central ilock_begin acquire + publish-on-create), and the precise unlock-routing recipe — including the bast_process conversion point that also covers ilock_end's dwork-driven releases — is documented in state.md. Tree builds clean at srcversion `C00D76F3C9160917B34647B`.
+
+The next session's path is fully specified: finish routing (three lock sites + the single bast_process unlock conversion), check how prep passes module parameters for the knob, build 0.11.16, and run the A/B + correctness battery at 8 nodes before scaling to the 32-node ladders across all four conditions.
+Continuing — converting the bast_process unlock (the single point covering all dwork-driven releases):
+Milestone: both bast_process release branches routed and building. Converting the `unlock_free` site (ifree path, has `ip`):
+Core lifecycle routing is complete (acquire + both release paths + evict/free), builds clean. Checking how prep loads the module so knob=1 testing can be wired:
+**Criteria not met — the relay session continues from a substantially advanced position.**
+
+This closing stretch completed the ICLUSTER Phase-1 routing core: the central ilock_begin acquire, publish-on-create, **both bast_process release branches** (covering every dwork/BAST/idle-release path), and the evict/free release with `is_free` semantics — all building clean (srcversion `27B313EE426D5B33A5C8DCA`), all dead code until the load-time knob is set. The enable mechanism is verified (`MXFS_EXTRA_MODARGS="icluster_dlm=1"` reaches insmod via prep_node.sh), and state.md now carries the one critical pre-flip warning: the two deferred-publish walkers and one PR site must be routed first, or an unrouted publish would leak per-inode slots for cluster-routed files.
+
+Next session: finish those three sites, build 0.11.16, flip the knob on the 8-node rig, and measure — dir_reuse A/B expecting ≥3× on verify+rm, then the correctness battery, then Phase 2 batching, the AG admission fix, and the full four-condition 32-node ladders the criteria require.
+Continuing — routing the deferred-publish walkers (the pre-flip blockers). Reading the first walker's loop structure:
+Relay boundary — wrapping the sub-step with a final state sync:
+**Session 3 final summary — criteria not met; relay continues.**
+
+**Root finding (the session's core contribution):** kprobe op-ledgers proved every dir_reuse phase is bounded by per-file DLM device-op count (~5-13 SCSI commands per file-touch), and five independently-verified op-reduction fixes (0.11.12→0.11.15, all deployed and passing at 8 nodes) left round time flat — establishing that per-inode lock granularity itself is the wall. The 32-node budget requires ≤1.5 ops per touch. A RULE-5 GPT consult endorsed the pivot: **inode-cluster DLM granularity** as the core fix.
+
+**ICLUSTER implementation status at handoff (tree builds clean, srcversion `ADC759EE3C061D290153ED4`, all inert behind load-time-only `mxfs.icluster_dlm=0`):**
+- Complete: resource type, v5 entry points, BAST dispatch (both transports), the refcounted mediating layer with grant retention, BAST fan-out, callback registration, unmount purge.
+- Routing: central ilock_begin acquire, publish-on-create, both bast_process release branches, evict/free release, and publish walker 1 — with two correctness holes found and closed by refcount reasoning (unpublished-inode release guard against underflow; routed-claim publish-flag clearing against the P106-bail-restart ref leak).
+- Remaining before knob-flip: publish walker 2 (mirror walker 1's pattern), site ~395, then `MXFS_EXTRA_MODARGS="icluster_dlm=1"` prep (mechanism verified) → 0.11.16 A/B expecting ≥3× on verify+rm → correctness battery → Phase 2 batching → AG admission fix → full four-condition 32-node ladders.
+
+Everything is persisted in `state.md`, `DLM_PLAN.md`, ccmemory, and the CHANGELOG; the next session picks up at publish walker 2.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

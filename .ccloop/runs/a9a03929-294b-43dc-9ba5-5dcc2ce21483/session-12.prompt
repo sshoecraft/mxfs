@@ -1,0 +1,120 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 12 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 11
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `d8d4b319-6c3e-4e41-afaf-3c440f920ac3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d8d4b319-6c3e-4e41-afaf-3c440f920ac3.jsonl`
+- approx context at last assistant turn: 369713 tokens
+- tools used: Bash×123 Read×21 Edit×14 mcp__ccmemory__memory_write×3 mcp__ccmemory__memory_get×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/mxfs_clayer/pinned_resource.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '1,60p' /src/mxfs/tests/suite/fence_during_write.sh
+    D=/tmp/run_fence_during_write_20260703T230150Z; for n in 2 3; do echo "== t$n:"; grep -E "Shutting down|Corruption|Metadata I/O Error|Internal error|self.?fence
+    D=/tmp/run_fence_during_write_20260703T230150Z; grep -n "Corruption of in-memory" $D/kernlog_test2 | head -1; L=$(grep -n "Corruption of in-memory" $D/kernlog_t
+    D=/tmp/run_fence_during_write_20260703T230150Z; for n in 1 3 4; do echo "== t$n AG-0/ino166 window 23:09:40-23:10:41:"; sed -n '/23:09:4/,/23:10:42/p' $D/kernlo
+    D=/tmp/run_fence_during_write_20260703T230150Z; for n in 1 2 3 4; do ID=$(grep "DLM init: node_id" $D/kernlog_test$n | tail -1 | grep -oE "node_id=[0-9]+"); ech
+    D=/tmp/run_fence_during_write_20260703T230150Z; for n in 1 2 3 4; do ID=$(grep -oE "node_id=[0-9]+" $D/kernlog_test$n | tail -1); HT=$(grep -c "P-LKTIMEOUT-HOLD
+    D=/tmp/run_fence_during_write_20260703T230150Z; grep "P-LKTIMEOUT-HOLDER type=3 ino=0 ag=0" $D/kernlog_test4 | sed -n '/23:09:5/,/23:10:41/p' | awk '{print $8, 
+    D=/tmp/run_fence_during_write_20260703T230150Z; grep "P-LKTIMEOUT-HOLDER" $D/kernlog_test4 | grep "ag=0" | tail -6 | cut -c1-200; echo ===count-by-holder===; gr
+    grep -n "DLM AG lock failed" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; grep -n "P-LKTIMEOUT-HOLDER" /src/mxfs/dlm/*.c /src/mxfs/xfs/*.c 2>/dev/null | head -3
+    grep -rn "DLM AG lock failed" /src/mxfs/xfs/ /src/mxfs/pal/ 2>/dev/null | grep -v backup | head -3; sed -n '1640,1700p' /src/mxfs/dlm/dlm.c
+    grep -rn "DLM AG lock failed" /src/mxfs/ --include="*.c" 2>/dev/null | grep -v backup
+    grep -n "dialloc" /src/mxfs/xfs/xfs_inode.c | head -10; grep -rn "0.3.148\|148.*ILOCK\|drop.*dp.*ILOCK\|ilock.*drop.*dialloc" /src/mxfs/xfs/xfs_inode.c | head -
+    grep -n "mxfs_inode_pin\|mxfs_inode_unpin" /src/mxfs/mxfs_clayer/pinned_resource.h /src/mxfs/mxfs_clayer/pinned_resource.c 2>/dev/null | head -8; sed -n '1440,1
+    grep -n "xfs_iunlock(dp\|xfs_ilock(dp\|ILOCK_PARENT" /src/mxfs/xfs/xfs_inode.c | awk -F: '$1>1300 && $1<1720'
+    grep -n "pinned_resource.h\|mxfs_inode_pin" /src/mxfs/xfs/xfs_inode.c | head -6; make modules 2>&1 | grep -E " error|implicit" | head -5; modinfo mxfs.ko | grep
+    for it in 1 2 3; do MXFS_EXTRA_MODARGS="watch_ino=999999999999" timeout 240 ./run.sh 4 tcp fence_during_write 2>&1 | grep -E "  PASS|  FAIL" | head -1; done; ec
+    for n in 2 3; do timeout 10 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep 'Shutting down filesystem' | tail -1; uptime | cut -c1-30" 2>/dev/null; d
+    for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 2; for n in 1 2 3 4; do virsh -c qemu:///system start test$n >/dev/null
+    MXFS_EXTRA_MODARGS="watch_ino=999999999999" timeout 240 ./run.sh 4 tcp tcp_dlm_scaling 2>&1 | grep -E "  PASS|  FAIL" | head -1; timeout 10 tools/mxfs_sshpass.s
+    for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 2; for n in 1 2 3 4; do virsh -c qemu:///system start test$n >/dev/null
+
+## Last text from previous session
+
+Continuing session 11. First, loading memory tools and checking the background ds2 loop artifacts from session 10.
+One call site: xfs_mxfs_dlm.c:11627. Reading that function — it's inside the release pipeline near the P70-BP EXIT.
+Rather than reading every queue site, let me do a complete marker-name census on t1 during the test window — the high-volume markers will name the firing path.
+No P-DEMWAIT/P79 markers — the queue site must be unmarked or at 17689 (in ilock_begin). Reading that site.
+Line 17532 sets `i_dlm_stale = true` inside ilock_begin itself. Reading that section.
+Consumers exist in readdir, lookup, modify-prelock, and two sites in ilock_begin/end. Checking the fast-path stale gates at 16766 and 17990.
+The trylock path rejects on stale (falls back to slow path which reloads) — coherency-safe. One more check: the ilock_begin fast path itself must also gate on stale.
+Now the module param and the gated fix at the completion check.
+Building.
+Build EF32FD80 OK. Checking run.sh's interface and node state for the A/B runs.
+Line numbers shifted from my edits. Adding a `bastq_src` stamp before each queue site + printing it at P70-BP ENTRY. First viewing each site's context for safe insertion.
+Inserting stamps bottom-up and extending the P70-BP ENTRY print.
+Build 81A975C4. Running iterations to catch a storm with the qsrc discriminator.
+Checking whether the unpin path has the same gate needing the consume.
+Continuing the ladder: 6 more dlm_scaling iterations for the 8-clean bar.
+cache_coherency PASS ×2 with sf=2 — the sess20 sensitivity is gone on the current code. Committing the default.
+Build 2BB9A4D3. Recording the tds fix, then launching the full-suite ladder.
+dir_reuse PASSED this run. Waiting for suite completion.
+t4 is the AG-0 master with 327 holder-table probes. Reading them for ag=0 in the fatal minute.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

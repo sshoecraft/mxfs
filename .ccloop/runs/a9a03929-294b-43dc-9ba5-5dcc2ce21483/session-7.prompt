@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `3b61001c-d6f1-4dda-a954-1a0d4517d72d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d.jsonl`
+- approx context at last assistant turn: 497543 tokens
+- tools used: Bash×160 Edit×34 Read×31 TaskCreate×5 mcp__ccmemory__memory_get×4 TaskUpdate×2 ToolSearch×2 mcp__ccmemory__memory_write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_trans_ail.c
+- /src/mxfs/xfs/xfs_trans_priv.h
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    make modules 2>&1 | grep -E "error:" | head -5; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 3; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system 
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad; for i in $(seq 1 56); do if ! pgrep -f "run.sh 8 tcp dir_reuse" >/dev/null; then e
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad; for i in $(seq 1 56); do if ! pgrep -f "run.sh 8 tcp dir_reuse" >/dev/null; then e
+    L=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); for k in 1 2 3 4 5 6 7 8; do t=$(tail -1 $L/test$k 2>/dev/null | cut -c1-115); echo "test$k: $t"; done; S=
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad/run88; grep -h "RDMISS0 round=2 \|RDMISS0 round=4 " $S/test1.dmesg | head -2 | cut 
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad/run88; awk -F'[][]' '$2+0>=107.4 && $2+0<=108.15' $S/test1.dmesg | grep -E "P26-RDD
+    grep -n "^xfs_buf_incore" /src/mxfs/pal/linux/xfs_buf.c; sed -n "$(grep -n '^xfs_buf_incore' /src/mxfs/pal/linux/xfs_buf.c | cut -d: -f1),+40p" /src/mxfs/pal/li
+    grep -rn "xfs_buf_incore(" /src/mxfs/pal/linux/xfs_buf.c | grep -v "= xfs_buf_incore\|if (xfs_buf_incore" | head -3; grep -rn "int$\|^xfs_buf_incore\|xfs_buf_in
+    grep -n "xfs_buf_incore" /src/mxfs/xfs/xfs_buf.h | head -3; sed -n '440,470p' /src/mxfs/pal/linux/xfs_buf.c
+    sed -n '290,340p' /src/mxfs/xfs/xfs_buf.h
+    grep -n "xfs_buf_find_lock\|XBF_INCORE" /src/mxfs/pal/linux/xfs_buf.c | head -8; sed -n "$(grep -n 'static int$' /src/mxfs/pal/linux/xfs_buf.c | awk -F: '$1>520
+    sed -n '486,532p' /src/mxfs/pal/linux/xfs_buf.c
+    sed -n '695,725p' /src/mxfs/pal/linux/xfs_buf.c
+    make modules 2>&1 | grep -E "error:|warning: unused variable .n_locked" | head -8; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 3; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system 
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad; for i in $(seq 1 50); do if ! pgrep -f "run.sh 8 tcp dir_reuse" >/dev/null; then e
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad; for i in $(seq 1 56); do if ! pgrep -f "run.sh 8 tcp dir_reuse" >/dev/null; then e
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad; grep -E "FAIL|PASS" $S/run89.log; L=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev
+    S=/tmp/claude-1000/-src-mxfs/3b61001c-d6f1-4dda-a954-1a0d4517d72d/scratchpad; mkdir -p $S/run89; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+
+## Last text from previous session
+
+boot — it **panicked and rebooted mid-run**. The serial log should hold the panic. Trying to read it.
+Adding the serial log element to test1,5,6,7,8 domain XML (applies at next cycle).
+Serial capture confirmed live on test5. Polling run86.
+Identical split: f36-f50 all landed in **daddr 8373208** — the lost block. Tracing its lifecycle on test1.
+**The tracer fired — 5 P-DIRSTALE hits on test1, with stacks.** Extracting them.
+That edit left an `if (0)` shim — viewing and cleaning it properly.
+Removing the `if (0)` shim cleanly:
+While run89 runs, checkpointing the session's findings to memory.
+Relay boundary — wrapping up. run89 final state captured: **7 of 8 nodes passed every round (0 fail rounds through round 21); only test1 (rank1) failed rounds 6-7 with the transient stale-readdir**, and the run was killed by the 480s cap at round 21/24. No shutdowns, no corruption, no durable losses anywhere.
+
+## Session 6 summary
+
+**Criteria status: NOT met — marker not written.** But this session converted a 100%-fail catastrophic state into a single remaining transient plus a pace shortfall.
+
+**Five root causes proven and fixed this session (all RULE-4 instrumented chains):**
+
+1. **FIX-11** — the acquire-reload deferred-stale honor point (`P5-DEFERRED-STALE`) invalidated buffers carrying committed-but-undestaged dirents in the post-CIL window (proven run81 r5: node8's 46 md5 adds destroyed at 157.307, platter kept the peer's older image cluster-wide). Undestaged guard added at the honor point and both reload-walk arms.
+2. **FIX-12/12b** — the no-inode BAST release violated Invariant-1: its single-AG drain missed cross-AG dir blocks (dir blocks are allocated in each *writer's* AG), and it fires for live-but-IRECLAIMABLE inodes (drop_caches windows). Replaced with an LSN-targeted whole-AIL bounded fence (`xfs_ail_push_upto_sync_bounded`) + a per-mount drained-LSN marker so the hundreds of noino releases per round share one drain; never unlocks undrained (shutdown policy like P3B).
+3. **FIX-13** — the phantom-EX (noino release can't demote `i_dlm_mode`) defeated the P116 self-clobber guard: a dead inode incarnation was kept as "authoritative", and `dd`'s O_TRUNC double-freed its stale extent map → defer corruption 0x8 → node shutdown every run (proven run84 test3 @186.65). P116 now verifies the hold against the DLM table (`mxfs_v5_dlm_inode_held_rawmode`).
+4. **FIX-14** — the md5-tail cluster-wide loss root: the acquire-fence evict (`P-DE-BLK`) used `(!in_ail || !undestaged)` — CIL-window buffers bypassed the check and were evicted; the re-read DMA'd the platter over committed adds (proven run87 r2 via new bp/lseq/wseq prints). Undestaged check made unconditional at 3 sites. **Result: peers went from all-fail to zero fail rounds.**
+5. **FIX-15/15b** — rank1's transient stale readdir: discovered `xfs_buf_incore(flags=0)` blocking-locks in this kernel, so the reload walk's trylock was a *self*-trylock (dead code — everything deferred to the flag path that races the first readdir). Reload now decides inline under the held lock; the honor point got a bounded 50ms wait. Improved but not eliminated (P5D=39 on test1, fail rounds 6-7).
+
+**Remaining blockers (next session):** (a) rank1's stale-serve persists past the 50ms honor-wait — P5D prints now name the busy state to extend the chase; (b) 24 rounds need ~460s vs the 480s budget with test1's fail-path overhead — pace tuning (P60's per-hit FUA compare is a known cost); (c) the once-per-run late-round dir-visibility event (peers can't stat the dir; didn't recur in run89) — needs a capture when it next fires. All evidence paths, build IDs (current: `36600ADF`), and the full fix ledger are in ccmemory `sess6-FIX11-12-13-noino-invariant1-phantom-P116` and `sess6-FIX14-15-cil-window-evict-and-rank1-stale-serve`. run89 artifacts are in the scratchpad (`run89/`) and cluster state is live on build `36600ADF` for the next session to continue the ladder toward 24-round passes, then the full 1/2/4/8 matrix.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

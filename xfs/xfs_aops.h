@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) 2005-2006 Silicon Graphics, Inc.
+ * All Rights Reserved.
+ */
+#ifndef __XFS_AOPS_H__
+#define __XFS_AOPS_H__
+
+extern const struct address_space_operations xfs_address_space_operations;
+extern const struct address_space_operations xfs_dax_aops;
+
+int xfs_setfilesize(struct xfs_inode *ip, xfs_off_t offset, size_t size);
+void xfs_end_bio(struct bio *bio);
+void xfs_end_io(struct work_struct *work);
+/* FIX-25 (sess8): true when current is the xfs-conv ioend worker — admitted
+ * to a nested EX during a BAST/DEMOTING drain (see mxfs_dlm_ilock_begin). */
+bool xfs_task_in_ioend(void);
+
+#endif /* __XFS_AOPS_H__ */

@@ -1,0 +1,9 @@
+{
+  "source": [
+    "scripts/scst_atomic_edges.py",
+    "scripts/scst_unwedge/scst_unwedge.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

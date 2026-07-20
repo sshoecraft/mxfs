@@ -1,0 +1,140 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a8642ea1-81eb-4fcd-beea-b99f4f52db31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a8642ea1-81eb-4fcd-beea-b99f4f52db31, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `782a0f98-6460-4e52-9507-35ab051d547d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/782a0f98-6460-4e52-9507-35ab051d547d.jsonl`
+- approx context at last assistant turn: 501005 tokens
+- tools used: Bash×237 Edit×38 Write×7 Read×5 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 mcp__ccmemory__memory_search×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_trans_buf.c
+- /src/mxfs/VERSION
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_file.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    L=/tmp/claude-1000/-src-mxfs/782a0f98-6460-4e52-9507-35ab051d547d/scratchpad/drc32-r8.log; deadline=$((SECONDS+560)); until [ $SECONDS -ge $deadline ]; do kill 
+    L=/tmp/claude-1000/-src-mxfs/782a0f98-6460-4e52-9507-35ab051d547d/scratchpad/drc32-r8.log; deadline=$((SECONDS+560)); until [ $SECONDS -ge $deadline ]; do kill 
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; timeout 12 $SSH test1 $PASS 'grep -E "Shutting down|use_free" /root/dmesg.stream | head -3; echo ---;
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; timeout 12 $SSH test1 $PASS 'grep -B2 "unrecoverable" /root/dmesg.stream | head -8; grep -E "disk loc
+    kill -9 233542 2>/dev/null; pkill -9 -f '20260710T232826Z'; sleep 1; pkill -9 -f './run.sh 32'; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for i
+    pgrep -cf 'run.sh 32 caw'; fuser /tmp/mxfs_run.lock 2>&1 | head -1; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; dead=""; for i in $(seq 1 32); do
+    kill -9 233544 252864 252878 252881 252913 2>/dev/null; sleep 1; pkill -9 -f 'run.sh 32 caw' 2>/dev/null; pkill -9 -f '232826Z' 2>/dev/null; sleep 1; fuser /tmp
+    fuser /tmp/mxfs_run.lock 2>&1 | head -1 || echo LOCK-FREE; virsh -c qemu:///system list | grep test20; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass
+    rm -f /tmp/claude-1000/-src-mxfs/782a0f98-6460-4e52-9507-35ab051d547d/scratchpad/drc32-r9.log; nohup timeout 5200 env MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MOD
+    L=/tmp/claude-1000/-src-mxfs/782a0f98-6460-4e52-9507-35ab051d547d/scratchpad/drc32-r9.log; deadline=$((SECONDS+580)); until [ $SECONDS -ge $deadline ]; do kill 
+    tail -4 /tmp/claude-1000/-src-mxfs/782a0f98-6460-4e52-9507-35ab051d547d/scratchpad/drc32-r9.log; kill -0 257811 2>/dev/null && echo ALIVE || echo DEAD
+    deadline=$((SECONDS+560)); until [ $SECONDS -ge $deadline ]; do kill -0 257811 2>/dev/null || { echo "=== RUN EXITED ==="; break; }; sleep 30; done; echo "--- @
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; timeout 12 $SSH test1 $PASS 'grep -nE "Shutting down|use_free|unrecoverable" /root/dmesg.stream | hea
+    python3 - <<'EOF' import re src=open("/src/mxfs/dlm/dlm_caw.c", errors='replace').read().splitlines() for i,l in enumerate(src):     if 'Yield-to-priority: if t
+    grep -n 'holders_for_mode' /src/mxfs/dlm/dlm_caw.c | head -8; grep -n 'ex_grant_streak\|pad2' /src/mxfs/dlm/dlm_caw.h
+    for ln in 1616 2066 2278 2386; do echo "=== $ln ==="; sed -n "$((ln-2)),$((ln+6))p" /src/mxfs/dlm/dlm_caw.c; done
+    make modules 2>&1 | grep -E '\berror\b|Error' | head -5; modinfo mxfs.ko | grep srcversion; kill -9 257811 2>/dev/null; pkill -9 -f '20260710T235542Z' 2>/dev/nu
+    pgrep -cf 'run.sh 32 caw' 2>/dev/null; fuser /tmp/mxfs_run.lock 2>&1 | head -1; echo "lock-check-rc=$?"; ls -la mxfs.ko | awk '{print $6,$7,$8}'
+    kill -9 257813 278124 278134 278139 278187 2>/dev/null; sleep 1; pkill -9 -f 'run.sh 32 caw' 2>/dev/null; sleep 1; fuser /tmp/mxfs_run.lock 2>&1 | head -1 || ec
+    fuser /tmp/mxfs_run.lock; echo "rc=$? (1=free)"; pgrep -af 'run.sh 32 caw' | grep -v grep | wc -l
+
+## Last text from previous session
+
+e full history. Pulling from both nodes.
+Run killed and node scripts cleaned. Now applying the root fix to `xfs_trans_binval` with a bounded proof probe.
+Now bump the patch version and build.
+There's already a stage-split probe: `P138-BAST` prints per-stage µs. Sampling it from a holder node during rm.
+Prep aborted: test17 went SSH-dead (likely wedged from the killed run). Power-cycling it and relaunching.
+Prep OK on v0.10.35 (jitter fix), converged, running. While it runs, checkpointing state to memory.
+Wiring it up: prototype in xfs_mxfs_dlm.h, implementation in xfs_mxfs_dlm.c, call + include in xfs_file.c.
+Now the call site in xfs_file_release and the include:
+The helper landed after its use sites — moving it above the wait function.
+Now replace the two sleep sites with the helper:
+Pre-existing diagnostic warning, not mine. Bumping to 0.10.37 for the fastpoll fix and rebuilding cleanly.
+A stale run.sh still holds the run lock. Cleaning up and relaunching.
+Lock free. Relaunching on the fastpoll build.
+Implementing the idle-PR reaper in ilock_end plus its param.
+Build OK (`F09356AF…` = v0.10.37 with the reaper). Sweeping and launching.
+Tombstone magic exists ("skip-but-continue probing") — the accumulation mechanism is real. Finding the region offset to scan the table from userspace.
+Lock is free. Applying the two changes.
+Pace holds (100/131/147s) but 2 health hits on a fresh boot — checking if real.
+Now the chooser edit:
+Relay boundary reached — wrapping up cleanly: verify the tree builds, kill the poisoned run, and record state.
+Session wrap-up at the ccloop relay boundary. **Criteria not yet met** — dir_reuse_coherency@32/caw remains the single pending test — but this session moved it a long way.
+
+## What this session accomplished
+
+**Infrastructure recovery** (clyde had been rebooted): rebuilt the SCST target with both multipath portals, booted all 32 VMs, restored the passfile and 2-path mpatha on every node, and confirmed the board state: 1/2/4/8/16/caw all 17/17 PASS, 32/caw 16/17 with only dir_reuse_coherency pending.
+
+**One proven root-cause fix (v0.10.34)**: the cluster-killing failure was a release-fence wedge — `rm -rf` frees dir/bmbt blocks whose mxfs "committed-but-unwritten" accounting survives the free; when dir_reuse reallocates the daddr, the fence finds an unwritable corpse, spins 240s holding the dir EX (P97 shutdown), and 14 peers starve to death. Fixed by retiring the undestaged accounting in `xfs_trans_binval`; the P3B probe caught it firing exactly as predicted and that failure mode has not recurred.
+
+**Pace war** (RULE 0: rounds must average ≤186s; they were ~250-280s): instrumented decomposition showed rm spending 45ms per unlink BAST-stripping up to 31 lingering stat-PR holders per file. The winning combination measured so far: dir-EX-BAST sweep (peers mass-release idle file PRs the moment a held dir is taken by a writer — rm dropped 176s→39s) + acquirer fast-poll + fair handoff, giving 100-147s rounds. Two refuted approaches (per-stat timer reaper; fastpoll-off) were reverted/parameterized with evidence recorded.
+
+**Two remaining bugs identified with full forensics**, fix for the first built but unrun: (1) fair-handoff starves PR waiters behind endless EX rotations (verify's readdir starved 240s → shutdown) — fixed by an `ex_grant_streak` counter in the slot that yields one turn to the whole shared class every 3 EX grants (build `B7A8BCAB`, ready); (2) a genuine dir-coherency corruption (`xfs_dir2_data_use_free`, stale bestfree/leaf image) reproduced once at round-2 create — the old 8-node family reopened at 32, forensics captured.
+
+**Next step** (memory `AAA-ccloopa864-sess1-END-streak-fairness-built-next-run-B2`): sweep/power-cycle the nodes, launch run B2 on build B7A8BCAB with `dirwr=1 dirland=1 close_release=0 caw_inode_fastpoll=1 caw_fair_handoff=1`, and watch for starvation, the use_free corruption, and round pace. The cluster runs are killed, the run lock is free, and the tree builds clean.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

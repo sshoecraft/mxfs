@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 13 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 12
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `e703fd67-956c-4b71-adb0-3c5c0f6e99e7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e703fd67-956c-4b71-adb0-3c5c0f6e99e7.jsonl`
+- approx context at last assistant turn: 504787 tokens
+- tools used: Bash×95 Read×41 mcp__ccmemory__memory_get×10 Edit×8 TaskStop×5 ToolSearch×4 mcp__ccmemory__memory_write×4 mcp__ask_gpt__query×2 mcp__ccmemory__memory_search×2 ScheduleWakeup×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/include/mxfs/mxfs_common.h
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE '\berror\b|mxfs.ko' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== RUN A (00F4C5E1: CONVBLK + dir-no-MHT) ==="; timeout 600 ./run.sh 2 tcp 2>&1 | grep -E 'PASS|FAIL|done:'
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH=tools/mxfs_sshpass.sh; clean(){ grep -vE 'Warning|Unauth|If you'; } for n in test1 test2; do echo "=== $n self-skip / reloa
+    cd /src/mxfs; grep -n 'P58-STALE-BASE' xfs/xfs_mxfs_dlm.c | head; echo "=== context ==="; grep -n 'P58-STALE-BASE\|STALE-BASE-ADD\|stale_base_add' xfs/xfs_mxfs_
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH=tools/mxfs_sshpass.sh; clean(){ grep -vE 'Warning|Unauth|If you'; } echo "=== actual P58-STALE-BASE log lines from test2 ==
+    cd /src/mxfs; grep -rn 'STALE-BASE-ADD\|P58-STALE' xfs/ | head; echo "=== broader ==="; grep -rln 'STALE-BASE-ADD' xfs/ libxfs/ 2>/dev/null; grep -rn 'add=\[' x
+    cd /src/mxfs; grep -n 'i_dlm_dir_loaded_gen' xfs/xfs_mxfs_dlm.c | head -20
+    cd /src/mxfs; make modules 2>&1 | grep -iE '\berror\b|mxfs.ko' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== run + P58 check ==="; timeout 60
+    cd /src/mxfs; echo "=== clean reboot both nodes ==="; for n in test1 test2; do virsh -c qemu:///system destroy $n 2>&1; done; sleep 3; for n in test1 test2; do 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH=tools/mxfs_sshpass.sh; [ -f "$P" ] || cp /home/steve/.mxfs/pass "$P"; ok=0; for i in $(seq 1 40); do r1=$(timeout 6 "$SSH" 
+    cd /src/mxfs; echo "=== clean-cluster RUN (F967E0F5 CONVBLK-only) ==="; timeout 600 ./run.sh 2 tcp 2>&1 | grep -E 'FAIL|done:'
+    cd /src/mxfs; echo "=== confirm last run all-pass ==="; jq -r '.categories[].tests[] | select(.runs["2/tcp"]) | "\(.runs["2/tcp"].status)  \(.name)"' criteria.j
+    cd /src/mxfs; echo "=== RUN 2 (warm, no reboot) ==="; timeout 600 ./run.sh 2 tcp 2>&1 | grep -E 'FAIL|done:'
+    cd /src/mxfs; echo "=== RUN 3 (warm) ==="; timeout 600 ./run.sh 2 tcp 2>&1 | grep -E 'FAIL|done:'; echo "=== RUN 4 (warm) ==="; timeout 600 ./run.sh 2 tcp 2>&1 
+    cd /src/mxfs; echo "=== RUN 3 (single, warm) ==="; timeout 600 ./run.sh 2 tcp 2>&1 | grep -E 'FAIL|done:'
+    cd /src/mxfs; echo "=== RUN 4 (warm) ==="; timeout 600 ./run.sh 2 tcp 2>&1 | grep -E 'FAIL|done:'
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH=tools/mxfs_sshpass.sh for n in test1 test2; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3 for n in t
+    cd /src/mxfs; echo "=== note_dir_modified: sent on every dir modify? does it take real DLM EX? ==="; grep -n 'note_dir_modified\|DIR_MODIFY\|mxfs_v5_dlm_note_di
+    cd /src/mxfs; make modules 2>&1 | grep -iE '\berror\b|mxfs.ko' | head -3; modinfo mxfs.ko 2>/dev/null | grep srcversion P=/tmp/.mxfs_pass; SSH=tools/mxfs_sshpas
+    cd /src/mxfs; make modules 2>&1 | grep -iE '\berror\b|mxfs.ko' | head -2; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+on-both + heartbeat-reconciliation scheme for mutators); on BAST, allow a bounded batching quantum, then **close admission** (block new mutators), drain, force metadata to disk (visibility barrier), demote; the heartbeat becomes a cache-invalidation hint only. The key to avoiding the proven starvation: an explicit bounded quantum (min-tenure OR N-ops-after-BAST OR max-BAST-delay), not per-op release. Let me save this complete diagnosis and plan to memory before implementing.
+The full option-A implementation is substantial. Before building it, let me run a clean experiment to validate GPT's direction (close the admission gate on BAST): re-apply the dir-no-MHT change and test it on a **clean-rebooted** cluster (my earlier test was confounded by contamination). Let me re-apply it.
+dir-no-MHT on a clean cluster: still 2 fails — so prompt release alone doesn't fix it (confirms GPT: the cached-EX-on-both window persists; need the mutator to reload-on-stale + visibility barrier, or a shortform merge). Let me revert to the best-known build (CONVBLK-only) and record this result.
+Let me rebuild the CONVBLK-only build (best-known) and update memory with the experiment results.
+Let me update the memory with the experiment results and the sharpened remaining lead (find the 2nd missed-demote path), since this is the crux for continuity.
+I've reached the relay boundary. Let me record the final experiment results and the sharpened next lead before wrapping up.
+## Session summary
+
+**Criterion (`2 node dlm=tcp test 100% successful`) is NOT met** — marker not written.
+
+### Progress made
+1. **Cluster bring-up after power loss**: rebuilt the host LIO stack (`/dev/mxfs-shared`), restored `/tmp/.mxfs_pass` from `/home/steve/.mxfs/pass`, booted test1/test2. (The whole "test1 SSH hangs" scare was just the missing password file — recorded in memory `env-cluster-bringup-after-host-reboot`.)
+
+2. **Found + fixed a PROVEN master-table double-grant** (`P-CONVBLK-REMOVE`, build `F967E0F5`): on a blocked PR→EX upgrade the DLM master removed the upgrader's still-held grant, making it invisible to compat scans → peer granted a conflicting mode. Fixed by keeping the grant visible and denying with a new code that maps to `-EDEADLK`, so the XFS layer's existing P109 release-and-retry path handles it cleanly. This reduced failures but did not fully fix the suite.
+
+3. **Diagnosed the architectural root** (RULE-4 + 2× GPT-5.5 consults): the residual rotating failure ({tcp_dlm_scaling, dlm_fairness, fence_during_write, crash_consistency} — all "shared dir drained got=N") is the **cached-EX-on-both-nodes + lossy DIR_MODIFY heartbeat** scheme. For shortform dirs, a node can't reload a peer's dirent removal (its own uncheckpointed dirent shares the dinode, `P91-RELOAD-PROTECT` blocks it) and durably re-publishes the stale base → resurrection. Proven by the always-on `P58-STALE-BASE-ADD` detector.
+
+4. **GPT-5.5 verdict = strict dir-EX tenure (option A)**: dir mutators must hold a real exclusive tenure; the heartbeat becomes a reader hint only; on BAST, batch a bounded quantum then close admission + visibility-barrier + demote. Full plan saved in memory `sess12-churn-resurrection-root-and-gpt-fix-A`.
+
+5. **Experiment**: tested "no MHT-defer for dirs" on a clean-rebooted cluster → still 2 fails, reverted. Prompt release alone doesn't fix it.
+
+### Key open lead for next session
+The unresolved crux: **why cached-EX-on-both still happens despite the master serializing EX** — there must be a *second* missed-demote/dropped-BAST path beyond CONVBLK. Next step: instrument BAST delivery (master `P-DIRBAST` sent vs node `bast_notify` honored) on the shared-dir inode to find where a BAST is sent but `i_dlm_mode` never demotes. Note the "drain-resurrects" trap: any release of a stale-base cached-EX *writes* the resurrection, so the fix must prevent the stale base (enforce exclusivity), not just drain on BAST. Best build `F967E0F5` is built locally and will deploy on the next `run.sh`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

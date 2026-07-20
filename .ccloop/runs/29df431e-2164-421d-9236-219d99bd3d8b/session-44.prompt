@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 44 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 43
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `6c599d7b-cb0f-454c-ab2e-ae950dad2a47`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6c599d7b-cb0f-454c-ab2e-ae950dad2a47.jsonl`
+- approx context at last assistant turn: 251190 tokens
+- tools used: Bash×83 Read×25 Edit×11 ToolSearch×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_sf.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "alloc-bnobt-snap\|PN-INSTR\|P-N-INSTR\|alloc.bnobt.snap" xfs/ pal/ dlm/ 2>/dev/null | head
+    cd /src/mxfs; grep -rn "pr_warn(\"mxfs:\|pr_warn(\"P\|pr_warn_ratelimited" xfs/libxfs/xfs_alloc.c xfs/libxfs/xfs_ialloc.c xfs/libxfs/xfs_dir2*.c xfs/libxfs/xfs_
+    cd /src/mxfs; for ln in 2955 3040 3076; do echo "=== line $ln ==="; sed -n "${ln},$((ln+8))p" xfs/libxfs/xfs_da_btree.c; done
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 90 bash tools/mxfs_sshpass.sh test1 "$P" '   umount /mnt/shared 2>/dev/null   for i in 1 2 3 4 5; do rmmod mxfs 2>/dev/
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 90 bash tools/mxfs_sshpass.sh test1 "$P" '   dmesg -C   HN=$(hostname); D=/mnt/shared/$HN/gated; rm -rf $D; mkdir -p $D
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 60 bash tools/mxfs_sshpass.sh test1 "$P" 'which perf 2>/dev/null && echo "perf OK" || echo "no perf"; cat /proc/sys/ker
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 90 bash tools/mxfs_sshpass.sh test1 "$P" '   HN=$(hostname); D=/mnt/shared/$HN/cpu; rm -rf $D; mkdir -p $D; sync   /usr
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 20 bash tools/mxfs_sshpass.sh test1 "$P" 'echo alive; pgrep -c rsync; ps aux|awk "\$8~/D/{print \$2,\$13,\$14,\$15}"|he
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 20 bash tools/mxfs_sshpass.sh test1 "$P" 'pkill -9 rsync 2>/dev/null; sleep 2; echo "rsync=$(pgrep -c rsync)"' 2>&1 | g
+    cd /src/mxfs; grep -n "i_dlm_mode\|i_dlm_state\|i_dlm_stale\|i_dlm_unpublished\|i_dlm_lock\|i_dlm_ex_holders\|i_dlm_pin" xfs/xfs_inode.h | head
+    cat > /src/mxfs/notes/sess43_deferred_publish_design.md << 'EOF' # Deferred-publish design (sess43, Gemini RULE-5 consult)  ## Problem rsync_paired: 4-node para
+    cd /src/mxfs; grep -n "m_mxfs_dlm\|m_mxfs_node_slot\|m_mxfs" xfs/xfs_mount.h | head
+    cd /src/mxfs; grep -rn "m_mxfs_ag_bast_wq =\|INIT_LIST_HEAD.*m_\|m_mxfs_node_slot =" xfs/*.c pal/linux/*.c | head
+    cd /src/mxfs; grep -n "xfs_icwalk\b\|xfs_icwalk(\|XFS_ICWALK\|enum xfs_icwalk_goal\|xfs_icwalk_get_perag\|struct xfs_icwalk" xfs/xfs_icache.c | head -20
+    cd /src/mxfs; grep -rn "XFS_ICI_RECLAIM_TAG\|XFS_ICI_BLOCKGC_TAG\|XFS_ICI_NO_TAG\|#define XFS_ICI" xfs/*.h xfs/*.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    sleep 45; cat /tmp/claude-1000/-src-mxfs/6c599d7b-cb0f-454c-ab2e-ae950dad2a47/tasks/b9ypc6hec.output 2>/dev/null | tail -5
+    cd /src/mxfs; until [ -s /tmp/claude-1000/-src-mxfs/6c599d7b-cb0f-454c-ab2e-ae950dad2a47/tasks/b9ypc6hec.output ] && ! pgrep -f "make.*modules" >/dev/null 2>&1;
+    cd /src/mxfs; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "exit0 from first build means: in-progress source compiles clean (added struct fields are unus
+
+## Last text from previous session
+
+me-safe design is a dedicated inode-cache radix tag for "unpublished", walked via the existing safe iterator. Let me look at the ICI tag infrastructure to add one.
+I've hit the relay boundary. Let me verify the in-progress changes still compile cleanly (I added struct fields but haven't wired the core logic yet), so the next session starts from a clean build.
+In-progress source compiles clean (exit 0, srcversion `72860BD2`). Criteria **not** met (rsync_paired still failing) — no marker written. Wrapping up here at the relay boundary.
+
+## Session summary
+
+**Goal:** `rsync_paired` is the sole failing criterion (11/12 PASS, incl. cache_coherency which is *already* fixed). Need 4-node parallel per-node rsync wall ≤ 1.2× single-node XFS (≤ ~5567ms); currently worst node ~28552ms (615%).
+
+**DECISIVE decomposition this session (RULE 4, measured on solo rsync with 4-node cluster up, peers idle = zero contention):**
+- multi-node solo rsync = **~20-21s** vs single-node mount **4.8s** → ~16s pure coordination overhead.
+- **INODE-LOCK CAW = ~8.5s** — exactly **9216 disk CAW round-trips** (one per new inode), ~900µs each. **THE dominant cost.** (Counter: `CAW-ILOCK` in `mxfs_dlm_ilock_begin` slow path.)
+- **AG-LOCK CAW = 0** — node-affine alloc works perfectly (P10 fresh-AG = 0). Not the problem.
+- **FUA reads <256** — prior sessions' FUA theory **REFUTED**.
+- **~6-8s gap still unisolated** (not inode CAW/AG CAW/FUA/printks).
+
+**Wins landed (build `7793F95D`, all compile clean):** gated two **unconditional hot-path diagnostic printks** that were never behind `mxfs.instr`: `P-SFADD` (xfs_dir2_sf.c:395 — did a disk `inode_ex_count` read per shortform-dir add) and `P33-INSTR alloc-bnobt-snap` (xfs_alloc.c:4028 — full bnobt cursor lookup per AG0 block alloc). Cleaned dmesg but **did NOT move wall** — they weren't the gap.
+
+**Dead ends (don't repeat):** broad "skip inode CAW" levers both fail — `inode_caw_local` (O(n²) mem_lock_track → rwsem wedge) and `inode_caw_skip` (inobt EFSCORRUPTED shutdown even solo; the inode CAW is load-bearing for local exclusion per Gemini). Also: unmounting peers does NOT make a node go single-node (membership fixed at mount).
+
+**Gemini RULE-5 consult done (saved to `notes/sess43_deferred_publish_design.md`):** deferred-publish design is sound. Grant brand-new (XFS_IGET_CREATE) inodes LOCALLY (i_dlm_mode=EX, no disk CAW), publish lazily only on a peer BAST for any directory inode OR AGI/AG lock (drain whole list before releasing). Recursive deferral safe (top-down discovery). In rsync_paired: zero such BASTs → never publish → near single-node speed. Plus LRU slot reclaim (unpublished inodes drop silently on eviction).
+
+**Implementation IN PROGRESS (compiles, NOT yet wired/functional — build `72860BD2`):**
+- Added `i_dlm_unpublished` + `i_dlm_unpub_link` to `struct xfs_inode` (xfs_inode.h); inited in `mxfs_dlm_inode_init`.
+- Added `m_mxfs_unpub_list` + `m_mxfs_unpub_lock` to `struct xfs_mount` (xfs_mount.h); inited in xfs_super.c.
+- **STILL TODO:** the lifetime-safe iteration design. Plain pointer-list has a UAF-vs-reclaim hazard; ino-list has a flag-clear/slot-leak hazard. Best path identified: **dedicated inode-cache radix tag walked via `xfs_icwalk`** (lifetime-safe, can clear flag) — was examining `XFS_ICI_*_TAG` infra (xfs_icache.c:41) when boundary hit. Then: create-grant fn at `xfs_icache.c:1090` (gate on `flags & XFS_IGET_CREATE`), publish-on-dir/AGI-BAST drain, evict handling. Then measure solo (expect ~8.5s drop IF gap is partly in the slow path too), then 4-node bench, then **re-verify cache_coherency (high regression risk)**.
+
+**Cluster state:** fresh-reset 4-node on build `2174139` (test1 was on `7793F95D`); device healthy. Reset via `MKFS_OPTS=-f bash tests/reset4.sh 4`; reboot wedged node via `LIBVIRT_DEFAULT_URI=qemu:///system virsh destroy/start testN`. The ~6-8s gap still needs a falsifiable hypothesis (Gemini suggests: multi-node synchronous log forces, or non-FUA buffer-read spikes via blktrace).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

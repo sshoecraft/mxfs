@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `08052b73-0471-4da6-afcc-ccaf4117284e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/08052b73-0471-4da6-afcc-ccaf4117284e.jsonl`
+- approx context at last assistant turn: 501217 tokens
+- tools used: Bash×113 Read×41 Edit×35 mcp__ccmemory__memory_get×12 mcp__ccmemory__memory_write×5 Write×2 ToolSearch×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/repro_cc_stale.sh
+- /src/mxfs/tests/suite/crash_consistency.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/include/mxfs/mxfs_dlm.h
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/mount.c
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/tests/tcp/measure_clean_rate.sh
+- /src/mxfs/.claude/awareness/subsystems/dlm.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; ls .claude/awareness/subsystems/ 2>/dev/null; echo "=== dlm.md tail (history) ==="; tail -20 .claude/awareness/subsystems/dlm.md 2>/dev/null
+    cd /src/mxfs; echo "=== clean_rate progress ==="; cat /src/mxfs/.testlogs/clean_rate.log 2>/dev/null | grep -E 'ITER|CLEAN|FAIL\(s\)|RESULT|it[0-9]:.*FAIL'; ech
+    cd /src/mxfs; until grep -q 'RESULT:' /src/mxfs/.testlogs/clean_rate.log 2>/dev/null; do sleep 30; done; echo "=== MEASUREMENT COMPLETE ==="; grep -E 'it[0-9]:.
+    cd /src/mxfs; grep -E 'ITER|it[0-9]:.*FAIL |CLEAN 16|FAIL\(s\)|RESULT:' /src/mxfs/.testlogs/clean_rate.log | grep -vE '^=====|reboot|run suite'
+    cd /src/mxfs; cat /src/mxfs/.testlogs/clean_rate.log 2>/dev/null | grep -E 'ITER [0-9]:|CLEAN 16|FAIL\(s\)|RESULT'; echo "=== running? ==="; pgrep -f measure_cl
+    cd /src/mxfs; until ! pgrep -f measure_clean_rate >/dev/null 2>&1; do sleep 30; done; echo "=== FINAL ==="; cat /src/mxfs/.testlogs/clean_rate.log 2>/dev/null |
+    cd /src/mxfs; cat /src/mxfs/.testlogs/clean_rate.log 2>/dev/null | grep -E 'ITER [0-9]:|it[0-9]:.*FAIL |CLEAN 16|: [0-9]+ FAIL|RESULT'; echo "running=$(pgrep -f
+    cd /src/mxfs; until ! pgrep -f measure_clean_rate >/dev/null 2>&1; do sleep 30; done 2>/dev/null; tail -4 /src/mxfs/.testlogs/clean_rate.log | grep -E 'it4|ITER
+    cd /src/mxfs; grep -E 'ITER [0-9]:|CLEAN 16|: [0-9]+ FAIL|RESULT' /src/mxfs/.testlogs/clean_rate.log | grep -vE 'reboot|run suite'; echo "running=$(pgrep -f mea
+    cd /src/mxfs; pkill -f measure_clean_rate 2>/dev/null; sleep 1; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh; for n in test1 test2; do echo -n "$n: "; timeout 15 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh; for n in test1 test2; do echo -n "$n: "; timeout 15 bash "$S" "$n" "$P" "cat /sys/module/mxfs/srcversi
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]' | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; nohup bash tests/tcp/measure_clean_rate.sh 4 > /src/mxfs/.testlogs/clean_rate_1000.log 2>&1 & echo "launched 1000ms clean-rate measurement (4 iter
+    cd /src/mxfs; sleep 2; cat /src/mxfs/.testlogs/clean_rate_1000.log 2>/dev/null | grep -E 'ITER [0-9]:|CLEAN 16|: [0-9]+ FAIL|RESULT|it[0-9]:.*FAIL'; echo "runni
+    cd /src/mxfs; until ! pgrep -f measure_clean_rate >/dev/null 2>&1; do sleep 45; done 2>/dev/null; echo "=== 1000ms RESULT ==="; grep -E 'ITER [0-9]:|CLEAN 16|: 
+    cd /src/mxfs; grep -E 'ITER [0-9]:|CLEAN 16|: [0-9]+ FAIL|RESULT|it[0-9]:.*FAIL' /src/mxfs/.testlogs/clean_rate_1000.log | grep -vE 'reboot|run suite'; echo "ru
+    cd /src/mxfs; until grep -q 'RESULT:' /src/mxfs/.testlogs/clean_rate_1000.log 2>/dev/null; do sleep 45; done 2>/dev/null; grep -E 'ITER [0-9]:|CLEAN 16|: [0-9]+
+    cd /src/mxfs; grep -E 'ITER [0-9]:|CLEAN 16|: [0-9]+ FAIL|RESULT|it[0-9]:.*FAIL' /src/mxfs/.testlogs/clean_rate_1000.log | grep -vE 'reboot|run suite'; echo "ru
+    cd /src/mxfs; pkill -f measure_clean_rate 2>/dev/null; pkill -f 'run.sh 2 tcp' 2>/dev/null; sleep 2; echo "stopped measurement"
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]' | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+nly fails on drain-coherency now). I keep hitting contradictions reasoning about the mechanism, so per RULE 4 I'll instrument to pin it. Let me verify the cluster is healthy first.
+Cluster healthy on 404BC55C. The residual all traces to the 2s heartbeat DIR_MODIFY latency; the 4× (500ms) reduction wedged due to FUA-write load. Let me try a gentler **2×** reduction (1000ms, thresholds scaled 2× to keep fence/recovery windows constant) — half the I/O increase, half the notification latency — and measure with reboots between runs.
+Build clean — `BEA13E27` (1000ms). Let me measure the clean rate with reboots between runs (validates stability + improvement).
+The 1000ms measurement is running (~25 min). Let me monitor its progress periodically.
+Let me wait for the 1000ms measurement to complete (I must not rebuild while it runs, since it reinstalls the module each iter).
+No wedge at 1000ms (stable). iter1 1-fail, iter2 clean. Let me wait for all 4 iters.
+I've reached the relay boundary. Let me check the final 1000ms result and ensure the cluster/build is in a good state before wrapping up.
+The 1000ms heartbeat reduction did NOT meaningfully improve the clean rate (~1/3 clean, same flaky family) — so it adds risk without benefit. Let me revert to the clean baseline `404BC55C` (both real fixes) so the next session starts from the best minimal build. First stop the measurement, then revert and rebuild.
+Back to the clean baseline `404BC55C`. Let me record the 1000ms finding and wrap up.
+## Session summary
+
+**Criterion: "2 node dlm=tcp test 100% successful" — NOT yet reliably met, but major verified progress.** The prior 5 sessions were stuck at 15/16 on the TCP DLM double-grant. This session diagnosed the actual blockers from scratch and landed two real fixes.
+
+**What I fixed (build `404BC55C`, both verified):**
+
+1. **crash_consistency** (was reliably failing in-suite): root was `mxfs_dir_evict_data_blocks` (the reader/consumer-refresh path) using a coarse `XFS_LI_IN_AIL`→skip, leaving a destaged-but-lingering-in-AIL dir block stale. Fixed with the proven `mxfs_dir_buf_is_undestaged` discriminator (the same fix sess101/sess133 applied to sibling paths but missed here). Verified via instrumented forensics (`stat`→ENOENT on a peer's just-created `.md5` dirents).
+
+2. **TCP DLM double-grant** (the prior sessions' sole focus, ~50% flaky): implemented a **grant-generation token protocol** — `process_remote_request` now always re-affirms a holder's grant (never remove+promotes a waiter, which was the proven double-grant); `process_remote_release` ignores stale-gen releases (keeps Bug-51 fixed); the client rejects unsolicited grants (avoids phantom-EX hang). The double-grant signature (durable-wrong-content) is **gone** — verified across multiple full runs.
+
+**Result:** achieved multiple clean **16/16** `./run.sh 2 tcp` runs (recorded in criteria.json). But the per-run clean rate is only ~25-33%.
+
+**Remaining blocker (precisely diagnosed):** an intermittent **shared-directory readdir-staleness** (`shared dir drained exp=0 got=1`; cross_visibility misses) hitting crash_consistency / dlm_fairness / tcp_dlm_scaling-drain. Root: dir DATA-block coherency (`i_dlm_dir_gen`) is decoupled from the inode DLM lock and advances only via the 2s heartbeat DIR_MODIFY notification or a slow-path inode reacquire. I tried reducing the heartbeat interval: **500ms wedged the cluster** (FUA-write load under churn), **1000ms was stable but didn't help** (~1/3 clean) — both reverted. The real fix needs instrumentation (RULE 4) to resolve a reasoning contradiction (a PR-holding reader "should" be coherent yet readdir is stale), then a read-only-safe forced dir-block refresh scoped to avoid hot-path cost.
+
+All findings, the safe-fix direction, and fallback builds (404BC55C / 1ED7A5FD / 30D3C28E) are recorded in ccmemory. Cluster is healthy; local build is the clean `404BC55C` baseline. I have **not** written the criteria-met marker — the suite is not yet reliably 100%.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6ab2bfb8-15ff-4de2-8458-fcd8218ecd36/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6ab2bfb8-15ff-4de2-8458-fcd8218ecd36, after session 10
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `e9e10da0-ffe3-4913-9f23-fa8640416bc6`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e9e10da0-ffe3-4913-9f23-fa8640416bc6.jsonl`
+- approx context at last assistant turn: 844035 tokens
+- tools used: Bash×325 Read×41 Edit×38 Write×7 AskUserQuestion×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_iops.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/tests/cwr_repro.sh
+- /src/mxfs/tests/dur_probe.sh
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/cwr_probe2.sh
+- /src/mxfs/state.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess45_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/rv_probe.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat /tmp/corrupt_dump2.txt 2>/dev/null; echo "==="; grep -q CZ2DONE /tmp/corrupt_dump2.txt 2>/dev/null && echo DONE || echo "(running)"
+    cat /tmp/corrupt_dump2.txt 2>/dev/null; echo "==="; grep -q CZ2DONE /tmp/corrupt_dump2.txt 2>/dev/null && echo DONE || echo "(running)"
+    cd /src/mxfs; echo "run age:"; ps -o etime= -C run_tests.sh 2>/dev/null|head -1; echo "loop alive:"; pgrep -f corrupt_dump2 >/dev/null && echo yes || (pgrep -f 
+    cd /src/mxfs; grep -q CZ2DONE /tmp/corrupt_dump2.txt 2>/dev/null && { echo "=== DUMP READY ==="; cat /tmp/corrupt_dump2.txt; } || { echo "=== dump still running
+    cat /tmp/corrupt_dump2.txt 2>/dev/null; echo "==="; grep -q CZ2DONE /tmp/corrupt_dump2.txt 2>/dev/null && echo DONE || echo "(running)"
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess45_lessons.md <<'EOF'  ## ⭐ sess45 CONFIRMED (data): 4-node cwr dominant failure = STALE-
+    cd /src/mxfs; pkill -f corrupt_dump2 2>/dev/null; pkill -f run_tests.sh 2>/dev/null; sleep 2; nohup bash -c ' cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TEST
+    cd /src/mxfs; ls -la /tmp/stale_probe.txt 2>/dev/null; pgrep -f 'reset4|run_tests|stale' >/dev/null && echo "active" || echo "not active — relaunching"; if ! pg
+    cat /tmp/stale_probe.txt 2>/dev/null; echo "==="; grep -q SPDONE /tmp/stale_probe.txt 2>/dev/null && echo DONE || echo "(running)"
+    cd /src/mxfs; until grep -q SPDONE /tmp/stale_probe.txt 2>/dev/null; do sleep 30; done; cat /tmp/stale_probe.txt
+    cat /tmp/stale_probe.txt 2>/dev/null; echo "==="; grep -q SPDONE /tmp/stale_probe.txt 2>/dev/null && echo DONE || echo "(running)"
+    cat /tmp/stale_probe.txt 2>/dev/null; echo "==="; grep -q SPDONE /tmp/stale_probe.txt 2>/dev/null && echo DONE || echo "(running)"
+    cat /tmp/stale_probe.txt 2>/dev/null; grep -q SPDONE /tmp/stale_probe.txt 2>/dev/null && echo DONE || echo "(running)"; ps -o etime= -C run_tests.sh 2>/dev/null
+    cd /src/mxfs; echo "loop procs:"; pgrep -af 'stale|reset4|bash -c' 2>/dev/null | grep -iE 'reset4|stale|run_tests|sp[0-9]' | head; echo "reset log:"; tail -2 /t
+    cd /src/mxfs; pkill -f 'grep -q SPDONE' 2>/dev/null; pkill -f 'grep -E .\^r' 2>/dev/null; for n in test1 test2 test3 test4; do timeout 25 tools/mxfs_sshpass.sh 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 25 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "umount -l /mnt/shared 2>/dev/null; rmmod mxfs 2>/dev/nul
+    cd /src/mxfs; rm -f /tmp/sp2.txt; for n in test1 test2 test3 test4; do timeout 12 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo 1 >/sys/module/mxfs/parameters/
+    cd /src/mxfs; until grep -q SP2DONE /tmp/sp2.txt 2>/dev/null; do sleep 30; done; cat /tmp/sp2.txt
+    cat /tmp/sp2.txt 2>/dev/null; echo "==="; grep -q SP2DONE /tmp/sp2.txt 2>/dev/null && echo DONE || echo "(running)"
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess45_lessons.md <<'EOF'  ## ⭐⭐⭐ sess45 DECISIVE (P98/P99 data): disk_di_size=0 EVERYWHERE →
+
+## Last text from previous session
+
+cross multiple prior sessions → grew test1–4 roots to 26G.
+- **Fixed the di_size=0 facet** (atime-on-read EX clobber → atime-skip + node-affine inode allocation + getattr DLM reload + cheap d_revalidate) → **2-node cache_coherency 5/5** (was total corruption/shutdown).
+- **Data-confirmed the 4-node diagnosis:** dominant failure is **stale-read** (3/3 runs; di_size/content/own-node-sidecar empty); verify-corruption rare (0/3).
+- **Three fix approaches tested and honestly ruled out** (lookup-retry; in-place inode-reuse reload — deadlocked; surgical per-inode write — partial/slow), all reverted/gated-OFF; stable build intact.
+
+**Honest answer to the user:** di_size facet and 2-node genuinely fixed; inode-cluster coherency at scale **not** solved, but a huge confound removed, three approaches ruled out, the 4-node failure data-confirmed as dominantly stale-read, and the decisive next instrument (P98/P99 in-core-vs-disk di_size at the failing read) now capturing.
+
+**Stable head `F6C9DAAC`** (deployed `5ED458EB` ≡ it, param OFF). Cluster clean, 4 nodes mounted.
+
+**Criteria not met — marker not written.** All findings, the data-confirmed reprioritization, the three ruled-out approaches, fix options (force-reload-on-read for grant-less cache hits vs small-file write durability), and the in-flight P98/P99 capture (`/tmp/sp2.txt`, `SP2DONE`) are in `state.md`/`sess45_lessons.md`. The relay continues from a clean cluster with the dominant failure proven and the decisive measurement landing.
+Criteria not met — continuing. Let me check the P98/P99 capture (the decisive in-core-vs-disk fork):
+**DECISIVE — the fork is resolved.** Across all 4 nodes, every failing read shows **`incore_size=0` AND `disk_di_size=0`** (both zero). Per the detector's own legend: **`disk==0 => writer not durable`**. So the on-disk di_size is genuinely 0 when read — this is the **WRITE side** (writer's value not on the platter / clobbered to 0), **NOT** read-cache staleness. This sharpens the direction decisively. Let me record it:
+Recorded a decisive, fork-resolving result. Context at 84% — closing this session.
+
+## Session close — honest accounting
+
+**Real, verified progress this session:**
+- **Removed a major false signal:** test VM root disks were full from my own instrumentation log spam, faking "FS corruption" across multiple prior sessions → grew test1–4 roots to 26G.
+- **Fixed the di_size=0 facet** (atime-on-read EX clobber → atime-skip + node-affine inode allocation + getattr DLM reload + cheap d_revalidate) → **2-node cache_coherency 5/5**.
+- **Data-confirmed the 4-node diagnosis AND resolved the read-vs-write fork:** P98/P99 across all 4 nodes show `disk_di_size=0` uniformly → it's the **WRITE side** (writer's value not durable on the platter / clobbered to 0), **not** read-cache staleness. This redirects the relay away from read-side reload fixes (which can't help when disk itself is 0) toward inode-cluster write coherency / durable-before-visible on flush+release.
+- **Three fix approaches tested and honestly ruled out** (lookup-retry; in-place inode-reuse reload — deadlocked; surgical per-inode write — partial/slow), all reverted/gated-OFF.
+
+**Honest answer to the user:** di_size facet and 2-node genuinely fixed; coherency at scale **not** solved — but a huge confound removed, three approaches ruled out, and the 4-node failure now **definitively localized to the write side** (disk di_size=0), with a concrete next instrument and fix direction.
+
+**Stable head `F6C9DAAC`** (deployed `5ED458EB` ≡ it, param OFF). Cluster clean, 4 nodes mounted.
+
+**Criteria not met — marker not written.** All findings, the decisive disk=0/write-side result, the three ruled-out approaches, and the next instrument (log at `xfs_iflush` why a node's in-core di_size is 0 for a file it wrote → symmetric anti-clobber guard or fix the in-core-zeroing reload) are in `state.md`/`sess45_lessons.md`. The relay continues from a clean cluster with the cause definitively on the write side.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,12 @@
+{
+  "source": [
+    "scripts/matrix_check.py",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md",
+    ".claude/awareness/subsystems/tests.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

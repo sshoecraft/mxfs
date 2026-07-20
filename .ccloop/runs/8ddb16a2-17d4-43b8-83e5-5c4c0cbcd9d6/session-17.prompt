@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 17 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 16
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `d579b2f5-3d37-47bf-96f8-fbb2e5676bd3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d579b2f5-3d37-47bf-96f8-fbb2e5676bd3.jsonl`
+- approx context at last assistant turn: 501420 tokens
+- tools used: Bash×101 Read×54 Edit×19 mcp__ccmemory__memory_write×15 ToolSearch×5 mcp__ccmemory__memory_get×4 TaskStop×2 mcp__ccteam__claim×2 TaskList×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/cc_blockdir_probe.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "probe 30 iters (foreground, capped 280s)..."; timeout 280 bash tests/cc_blockdir_probe.sh 30 50 2>&1 | grep -E '^iter [0-9]+: test1|SHORT|te
+    cd /src/mxfs; for n in test1 test2; do echo "##### $n ino=131 #####"; timeout 14 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "SHRINK-REFUSE fired: $(dme
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MXFS_EXTRA_MODARGS='dirwr=1' timeout 200 ./run.sh 2 tcp __noop__ 2>&1 | tail -2; ok=1; for n in test1 test2; do v=$(timeout 10 bash tools/mxfs_ssh
+    cd /src/mxfs; for n in test1 test2; do printf "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /sys/module/mxfs/srcversion; mount | grep -o
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MXFS_EXTRA_MODARGS='dirwr=1' timeout 200 ./run.sh 2 tcp __noop__ 2>&1 | tail -1; ok=1; for n in test1 test2; do v=$(timeout 10 bash tools/mxfs_ssh
+    cd /src/mxfs; for n in test1 test2; do echo "##### $n: P62 shrink=1 (ino=131) with gens #####"; timeout 14 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg 
+    find /tmp/claude-1000/-src-mxfs/d579b2f5-3d37-47bf-96f8-fbb2e5676bd3/tasks -maxdepth 1 -name '*.output' -delete 2>/dev/null; true
+    cd /src/mxfs; grep -rn 'DINO-WR\|DINODE.*write\|di_gen\|dinode.*flush\|P36-DINO\|XFS_DINODE_MAGIC' pal/linux/xfs_buf.c | head -15; echo "=== inode write/iflush 
+    cd /src/mxfs; for n in test1 test2; do echo "##### $n: P36-DINO-WR ino=131 (fmt transitions) #####"; timeout 14 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'd
+    cd /src/mxfs; for n in test1 test2; do echo "##### $n: P35E data-block writes ino=131 iter (daddr: nent progression) #####"; timeout 14 bash tools/mxfs_sshpass.
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MXFS_EXTRA_MODARGS='dirwr=1' timeout 200 ./run.sh 2 tcp __noop__ 2>&1 | tail -1; ok=1; for n in test1 test2; do v=$(timeout 10 bash tools/mxfs_ssh
+    cd /src/mxfs; echo "probe (foreground, capped)..."; timeout 280 bash tests/cc_blockdir_probe.sh 30 50 2>&1 | grep -E '^iter [0-9]+: test1|SHORT|test2 sees|event
+    cd /src/mxfs; for n in test1 test2; do echo "##### $n: P-EVICT-SKIP ino=131 (seq provenance) #####"; timeout 14 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'd
+    cd /src/mxfs; for n in test1 test2; do echo "##### $n: P16-RELEASE-UNDESTAGED ino=131 (at EX release) #####"; timeout 14 bash tools/mxfs_sshpass.sh $n /tmp/.mxf
+    find /tmp/claude-1000/-src-mxfs/d579b2f5-3d37-47bf-96f8-fbb2e5676bd3/tasks -maxdepth 1 -name '*.output' -delete 2>/dev/null; true
+    cd /src/mxfs; grep -rn 'xfs_buf_item_done\|xfs_buf_inode_iodone\|xfs_trans_ail_delete\|buf_item.*ail\|->b_li_list' xfs/xfs_buf_item.c 2>/dev/null | head -20; ec
+
+## Last text from previous session
+
+ation cycle can proceed.
+Criterion not met — continuing with a refined hypothesis. Given the proven facts (release is durable+consistent; entries vanish from the LUN; both nodes lose), the only way an entry leaves a durable LUN is an **async xfsaild write of a stale buffer image AFTER a release made the LUN correct**. The recurring anomaly `li_empty=1 + in_ail=1 + bip≠NULL` (BLI off the buffer's list but still in the AIL) suggests a dir block's BLI **lingers in the AIL after the release fence wrote it**, and xfsaild later re-flushes the now-stale image over the peer's newer durable write. This is testable: catch an xfsaild write of a current-iter block with content missing entries a prior release-write had. Let me record this and instrument xfsaild dir writes.
+Now let me actually test/investigate the hypothesis via code reading (no build cycle) — the crux is the `li_empty=1 + in_ail=1` anomaly: why does a dir block's BLI linger in the AIL after its buffer write completes? Let me examine the buffer-write completion / AIL-retirement path.
+There's already an `mxfs_buf_xfsaild_skip_bmbt_write` guard that **skips xfsaild writes** for bmbt buffers (line 1715) — exactly the lever for the re-flush hypothesis if it applies to dir buffers. Let me examine it.
+I've hit the ccloop relay boundary. One crucial discovery right at the end that I must record: there's an **existing** `mxfs_buf_xfsaild_skip_bmbt_write` guard (sess61, `P61-CHOKEPOINT-SKIP-BMBT`) that **skips a stale xfsaild write at bio-submit when the dir's per-inode grant was released (EX→NL)** — but **only for bmbt-leaf buffers**, not dir DATA/leaf-dirent blocks. That's exactly the lever for my re-flush hypothesis. Let me record this sharp lead, then wrap up.
+## Session 16 wrap-up (relay boundary reached)
+
+**Criterion NOT met** — `./run.sh 2 tcp` = 15/16, `crash_consistency` the sole blocker. Marker correctly unwritten. Cluster healthy on `895603D7` (15/16 baseline + gated diagnostics only; functional fallback `17DCD050`).
+
+This session converted a long-standing flaky failure into a **precisely characterized root cause** through sustained instrumented investigation:
+
+**Proven:**
+- The durable dirent loss is a **same-incarnation concurrent-create lost-update** on a shared dir (dinode resolves correctly to block format; the gen-differ-by-1 was a correct inode-reuse incarnation switch — a red herring).
+- **The release fence is durable** (P16-RELEASE-UNDESTAGED: every dir block `undest=0, wseq==lseq` at every EX release) — so the loss is **not** a handoff durability gap. This refuted the GPT-demote-drain-is-primary direction.
+- By deduction (LUN consistent at every release, yet entries vanish): the dropper is an **async xfsaild write of a stale dir-block image after a peer's release made the LUN correct** — corroborated by the recurring `li_empty=1 + in_ail=1` lingering-BLI anomaly.
+
+**Eliminated with evidence (don't retry):** read-side in-AIL discard (CRC corruption), sf→block upgrade-adoption (corrupts non-durable data block), FASTEX shrink-refuse (0× fire), release-drain-gap.
+
+**Sharp fix lead (final discovery):** an existing guard `mxfs_buf_xfsaild_skip_bmbt_write` (sess61, `P61-CHOKEPOINT-SKIP-BMBT`) already suppresses a stale xfsaild write at bio-submit when a dir's grant is NL-released — but **only for bmbt-leaf buffers**. The fix is almost certainly to **extend that chokepoint-skip to dir DATA/leaf-dirent blocks** (`xfs_dir3_data/block/leaf1/leafn_buf_ops`): instrument to confirm an NL-released dir-block xfsaild write drops entries vs the durable LUN, then suppress it (owner ino from the dir3 block header → check `i_dlm_mode`).
+
+Everything is recorded in cross-linked memories (`sess16-FIX-LEAD-extend-chokepoint-skip-to-dir-dirent-blocks` is the top next-step, plus `sess16-HEAD-status`, `-REFUTES-release-drain-gap`, `-NEXT-xfsaild-reflush`, `-DECISIVE-gen-differs-by-one`, and the refuted-attempt notes). The next session can proceed directly to that instrument-then-fix cycle.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

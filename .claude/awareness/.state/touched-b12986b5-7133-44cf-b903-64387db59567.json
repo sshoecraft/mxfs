@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_dir2_data.c",
+    "xfs/libxfs/xfs_dir2_node.c"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

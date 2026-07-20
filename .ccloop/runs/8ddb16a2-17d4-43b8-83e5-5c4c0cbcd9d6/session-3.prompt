@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `1b3cde67-32e0-444c-875a-3724d153d3cf`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf.jsonl`
+- approx context at last assistant turn: 499842 tokens
+- tools used: Bash×191 Read×61 Edit×12 mcp__ccmemory__memory_write×11 Write×7 mcp__ccmemory__memory_get×5 ToolSearch×4 TaskStop×2 mcp__ccmemory__memory_search×2 AskUserQuestion×1 TaskList×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/setup/reset2_tcp.sh
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/tests/setup/bartest.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/pal/linux/xfs_iops.c
+- /src/mxfs/tests/suite/strong_consistency.sh
+- /src/mxfs/tests/suite/zero_silent_loss.sh
+- /src/mxfs/tests/suite/posix_multi.sh
+- /src/mxfs/tests/suite/mmap_coherency.sh
+- /src/mxfs/tests/suite/dlm_fairness.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== concurrent_touch tail ==="; sed -n '50,90p' tests/cluster/test_concurrent_touch.sh 2>/dev/null; echo "=== any mmap test? ==="; grep -rln
+    cd /src/mxfs; chmod +x tests/suite/{zero_silent_loss,posix_multi,mmap_coherency,dlm_fairness}.sh # verify python3 + mmap available on a node first bash tools/mx
+    until grep -qE 'done:' /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/b2k8xof31.output 2>/dev/null; do sleep 12; done; cat /tmp/claude-10
+    cd /src/mxfs; for t in zero_silent_loss posix_multi mmap_coherency dlm_fairness; do echo -n "$t: "; jq -r --arg t "$t" '.categories[].tests[]|select(.name==$t)|
+    cd /src/mxfs; for t in zero_silent_loss posix_multi mmap_coherency dlm_fairness; do echo -n "$t: "; jq -r --arg t "$t" '.categories[].tests[]|select(.name==$t)|
+    for i in $(seq 1 40); do grep -q 'done:' /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/b2k8xof31.output 2>/dev/null && break; sleep 6; d
+    cd /src/mxfs; for t in zero_silent_loss posix_multi mmap_coherency dlm_fairness; do echo "=== $t ==="; jq -r --arg t "$t" '.categories[].tests[]|select(.name==$
+    cd /src/mxfs; COORD_TIMEOUT=40 TEST_TIMEOUT=120 ./run.sh 2 tcp strong_consistency zero_silent_loss posix_multi mmap_coherency dlm_fairness 2>&1 | grep -E 'PASS|
+    cd /src/mxfs; echo "=== does coord_barrier publish BEFORE polling? (skew handling) ==="; sed -n '/^coord_barrier/,/^}/p' tests/suite/coord.sh; echo "=== COORD_P
+    until grep -q 'done:' /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/bjbgaisw1.output 2>/dev/null; do sleep 12; done; cat /tmp/claude-100
+    cd /src/mxfs; for t in strong_consistency zero_silent_loss posix_multi mmap_coherency dlm_fairness; do echo -n "$t: "; jq -r --arg t "$t" '.categories[].tests[]
+    for i in $(seq 1 45); do grep -q 'done:' /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/bjbgaisw1.output 2>/dev/null && break; sleep 6; d
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh bash $S test1 $P "rm -rf /mnt/shared/.posix_multi; sync" >/dev/null 2>&1 PFX="mxfs/coord/pmcatch_$$"; t
+    until grep -q 'captured mxfs stall' /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/bxq1g6pq4.output 2>/dev/null; do sleep 12; done; cat /
+    cat /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/bxq1g6pq4.output; echo "=== distinct stall lines ==="; grep -vE '^\[.*\] $' /src/mxfs/
+    cd /src/mxfs/.testlogs; for n in test1 test2; do echo "===== $n ====="; grep -E 'TIMEOUT|RESULT' pmc_$n.out 2>/dev/null; echo "[reason tail:]"; grep -oE 'reason
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh for n in test1 test2; do echo "=== $n: count node*_file* (3 reads) ==="; timeout 15 bash $S $n $P "for 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh bash $S test1 $P "rm -rf /mnt/shared/.dirdiv; mkdir -p /mnt/shared/.dirdiv; sync; dmesg -C" >/dev/null 
+    until grep -q 'DLM bast' /tmp/claude-1000/-src-mxfs/1b3cde67-32e0-444c-875a-3724d153d3cf/tasks/bpm41p8dz.output 2>/dev/null; do sleep 8; done; cat /tmp/claude-1
+    cd /src/mxfs; grep -rn 'mxfs_dlm_dir_modify_refresh' xfs/*.c | head; echo "=== def ==="; awk '/^(void|int|static).*mxfs_dlm_dir_modify_refresh\(/{f=1} f{print N
+
+## Last text from previous session
+
+e directory at volume. Let me record this refined diagnosis.
+This is a reproducible bug (unlike the flaky barrier). Let me probe it directly: does the short readdir self-heal on a second read (one-shot staleness) or stay stale (lock not re-acquired)? The `.posix_multi` dir from the failed run still exists.
+**Decisive finding:** both nodes *persistently* see only their own 100 files (and only their own renamed file) — stable across repeated reads, minutes later. This is **not** read-staleness that self-heals; it's a **durable directory lost-update**: when both nodes concurrently inserted 100 dirents into the same directory, each committed its 100 onto a stale base, clobbering the other's — the on-disk dir never became the union. This is the pre-existing concurrent-same-directory coherency bug (my fixes didn't touch the dir-insert path), now cleanly reproduced on TCP. Let me correct the diagnosis in memory.
+Now let me pinpoint the mechanism — is the dir-inode DLM lock actually handing off (BAST) between nodes during concurrent inserts, or are both caching "EX" and diverging? Let me run a minimal concurrent-dir repro and capture DLM BAST activity.
+Key refinement: **10 files/node → both see 20 (converges!)**, with a `P62-RELOAD` showing the dir reloaded (shortform→block format). So the lost-update only happens at **higher volume (multi-block directories)** — the reload-on-acquire / drain-on-release covers shortform/single-block dirs but **not all data blocks of a multi-block (block/leaf-format) directory**. Let me look at the dir-modify refresh to find the gap.
+I've hit the relay boundary. Let me save the final refinement (the multi-block threshold + candidate fix location) and wrap up.
+I've reached the relay boundary. Criteria are **not** met, so I'm not writing the marker. Here's the summary of this session.
+
+## Summary
+
+**Starting point:** the deployed module crashed the kernel on *every* basic 2-node create (`do_open` NULL-deref). Now: basic 2-node TCP create/read works in both directions, and `cache_coherency` can pass 201/201 checks.
+
+**5 real MXFS code bugs fixed (build `B77AD901`, all KEEP — none were infra):**
+1. **DLM NOQUEUE-deny** returned the positive enum `MXFS_ERR_DEADLOCK`(=1) where the kernel expected `-EAGAIN` → crashed every joiner's first create. (`dlm/dlm.c`)
+2. **SCSI FUA reads rejected** by the LIO/tcm_loop target (ILLEGAL REQUEST) with no fallback → EFSCORRUPTED on cross-node reads. Added a plain-bio fallback + mount-time probe. (`pal/linux/kern.c`, `xfs_super.c`)
+3. **Reader verify-fail** (`-EFSCORRUPTED`) bypassed sess127's coordinated creator-flush. (`xfs/xfs_icache.c`)
+4. **atime-on-read took a cluster DLM EX lock** → deadlock under concurrent reads. (`pal/linux/xfs_iops.c`)
+5. Reverted a destabilizing diagnostic busy-spin ILOCK hack. (`xfs/xfs_inode.c`)
+
+**On your point about the suite:** you were right — most multi-node tests weren't missing, just never wired into the new `tests/suite/` harness. I ported **5** from the months-old `tests/cluster/` scripts using the agnostic+coord recipe: `strong_consistency`, `zero_silent_loss`, `posix_multi`, `mmap_coherency`, `dlm_fairness`. `strong_consistency` and `zero_silent_loss` reliably **PASS 2/2**.
+
+**The remaining blocker, sharply diagnosed:** a **durable concurrent-same-directory lost-update** that only triggers on **multi-block directories**. Proven: 10 files/node concurrent → both nodes converge to 20; 100 files/node → each node permanently sees only its own 100 (durable divergence, not read-staleness). The dir reload-on-acquire/drain-on-release covers shortform/single-block dirs but not all data blocks of a block-format dir. Candidate fix site: `mxfs_dlm_dir_modify_refresh` (`xfs/xfs_mxfs_dlm.c:1981`). This is the same core coherency bug that's plagued the project — now cleanly reproducible on TCP, confirming it's MXFS code, not the storage stack.
+
+Everything (fixes, ported tests, repro steps, candidate fix location) is in ccmemory for the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

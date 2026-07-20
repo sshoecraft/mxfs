@@ -1,0 +1,6 @@
+Warning: Permanently added 'test1' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+RESULT: FAIL | test=posix_multi | nodes=2 | measured=checks=211 passed=208 failed=3 | reason=pm total count(exp=200 got=100) pm all names unique(exp=200 got=100) pm r1 sees node2 renamed content(exp=posix_2 got=)

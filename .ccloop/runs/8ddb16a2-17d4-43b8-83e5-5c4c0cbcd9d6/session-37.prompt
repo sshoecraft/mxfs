@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 37 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 36
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b507956c-1293-4920-8aca-cb64d3e1c803`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b507956c-1293-4920-8aca-cb64d3e1c803.jsonl`
+- approx context at last assistant turn: 505422 tokens
+- tools used: Bash×69 Read×31 Edit×5 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_cap2.sh
+- /src/mxfs/tests/drc_analyze.py
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/include/mxfs/mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you'
+    cd /src/mxfs/tests; tail -n +2950 _cap/test1.log > /tmp/t1.log; tail -n +2163 _cap/test2.log > /tmp/t2.log echo "=== stall dur + correctness ===" for f in /tmp/
+    cd /src/mxfs; echo "=== 6000 / 5993 / 6s timeouts in dlm + xfs ==="; grep -rnE "6000|= *6 *\*|wait.*60|HZ *\* *6|msecs.*6000|ACQUIRE_WAIT|WAIT_TIMEOUT|wait_even
+    cd /src/mxfs; grep -n "MXFS_EXTRA_MODARGS" run.sh tests/setup/prep_node.sh | head; echo "--- confirm param is writable runtime + settable at insmod ---"; grep -
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|
+    cd /src/mxfs/tests; tail -n +3103 _cap/test1.log > /tmp/t1.log; tail -n +1956 _cap/test2.log > /tmp/t2.log echo "=== stalls + correctness (MHT=300) ===" for f i
+    cd /src/mxfs/tests;  echo "=== drc-FAIL / RDMISS lines (both nodes) ===" grep -hE "mxfs-drc-FAIL|mxfs-drc-RDMISS" /tmp/t1.log /tmp/t2.log | sed -E 's/^\[[0-9. ]
+    cd /src/mxfs/tests;  echo "=== round 15 create window (both nodes) ===" grep "DRCph r=15 rank=" /tmp/t1.log /tmp/t2.log | grep -E "create-start|create-done|veri
+    cd /src/mxfs; echo "=== i_dlm_dir_gen bump sites ==="; grep -n "i_dlm_dir_gen" xfs/xfs_mxfs_dlm.c | head echo "=== dir-data invalidation / drain helpers ==="; g
+    cd /src/mxfs; echo "=== i_dlm_dir_gen ASSIGNMENTS (= writes) ==="; grep -nE "i_dlm_dir_gen *=|i_dlm_dir_gen\+\+|i_dlm_dir_gen *\+=" xfs/*.c xfs/libxfs/*.c 2>/de
+    cd /src/mxfs; echo "=== mxfs_dir_drain_evict_data_blocks call sites ==="; grep -n "mxfs_dir_drain_evict_data_blocks" xfs/xfs_mxfs_dlm.c echo "=== reload_inode d
+    cd /src/mxfs; ./showstat.sh 2 tcp 2>&1 | grep -E "dir_reuse|Total:" | head; echo "--- current build ---"; modinfo mxfs.ko 2>/dev/null | grep srcversion; rm -f /
+    cd /src/mxfs; echo "=== mxfs_dir_data_buf_owner_mismatch linkage ==="; grep -rn "mxfs_dir_data_buf_owner_mismatch" xfs/ | head echo "=== b_mxfs_dir_incarn field
+    cd /src/mxfs; make modules > /src/mxfs/.bld.log 2>&1; echo "rc=$?"; grep -iE "error:|implicit|undeclared|No space" /src/mxfs/.bld.log | head; modinfo mxfs.ko 2>
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|
+    cd /src/mxfs/tests; tail -n +3173 _cap/test1.log > /tmp/t1.log; tail -n +1846 _cap/test2.log > /tmp/t2.log echo "=== correctness + fix markers ===" for f in /tm
+    cd /src/mxfs/tests;  echo "=== P31E-DATAINIT-ABA with live_dirents>2 (zeroing a block with real entries) ===" grep -hE "P31E-DATAINIT-ABA" /tmp/t1.log /tmp/t2.l
+    cd /src/mxfs; grep -rn "P31E-DATAINIT-ABA\|get_buf/init about to ZERO" xfs/ | head; echo "=== find the function + whether it aborts/prevents ==="; grep -rn "P31
+    cd /src/mxfs/tests; echo "P32B-DOUBLEMAP: t1=$(grep -c P32B-DOUBLEMAP /tmp/t1.log) t2=$(grep -c P32B-DOUBLEMAP /tmp/t2.log)"; grep -h P32B-DOUBLEMAP /tmp/t1.log
+    cd /src/mxfs; rm -f /tmp/t1.log /tmp/t2.log tests/_cap/*.log 2>/dev/null; modinfo mxfs.ko 2>/dev/null | grep srcversion; df -h / | tail -1 | awk '{print "disk f
+
+## Last text from previous session
+
+ ZERO a block holding live dirents") is the prime suspect. Let me check it in the failing round.
+**SMOKING GUN FOUND.** `P31E-DATAINIT-ABA ... lblk=0 daddr=120 ... live_dirents=14 ... comm=dd — get_buf/init about to ZERO a block holding live peer dirents`. A block with **14 live dirents** (exactly the 14 lost: node1_f1..f14) is being **zeroed by a get_buf/init**. magic 0x58444233 = "XDB3" (dir block format). This is data-init-over-live-dirents on the reused daddr — a durable write-side clobber. Let me find the P31E site and whether it prevents or just warns.
+The detector is in `xfs_dir2_data.c:868` (a get_buf/init path). Let me read the context to see the condition and whether it prevents the zeroing or just warns.
+**PROVEN ROOT.** `xfs_dir3_data_init` (xfs_dir2_data.c:895) **zeroes block 0** which already holds 14 live dirents — and the P31E is only a **detector** (logs, then proceeds to zero at line 895). This is the durable clobber of node1_f1..f14. The trigger is a stale extent-map / data-block double-alloc (P32B-DOUBLEMAP detector at line 796). Let me check whether P32B-DOUBLEMAP fired (double-alloc) and record this major finding.
+Reached the relay boundary. P32B-DOUBLEMAP=0 (not an intra-dir double-map), and the P31E shows `reused=0 stale=0 bast_pend=1 ex_gseq=6==dirty_seq=6` — so the clobber happens during this node's **current** EX tenure (MHT batch, peer BAST deferred), `xfs_dir3_data_init` zeroing an already-populated **block-format** block 0 (magic XDB3, 14 live dirents). Let me record this proven mechanism for the next session.
+Reached the relay boundary. Let me clean up temp files and summarize.
+## Session 36 summary
+
+**Criteria NOT met** — `dir_reuse_coherency` (the only failing 2/tcp test, 16/17 pass) still fails. Marker not written (honest). But major progress on both faces; the correctness root is now **proven**.
+
+### TIMING face — SOLVED
+Root = dir-EX lock **thrashing** (~20 handoffs/round; XFS drops/re-acquires the dir ILOCK per file). Fixes landed (build `4D56CB92`, all KEEP):
+1. **`inode_mht_ms=300`** (was 50) — bigger batching window → ~2-4 handoffs/round. Span **314s→279.9s** (under the 300s budget, confirmed twice). Set via `MXFS_EXTRA_MODARGS`; needs to become the default after full-suite validation.
+2. **dwork re-arm** (`mxfs_dlm_bast_dwork_fn`) — the sess35 batching dwork lost the BAST mid-burst → 6s idle-hold; now re-arms until quiescent. Killed test2's stalls.
+3. **`collect_post_promotion_basts` unconditional** (process_remote_release + mxfs_dlm_unlock) — was skipped when promoted=0, stranding a waiter 6s.
+4. **`MXFS_LOCK_ACQUIRE_WAIT_MS` 6000→1000** + retries 10→60 — residual stranded waiters recover in ~1s not 6s.
+
+### CORRECTNESS face — ROOT PROVEN, not yet fixed
+The durable loss (round 13: both nodes miss exactly node1_f1..f14) is **`xfs_dir3_data_init` ZEROING block 0 which already holds 14 live dirents** — caught red-handed by the P31E detector (`live_dirents=14`, daddr=120, XDB3 magic, owner=131). It's a write-side clobber during this node's *current* EX tenure with a peer BAST deferred under MHT (`bast_pend=1, ex_gseq==dirty_seq, reused=0, P32B-DOUBLEMAP=0`) — **not** the read-side stale-RMW. My modify-path-evict retry fix (P36-EVICT-RECOVERED fired but didn't fix it) confirmed that by elimination; it's kept as it closes a real adjacent gap.
+
+**Next session:** make `xfs_dir3_data_init` refuse to zero a block holding live dirents owned by this dir (xfs_dir2_data.c ~857, where P31E already reads+counts them) — read/preserve instead — or fix why a dir op re-inits an already-materialized block 0 under MHT-deferred concurrency. Then verify drc-FAIL=0 across ≥3 runs, make MHT=300 default, and confirm full `./run.sh 2 tcp` = 17/17.
+
+All findings saved to memory (`sess36-PROVEN-datainit-zeroes-live-block0-root`, `sess36-timing-solved-mht300-and-stall-fixes`, `sess36-correctness-aba-dirblock-clobber-fix-plan`). Tooling: `tests/drc_cap2.sh` (robust host-side dmesg streaming) + `tests/drc_analyze.py`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

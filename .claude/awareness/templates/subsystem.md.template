@@ -1,0 +1,61 @@
+# {SUBSYSTEM_NAME}
+
+**Owner files**: {list of source files in this subsystem}
+**Last updated**: {YYYY-MM-DD}
+
+## Purpose
+
+{2-3 sentences: what this subsystem does, why it exists, what would break without it.}
+
+## Public API
+
+```
+{function_signature_1}   — {one-line description}
+{function_signature_2}   — {one-line description}
+```
+
+## Key Data Structures
+
+```
+{struct/type name} {
+    {key fields with one-line comments}
+}
+```
+
+## Internal Architecture
+
+{How this subsystem works internally. State machines, processing stages,
+threading model, key algorithms. Keep it to 20-30 lines.}
+
+## Cross-Subsystem Dependencies
+
+| Depends On | How | Notes |
+|------------|-----|-------|
+| {other subsystem} | {calls X, reads Y, shares Z} | {any caveats} |
+
+| Depended On By | How | Notes |
+|----------------|-----|-------|
+| {other subsystem} | {calls our X, reads our Y} | {any caveats} |
+
+## Invariants
+
+Rules specific to this subsystem (in addition to project-wide invariants):
+
+1. {Rule and WHY it exists}
+
+## Known Pitfalls
+
+Things that are easy to get wrong:
+
+- **{PITFALL}**: {What goes wrong and why. What the correct approach is.}
+
+## Historical Bugs
+
+Bugs that were fixed but whose lessons are important:
+
+- **{BUG_ID/DATE}**: {What happened, root cause, fix applied.}
+
+## Session Notes
+
+{Updated by agents during work sessions. Append-only during a session,
+cleaned up during /project:update-awareness.}

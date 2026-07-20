@@ -1,0 +1,20 @@
+{
+  "source": [
+    "include/mxfs/mxfs_ports.h",
+    "dlm/mount.c",
+    "dlm/lease.h",
+    "dlm/discovery.h",
+    "dlm/dlm_caw.h",
+    "dlm/v5_mount.c",
+    "dlm/net2_wire.h",
+    "dlm/net2.h",
+    "dlm/net2_stats.h",
+    "dlm/net2_fault.h",
+    "dlm/net2_fault.c",
+    "tests/net2/harness/harness.h",
+    "tests/net2/harness/net2_harness.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

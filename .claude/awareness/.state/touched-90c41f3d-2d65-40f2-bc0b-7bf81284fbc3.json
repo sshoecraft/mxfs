@@ -1,0 +1,12 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_dir2_leaf.c",
+    "xfs/xfs_inode.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_buf.h"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 2
+}

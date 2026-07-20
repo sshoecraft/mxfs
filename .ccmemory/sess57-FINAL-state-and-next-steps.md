@@ -1,0 +1,22 @@
+---
+name: sess57-FINAL-state-and-next-steps
+description: sess57 FINAL: tree=DDF775DD (drain-sample fix only, ~50%: 17/17,16/17,16/17). durable-verify + AG-pre-acquire both REFUTED. Resurrection=deep interlo…
+metadata:
+  type: project
+---
+
+## sess57 FINAL STATE (ccloop 8ddb16a2). Criterion (reliable 2/tcp 17/17) NOT met (~50%). Marker NOT written.
+
+### TREE STATE: build DDF775DDF8E3198DEA4254A in /src/mxfs/mxfs.ko. Contains ONLY the KEPT fix below. Builds clean. Suite results this session: run1=17/17, run2=16/17, run-d=16/17 (all fails = tcp_dlm_scaling durable dirent resurrection; 0 shutdowns in the suite).
+
+### KEPT (1): drain-sample-under-ilock — xfs_mxfs_dlm.c bast_process dir drain loop (~5044). Sample in_ail/pinned AFTER the blocking mxfs_drain_ilock_read (was before). Correct (closes a real blocking-acquire window) but NOT load-bearing for the observed strand (P57-DRAIN-RACE-CAUGHT=0 every run). Probes in tree: P57-DRAIN-RACE-CAUGHT, P57-PREUNLOCK-DIRTY (both always 0 → the strand is NOT via the bast_process EX-release path I instrumented).
+
+### REFUTED (2) — do NOT retry as-is:
+1. **durable-verify-retry in mxfs_dlm_dir_inode_durable** (FUA di_size verify + reflush). REVERTED. FLAWED: (a) mxfs_inode_disk_di_size FUA-reads the PLATTER which LAGS the SCST write-CACHE (peers read the cache via plain reads when fua_disable=1 — the real coherence point); (b) can't fix a P119-DISCARDED change (already marked clean, in_ail=0, nothing to reflush). Spun uselessly (P57-DURABLE-MISS vtry=0..7, disk 35→21 chasing incore=40). It DID prove the strand is real (caught 8 di_size mismatches) but is the wrong layer.
+2. **AG-deadlock pre-acquire in xfs_remove** (pre-lock ip's AG before xfs_dir_remove_child, clean-abort on fail). REVERTED. Prevented the remove-side trans_cancel:1061 shutdown (P57-REMOVE-AGLOCK-FAIL=0, trans_cancel=0) BUT the deadlock SHIFTED to the rename side (mv dir-EX timeout → leak at iter2, earlier) and extending the dir+AG co-hold window risks INCREASING deadlock probability in the suite. Incomplete (covers remove, not rename). The AG-deadlock is the SECONDARY face (absent from all 3 suite runs); a proper fix = deadlock-avoidance (release dir-EX when blocked on AG) covering BOTH remove and rename, with retry.
+
+### THE CONVERGENT FIX = ICLUSTER DLM lock (per [[sess54-gpt-coresident-cluster-flush-design]] + [[sess55-CONCLUSION-icluster-lock-is-the-only-convergent-fix]], independently re-confirmed this session). The resurrection is the deep interlock: a committed dir change strands at NL un-durable (commit lands in CIL→AIL AFTER the EX release despite the mxfs_dlm_dir_hold_ex EX-pin — PROVEN node2 ino=17316667/25707774: P51-REL EX drain_ms=0 → 22ms later P119-NONEX in_ail=1 at NL → P-CLMERGE resurrect → peer TDS-LEFTOVER), then P119-discard (xfs_inode.c:4710) OR merge-overlay (xfs_inode.c~5510) OR reload-adopt-stale (xfs_inode_from_disk @ xfs_mxfs_dlm.c:7813, does NOT check in_ail). The 3 faces interlock; no single in_ail guard converges (sess44-57). ICLUSTER (per-4KB-cluster EX + fresh-RMW from the CACHE coherence point, NOT FUA-platter) makes disk always coherent → adopt-disk always correct → all faces close. Model on mxfs_ag_dlm_lock/__mxfs_ag_dlm_lock (xfs_mxfs_dlm.c:13070). Deadlock order: per-inode DLM > ILOCK > ICLUSTER > buffer; trylock co-resident ILOCKs only.
+
+### QUICK LEAD to try first (cheap): mxfs_inode_mht_ms DEFAULT=300 (xfs_mxfs_dlm.c:4015, module_param inode_mht_ms). The 300ms minimum-hold-time batches EX ops, amplifying BOTH the commit-after-release window (resurrection) AND the long dir-EX hold (AG-deadlock cross-node contention). Try MXFS_EXTRA_MODARGS="inode_mht_ms=20" (or sweep) to see if it cuts the resurrection/deadlock rate — but the CRITERION is PLAIN defaults, so a win means changing the default (watch the sess51 symmetric PR→EX livelock regression: too-low MHT → lock ping-pong → slowness). NOT yet tested.
+
+### RUN MECHANICS: reboot virsh -c qemu:///system destroy/start test1 test2; prep MXFS_PASS=/tmp/.mxfs_pass bash tests/setup/reset2_tcp.sh test1 test2 (PLAIN); suite `timeout 560 ./run.sh 2 tcp >/tmp/x.log` with Bash tool timeout=595000 (FOREGROUND else auto-backgrounds). Repro (heavier, hits AG-deadlock iter~4-6): bash tests/tcp/repro_rename_drain.sh 150 8. Diagnose: grep dmesg P119-NONEX|P-CLMERGE restored|TDS-LEFTOVER (resurrection) ; DLM AG lock failed|trans_cancel at line|P36-RETRY (AG-deadlock).

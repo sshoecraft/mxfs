@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 55 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 54
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b32ce3a0-6c4e-460e-b287-ac84ef82ab22`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b32ce3a0-6c4e-460e-b287-ac84ef82ab22.jsonl`
+- approx context at last assistant turn: 502354 tokens
+- tools used: Bash×63 Read×34 Edit×11 mcp__ccmemory__memory_get×5 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== xfs_rename: durable + iunlock + dir_inode_durable calls ===" awk 'NR>=3914 && NR<=4180' xfs/xfs_inode.c | grep -nE 'mxfs_dlm_dir_inode_du
+    cd /src/mxfs echo "=== all mxfs_dlm_dir_inode_durable + xfs_iunlock in xfs_inode.c with line numbers ===" grep -nE 'mxfs_dlm_dir_inode_durable|^xfs_rename|^xfs_
+    cd /src/mxfs echo "=== xfs_create iunlock(dp) before line 1891 ===" awk 'NR>=1263 && NR<=1891' xfs/xfs_inode.c | grep -nE 'xfs_iunlock\(dp|xfs_iunlock\(ip|xfs_i
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'error:|Error [0-9]|warning:' | head; modinfo mxfs.ko 2>/dev/null | grep srcver
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 SSH="timeout 25 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev
+    cd /src/mxfs echo "=== the residual P119-NONEX-FLUSH-SKIP comm=mv full line ===" grep -hE 'P119-NONEX-FLUSH-SKIP.*comm=mv' /tmp/f2_node2.dmesg echo "=== leaked 
+    cd /src/mxfs echo "=== iflush/durable/bwrite/submit inside mxfs_dlm_reload_inode (6312-7610) ===" awk 'NR>=6312 && NR<=7610' xfs/xfs_mxfs_dlm.c | grep -nE 'xfs_
+    cd /src/mxfs echo "=== all i_dlm_mode = MXFS_LOCK_PR assignments ===" grep -nE 'i_dlm_mode\s*=\s*MXFS_LOCK_PR' xfs/xfs_mxfs_dlm.c xfs/xfs_inode.c echo "=== all 
+    cd /src/mxfs; grep -n 'P119-NONEX-FLUSH-SKIP' xfs/xfs_inode.c
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'error:|Error [0-9]' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 SSH="timeout 25 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev
+    cd /src/mxfs echo "=== xfs_iflush function start + flush_out label ===" grep -nE '^xfs_iflush\(|^STATIC int|^xfs_iflush_cluster\(|flush_out:|return.*EAGAIN|corr
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'error:|Error [0-9]' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 echo "=== test progress (last lines) ==="; grep -E '^  (PASS|FAIL)|prep OK' /tmp/g2.log 
+    cd /src/mxfs echo "=== rename lock acquisition (how src_dp/target_dp get locked) ===" awk 'NR>=3933 && NR<=4130' xfs/xfs_inode.c | grep -nE 'xfs_lock_inodes|xfs
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'error:|Error [0-9]|undefined|XFS_BLI_INODE_ALLOC_BUF' | head; modinfo mxfs.ko 
+
+## Last text from previous session
+
+ about: P54 left ino 25700290 dirty 50× → P113-DRAIN-WEDGE (stuck in AIL forever, no EX owner to flush it). Leave-dirty without a flush mechanism wedges. I must revert B. The correct path is GPT's source fix: make every change durable *before* EX loss, so the co-resident discard is harmless (inode already on disk) — keeping the discard (no wedge). Let me revert B.
+B reverted. Now let me verify why the rename pin showed exh=0 — does rename's lock path increment ex_holders (via xfs_ilock→ilock_begin) or use a different primitive that my hold/iunlock_rename accounting cancels?
+B reverted. The deeper proven mechanism: even with the pins, a co-resident inode's change is resurrected because `mxfs_inode_cluster_durable` flushes a **stale cached cluster buffer** — `xfs_bwrite` writes the whole 4KB, and a discarded co-resident's stale bytes (pre-removal) get written back. GPT's Rank-1 fix is fresh-RMW: re-read the cluster from disk before overlaying authoritative inodes. Let me implement a localized FUA-fresh-read in `mxfs_inode_cluster_durable` before the cluster flush.
+The FUA-read into `b_addr` is safe: `xfs_iflush_cluster` re-copies all dirty attached inodes (so no loss for those), while discarded/clean co-residents get fresh disk bytes (no resurrection). Let me add the localized fresh-RMW.
+Let me add a guard to skip the FUA-refresh for freshly-allocated (ICREATE) cluster buffers, to avoid clobbering ICREATE state.
+Now build.
+I've hit the relay boundary with build 99A4E4905 ready (untested). Let me record the critical findings for the next session.
+## Session 54 summary — criterion NOT met (build 99A4E4905 ready, untested at relay)
+
+**Major progress: pinned down the PROVEN root of the durable dirent leak and ruled out the prior theory.**
+
+### What I established (RULE-4 instrumented, on fresh failing runs)
+- **The leak reproduces** in PLAIN full suite ~1/5 (tcp_dlm_scaling/dlm_fairness "drained got=N"): a node's own removed dirent survives **durably on disk**, both nodes, through drop_caches.
+- **NOT the 3-way SF merge** — with `sfm_dbg=1`, `P-SFM-READD=0`/`P-SFMERGE=0` during the failure. sess53's EX-gate+clean-adopt did suppress merges; the residual is a different mechanism.
+- **PROVEN root** (captured kernel stack): **cluster-granular flush vs per-inode EX authority mismatch.** `mxfs_inode_cluster_durable → xfs_iflush_cluster` flushes the whole 4KB inode cluster + `xfs_bwrite` writes it all; the P119 guard discards a co-resident non-EX dirty inode (marks clean, writes the **stale cached buffer's pre-removal bytes**) → resurrection. The discarded inode is a *co-resident* of the dir being flushed, so a per-op fix on the target dir can't reach it.
+- **Slowness root**: `dir_reuse_coherency` alone takes **285s** of the ~545s suite (sess34 6s-deferred-dir-BAST). Separate RULE-0 blocker.
+
+### Changes in build 99A4E4905 (KEEP unless disproven)
+1. `mxfs_dlm_dir_hold_ex()` + EX-pin in **xfs_remove** and **xfs_rename** — keeps EX across the ILOCK-dropped durable flush. **Verified partial**: P119 comm=rm 3→0, comm=mv 2→1, leftover 2→1.
+2. **Localized fresh-RMW** in `mxfs_inode_cluster_durable`: SCSI-FUA re-read the cluster into the buffer before the flush so co-residents are written back with current-platter bytes (no resurrection). **This is the intended co-resident fix — UNTESTED.**
+3. **Reverted** a "leave-dirty" attempt that **wedged the AIL** (P113-DRAIN-WEDGE) — confirms GPT's discard-vs-wedge warning.
+
+### Consulted GPT-5.5 (RULE 5, complete proven diagnosis) — design recorded in ccmemory.
+
+### Next session
+Test 99A4E4905 (reboot clean, `MXFS_EXTRA_MODARGS="sfm_dbg=1" ./run.sh 2 tcp` via **direct `> log` redirect**, repeat 3-5×). If the fresh-RMW fixes the leak → fix the dir_reuse 285s slowness → 17/17. If the leak persists → escalate to GPT's full ICLUSTER-lock RMW or target-only sub-buffer write. Full detail in ccmemory `sess54-ROOT-coresident-cluster-flush-stale-buffer-resurrection` and `sess54-gpt-coresident-cluster-flush-design`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

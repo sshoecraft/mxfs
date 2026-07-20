@@ -1,0 +1,103 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/186320ae-4438-48d2-a809-30e0e77dd459/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 186320ae-4438-48d2-a809-30e0e77dd459, after session 7
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `28de8cdd-376b-4391-8c78-61925c069fcb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/28de8cdd-376b-4391-8c78-61925c069fcb.jsonl`
+- approx context at last assistant turn: 120527 tokens
+- tools used: Bash×20 Read×5 TaskCreate×5 TaskUpdate×3 ToolSearch×2 TaskList×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ls -la /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/ 2>/dev/null | tail -20; echo ===; pgrep -af 'run.sh' 2>/dev/null | head -5; echo =
+    grep -iE "leafhash|multipath-matrix|perop-durable|P-LEAFDROP|dir_reuse" /home/steve/.claude/projects/-src-mxfs/28de8cdd-376b-4391-8c78-61925c069fcb/tool-results
+    cat /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/ba9wr73be.output 2>/dev/null; echo ===; ps -o etimes= -p 2252182 2>/dev/null
+    grep -n "P-LEAFDROP" /src/mxfs/pal/linux/xfs_buf.c | head; echo ===; grep -n "P5R-TRANSREFRESH\|P5R " /src/mxfs/xfs/xfs_mxfs_dlm.c /src/mxfs/pal/linux/xfs_buf.c
+    grep -n "b_mxfs_logged_seq\|b_mxfs_written_seq" /src/mxfs/pal/linux/xfs_buf.h 2>/dev/null | head -5; grep -rn "b_mxfs_logged_seq++\|b_mxfs_logged_seq =\|b_mxfs_
+    while kill -0 2252182 2>/dev/null; do sleep 15; done; echo RUN_ENDED; cat /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/ba9wr73be.output
+    ps -o etimes= -p 2252182 2>/dev/null || echo GONE; tail -c 600 /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/ba9wr73be.output 2>/dev/nul
+    for n in 1 2 3 4 5 6 7 8; do c=$(timeout 10 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "grep -ac 'P-LEAFDROP.*bp=' /root/dmesg.stream 2>/dev/null" 2>/dev/null
+    ls /src/mxfs/tests/criteria/ | grep -i dir_reuse; grep -n "DRC_ROUNDS" /src/mxfs/tests/criteria/*.sh /src/mxfs/run.sh 2>/dev/null | head; echo ===; grep -n "MXF
+    sed -n '330,365p' /src/mxfs/run.sh; echo ===; grep -rln "dir_reuse" /src/mxfs/tests/ | head; echo ===; grep -rn "ROUNDS" /src/mxfs/tests/*dir_reuse* 2>/dev/null
+    grep -n "dir_reuse" /src/mxfs/run.sh | head -5; echo ===; find /src/mxfs/tests -name "*dir_reuse*" -o -name "*.sh" | xargs grep -ln "DRC_ROUNDS" 2>/dev/null
+    grep -n "DRC_ROUNDS\|ROUNDS=" /src/mxfs/tests/suite/dir_reuse_coherency.sh | head -5; echo ===; timeout 10 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -a 
+    timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "awk -v a=5304 -v b=6060 '{gsub(/[][]/,\"\",\$1); t=\$1+0} t>=a&&t<=b' /root/dmesg.stream | grep -av 'DRC
+    timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -a '^\[ 5[3-9][0-9][0-9]\.\|^\[ 60[0-5][0-9]\.' /root/dmesg.stream | grep -v DRCph | wc -l; grep -a
+    grep -n "P7B-BASTNOTIFY\|P-NOINO-BAST\|P-DIRBAST" /src/mxfs/xfs/xfs_mxfs_dlm.c | head; echo ===; grep -n "P51-INSTR" /src/mxfs/dlm/*.c /src/mxfs/pal/linux/*.c 2
+    grep -n "MXFS_DLM_ISTATE_" /src/mxfs/xfs/xfs_mxfs_dlm.h | head -12; echo ===; sed -n '13055,13130p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -rn "MXFS_DLM_ISTATE_NONE\s*=\|ISTATE_CACHED\s*=\|ISTATE_ACQUIRING\s*=\|ISTATE_DEMOTING\s*=\|ISTATE_BAST\s*=" /src/mxfs/xfs/*.h /src/mxfs/include/*.h 2>/de
+    grep -n "do_data\|mxfs_dir_data_owner_scan\|leaf-range\|leaf_range" /src/mxfs/xfs/xfs_mxfs_dlm.c | sed -n '1,25p'
+    for n in 1 4 8; do echo "--- test$n"; timeout 10 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "multipath -ll 2>/dev/null | grep -E 'mpatha|status=|sd' | head -6
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" MXFS_TEST_ENV="DRC_ROUNDS=12" timeout 1500 ./run.sh 8 caw dir_reuse_coherency > /tmp/claude-1
+
+## Last text from previous session
+
+Continuing session 7 of the multipath ladder run. First, loading memory tools and checking the state of the diagnostic run that was in flight at the relay boundary.
+The full list is huge; grepping the saved index for the live diagnosis memories instead.
+Now waiting for the diagnostic run to finish (foreground, capped chunks).
+Paths are healthy on all sampled nodes — not environmental. Relaunching the 12-round diagnostic with the correct outer budget (inner per-node cap is 1120s from run.sh).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

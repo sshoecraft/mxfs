@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `e5590c3e-cda7-43fa-9e59-e0fd6fda11ff`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff.jsonl`
+- approx context at last assistant turn: 496402 tokens
+- tools used: Bash×123 Read×53 Edit×20 mcp__ccmemory__memory_search×6 TaskCreate×3 TaskUpdate×3 mcp__ccmemory__memory_get×3 ToolSearch×2 TaskList×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/VERSION
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/pal/pal.h
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/pal/linux/user.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for n in 1 2 3 4 5 6 7 8; do   echo -n "test$n: "   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo ALIVE" 2>&1 | tail -1 done
+    for n in 3 4 5; do   virsh -c qemu:///system destroy test$n 2>&1   virsh -c qemu:///system start test$n 2>&1 done
+    END=$((SECONDS+60)) while [ $SECONDS -lt $END ]; do   ok=0   for n in 3 4 5; do     timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo ALIVE
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad mkdir -p "$SP/fdw_repro4" cd /src/mxfs MXFS_EXTRA_MODARGS="caw_fair_handoff=1" noh
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad/fdw_repro4 END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/run
+    ps aux | grep -E "run\.sh" | grep -v grep echo "---lock file---" cat /tmp/mxfs_run.lock 2>/dev/null ls -la /tmp/mxfs_run.lock 2>/dev/null
+    grep -n "mxfs_run.lock" /src/mxfs/run.sh | head -10
+    ps aux | grep -E "run\.sh|mxfs_sshpass" | grep -v grep echo "no run.sh alive, retrying" fuser -v /tmp/mxfs_run.lock 2>&1
+    for pid in 788106 788109 788112 788121 788124 788126; do   kill -TERM "$pid" 2>&1 done sleep 1 2>/dev/null || true ps aux | grep -E "mxfs_sshpass|sshpass -f" | 
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad mkdir -p "$SP/fdw_repro4b" cd /src/mxfs MXFS_EXTRA_MODARGS="caw_fair_handoff=1" no
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad/fdw_repro4b END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/ru
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad/fdw_repro4b END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/ru
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad/fdw_repro4b END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/ru
+    SP=/tmp/claude-1000/-src-mxfs/e5590c3e-cda7-43fa-9e59-e0fd6fda11ff/scratchpad/fdw_repro4b END=$((SECONDS+300)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/ru
+    for n in 1 2 3 4 5 6 7 8; do   echo "== test$n =="   timeout 8 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "     echo P15-REL-ABORT:\$(dmesg | grep -
+    for n in 1 2 3 4 5 6 7 8; do   echo "== test$n =="   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -B1 'DLM inode lock unrecove
+    timeout 5 ping -c2 -W2 test4 2>&1 echo "---direct ssh with longer timeout---" timeout 15 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o Conn
+    timeout 5 virsh -c qemu:///system domstate test4 2>&1 echo "---vcpu info---" timeout 5 virsh -c qemu:///system vcpuinfo test4 2>&1 echo "---qemu monitor: try sy
+    virsh -c qemu:///system destroy test4 2>&1 virsh -c qemu:///system start test4 2>&1
+    END=$((SECONDS+40)) while [ $SECONDS -lt $END ]; do   if timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "echo ALIVE" 2>/dev/null | grep -q ALIV
+
+## Last text from previous session
+
+-mode too per project rules) isn't broken by the new PAL primitive.
+Kernel build is clean and the user-mode PAL layer compiles warning-free in isolation. Let me bump the version and deploy for testing.
+All 8 nodes are healthy. Now let's launch the repro chain on the new build.
+While the ~29-minute repro chain runs, let me persist progress to memory in case context runs out mid-wait.
+The fix helped — `P15H-PEER-STARVE-TIMEOUT` now fires regularly (13-20/node vs 0 before) — but a waiter still starves after 360s on a different ino. Let me check whether `caw_fair_handoff` (the grant-arbitration fairness layer) is even active in this default-config test run.
+Let's test the hypothesis directly: enable `caw_fair_handoff=1` (an existing, previously-validated mechanism that's currently off by default) alongside the two fixes already confirmed working, and see if that resolves the starvation.
+All 8 nodes healthy. Launching the repro with `caw_fair_handoff=1`:
+These are orphaned ssh children from the previous timed-out run, targeting test3/4/5 which I already power-cycled — they're holding the lock via inherited fd 9. Let me clean them up.
+All orphans cleared. Relaunching with `caw_fair_handoff=1`:
+Still timed out even with `caw_fair_handoff=1`. Let me harvest dmesg immediately to see what changed.
+Positive signal: no self-fence/shutdown occurred on any of the 7 reachable nodes this run (unlike before), and `caw_fair_handoff` is clearly engaging (P-STREAK-YIELD, P-UPG-PRYIELD firing). But test4 is CPU-pinned on 2 vCPUs and unresponsive to SSH — a different failure mode than starvation. Let me recover and run once more to see if this is reproducible.
+Hit the ccloop relay boundary mid-investigation. Summary for handoff:
+
+**Progress this session:** Reconstructed and continued a 3-bug diagnostic chain in `fence_during_write@8/caw` — the sole remaining gap in the full "1/2/4/8/16/32 caw dlm multipath" matrix (everything else is already 100% PASS per `criteria.json`).
+
+- **Bug #1** (soft lockup, i_dlm_demoter/irele ordering): already fixed and validated by a prior session (build 0.10.76).
+- **Bug #2** (boot-relative vs wall-clock timestamp defeating the CAW fair-handoff anti-starvation ticket): already fixed and validated (build 0.10.78).
+- **Bug #3** (VFS inode eviction silently wiping the per-inode wall-clock anti-starvation escape timers): root-caused this session via direct instrumentation (added an `init_seq` diagnostic field proving the same "stuck" inode gets reinstantiated faster than the 3s force-release threshold), then fixed by moving the escape clocks to a new resource-scoped table in `dlm/dlm_caw.c` (`ctx->orphan_clock`), protected by a newly-added spinlock-safe PAL primitive (`mxfs_pal_spinlock_*`) since the existing `grant_meta_lock` is a sleeping mutex that can't be taken under the caller's held spinlock. Built clean (0.10.80, srcversion `06C2F26F678BBC77FE670AF`). **Confirmed working**: `P15H-PEER-STARVE-TIMEOUT` now fires regularly (was 0 before) — but the test still timed out with 5-6 nodes self-fencing.
+- **Follow-up experiment**: enabling the pre-existing (but default-off) `caw_fair_handoff=1` module param alongside the two fixes eliminated all self-fence/shutdown events across 7 of 8 nodes — real progress — but node test4 became CPU-pinned on 2 vCPUs and unresponsive to SSH (a different, not-yet-characterized symptom), so the run still timed out.
+
+**State right now:** all 8 test nodes healthy and idle, cluster ready. Full findings, exact code locations, and next-step plan are saved in ccmemory as `AAA-ccloopcc87-sess1-FIX3-resource-scoped-orphan-clock-VALIDATING` (needs a follow-up write once the test4 CPU-spin is characterized). Immediate next step: relaunch `MXFS_EXTRA_MODARGS="caw_fair_handoff=1" tests/repro_fdw_instrumented.sh` to get a second data point on whether the test4-style CPU-spin reproduces, then instrument that specific loop if it does. Criteria are **not** met yet — do not write to the criteria-met marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

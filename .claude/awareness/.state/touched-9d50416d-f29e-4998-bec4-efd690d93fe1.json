@@ -1,0 +1,13 @@
+{
+  "source": [
+    "tools/mkfs_mxfs.c",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md",
+    ".claude/awareness/subsystems/tests.md"
+  ],
+  "regen_done": false,
+  "nudges": 0
+}

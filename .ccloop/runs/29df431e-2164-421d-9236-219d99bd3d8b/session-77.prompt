@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 77 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 76
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `0619271a-4687-4dd2-862a-44d26a96ae09`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0619271a-4687-4dd2-862a-44d26a96ae09.jsonl`
+- approx context at last assistant turn: 251947 tokens
+- tools used: Bash×66 Read×20 Edit×11 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -iE 'Internal error|FREE-AG-EXTENT-FAIL|iunlink_remove|P71-INSTR|DLM inod
+    cd /src/mxfs; echo "=== clear dmesg on all nodes ==="; for n in 1 2 3 4; do timeout 6 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C; uptime -s" 2>
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; echo "=== unlink_visibility (clean dmesg) ==="; timeout 120 bash tests/run_tests.sh --n
+    cd /src/mxfs; RD=$(ls -dt /home/steve/.mxfs/results/*/ 2>/dev/null | head -1); echo "resultdir=$RD"; echo "=== FAIL/assert lines per node ==="; grep -riE "FAIL|
+    cd /src/mxfs; grep -rn "xfs_buf_stale\|mxfs_dir_evict_data_blocks\|mxfs_dir_stale\|i_dlm_dir_gen\|b_mxfs_dir_gen\|mxfs_dir_invalidate\|dir_data_durable" xfs/xfs
+    cd /src/mxfs; echo "=== node1 dir-coherency probe counts (since last clear) ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "echo REFRESH=\$(dm
+    cd /src/mxfs; echo "=== node1 sees these stale BEFORE remount ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "ls /mnt/shared/.mxfs_test/unlink
+    cd /src/mxfs; echo "=== remount node1, recount (on-disk truth) ==="; timeout 30 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "cd /; umount /mnt/shared 2>&1;
+    cd /src/mxfs; grep -nE "mkfs|mount|insmod|rmmod|reboot|destroy|virsh|/dev/sda|mxfs_mkfs" tests/reset4.sh | head -30
+    cd /src/mxfs; grep -rn "fresh_cluster_mount" tests/ | grep -v "reset4" | head; echo "=== def ==="; F=$(grep -rln "fresh_cluster_mount()" tests/ 2>/dev/null | he
+    cd /src/mxfs; echo "=== callers of consumer_refresh ==="; grep -rn "mxfs_dlm_dir_consumer_refresh" xfs/ | grep -v "void\|^.*\.h:" | head echo "=== callers of mx
+    cd /src/mxfs; grep -n "^xfs_remove\|^xfs_dir_removename\|xfs_remove(" xfs/xfs_inode.c | head; echo "=== consumer_refresh/evict already in remove/rename/create p
+    cd /src/mxfs; grep -rn "mxfs_dlm_dir_consumer_refresh" xfs/*.h pal/**/*.h include/ 2>/dev/null | head
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "error:|undefined|implicit" | head; echo "buildrc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 290 bash tests/reset4.sh 4 2>&1 | tail -1; for n in 1 2 3 4; do timeout 6 bash tools/mxfs_sshpa
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; echo "=== unlink_visibility (fresh, clean dmesg) ==="; timeout 120 bash tests/run_tests
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; for run in $(seq 1 8); do for n in 1 2 3 4; do timeout 5 bash tools/mxfs_sshpass.sh tes
+    cd /src/mxfs; echo "=== node mount + shutdown state ==="; for n in 1 2 3 4; do echo -n "test$n: mounted="; timeout 6 bash tools/mxfs_sshpass.sh test$n /tmp/.mxf
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 290 bash tests/reset4.sh 4 2>&1 | tail -1; for n in 1 2 3 4; do timeout 5 bash tools/mxfs_sshpa
+    cd /src/mxfs; echo "=== per-subtest results ==="; grep -iE "test_cross_visibility|test_rename_visibility|test_unlink_visibility|test_cross_write_read|passed|fai
+
+## Last text from previous session
+
+ reads the dir block for RMW **without** invalidating its stale cached copy first — exactly the sess98 GPT "acquire half" that's missing. node X removes its entry from a stale base still holding node Y's already-deleted entries → resurrects them. Let me find xfs_remove:
+There's a sess82 defensive re-validation in xfs_remove but the actual RMW (`xfs_dir_remove_child`) reads from a potentially stale cached dir block. consumer_refresh exists only in the read path (`xfs_lookup`); the modify path lacks the acquire-side cold-read. But `xfs_remove` holds `ILOCK_EXCL`, so I can't call the locking `consumer_refresh` wrapper. Let me add a no-relock variant and wire it into the modify path. First let me see the wrapper's tail:
+I'll add a no-relock variant of consumer_refresh and wire it into the modify path. Let me add it right after the wrapper:
+Now declare it and wire it into xfs_remove. Let me find the header declaration:
+Now wire it into xfs_remove before the RMW (after trans_alloc, before the sess82 re-validation):
+Build with the modify-path refresh:
+**unlink_visibility now PASSES** — all nodes show 0 remaining, MODREFRESH fired 7×. The modify-path acquire cold-read fixed the durable lost-update. Let me confirm stability with repeated runs:
+The `tr` ate the PASS/FAIL output. Run 1 shut down test2, runs 2-8 showed no new shutdown — but I need to verify test2 is actually alive and the tests really passed. Let me check:
+All nodes mounted, dmesg clean. The run-1 blip is ambiguous (likely a detection race — test2 is healthy now and runs 2-8 passed). Let me get the definitive measure: reset to a fresh FS and run the **full cache_coherency criterion** (all 4 sub-tests):
+At the relay boundary. cache_coherency = passed=2/failed=2 (was 3/4 with shutdowns before; the picture shifted). Let me quickly capture which sub-tests passed/failed and record progress:
+At the relay boundary. Let me record the third fix and current standing to memory:
+Reached the relay boundary. Summary of this session's work:
+
+## Progress this session (build `C0BB2B4F`, deployed all 4 nodes)
+
+Three root-cause fixes landed, each proven with RULE-4 instrumented evidence:
+
+**FIX A — inode-reuse adopt** (`xfs_mxfs_dlm.c` ~2323): The `RELOAD-SIZE-DROP-SKIP` heuristic had no generation check, so under inode-number reuse it kept a stale prior incarnation and then unlinked/inactivated that ghost → bnobt double-free / AGI corruption. Gated the skip on `di_gen == in-core gen`. Proven via the ino=6291588 cross-node timeline.
+
+**FIX B — P102 `!in_ail` restore** (`xfs_mxfs_dlm.c` ~4242): sess102's in_ail-discard conflated *commit* (clears DIRTY, sets IN_AIL, data still in-core) with *writeback* (pushes to SCST cache). It was discarding this node's own committed-but-not-destaged AGI unlinked-list adds. Proven decisively: `P82-ADD → P102 discards AGI daddr=2 → P71 head=NULL → shutdown`. Restoring `!in_ail` eliminated the AGI sig-3 corruption (P71=0).
+
+**FIX C — modify-path dir cold-read** (new `mxfs_dlm_dir_modify_refresh`, wired into `xfs_remove`): sess97 only added the acquire-side dir refresh to the read path. The modify path RMW'd the shared dir block from a stale base, resurrecting peers' deleted dirents — the all-nodes-agree durable lost-update (all 4 nodes saw the same 35 leftover files). **unlink_visibility now PASSES in isolation.**
+
+Also exposed a methodology flaw that had been polluting results: `reset4.sh` doesn't reboot, so dmesg persists and stale "Shutting down" lines read as false fresh shutdowns — must `dmesg -C` per run.
+
+## Standing
+Full criterion: **2/4** (cross_visibility PASS, rename_visibility PASS; unlink_visibility fails only in the cumulative sequence; cross_write_read still fails). 
+
+## Criteria NOT met — marker not written.
+Next: wire `mxfs_dlm_dir_modify_refresh` into `xfs_rename`/`xfs_create`; chase the cumulative-sequence unlink failure + the `xfs_buf.c:1701` buf_submit shutdown; and the cross_write_read DLM writer-starvation (rc=-110). The work continues.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 35 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 34
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `581f6b3d-12a6-4d49-9da7-b466aa063dd2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2.jsonl`
+- approx context at last assistant turn: 501177 tokens
+- tools used: Read×151 Bash×147 Edit×21 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_search×3 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    SCR=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/scratchpad; echo "PASS: $(grep -cE 'PASS  dir_reuse' "$SCR/nt1.log") FAIL: $(grep -cE 'FAIL 
+    cd /src/mxfs; grep -nE "undurable =|undurable = dirty|!new_tenure && \(?mxfs_dir_buf_is_undestaged|new_tenure && mxfs_dir_buf_is_undestaged|cur_mep" xfs/xfs_mxf
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit|conflicting" | head; echo "=== build done ==="; modinfo mxfs.ko 2>/dev/null | grep srcvers
+    out=/tmp/claude-1000/-src-mxfs/581f6b3d-12a6-4d49-9da7-b466aa063dd2/tasks/biy8wf89y.output; until grep -q "build done" "$out" 2>/dev/null; do sleep 5; done; cat
+
+## Last text from previous session
+
+ASS — iter 5 FAILED at round 13 with a clean readdir=799** (single-dirent loss, no corruption, no over-count). So `dir_newtenure_evict` + BLI-retire is a major improvement (~80% vs keeper ~50%) but not 100%. The residual: `new_tenure` only fires on the *first* evict-call of a tenure, so a stale base that's TRYLOCK-skipped or cached after that escapes. I need per-block epoch coverage (catch any block whose `b_mxfs_dir_epoch < cur_mep` on any evict call) + the retire. Let me record this and find the keep-clause to modify.
+The residual is the TRYLOCK-skip gap: a stale base locked during the *first* (new_tenure) evict-call escapes, and on later calls `new_tenure` is false so the undestaged keep-clause preserves it. The safe fix: (a) sync `valid_epoch = cur_mep` once at tenure start so all this-tenure modifies stamp `cur_mep`, then (b) force-evict + retire any block with `b_epoch < cur_mep` on *any* evict call (per-block, catches TRYLOCK-skipped blocks on retry). Let me implement. First the valid_epoch sync at tenure start:
+Now exclude prior-tenure blocks from the undestaged keep-clause (so they're force-evicted on any evict call, not just the first):
+Now broaden the retire condition to also fire on prior-tenure blocks (recomputing the epoch test since `prior_tenure` is out of scope there):
+I've hit the relay boundary. Let me complete the current edit (broaden the retire to cover per-block prior-tenure), build to confirm it compiles, then summarize.
+Let me build to confirm the per-block enhancement compiles, then record state and wrap up.
+Build clean — `2EAA0090` (per-block prior-tenure evict+retire, default-on via `dir_newtenure_evict=1`). Let me record the precise state for the next session, then summarize.
+State recorded. Wrapping up at the relay boundary.
+
+## Summary
+
+**Criteria NOT met** — but major progress on the sole blocker (8/tcp `dir_reuse_coherency`). 1/2/4 tcp remain 100%. Marker not written.
+
+**Decisive findings this session (RULE 4):**
+1. **Epoch-skip at the drain REFUTED** — a new probe (P34-DRAINEPOCH) proved the loss-block at the release-drain is **current-tenure** (`b_epoch==valid_epoch`), `undestaged`, `comm=rm`. Flags can't distinguish the rare loss from the ~795 legit removes/epoch; the discriminator is *provenance*.
+2. **Drain-side graft REFUTED ×2** — built a per-tenure removed-set (`i_dlm_dir_removed`, keyed by inumber) + drain-merge to resolve the peer-add-vs-our-remove ambiguity. It fired surgically (1-2×, not 100s — the removed-set works), but graft creates **cross-disk-block duplicates** (readdir=801) because dedup can't verify global name-uniqueness without reading every disk block. Same wall sess29/33 hit. Abandoned (param default-0).
+3. **★ THE FIX (4/5 PASS, was ~50%): new-tenure force-evict + BLI-retire.** `dir_newtenure_evict` force-evicts a stale prior-tenure base at the first modify of a new tenure (cold re-read of the peer's image → normal XFS maintains data+leaf consistency, no graft). sess26 set it default-0 because clearing DONE left a zombie BLI that reflushed stale (readdir=0); **the missing piece was retiring the BLI** (`xfs_buf_item_done`, loss-safe by Invariant-1 at new-tenure). Verified iters 1-4 PASS 8/8, no corruption.
+
+**Residual + last build:** iter 5 failed round 13 with a clean readdir=799 — the new_tenure window only covers the *first* evict-call, so a TRYLOCK-skipped stale base escapes. Built `2EAA0090` (now compiling clean, `dir_newtenure_evict` **default-1**) that adds **per-block** prior-tenure coverage: sync `valid_epoch=cur_mep` once at tenure start, then force-evict+retire any block with `b_epoch < cur_mep` on *any* evict call — catching TRYLOCK-skipped blocks on retry, while never flagging this-tenure work.
+
+**Next session:** deploy `2EAA0090`, run `drc_repro_loop.sh 8 "" 24` bare (default-on) to confirm dir_reuse 8/8 reliably, then bare full `./run.sh {1,2,4,8} tcp` suites for the 100% criteria. Full state in ccmemory `sess34-WIN-newtenure-evict-plus-bli-retire-passes`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

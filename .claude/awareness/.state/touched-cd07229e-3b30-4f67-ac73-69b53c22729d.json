@@ -1,0 +1,10 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_bmap.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

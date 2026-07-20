@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `c1ec4fe3-4c1d-4c9a-8251-91810603aa54`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c1ec4fe3-4c1d-4c9a-8251-91810603aa54.jsonl`
+- approx context at last assistant turn: 501447 tokens
+- tools used: Bash×132 Edit×38 Read×34 mcp__ccmemory__memory_write×8 ToolSearch×3 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×2 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_iops.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/docs/canonical_block0_fix_plan.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== new modul
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== for each disk_gen of ino 131, which ext0_daddrs appear (across ALL nodes, all saved files) ==="; f
+    cd /src/mxfs; awk 'NR>=7560 && NR<=8160 && /kept_protected|keep|goto |out_keep|up_write|xfs_buf_relse|return;|i_dlm_stale = false/{print NR": "$0}' xfs/xfs_mxfs
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit.*bmbt" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do echo -n "$n: LOWERB0-KEEP="; tools/mxfs_sshpass.sh $n "$PASS" "dmesg|gr
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== test1(rank1) round2: conversions (who/base) + node1_f1 write daddrs ==="; tools/mxfs_sshpass.sh te
+    cd /src/mxfs; grep -n "sess65: file-scope forward decl\|^struct mxfs_v5_dlm;" pal/linux/xfs_iops.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== round 2: P42-SFCONV ino=131 per node (count + dlm_mode) ==="; for n in test1 test2 test3 test4; do
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit.*dir_epoch" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do echo -n "$n: CONVGATE="; tools/mxfs_sshpass.sh $n "$PASS" "dmesg|grep -
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== CONVGATE in saved files (all nodes, all rounds) ==="; for n in test1 test2 test3 test4; do echo -n
+    cd /src/mxfs; sed -n '1,30p' .claude/awareness/subsystems/pal.md 2>/dev/null | head -30; echo "..."; wc -l .claude/awareness/subsystems/pal.md 2>/dev/null
+    cd /src/mxfs; tail -8 .claude/awareness/subsystems/pal.md
+    cd /src/mxfs; awk 'NR>=6790 && NR<=7560 && /imap_to_bp|read_buf|bp =|dip =|xfs_dinode \*dip|peer_modified_since_load =|genuine_handoff =|di_format/{print NR": "
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== P58-SELFSKIP-STALE-DIR ex_pop (concurrent-EX count) for ino=131 ==="; for n in test1 test2 test3 t
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== BASELINE: nodes converting ino=131 per round (saved files) + ex_pop ==="; for r in 2 3 5; do echo 
+
+## Last text from previous session
+
+ment the deterministic fix. Let me find where the dinode buffer (`dip`) is read in the reload, relative to the `peer_modified_since_load`/`genuine_handoff` computation:
+`dip` is read at 7355; `peer_modified_since_load`/`genuine_handoff` are computed earlier (7091-7204). Let me read the self-skip logic (7204+) to see how in-core-SHORTFORM + disk-BLOCK is handled when peer_modified is false:
+`mxfs_dir_disk_superset` is true for post_release reloads, so test3 shouldn't self-skip there. test3 converting anyway points to either a FASTEX (post_release=false) path with lossy peer_modified, OR — critically — a **concurrent-EX double-grant** (both hold EX, mutual exclusion violated), which no reload-side fix can cure. The P58 probe records `ex_pop` exactly for this. Let me check it:
+The current run's data is muddied by my flag combos (test3 didn't convert here; node1_f1..f15 lost via epoch_adopt). I need the **clean baseline** double-conversion + concurrent-EX measurement to decide whether the root is serial-double-conversion (reload fix) or concurrent-EX double-grant (DLM fix). Let me run true baseline (no flags) and measure both:
+Hit the relay boundary. Let me capture the decisive baseline measurement (serial double-conversion vs concurrent-EX) before wrapping up:
+Decisive baseline finding: the double-conversion is **intermittent** (round 2: test1+test3 both convert; rounds 3/5: only test1), yet node1_f1 is lost **every** round — so single-conversion rounds **still lose it**. The loss is therefore primarily a **block0-content RMW from a stale cached block** (a peer reads a stale cached block0 lacking node1_f1, RMWs, writes it), not solely double-allocation. Let me record this refinement:
+## Session summary — criterion NOT met (marker not written)
+
+I drove the `dir_reuse_coherency`/`node1_f1` blocker (the sole failing tcp test at 1/2/4/8 nodes) from a vague single-dirent loss to a **precisely characterized two-bug problem**, and refuted six distinct fix approaches with direct evidence.
+
+**Key findings this session (all RULE-4, instrumented):**
+1. node1_f1 is **durably written** to dir block0=daddr=120 (P64-N1F1 present=1, never content-clobbered there) — but readers see a *different* physical block0 lacking it.
+2. The dir inode `extent[0]` **churns/diverges** across nodes (fsb 15/262153/6291465) within and across rounds.
+3. **Decisive late finding:** the sf→block double-conversion is **intermittent** (round 2 yes; rounds 3/5 no), yet node1_f1 is lost **every** round → single-conversion rounds still lose it. So the **primary** mechanism is a **block0-content RMW from a stale cached dir block** (the dir-DATA-block cache-coherency lost-update family), with the double-allocation as a secondary contributor. P58 showed **no** concurrent-EX double-grant.
+
+**Refuted (gated/reverted):** truncate guard (inert — header can't see bmbt-content staleness), pending-replay (cold-read timing gap), epoch-adopt (drops the converter's own entries), lower-block0-wins reload guard + iflush fence + epoch convert-gate (all fired 0× — wrong path/timing), force_block+merge (corrupts 2/tcp).
+
+**State left:**
+- Safe baseline build `621FD271` — all 8 new sess65 module params **default off**; `xfs_iops.c` restored pristine; `pal.md` updated.
+- Diagnostic probes + gated infrastructure retained (`dir_epoch_adopt`, `dir_iflush_fence`, `dir_lower_block0_wins`, `dir_epoch_convert_gate`, `dir_pending`, etc.).
+- `docs/canonical_block0_fix_plan.md` (DLM canonical-block0 design) + 9 `sess65-*` ccmemory notes.
+
+**Next-session direction (refined):** fix the **primary** bug first — ensure the create-path block0 **RMW FUA-re-reads the current on-disk block0** under inode/dir reuse (sess-tcp v0.4.7 read-time gen-invalidation appears ineffective for this path); verify via P64-N1F1 (all block0 writes should become present=1). Then address the secondary intermittent double-allocation via the DLM canonical-block0 record. The loop continues automatically with full transcript access.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

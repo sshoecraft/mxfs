@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 32 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 31
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `7b1e14cd-372d-47b4-bdb6-06ee5eff72ab`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7b1e14cd-372d-47b4-bdb6-06ee5eff72ab.jsonl`
+- approx context at last assistant turn: 252030 tokens
+- tools used: Bash×116 Edit×3 Read×3 ToolSearch×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    L=$(ls -t /tmp/zero_silent_loss.*.log | head -1); echo $L; tail -25 $L
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 40 $S test15 $P "dmesg | grep -iE 'corrupt|shutdown|error|EFSC' | head -15" 2>/dev/null | grep -vE
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 25 $S test$n $P "dmesg | grep -m1 -iE 'corrupt|Internal error' | sed 's/^
+    grep -n "mxfs_dir_flush_data_blocks\|mxfs_dir_data_durable\|mxfs_dir_push_data_ags" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -8
+    sed -n '100,135p' /src/mxfs/xfs/xfs_mxfs_dlm.c; echo ====; sed -n '244,340p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "P133\|bmbt_scan" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -12; grep -c "P133" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in 1 5 15; do echo "== t$n:"; timeout 30 $S test$n $P "dmesg | grep -E 'P133' | head -6" 2>/dev/null
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 $S test3 $P "dmesg | awk '\$0 ~ /\\[ *11[0-5]\\./ && (/ino=131[^0-9]/ || /ino=0x83[^0-9a-f]/ ||
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 $S test3 $P "dmesg | grep -vE 'EVICT-DISPATCH|HELD-MISS|EVICT-RING' | awk '\$0 ~ /\\[ *11[2-5]\
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 25 $S test$n $P "dmesg | grep -E 'P106-EXREL ino=131 realns=17812517(09|1
+    sed -n '138,243p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 $S test3 $P "dmesg | grep -A6 'First 72 bytes' | head -16" 2>/dev/null | grep -vE 'Warning|Unau
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 25 $S test$n $P "dmesg | grep -E 'P133-DIRINO-REVERT|P122|DINO-READSTALE'
+    grep -n "P133-DIRINO-REVERT\|P122" /src/mxfs/pal/linux/xfs_buf.c | head -6
+    sed -n '2260,2360p' /src/mxfs/pal/linux/xfs_buf.c
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 $S test1 $P "dmesg | grep -vE 'EVICT-DISPATCH|HELD-MISS|EVICT-RING|P-DIRWR|P-DIRRD' | awk '\$0 
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 25 $S test$n $P "dmesg | grep -E 'P106-EX(GRANT|REL) ino=131 realns=17812
+    grep -rn "DIRINO-REVERT" /src/mxfs/xfs/ /src/mxfs/pal/ 2>/dev/null | head -5; grep -n "xfs_inode_buf_ops" /src/mxfs/pal/linux/xfs_buf.c | head -5
+    sed -n '2400,2500p' /src/mxfs/pal/linux/xfs_buf.c
+    cd /src/mxfs && make modules 2>&1 | grep -E "error|undefined" | head -3; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+ite/read lineage:
+Lineage is clean through the create phase. Scanning the rest for a stale-base RMW — a write whose producer never read the latest crc:
+P106-STALE-EX is always-on (1s-throttled). Checking whether it fired on t1 in this run:
+Zero P-CRNAME on t1. Comparing with the other nodes:
+No single-node transition visible. Re-verifying the ground truth that t1's phase-1 creates actually succeeded — full phase-1 output:
+journald retained everything. Pulling t1's create-phase lines from the failing attempt (realns 17812470xx):
+Timestamps show those P23 lines are from the earlier invocation. Querying the exact attempt window (06:49:55–06:50:10) for all ino-131 events:
+No version macro in the module (builds are tracked by srcversion here). Building:
+5/5 clean so far but P31 hasn't fired (collision is timing-dependent). Continuing reps to build statistical confidence:
+3/3 PASS. Checking whether P31 actively fired during these runs (proof the fix is doing work):
+chk_clean's line got swallowed by my pipeline (`tail -1` masks grep's rc). Rerunning it alone:
+All 16 VMs up, so the stall is elsewhere. Re-running with live output to find where it blocks:
+test10 is wedged (module won't unload). Power-cycling it per the standard recovery path (VM reboot is sanctioned; only the host is off-limits):
+test10 recovered. Re-running zero_silent_loss:
+All 16 nodes reset clean on build `DB81AF92`. Re-running zero_silent_loss:
+You've hit your session limit · resets 4:10am (America/Chicago)
+Completing the second half of the probe extension (BTREE format acceptance) before handing off:
+Verifying the instrumented build before relay:
+Session 31 summary — one ship-blocker fixed and verified, the next one isolated to a torn-pair mechanism with the decisive instrument built:
+
+**Fixed: `cache_coherency` (build `DB81AF92`).** The rename-batch loss root cause was proven via journald cross-node timelines (the dmesg ring had wrapped — the recurring "0 in dmesg" trap): the victim's `mkdir` added a dirent to a shortform parent's inline fork, and the DLM release durability loop trusted `xfs_iflush_cluster` rc==0 — which means "≥1 inode in the cluster flushed", not "this inode flushed". The dir's dinode was ILOCK-trylock-skipped, the cluster was bwritten without the new dirent, and the peer's fresh FUA read 9ms later missed it → concurrent-mkdir double-create → the victim's whole create batch orphaned. Fix: after the bwrite, verify this inode's log item actually left the AIL; retry if not (`P31-RELFLUSH-SELF-SKIPPED`). Verified by 8 clean diag attempts + 4 consecutive criterion PASSes (prior MTBF was 2–5 attempts).
+
+**Gate progress:** criteria 1–12 all PASS on the fixed build (mkfs_timing, chk_clean, dkms_install, online_resize, cluster_ops_timing, wedged_unmount, online_membership, dmesg_clean, cache_caps, posix_semantics-1, cache_coherency, strong_consistency).
+
+**New blocker: `zero_silent_loss`** (not re-validated since sess17) — 1590/1600 silent loss, 9 nodes shut down on `corrupt dinode 131 (btree extents)`. Proven torn pair: the storm dir's bmbt leaf is durable with 23 records while the dinode on disk says nextents=22 (the hex dump shows a fully valid BMA3 block — the "corruption" is the cross-structure mismatch). The grower (t7) flushed both halves at release, yet the reader saw 22 only 4ms later; t7 also logged three EXRELs for one tenure — the trailing two re-ran the dinode iflush *after* the slot unlocked. The existing write-side detector was double-blind (instr-gated + EXTENTS-only); build `DC5E59F4` extends it to BTREE under the `dirwr=1` knob.
+
+**Next session:** deploy `DC5E59F4`, run one zsl iter with `INSMOD_OPTS="dirwr=1"`, mine journald for `P133-DIRINO-REVERT` stacks to name the stale-dinode producer; also chase the redundant-release re-entry. Then the remaining gate criteria (crash_consistency through posix_semantics-16). Full detail in memory `sess31-run14d-rename-loss-fixed-zsl-torn-dinode`.
+
+Criteria not yet met — the marker stays unwritten.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

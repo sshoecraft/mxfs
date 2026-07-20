@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/46efd8b6-3dd3-477c-b004-14362c80d8e8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 46efd8b6-3dd3-477c-b004-14362c80d8e8, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `35e92e7f-8242-4047-a769-63b9face1275`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/35e92e7f-8242-4047-a769-63b9face1275.jsonl`
+- approx context at last assistant turn: 503933 tokens
+- tools used: Bash×161 Read×34 Edit×16 TaskCreate×2 ToolSearch×2 mcp__ccmemory__memory_write×2 TaskUpdate×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_priv.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo 0.10.22 > VERSION && make modules 2>&1 | grep -E ' error|Error' -A3 | head -12; modinfo mxfs.ko | grep srcversion
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    f=/tmp/claude-1000/-src-mxfs/35e92e7f-8242-4047-a769-63b9face1275/tasks/b3hmqrgiq.output; n=0; until grep -qE '  PASS|  FAIL|ABORT|PREP FAIL' $f 2>/dev/null || 
+    f=/tmp/claude-1000/-src-mxfs/35e92e7f-8242-4047-a769-63b9face1275/tasks/b3hmqrgiq.output; n=0; until grep -qE '  PASS|  FAIL|ABORT' $f 2>/dev/null || [ $n -ge 5
+    R=/tmp/run_cache_coherency_20260710T102001Z; echo "P75:"; grep -h 'P75-BMBT-DEL-MISMATCH\|P75b-' $R/kernlog_test* 2>/dev/null | awk '$4 >= "10:20:00"' | head -1
+    R=/tmp/run_cache_coherency_20260710T102001Z; for f in $R/kernlog_test*; do n=$(basename $f|sed s/kernlog_//); grep -h '37678152' $f 2>/dev/null | awk '$4 >= "10
+    R=/tmp/run_cache_coherency_20260710T102001Z; grep -h 'P61-CHOKEPOINT-SKIP-BMBT' $R/kernlog_test1 | awk '$4 >= "10:20:00" && $4 <= "10:26:16"' | tail -6; echo "=
+    grep -n 'mxfs_dir_data_durable(struct' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2
+    grep -n 'bool\smxfs_dir_bmbt_scan\|^mxfs_dir_bmbt_scan' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2; sed -n '/^mxfs_dir_bmbt_scan(struct xfs_inode \*ip, bool/,/^}/p'
+    grep -n 'EAGAIN' /src/mxfs/xfs/xfs_mxfs_dlm.c | awk -F: '$1 < 3000' | head; grep -n 'mxfs_dir_data_owner_scan(struct' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2
+    grep -B8 'EAGAIN' /usr/src/linux-headers-6.8.0-101-generic/include/linux/rhashtable.h 2>/dev/null | head -20; grep -rn 'Returns -EAGAIN' ~/src/linux/lib/rhashta
+    sed -n '745,770p' ~/src/linux/lib/rhashtable.c; sed -n '895,915p' ~/src/linux/lib/rhashtable.c
+    echo 0.10.23 > VERSION && make modules 2>&1 | grep -E ' error|Error' -A3 | head -8; modinfo mxfs.ko | grep srcversion
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    f=/tmp/claude-1000/-src-mxfs/35e92e7f-8242-4047-a769-63b9face1275/tasks/btigli186.output; n=0; until grep -qE '  PASS|  FAIL|ABORT|PREP FAIL' $f 2>/dev/null || 
+    virsh -c qemu:///system destroy test11 2>/dev/null; sleep 2; virsh -c qemu:///system start test11 2>&1 | head -2; sleep 45; timeout 10 /src/mxfs/tools/mxfs_sshp
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    f=/tmp/claude-1000/-src-mxfs/35e92e7f-8242-4047-a769-63b9face1275/tasks/bvjh8omr3.output; n=0; until grep -qE '  PASS|  FAIL|ABORT|PREP FAIL' $f 2>/dev/null || 
+    R=/tmp/run_cache_coherency_20260710T104051Z; for i in $(seq 1 32); do grep -h 'RESULT:' $R/test$i 2>/dev/null | head -1 | grep -oE 'failed=[0-9]+'; done | sort 
+    R=/tmp/run_cache_coherency_20260710T104051Z; grep -h 'P76-SKIP-EATS-COMMIT' $R/kernlog_test* | awk '$4 >= "10:40:00"' | grep -oE 'in_ail=[0-9] dirty=[0-9] pin=[
+
+## Last text from previous session
+
+oss_visibility/nodeN.txt` files are never deleted by the test; they're legit leftovers. The uv check counts `unlink_visibility/node*_file*`. Checking the real ghost population:
+Envelope: XFS daddr 0 at byte 100704256 (sector offset 196688). Getting the XFS geometry for inode→daddr math:
+Geometry solved (ino 31457433 → dinode daddr 31457433, byte 16206909952). Writing a python decoder for the platter forensics:
+The daddr math needed real agblocks=261653 (from the P-DIRDW cluster print). Dinode is at daddr 31398513:
+Zero suppressions — the write guards didn't cause this. Before the next theory: is the P64 write probe actually unconditional? If it's gated, "test15 never wrote db2" is unproven:
+Now implementing. First the helper in xfs_dir2_leaf.c (before the `#endif /* __KERNEL__ */` after the datascan), then the two hook sites:
+Hook 1 — leaf removename:
+Hook 2 — node removename. Reading its lookup structure:
+Now the node-format hook, mirroring the lookup's buffer-release pattern:
+Build v0.10.18:
+test4 hit a corruption shutdown at 09:43:44 mid-rv-phase. Getting the corruption context:
+The bmbt evict machinery runs at every reload, yet i!=1 still fired. Getting the actual evict/reload sequence for ino=60817541 on test24 just before the crash:
+Writing the bmbt-children release drain and wiring it into the release loop:
+Same i!=1 on test7. P74 fired 0 — the landing-lag theory needs revision. Reading the exact failing check at xfs_bmap.c:5289:
+While the run executes, persisting the session's evidence chain to memory:
+This run hit the timeout face (killed leftover processes). Checking P75 evidence and the wedge:
+`mxfs_dir_bmbt_scan` IS consulted by data_durable — checking what it actually scans:
+test11 wedged (no route). Power-cycling it and retrying:
+Session 5 summary — criteria NOT met (no marker written); major root-cause progress with two failure families fully solved and the third cornered to its manufacture site:
+
+**Solved this session (all RULE-4 proven, fixes landed v0.10.17→0.10.23, build 345C285B deployed):**
+1. **The uv "16 ghost files" failure** — platter decode proved the ghosts are leafless dirents: create-wave leaf wars drop leaf-hash entries; `rm` of a hole-name ENOENTs at the leaf, the unlink txn aborts, `rm -f` swallows it, and the dirent bytes + live inode survive. Fixed with `mxfs_dir2_leafless_removename` (P73): on leaf-ENOENT, scan data blocks and expunge the dirent data-side so the unlink completes. Verified firing (3×/run) and the got=16 face is gone.
+2. **Datascan corruption storms** — the datascan (and my new remover) read legally-sparse dirs without `XFS_DABUF_MAP_HOLE_OK`, so every hole raised `xfs_corruption_error` + marked the dir sick, killing whole mv waves (proven test4). Fixed by passing HOLE_OK in both + gating the P14 probe to non-HOLE_OK callers (most "P14 storms" were benign readdir holes).
+3. **The remaining blocker cornered in the act**: the `i != 1` shutdown in `xfs_bmap_del_extent_real` during renames. New P75/P75b probes at the crash site proved the in-core iext holds a committed mapping (e.g. `[10,4]`) while the bmbt leaf == LUN holds the pre-commit shape (`[11,3]`) — and the new P76 probe caught `P61-CHOKEPOINT-SKIP-BMBT` fake-completing writes **whose content differs from the LUN** on the same owner/daddr seconds before the crash: the skip retires the BLI and stamps written_seq, so the committed bmbt update silently never lands; a later evict re-reads the stale LUN and the node's bmbt time-travels behind its own iext.
+
+**Next session's queued fix (design in memory `AAA-ccloop46ef-sess5-END-P61-skip-eats-bmbt-commits-fix-design`):** at the P61 skip, when content differs from the LUN, bump `b_mxfs_logged_seq` (mark undestaged) instead of lying — existing guards then protect the in-core truth and the next EX tenure's fence lands it; plus verify the bast_process drain path consults the bmbt scan before unlock. Then cache_coherency@32 ×2 green → trio → dir_reuse → the full 1/2/4/8/16/32 ladder.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 53 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 52
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `c33d3c19-a0e6-4ff1-9e3a-97a9db1986e8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c33d3c19-a0e6-4ff1-9e3a-97a9db1986e8.jsonl`
+- approx context at last assistant turn: 249523 tokens
+- tools used: Bash×78 Read×13 Edit×8 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/criteria/posix_one_test.sh
+- /src/mxfs/tests/repro_dirstress_rename.sh
+- /src/mxfs/tests/run_tests.sh
+- /src/mxfs/tests/cluster/test_tcp_mesh.sh
+- /src/mxfs/tests/cluster/test_discovery.sh
+- /src/mxfs/tests/cluster/test_rename_vis_dbg.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sleep 240; echo "=== $(date -u +%T) ==="; sed 's/\x1b\[[0-9;]*m//g' /tmp/cluster_phase.log | grep -iE "Running:|\[PASS\]|\[FAIL\]|\[SKIP\]|PHASE_E
+    cd /src/mxfs; sleep 210; echo "=== $(date -u +%T) ==="; sed 's/\x1b\[[0-9;]*m//g' /tmp/cluster_phase.log | grep -iE "Running:|\[PASS\]|\[FAIL\]|\[SKIP\]|PHASE_E
+    cd /src/mxfs; sleep 120; echo "=== $(date -u +%T) full per-test summary ==="; sed 's/\x1b\[[0-9;]*m//g' /tmp/cluster_phase.log | grep -E "^\[\+.*(Running:|\[PAS
+    cd /src/mxfs; kill -9 2346779 2>/dev/null; pkill -9 -f "mxfs_test.sh" 2>/dev/null; pkill -9 -f "mxfs_sshpass.sh test" 2>/dev/null; sleep 1; echo "orphans now: $
+    cd /src/mxfs; echo "orphans: $(ps -eo cmd | grep -iE 'run_tests\.sh|mxfs_test\.sh|ssh .*root@test' | grep -v grep | wc -l)"; echo "=== rename_visibility TESTDIR
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 12 tools/mxfs_sshpass.sh test1 "$P" "echo '=== transport/CAW/TCP/discovery/peer msgs ==='; dmesg | grep -iE 'transport|
+    cd /src/mxfs; echo "=== TIMEOUT_BUDGETS posix entries ==="; grep -iE "posix|multi16|cluster" tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head; echo "=== str
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== module params ==="; timeout 10 tools/mxfs_sshpass.sh test1 "$P" "ls /sys/module/mxfs/parameters/ 2>/dev/null; echo '-
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== all params ==="; timeout 10 tools/mxfs_sshpass.sh test1 "$P" "ls /sys/module/mxfs/parameters/ 2>/dev/null | tr '\n' '
+    cd /src/mxfs; grep -rnE "P103-RELOAD-REUSE-ADOPT|RELOAD-REUSE-ADOPT" --include=*.c --include=*.h | head; echo "=== context of the pr_ line ==="; grep -rln "RELO
+    cd /src/mxfs; echo "=== instr gating examples ==="; grep -nE "mxfs_instr|mxfs\.instr|if \(.*instr" xfs/xfs_mxfs_dlm.c | head -10; echo "=== ratelimited log help
+    cd /src/mxfs; echo "=== source: discovery/peer log messages ==="; grep -rnE "discovered|new peer|peer.*discover|Discovered|discovery" dlm/*.c 2>/dev/null | grep
+    cd /src/mxfs; echo "=== peer add/found logging across dlm ==="; grep -rnE "mxfs_pal_log|pr_info|pr_warn" dlm/*.c | grep -iE "peer|member|node.*join|added|found"
+    cd /src/mxfs; sed -n '100,165p' dlm/peer.c | grep -nE "mxfs_pal_log|MXFS_LOG|\"" | head -30
+    cd /src/mxfs; grep -nE "test_skip|skip|SKIP|return 2|exit 2" tests/lib/common.sh 2>/dev/null | head; echo "=== assert helpers ==="; grep -nE "^assert_|^test_ski
+    cd /src/mxfs; echo "pre-check orphans: $(ps -eo cmd | grep -iE 'run_tests\.sh|mxfs_test\.sh|ssh .*root@test' | grep -v grep | wc -l)"; rm -f /tmp/cluster_phase2
+    cd /src/mxfs; echo "=== kill leader pgid + run_tests by pid ==="; LEAD=$(cat /tmp/phase2.pgid 2>/dev/null); kill -9 -$LEAD 2>/dev/null; for p in $(pgrep -f "run
+    cd /src/mxfs; sleep 2; for p in $(pgrep -f "run_tests.sh --nodes 16"); do kill -9 $p 2>/dev/null; done; pkill -9 -f "posix_phase_timing" 2>/dev/null; pkill -9 -
+    cd /src/mxfs; echo "orphans: $(ps -eo cmd | grep -iE 'run_tests\.sh|mxfs_test\.sh|ssh .*root@test|posix_phase' | grep -v grep | wc -l)"; echo "Dstate iscsi: $(p
+    cd /src/mxfs; sed -i 's/barrier_signal "rv_create"/barrier_signal "rvd_create"/; s/barrier_wait "rv_create"/barrier_wait "rvd_create"/; s/barrier_signal "rv_ren
+
+## Last text from previous session
+
+L — but both PASSED in the prior clean run. The only runtime change is my `.mxfs_test/*` wipe in run_tests cleanup. Wiping the large concurrent_mkdir dir from node1 right before concurrent_touch creates heavy shared-parent-dir churn/contention. My cleanup change is net-negative. Let me kill this run cleanly (kill run_tests by PID to avoid orphans), then use a safer fix.
+0 orphans, 0 D-state (clean kill). My `.mxfs_test/*` wipe caused the regression. The minimal, safe fix is to **revert the cleanup change entirely** and instead just **isolate rename_vis_dbg's namespace** (distinct TESTDIR + barrier names) — no shared-parent thrash, no barrier carryover. Let me revert run_tests.sh.
+Now isolate rename_vis_dbg's namespace (distinct dir + barrier names) so it can't collide with rename_visibility:
+Reached the relay boundary. Let me finish this sub-step — rename rename_vis_dbg's barrier names to match its isolated namespace — then summarize.
+The barrier rename succeeded (the sed permission warning was cosmetic — the edit applied). `rename_vis_dbg` now uses `rvd_*` barriers + `.mxfs_test/rename_vis_dbg`; `rename_visibility` keeps `rv_*` + `.mxfs_test/rename_visibility`. No collision.
+
+## Session 52 summary
+
+**Criteria NOT yet met** — `posix_semantics_multi16` still the sole failing criterion (18/19 pass). Marker not written.
+
+### Key discoveries (all evidence-based, RULE 4)
+
+1. **The sess51 "blockers" were mostly CONTAMINATION, not MXFS bugs.** Orphaned `run_tests.sh` from sess51 (2h18m old) + my earlier runs were still alive and ssh'd into every node, stuck in `barrier_wait`, polluting the shared `.mxfs_barriers/*` dirs. This made *every* current run's barriers time out (141s/246s) cluster-wide. On a **clean, orphan-free, power-cycled cluster**, `dir_stress` PASSES (32s), `cross_write_read` PASSES, discovery is fast — sess51's "19/80 dir_stress" and "125s discovery" were contamination artifacts. Saved as memory `sess52-orphan-runtests-contaminates-cluster-phase` (incl. the reliable kill recipe: kill `run_tests.sh` **by PID** — killing the parent reparents it to init, and it survives power-cycle by reconnecting).
+
+2. **Recovered the recurring SCST CAW↔READ atomic wedge** (18 D-state `iscsi_conn_cleanup`, register-ignore ACKs but key never sticks → mkfs EBADE). Used the proven procedure: gdb `/proc/kcore` edges → `scst_unwedge.ko blocker=<READ 0x28> blocked=<CAW 0x89>` → preempt-abort + clear PR. LUN writable again.
+
+3. **Clean-cluster cluster-phase baseline (build 5D6E7445):** 11/14 PASS; 3 real failures, all **test-harness/transport issues, not coherency bugs**:
+   - `rename_visibility` — shared TESTDIR + `rv_*` barriers with its twin `rename_vis_dbg` (which passes the identical workload). **Fixed**: isolated dbg to `.mxfs_test/rename_vis_dbg` + `rvd_*` barriers.
+   - `tcp_mesh` — tests TCP port-7600 mesh on a **CAW** cluster (no TCP). **Fixed**: skip when no 7600 listener.
+   - `discovery` — greps dmesg for `peer.*discovered` strings mxfs **never emits**. **Fixed**: replaced with transport-agnostic marker-membership check.
+
+4. **Reverted a bad fix**: my first attempt (wipe `.mxfs_test/*` between tests) caused parent-dir contention → `concurrent_touch`/`concurrent_write` regressed. Reverted to original cleanup + the targeted namespace isolation instead.
+
+### Still open for next session
+- **Verify** the 3 test fixes on a clean cluster (re-run `posix_phase_timing.sh --phase cluster`, orphan-check first).
+- **Slowness (RULE 0)**: cluster phase ~705s > 600s budget; `cross_write_read` 127s is the main outlier. Even with fixes, `--phase all` likely exceeds 600s — needs perf work.
+- **Real defects found in dmesg**: always-on `P103-RELOAD-REUSE-ADOPT` LOG_ERR spam (thousands of lines, floods ring buffer + printk overhead — should gate behind `mxfs.instr`), and a **slab leak at rmmod** (`BUG mxfs_ili`/`mxfs_inode`: "Objects remaining on __kmem_cache_shutdown").
+- Cluster currently: 16 nodes loaded 5D6E7445, unmounted, 0 orphans, SCST healthy.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

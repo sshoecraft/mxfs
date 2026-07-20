@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 21 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 20
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `6f4501a5-0836-4c86-8c97-488cec34518c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6f4501a5-0836-4c86-8c97-488cec34518c.jsonl`
+- approx context at last assistant turn: 155678 tokens
+- tools used: Bash×52 Edit×10 Read×8 Monitor×1 ToolSearch×1 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/cv_sfadd_loop.sh
+- /src/mxfs/state.md
+- /src/mxfs/tests/cv_clmerge_capture.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sleep 1; grep -ac ITER tests/.cv_sfadd_loop.out
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; echo "=== newest result dir ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'ls -t /mnt/shared/.mxfs_test/ 2>/dev/null | head; ec
+    cd /src/mxfs; for n in test1 test2 test3 test4; do c=$(timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -ac "P-CLMERGE restored"' 2>/dev/nu
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; now=$(timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | tail -1 | grep -aoE "^\[[0-9]+" ' 2>/dev/null); up=$(timeout 8 bash tool
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo -n "$n STARVE-recent: "; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -ac "SESS
+    cd /src/mxfs; sleep 2; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' t
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; grep -nE "test_|--test|TESTS=|for .* in|sub|run_tests" tests/criteria/cache_coherency.sh 2>/dev/null | head -30
+    cd /src/mxfs; echo "=== reset4.sh node setup ==="; grep -nE "NODES=|test[0-9]|NODE_OFFSET|offset|for n" tests/reset4.sh | head -10; echo "=== run_tests.sh NODE_
+    cd /src/mxfs; grep -nA8 "get_node_hostname()" tests/run_tests.sh | head -20; echo "=== what hostnames does offset 16 produce? ==="; grep -nE "NODE_OFFSET|HOST_O
+    cd /src/mxfs; grep -rn "get_node_hostname" tests/*.sh tests/lib/*.sh 2>/dev/null | head; echo "==="; grep -rnA10 "get_node_hostname *()" tests/ 2>/dev/null | he
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; echo "iters: $(grep -ac ITER tests/.cv_sfadd_loop.out)/20  H2:$(grep -ac '=> H2' tests/.cv_sfadd_loop.out)  done:$(grep -ac 'loop done' tests/.cv_
+    cd /src/mxfs; echo "=== test result node logs timing (last cv_disc) ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'ls -t /home/steve/.mxfs/re
+    cd /src/mxfs; ls -t /home/steve/.mxfs/results/ 2>/dev/null | head -4; d=$(ls -t /home/steve/.mxfs/results/ 2>/dev/null | head -1); echo "latest run dir: $d"; gr
+
+## Last text from previous session
+
+uiet gap is the test's read/verify phase (drop_caches + stat retries) which doesn't log much — normal, not a wedge. The loop's `timeout 120` could mask a slow iter as a pass, but the real arbiter is `cache_coherency.sh` which has its own timing checks. Let me check if it advanced and wait on the monitor:
+Iter 13 has lingered through several cycles. Let me check for a barrier stall (the sess50 starvation class) in the current run:
+No starvation. The verify phase with drop_caches retries can extend an iter. The monitor will fire on loop exit. Let me check progress once more:
+Iter 14 now — advancing, no H2. The loop is progressing normally. I'll wait for the monitor to report completion.
+Let me review what the full `cache_coherency.sh` criterion actually runs, so I'm ready to validate the moment the loop finishes:
+The criterion uses `MXFS_NODE_OFFSET=16` (→ test17+) but my fix was validated on test1-4 (what reset4.sh mounts). I need to confirm the criterion actually tests the cluster I've been fixing, or it'll fail spuriously. Let me check node resolution:
+Resolved: `MXFS_NODE_OFFSET=16` is for disklock slot numbering, not hostnames (`get_node_hostname` uses `MXFS_HOST_OFFSET`, default 0 → test1-4). So `cache_coherency.sh --nodes 4` tests the same cluster I've validated. Let me check loop progress:
+I'll wait for the monitor to fire on loop completion before the next action.
+Iter 14 lingering across cycles — let me check whether iters are approaching the 120s timeout (a slowness regression from the extra FUA reads would matter per timing-is-first-class):
+Hit the relay boundary. Brief summary of this session's progress:
+
+## What was accomplished (sess62)
+
+**Proved the sess61 residual root cause (RULE 4 step 2b).** With the sess61 dir-only cluster-merge, cross_visibility still failed at iter 1 — but the symptom changed: directory entries are now stable, yet `stat node1.txt` → ENOENT while the **dirent is present** in the listing. The smoking gun, in the creator node's own dmesg:
+```
+INACT-SKIP-STALE ino=132 incore_mode=0100644 ... disk_mode=00 disk_gen=0 reason=disk-free
+```
+Inode 132 (node1.txt) is **FREE on disk** while in-core it's a valid regular file. The same cross-inode cluster-buffer false-sharing reverts a **regular-file inode allocated→free** — inode 132 is co-resident (cluster agino 128–159) with dir 128, and the sess61 merge only restored `S_ISDIR` slots, leaving the regular-file slot as this node's stale (free) cache → reverted on disk.
+
+**Fixed it (build `1F3573F9`, deployed test1-4).** Generalized `mxfs_iflush_cluster_merge_dirs` in `xfs/xfs_inode.c`:
+- Trigger now fires for any foreign **allocated** inode (dir OR regular), not just dirs.
+- Overlay every foreign (not-in-`b_li_list`) slot from the durable on-disk image, with a "never zero an allocated buffer slot" guard (skips the disk-free/buffer-allocated inode-reuse direction).
+- Removed the two perturbing P-CLMERGE-GATE logs; added `own=` field to P-DIRFLUSH (`xfs/libxfs/xfs_inode_buf.c`) as the H-A/H-B discriminator.
+
+**Validation in progress.** `tests/cv_sfadd_loop.sh 20` is running: **iters 1–14 PASS, no H2** (prior build failed at iter 1) — a clean A/B with one variable. Per-iter ~2min, no kernel oops/shutdown/starvation on any node.
+
+## Remaining (next session)
+1. Let the 20-iter loop finish; confirm 0 H2.
+2. Get direct proof the merge restores a regular-file slot: `bash tests/cv_clmerge_capture.sh 6` (no dmesg clearing → captures P-CLMERGE `restored ... dmode=010xxx`).
+3. Run the **real criterion**: `tests/criteria/cache_coherency.sh --nodes 4` (4 sub-tests: cross_visibility, rename_visibility, unlink_visibility, cross_write_read — the latter 3 may share this root or have residuals).
+4. Watch perf (extra FUA reads): verify `single_node_paired` / `rsync_paired` didn't regress; then full `verify_ship.sh`.
+
+Criteria remain **PASS=10 FAIL=2** (cache_coherency, rsync_paired). Marker **not** written — the gate is not green. State recorded at the head of `state.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

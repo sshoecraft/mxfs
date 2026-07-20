@@ -1,0 +1,154 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+success.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/5d123e7b-0ac1-4067-835d-680ebf6da55d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 5d123e7b-0ac1-4067-835d-680ebf6da55d, after session 1
+
+## Original task
+
+MXFS NET2: continue DLM_PLAN.md v2 §11 from the step-2 stop point. Before ANY work read, in order: state.md (exact stop point + engine facts — do not re-derive them), DLM_IMPL_PLAN.md, docs/net2.md. Use the deep-focus skill. Work the success.md criteria in order: finish gate 2 (kernel smoke) if authorized, then step 3 + gate 3, then step 4 + gate 4, then step 5 + gate 5. Obey success.md's HARD BOUNDARIES and CLAUDE.md RULES 0-5: never reboot clyde; written RULE-0 budget before every run and a timeout IS a failure; RULE-4 loop for every failure; RULE-5 GPT escalation before any issue enters a second session unproven; foreground waits only. CAW criteria-met status is stop-the-line protected. Write a fresh sessNN-* ccmemory each session; handoff is the relay + ccmemory, not rolling files. Write DONE only per success.md's DONE protocol.
+
+
+## Previous session
+
+- session-id: `3e77aca5-4b18-4060-9bcb-9867eab5afd2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3e77aca5-4b18-4060-9bcb-9867eab5afd2.jsonl`
+- approx context at last assistant turn: 506148 tokens
+- tools used: Bash×113 Edit×79 Write×13 Read×11 mcp__ccmemory__memory_write×3 Skill×1 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/Kbuild
+- /src/mxfs/include/mxfs/mxfs_ports.h
+- /tmp/claude-1000/-src-mxfs/3e77aca5-4b18-4060-9bcb-9867eab5efa2/scratchpad/analysis.md
+- /src/mxfs/dlm/net2_midcomms.c
+- /src/mxfs/dlm/net2.c
+- /src/mxfs/dlm/net2.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/net2/gate2_midcomms.sh
+- /src/mxfs/VERSION
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/DLM_IMPL_PLAN.md
+- /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md
+- /src/mxfs/docs/net2.md
+- /src/mxfs/dlm/dlm_shared.h
+- /src/mxfs/dlm/dlm_shared.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/tests/net2/Makefile
+- /src/mxfs/tests/net2/gate3_cawsanity.sh
+- /src/mxfs/dlm/net2_msg.h
+- /src/mxfs/dlm/net2_shard.h
+- /src/mxfs/dlm/net2_lock.h
+- /src/mxfs/dlm/net2_shard.c
+- /src/mxfs/dlm/net2_lock.c
+- /src/mxfs/tests/net2/harness/scen_shard.c
+- /src/mxfs/tests/net2/harness/harness.h
+- /src/mxfs/tests/net2/harness/net2_harness.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs/dlm && cp net2_shard.c /tmp/claude-1000/net2_shard.c.orig && python3 - <<'EOF' import re src = open('net2_shard.c').read() needle = """	if (ls->poi
+    cd /src/mxfs/tests/net2 && make >/dev/null 2>&1 && timeout 15 ./net2_harness run sh_basic 2>&1 | grep -m5 'INSTR\|RESULT'; echo "rc=$?"
+    ./net2_harness run sh_basic >/tmp/claude-1000/shb.log 2>&1 & HPID=$!; sleep 6; gdb -p $HPID -batch -ex 'thread apply all bt 8' 2>/dev/null | grep -E '^Thread|^#
+    which gdb || echo NO_GDB; cat /proc/sys/kernel/yama/ptrace_scope 2>/dev/null; wc -l /tmp/claude-1000/shb.log; grep -cE 'INSTR' /tmp/claude-1000/shb.log
+    ./net2_harness run sh_basic >/tmp/claude-1000/shb.log 2>&1 & HPID=$!; sleep 5; gdb -p $HPID -batch -ex 'thread apply all bt 6' > /tmp/claude-1000/stacks.txt 2>&
+    head -30 /tmp/claude-1000/stacks.txt
+    timeout -s INT --foreground 8 gdb -batch -ex run -ex 'thread apply all bt 8' --args ./net2_harness run sh_basic > /tmp/claude-1000/stacks.txt 2>&1; grep -E 'Thr
+    grep -E 'Thread [0-9]+ |#[0-9]+ ' /tmp/claude-1000/stacks.txt | grep -vE 'libc.so|__futex|start_thread|clone3|pthread_cond|cond_timedwait|__libc_recv|socket2.h|
+    make >/dev/null 2>&1 && echo BUILD_OK && timeout 60 ./net2_harness run sh_basic 2>&1 | tail -6
+    timeout 60 ./net2_harness run sh_basic 2>&1 | grep -E 'CHECK-FAIL'
+    make >/dev/null 2>&1 && timeout 60 ./net2_harness run sh_basic 2>&1 | grep -E 'CHECK-FAIL|RESULT'
+    timeout 240 ./net2_harness run shard 2>&1 | grep -E 'CHECK-FAIL|RESULT' | head -40
+    for s in sh_waiter_order sh_leader_dead sh_epoch_mid_op; do echo "=== $s"; timeout 60 stdbuf -oL ./net2_harness run $s 2>&1 | grep -E 'CHECK-FAIL|RESULT' | head
+    timeout 120 stdbuf -oL ./net2_harness run sh_killpoints 2>&1 | grep -E 'CHECK-FAIL|RESULT' | head -20
+    timeout 100 stdbuf -oL -eL ./net2_harness run sh_killpoints > /tmp/claude-1000/kp.log 2>&1; tail -12 /tmp/claude-1000/kp.log; grep -c 'hook fired' /tmp/claude-1
+    make >/dev/null 2>&1 && time timeout 120 stdbuf -oL ./net2_harness run sh_killpoints > /tmp/claude-1000/kp.log 2>&1; grep -E 'CHECK-FAIL|RESULT' /tmp/claude-100
+    cd /src/mxfs && python3 - <<'EOF' src = open('dlm/net2_shard.c').read()  # debug helper after includes old = '/* \xe2\x94\x80\xe2\x94\x80\xe2\x94\x80 small util
+    make 2>&1 | grep -cE 'error'; ls -la net2_harness | awk '{print $5}'
+    make 2>&1 | grep -E 'error' | head -5
+    timeout 60 ./net2_harness run sh_basic 2>&1 | grep -E 'RESULT'
+
+## Last text from previous session
+
+tha`. Fixing the gate script to use it:
+Design is settled. Snapshotting it to the analysis file (context insurance), then writing net2_msg.h:
+Checking net2_wire.h's pack conventions to match, then writing net2_msg.h:
+Fixing the pack/unpack to be header-inline (net2_msg.h stays header-only per plan) and tightening the record-kind spec:
+net2_msg.h complete. Now the shard/lockspace header:
+Now the core implementation. Verifying the exact PAL cond/sort APIs first:
+Now net2_lock.c — record semantics, deterministic apply, leader validate/emit, waitq fairness, and the client side:
+That grant-chain has a liveness gap — after a FROM_WAITQ grant commits, the next queued waiter must be considered too. Fixing in the commit path, plus the client_tick retry counter:
+Wiring the new objects into the harness Makefile and compiling:
+Harness integration mapped. Writing scen_shard.c — the §13.2 scenario family (this is the core of gate 4):
+Declaring the shard table in harness.h and wiring net2_harness.c:
+Clean build. First functional run of the shard plane — sh_basic:
+No self-sends before the hang — H1 refuted as the immediate cause. Getting thread stacks at the hang point:
+gdb gave nothing — checking availability and log contents:
+The APPEND_ACK misrouting is fixed. The self-send hole is still real for other topologies (leader granting its own local client) — replacing the instrumentation with a proper local loopback:
+18/19 now — the consensus path works. Finding the one failing check:
+sh_basic green. Running the full shard group to see where the rest stand:
+The tracing patch failed on an encoding anchor (only the KP_ONLY selector landed). Adding the traces via direct edits instead:
+Relay boundary reached — wrapping this sub-step: finishing the two remaining trace points, verifying the build, and updating the session memory for the handoff.
+Build shows 2 error lines — must fix before handing off:
+Session 1 summary — stopping at the relay boundary with the build green and a precisely-scoped open diagnosis:
+
+**Completed this session (criteria 1 and 2 of success.md):**
+- **Gate 2 fully green @ 0.11.2** — checkpoint A executed (Kbuild + port 7610, both user-approved), first `__KERNEL__` compile of the net2 engine (two >1KB stack frames fixed via 16-entry chunked snapshots), `net2_selftest` modparam smoke driver written, and the 2-node kernel smoke **PASS on test1/test2** (run 1 exposed a test-driver teardown race — engine behaved exactly per spec; fixed with a 3s post-pass linger; run 2: 32/32 acked both nodes, 13s vs 60s pinned budget). User matrix re-verified green.
+- **Gate 3 green @ 0.11.3** — `dlm_shared.{c,h}` lift landed (verbatim bodies, three duplicate copies deduped), and CAW proven unchanged: posix_multi 211/211 + dlm_fairness 5/5 on a freshly formed 2-node cluster, 32s vs 300s provisional (pinned 120s). All bookkeeping (VERSION, CHANGELOG, gate line, docs, budgets) is current for both gates.
+
+**Step 4 (lock plane) is built and mid-bring-up:** ~2,800 lines landed — net2_msg.h wire formats, net2_shard.c (HRW configs, 2-of-3 replicated log with backfill/truncation, election, snapshot transfer, reconfiguration, closed-set recovery barrier), net2_lock.c (deterministic apply, waitq FIFO + ex_streak fairness, idempotency cache, client), plus an 11-scenario harness family. Five scenarios already pass (basic, waiter-order incl. fairness, dead-leader election, epoch-mid-op, kill-points 1/2/6) after four evidence-diagnosed fixes, the biggest being APPEND_ACKs routed to the requester instead of the leader, and the self-send loopback.
+
+**Open item for the next session:** kill-points 3/4/5/7 (survivor-holds-entry failovers) still time out. N2DBG tracing is in place (`N2_DEBUG=1`, `KP_ONLY=n` single-point repro), hypotheses are written in the session memory (`AAA-ccloop5d12-sess1-net2-progress`), and RULE-5 escalation is flagged if the diagnosis doesn't converge quickly. Criteria 3 and 4 (gates 4 and 5) remain — the criteria-met marker stays unwritten.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

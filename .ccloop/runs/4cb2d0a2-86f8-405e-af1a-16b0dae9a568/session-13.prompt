@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 13 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 12
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `52bb1157-9c8e-467d-9126-33e3397021d4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/52bb1157-9c8e-467d-9126-33e3397021d4.jsonl`
+- approx context at last assistant turn: 502641 tokens
+- tools used: Bash×116 Read×27 mcp__ccmemory__memory_write×10 Edit×8 mcp__ccmemory__memory_get×6 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SD=/tmp/claude-1000/-src-mxfs/52bb1157-9c8e-467d-9126-33e3397021d4/scratchpad; echo "=== FULL result with fix ==="; grep -E "PASS|FAIL" $SD/run4_f
+    cd /src/mxfs; echo "=== xfs_ifork struct ==="; grep -nA12 "struct xfs_ifork {" xfs/libxfs/xfs_inode_fork.h 2>/dev/null | head -16; echo "=== xfs_idata_realloc /
+    cd /src/mxfs; sed -n '739,745p' xfs/libxfs/xfs_dir2_sf.c; echo "=== XFS_DFORK_DPTR/SIZE ==="; grep -rn "#define XFS_DFORK_DPTR\|#define XFS_DFORK_SIZE\b\|#defin
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|undeclared|LD \[M\].*ko$" | tail -10; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev
+    cd /src/mxfs; SD=/tmp/claude-1000/-src-mxfs/52bb1157-9c8e-467d-9126-33e3397021d4/scratchpad; timeout 500 bash tests/tcp/drc4_capture.sh 24 > $SD/cap_sf.txt 2>&1
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== EXGUARD-SKIP fired this run? (per node) ==="; for n in test1 test2 test3 test4; do echo -n "$n: P12-EXGUARD="; tim
+    cd /src/mxfs; echo "=== build identity ==="; modinfo mxfs.ko | grep srcversion; echo "=== stray repro procs? ==="; pgrep -af "drc4|run.sh 4" | grep -v pgrep | h
+    cd /src/mxfs; wc -l .claude/awareness/subsystems/pal.md 2>/dev/null; echo "=== tail (where to append change log) ==="; tail -30 .claude/awareness/subsystems/pal
+    cd /src/mxfs; grep -n "sess69 — probe changes\|## Pitfalls\|sess69 — PROVEN TRUE ROOT" .claude/awareness/subsystems/pal.md
+    cd /src/mxfs; grep -n "^xfs_dir2_data_log_entry\|xfs_dir2_data_log_entry(" xfs/libxfs/xfs_dir2_data.c | head; sed -n '/^xfs_dir2_data_log_entry(/,/^}/p' xfs/lib
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; timeout 14 tools/mxfs_sshpass.sh test1 "$PASS" "echo '=== P11-DATALOG for node1_f15.md5 (where written) ==='; dmesg | grep -
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; timeout 14 tools/mxfs_sshpass.sh test1 "$PASS" "echo '=== ALL daddr=112 events 433.57-433.59 ==='; dmesg | grep -aE '\[  433
+    cd /src/mxfs; echo "=== does the dir BAST release/drain acquire the inode ILOCK? ==="; grep -nE "xfs_ilock|ILOCK_EXCL|ILOCK_SHARED|writer_active|modify_in_progr
+    cd /src/mxfs; echo "=== inode dlm fields ==="; grep -nE "i_dlm_mode|i_dlm_dir_gen|i_mxfs_ex_grant_seq|MXFS_IF_DIR" xfs/xfs_inode.h | head; echo "=== bast proces
+    cd /src/mxfs; modinfo mxfs.ko | grep srcversion; echo "stray procs:"; pgrep -af "drc4|run.sh 4 tcp" | grep -v pgrep | head; echo "params added this session:"; g
+    cd /src/mxfs; awk 'NR>=5900 && NR<=6440 && /^[a-zA-Z_].*\(|^mxfs_.*\(|^static.*mxfs/{print NR": "$0}' xfs/xfs_mxfs_dlm.c | tail -8; echo "=== i_lock down/up in 
+    cd /src/mxfs; echo "=== mxfs_drain_ilock_read def ==="; sed -n '/mxfs_drain_ilock_read(struct xfs_inode/,/^}/p' xfs/xfs_mxfs_dlm.c | head -40; echo "=== does cr
+    cd /src/mxfs; echo "=== xfs_create structure: modify_refresh, create_child, commit, exit labels ==="; awk 'NR>=1490 && NR<=1640 && /mxfs_dlm_dir_modify_refresh|
+    cd /src/mxfs; grep -nE "holders|i_dlm_holders|i_mxfs_holders|dlm_hold_begin|dlm_hold_end|inode_hold|defer.*bast|bast.*defer|holders > 0|holders>0" xfs/xfs_mxfs_
+    cd /src/mxfs; echo "=== holders increment sites (xfs_ilock / dlm_ilock_begin) ==="; grep -nE "i_dlm_ex_holders\+\+|i_dlm_pr_holders\+\+|i_dlm_ex_holders =|holde
+
+## Last text from previous session
+
+ble flush at 6431 and DLM unlock at 7079), so the create's just-added dirent lands on a block already snapshotted and is lost when EX is handed to the peer mid-create.
+6. **8 ccmemory notes** + updated `pal.md` awareness doc with the full chain and 3 concrete fix candidates (bounded writer-defer is the lead).
+
+The next session has a proven root cause and exact code locations to implement the fix surgically.
+Criterion not met — continuing. I'll implement the bounded writer-defer (candidate #2). First let me map xfs_create's control flow to place the begin/end counter correctly:
+Line 1555 already references "holders>0 defers any peer BAST" — a defer mechanism may already exist. Let me read that region:
+The comment claims "holders>0 defers any peer BAST" — that mechanism may already exist but isn't covering this case. Let me find it:
+The defer mechanism uses `i_dlm_ex_holders`/`i_dlm_pr_holders` — but those are **IOLOCK** holders. A dir create/modify holds the parent dir via **ILOCK_EXCL**, not IOLOCK — so it likely doesn't bump the holder count, leaving the BAST undeferred. Let me confirm where holders are incremented and how the BAST checks them:
+The holder-defer + re-arm dwork mechanism exists and is proven safe (re-arms, peer not stranded). The gap: the create's dir ILOCK_EXCL doesn't register as a holder. Let me check what the `i_dlm_ex_holders++` at line 10713 corresponds to (IOLOCK vs ILOCK):
+The relay boundary is here. One final crucial finding to record: `i_dlm_ex_holders++` happens in `mxfs_dlm_ilock_begin` (so the create's dir ILOCK *does* count as a holder) — but the BAST checks holders **once at the start**, then runs the whole drain+demote without re-checking. The create acquires the lock *during* the drain (after the check) → race. The surgical fix is a holders re-check before the final unlock. Let me record this:
+I've reached the relay boundary with a complete, surgical fix specification. Wrapping up.
+
+## Session 12 — final summary
+
+**Criterion (1/2/4/8-node TCP DLM 100%) is NOT met.** Marker not written. But I traced the dominant failure to its exact code line and specified a surgical, low-risk fix for the next session.
+
+### What was accomplished
+1. **Corrected the baseline** — the resume's failures were from a stale experimental build. Clean 4/tcp = 13 PASS; real failures are `dir_reuse_coherency` + `fence_during_write` (the other two are contamination from the fence shutdown).
+2. **Refuted dead ends with evidence**: the TCP cluster is LIO (not SCST); `fua_disable` tested both ways — neither fixes it (it's a stale *cached* buffer, not a stale disk read); the loss is NOT allocator double-alloc.
+3. **GPT-5.5 consult** → unified per-tenure rebase architecture.
+4. **Built 2 sound, no-regression backstop fixes** (build 40AC2A0C): `dir_ex_write_guard` + `dir_sf_rebase`.
+5. **PROVEN the dominant root** (the breakthrough, via `P11-DATALOG`): the dir BAST release-drain + **EX-demote runs concurrently with an active create**. The create writes its dirent (e.g. node1_f15.md5 → daddr 112), commits (rval=0), but the BAST hands EX to the peer mid-create and the entry is durably lost.
+6. **Pinned the exact bug to a line**: `mxfs_dlm_ilock_begin` increments `i_dlm_ex_holders` (so a create *is* a holder), and the holder-defer mechanism exists (`xfs_mxfs_dlm.c:7194`), but the BAST checks holders **once at the start** then drains+demotes (releasing `i_lock` at 6372) without re-checking — so a create acquiring during the drain races the unlock at 7079.
+
+### The fix (specified for next session)
+Re-check `i_dlm_ex_holders/pr_holders/pin` **right before the final `mxfs_v5_dlm_inode_unlock`**; if a holder raced in during the drain, defer the demote via the existing (proven-safe, bounded) `i_dlm_bast_dwork` re-arm and return without unlocking. Full rationale, safety analysis, and verification plan are in ccmemory `sess12run-VECTOR3-SURGICAL-FIX-recheck-holders-before-demote` (plus 9 other sess12run notes documenting the complete chain).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

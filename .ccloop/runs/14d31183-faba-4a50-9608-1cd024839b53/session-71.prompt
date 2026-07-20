@@ -1,0 +1,121 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 71 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 70
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `14722027-ef29-47ec-bf12-ac5563d909b8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/14722027-ef29-47ec-bf12-ac5563d909b8.jsonl`
+- approx context at last assistant turn: 255020 tokens
+- tools used: Bash×54 Read×19 mcp__ccmemory__memory_get×5 Edit×2 ToolSearch×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/dlm/dlm_caw.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== prio write primitives in PAL ===" grep -rn "bdev_write_fua\|bdev_write_prio\|write_fua_prio\|REQ_PRIO\|ioprio\|bdev_write\b" include/*.h 
+    cd /src/mxfs; grep -n "mxfs_dlm_caw_purge_node\|MXFS_CAW_MAX_SLOTS\|read_slot\b\|max_held\|num_slots\|slot_count" dlm/dlm_caw.c | head -20
+    cd /src/mxfs; grep -n "mxfs_dlm_caw_purge_node" dlm/dlm_caw.c; echo "---"; sed -n '2760,2900p' dlm/dlm_caw.c | grep -n "purge_node\|for\|read_slot\|MXFS_CAW_MAX
+    cd /src/mxfs; grep -rn "slot_offset\b\|MXFS_CAW_SLOT_SIZE\|MXFS_CAW_MAX_SLOTS\b\|caw_table_offset\|slot_table" dlm/dlm_caw.c include/*caw* compat/*.h 2>/dev/nul
+    cd /src/mxfs; grep -rn "mxfs_dlm_caw_purge_dead_nodes\|mxfs_dlm_caw_purge_node" --include=*.h . | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*dlm_caw|purge" | head; echo "build_rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcvers
+    cd /src/mxfs; timeout 420 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -3; echo "reset_rc=${PIPESTATUS[0]}"
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=55379AA23901AE1BF0B8330 ip=$(getent hosts test2.vm.localdomain|awk '{print $1}') cat tools/prep
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=55379AA23901AE1BF0B8330 for n in 3 4; do ip=$(getent hosts test$n.vm.localdomain|awk '{print $1
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=55379AA23901AE1BF0B8330 for n in 3 4; do ip=$(getent hosts test$n.vm.localdomain|awk '{print $1
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=55379AA23901AE1BF0B8330 ld=0; bad="" for n in $(seq 1 16); do   ip=$(getent hosts test$n.vm.loc
+    cd /src/mxfs; timeout 450 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -5; echo "reset_rc=${PIPESTATUS[0]}"
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=55379AA23901AE1BF0B8330 ld=0; bad="" for n in $(seq 1 16); do   ip=$(getent hosts test$n.vm.loc
+    cd /src/mxfs; rm -f /tmp/zero_silent_loss.*.log 2>/dev/null timeout 560 bash tests/criteria/zero_silent_loss.sh --iters 3 --dpn 100 --mode 1 2>&1 | tail -12; ec
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in 1 5 9; do   ip=$(getent hosts test$n.vm.localdomain|awk '{print $1}')   echo "===== test$n =
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip=$(getent hosts test1.vm.localdomain|awk '{print $1}') echo "===== test1 full PR/fence/evict/HB tim
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip=$(getent hosts test1.vm.localdomain|awk '{print $1}') echo "===== test1 mxfs PR/fence/evict timeli
+    cd /src/mxfs; grep -rn "P-EVICT-AUTOMON\|auto-monitor\|auto_monitor\|automon" dlm/*.c xfs/*.c | head -15
+    cd /src/mxfs; grep -rn "PREEMPT\|preempt\|PROUT\|pr_out\|persistent_reserv\|PERSISTENT_RESERVE\|sg_persist\|scsi_pr\|REGISTER_AND_IGNORE\|0x5eed\|fence" dlm/*.c
+    cd /src/mxfs; echo "=== who calls scsipr_preempt / fence on eviction? ==="; grep -rn "scsipr_preempt\|mxfs_scsipr_preempt\|expire_cb\|v5_lease_expire" dlm/v5_mo
+
+## Last text from previous session
+
+ trigger. A live node loses its SCSI PR registration → writes rejected → `log I/O error -52` → shutdown, and the AGI/AGF corruption is downstream of torn writes. The bmbt over-count is gone. Let me get the full PR/fence/eviction timeline to see who's stripping a live node's registration:
+The reservation conflicts trace to false eviction under storm: a live-but-busy node's heartbeat goes stale → peer fences it (SCSI PR preempt) → its writes conflict → shutdown → and test1's auto-monitor then mass-evicts all 15 peers at t=106 (2ms apart — clearly false). The batched purge fixed the *speed* but the false evictions still happen and fencing makes them fatal. Let me examine the heartbeat thread's per-cycle I/O ordering — if the write is delayed behind other I/O each cycle, that's the starvation source:
+The auto-monitor evicting 15 slots in 2ms (t=106) is NOT normal heartbeat eviction (which needs 31 missed beats / 16s) — it's a separate, aggressive path (sess82 self-healing auto-monitor). That mass-eviction-in-2ms is the catastrophic amplifier. Let me find it:
+P-EVICT-AUTOMON is just the monitor *initializing* slot→node mapping on first sight (not an eviction — I misread). So the fatal path is the normal heartbeat eviction → **fence (SCSI PR preempt) of a live node**. The reservation conflict means a live node's PR key got preempted. Let me find where MXFS issues the PR preempt on fencing:
+Reached the relay boundary. Let me quickly check whether the eviction path actually fences (PR preempt) a live node, then record findings.
+Let me record the session's findings to memory for the next session.
+Reached the relay boundary. Summary of this session's work:
+
+## Progress on zero_silent_loss (zsl) — two verified fixes landed, root advanced two layers
+
+**Current build:** `55379AA23901AE1BF0B8330` (on NFS, all-node reachable). Criteria **NOT met** — marker stays unwritten (zsl, fence_during_write, posix_multi16, rsync_paired still FAIL).
+
+**Verified this session (RULE 4 — each fix proven by instrumented evidence, then confirmed):**
+
+1. **FE603677 (sess69 heartbeat fix) does not leak a module ref** — controlled test3 mount→umount→rmmod was clean (refcnt 0→1→0). The prior "refcnt leak" blocker was a symptom of FS-shutdown-wedged nodes, not the fix.
+
+2. **FIX 1 — bmbt over-count corruption (`P70-DINO-RECONCILE`, xfs_bmap.c).** Fast-path zsl shut down with `corrupt dinode 131 (btree extents)` at `xfs_iread_bmbt_block` line 1247 (`loaded+num_recs > if_nextents`). The hex dump proved a *structurally valid* leaf — this is the inverse of sess68: the sess68 FUA-refresh makes the leaf fresh-high while the in-core dinode `if_nextents` stays stale-low. The dirwr run proved the on-disk pair is coherent, so the fix FUA-re-reads the dinode and adopts its authoritative `di_nextents` instead of shutting down. **Result: no more "corrupt dinode" anywhere.**
+
+3. **FIX 2 — purge_node cascade amplifier (dlm_caw.c).** Proven by stack trace: `purge_node` ran on the heartbeat thread doing 65536 individual FUA reads (tens of seconds) → node couldn't beat → cascade + verify-find starvation. Routed it through the existing batched `purge_dead_nodes` (16 KiB chunks, <1s, identical semantics). **Result: zsl iter1 now completes in 47s, no hang.**
+
+**Remaining blocker (handed to next session, recorded in memory `sess70-overcount-fix-and-purge-cascade-fix`):** SCSI PR **reservation conflict** under the 16-node storm. A live-but-busy node's heartbeat *write* starves → false heartbeat eviction → fence preempts its PR key → its writes get `reservation conflict` → `log I/O error -52` → FS shutdown (whole-storm blast radius = 1600 lost). Next step: trace `v5_lease_expire_cb` (dlm/v5_mount.c:505) / `mxfs_scsipr_preempt` — either don't PR-preempt on a heartbeat-only eviction, or stop the heartbeat write from starving (it's already REQ_PRIO|SYNC|FUA, but the hb thread does a self-fence SB read *before* the write each cycle). Likely shares a root with `fence_during_write` (lost=400).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

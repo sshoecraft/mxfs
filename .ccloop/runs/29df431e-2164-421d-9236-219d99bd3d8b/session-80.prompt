@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 80 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 79
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `6c7dc488-475e-47ff-a57b-b8b821c2164d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6c7dc488-475e-47ff-a57b-b8b821c2164d.jsonl`
+- approx context at last assistant turn: 251286 tokens
+- tools used: Bash×65 Read×19 Edit×4 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ask_gemini__query×2 mcp__ccmemory__memory_get×2 Monitor×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system echo "=== per-node: parent dp for *_before_* creates (THIS run) ===" for n in 1 2 3 4; do   echo -n "tes
+    cd /src/mxfs; grep -n "rm -rf\|mkdir\|ssh_node\|\.mxfs_test\|MXFS_TEST_BASE\|TESTDIR\|prepare\|setup" tests/run_tests.sh | head -40
+    cd /src/mxfs; timeout 590 make modules 2>&1 | grep -iE "error:|CC \[M\].*(xfs_inode|xfs_mxfs_dlm)|LD \[M\].*mxfs.ko|undefined" | head; echo "rc=${PIPESTATUS[0]}
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests for n in 1 2 3 4; do virsh destroy test$n >/dev/null 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests for pair in 1 2 3 4; do   MXFS_NODE_OFFSET=16 timeout
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system D=$(ls -dt /home/steve/.mxfs/results/*/ | head -1) echo "=== loser (which node lost all its renames) ===
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system echo "=== node2 (loser): P106-MR SKIP vs EVICT for parent .mxfs_test ino=131 ===" timeout 8 bash tools/m
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system echo "=== node1: ino=131 (.mxfs_test) activity — did it publish/release? ===" timeout 8 bash tools/mxfs_
+    cd /src/mxfs; grep -noE "\"mxfs: [A-Z0-9-]*(COHOLD|EX-COUNT|EXCOUNT|CONCURRENT-EX|EX2)[A-Za-z0-9 _=-]*" xfs/xfs_mxfs_dlm.c | head; echo "=== search ex_pop / co-
+    cd /src/mxfs; grep -n "mxfs_v5_dlm_inode_unlock\|i_dlm_mode = MXFS_LOCK_EX\|i_dlm_mode = mode\|granted\|GRANT\|->i_dlm_mode =" xfs/xfs_mxfs_dlm.c | grep -iE "gr
+    cd /src/mxfs; timeout 590 make modules 2>&1 | grep -iE "error:|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}" for s in P106-EXGRANT P106-EXREL P106-MKDIR
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests for n in 1 2 3 4; do virsh destroy test$n >/dev/null 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests for pair in 1 2 3; do   MXFS_NODE_OFFSET=16 timeout 2
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system echo "=== merged P106-EXGRANT/EXREL for ino=131 across all nodes, sorted by realns ===" for n in 1 2 3 4
+    cd /src/mxfs; grep -rniE "steal|timeout.*acquir|force.*acquir|lease|expir|generation|epoch|requested_by|slot.*owner" dlm/*.c dlm/*.h include/*.h 2>/dev/null | g
+    cd /src/mxfs; ls dlm/ | grep -iE "caw|lock"; echo "=== caw lock acquire / steal logic ==="; grep -rniE "steal|stolen|reclaim|force|timeout|MAX_RETRIES|hold.*exp
+    cd /src/mxfs; echo "=== caw_lock_slot struct ==="; sed -n '/struct mxfs_caw_lock_slot {/,/};/p' dlm/dlm_caw.h echo "=== existing verify/held helpers ==="; grep 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system echo "=== reclaim / recovery / heartbeat-expiry / epoch events (this failing run still in dmesg) ===" fo
+    cd /src/mxfs; echo "=== public CAW query APIs (held/owns/mode) ==="; grep -nE "^(int|bool|uint8_t|void).*mxfs_(dlm_caw|v5_dlm)_[a-z_]*(held|hold|owns|mode|query
+    cd /src/mxfs; grep -nE "mxfs_v5_dlm_.*(held|hold)|caw_held|_held\(" xfs/xfs_mxfs_dlm.c dlm/*.c include/*.h 2>/dev/null | grep -iE "held|hold" | head -15 echo "=
+
+## Last text from previous session
+
+r an existing "verify still held" helper.
+The slot exposes `holders_ex` (per-node bitmap) + `generation`, with a `read_slot` API — so a cheap-verify fix needs no format change. But first, per RULE 4, I must prove HOW node1's slot got released while it kept cached EX. The leading hypothesis: a peer **reclaimed** node1's locks thinking node1's heartbeat went stale (node1 busy fast-pathing). Let me check the nodes' dmesg for reclaim/recovery/heartbeat-expiry events around the failure (cheap, decisive).
+No reclaim, no heartbeat-expiry, no grant-wait-timeout, no exclusion-violation. So node3 acquired ino=131 cleanly (node1's `holders_ex` bit was already clear at grant). That confirms node1 released the on-disk slot via a path that **left `i_dlm_mode==EX` stale in memory** — a clean state-divergence bug. 
+
+The perfect RULE-4 probe both proves the mechanism AND validates the fix point: at the fast-path EX cache-hit for a dir, do a cheap `read_slot` and check whether this node's bit is actually still in `holders_ex`. Let me find the public CAW API to query on-disk ownership.
+`mxfs_dlm_caw_held()` is a public API. Let me read its signature/behavior — it's likely the cheap-verify primitive I need.
+`mxfs_dlm_caw_held()` returns 1 if this node holds the resource on-disk — the cheap-verify primitive (one slot read). Let me find the v5-layer wrapper the xfs overlay can call from the fast-path, then add a probe that proves the stale-cached-EX mechanism at the exact fix point.
+I've reached the relay boundary. Let me record the complete proven diagnosis and precise fix plan to memory.
+## Session summary
+
+**Major progress on the `cache_coherency` ship-blocker (criterion still 3/4 — marker NOT written).**
+
+Following RULE 4 strictly, I traced the intermittent `rename_visibility` loss to a **proven root cause** and got an actionable fix plan.
+
+### What I proved
+1. **The previous build `3911B884` was stale** — the `P105-CREATE-PARENT` probe edit to `xfs_inode.c` was never compiled in (incremental build skipped it). Rebuilt and confirmed via `strings mxfs.ko`.
+2. **The loss is a directory-inode divergence from concurrent same-name `mkdir`.** All 4 nodes race `mkdir -p .mxfs_test/rename_visibility` with no barrier (the harness pre-create at `run_tests.sh:258` uses a *different* name, `test_rename_visibility`, so it doesn't pre-create the path). Two nodes each allocate a **distinct child inode for the same name** (e.g. node3→12583041, node1→135), the parent block (`.mxfs_test`, ino 131, shortform) suffers a lost-update, and the loser keeps a stale dentry pointing at its orphaned child → its files are invisible cluster-wide.
+3. **The mechanism is a mutual-exclusion violation via stale cached EX.** `P106-EXGRANT/EXREL` bracketing proved node1 modified ino 131 *inside* node3's on-disk EX-held window, via the **fast-path cache-hit** (`if (i_dlm_mode==EX) return;`) which trusts in-memory mode and does no on-disk CAW re-check. Ruled out (clean dmesg): reclaim, heartbeat-expiry, grant-wait-timeout, CAW steal, exclusion-violation. So node1's on-disk `holders_ex` bit was already clear — it released the slot but left `i_dlm_mode==EX` stale.
+
+### Fix plan (left ready for next session, in memory `sess106_lessons`)
+- Primitive already exists: `mxfs_dlm_caw_held()` (cheap on-disk ownership read). Add an inode wrapper `mxfs_v5_dlm_inode_held()` mirroring `mxfs_v5_dlm_ag_held` (`v5_mount.c:1157`).
+- **Step 1 (prove):** at the dir-EX fast-path cache-hit (`xfs_mxfs_dlm.c` ~3254/3490/3874), if `inode_held()==0`, log `P106-STALE-EX` — confirms the bug at the exact fix point.
+- **Step 2 (fix):** when `inode_held()==0` on a dir fast-path, fall through to slow-path re-acquire (fresh reload + evict). Bound the per-op cost with a short jiffies lease (Gemini's RULE-5 design) so it's ~1 cheap read/sec/inode, not every op.
+
+Current deployed build: `44EF4535` (probes only). A separate AGI/iunlink corruption shutdown on `rm -rf` was also observed and noted for its own RULE-4 loop.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

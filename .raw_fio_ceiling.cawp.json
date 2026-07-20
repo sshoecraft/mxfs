@@ -1,0 +1,32 @@
+{
+    "2": {
+        "seqW_mib": 328,
+        "randW_iops": 67127,
+        "legs_sw": 2,
+        "legs_rw": 2
+    },
+    "4": {
+        "seqW_mib": 367,
+        "randW_iops": 72563,
+        "legs_sw": 4,
+        "legs_rw": 4
+    },
+    "8": {
+        "seqW_mib": 295,
+        "randW_iops": 154643,
+        "legs_sw": 8,
+        "legs_rw": 8
+    },
+    "16": {
+        "seqW_mib": 599,
+        "randW_iops": 221072,
+        "legs_sw": 16,
+        "legs_rw": 16
+    },
+    "32": {
+        "seqW_mib": 331,
+        "randW_iops": 295525,
+        "legs_sw": 32,
+        "legs_rw": 32
+    }
+}

@@ -1,0 +1,4 @@
+# MXFS CAW-transport tests — Category 3. Require the CAW DLM transport (SCST
+# stack); NOT run on a TCP run. Same columns as the other manifests:
+#   PHASE  TEST  COORD  MINNODES  BUDGET_S
+caw   dlm_lock_correctness   none   1   60

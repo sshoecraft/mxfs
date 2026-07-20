@@ -1,0 +1,174 @@
+# MXFS filesystem test-suite manifest — THE INDEX (FS-on-mount tests ONLY).
+#
+# Every test here operates on the MOUNTED filesystem via a mount point and is
+# meaningful across N nodes. Device/module/lifecycle/substrate/benchmark
+# operations (mkfs, fsck, resize, dkms, raw-block coherency, transport verify,
+# vs-XFS benchmark, mount/unmount timing) are NOT here — see tests/tooling/.
+#
+# Order of lines = run order. Columns (whitespace-separated):
+#   PHASE  TEST  COORD  MINNODES  BUDGET_S  [SCALE]
+#     COORD    : none | barrier | ordered | fault  (harness coordination needed)
+#     MINNODES : minimum nodes the test needs. The runner SKIPS (status SKIPPED)
+#                any test whose MINNODES > the run's node count.
+#     BUDGET_S : per-CLAUDE.md RULE 0 time budget in seconds — the harness uses
+#                this as the test's hard timeout AND records elapsed_s/budget_s
+#                into criteria.json; elapsed_s > budget_s flips a PASS to FAIL
+#                even with zero correctness errors. Values sourced from
+#                tests/criteria/TIMEOUT_BUDGETS.md where a healthy wall was
+#                already recorded there; the rest are reasoned initial
+#                estimates pending a real measured tightening pass (see that
+#                file's "(record)" convention) — do not treat them as final.
+#     SCALE    : flat (default, omit) | linear. flat = BUDGET_S applies as-is
+#                regardless of node count. linear = BUDGET_S is a PER-NODE
+#                seconds coefficient; actual budget = BUDGET_S * N. Use linear
+#                ONLY where the test body actually does O(N) work per node
+#                (every node cross-verifies every OTHER node's data with a
+#                non-trivial per-check cost) — checked against each test's
+#                source, not assumed. dir_reuse_coherency is the proven
+#                extreme case of this and keeps its own bespoke per-transport
+#                formula in run.sh (100*N tcp / 140*N caw) rather than this
+#                column, since its coefficient differs by DLM transport.
+#
+# '#' comments and blank lines ignored.
+
+# --- P(-1) cluster prep, tracked like any other test (2026-07-14) ---
+# prep_cluster is NOT dispatched through tests/$cat/$name.sh like a real test
+# -- run.sh intercepts it specially, before the main test loop, and calls
+# prep_cluster()/prep_cluster_xfs() directly. This manifest line exists only
+# so criteria.json has a slot for record() to write into: prep's own
+# elapsed_s/budget_s, tracked with the same RULE 0 discipline as every real
+# test instead of being an invisible, unbudgeted side effect (see
+# ccmemory/session notes 2026-07-14 -- a hung 100s convergence gate was
+# previously invisible to showstat entirely). Placeholder budget pending
+# real calibration across N -- teardown+mkfs+mount+converge scales with N
+# (the membership convergence gate alone is 90+5*N).
+P0  prep_cluster          none      1   300
+# --- P0 per-node readiness gate ---
+# precond_readiness..fault_enospc: budgets below are REAL RULE 0 numbers, not
+# estimates -- measured against native XFS on this exact LUN via
+# `./run.sh 1 xfs` (2026-07-14): precond_readiness=1s, posix_single=1s,
+# fsx=10s, fio_verify=4s, integrity_filetypes=2s, fio_perf=10s,
+# fault_enospc=1s. Budget = 2x that measured native wall, floored at 10s to
+# absorb ssh-dispatch jitter (see ./showstat.sh 1 xfs to reproduce/refresh).
+# 2026-07-19 refresh (ccloop 72513a13 sess10): host under sustained load
+# (loadavg ~6-22) runs the SAME native yardstick at fsx=44s fio_verify=21s
+# (native fio seqW 525 vs 1116 MiB/s on 07-14) -- native XFS itself failed
+# the old 25s/10s budgets.  Re-derived from today's measured native x2:
+# fsx 25->88, fio_verify 10->42.  mxfs walls (32s/20s) beat today's native.
+P0  precond_readiness     none      1   10
+
+# --- P1 single-node correctness ---
+P1  posix_single          none      1   15
+P1  fsx                   none      1   88
+P1  fio_verify            none      1   42
+P1  integrity_filetypes   none      1   10
+
+# --- P1b single-node throughput (4 canonical fio workloads on the mount) ---
+# fio_perf: coord=barrier, unbounded max_nodes (2026-07-14) -- at N>1 every
+# node runs the same 4 workloads into its OWN private file concurrently,
+# publishes its numbers, and rank 1 sums them into an AGGREGATE bandwidth/iops
+# figure recorded to bench.json (per-node measured detail isn't surfaced by
+# showstat for coord=barrier tests -- same as scaling_curve/dlm_scaling --
+# but the aggregate lands in bench.json for fio_perf_vs_xfs to read).
+# budget_scale=linear (2026-07-18, ccloop 72513a13): every node pushes the
+# same fixed per-node byte load through ONE shared fixed-bandwidth target,
+# so the saturation wall grows ~linearly with N.  Measured: 1 node 14s,
+# 32-node dm-multipath 328s, 32-node single-path direct iSCSI >600s (26/32
+# done at the old flat ceiling; zero errors — pure pacing).  30*N keeps
+# 2/4/8/16 walls (15/19/23/58s) and both 32-node rigs inside budget.
+# Per-node throughput QUALITY is gated separately by fio_perf_vs_xfs (>=70%
+# of the native-XFS single-node baseline).
+P1  fio_perf              barrier   1   120
+# fio_perf_vs_xfs: separate pass/fail line -- AGGREGATE mxfs throughput
+# (single value at N=1) vs the single-node native-XFS baseline
+# (.xfs_fio_baseline.json). Reads fio_perf's own bench.json entry for the
+# CURRENT node count from this same run, no duplicate fio workload. Must run
+# AFTER fio_perf. coord=none: this test itself needs no coordination, it only
+# reads what fio_perf already aggregated and published.
+P1  fio_perf_vs_xfs       none      1   10
+
+# --- P2 coherency / consistency (multi-node) ---
+# REAL RULE 0 numbers below, measured via RULE0_CALIBRATE=1 ./run.sh 2 caw
+# (2026-07-14): cache_coherency=4s, strong_consistency=1s, posix_multi=3s,
+# mmap_coherency=1s, zero_silent_loss=1s -- all at N=2. Budgets are ~7-10x the
+# measured wall (generous first-calibration margin; only one N sampled so
+# far). cache_coherency/zero_silent_loss keep linear scaling (proven O(N)
+# cross-verify loops in source) with the coefficient now derived from this
+# real N=2 point instead of the old TIMEOUT_BUDGETS.md-derived guess; tighten
+# further once 4/8/16/32-node data comes in and confirms/refutes the slope.
+# min_nodes=1 (2026-07-14) for cache_coherency/strong_consistency/posix_multi/
+# mmap_coherency/zero_silent_loss: all checked source-level safe at T=1 (no
+# hard multi-node assumption; strong_consistency already had an explicit
+# T==1 "role=both" branch). Gives a no-coordination-cost floor, same
+# reasoning as dir_reuse_coherency above.
+P2  cache_coherency       barrier   1   60
+P2  strong_consistency    ordered   1   30
+# posix_multi/mmap_coherency also loop for-n-in-T, but each check is a cheap
+# stat/cat (posix_multi) or single python mmap-verify (mmap_coherency) -- flat
+# is a reasonable approximation until N is large enough to matter; revisit if
+# elapsed_s trends up with N.
+P2  posix_multi           barrier   1   30
+P2  mmap_coherency         ordered   1   30
+P2  zero_silent_loss      barrier   1   60
+
+# --- P3 DLM behavior (multi-node) ---
+# Measured (2/caw): dlm_fairness=2s, dlm_membership=3s.
+# dlm_fairness: min_nodes=1, source-checked safe (no hard multi-node
+# assumption). dlm_membership stays min_nodes=2 -- it iptables-blocks the DLM
+# TCP port to simulate losing a PEER; with no peer there's nothing to lose,
+# the test would be exercising nothing.
+P3  dlm_fairness          barrier   1   30
+P3  dlm_membership        fault     2   30
+
+# --- P4 scale (multi-node) ---
+# scaling_curve/dlm_scaling: each node does a FIXED-size private workload
+# (own subdir/file, own internal WINDOW constant baked into the script) in
+# parallel -- genuinely N-independent, not a function of node count. Measured
+# (2/caw): scaling_curve=2s, dlm_scaling=12s -- both have their own internal
+# WINDOW=60s ceiling in the script itself, so the budget floors at ~90s
+# (window + margin) rather than a small multiple of the fast measured wall.
+# min_nodes=1 (2026-07-14): both scripts' "aggregate > max single node"
+# check is mathematically always-false at T=1 (aggregate == the one node's
+# own rate, can't exceed itself) -- fixed in-script to skip/relax that check
+# when T==1, mirroring strong_consistency's existing T==1 special case.
+P4  scaling_curve         barrier   1   90
+P4  dlm_scaling           barrier   1   90
+
+# --- P5 performance (on-mount workload, multi-node) ---
+# rsync_paired: each node rsyncs into its OWN subdir, no cross-node verify
+# loop -- N-independent. Measured (2/caw): 4s; own internal RSYNC_WINDOW=90s.
+# min_nodes=1 (2026-07-14): source-checked safe.
+P5  rsync_paired          barrier   1   60
+
+# --- P6 fault injection (node-level faults; do NOT touch the block device) ---
+P6  fault_enospc          none      1   10
+# crash_consistency has the SAME for-n-in-T cross-verify shape as
+# cache_coherency (md5sum of real payloads per file). TIMEOUT_BUDGETS.md
+# historically documented ~106-108s at N=2/4 (mount+writes+fixed sleep-60+
+# reboot). Freshly measured via RULE0_CALIBRATE=1 (2026-07-14): only 5s at
+# N=2 -- a large discrepancy from that old number, unexplained (script may
+# have changed since, or the old number reflected a different code path).
+# NOT aggressively tightened pending that discrepancy being understood --
+# kept at a moderate 90s (down from 150s, nowhere near as tight as the 5s
+# measurement alone would justify). min_nodes=1 (2026-07-14): source-checked
+# safe -- doesn't actually reboot anything (no virsh/reboot in the script),
+# just write+cold-reload+cross-check, same shape as cache_coherency.
+P6  crash_consistency     fault     1   90
+# min_nodes=1 (2026-07-14): runs meaningfully single-node too -- no
+# coordination needed at N=1 (barrier is trivially satisfied by 1 party), and
+# every mxfs-specific probe in the script is guarded/best-effort (no-ops
+# under plain XFS or when absent). Gives a genuine no-coordination-cost floor
+# to compare the 2/4/8/16/32-node numbers against. Budget at N=1 is a
+# placeholder pending a real ./run.sh 1 xfs / 1 caw calibration measurement.
+P6  dir_reuse_coherency   barrier   1   120
+# fence_during_write/fault_netpartition measured (2/caw): 17s / 7s.
+P6  fence_during_write    fault     2   60
+P6  fault_netpartition    fault     2   60
+
+# --- P7 soak ---
+# soak's budget is NOT this static column -- run.sh computes it at runtime as
+# SOAK_SECONDS+30 (the same SOAK_SECONDS env var soak.sh itself reads, default
+# 30s for a smoke run; set SOAK_SECONDS=14400 for a real 4h ship-gate soak and
+# the budget scales with it). This 60 is just the smoke-run fallback shown
+# here for documentation / any code path that reads the manifest directly.
+P7  soak                  none      1   60

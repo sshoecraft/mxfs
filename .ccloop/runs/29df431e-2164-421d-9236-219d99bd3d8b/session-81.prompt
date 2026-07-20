@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 81 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 80
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `2e76ab5a-4e12-41a4-84f2-7b3006fc9658`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2e76ab5a-4e12-41a4-84f2-7b3006fc9658.jsonl`
+- approx context at last assistant turn: 250032 tokens
+- tools used: Bash×42 Read×37 Edit×8 mcp__ccmemory__memory_get×4 ToolSearch×3 mcp__ccmemory__memory_write×2 Monitor×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    until grep -q "=== DONE ===" /tmp/claude-1000/-src-mxfs/2e76ab5a-4e12-41a4-84f2-7b3006fc9658/tasks/bkn8gbiwq.output 2>/dev/null; do sleep 5; done; echo READY
+    echo "=== bkn8gbiwq output so far ==="; cat /tmp/claude-1000/-src-mxfs/2e76ab5a-4e12-41a4-84f2-7b3006fc9658/tasks/bkn8gbiwq.output 2>/dev/null; echo "=== still 
+    pkill -9 -f mxfs_sshpass 2>/dev/null; pkill -9 -f "run_tests" 2>/dev/null; sleep 2 echo "=== killed stale ssh; test1 reachable now? (single attempt, 10s timeout
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system echo "=== virsh states ==="; for n in 1 2 3 4; do echo -n "test$n: "; virsh domstate test$n 2>/dev/null;
+    cd /src/mxfs for n in 1 2 3 4; do   echo -n "test$n: "   timeout 15 tools/mxfs_sshpass.sh test$n "cat /sys/module/mxfs/srcversion 2>/dev/null || echo NO_MODULE;
+    cd /src/mxfs; echo "=== mxfs_sshpass.sh ==="; cat tools/mxfs_sshpass.sh 2>/dev/null | head -30 echo "=== raw ssh attempt (verbose, 10s) ==="; timeout 10 ssh -vv
+    cd /src/mxfs; ls -l /tmp/.mxfs_pass 2>/dev/null || echo "no passfile at /tmp/.mxfs_pass" echo "=== correct 3-arg form ===" for n in 1 2 3 4; do   echo -n "test$
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests for n in 1 2 3 4; do timeout 12 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C" 
+    F=/tmp/claude-1000/-src-mxfs/2e76ab5a-4e12-41a4-84f2-7b3006fc9658/tasks/b2su92hzf.output until grep -q "=== DONE ===" "$F" 2>/dev/null; do sleep 8; done echo "=
+    cd /src/mxfs for n in 1 2 3 4; do   echo "===== test$n dmesg (probes + shutdown) ====="   timeout 15 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass \     "dmesg |
+    cd /src/mxfs; echo "=== MXFS_DLM_ISTATE enum ==="; grep -rn "MXFS_DLM_ISTATE_NONE\|MXFS_DLM_ISTATE_CACHED\|MXFS_DLM_ISTATE_BAST\|MXFS_DLM_ISTATE_DEMOTING" xfs/*
+    cd /src/mxfs; echo "=== where i_dlm_mode is SET to EX (all sites) ==="; grep -n "i_dlm_mode = MXFS_LOCK_EX\|i_dlm_mode = mode\|->i_dlm_mode = " xfs/*.c | head -
+    cd /src/mxfs; grep -n "unpub\|publish\|i_dlm_unpublished\|m_mxfs_unpub" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; echo "=== all callers of publish_unpublished + grant_local_new + unpublish_drop ==="; grep -rn "publish_unpublished\|grant_local_new\|unpublish_dr
+    cd /src/mxfs; grep -n "^int mxfs_dlm_caw_lock\|node_held_mode\|already.*held\|our_mode\|node_bit" dlm/dlm_caw.c | head -20; echo "=== caw_lock head ==="; sed -n
+    cd /src/mxfs; echo "=== unpublish_drop signature + return ==="; sed -n '4038,4062p' xfs/xfs_mxfs_dlm.c; echo "=== forward decls / prototypes for unpublish_drop 
+    cd /src/mxfs; timeout 590 make modules 2>&1 | grep -iE "error:|warning:.*(unpublish|skip_acquire|dlm_ilock)|LD \[M\].*mxfs.ko" | head -20; echo "make_rc=${PIPES
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system for n in 1 2 3 4; do virsh destroy test$n >/dev/null 2>&1; done sleep 4 for n in 1 2 3 4; do virsh start
+    F=/tmp/claude-1000/-src-mxfs/2e76ab5a-4e12-41a4-84f2-7b3006fc9658/tasks/bte5of23n.output until grep -q "=== DONE ===" "$F" 2>/dev/null; do sleep 10; done echo "
+    cd /src/mxfs for n in 1 2 3 4; do   echo "===== test$n ====="   timeout 15 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass \     "echo -n 'P107-PUBLISH count: '; d
+
+## Last text from previous session
+
+uire shutdown. Let me verify `mxfs_dlm_unpublish_drop`'s declaration/linkage first.
+Good — `mxfs_dlm_unpublish_drop` is header-declared and non-static. Now let me implement the backstop. First, the fall-through condition for an unpublished dir being modified:
+Now the slow-path claim-then-acquire guard. Let me update the acquire block:
+I need to verify whether re-acquiring an already-held slot is safe (it affects the `skip_acquire` race window). Let me read caw_lock's found-slot / already-held handling.
+caw_lock's "already held" branch (line 1413) returns success — it does NOT shut down on re-acquire; it even self-heals a peer-conflict divergence (1369-1404). So always-acquire is safe and avoids the `skip_acquire` race window (proceeding before exclusion is confirmed). Let me simplify the guard: drop from the list for hygiene, but always confirm the acquire.
+The reload-clobber risk for own-new inodes is real but handled by existing reload gen-guards (sess103); per RULE 4 I'll build and measure rather than reason endlessly. Let me build (keeping the P106-STALE-EX probe as a regression check — it should now go quiet for unpublished dirs).
+Build `0DB3BA32` has the backstop. The prior run shut down FSes (corruption), so I'll do a clean reboot + reset + repro in one background task.
+The full reboot+reset+repro cycle is running (~4-5 min). I'll wait for the completion notification.
+rename_visibility still FAILs. Need the evidence: did P107-PUBLISH fire (backstop engaged)? Did P106-STALE-EX still fire (uncovered stale)? Did corruption recur? Let me collect dmesg + the failure detail.
+Major progress: **the corruption shutdowns are GONE** (no inobt/defer_finish/"Shutting down" this run — previous run had them), and **P107-PUBLISH fired** (backstop engaged). But rename_visibility still fails, and **test1 still shows 29 P106-STALE-EX hits** — residual stale-EX not covered by the unpublished backstop (either pin>0-excluded or genuinely non-unpublished). Let me record this for the next session before the relay boundary.
+## Summary
+
+**Criteria NOT met** — `cache_coherency` still fails (`rename_visibility`), so the marker stays unwritten. But this session made concrete, proven progress on the ship-blocker.
+
+### What I proved (RULE 4)
+The intermittent `rename_visibility` lost-update + on-disk corruption is the **deferred-publish design gap**, now fully root-caused:
+- New inodes get EX granted **locally with no on-disk CAW slot** (`mxfs_dlm_grant_local_new`, "unpublished" list). Publishing (acquiring the real slot) is triggered *only* by an incoming BAST.
+- An unpublished inode has no on-disk slot, so a peer reaching it (e.g. via a cached parent dirent → `.mxfs_test` ino 131) acquires the slot **cleanly and never BASTs the creator** → both nodes hold EX → concurrent dir-block RMW → durable lost-update, escalating to inobt/defer corruption shutdowns.
+- A new probe (`mxfs_v5_dlm_inode_held`) directly confirmed `on_disk_held=0 cached_mode=EX` firing repeatedly.
+
+### What I fixed (build `0DB3BA32`, deployed)
+Implemented Gemini's fast-path **backstop**: an unpublished dir modified at `pin_count==0` now falls through to a real on-disk EX acquire (with a claim-then-acquire guard against double-acquire shutdown). 
+
+**Result:** the corruption shutdowns (inobt-AG4, `xfs_defer_finish_noroll`) are **eliminated** — none this run vs. all three previously. `P107-PUBLISH` confirms the backstop engages.
+
+### What remains (next session)
+- `rename_visibility` still fails; **test1 still shows 29 residual `P106-STALE-EX`** hits not covered by the backstop. Next: extend the probe to dump `i_dlm_unpublished`+`pin_count` to determine whether these are pin>0/PR-excluded unpublished inodes (widen the backstop) or a genuine slot-release-leaves-stale-mode path (hunt it).
+- Add Gemini's Part A (proactive post-commit publish in `xfs_create`/`xfs_mkdir`/etc.) to close the background-AIL/reclaim hole.
+
+Full diagnosis and exact next steps are saved in memory `sess107_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

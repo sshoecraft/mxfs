@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 8
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `87fb82c1-adba-4a8f-be77-2f4ec248f0df`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/87fb82c1-adba-4a8f-be77-2f4ec248f0df.jsonl`
+- approx context at last assistant turn: 252120 tokens
+- tools used: Bash×83 Read×21 Edit×10 ToolSearch×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -iE "PASS:|FAIL:|Results:|Running|RUN_DIR|results/2026|Time:" /tmp/claude-1000/-src-mxfs/87fb82c1-adba-4a8f-be77-2f4ec248f0df/tasks/bq7fjh1zp
+    cd /src/mxfs; D=$(ls -td /home/steve/.mxfs/results/2026*/test_rename_visibility 2>/dev/null | head -1); echo "D=$D"; for f in $D/node*.log; do echo "=== $(basen
+    cd /src/mxfs; grep -n "barrier_signal\|barrier_wait\|barrier_init\|mkdir.*barrier\|BARRIER_DIR\|\.mxfs_barriers" tests/lib/cluster.sh | head; echo "=== barrier_
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'rm -rf /mnt/shared/bt; sync' 2>/dev/null; echo "=== concurrent mkdir -p + touch from 4
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'rm -rf /mnt/shared/rx; sync' 2>/dev/null; timeout 8 bash tools/mxfs_sshpass.sh test2 /
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass 'dmesg | grep -iE "VNLOOKUP|ino=2 |P-SFDIR|RELOAD|P104|P106|EVICT|stale|DLM inode|iloc
+    cd /src/mxfs; grep -rn "P-VNLOOKUP" xfs/ pal/ --include=*.c
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'rm -rf /mnt/shared/rx /mnt/shared/bt; sync; dmesg -c>/dev/null' 2>/dev/null; timeout 8
+    cd /src/mxfs; echo "######## TEST1 (creator) ########"; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -iE "rx|ino=157|MKDIR|CREATE-P
+    cd /src/mxfs; grep -n "P108-REACQUIRE\|P-RELOAD-IOPS-REWIRE\|on-disk slot lost\|uncheckpointed\|reload.*skip\|RELOAD-SKIP\|from_disk\|xfs_inode_from_disk" xfs/x
+    cd /src/mxfs; grep -n "ili_fields\|XFS_LI_IN_AIL\|i_pincount\|struct xfs_inode_log_item" xfs/xfs_mxfs_dlm.c | head -8
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined declaration|LD \[M\]" | grep -v "Clock skew\|modification time" | tail -8; echo "=== rc=${
+    cd /src/mxfs; timeout 200 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; echo "=== test1 mkdir rx (no rm first - fresh ino) ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'mkdir /mnt/shared/rx; stat -c
+    cd /src/mxfs; echo "=== REUSED inode: rm rx, mkdir rx ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'rm -rf /mnt/shared/rx; sync; mkdir /mnt/
+    cd /src/mxfs; timeout 590 ./tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -4; echo "=== EXIT ${PIPESTATUS[0]} ==="
+    cd /src/mxfs; until grep -q "RESULT:" /tmp/claude-1000/-src-mxfs/87fb82c1-adba-4a8f-be77-2f4ec248f0df/tasks/bi2r2axlg.output 2>/dev/null; do sleep 10; done; gre
+    cd /src/mxfs; LOG=$(ls -t /tmp/cache_coherency.*.log|head -1); echo "LOG=$LOG"; grep -nE "Running:|PASS\]|FAIL\]" $LOG | grep -viE "Unauthor"
+    cd /src/mxfs; echo "=== test body ==="; cat tests/cluster/test_cross_write_read.sh 2>/dev/null | grep -vE "^\s*#|^\s*$" | head -60
+    cd /src/mxfs; D=$(ls -td /home/steve/.mxfs/results/2026*/test_cross_write_read 2>/dev/null | head -1); echo "D=$D"; for f in $D/node*.log; do echo "=== $(basena
+
+## Last text from previous session
+
+t the fast reproducer.
+Clean build `86420BFE`. Let me redeploy and test the minimal reproducer.
+Fresh-inode case works (rx ino=131 perm=755, test2 sees it). Now the critical test — the **reused-inode** case that triggered the self-clobber, plus the concurrent multi-node case:
+**Fixed!** All 20 concurrent mkdir+touch operations now pass (before: test2/3/4 rounds 2-5 all failed), and the reused-inode case works. The self-clobber guard resolved the concurrent-mkdir coherency bug. Now let me run the full cache_coherency criterion.
+Big jump: **passed=3 failed=1** (was 1/3). Two sub-tests now pass. Let me find which one still fails.
+Three of four now PASS. Only **cross_write_read** fails (1-2 failures of 6 assertions). Let me read the test and its failing assertions.
+cross_write_read: nodes write 1MB files, then read peers' files and verify md5. The failure is content/size mismatch on reading a peer's regular file. Let me see the exact failing assertions.
+Now I can see the last failure precisely: it's **not** the 1MB data files — it's node1's tiny `data_node1.md5` companion file being read as **empty (`expected=''`)** by peers (node1's actual data reads correctly everywhere). A small file written by node1 is read as empty/zero-length by peers — the stale-small-file-content family. This is the final failing sub-test.
+
+I've hit the relay boundary. Let me record this session's findings to memory.
+I've reached the relay boundary. Here's the summary of this session's work.
+
+## Session summary — cache_coherency: 1/4 → 3/4 passing
+
+The `cache_coherency` criterion is the sole remaining ship blocker (other 11/12 pass). I made substantial, verified progress, landing 3 fixes (build head `86420BFE`, deployed on test1-4).
+
+### Fixes landed (all verified)
+
+1. **bast NULL-deref unmount crash (was wedging the module).** A pending inode bast work holds an inode ref, so that inode stays "busy" at unmount, reclaim skips it, its work is never cancelled, and it fires after `xfs_unmountfs` freed `mp->m_log` → `xfs_log_force` NULL-derefs (`CR2=0x10`), wedging the module at refcount −1 (required hard reboots every run). Fixed with a dedicated flushable per-mount workqueue `m_mxfs_inode_bast_wq`, flushed in `xfs_fs_put_super` before log teardown, plus a guard at the top of `mxfs_dlm_bast_process`. **Verified: all nodes now unload cleanly, zero Oops.**
+
+2. **Inode self-clobber on reused-inode create (the big one).** Proven via a minimal reproducer (`test1 mkdir rx` → `test2` can't see rx): a "slot-lost" re-acquire reloads a just-created (logged-not-checkpointed) inode from the stale-free on-disk cluster (`di_mode=0`), reverting the creation *on the creator itself*. The existing `di_format==0` skip misses it for reused inode numbers. Added a guard that skips the reload when the on-disk inode is free but the in-core inode is allocated **and dirty** (pinned/in-AIL/dirty ili_fields). **Verified: concurrent 4-node mkdir+touch 20/20 OK (was 8/20).** This flipped cross_visibility, rename_visibility, and unlink_visibility to PASS.
+
+### Remaining blocker — `cross_write_read` (last sub-test)
+
+Failures are **not** the 1MB data files (those read correctly everywhere). They are node1's tiny `data_node1.md5` companion file being **read as empty (`''`) by peers** — a small/shortform file written by one node read zero-length on others (stale `di_size=0`/empty data fork in the peer's reloaded inode; same family as sess45/sess85).
+
+### Next session
+Build a fast reproducer (node1 writes a tiny file, peer cats it → empty), trace the peer's iget/reload of that file inode, fix, then re-run `cache_coherency` (must hit 4/4) and finally the full `verify_ship.sh` end-to-end.
+
+**Criterion not met (3/4) — marker not written; work continues.**
+
+Also, re the timing question you raised earlier: confirmed the scary 900s figure was per-node *uptime* confusion across nodes with different boot times — a healthy cache_coherency run completes in ~20s. No generous timeouts were masking anything.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 8
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f161ec4e-6f99-408b-a98b-e3336af79428`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f161ec4e-6f99-408b-a98b-e3336af79428.jsonl`
+- approx context at last assistant turn: 500037 tokens
+- tools used: Bash×139 Read×44 Edit×27 mcp__ccmemory__memory_write×9 ToolSearch×3 mcp__ccmemory__memory_get×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== build ==="; modinfo mxfs.ko|grep srcversion; echo "=== cluster + stray dmesg -w ==="; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in tes
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 6 tools/mxfs_sshpass.sh $n "$PASS" "mount | grep -q ' /mnt/shar
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 30 tools/mxfs_sshpass.sh $n "$PASS" "umount /mnt/shared 2>/dev/
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 8 tools/mxfs_sshpass.sh $n "$PASS" "grep -hE 'mxfs-drc-RDMISS|m
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; SD=/tmp/claude-1000/-src-mxfs/f161ec4e-6f99-408b-a98b-e3336af79428/scratchpad; echo "=== run log fail lines 
+    cd /src/mxfs; grep -n "tee\|/tmp\|tmpd\|> .*log\|2>&1\|ssh_node.*run_test\|nodes_pass\|LAUNCH\|capture" run.sh | head -20
+    cd /src/mxfs; d=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); echo "dir=$d"; echo "=== per-node drc failure lines ==="; grep -hE "drc round=|R
+    cd /src/mxfs; d=/tmp/run_dir_reuse_coherency_20260623T190703Z; ls -la $d/ 2>/dev/null; echo "=== tail of each node log ==="; for f in $d/*; do echo "--- $(basen
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 30 tools/mxfs_sshpass.sh $n "$PASS" "umount /mnt/shared 2>/dev/
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 8 tools/mxfs_sshpass.sh $n "$PASS" "echo -n reachable; m=\$(mou
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 30 tools/mxfs_sshpass.sh $n "$PASS" "umount /mnt/shared 2>/dev/
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== failure (which round, count vs leaf-hash) ==="; for n in test1 test2 test3 test4; do timeout 8 too
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== tiny-run failure (exp=24) ==="; for n in test2 test3 test4; do timeout 8 tools/mxfs_sshpass.sh $n 
+    cd /src/mxfs; grep -n "P-EVICT-DONE\|all_evicted = false\|undurable;" xfs/xfs_mxfs_dlm.c | sed -n '1,12p'
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko$" | tail -3; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 30 tools/mxfs_sshpass.sh $n "$PASS" "umount /mnt/shared 2>/dev/
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== tiny loss (exp=24) ==="; for n in test1 test2 test3 test4; do timeout 8 tools/mxfs_sshpass.sh $n "
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko$" | tail -3; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 30 tools/mxfs_sshpass.sh $n "$PASS" "umount /mnt/shared 2>/dev/
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== loss (exp=24) + EVDECIDE ==="; for n in test1 test2 test3 test4; do timeout 8 tools/mxfs_sshpass.s
+
+## Last text from previous session
+
+I did not apply speculative suppression fixes (sess23 "suppression-was-corruptor" risk). The relay continues against the same criteria with this simplified repro and clean diagnosis.
+Criterion not met — continuing with a sharp new hypothesis on the minimal repro. With `fua_disable=1` (default), reads hit the target's coherent write-back cache (newer than platter); with `fua_disable=0`, FUA reads pierce to the stale platter — **both failed**, which points away from read-mode and toward a **`force_evict` gap**: a node RMWs block0 without evicting its own stale cached copy. Per RULE 4, let me instrument the evict decision for block0 specifically (always-on, low-volume) to see if block0 is ever kept-stale on a modify.
+Let me add an always-on probe at the evict decision (low-volume: only multinode dir blocks) logging daddr + evict/keep + reason — to see if block0 is ever kept-stale on a modify.
+P68-EVDECIDE total=0 on all nodes — either the evict loop never runs for this dir (itself a finding), OR my many always-on probes (P68-DWR, P68-DATAINIT) flooded the ring and rotated out the data. The probes are now self-defeating. Let me gate the noisy ones behind `dirwr` and keep only EVDECIDE always-on, to get clean signal on whether block0 is even being evicted on modify.
+Relay boundary reached. Let me grab the now-clean EVDECIDE + loss data, then wrap up.
+EVDECIDE total=0 even with floods gated — a **sharp, actionable finding**: the modify-path data-block evict (`mxfs_dir_evict_data_blocks`) **never iterates a block** for the minimal-repro dir, so no node ever evicts block0 before its RMW → stale-base lost-update. Let me record this lead and wrap up at the relay boundary.
+## Session 68 summary — criterion NOT met (marker not written)
+
+**Criterion:** `1/2/4/8 node tcp dlm test 100%`. Status: 1✅ 2✅ (confirmed), **4❌ on `dir_reuse_coherency`**, 8 untested. The marker is correctly unwritten — the failure is real and reproducible.
+
+### Real fix landed (KEEP)
+**gap-B** — `mxfs_dlm_dir_inode_durable` early-returned for non-shortform dirs, so a grown dir's inode extent map was never made durable to the on-disk cluster at EX release. Fixed (dirty-gated) and **confirmed effective** (P68-GROWREL-VERIFY = DURABLE 48/48).
+
+### Hypotheses refuted with direct evidence
+- Extent-map divergence at modify — `P68-MAPDIVERGE=0` (implemented sess67's full per-block daddr compare; maps agree).
+- Cached stale-block survival — `drop_caches` every round → owner-evict `collected=0`.
+- Read-side staleness / target-cache — `fua_disable=0` still fails ⇒ **write-side, durable, same-incarnation lost-update** (entry written-missing to platter; net dirent count grows ⇒ an entry *swap*, not a shrink).
+
+### Two high-value bounding findings (this session's main value for the relay)
+1. **Single-block dirs fail too** (`DRC_NFILES=3`, no grow) — the residual is pure 4-node concurrent block-RMW + rm-rf-reuse coherency, **independent of all grow/LEAF/extent-map machinery**. Much simpler repro.
+2. **`P68-EVDECIDE=0`** — `mxfs_dir_evict_data_blocks`' per-block loop **never iterates** for the minimal-repro dir, so a node never evicts block0 before its RMW ⇒ stale-base lost-update. The sharpest lead: next session should determine whether the tiny dir is actually shortform (→ shortform 3-way-merge is the locus, sess84/sess14) or block (→ modify_refresh evict path is broken), then ensure the shared block is evicted+re-read on every cross-node modify.
+
+GPT-5.5 consulted (architecture: epoch-keyed buffer stamps + inode-lifetime fencing).
+
+### State
+Build HEAD `A81DB821` = gap-B + `P68-EVDECIDE` always-on + other probes gated behind `mxfs.dirwr` (flood reduced) + gated-off MAPDIVERGE/owner-evict (code kept). Shipped-proven baseline `91962D4A`. Cluster healthy (test1-4 mounted; test2 was rebooted via virsh after a wedged BAST kworker). 9 `sess68-*` ccmemory notes written. Per RULE 4, no speculative suppression patches applied. Relay continues with the minimal repro + the EVDECIDE-0 lead.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

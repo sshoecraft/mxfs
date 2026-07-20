@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 40 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 39
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `0ab4a8c6-c379-47d7-aa23-726ab53fde39`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0ab4a8c6-c379-47d7-aa23-726ab53fde39.jsonl`
+- approx context at last assistant turn: 505651 tokens
+- tools used: Bash×186 Read×39 Edit×21 mcp__ccmemory__memory_get×6 TaskUpdate×5 Write×4 TaskCreate×3 ToolSearch×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_loop.sh
+- /src/mxfs/tests/drc_loop8.sh
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/tests/reg2tcp.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/.claude/awareness/subsystems/dlm.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; nohup ./run.sh 8 tcp dir_reuse_coherency > /tmp/claude-1000/-src-mxfs/0ab4a8c6-c379-47d7-aa23-726ab53fde39/scratchpad/keeper.log 2>&1 & echo "pid 
+    cd /src/mxfs; sleep 380; tail -4 /tmp/claude-1000/-src-mxfs/0ab4a8c6-c379-47d7-aa23-726ab53fde39/scratchpad/keeper.log
+    cd /src/mxfs; until ! pgrep -f "[r]un.sh 8 tcp" >/dev/null 2>&1; do sleep 10; done; tail -3 /tmp/claude-1000/-src-mxfs/0ab4a8c6-c379-47d7-aa23-726ab53fde39/scra
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test3 test6; do printf "%s: " $n; timeout 8 $SSH $n $PASS "head -1 /root/drc_failr
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test3; do echo "=== $n ==="; timeout 8 $SSH $n $PASS "dmesg|grep -iE 'Internal err
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test3 test6; do echo "=== $n ==="; timeout 8 $SSH $n $PASS "dmesg|grep -E 'drc-FAI
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test2 test3 test4 test5 test6 test7 test8; do timeout 8 $SSH $n $PASS "rm -f /root
+    cd /src/mxfs; grep -rnE "dir_zombie_push|xfs_buf_item_push|XFS_ITEM_LOCKED|XFS_ITEM_PINNED|XFS_ITEM_FLUSHING" pal/linux/*.c xfs/*.c | grep -iE "zombie_push|item
+    cd /src/mxfs; grep -rnE "mxfs_dir_ail_push_defer|dir_ail_push_defer" pal/linux/*.c xfs/*.c | head; echo "=== impl ==="; awk '/mxfs_dir_ail_push_defer\(struct xf
+    cd /src/mxfs; grep -nE "int mxfs_dir_ail_defer|mxfs_dir_ail_defer =|module_param.*dir_ail_defer" xfs/xfs_mxfs_dlm.c pal/linux/*.c | head; modinfo mxfs.ko 2>/dev
+    cd /src/mxfs; grep -nE "Current build \(sess|^- \*\*Current build" CLAUDE.md | head
+    cd /src/mxfs; echo "=== keeper param defaults (source) ==="; grep -nE "^int mxfs_dir_refresh_inplace|^int mxfs_memb_settle_ms|^static int mxfs_tcp_death_grace_m
+    cd /src/mxfs; tail -25 .claude/awareness/subsystems/dlm.md 2>/dev/null | head -30; echo "=== size ==="; wc -l .claude/awareness/subsystems/dlm.md 2>/dev/null
+    cd /src/mxfs; pgrep -af "drc_loop8|run.sh 8 tcp|reg2tcp" | grep -v pgrep | head; echo "(none above = clean)"; echo "=== keeper on disk ==="; modinfo mxfs.ko 2>/
+    cd /src/mxfs; ps -eo pid,cmd | grep -vE "grep|ps -eo" | grep -iE "drc_loop|run.sh|reg2tcp|virsh.*test|dir_reuse|sleep [0-9]{3}|mxfs_sshpass" | head
+    ps -eo pid,etimes,cmd | grep -vE "grep|ps -eo" | grep -iE "sleep|until|nohup|drc_|run\.sh|reg2|virsh|loop8|claude-1000.*scratchpad" | head -20; echo "=== done =
+    P=2215302; echo "parent chain of sleep:"; ppid=$(ps -o ppid= -p $P 2>/dev/null | tr -d ' '); echo "ppid=$ppid"; ps -o pid,cmd -p $ppid 2>/dev/null; echo "=== ki
+    ps -eo pid,cmd | grep -vE "grep|ps -eo|tail -f /tmp/claude-1000/-src-mxfs/7544a3bb" | grep -iE "until ! pgrep|do sleep|drc_loop|run\.sh 8|dir_reuse|reg2tcp|nohu
+    cd /src/mxfs; wc -l .claude/awareness/subsystems/pal.md; grep -nE "^## |dataclobber|chokepoint|dir.*write|ex_write_guard|refresh_inplace|sess3[0-9]" .claude/awa
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep -E "srcversion"
+
+## Last text from previous session
+
+rything is clean:
+Background is clean. Now let me update `pal.md` for the `xfs_buf.c` change (the refuted `dir_refresh_inplace` block at the dir-block bio-submit chokepoint):
+Both Stop-hook concerns are resolved:
+1. **Background command**: killed the deadlocked waiter (`bqf43anbc` — it self-matched its own `pgrep "dir_reuse_coherency"`); confirmed no stray session processes remain.
+2. **pal.md**: added a tight sess39 entry documenting the `xfs_buf.c` change (the refuted `dir_refresh_inplace` refresh-in-place lever, now default-0/inert) and that it's the 6th confirmation no buffer-layer dir-block manipulation is safe.
+
+Final state this session:
+- **Keeper build `8CC09D97`** — root-caused and fixed the 8/tcp dir_reuse **catastrophic** failures (membership split-brain from formation-ramp + transient TCP flap) via two default-on `dlm/` fixes: deferred-TCP-death + EX-grant membership-settle gate. Validated: `P-STALEMASTER`→0, catastrophic 0/8 gone, 2/tcp dir_reuse 3/3 (no regression).
+- **Residual (criterion blocker)**: rare steady-state xfsaild zombie reflush (`readdir=799`); all buffer-layer fixes refuted — needs an architectural fix next session (GPT write-authority token or write-through dir blocks).
+- Awareness docs (`dlm.md`, `pal.md`) and CLAUDE.md head note updated; ccmemory `sess39-ROOTFIX-membership-splitbrain-formation-and-flap` holds the full diagnosis; cluster rebooted clean.
+
+Criterion (1/2/4/8 tcp dlm 100%) is **not** met — marker not written; the loop continues with a concrete architectural next step.
+Criteria not met — continuing with a genuinely new variant. Key insight: the refuted drop-suppression (`dir_subset_guard`/P26) was racy because it read disk **without** gating on holding EX (torn vs concurrent peer writes → false-drops → cascade). My refresh-in-place gated on EX (stable disk read) but corrupted via `memcpy` (verifier). The untried combination: **EX-gated pure-subset DROP with mark-for-refresh** (no memcpy, just the proven `ioend`+gen=0 self-heal pattern). Let me change the action:
+Reached the relay boundary. Let me set the v2 lever default-on (so the next session's run tests it directly) with an accurate comment, and build it so it's ready:
+Reached the relay boundary. Built `DDB16BAB` cleanly.
+
+## Summary (criteria NOT met — continuing)
+
+**This session's solid win (kept, default-on, validated):** root-caused + fixed the 8/tcp dir_reuse **catastrophic** 0/8 failures — they were **membership split-brain** (formation-ramp + transient TCP flap), the DLM-layer cause that 37 dir-block-heuristic sessions missed. Two `dlm/` fixes: deferred-TCP-death (`tcp_death_grace_ms`) + EX-grant membership-settle gate (`memb_settle_ms`). Result: `P-STALEMASTER`→0, catastrophic gone, 2/tcp dir_reuse 3/3 (no regression).
+
+**Residual blocker:** rare steady-state xfsaild **zombie reflush** (`readdir=799`). Every buffer-layer fix tried this session was refuted: skip→readdir=0, retire→over-lose, force-evict→corruption, refresh-in-place(memcpy)→verifier corruption, defer→batch-loss.
+
+**New angle left building for next session (`DDB16BAB`, `dir_refresh_inplace=1` default-on):** an **EX-gated pure-subset DROP** at the dir-write chokepoint. The prior refuted drop-suppression (`dir_subset_guard`) was racy because it read disk *without* holding EX (torn → false-drops → cascade); this v2 gates on `dsi.mode==EX` so the disk read is stable, and uses the proven `ioend`+gen=0 mark-for-refresh (no memcpy, no verifier touch). Untested.
+
+**Next session, first action:** validate `DDB16BAB` on 8/tcp via `tests/drc_loop8.sh` (cluster is rebooted clean, keeper deploys on prep). If it converges to 100% → criterion met; if it corrupts/over-loses → set `dir_refresh_inplace` default 0 and pursue the architectural path (GPT write-authority token / write-through dir blocks). Full diagnosis in ccmemory `sess39-ROOTFIX-membership-splitbrain-formation-and-flap`; awareness docs (`dlm.md`, `pal.md`) and CLAUDE.md head updated. No stray background processes.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

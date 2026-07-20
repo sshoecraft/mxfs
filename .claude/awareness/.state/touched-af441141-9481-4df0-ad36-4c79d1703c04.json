@@ -1,0 +1,13 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_ialloc.c",
+    "xfs/libxfs/xfs_inode_buf.c",
+    "pal/linux/xfs_aops.c",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

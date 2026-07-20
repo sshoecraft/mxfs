@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 63 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 62
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `270fa975-7942-4c0e-b190-a9e105075df0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/270fa975-7942-4c0e-b190-a9e105075df0.jsonl`
+- approx context at last assistant turn: 250759 tokens
+- tools used: Bash×56 Read×30 Edit×11 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/libxfs/xfs_sb.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== shutdowns + clamp + create-err across nodes ==="; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 15 tools/mxfs_sshpass.
+    cd /src/mxfs; echo "=== test1 full shutdown context ==="; timeout 18 tools/mxfs_sshpass.sh test1.vm.localdomain /tmp/.mxfs_pass 'dmesg | grep -aiB2 "Shutting do
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|Error [0-9]" | grep -viE "within comment|declared inside parameter" | head; echo "=== srcversion ==="; modinfo
+    cd /src/mxfs; for n in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 5; for n in test1 test2 test3 test4; do 
+    cd /src/mxfs; timeout 560 bash tests/reset4.sh 4 2>&1 | tail -3; echo "=== srcversion (want 7DF27971) ==="; for n in test1 test2 test3 test4; do echo -n "$n: ";
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'dmesg -C' 2>/dev/null; done; echo cleared
+    cd /src/mxfs; until grep -q "EXIT=" /tmp/cc_s62d.log 2>/dev/null; do sleep 15; done; echo "=== DONE ==="; grep -E "RESULT:|EXIT=" /tmp/cc_s62d.log; echo "=== P6
+    cd /src/mxfs; echo "=== test1 shutdown cause this run ==="; timeout 18 tools/mxfs_sshpass.sh test1.vm.localdomain /tmp/.mxfs_pass 'dmesg | grep -aiB3 "Shutting 
+    cd /src/mxfs; echo "=== where b_mxfs_ag_gen is compared/set vs pag_dlm_meta_gen (read coherency decision) ==="; grep -rn "b_mxfs_ag_gen\|pag_dlm_meta_gen\|_XBF_
+    cd /src/mxfs; awk 'NR>=4790 && NR<=4925' xfs/xfs_mxfs_dlm.c | grep -nE "already|held|holders|return 0|fast|cached|pag_dlm_mode|if \(pag" | head -30; echo "=== f
+    cd /src/mxfs; awk 'NR>=4790 && NR<=4860' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; echo "=== function def + cached fast-path (early return without gen bump) ==="; awk 'NR>=4660 && NR<=4790' xfs/xfs_mxfs_dlm.c | grep -nE "^[a-zA-Z
+    cd /src/mxfs; echo "=== order of pag_dlm_cached clear vs ag_unlock (CAW yield) in BAST/demote ==="; grep -n "pag_dlm_cached = false\|pag_dlm_cached=false\|mxfs_
+    cd /src/mxfs; timeout 560 bash tests/reset4.sh 4 2>&1 | tail -3; echo "=== set fua_disable=1 on all nodes ==="; for n in test1 test2 test3 test4; do echo -n "$n
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'dmesg -C' 2>/dev/null; done; echo cleared
+    cd /src/mxfs; kill 1526859 2>/dev/null; pkill -f cache_coherency.sh 2>/dev/null; echo "killed"; echo "=== how does fresh_cluster_mount insmod? ==="; grep -rn "i
+    cd /src/mxfs; pkill -f cache_coherency 2>/dev/null; sleep 1; echo "=== insmod sites ==="; grep -rn "insmod\|modprobe\|mxfs.ko" tests/criteria/lib.sh tests/lib/c
+    cd /src/mxfs; grep -rn "insmod" tests/criteria/lib.sh tests/lib/cluster.sh 2>/dev/null | head
+    cd /src/mxfs; grep -n "insmod" tests/criteria/lib.sh | sed -n '4,6p'; sed -n '348,356p' tests/criteria/lib.sh
+    cd /src/mxfs; rm -f /tmp/cc_s62e.log; ( INSMOD_OPTS="fua_disable=1" ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_s62e.log 2>&1; echo "EXIT=$?" >> /tm
+
+## Last text from previous session
+
+eta. Its safety rests on `cached==true ⟹ we still hold the on-disk CAW`. That holds **only if** the BAST handler clears `pag_dlm_cached` *before* yielding the on-disk CAW. Let me verify that ordering — if it yields first, there's the exact race window GPT describes.
+The main BAST path (6386+) actually clears `pag_dlm_cached` **before** yielding the CAW and sets `demoting` to block acquirers — so the cached fast-path may be safe, and the gen mechanism looks correct for the standard cycle. That points away from GPT's rank-1 toward the **SCST-specific gap the in-tree sess45 comments describe**: the gen mechanism correctly decides to *re-read*, but the re-read uses **FUA → reads the older platter**, while a normal bio read would hit SCST's shared write-back cache and see the peer's write. That's testable with **zero rebuild** via `mxfs.fua_disable=1`.
+
+Let me remount the cluster and run that experiment.
+The criterion script re-mounts (rmmod+insmod) at start, which resets my runtime param. Let me check how it loads the module so I can pass `fua_disable=1` at insmod, then kill this invalid run.
+There's an `INSMOD_OPTS` env var. Let me run the criterion with `fua_disable=1` passed at insmod so it survives the script's remount.
+I've hit the ccloop relay boundary. The `fua_disable` param didn't propagate through `fresh_cluster_mount` (INSMOD_OPTS not honored on that path) — so the experiment needs a different mechanism. Let me record this session's findings to memory before wrapping up.
+I've hit the ccloop relay boundary. Here's a summary of session 62.
+
+## Summary — session 62
+
+**Status: criteria NOT met (marker not written).** `cache_coherency` remains the sole ship blocker (11/12 other criteria pass), but I made the first measured movement in a while: **passed=0/1 → 2 of 4 subtests** (`cross_visibility` and `rename_visibility` now pass). Remaining: `unlink_visibility` (4/121, also pathologically slow at 264s) and `cross_write_read` (1/6).
+
+**The productive pivot:** Stopped chasing individual visibility races (the 40-session trap) and attacked the **shutdown cascades** — a node crashing mid-test fails all its remaining assertions *and* breaks barriers for peers, inflating the failure counts. Reducing shutdowns moved 2 subtests green.
+
+**Key findings (RULE-4 evidence):**
+- Traced two intermittent shutdown signatures: create-path inode double-alloc (`-EFSCORRUPTED` → dirty-trans-cancel) and SB lazy-counter write-verify. Added probes **P-CR62** and **P62-SBCLAMP/P62-SBV** (build `7DF27971`).
+- This run's shutdown was the **bnobt double-free during unlink**, with a decisive verdict: `P81-DEXT disk_claims_freed=1, disk_differs=0` = the on-disk inode still owns a block that the bnobt durably lists free. This is a **real durable lost-update / earlier block double-allocation** — which contradicts sess93's "bnobt is a red herring" reframe.
+- **GPT consult** (RULE-5 escalation): pinned the root to AG-metadata freshness not being scoped to the DLM hold epoch. Code analysis refined this: MXFS *does* have the epoch (`pag_dlm_meta_gen`), and it correctly decides to re-read on reacquire — **but the re-read uses SCSI FUA, which on the SCST shared-write-back-cache target reads the *older platter* and misses a peer's not-yet-destaged write.** A normal bio read would see it. This is the SCST-specific gap the in-tree sess45 comments already describe.
+
+**The decisive next experiment (recorded in `sess62_lessons`):** test `mxfs.fua_disable=1`. My attempt this session failed to apply — the criterion remounts and `INSMOD_OPTS` didn't propagate through `fresh_cluster_mount`. Next session must either rebuild with `mxfs_fua_disable = 1` as the default, or patch the mount helper to pass the param, then re-run. If the bnobt double-free + visibility failures drop, the SCST-FUA-stale-platter root is confirmed and the fix is to default FUA-reads off on this storage.
+
+All details, the build IDs, the cluster geometry, and the exact next steps are in `sess62_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

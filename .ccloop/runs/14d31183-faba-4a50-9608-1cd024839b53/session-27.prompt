@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 27 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 26
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `5d9a5e32-0ba0-45ad-8682-92bfe6d77c1b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5d9a5e32-0ba0-45ad-8682-92bfe6d77c1b.jsonl`
+- approx context at last assistant turn: 249443 tokens
+- tools used: Bash×137 Read×3 ToolSearch×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -nE "reserve|register|preempt|key" dlm/scsipr.c | head -30; wc -l dlm/scsipr.c
+    for n in $(seq 1 16); do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in $(seq 1 16); do virsh -c qemu:///system start test$n >/
+    sleep 60; cat /tmp/claude-1000/-src-mxfs/5d9a5e32-0ba0-45ad-8682-92bfe6d77c1b/tasks/bvhgk7c0d.output 2>/dev/null | tail -4
+    until grep -qE "SSH_OK|PR_CLEARED" /tmp/claude-1000/-src-mxfs/5d9a5e32-0ba0-45ad-8682-92bfe6d77c1b/tasks/bvhgk7c0d.output 2>/dev/null; do sleep 5; done; tail -4
+    ok=0; bad=""; for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); timeout 8 tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass "true"
+    virsh -c qemu:///system list --all | grep -E "test(4|16) "; virsh -c qemu:///system start test4 2>&1 | head -1; virsh -c qemu:///system start test16 2>&1 | head
+    virsh -c qemu:///system start test4 2>&1 | tail -2
+    sudo iscsiadm -m session 2>/dev/null | grep -cE "disk1(n[0-9]+)?\b"; ls /dev/disk/by-path/ | grep -c "mxfs:disk1"; sudo iscsiadm -m node -T iqn.2026-05.local.mx
+    virsh -c qemu:///system start test4 2>&1 | head -1; sleep 35; for n in 4 16; do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); timeout 8 tools/mxf
+    virsh -c qemu:///system start test4 2>&1 | tail -1; ls -la /dev/disk/by-path/ip-127.0.0.1:3260-iscsi-iqn.2026-05.local.mxfs:disk1n4-lun-0; sudo iscsiadm -m sess
+    virsh -c qemu:///system list --all | grep "test4 "; virsh -c qemu:///system start test4; sleep 1; virsh -c qemu:///system list --all | grep "test4 "
+    cat /sys/block/sdd/device/state 2>/dev/null; sudo sg_inq /dev/sdd 2>&1 | head -2; sudo iscsiadm -m node -T iqn.2026-05.local.mxfs:disk1n4 -p 127.0.0.1 -u 2>&1 |
+    virsh -c qemu:///system start test4 2>&1 | head -1; sleep 35; ip4=$(getent hosts test4.vm.localdomain | awk '{print $1}'); timeout 10 tools/mxfs_sshpass.sh "$ip
+    MXFS_SET_PARAMS='ag_yield_quantum=8192' MXFS_PROF_FUNCS='mxfs_v5_dlm_inode_lock xfs_log_force mxfs_dlm_ag_drain_alloc_buflist' timeout 540 scripts/diag_vnop_pro
+    timeout 540 bash -c "MXFS_SET_PARAMS='ag_yield_quantum=8192' MXFS_PROF_FUNCS='mxfs_v5_dlm_inode_lock xfs_log_force mxfs_dlm_ag_drain_alloc_buflist' scripts/diag
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 20 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass "cat /tmp/mkfs.log 2>/dev/null | tail -5; l
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 20 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass "sg_persist --out --register-ignore --param
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 20 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass "sg_persist --in --read-full-status /dev/sd
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 20 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass "sg_persist --in --read-full-status /dev/sd
+    bash -c 'set +u; source tests/criteria/lib.sh; teardown_all "test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 test12 test13 test14 test15 tes
+
+## Last text from previous session
+
+n test5-16 now:
+Identical tree. Pushing to test5-16 in parallel:
+All 12 nodes staged. Running the real scaling_curve — now with 16 genuine writers for the first time:
+Re-running the raw 16-writer dd test to measure the new infra ceiling:
+Output got eaten by the pipeline. Re-running with file capture:
+`o_direct` is read-only at runtime — it's a creation parameter. Recreating the device with both flags:
+Host CPU peaks at ~18% (iowait ~29%) — **hypothesis B (CPU oversubscription) refuted**. The 16n failure is driven by intermittent per-node CAW storms like test4's. Finding the storm's caller chain:
+While waiting for the reboot, recording today's major infra findings to memory (these must survive sessions):
+sdd had been kernel-offlined during the PR-conflict storm; session bounce restored it. Starting test4 and proceeding to the A/B:
+Register reports success but the clear conflicts — test1's nexus key isn't what we think. Reading full PR status with per-registration transport IDs:
+Hit the relay boundary — wrapping up. Final state and handoff summary:
+
+## Session 26 summary
+
+**Criteria: 17 PASS, 1 FAIL (`scaling_curve`), 1 PENDING (`posix_semantics_multi16`)** — 19 total (user was right; `posix_semantics` runs twice). Marker NOT written.
+
+### Major work this session (all infrastructure-truth, no mxfs code changes yet)
+
+1. **disk1b abandoned → cluster runs on SCST device `disk1`** (same backing image, fully fallocated). disk1b had an uncleable stale PR + 46 zombie iscsi-scst sessions stuck in `closing` (D-state cleanup threads — survive until clyde reboots; never log into disk1b).
+2. **Proved & fixed the test-bed serializer**: all 16 VMs shared ONE host iSCSI session; SCST `vdisk_fileio` buffered writes serialized on the backing file's `i_rwsem` (~930MB/s ceiling). Now: device recreated `async=1; o_direct=1`, **16 per-node iSCSI sessions** (targets `disk1`, `disk1n2..16`), multipath blacklisted. Raw 16-writer dd: 10.5s → 3.8s/node (~2.8GB/s). Note: `/etc/scst.conf` not yet updated (runtime config only).
+3. **Honest scaling numbers**: workload tree staged on test5-16 (was only on test1-4 — all earlier 16n results had 12 no-op writers). Real curve went 569% → **171%** after infra fix: 1n=4037 2n=4259 4n=4378 8n=4380 **16n=6928**. Flat to 8n; failure is the 8→16 jump + outliers.
+4. **Profiled the remaining gap** (RULE-4 evidence): ~850 disk-CAW inode-lock acquires/node at 2-5ms each; `caw_wait_for_grant` outliers 34-735ms; one intermittent 104k-call CAW storm (22s wall, uncaused); stack-sampling shows rsync blocking in `mxfs_trans_drain_ag_unlocks` → **eager sync drain every `ag_yield_quantum`(=512) transactions with zero peer contention** — A/B of `ag_yield_quantum=8192` is the immediate next step (module param, correct name confirmed at `xfs_mxfs_dlm.c:9172`). CPU oversubscription and AG-geometry-sharing both refuted.
+5. **PR fencing is now real** (per-node nexuses). Discovery just now: a WERO reservation from the contaminated run still blocks mkfs — teardown cleared mxfs on test1 but the clear still conflicts, so **some other node still has mxfs loaded/mounted re-registering its key**. Next session: verify rmmod on all 16 (`lsmod` per node), then register-ignore+clear from test1 will succeed (mechanism proven: mxfs's fencing layer re-registers over any manual 0x5eed registration while loaded).
+
+### Immediate next steps
+1. Confirm mxfs unloaded on ALL 16 → clear PR → verify `sg_persist -r` empty.
+2. Run the quantum A/B (`MXFS_SET_PARAMS='ag_yield_quantum=8192'` profile, 16 nodes) vs the 6928ms baseline.
+3. If quantum helps: consider making eager drain async/backgrounded in `mxfs_ag_dlm_unlock` (code fix + rev version).
+4. Root-cause the intermittent CAW storm (suspect `ag_lock_nb` trylock loop).
+5. Then scaling_curve ×3, cache_coherency ×3, `posix_semantics --nodes 16`, full `verify_ship.sh`, probe cleanup (P24/P25), `make tools` after any clean.
+
+Memory written: `sess26-storage-infra-pernode-sessions` (full infra details + gotchas).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

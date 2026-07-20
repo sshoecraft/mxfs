@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 48 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 47
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `fb2ae929-cb8f-413c-b8dd-e327a16568b9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/fb2ae929-cb8f-413c-b8dd-e327a16568b9.jsonl`
+- approx context at last assistant turn: 249418 tokens
+- tools used: Bash×84 Read×20 mcp__ccmemory__memory_get×6 Monitor×4 TaskStop×4 ToolSearch×2 Write×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/loop_cmkdir.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== active iscsi sessions to disk1 ==="; sudo ls /sys/kernel/scst_tgt/targets/iscsi/*/sessions/ 2>/dev/null | head -20; echo "=== count ==="
+    cd /src/mxfs; s=$(sudo find /sys/kernel/scst_tgt/targets/iscsi/*/sessions/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1); echo "sample session dir: $s"
+    cd /src/mxfs; echo "=== force-close all 28 sessions ==="; n=0; for f in $(sudo find /sys/kernel/scst_tgt/targets/iscsi/*/sessions/*/force_close 2>/dev/null); do
+    cd /src/mxfs; for i in $(seq 1 30); do c=$(sudo find /sys/kernel/scst_tgt/targets/iscsi/*/sessions/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l); if [ "
+    cd /src/mxfs; echo "=== VM states ==="; for n in $(seq 1 16); do printf "%s " "$(sudo virsh -c qemu:///system domstate test$n 2>/dev/null|tr -d '\n')"; done; ec
+    cd /src/mxfs; ls -la scripts/scst_unwedge/ scripts/scst_atomic_edges.py 2>/dev/null; echo "=== README / recovery notes ==="; ls scripts/scst_unwedge/*.md script
+    cd /src/mxfs; SCSTKO=$(ls /lib/modules/$(uname -r)/extra/scst.ko 2>/dev/null || find /lib/modules/$(uname -r) -name scst.ko 2>/dev/null | head -1); echo "scst.k
+    cd /src/mxfs/scripts/scst_unwedge; sudo rmmod scst_unwedge 2>/dev/null; echo "=== insmod unwedge ==="; sudo insmod scst_unwedge.ko blocker=0xffff8a5e9c667380 bl
+    cd /src/mxfs; TEXT=$(sudo cat /sys/module/scst/sections/.text); DATA=$(sudo cat /sys/module/scst/sections/.data); BSS=$(sudo cat /sys/module/scst/sections/.bss)
+    cd /src/mxfs/scripts/scst_unwedge; sudo rmmod scst_unwedge 2>/dev/null; sudo insmod scst_unwedge.ko blocker=0xffff8a5e9c667380 blocked=0xffff8a5e6f23d280 2>&1; 
+    cd /src/mxfs; for i in $(seq 1 20); do c=$(sudo find /sys/kernel/scst_tgt/targets/iscsi/*/sessions/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l); [ "$c"
+    cd /src/mxfs; TEXT=$(sudo cat /sys/module/scst/sections/.text); DATA=$(sudo cat /sys/module/scst/sections/.data); BSS=$(sudo cat /sys/module/scst/sections/.bss)
+    cd /src/mxfs; for f in $(sudo find /sys/kernel/scst_tgt/targets/iscsi/*/sessions/*/force_close 2>/dev/null); do echo 1 | sudo tee "$f" >/dev/null 2>&1; done; fo
+    cd /src/mxfs; for n in $(seq 1 16); do sudo virsh -c qemu:///system start test$n >/dev/null 2>&1 & done; wait; echo "started all 16"; sleep 1; for n in $(seq 1 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do for t in $(seq 1 10); do timeout 5 tools/mxfs_sshpass.sh test$n $P true >/dev/null 2>&1 && break; slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 30 tools/mxfs_sshpass.sh test$n $P 'mountpoint -q /mnt/mxfs-src || mount --bind /src/mxfs /mnt
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 30 tools/mxfs_sshpass.sh test1 $P ' RK=0xabcd1234 sg_persist --out --register-ignore --param-sark=$RK /dev/sda >/dev/nu
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 30 tools/mxfs_sshpass.sh test1 $P ' sg_persist --out --clear --param-rk=0xabcd1234 /dev/sda 2>&1 | tail -1; echo "clear
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 16 2>&1 | grep -v -E "Permanently added|Unauthorized|disconnect immediately|^$" | tail -6
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 8 tools/mxfs_sshpass.sh test$n $P 'echo 1 > /sys/module/mxfs/parameters/dirwr; dmesg -C >/dev/
+
+## Last text from previous session
+
+dy drained). Break this edge too.
+Cascade draining: D-state cleared, sessions 28→17. Let me wait for full drain then clear PR.
+Sessions stuck at 17. Let me re-check for remaining deadlock cycles.
+disk1 wedge fully cleared (no edges, no D-state). 17 zombie sessions remain (VMs are down). Let me force-close them now that commands drain freely.
+disk1 wedge is cleared (the real blocker). The 17 zombie sessions are from dead VMs and will time out. Per sess46, the PR may have been a symptom of the wedge. Let me boot the nodes and attempt recovery — with the wedge gone, sg_persist preempt from a live node should now work.
+All 16 booting. Let me wait for SSH, restore module+bind, then attempt PR preempt + mkfs.
+All 16 prepped. PR still held by the dead key. Let me retry preempt now that the wedge is cleared — register from test1 and verify it sticks this time.
+Preempt worked this time — reservation transferred to our key (the wedge was why registration wasn't sticking). Now clear everything to wipe all stale registrants.
+PR cleared and mkfs succeeds — cluster recovered. Now run the full reset to mount all 16.
+Cluster fully recovered. Let me record the recovery procedure (it'll save future sessions hours) before resuming the bug investigation.
+Memory saved. Cluster healthy. Now resume the bug investigation — run the cold full phase (without killing it mid-test this time) and harvest probes at the first failing test. First ensure dirwr=1 and clear dmesg.
+Reached the ccloop relay boundary at a clean stopping point. Cluster is healthy and staged for the next step. Criteria **not** met (`posix_semantics_multi16` still FAILs), so no marker written.
+
+## Session 47 summary
+
+**Outcome: cluster infrastructure recovered from a deep wedge; bug investigation re-staged.**
+
+What happened this session:
+- Confirmed 18/19 criteria PASS; only `posix_semantics_multi16` FAILs (`elapsed>600s`).
+- **Reproduced the bug cleanly**: cold full `--phase cluster` failed `test_concurrent_mkdir` at +26s (783/800, 17 dirs lost) with **no 120s barrier timeout** — sess44's settle fixes cut the latency, so the dominant blocker now is the **durable dirent lost-update** itself, which reproduces fast. Isolated single-test runs pass (race needs cold full-phase first-barrier contention — matches sess43).
+- **Root is already PROVEN** (sess43): a modifying mkdir/touch RMWs a **pinned + stale dir-DATA block** (`DIR-STALE-SKIP`, `buf_gen=0 pin=1`); the read hook correctly refuses to refresh a pinned buffer, so the stale base is written back → peer's dirent durably lost. The release path is heavily fortified (sess97 fence + sess99/35 publish-discard), yet it persists. Naive "drain harder" backfires (sess96: rename_visibility 2→24). Need fresh `DIR-STALE-SKIP`/`P-SF-DURABLE-FAIL`/`P-DIRREL-DIFFERS` field evidence on build D9D22CF3 to pinpoint which path leaks.
+
+Major infra detour (now resolved, recovery saved to memory `sess47-scst-wedge-pr-recovery-procedure`):
+- Killing a phase run mid-test caused **11/16 VMs to spontaneously shut off**, then the SCST **CAW↔READ atomic-blocked wedge** (D-state `iscsi_conn_cleanup`) + stale-PR blocked mkfs with EBADE.
+- Recovered via `scst_atomic_edges.py` → `scst_unwedge.ko` (broke 2 cycles: READ `0xffff8a5e9c667380` ↔ CAW `0x...661600` and `0x...6f23d280`) → `sg_persist` preempt-abort + clear → mkfs rc=0 → reset OK. **Key lesson: do NOT TaskStop a cluster run mid-test** (orphans + VM crashes); let it finish, then harvest dmesg.
+
+**Cluster state for next session**: all 16 cleanly mounted on a fresh FS, module D9D22CF3 with `dirwr=1`, dmesg cleared, SCST/PR healthy. **Next step**: run the cold full `--phase cluster` to completion (do NOT kill it mid-test), then harvest per-node `DIR-STALE-SKIP` (with `pin/in_ail/buf_gen/inode_gen` fields), `P-SF-DURABLE-FAIL`, and `P-DIRREL-DIFFERS`/`P35C` from the failing test to prove which release/acquire path leaks the pinned stale block — then fix that one path and verify count=800/800 with DIR-STALE-SKIP→0.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

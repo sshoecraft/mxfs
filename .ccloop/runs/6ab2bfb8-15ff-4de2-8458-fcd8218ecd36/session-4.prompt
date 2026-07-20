@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6ab2bfb8-15ff-4de2-8458-fcd8218ecd36/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6ab2bfb8-15ff-4de2-8458-fcd8218ecd36, after session 3
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f9d6b337-4dd2-4a3c-a179-19a14b2b80fa`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa.jsonl`
+- approx context at last assistant turn: 845482 tokens
+- tools used: Bash×456 Read×175 Edit×27 ScheduleWakeup×9 Write×3
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/tests/repro_barrier_coherency.sh
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dentry.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/tests/repro_rename.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; modinfo mxfs.ko 2>/dev/null|grep srcversion; echo "errors:"; make modules 2>&1 | grep -ciE 'error:'; echo "fixes:"; grep -c 'reused-inode cross-no
+    cd /src/mxfs; for n in test1 test2 test3 test4; do ( timeout 8 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo b > /proc/sysrq-trigger' >/dev/null 2>&1 ) & done;
+    cd /src/mxfs; for i in $(seq 1 40); do up=1; for n in test1 test2 test3 test4; do timeout 5 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo UP' 2>/dev/null|grep 
+    cd /src/mxfs; cat > tests/repro_modea4.sh <<'SH' #!/bin/bash # 4-node concurrent same-path mkdir + marker visibility (the cache_coherency barrier pattern). set 
+    grep -q 'repro_modea4:' /tmp/claude-1000/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa/tasks/bxr7h1iyg.output 2>/dev/null && tail -20 /tmp/claude-1000/-src-mxf
+    grep -q 'repro_modea4:' /tmp/claude-1000/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa/tasks/bxr7h1iyg.output 2>/dev/null && tail -20 /tmp/claude-1000/-src-mxf
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess37_lessons.md <<'EOF'  ## sess38 — KEY: bug is CONCURRENCY-LEVEL dependent — 2-node fixed
+    cd /src/mxfs; ls -la tests/repro_modea4.sh tests/repro_modea.sh tests/repro_rename.sh tests/repro_barrier_coherency.sh 2>/dev/null | awk '{print $NF, $5"b"}'; e
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess37_lessons.md <<'EOF'  ## sess38 — N-way root cause (confident) + fix direction: parent-D
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess37_lessons.md <<'EOF'  ## sess38 — CLARIFICATION: repro_modea4 run was CONTAMINATED; real
+    cd /src/mxfs; for n in test1 test2 test3 test4; do printf "%s up? " "$n"; timeout 5 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo y' 2>/dev/null|grep -q y && e
+    cd /src/mxfs; echo "=== robust mount all 4 (retry insmod) ==="; for n in test1 test2 test3 test4; do timeout 60 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'umount
+    cd /src/mxfs; ( timeout 50 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'sg_persist --out --register-ignore --param-sark=0x5eed /dev/sda >/dev/null 2>&1; sg_pers
+    grep -q 'DONE' /tmp/claude-1000/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa/tasks/bbhy3kymf.output 2>/dev/null && cat /tmp/claude-1000/-src-mxfs/f9d6b337-4dd
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess37_lessons.md <<'EOF'  ## sess38 — BISECTION (clean 4-node, build 8C04BCCC): dirent-ADD P
+    grep -q 'DONE' /tmp/claude-1000/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa/tasks/bbhy3kymf.output 2>/dev/null && { echo "=== full bisect ==="; cat /tmp/bise
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess37_lessons.md <<'EOF'  ## sess38 — *** MAJOR CORRECTION *** clean 4-node: B=1/16 (transie
+    cd /src/mxfs; ( echo "run1:"; timeout 400 bash tests/repro_modea4.sh 16 2>&1 | tail -1; echo "run2:"; timeout 400 bash tests/repro_modea4.sh 16 2>&1 | tail -1 )
+    grep -q 'DONE' /tmp/claude-1000/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa/tasks/baox6srjs.output 2>/dev/null && cat /tmp/claude-1000/-src-mxfs/f9d6b337-4dd
+    grep -q 'DONE' /tmp/claude-1000/-src-mxfs/f9d6b337-4dd2-4a3c-a179-19a14b2b80fa/tasks/baox6srjs.output 2>/dev/null && cat /tmp/claude-1000/-src-mxfs/f9d6b337-4dd
+
+## Last text from previous session
+
+plit-brain, cache-hit mode=0 (`xfs_iget_cache_hit`) → **`.mxfs_barriers` coherent across all 4 nodes**.
+
+**Last residual — corrected and small:** A clean 4-node bisection showed concurrent dirent-**add** PASSES, and concurrent same-path **create** is only **1/16** (the earlier "16/16 split" was contamination from one unmounted node). The single failure had **agreeing inodes** (no split-brain) — a rare **transient marker-visibility** miss after concurrent create+immediate-read. cache_coherency's rename fails because the barrier tolerates zero transient misses (one miss → 120s timeout). So the gap is **small and timing-related, not structural**.
+
+**Next session (close to done):** the cluster is mounted clean on `8C04BCCC`. (1) Re-run `tests/repro_modea4.sh` a few times to characterize the ~1/16 transient rate; (2) instrument the single failing iter to catch the one missed marker; (3) apply a small, fast fix (tighten writer-flush-before-release or the re-check reload for the rare window) → `repro_modea4` 0/16 steady; (4) `cache_coherency` 4/4 **fast**, then `rsync_paired` + `verify_ship.sh`. State is genuinely close. All in `sess37_lessons.md`; timing rule in `feedback_timing_is_failure.md`; reproducers in `tests/`.
+I have runway and the cluster is mounted clean on `8C04BCCC` — let me characterize the transient: re-run `repro_modea4` to confirm whether it's a steady ~1/16 or sometimes 0, and whether the missed marker is stuck-stale (a bug) vs a brief delay.
+Characterization run kicked off (2× `repro_modea4`); result in `/tmp/rm4rate.log` / `baox6srjs.output`. Context at 84% — wrapping up; the relay continues.
+
+## Session summary
+
+**Criteria not met** — not writing YES. Strong verified progress; the residual is now small and well-characterized (canonical build `8C04BCCCF72F31A5785BAE1`, clean, cluster mounted on it):
+
+**Fixed & verified:**
+1. Block-format-dir lost-update (`xfs_da_read_buf` gen-invalidation).
+2. Stale `_XBF_FUA_FRESH` inode-cluster buffer, cache-miss (`xfs_iget_cache_miss`) → **`repro_modea` 0/16**, **`cache_coherency` 0/4-timeout → 3/4**.
+3. Inode-reuse split-brain, cache-hit mode=0 (`xfs_iget_cache_hit`) → **`.mxfs_barriers` coherent across all 4 nodes**.
+
+**Last residual (de-risked):** clean 4-node bisection — concurrent dirent-add PASSES; concurrent same-path create is **1/16** (the prior "16/16 split" was contamination), with **agreeing inodes** (no split-brain) — a rare **transient marker-visibility** miss. cache_coherency's rename fails only because the barrier tolerates zero misses (one miss → 120s timeout). Small, timing-related gap.
+
+**In flight:** 2× `repro_modea4` to confirm the ~1/16 rate (`/tmp/rm4rate.log`).
+
+**Next session:** read `/tmp/rm4rate.log`; characterize the transient; instrument the single failing iter (P-LOOKUP/P13/P55/P6 on the contended path) to determine stuck-stale vs brief-delay; apply a small fast fix (tighten writer-flush-before-release / re-check reload for the rare window) → `repro_modea4` 0/16 steady → `cache_coherency` 4/4 **fast** → `rsync_paired` → `verify_ship.sh`. The state is genuinely close. All recorded in `sess37_lessons.md`; reproducers in `tests/`; timing rule in `feedback_timing_is_failure.md`.
+Still running (2× 16-iter runs). I'll wait for the watcher notification with the transient-rate characterization (`/tmp/rm4rate.log`).
+
+The session's state is solid and recorded: dominant coherency bug fixed (`repro_modea` 0/16, `cache_coherency` 3/4), inode-reuse split-brain fixed (`.mxfs_barriers` coherent across 4 nodes), and the last residual de-risked to a rare (~1/16) transient marker-visibility miss in concurrent same-path create (no split-brain) — small and timing-related, not structural. The in-flight run confirms the rate for the next session, which will instrument the single failing iter, apply a small fast fix to reach `repro_modea4` 0/16 steady, then `cache_coherency` 4/4 fast → `rsync_paired` → `verify_ship.sh`. Base `8C04BCCC`; all detail in `sess37_lessons.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

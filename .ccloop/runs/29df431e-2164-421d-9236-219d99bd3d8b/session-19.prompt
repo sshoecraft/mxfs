@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 19 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 18
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `e1e49ba9-f790-4880-9ffa-95643515bbb8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e1e49ba9-f790-4880-9ffa-95643515bbb8.jsonl`
+- approx context at last assistant turn: 161313 tokens
+- tools used: Bash×32 Read×14 Edit×6 Monitor×2 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/tests/cv_sfadd_loop.sh
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 580 bash tests/cv_sfadd_loop.sh 12 2>&1 | tail -25; echo "=== loop EXIT ${PIPESTATUS[0]} ==="
+    sleep 90; tail -30 /tmp/claude-1000/-src-mxfs/e1e49ba9-f790-4880-9ffa-95643515bbb8/tasks/bhhwm32o1.output 2>/dev/null
+    cd /src/mxfs; grep -n "xfs_iflush_cluster\|xfs_iflush\b\|^xfs_iflush\|xfs_inode_to_disk\|cluster_mask\|XBF_DELWRI\|cilist\|clcount" xfs/xfs_inode.c xfs/xfs_inod
+    cd /src/mxfs; wc -l tests/.cv_sfadd_loop.out 2>/dev/null; echo "=== tail ==="; tail -30 tests/.cv_sfadd_loop.out 2>/dev/null
+    cd /src/mxfs; grep -n "invalidate.*cluster\|cluster.*invalidate\|xfs_buf_stale\|drain_inode_buffers\|XBF_FUA_FRESH\|stale cluster\|imap_to_bp\|cache_miss\|cache
+    cd /src/mxfs; tail -4 tests/.cv_sfadd_loop.out 2>/dev/null
+    cd /src/mxfs; tail -6 tests/.cv_sfadd_loop.out 2>/dev/null
+    cd /src/mxfs; for n in test1 test2; do echo "=== $n P-DIRFLUSH sample ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -aE "P-DIRFLU
+    cd /src/mxfs; tail -8 tests/.cv_sfadd_loop.out 2>/dev/null
+    cd /src/mxfs; echo "=== bg task alive? ==="; ps aux | grep -E "cv_sfadd_loop|run_tests" | grep -v grep | head -5; echo "=== node test procs ==="; for n in test3
+    cd /src/mxfs; tail -20 tests/.cv_sfadd_loop.out 2>/dev/null; echo "=== bg task running? ==="; ps -ef | grep -c "[c]v_sfadd_loop"
+    cd /src/mxfs; grep -n "drain_inode_buffers\|bast_process\|i_dlm_mode = \|reload_inode\|xfs_buf_stale\|im_blkno\|cluster" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; tail -20 tests/.cv_sfadd_loop.out 2>/dev/null; echo "=== running? ==="; ps -ef | grep -c "[c]v_sfadd_loop"
+    cd /src/mxfs; echo "=== im_len set where ==="; grep -rn "im_len = \|imap->im_len\|im_len=" xfs/libxfs/xfs_ialloc.c xfs/libxfs/xfs_inode_buf.c | head; echo "=== 
+    cd /src/mxfs; tail -20 tests/.cv_sfadd_loop.out 2>/dev/null; echo "=== running? ==="; ps -ef | grep -c "[c]v_sfadd_loop"; echo "=== loop start age ==="; ps -o e
+    cd /src/mxfs; grep -n "_XBF_FUA_FRESH\|fua_window\|read_fua\|FUA_FRESH\|mxfs_buf_in_fua_window\|scsi_read_fua\|b_mxfs_dir_gen\|verify_write\|->verify_write\|b_o
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -aoE "P-DIRFLUSH ino=[0-9]+" | grep -aoE "[0-9]+" | sort -n | uniq | tai
+    cd /src/mxfs; echo "=== loop alive? ==="; ps -p 455753 >/dev/null 2>&1 && echo "ALIVE $(ps -o etime= -p 455753)" || echo "EXITED"; echo "=== progress ==="; tail
+    cd /src/mxfs; echo "=== task stdout ==="; cat /tmp/claude-1000/-src-mxfs/e1e49ba9-f790-4880-9ffa-95643515bbb8/tasks/bhhwm32o1.output 2>/dev/null; echo "=== .out
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_inode_buf.c:[0-9]|error:|Error [0-9]|undefined" | head; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinf
+
+## Last text from previous session
+
+rms `xfs_iflush_cluster` is a **safe** RMW site (buffer not yet I/O-owned), unlike `xfs_buf_submit`. So the fix has a known-safe home.
+
+Let me verify the false-sharing premise quantitatively — confirm inodes_per_cluster makes `6291586`/`6291587` co-resident on this geometry.
+Confirmed: P-DIRFLUSH shows adjacent dir inodes co-residing (e.g. `27263168`/`27263169` differ by 1 → same cluster block), so directory inodes and their neighbors do share cluster buffers — the false-sharing premise holds on this geometry.
+
+I now have a complete, evidence-backed mechanism and a known-safe fix site (`xfs_iflush_cluster`). What remains per RULE 4 is the H2 capture proving the count=1-after-count=4 revert. The loop is running under Monitor watch; when it exits (the 580s cap will cut it ~iter 6 before accumulated state triggers H2), I'll relaunch a longer background loop (`timeout 3000 … 20 iters`). Waiting on the Monitor event now.
+Loop exited (code 0) — but only 5 iters shown and no "loop done" line, which suggests it hit H2 at iter 5. Let me read the full capture.
+EXIT 124 — the 580s timeout killed it at iter 5; no H2 in 5 iters (all passed). That's the fresh-mount/accumulated-state effect, but P-DIRFLUSH firing on *every* inode-cluster write is also a perturbation risk (sess50 warned tiny timing changes hide this race). I'll do both: narrow the detector to only the `node*` test dirs (cuts ~90% of log volume → far less perturbing, sharper signal), then run a longer background loop.
+Hit the relay boundary. Let me record a concise sess60 state entry (build version + next steps) before wrapping.
+Relay boundary reached. Summary of sess60 progress:
+
+## What I did (RULE 4 loop on the cross_visibility `cache_coherency` blocker)
+
+**Built the proving instrument.** Added an always-on detector **P-DIRFLUSH** in `xfs/libxfs/xfs_inode_buf.c` (`xfs_inode_buf_write_verify` → `mxfs_inode_buf_write_dirlog`). It logs, on every inode-cluster buffer *write*, the `{ino, sf count, first-name, realns}` of each shortform directory inode in the buffer. This directly targets the sess59 decisive finding (disk progresses to 4 dirents, then *reverts* to 1 ~3s later — a stale cluster-buffer writeback). Confirmed firing on the cluster (saw the count timeline: `ino=29360256 count=1` on test1, `count=2` on test2).
+
+**Ruled out a sub-hypothesis with code evidence.** The BAST handler `mxfs_dlm_bast_process` *already* stales the cluster buffer (`xfs_buf_stale` + clear `XBF_DONE`). I proved via `xfs_ialloc.c:2700-2731` that the stale covers the whole cluster (im_blkno/im_len = full cluster; co-resident inodes share an identical imap) — so "the stale misses the buffer" is **false**.
+
+**Sharpened the mechanism.** Staling only forces a re-read on the next *read*. When the reverting node still owns a *dirty co-resident child* (its inode-log-item on the same cluster buffer), the next op is a *write* (xfsaild flushing the child via `xfs_iflush_cluster`), which stamps only the child and writes the buffer as-is — carrying the stale dir region to disk. Located the known-safe fix site (`xfs_iflush_cluster`, per sess44's note) and the FUA-read helpers to reuse.
+
+## State for the next session
+- Build `CBA32837` is **built but not deployed** (relay hit right after build). It narrows P-DIRFLUSH to `node*` dirs only (~90% volume cut, anti-Heisenberg). Nodes are still on `08967DBF`.
+- **First action:** deploy `CBA32837` (`MKFS_OPTS=-f bash tests/reset4.sh 4`), then run a **longer background loop** (`timeout 1800 bash tests/cv_sfadd_loop.sh 20`) — sess60's 580s cap only reached iter 5, all passing (fresh-mount accumulated-state effect, not a fix).
+- **Proof still owed:** P-DIRFLUSH showing a dir written `count=1` at a `realns` after it reached `count=4` — names the reverting node and confirms the shared-cluster revert. Then (RULE 5) consult Gemini with the proof before coding the flush-time cluster RMW.
+
+All recorded at the top of `state.md`. Criteria remain PASS=10 FAIL=2; marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

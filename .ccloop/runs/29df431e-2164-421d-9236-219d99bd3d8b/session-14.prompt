@@ -1,0 +1,142 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 14 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 13
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `5e33333b-079d-40c5-aeb4-3514eb065500`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5e33333b-079d-40c5-aeb4-3514eb065500.jsonl`
+- approx context at last assistant turn: 190386 tokens
+- tools used: Edit×25 Bash×21 Read×21 Write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/notes/sess55_gemini_design.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess55_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/state.md
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== criteria --status ===" && timeout 60 ./tests/criteria/verify_ship.sh --status 2>&1 | head -60; echo; echo "=== state.md head ==="; head -40 state.md 2
+    sed -n '40,160p' state.md 2>/dev/null
+    cd /src/mxfs echo "=== xfs_lookup location ==="; grep -n "^xfs_lookup\|^STATIC int\s*$" xfs/xfs_inode.c | grep -i lookup grep -n "xfs_lookup\b" xfs/xfs_inode.c 
+    cd /src/mxfs echo "=== notes/ dir ==="; ls -la notes/ 2>/dev/null | head echo "=== RULE 5 in CLAUDE.md ==="; grep -n "RULE 5\|ask_gemini\|max_tokens\|mcp__ask" 
+    cd /src/mxfs echo "=== xfs_ifree signature ==="; grep -n "^xfs_ifree\b\|^xfs_ifree(" xfs/xfs_inode.c echo "=== XFS_I* inode flags (XFS_ISTALE etc) ==="; grep -r
+    cd /src/mxfs echo "=== disklock region size / layout constants ==="; grep -rn "DISKLOCK.*SIZE\|disklock.*size\|HEARTBEAT.*SIZE\|heartbeat.*32\|0x8000\|32768\|re
+    timeout 500 make modules 2>&1 | tail -25; echo "=== exit: $? ==="; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    sleep 180; tail -8 /tmp/claude-1000/-src-mxfs/5e33333b-079d-40c5-aeb4-3514eb065500/tasks/bx9qcl1mi.output 2>/dev/null; echo "--- still running? ---"; ps aux | g
+    tail -15 /tmp/claude-1000/-src-mxfs/5e33333b-079d-40c5-aeb4-3514eb065500/tasks/bx9qcl1mi.output 2>/dev/null; echo "--- build process count ---"; ps aux | grep -
+    cd /src/mxfs echo "=== mxfs_node_id_t / mxfs_epoch_t typedefs ==="; grep -rn "typedef.*mxfs_node_id_t\|typedef.*mxfs_epoch_t" include/mxfs/*.h pal/*.h 2>/dev/nu
+    cd /src/mxfs echo "=== any code referencing hb .reserved or heartbeat reserved size ==="; grep -rn "\.reserved\|->reserved\|reserved\[" dlm/disklock.c 2>/dev/nu
+    timeout 540 make modules 2>&1 | tail -20; echo "=== EXIT: ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; grep -n "mxfs_disklock_set_expire_cb\|^void mxfs_disklock" dlm/disklock.c | head
+    timeout 560 make modules 2>&1 | tail -25; echo "=== EXIT: ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs echo "=== expire_cb registration (mirror for evict_cb) ==="; grep -rn "set_expire_cb\|disklock_create\|m_mxfs_disklock\|->disklock" dlm/*.c dlm/*.h
+    cd /src/mxfs echo "=== how dlm callbacks reach xfs / mp stored on dlm ctx ==="; grep -rn "v5_lease_expire_cb\b" dlm/v5_mount.c | head -3 echo "--- v5_lease_expi
+    cd /src/mxfs echo "=== mxfs_v5_dlm_inode_unlock impl (mirror target) ==="; grep -n "mxfs_v5_dlm_inode_unlock" dlm/v5_mount.c dlm/v5_mount.h include/mxfs/*.h 2>/
+    cd /src/mxfs echo "=== context around xfs_mxfs_dlm.c:920-930 (function boundary) ==="; sed -n '915,930p' xfs/xfs_mxfs_dlm.c echo "=== m_mxfs_dlm type ==="; grep
+    cd /src/mxfs; grep -n "^void mxfs_dlm_cache_init\|^void mxfs_dlm_evict\b\|mxfs_v5_dlm_is_single_node" xfs/xfs_mxfs_dlm.c | head
+    timeout 560 make modules 2>&1 | tail -30; echo "=== EXIT: ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+ecise findings in `state.md` so the next session wires the XFS layer directly without re-investigating.
+The disklock layer is done and compiling. Let me make one more self-contained, compilable increment: the producer bridge wrapper `mxfs_v5_dlm_note_inode_freed` in `v5_mount.c`, mirroring `mxfs_v5_dlm_inode_unlock`. Let me read that wrapper to mirror it exactly.
+Exact pattern confirmed. Let me add the producer bridge wrapper `mxfs_v5_dlm_note_inode_freed` after `mxfs_v5_dlm_inode_unlock`:
+Now the declaration in `v5_mount.h`:
+Producer bridge wrapper done. Now the xfs-layer bridge `mxfs_dlm_note_inode_freed` + its call in `xfs_ifree`. Let me find a clean insertion point and the header:
+`m_mxfs_dlm` is `void *` (passes directly). Let me add the xfs bridge before `mxfs_dlm_cache_init` (a clean top-level boundary) and complete the producer chain, then build to verify all new code compiles.
+`mxfs_inode_is_peer_ag` (2702-2717) is a clean top-level boundary. Let me add the xfs producer bridge right after it:
+Now the header declaration and the `xfs_ifree` call site:
+Now the producer call site in `xfs_ifree`. Let me read the full function:
+I'll add the producer call on the success path, using the inline `extern` declaration pattern already used elsewhere in this file (e.g. `xfs_lookup`'s `mxfs_dlm_force_peer_flush`) to avoid header-include uncertainty:
+The complete producer chain is now wired: `xfs_ifree` → xfs bridge → v5 wrapper → disklock producer → HB serialization → consumer → `evict_cb` (the only unimplemented piece, the XFS-side cb body, for next session). Let me build to verify the entire chain compiles.
+Build running in background. I'll be notified on completion. While it compiles, let me update the `state.md` to reflect that the producer chain is now implemented (pending this build's confirmation), keeping the handoff accurate.
+I've made substantial, durable progress this session. The build is running in the background and will re-invoke me on completion. Summary of where things stand:
+
+## Session progress (sess55)
+
+**Your two explicit asks — done:**
+1. **Saved the Gemini design** durably: `notes/sess55_gemini_design.md` (full, in-tree), `memory/sess55_lessons.md`, `MEMORY.md` index, and a sess55 START-HERE block in `state.md`.
+2. **Amended CLAUDE.md RULE 5**: always omit `max_tokens` on `ask_gemini`/`ask_*` (it caps the total budget including 10k+ thoughts tokens → truncation).
+
+**Then implemented Part 1 of the cache-coherency fix** (the NL-cached inode-reuse blocker that defeated sess40/48/52/53/54):
+
+- **Resolved the biggest design unknown myself**: Gemini's "new CAW metadata block" would force a mkfs format break (disklock region is full). Instead I embedded the evict ring in the existing **heartbeat record's `reserved[472]`** — zero new on-disk region, zero mkfs change, reuses the 2s HB write/read machinery. Backward-compatible (old nodes zero it → `magic==0` → skipped).
+
+- **Disklock layer — COMPLETE and building clean** (3 builds exit 0): ring structs (`mxfs_evict_ring`, 460B, embedded with `_Static_assert` keeping HB at 512B), ctx staging fields, producer `mxfs_disklock_note_freed` + HB serialization, consumer in the HB monitor loop (wrap-safe per-peer `head_seq` diff → `evict_cb`), and `mxfs_disklock_set_evict_cb`.
+
+- **Producer chain fully wired** (this build confirms): `xfs_ifree` → `mxfs_dlm_note_inode_freed` (xfs bridge) → `mxfs_v5_dlm_note_inode_freed` (v5 wrapper) → `mxfs_disklock_note_freed`.
+
+**Remaining for Part 1** (precisely documented in `state.md`): the consumer's XFS-side callback body (`radix_tree_lookup` on `pag_ici_root` + `XFS_ISTALE_CAW` + background-workqueue evict), its registration at the two `disklock_create` sites, then **Part 2** (VFS staleness trap in `xfs_vn_lookup`). Then deploy via `reset4.sh 4` and run the 19s `test_cross_visibility` repro (instr=0).
+
+Criteria are **not** met (cache_coherency + rsync_paired still FAIL) — the marker stays unwritten. I'll continue when the build completes.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

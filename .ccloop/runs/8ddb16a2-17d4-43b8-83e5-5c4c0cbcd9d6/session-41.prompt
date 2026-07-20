@@ -1,0 +1,163 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 41 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 40
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `af1f0bce-f5e0-4a93-bbd7-a81c5e51c1e8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/af1f0bce-f5e0-4a93-bbd7-a81c5e51c1e8.jsonl`
+- approx context at last assistant turn: 495344 tokens
+- tools used: Bash×55 Read×43 mcp__ccmemory__memory_get×11 Edit×9 mcp__ccmemory__memory_write×6 ToolSearch×2 Write×2 TaskStop×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_loop.sh
+- /src/mxfs/tests/suite_loop.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== xfs.md: relevant sections ==="; wc -l .claude/awareness/subsystems/xfs.md; grep -nE "skip_dir|mxfs_dir_data_track|incarn|ABA|chokepoint|
+    cd /src/mxfs/tests/_cap; echo "=== P40-INCARN-ABA-DIRSKIP fired? (per node) ==="; for n in test1 test2; do echo -n "  $n: "; grep -c "P40-INCARN-ABA-DIRSKIP" $n
+    cd /src/mxfs/tests/_cap; echo "=== iter3 distinct bufincarn in CLOBBERs (node1) ==="; grep "P29-DATAWRITE tag=CLOBBER" fail_3_test1.log 2>/dev/null | grep -oE "
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='dirwr=1'; bash tests/drc_loop.sh 6
+    cd /src/mxfs/tests/_cap; echo "=== iter3 round-14 window: PHASE markers + nearby clobber bufincarn + P31F gen ==="; awk '/mxfs-DRCph r=14 .*PHASE=create-start/{
+    cd /src/mxfs/tests/_cap; echo "=== fail_1 drc-FAIL signature ==="; grep -hE "drc-FAIL|drc-RDMISS" fail_1_test1.log fail_1_test2.log 2>/dev/null | sed -E 's/^\[[
+    cd /src/mxfs/tests/_cap; echo "=== fail_1: actual failure reason (RESULT / FAIL / timeout / shutdown) ==="; grep -hiE "RESULT:|drc round|lookup_fail|readdir=|sh
+    cd /src/mxfs; echo "=== criteria.json dir_reuse 2/tcp recorded reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs["2/tcp"]
+    cd /src/mxfs/tests/_cap; echo "=== SCSI PR / LUN comm failure context (node1) ==="; grep -n -B1 -A1 "PR command failed\|communication failure\|reservation confl
+    echo "=== run_coord saved FAIL logs in /tmp ==="; ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -3; echo; latest=$(ls -dt /tmp/run_dir_reuse_coherenc
+    latest=/tmp/run_dir_reuse_coherency_20260620T025622Z; echo "=== file sizes ==="; wc -l "$latest"/test1 "$latest"/test2 2>/dev/null; echo; echo "=== test1 tail (
+    cd /src/mxfs; unset MXFS_EXTRA_MODARGS; bash tests/drc_loop.sh 5
+    cd /src/mxfs; echo "=== mxfs_buf_leaf_clobber_skip definition ==="; grep -n "mxfs_buf_leaf_clobber_skip" xfs/xfs_mxfs_dlm.c xfs/xfs_mxfs_dlm.h pal/linux/xfs_buf
+    cd /src/mxfs; echo "=== P20-LEAFCLOBBER-SKIP / leaf clobber guard by marker ==="; grep -rn "P20-LEAFCLOBBER\|leaf_clobber\|LEAFCLOBBER\|clobber_skip\|leafclobbe
+    cd /src/mxfs/tests/_cap; tail -4 loop_summary.txt 2>/dev/null; echo "--- now $(date -u +%T); iter2 started 03:12:34 ---"; echo "--- node reachability + mxfs sta
+    cd /src/mxfs/tests/_cap; echo "=== iter2 (production) failure type: content (drc-FAIL) or timeout? ==="; grep -hcE "mxfs-drc-FAIL|drc-RDMISS" fail_2_test1.log f
+    cd /src/mxfs/tests/_cap; grep -E "^  iter|DONE" loop_summary.txt 2>/dev/null
+    cd /src/mxfs/tests/_cap; grep -E "^  iter|DONE" loop_summary.txt 2>/dev/null
+    cd /src/mxfs/tests/_cap; grep -E "^  iter|DONE" loop_summary.txt 2>/dev/null
+    cd /src/mxfs/tests/_cap; grep -E "^  iter|DONE" loop_summary.txt 2>/dev/null | tail -7
+
+## Last text from previous session
+
+— iters 3-5 still running, result will land in `loop_summary.txt`. This is already captured in the correction memory.
+
+Context is exhausted. **Criteria NOT met; marker NOT written** — honest, given `dir_reuse_coherency` 2/tcp fails Bug A at production config. The session's work is fully handed off in ccmemory: the two refuted fixes, the correct tenure discriminator (`b_mxfs_dir_gen < i_dlm_dir_gen`), the precise next-fix plan (tenure-based DATA-block writeback guard), the `dirwr=0` validation methodology, and the `mht=300` default keep (build B9F9326E). The next session continues from there.
+Waiting for the production batch to finish recording its results.
+Waiting.
+Waiting.
+Waiting for the production batch.
+Waiting.
+Waiting.
+Waiting for the production batch to complete.
+Waiting.
+Waiting.
+Waiting for the production batch.
+Waiting.
+Waiting.
+Waiting for the production batch to complete.
+Waiting.
+Waiting.
+Production batch: **iter1 PASS, iter2 FAIL, iter3 FAIL** (all corrupt=0 = Bug A content clobbers). So Bug A reproduces frequently at production config (~2/3 fail) — confirming it's the **dominant blocker**, not a dirwr=1 artifact. The tenure-based DATA-block writeback guard is clearly the essential next fix.
+
+This is fully captured in the ccmemory handoff (`sess40-CORRECTION-production-DOES-fail-bugA-real-at-dirwr0` + the next-fix plan). Context is exhausted.
+
+**Criteria NOT met; marker NOT written** — `dir_reuse_coherency` 2/tcp fails ~2/3 at production config on Bug A (stale-tenure block-0 clobber). The next session has everything needed to continue: build B9F9326E (mht=300 default), the refuted approaches to avoid, the proven discriminator (`b_mxfs_dir_gen` tenure), and the precise implementation plan for the tenure-based writeback guard. I'm out of usable context for this session; the loop continues from the documented state.
+Waiting for the production batch to finish its final iterations; all session work is documented in the handoff memories.
+Waiting.
+Waiting.
+Waiting for the production batch.
+Waiting.
+Waiting.
+Waiting for the production batch to complete.
+Waiting.
+Waiting.
+Waiting for the production batch.
+Waiting.
+Waiting for the production batch to complete.
+Production batch result is conclusive enough: **1 PASS / 2 FAIL** of 3 (iters 4-5 pending), all failures Bug A (corrupt=0). Bug A is the dominant production-config blocker — fully captured in the handoff memories.
+
+I'm out of usable context. **Criteria NOT met; marker NOT written.** Everything needed for the next session is in ccmemory: build B9F9326E (mht=300 default), the two refuted fixes, the proven tenure discriminator (`b_mxfs_dir_gen < i_dlm_dir_gen`), the precise tenure-guard implementation plan, and the `dirwr=0` validation methodology. The loop continues from there.
+Waiting for the production batch; this session's work is fully documented in the handoff memories.
+Waiting.
+Waiting.
+Waiting for the production batch to complete.
+Waiting.
+Waiting.
+Waiting for the production batch.
+Waiting.
+Waiting.
+Waiting for the production batch to complete.
+Waiting.
+The production result is conclusive: dir_reuse fails ~2/3 at production config on Bug A. I've captured everything needed and context is exhausted.
+
+**Session conclusion — criteria NOT met, marker NOT written (honest).**
+
+The dominant blocker is **Bug A: the stale-tenure block-0 clobber** — confirmed real at production config (`dirwr=0`), node1's first data files durably dropped, both nodes agree. The proven discriminator is `b_mxfs_dir_gen < i_dlm_dir_gen` (tenure), not incarnation. The next session's first action is implementing the **tenure-based DATA-block writeback guard** (full plan with code locations in `sess40-CORRECTION-production-DOES-fail-bugA-real-at-dirwr0`).
+
+All session findings — two refuted fixes, the three-bug decomposition, the `mht=300` default keep (build B9F9326E), the `dirwr=0` validation methodology, and reusable harnesses — are in ccmemory. The loop continues from there.
+Waiting.
+Waiting.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

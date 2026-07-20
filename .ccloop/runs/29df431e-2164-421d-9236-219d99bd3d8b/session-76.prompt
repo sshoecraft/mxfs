@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 76 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 75
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `6f230766-37bd-456e-b582-51bc370d8e16`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6f230766-37bd-456e-b582-51bc370d8e16.jsonl`
+- approx context at last assistant turn: 256537 tokens
+- tools used: Bash×61 Read×15 Edit×3 ToolSearch×3 mcp__ask_gemini__query×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 280 bash tests/reset4.sh 4 2>&1 | tail -2; for n in 1 2 3 4; do HOST_NOW=$(date -u +"%Y-%m-%d %
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; for run in $(seq 1 15); do   timeout 200 bash tests/run_tests.sh --nodes 4 --phase clus
+    OUT=/tmp/claude-1000/-src-mxfs/6f230766-37bd-456e-b582-51bc370d8e16/tasks/b81tbaebl.output; until grep -qE "SHUTDOWN|run 15:" "$OUT" 2>/dev/null; do sleep 15; d
+    cd /src/mxfs; ls tests/cluster/ | grep -iE "unlink|visib"; echo "=== confirm nodes mounted ==="; for n in 1 2 3 4; do echo -n "test$n "; timeout 6 bash tools/mx
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; for run in $(seq 1 12); do   timeout 200 bash tests/run_tests.sh --nodes 4 --phase clus
+    OUT=/tmp/claude-1000/-src-mxfs/6f230766-37bd-456e-b582-51bc370d8e16/tasks/bcfwcnlp6.output; until grep -qE "SHUTDOWN|run 12:" "$OUT" 2>/dev/null; do sleep 15; d
+    cd /src/mxfs; for n in 2 3; do echo "======== test$n shutdown chain ========"; timeout 8 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -iE 'lt
+    cd /src/mxfs; echo "===== test2 full window (60 lines before shutdown) ====="; timeout 8 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -iE 'P-C
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -vE 'P15-INSTR|P88-INSTR|P86-INSTR|caw-iter|caw-act' | tail -40" 2>/dev/n
+    cd /src/mxfs; grep -n "mxfs_buf_is_ag_metadata\b" pal/linux/xfs_buf.c xfs/*.c | head -3; echo "=== def ==="; sed -n '/mxfs_buf_is_ag_metadata(/,/^}/p' pal/linux
+    cd /src/mxfs; grep -rn "mxfs_buf_is_ag_metadata" pal/ xfs/ include/ | grep -iE "bool|^.*int .*is_ag|inline" | head; echo "=== search def in headers/c ==="; grep
+    cd /src/mxfs; grep -rn "^mxfs_buf_is_ag_metadata\|bool mxfs_buf_is_ag_metadata" xfs/*.c pal/**/*.c 2>/dev/null; echo "==="; grep -rn "mxfs_buf_is_ag_metadata" x
+    cd /src/mxfs; timeout 560 make modules 2>&1 | grep -iE "error:|undefined reference" | head; echo "buildrc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 280 bash tests/reset4.sh 4 2>&1 | tail -2; for n in 1 2 3 4; do echo -n "test$n: "; timeout 8 b
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests; for run in $(seq 1 12); do   timeout 200 bash tests/run_tests.sh --nodes 4 --phase clus
+    OUT=/tmp/claude-1000/-src-mxfs/6f230766-37bd-456e-b582-51bc370d8e16/tasks/bu0wt5emi.output; until grep -qE "DONE|SHUTDOWN" "$OUT" 2>/dev/null; do sleep 15; done
+    cd /src/mxfs; echo "=== test1 shutdown signature ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -iE 'Internal error|ltbno|trans_
+    cd /src/mxfs; echo "=== callers of mxfs_ag_meta_invalidate_stale ==="; grep -rn "mxfs_ag_meta_invalidate_stale" xfs/ pal/ | grep -v "4164\|prototype\|\.h:"; ech
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -iE 'P71-INSTR|P102-INVAL|P-IRESURRECT' | tail -12" 2>/dev/null
+    cd /src/mxfs; grep -rn "INACT-SKIP-STALE\|skipping destructive inactivation\|disk-free" xfs/*.c | head
+
+## Last text from previous session
+
+luster `di_next_unlinked` corruption. This is exactly Gemini's predicted **Gap (c): inode cluster buffers aren't swept/invalidated** (not in `mxfs_buf_is_ag_metadata`). The in_ail fix is correct but incomplete. Let me find how inode reads invalidate and whether there's a parallel hook.
+P102 fired and eliminated the btree double-alloc class (sig 1/2); the now-surfaced `xfs_iunlink_remove_inode` corruption is a pre-existing failure mode (documented in sess39/sess92) — so the in_ail fix is net progress, not a regression. The remaining blocker is the AGI unlinked-list / inode-cluster `di_next_unlinked` coherency (Gap c). Let me read the exact failing check.
+There's already a P71-INSTR probe at this exact corruption that distinguishes stale-AGI-read vs on-disk garbage. Let me capture it from test1's shutdown.
+The shutdown evidence is decisive: `P71-INSTR ... ino=6291584 ... disk_dimode=040755 disk_dnlink=2 agi_disk_differs=1` — **this node is freeing inode 6291584 while the on-disk inode is a LIVE directory (mode 040755, nlink 2) owned by a peer.** P-IRESURRECT confirms (ino=132: incore_nlink=0/freeing while disk_nlink=2/live). This is the canonical NL-cached inode-REUSE: a node inactivates a stale in-core inode whose number a peer reused as a live dir. There's an existing `INACT-SKIP-STALE` guard but it only skips when disk is FREE (mode=0), not when disk shows a LIVE-but-different incarnation. Let me find and extend it.
+I've hit the relay boundary. Let me read the existing inactivation guard so the next session has the exact continuation point, then save progress to memory.
+I'm at the relay boundary with substantial, concrete progress. Let me save it to memory for the next session.
+## Session summary
+
+**Status: cache_coherency = 3/4, criteria NOT met. Marker not written.** Build `B3C15760` deployed on all 4 nodes (KEEP).
+
+### What I established (decisive, instrumented)
+1. **cache_coherency is 3/4** on a clean cluster — cross_visibility, rename_visibility, unlink_visibility PASS; **cross_write_read FAILS**. The failure is the long-standing lost-update family that shuts the FS down (3 signatures: bnobt double-free, dialloc EFSCORRUPTED, xfs_iunlink/inode-cluster corruption).
+
+2. **Major reframing**: `fua_disable=1` (sess94 default) makes the entire sess80/90/92 GPT/Gemini analysis of `mxfs_buf_read_fua` (mechanism F TOCTOU / bounce-buffer) **moot** — that code path is dead. The bug lives in the plain-bio/SCST-shared-cache coherency path.
+
+3. **Fix landed (net progress)**: Gemini RULE-5 consult #2 confirmed the AG-meta invalidation hook over-protected `in_ail` buffers. Under the coherent SCST cache, a tx-flag-clean buffer is durable regardless of `in_ail`, so protecting it served node A its own STALE prior-hold snapshot of AGI/inobt/bnobt → double-alloc/free. I dropped the `!in_ail` exclusion (keeping dirty/pin/delwri/in-flight protection). `P102-INVAL-INAIL-DISCARD` fires and the **bnobt/dialloc double-alloc class is eliminated** — the failure moved to a pre-existing inode-cluster mode.
+
+4. **Remaining blocker isolated**: inode-number REUSE. Built `P-IRESURRECT` detector proving `xfsaild` flushes in-core inodes whose on-disk image is a different/older incarnation; at the iunlink shutdown, `P71-INSTR` shows a node **freeing an inode that disk shows as a LIVE directory (mode 040755, nlink 2) owned by a peer**. Gemini **refuted** an iflush gen-abort guard (gen mismatch at flush is normal during reuse). The existing `INACT-SKIP-STALE` guard misses the same-gen / dlm_mode=EX / disk-live case.
+
+### Next session
+Attack inode-cluster + `di_next_unlinked` coherency under `fua_disable=1` (Gap c — inode clusters aren't in `mxfs_buf_is_ag_metadata`). The crux is distinguishing "legit inactivation, disk lags" from "peer reused same-gen inode, must skip" — likely needs per-inode DLM/evict state, or preventing the stale in-core inode from surviving a peer's free. Full detail in memory `sess102_lessons`.
+
+Criteria are not met — the work continues.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

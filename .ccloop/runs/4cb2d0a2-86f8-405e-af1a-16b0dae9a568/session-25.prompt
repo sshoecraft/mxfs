@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 25 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 24
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `85de928b-1a62-4e5d-87d4-3c905770d990`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/85de928b-1a62-4e5d-87d4-3c905770d990.jsonl`
+- approx context at last assistant turn: 498884 tokens
+- tools used: Bash×128 Read×38 Edit×31 mcp__ccmemory__memory_write×10 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ccmemory__memory_search×2 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/setup/prep_node.sh
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in 2 3 4; do c=$(timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo up" 2>/dev/null); if [ "$c" = up ]; then timeout 15 tools/mxfs
+    cd /src/mxfs; for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; for n in 1 2 3 4; do virsh -c qemu:///system start tes
+    cd /src/mxfs; grep -rn "i_dlm_stale = false\|i_dlm_mode = \|i_dlm_dir_gen = 0\|i_dlm_cached_grant_gen = 0" xfs/*.c | head
+    cd /src/mxfs; grep -n "xfs_inode_alloc\|i_dlm_mode = MXFS_LOCK_NL\|ip->i_dlm_dir_gen = 0\|memset.*ip\|kmem_cache_alloc.*xfs_inode" xfs/xfs_icache.c | head
+    cd /src/mxfs; grep -n "mxfs_dlm_inode_init" xfs/xfs_mxfs_dlm.c | head -2
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; make modules 2>&1 | grep -iE "error:|implicit|undefined
+    cd /src/mxfs; sleep 3; for n in 1 2 3 4; do virsh -c qemu:///system start test$n >/dev/null 2>&1; done; echo started; sleep 50; up=0; for n in 1 2 3 4; do c=$(t
+    cd /src/mxfs; for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head
+    cd /src/mxfs; for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; sudo truncate -s0 /var/log/libvirt/qemu/test2-serial.l
+    cd /src/mxfs; for n in 2 3; do timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo 10 > /proc/sys/kernel/hung_task_timeout_secs; echo 3 > /proc/sys/ker
+    cd /src/mxfs; echo "=== test2 serial: hung/lockup/Call Trace ==="; sudo grep -nE "blocked for more than|INFO: task|Call Trace|hard LOCKUP|soft lockup|watchdog:|
+    cd /src/mxfs; for n in 2 3; do c=$(timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo up" 2>/dev/null); echo "test$n: $c"; done # revert console on te
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; grep -n "xfs_buf_incore\|cbp\b\|P34-TRYLOCK\|XBF_TRYLOCK" xfs/libxfs/xfs_da_btree.c | sed -n '1,25p'
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; make modules 2>&1 | grep -iE "error:|implicit|undefined
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; sleep 3; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start test$n >/dev/null 2>&1; done; echo started; sleep 50; up=0; for n in 1 2 3 4 5
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|i_dlm_dir_rmw|grant_stale" | head; echo "=== build (keeper + P103 ratelimit) ==="; modinfo
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+
+## Last text from previous session
+
+oin — wedge-free) only triggers on dir_gen/epoch/aba, NOT grant_gen, and uses XBF_TRYLOCK (skips locked blocks → the corruption). Let me find how `cbp` is acquired to extend it.
+The pre-read invalidation (operates on `cbp` from incore via TRYLOCK — wedge-free, skips locked) is the safe path, but it only triggers on dir_gen/epoch/aba, NOT grant_gen (the use_free corruption signal). The fix: move the grant_gen staleness check from the wedging postread to the wedge-free pre-read, scoped to the addname RMW via my flag. Let me revert the postread gate and addname flag, keeping the flag to scope the pre-read.
+Now add the grant_gen staleness trigger to the wedge-free PRE-read path, scoped to the addname RMW flag:
+Now add `grant_stale` to the keep-guard bypass (a grant-stale block's prior-tenure work was drained durable at our release, so it's safe to invalidate even if in-AIL):
+Now stamp `b_mxfs_grant_gen` on the invalidated buffer so grant_stale doesn't re-fire every addname:
+Pre-read grant-stale invalidation implemented (wedge-free TRYLOCK path, scoped to addname RMW). Let me build and test.
+`MXFS_LOCK_EX` isn't in scope here (the postread hook uses literal `5`). Let me fix:
+Build clean (B278052D). Let me boot all 8 and test the pre-read grant-stale version at 8/tcp.
+Run 1 wedged 0/8 again — the pre-read TRYLOCK version ALSO wedges, so my ABBA hypothesis was wrong; the wedge is intrinsic to making the dir data coherent under 8-node churn (a hard hang I can't capture without proper serial loglevel). Both bulk and targeted, postread and pre-read re-reads wedge. Let me revert to the clean keeper (keeping only the P103 ratelimit) so the tree is in a known-good state, and record this decisively.
+All Patch5/grant_stale changes reverted; only the P103 ratelimit remains (legit cleanup). Let me rebuild and verify clean.
+Build clean (8A437A71 = keeper + P103 ratelimit only). Let me record the decisive finding — all dir-data re-read variants wedge — and update the Patch5 record.
+Relay boundary reached. Let me reboot the cluster clean so the next session starts from a usable state, then summarize.
+Cluster clean (8/8 up), tree restored to keeper behavior. Criteria **not met** — relaying to a fresh session.
+
+## Session 24 final summary
+
+**Criteria NOT met** — 8/tcp `dir_reuse_coherency` still fails (1/2/4 tcp pass). Tree restored to keeper EF6000F0 behavior (build 8A437A71 = keeper + one harmless P103-log rate-limit). No regressions.
+
+### Major advances this session
+1. **Storage proven COHERENT** (qemu `cache=none`/shareable/write-through) — retires the 20-session "FUA tears against write-back cache" assumption. Data re-read is sound in principle.
+2. **Corruption root fixed in principle** — re-reading the dir DATA block to a coherent RMW base eliminates BOTH 8-node corruption faces (`use_free` EFSCORRUPTED + stale-leaf DABUF-HOLE). Confirmed uf=0/hole=0; one config passed 8/tcp **8/8**.
+3. **But every re-read variant HARD-WEDGES nodes** (bulk leaf_only=0; targeted postread; targeted pre-read TRYLOCK) at 4 and 8 nodes — a hard hang I could not capture (node goes network-dark; hung-task/NMI printed no stack). All re-read experiments reverted. **The wedge is now the core blocker.**
+4. **GPT-5.5 consult** produced a full DLM-fairness + demand-reread design (recorded). My DLM-fairness attempts (asymmetric-MHT, fair-grant, queued_at) **regressed 4/tcp by wedging** → reverted.
+
+### Set up for next session
+- **Serial-console capture infra** on test2-4 (console=ttyS0 + libvirt `<log file>`), now usable since P103 is rate-limited. Next session must capture the wedge stack (add `ignore_loglevel`/kdump) — this is the gating diagnostic.
+
+### Recorded in ccmemory (`sess24-*`)
+Decisive findings + two wedge-free directions to try (acquire-time data-block eviction done right; or serialize/delegate the hot-dir create storm), plus the GPT design. The clearest next step: **capture the hard-hang stack first**, then fix coherency without the wedging dir-data re-read.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

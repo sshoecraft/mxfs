@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/12e0d157-061b-4bb6-9097-5a8b4cbc32c3/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 12e0d157-061b-4bb6-9097-5a8b4cbc32c3, after session 6
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `565028a8-06cd-46d1-90b6-52c1290f37c0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0.jsonl`
+- approx context at last assistant turn: 501433 tokens
+- tools used: Bash×87 Read×24 Edit×9 Write×7 mcp__ccmemory__memory_write×7 TaskStop×5 mcp__ccmemory__memory_get×4 ToolSearch×3 Monitor×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/val4.sh
+- /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/val32.sh
+- /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/valfua4.sh
+- /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/valfua_scale.sh
+- /src/mxfs/scripts/caw_ladder_fua.sh
+- /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/valfair16.sh
+- /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/valfua32.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad; until grep -q "VALFUA4 COMPLETE" "$SC/valfua4.log" 2>/dev/null; do 
+    chmod +x /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/valfua_scale.sh; cd /src/mxfs; bash /tmp/claude-1000/-src-mxfs/565028a8-06cd
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad; until grep -qE "proceeding to @32|STOP before @32|VALFUASCALE COMPL
+    cd /src/mxfs; echo "now $(date -u +%H:%M:%SZ)"; echo "=== which @16 test is running + progress (test1, test16) ==="; for n in test1 test16; do echo "--- $n ---"
+    cd /src/mxfs; echo "=== rebuild with fua_disable=1 default ==="; make modules 2>&1 | grep -iE "error|implicit|undefined" | head; echo "build exit=${PIPESTATUS[0
+    cd /src/mxfs; echo "=== dir_reuse NFILES + per-round barriers ==="; grep -nE "NFILES=|NF=|DRC_ROUNDS|coord_barrier|drc_r|rm -rf|mkdir|for i in|verify" tests/sui
+    cd /src/mxfs; echo "=== cache_coherency@16 result (ran before dir_reuse in STAGE 1) ==="; ./showstat.sh 16 caw 2>/dev/null | grep -iE "cache_coherency|dir_reuse
+    cd /src/mxfs; echo "now $(date -u +%H:%M:%SZ)"; echo "=== dir_reuse@16 live state ==="; for n in test1 test8 test16; do printf "%s: " $n; timeout 10 tools/mxfs_
+    cd /src/mxfs; echo "=== test16 stall forensics ==="; timeout 12 tools/mxfs_sshpass.sh test16 /tmp/.mxfs_pass 'echo "--- last DRC ---"; dmesg 2>/dev/null | grep 
+    cd /src/mxfs; echo "=== kernel stack of stuck stat on test16 ==="; timeout 12 tools/mxfs_sshpass.sh test16 /tmp/.mxfs_pass 'p=$(pgrep -f "stat -c %i /mnt/shared
+    cd /src/mxfs; echo "now $(date -u +%H:%M:%SZ)"; echo "=== scale log ==="; tail -12 /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/va
+    cd /src/mxfs; echo "=== caw_wait_for_grant + fairness/starvation logic ==="; grep -nE "caw_wait_for_grant|defer_for_waiter|zero.PR|starv|re-grant|regrant|waiter
+    cd /src/mxfs; echo "=== caw_fair_handoff default ==="; grep -n "int mxfs_caw_fair_handoff" dlm/dlm_caw.c; echo "=== loaded on test1 ==="; timeout 10 tools/mxfs_
+    cd /src/mxfs; echo "=== caw_wait_for_grant definition ==="; grep -n "caw_wait_for_grant" dlm/dlm_caw.c | grep -v backup | head -3; echo "=== fair_handoff 'chose
+    cd /src/mxfs; MYPID=$$; echo "=== kill leftover scale/run/sshpass local procs ==="; VICT=$(ps -e -o pid=,cmd= | grep -E 'valfua_scale|run[.]sh 16|mxfs_sshpass|M
+    cd /src/mxfs; bash /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-52c1290f37c0/scratchpad/valfair16.sh > /tmp/claude-1000/-src-mxfs/565028a8-06cd-46d1-90b6-
+    cd /src/mxfs; echo "=== release-side yield_to (fair handoff ticket set) ==="; grep -n "yield_to" dlm/dlm_caw.c | grep -v backup | head -20
+    cd /src/mxfs; echo "=== TIMEOUT_BUDGETS.md ==="; cat tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head -60 || echo "(not found)"; echo "=== actual recent hea
+    cd /src/mxfs; echo "=== live params on test1/test16 (mxfs now mounted) ==="; for n in test1 test16; do printf "%s: " $n; timeout 8 tools/mxfs_sshpass.sh $n /tmp
+    cd /src/mxfs; MYPID=$$; VICT=$(ps -e -o pid=,cmd= | grep -E 'run[.]sh 16|MXFS_RANK|/suite/dir_reuse|valfair16' | grep -v grep | awk -v a=$MYPID '$1!=a{print $1}
+
+## Last text from previous session
+
+AW grant *starvation* (proven via kernel stack), not something to time-out around. And `fua_disable=1` is expected to make these *faster* than the old FUA-platter budgets (140×N), so I should be *tightening*, not padding.
+
+Let me fix the ladder script:
+Big signal: dir_reuse@16 **advanced to round 2 create-start** (23:25) — it got *past* the round-2 stall point where it hung without fair_handoff. So **`caw_fair_handoff` fixed the starvation/hang.** But round 1 took ~4 min (verify phase alone ~2.5 min), which is too slow — and with `fua_disable=1` reads should be cache-fast. I need to confirm `fua_disable` is actually active on these nodes (a deploy/param miss would explain the slow verify). Let me check the param-check output the script logged.
+The param check ran *before* prep insmod'd mxfs (my script's timing bug — `/sys/module/mxfs` didn't exist yet), so it says nothing about the live state. I need to confirm `fua_disable` is actually active during the test — a slow ~2.5-min verify phase would be explained by FUA reads if the new build didn't deploy. This is a targeted fix-is-active check, not progress-polling:
+Both fixes confirmed active (fua_disable=1, fair_handoff=1, build 96C5CF1F). **The key result: `caw_fair_handoff` fixed the starvation stall** — dir_reuse@16 got *past* round 2 (where it hung before). But it's slow (~4 min/round, verify-dominated = per-entry DLM grant overhead), which is a *separate* RULE-0 speed problem I won't grind out for 90 minutes.
+
+Higher-value move right now: bank the **@32 non-dir_reuse storm cells** (cache_coherency, crash_consistency, dlm_scaling) — `fua_disable=1` should make those fast, taking 32/caw from 13→16. Let me stop the monitor, kill the slow dir_reuse run, and validate those — letting `run.sh` enforce per-test budgets (no flat wrapper).
+Monitor and slow dir_reuse run stopped. Now the high-value validation: the @32 non-dir_reuse storm cells with `fua_disable=1` (default) + `fair_handoff=1`, letting run.sh enforce per-test budgets (no flat wrapper — RULE 0). Let me write and launch it.
+I've hit the ccloop relay boundary. Let me record the latest state for the next session and summarize — I won't launch a long run that may not survive the boundary.
+## Session summary — major breakthrough, criteria not yet met
+
+**Root cause found (a misconfiguration, not a subtle bug):** the CAW multipath target is **SCST** (`SCST_FIO`), but `mxfs_fua_disable` defaulted to `0` — a setting made for a *LIO* cluster. On SCST, FUA reads pierce past the coherent shared cache to the stale un-destaged platter (that's the 32-node "storm"); plain-bio reads are both correct and fast.
+
+**Two fixes, both validated to the extent I could this session:**
+1. **`fua_disable=1` — now the default (build `96C5CF1F`).** Fixes the read-storm. Proven: cache_coherency@4/@16 = PASS, strong_consistency@4 = PASS, dir_reuse@4 = PASS (the cell no reload-skip fix could ever pass).
+2. **`caw_fair_handoff=1`** — fixes a *separate* root: dir_reuse@16/@32 stall on CAW grant **starvation** (proven via kernel stack: `stat → xfs_ilock → caw_wait_for_grant`). With both fixes, dir_reuse@16 got **past round 2** — the exact point it hung before.
+
+**Banked:** 1/2/4/8 caw = 17/17; restored dir_reuse@4 (your flagged failure — it was a session-5 artifact).
+
+**Remaining:**
+- **dir_reuse@16/@32 speed** — the stall is fixed but it's ~4 min/round (per-entry DLM-grant-bound verify). That's a RULE-0 speed *bug to diagnose*, not to pad a timeout around — which is exactly the point you made.
+- **@32 non-dir_reuse cells** (cache_coherency, crash_consistency, dlm_scaling) — script ready (`valfua32.sh`), expected to pass fast with `fua_disable=1` (32/caw 13→16). Didn't run before the relay boundary.
+
+**On the timeouts:** you were right. I removed the flat wrapper from the ladder script — `run.sh` already enforces per-test RULE-0 budgets, and slowness is the bug, not something to time-out around. The next session continues from the `AAA-sess6-HEAD` memory.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

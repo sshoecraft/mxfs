@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 56 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 55
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `df1d8ca5-beae-44fa-815b-102bbab731b1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/df1d8ca5-beae-44fa-815b-102bbab731b1.jsonl`
+- approx context at last assistant turn: 251555 tokens
+- tools used: Bash×58 Read×16 Edit×8 mcp__ccmemory__memory_get×4 ToolSearch×3 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -nE "mxfs_v5_dlm_ag_unlock|drain_alloc_buflist|drain_meta_buffers|ag_release|release_pending|static.*ag.*release|void.*mxfs_dlm_ag" xfs/xfs_m
+    cd /src/mxfs; for h in 2 6 10 12; do echo "===== test$h ====="; timeout 8 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -aiE 'P55-STUCK
+    cd /src/mxfs; grep -rnE "mxfs_pal_bdev_read_plain|read_plain_bdev|mxfs_pal.*read_plain" pal/ include/ xfs/ 2>/dev/null | grep -iE "int |read_plain" | head; echo
+    cd /src/mxfs; grep -nE "bt_sector_offset" xfs/xfs_buf.h pal/linux/*.h xfs/*.h 2>/dev/null | head -3; make modules 2>&1 | grep -iE "error:|warning:.*xfs_alloc|im
+    cd /src/mxfs; timeout 480 env INSMOD_OPTS="instr=0" bash tests/reset4.sh 16 2>&1 | grep -aE "RESET_OK|RESET_FAIL" | tail -1; printf "build: "; timeout 6 tools/m
+    cd /src/mxfs; timeout 360 bash tests/repro_agi_unlink_storm.sh 16 8 2>&1 | grep -aE "round|SHUTDOWN|REPRO|done" | tail -25
+    cd /src/mxfs; until grep -qaE "REPRO_HIT|=== done" /tmp/claude-1000/-src-mxfs/df1d8ca5-beae-44fa-815b-102bbab731b1/tasks/b11j241li.output 2>/dev/null; do sleep 
+    cd /src/mxfs; until grep -qaE "REPRO_HIT|=== done" /tmp/claude-1000/-src-mxfs/df1d8ca5-beae-44fa-815b-102bbab731b1/tasks/b11j241li.output 2>/dev/null; do sleep 
+    cd /src/mxfs; echo "=== repro output ==="; grep -aE "round|SHUTDOWN|REPRO|done" /tmp/claude-1000/-src-mxfs/df1d8ca5-beae-44fa-815b-102bbab731b1/tasks/b11j241li.
+    cd /src/mxfs; tail -30 /tmp/claude-1000/-src-mxfs/df1d8ca5-beae-44fa-815b-102bbab731b1/tasks/b11j241li.output 2>/dev/null; echo "=== check P55-ALLOC-OVER-DISKIN
+    cd /src/mxfs; grep -nE "^xfs_da_get_buf|^xfs_da_read_buf|xfs_trans_get_buf.*map|xfs_buf_get.*map|b_ops = .*dir|->b_ops" xfs/libxfs/xfs_da_btree.c | head -20
+    cd /src/mxfs; grep -nE "#include.*v5_mount|mxfs_v5_dlm_is_single_node|XFS_DINODE_MAGIC" xfs/libxfs/xfs_da_btree.c | head -4; make modules 2>&1 | grep -iE "error
+    cd /src/mxfs; timeout 480 env INSMOD_OPTS="instr=0" bash tests/reset4.sh 16 2>&1 | grep -aE "RESET_OK|RESET_FAIL" | tail -1; printf "build: "; timeout 6 tools/m
+    cd /src/mxfs; timeout 300 bash tests/repro_agi_unlink_storm.sh 16 6 2>&1 | grep -aE "round|SHUTDOWN|REPRO|done" | tail -20
+    cd /src/mxfs; echo "=== P55-DIRWRITE-OVER-INODE across all 16 ==="; for h in $(seq 1 16); do c=$(timeout 6 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*xfs_da_btree|implicit|undefined|LD \[M\]|mxfs.ko$" | tail -6; modinfo mxfs.ko 2>/dev/null | grep sr
+    cd /src/mxfs; timeout 480 env INSMOD_OPTS="instr=0" bash tests/reset4.sh 16 2>&1 | grep -aE "RESET_OK|RESET_FAIL" | tail -1; printf "build: "; timeout 6 tools/m
+    cd /src/mxfs; timeout 300 bash tests/repro_agi_unlink_storm.sh 16 6 2>&1 | grep -aE "round|SHUTDOWN|REPRO|done" | tail -15
+    cd /src/mxfs; until grep -qaE "REPRO_HIT|=== done" /tmp/claude-1000/-src-mxfs/df1d8ca5-beae-44fa-815b-102bbab731b1/tasks/b18krhc3k.output 2>/dev/null; do sleep 
+    cd /src/mxfs; echo "=== P55-DIRWRITE-OVER-INODE across all 16 ==="; for h in $(seq 1 16); do c=$(timeout 6 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2
+
+## Last text from previous session
+
+k if that buffer already carries inode-cluster ops (the aliasing collision — no extra I/O). First, remove the heavy probe:
+Now let me find the dir-block buffer-get path in xfs_da_btree.c:
+`xfs_da_get_buf` is the dir WRITE path: `xfs_dabuf_map(dp, bno...)` maps the dir logical block via dp's in-core extent fork (stale → wrong daddr), then gets the buffer. Cheap M2 detector: after getting the buffer, check if its content already carries inode magic (a locally-cached inode cluster mapped as a dir block — no I/O). Let me add it.
+Built (3D83E2B2). Deploy and reproduce:
+0× again — the cheap check can't see a *peer's* inode cluster (fresh local buffer has no content). The mapped daddr's inode cluster lives cross-node. I need a plain-bio read of the mapped daddr, but bounded to cache-miss (`!XBF_DONE`) dir-block gets to limit I/O. Let me upgrade the detector.
+Reached the relay boundary. Let me wait for this final reproducer and capture the decisive M2 detector result before wrapping up.
+P55-DIRWRITE-OVER-INODE fired **0×** too. So the dir-write buffer-get path doesn't map a dir block onto an inode cluster either. This pushes toward **M3: writeback-time corruption** — a stale cached dir-data buffer flushed by xfsaild onto a daddr now backing an inode cluster, or the inode-cluster init colliding — i.e., the clobber is at *bio submission*, not at logical write/get. Let me record this refinement before the relay.
+I've reached the relay boundary. Summary of this session's work:
+
+## What I did (RULE-4 loop against the fast reproducer)
+
+**Confirmed the state:** Only `posix_semantics_multi16` fails (18/19 PASS), via FS **shutdowns** under the 16-node shared-dir storm. Fast repro `tests/repro_agi_unlink_storm.sh 16 6` hits a shutdown in round 1–2.
+
+**Pinned the shutdown signature** (consistent every run): a directory's dirent bytes (`xn13_r1_`, a node13 storm filename) physically overwrite **ino 135's inode cluster** → `iformat_extents` corruption / `from_disk rc=-117` / `imap_to_bp rc=-5` → forced shutdown.
+
+**Decisively ruled out the allocator (M1) — 4 instrumented detectors, all 0× while shutdowns persisted:**
+1. `P55-ALLOC-OVER-INODE` (per-AG ring of this node's inode-chunk extents) — no intra-node double-alloc.
+2. `P55-ALLOC-OVER-CACHEDINODE` (incore probe for a live inode-cluster buffer at the allocated daddr) — 0×.
+3. `P55-ALLOC-OVER-DISKINODE` (plain-bio read of the just-allocated block = coherent SCST cache; check inode magic) — **0× on all 16 nodes.** The allocator never hands a DATA request a block holding a live inode cluster.
+4. `P55-DIRWRITE-OVER-INODE` (in `xfs_da_get_buf`, the dir-WRITE path: cheap cached check + plain-read on cache-miss) — **0×.** The logical dir-write mapping doesn't target an inode cluster either.
+
+**Also disproved a red herring:** the force-release Invariant #1 hole (`meta_pending timeout — forcing release`, detector `P55-STUCKMETA`) is real but fired 0× on the actual shutdown rounds — not this clobber's cause. Good that I instrumented before patching it.
+
+**Net narrowing:** M1 (allocator double-alloc) and M2 (stale-bmap logical mis-write) are both ruled out. Since neither the allocator nor the dir-write path targets the inode cluster, the clobber must occur at **writeback / bio-submission time** (M3): a stale cached dir-data buffer flushed onto a daddr that now backs an inode cluster, or an inode-cluster-init collision. Round-1-on-fresh-FS rules out free→realloc aliasing as the trigger.
+
+**Next step (recorded in memory):** instrument the **writeback path** (`pal/linux/xfs_buf.c` bio submit) — when a dir/data buffer is written to a daddr that currently holds a live inode (plain-read di_magic), fire/skip; and the inverse for inode-cluster init.
+
+Builds progressed D9BA766C → 26D4F790 (current, all 16 nodes); all P55 detectors kept except the heavy DISKINODE probe (removed after it proved its point). **Criteria NOT met — marker not written.** Full detail in memory `sess55-faceB-is-M2-stale-bmap-not-allocator`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

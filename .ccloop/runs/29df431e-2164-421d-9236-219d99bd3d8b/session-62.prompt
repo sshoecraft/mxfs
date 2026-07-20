@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 62 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 61
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `c7d6fa76-218c-4020-a47a-7428cb1baa3c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c7d6fa76-218c-4020-a47a-7428cb1baa3c.jsonl`
+- approx context at last assistant turn: 252659 tokens
+- tools used: Bash×30 Read×21 Edit×5 ToolSearch×3 mcp__ask_gemini__query×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; rm -f /tmp/cc_sess93.log; ( ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_sess93.log 2>&1; echo "EXIT=$?" >> /tmp/cc_sess93.log ) & echo
+    cd /src/mxfs; until grep -q "EXIT=" /tmp/cc_sess93.log 2>/dev/null; do sleep 15; done; echo "=== DONE ==="; grep -E "RESULT:|\[PASS\]|\[FAIL\]|Running:|EXIT=|sh
+    cd /src/mxfs; echo "=== which subtests failed ==="; grep -aE "test_|\[PASS\]|\[FAIL\]" /tmp/cache_coherency.MsPNf9.log 2>/dev/null | grep -iE "\[PASS\]|\[FAIL\]
+    cd /src/mxfs; echo "===== test2 full P93 stack (first occurrence) ====="; timeout 18 tools/mxfs_sshpass.sh test2.vm.localdomain /tmp/.mxfs_pass 'dmesg | grep -a
+    cd /src/mxfs; echo "=== all writes/increments of pag_dlm_meta_gen ==="; grep -rn "pag_dlm_meta_gen" xfs/ pal/ dlm/ | grep -vE "buf_gen|b_mxfs_ag_gen|pag_gen=|//
+    cd /src/mxfs; grep -rn "mxfs_v5_dlm_ag_held" dlm/ xfs/ pal/ include/ | grep -vE "P88|probe|//" | head; echo "=== def ==="; F=$(grep -rln "^mxfs_v5_dlm_ag_held\|
+    cd /src/mxfs; echo "=== where pag_dlm_release_pending is SET true ==="; grep -n "pag_dlm_release_pending = true\|pag_dlm_release_pending=true\|release_pending =
+    cd /src/mxfs; grep -n "release_pending" xfs/xfs_mxfs_dlm.c | grep -iE "true|= 1|\bset\b|pending =" ; echo "=== broader (maybe via pointer/other) ==="; grep -rn 
+    cd /src/mxfs; grep -n "release_pending =" xfs/xfs_mxfs_dlm.c; echo "=== context 6190-6230 ==="; sed -n '6190,6235p' xfs/xfs_mxfs_dlm.c 2>/dev/null | grep -n "re
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|Error [0-9]" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 4; for n in test1 test2 test3 test4; do 
+    cd /src/mxfs; timeout 560 bash tests/reset4.sh 4 2>&1 | tail -4; echo "=== srcversion (want C4E65691) ==="; for n in test1 test2 test3 test4; do echo -n "$n: ";
+    cd /src/mxfs; rm -f /tmp/cc_sess93b.log; ( ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_sess93b.log 2>&1; echo "EXIT=$?" >> /tmp/cc_sess93b.log ) & e
+    cd /src/mxfs; until grep -q "EXIT=" /tmp/cc_sess93b.log 2>/dev/null; do sleep 15; done; echo "=== DONE ==="; grep -E "RESULT:|EXIT=" /tmp/cc_sess93b.log; echo "
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 18 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo "-- P93 count
+    cd /src/mxfs; echo "===== test3 ALL P93 lines (daddr, bp, nr/disk_nr, time) ====="; timeout 18 tools/mxfs_sshpass.sh test3.vm.localdomain /tmp/.mxfs_pass 'dmesg
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n (slot/AG9 activity) ====="; timeout 18 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass
+    cd /src/mxfs; echo "===== test3 P88-INSTR chronological trace for daddr=18785888 (AG9) ====="; timeout 18 tools/mxfs_sshpass.sh test3.vm.localdomain /tmp/.mxfs_
+    cd /src/mxfs; grep -n "ltbno\|ltlen\|>= bno\|> bno\|XFS_WANT_CORRUPTED\|goto error" xfs/libxfs/xfs_alloc.c | grep -iE "ltbno|ltlen|bno" | head -25
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 18 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo "-- ltbno dou
+
+## Last text from previous session
+
+he bnobt buffer is **NOT reverting** — it's doing legitimate forward B-tree math. Decoding the trace: t=84–90.5 allocator carves blocks 9–12 ([9,7]→[13,3]); by t=95.8 all consumed (disk_nr=1, record gone); t=95.8 a **free** of block 9 inserts [9,1]; t=107.5 a **free** of blocks 10–15 **merges** with [9,1] → [9,7]. The bnobt is mathematically correct, not reverted (LSN legitimately climbs). **The real bug: a stale inode/BMAP later issues a DUPLICATE free of those same blocks** → `ltbno+ltlen>bno` overlap → double-free shutdown. My P93 probe was catching benign async-writeback lag + legit merge-frees — a red herring.
+
+The visibility failures (rename/unlink/cross_write_read) and the `INACT-SKIP-STALE ... gen-mismatch/disk-free` messages all point to the **same inode-cache staleness root**. Let me record this critical reframe before pivoting.
+Now let me pivot to the real root. Per Gemini's Probe B, I'll trap the double-free at the `ltbno+ltlen>bno` overlap check in `xfs_free_ag_extent` to capture which operation/inode issues the duplicate free. Let me find that check.
+There's already P15-INSTR at the overlap (2250). Let me see it and what context it captures — I need the call stack and the freeing operation/inode.
+Extensive instrumentation already exists here (P15/P47-INACT/P81-DEXT) — P81-DEXT already checks Gemini's exact question (does the on-disk inode claim the freed block). The verdicts distinguish bnobt-lost-update vs stale-inode vs double-allocation. Let me pull this run's actual verdicts and the test1 CORRUPT_INCORE buffer type to direct the next probe.
+I've hit the ccloop relay boundary. Let me wrap up.
+
+## Summary — session 61 (sess93)
+
+**Criteria NOT met.** `cache_coherency` still FAILs (passed=1 failed=3: rename_visibility 40/240, unlink_visibility 3/122, cross_write_read 1/6). 11/12 other criteria pass. Marker not written.
+
+**Decisive progress this session (RULE 4):**
+
+1. **Refuted GPT's mechanism F (read-completion TOCTOU)** by code-reading: `mxfs_pal_scsi_read_fua_bdev` → `scsi_execute_cmd(REQ_OP_DRV_IN, 30*HZ)` is **synchronous** and runs under the buffer lock (`b_sema`) in `xfs_buf_submit` — no transaction can modify a buffer mid-read. Did not patch on the refuted hypothesis.
+
+2. **Built a decisive probe (P93)** that caught the alleged clobber producer red-handed: `xfsaild` flushing an in-AIL bnobt buffer whose content trails disk, with `pag_gen` frozen at 1.
+
+3. **Landed a defensively-correct fix (build `C4E65691`, deployed on all 4 nodes):** bump `pag_dlm_meta_gen` in both `release_pending` reclaim paths — the release worker yields the on-disk CAW (L6577) *before* clearing `release_pending` (L6586), so a reclaim in that window adopts a cluster-yielded grant without invalidating stale AG-meta. Verified it fires (test2 reached `pag_gen=2`). It did not move the criterion.
+
+4. **🔑 Major reframe via Gemini consult #2 (overturns sess44–92):** the **bnobt "lost-update" chased for ~10 sessions is a RED HERRING.** Decoding the full P88 chronological trace proved the bnobt buffer is doing **legitimate forward B-tree math** (alloc carves a free record; frees re-insert and merge it back) — not reverting. The P93/P88/P90/P70 "clobber" family were misreading benign async-writeback lag + legit merge-frees as corruption.
+
+**The real root** (per Gemini, corroborated by the `INACT-SKIP-STALE gen-mismatch` and `EVICT-RING-FLAG incore_gen≠freed_gen` messages still in dmesg): a **stale inode/BMAP issues a duplicate free** of blocks it already freed → `ltbno+ltlen>bno` double-free. The same inode-cache staleness underlies the rename/unlink/cross_write_read visibility failures. This run's shutdown was actually a `CORRUPT_INCORE` write-verify on test1 (not the ltbno path).
+
+All findings, the gen-bump fix, the refutations, and the **next-session pivot plan** (Gemini's Probes B+C: trap `xfs_free_ag_extent`'s overlap + `xfs_bmap_del_extent` to catch which inode double-frees; stop instrumenting the bnobt) are recorded in `sess93_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

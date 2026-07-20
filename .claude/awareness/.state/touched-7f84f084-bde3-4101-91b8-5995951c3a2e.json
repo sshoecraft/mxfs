@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_inode_util.c",
+    "xfs/xfs_icache.c",
+    "xfs/xfs_inode.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

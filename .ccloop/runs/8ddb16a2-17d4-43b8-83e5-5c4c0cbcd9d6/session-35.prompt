@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 35 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 34
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b9669e95-d113-4d36-a5a7-06934b8e7360`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b9669e95-d113-4d36-a5a7-06934b8e7360.jsonl`
+- approx context at last assistant turn: 513587 tokens
+- tools used: Bash×68 Read×45 Edit×8 mcp__ccmemory__memory_get×7 mcp__ccmemory__memory_write×5 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test1 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "look
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test1 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "drcF
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test1 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "drcF
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs[
+    cd /src/mxfs; echo "=== P-CONVBLK-DENY site ==="; grep -rn "P-CONVBLK-DENY\|CONVBLK\|keep grant; deny" xfs/xfs_mxfs_dlm.c dlm/*.c | head; echo; echo "=== EDEADL
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member|undeclared" | head; echo "rc=${PIPESTATUS[
+    cd /src/mxfs; echo "=== reset + run (BDD203F2, P34-TRYLOCK-STALE) @ $(date -u +%T) ==="; bash tests/reset2.sh 2>&1 | grep -E "done|TIMEOUT|loaded="; timeout 400
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test2 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "P34-
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test2 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "P34-
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test2 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "TRYL
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "now=$(date -u +%T)"; timeout 12 $SSH test2 "$PF" 'dmesg|grep "mxfs-DRCph"|tail -1; echo "drcF
+    cd /src/mxfs; echo "now=$(date -u +%T)"; grep -q "done: ran=" /tmp/claude-1000/-src-mxfs/b9669e95-d113-4d36-a5a7-06934b8e7360/tasks/bt1fz9jry.output 2>/dev/null
+    cd /src/mxfs; echo "now=$(date -u +%T)"; tail -5 /tmp/claude-1000/-src-mxfs/b9669e95-d113-4d36-a5a7-06934b8e7360/tasks/bt1fz9jry.output 2>/dev/null
+    cd /src/mxfs; echo "now=$(date -u +%T)"; grep -E "FAIL|PASS|done: ran" /tmp/claude-1000/-src-mxfs/b9669e95-d113-4d36-a5a7-06934b8e7360/tasks/bt1fz9jry.output 2>
+    cd /src/mxfs; echo "=== reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs["2/tcp"].reason' criteria.json 2>/dev/null; ech
+    cd /src/mxfs; grep -nE "P131-REL|p131_t[0-9]" xfs/xfs_mxfs_dlm.c | head -30
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== P138-WAIT / grant-wait logging in code ==="; grep -rnE "P138-WAIT|grant.*wait|WAIT.*grant
+    cd /src/mxfs; echo "=== MXFS_LOCK_ACQUIRE_WAIT_MS + MXFS_LOCK_WAIT_TIMEOUT_MS values ==="; grep -rnE "#define MXFS_LOCK_ACQUIRE_WAIT_MS|#define MXFS_LOCK_WAIT_T
+    cd /src/mxfs; echo "=== MXFS_LOCK_ACQUIRE_WAIT_MS definition ==="; grep -rnE "MXFS_LOCK_ACQUIRE_WAIT_MS|MXFS_LOCK_WAIT_TIMEOUT_MS|LOCK_ACQUIRE_WAIT" dlm/ includ
+    cd /src/mxfs; echo "=== post-acquire publish that honors deferred BAST (ACQUIRING->BAST on i_dlm_stale) ==="; grep -nE "i_dlm_stale|ISTATE_ACQUIRING|ISTATE_BAST
+
+## Last text from previous session
+
+romptly honors a pending BAST when the last holder releases.
+I've now fully localized the slowness: `ilock_end` only honors a pending BAST when `state==BAST`, but the **ACQUIRING-defer sets `i_dlm_stale` and leaves state=ACQUIRING** — so it's honored only when the holder's *own* in-flight dir-EX acquire completes, and under mutual 2-node EX contention each acquire waits out the **6000ms `MXFS_LOCK_ACQUIRE_WAIT_MS`** timeout → ~6s handoffs. Combined with the acquire-side stale-RMW correctness bug, this is a genuine DLM-fairness/coherency architectural problem at the 30+-session blocker.
+
+I have a complete, instrumented, proven diagnosis and the remaining fix is architectural with real tradeoffs (fairness vs thrash vs shutdown-risk). This meets the RULE-5 threshold. Let me consult GPT-5.5 (per the escalation chain: GPT first, omit max_tokens).
+Now let me consult GPT-5.5 with the complete diagnosis (omitting `max_tokens` per RULE 5).
+GPT-5.5 returned a comprehensive architectural plan. The relay boundary is here. Let me capture the plan to memory as the next-session action plan.
+Reached the relay boundary. Criteria **NOT met** — `dir_reuse_coherency` (the sole 2/tcp blocker) still fails. Marker not written (honest). This session was diagnosis-only (all builds added log-only probes; no functional changes), and it converted a vague "3 intermittent faces" into two **proven, localized roots** plus a concrete fix plan.
+
+## Session 34 summary
+
+**State:** 16/17 of `./run.sh 2 tcp` tests PASS. Only `dir_reuse_coherency` fails — it has 3 variance faces (corruption-shutdown / slowness-timeout / readdir-short+leaf-hole), all rooted in concurrent same-shared-dir modification + reuse churn.
+
+**PROVEN root #1 — SLOWNESS (~16-20s/round, 3/5 runs hit the 300s timeout; RULE-0 fail):**
+- The dominant cost is **~6s per directory-EX handoff = `MXFS_LOCK_ACQUIRE_WAIT_MS=6000`** (the requester's grant timeout). The holder's actual release is **<5ms** (`P138-BAST dir=1`=0), so the 6s is the requester waiting out the timeout because the holder **defers the dir BAST**: it's recorded as `i_dlm_stale` while the holder is `ISTATE_ACQUIRING`, and `ilock_end` only honors `state==BAST` — so under mutual 2-node EX contention nothing drives the revoke. Plus `P-CONVBLK-DENY` PR→EX conversion-deadlock thrash (~80/run).
+
+**PROVEN root #2 — CORRECTNESS (durable dirent loss):** acquire-side **stale dir DATA/LEAF block RMW**. `xfs_da_read_buf`'s read-time invalidation uses `XBF_TRYLOCK` and **skips invalidation on trylock failure under contention, serving the stale `XBF_DONE` buffer** to the RMW (`P34-TRYLOCK-STALE` confirmed firing for both block 0 and the leaf). Dir blocks ARE destaged clean at release, so durability is fine — it's purely acquire-side.
+
+**Refuted this session:** MHT (`inode_mht_ms=0` no help), leaf-release-durability gap, holder-drain-slowness, allocator double-alloc (AG affinity already implemented).
+
+**GPT-5.5 plan (saved, RULE-5 justified):** SLOWNESS → make revoke orthogonal to ACQUIRING + `ilock_end` honor revoke_pending + bounded fairness window + **acquire parent-dir EX directly for modify ops** (kills conversion thrash) + event-driven acquire waits (not 3×6000ms). CORRECTNESS → **move dir-block invalidation to the DLM acquire boundary** (whole data fork, blocking-safe there) + generation-tagged buffers `{fsid,ino,di_gen,fork,dabno,dlm_epoch}` + gen-aware keep-guard.
+
+**Memories written:** `sess34-dirreuse-three-faces-slowness-and-leafhole`, `sess34-dirreuse-acquire-side-stale-rmw-trylock-skip`, `sess34-6s-dir-handoff-is-LOCK_ACQUIRE_WAIT_MS-deferred-bast`, `sess34-GPT-plan-dlm-acquire-boundary-coherency-and-prompt-bast` (the action plan).
+
+**Next session:** implement the GPT plan incrementally (RULE 4, run 3-5× for variance). Cluster left mounted on build `BDD203F2`; run `tests/reset2.sh` before the first run. Highest-value first: acquire-dir-EX-direct + prompt-BAST-honor (slowness) and acquire-boundary whole-fork invalidation (correctness).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

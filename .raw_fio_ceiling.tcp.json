@@ -1,0 +1,26 @@
+{
+    "16": {
+        "seqW_mib": 253,
+        "randW_iops": 832,
+        "legs_sw": 16,
+        "legs_rw": 16
+    },
+    "4": {
+        "seqW_mib": 429,
+        "randW_iops": 1134,
+        "legs_sw": 4,
+        "legs_rw": 4
+    },
+    "2": {
+        "seqW_mib": 366,
+        "randW_iops": 1120,
+        "legs_sw": 2,
+        "legs_rw": 2
+    },
+    "1": {
+        "seqW_mib": 403,
+        "randW_iops": 988,
+        "legs_sw": 1,
+        "legs_rw": 1
+    }
+}

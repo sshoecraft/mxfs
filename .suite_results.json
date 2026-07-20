@@ -1,0 +1,66 @@
+{
+  "posix_single": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "checks=29 passed=29 failed=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T19:56:07Z",
+    "dlm": "tcp"
+  },
+  "fio_verify": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "checks=3 passed=3 failed=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T19:56:16Z",
+    "dlm": "tcp"
+  },
+  "integrity_filetypes": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "checks=13 passed=13 failed=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T19:56:18Z",
+    "dlm": "tcp"
+  },
+  "fsx": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "checks=2 passed=2 failed=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T19:56:14Z",
+    "dlm": "tcp"
+  },
+  "precond_readiness": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "checks=7 passed=7 failed=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T19:56:05Z",
+    "dlm": "tcp"
+  },
+  "fault_enospc": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "checks=4 passed=4 failed=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:03:56Z",
+    "dlm": "tcp"
+  },
+  "soak": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "dur=30s ops=1748 errs=0 dmesg_hits=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T21:08:34Z",
+    "dlm": "tcp"
+  },
+  "fio_perf": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "seqW=2098MiB/s seqR=4338MiB/s randW=45990iops randR=79631iops",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:19:37Z",
+    "dlm": "tcp"
+  }
+}

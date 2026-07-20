@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 18 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 17
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `f6f90c6f-8d39-4d7b-8996-71df39711cb4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f6f90c6f-8d39-4d7b-8996-71df39711cb4.jsonl`
+- approx context at last assistant turn: 167502 tokens
+- tools used: Bash×28 Read×14 Edit×4 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/cv_sfadd_loop.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sleep 60; tail -40 /tmp/claude-1000/-src-mxfs/f6f90c6f-8d39-4d7b-8996-71df39711cb4/tasks/b3913e127.output 2>/dev/null
+    cat /tmp/claude-1000/-src-mxfs/f6f90c6f-8d39-4d7b-8996-71df39711cb4/tasks/b3913e127.output 2>/dev/null; echo "=== .out file ==="; tail -40 /src/mxfs/tests/.cv_s
+    cd /src/mxfs; grep -n "P-SFDIR-RELOAD\|P-SFDIR-FASTEX\|reload_inode\|fast-path\|FAST-PATH\|i_dlm_dir_gen\|cached_mode\|XFS_DINODE_FMT_LOCAL" xfs/xfs_mxfs_dlm.c 
+    tail -60 /src/mxfs/tests/.cv_sfadd_loop.out 2>/dev/null
+    cd /src/mxfs; echo "=== which node dumps contain ino=8388736 ==="; grep -aE "ino=8388736" tests/.cv_sfadd_loop.out | grep -aE "P-SFADD|P-SFDIR-RELOAD|P-SFDIR-FA
+    cd /src/mxfs; grep -n "bast_notify\|i_dlm_state =\|ISTATE_BAST\|ISTATE_DEMOTING\|i_dlm_demoter\|defer\|D9\|pin_count" xfs/xfs_mxfs_dlm.c | head -60
+    cd /src/mxfs; grep -rn "bast_notify\|bast_poll\|bast_cb\|->bast\|poll_thread\|caw_poll\|inode_lock\b" dlm/v5_mount.c dlm/dlm_caw.c | head -40
+    cd /src/mxfs; grep -n "find_slot\|slot_for\|hash\|resource_eq\|probe\|claim_slot\|alloc_slot\|slot_index\|MXFS_CAW_MAX_SLOTS\|->slots\[" dlm/dlm_caw.c | head -5
+    cd /src/mxfs; grep -n "caw_count_resource_slots\|CLAIMRACE\|CLAIM-RACE\|DUP-SLOT\|dup_slots\|dupmax" dlm/dlm_caw.c | head; echo "=== any claimrace/dup in captur
+    cd /src/mxfs; grep -n "caw_count_resource_slots" dlm/*.c; echo "=== call sites ==="; grep -rn "caw_count_resource_slots\|CAW-DUP\|P87\|EX-DUP" dlm/dlm_caw.c
+    cd /src/mxfs; grep -n "^xfs_dir_createname\|xfs_dir_createname(\|xfs_dir2_isblock\|xfs_dir2_isleaf\|XFS_DIR2_DATA_FD\|args->geo" xfs/libxfs/xfs_dir2.c | head; e
+    cd /src/mxfs; grep -n "#include" xfs/libxfs/xfs_dir2.c | head -30; echo "=== does xfs_dir2_sf.c include for these symbols? ==="; grep -n "v5_mount.h\|mxfs_dlm.h
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_dir2.c:[0-9]|error:|Error [0-9]|cannot|undefined" | head -20; echo "=== EXIT ${PIPESTATUS[0]} ==="; 
+    cd /src/mxfs; timeout 580 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | tail -15; echo "=== reset4 EXIT: ${PIPESTATUS[0]} ==="
+    cd /src/mxfs; for n in test1 test2 test3 test4; do v=$(timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /sys/module/mxfs/srcversion' 2>/dev/null); e
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done; echo "dmesg cleared
+    cd /src/mxfs; echo "=== DISC (which missing) ==="; grep -aE "miss node|dir-listing|ls-li" tests/.cv_sfadd_loop.out | tail -8; echo; echo "=== all P-CRNAME lines
+    cd /src/mxfs; grep -aE "ino=6291586" tests/.cv_sfadd_loop.out | grep -aE "P-SFADD|P-SFDIR-RELOAD|P-SFDIR-FASTEX|STARVE" | sort -t= -k99 2>/dev/null; echo "=== r
+    cd /src/mxfs; grep -rn "xfs_inode_to_disk\|xfs_iflush\b\|xfs_iflush(" xfs/libxfs/xfs_inode_buf.c xfs/xfs_inode.c | head; echo "=== iflush cluster write ==="; gr
+    cd /src/mxfs; grep -n "write_verify\|verify_struct\|xfs_inode_buf_ops\|_verify(\|xfs_inode_buf_verify\b" xfs/libxfs/xfs_inode_buf.c
+
+## Last text from previous session
+
+r.
+All 4 nodes on `981859D9`. Now run the loop capturing the new P-CRNAME detector. Let me update the loop to also grep P-CRNAME.
+H2 reproduced. Let me extract the failing file and the P-CRNAME timeline for it.
+All 4 adds **succeeded** (rval=0, same parent 6291586, SF format), yet only node2.txt survived on disk. Three adds clobbered. Let me get the base lists (P-SFADD) and reloads for parent 6291586 to see what base each node built on.
+This is **decisive and reframes everything**. Sorted by realns, the in-core serialization is *perfect*:
+
+- test2: base=[] → writes `[node2]`
+- test4: base=[node2] → writes `[node2,node4]`
+- test1: base=[node2,node4] → writes `[node2,node4,node1]`
+- test3: base=[node2,node4,node1] → writes `[node2,node4,node1,node3]`
+
+The phase-1 reloads confirm disk progressed through all four via FUA reads. **But ~3s later, every verify-phase FUA reload shows disk reverted to `[node2]` only.** The DLM serialization and reloads are correct — the disk is being **reverted** by a late stale writeback.
+
+Key structural fact: the dir inode `6291586` and child `node2.txt` inode `6291587` are **adjacent → same inode-cluster buffer**. The other children are in different AGs (node-affine alloc). Hypothesis: test2's cached cluster buffer holds the stale dir image `[node2]`; when test2 later flushes its co-resident child inode 6291587, it writes the whole cluster — reverting the dir on disk. The DLM is per-inode but buffers are per-cluster. Let me confirm by instrumenting the inode→cluster-buffer flush.
+Let me look at the inode-cluster buffer write verifier — that's where the actual bytes hitting disk can be inspected (catching a stale co-resident dir inode being written).
+I've hit the relay boundary. Let me record the decisive finding at the top of state.md before wrapping up.
+## Session summary (sess59)
+
+**Decisive root-cause progress on the `cache_coherency` blocker (RULE 4).**
+
+Built and deployed build `981859D9` to all 4 nodes, adding an always-on **P-CRNAME** detector at the format-agnostic `xfs_dir_createname_args` (catches dir adds that the SF-only P-SFADD misses). Reproduced the cross_visibility H2 failure and captured the full cross-node timeline.
+
+**The entire "shortform-dir lost-update / concurrent-EX / dirent clobber" framing (sess53–58) is refuted.** The instrumented timeline proves:
+- All 4 file adds **succeed** (rval=0, same parent dir 6291586, SF format).
+- The in-core DLM serialization is **flawless**: each node FUA-reloads the latest base and appends correctly — disk progresses `[node2]→[node2,node4]→[node2,node4,node1]→[node2,node4,node1,node3]`.
+- `ex_pop=1 ex_nslots=1` throughout → exclusion and single-slot mapping both sound (concurrent-EX and split-slot claim-race both refuted).
+- **~3s later, every node's FUA reload shows disk reverted to `[node2]` only.** The dirents were on disk, then lost — a **late stale writeback reverting the dir on disk.**
+
+**Mechanism (strong hypothesis):** the dir inode `6291586` and child `node2.txt` inode `6291587` are adjacent → **share one inode-cluster buffer** (the other 3 children are in different AGs via node-affine alloc). test2's cached cluster buffer keeps the stale dir image `[node2]`; the buffer cache is per-cluster but the DLM is per-inode, so a peer modifying the *dir* inode never invalidates test2's *cluster* buffer. When test2 later flushes its co-resident child inode, it writes the whole cluster — reverting the dir on disk. This is the long-standing Mode A / "late stale flush" family, now localized to shared-cluster false-sharing.
+
+**Next session** (recorded at top of `state.md`): (1) prove it via the `xfs_inode_buf_write_verify` detector dumping dir-inode entcount per buffer write; (2) fix by staling/invalidating the dir's cluster buffer on BAST-release, or allocating dirs in dir-only clusters — likely a Gemini consult per RULE 5 given the depth.
+
+Criteria remain **PASS=10 FAIL=2** (cache_coherency, rsync_paired). Marker **not** written — work continues.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

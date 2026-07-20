@@ -1,0 +1,10 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_alloc.c",
+    "xfs/libxfs/xfs_da_btree.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_inode.c",
+    "xfs/xfs_dir2_readdir.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/dlm.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

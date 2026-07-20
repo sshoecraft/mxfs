@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 29 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 28
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6046e824-9ac4-47bd-8bdc-15556d73a25b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6046e824-9ac4-47bd-8bdc-15556d73a25b.jsonl`
+- approx context at last assistant turn: 501912 tokens
+- tools used: Bash×158 Edit×33 Read×30 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_get×6 Write×3 ToolSearch×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/tests/tcp/drc_platter.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/tests/tcp/drc_diag.sh
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/tests/tcp/drc_one.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== callers of disk_has_extra_inum ==="; grep -rn "mxfs_dir3_disk_has_extra_inum" pal/ xfs/ | head; echo "=== dirskip default + skip_dir_wri
+    cd /src/mxfs; echo "=== gates: dco_tmp read + subset_guard/dataclobber defaults ==="; grep -n "dco_tmp =\|dco_tmp\b.*kmalloc\|mxfs_dataclobber\b\|mxfs_dir_subse
+    cd /src/mxfs; echo "drivers=$(ps -eo cmd 2>/dev/null|grep -E 'drc_|run\.sh 8 tcp'|grep -v grep|wc -l)"; rm -f tests/tcp/drc_cap/one.log; EXTRA="dir_subset_guard
+    cd /src/mxfs; LOG=tests/tcp/drc_cap/one.log; for i in $(seq 1 95); do if grep -q "=== done" "$LOG" 2>/dev/null; then break; fi; sleep 6; done; echo "=== dir_sub
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; echo "=== drc FAIL detail (lookup_fail vs count) ==="; for n in 1 2 8; do echo "-- test$n --"; timeout 12 $SS
+    cd /src/mxfs; make modules -j4 > /tmp/claude-1000/-src-mxfs/6046e824-9ac4-47bd-8bdc-15556d73a25b/scratchpad/b7.log 2>&1; echo "exit=$?"; grep -iE "error:|multip
+    cd /src/mxfs; echo "drivers=$(ps -eo cmd 2>/dev/null|grep -E 'run\.sh 8 tcp'|grep -v grep|wc -l)"; rm -f tests/tcp/drc_cap/one.log; EXTRA="dir_writeprobe=1" noh
+    cd /src/mxfs; LOG=tests/tcp/drc_cap/one.log; for i in $(seq 1 95); do if grep -q "=== done" "$LOG" 2>/dev/null; then break; fi; sleep 6; done; echo "=== writepr
+    cd /src/mxfs; grep -n "int sg_extra = 0;" pal/linux/xfs_buf.c; grep -n "if (sg_extra > 0) {" pal/linux/xfs_buf.c; sed -n '2518p;2531p' pal/linux/xfs_buf.c | cat
+    cd /src/mxfs; make modules -j4 > /tmp/claude-1000/-src-mxfs/6046e824-9ac4-47bd-8bdc-15556d73a25b/scratchpad/b8.log 2>&1; echo "exit=$?"; grep -iE "error:|multip
+    cd /src/mxfs; echo "drivers=$(ps -eo cmd 2>/dev/null|grep -E 'run\.sh 8 tcp'|grep -v grep|wc -l)"; rm -f tests/tcp/drc_cap/one.log; EXTRA="dir_subset_guard=1" n
+    cd /src/mxfs; LOG=tests/tcp/drc_cap/one.log; for i in $(seq 1 95); do if grep -q "=== done" "$LOG" 2>/dev/null; then break; fi; sleep 6; done; echo "=== refined
+    cd /src/mxfs; echo "=== keeper build ==="; modinfo mxfs.ko|grep srcversion; echo "=== params default off? ==="; grep -E "^int mxfs_dir_addname_coherent|^int mxf
+    cd /src/mxfs; grep -q "mxfs_v5_dlm_inode_held_rawmode" pal/linux/xfs_buf.c && echo "rawmode used elsewhere: yes"; make modules -j4 > /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; rm -f tests/tcp/drc_cap/one.log; EXTRA="dir_writeprobe=1" nohup bash tests/tcp/drc_one.sh 0 16 > /tmp/claude-1000/-src-mxfs/6046e824-9ac4-47bd-8bd
+    cd /src/mxfs; LOG=tests/tcp/drc_cap/one.log; for i in $(seq 1 95); do if grep -q "=== done" "$LOG" 2>/dev/null; then break; fi; sleep 6; done; echo "=== result 
+    cd /src/mxfs; echo "=== orphan drivers/runs ==="; ps -eo pid,cmd 2>/dev/null|grep -E 'drc_|run\.sh 8 tcp'|grep -v grep|wc -l|xargs echo "count="; echo "=== keep
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; echo "=== saved failverify dmesg P-WMERGE+held_mode (per node) ==="; for n in 1 2 3 4 5 6 7 8; do echo "-- te
+    cd /src/mxfs; echo "=== MXFS_LOCK mode enum ==="; grep -rn "MXFS_LOCK_NL\s*=\|MXFS_LOCK_PR\s*=\|MXFS_LOCK_EX\s*=\|MXFS_LOCK_CW\|MXFS_LOCK_PW" include/ dlm/*.h 2
+    cd /src/mxfs; wc -l .claude/awareness/subsystems/pal.md 2>/dev/null; echo "=== tail (where write-chokepoint/probes are documented) ==="; grep -n "chokepoint\|P1
+
+## Last text from previous session
+
+lds EX or NL. The test already saves `/root/drc_failverify_*.dmesg` at failure time (test line 149) — that captures P-WMERGE *before* the ring rotated. Let me grep those saved files from the last run.
+**Decisive: all clobbering writes are `held_mode=5, in_ail=1, dirty=0, bgen=0`** — the dir EX holder is destaging a stale in-AIL block (bgen=0 = prior-tenure base) whose disk now has a peer's add (`disk_extra`) the in-core lacks, while the in-core has its own add (`incore_extra=1` = MERGE-NEEDED). This rules out the NL-dirskip path. Let me verify mode 5 = EX, then record.
+**Confirmed: mode 5 = EX.** Decisive mechanism, fully localized: the dir **EX holder** destages a **stale in-AIL block** (`bgen=0` = prior-tenure base, `dirty=0` = committed) carrying its own add (`incore_extra=1`) on a base missing a peer's add (`disk_extra≥1`) → reverts the peer = the loss. The existing `ex_guard` skips it (it checks `dir_not_held_ex`, but the holder DOES hold EX). This is the exact gap sess22 flagged. Let me record this decisive finding.
+Now let me update the pal awareness doc as the hook requested, then continue toward the fix.
+The pal.md has extensive chokepoint history. Let me add a concise sess28 entry documenting the new probe, the refined guard, and the decisive EX-holder finding. Let me read the insertion point.
+Relay boundary reached. Let me add the sess28 pal.md entry (hook request), then wrap up.
+Awareness doc updated. Wrapping up at the relay boundary.
+
+## Session 28 summary — criteria NOT met, but the 8/tcp blocker is now decisively localized
+
+**Criteria:** `./run.sh {1,2,4,8} tcp` 100%. **NOT met** — 1/2/4 green; 8/tcp `dir_reuse_coherency` still loses a dirent. Marker left unwritten.
+
+**Keeper:** build `C1B4BFC0` (all sess28 levers default-off → behaviorally == prior keeper `164A6D5D`). Cluster clean, 8/8 nodes up, no orphan drivers.
+
+### The decisive chain this session (RULE 4, clean cluster)
+1. **The loss is WRITE-SIDE, the read is fully coherent** — `diff1=0` over 300 samples (in-core dir block always == platter at addname), `p28c=0`, `rdmiss=1`. The read-side fix (`dir_addname_coherent`, all 3 formats) engages safely but can't help (nothing stale to catch). This corrected my own earlier "read-side" detour, which turned out to be a **contamination artifact** (a background driver survived `pkill` and ran concurrently — two drivers mkfs'ing the same LUN).
+
+2. **Smoking gun (from saved `/root/drc_failverify_*.dmesg`):** every clobbering write is `held_mode=5(EX) in_ail=1 dirty=0 bgen=0` and **MERGE-NEEDED** (`disk_extra≥1 AND incore_extra=1`; one was `disk_extra=154`). → The dir **EX holder destages a stale in-AIL block**: it added entry A in tenure T1 (committed to AIL on a base coherent *at addname*), released EX, a peer added B in T2, the holder reacquired EX, and xfsaild then destages the stale T1 image (base+A, missing B) over disk(base+B) → **peer's B durably lost.** Existing guards miss it: `ex_guard`/`P12` gate on dir-*not*-held-EX (holder holds EX); `drain_evict` keeps in-AIL-undestaged blocks.
+
+3. **All drop-suppression refuted (quintuple-proven now):** `dir_subset_guard=1` full → catastrophic `readdir=316`; refined pure-stale-only (`incore_extra==0` gate I added) → **shutdown** (a legit remove also looks pure-stale). Suppression cannot distinguish a stale clobber from legit work.
+
+### Next session (recorded in `sess28-HANDOFF-head-build-C1B4BFC0-next-step-3way-merge` + `sess28-SMOKINGGUN-...`)
+The fix is a **3-way re-apply at REACQUIRE**: when the holder reacquires EX and finds an in-AIL-undestaged dir block with a stale base (`bgen < dir_gen`), read the current disk and re-log the holder's delta onto the fresh base **within a transaction** (so the leaf/freeindex hash blocks update too — a data-only graft would leave `lookup_fail`). The base/delta can come from the BLI logged regions or a per-buffer base snapshot. Tooling (`drc_one.sh`, `drc_diag.sh`) needs NFS-streaming added to beat dmesg ring rotation on long runs.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

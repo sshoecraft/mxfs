@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/186320ae-4438-48d2-a809-30e0e77dd459/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 186320ae-4438-48d2-a809-30e0e77dd459, after session 2
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `5543972d-e1bf-46ec-8c6a-410881a7eb6e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5543972d-e1bf-46ec-8c6a-410881a7eb6e.jsonl`
+- approx context at last assistant turn: 503132 tokens
+- tools used: Bash×231 Edit×28 Read×9 TaskCreate×8 TaskUpdate×4 ToolSearch×4 Write×3 TaskStop×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/VERSION
+- /src/mxfs/docs/multipath_support.md
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/scripts/mpath_up.sh
+- /src/mxfs/dlm/dlm_caw.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    RID=$(grep -oE "run_id=[0-9TZ]+" /tmp/ofix_i1.log | head -1 | cut -d= -f2); D=/tmp/run_cache_coherency_$RID; echo RID=$RID; for n in 1 2 3 4; do echo "-- t$n: $
+    grep -rn "P106-EXGRANT\|P106-EXREL" xfs/*.c dlm/*.c | grep -v backup | head -4; L=$(grep -n "P106-EXGRANT" xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); sed -n "
+    L=$(grep -n "P106-EXGRANT ino" xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); echo "L=$L"; sed -n "$((L-30)),$((L+8))p" xfs/xfs_mxfs_dlm.c
+    sed -n '11940,11985p' xfs/xfs_mxfs_dlm.c; grep -n "mxfs_v5_dlm_inode_unlock" dlm/v5_mount.h | head -2
+    L=$(grep -n "mxfs_v5_dlm_inode_unlock_gen" dlm/v5_mount.c | head -1 | cut -d: -f1); sed -n "$((L-30)),$((L+55))p" dlm/v5_mount.c
+    grep -n "inode_unlock_gen\|expected_gen\|grant_gen" xfs/xfs_mxfs_dlm.c | grep -vE "^\s*\*" | grep -iE "unlock_gen|=.*grant_gen|grant_gen =" | head -12
+    sed -n '12150,12210p' xfs/xfs_mxfs_dlm.c; echo ===GRANT_GEN_V5===; grep -n "mxfs_v5_dlm_inode_grant_gen" dlm/v5_mount.c | head -2
+    sed -n '1485,1530p' dlm/v5_mount.c; sed -n '10692,10706p' xfs/xfs_mxfs_dlm.c
+    grep -n "i_dlm_cached_grant_gen" xfs/xfs_mxfs_dlm.c | head -8; L=$(grep -n "i_dlm_cached_grant_gen =" xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); sed -n "$((L-
+    sed -n '17320,17365p' xfs/xfs_mxfs_dlm.c | grep -nE "hgg|grant_gen|grant_handoff|ho =" | head -8; grep -n "gen_out" dlm/v5_mount.c | head -6; sed -n "$(grep -n 
+    grep -n "uint32_t mxfs_dlm_caw_grant_dir_epoch" dlm/dlm_caw.h dlm/dlm_caw.c | head -2
+    sed -n '318,332p' dlm/dlm_caw.h; sed -n '810,845p' dlm/dlm_caw.c
+    grep -n "ESTALE" dlm/v5_mount.c | head -3; grep -rn "define ESTALE\|include.*errno" dlm/v5_mount.c pal/pal.h | head -4; make modules 2>&1 | grep -E "error" | he
+    for i in 1 2 3 4 5 6; do L=/tmp/gfix_i${i}.log; echo "=== iter $i"; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" ./run.sh 4 caw precond_re
+    until grep -q "LOOP_DONE" /tmp/claude-1000/-src-mxfs/5543972d-e1bf-46ec-8c6a-410881a7eb6e/tasks/bzacqgsmv.output 2>/dev/null; do sleep 60; done; cat /tmp/claude
+    grep -n "void mxfs_dlm_caw_unlock\|int mxfs_dlm_caw_unlock" dlm/dlm_caw.h; grep -n "mxfs_dlm_caw_unlock(" dlm/*.c xfs/*.c | grep -v "dlm_caw.c:" | head -5
+    python3 - << 'EOF' p='/src/mxfs/dlm/dlm_caw.c' s=open(p).read()  # 1. Convert mxfs_dlm_caw_unlock into a wrapper + _gen worker. old_sig="""int mxfs_dlm_caw_unlo
+    python3 - << 'EOF' p='/src/mxfs/dlm/dlm_caw.c' s=open(p).read() old="""			if (regrant_abort_logged < 50) { 				regrant_abort_logged++; 				mxfs_pal_log(MXFS_LOG
+    python3 - << 'EOF' # header decl p='/src/mxfs/dlm/dlm_caw.h' s=open(p).read() old="""int mxfs_dlm_caw_unlock(struct mxfs_dlm_caw_ctx *ctx,""" new="""int mxfs_dl
+    cat /tmp/claude-1000/-src-mxfs/5543972d-e1bf-46ec-8c6a-410881a7eb6e/tasks/bzacqgsmv.output
+
+## Last text from previous session
+
+ng — store bump + helpers:
+Now wiring the unlock — mark, snapshot, abort-check, unmark:
+Now the unlock's `out:` label (unmark) and the `rel_seq0` declaration:
+Now the acquire-side gate at the already-held shortcuts:
+Build 8D000BFD clean. Validation loop on the offense fix alone (baseline without any fix: 3/3 FAIL):
+All of test5-32 now have unique IQNs (test1 gets normalized by mpath_up.sh's new logic at the next bring-up). Checking validation loop progress:
+While it runs, documenting the v0.6.2 fix in the dlm docs:
+There's already an `mxfs_v5_dlm_inode_unlock_gen` with a generation parameter — checking whether the anchor mechanism partially exists:
+Sources don't mix — safe to wire. Implementing the CAW gen contract:
+Now the v5 dispatch — grant_gen and unlock_gen CAW branches:
+Checking -ESTALE availability in the user-mode build path, then building:
+Build 6A7A8038 with the gen-anchored CAW release. Validation loop:
+Checking the final validation result before wrapping up:
+Session 2 wrap-up — the relay boundary is here and the last validation just returned.
+
+## State at handoff
+
+**Criteria progress**: 1/caw 17/17, 2/caw 17/17 (session 1); **4/caw reached 16/17** this session (build 4616E73C, everything green except the dirent-loss family); 8/16/32 not yet started.
+
+## Fixed and verified this session
+
+- **"2+2 split-brain" resolved**: it was wedged leftover state (stale module on test3/4), not code — run.sh's srcversion gate caught it; VM recycle cleared it. Clean runs converge 4/4 every time.
+- **PR UA fence-out (proven root, fixed, verified)**: prep_fs's stale-PR CLEAR pends a "Reservations preempted" UA; the mount-time PROUT REGISTER consumed it, failed CHECK CONDITION (rc=2), and mxfs silently ran unregistered under a WE-RO reservation → whole suite 0/4 with EBADE writes. Fix: bounded UA retry in all five PAL PR wrappers + CAW mount now hard-fails rather than joining unfenced (v0.6.1, `pal/linux/kern.c`, `dlm/v5_mount.c`). cache_coherency went 0/4 → 4/4 immediately after.
+- **Tombstone epoch continuity** (task from session 1) implemented and riding all runs since — not implicated in any failure.
+- **Infra**: unique iSCSI IQNs set on test5–32 (cloned-image collision hazard); mpath_up.sh now normalizes IQNs at bring-up (test1 still pending its first re-login); dirland/dirwr instrumentation workflow established (`dirwr=1 dirland=1` modargs, ring dump via `dland_dump`).
+
+## The remaining 4/caw blocker — phantom cached EX (task #7/#8, in progress)
+
+Proven with completion-time tracing: a bast-release's unlock races a concurrent local re-acquire; the release clears the freshly re-granted slot bit, leaving in-core CACHED-EX with the disk released — two nodes then RMW the same dir block uncoordinated (~60 ms dual-writer window captured) and one node's dirents are durably lost. The P106 verify detects this but is explicitly probe-only; TCP fixed the identical race with a gen-aware release (-ESTALE → stranded → BAST re-arm) that the CAW dispatch ignored.
+
+Validation so far: `dir_ex_revalidate=1` cut failures ~100%→~20%; my first two partial closures (entry-anchored seq abort on build 8D000BFD, wrapper-level gen pre-check on 6A7A8038) still failed — consistent with the identified anchor gap. **The tree now contains the complete fix** (un-built): `mxfs_dlm_caw_unlock_gen()` threads the release-decision anchor into the CAS loop itself, plus the `releasing` flag gating the no-CAS already-held grant path.
+
+## Next session
+
+1. Build the current tree (v0.6.2), rerun the 6× precond+cache loop; first check `/tmp/gfix_i1.log`'s artifacts for whether P6G-REL-STALE/P-UNLOCK-REGRANT-ABORT ever fired on 6A7A8038 — if the anchor still never triggers, verify every CAW grant path stores grant-meta (waiter-promote path especially) before assuming the interleave theory.
+2. When the loop holds 6/6: full 4/caw, then ladder 8 → 16 → 32 (`scripts/mpath_up.sh up N` first), then re-run the full ladder 1/2/4/8/16/32 on the final build and write the ccloop marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

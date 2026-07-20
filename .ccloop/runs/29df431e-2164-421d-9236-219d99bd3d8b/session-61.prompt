@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 61 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 60
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `7d8e3c89-cc9b-4473-b39a-cafc454c70b5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7d8e3c89-cc9b-4473-b39a-cafc454c70b5.jsonl`
+- approx context at last assistant turn: 269107 tokens
+- tools used: Bash×56 Read×16 Edit×8 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 540 bash tests/reset4.sh 4 2>&1 | tail -5; echo "=== confirm srcversion on nodes ==="; for n in test1 test2 test3 test4; do echo -n "$n: "
+    cd /src/mxfs; timeout 580 ./tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -8
+    OUT=/tmp/claude-1000/-src-mxfs/7d8e3c89-cc9b-4473-b39a-cafc454c70b5/tasks/bj7sowibj.output; until grep -qE "RESULT:|Results:|Failed tests:" "$OUT" 2>/dev/null; 
+    OUT=/tmp/claude-1000/-src-mxfs/7d8e3c89-cc9b-4473-b39a-cafc454c70b5/tasks/bj7sowibj.output; echo "=== tail of cache_coherency output ==="; tail -30 "$OUT"
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 15 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo "-- shutdown?
+    cd /src/mxfs; grep -rn "P88-INSTR\|bnobt-WRITE-low-numrecs" xfs/ pal/ | head; echo "=== context ==="; grep -rln "P88-INSTR" xfs/ pal/
+    cd /src/mxfs; echo "=== enclosing function of P88 (line 1866) ==="; awk 'NR>=1700 && NR<=1900 && /^[a-zA-Z_].*\(|^static|^mxfs_|^xfs_|^int |^void |^bool /{print
+    cd /src/mxfs; grep -n "P80-INSTR drain-WRITE-NOT-PERSISTED agno=1" xfs/xfs_mxfs_dlm.c; echo "=== show with cat -A around it ==="; sed -n '5349,5357p' xfs/xfs_mx
+    cd /src/mxfs; python3 - <<'PYEOF' f="xfs/xfs_mxfs_dlm.c" s=open(f).read() T="\t" old=(T*5+"if (pag_agno(pag) == 1 &&\n"      +T*5+"    (bp->b_ops == &xfs_bnobt_
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*P80|DESTAGE" | grep -vi "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/
+    for n in test1 test2 test3 test4; do echo "=== $n ==="; sudo virsh -c qemu:///system destroy $n 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do sudo v
+    cd /src/mxfs; for n in test1 test2 test3 test4; do until timeout 6 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'true' >/dev/null 2>&1; do sleep 4; d
+    cd /src/mxfs; timeout 540 bash tests/reset4.sh 4 2>&1 | tail -6; echo "=== srcversion ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 tool
+    cd /src/mxfs; ( ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_run3.log 2>&1; echo "EXIT=$?" >> /tmp/cc_run3.log ) & echo "started pid $!"
+    until grep -q "EXIT=" /tmp/cc_run3.log 2>/dev/null; do sleep 10; done; echo "=== DONE ==="; grep -E "RESULT:|\[PASS\]|\[FAIL\]|Running:|EXIT=" /tmp/cc_run3.log 
+    cd /src/mxfs; echo "=== subtests ==="; grep -E "Running:|\[PASS\]|\[FAIL\]" /tmp/cc_run3.log | grep -iE "test_|\[PASS\]|\[FAIL\]" | grep -vE "assertion|Node [0-
+    cd /src/mxfs; L=/tmp/cache_coherency.liVI7X.log; grep -aE "test_cross_visibility|test_rename_visibility|test_unlink_visibility|test_cross_write_read" "$L" | gre
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 16 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo "-- shutdown/
+    cd /src/mxfs; python3 - <<'PYEOF' f="xfs/xfs_mxfs_dlm.c" s=open(f).read() T="\t" new=(T*5+"/* sess92: generalised from agno==1 to ALL AGs (sess91\n"      +T*5+"
+    cd /src/mxfs; make modules 2>&1 | grep -iE "^make.*error|Error [0-9]" | head; echo "=== srcversion (should == ECDE1FC5 baseline) ==="; modinfo mxfs.ko 2>/dev/nu
+
+## Last text from previous session
+
+-verify + dir3 data-block corruption + rename 40/240. My P80 change is a proven no-op that adds FUA overhead. Let me revert it to baseline:
+Tree restored to ECDE1FC5 baseline. I now have a sharp, instrumentation-backed refinement that **refutes GPT's first hypothesis**: the AIL is fully drained at release (n=0) and AG-meta writes persist at the drain (0 retries), yet the split is lost — so the in-core bnobt buffer is **reverted to pristine before the drain**, and the drain then faithfully writes the wrong content. P88 (write) shows the split present in-core; P28 (free) shows in-core pristine. The revert is a **non-transactional in-core clobber** on a bnobt path that FIX1's FUA-over-logged guard never fires on. This is exactly the kind of refined finding worth a focused second GPT consult (RULE 5 chain):
+GPT's second analysis is strong: **mechanism F — read-completion TOCTOU**. FIX1 guards at FUA-read *submit*; if the buffer was clean at submit but a transaction logs the split into it while the read is *in flight*, the read *completion* DMAs the stale/pristine disk image over `bp->b_addr` — and the submit-time guard never fires (clean at submit), exactly matching "P91-FUA-SKIP-LOGGED never fires on bnobt." The fix: bounce-buffer read + revalidate-after-I/O before copying.
+
+The pivotal question that decides whether F is even possible: **is the buffer locked across the FUA read, and is the read synchronous?** If locked+sync, no transaction can modify it mid-read (F refuted → aliasing). Let me check the call site and the readahead path:
+I've hit the ccloop relay boundary. Let me rebuild the reverted baseline so the on-disk `.ko` matches the source, then record this session's decisive findings to memory for the next session.
+Rebuilt `.ko` is exactly `ECDE1FC5` (FIX2 v2 baseline) — confirms my P80 revert was clean. Now record this session's decisive findings:
+## Summary
+
+**Criteria NOT met** — `cache_coherency` still FAILs (11/12 other criteria pass). Marker not written. Tree is at a clean baseline (`ECDE1FC5` / FIX2 v2; all my session probes reverted, rebuilt `.ko` confirms exact match).
+
+**What this session established (instrumented, RULE-4):** The multi-session bnobt durable lost-update was sharply diagnosed. A shared-AG block (AG9 blk 30) is allocated by test2 and freed by test1; the on-disk inode durably owns it but the on-disk bnobt never recorded the split (`P28 disk_differs=0`) → double-free → shutdown. I then **refuted three theories with direct evidence**:
+1. FIX1's FUA-skip guard never fires on bnobt (only inode clusters).
+2. The AIL **is** fully drained at release (`P-AILVERIFY n=0`) — refutes GPT's first "drain-enumeration-gap" hypothesis.
+3. Drain writes **do** persist (`P80-DESTAGE-RETRY 0×`) — refutes the "SCST ACKs-but-doesn't-persist" theory.
+
+**Conclusion:** inode durable + AIL drained + writes persist ⇒ the in-core bnobt buffer is **reverted split→pristine by a non-transactional path before the drain**, which then durably writes the reverted content.
+
+**Two GPT consults** (RULE-5 escalation; Gemini already ×2 in sess80/90). The leading mechanism is **read-completion TOCTOU** (mechanism F): FIX1 checks at FUA-read *submit*, but a read submitted while the buffer is clean can complete *after* a transaction logs the split, DMA-clobbering `bp->b_addr` with pristine disk content — exactly why P91 never fires on bnobt. Recommended fix: **bounce-buffer reread + revalidate-after-I/O** in `mxfs_buf_read_fua`.
+
+**Critical open question for next session** (decides F vs aliasing, must resolve by code-reading before building): is the buffer locked+sync across the FUA read? If so, F is only possible via async/readahead paths (note this run also produced `xfs_dir3_data_reada_verify` corruption) or buffer aliasing.
+
+All findings, the refutations, GPT's bounce-buffer fix + decisive probe, and infra notes (clean virsh reboot is required — contaminated state causes SESS50-STARVE inode-lock-timeouts) are recorded in `sess92_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

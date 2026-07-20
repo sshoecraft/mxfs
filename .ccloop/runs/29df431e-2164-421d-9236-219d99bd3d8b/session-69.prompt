@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 69 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 68
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `2ab22621-2fa4-4a6d-85e2-94524a93517e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e.jsonl`
+- approx context at last assistant turn: 254249 tokens
+- tools used: Bash×44 Read×19 mcp__ccmemory__memory_get×5 mcp__ccmemory__memory_write×4 ScheduleWakeup×2 ToolSearch×2 AskUserQuestion×1 Edit×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/ASYMMETRIC_MDS_PLAN.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sleep 30; cat /tmp/claude-1000/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e/tasks/bvszabxw8.output 2>/dev/null | tail -25
+    cd /src/mxfs; echo "=== result log ==="; cat /tmp/cache_coherency.1MxIZu.log 2>/dev/null | tail -60; echo; echo "=== which subtests / PASS-FAIL markers ==="; gr
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "===== $n dmesg (coherency signatures) ====="; timeout 10 tools/mxfs_sshpass.sh "$
+    cd /src/mxfs; echo "=== P88 instrumentation site ==="; grep -rn "P88-INSTR\|bnobt-WRITE-low-numrecs" xfs/ pal/ 2>/dev/null | head; echo; echo "=== FUA-fresh gat
+    cd /src/mxfs; echo "=== P95 reload markers present in tree? ==="; grep -rn "P95-SAMETYPE-RELOAD\|P95-TYPEFLIP-RELOAD\|RELOAD-TYPEFLIP-STALE-SKIP" xfs/*.c | head
+    cd /src/mxfs; echo "=== bast_process / bast_work_fn / fence worker + unlock publish ordering ==="; grep -nE "mxfs_dlm_bast_process|bast_work_fn|system_wq|queue_
+    cd /src/mxfs; echo "=== cluster health post-run1 ==="; PASS=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 tools/mxfs_sshpass.s
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== srcversion check ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 tools/mxfs_sshpass.sh "$n" "
+    until grep -q "RESULT:" /tmp/claude-1000/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e/tasks/b6ja33g6j.output 2>/dev/null; do sleep 10; done; echo "=== sample 
+    grep -E "RESULT:|test_.*\(4 nodes\)" /tmp/claude-1000/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e/tasks/b6ja33g6j.output 2>/dev/null | tail -25; echo "---(em
+    grep -E "RESULT:|test_.*\(4 nodes\)" /tmp/claude-1000/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e/tasks/b6ja33g6j.output 2>/dev/null | tail -25; echo "---"
+    echo "=== b6ja33g6j (main run) tail ==="; tail -8 /tmp/claude-1000/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e/tasks/b6ja33g6j.output 2>/dev/null; echo "=== 
+    echo "idle-yield; waiting on bpf191opx/b6ja33g6j completion notification"
+    echo "=== sample 2 result ==="; grep -E "RESULT:|test_.*\(4 nodes\)|Results:|PASS:|FAIL:" /tmp/claude-1000/-src-mxfs/2ab22621-2fa4-4a6d-85e2-94524a93517e/tasks/
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== kill orphan test procs on host ==="; pkill -9 -f cache_coherency 2>/dev/null; pkill -9 -f run_tests 2>/dev/null; e
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; pkill -9 -f cache_coherency >/dev/null 2>&1; pkill -9 -f run_tests >/dev/null 2>&1; for n in test2 test3; do echo -n "$n: ";
+    export LIBVIRT_DEFAULT_URI=qemu:///system; cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== probe all 4 ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; 
+    cd /src/mxfs; echo "=== bast_process function span + unlock-publish call sites within it ==="; awk 'NR>=743 && NR<=1480 && /mxfs_v5_dlm_inode_unlock|mxfs_v5_dlm
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 4 2>&1 | tail -5; echo "=== verify ==="; PASS=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: 
+    cd /src/mxfs; echo "=== repro / unlink test scripts ==="; ls tests/repro*.sh tests/*unlink* tests/char_*.sh 2>/dev/null; echo "=== unlink_visibility test def ==
+
+## Last text from previous session
+
+2, mounted). Now safe forward progress on the unlink blocker via RULE-4 instrumentation rather than a risky untested edit. Let me check for a focused unlink repro and the test definition.
+Now I understand the exact failure: 4 nodes concurrently `rm` their own 30 entries from one **shared** 120-entry directory; 1-2 entries durably survive = the classic hot-shared-dir lost-update (a node flushes an OLD dir-block image — loaded before a peer's removal — *after* the peer's flush, resurrecting the peer's entry). This is precisely what mxfs.1 avoids by re-parsing the dir under EX from its DLM-coherent block cache on every modify.
+
+Let me complete GPT's read-only Check-5: find where `bast_process` actually publishes the DLM unlock relative to its fence.
+Check-5 is now answered — and it **refutes** GPT's early-unlock hypothesis. In `bast_process`, the unlock (`mxfs_v5_dlm_inode_unlock`, L1732) runs **after** the dir durability fence (L1265-1349), the dir-block evict (L1444), the publish-unpublished (L1724), and a final `blkdev_issue_flush` (L1707). So the releasing node genuinely flushes its dir blocks before publishing the unlock. The lost-update is therefore **not** early-unlock — it's **base-image staleness**: the modifying node applied its `rm` to a cached dir block that predates a peer's committed removal, then flushed that stale-base image, resurrecting the peer's entry. That sharpens the target toward acquire-side base-refresh (and reconciles with the inline note at L1429 that "the evict+reread coherency premise is broken under fua_disable=1").
+
+Let me persist this refinement before the relay.
+Relay boundary reached. Brief summary of this session:
+
+## What this session accomplished
+
+**Strategic reversal (the big one):** The previous session's pivot to an asymmetric metadata-server was overruled — by you, on sound grounds (VMFS proves symmetric+CAW scales to 64 nodes; an MDS adds a network RTT to every metadata op and would have destroyed v5's *already-green* 103-104% perf). I persisted the reversal to memory and shelved `ASYMMETRIC_MDS_PLAN.md` so no fresh session resumes that dead end.
+
+**The decisive evidence — v5 and mxfs.1 are mirror images:**
+- v5 (`/src/mxfs`, native XFS): perf **PASS** (single-node 104%, rsync 103%), only `cache_coherency` fails.
+- mxfs.1 (`/src/mxfs.1`, custom DLM-coherent caches): `cache_coherency` **PASS 4/4**, only perf fails.
+- v5 is the right vehicle (perf is the hard, won part) and is one criterion from ship. mxfs.1 is the proven *blueprint* for that one criterion (four invariants: FUA-write-before-release · invalidate-containing-block · eager-dir-flush-under-EX · drop+reread-on-BAST).
+
+**Recovered the accurate frontier** (sess94-97 lessons, which the pivot had buried): symmetric v5 actually reached **cache_coherency 3/4** (build 99635EAD); sole blocker = `unlink_visibility`. I corrected my own briefly-wrong bnobt-FUA lead in memory (`fua_disable=1` is a deliberate default, so `fua_fresh=0` is by design).
+
+**RULE-4 progress on the blocker:**
+- Reproduced a clean-cluster baseline (2/4; cwr borderline = the variance sess97 warns of).
+- Mapped the exact test: 4 nodes concurrently `rm` their entries from one shared 120-entry dir → hot-shared-dir lost-update.
+- Answered GPT's Check-5 (read-only): **refuted** the early-unlock hypothesis — `bast_process` publishes the DLM unlock *after* its durability fence + flush. So the loss is **acquire-side base-image staleness** under `fua_disable=1`, not early unlock. Persisted this sharpened diagnosis + next-step instrumentation plan.
+
+**Cluster left clean:** all 4 nodes mounted on EC07F422, healthy.
+
+Criteria **not met** (`cache_coherency` 2-3/4, not 4/4) — marker not written. The next session continues from the corrected, accurate handoff: instrument the dir EX-acquire path for the surviving entry's block to confirm base-staleness, then apply the mxfs.1-style fresh-read-on-acquire fix (narrowly, dir-data blocks only, to avoid the broad-FUA slowness sess94 hit).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

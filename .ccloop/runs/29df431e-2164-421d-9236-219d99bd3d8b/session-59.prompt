@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 59 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 58
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `c6e57496-a565-405a-b1c1-acf5e69effa4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c6e57496-a565-405a-b1c1-acf5e69effa4.jsonl`
+- approx context at last assistant turn: 260941 tokens
+- tools used: Bash×96 Read×32 Edit×13 ScheduleWakeup×5 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess91_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 $SSH $n.vm.localdomain $P "cat /sys/m
+    cd /src/mxfs; rm -f /tmp/cc_sess91c.done /tmp/cc_sess91c.log; (timeout 900 ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_sess91c.log 2>&1; echo "EXIT=
+    cd /src/mxfs; until [ -f /tmp/cc_sess91c.done ]; do sleep 25; done; echo "DONE:"; cat /tmp/cc_sess91c.done
+    cd /src/mxfs; if [ -f /tmp/cc_sess91c.done ]; then echo "DONE:"; cat /tmp/cc_sess91c.done; else echo "running ($(ps -eo etime= -p 1390363 2>/dev/null|tr -d ' ')
+    cd /src/mxfs; if [ -f /tmp/cc_sess91c.done ]; then echo "=== DONE ==="; cat /tmp/cc_sess91c.done; echo "=== per-subtest ==="; grep -iE "\[PASS\]|\[FAIL\]|PASS:|
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== current phase ==="; ls -t /home/steve/.mxfs/results/ 2>/dev/null | head -1; echo "=== node
+    cd /src/mxfs; until [ -f /tmp/cc_sess91c.done ]; do sleep 20; done; echo "=== DONE ==="; cat /tmp/cc_sess91c.done; echo "=== per-subtest ==="; grep -iE "\[PASS\
+    cd /src/mxfs; if [ -f /tmp/cc_sess91c.done ]; then echo "=== DONE ==="; cat /tmp/cc_sess91c.done; echo "=== subtests ==="; grep -iE "\[PASS\]|\[FAIL\]" /tmp/cc_
+    cd /src/mxfs; P=20260605_094314; echo "=== test in phase $P ==="; ls /home/steve/.mxfs/results/$P/ 2>/dev/null; echo "=== node logs tail (progress) ==="; for nl
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test4; do echo "=== $n dmesg recent (hung/stall/CAW) ==="; timeout 14 $SSH $n.vm.loca
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== node1 hung_task / blocked >120s ==="; timeout 14 $SSH test1.vm.localdomain $P "dmesg 2>/de
+    cd /src/mxfs; until [ -f /tmp/cc_sess91c.done ]; do sleep 25; done; echo "=== DONE ==="; cat /tmp/cc_sess91c.done; echo "=== subtest results ==="; grep -iE "^\s
+    cd /src/mxfs; grep -n "SESS50-STARVE\|defer_for_waiter\|h_ex\|waiter_mode\|register-waiter\|wait-for-grant" dlm/dlm_caw.c | head -25
+    cd /src/mxfs; grep -rn "SESS50-STARVE\|defer_for_waiter" dlm/*.c | head; echo "=== grant/acquire loop with yield ==="; grep -rn "yield\|fairness\|FRESH.*shared\
+    cd /src/mxfs; if [ -f /tmp/cc_sess91c.done ]; then echo "=== DONE ==="; cat /tmp/cc_sess91c.done; grep -iE "RESULT:|Failed tests" /tmp/cc_sess91c.log 2>/dev/nul
+    cd /src/mxfs; echo "=== phases this run ==="; for d in $(ls -t /home/steve/.mxfs/results/ | head -8); do echo "$d: $(ls /home/steve/.mxfs/results/$d/ 2>/dev/nul
+    cd /src/mxfs; echo "=== kill failing run ==="; pkill -9 -f "cache_coherency" 2>/dev/null; pkill -9 -f "run_tests.sh" 2>/dev/null; sleep 2; echo "killed; procs l
+    cd /src/mxfs; pkill -9 -f cache_coherency 2>/dev/null; pkill -9 -f run_tests 2>/dev/null; sleep 2; rm -f /tmp/cc_sess91c.done; echo "procs: $(ps aux|grep -cE '[
+    cd /src/mxfs; ps aux | grep -E "[c]ache_coherency|[r]un_tests" | wc -l; rm -f /tmp/cc_sess91c.done 2>/dev/null; grep -n "i_dlm_stale\|ISTALE_CAW\|d_prune_aliase
+    cd /src/mxfs; timeout 480 make modules 2>&1 | tail -4; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+a rename, but its dir *content* changed). So clearing based on inode-gen-match is wrong for directories.
+
+The flag serves two needs: (1) force re-resolution once to pick up a peer's dir change (rename/unlink correctness — needs return 0), (2) not loop forever (perf). The clear belongs in the **re-resolution path (xfs_lookup), after the current state is read** — not in d_revalidate (which runs before). Let me revert the d_revalidate return-value change and look at xfs_lookup:
+The flag-clear belongs in xfs_lookup (line 690 eviction loop), not d_revalidate. The xfs_lookup path does the dir lookup first (so dir content is fresh), then evicts on ISTALE_CAW — but for a live heavily-referenced dir (`.mxfs_barriers`), eviction can't reclaim it, so the flag never clears → thrash. And my d_revalidate change broke rename by clearing i_dlm_stale (removing the dir-content re-read trigger).
+
+Let me revert the d_revalidate change to the clean original (return 0), removing the perturbing FUA read:
+Now restructure the xfs_lookup `ISTALE_CAW` eviction block to FUA-check the disk incarnation FIRST: if it matches our cached one (current — false positive), clear the stuck flag and keep the inode (the dir lookup already provided fresh dirents, so rename/unlink stays visible); only evict when the disk genuinely differs:
+Now build this corrected approach (FIX 1 kept, d_revalidate reverted to original, false-positive clear moved to xfs_lookup):
+Build OK (`ECDE1FC5`). I've reached the relay boundary. Let me update memory with the corrected state for the next session.
+I've reached the relay boundary. Memory is updated; the corrected build is ready to deploy next session.
+
+## Session summary
+
+**Two root causes found and fixed this session** (criteria not yet met — corrected build `ECDE1FC5` is built but not yet deployed/verified):
+
+**FIX 1 — inode-cluster FUA-over-logged clobber** (build `BD2A94BA`, KEEP, VERIFIED): Implemented sess90's confirmed root-cause fix. Added `mxfs_buf_has_uncheckpointed_mods()` and guarded 3 sites (xfs_iget_cache_miss + xfs_iget_recycle cluster-invalidation, mxfs_buf_read_fua backstop) so mxfs never re-reads disk over a buffer carrying logged-but-uncheckpointed modifications. Verified: P91 guards fire and avert clobbers, zero P90-FUA-OVER-LOGGED, no shutdowns; **rename_visibility now passes**.
+
+**FIX 2 — stuck `XFS_ISTALE_CAW` flag** (the barrier-timeout root): Discovered via the decisive `P91-STALEFLAG-DISK` probe that `XFS_ISTALE_CAW` has **no clear site anywhere in the tree**. The eviction-ring `INODE_FREE` handler sets it; after an inode number is legitimately reused for the current incarnation (gen matches disk exactly), the flag persists forever → d_revalidate returns INVALID on every access → 291× path-walk thrash on the live shared `.mxfs_barriers` dir → 120s barrier timeouts.
+- **v1 (EDA54DB1) cleared it in d_revalidate — REGRESSED rename_visibility** (40 fails): clearing `i_dlm_stale` + returning VALID removed the dir-content re-read trigger (a directory's inode gen is unchanged across a rename; only its dir blocks change).
+- **v2 (ECDE1FC5, current build):** reverted d_revalidate to original (return 0, preserves rename/unlink), moved the false-positive clear into **xfs_lookup's ISTALE-CAW block** — FUA-checks the disk incarnation first; if it matches (current → false positive) clears the flag and **keeps** the inode (the dir lookup already provided fresh dirents, so visibility is preserved); only evicts when the disk genuinely differs.
+
+**Next session:** `bash tests/reset4.sh 4`, confirm `ECDE1FC5` on all 4 nodes, run cache_coherency. Verify rename stays PASS while unlink_visibility + cross_write_read stop timing out (grep `P91-CAW-FALSEPOS-CLEAR` vs `ISTALE-CAW-EVICT`). Caveat recorded: a separate CAW EX-handoff slowness exists on concurrent same-dir creates (SESS50-STARVE) that may be cluster-contamination from killed runs — do a clean full-cluster reboot (virsh destroy+start all 4) before trusting any slow result.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

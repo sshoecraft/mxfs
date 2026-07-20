@@ -1,0 +1,22 @@
+=== full suite run 07:22:35 ===
+  PASS  precond_readiness
+  PASS  cache_coherency  (nodes_pass=2/2)
+  PASS  strong_consistency  (nodes_pass=2/2)
+  PASS  posix_multi  (nodes_pass=2/2)
+  PASS  mmap_coherency  (nodes_pass=2/2)
+  PASS  zero_silent_loss  (nodes_pass=2/2)
+  FAIL  dlm_fairness  (nodes_pass=1/2)
+  PASS  dlm_membership  (nodes_pass=2/2)
+  PASS  scaling_curve  (nodes_pass=2/2)
+  PASS  dlm_scaling  (nodes_pass=2/2)
+  PASS  rsync_paired  (nodes_pass=2/2)
+  PASS  crash_consistency  (nodes_pass=2/2)
+  PASS  fence_during_write  (nodes_pass=2/2)
+  PASS  fault_netpartition  (nodes_pass=2/2)
+  PASS  soak
+  PASS  tcp_dlm_scaling  (nodes_pass=2/2)
+=== DISCRIMINATOR (dmesg both nodes) ===
+--- test1 ---
+--- test2 ---
+=== forensic file (if mount survived) ===
+=== done 07:27:39 ===

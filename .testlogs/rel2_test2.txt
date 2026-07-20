@@ -1,0 +1,1 @@
+RESULT: PASS | test=cache_coherency | nodes=2 | measured=checks=200 passed=200 failed=0 | reason=

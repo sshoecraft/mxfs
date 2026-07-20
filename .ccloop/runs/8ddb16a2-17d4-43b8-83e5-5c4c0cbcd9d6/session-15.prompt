@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 15 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 14
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `77d892d6-037f-41c2-a60b-b62a798b6455`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/77d892d6-037f-41c2-a60b-b62a798b6455.jsonl`
+- approx context at last assistant turn: 500432 tokens
+- tools used: Bash×156 Read×36 Edit×27 mcp__ccmemory__memory_write×6 mcp__ccmemory__memory_get×5 Write×4 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp2_characterize.sh
+- /src/mxfs/tests/cc_dirvis_probe.sh
+- /src/mxfs/tests/suite/crash_consistency.sh
+- /src/mxfs/tests/cc_df_capture.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/cc_blockdir_probe.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; until grep -qE 'DONE:' tests/cc_df_capture.log 2>/dev/null; do sleep 150; done; echo "=== FINAL ==="; grep -E 'DONE:' tests/cc_df_capture.log; ech
+    cd /src/mxfs; tail -2 tests/cc_df_capture.log 2>/dev/null; echo "t=$(date -u +%T) iters=$(grep -c 'ITER' tests/cc_df_capture.log)"
+    cd /src/mxfs; until grep -qE 'DONE:' tests/cc_df_capture.log 2>/dev/null; do sleep 150; done; echo "=== DONE $(date -u +%T) ==="; grep -E 'DONE:' tests/cc_df_ca
+    cd /src/mxfs; tail -2 tests/cc_df_capture.log 2>/dev/null; echo "t=$(date -u +%T) iters=$(grep -c 'ITER' tests/cc_df_capture.log)"
+    cd /src/mxfs; awk '/ITER 5\//,/ITER 6\//' tests/cc_df_capture.log | grep -E '  FAIL|P-SFMERGE'
+    cd /src/mxfs; until grep -qE 'DONE:' tests/cc_df_capture.log 2>/dev/null; do sleep 60; done; echo "=== DONE ==="; grep 'DONE:' tests/cc_df_capture.log; echo "--
+    cd /src/mxfs; until grep -qE 'DONE:' tests/cc_df_capture.log 2>/dev/null && ! pgrep -f cc_df_capture >/dev/null && ! pgrep -f reset2_tcp >/dev/null; do sleep 20
+    cd /src/mxfs; grep 'DONE:' tests/cc_df_capture.log 2>/dev/null; echo "procs: $(pgrep -f 'cc_df_capture|reset2_tcp|run.sh 2'|grep -v $$|tr '\n' ' ')"; for n in t
+    cd /src/mxfs; pkill -f 'until grep' 2>/dev/null; pkill -f 'run.sh 2 tcp' 2>/dev/null; sleep 2; echo "strays after kill: $(pgrep -f 'run.sh 2 tcp|until grep'|gre
+    cd /src/mxfs; sleep 2; for n in test1 test2; do echo -n "$n: "; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'mount|grep -c "type mxfs"' 2>/dev/null;
+    until ! pgrep -f cc_blockdir_probe >/dev/null 2>&1; do sleep 20; done; echo "=== cc_blockdir_probe done ==="; cat /tmp/claude-1000/-src-mxfs/77d892d6-037f-41c2-
+    sleep 1; tail -15 /tmp/claude-1000/-src-mxfs/77d892d6-037f-41c2-a60b-b62a798b6455/tasks/b1fkqapus.output 2>/dev/null; echo "running=$(pgrep -f cc_blockdir_probe
+    until ! pgrep -f cc_blockdir_probe >/dev/null 2>&1; do sleep 25; done; echo "=== DONE ==="; tail -20 /tmp/claude-1000/-src-mxfs/77d892d6-037f-41c2-a60b-b62a798b
+    cat /tmp/claude-1000/-src-mxfs/77d892d6-037f-41c2-a60b-b62a798b6455/tasks/b1fkqapus.output 2>/dev/null | tail -25
+    cd /src/mxfs; timeout 580 tests/cc_blockdir_probe.sh 60 50 2>&1 | grep -vE 'all=200/200 md5=100/100' | tail -25
+    cd /src/mxfs; timeout 580 tests/cc_blockdir_probe.sh 60 50 2>&1 | grep -vE 'all=200/200 md5=100/100' | tail -25
+    cd /src/mxfs; echo "=== deployed build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; for n in test1 test2; do echo -n "$n: "; timeout 8 bash tools/mxfs_s
+    cd /src/mxfs; grep -n 'mxfs_dir_data_durable\|mxfs_dir_push_data_ags\|drain.*dir.*data\|dir_data_durable' xfs/xfs_mxfs_dlm.c | head; echo "=== bast_process dir-
+    cd /src/mxfs; for n in test1 test2; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo 1 > /sys/module/mxfs/parameters/dirwr; dmesg --clear' >/dev
+    cd /src/mxfs; for n in test1 test2; do echo "===== $n ====="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg | grep -aE 'P106-MR-SKIP|P106-MR-E
+
+## Last text from previous session
+
+H nodes** (test2 itself has N for its own file), while `node2_f49.md5` survives. Not eventual (+8s still gone), not read-staleness (both nodes/shared LUN agree). This is a **durable BLOCK-format-dir concurrent-create dirent LOSS** — a peer's RMW clobbered the entry. Different class from the shortform resurrection; the SF merge doesn't cover block dirs. Let me record this.
+I now have a **fast reliable reproducer** (`cc_blockdir_probe` — caught it on iter 1 twice), which lets me iterate without the 6-min full suite. The block-dir loss shares the stale-base-RMW root with the shortform case. Let me examine the modify-path hooks to add the block-dir analog of the fix.
+I've reached a clear diagnostic milestone but the block-dir clobber is a deep separate fix, and I'm very deep in context. Let me verify the build state and write a thorough HEAD handoff so the next session continues efficiently with the fast reproducer.
+Build 3017D9DF deployed, sf_merge=1 active. Let me investigate the likely block-dir fix point: whether the dir-inode BAST release actually flushes the dir's DATA blocks (where block-format dirents live) durable before releasing — if not, a peer reloads a stale block and clobbers.
+The block-dir DATA blocks ARE flushed on BAST release (`mxfs_dir_flush_data_blocks`), so the clobber must be a fast-path-no-reload or gen-lag race — a deep block-dir coherency fix best done with the fast reproducer. I've made strong progress this session. Let me write a thorough HEAD handoff before continuing.
+Let me confirm the gen-lag mechanism with the fast reproducer + existing P106 detectors (no rebuild — set `dirwr=1` at runtime). This tells me whether the block-dir clobber correlates with a skipped refresh (gen-lag).
+node2_f49 lost again (consistent file number — points to a specific timing window, likely the data→md5 loop transition). Let me capture the dmesg detectors around the clobber.
+Reached the relay boundary. Brief summary of this session's progress:
+
+## Session 14 summary
+
+**Criterion (`./run.sh 2 tcp` 100%) NOT met — marker NOT written.** Build `3017D9DF` deployed both nodes (keep — net positive).
+
+### Decisive progress
+1. **Reframed the blocker.** The 2/tcp residual is a rotating flake across crash_consistency / dlm_fairness / tcp_dlm_scaling — same shared-dir concurrent-churn root, but **two distinct faces**: write-side shortform resurrection vs read/write block-dir loss.
+
+2. **Implemented + validated a 3-way shortform-dir merge** (`i_dlm_dir_sf_base` snapshot + `mxfs_dir_sf_merge_into`, called from both `mxfs_dir_sf_refresh_if_disk_differs` and `mxfs_dlm_reload_inode`; `module_param sf_merge=1`). Per-name base/ours/theirs reconciliation — keeps our committed-not-durable delta, adopts the peer's. **Result: dlm_fairness 6/6** (was flaky), tcp_dlm_scaling 5/6. Avoids both sess9-refuted failure modes. P-SFMERGE confirmed engaging.
+
+3. **Root-caused the sole remaining blocker** (`crash_consistency`) decisively: **BLOCK/LEAF-format dir concurrent-create durable dirent LOSS** — `node2_f49` (test2's own data file) clobbered on BOTH nodes, its `.md5` survives, not eventual, not recoverable by drop_caches or forcing the writer's BAST-drain. A peer's stale-base block-dir RMW overwrites the data block. The SF merge only covers shortform; block dirs go through `xfs_da_read_buf` gen-invalidation (laggy heartbeat) + `mxfs_dir_evict_data_blocks`.
+
+4. **Built a FAST reliable reproducer**: `tests/cc_blockdir_probe.sh 60 50` reproduces the loss on ~iter 1 (vs the 6-min full suite), with a CASE-A/B discriminator. This is the key asset for the next session.
+
+### Next step
+Fix the block-dir concurrent-create lost-update (the deferred-BAST / gen-lag stale-base RMW) using the fast reproducer — likely needs the block-dir analog of reload-before-RMW (or a data-block merge), instrumented per RULE 4. All findings saved to memory (`sess14-HEAD-status`, `sess14-cc-root-blockdir-concurrent-create-dirent-loss`, `sess14-IMPL-3way-sf-merge-build-917BE2AD`).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

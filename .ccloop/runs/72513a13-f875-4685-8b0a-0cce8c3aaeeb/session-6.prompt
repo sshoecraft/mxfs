@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `0f6ac286-a15a-444e-8595-2ad59adf0cbd`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0f6ac286-a15a-444e-8595-2ad59adf0cbd.jsonl`
+- approx context at last assistant turn: 498121 tokens
+- tools used: Bash×212 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read()  old = """	if (orphan_live && mp->m_mxfs_dlm && 	    mxfs_v5_dlm_transport_caw(mp->m_mxfs_dlm) && 	   
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 560 ./run.sh 8 cawd precond_readiness f
+    timeout 560 ./run.sh 8 cawd zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired crash_consistency 2>&1 | tail -1; ./showstat.sh 
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() s = s.replace("""- 6527430 (CURRENT): caw_unlock_backoff DEFAULT 1 (measured orphan bit: all   nodes P
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 90 ./run.sh 8 cawd dlm_fairness 2>&1 | 
+    timeout 15 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'echo "aborts=$(dmesg | grep -c P15-REL-ABORT) proceeds=$(dmesg | grep -c P15-ORPH-PROCEED)"; dmesg | gre
+    for h in test1 test2 test3 test4 test5 test6 test7 test8; do timeout 10 tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass 'echo 0 > /sys/module/mxfs/parameters/caw_unloc
+    MXFS_EXTRA_MODARGS="icluster_dlm=1 caw_unlock_backoff=0" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 90 ./run.sh 8 cawd
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read()  # knob next to the other publish tunables old = "#define MXFS_PUB_DRAIN_TIMEOUT_MS	5000" assert s.cou
+    MXFS_EXTRA_MODARGS="icluster_dlm=1 pub_wave_a=0" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 90 ./run.sh 8 cawd dlm_fai
+    MXFS_EXTRA_MODARGS="icluster_dlm=1 pub_wave_a=0 caw_unlock_backoff=0" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 90 ./
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = """					crc = mxfs_iclus_lock(mp, ino, 							      MXFS_LOCK_EX); 					if (crc) {""" new = """	
+    make modules 2>&1 | grep -B2 " error" | head -8
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = "static inline bool mxfs_iclus_routed(struct xfs_inode *ip);" assert s.count(old) == 1 s = s.rep
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 90 ./run.sh 8 cawd dlm_fairness 2>&1 | 
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = "int mxfs_pub_defer_claim;\nmodule_param_named(pub_defer_claim" assert s.count(old) == 1 s = s.r
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 90 ./run.sh 8 cawd dlm_fairness 2>&1 | 
+    timeout 90 ./run.sh 8 cawd dlm_fairness 2>&1 | tail -1; ./showstat.sh 8 cawd 2>/dev/null | grep fairness; timeout 90 ./run.sh 8 cawd dlm_fairness 2>&1 | tail -1
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 300 ./run.sh 8 cawd cache_coherency zer
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() s = s.replace("""RULE 4 NEXT: (i) count P15-REL-ABORT orph=1 age<250ms during one fairness run (repro:
+
+## Last text from previous session
+
+plementing the timed batch:
+Full board from fresh prep on `D80A91C0`:
+cc still dies at 60s post-fio with everything else green. What's it stuck on THIS time:
+`xfs_trans_free` covers all frees. But line 24369 is a lone clear — checking its context and any non-literal demoter assignments:
+Line 24369 is just inode-init. The leaked demoter must be an early return between a set and its clear. Reading BWORK's full set→clear span:
+Build clean. Now the infra fix — force-prep must reboot the VMs to eliminate lazy-unmount zombies:
+Build clean. Calibrated drc to measure the improvement:
+v4 build clean (`997967AC`). Full board from fresh prep:
+fio healthy (134%) but cc still dies in the slot. Live evidence immediately:
+el_ms accounting aside — current-era mkdir stuck >120s on dir 8388739, one blocker node. Finding the holder's state:
+`mxfs_caw_unlock_backoff` is the exact documented fix for this measured wedge — proven previously, left default-off. Defaulting it on with the fresh evidence:
+Still failing. Live evidence:
+While GPT works, persisting the session ledger to state.md (relay-critical):
+Build clean (`2D16C728`). Full board, fresh prep:
+Killed run left pre-assert debris — prep first, then set knob post-prep (module reload resets it):
+Both knobs off together (closest runtime approximation of the last fairness-green build):
+Compile error — checking:
+Declaration-order issue — adding a forward extern near the top:
+The killed run poisons successors — replicating the exact green-board sequence in one call (prep → cc → zsl → fairness):
+Relay boundary. Recording the final A/B matrix in state.md and wrapping up:
+**Criteria not met — relay boundary reached; session 5 ends with the 8-board one row from green and a fully-specified bisection for session 6.**
+
+## Session 5 ledger
+
+**Seven structural fixes landed and validated** (tree `72677E1A` = 0.11.17, all knobs runtime-writable):
+1. **make_durable reverted to passive settle** — reproduced the known-good AB52387F srcversion byte-exactly, clearing sess4's cross-node D-state wedge.
+2. **Bounded publish batch (5s, self-freeing workers)** — broke the measured cross-node bast-worker deadlock (publish drain remote-waiting 470s on a peer-held cluster while its own AG release sat queued behind it; proven end-to-end with stacks + P-WAIT-EXTEND + P12 on live nodes).
+3. **Eager-demote publish** — routed children flush-to-platter at publish instead of claiming contended clusters; kills the pop-then-fail claim hole behind the cwr `exp=""` stale-read class.
+4. **Wave A pre-pass** (batch writeback + single log force) — per-child handoff cost 5-9ms → <1ms (P138-proven); **dir_reuse back in budget at 116/120s**.
+5. **Orphan-reclaim default-on with gate v3** + demoter forensics (which disproved two leak theories by naming live dwork demotes).
+6. **caw_unlock_backoff default-on** — fixes the measured orphaned-slot-bit convoy (unlock CAS losing 100 retries to waiter churn).
+7. **P15-ORPH-PROCEED (CAW, 250ms-persistent)** — replaced the per-handoff 3-second starve-force tax that made 8-node dir races convoy 100-220s. GPT (RULE 5) confirmed the abort was circular; the no-qualifier first cut stole undiscovered CAS wins (fairness starvation) and was corrected with the resource-scoped persistence clock.
+
+**Result: cache_coherency@8 green (13-15s, 765/765) on three consecutive fresh-prep boards** — it had never passed in the board slot this session. Rows 1-9 + 20 all green with fio at 141% of native.
+
+**Open front: dlm_fairness@8** — the sole red row (rows 11-19 are its pre-assert victims). The end-of-session A/B matrix (in state.md) excludes every individual knob, VM state, and warm/cold ordering; next session's decisive experiment is specified: instrument where fairness's 30s goes and A/B `pub_eager_demote` off — the old claim-path semantics are now safe to test since the bounded batch neutralized the original deadlock. After fairness: full board on one build → 16 → 32 → cawp/tcp/caw ladders → matrix green → marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

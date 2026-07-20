@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 42 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 41
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `87721e01-7f63-454a-935a-29fd4de0fef3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/87721e01-7f63-454a-935a-29fd4de0fef3.jsonl`
+- approx context at last assistant turn: 260557 tokens
+- tools used: Bash×124 Read×11 Edit×6 ScheduleWakeup×5 mcp__ccmemory__memory_write×4 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/criteria/posix_phase_timing.sh
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/tests/criteria/barrier_vis_repro.sh
+- /src/mxfs/tests/lib/cluster.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; pkill -9 -f 'mxfs_timing_test_concurrent'; sleep 1; echo "=== stale concurrent_touch procs remaining ==="; pgrep -af 'mxfs_timing_test_concurrent'
+    cd /src/mxfs; echo "stale procs: $(pgrep -af 'mxfs_timing_test_concurrent' 2>/dev/null | grep -v pgrep | wc -l)"; echo "=== reset progress $(date -u +%T) ==="; 
+    cd /src/mxfs; echo "=== fresh mount 16 nodes $(date -u +%T) ==="; timeout 180 bash tests/reset4.sh 16 2>&1 | tail -5
+    cd /src/mxfs; echo "=== barrier visibility reproducer, 16 nodes, 30s timeout $(date -u +%T) ==="; timeout 120 bash tests/criteria/barrier_vis_repro.sh 16 1 2>&1
+    cd /src/mxfs; echo "=== reproducer WITH 100-file burst before barrier, 16 nodes $(date -u +%T) ==="; BURST=100 BARRIER_TIMEOUT=60 timeout 360 bash tests/criteri
+    cd /src/mxfs; grep -nE 'SINGLE_TEST|--test\)|--test ' tests/run_tests.sh | head; echo "=== usage ==="; sed -n '30,55p' tests/run_tests.sh
+    cd /src/mxfs; source tests/criteria/lib.sh 2>/dev/null; echo "=== isolated test_concurrent_touch on fresh 16-node mount $(date -u +%T) ==="; t0=$(date +%s); MXF
+    cd /src/mxfs; echo "=== isolated test_concurrent_touch, fresh mount $(date -u +%T) ==="; t0=$(date +%s); MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests time
+    sleep 1; echo "now $(date -u +%T)"; cat /tmp/claude-1000/-src-mxfs/87721e01-7f63-454a-935a-29fd4de0fef3/tasks/bzh8u6dpt.output 2>/dev/null | grep -ivE 'Warning|
+    cd /src/mxfs; echo "=== what mxfs_test.sh sources + barrier defs ==="; grep -nE 'source|barrier_signal\(\)|barrier_wait\(\)|\.mxfs_barriers|sync|MXFS_BARRIER' t
+    cd /src/mxfs; echo "=== repro: concurrent-mkdir barrier dir, NO burst, 16 nodes $(date -u +%T) ==="; BURST=0 PRECREATE=0 BARRIER_TIMEOUT=60 timeout 120 bash tes
+    cd /src/mxfs; echo "=== isolated concurrent_touch w/ barrier diag $(date -u +%T) ==="; t0=$(date +%s); MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeou
+    echo "waiting for isolated test; now $(date -u +%T)"; cat /tmp/claude-1000/-src-mxfs/87721e01-7f63-454a-935a-29fd4de0fef3/tasks/bcqzp1gym.output 2>/dev/null | g
+    cd /src/mxfs; echo "now $(date -u +%T)"; cat /tmp/claude-1000/-src-mxfs/87721e01-7f63-454a-935a-29fd4de0fef3/tasks/bcqzp1gym.output 2>/dev/null | grep -iE 'WALL
+    cd /src/mxfs; RDl=/home/steve/.mxfs/results/20260612_155802; echo "=== run dir contents ==="; ls "$RDl"/test_concurrent_touch/ 2>/dev/null; echo "=== ALL timed-
+    cd /src/mxfs; RDslow=/home/steve/.mxfs/results/20260612_155416; echo "=== SLOW run (126s) per-node touch_100_files timing ==="; for n in $(seq 1 16); do L="$RDs
+    cd /src/mxfs; cat > /tmp/catch_to.sh <<'EOF' for it in 1 2 3 4; do   echo "=== iter $it $(date -u +%T) ==="   MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests
+    L=/tmp/catch_to.log; until grep -qE 'TIMEOUT CAUGHT|iter 4' "$L" 2>/dev/null && ! pgrep -f catch_to.sh >/dev/null 2>&1; do sleep 20; done 2>/dev/null; echo "CAT
+    echo "now $(date -u +%T)"; cat /tmp/catch_to.log 2>/dev/null
+    cd /src/mxfs; echo "=== catch loop $(date -u +%T) ==="; cat /tmp/catch_to.log 2>/dev/null; echo "=== does xfs_ilock_data_map_shared / xfs_ilock trigger mxfs DLM
+
+## Last text from previous session
+
+ — exactly the observed split.
+
+### Saved to memory
+- `sess41-ccloop-agi-reentrancy-deadlock-fixed` — the deadlock fix + overall state.
+- `sess41-shortform-dir-evict-gap-root` — the shortform-dir visibility root cause + three concrete fix directions and the verification procedure.
+
+### For the next session
+Implement the shortform-dir readdir coherency fix (give shortform readdir a gen-gated inode reload, mirroring the block-dir path — but keep it cheap, since per-readdir CAW polls regressed before). Then verify `test_concurrent_touch` (run 4-5× — it's intermittent), `cross_visibility`, `dir_stress`, and finally full `posix_semantics(16)` under budget. Cluster is mounted clean on build `E25DD67F`; a catch-loop (`/tmp/catch_to.log`) is still running to capture a timeout with the new `present=` diagnostic.
+I'm at the relay boundary but have a nailed root cause — let me make one concrete high-value step: verify whether a dir PR-ilock triggers `mxfs_dlm_reload_inode`, which decides the cleanest fix. Let me read that path.
+I've confirmed the key primitive: `mxfs_dlm_reload_inode` does an in-place reload that "repopulates the inode — i_generation **and the dir-fork** — from the fresh on-disk incarnation" so "the next dir read sees the peer's current entries." That's exactly what a stale shortform dir needs. It's currently only triggered via `XFS_ISTALE_CAW` on the lookup path (set by the evict ring's *INODE_FREE* branch) — **not** by *DIR_MODIFY*, and **not** on the readdir path. Let me record this final mechanism detail and wrap up at the relay boundary.
+I'm at the relay boundary with the diagnosis fully nailed and saved. Wrapping up.
+
+## Session summary
+
+**Criteria NOT met** — marker not written. Two concrete, durable advances:
+
+### 1. State shift discovered
+`cache_coherency` — the ~50-session ship blocker — now **PASSES** (4/4). The gate is **18/19 PASS**; the sole remaining FAIL is `posix_semantics_multi16` (`elapsed>600s`).
+
+### 2. AGI self-deadlock — FIXED and verified (build `E25DD67F`, KEEP)
+16-node `test_concurrent_touch` hung forever on test1's `mkdir` (D-state on the AGI buffer). Root: MXFS's synchronous `xfs_inactive()` in `xfs_inode_mark_reclaimable`, fired from `xfs_iunlink_reload_next`'s `xfs_irele()` while `xfs_iunlink` holds the AGI, re-locks the same AGI buffer → self-deadlock. Fix: gate sync-inactive on `current->journal_info == NULL` (`xfs/xfs_icache.c`). Confirmed — no more wedge.
+
+### 3. Remaining blocker — root-caused (fix designed, not yet implemented)
+`posix_semantics_multi16` still exceeds 600s from intermittent 120s barrier-visibility timeouts. Ruled out burst-starvation (all bursts <6.1s) and the barrier mechanism (standalone repro converges 2-3s). **True root: `EVICT-RING-DIRMOD` doesn't cover shortform directories** — it bumps `i_dlm_dir_gen`, which only invalidates block/leaf dir blocks via `xfs_da_read_buf`; shortform `xfs_dir2_sf_getdents` reads inline inode data with no reload. So the ~16-entry shortform barrier dir goes stale to peers while the 1600-entry block-format data dir stays correct — exactly the observed split. The reload primitive (`mxfs_dlm_reload_inode`, which repopulates the dir-fork from disk) already exists; it's just never armed for shortform-dir DIR_MODIFY or invoked on the readdir path.
+
+### Saved for next session
+- Memory `sess41-ccloop-agi-reentrancy-deadlock-fixed` (deadlock fix + state) and `sess41-shortform-dir-evict-gap-root` (root cause + the precise two-part fix: arm a reload flag in the evict-cb DIR_MODIFY branch for shortform dirs, honor it in `xfs_readdir` via `mxfs_dlm_reload_inode` before `sf_getdents` — event-driven, not polled, to avoid the sess38/91 per-readdir-poll regression).
+- Diagnostics added to the tree: `tests/lib/cluster.sh` `barrier_wait` now logs `present=[...]` on timeout; `tests/criteria/{posix_phase_timing,barrier_vis_repro}.sh`.
+- Cluster is mounted clean on `E25DD67F`; verify the next fix with the real `test_concurrent_touch` run 4-5× (intermittent).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

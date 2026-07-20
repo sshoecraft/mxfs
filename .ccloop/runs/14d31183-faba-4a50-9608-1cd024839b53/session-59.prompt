@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 59 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 58
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `d560ffbc-7aa7-4e4f-8e31-767d21bdafa2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d560ffbc-7aa7-4e4f-8e31-767d21bdafa2.jsonl`
+- approx context at last assistant turn: 268851 tokens
+- tools used: Bash×104 Read×23 Edit×18 ScheduleWakeup×9 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×1 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/tests/repro_dirent_loss_heavy.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; until grep -qaE "EXIT=" /tmp/zsl_iter1.log 2>/dev/null; do sleep 12; done; echo "=== SINGLE-ITER STORM DONE ==="; grep -aE "RESULT:" /tmp/zsl_iter
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/d560ffbc-7aa7-4e4f-8e31-767d21bdafa2/tasks/b1a2hxrcx.output 2>/dev/null | grep -aiE "RESULT:|iter 1:|MISSING|creato
+    cd /src/mxfs; echo "=== P58-STALE-BASE-ADD lines (the stale-base RMWs) ==="; for h in $(seq 1 16); do timeout 5 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dm
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 16 2>&1 | tail -2; bad=0; for h in $(seq 1 16); do v=$(timeout 6 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dm
+    cd /src/mxfs; rm -f /tmp/zsl_iter1b.log; (timeout 240 ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl_iter1b.log 2>&1; echo "EXIT=$
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/d560ffbc-7aa7-4e4f-8e31-767d21bdafa2/tasks/bs458m4n1.output 2>/dev/null | grep -aiE "RESULT:|P58-SELFSKIP|stale-bas
+    cd /src/mxfs; echo "=== prototype ==="; grep -rn "mxfs_dlm_reload_inode" xfs/*.h xfs/xfs_mxfs_dlm.c | grep -vE "comment|/\*| \* " | head; echo "=== all call sit
+    cd /src/mxfs; grep -n "mxfs_dlm_reload_inode(.*XFS_DIR3_FT_UNKNOWN)" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; echo "=== 1194 context (consumer_refresh) ==="; sed -n '1186,1196p' xfs/xfs_mxfs_dlm.c; echo "=== 5574 context ==="; sed -n '5560,5576p' xfs/xfs_m
+    cd /src/mxfs; grep -rn "mxfs_dlm_reload_inode(" xfs/ pal/ dlm/ mxfs_clayer/ 2>/dev/null | grep -vE "^\S+:[0-9]+:void|xfs_mxfs_dlm.h:|expect_ftype,$" | grep "rel
+    cd /src/mxfs; echo "=== readdir 558 ctx ==="; sed -n '550,559p' xfs/xfs_dir2_readdir.c; echo "=== inode 875 / 1010 ctx ==="; sed -n '870,876p' xfs/xfs_inode.c; 
+    cd /src/mxfs; sed -i 's/mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN);/mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN, false);/g' xfs/xfs_icache.c; echo "=== re
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|reload_inode|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 16 2>&1 | tail -2; bad=0; for h in $(seq 1 16); do v=$(timeout 6 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dm
+    cd /src/mxfs; rm -f /tmp/zsl_fix.log; (timeout 240 ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl_fix.log 2>&1; echo "EXIT=$?" >> 
+    cd /src/mxfs; until grep -qaE "EXIT=" /tmp/zsl_fix.log 2>/dev/null; do sleep 12; done; echo "=== FIX VERIFICATION (build 6657565C) ==="; grep -aE "RESULT:" /tmp
+    cd /src/mxfs; echo "=== FIX VERIFICATION RESULT ==="; grep -aE "RESULT:" /tmp/zsl_fix.log 2>/dev/null; cat /tmp/claude-1000/-src-mxfs/d560ffbc-7aa7-4e4f-8e31-76
+    cd /src/mxfs; f=$(ls -t /tmp/zero_silent_loss.*.log 2>/dev/null | head -1); echo "log=$f"; sed 's/\x1b\[[0-9;]*m//g' "$f" 2>/dev/null | grep -aiE "iter 1:|MISSI
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+aded_gen=323` showed that `mxfs_dlm_reload_inode`'s `P36-RELOAD-SELFSKIP` guard keeps a **stale block/leaf dir base** on a post-release reacquire — the subsequent RMW + release-drain durably erases peer dirents. sess49's "skip-the-skip" fix had only exempted *shortform* dirs.
+
+**The fix (build `6657565C`, deployed):** added a `post_release` param to `mxfs_dlm_reload_inode`; the self-skip is now exempted for *all* directories on the post-release slow-path (disk is a superset by Invariant 1), while the same-tenure FASTEX path keeps the skip (avoids the sess36 in-flight-grow rollback). All callers updated; the slow-path EX-acquire site is the only behavior change.
+
+**Verification in flight:** single-iter storm against `6657565C`, with a scheduled wake-up to read the result. If silent=0 holds across repeats, the next step is the full `verify_ship.sh`. Three other criteria remain open (fence_during_write, rsync_paired, posix_semantics_multi16). Root + fix + repro guidance recorded in `sess58-durable-lostupdate-selfskip-blockleaf-dir-rootfix`. Criteria marker not written — work continues.
+Still FAIL, and `P58-SELFSKIP-STALE-DIR` fired 99× — all necessarily on `post_release=false` paths (my fix makes post_release=true bypass that branch entirely). So the clobbering self-skip is on the **FASTEX (same-tenure) path or iget/icache paths**, not the slow path I fixed. Let me get the real loss detail and identify which caller keeps the stale base.
+The verification keeps hitting "node0 find returned non-numeric" — a verify-phase failure masking the real silent count, counted as 1600. The fix is insufficient: the clobbering self-skip is on a `post_release=false` path (FASTEX/iget), not the slow path I fixed. Let me record this for the next session before the relay.
+Let me make one quick, high-value edit before the relay: add `post_release` to the P58-SELFSKIP probe so the next session's first run immediately pins the clobbering path.
+Build `420F8D79` ready with the diagnostic enhancement. I'm at the relay boundary — wrapping up.
+
+## Session summary
+
+**Criteria: not met** (zero_silent_loss still FAIL; 4 criteria open). Marker not written.
+
+**Key results this session:**
+
+1. **Debunked the prior "dominant root."** sess57's dir2 `di_size` corruption shutdown was a **stale-dmesg artifact** — an always-on probe placed *inside* the exact corruption branch (xfs_dir2.c:287) fired **zero times** across three 16-node storms; no node shut down on the current build. `reset4.sh` only reboots wedged nodes, so old-build dmesg misled the previous session. Always `dmesg -C` all 16 + full destroy/start for clean measurement.
+
+2. **Proved the real root (RULE 4)** of zero_silent_loss: the **durable dirent lost-update**. Two always-on probes captured it: `P58-STALE-BASE-ADD pino=131 dir_gen=109 loaded_gen=12` and `P58-SELFSKIP-STALE-DIR fmt=3 dir_gen=379 loaded_gen=323`. The `P36-RELOAD-SELFSKIP` guard keeps a stale block/leaf dir base; the subsequent RMW + release-drain durably erases peer dirents. sess49's "skip-the-skip" had only covered shortform dirs.
+
+3. **First fix attempt (build 6657565C) — insufficient.** Added a `post_release` param to `mxfs_dlm_reload_inode` exempting all dirs from the self-skip on the slow path. But `P58-SELFSKIP` still fired **99×** afterward — all on `post_release=false` paths, meaning the clobber is on the **FASTEX (same-tenure) or iget/icache paths**, not the slow path I fixed.
+
+4. **Next steps recorded** in memory (`sess58-postrelease-fix-insufficient-fastex-selfskip`): build `420F8D79` now tags the self-skip probe with `post_release` so the next run pins the exact clobbering caller. Also flagged: loaded_gen may never advance on the slow-path reload (gen metric possibly broken), the phantom dual-EX angle, and a separate verify-phase bug ("node0 find returned non-numeric" masking the true silent count).
+
+Three other criteria remain open (fence_during_write, rsync_paired, posix_semantics_multi16). Work continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

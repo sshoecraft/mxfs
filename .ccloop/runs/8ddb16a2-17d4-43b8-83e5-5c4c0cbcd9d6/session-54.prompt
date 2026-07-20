@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 54 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 53
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5395e27f-b414-4eca-9d33-691672eff255`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5395e27f-b414-4eca-9d33-691672eff255.jsonl`
+- approx context at last assistant turn: 501784 tokens
+- tools used: Bash×84 Read×26 Edit×12 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_write×6 ToolSearch×2 Write×2 TaskCreate×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/fg_one_run.sh
+- /src/mxfs/xfs/xfs_iunlink_item.c
+- /src/mxfs/tests/tcp/fg_tds_repeat.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh h1; echo "=== h1 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh h2; echo "=== h2 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh h3; echo "=== h3 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH="timeout 14 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"; li=$(grep -
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH="timeout 14 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"; echo "=== n
+    cd /src/mxfs; echo "=== callers of mxfs_dir_sf_refresh + its EX guard ==="; grep -n 'mxfs_dir_sf_refresh\|sf_refresh(' xfs/xfs_mxfs_dlm.c | head; echo "=== sf_r
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'xfs_mxfs_dlm.c:[0-9]+:[0-9]+: error|Error [0-9]' | head; modinfo mxfs.ko 2>/de
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh k1; echo "=== k1 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH="timeout 14 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"; li=$(grep -
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'xfs_mxfs_dlm.c:[0-9]+:[0-9]+: error|Error [0-9]' | head; modinfo mxfs.ko 2>/de
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh m1; echo "=== m1 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH="timeout 14 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"; li=$(grep -
+    cd /src/mxfs; MXFS_EXTRA_MODARGS="dirwr=1" bash tests/tcp/fg_one_run.sh n1; echo "=== n1 result + STALE-DISK evidence ==="; P=/tmp/.mxfs_pass; SSH="timeout 14 s
+    cd /src/mxfs; echo "=== mxfs_inode_cluster_durable ==="; sed -n '/^mxfs_inode_cluster_durable/,/^}/p' xfs/xfs_mxfs_dlm.c | head -80
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ==="; make modules 2>&1 | grep -E 'xfs_inode.c:[0-9]+:[0-9]+: error|Error [0-9]' | head; modinfo mxfs.ko 2>/dev/n
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh p1; echo "=== p1 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; echo "=== p1 fence_during_write reason ==="; d=$(ls -dt /tmp/run_fence_during_write_* 2>/dev/null | head -1); [ -n "$d" ] && for f in "$d"/*; do e
+    cd /src/mxfs; echo "=== n1 node2 P-ICD + P-SFREL-VERIFY for STALE ino 8930275 (release-durability state) ==="; grep -E '8930275' /tmp/fg_n1_node2.dmesg 2>/dev/n
+    cd /src/mxfs; PLAIN=1 bash tests/tcp/fg_one_run.sh p2; echo "=== p2 markers ==="; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=
+    cd /src/mxfs; echo "=== p2 node1 shutdown context ==="; grep -nE -B3 'Shutting down filesystem' /tmp/fg_p2_node1.dmesg 2>/dev/null | tail -20
+
+## Last text from previous session
+
+ates 35→40→20** (the dir is being churned concurrently) with `clean=1 in_ail=1` — the release-durability flush **races with concurrent churn** and intermittently lands a superseded image → STALE-DISK. The final release was DURABLE (churn settled), but an earlier one wasn't. This is the perf-vs-coherency release-durability race — the true residual, affecting any shared-hot-dir test.
+
+I've made major progress but the criterion isn't met. Let me write the comprehensive final handoff before relay.
+I have a precise diagnosis and the criterion isn't met, so I'll keep working. The build (21C36EEA) carries the validated fixes (iunlink + merge suppression). Let me add a reliability data point on this build to characterize the residual rate before the next fix iteration — running p2.
+p2: FAIL 14/17 with a **shutdown on node1** — worse than baseline (which had no shutdowns). My GPT fixes may have introduced a regression. Let me get the shutdown reason.
+I've hit the relay boundary. The p2 shutdown is critical: `xfs_inactive_ifree: xfs_ifree returned -117` / "Found unrecovered unlinked inode 0x39a in AG 4" — a genuine **unlinked-list corruption** surfacing at ifree. This suggests my idempotent-iunlink no-op may be **masking real unlinked-list corruption** (papering over the precommit check while the list stays corrupt → fails later at ifree). Let me record this critical caveat before wrapping up.
+## Session 53 Summary
+
+**Criterion (`./run.sh 2 tcp` reliably 17/17) — NOT met.** Marker not written. But major progress and a precise root diagnosis.
+
+### Key breakthrough
+The criterion config is the **PLAIN command with pure defaults** (`dir_pr_release_fast=1`) **+ the P52 guards** (build D67776EC) — **4/5** reliable. This **overturns sess52's option B** (`dir_pr_release_fast=2`), which I proved was *causing* tcp_dlm_scaling failures (iunlink/trans_cancel shutdowns + dirent leak). The P52 guards (added after sess52) let the narrow release-skip pass both dir_reuse AND tcp_dlm_scaling. Verified d1–d4 = 17/17.
+
+### Diagnosis (instrumented, RULE 4) + GPT-5.5 consult (RULE 5)
+The residual is the 40-session shared-hot-dir coherency problem, with **two independent faces**:
+1. **Durable dirent resurrection** — GPT confirmed root: a reload+3-way-SF-merge firing while a node owns the dir EX (or re-applying a stale prior-tenure delta at acquire) re-adds removed dirents. Fixes landed (EX-tenure reload suppression + clean-adopt-at-acquire) **suppressed the merge vector**. But the leak persists via the **release-side shortform durability race** (P-SFREL-VERIFY proved STALE-DISK; the durable flush races with concurrent churn) — affects any shared-hot-dir test.
+2. **iunlink/unlinked-list corruption** under rapid free→reuse→free. My idempotent-iunlink no-op stopped the precommit shutdown, **but p2 showed it likely MASKS real unlinked-list corruption** (surfaced later as `xfs_inactive_ifree -117`).
+
+### State at relay
+- Build **21C36EEA** (current `mxfs.ko`): D67776EC + P52 + idempotent-iunlink + EX-gate + clean-adopt + P53 diag.
+- **KEEP**: EX-gate + clean-adopt (sound, merge vector closed). **SUSPECT**: idempotent-iunlink (may mask corruption — reconsider).
+- **Refuted dead-ends** (don't repeat): option B, sf_merge=0, DIRGEN-BUMP, DIRAHEAD-overlay.
+- Cluster left in a post-p2 state (node1 FS shut down; next `fg_one_run` reboots clean).
+
+### Next session
+Two roots to fix for 17/17: **(a)** release-side shortform durability race in `mxfs_inode_cluster_durable` (use P-SFREL-VERIFY as oracle; ensure final release image lands durably); **(b)** the unlinked-list corruption under inode reuse (root-cause rather than mask). Compare against the clean **D67776EC baseline (4/5)** — if sess53 changes don't beat it, revert and attack the two roots fresh. Full detail in ccmemory `sess53-FINAL-residual-is-release-durability-race-with-churn`, `sess53-CRITICAL-idempotent-iunlink-may-mask-real-unlinked-list-corruption`, `sess53-BREAKTHROUGH-plain-defaults-plus-P52-guards-17of17`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

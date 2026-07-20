@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 52 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 51
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `6ab873ed-9a90-456b-89d2-c5fe66bf4781`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6ab873ed-9a90-456b-89d2-c5fe66bf4781.jsonl`
+- approx context at last assistant turn: 251288 tokens
+- tools used: Bash×96 Read×8 mcp__ccmemory__memory_get×3 Edit×2 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== re-login disk1* host sessions $(date -u +%T) ==="; for t in disk1 disk1n2 disk1n3 disk1n4 disk1n5 disk1n6 disk1n7 disk1n8 disk1n9 disk1n10 disk1n11 di
+    cd /src/mxfs; echo "=== read test on disk1 by-path (PR clear, should work) ==="; sudo dd if=/dev/disk/by-path/ip-127.0.0.1:3260-iscsi-iqn.2026-05.local.mxfs:dis
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== wait for all 16 SSH ==="; end=$((SECONDS+120)); while [ $SECONDS -lt $end ]; do up=0; for n in $(seq 1 16); do timeou
+    cd /src/mxfs; P=/tmp/.mxfs_pass; WANT=5D6E7445; bad=0; for n in $(seq 1 16); do out=$(cat tools/prep_tcm_node.sh | timeout 60 tools/mxfs_sshpass.sh test$n "$P" 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 6 tools/mxfs_sshpass.sh test$n "$P" "sudo dmesg -C" >/dev/null 2>&1 & done; wait; echo "dmesg 
+    end=$((SECONDS+220)); while [ $SECONDS -lt $end ]; do if grep -qiE "cross_write_read|MOUNT FAILED|Shutting down|\[(PASS|FAIL)\] test_cross" /tmp/p51_cluster.log
+    cat /tmp/claude-1000/-src-mxfs/6ab873ed-9a90-456b-89d2-c5fe66bf4781/tasks/byiex87lv.output 2>&1 | tail -5; echo "=== current cluster log ==="; cat /tmp/p51_clus
+    end=$((SECONDS+260)); while [ $SECONDS -lt $end ]; do if grep -qiE "\[(PASS|FAIL)\] test_cross_write_read|cross_write_read.*FAIL|Shutting down" /tmp/p51_cluster
+    cat /tmp/claude-1000/-src-mxfs/6ab873ed-9a90-456b-89d2-c5fe66bf4781/tasks/bwke9qgfv.output 2>&1 | tail -25
+    echo "=== $(date -u +%T) cluster log ==="; grep -iE "Running:|\[PASS\]|\[FAIL\]|cross_write|elapsed|Shutting|assertion" /tmp/p51_cluster.log 2>&1 | tail -20; ec
+    end=$((SECONDS+300)); while [ $SECONDS -lt $end ]; do if ! ps -p 2238333 >/dev/null 2>&1; then echo "PHASE DONE"; break; fi; sleep 12; done; echo "=== $(date -u
+    cat /tmp/claude-1000/-src-mxfs/6ab873ed-9a90-456b-89d2-c5fe66bf4781/tasks/b8712sopp.output 2>&1 | tail -32
+    echo "=== phase proc alive? ==="; ps -p 2238333 >/dev/null 2>&1 && echo RUNNING || echo DONE; echo "=== $(date -u +%T) results ==="; grep -iE "Running:|\[PASS\]
+    end=$((SECONDS+340)); while [ $SECONDS -lt $end ]; do if ! ps -p 2238333 >/dev/null 2>&1; then echo "PHASE DONE $(date -u +%T)"; break; fi; sleep 15; done; echo
+    cat /tmp/claude-1000/-src-mxfs/6ab873ed-9a90-456b-89d2-c5fe66bf4781/tasks/bt88jeqz3.output 2>&1 | tail -30
+    echo "=== phase alive? ==="; pgrep -f "posix_phase_timing|run_tests.sh --nodes" | head; echo "=== ALL PASS/FAIL (sanitized) ==="; sed 's/\x1b\[[0-9;]*m//g' /tmp
+    end=$((SECONDS+300)); while [ $SECONDS -lt $end ]; do if ! pgrep -f "posix_phase_timing.sh --nodes" >/dev/null 2>&1; then echo "DONE $(date -u +%T)"; break; fi;
+    cat /tmp/claude-1000/-src-mxfs/6ab873ed-9a90-456b-89d2-c5fe66bf4781/tasks/bg3uviy31.output 2>&1 | tail -40
+    echo "=== phase alive? ==="; pgrep -f "posix_phase_timing.sh --nodes" && echo STILL_RUNNING || echo DONE; echo "=== per-test PASS/FAIL ==="; sed 's/\x1b\[[0-9;]
+    end=$((SECONDS+340)); while [ $SECONDS -lt $end ]; do if ! pgrep -f "posix_phase_timing.sh --nodes" >/dev/null 2>&1; then echo "DONE $(date -u +%T)"; break; fi;
+
+## Last text from previous session
+
+ads gone. The SCST mgmt subsystem is unblocked and the stale PR went with the device. Now recreate disk1 cleanly and remap all 17 LUNs:
+disk1 recreated with **clean PR (generation 0, no registrants)**, all 16 targets remapped. copy_manager LUN3 isn't needed by the VMs. Now re-login the host iSCSI sessions I logged out, so the by-path devices reappear:
+All 16 host sessions back, 16 by-path devices present, disk1 PR clean. The SCST wedge is fully recovered. Let me sanity-check device I/O, then start VMs:
+All 16 up. Prep sequentially (parallel had NFS contention), confirming build `5D6E7445`:
+All 16 on `5D6E7445`, clean PR. Now clear dmesg and run the cluster phase with `dirwr=1` to catch the torn-dir producer. Let me launch it in background and monitor toward cross_write_read (test 5):
+Mount succeeded (clean PR) — phase is running, at test_cross_visibility (test 4, 106s). cross_write_read is next. Let me wait for the monitor to fire:
+Major progress: **test_cross_write_read now PASSES (9s)** — the torn-dir-444 blocker is gone with clean infra + the phantom-EX fix. New blocker surfaced: **test_dir_stress FAILED (19/80 assertions, 30.7s)**. Let me let the phase finish and capture the full result:
+cross_write_read is fixed; now seeing **dir_stress** (19/80) and **discovery** (slow ~125s each) failures. Let me wait for the full phase to finish:
+Phase still running at test_rename_vis_dbg (368s). Let me wait for it to finish:
+6 tests PASS including the former blocker cross_write_read. Remaining fails: dir_stress (correctness, 19/80), discovery (slow ~125s). Phase is stuck at rename_vis_dbg. Let me wait for it to finish or self-timeout:
+Reached the ccloop relay boundary. Let me record the key findings to memory before wrapping up:
+Recorded both findings to memory. Reached the relay boundary — here's the summary.
+
+## Session 51 summary
+
+**Criteria NOT met** — `posix_semantics_multi16` still fails (the marker was not written).
+
+### What happened
+The original handoff blocker (cross_write_read torn-dir-444 shutdown) turned out to be an **infra** problem, not a code one. The bulk of this session was recovering an SCST/iSCSI kernel wedge, then discovering the test landscape has moved well past where the handoff thought it was.
+
+**1. Built `5D6E7445`** — added a `P-WRBUF-DIRTORN` write-side torn-dinode detector to `pal/linux/xfs_buf.c` (the authoritative "about to hit disk" point), complementing the iflush-copy-in probe from sess50.
+
+**2. Recovered the SCST CAW↔READ wedge (proven, no host reboot).** disk1 had a stuck "registrants-only" PR reservation that `sg_persist --clear` couldn't clear (register wouldn't stick). Root: a **CAW↔READ atomic deadlock** parking all commands. My `del_device` made it worse (wedged the SCST sysfs work thread + 49 D-state `iscsi_conn_cleanup`). The fix: gdb on `/proc/kcore` via scst_vdisk's `vdev_list` → found the exact CAW (`0x…f23ac00`) and back-edge READ (`0x…f23f0c0`) → `scst_unwedge.ko` broke the edge → instant full cascade recovery → recreated `disk1` (clean PR) → remapped 16 LUNs → re-logged-in host sessions. Full exact procedure saved to memory.
+
+**3. Ran the 16-node cluster phase clean.** Results:
+- **PASS (7):** concurrent_mkdir, concurrent_touch, concurrent_write, cross_visibility, **cross_write_read (9s — the former blocker, now solved)**, cv_disc, large_file_integrity.
+- **FAIL — new blockers:** `test_dir_stress` (19/80 assertions, 30s — real correctness bug), `test_discovery` (~125s/node — slowness ≈ 2× lease timeout). `test_rename_vis_dbg` may also be slow/stuck.
+
+### Next session
+Attack `test_dir_stress` first (correctness, fast, tractable): read `tests/cluster/test_dir_stress.sh`, find which 19 assertions fail, get per-node dmesg. Then `test_discovery`'s 125s slowness. The cluster is up on `5D6E7445`; if dirty, `scripts/cluster_reset_n.sh 16` (prep sequentially if it reports NOT_LOADED). The SCST recovery procedure is in memory `sess51-scst-caw-read-wedge-full-recovery-proven` if the wedge recurs.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

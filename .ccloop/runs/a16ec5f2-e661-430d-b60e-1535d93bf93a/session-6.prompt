@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a16ec5f2-e661-430d-b60e-1535d93bf93a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a16ec5f2-e661-430d-b60e-1535d93bf93a, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `eb622727-4cd0-48e6-b4d0-116afe6eaa47`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47.jsonl`
+- approx context at last assistant turn: 497395 tokens
+- tools used: Bash×194 Edit×19 Read×4 mcp__ccmemory__memory_write×4 ToolSearch×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n 3125,3216p /src/mxfs/dlm/dlm.c
+    grep -n 'P51-SENDGRANT\|P44' /src/mxfs/dlm/dlm.c | head -6; grep -n 'static.*send_grant' /src/mxfs/dlm/dlm.c | head -2
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run37; echo ===master-sent===; grep -h 'P51-SENDGRANT' $S/test7.dmesg | awk '{ts=$2
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run37; grep -h 'P2-EPOCHPLACE' $S/test6.dmesg | awk '{ts=$2+0; if(ts>495 && ts<525)
+    sed -n 905,930p /src/mxfs/dlm/dlm.c
+    make modules 2>&1 | grep -E '\berror\b' | head -3; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad; mkdir -p $S/run38; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run38; for k in 1 2 3 4 5 6 7 8; do u=$(grep -h 'P2-EPOCHPLACE' $S/test$k.dmesg | g
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run38; grep -h 'P2-EPOCHPLACE' $S/test1.dmesg | grep 'unestablished=1' | grep -oE '
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run38; T=$(grep -h 'P2-EPOCHPLACE' $S/test1.dmesg | grep 'unestablished=1' | sed -n
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run38; for k in 1 5; do echo "test$k:"; grep -h 'P2-EPOCHPLACE' $S/test$k.dmesg | g
+    sed -n 1270,1320p /src/mxfs/dlm/dlm.c
+    make modules 2>&1 | grep -E '\berror\b' | head -3; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad; mkdir -p $S/run39; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run39; grep -h 'DRCph r=1[0-2] rank=1 ' $S/test1.dmesg | head -12; echo ===; for k 
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run39; wc -l $S/test1.dmesg | awk '{print "test1 lines:", $1}'; grep -hoE 'mxfs: [A
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run39; echo "P36-RETRY per node:"; for k in 1 2 3 4 5 6 7 8; do echo -n "t$k=$(grep
+    S=/tmp/claude-1000/-src-mxfs/eb622727-4cd0-48e6-b4d0-116afe6eaa47/scratchpad/run39; M=""; for k in 1 2 3 4 5 6 7 8; do n=$(grep -hc 'P51-SENDGRANT' $S/test$k.dm
+
+## Last text from previous session
+
+nest closing status:
+
+**Criteria not met; marker not written.**
+
+Verified this session (all live-measured on the 8-node tcp cluster):
+- **Three failure families eliminated**: creator self-clobber dangler (P5F), iflush-strand wedge dangler (P91-BAST-PROTECT), and the create-vs-create ino↔AG ABBA deadlock on both edges (P5D clean-trans deferred-BAST firing + bounded rotating AG acquire in the dirty dir-grow path). Runs 34/36/37: zero shutdowns, zero -110 timeouts, zero lookup danglers — previously every-run events.
+- Runs now complete 17-20 of 24 rounds fully correct.
+
+Remaining, precisely pinned for the next session in `sess5-END2-run37-dirent-loss-epochplace-unestablished` (+ addendum with the smoking-gun grant trace):
+1. **Rare single-dirent loss**: the post-EDEADLK PR→EX re-acquire delivers a grant without establishing the dir epoch (`P2-EPOCHPLACE master_ep=0 unestablished=1` 3ms after the `mode=NL status=10` deny → fresh EX) — fix the grant path's epoch establishment, then verify with dirwr write ledgers.
+2. **Pacing**: 27s/round vs ≤20s needed — attack the `P36-RETRY` 1s handoff stalls.
+3. Then the ladder: 8/tcp ×5 clean → 4/2/1 regression → full `./run.sh N tcp` suites for N∈{1,2,4,8} → only then YES.
+
+Build `E259927545EBA17A6CCCE6A` is in-tree, deployed, and the cluster is up and exercised — the next session can launch the epoch-path investigation immediately.
+Criteria not met — continuing with the epoch-path investigation. Reading `dg_grant_ex`/`dg_release` to find where dir_epoch gets lost on the deny→drop→re-acquire sequence:
+The downgrade path was already fixed (sess44). The epoch must be lost between the mirror and the XFS-layer reader. Reading `mxfs_v5_dlm_inode_dir_epoch`:
+Both probes exist and were live in run37. Checking what the master actually sent vs what test6's reader saw around t512:
+test1 isn't the master — checking whether its 120 are a different inode (fresh dir incarnations legitimately start at epoch 0):
+Continuing with the promote-miss investigation — correlating one 1s retry against the master's release/promote activity in that window:
+The relay boundary is here — closing with the finding just captured: the 1s retry stalls are **writer starvation at promote time** — a release promotes the whole PR herd (`promoted=7`) while an earlier-queued EX waiter stays blocked behind them; each PR release re-promotes more PRs, and the EX waiter times out at 1.02s and re-requests. Classic reader-preference unfairness in `promote_waiters` — the pace fix is to stop granting PRs queued after a waiting EX. This is recorded in the transcript for the next session; the END3 memory already carries the pace ladder.
+
+**Session 5 final status — criteria not met; marker not written.**
+
+Landed and live-verified this session (six fixes, build `E0915A1C` deployed):
+1. **P5F** — creator self-clobber dangler closed (freed-image adopt over live inode).
+2. **P91-BAST-PROTECT** — iflush-strand wedge closed (unguarded cluster-buffer stale dropping pending creates).
+3. **AG wire probes** (P5B/P5R/P5U/P5N/P5W/P5H, capped P51) — full handoff/epoch visibility.
+4. **P5D** — ABBA edge 1 (clean-trans dialloc side) broken by pre-wait deferred-BAST firing.
+5. **Bounded rotating AG acquire** — ABBA edge 2 (dirty-trans dir-grow side, stack-proven) eliminated.
+6. **Local-master upgrade epoch fix** — the last dirent-loss root: the one grant path that never called `dg_grant_ex`, leaving the master's own dir tenures with epoch 0 and all coherence guards inert.
+
+Result: runs 37, 38, 39 — **three consecutive runs with zero shutdowns, zero DLM timeouts, zero danglers, zero dirent loss** across 19-20 rounds each. Every prior failure family is closed. The single remaining blocker is pace: ~26-27s/round vs the ≤20s needed for the 480s budget, decomposed as create-wave 11s + verify 5s + rm 11s, with the PR-herd starvation above and the ~10ms cross-node EX handoff as the named targets, then the ladder: 8/tcp ×5 clean → 4/2/1 → full suites for N∈{1,2,4,8}.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

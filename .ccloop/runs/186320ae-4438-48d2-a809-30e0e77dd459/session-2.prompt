@@ -1,0 +1,148 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/186320ae-4438-48d2-a809-30e0e77dd459/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 186320ae-4438-48d2-a809-30e0e77dd459, after session 1
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `6366b0e1-c8f9-4c39-8f7d-9eed87f343cc`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6366b0e1-c8f9-4c39-8f7d-9eed87f343cc.jsonl`
+- approx context at last assistant turn: 496424 tokens
+- tools used: Bash×103 Edit×49 Read×38 TaskUpdate×11 TaskCreate×10 ToolSearch×3 Write×3 mcp__ccmemory__memory_get×3 Monitor×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/pal/pal.h
+- /src/mxfs/pal/linux/user.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/VERSION
+- /src/mxfs/run.sh
+- /src/mxfs/tests/setup/prep_node.sh
+- /src/mxfs/scripts/mpath_up.sh
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/setup/prep_fs.sh
+- /src/mxfs/docs/multipath_support.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    D=/tmp/run_dir_reuse_coherency_20260705T190241Z; grep -a "drc" $D/kernlog_test1 | grep -aoE "^Jul 05 [0-9:]+ test1 kernel: .*drc_r[0-9]+_start|round [0-9]+" | h
+    grep -rn "P-PHANTOM-RECONCILE\|no-mirror BAST" /src/mxfs/xfs/*.c /src/mxfs/dlm/*.c | grep -v backup | head; echo ===; grep -n "P7B-BASTNOTIFY" /src/mxfs/xfs/*.c
+    D=/tmp/run_dir_reuse_coherency_20260705T190241Z; for n in 1 2 3 4; do echo "== test$n"; grep -ac "P-PHANTOM-RECONCILE" $D/kernlog_test$n; grep -ac "P65-EPOCH-AD
+    make modules 2>&1 | grep -E "^/src.*error" | head; modinfo mxfs.ko | grep srcversion; MXFS_DEV=/dev/mapper/mpatha ./run.sh 4 caw dir_reuse_coherency 2>&1 | tail
+    D=/tmp/run_dir_reuse_coherency_20260705T191534Z; grep -a "mxfs-drc-DIRID" $D/kernlog_test1 | awk '{print $3, $NF}' | head -24; echo ===COUNTS===; for n in 1 4; 
+    D=/tmp/run_dir_reuse_coherency_20260705T191534Z; grep -a "P138-WAIT ino=131" $D/kernlog_test2 | grep -aoE "elapsed_ms=[0-9]+" | cut -d= -f2 | sort -n | awk '{a[
+    grep -n "MXFS_CAW_POLL_INITIAL_MS\|MXFS_CAW_POLL_MAX_MS\|MXFS_CAW_BAST_RESEND_MS\|MXFS_CAW_YIELD_BACKOFF\|RELEASE.*mcast\|release.*notify\|grant.*mcast" /src/mx
+    make modules 2>&1 | grep -E "^/src.*error" | head; modinfo mxfs.ko | grep srcversion; MXFS_DEV=/dev/mapper/mpatha ./run.sh 4 caw 2>&1 | tail -25
+    grep -n "COORD_TIMEOUT\|timeout" /src/mxfs/tests/suite/coord.sh | head -8; echo ===scaling_curve===; grep -nE "fio|size=|BS=|numjobs|runtime" /src/mxfs/tests/su
+    sleep 240; cat /tmp/claude-1000/-src-mxfs/6366b0e1-c8f9-4c39-8f7d-9eed87f343cc/tasks/b2ist12br.output
+    ls /src/mxfs/docs/ | head -30
+    tail -6 /tmp/claude-1000/-src-mxfs/6366b0e1-c8f9-4c39-8f7d-9eed87f343cc/tasks/b2ist12br.output
+    sed -n "$(grep -n 'slot_appears_corrupt' /src/mxfs/dlm/dlm_caw.c | head -1 | cut -d: -f1),+55p" /src/mxfs/dlm/dlm_caw.c
+    sed -n "$(grep -n 'int mxfs_dlm_caw_unlock' /src/mxfs/dlm/dlm_caw.c | cut -d: -f1),+80p" /src/mxfs/dlm/dlm_caw.c | grep -nE "memset|\*new_slot = |magic = 0|magi
+    grep -n "tombstone\|magic = 0\|MXFS_CAW_TOMBSTONE" /src/mxfs/dlm/dlm_caw.c | head -10; tail -3 /tmp/claude-1000/-src-mxfs/6366b0e1-c8f9-4c39-8f7d-9eed87f343cc/t
+    grep -n "magic = MXFS_CAW_TOMBSTONE_MAGIC\|magic = MXFS_CAW_TOMBSTONE" /src/mxfs/dlm/dlm_caw.c | head -5
+    sed -n '2450,2480p' /src/mxfs/dlm/dlm_caw.c
+    sed -n '3100,3140p' /src/mxfs/dlm/dlm_caw.c
+    cat /tmp/claude-1000/-src-mxfs/6366b0e1-c8f9-4c39-8f7d-9eed87f343cc/tasks/b2ist12br.output
+    jq -r '.categories[].tests[] | select(.runs["4/caw"]) | [.name, .runs["4/caw"].status, .runs["4/caw"].measured, (.runs["4/caw"].reason|tostring|.[0:130])] | @ts
+
+## Last text from previous session
+
+h and create/destroy for the meta store:
+All sites mapped. Implementing — dlm_caw.h first:
+Now the header edits — slot fields, ctx meta store, API decls:
+Now dlm_caw.c — check the slot_hint helpers and create/destroy alloc pattern to mirror:
+Sites 2 and 3 — the already-held fast paths (meta refresh from the observed slot):
+Site 4 — compat-add (the main contended grant path):
+Site 6 — convert's downgrade and upgrade-in-place paths:
+Now create/destroy allocation and the single→multi flush path:
+Now the v5_mount.c dispatch layer:
+Now the CAW membership beacon in v5_mount.c:
+Build the new kernel:
+2/2 up. Rerun the full 2/caw matrix on the epoch-enabled build:
+Idempotent now. Running 4/caw:
+Still over budget. Measure what changed:
+The run went to background — while it executes, let me record the session's key findings to memory (they're substantial):
+Build done (7FEA750D), suite running. While it runs, let me pre-scan for N-dependent assumptions that will matter at 16/32 (read-only):
+Barriers are 120s (generous). Checking run progress:
+While the 4/caw run completes, let me do the required docs maintenance for the modules I changed (global rule: maintain docs/.md for modified modules):
+Check how purge and unlock treat slot images (copy-modify vs rebuild):
+Output was tail-truncated; criteria.json has the early tests and reasons:
+I've hit the relay boundary — wrapping up with the state summary.
+
+## Session summary
+
+**Criterion**: full `MXFS_DEV=/dev/mapper/mpatha ./run.sh N caw` suite green at N=1,2,4,8,16,32 (CAW DLM on a 2-path dm-multipath LUN). Detailed log in ccmemory `caw-multipath-matrix-progress` + new `docs/multipath_support.md`.
+
+**Done and verified**:
+- **Kernel dm-multipath support (v0.6.0)**: backing-sdev resolver in `pal/linux/kern.c` (content-matches MXFS super LBA0 across SCSI disks; per-devt cache; used by CAW/READ-FUA/WRITE-FUA passthrough), UA retry on CAW+write-FUA, PR verified working through dm pr_ops (key replicated to both paths).
+- **CAW dir-handoff epoch** (the big coherency fix): slot-carried `dir_epoch`/`last_ex_slot`, grant-meta cache, v5 dispatch, XFS adopt-gate compares `!=` on CAW / `>` on TCP. This took 2/caw from 12/17 (stale-dir clobber shutdowns) to **17/17 PASS**.
+- **Infra**: `scripts/mpath_up.sh up|status|down N` (idempotent 2-portal SCST + guest dual-login → `/dev/mapper/mpatha`); MXFS_DEV forwarding through run.sh; stale-PR clear in prep_fs.sh (hard-rebooted LUN is EBADE-fenced otherwise); dm-aware prep_node.sh.
+- **Results recorded**: 1/caw **17/17**, 2/caw **17/17** (build 3C1A6CDE).
+
+**In flight — 4/caw**: first run 16/17 (only dir_reuse timeout: pace 13.5s/round vs 300s budget). Applied: phantom-reconcile escalation gated to TCP (killed ~1550 bystander hot-slot CAS storms — verified 0 after), `caw_lock` wait-path `granted_mode` fix, dir_reuse budget unified to 100·N. **But the rerun on build 7FEA750D regressed hard: the 4-node cluster formed as a 2+2 split-brain** (`dlm_membership: members visible exp=4 got=2`, test1/2 vs test3/4; everything downstream failed accordingly). Not yet diagnosed — the run output was tail-truncated (my mistake: piped through `tail -25`; rerun with full log to a file). Also uncommitted-in-mind: unlock/purge tombstones wipe `dir_epoch` (idle-gap handoffs fall back to the lossy ring) — planned fix is preserving resource+epoch through tombstones and inheriting on same-resource reclaim; the `caw_repair_slot` epoch-advance hardening is already edited in.
+
+**Next session**: (1) rerun `./run.sh 4 caw` with full output captured, check whether the 2+2 split reproduces and whether "converged" printed at prep; suspect discovery/lease formation or leftover state from the killed dir_reuse run rather than the three new patches (bisect via `MXFS_EXTRA_MODARGS` or rebuild at 1709B397 if needed); (2) tombstone epoch-continuity fix; (3) ladder 8→16→32; (4) re-run the full ladder on the final build, then write the ccloop marker. Criteria not yet met — continuing in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

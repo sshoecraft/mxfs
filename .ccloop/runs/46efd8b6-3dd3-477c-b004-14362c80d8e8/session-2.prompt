@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/46efd8b6-3dd3-477c-b004-14362c80d8e8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 46efd8b6-3dd3-477c-b004-14362c80d8e8, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5da6096f-3246-43ca-b1d4-5d0b4fa84bb6`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6.jsonl`
+- approx context at last assistant turn: 503246 tokens
+- tools used: Bash×128 Read×28 Edit×24 TaskCreate×6 TaskUpdate×6 ToolSearch×4 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×3 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/rv_marker_harvest.sh
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; python3 - <<'PY' p='xfs/xfs_mxfs_dlm.h' s=open(p).read() a="unsigned long mxfs_dlm_sf_tenure_keep_delay(struct xfs_inode *ip);" r="""unsigned long
+    cd /src/mxfs; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 945 ./run.sh 32 caw crash_consistency 2>&1 | tail -7
+    cd /src/mxfs; sed -n '1,50p' tests/suite/dlm_scaling.sh 2>/dev/null || find tests -name 'dlm_scaling.sh' | head -2; echo ====; sed -n '1,40p' tests/suite/dir_re
+    sleep 240; tail -8 /tmp/claude-1000/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6/tasks/bklfc34gp.output 2>/dev/null
+    cd /src/mxfs; grep -nE 'dlm_scaling|dir_reuse|soak|scaling_curve|rsync_paired' tests/criteria/TIMEOUT_BUDGETS.md | head; echo ===; grep -nE 'TEST_TIMEOUT|budget
+    cd /src/mxfs; sed -n '306,395p' run.sh
+    cat /tmp/claude-1000/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6/tasks/bklfc34gp.output 2>/dev/null | tail -5; echo "---"; date -u +%H:%M:%S
+    until [ -s /tmp/claude-1000/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6/tasks/bklfc34gp.output ]; do sleep 5; done; cat /tmp/claude-1000/-src-mxfs/5da6096f-3
+    cd /src/mxfs; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 945 ./run.sh 32 caw dlm_scaling cache_coherency 2>&1 | tail -8
+    until [ -s /tmp/claude-1000/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6/tasks/bnpv56lvd.output ]; do sleep 10; done; cat /tmp/claude-1000/-src-mxfs/5da6096f-
+    n=0; until [ -s /tmp/claude-1000/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6/tasks/bnpv56lvd.output ] || [ $n -ge 55 ]; do sleep 10; n=$((n+1)); done; cat /t
+    cd /src/mxfs; echo "=== cache_coherency logs:"; for n in test1 test2 test16; do echo "--- $n tail:"; tail -4 /tmp/tmp.8zL8ZSRX4M/$n 2>/dev/null; done; echo; ech
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test8 test20; do echo "== $n =="; timeout 25 $SSH $n $PF "journalctl -k --since '2026
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 60 $SSH test1 $PF 'dd if=/dev/mapper/mpatha of=/tmp/slotregion.bin bs=1M iflag=direct,skip_b
+    cd /src/mxfs; grep -n 'mxfs_dlm_bast_dwork_fn' xfs/xfs_mxfs_dlm.c | head -2
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass tmpd=$(mktemp -d); for i in $(seq 1 32); do ( timeout 25 $SSH test$i $PF "journalctl -k --since '202
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass tmpd=$(mktemp -d); for i in $(seq 1 32); do ( timeout 25 $SSH test$i $PF "journalctl -k --since '202
+    grep -A9 '^== test' /home/steve/.claude/projects/-src-mxfs/5da6096f-3246-43ca-b1d4-5d0b4fa84bb6/tool-results/bcj5ewwrd.txt | grep -vE 'Done|timeout 25' | head -
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test4 test26 test25; do echo "== $n =="; timeout 25 $SSH $n $PF "journalctl -k --since '202
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error|Error' | head -4; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+ the module param:
+Now find and bump the patch version, then build.
+Cleanup done (exit 255 = pkill matched its own remote shell — harmless). Fresh prep on 0.10.1.
+Prep timed out at 580s — likely power-cycling leftover-busy nodes (playbook says use ≥950s in that case). Retry with the full budget.
+Prep OK — all 32 nodes on 6CE7E022, converged. Validation replay: create phase first.
+The end() is underflow-guarded with telemetry. Now audit the 17 caller sites for unlock discipline (especially the getdents demote path):
+Now the xfs_inode.c changes: assert, ilock/iunlock mode mapping, and the two map_shared functions.
+Now the mode mapping in `xfs_ilock` and `xfs_iunlock`:
+Prep converged on 87E860C4. Validation replay:
+Implementing the dscan gen-gate. First the tail of `mxfs_dir2_datascan_lookup` (need the no-hit exit):
+Now the two call-site gates and the clean-key stamp:
+The inline needs `struct xfs_inode` complete — some TUs include the header early. Convert to a macro:
+Build **DDB9E83B8CAEBE0C08188B7** — all three fixes in. Straight to the real test now: fresh prep + `cache_coherency@32` under its 300s budget.
+crash_consistency@32 still times out. Examine the logs and the test structure:
+The dir's gone (empty ino → garbage). But the kernel logs persist — find the hot ino from the window itself:
+Now wire it into the ilock_end refire:
+The background task will notify on completion. Quick interim check:
+Prep still running. Local prep while waiting — check budget table entries for the remaining tests:
+While it runs, update the session memory with the two new fixes:
+Logs empty (killed). Kernel logs on the nodes have the truth:
+The dwork protocol looks sound — need the holder's actual event trail. Find which node held ino 39846021 and what its last events were:
+Relay boundary — let me complete this sub-step (apply the grace cap in the helper, build) and hand off cleanly.
+## Session 1 summary (ccloop 46efd8b6)
+
+**Criteria NOT yet met** — substantial progress: 4 root causes found and fixed (RULE-4 instrumented chains), 2 previously-impossible cells went green, 1 new regression diagnosed with mitigation built but untested.
+
+**Root causes proven + fixed this session** (all param-gated, default-on, uncommitted in tree):
+1. **Stale-HB evict-ring replay** (`evict_ring_monotonic`): plain cacheable heartbeat reads made peer `head_seq` jump backward → up to 28 already-consumed DIR_MODIFY entries replayed → ~6 spurious dir-invalidation events/sec during pure reads. This was the engine behind the whole "32-node coherency variance" family.
+2. **iread-EX starvation** (`iread_pr`): extent-map loads escalated to cluster EX; 12/32 nodes starved 3×120s → `rc=-110` → FS shutdowns during read-only verify. Now cluster PR + local EXCL (GFS2 model).
+3. **Per-miss O(dir) datascan** (`dscan_gen_gate`): 459 disk IOs / 112ms per negative lookup; now one scan per coherency-state change. → **cache_coherency@32 PASS 32/32** (build DDB9E83B, first ever).
+4. **One-op-per-tenure dir-EX rotation** (`dir_ex_tenure_floor`): mid-op BASTs honored at op end = 1 create per cluster rotation. Floor → **crash_consistency@32 PASS 32/32** (build 0BD98E9E) — but the 300ms window piled 31 waiters per tenure and tripped a **pre-existing orphan-live release-abort loop** ending in a **stranded on-disk EX** (slot gm=5, no in-core holder) that regressed cache_coherency+dlm_scaling to 0/32.
+
+**Current build 30E6BF7F** (built, not yet tested): floor converted to a sliding 25ms batch-grace — batches back-to-back writers while bounding waiter pile-up.
+
+**Next session**: (1) run the trio (cache_coherency, crash_consistency, dlm_scaling) @32 on 30E6BF7F; (2) if the strand recurs, root-fix the orphan-abort path (force-clear own slot bit, sess15 FIX-H2 strike escalation); (3) dir_reuse@16/@32 (budgets 2240s/4480s); (4) full-ladder re-sweep on the final build at every node count; (5) only then write the criteria marker. Full state + recipes in ccmemory `AAA-ccloop46ef-sess1-FOUR-FIXES-scoreboard`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

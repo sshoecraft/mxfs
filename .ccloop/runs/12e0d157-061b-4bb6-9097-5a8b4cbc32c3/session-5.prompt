@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/12e0d157-061b-4bb6-9097-5a8b4cbc32c3/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 12e0d157-061b-4bb6-9097-5a8b4cbc32c3, after session 4
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `62d27c13-493a-402f-9f08-a0af3197a5e2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2.jsonl`
+- approx context at last assistant turn: 504228 tokens
+- tools used: Bash×102 Read×24 Edit×10 mcp__ccmemory__memory_get×7 mcp__ccmemory__memory_write×6 ToolSearch×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== recorded crash_consistency@32 ==="; ./showstat.sh 32 caw 2>/dev/null | grep -iE "crash_consistency|Total"; echo "=== test1 + test10 stat
+    cd /src/mxfs; echo "=== settle: kill orphaned crash_consistency workloads on 32 nodes ==="; for i in $(seq 1 32); do ( timeout 10 tools/mxfs_sshpass.sh test$i /
+    cd /src/mxfs; echo "=== inode-cluster READ path (where cold inode buffers re-read) ==="; grep -rn "xfs_imap_to_bp\|xfs_trans_read_buf.*imap\|xfs_buf_read.*imap\
+    cd /src/mxfs; echo "=== mxfs_dlm_ag_drain_inode_buffers definition ==="; grep -n "^mxfs_dlm_ag_drain_inode_buffers\|mxfs_dlm_ag_drain_inode_buffers(struct" xfs/
+    cd /src/mxfs; LOG=/tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/sc_rsync32.log; echo "start $(date -u +%H:%M:%S)" > "$LOG"; nohup b
+    LOG=/tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/sc_rsync32.log timeout 850 bash -c 'until grep -q "^EXIT" '"$LOG"' 2>/dev/null; d
+    tail -8 /tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/sc_rsync32.log 2>&1
+    cd /src/mxfs; echo "=== verify sess4 source edits are intact + consistent ==="; echo "--- params defined (xfs_mxfs_dlm.c) ---"; grep -n "^int mxfs_dir_shared_pr
+    tail -10 /tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/sc_rsync32.log 2>&1
+    tail -12 /tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/sc_rsync32.log 2>&1
+    LOG=/tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/sc_rsync32.log timeout 600 bash -c 'until grep -q "^EXIT" '"$LOG"' 2>/dev/null; d
+    cd /src/mxfs; LOG=/tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/cc_cachecoh32.log; echo "start $(date -u +%H:%M:%S) — crash_consist
+    LOG=/tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/cc_cachecoh32.log timeout 1000 bash -c 'until grep -q "^EXIT" '"$LOG"' 2>/dev/nul
+    tail -8 /tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/cc_cachecoh32.log 2>&1
+    tail -6 /tmp/claude-1000/-src-mxfs/62d27c13-493a-402f-9f08-a0af3197a5e2/scratchpad/cc_cachecoh32.log 2>&1
+    cd /src/mxfs; echo "=== FINAL sess4 criteria state (all levels) ==="; for N in 1 2 4 8 16 32; do printf "%2d/caw: " $N; ./showstat.sh $N caw 2>/dev/null | grep 
+    cd /src/mxfs; echo "=== inode-buffer eviction/retention params + the inode-read coherency knobs ==="; grep -nE "module_param_named\((inode|ino|imap|icluster|ino
+    cd /src/mxfs; echo "=== inode retention/eviction param definitions + defaults ==="; grep -nE "mxfs_inode_mht_ms *=|mxfs_fua_skip_owned_inode *=|mxfs_inode_clust
+    cd /src/mxfs; echo "=== usage sites of inode_cluster_owned_skip + fua_skip_owned_inode (the inode-cluster re-read/re-stale gate) ==="; grep -n "mxfs_inode_clust
+    cd /src/mxfs; echo "=== all references to these inode params ==="; grep -rn "inode_cluster_owned_skip\|fua_skip_owned_inode" xfs/ pal/ dlm/ 2>/dev/null | grep -
+
+## Last text from previous session
+
+-read)
+- `inode_cluster_owned_skip` / `fua_skip_owned_inode` — skip coherency reads for owned inodes
+
+These target the inode read-storm far more directly than my (misdirected) dir-level fix. Let me check their defaults + meaning (cluster-free):
+Now I see a **much stronger lead**. `inode_cluster_owned_skip` (default on) skips re-staling inode clusters only when **AG-owned**. The shared inodes (root, .dlm_scaling) live in **AG0, owned only by node-slot-0 (test1)** — so the **other 31 nodes DON'T skip → they re-stale + cold-re-read the shared AG0 inode clusters every access → the storm!** The safe fix is the inode analog of the GFS2 principle: skip when the **inode is held ≥PR** (DLM-lock-protected → no peer can have modified), not just when AG-owned. `fua_skip_owned_inode` is the unsafe (AG-based) version. Let me find the exact inode-cluster re-read/re-stale site:
+Found the storm site: **`xfs/xfs_icache.c:1409`** gates the inode-cluster re-stale on `mxfs_inode_cluster_owned_skip` (AG-ownership). Let me read it to understand the gate and design the "skip when inode held ≥PR" fix (the correct inode-level GFS2 principle):
+Key refinement: the icache re-stale skip (1409) is **NOT** the storm — it correctly engages for the (always-allocated) shared inodes, and the comment confirms cold reads happen when the buffer is **already evicted** (`xfs_buf_incore` finds nothing). And LRU is ruled out too: the hot shared set is tiny (~34 inodes: root + .dlm_scaling + 32 subdirs), so it can't be cache-size eviction. **The evictor must be a forced mxfs eviction** (AG-BAST collateral / noino / MHT) — which genuinely requires the provenance probe. Let me update the code-map memory with this complete ruled-out list so the next session goes straight to the probe:
+I've reached the ccloop relay boundary. The criteria are **not met** (16/caw 16/17, 32/caw 13/17), so I am not writing the marker. Comprehensive handoffs are saved to ccmemory. Here's the session summary.
+
+## Session 4 summary
+
+**Criteria state (banked in criteria.json):** 1/2/4/8 caw = 17/17 each · 16/caw = **16/17** (dir_reuse pending) · 32/caw = **13/17** (advanced from 6→13 this session). **97 of 102 test-cells pass.**
+
+**Concrete progress:**
+- **De-confounded the build** → `6C6D5274`: removed the un-gated P-AGLOW probes; gated P-DBLALLOC (it did 1 synchronous LUN read per data-alloc while holding AGF — a RULE-0 confound) behind a default-off param.
+- **Fixed the dir_reuse rm-rf HANG** (`persig_flush=2`): the per-unlink `log_force(SYNC)+dir-flush` in `mxfs_dlm_dir_durable_signal` was hanging the shared-dir remove at 16 nodes. Deferring it to when a peer wants EX fixes the hang **and stays coherent** (the EX-release drain enforces durability).
+- **Advanced 32/caw +7**: dlm_membership, fence_during_write, fault_netpartition, soak, dlm_lock_correctness, scaling_curve, rsync_paired all PASS 32/32.
+
+**The unifying diagnosis (the key result):** All 5 remaining cells — **dir_reuse@16, dlm_scaling@32, cache_coherency@32, crash_consistency@32, dir_reuse@32** — reduce to **one root: a 32-node cold inode-cluster read-storm** (root + `.dlm_scaling` inodes in AG0 are force-evicted, then re-read cold, saturating the shared iSCSI target). Confirmed empirically: coherency tests that *don't* drop_caches pass 32/32; the drop_caches-heavy ones timeout.
+
+**RULE-4 course-correction:** My P-DSCAN probe fired only 6× in a live storm → the storm is **not** dir-block reads (so `dir_shared_pr_skip` is misdirected). I ruled out `drain_inode_buffers` (flushes dirty only), the icache re-stale skip (engages for allocated inodes), and LRU (hot set is only ~34 inodes). **The evictor is a forced mxfs eviction** — the next session's clean task is the eviction-provenance probe → scoped "don't evict inode buffers held ≥PR" fix (GFS2 glock principle), which unblocks all 5 cells at once.
+
+Full detail is in ccmemory: `AAA-sess4-HANDOFF-caw-criteria-unified-readstorm-root` (entry point) plus the code-map and dir_reuse memories.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 16 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 15
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `527c4279-371b-4abb-9cc6-50f93ddfa65f`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f.jsonl`
+- approx context at last assistant turn: 498311 tokens
+- tools used: Bash×221 Read×39 Edit×8 mcp__ccmemory__memory_write×7 ToolSearch×3 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do timeout 8 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "pkill -9 -f tcp_dlm_scaling 2>/de
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/tcpdlm_fix2.log; setsid bash -c "TEST_TIMEOUT=400 ./run.sh 8 
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/tcpdlm_fix2.log; for i in $(seq 1 8); do grep -q DONE_RC "$L"
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do v=$(timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo P58=\$(dmesg 2>/dev/null
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do v=$(timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg 2>/dev/null|grep -oE 'T
+    cd /src/mxfs; find tests -name 'tcp_dlm_scaling*' 2>/dev/null; echo "=== check logic ==="; f=$(find tests -name 'tcp_dlm_scaling.sh' | head -1); grep -nE 'RESUL
+    cd /src/mxfs; f=tests/tcp/tcp_dlm_scaling.sh; echo "lines=$(wc -l <$f)"; grep -nE 'RESULT|coord_done|FAIL|PASS|expect|found|silent|got|verify|mismatch|conn_err|
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/tcpdlm_mht50.log; setsid bash -c "MXFS_EXTRA_MODARGS='inode_m
+    cd /src/mxfs; for n in test1 test2 test6 test8; do v=$(timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg 2>/dev/null|grep -oE 'TDS rank=[0-9]+ elapsed=[
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/drc8_mht50.log; setsid bash -c "MXFS_EXTRA_MODARGS='inode_mht
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/drc8_mht50.log; for i in $(seq 1 8); do grep -q DONE_RC "$L" 
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/drc8_mht50.log; grep -q DONE_RC "$L" && echo DONE || echo GOI
+    cd /src/mxfs; for n in test1 test3; do echo "=== $n failrounds (tail) ==="; timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "tail -4 /root/drc_failrounds.txt
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/drc8_mht150.log; for i in $(seq 1 8); do grep -q DONE_RC "$L"
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/drc8_mht150.log; for i in $(seq 1 6); do grep -q DONE_RC "$L"
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/527c4279-371b-4abb-9cc6-50f93ddfa65f/scratchpad; L=$SC/drc8_mht150.log; for i in $(seq 1 8); do grep -q DONE_RC "$L"
+
+## Last text from previous session
+
+ran the per-round one (TDS, rounds=150). Let me see its PASS/FAIL criteria.
+**Decisive:** tcp_dlm_scaling's PASS criterion is `elapsed ≤ WINDOW(60s)` per node — it's a **performance test**. This run: all 8 completed 150 rounds cleanly (P58=0, no corruption — **my fix eliminated the resurrection**) but elapsed 73-119s (only test8=24s passed) → 1/8. So my P58 fix is a real correctness win (KEEP), and now **both** 8/tcp blockers are purely the **DLM acquire slowness**. Let me record this, then attack the slowness.
+Both blockers are now DLM acquire slowness. The `P36-RETRY` (~30×1s stalls/node) ≈ the excess over the 60s window. A key lever is `inode_mht_ms=300` (EX min-hold defers each BAST up to 300ms × many handoffs). Let me empirically test whether reducing MHT speeds tcp_dlm_scaling under the 60s window. Reset clean first.
+**tcp_dlm_scaling PASSES 8/8 with `inode_mht_ms=50`!** The 300ms EX min-hold was the dominant slowness. Let me confirm it's clean (elapsed under window, P58=0), then test dir_reuse with mht=50.
+Excellent — mht=50: elapsed dropped to **5-22s** (from 73-119s), P36-RETRY churn dropped to 1-3 (from 25-45), P58=0. Now let me test the other slow blocker — dir_reuse 8/tcp with mht=50 at the **criterion's default budget (300s)**. Reset clean first.
+dir_reuse with mht=50: completed all 24 rounds (fast, fit 300s) but **FAILED 0/8 on content** — lowering MHT trades speed for correctness (more BAST thrash → dirent loss). So MHT is a speed/correctness tradeoff: tcp_dlm_scaling wants low, dir_reuse wants high. Let me check the failure mode and test an intermediate value.
+readdir=0/800 + **sh=1 (shutdown)** at mht=50 — too-aggressive handoffs caused a dir-coherency corruption/shutdown (not P58). So MHT is a real speed/correctness knob: dir_reuse needs higher, tcp_dlm_scaling needs lower. Let me find a middle value. Reset and test mht=150 for dir_reuse correctness+speed.
+dir_reuse mht=150 at round 5, no shutdown yet. Let me wait for completion.
+I've hit the relay boundary. Let me record the key mht-tradeoff finding and wrap up.
+Relay boundary reached. Criterion **not met** (8/tcp not yet 100%) — not writing the marker. Substantial verified progress this session.
+
+## Session 15 summary
+
+**Major breakthrough: 8/tcp went from "unclear, 12/17" to a precise, unified diagnosis with one verified correctness fix landed.**
+
+### Verified results
+- **1/2/4 tcp still PASS.**
+- **Full 8/tcp @ generous budget = 16/17** — dir_reuse passes clean (no shutdown); only tcp_dlm_scaling failed.
+- Refuted the predecessor's gen-coupling hypothesis (loaded_gen==dir_gen always) and `fua_disable` (didn't fix slowness).
+
+### Landed fix (build 48C6A95E, KEEP — correctness win)
+**P58-DIRPIN-NONEX resurrection fix** in `mxfs_dlm_bast_process`: PROVEN (RULE 4, `P15-NL-WHILE-HOLDER` fired) that bast_process releases a dir to NL while a holder re-acquired during the async drain → the holder commits the dir at NL → durable dirent resurrection. Fix re-checks holders before the NL-set/unlock and aborts+re-arms the BAST if a holder reappeared. **Verified: tcp_dlm_scaling now runs with P58=0, zero trans_commit corruption, no shutdown** (was 5-node corruption).
+
+### Unified remaining root
+After the P58 fix, **both** 8/tcp blockers are purely **TCP-DLM acquire slowness** (`P36-RETRY` churn / the sess36 queue-vs-grant race). `inode_mht_ms` (EX min-hold, default 300ms) is the dominant knob — but the two tests need **opposite** values:
+- tcp_dlm_scaling: **PASSES 8/8 at mht=50** (elapsed 5-22s vs 73-119s; it's a 60s-window perf test).
+- dir_reuse: **corrupts/shuts down at mht=50, fails at mht=150**; needs the high mht for dir-block coherency.
+
+So a single global mht can't satisfy both. The next session's path (documented in 7 ccmemory entries): fix the underlying dir-block coherency so low mht is safe (sess69 cross-node stale-read-cache RMW root), or make mht adaptive/scoped to dir-modifying tenures only. The P58 fix + mht findings are all saved. Continuing the loop.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

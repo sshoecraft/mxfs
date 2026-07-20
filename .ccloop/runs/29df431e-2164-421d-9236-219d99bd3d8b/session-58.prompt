@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 58 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 57
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `775f2647-7c8f-47db-a885-434390a59dc5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/775f2647-7c8f-47db-a885-434390a59dc5.jsonl`
+- approx context at last assistant turn: 256141 tokens
+- tools used: Bash×73 Read×22 Edit×13 Monitor×4 ToolSearch×3 TaskStop×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess90_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test1 full shutdown context ==="; timeout 12 $SSH test1.vm.localdomain $P "dmesg 2>/dev/nu
+    cd /src/mxfs; echo "=== run log ==="; cat /tmp/cc_sess90.log 2>/dev/null; echo "=== run alive? ==="; ps aux | grep -E "[c]ache_coherency|[r]un_tests" | wc -l
+    cd /src/mxfs; echo "=== callers of mxfs_ag_meta_invalidate_stale ==="; grep -rn "mxfs_ag_meta_invalidate_stale" xfs/ pal/ | grep -v "^.*void$\|^xfs/xfs_mxfs_dlm
+    cd /src/mxfs; echo "=== run log ==="; cat /tmp/cc_sess90.log 2>/dev/null; echo "=== alive? ==="; ps aux | grep -E "[c]ache_coherency|[r]un_tests" | wc -l; echo 
+    cd /src/mxfs; grep -n "cbp->b_flags &= ~(XBF_DONE\|Stale (gen-lagging) and safe to discard\|cbp->b_mxfs_ag_gen = pag->pag_dlm_meta_gen;" xfs/xfs_mxfs_dlm.c | he
+    cd /src/mxfs; grep -n "disk_differs\|mxfs_buf_disk_differs\|read disk.*compare\|bno_disk_differs\|fua.*compare\|scsi_read_fua" xfs/xfs_mxfs_dlm.c | head -20
+    cd /src/mxfs; timeout 420 make modules 2>&1 | tail -5; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 $SSH $n.vm.localdomain $P "cat /sys/m
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 12 $SSH $n.vm.localdomain $P "mountpoint -q /mnt/mxfs-s
+    cd /src/mxfs; timeout 900 ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_sess90b.log 2>&1; echo "EXIT=$? $(grep RESULT: /tmp/cc_sess90b.log)" >> /tmp/c
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== node mounts + shutdown/probe counts ==="; for n in test1 test2 test3 test4; do echo -n "$n
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 14 $SSH test1.vm.localdomain $P "dmesg 2>/dev/null | grep -E 'FREE-AG-EXTENT-FAIL|P47-INACT|
+    cd /src/mxfs; echo "=== AG-meta write durability / verify-after-write ==="; grep -n "verify.*write\|write.*verify\|FUA.*write\|fua_write\|read.*back\|P79\|direc
+    cd /src/mxfs; grep -n "PROBE-A\|XBF_READ\|xfs_buf_ispinned\|b_li_list\|b_pin_count\|atomic_read.*pin\|->b_log_item\|submit_bio\|mxfs_pal_scsi_read_fua\|_XBF_FUA
+    cd /src/mxfs; timeout 420 make modules 2>&1 | tail -6; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 12 $SSH $n.vm.localdomain $P "mountpoint -q /mnt/mxfs-s
+    cd /src/mxfs; timeout 900 ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_sess90c.log 2>&1; echo "EXIT=$? $(grep RESULT: /tmp/cc_sess90c.log)" >> /tmp/c
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 $SSH $n.vm.localdomain $P "echo -n 'S
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 14 $SSH test1.vm.localdomain $P "dmesg 2>/dev/null | grep 'P90-FUA-OVER-LOGGED'" 2>&1 | grep
+    cd /home/steve/.claude/projects/-src-mxfs/memory; grep -n "sess90_lessons.md" MEMORY.md | head -1
+
+## Last text from previous session
+
+logged-but-not-checkpointed change. Gemini's decisive probe will confirm: **trap a READ submit on a buffer that is pinned or has log items attached** — XFS never legitimately reads over a logged buffer. Let me find the read-submit path and PROBE-A's location.
+`mxfs_buf_read_fua` reads disk directly into `bp->b_addr` (line 1524-1525) — this is exactly where an in-memory logged modification would get clobbered. Let me add Gemini's decisive probe here: trap a FUA read on a buffer that is pinned or has log items attached (XFS never legitimately reads over a logged buffer).
+Let me build with the decisive probe.
+Build OK (`D1E532E2`). Let me deploy and reproduce.
+Run started. Let me wait for the shutdown to reproduce, then check whether the decisive probe fired. Let me arm a completion monitor and do a progress check.
+Let me check whether the run has reached the shutdown yet and if the probe fired.
+**Probe FIRED — `FUAOVER=7` on test1** (the node that shut down). Gemini's mechanism is confirmed: a FUA read clobbered a pinned/logged buffer. Let me get the firing details to confirm it's the bnobt.
+The probe **confirms Gemini's mechanism** — but reveals the buffers being clobbered are **`xfs_inode` cluster buffers** (daddr=128 includes inode 136's cluster), with `li_empty=0` (b_li_list **non-empty** = has logged inode items), `bflags=0x1` (XBF_READ), during `rm`/`mv`. So mxfs is **FUA-reading inode-cluster (and AG-meta) buffers that carry logged-but-not-checkpointed modifications, clobbering them with stale disk content.** This directly explains `P81-DEXT` (on-disk inode 136 → 0 extents) and the whole lost-update family. This is the relay boundary; let me record the confirmed root and the fix direction to memory.
+Let me update the build-state line in memory, then wrap up.
+Criteria not met (cache_coherency still FAILs); marker not written. Reached the relay boundary with a major breakthrough this session.
+
+## Summary
+
+**Root cause CONFIRMED** for the cache_coherency shutdown (the dominant blocker, ~15 sessions):
+
+**mxfs FUA-reads buffers that carry logged-but-not-yet-checkpointed modifications, DMA-clobbering them with stale disk content.** This is the entire lost-update family — inode-cluster clobber *and* the bnobt double-free shutdown.
+
+Progress via the RULE 4 loop:
+1. **Deployed sess89's PROBE-A** → fired **0×**, refuting the "post-release xfsaild AG-meta clobber" theory.
+2. **Added P90-PICK** → proved inode allocation is single-node-per-AG (not allocator double-allocation); the failures are reader-side stale cache.
+3. **Added a TYPEFLIP-STALE-SKIP fix** (reader-side defense for unlink_visibility ENOTDIR) and **P90-DISCARD-LOSTUPD** probe → fired 0×, refuting my own invalidation-discard hypothesis.
+4. **Consulted Gemini (RULE 5)** with the refined diagnosis. It identified the "time-bomb" mechanism: the read-time hook clears `XBF_DONE` on a clean gen-lagging buffer; the buffer then gets modified+logged; a post-`xfs_trans_roll` re-read FUA-overwrites the uncheckpointed change. It gave a decisive probe.
+5. **Implemented Gemini's probe** `P90-FUA-OVER-LOGGED` (traps a FUA read on a pinned/logged buffer) → **FIRED 7× on the node that shut down**. Confirmed: `ops=xfs_inode daddr=128`(inode 136's cluster), `b_li_list` non-empty (logged), during `rm`/`mv`. This directly explains `P81-DEXT` (on-disk inode 136 → 0 extents).
+
+**Current build `D1E532E2`** on all 4 nodes (carries the probes + the keeper TYPEFLIP fix).
+
+**Fix for next session** (recorded in `sess90_lessons.md` + `MEMORY.md`): guard the FUA read in `mxfs_buf_read_fua` (pal/linux/xfs_buf.c ~L1524) and the `mxfs_buf_needs_fua_read` gate to **never read over a pinned/logged buffer** (`!list_empty(&bp->b_li_list) || bp->b_log_item || b_pin_count>0`) — keep the authoritative in-core buffer. Also stamp preserved dirty/pinned/in_AIL buffers with the current gen (Gemini's secondary time-bomb). Then re-run cache_coherency and confirm the shutdown is gone and `P90-FUA-OVER-LOGGED` fires 0×.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

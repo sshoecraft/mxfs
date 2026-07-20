@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 39 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 38
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `79dac4fb-980e-4f43-99f4-a544eac3b982`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/79dac4fb-980e-4f43-99f4-a544eac3b982.jsonl`
+- approx context at last assistant turn: 156618 tokens
+- tools used: Bash×50 Read×16 Edit×3 ScheduleWakeup×1 ToolSearch×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/notes/sess78_inactive_toctou_fix.md
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test3 test4; do echo "=== $n: P73-FIX / P80 / P28 / P47 counts ==="; timeout 12 bash tools/mxfs_sshpass.sh "$n" 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test3 P47/P28 + surrounding FREE-AG context ==="; timeout 12 bash tools/mxfs_sshpass.sh test3 "$P" 'dmesg | grep -anE
+    cd /src/mxfs; grep -n 'P47\|B-stale\|DISK-FREE\|disk_di_mode\|di_gen\|FUA.*dinode\|skip.*truncate\|skip.*ifree\|xfs_inactive' xfs/xfs_inode.c | head -40
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== INACT-SKIP-STALE fire count (guard working?) ==="; for n in test1 test3 test4; do echo -n "$n: "; timeout 10 bash too
+    cd /src/mxfs; echo "=== where xfs_inactive is called from (context) ==="; grep -rn 'xfs_inactive(' xfs/*.c pal/linux/*.c | grep -v 'xfs_inactive_\|^.*:.*\*' | h
+    cd /src/mxfs; echo "=== mxfs_v5_dlm_inode_lock signature + unlock + EX enum ==="; grep -rn 'mxfs_v5_dlm_inode_lock\|mxfs_v5_dlm_inode_unlock\|MXFS_DLM_EX\|MXFS_
+    cd /src/mxfs; grep -rn 'MXFS_V5.*NL\|MXFS_V5.*PR\|MXFS_V5.*EX\|MXFS_DLM.*EX\|DLM_MODE\|#define.*_EX\b\|_MODE_EX\|MXFS_LOCK_EX' dlm/v5_mount.h include/*.h dlm/*.
+    cd /src/mxfs; grep -rn 'MXFS_DLM_MODE\|MXFS_V5_MODE\|_MODE_NL\|_MODE_PR\|_MODE_EX\|MXFS_DLM_NL\|MXFS_DLM_PR\|MXFS_DLM_EX\|MXFS_LOCK_NL\|= 0,.*NL\|NL = ' dlm/*.h
+    cd /src/mxfs; grep -rn 'MXFS_LOCK_NL\|MXFS_LOCK_PR\|MXFS_LOCK_EX\|MXFS_LOCK_CR\|MXFS_LOCK_CW\|MXFS_LOCK_PW' include/mxfs/mxfs_dlm.h | head; echo "=== how mxfs_d
+    cd /src/mxfs; grep -n 'mxfs_dlm_caw_unlock\|mxfs_dlm_caw_lock\b' dlm/dlm_caw.c | head; echo "=== caw_unlock body head ==="; awk '/^void mxfs_dlm_caw_unlock|^int
+    cd /src/mxfs; echo "=== mxfs includes in xfs_inode.c ==="; grep -nE '#include.*mxfs|mxfs_v5_dlm_is_single_node|MXFS_LOCK|m_mxfs_dlm' xfs/xfs_inode.c | head; ech
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error|warning.*inode|xfs_inode|Error' | head -20; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcv
+    cd /src/mxfs; ls -la mxfs.ko; make modules 2>&1 | tail -3
+    cd /src/mxfs; echo "=== reset + deploy new build ==="; MKFS_OPTS=-f timeout 500 bash tests/reset4.sh 4 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized|disc
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo -n "mount: "; mou
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test4; do echo "=== $n force clean ==="; timeout 30 bash tools/mxfs_sshpass.sh "$n" "$P" 'umount -f /mnt/s
+    cd /src/mxfs; for n in test1 test2 test4; do echo "=== restart $n ==="; timeout 30 sudo virsh destroy "$n" 2>&1; done; sleep 2; for n in test1 test2 test4; do t
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "waiting for nodes to boot..."; for i in $(seq 1 24); do sleep 10; ok=0; for n in test1 test2 test4; do timeout 6 bash too
+    cd /src/mxfs; echo "=== reset + deploy 03CA6313 ==="; MKFS_OPTS=-f timeout 500 bash tests/reset4.sh 4 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized|disco
+    cd /src/mxfs; echo "=== rsync_paired --nodes 4 --iters 1 ==="; timeout 595 ./tests/criteria/rsync_paired.sh --nodes 4 --iters 1 2>&1 | grep -aviE 'Warning: Perm
+
+## Last text from previous session
+
+eady visible in xfs_inode.c.
+`MXFS_LOCK_EX` and `mxfs_v5_dlm_is_single_node` are already used in xfs_inode.c. Let me verify `mxfs_v5_dlm_inode_lock` is callable there (check lines 150-180).
+`mxfs_v5_dlm_inode_lock` is declared in dlm/v5_mount.h; I'll use an inline extern like the existing `mxfs_dbg_disk_di_mode` pattern. Now let me save the Gemini design and implement the fix. First, save the design to notes (RULE 5).
+Now implement the fix. First add the local flag:
+Now modify the guard block to acquire the inode DLM EX before the disk read:
+Now add the unlock at the `out:` label:
+The early `i_mode==0 goto out` path leaves `mxfs_inact_dlm_locked=false`, so `mp` is never dereferenced uninitialized at `out:`. Now build.
+Build succeeded — new srcversion `03CA6313F41BCA374D04703`. Let me confirm no build errors and that mxfs.ko is fresh.
+Clean build. Now deploy `03CA6313F41BCA374D04703` to all 4 nodes and re-run rsync_paired. First reset the cluster (nodes shut down from the corruption).
+Teardown got wedged (shutdown FS left mount/module stuck). Let me inspect and force-clean each node.
+test1/2/4 have a zombie mount (shut-down FS, refcnt=1). Let me force-unmount and rmmod, then redeploy.
+Module stuck (refcnt=1, hung references from the corrupted bench). Classic wedged state — needs VM restart. Let me destroy+restart the three wedged nodes.
+All 4 nodes clean (no module, no mount). Now deploy the fix via reset4.
+Fix `03CA6313F41BCA374D04703` deployed to all 4 nodes. Now re-run rsync_paired — the workload that reproduced the double-free.
+I've reached the relay boundary with the fix deployed and the validation bench running. Let me capture the current bench state before wrapping up.
+## Session summary
+
+**Major win:** `cache_coherency` now **PASSES 4/4** (was the 7+ session blocker). The sess37 drain-pinned-bnobt fix (build `68DF68548A03059ED1292A6`), which I deployed this session, resolved it. No corruption on any node during 3× isolated `cross_write_read` + the full criterion run.
+
+**Remaining blocker — root-caused and a fix implemented this session:**
+`rsync_paired` reliably reproduced the recurring bnobt double-free (`ltbno+ltlen>bno` at xfs_alloc.c:2244 → FS shutdown). Per RULE 4, I instrumented rather than guessed:
+- The sess37 pinned-drain fix path **never fires** under rsync (P73-FIX=0) → not the mechanism here.
+- Decisive evidence: `P47-INACT inact_ino=131 incore_gen=G disk_di_mode=00 disk_di_gen=G+1 verdict=DISK-FREE`. The sess47 xfs_inactive guard fires correctly (14/5/4×) but has a **TOCTOU hole** — 2 double-frees slipped through. Two nodes both hold an nlink==0 inode in-core and race into destructive inactivation; the loser's point-in-time disk read saw it live, the peer freed it during the window, the loser double-freed.
+
+**Fix (Gemini RULE-5 design, `notes/sess78_inactive_toctou_fix.md`):** In `xfs/xfs_inode.c::xfs_inactive`, acquire the per-inode **DLM EX** grant (low-level `mxfs_v5_dlm_inode_lock`, NOT ilock_begin — must not reload the VFS inode mid-eviction) BEFORE the disk-state guard read, hold it across truncate+ifree, release at `out:`. This serializes racing nodes so the loser's post-EX read sees di_mode==0 and skips → exactly-once destructive inactivation. DLM-then-ILOCK order is deadlock-safe (no ILOCK held in inodegc worker context).
+
+**State:** Fix built as **`03CA6313F41BCA374D04703`**, deployed to all 4 nodes (all mounted clean). The validation `rsync_paired` run is in progress in the background (task `b7x40wjko`, log `/tmp/rsync_paired_run.log`).
+
+**Next session:** Watch the bench result. Validation signals: no `ltbno+ltlen>bno`/P47 verdict=DISK-FREE; `rsync_paired` PASS. If clean, run full `verify_ship.sh` end-to-end (all criteria must pass in one run). If corruption persists, check whether the EX-acquire is actually serializing (add a P-INACT-EX-WON/LOST counter) and re-examine whether a non-inactivation path (rename/truncate) also frees stale-inode blocks.
+
+Criteria **not yet met** — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

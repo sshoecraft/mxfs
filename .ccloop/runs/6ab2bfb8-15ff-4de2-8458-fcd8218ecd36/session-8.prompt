@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6ab2bfb8-15ff-4de2-8458-fcd8218ecd36/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6ab2bfb8-15ff-4de2-8458-fcd8218ecd36, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `917725da-ce53-4427-8efd-da84713d0c49`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/917725da-ce53-4427-8efd-da84713d0c49.jsonl`
+- approx context at last assistant turn: 453547 tokens
+- tools used: Bash×164 Edit×38 Read×22 Write×3
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/state.md
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess42_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; rm -f xfs/libxfs/xfs_alloc.o 2>/dev/null; make modules > /tmp/build_s42m.log 2>&1; echo "build rc=$?"; grep -iE 'error:|undefined' /tmp/build_s42m
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 > /tmp/reset4m.log 2>&1; echo "reset rc=$? $(tail -1 /tmp/reset4m.log)"; ok=0; for h in test1 test2 test3 test4
+    cd /src/mxfs; ( for n in $(seq 1 10); do timeout 100 bash tests/repro_rename_concurrent.sh "test1 test2 test3 test4" 20 > /tmp/rcm_r$n.log 2>&1; p70=0;p74=0; fo
+    cd /src/mxfs; for i in $(seq 1 30); do grep -q "=== P70 ===" /tmp/rcm_loop.log 2>/dev/null && break; sleep 9; done; cat /tmp/rcm_loop.log 2>/dev/null
+    cd /src/mxfs; for h in test1 test2 test3 test4; do timeout 8 ./tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass 'dmesg -C 2>/dev/null' >/dev/null 2>&1; done; ( for n in
+    cd /src/mxfs; for i in $(seq 1 35); do grep -q "cnt(2087336) walk verdicts" /tmp/rcn_loop.log 2>/dev/null && break; sleep 9; done; cat /tmp/rcn_loop.log 2>/dev/
+    cd /src/mxfs; grep -n 'mxfs_v5_dlm_ag_unlock(dlm, pag_agno(pag))' xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; sed -n '3845,3860p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; rm -f xfs/xfs_mxfs_dlm.o 2>/dev/null; make modules > /tmp/build_s42n.log 2>&1; echo "build rc=$?"; grep -iE 'error:|undefined' /tmp/build_s42n.log
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 > /tmp/reset4n.log 2>&1; echo "reset rc=$? $(tail -1 /tmp/reset4n.log)"; ok=0; for h in test1 test2 test3 test4
+    cd /src/mxfs; ( for n in $(seq 1 12); do timeout 100 bash tests/repro_rename_concurrent.sh "test1 test2 test3 test4" 20 > /tmp/rco_r$n.log 2>&1; p70=0;p75=0; fo
+    cd /src/mxfs; for i in $(seq 1 35); do grep -q "release-left-dirty" /tmp/rco_loop.log 2>/dev/null && break; sleep 9; done; cat /tmp/rco_loop.log 2>/dev/null
+    cd /src/mxfs; for h in test1 test2 test3 test4; do n70=$(timeout 8 ./tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass 'dmesg 2>/dev/null|grep -c P70-INSTR' 2>/dev/nul
+    cd /src/mxfs; grep -n 'xfs_buf_item_init\|b_hold\|xfs_buf_hold\|bli_refcount\|atomic.*b_hold' pal/linux/xfs_buf_item.c | head -20; echo "=== xfs_buf_item_init b
+    cd /src/mxfs; sed -n '688,710p' xfs/libxfs/xfs_alloc.c
+    cd /src/mxfs; grep -n 'xfs_btree_dup_cursor\|xfs_btree_del_cursor\|XFS_BTREE_NOERROR\|XFS_BTREE_ERROR' xfs/libxfs/xfs_alloc.c | head; echo "=== del_cursor signa
+    cd /src/mxfs; rm -f xfs/libxfs/xfs_alloc.o 2>/dev/null; make modules > /tmp/build_s42o.log 2>&1; echo "build rc=$?"; grep -iE 'error:|undefined' /tmp/build_s42o
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 > /tmp/reset4o.log 2>&1; echo "reset rc=$? $(tail -1 /tmp/reset4o.log)"; ok=0; for h in test1 test2 test3 test4
+    cd /src/mxfs; ( for n in $(seq 1 12); do timeout 100 bash tests/repro_rename_concurrent.sh "test1 test2 test3 test4" 20 > /tmp/rcp_r$n.log 2>&1; p70=0;p76=0; fo
+    cd /src/mxfs; for i in $(seq 1 35); do grep -q "first P70" /tmp/rcp_loop.log 2>/dev/null && break; sleep 9; done; cat /tmp/rcp_loop.log 2>/dev/null
+
+## Last text from previous session
+
+mented build/deploy/test cycles. Honest status:
+
+## Criteria: NOT met — work continues
+
+The 4-node concurrent-rename corruption still shuts down the FS, so `cache_coherency` and the ship gate remain failing. I have not written to the marker.
+
+## This session's verified results
+
+**Two proven, deployed fixes** (kept):
+- **Gen-stamp false-fresh bug** in `mxfs_ag_meta_invalidate_stale` — eliminated the AG free-space stale-cache double-alloc corruption (P70 stale variant 0/8).
+- **AGI no-hold staleness** in `mxfs_dlm_invalidate_ag_meta` — eliminated the AGI unlinked-list corruption (P71 → 0).
+
+**Four hypotheses instrumented and disproven** (so they aren't re-chased):
+- Drain skips dirty blocks → no (P73: skips only clean).
+- Release leaves pinned/in-AIL free-space buffers → no (P75 = 0; release fully checkpoints).
+- Re-acquire read-staleness is the residual root → no (walk verdict = STALED on the corrupting node; buffers *were* refreshed).
+- gen-stale cnt modifies are the bug → no (P74: mostly benign this-node-ahead).
+
+**Narrowed conclusion:** both free-space trees are re-read fresh from a release-consistent on-disk image, yet diverge → **the inconsistency is produced during the modify itself**, not from stale reads. The leading remaining hypothesis is an MXFS transaction/defer-chain or AGFL/btree-block-allocation coherency issue that leaves bno≠cnt in one node's in-core trees (then faithfully written to disk). The downstream effects are the EFSBADCRC dir-block (block double-alloc), AGI/finobt corruption, and the hung-task DLM-stall cascade.
+
+**Handoff is complete and precise** — `/src/mxfs/state.md` + `sess42_lessons.md` document the environment facts, the two fixes, all negative results, the modify-time-inconsistency conclusion, the prioritized next instruments (catch the prior txn that updates bno without a matching cnt; AGF-serialization / AGFL coherency), and the build lineage (deployed `EDB2ADAD` with all fire-only-on-anomaly detectors P70-P75 retained). The next session has a clear, evidence-backed starting point.
+Criteria not met — continuing. New critical angle: I need to verify my **no-hold fix is safe**. It clears `XBF_DONE` on `b_hold==0` AG-meta buffers, assuming they're always clean. But if a **committed, in-AIL buffer** (BLI attached, awaiting writeback) can have `b_hold==0`, my fix would discard its committed-but-unwritten modification on next read → **lost update** (exactly the bno-updated-but-cnt-reverted inconsistency!). Let me check whether the BLI holds a `b_hold` reference.
+**Confirmed safe:** `xfs_buf_item_init` calls `xfs_buf_hold(bp)` (line 910), so a BLI-attached (committed/in-AIL) buffer always has `b_hold >= 1`. My no-hold fix only touches `b_hold==0` buffers (no BLI ⇒ clean) — it **cannot** discard a committed modification. Good — that rules out my fix as a regression source.
+
+Now the decisive instrument: XFS already has a DEBUG-only check that bno and cnt leaf `bb_numrecs` must match after fixup (the trees must have equal record counts). Enabling it always-on would catch the *exact* fixup that creates the divergence. Let me look at it.
+The numrecs check won't catch our case — the block-118 divergence has **equal counts (both numrecs=1) but different record content**: cnt retains `(118, N)` while bno has `(119, N-1)`. This is precisely an allocation of block 118 where the **bno boundary-update took effect but the cnt delete+insert didn't** (cnt still describes block 118 as free). That's the signature of a cnt-tree update that was applied then reverted, or never persisted, while bno's did. Let me record this precise analysis and the no-hold-safety confirmation.
+Continuing — let me implement the decisive P76 instrument: at the end of `xfs_alloc_fixup_trees` (agno=1), use **duplicate cursors** (to avoid disturbing the originals) to verify each residual free extent is present consistently in both trees. This catches the exact fixup that creates the bno/cnt divergence. Let me verify the cursor-dup API first.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

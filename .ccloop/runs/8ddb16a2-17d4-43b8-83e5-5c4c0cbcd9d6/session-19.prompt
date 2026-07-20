@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 19 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 18
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5e810ddd-d219-4443-a289-36474bed76f2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5e810ddd-d219-4443-a289-36474bed76f2.jsonl`
+- approx context at last assistant turn: 502735 tokens
+- tools used: Read×70 Bash×69 Edit×12 mcp__ccmemory__memory_write×11 TaskList×7 ToolSearch×7 mcp__ccmemory__memory_get×6 mcp__ccteam__claim×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/cc_pregrown_probe.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n 'mxfs_dir_merge_peer_into_tp\|^EXPORT_SYMBOL(mxfs_dir_merge' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; awk '/^mxfs_dlm_dir_modify_reload_prelock\(/{p=1} p{print NR": "$0} p&&/^}/{exit}' xfs/xfs_mxfs_dlm.c | grep -nE 'xfs_ilock|xfs_iunlock|ILOCK|relo
+    cd /src/mxfs; echo "=== pre-grown (block-format) concurrent-create probe, baseline dir_merge=0 ==="; timeout 290 bash tests/cc_pregrown_probe.sh 15 50 40 2>&1; 
+    cd /src/mxfs; echo "=== pre-grown probe, 30 iters (confirm 0 loss) ==="; timeout 290 bash tests/cc_pregrown_probe.sh 30 50 40 2>&1 | tail -6; echo "EXIT=${PIPES
+    cd /src/mxfs; awk '/^mxfs_dlm_reload_inode\(/{p=1} p{print NR": "$0} p&&/^}/{c++} c>=1&&/^}/{exit}' xfs/xfs_mxfs_dlm.c | grep -nE 'if_format|FMT_LOCAL|FMT_EXTEN
+    cd /src/mxfs; echo "=== final cluster health check ==="; for n in test1 test2; do printf "%s: " "$n"; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass '
+    cd /src/mxfs; echo "=== test VMs defined ==="; virsh -c qemu:///system list --all 2>/dev/null | grep -iE 'test[0-9]' | head; echo "=== reset4.sh node-count supp
+    cd /src/mxfs; echo "=== xfs_dir_init / sf_to_block APIs ==="; grep -rn 'xfs_dir_init\b' xfs/libxfs/xfs_dir2.c xfs/libxfs/xfs_dir2.h | head; grep -rn 'int.*xfs_d
+    cd /src/mxfs; awk '/^xfs_dir2_sf_to_block\(/{p=1} p{print NR": "$0} p&&/dp = args->dp|args->trans|args->geo|args->total|XFS_DA_OP|args->whichfork|tp = args/{n++
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit|XFS_DAENTER|sf_to_block|force_block|xfs_da_args' | head -20; echo "exit=${PIPESTATUS[0]}";
+    cd /src/mxfs; echo "=== deploy F13B9FB0 dir_force_block=1 ==="; MXFS_EXTRA_MODARGS='dir_force_block=1' timeout 280 ./run.sh 2 tcp __noop__ 2>&1 | tail -2; for n
+    cd /src/mxfs; echo "=== sanity: is a fresh mkdir now block-format? ==="; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'D=/mnt/shared/.fbtest_$$; 
+    cd /src/mxfs; echo "=== force_block=1 loss-rate characterization (2 more runs, note first-loss iter) ==="; for run in A B; do echo "--- run $run ---"; timeout 2
+    cd /src/mxfs; echo "=== reset force_block=0 (baseline) on both nodes (runtime) ==="; for n in test1 test2; do printf "%s: " "$n"; timeout 8 bash tools/mxfs_sshp
+    cd /src/mxfs; echo "=== check dirwr param + set dirwr=1 on both nodes ==="; for n in test1 test2; do printf "%s: " "$n"; timeout 8 bash tools/mxfs_sshpass.sh $n
+    cd /src/mxfs; echo "=== probe w/ dirwr=1 detectors (capture loss lifecycle) ==="; timeout 280 bash tests/cc_blockdir_probe.sh 15 50 2>&1 | grep -E 'iter [0-9]+:
+    cd /src/mxfs; D=/mnt/shared/.ccb_2; echo "=== which entry is missing from $D (ino 1962)? ==="; timeout 15 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "ls $
+    cd /src/mxfs; echo "=== missing entry in .ccb_2 ==="; timeout 15 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'D=/mnt/shared/.ccb_2; ls "$D" 2>/dev/null | s
+    cd /src/mxfs; echo "=== reset dirwr=0 (baseline) ==="; for n in test1 test2; do timeout 6 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo 0 > /sys/module/mx
+    cd /src/mxfs; cat > /tmp/transience_test.sh <<'EOF' SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 50 bash "$SSH" "$n" 
+
+## Last text from previous session
+
+ck-image evolution) can disambiguate without a rebuild — `dirwr` is a runtime param. Let me enable it and capture the failing iter's sequence.
+`dirwr=1` enabled (runtime, no rebuild). Now run the probe to reproduce, then capture the failing iter's directory-operation sequence (release ordering + block-image evolution) to determine whether the lost first-entry was durable at the loser's release.
+Loss at iter 2, ino=1962, durable. Let me identify the missing entry and capture the directory-operation trace for ino=1962 from both nodes (dmesg was cleared at iter-2 start, so it's isolated).
+**Major finding:** the "lost" entry has **reappeared** — `.ccb_2` now shows 200/200, though the probe (and its `pureLUN`+`direx` recovery) reported 199 at the time. So this may be a **visibility/durability LAG (eventually-consistent)**, not permanent data loss. I assumed "permanent" earlier because `pureLUN`+`direx` failed at that instant, but I never re-checked later. This is a critical distinction. Let me test it decisively on baseline (dirwr=0): reproduce a short, then re-poll over time to see if it resolves.
+12/12 clean — but my transience test only created data files (100 total), not the md5 sidecars (200 total) that the full probe uses, so it under-loaded the race. Let me match the full probe workload (data + md5) and re-poll on the first short.
+I've hit the relay boundary. Let me record the key live finding and wrap up — the transience test continues in the next session (which has full transcript + output-file access).
+The transience test completed — let me read its verdict before wrapping up.
+Relay boundary reached — wrapping up.
+
+**This session's net progress** (on the `2 node dlm=tcp` durable-directory-loss blocker):
+
+- **Criterion not met; marker correctly unwritten.** The green 16/16 suite is a flaky pass over a reproducible directory-entry loss (I reproduced shorts on the deployed build multiple times).
+- **Refuted four distinct fix approaches with evidence** (so they aren't re-tried): merge-via-extra-lock (crashes FS), merge-with-I/O-under-lock (wedges handoff, perf-rule violation), read-side/FUA (no effect), and force-block-format (no effect — the shortform→block "transition" was a red herring; the pre-grown test was clean only due to multi-block spread).
+- **Got a GPT-5.5 architectural consult**: treat the DLM grant as buffer-cache ownership (checkpoint-on-handoff + epoch-checked writeback); for hot dirs, owner-delegation/op-forwarding — *not* stale-buffer merging.
+- **Reconciled with prior instrumented evidence**: the loss is at insert/conversion time (first entry absent on both nodes' earliest block image), not stale post-handoff writeback.
+- **Surfaced a critical new question at the very end**: a short that reported 199/200 (with both recovery probes failing *at that instant*) **reappeared as 200/200 minutes later** — suggesting the bug may be a **transient visibility/durability lag, not permanent data loss**. My earlier "durable, unrecoverable" verdicts never re-checked after a delay. The baseline transience test I ran didn't trigger a short in 20 iters (it uses fresh dirs, less aggressive than the daddr-reuse probe), so **this remains unconfirmed** and is the #1 thing to resolve next.
+
+**Cluster state:** healthy, clean 2-node baseline (build `F13B9FB0`; `dir_merge=0`, `force_block=0`, `dirwr=0`; both nodes mounted, read-write OK). The two fixes I built are gated off and dormant.
+
+**Next session, in order:** (1) integrate the re-poll-over-time check into the aggressive `cc_blockdir_probe` to definitively answer transient-vs-permanent; (2) if transient → pivot to dir-entry visibility-lag at the DLM handoff (why a peer's committed+durable entry isn't visible promptly even after a forced dir-EX cycle); if permanent → pursue the insert-time/shortform-conversion lost-update locus. Develop against a deterministic 4-node reproducer (per the user's guidance), validate on 2-node. All findings are in this session's `sess18-*` memories.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

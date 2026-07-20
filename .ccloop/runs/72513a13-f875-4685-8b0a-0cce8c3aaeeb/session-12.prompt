@@ -1,0 +1,113 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 12 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 11
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `881e0d5c-3a65-4d43-b411-4766ca2adc44`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/881e0d5c-3a65-4d43-b411-4766ca2adc44.jsonl`
+- approx context at last assistant turn: 210719 tokens
+- tools used: Bash×89 Read×7 TaskCreate×4 TaskUpdate×3 ToolSearch×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "logs:\|KEEP\|tmp.*mktemp\|LOGDIR" /src/mxfs/run.sh | head -12
+    sed -n '780,800p' /src/mxfs/run.sh
+    ls /tmp/run_dir_reuse_coherency_20260719T235047Z/ 2>/dev/null | head; echo ===; grep -rlE "FAIL" /tmp/run_dir_reuse_coherency_20260719T235047Z/ 2>/dev/null | he
+    ls /tmp/run_dir_reuse_coherency_20260719T235047Z/ | grep -v kernlog | head -30; echo; ls /tmp/run_dir_reuse_coherency_20260719T235047Z/*out* /tmp/run_dir_reuse_
+    cd /tmp/run_dir_reuse_coherency_20260719T235047Z && grep -l "FAIL" test[0-9] test[0-9][0-9] 2>/dev/null | head; echo ===; grep -h "FAIL\|fail" test1 2>/dev/null
+    ./showstat.sh 32 cawd 2>/dev/null | grep dir_reuse; ./showstat.sh 32 caw 2>/dev/null | grep dir_reuse; ./showstat.sh 32 tcp 2>/dev/null | grep dir_reuse; echo =
+    grep -E "round|r[0-9]+ |elapsed|took" /tmp/run_dir_reuse_coherency_20260719T235047Z/test1 2>/dev/null | head -25; echo ===STREAMLOG===; grep -vE "^\[" /tmp/run_
+    tail -3 /tmp/claude-1000/-src-mxfs/881e0d5c-3a65-4d43-b411-4766ca2adc44/scratchpad/rung32_cawp.log; echo ===; grep -nE "echo .*round|say .*round|log.*round|drc_
+    grep -h "DRCph.*rank=1 \|DRCph r=.* rank=1$\|drc-DIRID.*rank=1" /tmp/run_dir_reuse_coherency_20260719T235047Z/kernlog_test1 | sed -E 's/.*\[ *([0-9]+\.[0-9]+)\]
+    python3 - <<'PY' import re,datetime lines=open('/tmp/run_dir_reuse_coherency_20260719T235047Z/kernlog_test1',errors='replace').read().splitlines() seq=[] for ln
+    head -40 /src/mxfs/scripts/run_adhoc_suite_test.sh 2>/dev/null
+    grep -h "P70-BP" /tmp/run_dir_reuse_coherency_20260719T235047Z/kernlog_test* 2>/dev/null | grep "540959" | head -5; echo ===COUNTS===; grep -c "P70-BP" /tmp/run
+    python3 - <<'PY' import re,glob,datetime CUT=datetime.datetime(2026,7,19,23,50,40) held=[];tops=[];waits=[] for f in glob.glob('/tmp/run_dir_reuse_coherency_202
+    grep -h "drc-DIRID" /tmp/run_dir_reuse_coherency_20260719T235047Z/kernlog_test1 | tail -8
+    python3 - <<'PY' import re,glob,datetime CUT=datetime.datetime(2026,7,19,23,50,40) held=[];tops=[];qsrc={} lines_all=0 for f in glob.glob('/tmp/run_dir_reuse_co
+    python3 - <<'PY' import re,glob,datetime,collections,statistics as st CUT=datetime.datetime(2026,7,19,23,50,40) reldur=[]; gaps=collections.defaultdict(list) fo
+    python3 - <<'PY' import re,glob,datetime,collections,statistics as st CUT=datetime.datetime(2026,7,19,23,50,40) waits=[];probes=collections.Counter() for f in g
+    grep -h "P15-REL-ABORT" /tmp/run_dir_reuse_coherency_20260719T235047Z/kernlog_test1 | grep 8928862 | tail -5; echo ===; grep -h "P138-WAIT" /tmp/run_dir_reuse_c
+    grep -n "P15-REL-ABORT\|P15-TCP-ORPH\|orphan_since\|age_orph" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -20
+    python3 - <<'PY' import re,glob,datetime,collections CUT=datetime.datetime(2026,7,19,23,50,40) counts=collections.Counter(); episodes=[] for f in glob.glob('/tm
+
+## Last text from previous session
+
+Starting session 11. First, the required memory_list, then loading state to continue from session 10's relay point.
+The memory list is too large to load whole. I'll grep it for this run's session memories and read the state ledger directly.
+Conditions confirmed: tcp, cawp (FC passthrough), cawd (direct iSCSI), caw (dm-multipath). Now reading the state ledger for exact position:
+The top of state.md shows SESS9 — the SESS10 sections must be elsewhere. Locating them:
+33G available now (was 24). Verifying the guest device is really the SCST passthrough (vendor check — rig's verify only checks serial consistency), then clearing swap debt:
+The wait moved to background — I'll get notified. Meanwhile, studying run.sh's cawp specifics and the rung driver:
+**1/cawp complete: FAIL_count=0** — including fio_vs_xfs_baseline PASS (the row that failed 51% on the degraded tcp rig; confirms host regime was the poison). Rung 2:
+2/cawp: FAIL_count=0 (drc 106s/120, fio aggregate 86% of native). Rung 4:
+8/cawp now fully green. Rung 16:
+16/cawp fio pair green (seqW 309% of raw ceiling, randW 92%). drc + soak remain:
+**16/cawp: FAIL_count=0 first attempt.** Now the summit — 32/cawp:
+Two budget debts already at 32/cawp: cache_coherency 62s/60 and posix_multi 47s/30 (both functionally perfect). Letting the rung complete to collect the full debt list before treating:
+Rung complete (FAIL_count=1, drc pace only). The phase markers live in kernlog with timestamps — extracting the round anatomy:
+Failing run dirs: r1=101195928, r2-6=8928862 (dir-inode reuse per test design). Re-harvesting on the right inodes:
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

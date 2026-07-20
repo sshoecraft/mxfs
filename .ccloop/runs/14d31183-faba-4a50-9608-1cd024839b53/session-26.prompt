@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 26 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 25
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `cff5d80c-9908-4bb7-891a-0c6343af56c4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/cff5d80c-9908-4bb7-891a-0c6343af56c4.jsonl`
+- approx context at last assistant turn: 246147 tokens
+- tools used: Bash×105 Edit×15 Read×5 Write×3 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/diag_vnop_profile.sh
+- /src/mxfs/scripts/diag_logforce_stacks.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/scripts/diag_funcgraph.sh
+- /src/mxfs/scripts/diag_stacksample.sh
+- /src/mxfs/xfs/xfs_buf.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 30 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass "dmesg | tail -15; lsmod | grep mxfs; ls -l
+    ls -la tools/mkfs_mxfs tools/chk_mxfs 2>&1; make tools 2>&1 | tail -2; ls -la tools/mkfs_mxfs
+    for r in 1 2 3 4 5; do out=$(scripts/diag_stacksample.sh test1 test2 test3 test4 2>&1); walls=$(echo "$out" | grep -E "^test[0-9]+: WALL_MS"); echo "ROUND $r:";
+    timeout 330 ./tests/criteria/scaling_curve.sh 2>&1 | tail -8
+    MXFS_PROF_FUNCS='mxfs_v5_dlm_inode_lock mxfs_dlm_ag_drain_alloc_buflist xfs_log_force mxfs_pal_scsi_read_fua_bdev' bash -c 'scripts/diag_vnop_profile.sh test1 t
+    ip5=$(getent hosts test5.vm.localdomain | awk '{print $1}'); timeout 30 tools/mxfs_sshpass.sh "$ip5" /tmp/.mxfs_pass "lsmod | grep mxfs; cat /sys/module/mxfs/sr
+    grep -n "virsh\|reboot\|destroy" tests/criteria/lib.sh scripts/cluster_reset.sh 2>/dev/null | head -10; grep -rn "destroy" tests/reset4.sh 2>/dev/null | head -3
+    sed -n '160,212p' tests/criteria/lib.sh
+    for n in $(seq 1 16); do ( virsh -c qemu:///system destroy test$n >/dev/null 2>&1; sleep 2; virsh -c qemu:///system start test$n >/dev/null 2>&1 ) & done; wait;
+    sleep 30; for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); timeout 8 tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass "true" >/d
+    until ok=$(for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); timeout 8 tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass "true" >/
+    virsh -c qemu:///system list --all 2>/dev/null | grep -E "test([1-9]|1[0-6]) " 
+    for n in 1 5 13; do virsh -c qemu:///system start test$n 2>&1 | head -1; done
+    sleep 1; echo waiting handled by background task
+    grep -n "delwri\|drain_alloc" .claude/awareness/subsystems/pal.md 2>/dev/null | head -5; grep -n "yield_quantum\|publish" .claude/awareness/subsystems/xfs.md 2>
+    sed -n '60,72p' .claude/awareness/subsystems/xfs.md
+    MXFS_PROF_FUNCS='mxfs_v5_dlm_inode_lock mxfs_dlm_ag_drain_alloc_buflist xfs_log_force mxfs_pal_scsi_read_fua_bdev' bash -c 'scripts/diag_vnop_profile.sh test1 t
+    grep -n "fresh_cluster_mount" tests/criteria/lib.sh | head -2; sed -n '213,300p' tests/criteria/lib.sh
+    bash -c 'set +u; source tests/criteria/lib.sh; teardown_all "test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 test12 test13 test14 test15 tes
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 60 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass "mountpoint -q /src && echo NFS_OK; ls -la 
+
+## Last text from previous session
+
+2D425C215C`, v0.5.5, all RULE-4 proven)
+
+1. **Throttle mask bug** (`xfs_mxfs_dlm.c` ~9300): the v0.3.136 "every 100th unlock" log-force throttle used `& 99` — a bitwise AND passing 8 of every 128 values (every ~16th). Fixed to `& 127`. ftrace-proven: xfs_log_force 1650 → ~365 calls/node/run.
+2. **Adaptive yield-quantum cap 32 → 512** (`mxfs_ag_yield_quantum` default): eager sync drains ~150 → ~50/run. With fix 1: 2n walls 4356/5300 → 3534/4492 (test1/test2). A/B-proved quantum=32 was NOT the cause of the slow-drain stall (worse at 32).
+3. **THE STALL ROOT (stack-sample proven)**: intermittent 20-30s one-node stall = eager drain's `xfs_buf_delwri_submit` sleeping in `xfs_buf_wait_unpin` **with the buffer lock held** after concurrent creates re-logged (re-pinned) the hot cluster/AGI buf into a newer CIL seq that nothing pushes until the 30s log worker; all other tasks convoy on `xfs_buf_lock` (316+317 samples on test2's 30.7s run). Fix: new `xfs_buf_delwri_submit_nopinwait()` (pal/linux/xfs_buf.c, declared xfs_buf.h) — skip pinned bufs without holding locks, submit+iowait the rest, sync log force, retry (10-round bound). Wired into `mxfs_dlm_ag_drain_alloc_buflist`. **Verified: 5 consecutive 4-node rounds zero stalls (was ~1-in-2 at 19-30s); criterion run had no stall in any stage.**
+4. **Instr-gated heavy write-path probes** (pal/linux/xfs_buf.c): P133 (sync disk read per inode-cluster write w/ dir dinode), P-DIR-LEAF-CLOBBER (FUA read per leaf write), P-DIRWR (8000-line dmesg spam that wraps the ring and blinded diagnosis). P124/P122 preventers untouched (P122 suppression already hardcoded off per sess23).
+5. **Parallel publish drain** (`mxfs_dlm_publish_unpublished`): one peer BAST used to serialize ~9000 unclaimed file slots × 2ms through the ordered bast wq (8845 inode_lock calls observed). Now fans out over 16 `system_unbound_wq` workers (>32 backlog), waits for completion; per-inode clear-then-acquire semantics preserved. P25-PUB probe added (capped).
+
+### New diagnostic tooling (in tree per RULE 3)
+- `scripts/diag_stacksample.sh` — off-CPU /proc/pid/stack sampler over the parallel rsync; **this is what cracked the stall**.
+- `scripts/diag_funcgraph.sh` — funcgraph w/ tracing_thresh (was empty during stalls; sampler superseded it).
+- `scripts/diag_vnop_profile.sh` — added `MXFS_SET_PARAMS` post-mount module-param injection.
+
+### Current blocker (immediate next step)
+16-node profile blocked: **mkfs on test1 fails "pwrite offset 4096: Invalid exchange" (EBADE = SCSI PR reservation conflict)**. test5 earlier showed `reservation conflict` + DID_TRANSPORT_DISRUPTED (fenced mid-run). All 16 VMs were rebooted (note: 3-node destroy/start race — test1/5/13 needed manual `virsh start`), but the PR registration survives on the SCST target. The lib's `sg_persist --register-ignore + --clear` (key 0x5eed) in fresh_cluster_mount isn't clearing it (runs silenced with >/dev/null — check sg_persist presence/rc on test1, or clear PR manually: `sg_persist --out --register-ignore --param-sark=0x5eed /dev/sda; sg_persist --out --clear --param-rk=0x5eed /dev/sda`, then read PR state with `sg_persist -r`).
+
+### Remaining work for the gate
+- Clear the PR, then 16-node profile (`scripts/diag_vnop_profile.sh test1..test16`) to attribute the residual 16n gap (4920ms vs needed ≤~4360). Leading candidate: `mxfs_dlm_publish_dirs_work` background CAW traffic (~700 claims × 2ms/node; at 16n that's ~11k claims hammering the shared LUN) — with the `i_mxfs_reused_create` backstop gate (sess24) and the now-fast parallel BAST drain, consider not pre-publishing fresh dirs at all.
+- Then: re-run `scaling_curve.sh` (expect ≤150%), then cache_coherency ~3×, `posix_semantics.sh --nodes 16`, then full `verify_ship.sh`.
+- Cleanup before ship: P24/P25 diagnostic probes, VERSION revved to 0.5.5 (was 0.5.2). **Remember `make tools` after any `make clean`** — missing mkfs_mxfs silently broke runs.
+
+Criteria marker NOT written — scaling_curve still failing (169% > 150%).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8361a242-a09a-4ed0-a718-a0d3fcf709f1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8361a242-a09a-4ed0-a718-a0d3fcf709f1.jsonl`
+- approx context at last assistant turn: 498846 tokens
+- tools used: Bash×131 Edit×57 Read×46 mcp__ccmemory__memory_write×9 mcp__ccmemory__memory_get×6 ToolSearch×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/include/mxfs/mxfs_dlm.h
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/mount.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "disk_differs\|dir_buf_is_undestaged\|mxfs_dir.*compare\|sf_disk_check\|read_fua_bdev\|disk_differ\|stale.*compare" xfs/xfs_mxfs_dlm.c | h
+    cd /src/mxfs; echo "=== function def around 3470 ==="; awk 'NR>=3455 && NR<=3479' xfs/xfs_mxfs_dlm.c | grep -nE "^[a-z_]+\(|static|void|mxfs_dir.*merge|max_ents
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*(implicit|undefined|declaration-after)" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; timeout 420 ./run.sh 4 tcp dir_reuse_coherency > /tmp/drc_run8.out 2>&1; echo "exit=$?"; grep -E "FAIL|PASS|done:" /tmp/drc_run8.out
+    cd /src/mxfs; until grep -q "done:" /tmp/drc_run8.out 2>/dev/null; do sleep 15; done; grep -E "FAIL|PASS|done:" /tmp/drc_run8.out; echo "=== failing rounds + la
+    cd /src/mxfs; until grep -q "done:" /tmp/drc_run8.out 2>/dev/null; do sleep 15; done; grep -E "FAIL|PASS|done:" /tmp/drc_run8.out; echo "=== per node ==="; PASS
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; tools/mxfs_sshpass.sh test2 "$PASS" "dmesg | grep -iE 'shutdown|corrupt|EFSCORRUPTED|ENOSPC|no space|assert|
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*(implicit|undefined|unused|declaration-after)" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 
+    cd /src/mxfs; echo "=== on-disk build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== stray bg procs ==="; pgrep -af "until grep|run.sh|make modu
+    cd /src/mxfs; grep -n "dir_durable_signal\|mxfs_dlm_dir_inode_durable\|publish.before\|xfs_log_force" xfs/xfs_mxfs_dlm.c | grep -iE "durable|publish|signal|rele
+    cd /src/mxfs; grep -n "mxfs_dlm_dir_durable_signal\b" xfs/*.c | head; echo "=== def ==="; awk '/mxfs_dlm_dir_durable_signal\(struct/{print NR": "$0; found=1} fo
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*(implicit|undefined|declaration-after)" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; timeout 420 ./run.sh 4 tcp dir_reuse_coherency > /tmp/drc_run9.out 2>&1; echo "exit=$?"; grep -E "FAIL|PASS|done:" /tmp/drc_run9.out
+    cd /src/mxfs; until grep -q "done:" /tmp/drc_run9.out 2>/dev/null; do sleep 15; done; grep -E "FAIL|PASS|done:" /tmp/drc_run9.out; echo "=== per node (RDMISS + 
+    cd /src/mxfs; until grep -q "done:" /tmp/drc_run9.out 2>/dev/null; do sleep 15; done; grep -E "FAIL|PASS|done:" /tmp/drc_run9.out; echo "=== per node ==="; PASS
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; tools/mxfs_sshpass.sh test3 "$PASS" "dmesg | grep -iE 'shutdown|corrupt|EFSCORRUPTED|Internal error|trans_ca
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; grep -n "mxfs_dir_flush_data_blocks\b" xfs/xfs_mxfs_dlm.c | head -3; echo "=== def + does it touch loaded_gen/evicted_gen/stale/dir_gen? ==="; awk
+
+## Last text from previous session
+
+**lossy `dir_gen > 0`** (line 13287). When the evict-ring drops the message, dir_gen stays 0, the flush is skipped, the block stays un-checkpointed/pin-tailed, and the next owner inherits the stale pin → the lost-update. This is the same lossy gate, but on the **publish side** where the node owns its buffers. The reliable fix: also fire when this dir has seen a handoff (`i_dlm_handoff_acted_gen != 0`). It extends an existing in-budget mechanism rather than adding a new force. Let me implement:
+Build `ACE564DB`. Test 4/tcp dir_reuse (clean reboot):
+Mixed result: **test1, test2, test4 ran all 24 rounds clean (zero loss)** — the durable-signal fix works for them — but **test3 froze at round 18** reading a stale view (340/400, ~60 entries missing, identical rounds 18-24). The direction is right (3/4 nodes clean for 24 rounds) but test3 hit a stuck-stale state. Let me check whether test3 shut down or just froze:
+No shutdown — test3 is up but its view is frozen at 340/400 from round 18 (a **new** failure mode not seen in the 5E78DEE0 baseline). So my change fixed the single-entry loss for 3/4 nodes but the extra flushing (firing when `dir_gen==0` via the handoff gate) added enough SYNC cost to stall test3 into a stale-view freeze — the same RULE-0 wall, on the release side. This is net-negative. Let me revert to the validated baseline:
+Back to validated `5E78DEE0`. I've now refuted three residual fixes this session, but attempt 3 gave the strongest lead yet — **3/4 nodes ran 24 rounds completely clean**, confirming the release-side checkpoint direction is correct; only test3 hit a stale-view freeze (a coherency issue, not a crash). Let me record this comprehensively for continuation:
+The strongest lead (attempt 3, 3/4 clean) is worth pursuing — if I can fix test3's freeze it becomes the winner. My hypothesis: the extra flush touches gen/stale state so test3's reload self-skips. test3 is likely the node where the lossy ring never delivered (dir_gen stays 0), so my gate made it flush on every modify. Let me check whether `mxfs_dir_flush_data_blocks` advances reload-gating state:
+Relay boundary reached — wrapping up. (Note: `mxfs_dir_flush_data_blocks` reads `dir_gen` only for a log line, doesn't obviously advance `loaded_gen`/`evicted_gen` — so test3's freeze cause stays open for next session.)
+
+## Session summary
+
+**Repo is at the validated build `5E78DEE0`** (re-confirmed via srcversion after every revert): **1/tcp 16/16 ✅, 2/tcp 17/17 ✅** — empirically re-verified this session, working code intact.
+
+**Major win:** implemented the reliable cross-node EX-handoff signal (DLM master prior-EX-owner via `dg_shadow`, threaded through the grant protocol). It drives the dir-inode reload's disk-superset adopt and cut `dir_reuse_coherency` 4/tcp failures from ~17-24/24 rounds to ~1-2/24 (**24× better**), with no 1/2-node regression.
+
+**Residual** (4/tcp `dir_reuse`, single-dirent loss): precisely rooted as a pin-tailed stale prior-tenure dir buffer reused across a handoff (proven intra-inode). I tried **three** fixes this session, all reverted with evidence:
+1. Acquire-side `log_force` on handoff — correct but RULE-0 (desync/timeout).
+2. Handoff-gated block-union-merge (force-free) — corruption shutdown at `xfs_mxfs_dlm.c:10364`.
+3. **Release-side durable-flush gated on the reliable handoff signal — the strongest lead: 3/4 nodes ran all 24 rounds CLEAN** (loss eliminated), but test3 froze its view at 340/400 (a coherency stall, not a crash).
+
+Attempt 3 confirms the **release-side checkpoint is the right direction**; the only blocker is test3's view-freeze, which the next session should diagnose (probe `loaded_gen`/`evicted_gen`/`i_dlm_stale` on the stalled node) and guard. The force-free merge (attempt 2) is the other lead worth debugging.
+
+**Criterion not met** (4/tcp not 100%, 8/tcp unrun) — marker **not** written. All analysis, the three refutations, and the precise next-steps are recorded in the `sess63-*` ccmemory files for continuation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

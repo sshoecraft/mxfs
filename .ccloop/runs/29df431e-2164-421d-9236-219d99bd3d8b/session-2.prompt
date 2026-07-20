@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions. This is session 2 of the current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED SESSIONS. Each new session starts with a clean
+context window and a summary of what's been done so far. Don't try to
+cram everything into one session.
+
+Pace your work to roughly 160K context tokens per session. If you reach a natural seam (a sub-step done, state written, a clean checkpoint) and have used at least that much context, stop — ccloop will summarize and continue in a fresh session. If you stop earlier than that without having signalled completion, the Stop hook will re-feed you so you keep working in this session. The cutoff is a floor, not a cap: you may keep working past it.
+
+How ccloop handles relay:
+  1. When you stop, ccloop checks the criteria-met marker.
+  2. If it says YES, the run converges and stops.
+  3. If not, ccloop summarizes your transcript and spawns a fresh
+     session that continues against the same criteria with a digest of
+     what you've already tried.
+
+Mark the criteria met ONLY when EVERY criterion is verifiably satisfied
+on cited, third-party-verifiable evidence:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+NEVER:
+
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically — you
+  just stop, it does the rest.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+
+If you are genuinely stuck after a real attempt, write down what you
+tried and the next hypothesis to test in a brief text turn before
+stopping — the next session will pick it up.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 1
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `d41aca09-0dca-465c-9dbd-4396736cbb59`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d41aca09-0dca-465c-9dbd-4396736cbb59.jsonl`
+- approx context at last assistant turn: 257563 tokens
+- tools used: Bash×71 Read×34 Edit×16 Write×2 ScheduleWakeup×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/state.md
+- /src/mxfs/tests/repro_barrier_dir2.sh
+- /src/mxfs/pal/linux/xfs_super.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess49_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    until timeout 8 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'echo up' 2>/dev/null | grep -q up; do sleep 5; done; echo "test3 back up"
+    cd /src/mxfs MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -5 echo "=== versions ===" for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash too
+    cd /src/mxfs timeout 280 bash tests/repro_barrier_dir.sh 15 2>&1 | tail -25 echo "exit=$?"
+    cd /src/mxfs for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1' 2>/dev/null; done t0=$(dat
+    cd /src/mxfs for t in test_rename_visibility test_unlink_visibility; do   for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mx
+    grep -iE "\[FAIL\]|actual=|ENOTDIR|No such|timed out|barrier" /home/steve/.mxfs/results/20260602_234810/test_rename_visibility/node1.log 2>&1 | grep -ivE "ASSER
+    awk 'NR>=1333 && NR<=1420 && (/up_write|xfs_buf_relse|i_dlm_stale = false|^}/)' /src/mxfs/xfs/xfs_mxfs_dlm.c | head; echo "=== line numbers ==="; grep -n "up_wr
+    grep -n "up_write\|xfs_buf_relse(bp)\|i_dlm_stale = false\|^}" /src/mxfs/xfs/xfs_mxfs_dlm.c | awk -F: '$1>1249 && $1<1560'
+    awk 'NR>1249 && NR<1700 && /up_write|relse\(bp\)|i_dlm_stale = false|^}$/ {print NR": "$0}' /src/mxfs/xfs/xfs_mxfs_dlm.c | head
+    make modules 2>&1 | grep -iE "error:|warning.*(drevalidate|reload_inode|xfs_super)|undefined" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | g
+    cd /src/mxfs MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -3 for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /t
+    cd /src/mxfs echo "=== barrier reproducer (deadlock check) ===" timeout 200 bash tests/repro_barrier_dir.sh 15 2>&1 | tail -5 echo "exit=$?" echo "=== D-state c
+    cd /src/mxfs for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1' 2>/dev/null; done t0=$(dat
+    cd /src/mxfs for t in test_cross_visibility test_unlink_visibility test_cross_write_read; do   for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_s
+    until grep -q "test_cross_write_read" /tmp/claude-1000/-src-mxfs/d41aca09-0dca-465c-9dbd-4396736cbb59/tasks/belt4y5pi.output 2>/dev/null && ! kill -0 $(pgrep -f
+    grep -iE "\[FAIL\]|actual=|timed out|No such|ENOTDIR" /home/steve/.mxfs/results/20260603_000421/test_cross_visibility/node1.log 2>&1 | grep -ivE "ASSERT OK" | h
+    grep -n "i_dlm_dir_gen" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -1 for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'd
+    grep -n "i_dlm_mode = \|i_dlm_state = \|MXFS_DLM_ISTATE_\|inode_unlock\|bast_process\|demote" /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -iE "bast_process|demote|i_dlm
+    grep -n "THE REMAINING BLOCKER = SLOW/FLAKY" /src/mxfs/state.md
+
+## Last text from previous session
+
+ with full context budget.
+That notification is from the original 20-iter reproducer that wedged earlier (`b0xz1p0fz`) — it finally drained after the test3 reboot cleared the D-state. It's moot now: the deadlock it exposed is fixed (build `10A04B9E`), and the reproducer passes 0/60 with no wedge on the fixed build.
+
+My checkpoint stands and is fully saved:
+- **Build `10A04B9E` deployed on all test1-4**, cluster healthy (no D-state, cross_visibility just passed).
+- **Three fixes landed** (force_peer_flush slowness; reload trylock-bail deadlock fix; coordinated drevalidate restored).
+- **All 4 cache_coherency sub-tests pass individually**; the sequential criterion still fails on the flaky ~120s barrier-visibility stall.
+- Remaining blocker precisely diagnosed (sticky dir PR grant not BAST'd on peer EX) with a concrete next-fix direction in `state.md` + `sess49_lessons.md`.
+
+Criteria are **not** met (sequential `cache_coherency.sh` still fails), so I have not written the marker. This is a clean seam well past the relay floor (~195K context) — stopping so ccloop summarizes and a fresh session can attack the sticky-grant BAST issue (the genuine architectural root) with full context budget, rather than my doing a delicate DLM grant-registration change at depleted budget.
+These are all stale wait-loop completions from the original wedged reproducer — no action needed. Rather than repeatedly signaling a stop while the loop re-invokes me, let me make concrete bounded progress on the actual remaining blocker: the sticky-grant demote path. Let me locate exactly where demote releases the on-disk grant but leaves `i_dlm_mode` cached.
+Important correction: line 690 shows `bast_process` **does** set `i_dlm_mode = NL` before releasing the on-disk grant — so my "sticky mode stays PR after BAST" theory is wrong. After a BAST, the next acquire *would* slow-path correctly. The real question (unverified) is whether the peer's EX actually **fires a BAST** to node1 at all, or whether the on-disk PR registration is dropped when holders→0. I shouldn't leave a possibly-wrong root in the handoff. Let me correct it to prescribe instrumentation per RULE 4.
+Let me correct the same unproven root in the memory file to point to the instrumented next-steps.
+The handoff is now accurate (corrected the unproven root). Final state for this session:
+
+## sess49 complete — clean checkpoint
+
+**Build `10A04B9E` deployed on all test1-4**, cluster healthy. Three fixes landed:
+1. `mxfs_dlm_force_peer_flush()` — reused-inode eviction slowness (rename 133→26s, unlink 264→35s)
+2. Reload `down_write` → bounded `down_write_trylock`+bail — fixes the proven permanent drevalidate deadlock at its source
+3. Coordinated drevalidate restored (lockless version regressed rename, reverted)
+
+**Verified:** all 4 cache_coherency sub-tests **PASS individually**; `repro_barrier_dir.sh` 0/60 no wedge.
+
+**Criteria NOT met** — the sequential `cache_coherency.sh` criterion still fails (each test passes alone, but a flaky ~120s barrier-visibility stall + cross-test contamination tips whichever test runs last). Marker not written.
+
+**Remaining blocker, honestly scoped:** slow/flaky ~120s barrier-dir visibility. I corrected my earlier diagnosis — the "sticky-PR-not-BAST'd" theory is likely wrong (`bast_process` does set `i_dlm_mode=NL` at L690). The handoff (`state.md`, `sess49_lessons.md`, `MEMORY.md`) now prescribes the RULE-4 instrumentation needed to find the real root (Q1: does a peer's EX actually BAST node1, or is its on-disk PR slot dropped at holders→0? Q2: dir-block miss vs marker child-inode miss? Q3: measure first-visible latency) rather than asserting an unproven cause.
+
+This is a clean seam at ~200K context with all state saved and the cluster healthy on the best build. The next session should instrument the barrier-visibility latency before patching, since the genuine root is still unproven and a guessed DLM-grant change risks regressing the four sub-tests that now pass individually.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

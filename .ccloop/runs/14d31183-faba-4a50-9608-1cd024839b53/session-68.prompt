@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 68 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 67
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `3b33c27d-7112-4546-b283-52da390439cf`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3b33c27d-7112-4546-b283-52da390439cf.jsonl`
+- approx context at last assistant turn: 251818 tokens
+- tools used: Bash×102 Read×14 Edit×6 mcp__ccmemory__memory_get×2 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tools/prep_tcm_node.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rliE "scst|disk1n|scstadmin|sendtargets|iscsi.*target" tools/ scripts/ packaging/ tests/ 2>/dev/null | head; echo "=== scst sysfs targets ==
+    cd /src/mxfs; echo "=== clyde_boot_recover.sh (target setup parts) ==="; grep -nE "disk1n|scst|device|luns|sessions|add_target|iscsi|for .*seq|backing|vdisk|fil
+    cd /src/mxfs; echo "=== disk1 session ==="; sudo iscsiadm -m session 2>/dev/null | grep -E ":disk1$"; echo "=== disk1 by-path dev ==="; sym=$(ls -d /dev/disk/by
+    cd /src/mxfs; timeout 400 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -6
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 6 "$SSH" test$n "$P" "dmesg -C 2>/dev/null; true" >/dev/null 2>&1 &
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 "$SSH" test1 "$P" "   echo '=== procs ==='; ps aux | grep -E '[m]kfs|[m]ount.*sda' | awk 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 "$SSH" test2 "$P" "   echo '=== current reservation ==='; sg_persist --in -r /dev/sda 2>&
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 "$SSH" test2 "$P" "   sg_persist --out --register-ignore --param-sark=0x5eed /dev/sda 2>&
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 30 "$SSH" test$n "$P" "umount /mnt/shared 2>/dev/null; umount -l /m
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do echo -n "test$n:"; timeout 10 "$SSH" test$n "$P" "lsmod|grep -c '^mxfs'" 2>
+    cd /src/mxfs; sudo virsh -c qemu:///system destroy test1 2>&1 | grep -v '^$'; sleep 3; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== clear PR from tes
+    cd /src/mxfs; echo "=== scst_unwedge contents ==="; ls scripts/scst_unwedge/ 2>/dev/null; echo "=== clyde_boot_recover.sh full ==="; sed -n '1,90p' scripts/clyd
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 "$SSH" test2 "$P" "sg_persist --in -r /dev/sda 2>&1 | head -8" 2>&1 | grep -vE '^Warning|
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 "$SSH" test2 "$P" "sg_persist --in -r /dev/sda 2>&1 >/dev/null; sg_persist --in -r /dev/s
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 "$SSH" test2 "$P" "   sg_persist --out --register-ignore --param-sark=0x5eed /dev/sda >/d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== node module state ==="; for n in $(seq 1 16); do echo -n "test$n:"; timeout 5 "$SSH" test$
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 2 16); do timeout 6 "$SSH" test$n "$P" "dmesg -C 2>/dev/null; true" >/dev/null 2>&1 &
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 40 "$SSH" test2 "$P" "   echo '--- 0. drain UA ---'; sg_persist --in -k /dev/sda >/dev/null 
+    cd /src/mxfs; echo "=== scst service ==="; systemctl is-active scst 2>&1; echo "=== D-state threads on host ==="; ps -eo pid,stat,wchan:28,comm | awk '$2 ~ /D/'
+    cd /src/mxfs; echo "=== attempt: stop scst (60s timeout) ==="; sudo timeout 60 systemctl restart scst 2>&1; echo "restart_rc=$?"; sleep 3; echo "scst now: $(sys
+
+## Last text from previous session
+
+eservation despite rmmod — they're being live re-registered, centered on test1's unkillable qemu. Let me reassess: did the 15 rmmod'd nodes reload, and check the scst_unwedge tool.
+All 16 nodes are down now (test1 qemu gone), yet PR keys persist (stale APTPL registrations). But the storm preps each node and NODE0 will now be test2 (test1 down) whose register+clear may suffice. Let me just try the storm with 15 nodes.
+form test2 also failed — the stale PR reservation truly blocks all forms. My clear isn't sticking. Let me do a careful step-by-step PR clear with full output to find why.
+Registration itself fails — test2's shared LUN I/O is wedged (the documented SCST "EXEC_CHECK_BLOCKING" deadlock: every serialized SCSI cmd blocks). Let me assess the host SCST state to confirm and decide on recovery.
+This is the documented SCST wedge: 20+ `iscsi_conn_cleanup` threads stuck in **D-state** (uninterruptible) — every serialized SCSI command (CAW, PR register) blocks forever. Per `clyde_boot_recover.sh`, this normally needs a host reboot. Let me attempt a service-level recovery first (allowed — not a host reboot): restart scst with a timeout.
+The scst restart hung (rc=124, now stuck "deactivating", 90 D-state threads) — conclusively the documented unrecoverable host wedge. Per **RULE 2**, this requires a manual host reset, which is the user's call only. Let me leave the tree clean and record the findings. First revert the prep diagnostic change:
+Now let me record this session's decisive findings to memory before the relay.
+Summary of this session (67):
+
+## Scientific breakthrough on `zero_silent_loss`
+I disproved two prior "root cause" theories and proved the actual mechanism with a direct FUA-readback probe (P34B):
+
+- **The on-disk bmbt leaf is CORRECT** (FUA read `disk_recs=18` == `di_nextents=18`). The disk is **not torn**.
+- The reader trips P59 because `xfs_iread_extents` walks a **stale, clean, cached bmbt leaf buffer** (`cached_recs=14`, `bflags=0x20`=XBF_DONE) that survived the reload-time eviction → `loaded=14 != if_nextents=18` → EFSCORRUPTED → 1600-dirent cascade.
+
+**Refuted:**
+1. **sess66 write-clobber theory** — the tenure write-gate attacks the wrong side; build 88688A48 fails identically. The durable disk leaf is the latest/correct image, not clobbered.
+2. **FUA-read fix** — set `fua_disable=0`, zsl still failed. A clean XBF_DONE buffer is returned with **no I/O**, so FUA is irrelevant while the stale buffer survives in cache.
+
+**Real root (proven by elimination):** the stale cached leaf survives `mxfs_dir_evict_bmbt_blocks` despite being clean. I built instrumentation (build `3AC3BF09`: `P67-BMBT-EVICT-ENTER`/`-SKIP`) to settle whether it's a rhashtable-walk miss vs a transient pin/dirty at evict time — but couldn't capture it because the host wedged.
+
+## ⚠️ Host requires a manual reboot (RULE 2 — your call)
+The test cluster's shared LUN wedged at clyde's kernel level: **90 `iscsi_conn_cleanup` threads stuck in D-state** (uninterruptible). Every serialized SCSI command (CAW, PR REGISTER) blocks forever — `sg_persist` register returns rc=1, mkfs/mount get `reservation conflict`, mount hangs in D-state. A stale SCSI PR can't be cleared because register itself fails. `systemctl restart scst` hung (now "deactivating").
+
+This is the exact wedge documented in `scripts/clyde_boot_recover.sh`: *"only a host reboot clears kernel-thread state."* **Per CLAUDE.md RULE 2, I cannot reboot clyde — host recovery is your call.** When you reboot, the `@reboot clyde_boot_recover.sh` hook re-establishes iSCSI and resumes the ccloop run; the next session can then run `scripts/cluster_reset_n.sh 16` and capture the P67 probes to pin down the eviction miss.
+
+I did **not** write the criteria-met marker — `zero_silent_loss`, `fence_during_write`, `rsync_paired`, and `posix_semantics_multi16` all still FAIL. Findings saved to memory (`sess67-zsl-root-stale-cached-bmbt-leaf-not-write-clobber`); the tree is clean (prep diagnostic edit reverted).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

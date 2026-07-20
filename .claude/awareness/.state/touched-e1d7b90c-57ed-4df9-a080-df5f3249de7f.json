@@ -1,0 +1,10 @@
+{
+  "source": [
+    "tools/caw_verify.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/tools.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

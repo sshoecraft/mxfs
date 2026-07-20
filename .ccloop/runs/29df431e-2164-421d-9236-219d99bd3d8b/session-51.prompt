@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 51 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 50
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `2051855d-d301-4626-951d-406c0a2cbfe2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2051855d-d301-4626-951d-406c0a2cbfe2.jsonl`
+- approx context at last assistant turn: 254855 tokens
+- tools used: Bash×87 Read×29 Edit×9 Write×2
+
+## Files written or edited in the previous session
+
+- /tmp/run_cc2.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess84_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '/^mxfs_dir_data_durable/,/^}/p' xfs/xfs_mxfs_dlm.c | head -60; echo "=== sig ==="; grep -n "mxfs_dir_data_durable" xfs/xfs_mxfs_dlm.c | he
+    cd /src/mxfs; grep -n "xfs_iflush_cluster\|xfs_iflush\b\|xfs_bwrite\|REG-DURABLE\|iflush.*cluster\|im_blkno\|xfs_imap_to_bp.*bwrite\|flush.*inode.*cluster" xfs/
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undefined" | head; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 20 $SSH ${n}.vm.localdomain $P "umount /mnt/shared 2>/d
+    cd /src/mxfs; rm -f /tmp/cc_cv4.log; ( ts=$(date +%s); timeout 200 env MXFS_NODE_OFFSET=16 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_cross_v
+    O=/tmp/cc_cv4.log; until grep -q "EXIT rc=" "$O" 2>/dev/null; do sleep 8; done; echo "=== RESULT ==="; grep -E "EXIT" "$O"; grep -iE "PASS|FAIL|Results|assert.*
+    O=/tmp/cc_cv4.log; until grep -q "EXIT rc=" "$O" 2>/dev/null; do sleep 8; done; echo "=== RESULT ==="; grep -E "EXIT" "$O"; grep -iE "PASS|FAIL|Result|assert|Te
+    sleep 60; O=/tmp/cc_cv4.log; grep -E "EXIT" "$O" 2>/dev/null || echo "still running"; grep -iE "PASS|FAIL|Result|assert|Tests run|cannot see|sees all" "$O" 2>/d
+    O=/tmp/cc_cv4.log; grep -E "EXIT" "$O" 2>/dev/null || echo "still running"; echo "---"; grep -iE "PASS|FAIL|Result|assert|Tests run|cannot see|sees all" "$O" 2>
+    O=/tmp/cc_cv4.log; until grep -q "EXIT rc=" "$O" 2>/dev/null; do sleep 10; done; echo READY
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: procs="; timeout 10 $SSH ${n}.vm.localdomain $P "p
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; grep -E "EXIT" /tmp/cc_cv4.log 2>/dev/null; INO=$(timeout 10 $SSH test1.vm.localdomain $P "stat -c %
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; INO=6291585; for n in test1 test2 test3 test4; do timeout 12 $SSH ${n}.vm.localdomain $P "dmesg | gr
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undefined" | head; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 20 $SSH ${n}.vm.localdomain $P "umount /mnt/shared 2>/d
+    cd /src/mxfs; rm -f /tmp/cc_cv5.log; ( ts=$(date +%s); timeout 220 env MXFS_NODE_OFFSET=16 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_cross_v
+    O=/tmp/cc_cv5.log; until grep -q "EXIT rc=" "$O" 2>/dev/null; do sleep 10; done; echo "=== RESULT ==="; grep -E "EXIT" "$O"; grep -iE "PASS|FAIL|Results:|assert
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; until [ "$(timeout 8 $SSH test1.vm.localdomain $P 'pgrep -c mxfs_test.sh' 2>/dev/null | grep -oE '^[
+    cd /src/mxfs; grep -rn "xfs_dinode_size\b" xfs/libxfs/*.h xfs/libxfs/xfs_inode_buf.* 2>/dev/null | head; echo "=== how dir-sf data ptr derived elsewhere ==="; g
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undefined|warning.*xfs_mxfs" | head; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | 
+
+## Last text from previous session
+
+ reg-files only, so directories always run the deterministic `log_force → iflush → bwrite` loop (whose first action, `log_force`, collapses the CIL window). Let me make that change.
+This now ensures dirs always run the deterministic flush on BAST release (the cv4 timeline confirms test1 *is* BAST'd between its count=4 add and its next reload — `ACQ-SLOW` at the end). Build and deploy.
+Still failing — node1 (last committer) loses again. My flush hypothesis is partially disproven: the BAST-release flush isn't preventing the loss. Per RULE 4, I need to instrument WHY. Let me add two detectors: (1) in reload — fire when a dir reload would DROP the in-core count (self-revert from stale disk), with in_ail/pin state; (2) in my durable block — log the shortform count actually being flushed.
+I made an offset error (dip already points at the dinode; shouldn't re-add im_boffset). Let me check `xfs_dinode_size`'s signature and fix.
+I've hit the relay boundary. Let me fix the compile error in the detector (wrong `xfs_dinode_size` signature + double offset) so the build isn't left broken for the next session.
+Let me verify the build compiles so the next session starts from a clean build.
+Build compiles clean (564A41EF, detectors built but not yet deployed/run). Let me record this session's findings to memory before the relay, then summarize.
+Reached the relay boundary. Brief summary of this session:
+
+## Status: NOT shippable — `cache_coherency` still FAILs (the only red criterion; 11/12 PASS)
+
+I did **not** write the criteria-met marker — the gate is still red.
+
+## What I proved this session (RULE 4, with cross-node evidence)
+Built a new always-on detector `P-SFDIR-FASTEX` and used the existing `P-SFDIR-RELOAD` to reconstruct the exact cross-node timeline of the shortform-directory lost-update:
+
+- In `cross_visibility`, 4 nodes each create one file in **one shared shortform dir** (dirents inline in the dinode). **`node1.txt` is durably lost from every node, every run** — including test1's own view. The barrier dirs are also shortform and lose node1's marker the same way → peers stall the full 120s barrier twice → **the "240s slow" symptom is a *consequence* of the lost-update, not a separate slowness bug.**
+- The nodes form a clean read-modify-write chain; **node1 (lowest id) always adds last**. It reloads the correct count=3, adds node1 → count=4, commits — **but the dinode never becomes durable (disk stays count=3), and a later reload re-reads stale disk and reverts its own in-core count=4.** The **last committer loses its own entry.**
+- **Refuted concurrent-EX**: zero `CAW-EXCL-VIOLATION`, and I extended the `CAW-DUP-SLOT` claim-race detector from AG-only to INODE locks — fired 0×. CAW inode exclusion is sound. This is pure **write-side durability** of the last committer's dinode (a CIL-window early-break: `!in_ail && !pinned` ⇏ durable).
+
+## Fixes attempted (did NOT fix — build 83522A1B still loses node1)
+Extended the proven deterministic inode-cluster flush (`log_force → iflush_cluster → bwrite → blkdev_flush`) to directories and gated its early-out to reg-files only. It didn't help because **the last committer is never routed through `bast_process`** (it holds the dir EX sticky-cached and the test ends before a peer BASTs it).
+
+## Left for next session
+- Build **564A41EF** is compiled clean locally (adds `P-SFDIR-REVERT`, which fires in reload when a LOCAL-dir reload would drop the in-core count) — **not yet deployed**. Deploy it to confirm the self-revert and its in_ail/pin state.
+- The real fix surface is **not** the BAST path but either (a) flush the shortform dinode durable at the commit / iunlock-sticky point (multi-node only — watch rsync_paired perf) so peers and the node's own later reload see count=N, and/or (b) make reload refuse to drop not-yet-durable in-core dirents (shortform analogue of sess39 RELOAD-SIZE-DROP-SKIP). Likely **both**.
+
+Nodes are on build 83522A1B, cluster clean and mounted. Detail in `sess84_lessons.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

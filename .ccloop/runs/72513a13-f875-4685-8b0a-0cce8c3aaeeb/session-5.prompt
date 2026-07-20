@@ -1,0 +1,118 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `c1c3544d-06db-4c39-8db2-256764edfc90`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c1c3544d-06db-4c39-8db2-256764edfc90.jsonl`
+- approx context at last assistant turn: 497959 tokens
+- tools used: Bash×232 mcp__ccmemory__memory_write×5 Edit×3 TaskCreate×3 TaskUpdate×3 ToolSearch×2 Read×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    python3 - <<'PYEOF' s = open('xfs/xfs_inode.c').read() old = """		if ((error == -ENOENT || error == -EFSCORRUPTED) && 		    igetmiss_tries < 8) {""" new = """		
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 570 ./run.sh 16 cawd prep_cluster 2>&1 | tail -1 && RULE0_CALIBRATE=1 timeout 300 ./run.sh 16 cawd
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() s = s.replace("""## 16/cawd rung IN PROGRESS (build BC7C7EE95247BDCE1AD7230, knob=1)""", """## 16/cawd
+    grep -n "mxfs" xfs/libxfs/xfs_ialloc.c | head -8; grep -n "start_agno\|startag\|rotor" xfs/libxfs/xfs_ialloc.c | head -8
+    sed -n '2176,2250p' xfs/libxfs/xfs_ialloc.c
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() s = s.replace("""NEXT STRUCTURAL LEVER (GPT plan): per-node ALLOCATION STEERING — bias each node's ino
+    grep -n "p2_reg_clean" xfs/xfs_mxfs_dlm.c | head -6; sed -n "$(grep -n 'p2_reg_clean' xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1),+3p" xfs/xfs_mxfs_dlm.c
+    sed -n '11265,11280p' xfs/xfs_mxfs_dlm.c; sed -n '11648,11660p' xfs/xfs_mxfs_dlm.c
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = """		if (S_ISREG(vip->i_mode) && 		    (!ip->i_itemp || 		     !test_bit(XFS_LI_IN_AIL, &ip->i_i
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 560 ./run.sh 8 cawd zero_silent_loss cr
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = """	pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, base)); 	if (!pag) 		return; 	/* CIL -> AIL: the
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 560 ./run.sh 8 cawd cache_coherency zer
+    D=$(ls -dt /tmp/run_cache_coherency_* | head -1); grep -h "RESULT: FAIL" $D/test1 | head -1 | cut -c1-330
+    timeout 25 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'stat -c "%n size=%s" /mnt/shared/.cache_coherency/cross_write_read/data_node2.md5 2>&1; cat /mnt/shared/
+    python3 - <<'PYEOF' s = open('xfs/xfs_mxfs_dlm.c').read() old = """		if (S_ISREG(vip->i_mode) && ip->i_dlm_routed_iclus) { 			/* ICLUSTER batched drains (ccloop
+    MXFS_EXTRA_MODARGS="icluster_dlm=1" MXFS_FORCE_PREP=1 timeout 400 ./run.sh 8 cawd prep_cluster 2>&1 | tail -1 && timeout 560 ./run.sh 8 cawd cache_coherency zer
+    timeout 25 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -E "DUR-TIMEOUT|STUCK|WAIT-EXTEND|hung|blocked" | tail -5' 2>/dev/null | grep -vE "^Warning
+    timeout 30 tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'echo w > /proc/sysrq-trigger 2>/dev/null; sleep 1; dmesg | grep -A12 "task:.*state:D" | tail -40' 2>/dev
+    timeout 30 tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg | grep -A22 "task:.*state:D" | grep -E "task:|mxfs_iclus|make_durable|iflush|delwri|release_check|
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() s = s.replace("""## 16/cawd rung IN PROGRESS (build AB52387FD11C403A66ECF56, knob=1)""", """## ⚠ CURRE
+
+## Last text from previous session
+
+), and the residual staleness happens at *read* time on a path that never reloads. The decisive next instrument is fully specified in state.md: cross-node `realns` wall-clock correlation for one failing file (writer's BAST/drain markers vs reader's read-side markers), with a 32-second repro cycle.
+
+The session's ledger overall: seven root-cause fixes landed and validated, the **entire 20-row 8/cawd board green** (fio at 135% of native, dir_reuse in budget), 16/cawd five tests green with one active investigation, and the full path to the criteria (16 residual → 32/cawd → cawp/tcp/caw ladders → matrix green) documented across state.md and the five-memory sess4 chain.
+Executing the decisive instrument. First: is the staleness still live on the mounted FS right now?
+**Criteria not met — the relay picks up with the next edit fully specified.**
+
+Progress this final stretch: the live cross-node dissection proved the 16-node staleness is transient and self-converging (both views now agree byte-for-byte; even the "failing" read had the correct data hash — only the same-cluster sibling lagged). The iget retry budget extension (8→24 laps under icluster) landed and **cache_coherency@16 now passes clean 16/16 on the second run** — only the cold first pass after prep still fails, and its cause is now precisely located: one cluster handoff redundantly runs the full per-inode P146 durability pipeline (log-force + iflush + device flush) for every covered inode sequentially, when `make_durable` at release already batches all of it. The steering hypothesis was refuted by reading the code — per-node AG affinity has existed since sess45, which the failing ino ranges confirm.
+
+The next session's first action is written in state.md with expected impact and a verification recipe: gate the P146 loop off for sticky-routed REG inodes in bast_process (durability moves to `make_durable` at the cluster release, preserving Invariant 1 at cluster granularity), then re-run the sess4 battery at 8 and 16. After that: the rest of the 16 rung, 32/cawd, and the cawp/tcp/caw ladders toward the four-condition matrix the criteria require.
+Continuing with the specified batching edit. First the exact `p2_reg_clean` semantics:
+Minimal specified edit — routed REG inodes skip the per-inode P146 durable loop and its device flush (durability batches at the cluster release):
+Live probes on writer and reader before more theory:
+**Criteria not met — relay boundary reached; session 4 ends with a precise bisection map for session 5.**
+
+The closing experiments produced one important negative result and one clean rollback path. The Phase-2 batching attempt (skipping the per-inode durable pipeline for cluster-routed inodes) was **disproven with hard evidence**: deferring the in-place flush to release time let the grant_seq adopt path revert committed-in-log state — the writer's own 33-byte file went size-0 durably, cluster-wide. That failure mode is now documented in-code at the skip site with the precondition for any retry (the adopt path must become log/AIL-aware first). The follow-up make_durable active-iflush rework then introduced a cross-node circular wait (D-state in `caw_wait_for_grant` while holding dir-EX), wedging two tests.
+
+state.md now carries the exact build-by-build bisection: reference-green `BC7C7EE` (full 8-node board), the two known-good xfs_inode.c fixes on top (nudge fallthrough + 24-lap retry budget — these took 16-node cache_coherency to a clean 16/16 on warm runs), and the two suspect make_durable variants to unwind. Session 5's first action is written out: revert make_durable to the passive settle version, verify the 8-node battery returns to all-green, then resume the 16-rung → 32 → cawp/tcp/caw ladder toward the four-condition matrix.
+
+Net session ledger: seven validated root-cause fixes, the first-ever fully-green 20-row 8/cawd board, 16-node cache_coherency green on warm passes, and every open front documented with repro commands and measured evidence.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

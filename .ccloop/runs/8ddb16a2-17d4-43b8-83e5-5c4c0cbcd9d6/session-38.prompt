@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 38 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 37
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `ec9efcee-cf40-4af5-8f58-9609cecd3ab7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ec9efcee-cf40-4af5-8f58-9609cecd3ab7.jsonl`
+- approx context at last assistant turn: 498969 tokens
+- tools used: Bash×72 Read×34 Edit×13 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_search×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; for n in test1 test2; do echo -n "$n: "; timeout 25 $SSH "$n" "$PF" 'rmmod mxfs 2>&
+    cd /src/mxfs/tests; echo "=== P15-INSTR FREE-AG-EXTENT-FAIL (the double-free detail) ==="; grep -hE "FREE-AG-EXTENT-FAIL|P15-INSTR.*FREE" _cap/test1.log _cap/te
+    cd /src/mxfs; echo "=== inactivation stale-inode guards (sess47/103: di_gen/di_mode check, B3) ==="; grep -rnE "B3|INACT.*STALE|STALE.*INACT|skip.*inactiv|inact
+    cd /src/mxfs/tests; echo "=== P19-B3DEC decisions (will_skip + which B fired) near the shutdown ==="; grep -hE "P19-B3DEC" _cap/test1.log _cap/test2.log 2>/dev/
+    cd /src/mxfs; grep -n "P47-INACT\|DISK-FREE=>B-stale\|mxfs_dbg_inactive_ino" xfs/libxfs/xfs_alloc.c | head
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; for n in test1 test2; do timeout 30 $SSH "$n" "$PF" 'pkill -f dmesg 2>/dev/null; um
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|
+    cd /src/mxfs/tests; echo "=== B5 fix firing (INACT-SKIP-STALE) ==="; echo "t1=$(grep -c INACT-SKIP-STALE _cap/test1.log) t2=$(grep -c INACT-SKIP-STALE _cap/test
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|
+    cd /src/mxfs/tests; echo "=== shutdown this run? ==="; grep -hciE "ltbno|Internal error|Corruption detected|xfs_inode_buf_verify" _cap/test1.log _cap/test2.log;
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dir_leaf_rebuild=1'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warn
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; for i in 3 4 5; do rm -f tests/_cap/*.log 2>/dev/null; echo "=== RUN $i ==="; bash tests/drc_cap2.sh
+    cd /src/mxfs/tests; echo "=== run3 shutdown cause ==="; grep -hiE "ltbno|Internal error|Corruption detected|xfs_inode_buf_verify|metadata I/O error|XFS_DABUF_MA
+    cd /src/mxfs; make modules > /tmp/bld.log 2>&1; echo "rc=$?"; grep -iE "error:|implicit|undeclared" /tmp/bld.log | head; modinfo mxfs.ko 2>/dev/null | grep srcv
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|
+    cd /src/mxfs/tests; echo "=== P15-INSTR WITH caller (new build) ==="; grep -hE "FREE-AG-EXTENT-FAIL.*caller=" _cap/test1.log _cap/test2.log | sed -E 's/^\[[0-9.
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; for n in test1 test2; do timeout 30 $SSH "$n" "$PF" 'pkill -f dmesg 2>/dev/null; um
+    cd /src/mxfs; echo "=== virsh list ==="; timeout 15 virsh -c qemu:///system list --all 2>/dev/null | grep -iE "test1|test2" || echo "(checking default uri)"; ti
+    cd /src/mxfs; for vm in test1 test2; do echo "=== $vm reset ==="; timeout 20 virsh -c qemu:///system destroy "$vm" 2>&1 | head -1; done; sleep 3; for vm in test
+    cd /src/mxfs; rm -f tests/_cap/*.log 2>/dev/null; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; bash tests/drc_cap2.sh 2>&1 | grep -vE '^Warning:|^Unauthorized|
+
+## Last text from previous session
+
+roke the path, so only **run 3 actually ran** (runs 4-5 re-read run 3's logs). And **run 3 SHUT DOWN** (readdir=0 ×39) with **B5 not firing** (INACT-SKIP=0). So B5 did NOT prevent this shutdown — it's via a different path. Let me check run 3's shutdown cause.
+SAME signature: `P47-INACT block 297 inact_ino=2099107 disk_di_mode=0 disk_gen=incore+1`, but `will_skip=1 count=0` — the guard **never skipped**, and B5 never fired. Critically, `inact_ino` is a **global that may be stale** — the block-297 free may come from a different path (e.g., a dir-block free during rm-rf), not 2099107's inactivation. The decisive missing fact is the **caller** of `xfs_free_ag_extent`. Let me add it.
+Build OK (1A5116E4). The shutdown recurs at block 297 — let me reproduce to capture the free caller.
+The shown line is pre-run residue (old format). Let me grep for the new `caller=` lines from this run.
+The residue is obscuring analysis (the node dmesg ring persists across runs). Let me clear the ring (`dmesg -C`) on a clean reset, then reproduce to capture the caller unambiguously.
+Nodes are wedged post-shutdown (rmmod failing — stuck FS thread). Let me reset the test VMs via virsh (allowed for test VMs, not the host).
+test1/test2 are on `qemu:///system`. Let me destroy + restart them for a clean slate.
+Clean reset (mxfs=0, fresh ring). Now reproduce to capture the block-297 free caller unambiguously.
+FAIL but **no shutdown** this run (block-297 double-free is flaky, didn't occur) — so I didn't catch the caller. The instrumentation is now in place (build 1A5116E4) for a clean-ring capture next time it shuts down. I've reached the practical limit of productive diagnosis this session. Let me record the final state.
+Reached the relay boundary. Final summary of session 37:
+
+## Session 37 — criterion NOT met (honest); major diagnostic progress
+
+**The `2 node dlm=tcp` criterion fails on `dir_reuse_coherency`** — a flaky test with three distinct failure faces, all sharing a **stale-state-survives-inode/daddr-REUSE** root.
+
+### What I proved/refuted this session (RULE 4, with evidence)
+- **Refuted the sess31-36 "root"**: the P31E `xfs_dir3_data_init` clobbers are **benign** prior-incarnation freed-block reuse (P31F-BMAP showed the on-disk inode is shortform/small at every clobber).
+- **Refuted**: read-hook bounded retry (wrong path, `P34R=0`), stale in-core bmap (`P37-STALEBMAP=0`), evict-keeps-stale-DATA (`P37D=0`), allocator double-alloc (confirmed sess55 `P55-DISKINODE=0`).
+- **Proved the shutdown is a stale double-FREE, not a double-alloc**: `P47-INACT bno=297 disk_di_mode=0 disk_gen=incore+1` — a stale cached inode freeing an already-free block.
+
+### Concrete changes landed (build `1A5116E4`)
+- **B5 inactivation TOCTOU fix** (drop `!local_unlink`) — sound in principle but **inert for this test** (never fired across 5 runs; the `inact_ino` global it keyed on is likely a stale attribution).
+- **Free-caller instrumentation** at the bnobt-corruption point — ready to capture the *actual* block-297 free caller on the next clean-ring shutdown.
+- All heavy detectors gated behind `mxfs.instr` (no perturbation/regression vs sess36 baseline).
+
+### Key infra lesson recorded
+The node dmesg ring **persists across runs** (mkfs doesn't clear it; shutdowns wedge the node). Next session must `virsh destroy+start test1 test2` (dom184/185) or `dmesg -C` before diagnostic runs to avoid pre-run residue corrupting analysis.
+
+### State for next session
+- Nodes freshly reset (clean, not wedged).
+- 6 detailed memories written with the precise next step: reproduce-until-shutdown with the clean ring to capture the free caller → pinpoints whether the double-free is a dir-inode bmap shrink or a file inode, giving the fix locus. The two more-frequent dir-block faces (data-loss, leaf-hash) need separate fixes; the leaf-hash merge is blocked by `dir_leaf_rebuild=1` shutting down via a separate data-over-inode double-alloc.
+
+The marker is **not** written — no reliable PASS was achieved.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

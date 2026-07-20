@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 47 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 46
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `43287be1-4756-4343-827e-3cf1efc640bc`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/43287be1-4756-4343-827e-3cf1efc640bc.jsonl`
+- approx context at last assistant turn: 251773 tokens
+- tools used: Bash×78 Read×14 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== set dirwr=1 + clear dmesg on all 16 (parallel) ==="; for n in $(seq 1 16); do timeout 10 tools/mxfs_sshpass.sh test$n
+    cd /src/mxfs; P=/tmp/.mxfs_pass; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 200 bash tests/run_tests.sh --nodes 16 --test test_concurrent_touch 
+    cd /src/mxfs; D=$(ls -dt /home/steve/.mxfs/results/*/ | head -1); echo "latest run: $D"; echo "=== concurrent_touch result ==="; for n in 1 9; do echo -n "node$
+    cd /src/mxfs; D=/home/steve/.mxfs/results/20260612_225730/; echo "=== contents ==="; ls -la "$D" 2>/dev/null; echo "=== concurrent_touch dir ==="; ls -la "$D"te
+    cd /src/mxfs; echo "=== --test / SINGLE_TEST parsing + matching ==="; grep -nE "SINGLE_TEST|--test|found_phase|RUN_SINGLE" tests/run_tests.sh | head; echo "=== 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 200 bash tests/run_tests.sh --nodes 16 --test test_concurrent_touch 
+    cd /src/mxfs; echo "=== verify_environment ==="; sed -n '388,410p' tests/run_tests.sh; echo "=== ssh_node + node mapping (MXFS_NODE_OFFSET usage) ==="; grep -nE
+    cd /src/mxfs; echo "=== verify_all_mounted ==="; grep -nE "verify_all_mounted\(\)" tests/lib/cluster.sh; sed -n "$(grep -n 'verify_all_mounted()' tests/lib/clus
+    cd /src/mxfs; echo "=== is_mounted ==="; sed -n "$(grep -n 'is_mounted()' tests/lib/cluster.sh | head -1 | cut -d: -f1),+15p" tests/lib/cluster.sh; echo "=== di
+    cd /src/mxfs; sed -n '34,55p' tests/lib/cluster.sh; echo "=== env the runner needs ==="; grep -nE "MXFS_SSH_TOOL|MXFS_PASS|PASS_FILE|MXFS_MOUNT_POINT" tests/lib
+    cd /src/mxfs; P=/tmp/.mxfs_pass; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 200 bash tests/run_tests.sh --nodes 16 --test test_concurrent_touch 
+    cd /src/mxfs; echo "=== exact ssh_node 1 mountpoint check ==="; /home/steve/src/mxfs/tools/mxfs_sshpass.sh test1.vm.localdomain /tmp/.mxfs_pass "mountpoint -q /
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== mount state all 16 (sequential, like verify) ==="; for n in $(seq 1 16); do r=$(timeout 8 tools/mxfs_sshpass.sh test$
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== remount test1 ==="; timeout 40 tools/mxfs_sshpass.sh test1 $P 'lsmod|grep -q "^mxfs " && echo mod_loaded; mount -t mx
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 20 tools/mxfs_sshpass.sh test1 $P 'echo "=== mount table ==="; mount | grep -E "shared|sda|mxfs"; echo "=== /proc/mount
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test1: force umount + remount ==="; timeout 60 tools/mxfs_sshpass.sh test1 $P 'umount -f /mnt/shared 2>&1; echo "umou
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== verify all 16 + clear dmesg ==="; allm=1; for n in $(seq 1 16); do timeout 8 tools/mxfs_sshpass.sh test$n $P 'dmesg -
+    cd /src/mxfs; D=$(ls -dt /home/steve/.mxfs/results/*/ | head -1); echo "latest: $D"; echo "=== ran? ==="; ls "$D" 2>/dev/null; echo "=== node1/9 result ==="; fo
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 15 tools/mxfs_sshpass.sh test1 $P 'mountpoint -q /mnt/shared && echo MOUNTED || echo NOT_MOUNT; dmesg 2>/dev/null | gre
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== clean umount all 16 (parallel) ==="; for n in $(seq 1 16); do timeout 30 tools/mxfs_sshpass.sh test$n $P 'umount -f /
+
+## Last text from previous session
+
+st, confirm current mount state.
+test1 is genuinely unmounted (verify was right). Let me remount it to rejoin the cluster, then verify all 16.
+Inconsistent state on test1: kernel says `/dev/sda already mounted` but `mountpoint -q` fails — a half-wedged/shutdown mxfs mount. Let me inspect test1's mount table and dmesg.
+test1's mxfs **shut down** during the killed run: `xfs_trans_cancel at xfs_remove ... Corruption of in-memory data (0x8) ... Shutting down filesystem`. This is a separate (or downstream) failure in the unlink path. The mount is a zombie. Let me record this finding and recover test1 (umount -f + remount).
+test1 recovered (umount -f + remount OK). Let me verify all 16 mounted, re-clear dmesg for a clean probe baseline, and run isolated concurrent_touch with dirwr probes.
+verify failed again (only timing dir). test1 may be re-shutting-down (corrupt on-disk FS). Let me check test1's state directly.
+**Critical escalation**: test1 shut down *again* with a new signature — `Metadata corruption detected at __xfs_dir3_data_check, xfs_dir3_block 0x1fd9f0` → shutdown at `xfs_buf.c:1972`. The concurrent-create lost-update doesn't just lose dirents — it produces **durable on-disk dir-block corruption** that shuts down any node re-reading it. The cluster FS is corrupt; I need a fresh mkfs. Let me record this and do a clean reset.
+Now do a clean reset to a fresh FS — avoiding power-cycle (SCST risk) by cleanly unmounting all 16 first. Step 1: parallel clean umount.
+Reached the ccloop relay boundary. All 16 nodes are cleanly unmounted (16/16) — a safe, well-defined state with no corrupt FS mounted and no SCST-wedge risk. Criteria **not** met, so no marker written.
+
+## Summary of this session
+
+**Task**: drive `posix_semantics_multi16` (the lone failing ship-gate criterion) to PASS. 18/19 criteria pass.
+
+**Breakthrough — two symptoms, one root cause.** Ran the cluster phase with per-test timing and proved that both the correctness failure and the dominant slowness are the **same bug**:
+- **Slowness (RULE-0 budget eater)**: concurrent_mkdir took 137s, cross_write_read 247s — but the actual work was <1s each. The cost is **120s barrier-visibility timeouts**. The `present=[...]` diagnostics are *globally consistent* across all 16 observers and the victim node's `own_lookup=0` — proving the barrier-signal dirent is **durably lost on disk**, not stale in a cache.
+- **Correctness**: concurrent_touch — node9 lost 27 of its own 100 files (1573/1600).
+- **Both are**: 16-node concurrent create into a shared directory durably clobbers a peer's just-added dirent (shortform barrier dirs lose signals → 120s hangs; block-format data dirs lose files).
+- **Escalation found**: the lost-update doesn't just drop entries — it produces **durable dir-block corruption** (test1 shut down twice on remount: `__xfs_dir3_data_check` failure on `xfs_dir3_block 0x1fd9f0`).
+
+**Mechanism hypothesis (to prove next, RULE 4)**: slow-path EX-acquire does call `mxfs_dlm_reload_inode`, but the reload may read stale (non-FUA SCST cache, or the `P91-RELOAD-PROTECT` guard at `xfs_mxfs_dlm.c:3821` keeping a stale co-resident inode-cluster buffer). Discriminate with the `dirwr=1` probes (P105-ACQ/REL-DIRINODE, P106-EXGRANT/EXREL) — now enabled cluster-wide.
+
+**Infra recovered**: my interrupted run power-cycled VMs mid-mount and re-triggered the sess43 SCST atomic-blocked-command wedge (disk1 reads hung, 10 D-state kthreads, PR was clean). Recovered with the `scst_atomic_edges.py` + `scst_unwedge.ko` tooling (broke the READ↔CAW deadlock cycle).
+
+**Cluster state for next session**: all 16 cleanly unmounted, module `D9D22CF3` loaded with `dirwr=1`, SCST healthy. The on-disk FS is corrupt (block 0x1fd9f0) — **next step: fresh mkfs on test1 → mount all → isolated concurrent_touch with dirwr probes → harvest P105/P106 to prove the stale-read site → fix → verify 1600/1600 with no 120s barrier timeouts.** Full detail saved to memory `sess46-barrier-timeout-and-lostupdate-same-root`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

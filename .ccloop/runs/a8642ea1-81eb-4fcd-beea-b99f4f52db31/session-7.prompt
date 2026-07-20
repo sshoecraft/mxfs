@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a8642ea1-81eb-4fcd-beea-b99f4f52db31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a8642ea1-81eb-4fcd-beea-b99f4f52db31, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `7236d83a-7def-4398-a2a0-2844abd4134d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d.jsonl`
+- approx context at last assistant turn: 502371 tokens
+- tools used: Bash×74 Read×39 Edit×11 TaskUpdate×4 mcp__ccmemory__memory_get×4 Monitor×3 TaskCreate×3 mcp__ccmemory__memory_write×3 TaskStop×2 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== stop wedged run + monitor + waiter ==="; pkill -9 -f 'run[.]sh 32 caw' 2>/dev/null; sleep 1; for p in $(ls -l /proc/*/fd/* 2>/dev/null |
+    cd /src/mxfs; echo "0.10.53" > VERSION; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; : > "$SC/build2.log"; setsid make modules
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; for i in $(seq 1 110); do if grep -q "Leaving directory" "$SC/build
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; if grep -q "Leaving directory" "$SC/build2.log" 2>/dev/null; then e
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; # wait for build for i in $(seq 1 120); do grep -q "Leaving directo
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; if grep -q "Leaving directory" "$SC/build2.log" 2>/dev/null; then e
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; echo "=== b328b69lk output ==="; cat "$SC/../tasks/b328b69lk.output
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; pkill -9 -f 'run[.]sh 32 caw' 2>/dev/null; sleep 1; for p in $(ls -
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; echo "run.sh alive: $(pgrep -c -f 'run[.]sh 32 caw')"; echo "=== di
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; nohup timeout 4600 env MXFS_DEV=/dev/mapper/mpatha ./run.sh 32 caw 
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; sleep 3; echo "alive=$(pgrep -c -f 'run[.]sh 32 caw')"; head -3 "$S
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; # wait past prep, then watch for wedge or progress for i in $(seq 1 150); do   pgrep -f 'r
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/7236d83a-7def-4398-a2a0-2844abd4134d/scratchpad; sleep 30; echo "=== prep progress ==="; tail -3 "$SC/diag_run.log";
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; echo "=== P-IOWAIT-STUCK w/ diag fields (all nodes, dedup) ==="; for n in $(seq 1 32); do 
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; for i in $(seq 1 90); do   pgrep -f 'run[.]sh 32 caw' >/dev/null 2>&1 || { echo "RUN EXITE
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; echo "run alive=$(pgrep -c -f 'run[.]sh 32 caw')"; timeout 8 bash "$SSH" test1 "$PASS" 'ec
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; sleep 90; echo "run alive=$(pgrep -c -f 'run[.]sh 32 caw')"; timeout 8 bash "$SSH" test1 "
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; for i in $(seq 1 60); do   pgrep -f 'run[.]sh 32 caw' >/dev/null 2>&1 || { echo "RUN EXITE
+    sleep 240; cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; echo "run alive=$(pgrep -c -f 'run[.]sh 32 caw')"; timeout 8 bash "$SSH" test1 
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; echo "run alive=$(pgrep -c -f 'run[.]sh 32 caw')"; echo "srcversion loaded on test1: $(tim
+
+## Last text from previous session
+
+it_stuck=0` and no `P15-REL-ABORT` storm**, it's a strong signal this build carries dir_reuse@32/caw to completion — a plausible PASS. If it wedges first, the capturer delivers the mechanism-pinpointing fields.
+
+Standing by for the r8 checkpoint or wedge signal.
+I'll stop polling output files and let the checkpoint waiter drive. The run is at r4, progressing cleanly (`iowait_stuck=0`).
+
+I'm now waiting on the background checkpoint waiter (by5pwyv9f), which will interrupt me with real data at **r8** (or sooner if a wedge appears). No action is useful until then. The persistent monitor continues logging each round as confirmation of forward progress.
+
+Standing by for the r8 checkpoint.
+I have the background checkpoint waiter (by5pwyv9f → fires at r8 or wedge) and the persistent monitor already running — foreground sleeps are blocked precisely because those are the right mechanism. I'll let them drive.
+
+**Current state:** diagnostic run at r4, `iowait_stuck=0`, clean progress past both prior wedge points. Rounds pacing within budget. Waiting for the r8 checkpoint (the wedge#3 territory per sess5) or an earlier wedge signal — whichever comes first will tell me if this build carries the test through or reveals the next mechanism to fix.
+
+I'll respond when the next background notification arrives with real data.
+Relay boundary reached. Let me do a final state check and record a precise handoff before wrapping up — the diagnostic run should keep running for the next session to observe:
+The diagnostic run (v0.10.53 / C98E4152) is at **r5, `iowait_stuck=0`, clean** — past both prior wedge points, still running. It should keep running for the next session to observe. Let me record a precise handoff memory:
+Handoff recorded. Leaving the diagnostic run and monitor (b946dgvx6) alive for the next session to observe. Brief summary:
+
+## Session 6 summary
+
+**Criteria state:** The sole remaining gap is `dir_reuse_coherency@32/caw` (verified via criteria.json — every other 1/2/4/8/16/32 CAW cell is PASS, zero FAIL cells). **Not yet met** — a fix is in flight and a run is live.
+
+**What I proved (RULE 4, live-instrumented):** The current-build failure is a **lost `b_iowait` wakeup** on the per-unlink durable-signal's synchronous `xfs_bwrite` (`owner_scan` for dir3_leafn, `bmbt_scan` for xfs_bmbt) → `rm` hangs in `xfs_buf_iowait` forever → round stalls → barrier timeout → FAIL. Captured the exact stuck stack + `P-IOWAIT-STUCK flags=ASYNC|DONE done=0`: `__xfs_buf_ioend` ran (cleared R/W, set DONE) but the completion router (`xfs_buf_ioend`/`xfs_buf_bio_end_io`) saw XBF_ASYNC and took the async/relse branch instead of `complete(&b_iowait)`. Non-deterministic round (baseline r3, this class also at r1/r5).
+
+**What I built:**
+- **v0.10.52 (7647E2C4)** — `b_mxfs_sync_wait` stable snapshot at submit; both completion routers wake a sync submitter regardless of a spurious XBF_ASYNC flip. Kept, but its `P-SYNCWAIT-OVERRIDE` fired **0×** → insufficient alone (the completion routes async with `sync_wait=false`, a submit/wait ownership mismatch — leading theory: xfsaild steals the buffer in owner_scan/bmbt_scan's `b_hold`-only walk window).
+- **v0.10.53 (C98E4152)** — added `sync_wait`/`ioend_seen`/`relse_seen` to the probe to decode the exact mechanism on the next wedge.
+
+**Live now:** diagnostic run of v0.10.53 is at **r5/24, `iowait_stuck=0`, clean** — past both prior wedge points. It's non-deterministic, so the next session must watch the outcome via monitor **b946dgvx6**: if it completes 24 rounds PASS → verify criteria.json + spot-check lower cells → criteria met; if it wedges → the capturer + probe fields pinpoint the mechanism (decode key in the handoff memory `AAA-ccloopa864-sess6-HANDOFF-diagrun-live-r5-clean-watch-outcome`); also watch r8 for wedge#3 (release-abort livelock) and the pace (RULE 0 budget 4480s).
+
+All work is in-tree (VERSION 0.10.53) and the cluster is healthy (32/32 nodes, running the build). Nothing killed — the experiment continues.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 70 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 69
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `008d555c-e14f-4b82-ad2b-89a3bc997c85`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/008d555c-e14f-4b82-ad2b-89a3bc997c85.jsonl`
+- approx context at last assistant turn: 261313 tokens
+- tools used: Bash×49 Read×13 Edit×5 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×3 Write×2 mcp__ask_gemini__query×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/uv_disktruth.sh
+- /src/mxfs/.ccmemory/mxfs1-vs-v5-not-mirror-images.md
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/.ccmemory/sess69-ondisk-proof-durable-lostupdate.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== mount state ==="; for n in test1 test
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 260 bash tests/reset4.sh 4 2>&1 | tail -3; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 480 bash tests/uv_disktruth.sh 8 2>&1
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; DIR=/mnt/shared/.mxfs_test/uvdt; echo "=== still-live views ==="; for n in test2 test3; do
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== envelope/sb offset from mount-time dmesg (test3) ==="; timeout 12 $SSH test3 "$P
+    cd /src/mxfs; grep -rnE "bt_sector_offset|sector_offset" pal/ dlm/ xfs/ include/ 2>/dev/null | grep -iE "offset\s*=|= .*offset|#define|envelope|journal.*slot" |
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== envelope offset (sectors) ==="; OFF=$(timeout 12 $SSH test3 "$PASS" "dmesg | gre
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== still diverged? ==="; for n in test2 test3; do echo -n "$n: "; timeout 10 $SSH "
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== read xfs_data_offset (byte 88, LE u64) from test3 ==="; HEX=$(timeout 12 $SSH te
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; DIR=/mnt/shared/.mxfs_test/uvdt; echo "=== all-4 current views (active entries via mounted
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; SKIP=10633360; echo "=== pull 16KB raw block from test2 to host ==="; timeout 20 $SSH test
+    cat > /tmp/parsedir.py << 'EOF' import struct,re,sys b=open('/tmp/uvblk.bin','rb').read() # xfs_dir3_blk_hdr(48) + best_free[3]*4(12) + pad(4) = 64 off=64 namer
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; SKIP=10633360; echo "=== pull 64KB from test2 (O_DIRECT) ==="; timeout 25 $SSH test2 "$PAS
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== dup-slot / concurrent-EX / claim-race detectors (all nodes) ==="; for n in test1
+    cd /src/mxfs; grep -rnE "xfs_dir2_leaf_to_block|xfs_dir2_block_to_leaf|xfs_dir2_node_to_leaf|xfs_dir2_leaf_to_node" xfs/libxfs/*.c | grep -E "^\S+:[0-9]+:(int|S
+    cd /src/mxfs; echo "=== symbols used elsewhere in xfs/libxfs (confirm available) ==="; grep -lE "b_mxfs_dir_gen" xfs/libxfs/*.c | head; grep -nE "pr_warn_rateli
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 260 bash tests/reset4.sh 4 2>&1 | tail -3; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; for n in test1 test2 test3 test4; do timeout 8 
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== P69-L2B reshape probe (all nodes) ==="; for n in test1 test2 test3 test4; do ech
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== split/dupslot/stale-skip/ex-pop signal counts (this run E06FDBC3) ==="; for n in
+
+## Last text from previous session
+
+C3. Clear dmesg, reproduce the divergence, and capture P69-L2B.
+Even stronger this time: t1=0, t2=t3=t4=45, and the poker (test3, fresh EX) **also reads 45** → disk durably has 45 un-deleted entries. Durable clobber confirmed. Now the decisive question — did a stale leaf block feed the reshape? Let me read the P69-L2B probe.
+The reshape probe **did not fire on any node** — so `xfs_dir2_leaf_to_block` was NOT involved. This run's 45-entry dir is still leaf-format (didn't collapse to block). **Gemini's reshape hypothesis is refuted** — the lost-update happens in the *normal leaf-format removename* path, not reshape. Let me check the other candidate signals in this run's dmesg (the P87-CAW-SPLIT transient-split detector, DIR-STALE-SKIP, dup-slot) before re-instrumenting.
+This run: **only ex_pop=1 — no split, no dup-slot, no DIR-STALE-SKIP, no harmful acquire-skip** — yet 45 entries durably lost. So the stale block is **silent**: it has a gen that *matches* i_dlm_dir_gen (passing the read hook) but stale content. The leading explanation is the gen-mechanism's hole: `i_dlm_dir_gen` bumps only on **slow-path** acquire; a **fast-path** EX re-acquire (cached compatible lock) does no gen-bump and no evict, so a stale cached leaf/data block is served as "fresh." Let me read the acquire fast-path to verify the hole.
+I've hit the relay boundary. Let me record this session's key refutation and the sharpened hypothesis before wrapping up.
+Relay boundary reached. Criteria **not met** — cache_coherency still fails (unlink_visibility durably loses deletions); marker not written.
+
+## Session summary
+
+**Two important corrections from you, now recorded in memory:**
+1. mxfs.1 and v5 are **not mirror images** — mxfs.1 is a bespoke hand-written FS with its own cache layer; v5 is a fork of the real Linux kernel XFS. mxfs.1's coherency code isn't transplantable.
+2. v5 must stay a valid **MXFS** filesystem, not XFS — we own mkfs/chk and the on-disk format, so a custom coherence epoch/format change is fully on the table. The only hard constraints are perf (the won 104%) and crash-recoverability.
+
+**Decisive progress on the blocker (all RULE-4 measured, not guessed):**
+- Built `tests/uv_disktruth.sh` — reliably reproduces the unlink divergence and leaves it live for raw inspection.
+- **Proved transport is coherent**: raw `dd iflag=direct` reads of the dir block are byte-identical across initiators — refutes any per-initiator/SCST stale-read theory.
+- **Proved it's a durable WRITE-side lost-update**: parsed the on-disk XDB3 block (leaf tail count=122, stale=101 → 19 active; another run 45 active) — the disk genuinely retains entries that were deleted. Nodes showing `0` hold correct-but-non-durable in-core state; the durable disk is wrong. This corrected a mid-session read-side detour and confirmed the sess82–97 framing **with hard proof**.
+- Consulted Gemini (RULE 5): hypothesized a stale leaf block consolidated by `xfs_dir2_leaf_to_block`. **Built+deployed probe P69-L2B (build E06FDBC3) and REFUTED it** — the probe never fired; the failing dir stays leaf-format, no reshape. The loss is in the normal leaf-format removename path.
+- **Sharpened root**: this run shows only `ex_pop=1` (EX properly serialized) with **no** split/dup-slot/DIR-STALE-SKIP signals — so the stale block is **silent** (its `b_mxfs_dir_gen` matches `i_dlm_dir_gen`, passing the lazy read hook, but content is stale). Leading mechanism: `i_dlm_dir_gen`-bump and evict happen **only on slow-path acquire**; a fast-path EX re-acquire serves a stale cached leaf/data block as fresh.
+
+**Next session** (in memory `sess69-ondisk-proof-durable-lostupdate`): either pin the fast-path gen-bump hole, or finally build the mechanism-agnostic **dir-block write-submission trace** (last-writer of the surviving block) that GPT/sess68 wanted but nobody built — then fix via a pull-based on-disk dir epoch or all-path acquire invalidation. Cluster left mounted on E06FDBC3 (P69-L2B probe is harmless/ratelimited).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

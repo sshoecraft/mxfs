@@ -1,0 +1,142 @@
+.\" chk_mxfs(8) man page
+.\" Copyright (c) 2026 MXFS Project
+.\" SPDX-License-Identifier: GPL-2.0
+.\"
+.TH CHK_MXFS 8 "2026-03-10" "MXFS 0.10.0" "System Administration"
+.SH NAME
+chk_mxfs \- validate an MXFS-formatted block device
+.SH SYNOPSIS
+.B chk_mxfs
+.RB [ \-v ]
+.I device
+.SH DESCRIPTION
+.B chk_mxfs
+performs a read-only integrity check on an MXFS-formatted block device.
+It validates all on-disk structures without modifying anything, making
+it safe to run on a mounted filesystem (though results may be
+inconsistent if the filesystem is actively being modified).
+.PP
+The checker verifies four categories of on-disk structures:
+.SS 1. MXFS Superblock
+Reads the first 4 KB at offset 0 and validates:
+.IP \(bu 3
+Magic number (0x5346584D)
+.IP \(bu 3
+Format version
+.IP \(bu 3
+CRC32C checksum
+.IP \(bu 3
+Region offsets and sizes are within device bounds
+.IP \(bu 3
+Regions do not overlap (super, journal, disklock, XFS data)
+.SS 2. Journal Region
+Reads the journal superblock and all per-slot headers:
+.IP \(bu 3
+Journal super magic (0x4D584A4C), version, and CRC32C
+.IP \(bu 3
+Per-slot header magic and CRC32C
+.IP \(bu 3
+Reports clean vs dirty slot counts and slot owners
+.SS 3. Disklock Region
+Reads the heartbeat slots:
+.IP \(bu 3
+Heartbeat slot magic (0x4D584C4B) for non-empty slots
+.IP \(bu 3
+Active/inactive status and node IDs
+.IP \(bu 3
+Reports active vs empty slot counts
+.SS 4. XFS Structures
+Reads the XFS superblock and per-AG headers:
+.IP \(bu 3
+XFS superblock magic (0x58465342), CRC32C at offset 224
+.IP \(bu 3
+Basic geometry sanity (blocksize, agcount, sectsize)
+.IP \(bu 3
+Per-AG AGF magic (0x58414746), sequence number, CRC32C
+.IP \(bu 3
+Per-AG AGI magic (0x58414749), sequence number, CRC32C
+.IP \(bu 3
+Reports filesystem UUID, block count, free blocks, and inode counts
+.SH OPTIONS
+.TP
+.BR \-v
+Verbose output.  Show detailed information for each check as it passes,
+including per-slot journal status, heartbeat slot details, and XFS
+geometry fields.
+.SH EXAMPLES
+Check an MXFS filesystem:
+.PP
+.RS
+.nf
+chk_mxfs /dev/sdb
+.fi
+.RE
+.PP
+Verbose check showing all details:
+.PP
+.RS
+.nf
+chk_mxfs -v /dev/sdb
+.fi
+.RE
+.PP
+Sample output (clean filesystem):
+.PP
+.RS
+.nf
+chk_mxfs v1.0.0 -- checking /dev/sdb
+MXFS super .............. OK  (version=1, device=20.00 GB)
+Journal ................. OK  (64 slots, 64 clean, 0 dirty)
+Disklock ................ OK  (64 HB slots, 0 active)
+XFS superblock .......... OK  (blocksize=4096, agcount=19, fdblocks=4856307)
+  UUID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+  AG 0: AGF OK, AGI OK
+  AG 1: AGF OK, AGI OK
+  ...
+
+chk_mxfs: 0 error(s) found
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+All checks passed.  The filesystem structures are consistent.
+.TP
+.B 1
+One or more errors were found.  The error count is printed at the end.
+.TP
+.B 2
+Usage error (invalid arguments).
+.SH NOTES
+.IP \(bu 3
+.B chk_mxfs
+is strictly read-only.  It never modifies the device.
+.IP \(bu 3
+The tool is standalone with no libmxfs linkage.  It uses POSIX
+.BR pread (2)
+for all I/O.
+.IP \(bu 3
+CRC verification uses the Castagnoli polynomial (CRC32C, 0x82F63B78).
+MXFS structures use seed ~0U without complement; XFS structures use
+seed ~0U with final complement.
+.IP \(bu 3
+.B fsck.mxfs
+is installed as a symlink to
+.B chk_mxfs
+to support automatic fsck dispatch from
+.BR fstab (5).
+.SH FILES
+.TP
+.I /usr/sbin/chk_mxfs
+The filesystem checker binary.
+.TP
+.I /usr/sbin/fsck.mxfs
+Symlink to chk_mxfs for fstab integration.
+.SH SEE ALSO
+.BR mxfs (5),
+.BR mkfs.mxfs (8),
+.BR resize_mxfs (8),
+.BR fsck (8),
+.BR xfs_repair (8)
+.SH AUTHORS
+MXFS Project.

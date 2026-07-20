@@ -1,0 +1,13 @@
+{
+  "source": [
+    "dlm/dlm_caw.c",
+    "pal/linux/kern.c",
+    "dlm/v5_mount.c",
+    "dlm/dlm_caw.h"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

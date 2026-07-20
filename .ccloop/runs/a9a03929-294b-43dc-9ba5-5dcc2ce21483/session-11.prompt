@@ -1,0 +1,138 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 10
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `2eca429b-7c4d-4b04-991e-ce09eb905ef7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7.jsonl`
+- approx context at last assistant turn: 500777 tokens
+- tools used: Bash×174 Edit×49 Read×31 mcp__ccmemory__memory_write×6 TaskCreate×3 mcp__ccmemory__memory_get×3 TaskUpdate×2 ToolSearch×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/run.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_priv.h
+- /src/mxfs/tests/suite/fence_during_write.sh
+- /src/mxfs/scripts/suite_cycle_run.sh
+- /src/mxfs/tests/suite/lib.sh
+- /src/mxfs/xfs/xfs_inode.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "mxfs_dlm_evict_inode_cb\|evict_inode_cb" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -4; grep -n "inode_durable\|cluster_durable" /src/mxfs/xfs/xfs_icache.c /s
+    T=/tmp/run_dir_reuse_coherency_20260703T202423Z; for n in 1 2 3 4; do echo "-- t$n SFCONV (storm dir):"; grep -hE "P42-SFCONV|P60-SFCONV-BASE" $T/kernlog_test$n
+    S=/tmp/claude-1000/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7/scratchpad; for i in $(seq 1 50); do sleep 10; done; for r in 9 10; do echo "-- r$r:"; grep -c
+    S=/tmp/claude-1000/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7/scratchpad; grep -cE "^  PASS" $S/suite4_s10r9.log; grep -E "FAIL|exit rc" $S/suite4_s10r9.log
+    tail -40 /src/mxfs/.claude/awareness/subsystems/pal.md | head -25; wc -l /src/mxfs/.claude/awareness/subsystems/pal.md
+    cat >> /src/mxfs/.claude/awareness/subsystems/pal.md << 'EOF'  ## sess10 (ccloop a9a03929, 2026-07-03) — P-DIRWR watch-scope rework (xfs_buf.c)  ### xfs_buf.c: 
+    make modules 2>&1 | grep -E " error|undefined" | head -4; modinfo mxfs.ko | grep srcversion; S=/tmp/claude-1000/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7/s
+    S=/tmp/claude-1000/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7/scratchpad; for i in $(seq 1 50); do grep -q "exit rc" $S/suite4_s10r10.log 2>/dev/null && bre
+    T=$(ls -dt /tmp/run_dlm_scaling_* | head -1); echo $T; for n in 1 2 3 4; do grep "RESULT" $T/test$n 2>/dev/null | head -1 | cut -c1-130; done; echo ===; for n i
+    grep -n "write_fua\|scsi_write" /src/mxfs/pal/linux/kern.c /src/mxfs/pal/*.h 2>/dev/null | head -5; grep -rn "mxfs_pal_scsi_read_fua_bdev" /src/mxfs/pal/linux/k
+    cat /etc/scst.conf 2>/dev/null | head -40 || sudo cat /etc/scst.conf 2>/dev/null | head -40; ls /sys/kernel/scst_tgt/devices/ 2>/dev/null
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 12 $SSH test1 $PF "iscsiadm -m session 2>/dev/null | head -3" 2>/dev/null; ls /src/mxfs/tools/f
+    grep -E "static|pwrite|ioctl|SG_IO|FUA|sync|O_DIRECT" /src/mxfs/tools/fua_verify.c | head -20; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 120 $SSH test1 $PF 'SZ=$(blockdev --getsz /dev/sda); LBA=$((SZ-2048)); echo "size=$SZ lba=$LBA"
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; (timeout 100 $SSH test1 $PF 'for k in $(seq 1 12); do dd if=/dev/zero of=/dev/sda bs=1M seek=$((20000+k
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; (timeout 90 $SSH test2 $PF 'SZ=$(blockdev --getsz /dev/sda); LBA=$((SZ-4096)); for i in $(seq 1 1500); 
+    make modules 2>&1 | grep -E " error|undefined" | head -4; modinfo mxfs.ko | grep srcversion
+    S=/tmp/claude-1000/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7/scratchpad; nohup bash -c 'for r in 1 2 3 4 5 6 7 8; do MXFS_EXTRA_MODARGS="dir_relverify=1 wa
+    S=/tmp/claude-1000/-src-mxfs/2eca429b-7c4d-4b04-991e-ce09eb905ef7/scratchpad; for i in $(seq 1 55); do sleep 10; done; grep -E "PASS|FAIL" $S/ds2_loop.log 2>/de
+    T=$(ls -dt /tmp/run_dlm_scaling_* | head -1); echo $T; for n in 1 2 3 4; do grep "RESULT" $T/test$n 2>/dev/null | head -1 | cut -c1-135; done; echo ===; for n i
+
+## Last text from previous session
+
+RT, and run.sh/suite_cycle_run.sh now archive every node's kernel log on failure and per iteration.
+
+4. **Flake inventory with mechanisms**: (a) dir_reuse round-3 face — two clean repros; peers' first adds erased from a reused-daddr block0 at birth; verify-time in-core==platter, so the fork happens during the create wave; no SF phase (force_block converts at mkdir, P42-SFCONV sf_count=0). (b) dlm_scaling quota-0 — SF parent's platter dinode lags the last commit (P-SFDIR-REVERT fua==disk==incore-1) despite bast_process drains running. (c) fence hot-dir leak — 5 durably-resurrected/unremoved names. (d) tds pace/leak — churn chains break exactly at P5D stale-serve moments (`comm=mv trans=1`).
+
+5. **Score**: 4 full 17/17 runs this session; failures are the four flake faces above at ~1-2 per 6 runs. The unarmed chain (r10-r13) keeps collecting evidence on build `35DAB8EB` across the relay boundary — next session should read `scratchpad/suite4_s10r*.log` and the `/tmp/run_*` artifacts first, then run the light-armed standalone dir_reuse loop to capture the block0 write-lineage (P-DIRWR CRC timeline + P13-LADD placements) at the fork moment.
+Criteria not met — continuing. First the required pal doc update, then building the light-armed watch mode for the decisive dir_reuse capture:
+pal.md updated. Now the light-armed mode — heavy per-placement platter walks off, cheap content traces on:
+Build `E9F33FEF` ready. Waiting for chain r10 to finish, then swapping to the light-armed dir_reuse loop:
+r10: dlm_scaling failed 1/4 **on the ledger build** — the lastrel discriminator data exists now. Reading it:
+Adding a general dir-slot regression detector next to P97 (relverify-gated), catching an unowned dir dinode about to be shrunk by our cluster write:
+Fixing two raw-offset errors (di_format is 0x05, di_gen is 0x5C in v3):
+Build `89321B9D`. Launching the dlm_scaling discriminator loop:
+Relay boundary reached — wrapping up. **Criteria not met; marker not written.** The ds2 loop (4 more dlm_scaling iterations with the P10-CLREGRESS detector) continues in the background; its artifacts self-capture.
+
+**Session 10 final summary:**
+
+**Root-cause progress — the flake family is now one instrumented mechanism away from a fix:**
+
+1. **Recovered r8's lost forensics** from the test's own `/root` dmesg snapshots and corrected the failure model: 59 dirents durably erased from one block (daddr 7872); every storm probe had been blind in-suite because the dir's inode number (2529) exceeded the hard-coded `ino<=256` probe scope. Built runtime `watch_ino` scoping (+`watch_light`), armed by the tests per round, with hygiene resets after a leak collapsed a timing-sensitive test.
+
+2. **Chased the durability contradiction through three layers**: the release-side SF-dinode flush provably *ran* (new `i_mxfs_lastrel_*` ledger: flag=1, age 5-256ms) yet the platter regressed; the SCST `async 1` export was the obvious suspect but **direct transport tests exonerated it** (6,000 cross-node FUA reads over 1,500 write+sync cycles: zero anomalies).
+
+3. **The new P10-CLREGRESS detector then caught the real mechanism live**: on the failing node, 1,630 consecutive inode-cluster write attempts carried that node's **own dirty inode-log-item holding an empty shortform dir** while the platter already held the peer's newer 1-entry image — a stale-dirty-ili **livelock** (the rate-collapse face) whose landing (when guards miss) is the durable clobber/resurrection face seen in dlm_scaling, fence, and the dir_reuse losses.
+
+**Next session picks up with**: harvest the remaining ds2 artifacts, identify which guard produces the 1,630 skip-retries (P22-SFTORN / dirty_seq / P119 family) and why the ili stays dirty with pre-peer content, fix at that root, then the validation ladder — dlm_scaling ×8 clean, full 4/tcp ×3 clean, then 8/2/1 node suites. All state, evidence paths, and fix candidates are in ccmemory (`sess10run2-BREAKTHROUGH-clregress-owned-stale-dirty-ili-livelock` and companions).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

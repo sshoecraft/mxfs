@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 32 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 31
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6d44b32e-45aa-44ca-ba2c-ec68cc3297e6`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6d44b32e-45aa-44ca-ba2c-ec68cc3297e6.jsonl`
+- approx context at last assistant turn: 499191 tokens
+- tools used: Bash×211 Edit×17 Read×14 mcp__ccmemory__memory_write×9 mcp__ccmemory__memory_get×4 Write×2 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/drc_repro_loop.sh
+- /home/steve/.claude/projects/-src-mxfs/memory/sess31-HEAD-handoff.md
+- /src/mxfs/.ccmemory/sess31-HEAD-handoff.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '1700,1730p' xfs/xfs_inode.c
+    cd /src/mxfs; grep -n "EXPORT_SYMBOL(mxfs_dir_merge_peer_into_tp)" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "MXFS_IF_DIR_LEAF_STALE\|disp=SKIP leaf" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; python3 - <<'PYEOF' f='xfs/xfs_mxfs_dlm.c' s=open(f).read() anchor='\t\t\t\t\txfs_iflags_set(ip, MXFS_IF_DIR_LEAF_STALE);\n' ins=('\t\t\t\t/* sess
+    cd /src/mxfs; python3 - <<'PYEOF' f='xfs/xfs_mxfs_dlm.c' s=open(f).read() anchor='\t\t\t\t\txfs_iflags_set(ip, MXFS_IF_DIR_LEAF_STALE);\n' ins=('\t\t\t\t/* sess
+    cd /src/mxfs; sed -n '3545,3575p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; python3 - <<'PYEOF' f='xfs/xfs_mxfs_dlm.c' s=open(f).read() bad=('\t\t\t\t/* sess31: a kept-stale in-AIL DATA/BLOCK block is the single-dirent-los
+    cd /src/mxfs; python3 - <<'PYEOF' f='xfs/xfs_mxfs_dlm.c' s=open(f).read() import re # find the drain_evict SKIP branch: LEAF_STALE set followed by a block conta
+    cd /src/mxfs; sed -n '6354,6372p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -rn "mxfs_dir_merge_peer_into_tp" xfs/*.h xfs/xfs_inode.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit-function|warning: unused" | head -20; echo "=== result ==="; modinfo mxfs.ko 2>/dev/null |
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 8; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; echo "=== P31-RECONCILE activity (did it re-add entries?) ==="; for n in 1 2 3 4 5 6 7 8; do r=$(timeout 6 $S
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; echo "=== which SKIP probes fired for DATA (non-leaf) blocks? ==="; for n in 1 5; do echo "test$n:"; timeout 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit-function" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 8; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; for r in 1 2 3 4 5; do for n in 1 2 3 4 5 6 7 8; do timeout 6 $SSH test$n /tmp/.mxfs_pass "rm -f /root/drc_fa
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 8; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; echo "reconcile=$(timeout 6 $SSH test1 /tmp/.mxfs_pass 'cat /sys/module/mxfs/parameters/dir_stale_reconcile' 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit-function" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+it. So my `in_ail`-only flag condition is too narrow. The block is kept stale for other reasons (pinned/etc.) but still DONE. Let me broaden the flag to any DONE DATA/BLOCK block reaching the SKIP branch (the reconcile is idempotent, so over-flagging is safe).
+Now let me rebuild and test the broadened flag.
+P31 still 0 — but PASS 8/8 again (wall 113s). The reconcile is inert (flag not firing or its internal is_stale filter finds nothing). Before more flag-tuning, I must establish whether the loss even still reproduces with this build. Let me loop several standalone runs (param persists via the reused mount).
+7/7 PASS with the reconcile build (`dir_stale_reconcile=1`) — but those last 5 had no dirwr so P31 couldn't print. Baseline was ~1/2 loss, so 7 passes is very unlikely to be luck (p≈1/128). I need the decisive A/B: does the loss **return** with `dir_stale_reconcile=0` (same build)? Let me reboot to default (reconcile=0) and run 5×.
+5/5 pass with reconcile=0 too — but my 8-round plain runs lack the conditions that reliably triggered the loss (the reliable repro used **24 rounds + DRC_STREAM**). The loss is probabilistic/probe-sensitive. Let me re-establish the baseline: reconcile=0 (current default) with the reliable conditions (24 rounds + DRC_STREAM), several runs.
+reconcile=0 confirmed; 24-round runs are too slow for quick A/B looping. The deeper issue: P31 fired 0× — the reconcile is **inert** because its `in_ail && undestaged` filter doesn't match the loss-block's state (it's a CLEAN stale prior-tenure base, `bgen < dir_gen`). Let me fix the reconcile to key on stale generation instead, and add an entry probe. This is the right discriminator (cheap — only stale-gen blocks).
+Now let me make P31 always print when the reconcile runs (so I can see if it's triggered), with a cap. Let me find and update the print.
+I've hit the relay boundary. Let me finalize the current edit by confirming it builds cleanly, then summarize.
+Build clean (8E4B6D08). Let me record the implementation state for continuation, then summarize.
+Reached the relay boundary. Brief summary of this session:
+
+## Session summary
+
+**Major verified win:** The ~30-session "8-node coherency flakiness" was largely an **infrastructure bug** — 6 of 8 test VMs shared the same iSCSI InitiatorName, so the QNAP target dropped colliding sessions and wedged nodes under load (masquerading as mxfs coherency bugs). Fixed (unique IQNs) + cleaned 20 GB `/var/log` ENOSPC. Result:
+- **1/tcp = 16/16, 2/tcp = 17/17, 4/tcp = 17/17** — clean.
+- **8/tcp = 17/17 on 3 of 4 full runs (~75%)** — was *never* passing before.
+
+**Sole remaining blocker (criteria not met):** a rare durable single-dirent loss in `dir_reuse_coherency` at 8 nodes. Decisively re-characterized this session: confirmed via fresh `P-WMERGE` as an **async-destage TOCTOU**, and proved (`P-MERGEGATE` = SKIP ~99%) that the existing `dir_merge` lever is ineffective because its once-per-tenure gate skips it. Ruled out `dir_write_merge` (bnobt shutdown), `inode_mht_ms=800` (BAST wedge), `dir_addname_coherent` (inert).
+
+**Fix in progress (gated, default-off → keeper safe):** Implemented a new `mxfs_dir_reconcile_stale_data_blocks` (param `dir_stale_reconcile`, build 8E4B6D08) — a cheap per-block transactional reconcile that FUA-folds a peer's missing dirents into stale-gen (`bgen != dir_gen`) dir blocks before the RMW. v1 passed 7/7 at 8 rounds but was inert (P31=0, wrong filter); **v2 keys on stale generation and is built but UNTESTED.**
+
+**Next session** (fully recorded in `sess31-IMPL-stale-block-reconcile-fix-needs-validation` + `sess31-HEAD-handoff`): validate v2 with the reliable trigger (`DRC_ROUNDS=24 + dir_writeprobe=1`, confirm P31 fires with re-added≥1 and the loss is gone in an A/B vs `dir_stale_reconcile=0`); if clean, make it default and run full 8/tcp ×3.
+
+State: cluster up, rebooted to default (reconcile off = keeper-equivalent), build 8E4B6D08, no orphan processes. **Criteria not met — marker not written.**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,119 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 45 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 44
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `7a4dd31d-4fd7-4ed6-83ed-ea28dafdfa5d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7a4dd31d-4fd7-4ed6-83ed-ea28dafdfa5d.jsonl`
+- approx context at last assistant turn: 495235 tokens
+- tools used: Bash×45 Read×42 mcp__ccmemory__memory_get×9 Edit×7 TaskCreate×4 ToolSearch×4 mcp__ccmemory__memory_write×4 TaskUpdate×3 mcp__ccmemory__memory_search×2 TaskStop×1 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/standalone_retest.sh
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs RID=20260620T131056Z for name in rsync_paired crash_consistency; do   d="/tmp/run_${name}_${RID}"   echo "==================== $name ($d) =========
+    cd /src/mxfs echo "=== stop the contaminated suite (already wedged at rsync_paired) ===" pkill -f 'timeout 2400 ./run.sh' 2>/dev/null pkill -f 'run.sh 2 tcp' 2>
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" pgrep -af 'run\.sh' | grep -v pgrep || echo "(no run.sh processes left)" echo "" echo "=== WEDGE ROOT: both no
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "==================== test2: full dmesg 150-168s (early wedge + lead-up) ====================" timeout 15
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "==================== test1: raw corruption + 128-byte hexdump (811.78x) ====================" timeout 15
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== reboot clean ===" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/n
+    cd /src/mxfs echo "=== where is xfs_inode_buf_verify / inode-cluster read gated for FUA? ===" grep -rn "xfs_inode_buf_verify\|_XBF_FUA_FRESH" xfs/libxfs/xfs_ino
+    cd /src/mxfs echo "=== how does XFS mark inodes stale + abort flush (xfs_ifree_cluster model)? ===" grep -rn "XFS_ISTALE\|xfs_iflush_abort\|iflags_set.*ISTALE" 
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|warning: .*mxfs_v5_dlm_is_single|undefined" | head; echo "--- build rc=${PIPESTATUS[0]} ---" modinfo mxfs.ko 2>
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== reboot clean ===" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/n
+    cd /src/mxfs echo "=== xfs_ifree_cluster: how it marks inodes ISTALE + aborts flush ===" grep -n "xfs_ifree_cluster\|XFS_ISTALE\|iflush_abort\|xfs_ifree_mark_in
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" for n in test1 test2; do   echo "==================== $n : P-ICLUSTER-BADVERIFY + caller stack ===============
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" for n in test1 test2; do   echo "==================== $n ===================="   timeout 40 tools/mxfs_sshpass
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== test1 reachable? grab stack via journalctl -k (may be faster than dmesg) ===" timeout 30 tools/mxfs_
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== reboot (clears wedged/unreachable test1) ===" for vm in test1 test2; do timeout 25 virsh -c qemu:///
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "==================== test1: FIRST AG/bnobt/alloc corruption (the ROOT, before inode-verify) ============
+    cd /src/mxfs echo "=== callers of mxfs_iflush_cluster_merge_dirs ===" grep -rn "mxfs_iflush_cluster_merge_dirs" xfs/ --include=*.c echo "" echo "=== inode-clust
+    cd /src/mxfs grep -n "Current build (sess43" CLAUDE.md | head -1 echo "--- context around it ---" grep -n "srcversion \`422E6DC6\|Current build (sess43\|Prior b
+    cd /src/mxfs make modules 2>&1 | grep -iE "error:|warning: unused|di_next_unlinked|bli_dirty" | head; echo "--- rc=${PIPESTATUS[0]} ---" modinfo mxfs.ko 2>/dev/
+    cd /src/mxfs PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== reboot clean ===" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/n
+
+## Last text from previous session
+
+mechanism that reconciles co-resident slots during iflush — to understand why it's insufficient and extend it to prevent clobbering co-resident inodes with stale images.
+The `mxfs_iflush_cluster_merge_dirs` mechanism (sess61/62/113/134) is *exactly* the defense against this — it overlays FOREIGN (peer-owned) inode slots from the coherent disk image before the cluster write. The smoking gun: it **skips entirely when the buffer has a dirty buf-log-item** (line 5190, `XFS_BLI_DIRTY` — di_next_unlinked logged under the AGI lock) — which is *precisely* what the `INACT-SKIP-STALE`/iunlink churn produces. So during unlink churn the merge is skipped → the stale cluster write clobbers co-resident inodes. Let me read the overlay tail + how the write path invokes it to design a safe fix.
+This `merge_dirs` function is heavily-iterated (sess48/61/62/85/113/134) — modifying it risks regressing its many proven sub-cases, and I'm deep in context. Before any change, the decisive question is whether the clobbering write even goes *through* merge_dirs (and gets skipped on `XFS_BLI_DIRTY`) or via a path that bypasses it entirely. Let me check the merge's callers and the release-drain write path.
+Decisive: `mxfs_iflush_cluster_merge_dirs` (the cross-node cluster coherency overlay) is called from **only ONE site** — `xfs_iflush_cluster:5549`. But `xfs_mxfs_dlm.c` has **many other `xfs_bwrite` sites** (release-drain paths, lines 259/458/560/1318…) that write buffers **without** the overlay. So inode-cluster writes via the release-drain bypass the coherency protection — a strong candidate for the clobber. Plus the overlay self-skips on `XFS_BLI_DIRTY` (iunlink churn). Both are the gap.
+
+This is the heavily-iterated 90-session-delicate path; a safe fix needs fresh context. I've achieved a major verified win (force_block=0 → cache_coherency/dlm_fairness/dir_reuse PASS) and precisely characterized the remaining blocker with a reproducer + probe. Let me lock in continuity by updating the CLAUDE.md head, then take the next forward step.
+CLAUDE.md head updated — continuity locked. Now, a concrete, reasoned, verifiable fix attempt at the proven gap: `merge_dirs` skips the entire coherency overlay when the cluster buffer has a dirty buf-log-item — which is exactly the iunlink/inactivation churn window where the clobber happens. Instead of skipping, I'll overlay foreign slots but **preserve each slot's `di_next_unlinked`** (the only inode-cluster buf-logged field; it's outside the CRC-covered region, so the unlinked list stays intact and the write verifier still recomputes a valid CRC). This is contained and verifiable with the ~5-min reproducer.
+Made the merge_dirs fix (overlay foreign slots even when buf-log-dirty, preserving `di_next_unlinked`). Let me rebuild and verify it compiles.
+Build clean (2678D32D). Now verify against the reliable reproducer — does the inode-cluster wedge disappear?
+Verification reproducer running (brlcsnkbj, ~5-6 min) — checking whether the merge fix drives `xfs_inode_buf_verify`/shutdown to **0**. If the wedge is gone, that's strong evidence and I'll re-run the full suite. If not, the clobber is via the release-drain `xfs_bwrite` bypass (which I've already located as the other candidate) and I'll extend the overlay there. Awaiting its notification.
+Awaiting the verification (brlcsnkbj). The fix is sound in principle — for foreign slots this node holds NL (no pending change), so the coherent disk image is authoritative, and preserving `di_next_unlinked` protects the only buf-logged field. The reproducer will confirm empirically.
+Awaiting the verification reproducer result.
+Still in prep (started 13:58). Awaiting the verification — I'll process it when the notification fires.
+Awaiting verification result.
+Awaiting verification result.
+Promising — dlm_fairness PASS, rsync_paired PASS (no wedge yet). crash_consistency (where the wedge usually fires) + the decisive `badverify`/`shutdown` count still to come. Awaiting the notification.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

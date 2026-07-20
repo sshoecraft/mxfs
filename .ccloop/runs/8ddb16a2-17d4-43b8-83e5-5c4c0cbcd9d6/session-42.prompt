@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 42 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 41
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `000406bd-eeac-44d7-b00e-4f67dbf78122`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/000406bd-eeac-44d7-b00e-4f67dbf78122.jsonl`
+- approx context at last assistant turn: 502145 tokens
+- tools used: Bash×69 Read×30 ScheduleWakeup×21 Edit×12 mcp__ccmemory__memory_write×9 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/drc_loop.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== on-disk unlock call + RELFLUSH clear after the fence (4862-5200) ==="; grep -nE "mxfs_v5_dlm_inode_unlock|dlm_inode_unlock|MXFS_IF_DLM_R
+    cd /src/mxfs; echo "=== all mxfs_v5_dlm_inode_unlock / ag_unlock CALL sites (not proto) ==="; grep -nE "mxfs_v5_dlm_inode_unlock\(|mxfs_v5_dlm_ag_unlock\(|dlm_r
+    cd /src/mxfs; echo "=== ilock_begin definition + fast-path ==="; grep -nE "mxfs_dlm_ilock_begin|i_dlm_state ==|MXFS_DLM_ISTATE|fast.path|cached.*grant" xfs/xfs_
+    cd /src/mxfs; echo "=== mxfs_dlm_ilock_begin definition ==="; grep -nE "^mxfs_dlm_ilock_begin|^int mxfs_dlm_ilock_begin|mxfs_dlm_ilock_begin\(struct" xfs/xfs_mx
+    cd /src/mxfs/tests/_cap; echo "=== stale-EX / re-acquire / grant markers (last detect run) ==="; for m in P-TCPEX-REACQ P106-STALE-EX P108 P-DIRFASTEX P-DIR-SEQ
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='dataclobber=1'; timeout 580 bash tests/drc_cap2.sh 2>&1 | tail -5
+    cd /src/mxfs; echo "procs=$(ps aux | grep -cE "[d]rc_cap2|[r]un.sh 2 tcp")"; grep -E "capture done" /tmp/claude-1000/-src-mxfs/000406bd-eeac-44d7-b00e-4f67dbf78
+    cd /src/mxfs; echo "procs=$(ps aux | grep -cE "[d]rc_cap2|[r]un.sh 2 tcp")"; grep -E "capture done" /tmp/claude-1000/-src-mxfs/000406bd-eeac-44d7-b00e-4f67dbf78
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; grep -E "capture done|FAIL  dir" /tmp/claude-1000/-src-mxfs/000406bd-e
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; grep -E "capture done" /tmp/claude-1000/-src-mxfs/000406bd-eeac-44d7-b
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; grep -E "capture done|FAIL  dir" /tmp/claude-1000/-src-mxfs/000406bd-e
+    cd /src/mxfs; echo "=== drc/run process ages ==="; ps -eo pid,etimes,cmd | grep -E "[d]rc_cap2|[r]un.sh 2 tcp|[t]imeout 580" | head; echo "=== bg output (full) 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; grep -E "capture done" /tmp/claude-1000/-src-mxfs/000406bd-eeac-44d7-b
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; grep -E "capture done|FAIL  dir" /tmp/claude-1000/-src-mxfs/000406bd-e
+    cd /src/mxfs; ps -eo etimes,cmd | grep "[t]imeout 580 bash tests/drc_cap2" | awk '{print "elapsed="$1"s"}'
+    cd /src/mxfs/tests/_cap; echo "=== run result ==="; grep -E "FAIL  dir|PASS  dir" /tmp/claude-1000/-src-mxfs/000406bd-eeac-44d7-b00e-4f67dbf78122/tasks/baf55rui
+    cd /src/mxfs/tests/_cap; echo "=== full run.sh tail ==="; grep -E "RESULT|PASS|FAIL|done:" /tmp/claude-1000/-src-mxfs/000406bd-eeac-44d7-b00e-4f67dbf78122/tasks
+    cd /src/mxfs; unset MXFS_EXTRA_MODARGS; nohup bash tests/drc_loop.sh 5 >/src/mxfs/tests/_cap/drcloop_prod.out 2>&1 & echo "started drc_loop 5 at production conf
+
+## Last text from previous session
+
+rent growth), NOT the durable loss. GPT's interpretation (B) is confirmed — I've been chasing benign transients. The "6 failed rounds" are likely stale dmesg ring-buffer entries from prior runs. Let me verify the PASS is real and the failures are stale.
+The run reported **PASS (2/2)** and criteria.json now records dir_reuse 2/tcp = PASS. But the drc-FAIL lines (kernel timestamps 24896-24952) are **stale dmesg ring-buffer entries from the prior failing run** (this run's messages are later). 
+
+However — this is build 7F15D2EA with **dataclobber=1 (detect-only)**, which does a **synchronous disk read per dir write**. That perturbs timing and can hide the race (a heisenbug, like instr=1). The test was failing ~2/3 at true production config. **A single flaky/perturbed PASS does NOT meet "100% successful."** I must verify reliably at production config (`dataclobber=0`, no disk reads = baseline behavior). Let me run a production batch.
+Production-config reliability batch (5 iters, `dataclobber=0` = baseline behavior) is running in the background, writing per-iter PASS/FAIL to `loop_summary.txt`. This measures the TRUE pass rate (baseline was ~2/3 fail). I'll check progress periodically via `loop_summary.txt`.
+I've hit the ccloop relay boundary. Let me record the key breakthrough finding before wrapping up.
+## Session 41 summary
+
+**Criteria: NOT met. Marker NOT written** (honest — the one PASS observed is flaky/timing-perturbed, not reliable).
+
+**Scope confirmed:** "2 node dlm=tcp test 100% successful" = all 17 tests at 2/tcp; 16 reliably pass, only `dir_reuse_coherency` is the blocker.
+
+**The breakthrough this session (RULE 4, instrumented):** I built a chokepoint detector and proved the failure signature step by step. The decisive result: a run that **PASSED (2/2)** still contained **all 240 of the `disk_cnt=buf_cnt+1` block-0 "clobbers"** (all same-incarnation, across 24 rounds). Therefore **those clobbers are BENIGN concurrent-growth transients, not the durable loss.** Every fix targeting them was misdirected — which is exactly why:
+- Write-side tenure/content skip (`dataclobber=2`) → **catastrophic regression** (suppressed fresh writes over reused-daddr ghosts; rounds 1-6 `lookup_fail=150`). Content comparison can't distinguish a ghost from live data under rm-rf+recreate reuse.
+- Evict-side content refresh (`dirrefresh`) → **inert** (data blocks already clean at modify).
+- All tenure/epoch/mode discriminators read "current"/EX for the clobbers.
+
+**GPT-5.5 consult (RULE 5):** root candidate = release fence not atomic with the DLM downconvert; fix plan = hard local-writer drain + invalidate-all-on-acquire + inode-incarnation cookies (no content comparison). I mapped the precise code paths (release fn, fence@4690, sess35 stale loop@5031, unlock@5485, ilock_begin fast-path gating@8342, DEMOTING wait).
+
+**Key correction for next session:** the real durable loss (node1_f1..f14 from block-0, `lookup_fail=0`) is **rare/intermittent and SEPARATE** from the benign transients. The detect-mode disk-read perturbs timing and may hide it (heisenbug). It must be isolated with **non-perturbing** instrumentation (target-side SCST write journal for daddr-120, or a lightweight name-set ring buffer dumped on verify-fail), comparing a FAIL run vs a PASS run — **before** applying GPT's drain fix.
+
+**In progress at boundary:** a production-config reliability batch (`drc_loop 5`, `dataclobber=0` = baseline) is running → `tests/_cap/loop_summary.txt`. Next session: read it for the true pass rate (criteria.json currently shows a flaky PASS that must NOT be trusted).
+
+**Tree state:** build `7F15D2EA` = baseline behavior + dormant detector (`dataclobber=0`, `dirrefresh=0` defaults; both enforce paths refuted and off). No regression left in the tree. All findings captured in ccmemory (`sess41-NEXT-isolate-real-loss-write-detector-confound`, `sess41-GPT-diagnosis-release-fence-not-atomic-with-downconvert`, `sess41-FIX-tenure-gated-dataclobber-guard-AF02E775`).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

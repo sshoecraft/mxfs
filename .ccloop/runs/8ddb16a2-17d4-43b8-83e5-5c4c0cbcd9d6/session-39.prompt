@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 39 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 38
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `75c712b7-6a7b-4442-812c-dca51ad080a4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/75c712b7-6a7b-4442-812c-dca51ad080a4.jsonl`
+- approx context at last assistant turn: 504145 tokens
+- tools used: Bash×71 Read×37 Edit×18 mcp__ccmemory__memory_get×8 mcp__ccmemory__memory_search×3 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs/tests; echo "=== raw drc failure lines ==="; grep -hE "drc-FAIL|drc-RDMISS|drc round" _cap/test1.log _cap/test2.log | sed -E 's/^\[[0-9. ]+\] //' |
+    cd /src/mxfs; echo "=== lock entry removal/free sites in dlm.c ==="; grep -nE "lock_free\(|kfree\(.*lk\)|kfree\(found\)|->next = |buckets\[bucket\] =|unlink|loc
+    cd /src/mxfs; echo "=== owned_ex declaration in xfs_da_read_buf ==="; awk 'NR>=2990 && NR<=3090 && /owned_ex/{print NR": "$0}' xfs/libxfs/xfs_da_btree.c | head;
+    cd /src/mxfs; echo "=== FUA read helper ==="; grep -rnE "mxfs_pal_scsi_read_fua_bdev|mxfs_buf_read_fua|read_fua" xfs/*.c pal/*.c pal/**/*.c 2>/dev/null | grep -
+    cd /src/mxfs; make modules > /tmp/bld.log 2>&1; echo "rc=$?"; grep -iE "error:|implicit|undeclared" /tmp/bld.log | head; modinfo mxfs.ko 2>/dev/null | grep srcv
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; for n in test1 test2; do timeout 15 $SSH "$n" "$PF" 'dmesg -C 2>/dev/null' >/dev/nu
+    cd /src/mxfs/tests; echo "=== failing rounds + missing ==="; grep -hE "drc-RDMISS|drc-FAIL.*lookup_fail=[1-9]" _cap/test1.log | sed -E 's/^\[[0-9. ]+\] //' | gr
+    cd /src/mxfs/tests; echo "=== node1_cnt sequence for daddr=120 (test2=node2, the clobberer) — look for DROPS ==="; grep -hE "P-DWR daddr=120 " _cap/test2.log | 
+    cd /src/mxfs/tests; echo "=== node1_cnt distribution for daddr=120 (block 0) across BOTH nodes ==="; grep -hoE "P-DWR daddr=120 node1_cnt=[0-9]+" _cap/test1.log
+    cd /src/mxfs/tests; echo "=== daddr=112 write sequence (ts cnt comm node) — both nodes merged by time ==="; for n in test1 test2; do grep -hE "P-DWR daddr=112 "
+    cd /src/mxfs; make modules > /tmp/bld.log 2>&1; echo "rc=$?"; grep -iE "error:|implicit|undeclared" /tmp/bld.log | head; modinfo mxfs.ko 2>/dev/null | grep srcv
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; for n in test1 test2; do timeout 15 $SSH "$n" "$PF" 'dmesg -C 2>/dev/null' >/dev/nu
+    cd /src/mxfs/tests; echo "=== P-DRD (disk READS): low counts = stale disk (write-side) ==="; grep -hoE "P-DRD daddr=[0-9]+ node1_cnt=[0-9]+ comm=[^ ]+" _cap/tes
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; for n in test1 test2; do timeout 15 $SSH "$n" "$PF" 'dmesg -C 2>/dev/null' >/dev/nu
+    cd /src/mxfs; PF="${MXFS_PASS:-/tmp/.mxfs_pass}"; SSH=tools/mxfs_sshpass.sh; export MXFS_EXTRA_MODARGS='inode_mht_ms=300'; for R in B C; do for n in test1 test2
+    cd /src/mxfs/tests; echo "=== RUN C: low P-DRD reads (stale disk) by node, with daddr/cnt/comm/ts ==="; for n in test1 test2; do grep -hE "P-DRD daddr=(120|112|
+    cd /src/mxfs/tests; echo "=== daddr=112 merged READ+WRITE timeline (run C), by time ==="; for n in test1 test2; do grep -hE "P-D(RD|WR) daddr=112 " _cap/$n.log 
+    cd /src/mxfs; echo "=== unlock + mode=NL in bast release (4640-4980) ==="; awk 'NR>=4630 && NR<=4990 && (/mxfs_v5_dlm_inode_unlock|i_dlm_mode = MXFS_LOCK_NL|i_d
+    cd /src/mxfs/tests; echo "=== P35F (release-stale exhausted) ==="; for n in test1 test2; do echo -n "$n: "; grep -c "P35F-STALE-RETRY-EXHAUSTED" _cap/$n.log; do
+    cd /src/mxfs; make modules > /tmp/bld.log 2>&1; echo "rc=$?"; grep -iE "error:|implicit|undeclared" /tmp/bld.log | head; modinfo mxfs.ko 2>/dev/null | grep srcv
+
+## Last text from previous session
+
+aces only when block 0 is re-allocated at the reused daddr during modify).
+
+The read-hook incarnation check (`b_mxfs_dir_incarn != i_generation`) is the right catch, but TRYLOCK-fails because node2's own xfsaild is destaging that stale buffer. Let me read the incarn-invalidation logic to make it robust for the definitively-dead prior-incarnation case.
+The incarnation-ABA invalidation (`incarn_aba`, 3212) exists but is **skipped when the buffer is dirty/pinned/delwri** — and the read-hook can't even TRYLOCK it (P34-TRYLOCK-STALE) because node2's own xfsaild is destaging that dead prior-incarnation buffer. The release-side stale (`mxfs_dir_stale_data_blocks`) should catch it but may be exhausting on a pinned block. Let me check if `P35F-STALE-RETRY-EXHAUSTED` fired.
+Key data: `P35F-STALE-RETRY-EXHAUSTED=0` and `P-SF-DURABLE-FAIL=0` — the release-side stale/drain **completes cleanly**, yet `P34-TRYLOCK-STALE blk=0 daddr=112` fires 42× and disk reads return stale. So the stale buffer node2 reads is **re-created during its own tenure from a stale source**, not a release-drain miss. This is a deep inode/daddr-reuse coherency interaction needing more work.
+
+I've made a real, solid fix (phantom-EX) and precisely characterized the residual. Given my context budget, let me consolidate: gate the heavy forensics behind `mxfs_dirwr` (preserve, no perturbation), then measure the fix-only baseline. Let me gate P-DWR.
+Now add the `mxfs_dirwr_enabled` extern declaration at file scope.
+Reached the relay boundary. Let me verify the build compiles cleanly (so the next session inherits a working build), then summarize.
+Build clean (`6E20D7F9`). Let me record the final state and the precise next-fix candidates for the next session.
+## Session summary
+
+**Criterion (`2 node dlm=tcp test 100% successful`) NOT met** — marker not written (honest). The full 2/tcp suite is 16/17 PASS; only `dir_reuse_coherency` fails (flaky). Build handed off: `6E20D7F9` (clean compile, deployed via the test runs).
+
+### Major win — phantom-EX root found and fixed
+The decisive infra bug: **`mxfs_v5_dlm_inode_held()` returned `1` (held) unconditionally on the TCP transport** (it only ever consulted the CAW slot table). That made the entire sess107 phantom-EX detection/fix infrastructure **inert on TCP** — the exact transport this criterion tests — for ~90 sessions. With a real TCP held-check (`mxfs_dlm_held_mode`, local-mirror lookup), I proved the phantom-EX: `P106-STALE-EX` fired 45× on node1 (`cached_mode=EX on_disk_held=0 unpub=1`) — node1 RMW'd the shared dir under a locally-granted **unpublished** EX invisible to the DLM, while node2 acquired the empty slot cleanly → concurrent divergent RMW → durable lost-update. Three landed fixes (broadened unpublished-EX backstop + un-throttled TCP held-verify/re-acquire) drove **`P106-STALE-EX` → 0**, eliminating the mutual-exclusion violation. These are real bug fixes worth keeping.
+
+### Residual precisely characterized (RULE 4, with forensics)
+Added content forensics (`P-DWR`/`P-DRD`, now gated behind `mxfs.dirwr`) that **proved** the remaining flaky failure is a **divergent block-0 cache via a lingering prior-incarnation buffer**: block 0 (at a reused daddr) oscillates `83↔100` on disk via xfsaild; failing runs read the stale `83` durably from disk. The release drain/stale completes cleanly (`P35F=0`, `P-SF-DURABLE-FAIL=0`), so it's not a release miss — it's node2's round-N (incarnation-N) buffer lingering at the reused daddr, served stale (read-hook `incarn_aba` check TRYLOCK-fails because node2's own xfsaild is destaging that dead buffer) and re-destaged → clobber.
+
+### Next session
+Three fix candidates recorded in memory (`sess-tcp-HANDOFF-phantom-ex-fixed-residual-incarn-aba`), top one: **discard `incarn_aba` dirty buffers** (xfs_da_btree.c ~3216) — a prior-incarnation buffer's dirty content is dead and must not be destaged. Also: `inode_mht_ms=300` must become the code default (needed for timing) before the criterion run.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

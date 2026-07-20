@@ -1,0 +1,25 @@
+---
+name: sess38-GPT2-DLM-fix-design-split-brain-mastership-write-authority
+description: sess38 GPT-5.5 consult #2: DLM-layer fix for the stale-EX/split-brain dir_reuse loss. Recovery-barrier mastership + blocking-BAST + write-authority t…
+metadata:
+  type: project
+---
+
+## sess38 — GPT-5.5 consult #2 (RULE 5, 2nd on this issue): DLM-layer fix for the stale-EX-grant root [[sess38-DECISIVE-loss-is-stale-EX-grant-bufepoch-eq-masterep]].
+
+### GPT's bottom line: the DLM must guarantee "exactly one current master per resource generation, and that master cannot grant EX to a new node until the old EX holder has drained+released write authority OR been fenced." Then the FS must enforce "no metadata writeback without a current EX write-authority token." With both, the measured loss becomes impossible (the stale node's clean in-AIL dir block may exist in memory but cannot acquire writeback authority / is dropped at submit).
+
+### ROOT per GPT: stateless `master = active_nodes.nodes[hash % count]` is split-brain-prone — any transient membership-count divergence remaps masters and lets two nodes grant EX from independent dg_shadow tables. (CONFIRMED: active_nodes IS sorted+deduped in mxfs_dlm_update_active_nodes (dlm/dlm.c:2144), so masters are consistent for the SAME set — the divergence is a TRANSIENT membership window under the 8-node storm. P-STALEMASTER-GRANT fires 1-2×/run.)
+
+### FIX (priority order, GPT):
+1. **Recovery barrier on membership change.** Don't let heartbeat blips directly mutate the active_nodes used by grant paths. On membership change: enter DLM_RECOVERING → freeze grants (return -EAGAIN) → fence excluded nodes from LUN → compute new master map → transfer/rebuild lock state to new masters (holders/waiters/epoch — do NOT start new master with empty dg_shadow while peers hold cached EX) → resume grants. Grant path holds a membership read-lock so mastership can't change mid-grant.
+2. **Version every DLM message** with {cluster_view_gen, lockspace_recover_gen, resource_master_gen, sender_incarnation}. **Receiver REJECTS a grant** if any gen mismatches the current view or if grant.master != master_of(resource, my_view) or if recovering → retry. (Directly kills "EX grant from a no-longer-master is honored.")
+3. **Make BAST BLOCKING for incompatible grants.** Master must NOT grant EX to B until it gets RELEASE_ACK from current holder A (or fences A on timeout). Never "send BAST + grant peer immediately + hope A drains." A late BAST after peer-grant is the correctness bug.
+4. **Local write-authority token + io_refs** (per resource): `{granted_mode, resource_data_seq, grant_cookie, write_authority, revoking, atomic io_refs}`. xfsaild metadata writeback MUST `mxfs_begin_metadata_writeback()` (verify EX + write_authority + !revoking + bp epoch/cookie == token, then io_refs++) BEFORE submit; `end` drops the ref. BAST handler sets revoking=true + write_authority=false FIRST (blocks new submits), THEN flush dirty + wait io_refs==0 + invalidate clean buffers + ACK. Hook ALL metadata submit paths (xfs_buf_delwri_submit, xfsaild push, xfs_buf_submit).
+   - On -ESTALE at writeback: a CLEAN stale buffer → DROP/invalidate (the owner has the durable image) — NEVER write (the refuted "skip write" corruption was writing/keeping it; dropping is correct). A DIRTY/pinned stale buffer after EX loss → FATAL (panic/fence; can't silently discard committed metadata).
+5. **Optional on-LUN authoritative `{owner_nodeid, owner_incarnation, resource_data_seq, master, gens, crc}` record** (redundant slots, highest record_seq wins, FUA on update, fenced by SCSI PR). Master writes it (owner=B, seq++) AFTER RELEASE_ACK/fence and BEFORE granting B. Every metadata writeback FUA-reads it and drops the buffer if owner!=self. CAVEAT: on-LUN check ALONE has TOCTOU (A validates owner=A, master flips to B, A's write lands late) — must be paired with io_refs+revoke-drain (normal case) or PR-fence-before-grant (missed-BAST case). SCSI PR only fences dead/excluded nodes; it does NOT serialize two live registered writers, so the mastership/recovery protocol is still required.
+
+### Implementation order (GPT): (1) freeze-on-membership-change barrier; (2) version messages; (3) reject stale grants; (4) grant-path membership read-lock; (5) remaster state transfer; (6) blocking BAST; (7) write-authority token+io_refs; (8) revoke clears authority first; (9) optional on-LUN record validated per-writeback; (10) fence on revoke timeout.
+
+### RISK NOTE: this is a substantial DLM change; 1/2/4 tcp currently PASS — guard against regressing them. Start with the SMALLEST piece that kills the measured loss: likely (3) reject-stale-grant + (4) write-authority token gating xfsaild dir-metadata writeback (so even if split-brain grants, the stale holder can't background-write). The token check is the cheap belt-and-suspenders; the recovery barrier is the complete fix. See [[sess38-DECISIVE-loss-is-stale-EX-grant-bufepoch-eq-masterep]] [[sess38-GPT-architectural-fix-inail-survives-handoff-release-retire-genbump]] [[sess38-HEAD-handoff]].
+</body>

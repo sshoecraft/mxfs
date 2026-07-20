@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 48 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 47
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `84f2c7c1-76bb-4da5-aef7-5a3208e54b13`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/84f2c7c1-76bb-4da5-aef7-5a3208e54b13.jsonl`
+- approx context at last assistant turn: 503937 tokens
+- tools used: Bash×55 Read×34 Edit×9 mcp__ccmemory__memory_get×8 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; LOG=/tmp/full_fix_$(date -u +%H%M%S).log; echo "LOG=$LOG"; ./run.sh 2 tcp > "$LOG" 2>&1; echo "exit=$?"; grep -E "^  (PASS|FAIL)" "$LOG"; echo "==
+    cd /src/mxfs; PASS="/tmp/.mxfs_pass"; echo "=== tcp_dlm_scaling recorded reason ==="; jq -r '.categories[].tests[] | select(.name=="tcp_dlm_scaling") | .runs."2
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|mxfs.ko$" | tail -2; modinfo mxfs.ko | grep srcversion; echo "=== uv x3 ==="; for i in 1 2 3; do LOG=/tm
+    cd /src/mxfs; L=$(ls -t /tmp/cc_v2_*.log | head -1); echo "=== latest log: $L ==="; tail -25 "$L"
+    cd /src/mxfs; for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 25 vi
+    cd /src/mxfs; for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 25 vi
+    cd /src/mxfs; PASS="/tmp/.mxfs_pass"; echo "=== crash_consistency reason ==="; jq -r '.categories[].tests[] | select(.name=="crash_consistency") | .runs."2/tcp"
+    cd /src/mxfs; for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 25 vi
+    cd /src/mxfs; echo "=== uv x4 standalone (current build, clean cluster) ==="; np=0; nf=0; for i in 1 2 3 4; do LOG=/tmp/uv_v4_${i}_$(date -u +%H%M%S).log; ./run
+    cd /src/mxfs; echo "=== defer_for_waiter / lazy release / ACQUIRE_WAIT ==="; grep -rn "defer_for_waiter\|MXFS_LOCK_ACQUIRE_WAIT\|lazy\|deferred.*release\|releas
+    cd /src/mxfs; PASS="/tmp/.mxfs_pass"; LOG=/tmp/uv_diag_$(date -u +%H%M%S).log; ./run.sh 2 tcp cache_coherency > "$LOG" 2>&1; echo "result: $(grep -E '  (PASS|FA
+    cd /src/mxfs; echo "=== bast_process: NL set, RELFLUSH, dir drain, flush_data_blocks, unlock order ==="; awk 'NR>=4718 && NR<=4900 && (/i_dlm_mode = MXFS_LOCK_N
+    cd /src/mxfs; echo "=== RELFLUSH usage everywhere ==="; grep -rn "MXFS_IF_DLM_RELFLUSH\|DLM_RELFLUSH\|RELFLUSH" xfs/ pal/ --include=*.c --include=*.h | grep -v 
+    cd /src/mxfs; echo "=== dirskip default ==="; grep -n "int mxfs_dirskip_enabled\|mxfs_dirskip_enabled =" xfs/xfs_mxfs_dlm.c pal/linux/xfs_buf.c; echo "=== does 
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|mxfs.ko$" | tail -2; modinfo mxfs.ko | grep srcversion; PASS="/tmp/.mxfs_pass"; LOG=/tmp/uv_reldisp_$(da
+    cd /src/mxfs; echo "=== where b_mxfs_written_seq is SET ==="; grep -rn "b_mxfs_written_seq =\|b_mxfs_written_seq=\|->b_mxfs_written_seq" xfs/ pal/ --include=*.c
+    cd /src/mxfs; grep -n "!xfs_buf_ispinned(cbp)" xfs/libxfs/xfs_da_btree.c
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|mxfs.ko$" | tail -2; modinfo mxfs.ko | grep srcversion; for vm in test1 test2; do timeout 25 virsh -c qe
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|mxfs.ko$" | tail -2; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 25 vi
+
+## Last text from previous session
+
+see node2's deletes — the merge dilemma. My fixes reduced broader flakiness but don't close this. I've spent deep analysis; let me consolidate this session's net-positive work cleanly. First remove the diagnostic probes (they served their purpose), keep the two real fixes.
+One concrete lead remains worth testing: the read hook would refresh the stale block but for the **pin guard** (`!xfs_buf_ispinned`). The failing block is a **pin-tail** (pin=1 but li_empty=1, !dirty, !in_ail) — the BLI was already consumed by the checkpoint, only the async unpin-tail remains. Relaxing the guard *only* for this pin-tail case (no active log work) would let test1 cold-read node2's superset. Let me locate and try this targeted relaxation.
+The eviction is correct here: node2 wrote its in-core **superset** (test1's deletes + node2's deletes) to the shared medium on its release drain, so test1 cold-reading it would get everything → PASS. The risk is sess64's "race the unpin → corruption," but that was broader; restricting to a **pin-tail** (li_empty=no log items, !dirty, !in_ail = checkpoint already consumed the BLI, only async unpin pending) should be safe. Let me try this targeted relaxation and validate empirically (uv passes? any shutdown?).
+Let me build and test the pin-tail relaxation — does uv pass now, and critically, any corruption/shutdown?
+The pin-tail relaxation **regressed** uv (1/2 → 0/2, both nodes now fail) — confirming the shared medium does NOT have the superset, so clearing XBF_DONE loses test1's undestaged deletes. This is harmful; revert immediately and rebuild to the net-positive state.
+Reverted. Let me rebuild to the clean net-positive state (undestaged-flush + stale-log_force only) and record the key learning.
+Build `CD292C045` is the clean net-positive state. Let me record the critical pin-tail finding for the next session, then summarize.
+Let me leave the cluster clean for the next session, then summarize.
+Reached the ccloop relay boundary. Cluster is rebooted clean; build `CD292C045` (net-positive fixes, no probes) is the current `.ko`.
+
+## Summary — session 47
+
+**Criterion NOT met.** The full `./run.sh 2 tcp` suite is still flaky (best this session: **16/17**); a fresh session continues.
+
+**Two net-positive fixes landed (KEEP), build `CD292C045`:**
+1. **Undestaged-DONE release flush** — `mxfs_dir_data_durable` + `mxfs_dir_flush_data_blocks` now also land a dir block that is `XBF_DONE` but logged-never-written (`lseq != wseq`), which the old `dirty||in_ail||pinned||delwri` check missed. This took `crash_consistency` + `dir_reuse_coherency` from flaky-fail to passing standalone+mostly-in-suite, and eliminated the `DIR-STALE-SKIP` path for them.
+2. **Stale-triggered acquire `log_force`** — `mxfs_dir_drain_evict_data_blocks` forces a checkpoint when the dir is stale (`dir_gen != loaded_gen`), not just when the trylock-missable pin scan catches it.
+
+**uv (cache_coherency) is the hard remaining real bug** (1/4 standalone). Root proven via always-on probes: it's the **merge dilemma** — the earlier modifier (test1) holds a stale, pinned, undestaged (`wseq=0`) in-core dir block; the later modifier (node2) has the superset in-core and PASSES. Not phantom-EX (P-TCPEX-REACQ=0).
+
+**Refuted this session (don't retry):** relaxing the read-hook pin guard for pin-tail blocks **regressed uv 1/2→0/2** (data loss) — proving the shared LUN does NOT hold the superset, so **the fix is write-side, not read-side**.
+
+**Next directions** (recorded in memory `sess47-uv-pintail-relax-REGRESSES-shared-medium-lacks-superset`): verify whether `fua_disable=1` hides the peer's release-drain write behind a per-initiator SCST read cache (raw-read `/dev/sda` block-0 when uv fails); strict-serialization-on-contention; or block-level dirent merge.
+
+**Separate open roots:** `crash_consistency` (.md5 empty content — passes 3/3 standalone = mostly **contamination** in-suite) and `tcp_dlm_scaling` (`xfs_iunlink_item_precommit` corruption — pre-existing, sess45).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

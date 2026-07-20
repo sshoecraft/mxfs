@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 8
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `ea515f30-0cbe-4eec-a5f2-3aaf019250d7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ea515f30-0cbe-4eec-a5f2-3aaf019250d7.jsonl`
+- approx context at last assistant turn: 250959 tokens
+- tools used: Bash×88 Edit×6 Read×6 Write×4 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/state.md
+- /src/mxfs/scripts/caw_slot_dump.py
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '1950,2030p' xfs/libxfs/xfs_ialloc.c
+    cd /src/mxfs; timeout 12 ./tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass "sudo dmesg | grep -c 'P15-INSTR'; sudo dmesg | grep 'P15-INSTR' | grep 'ag=1 ' | tail -8
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n"; timeout 12 ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo dmesg | grep -E 'MDS-IDENTITY|node
+    cd /src/mxfs; grep -n "claim_slot" dlm/disklock.c | head -4; sed -n '/int mxfs_disklock_claim_slot/,+90p' dlm/disklock.c
+    cd /src/mxfs; grep -n "static int caw_slot" -A 40 dlm/dlm_caw.c | head -55; grep -n "mxfs_pal_bdev_caw\|pal_scsi_caw" pal/pal.h | head -5
+    cd /src/mxfs; grep -n "mxfs_pal_bdev_compare_and_write" pal/pal.h pal/*.c | head -5; grep -n "struct mxfs_disklock_heartbeat {" -A 12 dlm/disklock.h
+    cd /src/mxfs; sed -n '570,585p' pal/pal.h
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: " | grep -v "compiler differs\|Clock skew\|modification time" | head -5; modinfo mxfs.ko | grep srcve
+    cd /src/mxfs; timeout 560 bash tests/reset4.sh 4 2>&1 | tail -3; for n in test1 test2 test3 test4; do timeout 10 ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sud
+    cd /src/mxfs; timeout 590 bash tests/criteria/strong_consistency.sh --nodes 4 2>&1 | grep -vE "Unauthorized|disconnect immediately|Warning: Perm|^$" | tail -6
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo dmesg | grep -E 'P130-CLAIM-RACE|claimed heartbea
+    cd /src/mxfs; timeout 590 bash tests/criteria/zero_silent_loss.sh --iters 3 --dpn 100 --mode 1 2>&1 | grep -vE "Unauthorized|disconnect immediately|Warning: Per
+    cd /src/mxfs; sed -n '1,40p' tests/criteria/zero_silent_loss.sh | grep -E "NODES|nodes=|ITERS|default" | head -8; grep -n "NODES" tests/criteria/zero_silent_los
+    d=/home/steve/.mxfs/results/20260610_072358; ls "$d" 2>/dev/null; d2=/home/steve/.mxfs/results/20260610_072344; ls "$d2" 2>/dev/null; find /home/steve/.mxfs/res
+    sed 's/\x1b\[[0-9;]*m//g' /tmp/zero_silent_loss.SDoThd.log 2>/dev/null | grep -vE "Unauthorized|disconnect|Warning: Perm|^$" | tail -30; echo ===; ls -la /tmp/z
+    cd /src/mxfs; grep -n "fresh_cluster_mount\|reset\|mount" tests/criteria/zero_silent_loss.sh | head -10; ls tests/ | grep -iE "reset|16"
+    cd /src/mxfs; sed -n '1,60p' tests/criteria/zero_silent_loss.sh
+    cd /src/mxfs; sed -n '1,70p' scripts/sess88_workload_a_modeN_baseline.sh
+    cd /src/mxfs; sed -n '70,130p' scripts/sess88_workload_a_modeN_baseline.sh
+    cd /src/mxfs; timeout 15 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "uptime; mount | grep -c mxfs; sudo dmesg | tail -5; sudo dmesg | grep -iE 'shut|error|fa
+
+## Last text from previous session
+
+Continuing from session 7. Loading state and criteria to resume work on the `cache_coherency --nodes 4` blocker (CAW inode-EX starvation).
+Now add an always-on, rate-limited probe so the repro shows direct evidence the bypass fired:
+Build `5EDDFF58` clean. Power-cycling test1-4 (test3's FS was force-shutdown in the last run) and waiting for boot:
+All 4 nodes up. Running the fast repro (test_unlink_visibility, 4 nodes) with the new build:
+The harness needs deploy first (reset4.sh per state.md repro instructions):
+Build `5EDDFF58` live on all 4 nodes. Running the repro:
+test_unlink_visibility **PASSES** — max per-node unlink wall 8.8s (was 123s starvation → shutdown). Checking dmesg for the bypass probe and absence of exhaustion:
+API Error: Overloaded
+Those are from the earlier run. Looking at the shutdown window specifically:
+The shutdown is `xfs_trans_cancel` (dirty trans) in `xfs_create` at t=21225 → forced shutdown. Getting context around it:
+`tail -15` truncated — let me count properly and get AG1-specific epoch history:
+No slot dump tool exists — writing one (per RULE 3, into `scripts/`). First the layout:
+Exit 2 — which is the dumper's **duplicates-found** code, but output was swallowed. Re-running with output:
+NFS isn't mounted on test1 post-teardown. Pushing the script over ssh stdin:
+A claim-race duplicate detector already exists (sess47). Checking where it's called and what it logs:
+The CAW-DUP-SLOT detector is always-on after each fresh claim. Did it fire during the failing run?
+Build with the atomic-claim fix:
+`zero_silent_loss` hit my 590 s timeout (SIGTERM). Checking its defaults and where it got stuck:
+Understood. Adding the hard rule first, then building the per-test time budget and deriving every timeout from it.
+Now the per-criterion budget table, from measured baselines where they exist:
+At the relay boundary with state saved. Session summary:
+
+## Two ship blockers root-caused and fixed this session
+
+**1. `cache_coherency --nodes 4` PASSES** (build `5EDDFF58`). The CAW EX-starvation was a yield-backoff livelock: a PR→EX upgrader (sole holder, compat check passing) deferred 100× to `yield_to` waiters who were themselves blocked on its own PR — proven by `P-CAWEXH yield_bo=100`, fixed by the standard DLM rule that conversions take priority over new requests (only fresh acquires honor `yield_to`). unlink starvation went from 123 s → 8.8 s.
+
+**2. `strong_consistency --nodes 4` PASSES** (build `C5CE8C7B`). The new failure traced through stale-type lookups and a double inode allocation down to a stunning root: **test3 and test4 had both claimed disklock node_slot 1** — the slot claim was a non-atomic scan + plain write, so concurrent mounts raced it, and two nodes with the same node_bit see each other's locks as their own: zero mutual exclusion. Fixed with an atomic COMPARE-AND-WRITE claim + rescan on miscompare. This race likely contributed to past intermittent corruptions.
+
+**3. RULE 0 added per user directive**: timeouts are performance assertions — `budget = infra + 2×native-XFS`, timeout = FAIL even with zero errors, never widen. Budgets table created at `tests/criteria/TIMEOUT_BUDGETS.md`; also wrote `scripts/caw_slot_dump.py` for slot-table forensics.
+
+## Current blocker for next session
+
+`zero_silent_loss` (16 nodes) **FAILED** — and by RULE 0 the 590 s timeout itself was the failure. Evidence: test1's FS force-shut-down on repeated 120 s lock waits (ino=131), with dmesg showing **ghost heartbeat records** from pre-mkfs mounts ("node unreachable, 366 s since last contact") — stale node records surviving mkfs's non-durable zeroing, blocking the new cluster's locks. Next session: power-cycle all 16 nodes, confirm `C5CE8C7B` everywhere, dump heartbeat/lock regions to prove the ghost-record hypothesis, and fix durable region init or mount-time eviction of ancient records.
+
+Gate stands at 15/19 verified-passing. Marker not written; the loop continues.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

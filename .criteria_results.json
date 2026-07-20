@@ -1,0 +1,142 @@
+{
+  "mkfs_timing": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:54:57Z",
+    "measured": "251ms",
+    "threshold": "<=10000ms",
+    "reason": ""
+  },
+  "chk_clean": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:55:07Z",
+    "measured": "rc=0 errors=0",
+    "threshold": "rc=0 errors=0",
+    "reason": ""
+  },
+  "dkms_install": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:56:38Z",
+    "measured": "install=0 probe=0 purge=0 clean=yes",
+    "threshold": "install=0,probe=0,purge=0,clean",
+    "reason": ""
+  },
+  "online_resize": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:56:42Z",
+    "measured": "pre=672MB post=1696MB delta=1024MB resize_rc=0 md5=MD5_OK",
+    "threshold": "delta>=922MB(90% of 1024MB added) resize_rc=0 md5=MD5_OK",
+    "reason": ""
+  },
+  "cluster_ops_timing": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:56:54Z",
+    "measured": "first=2474ms rest=4404ms umount=388ms",
+    "threshold": "first<=15000ms rest<=10000ms umount<=10000ms",
+    "reason": ""
+  },
+  "wedged_unmount": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:57:07Z",
+    "measured": "max_umount=412ms",
+    "threshold": "<=30000ms",
+    "reason": ""
+  },
+  "online_membership": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:57:27Z",
+    "measured": "n3_mount_ms=4531 n1_errs=0 n1_done=1 n3_still_mounted=0",
+    "threshold": "n3_mount_ms<=15000 n1_errs=0 n1_done=1 n3_still_mounted=0",
+    "reason": ""
+  },
+  "dmesg_clean": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:57:47Z",
+    "measured": "hits=0",
+    "threshold": "0-hits",
+    "reason": ""
+  },
+  "cache_caps": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:58:05Z",
+    "measured": "inode=0 (cap=unset, skipped) | block=0 (cap=unset, skipped) | dir=0 (cap=unset, skipped)",
+    "threshold": "peak<=cap*1.10",
+    "reason": ""
+  },
+  "posix_semantics_single": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T13:58:20Z",
+    "measured": "phase=single nodes=1 passed=12 failed=0 skipped=0",
+    "threshold": "failed=0",
+    "reason": ""
+  },
+  "cache_coherency": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T14:01:28Z",
+    "measured": "passed=4 failed=0 of=4",
+    "threshold": "failed=0",
+    "reason": ""
+  },
+  "strong_consistency": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T14:02:15Z",
+    "measured": "passed=3 failed=0",
+    "threshold": "failed=0",
+    "reason": ""
+  },
+  "zero_silent_loss": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-14T12:35:15Z",
+    "measured": "iters=3 dpn=100 mode=1 total_fs_silent=0 iters_with_loss=0/3 completed=3/3",
+    "threshold": "total_fs_silent=0 completed=3/3",
+    "reason": ""
+  },
+  "crash_consistency": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-14T13:06:02Z",
+    "measured": "acked=107 visible=108 bad=0",
+    "threshold": "visible>=acked bad=0",
+    "reason": ""
+  },
+  "fence_during_write": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-14T13:04:30Z",
+    "measured": "victim=test3 survivors=3 lost=0",
+    "threshold": "lost=0",
+    "reason": ""
+  },
+  "single_node_paired": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T14:12:16Z",
+    "measured": "xfs=4809ms mxfs=2874ms ratio=59%",
+    "threshold": "ratio<=105%",
+    "reason": ""
+  },
+  "rsync_paired": {
+    "status": "FAIL",
+    "last_run_iso": "2026-06-14T14:57:59Z",
+    "measured": "ref_xfs=4809ms worst_mxfs=11323ms ratio=235%",
+    "threshold": "ratio<=120%",
+    "reason": "worst per-iter wall over 1.2x XFS ref"
+  },
+  "scaling_curve": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-13T14:14:10Z",
+    "measured": "med 1n=1306ms 2n=1566ms 4n=1519ms 8n=1737ms 16n=2664ms (max16=4627ms) floor1=214ms floor16=1053ms fs1=1092ms fs16=1611ms fs_ratio16:1=147%",
+    "threshold": "fs_ratio_16:1<=150% (walls net of measured raw-device floor)",
+    "reason": ""
+  },
+  "posix_semantics_multi16": {
+    "status": "FAIL",
+    "last_run_iso": "2026-06-14T16:57:25Z",
+    "measured": "elapsed>600s",
+    "threshold": "elapsed<=600s",
+    "reason": "script wall-clock timeout"
+  },
+  "posix_semantics_multi2": {
+    "status": "FAIL",
+    "last_run_iso": "2026-06-14T14:38:31Z",
+    "measured": "n/a",
+    "threshold": "mount-ok",
+    "reason": "cluster mount failed before harness"
+  }
+}

@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 66 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 65
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `9c38e337-5538-4aaf-b368-b670de7fec84`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9c38e337-5538-4aaf-b368-b670de7fec84.jsonl`
+- approx context at last assistant turn: 262827 tokens
+- tools used: Bash×84 Read×19 Edit×8 ToolSearch×4 mcp__ask_gemini__query×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== how cache_coherency invokes subtests ==="; grep -nE "run_tests|mxfs_test|rename_visibility|--test|TESTS=|for.*test" tests/criteria/cache
+    cd /src/mxfs; echo "=== node health + fua_disable ==="; for n in test1 test2 test3 test4; do timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do r=$(timeout 8 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo up' 2>/dev/null); echo "$n: ${r:-
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'cat /sys/module/mxfs/parameters/fua_disab
+    cd /src/mxfs; pkill -9 -f "run_tests" 2>/dev/null; sleep 2; for n in test1 test2 test3 test4; do timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_p
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'cat /sys/module/mxfs/parameters/fua_disab
+    cd /src/mxfs; timeout 10 tools/mxfs_sshpass.sh test1.vm.localdomain /tmp/.mxfs_pass 'ls -la /sys/module/mxfs/parameters/fua_disable; echo "before: $(cat /sys/mo
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo 0 > /sys/module/mxfs/parameters/fua_
+    cd /src/mxfs; rm -f /tmp/rv_fua.log; ( MXFS_NODE_OFFSET=16 timeout 600 tests/run_tests.sh --nodes 4 --phase cluster --test test_rename_visibility --pass-file /t
+    cd /src/mxfs; for i in $(seq 1 42); do if grep -q "RC=" /tmp/rv_fua.log 2>/dev/null; then break; fi; sleep 15; done; echo "=== RC + summary ==="; grep -iE "RC=|
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'umount -f /mnt/shared 2>/dev/null; rmmod 
+    cd /src/mxfs; rm -f /tmp/rv_fua.log; ( MXFS_NODE_OFFSET=16 timeout 500 tests/run_tests.sh --nodes 4 --phase cluster --test test_rename_visibility --pass-file /t
+    cd /src/mxfs; for i in $(seq 1 36); do if grep -q "RC=" /tmp/rv_fua.log 2>/dev/null; then break; fi; sleep 15; done; echo "=== result ==="; grep -iE "RC=|failur
+    cd /src/mxfs; sed 's/\x1b\[[0-9;]*m//g' /home/steve/.mxfs/results/20260605_173023/test_rename_visibility/node1.log 2>/dev/null | tail -20
+    cd /src/mxfs; grep -rn "mxfs-src" tests/run_tests.sh tests/lib/*.sh tests/criteria/*.sh 2>/dev/null | grep -iE "mount|nfs|192\.|:/|src=" | head; echo "=== is it
+    cd /src/mxfs; grep -rn "mxfs-src\|MXFS_TESTS_DIR\|mxfs_test.sh\|REMOTE_TESTS\|192.168.1.4" tests/run_tests.sh tests/lib/cluster.sh 2>/dev/null | head -15
+    cd /src/mxfs; timeout 10 tools/mxfs_sshpass.sh test1.vm.localdomain /tmp/.mxfs_pass 'mountpoint -q /src && echo "/src mounted"; ls /src/mxfs/tests/mxfs_test.sh 
+    cd /src/mxfs; for i in $(seq 1 36); do if grep -q "RC=" /tmp/rv_fua.log 2>/dev/null; then break; fi; sleep 15; done; echo "=== result ==="; grep -iE "RC=|failur
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo 1 > /sys/module/mxfs/parameters/fua_
+    cd /src/mxfs; echo "=== xfs_buf_wait_unpin decl/export ==="; grep -rn "xfs_buf_wait_unpin" xfs/*.h pal/linux/xfs_buf.c | head; echo "=== is it static? ==="; sed
+
+## Last text from previous session
+
+e is a purely *local* pinned-stale-buffer reuse. Let me restore the correct default and record these critical findings:
+Cluster restored to `fua_disable=1`, all mounted. This session produced major findings. Let me record them comprehensively before continuing:
+I have budget to try one more targeted experiment, but my reasoning surfaces a critical flaw in both the release-flush and read-time approaches: forcing the node's pinned commit to the target (via `xfs_bwrite`) **clobbers the peer**, and that's exactly why my reverted attempt lost everything. The principled version uses `xfs_buf_wait_unpin` (wait for natural checkpoint, don't force-write the local buffer). Let me check if that primitive is callable from the DLM file:
+`xfs_buf_wait_unpin` is STATIC in the delicate upstream-fork `xfs_buf.c`. More importantly, my reasoning shows both candidate fixes have a fundamental flaw: forcing the node's pinned commit to the shared target clobbers the peer, while evicting mid-tenure risks the node losing its own un-landed work. Both obvious approaches fail for principled reasons.
+
+Per the RULE 5 escalation chain (2 Gemini consults spent on this issue → escalate to GPT), and with full context fresh, let me consult GPT for the correct approach:
+GPT's consult gives the definitive architecture. I've reached the ccloop relay boundary — let me record GPT's design synthesis into memory and summarize.
+I've reached the ccloop relay boundary. The criteria are **not** met (cache_coherency still FAILs), so I will not write the marker. Cluster is in a clean known state: build `FB9573F7` deployed, `fua_disable=1`, all 4 nodes mounted.
+
+## Summary — session 96
+
+**Criteria NOT met** (cache_coherency still fails). But solid, verified progress + a definitive fix design for the next session.
+
+### Landed (KEEP, build `FB9573F7`)
+- **Typeflip-ftype fix**: threaded authoritative `dirent_ftype` into `mxfs_dlm_reload_inode(ip, expect_ftype)` so the sess90 typeflip-stale guard is bypassed when the disk inode's type matches the dirent (genuine reuse, not a torn read). **Eliminated the unlink_visibility thrash: 146s timeout → 28s.**
+
+### Proven this session (RULE 4, instrumented)
+1. **cache_coherency is close**: cross_visibility PASSES; rename/unlink/cwr fail with *small* counts (2/240, 2/122, 1/6) — a durable lost-update on a shared directory under 4-node concurrent rename.
+2. **Root = local pinned-stale dir-buffer reuse** (`DIR-STALE-SKIP ino=136 blk=0 pin=1 disk_differs=1`): a node keeps a stale, *pinned* (CIL-committed-not-checkpointed) dir block because re-reading a pinned buffer corrupts (sess64), then RMW-clobbers a peer's committed dirent. The block is left pinned because the bounded (~200ms) BAST-release drain gives up before the async `xlog_cil_committed` workqueue unpins.
+
+### Disproven / reverted (saves future dead-ends)
+- **FUA-on (`fua_disable=0`) is WRONG**: 370s (45× slower → timing fail) AND *more* failures — FUA reads the stale platter (writes sit undestaged in the SCST WB cache). `fua_disable=1` is the correct mode.
+- **Release-side `xfs_bwrite` flush+evict**: regressed 2→24 — it publishes an already-divergent local buffer to the shared target, clobbering peers.
+
+### Definitive fix for next session (GPT-5.5, after 2 Gemini consults — recorded in memory `sess96_gpt_fix_design`)
+Make **DLM EX demotion a true checkpoint fence** (synchronous unpin + home-block write to the shared target before unlock, unbounded, off the BAST/CAW thread on a blocking workqueue) **plus an acquire-side invalidation fence**, and make the `DIR-STALE-SKIP` "keep stale and continue" branch **fatal (shutdown), never silently reuse**. Pragmatic first cut: make the existing release drain unbounded+synchronous (`wait_unpin`+`bwrite`+verify-clean, no msleep giveup) and make DIR-STALE-SKIP fatal so any residual violation is loud. Same fence design extends to AG locks for the intermittent bnobt double-free.
+
+Full detail in memories `sess96_lessons` and `sess96_gpt_fix_design`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

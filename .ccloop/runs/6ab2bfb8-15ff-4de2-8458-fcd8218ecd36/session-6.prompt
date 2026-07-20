@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6ab2bfb8-15ff-4de2-8458-fcd8218ecd36/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6ab2bfb8-15ff-4de2-8458-fcd8218ecd36, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6d83fa7b-9243-4408-a350-d2d5a2768bf9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6d83fa7b-9243-4408-a350-d2d5a2768bf9.jsonl`
+- approx context at last assistant turn: 845294 tokens
+- tools used: Bash×467 Read×211 Edit×60 Monitor×6 Write×3 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/repro_mode0.sh
+- /src/mxfs/xfs/xfs_icache.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess40_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/libxfs/xfs_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess40_lessons.md <<'XEOF'  ## sess40 — CORRECTION to the "COMPLETE 8E2D2EB9" note above: btree-block hook 
+    cd /src/mxfs; ls tests/repro_rename_concurrent.sh tests/char_rename.sh 2>/dev/null; echo "=== reset4 (loads 214A3360) ==="; ps -ef|grep -E 'run_tests|cache_cohe
+    cd /src/mxfs; for h in test2 test3 test4; do timeout 6 ./tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass 'dmesg -C 2>/dev/null' >/dev/null 2>&1; done; echo "head of re
+    cd /src/mxfs; t0=$(date +%s); timeout 300 bash tests/repro_rename_concurrent.sh "test1 test2 test3 test4" 20 > /tmp/rconc.log 2>&1; echo "rc=$? elapsed=$(($(dat
+    cd /src/mxfs; until ! pgrep -f repro_rename_concurrent >/dev/null 2>&1; do sleep 15; done; echo "=== repro result ==="; cat /tmp/claude-1000/-src-mxfs/6d83fa7b-
+    cd /src/mxfs; echo "=== repro result ==="; grep -iE 'rc=|elapsed=|ok=|empty|missing|writer|PASS|FAIL|RESULT' /tmp/rconc.log 2>/dev/null | grep -viE 'Unauth|disc
+    cd /src/mxfs; for h in test1 test2 test3 test4; do echo -n "$h corruption_lines="; timeout 8 ./tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass 'dmesg 2>/dev/null | gre
+    cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess40_lessons.md <<'XEOF'  ## *** sess40 — TEST RESULT: build 214A3360 (AGF+AGI hooks) = NO CORRUPTION + n
+    cd /src/mxfs; D=/mnt/shared/.mxfs_test/rconc; echo "=== test1 (peer) writer-3 after-files BEFORE drop_caches ==="; timeout 10 ./tools/mxfs_sshpass.sh test1 /tmp
+    cd /src/mxfs; echo "=== repro_rename_concurrent phase2 rename target naming ==="; grep -iE 'mv |rename|after|_r_|content_' tests/repro_rename_concurrent.sh | gr
+    cd /src/mxfs; D=/mnt/shared/.mxfs_test/rconc; echo "=== test1 (peer) writer-3 BEFORE drop_caches ==="; timeout 10 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 
+    cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess40_lessons.md <<'XEOF'  ## *** sess40 — missing-dirent is WRITER-SIDE dir-block durability (drop_caches
+    cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess40_lessons.md <<'XEOF'  ## *** sess40 CORRECTION — missing-dirent is TRANSIENT propagation LATENCY, not
+    cd /src/mxfs; D=/mnt/shared/.mxfs_test/rconc; for h in test1 test2 test3 test4; do timeout 6 ./tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass "rm -rf $D 2>/dev/null" 
+    cd /src/mxfs; until ! pgrep -f repro_rename_concurrent >/dev/null 2>&1; do sleep 12; done; sleep 2; cat /tmp/claude-1000/-src-mxfs/6d83fa7b-9243-4408-a350-d2d5a
+    cat /tmp/claude-1000/-src-mxfs/6d83fa7b-9243-4408-a350-d2d5a2768bf9/tasks/bpbmkgct9.output 2>/dev/null | grep -iE 'verify-time|visible_on|writer[0-9]'
+    cd /src/mxfs; D=/mnt/shared/.mxfs_test/rconc; for h in test1 test3; do echo "--- $h ---"; timeout 8 ./tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass "stat -c 'rconc m
+    cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess40_lessons.md <<'XEOF'  ## *** sess40 CRITICAL CORRECTION — corruption STILL occurs with AGF+AGI hooks 
+    cd /src/mxfs; sed -n '/struct xfs_btree_cur {/,/^};/p' xfs/libxfs/xfs_btree.h | grep -nE 'bc_ag|pag|agbp|union|struct|bc_group|} bc_' | head -25
+    cd /src/mxfs; grep -rn 'bc_ag\b\|} bc_ag\|struct xfs_perag.*pag;\|to_perag\|bc_group' xfs/libxfs/xfs_btree.h | head -15
+
+## Last text from previous session
+
+'s *last few* renames are invisible to peers (3/20 per writer; empty=0, FS clean). This is the **reader-side peer-dir-cache staleness** — peers don't re-read the shared dir after the writer's later commits (drop_caches fixes it). It's the dir-block / cached-PR-not-invalidated-on-peer-modify gap (DLM BAST delivery / `i_dlm_dir_gen` only bumps on slow-path reload; consider a cheap gen-based `d_revalidate`).
+
+**Net progress this session:** the cache_coherency picture went from "FS corrupts and shuts down + empty-content + missing-dirent + 100× slow" to **"FS stable, no corruption, no empty-content, fast"** with a single isolated residual (missing-dirent). That's the clear next target.
+
+**State:** build `214A3360` head (clean, deployed on the 4-node cluster); params `reuse_reload=1`/`reuse_dlm=0`/`reg_release_durable=1`/`sync_iflush=1`/`instr=0`; tools `tests/repro_mode0.sh`, `tests/repro_rename_concurrent.sh`; ~500-line `sess40_lessons.md` with the prioritized next-session plan (confirm corruption gone → fix missing-dirent peer-dir-cache invalidation → full cache_coherency → remaining criteria → verify_ship). The relay continues.
+Criteria not met — let me run a cheap decisive diagnostic on the missing-dirent (the dominant residual): does `drop_caches` on a peer reveal writer-3's missing renames (reader-side stale cache) or not (writer-side not-on-disk)? The repro state persists.
+The diagnostic was botched — I grepped `node3_after_N` but `repro_rename_concurrent.sh` uses different rename target names (it renames `content_<id>_<i>`, not the rename_visibility `node<id>_after_<i>` scheme), so "0" is a filename mismatch, not a real signal. Inconclusive. Let me record this (so the next session uses the correct names) and wrap up (83% context).
+Correct name is `n3_after_<i>`. Let me redo the decisive drop_caches diagnostic with the right filenames.
+**Important correction:** test1 (peer) now sees **ALL 20** of writer-3's renames (n3_after_18/19/20 all present), before AND after drop_caches. So the 3 "missing" dirents at verify time were **TRANSIENT** — the peer's view **converged** within seconds. It's a **cross-node propagation LATENCY** issue (peer sees the writer's latest renames after a delay >2s, the test's settle window), **not data loss or permanent staleness**. My prior note (written before this result) wrongly called it writer-side durability loss. Let me correct it.
+The convergence-latency finding is a major reframe (no data loss — data converges). Let me do one quick, bounded measurement of the actual convergence time (the key number for next session), then wrap up.
+I'll wait for this convergence measurement, record it, then wrap up.
+I'll wait for the `bse7osgd6` notification with the convergence measurement, then record and wrap up.
+I'll wait for the `bse7osgd6` completion notification (the repro + convergence poll), then record the result and wrap up.
+I'll wait for the `bse7osgd6` notification rather than re-reading. The repro + convergence poll takes a couple minutes. Pausing until it reports.
+This run is much worse — **TOTAL_FAILS=80, test1 sees 0/20 for ALL writers (including its own)**. So the residual is NOT cleanly "transient latency" — it's intermittent and sometimes catastrophic (test1 sees nothing). Let me check if the rconc dir is EACCES (mode=0 create-race) or the FS corrupted again.
+**Key correction:** this run **corrupted** — test1 `corruption=7`, rconc dir = "Input/output error" (FS shut down). So the AGF+AGI hooks **do NOT reliably prevent the corruption** — the first clean run was variance. The corruption is intermittent and **still present**; the reverted **btree-block hook is likely required** (bnobt/cntbt block staleness → double-alloc). The earlier "converged, no loss" / "no corruption" notes were from one lucky run. Let me record this honest correction and wrap up (84% context).
+Let me finish the btree-block hook — it's the likely-required piece. First find the correct AG pag accessor on `xfs_btree_cur`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

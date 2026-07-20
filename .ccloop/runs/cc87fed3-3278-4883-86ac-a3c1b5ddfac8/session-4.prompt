@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 3
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8c458175-2c0a-4277-9e01-6e076b387b26`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26.jsonl`
+- approx context at last assistant turn: 496798 tokens
+- tools used: Bash×112 Read×38 Edit×11 TaskUpdate×8 TaskCreate×6 mcp__ccmemory__memory_get×3 ToolSearch×2 mcp__ccmemory__memory_write×2 Write×1 mcp__ccmemory__memory_list×1 mcp__ccteam__status×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/VERSION
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/repro_fdw_only_loop.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    make modules 2>&1 | tail -15
+    modinfo /src/mxfs/mxfs.ko | grep srcversion bash scripts/cluster_reset_n.sh 8 2>&1
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter3diag mkdir -p "$SP" cd /src/mxfs nohup setsid bash tests/diag_cpu_pin_c
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter3diag END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$S
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter3diag END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$S
+    for n in 1 2 3 4 5 6 7 8; do   echo "== test$n =="   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "     echo -n 'D-state: '; ps -eo stat,pid
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter4diag mkdir -p "$SP" cd /src/mxfs nohup setsid bash tests/diag_cpu_pin_c
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter4diag END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$S
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter4diag END=$((SECONDS+520)) while [ $SECONDS -lt $END ]; do   if [ -f "$S
+    grep -n "^usage\|Usage:\|show_usage\|^N=\|positional" /src/mxfs/run.sh | head -20 echo "---" head -50 /src/mxfs/run.sh | grep -n "TEST_TIMEOUT\|MXFS_EXTRA_MODAR
+    cd /src/mxfs rm -f /tmp/mxfs_run.lock time MXFS_DEV=/dev/mapper/mpatha TEST_TIMEOUT=180 timeout 240 ./run.sh 8 caw fence_during_write 2>&1 | tail -20
+    chmod +x /src/mxfs/tests/repro_fdw_only_loop.sh SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/fdw_hunt mkdir -p "$SP" cd /src/mx
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/fdw_hunt END=$((SECONDS+560)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/.done
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/fdw_hunt END=$((SECONDS+560)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/.done
+    grep -n "mkfs\|prep()\|^prep\b" /src/mxfs/run.sh | head -30
+    awk 'NR==10974{f=1} f{print NR": "$0} f && /^}/ && NR>10980 {exit}' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -nE "xfs_irele|iput\(|^\s*[0-9]+: \}"
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter5diag mkdir -p "$SP" cd /src/mxfs rm -f /tmp/mxfs_run.lock nohup setsid 
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter5diag END=$((SECONDS+560)) while [ $SECONDS -lt $END ]; do   if [ -f "$S
+    SP=/tmp/claude-1000/-src-mxfs/8c458175-2c0a-4277-9e01-6e076b387b26/scratchpad/caw84_iter5diag END=$((SECONDS+560)) while [ $SECONDS -lt $END ]; do   if [ -f "$S
+    for n in 1 2 3 4 5 6 7 8; do   timeout 5 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo -n 'test$n D=' ; ps -eo stat | awk '\$1~/^D/' | wc -l; ech
+
+## Last text from previous session
+
+complete the required 2-3 clean count, or catch the rare third bug with diagnostics active.
+Third clean pass — that's 3/3 for FIX6+FIX7, satisfying RULE 4's validation bar for this specific bug chain. Let me checkpoint progress, then hunt more aggressively for the rare third bug (1-in-4 so far) by running `fence_during_write` alone repeatedly, skipping the long `dir_reuse_coherency` prefix to get more attempts per unit time.
+Launched — up to 15 rapid iterations, stopping early on any hit. Let's poll for progress.
+All 15 rapid `fence_during_write`-only iterations passed clean — this confirms bug 3 needs `dir_reuse_coherency`'s prior churn as a precondition, not `fence_during_write` alone. Let me check whether `run.sh`'s prep step does a fresh mkfs each time or just remounts existing state — that determines whether I can prime the cluster once and then rapid-fire just the fencing test against that same hot state.
+Let me check whether `mxfs_dlm_bast_process` itself ever drops a reference internally — that would be a double-drop if its callers ALSO drop theirs afterward.
+Let me trace through the rest of `bast_notify`'s exit paths systematically, looking for a missing `return` that could cause a double `xfs_irele`.
+`bast_notify` and `bast_process`'s internal dwork-arm sites all check out as correctly balanced — no obvious single-point bug found via static analysis. This is likely a genuine race between concurrently-running paths rather than a typo-class bug. Let me commit to more full-combo reproduction attempts with the diagnostic active, since that's the only way to get further evidence now.
+While this runs, let me checkpoint the extensive audit work to memory so it's not lost.
+Now let's poll iteration 5's progress.
+dir_reuse_coherency passed, now into fence_during_write. Continuing to poll.
+Hit the ccloop relay boundary at a clean stopping point — iteration 5 just completed clean with no lingering background processes.
+
+**Session summary:**
+
+Found and fixed two proven root-cause bugs blocking `fence_during_write@8/caw`:
+
+1. **FIX6** (build 0.10.83): `mxfs_v5_dlm_inode_granted_mode()` had no CAW-transport branch, always returning `MXFS_LOCK_NL` on CAW — silently disabling the existing `mxfs_ilock_admit_ioend` (FIX-25) and P79-NESTADMIT deadlock-breakers. This was the root cause of the D-state deadlock inherited from session 2 (bast_process's release-flush vs. writeback-completion's ILOCK need). Added `mxfs_dlm_caw_granted_mode()` mirroring the existing CAW-aware sibling accessors.
+
+2. **FIX7** (build 0.10.84): `mxfs_dlm_bast_dwork_fn` lacked the "phantom-ref" defensive guard its sibling `mxfs_dlm_bast_work_fn` already had, causing a real `VFS_BUG_ON_INODE(I_FREEING|I_CLEAR)` kernel crash in `iput()`. Added `mxfs_dlm_dwork_safe_irele()` guarding all 4 exit paths.
+
+Both fixes validated **3/3 clean iterations** (RUN_EXIT=0, 8/8 both sub-tests, zero D-state, zero crashes).
+
+**Open item (task #6, not yet resolved):** a rarer (1-in-5 full-combo attempts) instance of the *same* `iput()` assertion, hit via the plain `rm`/unlink syscall path rather than any mxfs call site — proving a deeper reference-count imbalance somewhere in the DLM/BAST machinery, not fixable by guarding one call site. Exhaustively audited `bast_notify`, `bast_process`, and all dwork queueing sites this session — all internally consistent, no static bug found. Added a `P125-EVICT-SUSPECT` diagnostic in `mxfs_dlm_evict()` to catch it with full DLM-state context next time it fires; confirmed it needs `dir_reuse_coherency`'s prior churn as a precondition (`fence_during_write` alone, 15x rapid iterations, never reproduces it). 4 of 5 full-combo attempts with this diagnostic active have been clean.
+
+Full details, the complete audit trail, and exact next steps are saved in ccmemory (`AAA-ccloopcc87-sess3-BUG3-refcount-audit-clean-still-hunting` and the FIX6/FIX7 memory). Criteria not yet met — task #6 must close before the full 1/2/4/8/16/32 sweep (task #5) can be trusted.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

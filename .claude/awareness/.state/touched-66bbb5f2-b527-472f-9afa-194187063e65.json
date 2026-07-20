@@ -1,0 +1,14 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_inode.c",
+    "xfs/xfs_buf.h",
+    "xfs/libxfs/xfs_da_btree.c",
+    "dlm/dlm.c",
+    "xfs/libxfs/xfs_dir2_data.c",
+    "xfs/libxfs/xfs_dir2_leaf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

@@ -1,0 +1,30 @@
+# MXFS tooling / device / infra checks — Category 2. NOT the FS test suite.
+#
+# Same format as the FS suite manifest, so the same runner + showstat drive it:
+#   PHASE  TEST  COORD  MINNODES  BUDGET_S
+# Here PHASE = the kind (tooling/infra/substrate/transport/benchmark/lifecycle/
+# faultinj). These operate on the DEVICE / MODULE / block-layer / cluster
+# lifecycle — they format/check/resize/re-stack the device or measure the
+# module, so they are NOT part of the N-node FS battery. Run once / per-host.
+# BUDGET_S: see tests/suite/manifest header — same RULE 0 semantics.
+#
+# Run:   tests/tooling/run_tooling.sh <N> [nodes]
+# View:  ./showstat.sh tooling
+
+# mkfs_timing/chk_clean/online_resize/cluster_ops_timing: REAL RULE 0 numbers,
+# measured against native XFS via `./run.sh 1 xfs` (2026-07-14): mkfs.xfs=62ms,
+# xfs_repair -n=0s, mkfs.xfs+xfs_growfs=1s, mount/umount cycle=0s (31/20/6ms).
+# All floored at 10s (outer harness timer is 1s-granularity; sub-second native
+# ops leave no useful 2x signal, so 10s absorbs ssh-dispatch jitter instead).
+# fault_io_error is NOT tightened the same way: its own internal timeouts
+# (20s EIO probe + 30s remount) mean a legitimate slow-but-correct recovery can
+# take up to ~50s even though today's clean xfs/caw sample was 4s -- keep 60s.
+tooling    mkfs_timing             none      1   10
+tooling    chk_clean               none      1   10
+tooling    online_resize           none      1   25
+infra      dkms_install            none      1   240
+benchmark  single_node_paired      none      1   90
+benchmark  fio_vs_xfs_baseline     none      1   180
+lifecycle  cluster_ops_timing      none      1   10
+faultinj   fault_io_error          fault     1   60
+substrate  precond_xinit_coherency ordered   2   90

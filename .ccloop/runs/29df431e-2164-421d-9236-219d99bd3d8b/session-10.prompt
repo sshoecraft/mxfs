@@ -1,0 +1,119 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 10 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 9
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `80482414-55b0-41bc-972e-c9ca6b971792`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/80482414-55b0-41bc-972e-c9ca6b971792.jsonl`
+- approx context at last assistant turn: 159099 tokens
+- tools used: Bash×18 Read×9 mcp__ask_gemini__query×4 Edit×3 Write×3 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/repro_cv.sh
+- /home/steve/.claude/projects/-src-mxfs/memory/sess54_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat .criteria_results.json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'{k:28s} {v.get(\"status\"):5s} {v.get(\"reason\",\"\")[:6
+    for n in test1 test2 test3 test4; do r=$(timeout 8 ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "uname -r; cat /sys/module/mxfs/srcversion 2>/dev/null" 2>&1 | tr 
+    cd /src/mxfs; grep -rn "bast_poll\|bast_notify\|peer.*EX\|revoke\|defer_for_waiter\|deferred BAST\|D9 pin\|pin_count" dlm/dlm_caw.c xfs/xfs_mxfs_dlm.c 2>/dev/nu
+    cd /src/mxfs; grep -rn "node.*\.txt\|cross_visibility\|test_cross\|shared.*dir\|barrier\|sleep 2" tests/run_tests.sh 2>/dev/null | head -30; echo "---test files
+    cd /src/mxfs; grep -n "instr\|insmod\|modprobe\|fresh_cluster_mount\|MXFS_DEV\|MXFS_MOUNT\|mount.*mxfs\|mount -t" tests/criteria/lib.sh 2>/dev/null | head -40
+    cd /src/mxfs; grep -n "MXFS_MODULE\|MXFS_REPO\|DEFAULT_NODES\|MXFS_MKFS\|MXFS_PASS\b" tests/criteria/lib.sh 2>/dev/null | head; echo "---instr param def---"; gr
+    cd /src/mxfs; chmod +x tests/repro_cv.sh; timeout 480 bash tests/repro_cv.sh 2>&1
+    cd /src/mxfs; grep -n "ssh_node()\|ssh_node_quiet()\|ssh_node ()\|ssh_node_quiet ()\|^ssh_node\|^ssh_node_quiet" tests/criteria/lib.sh; echo "---defs---"; sed -
+    cd /src/mxfs; timeout 480 bash tests/repro_cv.sh 2>&1
+    cd /src/mxfs; timeout 560 bash tests/repro_cv.sh 12 2>&1
+    cd /src/mxfs; echo "=== mount state ==="; for n in test1 test2 test3; do echo -n "$n: "; ssh_node "$n" "mount | grep -q '/mnt/shared type mxfs' && echo MOUNTED 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo -n "$n: "; ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "mount | grep -q '/mnt/shared type mxfs' && echo M
+    cd /src/mxfs; export MXFS_TESTS_DIR=/src/mxfs/tests; timeout 120 ./tests/run_tests.sh --nodes 4 --phase cluster --test test_cross_visibility --pass-file /tmp/.m
+    cd /src/mxfs; echo "=== latest result detail ==="; R=$(ls -td /home/steve/.mxfs/results/*/ 2>/dev/null | head -1); echo "resultdir=$R"; find "$R" -type f 2>/dev
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg | grep -aiE 'shutdown|EFSBADCRC|EFSC
+    cd /src/mxfs; ./tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -aA22 'INODE-REUSE-EVICT ino=6291584' | head -60" 2>&1 | grep -vE '^Warning|^Unauthori
+    cd /src/mxfs; echo "=== ifree / inactive DLM handling ==="; grep -n "mxfs\|dlm\|bast\|invalidate\|peer" xfs/xfs_inode.c | grep -iE "ifree|free|inactiv|dlm|bast"
+    cd /src/mxfs; echo "=== did FS shut down on test2? ==="; ./tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -aiE 'shutdown|forced shutdown|xfs_do_force
+
+## Last text from previous session
+
+n-disk (incore_ftype=2, with dir data block 0x5f8d10) AND referenced as the **regular file** node3.txt (dirent_ftype=1). sess48's ftype-eviction fires but the gen-gated re-read hits a corrupt dir block — because the inode is genuinely double-allocated. This is the deep AG **inode double-allocation** bug. Let me capture the full corruption context and check for an always-on inode-alloc detector.
+**This is the definitive root cause.** The "corrupted dir block 0x5f8d10" literally contains `"hello from node 3\n"` — the regular-file *contents* of node3.txt. So inode `6291584` is ONE inode that test2 has cached as a **directory** (stale prior incarnation, incore di_mode=DIR) but which node3 freed and **reused as the regular file node3.txt**. test2 reads the new reg-file data block through the stale DIR geometry → dir verifier fails → `cat: Is a directory` + FS shutdown. sess48's INODE-REUSE-EVICT detector fires but the stale dir-readahead shuts down the FS before reload completes.
+
+Also note `P51-INSTR caw ... sense_key=0xe asc=0x1d` = SCSI **MISCOMPARE during verify** (CAW compare failures under contention).
+
+The core gap: **freeing an inode on one node does not invalidate peers' cached copies**, so on reuse, peers serve a stale-type inode. This is the sess40/48/52 inode-reuse coherency family. Let me confirm the hole: does the inode free/inactivate path do any peer DLM invalidation?
+There's already inode-reuse handling at lines 678-743 (the sess48/49 fix). Let me read it to see why it fails to prevent the dir-readahead shutdown.
+Now I see the full state. The sess48/49 eviction fix (lines 701-738) detects the ftype mismatch and tries to evict, but the corruption fires in `xfs_dir3_data_reada` (readahead) — the stale grant-less cached dir inode gets used as a directory before/around the eviction. The root, per the code's own comments (lines 683-684): **a passively-cached in-core inode holds NO DLM grant, so a peer's free/realloc never BASTs it** — making it invisible to all coherency mechanisms.
+
+This exact class (inode-reuse coherency) has failed across sess40, 45, 48, 49, 52, 53. Per CLAUDE.md RULE 5, I'll consult Gemini with the full evidence-backed diagnosis. Let me capture two more facts first: confirm whether the FS actually shut down, and check node2.txt (its own-file invisibility suggests a separate concurrent shortform→block lost-update).
+The FS did NOT shut down — the `dir3_data_reada_verify` error is a non-fatal readahead verify (buffer discarded), consistent with upstream. So cross_visibility fails purely from: (1) node3.txt type-confusion (stale grant-less cached dir inode reused as reg file), and (2) node2.txt invisible even to its creator (concurrent shortform→block dir-conversion lost-update). Both stem from broken cross-node coherency of **passively-cached inodes that hold no DLM grant**.
+
+This exact class has failed across 6+ sessions. Per RULE 5, let me consult Gemini with the full evidence-backed diagnosis.
+Gemini confirmed the architectural root (VFS cache must be a projection of DLM state; caching at NL is the violation) but the response was truncated before the concrete design. Let me re-query focused on the actionable mechanism with a larger budget.
+Query failed (transient). Let me retry with a tighter budget.
+Gemini keeps truncating server-side (~same cutoff regardless of max_tokens), but it confirmed the key points: the architectural diagnosis ("VFS cache must be a projection of DLM state"; NL-caching is the violation) and the Q1 choke-point direction (VFS-facing methods like `->lookup`/`->d_revalidate`, AFTER VFS locks, NOT inside `xfs_iget` under ILOCK_EXCL).
+
+I've established decisive, durable findings this session that overturn sess53's reframe. Let me record them to memory before continuing.
+Let me add the index pointer to MEMORY.md (keeping it to one short line).
+Now let me get the truncated Gemini detail in small chunks (it caps ~1 paragraph/call). First, the reuse-invalidation mechanism choice (Q2).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

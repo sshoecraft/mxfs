@@ -1,0 +1,13 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/dlm_caw.c",
+    "dlm/dlm_caw.h",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

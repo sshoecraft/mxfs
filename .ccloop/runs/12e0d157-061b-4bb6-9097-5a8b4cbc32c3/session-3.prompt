@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/12e0d157-061b-4bb6-9097-5a8b4cbc32c3/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 12e0d157-061b-4bb6-9097-5a8b4cbc32c3, after session 2
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `0befb846-b482-4313-b44e-b0cb2aa03f22`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0befb846-b482-4313-b44e-b0cb2aa03f22.jsonl`
+- approx context at last assistant turn: 502702 tokens
+- tools used: Bash×94 Read×21 Edit×9 mcp__ccmemory__memory_get×7 mcp__ccmemory__memory_write×5 ToolSearch×2 Write×2 mcp__ask_fable__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/ds_probe.sh
+- /src/mxfs/tests/trace_reads.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/.ccmemory/caw-32node-dlm_scaling-FIX-progress-and-fable-design.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 460 scripts/caw_preflight.sh 32 2>&1 | grep -E 'PREFLIGHT|NOT-READY' | tail -2; echo "PF_RC=${PIPESTATUS[0]}"
+    cd /src/mxfs; echo "=== TEST: dir_release_skip_nonex=1 + clear-on-grant (build 0510FC3E) ==="; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1
+    echo "=== SCST device threads ==="; for a in threads_num threads_pool_type blocksize; do echo "$a = $(cat /sys/kernel/scst_tgt/devices/mxfs/$a 2>/dev/null)"; do
+    cd /src/mxfs; timeout 460 scripts/caw_preflight.sh 32 2>&1 | grep -E 'PREFLIGHT|NOT-READY' | tail -2; echo "PF_RC=${PIPESTATUS[0]}"
+    cd /src/mxfs; echo "=== COHERENCY-SAFETY of the fix: 4/caw with dir_release_skip_nonex=1 ==="; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1
+    cd /src/mxfs; echo "=== keeper-equivalence: 4/caw coherency, DEFAULT modargs (param OFF) ==="; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1
+    cd /src/mxfs; echo "=== cache_coherency 4/caw failure reason ==="; python3 -c "import json; d=json.load(open('criteria.json')); [print(t['runs'].get('4/caw',{})
+    cd /src/mxfs; LOGD=/tmp/run_cache_coherency_20260707T142334Z; echo "=== exact fence/error signals per node ==="; for n in 1 2 3 4; do f="$LOGD/kernlog_test$n"; 
+    cd /src/mxfs; echo "=== destroy ALL 32 (clear all PR keys) ==="; for i in $(seq 1 32); do virsh -c qemu:///system destroy test$i >/dev/null 2>&1 & done; wait; s
+    cd /src/mxfs; timeout 300 scripts/caw_preflight.sh 4 2>&1 | grep -E 'PREFLIGHT|NOT-READY' | tail -2; echo "PF_RC=${PIPESTATUS[0]}"; echo "=== 4/caw cache_cohere
+    cd /src/mxfs; echo "=== current PR keys on LUN (from test1) ==="; timeout 15 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'sg_persist --in -k /dev/mapper/mpatha 
+    cd /src/mxfs; echo "=== 4/caw cache_coherency, param OFF, CLEAN PR substrate ==="; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 26
+    cd /src/mxfs; for n in test1 test2 test3 test4; do r=$(timeout 10 tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass 'echo -n "mnt="; mount|grep -q "on /mnt/shared type
+    cd /src/mxfs; echo "=== clear LUN PR + retry 4/caw cache_coherency (final attempt) ==="; timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'sg_persist --ou
+    cd /src/mxfs; echo "=== clear PR + 2/caw cache_coherency (minimal UA race) ==="; timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'sg_persist --out --regi
+    cd /src/mxfs; for n in test1 test2; do echo "--- $n ---"; timeout 12 tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass 'echo "build=$(cat /sys/module/mxfs/srcversion 2
+    cd /src/mxfs; echo "=== final: clear LUN PR from test1, verify clean, then destroy all VMs ==="; timeout 25 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'umount 
+    cd /src/mxfs; echo "=== boot test1-4 fresh ==="; for i in 1 2 3 4; do virsh -c qemu:///system start test$i >/dev/null 2>&1 & done; wait; echo "waiting ~55s for 
+    cd /src/mxfs; timeout 300 scripts/caw_preflight.sh 4 2>&1 | grep -E 'PREFLIGHT|NOT-READY' | tail -2; echo "PF_RC=${PIPESTATUS[0]}"; echo "=== 4/caw cache_cohere
+    cd /src/mxfs; LOGD=$(ls -dt /tmp/run_cache_coherency_* 2>/dev/null | head -1); echo "logdir=$LOGD"; echo "=== reservation conflict present? (PR wedge) vs clean 
+
+## Last text from previous session
+
+n-conflicts/lock-underflow. Cleared the LUN PR and destroyed all VMs for a clean next-session start.
+
+**Criteria NOT met — marker not written.** Everything is in ccmemory (`caw-32node-dlm_scaling-ROOT-shared-AG0-reread`, `caw-32node-dlm_scaling-FIX-progress-and-fable-design`). Next session: clean-reset, confirm keeper baseline, then implement Fable's lock-protected caching (the path to reliable 32/32), plus the still-unrun 16-dir_reuse and 32/caw tests.
+
+The work continues in the next session — the loop will relay with this state intact.
+Criteria not met — continuing. I just cleaned the substrate (cleared LUN PR, destroyed all VMs). The prerequisite for all further work is a **healthy substrate + confirmed keeper baseline**. Let me boot 4 fresh nodes and test whether 4/caw coherency passes cleanly now — this determines whether the pr-ua wedge was my session's artifact (fresh boot passes) or a persistent bug I must fix before anything else.
+4 nodes fresh-booted. Preflight + 4/caw cache_coherency (default modargs, clean substrate):
+Even on a fresh clean substrate, 4/caw cache_coherency fails 0/4 (converged fast in 8s). This is a critical signal — possibly NOT just the PR-wedge. I've hit the relay boundary; let me capture the decisive fact (reservation-conflict vs real content-mismatch) for the next session, then wrap.
+**Decisive finding:** on a fully clean substrate (**reservation_conflicts=0**, converged in 8s), 4/caw cache_coherency **still fails 0/4** — but with **`got=` empty cross-node content** (writer's "hello from node 1" reads empty on peers), NOT reservation-conflict and NOT a wrong-value. This is a **real coherency regression**, independent of the PR-wedge — so the "1/2/4/8 caw pass" foundation is currently broken on build 0510FC3E. My param-off changes are inert, so this most likely regressed in the **previous session's 16/32 work** (build 115CCA8 was never re-validated at 4/caw — the last 4/caw PASS predates it). Let me record this high-priority fact and wrap at the relay boundary.
+Recorded. I'm at the ccloop relay boundary, so wrapping up. **Criteria NOT met — marker not written.**
+
+## Session summary
+
+**Focus:** 32/caw `dlm_scaling` failure + validating the caw ladder.
+
+**Key results (all instrumented, RULE 4):**
+
+1. **Root-caused 32/caw `dlm_scaling`**: read-command saturation of the shared iSCSI target — ~18 cold dir-buffer re-reads/op at 32 nodes (0 solo, peer-induced eviction), 9:1 read:write, target command-rate bound (not disk). Proved the lever: disabling dir eviction lifts 0/32→29/32 (still marginal).
+
+2. **Consulted Fable** → complete GFS2-glock design (cache dir buffers only under ≥PR; invalidate only on real EX BAST; PR-lock caching for the shared parent = the real headroom).
+
+3. **Built a scoped fix** (`0510FC3E`, param `dir_release_skip_nonex`, **default-off/keeper-equivalent**): +15-18% but marginal; coherency-safety untested.
+
+4. **Uncovered a bigger problem**: on a **clean substrate** (reservation_conflicts=0, fresh boot), **4/caw cache_coherency regressed to 0/4 — empty cross-node content reads**. This is a real coherency regression independent of the PR-wedge, meaning the "1/2/4/8 caw pass" foundation is currently broken (build 115CCA8 from the prior session's 16/32 work was never re-validated at 4/caw). **This must be fixed before more 32-node perf work.**
+
+5. **Substrate hygiene**: my ~20 power-cycles PR-wedged the LUN (8 stale keys + stuck reservation); recovered via explicit `sg_persist` clear, destroyed all VMs, LUN PR now clean.
+
+**Next session (recorded in ccmemory):** diagnose the 4/caw empty-content regression first (isolate: revert my inert changes vs. prior-session 16/32 base), restore 4/8-caw coherency green, then resume Fable's lock-protected caching design for 32/caw dlm_scaling. Three detailed memories written: `caw-4node-cache_coherency-REGRESSION-empty-content` (top priority), `caw-32node-dlm_scaling-ROOT-shared-AG0-reread`, `caw-32node-dlm_scaling-FIX-progress-and-fable-design`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

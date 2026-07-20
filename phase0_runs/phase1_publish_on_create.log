@@ -1,0 +1,1 @@
+RESULT: FAIL  criterion=cache_coherency  measured=passed=1 failed=3 of=4  threshold=failed=0  reason=see /tmp/cache_coherency.PczRWQ.log

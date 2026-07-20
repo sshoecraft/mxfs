@@ -1,0 +1,58 @@
+{
+  "mkfs_timing": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "194ms (threshold<=10000ms)",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:29:14Z",
+    "dlm": "tcp"
+  },
+  "chk_clean": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "rc=0 errors=0",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:29:15Z",
+    "dlm": "tcp"
+  },
+  "single_node_paired": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "xfs=3725ms mxfs=3325ms ratio=89% files=8714/8714",
+    "reason": "",
+    "last_run_iso": "2026-06-14T21:08:04Z",
+    "dlm": "tcp"
+  },
+  "cluster_ops_timing": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "first=38ms rest=36ms umount=7ms",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:30:59Z",
+    "dlm": "tcp"
+  },
+  "online_resize": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "pre=1695MB post=3743MB delta=2048MB/+2048MB data_intact=yes",
+    "reason": "",
+    "last_run_iso": "2026-06-14T21:07:54Z",
+    "dlm": "tcp"
+  },
+  "dkms_install": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "add=0 build=0 install=0 installed=yes remove=0 clean=yes",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:42:15Z",
+    "dlm": "tcp"
+  },
+  "fio_vs_xfs_baseline": {
+    "status": "PASS",
+    "nodes": 1,
+    "measured": "seqW=2306/1765MiB(130%) seqR=6736/3820MiB(176%) randW=41903/16392iops(255%) randR=99147/89165iops(111%) worst=111%",
+    "reason": "",
+    "last_run_iso": "2026-06-14T20:51:10Z",
+    "dlm": "tcp"
+  }
+}

@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 10 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 9
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `c928f1b6-77f9-4248-9c81-baca56cf0934`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934.jsonl`
+- approx context at last assistant turn: 502193 tokens
+- tools used: Bash×161 Read×22 Edit×16 TaskCreate×6 mcp__ccmemory__memory_write×6 TaskUpdate×3 ToolSearch×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "unpin" /src/mxfs/xfs/xfs_inode_item.c | head -8; grep -n "ISTATE_BAST\|bast" /src/mxfs/xfs/xfs_inode_item.c | head -10
+    sed -n '746,800p' /src/mxfs/xfs/xfs_inode_item.c
+    grep -n "i_dlm_pin_count--\|i_dlm_pin_count -= \|i_dlm_pin_count = 0" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -5
+    grep -n "i_dlm_pin_count" /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -vE "== 0|> 0|pin=%|pin_count\)" | head -10
+    grep -rn "i_dlm_pin_count" /src/mxfs/xfs/*.c /src/mxfs/pal/linux/*.c 2>/dev/null | grep -E "\+\+|--" | head -6
+    grep -rn "dlm_pin\b\|dlm_pin_count" /src/mxfs/xfs/xfs_trans.c /src/mxfs/xfs/xfs_mxfs_dlm.h 2>/dev/null | head -8; grep -rn "mxfs_dlm_inode_pin\|mxfs_dlm_inode_u
+    grep -rn "pin_count" /src/mxfs/xfs/xfs_mxfs_dlm.h | head -5; grep -rln "i_dlm_pin_count" /src/mxfs/xfs/ /src/mxfs/pal/ 2>/dev/null | grep -v "\.o$" | head
+    grep -n "i_dlm_pin_count" /src/mxfs/xfs/xfs_inode_item.c
+    make modules 2>&1 | grep -E " error" | head -3; make modules 2>&1 | tail -1; modinfo mxfs.ko | grep srcversion; for k in 1 2 3 4; do virsh -c qemu:///system des
+    S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; for i in $(seq 1 55); do pgrep -f "run.sh 4 tcp" >/dev/null || { echo ENDED; break
+    S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; for i in $(seq 1 55); do pgrep -f "run.sh 4 tcp" >/dev/null || { echo ENDED; break
+    for k in 1 2 3 4; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 2; for k in 1 2 3 4; do virsh -c qemu:///system start test$k >/d
+    S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; for i in $(seq 1 55); do pgrep -f "run.sh 4 tcp" >/dev/null || { echo ENDED; break
+    S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; for i in $(seq 1 55); do pgrep -f "run.sh 4 tcp" >/dev/null || { echo ENDED; break
+    grep -E "PASS|FAIL" /tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad/suite4_r8.log | head -20
+    T=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo $T; for k in 1 2 3 4; do echo "-- t$k:"; grep -hE "drc round=|drc-RDMISS round" $T/test$k 2>/dev/null
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; for k in 1 2 3 4; do (tim
+    S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; grep "P9-LFREE" $S/dm_r8_t1.txt | awk -F'] ' '$1 ~ /\[  3(4[8-9]|5[0-5])/' | awk '
+    S=/tmp/claude-1000/-src-mxfs/c928f1b6-77f9-4248-9c81-baca56cf0934/scratchpad; grep -c "P9-LFREE" $S/dm_r8_t1.txt; grep "P9-LFREE" $S/dm_r8_t1.txt | tail -3; ech
+    for k in 1 2 3 4; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 2; for k in 1 2 3 4; do virsh -c qemu:///system start test$k >/d
+
+## Last text from previous session
+
+l at the function head:
+Build `A5DB8292`. Launching the full 4/tcp suite on a clean cycle, and recording the crash root cause in memory while it runs:
+Soak counts real error patterns (`BUG:|Oops|Call Trace|WARNING:`...), not warns — 1587 matching lines during soak. Pulling what they are:
+Only one nlink call in the DLM layer. Per RULE 4 — pulling the actual WARN stack and when the first one fired:
+No warns yet (12 tests in — it's racy). Letting the suite continue and checking the ledger baseline:
+r3: 15/17 with fence and tds both **timeout-killed** — possibly a cascade (fence wedged something, tds inherited it). Checking:
+test2 produced NO output in either test — it was dead or wedged from fence onward. Checking test2's state:
+Stall began at 397s on ino=4196260. Pulling that inode's DLM history just before:
+The truncate is a second victim of the same folio-writeback wait. The cluster is still wedged — inspecting the live tasks directly:
+Both admit sites are covered by the widened condition. Rebuilding and running the suite again (test2 is still wedged — the cycle will clear it):
+While the suite runs, updating tasks and recording the wedge fix:
+dlm_scaling 3/4 this time — the known setup-visibility flake (task #2). Grabbing its reason while the suite continues:
+**FULL 4/tcp SUITE: 17/17 PASS — first time this generation.** Build `4353CDBB`. Running a repeat to confirm it's not luck:
+r6: 16/17 — only tcp_dlm_scaling failed (0/4). Pulling its failure mode:
+Building v3 and launching suite r7:
+r8: 16/17 — dir_reuse regressed to 0/4 this run. Pulling what happened:
+Relay boundary — capturing the r8 mass-revert evidence and session state in memory before wrap-up:
+Relay boundary reached — wrapping up. **Criteria not yet met; marker not written.**
+
+## Session 9 summary
+
+**4/tcp went from 14/17 to 17/17 (achieved twice — runs r5, r7), with four root-caused, RULE-4-proven fixes on build `2493D345`:**
+
+1. **FIX-26 (v1→v3)** — the dir_reuse one-name loss root: `bast_process` released a **mid-drain upgrade grant** (entry captured for the PR tenure; the pending EX gen=98 landed during the drain; the holders re-check passed because the woken waiter hadn't incremented yet) → phantom cached EX → **two nodes allocated the same dirent slot (aoff=184) 1.8ms apart**, last writer erased the peer's name. Fix: capture the tenure gen at bast entry and abort the release when it moved; v3 keeps the fresh grant CACHED and arms `i_dlm_bast_pending` so the last `ilock_end` re-fires the release (v2 without that collapsed tds pace to 18/150 rounds via 6s peer-retry stalls).
+2. **FIX-27** — test1's kernel panic (serial-log captured: stack guard page, ~35 recursive `mxfs_dlm_ilock_begin` frames): the EDEADLK retry tail-recursed; converted to a bounded `goto` loop with backoff and a shutdown cap.
+3. **FIX-25 widened** — test2's 900s wedge (live 3-task cycle: bast drain in `folio_wait_writeback` ← ioend needs EX ← demote-wait refused at PR): the ioend admit now accepts a PR-granted mirror (PR excludes peer EX) without elevating the cached mode.
+4. **FIX-28** — the deferred-publish loop was claiming **~1000 phantom master-EX ghosts per node per run** (`pre_mode != EX`); the P78 probe is now a guard that skips the claim when the FS-layer EX is gone.
+
+Also added durable diagnostics: P9-LFREE dirent-free ledger, realns on P13-LADD, P9-NLEDGE s_remove_count skew ledger; and documented that VM serial logs (`/var/log/libvirt/qemu/testN-serial.log`) capture panics but are truncated on domain start.
+
+**Remaining for the criteria:** one residual 4/tcp flake — a **mass single-block revert** (r8 round 13: 59 names, node1's f4-f50 + peers' f9-f14, md5s intact = one data block reverted to its birth-era image; daddr-reuse ABA class). A 3× standalone dir_reuse repro loop with full ledgers is running now (`scratchpad/drc_loop_r9.log`). After 4/tcp is consistent: 8/tcp, then 2/tcp and 1/tcp. All state and next steps are in ccmemory (`sess9run-HEAD-r8-mass-block-revert-next-steps`).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

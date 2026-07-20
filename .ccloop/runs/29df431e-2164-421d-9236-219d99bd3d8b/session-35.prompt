@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 35 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 34
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `a099cf95-bd9d-422c-ad07-997d26ab4294`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a099cf95-bd9d-422c-ad07-997d26ab4294.jsonl`
+- approx context at last assistant turn: 163307 tokens
+- tools used: Bash×22 Read×11 Edit×3 ToolSearch×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; wc -l state.md; echo "==="; cat state.md
+    cd /src/mxfs; echo "=== P-SFDIR-FASTEX ==="; grep -rn 'P-SFDIR-FASTEX\|SFDIR-FASTEX' xfs/ pal/ 2>/dev/null; echo "=== DIR-STALE-SKIP ==="; grep -rn 'DIR-STALE-S
+    cd /src/mxfs; grep -n 'mxfs_dir_data_durable\|mxfs_dir_push_data_ags\|i_dlm_dir_gen' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; echo "=== local build srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== nodes up? ==="; P=/tmp/.mxfs_pass; ls -la /tmp/.mx
+    cd /src/mxfs; echo "=== remount cluster (reset4.sh 4) ==="; timeout 420 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Un
+    cd /src/mxfs; echo "=== clear dmesg on all nodes ==="; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" '
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== Does node2 (test2, the WRITER) see its own n2_f24..40? ==="; timeout 15 bash tools/mxfs_sshpass.sh test2 "$P" 'MP=$(m
+    cd /src/mxfs; sed -n '1,70p' tests/faceb_stress.sh
+    cd /src/mxfs; P=/tmp/.mxfs_pass; D=/mnt/shared/.faceb/it1; for n in test2 test1 test3; do echo "=== $n view of $D ==="; timeout 15 bash tools/mxfs_sshpass.sh "$
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo "P-SF-DURABLE-FAI
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== n3/n4 survival on test1 ==="; D=/mnt/shared/.faceb/it1; timeout 12 bash tools/mxfs_sshpass.sh test1 "$P" "for p in n1
+    cd /src/mxfs; echo "=== xfs_buf_ispinned / pin wait helpers ==="; grep -rn 'xfs_buf_ispinned\|b_pin_count\|xfs_buf_pin_wait\|wait_event.*pin' xfs/xfs_buf.c xfs/
+    cd /src/mxfs; grep -n 'mxfs_dir_evict_data_blocks(ip)' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; echo "=== build ==="; timeout 580 make modules 2>&1 | grep -aiE 'error|warning|mxfs_dir_drain|Building|LD .*mxfs|undefined' | head -30; echo "rc=$
+    cd /src/mxfs; sed -n '1,60p' tests/reset4.sh | grep -niE 'scp|cp |deploy|insmod|modules|mxfs.ko|rsync|push' | head; echo "==="; grep -rln 'scp.*mxfs.ko\|deploy'
+    cd /src/mxfs; echo "=== reset4.sh head ==="; sed -n '1,50p' tests/reset4.sh
+    cd /src/mxfs; grep -n 'deploy\|scp\|mxfs.ko\|insmod\|build_and' tests/criteria/lib.sh | head -20
+    cd /src/mxfs; echo "=== remount with new build ==="; timeout 420 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Unauthori
+    cd /src/mxfs; echo "=== faceb_stress 5 iters x40 files (was: FAIL on iter 1) ==="; timeout 560 bash tests/faceb_stress.sh 5 40 2>&1 | grep -aviE 'Warning: Perma
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== which iter, aggregate ==="; D=/mnt/shared/.faceb; timeout 12 bash tools/mxfs_sshpass.sh test1 "$P" "ls $D 2>/dev/null
+
+## Last text from previous session
+
+e dir release issues a cache flush.
+Confirmed: the release path already issues `blkdev_issue_flush` (SAN cache flush, Gemini's #2 covered), so losers' dirents reach the platter. The sole gap is exactly what Gemini and my evidence identify: **the eager-evict at the slow-path EX acquire SKIPS the transiently-pinned (pin=1, dirty=0, in_ail=0) stale block**, so W never refreshes to the peers' durable image. 
+
+The fix: at the acquire boundary, drain the pin (single SYNC log force + bounded settle) **then** evict — never clearing a still-pinned buffer (respects constraint 1), and only for pin-only blocks (not dirty/in_ail, which carry unwritten local content). Let me implement a dedicated acquire-side drain-evict function.
+Now swap the acquire-side call site to use the new drain-evict function.
+Now build the module.
+Build clean, new srcversion `F943F0A544A9E131DD48490`. Now deploy to all 4 nodes. Let me check how reset4.sh deploys the module.
+The module is shared via NFS, so reset4.sh teardown+mount picks up the new build. Let me remount (deploys `F943F0A5`) and verify the build is live on nodes.
+New build `F943F0A5` live on all 4 nodes, mounted. Now reproduce — run faceb_stress to test the fix.
+Still reproduced. Critical question: did my new `P-ACQ-DRAIN-EVICT` even fire? Let me see the miss summary and check for my new detector.
+My new `P-ACQ-DRAIN-EVICT/SKIP` detector fired **0× on all nodes** — decisive: the slow-path acquire refresh point I added is **unreachable** for the clobbering node. It re-acquires dir EX via the FAST-PATH (`P-SFDIR-FASTEX` 40×) / deferred-BAST path, never the slow path where I placed the drain-evict. Let me record this finding to state.md before the relay boundary.
+State recorded. Criteria are **not met** (cache_coherency and rsync_paired still FAIL), so the marker is not written.
+
+## Session summary (sess74)
+
+**Decisively proved the Face B mechanism** (the sole remaining `cache_coherency` blocker), build `8B1A4AD6`, instr=0, via `faceb_stress 1 40` (reproduces on iter 1):
+- 4 nodes each create 40 files into one shared dir → **only test1's 40 survive on disk; n2/n3/n4's 120 entries are totally clobbered** (gone even from their own creators' view). test1 = the clobberer.
+- test1: `P-SFDIR-FASTEX=40` (held dir EX cached, all 40 creates via fast-path), `DIR-STALE-SKIP=10` all `buf_gen=0 inode_gen=1 pin=1 dirty=0 in_ail=0`, `P-SF-DURABLE-FAIL=0`. Losers: clean release (`P-EVICT-DONE`), no durability failure.
+- Root: test1 monopolizes dir EX (deferred-BAST), modifies+flushes a **stale cached block it could never refresh** (pinned by its own CIL work; can't clear XBF_DONE on a pinned buf — sess64), clobbering peers' durable dirents.
+
+**Consulted Gemini (RULE 5)** with the full proven diagnosis — confirmed the architecture: enforce coherency at the DLM acquire boundary (drain pin → evict → cache-miss-refetch), keep deferred-BAST.
+
+**Fix attempt #1 (build `F943F0A5`, deployed, KEEP — correct but insufficient):** added `mxfs_dir_drain_evict_data_blocks` (snapshot daddrs, `xfs_log_force(SYNC)`, bounded unpin wait, then evict) wired into the **slow-path** EX acquire.
+- **Result: still fails iter 1. Decisive — `P-ACQ-DRAIN-EVICT=0` / `P-ACQ-DRAIN-SKIP=0` on all 4 nodes** → the slow-path refresh point is unreachable; the clobberer re-acquires/holds dir EX via the **fast-path** (P-SFDIR-FASTEX), never the slow path.
+
+**Next session (recorded in state.md):** The hole is the deferred-BAST releasing EX to a peer (peer writes) then test1 **re-granting EX via fast-path without a refresh**. Instrument `mxfs_dlm_ilock_begin`'s fast-path EX branch + the deferred-BAST/unpin release for ino=2097280 to capture the exact release→re-grant sequence, then scope the drain+evict to fire on a fast-path re-grant **only when a peer actually took the lock since our last hold** (a blanket gen-bump/refresh on every fast-path EX is the sess43 too-slow wall). Cluster is on `F943F0A5`, mounted, faceb it1 reproduced (remount before next repro).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

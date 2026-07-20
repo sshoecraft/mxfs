@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 13 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 12
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b12b8818-708f-4d05-8478-bda8f19103cd`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b12b8818-708f-4d05-8478-bda8f19103cd.jsonl`
+- approx context at last assistant turn: 502215 tokens
+- tools used: Bash×281 Edit×24 Read×15 mcp__ccmemory__memory_write×5 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/pal.h
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/tests/suite_iter.sh
+- /src/mxfs/tests/suite_ladder.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    python3 - <<'PYEOF' p='/src/mxfs/xfs/xfs_inode.c' s=open(p).read() old='''		if (error == -ENOENT && igetmiss_tries < 3) {''' new='''		if ((error == -ENOENT || e
+    pgrep -af "suite_iter|run.sh 4 tcp" | head -3 || echo clear; cd /src/mxfs; bash tests/suite_iter.sh 4 tcp > /dev/null 2>&1 & disown; echo "r14 launched (build 5
+    virsh -c qemu:///system list --all 2>/dev/null | grep -E "test[0-9]" | head -10
+    virsh -c qemu:///system list --all 2>/dev/null | grep -cE "test[0-9]"; virsh -c qemu:///system list --all 2>/dev/null | grep -E "test[5-8] " 
+    ls -la /tmp/suite_iter_probes_* 2>/dev/null; head -30 $(ls /tmp/suite_iter_probes_* 2>/dev/null | tail -1) 2>/dev/null
+    until jq -re '.categories[] | .tests[] | select(.name=="tcp_dlm_scaling") | .runs."4/tcp" | select(.iso > "2026-07-04T03:05")' /src/mxfs/criteria.json >/dev/nul
+    sleep 240; jq -r '.categories[] | .tests[] | .name as $n | .runs."4/tcp"? | select(.iso > "2026-07-04T03:00") | [$n, .status, .iso] | @tsv' /src/mxfs/criteria.j
+    until jq -re '.categories[] | .tests[] | select(.name=="precond_readiness") | .runs."4/tcp" | select(.iso > "2026-07-04T03:02")' /src/mxfs/criteria.json >/dev/n
+    chmod +x /src/mxfs/tests/suite_ladder.sh; jq -r '.categories[] | .tests[] | .name as $n | .runs."4/tcp"? | select(.iso > "2026-07-04T03:00") | [$n, .status, .is
+    jq -r '.categories[] | .tests[] | .name as $n | .runs."4/tcp"? | select(.iso > "2026-07-04T02:52") | [$n, .status] | @tsv' /src/mxfs/criteria.json | awk '{print
+    grep -E "P12-IGETMISS|P12-HOLDERTASK|P36-STACK|READOPT" /tmp/suite_iter_probes_20260704T030434Z.log | sort | uniq -c | sort -rn | head -8; wc -l /tmp/suite_iter
+    L=$(ls -t /tmp/suite_ladder_*.log | head -1); until grep -q "ladder done" "$L" 2>/dev/null; do sleep 60; done; cat "$L"
+    python3 - <<'PYEOF' p='/src/mxfs/.claude/awareness/subsystems/xfs.md' s=open(p).read() s += '''  ## sess12(a9a03929) — pin-aware release abort (FIX-A), iget-mis
+    L=$(ls -t /tmp/suite_ladder_*.log | head -1); cat "$L" 2>/dev/null; echo ===; tail -2 /tmp/suite_iter_out_1.log 2>/dev/null
+    L=$(ls -t /tmp/suite_ladder_*.log | head -1); until grep -q "iter 1:" "$L" 2>/dev/null; do sleep 45; done; cat "$L"
+    L=$(ls -t /tmp/suite_ladder_*.log | head -1); until grep -q "iter 2:" "$L" 2>/dev/null; do sleep 45; done; cat "$L"
+    L=$(ls -t /tmp/suite_ladder_*.log | head -1); until grep -q "iter 2:" "$L" 2>/dev/null; do sleep 45; done; cat "$L"
+    D=$(ls -d /tmp/run_fence_during_write_20260704T03* 2>/dev/null | tail -1); echo $D; for n in 1 2 3 4; do echo -n "t$n: "; grep -m1 -oE "DLM AG lock failed: ag=[
+    D=/tmp/run_fence_during_write_20260704T032716Z; grep -h "P12-HOLDERTASK" $D/kernlog_test* | head -3; echo ---; grep -h "P36-STACK" $D/kernlog_test* | head -6; e
+    D=/tmp/run_fence_during_write_20260704T032716Z; grep -A 22 "P36-STACK ino=540053" $D/kernlog_test1 | grep -E "mxfs_|xfs_" | head -14
+
+## Last text from previous session
+
+ — has holder dumps).
+While r9 runs — checkpointing session state to memory (probe builds, ledger, next actions).
+Round mix-up — the trail I analyzed was round ~19 (names reused every round). Redoing for the actual failed round 2.
+P71-HOLD lines lack realns — building per-node kernel→realns offsets and interleaving the EX tenures directly.
+Now hook the dump into mxfs_dirdump and declare it:
+Build 7B8D0162 with the ring. Verifying drc re-arms watch_ino per round (dir is recreated each round).
+Round 4, 3 names missing, raw blocks captured on all nodes. Fetching the bins and the round-4 dmesg.
+Unpin correctly fires the deferred release. Applying FIX-A: pin_count joins the release-abort condition.
+r11: 16/17 — dlm_scaling FAIL (new face). r12 launched. Examining the dlm_scaling artifact.
+While r13 runs — checking when node4's iget failures started/ended in r11's dlm_scaling (test start vs whole window).
+Build 148016F4 (FIX-A + FIX-B). Checking r13 (FIX-A-only) progress.
+Widening FIX-B to also retry on -EFSCORRUPTED (the torn/garbage dinode-read variant seen here), then r14.
+Preparing a multi-iteration ladder driver (launches after r14) so consecutive runs proceed unattended.
+**r14 = 17/17 on FIX-A+B.** Checking the probe harvest for FIX-B fires and near-misses, then launching a 4-iteration ladder.
+Ladder of 4 iterations launched (~70 min). Arming a completion watcher.
+While the ladder runs — updating the xfs subsystem awareness doc with this session's fixes and probes.
+Ladder iter 1 in flight. Waiting on the watcher; the plan after a clean 4×: 8/tcp ×2–3 (highest risk), then 2/tcp and 1/tcp on the same build.
+Ladder iter 1 = 17/17 (r15). Waiting for iters 2–4.
+Relay boundary — capturing the decisive iter-2 stack evidence into memory before handoff.
+Session 12 summary — criteria not yet met; substantial root-cause progress with two proven fixes landed and the final fence edge pinpointed by stack capture.
+
+**What this session established:**
+
+1. **Fence-family triple-FAIL root narrowed to a captured stack.** The fence/netpartition/tcp_dlm_scaling failures are one root: an `rm` on one node holds AG-0 EX for 60s while peers' `rm`s starve into `rc=-110` → `defer_finish` shutdowns. Probe evolution (P12-AGBAST-RX → holder-pid stamping → P12-HOLDERTASK `sched_show_task` → P36-STACK waiter dumps) culminated in the decisive stack in ladder-iter-2's artifact: the AG-0-holding rm is blocked at `xfs_remove → xfs_trans_alloc_dir → xfs_lock_two_inodes → xfs_ilock → DLM EX wait` on the hot dir — i.e. **the remove path acquires the AG before its entry locks**, the last AG→dir ordering inversion (same class FIX3 fixed for create). Next session's job: find where that AG acquire happens under `xfs_trans_alloc_dir` and reorder it.
+
+2. **FIX-A (proven + kept, build 99136941+):** the release-abort in `bast_process` ignored `i_dlm_pin_count`, so an in-flight idle-release stripped FIX3's pinned dir grant mid-`dialloc` (proven by a µs-resolution trace: grant gen=10298 pinned at .163130, released at .164115). Pin now aborts the release, leaving state=CACHED + `bast_pending` so the unpin quiescent arm serves peers.
+
+3. **FIX-B (kept, build 5BE16AA5):** dlm_scaling "nodeX quota got=0" was a sticky-stale cached inode-cluster buffer serving a FREE dinode image for 60s+ (peers iget'd the same inum fine). Lookup-iget ENOENT/-EFSCORRUPTED now invalidates the imap'd cluster buffer and retries. The face hasn't recurred since.
+
+4. **dir_reuse dirent-loss forensics:** proved a genuine same-slot double-allocation (two nodes' adds at aoff=2416, 80µs apart, same base) and instrumented for the next occurrence (per-inode DLM transition ring dumped at RDMISS, raw platter block capture via O_DIRECT dd). No dir_reuse failure since FIX-A (r11–r16).
+
+5. **Ladder state on 5BE16AA5:** r14 17/17, r15 17/17, r16 14/17 (the fence face above, now with stacks); ladder iters 3–4 were still running at relay. 1/2/8-node columns still need re-validation on the final build once 4/tcp holds.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

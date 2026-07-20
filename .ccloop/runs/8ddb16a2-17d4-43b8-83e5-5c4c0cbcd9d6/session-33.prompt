@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 33 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 32
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `0603b97c-b407-4027-8c8f-28c2264f9f25`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0603b97c-b407-4027-8c8f-28c2264f9f25.jsonl`
+- approx context at last assistant turn: 500359 tokens
+- tools used: Bash×55 Read×43 Edit×11 mcp__ccmemory__memory_get×9 mcp__ccmemory__memory_write×5 ToolSearch×4 mcp__ask_gpt__query×2 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1 mcp__ccteam__peers×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/drc_single_node.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== final result ==="; tail -6 /tmp/claude-1000/-src-mxfs/0603b97c-b407-4027-8c8f-28c2264f9f25/tasks/bvz33a1bo.output; SSH=tools/mxfs_sshpas
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member|xfs_inode.c.*warning" | head; modinfo mxfs.k
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; sleep 125; for n in test1 test2; do echo "===== $n ====="; timeout 14 $SSH $n "$PF" 'echo -n "P109-
+    cd /src/mxfs; echo "=== publish_unpublished called from BAST/free paths? ==="; grep -n "mxfs_dlm_publish_unpublished\|mxfs_dlm_note_inode_freed\|xfs_ifree\|mxfs
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do timeout 12 $SSH $n "$PF" 'dmesg -C 2>/dev/null' >/dev/null 2>&1 && echo "$
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== test1 dmesg errors during single-node churn ==="; timeout 14 $SSH test1 "$PF" 'dmesg 2>/d
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member" | head; modinfo mxfs.ko 2>/dev/null | grep 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n force-clean ====="; timeout 40 $SSH $n "$PF" '   for t in 1
+    cd /src/mxfs; echo "=== reset @ $(date -u +%T) ==="; timeout 200 ./run.sh 2 tcp precond_readiness 2>&1 | tail -4; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass;
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member|xfs_dir2_data.c.*warning" | head; modinfo mx
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; sleep 130; for n in test1 test2; do echo "===== $n P31E first_name (dual-EX proof) ====="; timeout 
+    cd /src/mxfs; echo "=== P26-DSCAN-MISS detector site ==="; grep -rn "P26-DSCAN-MISS\|DSCAN" xfs/*.c xfs/libxfs/*.c | head
+    cd /src/mxfs; echo "=== run result ==="; tail -6 /tmp/claude-1000/-src-mxfs/0603b97c-b407-4027-8c8f-28c2264f9f25/tasks/b20q9owgi.output 2>/dev/null; SSH=tools/m
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "===== test2 reload behavior for ino 131 ====="; timeout 14 $SSH test2 "$PF" 'echo -n "P133-DI
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "===== test2 P34D-RELOAD-FRESHSRC detail (buf nx vs fresh nx) ====="; timeout 14 $SSH test2 "$
+    cd /src/mxfs; echo "=== iflush function + existing guards (P25-RESURRECT, dirty_seq, di_nextents) ==="; grep -n "xfs_iflush\b\|xfs_iflush_int\|P25-RESURRECT\|i_
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member|xfs_inode.c.*warning" | head; modinfo mxfs.k
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; sleep 130; for n in test1 test2; do echo "===== $n ====="; timeout 14 $SSH $n "$PF" 'echo -n "P32-I
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member|xfs_dir2_data.c.*warning" | head; modinfo mx
+    cd /src/mxfs; echo "=== build check $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|no member|xfs_dir2_data.c.*warning" | head; echo
+
+## Last text from previous session
+
+ run finished (FAIL, expected). Root (a) is refuted. Now the decisive (b) probe — a pure in-core check at `data_init`: is the daddr being allocated for the "new" block **already mapped by this dir's in-core extent map at a different logical block** (= double-allocation)? Let me add it to the P31E gate.
+Adding the decisive (b) probe — a pure in-core scan: does the dir's extent map already map this daddr at a *different* logical block (intra-dir double-allocation of a current block)?
+Build and run to check P32B-DOUBLEMAP (intra-dir double-alloc proof).
+I've hit the relay boundary. Let me capture the in-flight build/run state for the next session, then summarize.
+Build FAILED — `HOLESTARTBLOCK` undeclared in xfs_dir2_data.c (so the in-flight run is using the stale old .ko, no P32B). Let me fix it with the proper XFS idiom (`isnullstartblock`) so the tree is clean for the next session.
+Let me confirm the fix compiles so the next session inherits a clean buildable tree (the in-flight run is on the stale .ko and will fail — next session reruns with P32B).
+Build is clean (`125DD68A`), P32B probe compiles. The in-flight run `bhujbmdzl` was on the stale (failed-build) .ko — ignore it; the next session reruns on `125DD68A` and greps `P32B-DOUBLEMAP`.
+
+## Session 32 summary
+
+**Criterion (`./run.sh 2 tcp` 100%) NOT met** — `dir_reuse_coherency` still fails (16/17). Marker **not** written (honest).
+
+### Diagnosis — substantially advanced and corrected (RULE 4, instrumented)
+The failure is a **durable leaf-vs-data inconsistency**: the dir's LEAF hash index references ~213 names but the DATA fork holds only ~120 (one block's worth missing) → ~93 names readdir-listed but their dirents are in **no data block** (`P26-DSCAN-MISS`) → `lookup_fail`. Read cold (drop_caches) ⇒ durable on-disk.
+
+**Key corrections this session (each evidence-backed):**
+- **It's cross-node**, not single-node — `tests/drc_single_node.sh` (new, in-tree) shows a single writer is CLEAN (0/12). 
+- **P31E-DATAINIT-ABA is ambiguous** — it false-fires benignly on inode/daddr reuse (`first_name="."` = prior incarnation's `.`/`..`); only real-dirent cases matter. Names repeat per round, so names alone can't prove current-vs-prior.
+- **Root (a) [stale iflush reverting dir extent map nx2→1] REFUTED** — new `P32-IFLUSH-NXSHRINK` probe fires only on the legit `comm=rm` (`rm -rf` emptying the dir, after the verify).
+- The dir EX release **does** flush data+leaf+dinode; GPT-5.5 (2 consults) points the residual at **AG free-space coherency** — a dir-grow allocating a block already in use (double-alloc, root **b**), or AG metadata not durable at the dir handoff (**c**).
+
+### Refuted fix this session
+A **synchronous publish-of-dirs at create** (the dual-EX theory) **SHUT DOWN the FS** (`xfs_create` → `xfs_trans_cancel` corruption) — **reverted**. Lesson: delicate create/DLM-path fixes can corrupt; the dual-EX framing was wrong.
+
+### Left ready for next session
+- Build **`125DD68A`** (clean): carries the **P32B-DOUBLEMAP** probe (decisive (b) test — does the dir's in-core extent map already map the just-allocated daddr at a *different* logical block = intra-dir double-alloc) + P31E (with names/fork-state) + P32-NXSHRINK. All log-only.
+- **NEXT:** `./run.sh 2 tcp dir_reuse_coherency`, grep `P32B-DOUBLEMAP`. If it fires → AG free-space double-alloc confirmed → fix the AG-free-space cross-node coherency (drain on AG release + invalidate/reload on AG acquire; see sess42/43/47). If not → the clobbered block is a freed prior incarnation (benign) and the real loss is (c) — pursue GPT's full-closure release barrier (targeted bwrite of AGF/bnobt, NOT deadlock-prone `xfs_ail_push_all_sync`).
+- FS recovery after a shutdown: force `umount -l`+`rmmod` both nodes, then `./run.sh 2 tcp precond_readiness` to reformat (plain prep mkfs fails "device busy").
+- Full detail + GPT-5.5 verdicts in memories `sess32-GPT2-verdict-handoff-checkpoint-iflush-fence` and `sess32-reused-dir-dualEX-gap-sync-publish-fix`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

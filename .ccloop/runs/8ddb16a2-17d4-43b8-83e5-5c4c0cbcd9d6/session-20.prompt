@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 20 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 19
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `a3a98b19-55ad-4048-af23-c5e27761218d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a3a98b19-55ad-4048-af23-c5e27761218d.jsonl`
+- approx context at last assistant turn: 501592 tokens
+- tools used: Bash×129 Read×18 Edit×17 mcp__ccmemory__memory_write×13 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ask_gpt__query×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/cc_blockdir_probe.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 40 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 20 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 40 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    virsh -c qemu:///system list --all 2>/dev/null | grep -iE 'test1|test2'; echo "=== destroy+start test2 ==="; virsh -c qemu:///system destroy test2 2>&1; sleep 3
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "waiting for test2 ssh..."; until timeout 8 bash "$SSH" test2 "$PF" 'echo up' 2>/dev/null | gre
+    cd /src/mxfs; echo "=== clean prep ==="; timeout 250 ./run.sh 2 tcp __noop__ 2>&1 | tail -4; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 12 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    cd /src/mxfs; echo "=== dir_no_reada=1 : REGULAR probe (reuse) 30 iters ==="; timeout 350 bash tests/cc_blockdir_probe.sh 30 50 2>&1 | grep -E 'SHORT|=> readdir
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/a3a98b19-55ad-4048-af23-c5e27761218d/tasks/bggj69wjq.output; until grep -q 'NR_EXIT=' "$OUT" 2>/dev/null; do sleep 
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/a3a98b19-55ad-4048-af23-c5e27761218d/tasks/bggj69wjq.output; until grep -q 'NR_EXIT=' "$OUT" 2>/dev/null; do sleep 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 12 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 15 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2; do timeout 10 bash "$SSH" "$n" "$PF" 'echo 0 > /sys/module/mxfs/parameters/dir
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/a3a98b19-55ad-4048-af23-c5e27761218d/tasks/b9667lszu.output; until grep -q 'EXIT=' "$OUT" 2>/dev/null; do sleep 10;
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/a3a98b19-55ad-4048-af23-c5e27761218d/tasks/b9667lszu.output; until grep -q 'EXIT=' "$OUT" 2>/dev/null; do sleep 10;
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit' | head; echo "build exit=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass # refresh NFS view of ko on both, then prep for n in test1 test2; do timeout 10 bash "$SSH" "$n" "$P
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 12 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/a3a98b19-55ad-4048-af23-c5e27761218d/tasks/bgm2righk.output; until grep -q 'EXIT=' "$OUT" 2>/dev/null; do sleep 10;
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass r(){ local n=$1; shift; timeout 12 bash "$SSH" "$n" "$PF" "$*" 2>&1 | grep -v -iE 'Warning|Unauthori
+
+## Last text from previous session
+
+rmed + safely reverted to opt-in):**
+- `dir_no_reada=1` (disable dir readahead) **eliminated the NOREUSE 8-iter loss** — confirming GPT's Hole B (late readahead repopulating stale buffers) is a real contributor. But it's incomplete (longer/reuse runs still short) **and** regressed `crash_consistency` (1/2, likely flaky but unconfirmed), so I reverted the default to **0** (kept as opt-in for the complete fix).
+
+**Tooling left for the next session** (11 `sess19-*` memories + updated `pal.md` + enhanced `cc_blockdir_probe.sh` with `NOREUSE` flag and leaf-hash/data-loss classifier): detectors `P-LEAFWRITECLOBBER`/`P-LEAFREADSTALE`/`P16+dgen/lgen/pmp`, `dir_no_reada` param, `mxfs_dir_skip_info` gens.
+
+**Next:** implement the image-origin freshness barrier on dir DATA+index buffers per `sess19-GPT2-dir-index-freshness-barrier-fix-spec`, validate `crash_consistency` interaction with `dir_no_reada`, and confirm with `cc_blockdir_probe` (regular + `NOREUSE`) 0-short/readdir==lookup ×3 plus `./run.sh 2 tcp` 16/16.
+Criteria not met — continuing. Key insight from existing evidence: when readdir=200 but lookup_fail>0, the **data blocks are complete** and only the leaf diverges; but other runs show readdir<200 (data also lost). Let me test whether readahead-disable (runtime no_reada=1) at least eliminates the *data-loss* variant, leaving only leaf-divergence — that would measure how much progress it makes and sharpen the residual. Quick runtime test, no rebuild.
+Running in background; I'll be notified. Let me wait for the classification result.
+Relay boundary reached. Notable final data point: with `no_reada=1` (runtime), NOREUSE ran **20/20 clean** this run (vs reliable iter-1 failure without it) — readahead-disable substantially reduces the leaf-hash loss, though a rare residual remains (a 15-iter run earlier still shorted). Let me reset the cluster to the safe default and wrap up.
+Cluster is at a clean, safe baseline: both nodes `E99A445B`, mounted, `dir_no_reada=0`, `dirwr=0`.
+
+## Session summary — criterion NOT met (marker correctly unwritten)
+
+The `2 node dlm=tcp` leaf-hash bug still reproduces (rarely with readahead disabled), so the criterion is genuinely unmet.
+
+**This session's net advance:**
+- **Re-rooted** the long-standing blocker: it's a directory **leaf-hash-index vs data-block inconsistency** (readdir lists the entry; lookup ENOENTs), not data loss. Official `./run.sh 2 tcp` = **16/16**; the bug needs the harsher concurrent-create probe.
+- **Two GPT-5.5 consults** → definitive fix architecture: dir index buffers need an **image-origin freshness epoch** (set at read submit/complete, never on touch), enforced so a stale-image buffer can't be dirtied/written (remove-safe, perf-safe, no merge).
+- **Caught the clobber in the act** (xfsaild stale-leaf reflush `buf=140` over `disk=202`).
+- **Confirmed GPT's Hole B** with a real partial fix: `dir_no_reada=1` (disable dir-block readahead on shared mounts) took NOREUSE from reliable iter-1 failure to **20/20 clean** — but it's incomplete (rare residual remains) and regressed `crash_consistency` (1/2, likely flaky), so I reverted its default to **0** (opt-in, code preserved).
+- **Ruled out** (RULE 4): inode/daddr-reuse requirement, count-based detection, GPT Hole A, `pmp` discriminator, incomplete release-drain (`P99-STALE-SKIP=0`). Established that when readdir=200 the data blocks are complete and only the leaf diverges (sometimes data is also lost).
+
+**Left for the next session** (12 `sess19-*` memories + updated `pal.md` + enhanced `cc_blockdir_probe.sh` with `NOREUSE` + leaf-hash/data-loss classifier; build `E99A445B` with detectors `P-LEAFWRITECLOBBER`/`P-LEAFREADSTALE`/`P16+dgen/lgen` and the `dir_no_reada` param): implement the image-origin freshness barrier per `sess19-GPT2-dir-index-freshness-barrier-fix-spec`, re-validate `crash_consistency` with `dir_no_reada=1`, and confirm via `cc_blockdir_probe` (regular + `NOREUSE`) 0-short/readdir==lookup ×3 plus `./run.sh 2 tcp` 16/16.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

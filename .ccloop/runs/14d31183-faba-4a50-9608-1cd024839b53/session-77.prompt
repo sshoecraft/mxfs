@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 77 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 76
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `424f73d0-825e-43ba-bfa0-b7c3c316aa6b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/424f73d0-825e-43ba-bfa0-b7c3c316aa6b.jsonl`
+- approx context at last assistant turn: 255701 tokens
+- tools used: Bash×54 Read×25 Edit×4 ToolSearch×3 mcp__ccmemory__memory_write×2 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/diag_fence_visibility.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 560 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2
+    cd /src/mxfs; timeout 560 ./tests/criteria/zero_silent_loss.sh --iters 3 --dpn 100 --mode 1 > /tmp/zsl_run4.log 2>&1; echo "rc=$?"; ls -t /tmp/zero_silent_loss.
+    cd /src/mxfs; python3 -c "import json; d=json.load(open('.criteria_results.json')); print('zsl:', json.dumps(d['zero_silent_loss']))"; echo "=== grep RESULT ===
+    cd /src/mxfs; timeout 500 ./tests/criteria/fence_during_write.sh --nodes 4 > /tmp/fence_run.log 2>&1; echo "rc=$?"; grep "RESULT:" /tmp/fence_run.log; echo "===
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in 1 2 4; do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); echo "===
+    cd /src/mxfs; grep -nE "remount|umount|mount|drop_caches|verify|find|readdir|cold|fresh" tests/criteria/zero_silent_loss.sh | head -40
+    cd /src/mxfs; grep -nE "remount|umount|mount_cluster|drop_caches|verify_names|enumerate|find |ls |post_drop|pre_drop|expected" tests/criteria/zero_silent_loss.s
+    cd /src/mxfs; sed -n '30,90p' tests/criteria/zero_silent_loss.sh
+    cd /src/mxfs; grep -nE "remount|umount|mount_cluster|drop_caches|verify|find|ls -|post_drop|pre_drop|enumerat|MISSING|fs_silent" scripts/sess88_workload_a_modeN
+    cd /src/mxfs; sed -n '1,60p' tests/criteria/strong_consistency.sh
+    cd /src/mxfs; timeout 300 bash tests/diag_fence_visibility.sh --nodes 4 2>&1 | grep -vE "Unauthorized|authorized user|disconnect immediately|^Warning|known host
+    cd /src/mxfs; KILL_AT=30 timeout 300 bash tests/diag_fence_visibility.sh --nodes 4 2>&1 | grep -vE "Unauthorized|authorized user|disconnect immediately|^Warning
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in 1 2 4; do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); echo "===
+    cd /src/mxfs; grep -rn "mxfs_xlog_recover_foreign_slice\|mxfs_dlm_foreign_replay_work_fn\|foreign replay\|foreign_replay" xfs/ pal/ dlm/ --include=*.c | grep -i
+    cd /src/mxfs; grep -n "current_lsn\|->lsn\|xlog_recover_buf_commit_pass2\|XLOG_MXFS_FOREIGN_REPLAY\|lsn) <= 0\|lsn) >= 0\|xfs_dir3_blk_hdr\|metadata_lsn\|recove
+    cd /src/mxfs; grep -rn "current_lsn\|XLOG_MXFS_FOREIGN_REPLAY\|lsn == 0\|magicda\|recover.*skip\|goto out\|NEXTENT" xfs/libxfs/xfs_buf_item_recover.c 2>/dev/nul
+    cd /src/mxfs; grep -n "current_lsn\|lsn\b\|xlog_recover_buf_commit_pass2\|xlog_recover_validate_buf_type\|XFS_LSN_CMP\|FOREIGN" xfs/xfs_buf_item_recover.c | hea
+    cd /src/mxfs; grep -rln "xlog_recover_buf_commit_pass2\|xlog_recover_validate_buf_type" xfs/ | head; echo "==="; grep -rn "current_lsn\|XFS_LSN_CMP\|XLOG_MXFS_F
+    cd /src/mxfs; grep -n "xlog_recover_do_reg_buffer\|xlog_recover_do_inode_buffer\|xlog_recover_validate_buf_type\|lsn\|current_lsn\|XFS_LSN_CMP\|FOREIGN\|xlog_re
+    cd /src/mxfs; grep -n "di_changecount\|di_lsn\|di_flushiter" xfs/libxfs/xfs_format.h | head; echo "=== log dinode ==="; grep -n "di_changecount\|di_lsn" xfs/lib
+
+## Last text from previous session
+
+/n4 durably**. zsl masks this (a later correct EX-writer always overwrites); fence freezes the stale version via replay. Let me read the foreign-replay path to see how it guards against reverting peer-committed blocks.
+Foreign replay uses standard `xlog_recover(shadow)`. Standard XFS recovery skips a buffer replay when the on-disk block's stamped LSN is newer than the log record (`xlog_recover_buf_commit_pass2`). But with **per-node log slices**, test3's log LSNs and the on-disk block's LSN (stamped by test2/test4's logs) come from independent sequences — the skip check is meaningless, so test3's stale `fence_test` gets replayed over peers' newer version. Let me verify how the buffer-recovery LSN skip works here.
+The fence_test directory is shortform (5 entries) — stored in the inode — so its recovery goes through **inode** recovery, which skips replay only if the on-disk `di_lsn` is newer (`XFS_LSN_CMP`). With per-node log slices, test3's `current_lsn` and the on-disk `di_lsn` (stamped by test2/test4's logs) are from independent sequences, so the skip fails and stale test3 inode overwrites peers' newer one. Let me read the inode-recovery skip to confirm and instrument it.
+The skip is `XFS_LSN_CMP(on_disk_di_lsn, current_lsn) > 0` (line 397) — but with per-node log slices these LSNs are from independent cycle sequences, so the comparison is meaningless and stale test3 inodes get applied. I need a node-independent ordering. Let me check whether the dinode has `di_changecount` (globally monotonic per-inode) available in both on-disk and log dinode.
+I'm at the relay boundary. Let me record the fence_during_write diagnosis to memory before wrapping up.
+## Session summary
+
+**One criterion fixed (proven + validated), one root-caused.**
+
+### 1. `zero_silent_loss` — FIXED → PASS (build `EAE5F4C0`)
+The sess75 readahead-count fix had merely **moved** the umount wedge from `xfs_buftarg_wait` to `xfs_buftarg_drain`. Per RULE 4:
+- **Hypothesis → instrumented**: added `P-DRAINSTUCK` probe → caught the stuck buffer (`ops=xfs_bmbt hold=2 flags=XBF_DONE`); `P-RAFIX` stack proved the source — `xfs_iread_extents`'s bmbt sibling readahead is stolen by the same thread's sync read.
+- **Proven**: `xfs_buf_readahead_map` takes BOTH a `bt_readahead_count` increment AND a hold reference; both are released by the async ioend that never runs when `_xfs_buf_read` converts the buffer to sync. sess75 settled the count but **leaked the hold**.
+- **Fix**: in `_xfs_buf_read`'s steal branch, also drop the orphaned hold (`b_hold > 1` guarded). 
+- **Validated**: 3/3 iters, `fs_silent=0`, `P-DRAINSTUCK=0` cluster-wide while `P-RAFIX` still fires. Result JSON = PASS.
+
+### 2. `fence_during_write` — root-caused (fix designed, not yet coded)
+Built `tests/diag_fence_visibility.sh`; proved it's **durable data loss** (drop_caches doesn't recover; even the writers lose their own files) triggered only when the victim is fenced **mid-transaction** on the shared parent dir. Root: test1 replays the dead node's journal slice; the stale shortform `fence_test` inode reverts peers' committed n2/n4. The recover-skip-if-newer check (`XFS_LSN_CMP(di_lsn, current_lsn)`) is **broken for foreign replay** because per-node log slices have non-comparable LSN sequences. **Fix lead**: gate a node-independent `di_changecount` comparison on `XLOG_MXFS_FOREIGN_REPLAY` in `xfs_inode_item_recover.c`.
+
+### State
+- Build deployed on 16-node cluster: `EAE5F4C0` (zsl fix + P-DRAINSTUCK/P-RAFIX probes).
+- **Criteria still FAIL: `fence_during_write`, `posix_semantics_multi16` (>600s), `rsync_paired` (148%).**
+- Marker **not** written — ship gate not met. Both diagnoses saved to memory (`sess76-readahead-hold-leak-...`, `sess76-fence-foreign-replay-...`).
+
+Next session: instrument the inode-recovery skip to confirm the changecount inversion, implement the foreign-replay `di_changecount` skip, re-run `fence_during_write` (watch `crash_consistency` for regression), then tackle the two remaining criteria.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

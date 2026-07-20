@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 82 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 81
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `fe7dd270-6ac2-4da9-b922-e0af9f05e55c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/fe7dd270-6ac2-4da9-b922-e0af9f05e55c.jsonl`
+- approx context at last assistant turn: 253023 tokens
+- tools used: Bash×57 Read×25 Edit×3 ToolSearch×2 Write×1 mcp__ask_gemini__query×1 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/DESIGN.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "mxfs_v5_dlm_inode_held\|mxfs_v5_dlm_inode_lock\|mxfs_v5_dlm_inode_unlock" dlm/v5_mount.c
+    cd /src/mxfs; grep -n "mxfs_dlm_caw_held\b" dlm/dlm_caw.c
+    cd /src/mxfs; grep -n "mxfs_dlm_caw_lock\b\|evict\|clear.*holder\|holders_ex\|conflict\|steal\|->node_bit\|other.*node\|peer" dlm/dlm_caw.c | sed -n '1,50p'
+    cd /src/mxfs; grep -n "i_dlm_dir_loaded_gen" xfs/xfs_mxfs_dlm.c xfs/*.c
+    cd /src/mxfs; grep -rln "unlink_visibility\|deleted and gone\|cross_write_read" tests/ | head; echo "---"; grep -rn "deleted and gone\|unexpectedly exists\|file
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 4 2>&1 | tail -2 for n in 1 2 3 4; do timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C" >/dev/nul
+    cd /src/mxfs; echo "=== uv_alone log ==="; cat /tmp/uv_alone.log | tr -d '\033' | sed 's/\[[0-9;]*m//g' | grep -v "Unauthorized\|disconnect\|Warning" | tail -20
+    cd /src/mxfs D=$(ls -dt /home/steve/.mxfs/results/*/test_unlink_visibility 2>/dev/null | head -1); echo "dir=$D" for n in 1 2 3 4; do echo "=== node$n last line
+    cd /src/mxfs D=$(ls -dt /home/steve/.mxfs/results/*/test_unlink_visibility 2>/dev/null | head -1) for n in 1 2 3 4; do   echo -n "node$n: ";    cat "$D/node$n.l
+    cd /src/mxfs; grep -rn "struct mxfs_caw_lock_slot\b" --include=*.h; echo "---"; grep -rln "holders_ex" --include=*.h
+    cd /src/mxfs; grep -n "i_dlm_state = MXFS_DLM_ISTATE\|i_dlm_mode = MXFS_LOCK_NL\|inode_unlock\|caw_unlock\|bast_process\|mxfs_dlm_evict\b" xfs/xfs_mxfs_dlm.c | 
+    cd /src/mxfs; grep -n "bast_poll\|poll_thread\|BAST_POLL\|check.*waiters\|waiters &\|scan.*slot\|poll_held\|for.*held\|bast_scan\|kthread" dlm/dlm_caw.c | head 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: .*xfs_mxfs_dlm|LD \[M\]" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcv
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 4 2>&1 | tail -2 for n in 1 2 3 4; do timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C" >/dev/nul
+    cd /src/mxfs D=$(ls -dt /home/steve/.mxfs/results/*/test_unlink_visibility 2>/dev/null | head -1) echo "=== per-node assert counts + unexpectedly-exists ===" fo
+    cd /src/mxfs echo "=== shutdowns/timeouts ===" for n in 1 2 3 4; do echo -n "test$n: "; timeout 10 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg|grep -acE
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 nohup bash tests/criteria/cache_coherency.sh --nodes 4 >/tmp/cc_p108.log 2>&1 & echo "started pid=$! ; will report when
+    for i in $(seq 1 100); do   if grep -qaE "RESULT: (PASS|FAIL)" /tmp/cc_p108.log 2>/dev/null; then break; fi   if ! kill -0 2072544 2>/dev/null; then echo "(proc
+    cd /src/mxfs echo "=== cc_p108 result (if done) ==="; grep -aE "RESULT:" /tmp/cc_p108.log 2>/dev/null | tail -1; grep -o '"cache_coherency"[^}]*}' /home/steve/s
+    cd /src/mxfs; ls dlm/*.h; echo "=== disklock structs ==="; grep -rn "struct mxfs_disklock\|heartbeat\|MXFS_EVICT_TYPE\|evict_ring\|node_slot\|HEARTBEAT\|lease\|
+
+## Last text from previous session
+
+gly mashed two different things together.
+
+So your instinct is exactly the design principle, and it's also the bug diagnosis: **the reader-side coherency currently leans on that lossy disk *ring* (the gen-bump hint) to learn "a peer changed this directory." That's the unreliable part.** The reliable disk channel is the CAW **slot** itself, which a node already reads on every lock acquire.
+
+That's precisely why the right fix — Gemini's and GFS2's LVB pattern — is to put a **monotonic version epoch inside the CAW slot**: the writer bumps it at release (after its durability flush), and a reader compares it during the acquire it's already doing. Reliable, on-disk, zero network, and it refreshes only when something actually changed — no per-op extra I/O like the (timing-regressing) approach I just tried.
+
+One correction to my own last hour of work: the per-op `caw_held()` disk-read guard I built (`P108`) is the *wrong shape* — it adds a disk read to every dir op and re-introduced the timing wall (unlink's delete phase went slow). The epoch-in-slot approach gets the same correctness without that cost.
+
+Note: I have a `cache_coherency` run finishing in the background (`/tmp/cc_p108.log`) from the P108 build — I'll read its result to confirm whether the lock-truth guard at least fixes the *correctness* failure before I rebuild around the epoch. 
+
+Want me to proceed with ripping out the per-op `P108` guard and implementing the slot version-epoch (LVB) as the real fix?
+The user wants a comprehensive `DESIGN.md`. Let me gather the precise on-disk layout details I haven't fully confirmed (envelope offsets, journal slices, disklock), plus check the background run result, then write it.
+I have a thorough picture of the on-disk layout and all subsystems now. Let me write the comprehensive `DESIGN.md`.
+I left some stray trailing backticks. Let me fix the end of the file.
+I've written the complete `DESIGN.md` to `/src/mxfs/DESIGN.md` as requested — a from-scratch reference covering: what MXFS is and why shared-LUN coherency is hard; the full on-disk envelope layout (4KB super → journal → disklock region with heartbeat+eviction-ring and the 65536×512B CAW slot table → XFS region); the DLM (lock modes, slot format, the CAW acquire/release algorithm, BAST via disk-poll-on-`waiters` with UDP as a mere hint, the per-inode in-core state machine, deferred publish, transport selection); the cache-coherency mechanisms (drain pipeline/invariant #1, FUA reads, dir-gen counters, publish-before-notify, inode-reuse eviction); invariants; fencing/recovery; build/test/tools; and a deep section on the remaining `cache_coherency` bug with the epoch-in-slot fix direction.
+
+It also bakes in the correction from your catch: **the network is never correctness-bearing** — lock correctness is 100% disk (SCSI CAW + the disk-polled `waiters` bit); UDP multicast BAST is only a latency hint, and the "lossy" channel is the on-disk eviction *ring* (a ring-buffer overwrite), not packet loss.
+
+Status of the ship gate (unchanged — **criteria NOT met**, marker not written):
+- 11/12 criteria pass; `cache_coherency` still fails on `unlink_visibility` (read-side stale dir block) and `cross_write_read` (read-side stale inode/`di_size=0`). `cross_visibility` and `rename_visibility` pass.
+- This session proved (RULE 4) the residual is read-side staleness fed by the **lossy eviction ring**, with the reliable CAW slot not consulted on the stale-serving paths (P106-STALE-EX: in-core `EX/CACHED` while on-disk slot not held, `unpub=0`).
+- The per-op `caw_held()` guard I built (build `EED6A769`, `P108-REACQUIRE`) is correct-but-wrong-shape: it re-introduced the timing wall. **Next session should remove P108 and implement the version-epoch (LVB) in `mxfs_caw_lock_slot.reserved[]`** (writer bumps at release after the durability flush; reader compares on the acquire it already does — zero extra I/O), composed with reliable demotion to close the P106 race. Full rationale is in `DESIGN.md` §11.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

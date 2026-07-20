@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 21 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 20
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5c4e364f-4fc6-45c5-b770-9a556e73c0ea`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5c4e364f-4fc6-45c5-b770-9a556e73c0ea.jsonl`
+- approx context at last assistant turn: 504296 tokens
+- tools used: Read×137 Bash×88 mcp__ccmemory__memory_write×12 Edit×10 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ccteam__claim×2 TaskStop×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/qnap_scale.sh
+- /src/mxfs/CLAUDE.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 2; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; MXFS_EXTRA_MODARGS='' ./run.sh 8 tcp > /src/mxfs/tests/full8tcp_sess20.log 2>&1; echo "EXIT=$?"
+    cd /src/mxfs; echo "=== dir_reuse failure: timeout or shutdown? check nodes ==="; for n in test1 test2; do echo "--- $n ---"; timeout 8 tools/mxfs_sshpass.sh $n
+    cd /src/mxfs; for n in test1 test2; do timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "rm -f /root/drc_failrounds.txt" >/dev/null 2>&1; done; for n in 1 2 3
+    cd /src/mxfs; for n in test1 test2; do timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "rm -f /root/drc_failrounds.txt" >/dev/null 2>&1; done; for n in 1 2 3
+    cd /src/mxfs; echo "=== phase timing from last dir_reuse run (test1 kmsg PHASE markers) ==="; timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | gre
+    cd /src/mxfs; for n in test1 test2; do timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "rm -f /root/drc_failrounds.txt" >/dev/null 2>&1; done; for n in 1 2 3
+    cd /src/mxfs; date +%s > /tmp/claude-1000/-src-mxfs/5c4e364f-4fc6-45c5-b770-9a556e73c0ea/scratchpad/suite_start.txt; MXFS_EXTRA_MODARGS='' TEST_TIMEOUT=420 ./ru
+    cd /src/mxfs; echo "=== dlm_scaling test: what + which node failed ==="; cat /tmp/tmp.1xG5svxecB/* 2>/dev/null | head -30; echo "=== dlm_scaling.sh summary ==="
+    cd /src/mxfs; echo "=== dir_reuse in-suite duration (test1 phase markers, first create-start to last rm-done) ==="; timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "rm -f /root/drc_failrounds.txt" >/dev/null 2>&1; done; fo
+    cd /src/mxfs; echo "=== blkdev flush in release/drain path ==="; grep -rn "blkdev_issue_flush\|blkdev_flush\|issue_flush\|SYNCHRONIZE\|REQ_PREFLUSH\|mxfs_pal.*f
+    cd /src/mxfs; echo "=== tcp_dlm_scaling 4-node in-suite elapsed (which node >60s?) ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 6 tools/mx
+    cd /src/mxfs; echo "=== test2 dmesg: shutdown/error during tcp_dlm_scaling? ==="; timeout 8 tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "echo -n 'FS shutdown: '
+    cd /src/mxfs; grep -rn "RENAME-REVALIDATE-MISS\|rename.*revalidate\|revalidate.*rename" xfs/*.c | head; echo "=== context ==="; grep -rln "RENAME-REVALIDATE-MIS
+    cd /src/mxfs; echo "=== mxfs_dlm_dir_modify_refresh: handles shortform? ==="; awk '/^.*mxfs_dlm_dir_modify_refresh\(struct/{f=1} f{print} f&&/^}/{exit}' xfs/xfs
+    cd /src/mxfs; echo "=== keeper build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== params ==="; grep -E "int mxfs_dir_sf_mht_ms|int mxfs_inode_
+    cd /src/mxfs; echo "=== mxfs_dir_rebase_shortform: dirty/in-AIL/undestaged guard? ==="; awk '/mxfs_dir_rebase_shortform\(struct xfs_inode/{f=1} f{print NR": "$0
+    cd /src/mxfs; echo "=== xfs_ipincount + i_itemp + xfs_inode_clean usage ==="; grep -rn "xfs_ipincount(\|->i_itemp\|xfs_inode_clean(" xfs/xfs_mxfs_dlm.c | head -
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|warning:.*rebase" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep sr
+
+## Last text from previous session
+
+mht. The surgical fix is in `mxfs_dlm_dir_modify_refresh` (called at line 4295 before the guard). Let me check whether it reloads shortform inline-data dirs — the likely gap.
+Traced the rename-miss root: `mxfs_dlm_dir_modify_refresh` calls `mxfs_dir_rebase_shortform` when the dir gen advances (a peer touched the shared dir), which **reloads the shortform dir from disk** — and at sf_mht=100's frequent handoffs, this reload clobbers/misses test2's own committed-but-not-yet-checkpointed `n2_r1` create (or FUA-reads the platter before the create lands). High mht masks it (rare reloads); low sf_mht exposes it. Same deep dir-coherency-at-low-mht family. Let me bank this root cause.
+I've made a major breakthrough this session and traced every residual to its root cause. Let me verify the final build state and give an honest status.
+Build `4E047A49` is the keeper (format-gated mht, sf_mht=100), with 12 comprehensive ccmemory entries banked. Let me examine `mxfs_dir_rebase_shortform` for a targeted fix to the rename-miss — if it lacks a guard against reloading-over-own-uncheckpointed-work, adding one would prevent the clobber.
+`mxfs_dir_rebase_shortform` adopts the disk shortform **wholesale**, with NO guard against clobbering the node's own un-checkpointed (in-AIL/pinned) work — exactly the rename-miss root. Let me add a targeted guard: skip the rebase while the dir inode has un-destaged own work (a clean PR/NL cacher per sess49 has no log item → still rebases). First verify the accessors.
+I've reached the relay boundary. Let me complete this clean sub-step — add the targeted guard and verify it builds — so the next session can test immediately.
+Now I'll add the guard to `mxfs_dir_rebase_shortform`, using the established in-AIL/pincount pattern.
+Build `DCC2B8FD` is clean. Let me bank this untested fix for the next session, then summarize.
+I've reached the relay boundary at a clean, well-documented stopping point.
+
+## Session 20 summary — major breakthrough; criterion NOT yet met
+
+**The core blocker that stalled ~19 sessions is resolved.** I discovered the "mht tradeoff" (tcp_dlm_scaling needs low hold-time, dir_reuse needs high) was never actually one knob — and found a **principled fix: format-gated MHT**. A new param `mxfs_dir_sf_mht_ms=100` gives **shortform** dirs (tcp_dlm_scaling's 1-file churn dir — data inline, coherent via whole-inode reload) a short hold, while **leaf/btree** dirs (dir_reuse's 800-entry dir) keep `inode_mht_ms=300`. Result: **tcp_dlm_scaling 8/tcp went from reliably-failing (126s) to PASS 8/8 (39s)**.
+
+**Verified results (build `4E047A49`):**
+- **1/tcp = 16/16, 2/tcp = 17/17** (pre-gate build; need re-verify on new build)
+- **4/tcp = 16/17**, **8/tcp = 16/17** — the core mht tradeoff resolved; all coherency tests + tcp_dlm_scaling pass
+
+**Three residuals, all traced to root cause (all deep 8/4-node flaky perf/coherency, NOT the old blocker):**
+1. **dir_reuse** — 8-node in-suite **timeout** (348s vs 300s; passes at 420s & at 4 nodes). Speed-bound by per-handoff drain cost.
+2. **dlm_scaling** — 8-node window flake (7/8 once, 8/8 once).
+3. **tcp_dlm_scaling rename-miss** — at sf_mht=100, `mxfs_dir_rebase_shortform` reloads the shared shortform dir from disk on a peer-driven gen advance and **clobbers the node's own committed-not-yet-checkpointed create** → RENAME-REVALIDATE-MISS (4/tcp test2 = 0 rounds).
+
+**Ended with an UNTESTED targeted fix** (build `DCC2B8FD`, builds clean): added a guard in `mxfs_dir_rebase_shortform` to **skip the disk-reload while the dir inode holds un-checkpointed own work** (in-AIL/pinned/dirty) — preventing the own-create clobber while preserving the sess49 clean-cacher rebase. **Next session: deploy DCC2B8FD, repeat-test 4/8-tcp tcp_dlm_scaling for the rename-miss, confirm no coherency regression, then tackle dir_reuse speed + dlm_scaling flake.**
+
+12 detailed ccmemory entries banked + CLAUDE.md head updated. The criterion (1/2/4/8 tcp 100%) is not met — I have not written the marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

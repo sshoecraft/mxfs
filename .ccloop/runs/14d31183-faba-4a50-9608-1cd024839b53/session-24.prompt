@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 24 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 23
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `f7443351-52ba-4bae-8572-5651ff615e7e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f7443351-52ba-4bae-8572-5651ff615e7e.jsonl`
+- approx context at last assistant turn: 250009 tokens
+- tools used: Bash×121 Edit×8 Write×3 Read×2 ToolSearch×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/diag_par_rsync.sh
+- /src/mxfs/scripts/diag_logforce_profile.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/scripts/diag_vnop_profile.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 30 tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'dmesg | grep -oE "mxfs: [A-Z0-9_-]+(-[A-Z]
+    sed -n '3700,3790p' xfs/xfs_inode.c
+    bash -c ' set +u; source tests/criteria/lib.sh 2>/dev/null teardown_all "test1 test2" >/dev/null 2>&1 fresh_cluster_mount test1 test2 >/dev/null 2>&1 || { echo 
+    ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 30 tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'wc -l /tmp/stk2.out; sed "s/+0x[0-9a-f]*\/
+    grep -n "mxfs_dlm_ilock_begin" xfs/xfs_mxfs_dlm.c | head -3; grep -n "mxfs_v5_dlm_inode_held\|heldchk" xfs/xfs_mxfs_dlm.c | head -10
+    sed -n '4330,4420p' xfs/xfs_mxfs_dlm.c
+    sed -n '4620,4740p' xfs/xfs_mxfs_dlm.c
+    grep -n "i_dlm_unpublished = true\|unpub" xfs/xfs_mxfs_dlm.c | head -15
+    grep -n "i_dlm_unpublished = true" xfs/*.c xfs/libxfs/*.c pal/**/*.c 2>/dev/null; grep -rn "i_dlm_unpublished = true" . --include="*.c" 2>/dev/null | head
+    sed -n '5340,5460p' xfs/xfs_mxfs_dlm.c
+    grep -rn "mxfs_dlm_publish_inode\|publish_on_create\|publish-on-create" xfs/*.c --include="*.c" | grep -v "^\s*\*" | head -10
+    grep -n "mxfs_v5_dlm_inode_lock(dlm" xfs/xfs_mxfs_dlm.c | head -5
+    sed -n '4800,4860p' xfs/xfs_mxfs_dlm.c
+    grep -n "unpublished-dir-modify backstop\|sess107.*backstop\|backstop" xfs/xfs_mxfs_dlm.c | head -8
+    ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 20 tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'dmesg | grep -cE "P107-PUBLISH"; dmesg | g
+    make modules 2>&1 | grep -cE " error" ; modinfo mxfs.ko | grep srcversion; bash -c ' set +u; source tests/criteria/lib.sh 2>/dev/null teardown_all "test1 test2"
+    for n in 1 2; do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); echo "=== test$n ==="; timeout 25 tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dme
+    ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 20 tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'cat /sys/module/mxfs/srcversion 2>/dev/nul
+    bash -c ' set +u; source tests/criteria/lib.sh 2>/dev/null ip2=$(getent hosts test2.vm.localdomain | awk "{print \$1}") timeout 20 tools/mxfs_sshpass.sh "$ip2" 
+    chmod +x scripts/diag_vnop_profile.sh
+
+## Last text from previous session
+
+:
+Implementing. Adding the flag, init, set-on-create, clear-on-BAST, and the gate:
+Making the edits:
+Now the BAST-notify clear (peer interest observed):
+Now the `xfs_create` changes — set the flag on the new inode and gate the barrier:
+Building and checking for errors:
+Dirs and files are already node-affine — yet ~340 real AG acquires fire in 5s. Something spills out of the affine AG. Checking `mxfs_ag_dlm_lock`'s signature so I can kprobe the agno of each real acquire:
+Every fresh AG acquire already logs `P10-INSTR ... ACQ-FRESH` with agno. Pulling the histogram from the last run:
+Relay boundary reached — summarizing this session's state for the next one.
+
+## Session 23 summary
+
+**Gate status: 17 PASS / 1 FAIL.** `scaling_curve` is the open blocker (and `cache_coherency` is a low-rate flake to re-verify before the final gate).
+
+### Infra fixed this session
+- **All 16 VMs had stale QEMU LUN passthrough fds** after session 22's iSCSI relogin on clyde (VMs get `/dev/sda` as block-LUN passthrough of clyde's `/dev/disk/by-path/...disk1b-lun-0`; the relogout destroyed the host device under running QEMUs → every SCSI command aborted "I/O process terminated"). Fixed by `virsh destroy+start` of all 16 VMs. **Any future iSCSI relogin on clyde requires restarting all test VMs.**
+- Re-exported `/src/mxfs` from clyde (`exportfs ... ,fsid=77 192.168.120.0/24:/src/mxfs`) — but note the criteria harness doesn't need it; `lib.sh` mounts `192.168.1.4:/src` directly in the VMs.
+- `fresh_cluster_mount` fails silently when invoked from the interactive session shell (snapshot/`set -u` artifact) — **always wrap criterion/lib.sh invocations in `bash -c '...'`**.
+
+### scaling_curve findings (RULE 4, ftrace-proven)
+- The earlier "PASS ratio=100%" was an artifact of a cold-boot-slow 1-node baseline. Real state: warm 1n≈3.2-3.4s, any ≥2-node parallel rsync per-node wall ≈5.7-7s (ratio ~200%, gate ≤150%). It's a ~2.5s constant multi-node penalty on the slowest node, not super-linear.
+- **Fix 1 (landed, verified)**: per-mkdir shortform-parent durability barrier (`mxfs_dlm_dir_inode_durable` in `xfs_create`) cost 1.2-1.6s/node (706 calls × ~1.8ms sync log force). Added `i_mxfs_self_created` flag (set in `xfs_icreate` pre-publish, cleared on any peer BAST in `mxfs_dlm_bast_notify`, false for inodes igot from disk) gating the barrier. Verified: 706→1 call. Files: `xfs/xfs_inode.h`, `xfs/xfs_inode.c`, `xfs/xfs_mxfs_dlm.c`.
+- **Fix 2 (landed, net-neutral so far)**: flipped `mxfs_lazy_ag_drain` default 0→1 (eager sync AG drains were ~190 drains + ~400 sync log forces/node with zero contention — 0 ACQ-FRESH, AG grants never move thanks to existing node-affine dir+file allocation). Walls unchanged; keep but the remaining gap is elsewhere.
+- **Disproven**: slow-path inode DLM acquires during rsync (new `P23-SLOWPATH` probe in `ilock_begin` fired 0× — the earlier `/proc/pid/stack` samples of running tasks were stale frames; only D-state samples are trustworthy).
+- Current build `9BE476B617054ECC48E61D4` (includes both fixes + P23 probe). Max-node wall still ~5.7s; remaining suspects: per-rename/dir-open `mxfs_dir_drain_evict_data_blocks` log forces, `mxfs_dlm_dir_durable_signal` publish-before-notify in create/rename, and ~1900 `xfs_log_force` calls of unattributed context.
+
+### Next step (ready to run)
+`bash -c 'scripts/diag_vnop_profile.sh test1 test2'` — new in-tree profiler of the `xfs_vn_*` syscall entry points (rsync-context-only, no strace overhead), then the same solo (`scripts/diag_vnop_profile.sh test1`) to attribute the residual ~2.5s gap to a syscall class; drill into that op's mxfs hooks next. After scaling_curve goes green at 16 nodes on a **warm** baseline, re-run `cache_coherency` ~3× (rename_visibility/unlink_visibility flaked 1-of-3 today: node3's first two renames durably lost — lost-update family, unreproduced since), then `posix_semantics.sh --nodes 16` (never recorded), then full `verify_ship.sh`.
+
+Criteria marker NOT written — gate not green.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

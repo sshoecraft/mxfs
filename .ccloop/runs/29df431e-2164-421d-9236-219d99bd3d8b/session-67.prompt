@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 67 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 66
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `1b9789b8-223d-42dd-8833-942ddc7ce1ad`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1b9789b8-223d-42dd-8833-942ddc7ce1ad.jsonl`
+- approx context at last assistant turn: 254616 tokens
+- tools used: Bash×72 Read×15 Edit×8 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "xfs_is_shutdown\|XFS_OPSTATE\|MOUNT_SHUTDOWN\|MOUNT_UNMOUNTING\|UNMOUNTING" xfs/xfs_mount.h | head; echo "=== how mxfs_dlm checks mount-
+    cd /src/mxfs; grep -nE "__XFS_IS_OPSTATE\(|xfs_is_shutdown|xfs_is_unmounting" xfs/xfs_mount.h | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | tail -5; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 4 2>&1 | tail -3; for n in test1 test2 test3 test4; do r=$(timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tm
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'dmesg -C' 2>/dev/null; done; rm -f /tmp/uv
+    until grep -q "EXIT=" /tmp/claude-1000/-src-mxfs/1b9789b8-223d-42dd-8833-942ddc7ce1ad/tasks/b60wbxhed.output 2>/dev/null; do sleep 5; done; cat /tmp/claude-1000
+    until grep -q "EXIT=" /tmp/claude-1000/-src-mxfs/1b9789b8-223d-42dd-8833-942ddc7ce1ad/tasks/b60wbxhed.output 2>/dev/null; do sleep 5; done; cat /tmp/claude-1000
+    cd /src/mxfs; for n in test1 test2 test3 test4; do c=$(timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp/.mxfs_pass 'echo "stale=$(dmesg|grep -c DIR-STALE
+    cd /src/mxfs; echo "=== per-node ls of test dir (cached views) ==="; for n in test1 test2 test3 test4; do r=$(timeout 10 tools/mxfs_sshpass.sh $n.vm.localdomain
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n P-ACQ-DRAIN-SKIP flag distribution ==="; timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tmp
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | tail -3; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 4 2>&1 | tail -3; for n in test1 test2 test3 test4; do r=$(timeout 12 tools/mxfs_sshpass.sh $n.vm.localdomain /tm
+    cd /src/mxfs; ( for t in test_rename_visibility test_cross_write_read test_cross_visibility test_unlink_visibility; do t0=$(date +%s); rm -f /tmp/s.log; MXFS_TE
+    until grep -q "test_unlink_visibility:" /tmp/allsub.log 2>/dev/null; do sleep 5; done; cat /tmp/allsub.log
+    until grep -q "test_unlink_visibility:" /tmp/allsub.log 2>/dev/null; do sleep 10; done; cat /tmp/allsub.log
+    cd /src/mxfs; for t in test_cross_write_read test_cross_visibility; do D=$(ls -td /home/steve/.mxfs/results/*/$t 2>/dev/null|head -1); echo "=== $t ($D) ==="; f
+    cd /src/mxfs; grep -nE "rm -rf|teardown|fresh|reset|mkfs|run_tests|--test|for .*test|cleanup|mxfs_test" tests/criteria/cache_coherency.sh 2>/dev/null | head -30
+    cd /src/mxfs; ( timeout 600 ./tests/criteria/cache_coherency.sh --nodes 4 2>&1; echo "CRITERION_EXIT=$?" ) > /tmp/cc_run.log 2>&1; echo started
+    until grep -q "CRITERION_EXIT=" /tmp/cc_run.log 2>/dev/null; do sleep 10; done; echo "=== RESULT line ==="; grep -E "RESULT:|CRITERION_EXIT=|passed=" /tmp/cc_ru
+    cd /src/mxfs; L=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null|head -1); echo "log=$L"; sed 's/\x1b\[[0-9;]*m//g' "$L" 2>/dev/null | grep -iE "\[FAIL\]|\[PASS\]
+
+## Last text from previous session
+
+is unreliable. The real ship-gate criterion `cache_coherency.sh` does proper per-run setup. Let me check how it cleans and run it directly:
+Critical realization: the criterion harness ALSO runs all 4 subtests back-to-back on one mount (line 37-43) — so that's expected, not my contamination. cross_visibility "cannot see node1.txt" on a fresh FS is a real create-visibility loss. The pattern is whack-a-mole: the unbounded acquire fence helped create-visibility (cross_vis/cwr) but killed unlink perf; the bounded revert restored unlink but lost create-visibility. The likely perf culprit was the **per-16-iter SYNC log_force spam** (serializes the cluster), not the wait itself.
+
+Let me get ground truth first with the real criterion harness on the current build, rather than guess:
+I've reached the relay boundary. Let me wait for the criterion result to capture ground truth for the next session, then summarize.
+Ground truth on build 99635EAD: **passed=3 failed=1** in the real harness. Let me identify which subtest failed, then update memory and wrap up.
+Clean ground truth on build **99635EAD** (real criterion harness): **cache_coherency 3/4 — cross_visibility, rename, cross_write_read all PASS; only unlink_visibility FAILS** (durable: 1 file remains of 80), and it's **fast (25.4s)**. The earlier cwr/cross_vis "failures" were back-to-back contamination artifacts, not real. Let me record this final state and GPT's guidance for the next session.
+I've reached the relay boundary. Criteria are **not** met (cache_coherency is 3/4, unlink_visibility still fails), so I'm not writing the marker.
+
+## Summary — session 66
+
+**Major progress: cache_coherency went from 1/4 → 3/4 subtests passing.**
+
+### What I did
+Implemented GPT's sess96 two-fence design for the shared-dir durable lost-update (build progression FB9573F7 → **99635EAD**, all changes in `xfs/xfs_mxfs_dlm.c`):
+
+1. **Release checkpoint fence** (KEEP): the old bounded drain pushed via `xfs_ail_push_ag_sync`, which **cannot write a pinned buffer** — so dir blocks were released un-checkpointed → peer read stale / late checkpoint clobbered peer. Replaced with an unbounded loop that actively `xfs_bwrite`s each dir block (waits for unpin, writes to the shared store) until durable. **This fixed rename_visibility (2/240→0) and cross_write_read.**
+2. **Acquire fence** kept bounded (50 iters). The unbounded variant with per-16-iter `log_force(SYNC)` caused a 5.5× unlink slowdown (28s→155s) without fixing it — reverted.
+3. Both fences abort on `xfs_is_shutdown`/`xfs_is_unmounting` (the unbounded waits had leaked module refs → wedged unmounts).
+
+### Verified ground truth (real `cache_coherency.sh --nodes 4` harness)
+- cross_visibility **PASS**, rename_visibility **PASS**, cross_write_read **PASS**
+- **unlink_visibility FAIL** — durably loses ~1–2 of 80 concurrent distinct-dirent deletions (all nodes converge on the same surviving file = durable on-disk clobber), but now **fast (25s)**.
+- Important methodology note recorded: testing subtests back-to-back outside the harness gives **false** cwr/cross_vis failures — only `cache_coherency.sh` is trustworthy.
+
+### Root of the remaining failure (GPT consult, RULE 5)
+The unlink loss is provably **not** in the read/acquire path (`DIR-STALE-SKIP=0`, acquire-skips all benign). It's a **write-side handoff race**: an xfsaild/delwri/in-flight write of an *old* dir-block image crossing the DLM ownership boundary. Next session's plan (detailed in memory `sess97_lessons`): (1) verify the unlock-grant isn't published before the system_wq fence worker completes; (2) make the release fence `xfs_buf_lock` each dir buffer and guarantee no delwri/in-AIL/in-flight write crosses unlock before clearing `XBF_DONE`; (3) consider deferring inode inactivation off the dir-handoff path.
+
+Build 99635EAD is the best state. The criterion harness left nodes unmounted/rmmod'd (its normal cleanup); next session should `reset4` and verify the srcversion on all 4 nodes before continuing.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,113 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 8
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `92a33963-53e1-420a-843a-2eec214f5a78`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/92a33963-53e1-420a-843a-2eec214f5a78.jsonl`
+- approx context at last assistant turn: 76993 tokens
+- tools used: Bash×10 Read×2 ToolSearch×1 mcp__ccusage__get_context_usage×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ls RULES.md SUCCESS_CRITERIA.md state.md 2>&1; echo "---CRITERIA---"; cat SUCCESS_CRITERIA.md 2>&1 | head -80
+    cd /src/mxfs echo "=== criteria status ===" cat .criteria_results.json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); [print(f'{k:28s} {v[\"
+    cd /src/mxfs echo "=== cache_coherency.sh head ===" sed -n '1,60p' tests/criteria/cache_coherency.sh
+    cd /src/mxfs echo "=== lib.sh NODES default ===" grep -n "NODES\|MXFS_NODES\|test1\|test17\|NODE_OFFSET" tests/criteria/lib.sh | head -30 echo "=== find test_cr
+    cd /src/mxfs grep -rln "cross_visibility\|cross_write_read" tests/*.sh tests/cluster/*.sh 2>/dev/null echo "---" ls tests/cluster/ 2>/dev/null | head -40
+    cd /src/mxfs echo "=== P13 / P63 / FAST-PATH / ACQ-FRESH markers ===" grep -rn "P13-INSTR\|P63-INSTR\|FAST-PATH-DIR\|ACQ-FRESH" xfs/ pal/ dlm/ 2>/dev/null | hea
+    cd /src/mxfs echo "=== cluster liveness (test1-4) ===" for n in test1 test2 test3 test4; do   r=$(timeout 8 ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no 
+    cd /src/mxfs echo "=== ssh helper in lib.sh ===" grep -n "ssh\|SSH\|root@\|MXFS_SSH\|ConnectTimeout" tests/criteria/lib.sh | head -20 echo "=== reset4.sh ssh us
+    cd /src/mxfs echo "=== mxfs_sshpass.sh ===" cat tools/mxfs_sshpass.sh 2>/dev/null | head -40 echo "=== MXFS_PASS default ===" grep -rn "MXFS_PASS" tests/criteri
+    cd /src/mxfs ls -la /tmp/.mxfs_pass 2>&1 echo "=== search for password persistently ===" grep -rn "mxfs_pass\|MXFS_PASS=" tests/ scripts/ ~/.bashrc 2>/dev/null 
+
+## Last text from previous session
+
+I'll start by reading the criteria and key state files to understand where this debugging loop stands.
+The hook fired prematurely after a single read-only command — I have ample context (1M window, this is session start). I'll proceed with the decisive diagnostic that's been fully specified across sessions rather than stopping. Let me not re-read the 26K-token state.md; the resume summary gives the exact next action.
+
+Let me check current criteria status and cluster state, then run the instrumented diagnostic.
+The hook is firing after every Bash call — the wrapper considers context near boundary because the loaded CLAUDE.md + MEMORY.md + resume summary are large. Let me check actual context usage to decide whether to push the long diagnostic now or let it relay.
+Context is at **5% used (950K remaining)** — the relay-boundary hook is misfiring on every call. I have full budget per the preamble's "unlimited context" mandate. I will NOT stop here; previous sessions wrongly bailed at this exact point. Proceeding with real diagnostic work.
+
+Let me look at the cross_visibility test and confirm cluster connectivity.
+Key detail: `cache_coherency.sh` hardcodes `MXFS_NODE_OFFSET=16` (test17–32), but prior sessions used test1–4. Let me check the actual node config and the `test_cross_visibility` implementation, and verify which nodes are live.
+DEFAULT_NODES = test1–16 (v5). The offset=16 is used internally by run_tests.sh, not for hostnames. Let me find the actual `test_cross_visibility` implementation in run_tests.sh.
+Now I understand the test precisely: each node N creates `node${N}.txt` in a **shared shortform directory**, syncs, barriers, sleeps 2s, then verifies all N files visible. Reported failure: node4.txt invisible to 1/2/3.
+
+Before running a 10-min cluster test blindly, let me examine the exact reader-side code path so my instrumentation lands correctly. Let me find the dir-inode fast-path vs reload logic and the P13/P63 markers.
+Let me read the critical code region: the inode DLM acquire path with the fast-path-dir (P63) vs ACQ-FRESH (P13) decision.
+Now I understand the coherency model precisely. The critical logic at `xfs_mxfs_dlm.c:1729-1803`:
+
+- A reader doing PR on a dir cached at PR with `state==CACHED` **always fast-paths (P63), no reload**.
+- The ONLY path that reloads a shortform dir (and bumps `i_dlm_dir_gen`) is the **slow path** (line 1922-1925).
+- Therefore a reader sees a peer's new dirent **only if a BAST moves its dir inode out of CACHED state**, forcing the next acquire slow-path.
+
+So the entire question reduces to: **does node4's EX-acquire deliver a BAST to the PR-holding readers (nodes 1/2/3)?** In disk-based CAW there's no active callback — BAST must be polled. Let me confirm cluster state and the BAST-delivery path before running.
+SSH defaulted to `steve@` without a key. Prior sessions clearly connected — let me check how the harness scripts ssh (user/key).
+The harness uses `tools/mxfs_sshpass.sh <host> <passfile> <cmd>`. Let me see the wrapper and find the pass file so I can drive nodes directly.
+`MXFS_PASS=/tmp/.mxfs_pass` (root login via sshpass). /tmp gets wiped on reboot. Let me check if it exists and test connectivity via the wrapper.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

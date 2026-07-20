@@ -1,0 +1,115 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/3e02e7dd-de32-4f91-a7c5-61eddb630e4a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 3e02e7dd-de32-4f91-a7c5-61eddb630e4a, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `7fbd6785-e4e0-4d78-aa03-fc4146a7e990`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990.jsonl`
+- approx context at last assistant turn: 512499 tokens
+- tools used: Bash×110 ScheduleWakeup×22 Read×13 mcp__ccmemory__memory_get×8 TaskUpdate×5 Edit×4 TaskCreate×4 ToolSearch×4 TaskGet×3 mcp__ccmemory__memory_search×2 Monitor×1 TaskStop×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1 mcp__ccteam__peers×1 mcp__ccteam__status×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/run.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== killing stuck run.sh N=32 process tree ===" kill -9 1653372 2>/dev/null pkill -9 -f "run\.sh 32 caw dir_reuse_coherency" 2>/dev/null pkil
+    ps -ef | grep -E "run\.sh|dir_reuse_coherency|mxfs_sshpass" | grep -v grep echo "---criteria---" cd /src/mxfs jq -r '.categories[].tests[] | select(.name=="dir_
+    cd /src/mxfs rm -f /tmp/mxfs_run.lock 2>/dev/null SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad : > "$SC/test1_dmesg_stream.log"
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad nohup env MXFS_DEV=/dev/mapper/mpatha ./run.sh 32 caw dir_reuse_coher
+    SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad end=$((SECONDS+540)) while kill -0 1685769 2>/dev/null && [ $SECONDS -lt $end ]; d
+    SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad grep -n "Call Trace:" "$SC/test1_dmesg_stream.log" | head -3 echo "=== first Call 
+    cd /src/mxfs echo "=== is the run still alive? ===" ps -p 1685769 -o pid,etime,cmd 2>&1 echo "=== test1 D-state processes RIGHT NOW ===" tools/mxfs_sshpass.sh t
+    find /src/mxfs -iname "*decode_bufev*" -o -iname "*ring_decod*" 2>/dev/null cd /src/mxfs echo "=== is rm still stuck? (re-check) ===" tools/mxfs_sshpass.sh test
+    cd /src/mxfs head -60 scripts/decode_bufev.py
+    cd /src/mxfs tail -1 /tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad/test1_dmesg_stream.log echo "---decoded---" tail -1 /tmp/claude-
+    SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad echo "=== what is/was pid 1556? ===" grep "pid=1556\b" "$SC/test1_dmesg_stream.log
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "cat /proc/2575/stack 2>&
+    cd /src/mxfs grep -n "b_iowait\|complete(&\|b_mxfs_sync_wait\|b_mxfs_force_sync" pal/linux/xfs_buf.c | head -60
+    cd /src/mxfs echo "=== is rm still stuck? ===" tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "ps -p 2575 -o stat,wchan:32,etimes 2>&1" 2>&1 | grep -v "Unauthorize
+    SC=/tmp/claude-1000/-src-mxfs/7fbd6785-e4e0-4d78-aa03-fc4146a7e990/scratchpad echo "=== window right before first P-IOWAIT-STUCK (22:16:18) ===" awk '/22:15:[3-
+    cd /src/mxfs grep -n "^xfs_buf_iowait\|^int$" pal/linux/xfs_buf.c | grep -B1 "xfs_buf_iowait" grep -n "xfs_buf_iowait" pal/linux/xfs_buf.c
+    cd /src/mxfs sed -n '1140,1180p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs grep -n "^__xfs_buf_ioend\|^static bool$\|^static int$" pal/linux/xfs_buf.c | grep -B1 "__xfs_buf_ioend" grep -n "__xfs_buf_ioend" pal/linux/xfs_bu
+    cd /src/mxfs awk 'NR>=1750 && NR<=1995 && (/b_io_remaining/ || /return /)' pal/linux/xfs_buf.c | head -30
+    cd /src/mxfs tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "ps -p 2575 -o stat,wchan:32,etimes 2>&1; uptime" 2>&1 | grep -v "Unauthorized\|disconnect\|Warning" ps
+
+## Last text from previous session
+
+signal → mxfs_dir_flush_data_blocks → mxfs_dir_data_owner_scan → xfs_bwrite → xfs_buf_iowait` — blocked 361+ seconds. This resolves the garbled middle frame from the earlier capture too. Now let me examine the completion-handling code for the lost-wakeup gap.
+This suggests a lost-wakeup: two concurrent submitters clobbering a shared per-buffer latch. Let me read the actual submit code to confirm precisely.
+This matches a bug family ("wedge2a") that prior sessions already investigated deeply and believed fixed, but apparently a residual variant persists. Let me pull the detailed root-cause and fix history to avoid duplicating work.
+Let me reconstruct the full timeline for this buffer from the dmesg stream, and check whether the process is still stuck before it potentially crashes/reboots again.
+This confirms the exact defect: `bp->b_mxfs_sync_wait` is a per-buffer field that gets unconditionally overwritten by *any* call to `xfs_buf_submit()`, so xfsaild's concurrent async resubmission clobbers rm's sync-wait latch before rm's own completion arrives — neither of the two existing override checks can fire because the field they check has already been stomped to 0. Let me read the actual `xfs_buf_iowait()` function to design a targeted, safe fix per the escape-hatch approach the project's own prior investigation already recommended.
+Let me check the completion code around the override checks (what the async branch actually does when it *doesn't* fire the override) and the caller-side relse in `mxfs_dir_data_owner_scan`, to make sure a fix doesn't introduce a double-release.
+This is a genuine architectural race (two overlapping buffer submissions sharing one completion-routing flag) where the naive fixes I can construct have real correctness risks (premature wake-up causing false durability, or reference leaks). This matches the project's bar for an external consult — I have a complete, instrumented, proven diagnosis and have identified concrete flaws in my own candidate fixes. Let me check on the live repro's current state, then consult.
+I've hit the relay boundary. Let me save the critical findings to memory before wrapping up, since I've made significant progress but uncovered a deeper bug that needs continuation.
+## Session summary
+
+**Progress made:** Root-caused and fixed the recorded `dir_reuse_coherency@32/caw` failure — it was a false-positive from a test-harness hang-detection threshold added earlier today that didn't account for legitimate O(N) CAW coherence cost at scale (proven via nanosecond-precision timestamps showing the "hung" process was still making progress). Fixed by scaling `DRC_HANG_THRESHOLD_S` and adding a `COORD_TIMEOUT` override in `run.sh`, both keyed on node count. Validated with full 24-round runs: **N=2, 4, 8, 16 all PASS** under the corrected harness.
+
+**What's blocking 100%:** While validating N=32, uncovered a **real, live-reproducible kernel bug** — a genuine lost-wakeup race in `pal/linux/xfs_buf.c` where `xfsaild`'s concurrent async buffer submission clobbers the per-buffer `b_mxfs_sync_wait` latch that `rm`'s synchronous durable-flush depends on, permanently hanging it in `xfs_buf_iowait`. This is a residual variant of a bug family ("wedge2a") multiple prior sessions already fought; I have a complete instrumented proof (clean stack trace, decoded event ring, identified the racing thread) and traced two candidate fixes, both of which introduce distinct new correctness risks (premature durability signaling or reference leaks) — genuinely architectural, not a location-finding problem.
+
+**Not done:** Criteria are **not met**. I did not write the criteria-met marker. Full findings, the exact code locations, both candidate-fix risk analyses, and explicit next steps (including that this now meets the project's own bar for a Fable consult) are saved to ccmemory (`ccloop3e02-sess1-THRESHOLD-FIX-DONE-plus-REAL-wedge2a-residual-live-repro`) for the next session to continue without re-deriving any of this.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

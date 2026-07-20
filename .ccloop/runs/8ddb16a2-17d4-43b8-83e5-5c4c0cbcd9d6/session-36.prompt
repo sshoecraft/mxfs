@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 36 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 35
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `3a72cccd-ad21-4d0f-9bde-3637ee9e27e4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3a72cccd-ad21-4d0f-9bde-3637ee9e27e4.jsonl`
+- approx context at last assistant turn: 500436 tokens
+- tools used: Bash×141 Read×35 Edit×24 Monitor×6 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×3 ToolSearch×2 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/tests/drc_run_capture.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; if grep -qE "capture done @" /tmp/drc_cap.log 2>/dev/null; then echo "DONE"; grep -vE '^Warning:|^Unauthorized|^If you' /tmp/drc_cap.log | tail -1
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for h in test1 test2; do echo "===== $h (full log) ====="; timeout 15 $SSH $h "$PF" '   L=/tmp/drc_
+    cd /src/mxfs; echo "=== full /tmp/drc_cap.log ==="; cat /tmp/drc_cap.log 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If you'; echo; SSH=tools/mxfs_sshpass.
+    cd /src/mxfs; echo "=== build @ $(date -u +%T) ===" > /tmp/bld.log; make modules >> /tmp/bld.log 2>&1; echo "rc=$?" >> /tmp/bld.log; grep -iE "error|implicit|un
+    cd /src/mxfs; if grep -qE "^rc=" /tmp/bld.log 2>/dev/null; then echo "BUILD DONE"; grep -iE "error|implicit|undeclared|declaration-after|^rc=" /tmp/bld.log|head
+    cd /src/mxfs; : > /tmp/drc_cap.log; echo "launching capture run (68B7C405 batching) @ $(date -u +%T)"; nohup bash tests/drc_run_capture.sh > /tmp/drc_cap.log 2>
+
+## Last text from previous session
+
+modify the post-publish to batch within the MHT window. First let me see the surrounding structure (spin_lock and post-unlock) to place the `batch_arm` flag correctly.
+I'll declare `batch_arm` and restructure the ACQUIRING-honor block to batch within the MHT window. Edit 1 — the block itself:
+Edit 2 — declare `batch_arm` after the spin_lock:
+Edit 3 — arm the dwork after spin_unlock. Let me read the post-unlock tail to edit precisely.
+Batching fix complete (3 edits: declare `batch_arm`, batch in the ACQUIRING-honor block, arm the dwork after unlock). This is xfs_mxfs_dlm.c-only (no header change → faster build). Build:
+Build running. Let me Monitor for completion (xfs_mxfs_dlm.c-only → ~1-2 min).
+Monitor armed for the build. While it compiles, my safety review of the batching fix: coherency is preserved (the DLM grant still gates peer access; the release-time drain is unchanged — batching only delays the *bounded* handoff), starvation is bounded by the MHT window, and subsequent creates fast-path on the cached EX (no re-arm), so it's ~1 batch/round/node not a re-arm loop. 
+
+Note: even with batching cutting create to ~1s, verify is still ~8s (the sess38 per-iget cluster-invalidation defeating amortization), so getting fully under 300s will also need a verify fix — but per RULE 4 I'll measure the batching alone first. I'll wait for the BUILD-DONE event.
+Build OK — `68B7C405`. Now run with the (fixed) full-capture wrapper to measure the batching effect on per-round create time.
+Reached the relay boundary. The batching-fix capture run (build `68B7C405`) is executing in the background. Let me record the current state to memory for the next session, then summarize.
+Reached the relay boundary. Brief summary of this session's work:
+
+## Session 35 summary
+
+**Criteria NOT met** — `dir_reuse_coherency` (the only failing 2/tcp test) still fails. Marker not written (honest). A batching-fix validation run is executing in the background; the next session inherits it.
+
+### What I proved and fixed
+1. **Refuted sess34's H1** ("holder defers the BAST ~6s"): instrumented evidence shows the holder honors a *CACHED* BAST in **14 µs**. The real root was different.
+2. **Proved the 6s-handoff ROOT** (build A970F10B, **KEEP**): `i_dlm_stale` is overloaded — it means both "needs reload" AND "BAST deferred during ACQUIRING". The slow-path acquire's `reload_inode()` **clears `i_dlm_stale` before the post-publish reads it**, so a BAST that arrived while the node was `ISTATE_ACQUIRING` was **silently swallowed** → the peer stalled the full 6000 ms `ACQUIRE_WAIT_MS` until its retry re-fired the BAST. Direct evidence: test2 received 40 BASTs for the dir but honored only 31 — the ~9 lost were exactly the `state=4 (ACQUIRING)` arrivals. **Fix:** a dedicated `i_dlm_bast_during_acq` flag that reload doesn't touch. Result: **P34-ACQ-SLOW 5-7 → 0**, the 6s stalls eliminated, P35-ACQBAST-HONOR fires.
+3. **Found the residual** (build 68B7C405, validating now): eliminating the stall also removed the *accidental* batching, so creates ping-ponged the dir-EX once per op (~65 ms × 100 ≈ 6.5 s create phase, still ~16 s/round → 300 s timeout). Added **MHT batching** to the ACQUIRING-BAST honor (GPT plan item 3) — keep CACHED + arm the dwork for the bounded window so the create burst batches.
+
+### Remaining blockers (next session — both must pass)
+- **Verify slowness ~8.4 s/round**: 200 cold FUA inode reads after `drop_caches`; the sess38 per-iget cluster-buffer invalidation defeats XFS cluster-read amortization (should be ~8 reads, not 200). Fix: invalidate once-per-cluster-per-epoch.
+- **Correctness P26-DSCAN-MISS** (~120/200 under-read): acquire-side stale dir-block RMW (`xfs_da_read_buf` TRYLOCK-skip); move invalidation to the DLM-acquire boundary.
+
+All findings + exact next steps saved to memory (`sess35-PROVEN-root-...`, `sess35-fix-result-...`, `sess35-batching-fix-and-next-steps`). Builds and the reusable full-capture tool (`tests/drc_run_capture.sh`) are in the tree.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

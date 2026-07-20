@@ -1,0 +1,119 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 44 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 43
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `a05441cb-cbc6-4861-bd68-982a2ba8e91b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a05441cb-cbc6-4861-bd68-982a2ba8e91b.jsonl`
+- approx context at last assistant turn: 249519 tokens
+- tools used: Bash×149 Edit×7 Write×4 mcp__ccmemory__memory_write×3 ToolSearch×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/scst_atomic_wedge_diag.py
+- /src/mxfs/scripts/scst_unwedge/scst_unwedge.c
+- /src/mxfs/scripts/scst_unwedge/Makefile
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 16 2>&1 | tail -1
+    cd /src/mxfs; timeout 150 bash tests/run_tests.sh --nodes 16 --phase cluster --test test_concurrent_mkdir > /tmp/cm_run.log 2>&1 & echo "started pid $!"; sleep 
+    sed 's/\x1b\[[0-9;]*m//g' /tmp/cm_run.log | grep -E "\[PASS\]|\[FAIL\]|count|No such|Running" | tail -6; echo "=== node D-state ==="; S=/home/steve/src/mxfs/too
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; until ! $S test1 $P 'ps -eo comm,stat | awk "\$2 ~ /D/" | grep -q rm' 2>/dev/null; do sleep 5; 
+    cd /src/mxfs; echo "=== full cluster phase clean $(date -u +%T) ==="; timeout 560 bash tests/run_tests.sh --nodes 16 --phase cluster > /tmp/cluster_full.log 2>&
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do $S test$n $P 'pkill -f "run_tests\|mxfs_test\|find /mnt\|rm -rf /mnt" 
+    grep -n "fua_disable\|mxfs_buf_read_fua\|read_fua\|FUA_FRESH\|b_mxfs_dir_gen\|i_dlm_dir_gen" xfs/libxfs/xfs_da_btree.c | head -20
+    sed -n 3030,3130p xfs/libxfs/xfs_da_btree.c
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'cat /sys/module/mxfs/parameters/fua_disable 2>/dev/null; echo "---other fua params
+    grep -rn "fua_disable" xfs/ pal/ dlm/ --include="*.c" 2>/dev/null | head -20
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; ds=0; for n in $(seq 1 16); do r=$($S test$n $P 'ps -eo stat | grep -c "^D"; dmesg -T 2>/dev/nu
+    cd /src/mxfs; timeout 500 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2; S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 1
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 16 2>&1 | tail -1
+    cd /src/mxfs; echo "=== COLD concurrent_mkdir first-after-mount $(date -u +%T) ==="; timeout 140 bash tests/run_tests.sh --nodes 16 --phase cluster --test test_
+    cd /src/mxfs; S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do $S test$n $P 'dmesg -C 2>/dev/null; true' >/dev/null 2>&
+    cd /src/mxfs; S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; until ! $S test1 $P 'ps -eo comm,stat | awk "\$2 ~ /D/" | grep -qE "rm|find|mkdir
+    cd /src/mxfs; S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do $S test$n $P 'pkill -f "run_tests\|mxfs_test\|find /mnt\
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in 5 4; do echo "=== test$n DIR-STALE-SKIP samples ==="; $S test$n $P 'dmesg -T 2>/dev/nu
+    sed -n 2870,2990p xfs/libxfs/xfs_da_btree.c
+    sed -n 2990,3030p xfs/libxfs/xfs_da_btree.c
+
+## Last text from previous session
+
+urned to RMW, clobbering peer dirents) and **SESS50-STARVE ~20×/node** (the 225s slowness). Both symptoms confirmed always-on. Now the discriminating detail — *why* the stale block isn't refreshed (the fields determine the fix):
+PROVEN mechanism (RULE 4 step 2b). The DIR-STALE-SKIP fires on the shared touch dir `ino=18874858` with the decisive fields: **`buf_gen=0` vs `inode_gen=61`, `pin=1`, `dirty=0`, `in_ail=0`**. The cached dir block is stale (peers advanced the gen 61×) but the code skips refreshing it solely because `xfs_buf_ispinned()` is true — and a modifying read then RMWs that stale base, clobbering a peer's dirent. Let me check the read path's signature to see whether a modifying read can be distinguished and the pin safely forced:
+The read path has `tp` (non-NULL = modifying RMW; NULL = readdir/lookup). The stale buffer is pinned by this node's own prior committed-but-uncheckpointed transaction — a synchronous `xfs_log_force` would unpin it, and that force needs neither our ILOCK nor the new tp (no deadlock). Let me read the exact trylock/dirty computation to patch precisely:
+I now have a deeply-proven root cause. The reasoning resolves a long-standing tension: the buffer is *simultaneously* stale (gen 0 vs 61) **and** pinned — meaning a prior dir-modifying transaction of this node is still committed-unwritten in the CIL while the lock was released and re-acquired 61× across peer BASTs. Refreshing would lose our uncommitted entries; keeping it loses peers'. The only correct resolution is upstream: the **release path must checkpoint the dir-DATA block's CIL pin (log_force SYNC + write) before DLM unlock**, not just the inode cluster. Let me record this precisely:
+Reached the relay boundary. Honest status before handoff:
+
+## Session 43 summary
+
+**Criteria not met** — the marker is unwritten. But this session made real, verifiable progress and ended at a clean diagnostic boundary.
+
+**1. Recovered the wedged host without rebooting clyde (RULE 2).** SCST was deadlocked (all teardown threads D-state, `suspend=1`) from a COMPARE-AND-WRITE ↔ READ scsi-atomicity cycle that SCST's own abort path can't break. Built two reusable source-tree tools: `scripts/scst_atomic_wedge_diag.py` (walks live SCST state via `/proc/kcore`+gdb to find the cycle) and `scripts/scst_unwedge/` (a one-shot module that surgically breaks one edge after verifying the exact topology under `dev_lock`). Suspend completed instantly; SCST restarted clean.
+
+**2. Landed P136 drain-rescue (build `7BD3933D`, verified fix).** The prior build hit a cluster-wide shutdown every run: a dir inode flushed into its cluster buffer but the buffer write was never submitted, orphaning the AIL item → EX never released → 15 peers starve → corruption shutdown. The fix resubmits the orphaned `IFLUSHING` buffer natively. Confirmed firing with **zero shutdowns** cluster-wide afterward.
+
+**3. Proved the remaining correctness root cause (RULE 4).** From a verified-clean cluster, `concurrent_touch` loses 1/1600 files and runs 225s. Always-on instrumentation (no special build) showed **DIR-STALE-SKIP ~30×/node** with decisive fields `buf_gen=0 inode_gen=61 pin=1 dirty=0 in_ail=0`. The cached dir block is *both* stale (peers advanced the gen 61×) *and* pinned by this node's own committed-but-uncheckpointed CIL transaction. The refresh-skip is correct (refreshing would lose our uncommitted entries); the actual bug is upstream — the **EX-release drain checkpoints the inode cluster but not the dir-DATA block's CIL pin before DLM unlock**, so a peer's next cache-coherent read RMWs a stale base and clobbers a dirent.
+
+Both findings and the precise fix direction (extend the release-path drain to unpin+write every dir-DATA-fork buffer before unlock, then re-run the cold full `--phase cluster` and confirm DIR-STALE-SKIP → ~0) are recorded in memories `sess43-dirdata-pin-rootcause` and `sess43-scst-unwedge-and-p136`. The cluster is clean, orphans killed, `7BD3933D` deployed on all 16 nodes.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

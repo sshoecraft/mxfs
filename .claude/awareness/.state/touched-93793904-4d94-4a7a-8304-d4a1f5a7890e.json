@@ -1,0 +1,18 @@
+{
+  "source": [
+    "xfs/xfs_inode_item.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_ag.h",
+    "xfs/xfs_inode.c"
+  ],
+  "docs": [
+    "CLAUDE.md",
+    ".claude/awareness/subsystems/xfs.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

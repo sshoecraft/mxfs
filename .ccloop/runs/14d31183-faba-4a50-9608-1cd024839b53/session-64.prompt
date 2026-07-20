@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 64 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 63
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `cd07229e-3b30-4f67-ac73-69b53c22729d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/cd07229e-3b30-4f67-ac73-69b53c22729d.jsonl`
+- approx context at last assistant turn: 252007 tokens
+- tools used: Bash×50 Read×17 Edit×6 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== def of mxfs_buf_has_uncheckpointed_mods ==="; grep -rln "mxfs_buf_has_uncheckpointed_mods" pal/ xfs/ dlm/ 2>/dev/null; echo "---"; grep 
+    cd /src/mxfs; echo "=== FUA gate in pal/linux/xfs_buf.c ==="; grep -n "_XBF_FUA_FRESH\|scsi_read_fua\|read_fua_bdev\|has_uncheckpointed\|FUA_FRESH\|b_ops ==\|xf
+    cd /src/mxfs; grep -n "mxfs_buf_needs_fua_read\|needs_fua_read\|xfs_bmbt_buf_ops\|xfs_bmbt" pal/linux/xfs_buf.c | head -40
+    cd /src/mxfs; grep -rn "mxfs_buf_needs_fua_read" pal/ xfs/ 2>/dev/null | grep -v "\.backup"; echo "=== def ==="; awk '/mxfs_buf_needs_fua_read\(/{print NR": "$0
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P62-IFLUSH-FORCE-ERR (my hook's leaf bwrite failing) + P133-BMBT-RELFLUSH-ERR + any bmbt w
+    cd /src/mxfs; grep -rn "P133-BMBT-RELFLUSH\|BMBT-RELFLUSH" xfs/ pal/ dlm/ 2>/dev/null | grep -v backup; echo "=== context ==="; grep -n "P133-BMBT-RELFLUSH" xfs
+    cd /src/mxfs; echo "=== xfs_bwrite ==="; grep -n "^xfs_bwrite\|xfs_bwrite(" pal/linux/xfs_buf.c | head; awk '/^xfs_bwrite\(/{f=1} f{print NR": "$0} f&&/^}/{exit
+    cd /src/mxfs; echo "=== REQ_FUA / FUA on WRITE in submit path ==="; grep -n "REQ_FUA\|opf.*FUA\|XBF_WRITE.*FUA\|fua.*write\|write.*fua" pal/linux/xfs_buf.c | he
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P60-BMBTWRITE for daddr=29222680: max numrecs that reached bio ==="; for h in $(seq 1 16);
+    cd /src/mxfs; echo "=== xfs_buf_submit / xfs_buf_iowait signatures + export ==="; grep -n "^xfs_buf_submit\b\|^void.*xfs_buf_submit\|xfs_buf_submit(\|^int.*xfs_
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|warning:.*xfs_buf|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 
+    cd /src/mxfs; export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16)
+    cd /src/mxfs; nohup ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl63c.log 2>&1 & echo "pid $!"; f=/tmp/zsl63c.log; for i in $(seq 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P63-BMBT-FUAWR-FALLBACK (passthrough write ALSO failed?) ==="; for h in $(seq 1 16); do ti
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P63-TORN-FLUSH / P63-INSERT-DESYNC this run ==="; for h in $(seq 1 16); do timeout 6 "$SSH
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep
+    cd /src/mxfs; export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16)
+    cd /src/mxfs; nohup ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl63d.log 2>&1 & echo "pid $!"; f=/tmp/zsl63d.log; for i in $(seq 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== shutdown signatures this run ==="; for h in $(seq 1 16); do out=$(timeout 6 "$SSH" test$h 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep
+
+## Last text from previous session
+
+ERR is GONE** (FUA passthrough fixed the EIO), P60 no longer fires (writes bypass bio as intended). But **SIG1 persists** (loaded=14, if_nextents=15) — so the EIO was a co-factor, not the sole root. Now I must determine: is the platter still torn (write writes N-1), or is the reader getting a stale leaf from cache (bmbt isn't FUA-read)? Let me re-read the platter and check the torn-flush detector.
+**P63-TORN-FLUSH now FIRES**: `iext=15, in-core leaf=14, nheld=1, xfsaild`. So between the (consistent) insert and the iflush, the in-core leaf buffer *loses* a record (15→14) while iext keeps 15 — a stale re-read reverting the clean leaf buffer. The bmbt leaf is read via **plain bio (not FUA)** because sess60 reverted bmbt from the FUA-read gate — but that revert was *before* the writer-side was durable. Now that writes are durable+FUA AND the read-over-logged guards exist (P61/P91), FUA-reading the leaf is the missing complement. Let me add it.
+Still torn at the source: P63-TORN-FLUSH shows iext=15 / in-core leaf=14 (test7), and now even FUA-reads load 14 — confirming the leaf is durably 14 on disk while di=15. No new corruption (guards held). The decisive gap: the in-core leaf buffer reverts 15→14 **after** the (consistent) insert, **before** flush. I need to catch that reversion. Let me add a leaf write-numrecs log to my FUA-write block and a read-numrecs log in the FUA read, to get a merged timeline.
+Now the read-numrecs log in `mxfs_buf_read_fua` after a successful FUA read:
+Hit the relay boundary. Let me add the read-side log to complete the timeline instrumentation, build to leave the tree compiling, and record the decisive findings to memory.
+Tree compiles cleanly (build **E277C0DA**). Let me record this session's decisive findings to memory.
+Relay boundary reached. Wrapping up honestly.
+
+## Session 63 summary
+
+**Criteria state:** 15 PASS, 4 FAIL (`zero_silent_loss`, `fence_during_write`, `rsync_paired`, `posix_semantics_multi16`). Worked `zero_silent_loss`. **Marker NOT written — it still FAILS.**
+
+**Real progress this session** — cut through the 5-session plateau by proving the mechanism end-to-end and eliminating one confirmed co-factor:
+
+1. **Confirmed the on-disk torn state directly** — raw `dd` of the platter (twice): dinode ino131 `di_nextents=N` while its bmbt leaf physically holds `N-1` records. Not a reader-cache illusion.
+
+2. **Localized the producer with two new detectors:** P63-INSERT-DESYNC (silent → the btree insert always leaves leaf==iext) and P63-TORN-FLUSH (FIRED: `iext=15, in-core leaf=14, xfsaild`). So the in-core leaf buffer **reverts N→N-1 after the consistent insert, before the flush**, and the writer durably persists the torn pair.
+
+3. **Fixed the sess60-known EIO co-factor (FIX A, works):** the bmbt-leaf write was intermittently failing `-EIO` on the iSCSI/SCST bio path (`P133-BMBT-RELFLUSH-ERR rc=-5`). Routed bmbt-leaf writes through the SCSI FUA passthrough in `xfs_buf_submit` (same trick the FUA reads use) → **P133-RELFLUSH-ERR gone, writes now durable.**
+
+4. **FIX B (FUA-read bmbt, insufficient alone):** re-added `xfs_bmbt_buf_ops` to the FUA-read gate (sess60 reverted it, but that predated FIX A + the P91/P61 read-over-logged guards; no regression this time). SIG1 persists because the disk leaf is durably *torn* — the root is the in-core revert, not durability or read-coherency.
+
+**Builds:** F3452F1A (detectors) → 6B8498E0 (FIX A) → F47D0284 (FIX B) → **E277C0DA** (current, compiles; adds P63-LEAFWR + P63-LEAFRD timeline probes).
+
+**Next session (instrumentation already built into E277C0DA, just deploy+run):** grep the merged P63-LEAFWR/P63-LEAFRD/P63-TORN-FLUSH timeline for ino131's leaf daddr to catch the exact read that DMAs `numrecs=N-1` over the in-core buffer — then fix that revert (likely `mxfs_dir_evict_bmbt_blocks` clearing XBF_DONE + a stale re-read, or treat the iext skiplist as authoritative at flush). Full detail in memory `sess63-zsl-bmbt-fua-fix-eio-gone-but-incore-leaf-reverts`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

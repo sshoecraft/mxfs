@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a8642ea1-81eb-4fcd-beea-b99f4f52db31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a8642ea1-81eb-4fcd-beea-b99f4f52db31, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `c2266544-e4be-48cc-85cc-332d8c03e907`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907.jsonl`
+- approx context at last assistant turn: 507995 tokens
+- tools used: Bash×99 Read×18 mcp__ccmemory__memory_write×7 TaskUpdate×5 TaskCreate×4 ToolSearch×4 Write×4 Monitor×3 TaskStop×3 mcp__ccmemory__memory_get×3 Edit×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_wedge_capture.sh
+- /src/mxfs/run.sh
+- /src/mxfs/tests/drc_hardhang_capture.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/VERSION
+- /src/mxfs/tests/drc_autocapture.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpa
+    cd /src/mxfs SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== round + D-state across spread sample ===" for n in test1 test5 tes
+    cd /src/mxfs SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpa
+    cd /src/mxfs SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}" echo "=== r8 stall: P138 max wait + D-state + who holds shared dir EX ===" f
+    cd /src/mxfs grep -n "P15-REL-ABORT\|re-acquired during drain\|release aborted" xfs/xfs_mxfs_dlm.c | head echo "=== context: what triggers the abort (holder re-
+    cd /src/mxfs pkill -9 -f 'run[.]sh 32 caw' 2>/dev/null sleep 2 for p in $(ls -l /proc/*/fd/* 2>/dev/null | grep -a "mxfs_run.lock" | grep -oE '/proc/[0-9]+/' | 
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad echo "run.sh procs: $(pgrep -c -f 'run[.]sh 32 caw')" echo "fair_hand
+    cd /src/mxfs # thorough cleanup of ALL lock holders + run.sh + sshpass helpers for p in $(ls -l /proc/*/fd/* 2>/dev/null | grep -a "mxfs_run.lock" | grep -oE '/
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad : > "$SC/run_fh.log" nohup timeout 5600 env MXFS_DEV=/dev/mapper/mpat
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad nohup bash tests/drc_autocapture.sh "$SC/autocapture_fh.log" "$SC/run
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad # fires once when the fair_handoff run finishes until ! pgrep -f 'run
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/c2266544-e4be-48cc-85cc-332d8c03e907/scratchpad SSH="$PWD/tools/mxfs_sshpass.sh"; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}
+    cd /src/mxfs # stop watchers pkill -9 -f 'drc_autocapture' 2>/dev/null # kill the doomed run pkill -9 -f 'run[.]sh 32' 2>/dev/null sleep 2 for p in $(ls -l /pro
+    cd /src/mxfs echo "run.sh=$(pgrep -c -f 'run[.]sh 32') sshpass=$(pgrep -c -x sshpass) autocap=$(pgrep -c -f drc_autocapture)" echo "lockholders=$(ls -l /proc/*/
+    cd /src/mxfs pkill -9 -f drc_autocapture 2>/dev/null || true pkill -9 -f 'run[.]sh 32' 2>/dev/null || true sleep 2 for p in $(ls -l /proc/*/fd/* 2>/dev/null | g
+    cd /src/mxfs pkill -9 -f 'drc[_]autocapture' 2>/dev/null || true pkill -9 -f 'run[.]sh 32' 2>/dev/null || true sleep 2 for p in $(ls -l /proc/*/fd/* 2>/dev/null
+
+## Last text from previous session
+
+s waits — so it's grinding slowly, not permanently deadlocked. fair_handoff=1 is a **partial** improvement (r8→r10). The run is still alive; the completion watcher (bwso4j560) will capture whether it grinds to r24 or wedges. Let me record this result concisely and let it run.
+Comprehensive END-state recorded. The fair_handoff run is still grinding at r10 (fails=0, within budget). A pass would meet the criteria, so it's worth knowing the outcome. Let me continue watching toward r24 efficiently (minimal output, return on terminal or definitive wedge).
+fair_handoff=1 reached r11 but the stalls are now lengthening (~5min at r11) — the pace is **degrading round-over-round** (cumulative backlog), so it won't reach r24 within budget (RULE 0: it's a foregone timeout). It's a partial improvement, not a fix. Rather than waste ~30 min on a foregone timeout, let me stop it and leave the cluster clean, with the next-step plan recorded.
+The relay boundary is reached, but my kills kept aborting early (leaving the run + 161 lock-holders alive). Let me do one robust cleanup with guards so nothing leaves the cluster wedged, then summarize.
+`pkill -f drc_autocapture` was matching my *own shell* (its command line contains that literal string), killing it early. Let me redo with bracket-regexes that can't self-match.
+Cluster is clean (no run, lock free). The relay boundary is reached. Let me give the session summary.
+
+## Session summary
+
+**Criteria NOT met** — `dir_reuse_coherency@32/caw` still fails (all other caw cells at 1/2/4/8/16/32 pass; this is the sole gap). I made substantial diagnostic progress and left the tree in a known state.
+
+**What I proved this session (all RULE-4 instrumented):**
+1. **`durable_caw=0 + fair_handoff=1` is a DEAD END** — reproduced a **hard-hang** (test32) + `P-COUNTREGRESS` silent lost-update. The durable signal is load-bearing (prevents the stale-base RMW clobber); can't disable it.
+2. **Reproducible HARD-HANG = a spinlock deadlock** — two nodes (test32 workload, test27 prep) hard-hung *identically* (one CPU busy-spinning at KASLR-invariant offset `0x116553F`, others halted, RCU-stalled, net dead). Config-independent (happens in default too). Almost certainly a use-after-free of a lock-bearing struct under inode/daddr *reuse*.
+3. **Wedge #2a = durable-signal bmbt bwrite LOST-WAKEUP** — rank1 rm stuck in `mxfs_dir_bmbt_scan→xfs_bwrite→xfs_buf_iowait` with device **inflight=0** (bio never submitted or completion lost), lone task. Intermittent.
+4. **Wedge #3 = release-abort livelock** (the default config's *primary* limiter) — `P15-REL-ABORT ino=131` fires constantly: the hot shared dir's lock never hands off because the local workload re-acquires during every release drain → peers starve (40s+ waits) → barrier stall. Default config grinds to **r8** then wedges.
+
+**Levers tried:** `caw_fair_handoff=1` (durable_caw=1) is a **partial** improvement — got *past* the r8 wedge to **r11, fails=0**, but with degrading pace (cumulative backlog) → won't reach r24 within budget.
+
+**Left in tree (all KEEP):**
+- Build **0349484E (v0.10.51)** = orphan fix + new `P-IOWAIT-STUCK` probe in `pal/linux/xfs_buf.c`.
+- `run.sh` convergence gate **parallelized** (was serial 32-SSH → false PREP FAIL at N=32; now converges in 6-9s).
+- Diagnostics: `tests/drc_wedge_capture.sh`, `drc_hardhang_capture.sh`, `drc_autocapture.sh`, `drc_progress_watch.sh`.
+- All 32 nodes carry `unknown_nmi_panic=1` (`/etc/sysctl.d/99-mxfs-nmi.conf`) so a hard-hang can be captured via `virsh inject-nmi`.
+
+**Next steps (recorded in 6 `AAA-ccloopa864-sess5-*` memories):** fix the release-abort site (`xfs_mxfs_dlm.c:12056`) to be **starvation-aware** — proceed with the handoff (not abort) when a peer BAST has starved past a threshold; consider making `caw_fair_handoff=1` default alongside; on the next hard-hang, `inject-nmi` to get the spinlock caller and fix the lock-lifetime bug. The `WEDGE3-release-abort` and `END-fairhandoff-partial` memories have the precise plan.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

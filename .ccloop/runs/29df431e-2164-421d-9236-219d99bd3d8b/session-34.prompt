@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 34 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 33
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `1c266d43-b8d0-49b9-87d0-a918bd671e6b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b.jsonl`
+- approx context at last assistant turn: 165274 tokens
+- tools used: Bash×51 Read×12 Edit×2 Write×2 ScheduleWakeup×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/dump_faceb.sh
+- /src/mxfs/tests/faceb_stress.sh
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== seed tree /src/open-gpu-kernel-modules ==="; ls -d /src/open-gpu-kernel-modules 2>&1 | head -1; find /src/open-gpu-kernel-modules -type 
+    cd /src/mxfs; sed -n '90,140p' tools/mxfs_multinode_bench.sh 2>/dev/null
+    cd /src/mxfs; for i in $(seq 1 25); do if ! pgrep -f 'cache_coherency.sh' >/dev/null 2>&1; then echo "CRITERION DONE after ~$((i*20))s"; break; fi; sleep 20; do
+    cd /src/mxfs; if pgrep -f 'cache_coherency.sh' >/dev/null 2>&1; then echo "STILL RUNNING"; else echo "DONE"; fi; echo "=== output ==="; cat /tmp/claude-1000/-sr
+    cat /tmp/claude-1000/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b/tasks/b2um171fc.output 2>/dev/null | grep -aviE 'Warning|Unauthorized|authorized user' | tai
+    cat /tmp/claude-1000/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b/tasks/bcdx3zprq.output 2>/dev/null | grep -aviE 'Warning|Unauthorized|authorized user' | tai
+    cat /tmp/claude-1000/cache_coherency.h5cpRq.log 2>/dev/null | grep -aviE 'Warning|Unauthorized|authorized user' | grep -aiE 'test_|PASS:|FAIL:|assert|not exist|
+    cd /src/mxfs; L=/home/steve/.mxfs/results/20260604_083247/test_unlink_visibility; echo "=== node1.log fails ==="; grep -aiE 'FAIL|✗|cannot|not exist|still exist
+    cd /src/mxfs; echo "=== remount cluster ==="; timeout 300 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized acc
+    cd /src/mxfs; timeout 540 bash tests/faceb_stress.sh 25 40 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized access|authorized user' | tail -50
+    cd /src/mxfs; echo "=== xfs_readdir ilock ==="; grep -n 'xfs_ilock\|xfs_iunlock\|XFS_ILOCK' xfs/xfs_dir2_readdir.c 2>/dev/null | head; echo "=== xfs_lookup iloc
+    cat /tmp/claude-1000/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b/tasks/b4ikv67sb.output 2>/dev/null | grep -aviE 'Warning|Unauthorized|authorized user' | tai
+    cat /tmp/claude-1000/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b/tasks/b4ikv67sb.output 2>/dev/null | grep -aviE 'Warning|Unauthorized|authorized user' | gre
+    cat /tmp/claude-1000/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b/tasks/b4ikv67sb.output 2>/dev/null | grep -aE 'TOTAL_MISS' ; echo "=== which reporting node 
+    cd /src/mxfs; timeout 540 bash tests/faceb_stress.sh 25 40 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized access|authorized user' | grep -aviE '^MISS' | t
+    cd /src/mxfs; grep -n 'mxfs_dlm_ilock_begin\|mxfs_ilock_dlm\|XFS_ILOCK_SHARED\|XFS_ILOCK_EXCL\|lock_flags' xfs/xfs_inode.c | grep -iE 'ilock|dlm' | head -30; ec
+    cat /tmp/claude-1000/-src-mxfs/1c266d43-b8d0-49b9-87d0-a918bd671e6b/tasks/btg77xcjz.output 2>/dev/null | grep -aviE 'Warning|Unauthorized|authorized user' | tai
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=========== $n ==========="; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" 'dmesg 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test2 DIR-STALE-SKIP (first 3) ==="; timeout 15 bash tools/mxfs_sshpass.sh test2 "$P" 'dmesg | grep -aE "DIR-STALE-SK
+    cd /src/mxfs; echo "=== P-SFDIR-FASTEX sample (test2) ==="; timeout 12 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass 'dmesg | grep -aE "P-SFDIR-FASTEX" | hea
+
+## Last text from previous session
+
+ss on failure.
+Let me verify how `xfs_ilock(ILOCK_SHARED)` (used by readdir) routes to the DLM — does it bump the dir gen / acquire PR?
+readdir DOES route through the DLM (`ILOCK_SHARED` → `mxfs_dlm_ilock_begin(PR)`). Let me read the detector dump from the failure.
+The dump came back empty — none of the dir-coherency detectors fired. Let me query dmesg directly on all nodes with a broader pattern (the failing iter-1 events should still be present).
+Critical new signal: test2/3/4 show **`DIR-STALE-SKIP` (10-20×)**, **`P-SFDIR-FASTEX` (~88×)**, AND **`shutting down` + `Internal error`**. Let me see the actual DIR-STALE-SKIP lines and the shutdown context.
+Now I have decisive evidence. Let me record the key findings before deciding the next move:
+
+**DIR-STALE-SKIP** fired with `ino=16777344 blk=0 buf_gen=0 inode_gen=4 pin=1 disk_differs=1` — the proven lost-update window: a stale cached dir block can't be invalidated because it's **pinned** (own work in CIL), so it's served into RMW. **P-SFDIR-FASTEX fired 88×** (sticky cached dir EX, no reload). And under this extreme stress there's **also** a separate deeper EFSBADCRC inode-cluster corruption (`xfs_inode_buf_verify` daddr 0x3fb3b0).
+
+This is a 17+-session problem where the FUA/gen dir-block-invalidation class of fix has repeatedly failed (too slow, or incomplete). Per **RULE 5**, this is exactly when to consult Gemini. Let me gather the full "everything tried" context first, then consult.
+I've reached the relay boundary. Let me record this session's findings to state.md before wrapping up.
+State recorded. Criteria are not met (cache_coherency and rsync_paired still FAIL), so the marker is not written.
+
+## Session summary (sess73)
+
+**Confirmed where we stand (ground truth, not estimates):**
+- Ran the actual `cache_coherency` criterion: **FAIL, passed=3 failed=1**. The Face A fix (`8B1A4AD6`) holds — `cross_visibility`, `rename_visibility`, `cross_write_read` all PASS; rename_visibility is now ~96% reliable (18/18 this session, was ~50% pre-fix). The sole failure was `unlink_visibility` (2/122 asserts): a **phantom dirent** — `ls` returns a name whose `stat` says it's gone = a stale cached dir block missing a peer's delete.
+- So **cache_coherency's only remaining blocker is the shared-dir block coherency family (Face B)** — manifesting as missing dirents (rename) and phantom dirents (unlink).
+
+**Built a reliable reproducer** (`tests/faceb_stress.sh`): all nodes concurrently create K files into one shared dir with no barriers. `faceb_stress.sh 25 40` reproduces **on iter 1** (vs ~1/27 for the criterion test) — a contiguous suffix of one node's files lost on-disk across all nodes.
+
+**Decisive detector evidence** (build `8B1A4AD6`, instr=0):
+- `DIR-STALE-SKIP blk=0 buf_gen=0 inode_gen=4 pin=1 disk_differs=1` — the read hook can't invalidate a stale dir block because it's **pinned** in the CIL unpin pipeline (caveat: pin=1 may be this node's own uncommitted work, so disk trivially differs — needs a write-side detector to disambiguate).
+- `P-SFDIR-FASTEX cached_mode=EX state=CACHED` fired **88×/node** — sticky dir EX re-acquires with no reload/eviction.
+- A separate, deeper `EFSBADCRC` inode-cluster corruption (`xfs_inode_buf_verify`) appears only under my extreme stress, **not** in the criterion — flagged as not-to-chase first.
+
+**Also scoped `rsync_paired`** (the other FAIL): the bench tool exists and an XFS reference is present; the prior failure was `rsync_ec=1, dst=0` because the source tree wasn't seeded on the nodes (NFS race). Likely test-infra, addressable by pre-seeding `/src/open-gpu-kernel-modules`.
+
+**Next session** (per RULE 4 → RULE 5, recorded in state.md): add a write-side detector to prove own-work-pin vs genuine peer-divergence, then — given the dir-block FUA/gen class has failed 17+ sessions — consult Gemini for an architectural shared-dir coherency fix. Cluster needs a remount (`MKFS_OPTS=-f bash tests/reset4.sh 4`) since the aggressive stress shut down test2/3/4.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

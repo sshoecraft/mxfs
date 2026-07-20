@@ -1,0 +1,725 @@
+{
+  "categories": [
+    {
+      "category": "suite",
+      "transport": "any",
+      "tests": [
+        {
+          "name": "precond_readiness",
+          "group": "P0",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T08:31:29Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T08:39:02Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T08:48:39Z"
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T09:03:31Z"
+            }
+          }
+        },
+        {
+          "name": "posix_single",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=29 passed=29 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T09:03:33Z"
+            }
+          }
+        },
+        {
+          "name": "fsx",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=2 passed=2 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T09:03:54Z"
+            }
+          }
+        },
+        {
+          "name": "fio_verify",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T09:04:01Z"
+            }
+          }
+        },
+        {
+          "name": "integrity_filetypes",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=13 passed=13 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T09:04:03Z"
+            }
+          }
+        },
+        {
+          "name": "fio_perf",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "seqW=1570MiB/s seqR=8258MiB/s randW=3255iops randR=111456iops",
+              "reason": "",
+              "iso": "2026-07-05T09:04:27Z"
+            }
+          }
+        },
+        {
+          "name": "cache_coherency",
+          "group": "P2",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:31:42Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:39:23Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:49:32Z"
+            }
+          }
+        },
+        {
+          "name": "strong_consistency",
+          "group": "P2",
+          "coord": "ordered",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:31:48Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:39:29Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:49:39Z"
+            }
+          }
+        },
+        {
+          "name": "posix_multi",
+          "group": "P2",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:31:56Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:39:40Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:00Z"
+            }
+          }
+        },
+        {
+          "name": "mmap_coherency",
+          "group": "P2",
+          "coord": "ordered",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:32:02Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:39:45Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:05Z"
+            }
+          }
+        },
+        {
+          "name": "zero_silent_loss",
+          "group": "P2",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:32:07Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:39:52Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:13Z"
+            }
+          }
+        },
+        {
+          "name": "dlm_fairness",
+          "group": "P3",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:32:14Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:40:00Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:25Z"
+            }
+          }
+        },
+        {
+          "name": "dlm_membership",
+          "group": "P3",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:32:23Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:40:10Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:34Z"
+            }
+          }
+        },
+        {
+          "name": "scaling_curve",
+          "group": "P4",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:32:29Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:40:16Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:41Z"
+            }
+          }
+        },
+        {
+          "name": "dlm_scaling",
+          "group": "P4",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:32:43Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:40:30Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:50:59Z"
+            }
+          }
+        },
+        {
+          "name": "rsync_paired",
+          "group": "P5",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:33:22Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:41:10Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:51:39Z"
+            }
+          }
+        },
+        {
+          "name": "fault_enospc",
+          "group": "P6",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-05T09:04:27Z"
+            }
+          }
+        },
+        {
+          "name": "crash_consistency",
+          "group": "P6",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:33:32Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:41:23Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T08:52:03Z"
+            }
+          }
+        },
+        {
+          "name": "dir_reuse_coherency",
+          "group": "P6",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:36:06Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:45:29Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T09:00:44Z"
+            }
+          }
+        },
+        {
+          "name": "fence_during_write",
+          "group": "P6",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:36:27Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:45:50Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T09:01:06Z"
+            }
+          }
+        },
+        {
+          "name": "fault_netpartition",
+          "group": "P6",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:36:39Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:46:01Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T09:01:18Z"
+            }
+          }
+        },
+        {
+          "name": "soak",
+          "group": "P7",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1669 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-05T08:37:10Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1670 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-05T08:46:33Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1640 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-05T09:01:49Z"
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1883 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-05T09:04:58Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "category": "tooling",
+      "transport": "any",
+      "tests": [
+        {
+          "name": "mkfs_timing",
+          "group": "tooling",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "641ms (threshold<=10000ms)",
+              "reason": "",
+              "iso": "2026-07-05T09:04:59Z"
+            }
+          }
+        },
+        {
+          "name": "chk_clean",
+          "group": "tooling",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "rc=0 errors=0",
+              "reason": "",
+              "iso": "2026-07-05T09:04:59Z"
+            }
+          }
+        },
+        {
+          "name": "online_resize",
+          "group": "tooling",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "pre=1695MB post=3743MB delta=2048MB/+2048MB data_intact=yes",
+              "reason": "",
+              "iso": "2026-07-05T09:05:02Z"
+            }
+          }
+        },
+        {
+          "name": "dkms_install",
+          "group": "infra",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "add=0 build=0 install=0 installed=yes remove=0 clean=yes",
+              "reason": "",
+              "iso": "2026-07-05T09:06:29Z"
+            }
+          }
+        },
+        {
+          "name": "single_node_paired",
+          "group": "benchmark",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "xfs=(3053/3011/2939/3007)ms mxfs=(3101/2961/3083/3050)ms round_ratios=98,101,101,104 ratio=101% files=8714/8714",
+              "reason": "",
+              "iso": "2026-07-05T09:07:08Z"
+            }
+          }
+        },
+        {
+          "name": "fio_vs_xfs_baseline",
+          "group": "benchmark",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "seqW=1533/1499MiB rounds=99,102,416,175→138% randW=3498/3269iops rounds=94,107,224,136→121% worst_write=121% [reads cache-bound: seqR 103% randR 100%]",
+              "reason": "",
+              "iso": "2026-07-05T09:09:08Z"
+            }
+          }
+        },
+        {
+          "name": "cluster_ops_timing",
+          "group": "lifecycle",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "first=40ms rest=38ms umount=480ms",
+              "reason": "",
+              "iso": "2026-07-05T09:09:09Z"
+            }
+          }
+        },
+        {
+          "name": "fault_io_error",
+          "group": "faultinj",
+          "coord": "fault",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1",
+              "reason": "",
+              "iso": "2026-07-05T09:09:15Z"
+            }
+          }
+        },
+        {
+          "name": "precond_xinit_coherency",
+          "group": "substrate",
+          "coord": "ordered",
+          "min_nodes": 2,
+          "max_nodes": 1,
+          "runs": {}
+        }
+      ]
+    },
+    {
+      "category": "caw",
+      "transport": "caw",
+      "tests": [
+        {
+          "name": "dlm_lock_correctness",
+          "group": "caw",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "runs": {}
+        }
+      ]
+    },
+    {
+      "category": "tcp",
+      "transport": "tcp",
+      "tests": [
+        {
+          "name": "tcp_dlm_scaling",
+          "group": "tcp",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2",
+              "reason": "",
+              "iso": "2026-07-05T08:37:17Z"
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4",
+              "reason": "",
+              "iso": "2026-07-05T08:46:46Z"
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8",
+              "reason": "",
+              "iso": "2026-07-05T09:02:39Z"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

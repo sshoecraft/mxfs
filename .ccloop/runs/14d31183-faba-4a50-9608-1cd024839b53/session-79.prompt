@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 79 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 78
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `a8482bf7-b47e-4ef8-8c4a-983d99d5edff`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a8482bf7-b47e-4ef8-8c4a-983d99d5edff.jsonl`
+- approx context at last assistant turn: 255025 tokens
+- tools used: Bash×87 Read×21 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ccmemory__memory_search×2 Edit×1 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/.ccmemory/sess78-dirstress-2node-asymmetric-block-dir-read-staleness.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== real run_tests.sh bash processes (exact interpreter+script) ==="; ps -eo pid,args 2>/dev/null | awk '/[b]ash .*\/run_tests\.sh --nodes/{print}'  echo 
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for i in 1 2; do timeout 6 $SSH test$i $PF 'dmesg -C' >/dev/null 2>&1 & done; wait echo "d
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== PR reservation on /dev/sda (from test1) ==="; timeout 12 $SSH test1 $PF 'sg_pers
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass # helper: run a cmd on a list of nodes IN PARALLEL, collect tagged output prun() { local n
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2; do ( timeout 8 $SSH $n $PF 'dmesg -C' >/dev/null 2>&1 ) & done; wait
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass pkill -9 -f "[b]ash.*posix_semantics" 2>/dev/null; pkill -9 -f "[b]ash.*run_tests" 2>/dev/
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 8 $SSH test1 $PF 'mount|grep -c /mnt/shared; echo "barriers:"; ls -t /mnt/shared/.
+    cd /src/mxfs; echo "=== cluster tests (ordered) ==="; ls tests/cluster/*.sh 2>/dev/null echo "=== which test uses uv_ barriers ==="; grep -ln "uv_verify\|uv_del
+    cd /src/mxfs; echo "=== run_tests per-test invocation ==="; sed -n '78,140p' tests/run_tests.sh | grep -nE "for|run|\.sh|bash|source|time|echo|PASS|barrier|node
+    cd /src/mxfs; echo "=== where tests are executed (timing/loop) ==="; grep -nE "for t in|bash .*\$|run_test|elapsed|SECONDS|date \+|\"\$t\"|\$f\b" tests/run_test
+    cd /src/mxfs; rm -f /tmp/p78/clu2.out MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests nohup ./tests/run_tests.sh --nodes 2 --phase cluster --pass-file /tmp/.
+    f=/tmp/p78/clu2.out # wait up to 620s for "elapsed=" final line or process exit end=$((SECONDS+620)) while [ $SECONDS -lt $end ]; do   grep -qE "elapsed=[0-9]+s
+    sleep 1; f=/tmp/p78/clu2.out; echo "lines=$(wc -l <$f 2>/dev/null) @ $(date -u +%H:%M:%S)"; grep -vE "Warning|Unauth|disconn|^$" "$f" 2>/dev/null | grep -iE "PA
+    f=/tmp/p78/clu2.out; echo "=== $(date -u +%H:%M:%S) lines=$(wc -l <$f) ==="; grep -vE "Warning|Unauth|disconn|^$|Domain " "$f" 2>/dev/null | grep -iE "Running:|
+    f=/tmp/p78/clu2.out end=$((SECONDS+600)) prev="" while [ $SECONDS -lt $end ]; do   if grep -qE "elapsed=[0-9]+s|Summary|All tests" "$f" 2>/dev/null; then echo "
+    f=/tmp/p78/clu2.out; echo "=== $(date -u +%H:%M:%S) ==="; grep -vE "Warning|Unauth|disconn|^$|Domain " "$f" 2>/dev/null | grep -iE "Running:|PASS|FAIL|elapsed|t
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== dir_stress node1.log failures ==="; sed -n '1,60p' /home/steve/.mxfs/results/202
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass pkill -9 -f "[r]un_tests.sh --nodes 2" 2>/dev/null; sleep 1 R=/home/steve/.mxfs/results/20
+    cd /src/mxfs; timeout 200 bash tests/reset4.sh 2 2>&1 | grep -vE "Warning: Perman|Unauthorized|disconnect" | tail -4
+    cd /src/mxfs/.ccmemory 2>/dev/null && { echo "=== .ccmemory dir EXISTS ==="; echo "total .md memory files: $(ls *.md 2>/dev/null | wc -l)"; echo "=== newest 6 =
+
+## Last text from previous session
+
+TENTS` over stale shortform bytes (the sess77 torn dir-inode). Patched the iflush write boundary to force the literal area to match the format.
+2. **SCST CAW abort-reclaim fix** (your other session's work) — deployed and **live** at `3.11.0-pre+caw-abort-reclaim.1`. Had to clear a live D-state wedge first (via `scst_unwedge.ko`, no host reboot) and rebuild `iscsi-scst` to match the version string. The first 16-node run hit the exact wedge it fixes — so it's load-bearing for reliable testing.
+
+**The breakthrough (from scaling down to 2 nodes):** `posix_multi16`'s blocker is **not** 16-node contention/slowness — it's a **correctness bug in `test_dir_stress` that reproduces at 2 nodes in ~8s.** It's **asymmetric**: node1 (the parent-dir owner) fails to see *any* of node2's 20 dirs, while node2 sees node1's fine. The shared parent dir grows to block/btree format and the owner's cached dir-data blocks aren't reloaded on the peer's modify — block-format-dir read staleness. P78 did not fix this (different failure mode). This passes `cache_coherency` (4-node) only because that uses small/shortform dirs.
+
+**Corrections I owe you:** parallel reboots don't scale with node count (I was wrong); some of my verification loops were serial (fixing). And my "slow at 2 nodes" read was wrong — the run was progressing; I'd just cut it off.
+
+**State:** cluster clean-mounted at 2 nodes, ready for the next step. Findings saved to memory. **Marker NOT written** — `posix_sem
+Don't panic — let me check the facts before either of us concludes anything. "Disconnected" was the *harness* reporting that the MCP tool interface dropped for this session (it batched several: ccmemory, ccteam, ask_gemini, searxng, ccusage all went at once — that pattern means the MCP transport dropped, not that any one server crashed). **ccmemory's actual data is `.md` files on disk in `/src/mxfs/.ccmemory/` — the MCP server is just an access layer over them.** Let me confirm the files are all intact:
+All intact — **nothing was lost.** Facts:
+
+- `.ccmemory/` directory present, **265 memory `.md` files** on disk.
+- **Both** memories I wrote this session are there: `sess78-scst-caw-abort-reclaim-fix...` (09:05) and `sess78-dirstress-2node-asymmetric-block-dir-read-staleness...` (09:50).
+- `MEMORY.md` index present.
+
+The "disconnected" message was the **harness dropping the MCP tool interface for this session** — it batched ccmemory + ccteam + ask_gemini + searxng + ccusage all in one notification, which is the signature of the MCP transport dropping, not any server crashing or any data being deleted. ccmemory stores everything as flat `.md` files; the server is just a query layer on top. That's exactly why I switched to writing the memory as a direct file when the tool went away — it lands in the same place the server reads from.
+
+One minor caveat: `MEMORY.md` (the generated index) is timestamped 09:24, *before* my 09:50 direct file write — so the regen hook didn't fire for that last file (I bypassed the MCP `memory_write` that normally triggers it). The memory file itself is safely on disk; the next session's `memory_list` reads the files directly, so it'll see it regardless. If you want, a fresh session with ccmemory reconnected can run `memory_regen_index` to refresh the index cosmetically.
+
+So: not a hard stop, no memory loss.
+
+I'm at the relay boundary. **Session summary:** deployed the MXFS P78 torn-dinode barrier (`7D1492FC`) + the SCST abort-reclaim fix (live, `+caw-abort-reclaim.1`, cleared a real wedge via `scst_unwedge.ko` without rebooting clyde). Biggest win: scaling down (your call) revealed `posix_multi16`'s blocker is a **2-node, ~8s, deterministic correctness bug** — `test_dir_stress` asymmetric block-format-dir read staleness (node1/parent-owner can't see node2's 20 dir additions). Cluster is clean-mounted at 2 nodes; next step is the remount-verify to confirm read-staleness vs write-loss, then fix the parent-dir reload. Marker NOT written (3 criteria still open).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

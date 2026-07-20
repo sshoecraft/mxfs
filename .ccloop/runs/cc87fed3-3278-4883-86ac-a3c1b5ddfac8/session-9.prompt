@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 8
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `64e0fdc9-58fe-43ff-aa2e-66660efb6485`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485.jsonl`
+- approx context at last assistant turn: 506579 tokens
+- tools used: Bash×120 Read×41 Edit×29 mcp__ccmemory__memory_get×9 mcp__ccmemory__memory_search×7 TaskCreate×5 TaskUpdate×5 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_list×1 mcp__ccteam__peers×1 mcp__ccteam__status×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/VERSION
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/suite/dlm_scaling.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/host_cpu_live2" mkdir -p "$SP" rm -f /tmp/mxfs_run.lock MXFS_DEV=/dev/mapper/mpat
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/host_cpu_live2" echo "=== aggregate (all CPUs) row over time: usr/sys/iowait/idle
+    python3 -c " import json d = json.load(open('/src/mxfs/criteria.json')) for cat in d.get('categories', []):     for t in cat.get('tests', []):         if t.get(
+    grep -n "mxfs_buf_xfsaild_skip_dir_write\|dir_ex_write_guard\|dir_stale_incarn_skip\|dir_subset_guard\|dc_stale\|fresh_ex_seq" pal/linux/xfs_buf.c | head -40
+    grep -n "^int mxfs_dataclobber\|^int mxfs_dir_ex_write_guard\|^int mxfs_dir_stale_incarn_skip\|^int mxfs_dir_subset_guard\|^int mxfs_dir_refresh_inplace" pal/li
+    grep -rn "^int mxfs_dataclobber\|^int mxfs_dir_ex_write_guard\|^int mxfs_dir_stale_incarn_skip\|^int mxfs_dir_subset_guard \|^int mxfs_dir_refresh_inplace" --in
+    grep -rn "int mxfs_dir_subset_guard" --include=*.c . | grep -v "\.backup"
+    make modules 2>&1 | grep -iE "error:"; echo "---build check done---"; modinfo mxfs.ko | grep srcversion
+    bash scripts/caw_preflight.sh 8 2>&1 | tail -10
+    rm -f /tmp/mxfs_run.lock MXFS_DEV=/dev/mapper/mpatha timeout 580 ./run.sh 8 caw 2>&1 | tail -40
+    ps aux | grep -E "run\.sh" | grep -v grep cat /tmp/mxfs_run.lock 2>/dev/null
+    END=$((SECONDS+400)) while [ $SECONDS -lt $END ]; do   if ! kill -0 2201543 2>/dev/null; then     echo "run.sh process exited"     break   fi   sleep 10 done ps
+    rm -f /tmp/mxfs_run.lock python3 -c " import json d = json.load(open('/src/mxfs/criteria.json')) from collections import defaultdict summary = defaultdict(dict)
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/suite8_remain" mkdir -p "$SP" rm -f /tmp/mxfs_run.lock nohup env MXFS_DEV=/dev/ma
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/suite8_remain" PID=$(cat "$SP/pid") END=$((SECONDS+560)) while [ $SECONDS -lt $EN
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/suite8_remain" PID=$(cat "$SP/pid") kill -0 "$PID" 2>/dev/null && echo "STILL RUN
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/suite8_remain" PID=$(cat "$SP/pid") END=$((SECONDS+400)) while [ $SECONDS -lt $EN
+    SP="/tmp/claude-1000/-src-mxfs/64e0fdc9-58fe-43ff-aa2e-66660efb6485/scratchpad/suite8_remain" wc -l "$SP/run.log" tail -50 "$SP/run.log" echo "=== criteria.json
+    python3 -c " import json d = json.load(open('/src/mxfs/criteria.json')) for cat in d.get('categories', []):     for t in cat.get('tests', []):         if t.get(
+    make modules 2>&1 | grep -iE "error:"; echo "---build check done---"; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+and I've now spent significant effort on this specific single-node-variance tail issue, let me check where criteria.json currently stands — my last run actually recorded a clean PASS.
+Substantial progress on dlm_scaling. Let me checkpoint this to memory before moving to the next front, given how much ground has been covered.
+The cache_coherency "uv gone" bug is a well-diagnosed but unfixed issue from 16-node investigation (Case B: a peer's stale cached dir buffer gets async-destaged by xfsaild, reintroducing an already-removed dirent). A write-side probe was designed but never implemented. Let me check the current state of the relevant code before adding it.
+Confirmed: the existing clobber detector is one-directional (`dcnt > bcnt` only — protects against *erasing* disk's extra content, never against *reintroducing* removed content). Let me check which of the gating params are actually active by default before making the fix.
+Clean build. Given this touches a core write-path safety guard, let me regression-test at 8-node (already 17/17) before risking the 32-node cluster, to catch any subtle over-aggressive skip.
+Good — cache_coherency and 11 other tests passed cleanly, no regressions. 5 slower tests were interrupted (marked PENDING) when my monitoring window ran out, not failed. Let me finish them.
+posix_multi is now failing (3/8) — this needs investigation since it wasn't failing before my change. Let me wait for the rest to finish, then dig in.
+This is a serious regression — renamed file content going empty and hardlinks disappearing is data loss. My "any mismatch" symmetrization was unsafe: a legitimate post-release async destage of our *own* correctly-dirtied buffer can also show `bcnt > dcnt` (we added something, haven't destaged yet) — indistinguishable by count alone from a stale peer buffer reintroducing removed content. I need to revert immediately.
+Finishing this revert now — I need to also undo the leaf-format half of the same unsafe change before stopping.
+## Session summary
+
+**Landed and validated:** Root-caused and fixed the primary `dlm_scaling@32` blocker — `find_slot()` can never report a tombstone as "found" (its contract only matches live slots), so the epoch-reset call session 7 built was silently no-op'ing 100% of the time regardless of hook placement. Real fix: threaded an `is_free` flag into `mxfs_dlm_caw_unlock_gen()` so the epoch clear piggybacks on the unlock's own existing tombstone CAS — zero extra I/O. Aggregate dlm_scaling throughput went from a historical ~1319-1650 ops/s ceiling to a stable ~1794-1805 ops/s, with two clean 32/32 passes observed. Also landed a secondary fix for a shortform-directory content-staleness gap at sf→block conversion time (extended `mxfs_dir_modify_adopt_disk_format`'s check, re-enabled its previously-disabled call site).
+
+**Investigated but reverted:** Attempted to fix `cache_coherency@32`'s "uv gone" dangling-dirent bug (a well-documented, previously 16-node-diagnosed Case-B mechanism) by making the xfsaild dir-block clobber guard bidirectional. This regressed `posix_multi@8/caw` (renamed content came back empty, a hardlink disappeared) — confirmed as a real regression by reverting and rebuilding back to the identical prior srcversion. Root cause of the unsafety is understood and documented: a count/checksum-only comparison can't distinguish a genuinely stale peer buffer from a legitimate async post-release destage of our own correctly-dirtied work. Tree is back to a clean, safe build (VERSION 0.10.104, srcversion `C9D0F29C6FCADEAF836A132`) with no partial edits.
+
+**Remaining work**, all detailed in memory `AAA-ccloopcc87-sess8-END-cachecoh-bidirectional-clobber-REVERTED`: a correct fix for cache_coherency's dangling-dirent bug (needs per-entry provenance, not aggregate counts); running the 12 of 17 32-node criteria that have never completed a real pass; and a final 1/2/4/8/16-node regression pass. Criteria are **not yet met** — 32-node caw is closer but not at 100%.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

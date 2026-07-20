@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 33 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 32
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `a0083bd5-8507-4339-a501-5979e600ee24`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a0083bd5-8507-4339-a501-5979e600ee24.jsonl`
+- approx context at last assistant turn: 260482 tokens
+- tools used: Bash×97 Edit×15 Read×2 ToolSearch×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/sess88_workload_a_modeN_baseline.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 $S test15 $P "journalctl -k --since '2026-06-12 11:08:27' --utc 2>/dev/null | grep 'DIR-STALE-S
+    sed -n 1100,1215p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n 1330,1420p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "mxfs_dir_drain_evict_data_blocks\|mxfs_dir_evict_data_blocks" /src/mxfs/xfs/xfs_mxfs_dlm.c | head; sed -n "$(grep -n 'mxfs_dir_evict_data_blocks(struct
+    sed -n 900,1010p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n 820,900p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n 765,800p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "xfs_buf_incore(mp->m_ddev_targp, daddrs\[i\], dir_blk_bb" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -i 's/xfs_buf_incore(mp->m_ddev_targp, daddrs\[i\], dir_blk_bb,/xfs_buf_incore(mp->m_ddev_targp, daddrs[i], lens[i],/' xfs/xfs_mxfs_dlm.c && grep -n "daddrs
+    grep -n "define MXFS_DIR_DRAIN_MAX" xfs/xfs_mxfs_dlm.c
+    make modules 2>&1 | grep -E "error|warning: unused|undefined" | head -8; modinfo mxfs.ko | grep srcversion
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; bad=""; for n in $(seq 1 16); do r=$(timeout 15 $S test$n $P "umount -f /mnt/shared 2>/dev/null; rmmod mxf
+    date -u +"%Y-%m-%d %H:%M:%S" | tee /tmp/zsl_fix_start; INSMOD_OPTS="dirwr=1" timeout 480 ./tests/criteria/zero_silent_loss.sh --iters 1 2>&1 | tail -3
+    tail -25 /tmp/zero_silent_loss.ssBUwk.log
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in 1 2 3 16; do echo "== test$n:"; timeout 12 $S test$n $P "journalctl -k --since '2026-06-12 11:31:
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 $S test1 $P "journalctl -k --since '2026-06-12 11:32:00' --utc 2>/dev/null | grep -iE 'corrupt|
+    grep -rn "xfs_need_iread_extents" /src/mxfs/xfs/xfs_mxfs_dlm.c /src/mxfs/xfs/libxfs/xfs_inode_fork.h | head -4
+    grep -n "mxfs_dir_evict_owned_bufs\|mxfs_dir_collect_owned_bufs\|mxfs_dir_buf_owned_by\|MXFS_DIR_OWNED_MAX" xfs/xfs_mxfs_dlm.c
+    sed -n 776,784p xfs/xfs_mxfs_dlm.c; echo ...; sed -n 858,872p xfs/xfs_mxfs_dlm.c; echo ...; sed -n 960,1030p xfs/xfs_mxfs_dlm.c | head -80
+    make modules 2>&1 | grep -E "error|warning" | head -8; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+Continuing the run: deploy build `DC5E59F4` (BTREE-format dinode-revert probe), run `zero_silent_loss` with `dirwr=1`, and mine for `P133-DIRINO-REVERT` evidence. First, re-orienting on criteria and build state.
+The 08:05Z run was on the new build and `P133` fired 4 times on test3 alone. Pulling the full P133 evidence across all nodes.
+While nodes boot, verifying the detector wiring in the new build.
+Reproduced with the detector armed — 26 silent losses. Mining journald for the revert detector.
+No re-exec there. Testing the expansion path directly:
+test4 is wedged from the prior corrupting run. Checking all nodes and power-cycling whatever can't unload.
+While they boot, mining the 10:50 storm window for the always-on probes.
+Armed and reproduced (70 losses). Mining for the revert detectors.
+Writing the fix now — three edits: an owner-based collector, a BTREE branch in the eager evict, and BTREE support in the drain-evict.
+Now the owner-walk evict body, placed right after `mxfs_dir_evict_data_blocks` ends:
+Build `70926D6B` clean. Resetting node state and running the targeted criterion with probes still armed.
+Verify phase died on node0. Checking node states — possible new-code lockup or shutdown.
+Session 32 summary — the zero_silent_loss root cause is found and the fix is built, pending verification:
+
+**Root cause (proven):** every dir coherency fence (`mxfs_dir_evict_data_blocks`, `mxfs_dir_drain_evict_data_blocks`) silently bailed when the shared storm dir grew into **BTREE format** — and the eager evict returned `true` ("all evicted"), a lie that advanced `i_dlm_dir_evicted_gen` so every subsequent modify fast-pathed (`P106-MR-SKIP`) onto stale cached dir blocks. Evidence: `DIR-STALE-SKIP ino=131 buf_gen=0 inode_gen=365` (block never refreshed across 365 reloads) with all evict probes at zero. Both zsl failure modes — quiet dirent loss (26–70/iter) and the cluster-wide `corrupt dinode 131 (btree extents)` storm (~1590/iter, via stale bmbt children) — are downstream of this one gap.
+
+**Fix (build `FF401F22`, untested):** gate the fences on *extents-loaded* (`xfs_need_iread_extents`) instead of fork format — the iext walk works for BTREE forks too; unenumerable dirs now report not-coherent instead of lying. A first attempt using a per-AG buffer-cache owner-walk was functionally correct but O(whole cache) per modify and starved the dir-EX handoff cluster-wide (`SESS50-STARVE` wedge) — retired.
+
+**Also fixed:** the zsl harness now actually delivers `INSMOD_OPTS` (prep script pre-loads the module param-less; forced fresh load added) — two earlier "instrumented" runs had silently run with the detector disarmed. New `P134-BMBT-WR/REVERT` write-side probe added.
+
+**Next session:** clean the cluster, run one zsl iteration on `FF401F22` with `dirwr=1`; if quiet loss persists, apply the planned destaged-AIL-residue retirement (`xfs_buf_item_done` + delwri-flag clear) to the evict's `undurable` test; the P124 AG-meta stale-push mechanism remains open behind it. Full detail in memory `sess32-run14d-zsl-btree-dir-fence-root`.
+
+Criteria not met (zero_silent_loss unverified) — the marker stays unwritten.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

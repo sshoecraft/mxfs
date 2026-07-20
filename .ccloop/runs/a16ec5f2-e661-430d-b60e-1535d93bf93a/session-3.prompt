@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a16ec5f2-e661-430d-b60e-1535d93bf93a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a16ec5f2-e661-430d-b60e-1535d93bf93a, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b0c3a105-dc18-45d5-96a2-685e50d02787`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b0c3a105-dc18-45d5-96a2-685e50d02787.jsonl`
+- approx context at last assistant turn: 503228 tokens
+- tools used: Bash×137 Read×19 Edit×11 TaskUpdate×6 TaskCreate×5 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 TaskList×1 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/lio_tcm_setup.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/dir_leaf_dump.py
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    time scripts/drc_reliability.sh 8 1 2>&1 | tail -3 | cut -c1-250
+    for L in 12693 17794 19831 19987 22277 9259 9357 11806; do echo "=== xfs_mxfs_dlm.c:$L ==="; sed -n "$((L-14)),$((L+2))p" /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -E
+    grep -n 'DLM inode lock failed' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; grep -rn 'EDEADLK\|-35' /src/mxfs/dlm/dlm.c | grep -v '\*' | head -8
+    tail -3 /tmp/claude-1000/-src-mxfs/b0c3a105-dc18-45d5-96a2-685e50d02787/tasks/b2z0idlde.output | cut -c1-220; grep -o 'real.*' /tmp/claude-1000/-src-mxfs/b0c3a1
+    grep -E 'RUN 1|TOTAL' /tmp/claude-1000/-src-mxfs/b0c3a105-dc18-45d5-96a2-685e50d02787/tasks/b2z0idlde.output | cut -c1-200
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for k in 1 2 3 4 5 6 7 8; do timeout 20 $SSH test$k $PF 'echo "test'$k': pinnedreread=$(dmesg | grep -c 
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 30 $SSH test2 $PF 'dmesg | grep "PHASE=create-start" | awk "{gsub(/[\[\]]/,\"\",\$1); if(p){prin
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 30 $SSH test2 $PF 'dmesg | grep "PHASE=create-start" | tail -20' 2>/dev/null | grep -v '^Warning
+    df /home/steve | tail -1; lsblk -o NAME,ROTA,TYPE,MODEL 2>/dev/null | head -12; python3 - <<'EOF' import os,time f=os.open('/home/steve/disk.img',os.O_WRONLY) #
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 30 $SSH test2 $PF 'dmesg | grep -E "DRCph r=(6|7|15|16)( |$)" | grep rank=2' 2>/dev/null | grep 
+    sed -n 1,58p /src/mxfs/scripts/lio_tcm_setup.sh; sed -n 110,160p /src/mxfs/scripts/lio_tcm_setup.sh
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; echo "VMs destroyed" bash /src/mxfs/scripts/lio_tcm_setup.sh teardown
+    grep -H . /sys/kernel/config/target/core/fileio_*/mxfs/attrib/emulate_write_cache /sys/kernel/config/target/core/fileio_*/mxfs/attrib/emulate_fua_write 2>/dev/n
+    time scripts/drc_reliability.sh 8 1 2>&1 | grep -E 'RUN 1|TOTAL' | cut -c1-160
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 30 $SSH test1 $PF 'echo "pinnedreread=$(dmesg | grep -c P-PINNED-REREAD)"; dmesg | grep -B30 "Me
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 30 $SSH test1 $PF 'dmesg | grep -E "metadata I/O error|I/O error in file|daddr" | head -6; echo 
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass timeout 30 $SSH test1 $PF 'dmesg | grep -E "P15-EXTSHAPE|P-HOLE-DISK" | head -14' 2>/dev/null | grep -v 
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for k in 1 2 3 4 5 6 7 8; do (timeout 25 $SSH test$k $PF 'dmesg | grep -E "IFLUSH-GAP|P62-RELOAD-FORK-SH
+    grep -n 'mxfs_submit_partial_inode_write' /src/mxfs/pal/linux/xfs_buf.c | head -3
+    grep -n 'int mxfs_partial_iwrite\|module_param_named(partial_iwrite' /src/mxfs/xfs/xfs_mxfs_dlm.c; sed -n "$(grep -n 'int mxfs_partial_iwrite' /src/mxfs/xfs/xfs
+
+## Last text from previous session
+
+ISK-SKIP left in the tree — checking what the actual matching lines are on the nodes:
+No phase markers at all in test2's window — checking what's actually at the end of its ring:
+Spam stopped at t≈2999 (~190s post-run drain tail, not a livelock; mount still up as expected). Now quantifying what accumulates per round — counting key event classes per round window against the round duration:
+xfs_bmap needs FSGEOMETRY (not wired). Going raw: decoding ino131's dinode straight off the device — need the envelope's sector offset and sb geometry from the tree:
+NFS mount is gone on test1 (known infra quirk). Remounting and rerunning:
+Adding the watch at the top of `xfs_buf_submit_bio` (single choke for all xfs_buf I/O), with stack dumps on writes:
+Different failure this time — test1 hit a hard shutdown (Metadata I/O Error reading a dir block during create on ino131). Grabbing the watch hits from all nodes before the rings rotate:
+Watch fired heavily on all nodes (1027-3158 hits) — the daddr was in play again. Pulling the full watch timelines and the current disk content at the daddr:
+Field misparse — the padded timestamp splits oddly. Counting directions with plain grep:
+Now the release sequence itself — where the full-sync must live:
+`Mode: O_DSYNC` confirmed. Verifying attribs, then launching the measurement run:
+Relay boundary reached — checkpointing the decisive run12 diagnosis before handoff:
+Session 2 wrap-up. **Criteria not met — no marker written.** Substantial ground gained; the next session has a precise, instrumented target.
+
+## What this session fixed and verified
+
+1. **FIX-A (environment root)**: LIO rejected every release-path `WRITE(16)+FUA` — 5,461 "does not advertise FUA write" rejections on clyde, because the fileio backstore ran buffered with `emulate_write_cache=0` (LIO requires WCE=1 to accept the FUA bit). Fixed live + persisted + in `scripts/lio_tcm_setup.sh`. Verified: `P13-RELFUAWR` EIOs went from ~300/node/run to zero.
+2. **FIX-B (code)**: the `P-RELOAD-TORN-DISK-SKIP` refusal treated legitimate post-partial-rm holey dir maps as "torn disk" and locked all 8 nodes on stale maps forever (run7's mass divergence, proven from dumps: rm left 799/800 removed, hole at block 1, everyone refused adoption). Now adopts with a log marker. Verified: the mass-divergence face is gone; runs reach r21-24.
+3. **Pace root fixed**: WCE=1 on a buffered backstore made guests send real SYNCHRONIZE CACHE/FUA — write phases doubled (create 4.6→7.7s, rm 3.6→8s, verify unchanged), so even a *perfect* run (run11: 24 rounds, zero failures) blew the 480s budget at ~22s/round. Rebuilt the backstore **write-through (O_DSYNC) with WCE=1 kept** — honest semantics, cheap flushes, FUA still accepted. Run12's early rounds confirm the speedup.
+
+## The proven remaining root (next session's target)
+
+Run12 caught it in the act: **the shared dir's durable dinode regressed nx=9→1 mid-create** (test1 read nx=9 at t=66.58; test4 read nx=1 at t=66.52; all nodes then watched it re-climb 1→6). The allocation lineage forked, publishing a holey map whose missing block reads as prior-run garbage → `DABUF_MAP_HOLE` → shutdown. This one mechanism explains run9's shutdown, run10's 4-dirent cluster-wide loss, and likely the un-unlinkable-name face. It's an inode-cluster false-sharing publish that bypasses `partial_iwrite=1`; top suspect is the **inode-chunk free/re-init whole-buffer write** (`XFS_BLI_INODE_ALLOC_BUF` fallback) landing late over the new incarnation's dinode. The block-watch instrumentation (`mxfs.watch_daddr`, in deployed build `7781DCE7`) is ready to catch the writer with a stack — that's the first move next session, followed by 8/tcp consecutive-clean runs, 4/2/1 regression, then full `./run.sh N tcp` suites before any marker.
+
+Two probe-artifact corrections are logged in memory so they aren't re-derived: dir3 leaf magic lives at offset 8 (the "all-zero leaf on disk" was my decoder bug), and P21H fires on every legitimate create-path ENOENT lookup.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

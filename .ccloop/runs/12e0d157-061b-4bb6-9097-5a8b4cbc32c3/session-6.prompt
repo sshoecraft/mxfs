@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/12e0d157-061b-4bb6-9097-5a8b4cbc32c3/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 12e0d157-061b-4bb6-9097-5a8b4cbc32c3, after session 5
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `eac11e6c-9f46-4821-971a-a24189746c0a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a.jsonl`
+- approx context at last assistant turn: 499731 tokens
+- tools used: Bash×119 Read×32 Edit×17 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×4 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.ccmemory/caw-sess5-NEXT-correct-fix-mirror-iget-create-gate.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "P20-CLUSTER-INVAL site=reload\|xfs_buf_stale(stale_bp)\|force-clear XBF_DONE so re-read" xfs/xfs_mxfs_dlm.c | grep -v backup | head
+    cd /src/mxfs; echo "=== kept_protected usage downstream of the stale block ==="; awk 'NR>14440 && NR<15100 && /kept_protected/{print NR": "$0}' xfs/xfs_mxfs_dlm
+    cd /src/mxfs; echo "=== all kept_protected references ==="; grep -n "kept_protected" xfs/xfs_mxfs_dlm.c | grep -v backup
+    cd /src/mxfs; echo "=== build ==="; make modules 2>&1 | grep -iE "error|warning.*mxfs_reload|warning.*reload_owned|undefined|declaration-after" | head; ls -la m
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; for i in $(seq 1 32); do virsh -c qemu:///system destroy test$i >/d
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== cache_coherency + strong_consistency @4 with reload_skip_
+    cd /src/mxfs; echo "=== 4/caw current recorded state ==="; ./showstat.sh 4 caw 2>/dev/null | grep -iE "cache_coherency|strong_consist|Total"
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== restore 4/caw: cache_coherency@4 with default params (rel
+    cd /src/mxfs; echo "=== criteria state all levels (verify no regressions) ==="; for N in 1 2 4 8 16 32; do printf "%2d/caw: " $N; ./showstat.sh $N caw 2>/dev/nu
+    cd /src/mxfs; echo "=== where the storm reload is triggered: mode==0 grant callback + iget recycle create-context ==="; grep -n "XFS_IGET_CREATE\|iget_recycle\|
+    cd /src/mxfs; echo "=== last-EX-owner / prior-owner accessors in dlm ==="; grep -rnE "last_ex|prior_ex|last_owner|prev_owner|ex_owner|last_holder|prior_owner|gr
+    cd /src/mxfs; echo "=== mxfs_v5_dlm_inode_grant_handoff definition ==="; L=$(grep -n "mxfs_v5_dlm_inode_grant_handoff" dlm/v5_mount.c | grep -v backup | head -1
+    cd /src/mxfs; echo "=== mxfs_dlm_caw_grant_handoff definition ==="; L=$(grep -n "mxfs_dlm_caw_grant_handoff" dlm/dlm_caw.c | grep -v backup | grep -iE "^\s*[0-9
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== build ==="; make modules 2>&1 | grep -iE "error|undefined
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== waiting for cache_coherency + strong_consistency @4 ===";
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== waiting for dir_reuse_coherency@4 (budget 560s) ==="; for
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; for w in $(seq 1 13); do sleep 9; if grep -qiE "dir_reuse.*(PASS|FA
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; for w in $(seq 1 13); do sleep 10; if grep -qiE "dir_reuse.*(PASS|F
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== restore 4/caw dir_reuse (param OFF default) ==="; MXFS_DE
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/eac11e6c-9f46-4821-971a-a24189746c0a/scratchpad; echo "=== waiting for dir_reuse@4 restore (param off) ==="; for w i
+
+## Last text from previous session
+
+`last_ex_slot==peer` so the handoff bool is TRUE (→ reload correctly). Let me check what `mxfs_v5_dlm_inode_grant_handoff` returns:
+**This is the fix.** `mxfs_v5_dlm_inode_grant_handoff` returns `handoff` = "a PEER was the last EX holder." My refutation was caused by the extra `gg != 0` condition (CAW epoch restarts to 0 → false negative). The correct check is **`!handoff`** (self/none was last EX), scoped to the **`mode==0`** self-freed-shell arm (peer-data reads have mode!=0). Let me correct the computation:
+Build and validate at 4 nodes — coherency must hold (cache_coherency + strong_consistency + dir_reuse cross-node):
+**Corrected fix holds coherency: cache_coherency@4 = 4/4, strong_consistency@4 = 4/4** (vs 0/4 for the refuted version!). The `!handoff` signal scoped to mode==0 is correct. Now the critical test — `dir_reuse@4` (cross-node inode reuse, where the fix must NOT skip). Let me wait for it:
+dir_reuse@4 still running (budget 560s). Let me wait longer:
+dir_reuse@4 = 0/4 with the fix — **the fix breaks cross-node inode reuse** (cache_coherency + strong_consistency pass, so it's specifically the reuse case: the `!handoff` bit doesn't reliably catch a peer recreating our freed inode number). This also regressed 4/caw. I must restore it. Let me launch the restore (param off) and record the finding:
+Let me record the approach-2 finding (progress + refutation) while the restore runs:
+Recorded. Now I must verify the 4/caw restore completes (dir_reuse@4 with param off should pass ~9min). Let me wait:
+I've reached the ccloop relay boundary. Let me give a brief honest summary.
+
+## Session 5 summary — criteria NOT met (marker not written)
+
+**In-flight:** `dir_reuse@4` restore run (param OFF) is running in background (`bzgunm72a`) to restore 4/caw to 17/17 after my param-on validation regressed it. It was launched with the fix off, so it should pass — **next session must confirm 4/caw = 17/17** (`./showstat.sh 4 caw`).
+
+**Criteria state:** 1/2/4/8 caw = 17/17, 16/caw = 16/17 (dir_reuse pending), 32/caw = 13 PASS / 2 FAIL / 2 PENDING — unchanged from session start (no net regressions once the restore lands).
+
+**Major progress this session (proven, in ccmemory):**
+1. **The 32-node coherency failure is FUNDAMENTAL, not substrate degradation** — proven on a fully-fresh cluster: `cache_coherency@32` and `crash_consistency@32` both **time out** (>300s); `dlm_scaling@32` = 5–28/32 (high variance from a read-storm feedback loop).
+2. **Exact root identified** (RULE-4, via an `xfs_buf_stale` attribution probe): the storm is cache-bypassing **FUA re-reads** of inode clusters staled by **`mxfs_dlm_reload_inode`** (xfs_mxfs_dlm.c:14417) on the **`mode==0` reused-inode grant** arm. At 32-node concurrency these saturate the single shared iSCSI target.
+3. **Two fix attempts, both param-gated default-off (safe), both refuted — narrowing precisely:**
+   - Attempt 1 (grant-handoff *gen*): broke cache_coherency@4 (gen==0 ambiguous with first-read-of-peer).
+   - Attempt 2 (build 30B29D85: `mode==0` arm + CAW `handoff` *bit* = `last_ex_slot != self`): **passes cache_coherency@4 4/4 + strong_consistency@4 4/4** (big step) but **fails dir_reuse@4 0/4** — the prior-EX-owner bit is insufficient under aggressive cross-node inode reuse.
+4. **Conclusion for next session:** prior-owner signals alone can't prove "no peer wrote" under cross-node reuse; the clean fix is likely **Fable's PR-lookup-caching** (hold PR on shared resources; re-read only on a real EX BAST) — or a stronger per-inode verify. Fast validation oracle established: `run.sh 4 caw cache_coherency strong_consistency dir_reuse_coherency` with the param on; **always restore any FAILed cell with a param-off re-run** (a FAIL overwrites the recorded PASS).
+
+Six ccmemory entries capture the full diagnosis, both refutations, and the next-step design. Deployed build 30B29D85 is coherency-safe with `reload_skip_owned=0` (default); do not enable it until dir_reuse is green. Cluster is healthy (32/32).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

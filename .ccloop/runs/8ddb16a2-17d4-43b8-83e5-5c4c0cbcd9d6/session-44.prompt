@@ -1,0 +1,146 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 44 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 43
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `630bcfe0-9229-4f06-88a2-6a0e2e25a0db`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db.jsonl`
+- approx context at last assistant turn: 495246 tokens
+- tools used: Bash×270 Read×18 mcp__ccmemory__memory_write×12 Edit×6 TaskStop×4 ToolSearch×3 mcp__ccmemory__memory_get×3 ScheduleWakeup×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/.claude/awareness/subsystems/xfs.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for vm in test1 test2; do timeout 20 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 20 vi
+    cd /src/mxfs; for n in test1 test2; do printf "%s: " "$n"; for i in $(seq 1 45); do if timeout 5 tools/mxfs_sshpass.sh "$n" "${MXFS_PASS:-/tmp/.mxfs_pass}" 'tru
+    cd /src/mxfs; echo "=== standalone (fresh-prep) re-test of suite failures, build 422E6DC6 force_block=1 default ==="; for t in posix_multi strong_consistency ze
+    cd /src/mxfs; et=$(ps -eo etimes,cmd | grep -E "[r]un.sh 2 tcp (posix|strong|zero)" | awk '{print $1}' | head -1); echo "elapsed=${et:-?}s"; echo "=== results s
+    cd /src/mxfs; sleep 0; echo "=== batch 1 results ==="; grep -E "  (PASS|FAIL) " /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/tasks/b5vx0efvd.
+    cd /src/mxfs; echo "=== standalone re-test, batch 2 (build 422E6DC6 force_block=1) ==="; for t in cache_coherency mmap_coherency dlm_fairness dlm_membership sca
+    cd /src/mxfs; echo "=== batch 2 results so far ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL|^--- " /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a
+    cd /src/mxfs; echo "=== batch 2 results so far ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL" /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/ta
+    cd /src/mxfs; echo "=== batch 2 results so far ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL" /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/ta
+    cd /src/mxfs; echo "=== batch 2 results so far ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL" /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/ta
+    cd /src/mxfs; echo "=== batch 2 results so far ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL" /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/ta
+    cd /src/mxfs; echo "=== batch 2 results ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL" /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/tasks/bvc
+    cd /src/mxfs; for vm in test1 test2; do timeout 20 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 20 vi
+    cd /src/mxfs; echo "=== batch 3 standalone (build 422E6DC6) ==="; for t in rsync_paired scaling_curve dlm_scaling crash_consistency dlm_membership; do echo "---
+    cd /src/mxfs; echo "=== batch 3 results ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL|^--- " /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/tas
+    cd /src/mxfs; echo "=== batch 3 results ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL" /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0db/tasks/b4s
+    cd /src/mxfs; echo "=== batch 4 standalone (final 4: build 422E6DC6) ==="; for t in tcp_dlm_scaling fence_during_write fault_netpartition soak; do echo "--- $t 
+    cd /src/mxfs; sleep 0; echo "=== batch 4 results so far ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL|^--- " /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-
+    cd /src/mxfs; echo "=== batch 4 full results ==="; grep -E "  (PASS|FAIL) |ABORT|PREP FAIL|^--- " /tmp/claude-1000/-src-mxfs/630bcfe0-9229-4f06-88a2-6a0e2e25a0d
+    cd /src/mxfs; for vm in test1 test2; do timeout 20 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done; sleep 2; for vm in test1 test2; do timeout 20 vi
+
+## Last text from previous session
+
+al)** |
+| **dlm_fairness** | FAIL 1/2 | ❌ **FAIL 1/2 (real, + wedges cluster)** |
+
+So far only **cache_coherency** and **dlm_fairness** are genuinely failing; the rest are contamination. `force_block=1` (my dir_reuse fix) does **not** regress anything — the contamination-passing tests pass with it active, so that fix stays.
+
+**Remaining work for the real criterion:**
+1. Finish mapping the last few (dlm_scaling, crash_consistency, dlm_membership — running now; plus fence/fault/soak/tcp_dlm).
+2. Fix the genuinely-failing tests (cache_coherency is the hard one — it's the sess92-lineage blocker).
+3. Make the suite robust to test-to-test contamination (cluster reset between tests, and fix whatever leaves dlm_fairness wedging the cluster) so the suite passes when each test passes.
+
+All of this is in memory for continuity. The standalone re-test of the last 3 is running and will report back.
+Batch 3 — **all 5 PASS standalone**, including the destructive fault tests:
+- rsync_paired, scaling_curve, dlm_scaling: PASS
+- **crash_consistency: PASS 2/2** (was 1/2 in suite — contamination)
+- **dlm_membership: PASS 2/2** (was 0/2 in suite — contamination)
+
+**This is the decisive scoping result.** Of the 11 suite "failures", **9 are pure contamination** (pass standalone) and only **2 are real** (cache_coherency, dlm_fairness). Let me update the map and test the final 4 (the PENDING ones):
+Now the final 4 (the suite-PENDING tests) standalone, to complete the map:
+Batch 4 launched (task `bpf260c80`). This session has accomplished the critical re-scoping: the criterion is the full suite, and 9 of 11 "failures" are contamination, not real bugs. Let me check batch 4's first result while it runs:
+Batch 4: **tcp_dlm_scaling FAILS standalone (1/2) and also wedges the cluster** (fence_during_write then hit PREP FAIL). So tcp_dlm_scaling is a third real failure. The DLM-stress tests (dlm_fairness, tcp_dlm_scaling) both leave the module un-rmmod-able — that's the contamination mechanism. fence/fault/soak couldn't run (prep blocked). Let me stop the wedged batch and finalize the map:
+Batch 4 completed. Let me get its full results:
+Final standalone map complete. The cluster is now wedged by tcp_dlm_scaling (fence/fault/soak couldn't prep — still untested). Let me reboot to leave a clean slate, then finalize the findings:
+Clean slate restored. Let me finalize the complete scoping in memory for the relay:
+## Session summary — re-scoped to the real criterion
+
+I corrected my error and did a full standalone re-test of every suite failure. The key result:
+
+**The full `./run.sh 2 tcp` suite criterion is far more tractable than "2/17" suggested — 9 of the 11 "failures" are contamination, not real bugs.**
+
+Standalone (fresh prep + clean reboot per test), build 422E6DC6:
+
+- **✅ Pass standalone (9 — were suite-contamination):** posix_multi, strong_consistency, zero_silent_loss, mmap_coherency, rsync_paired, scaling_curve, dlm_scaling, crash_consistency, dlm_membership
+- **❌ Real failures (3):** `cache_coherency` (1/2 — the hard sess79-92 blocker), `dlm_fairness` (1/2, + wedges the cluster), `tcp_dlm_scaling` (1/2, + wedges)
+- **⏳ Untested (prep blocked by a wedge):** fence_during_write, fault_netpartition, soak
+
+**Mechanism:** the two DLM-stress tests leak in-kernel DLM state → module won't rmmod → cascade. That same leaked state likely degrades the shared FS for later in-suite tests (the dominant contamination source). The dir_reuse fix (`force_block=1` + P43/P43B) is confirmed **not** to regress anything.
+
+**Plan (in leverage order, in memory for the relay):**
+1. Test the 3 remaining standalone (reboot between).
+2. Fix the leaked-DLM-state wedge (dlm_fairness/tcp_dlm_scaling) — highest leverage, likely also clears most suite contamination.
+3. Fix cache_coherency.
+4. Make the suite isolate tests / recover cleanly between workloads.
+5. Re-run the full suite to 17/17, then mark met.
+
+Cluster left clean (rebooted). Marker is `NO`. The relay continues from this scoping.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

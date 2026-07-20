@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 38 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 37
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `606d2d20-4859-4be3-a50f-63c3e7fe3a2e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/606d2d20-4859-4be3-a50f-63c3e7fe3a2e.jsonl`
+- approx context at last assistant turn: 161497 tokens
+- tools used: Bash×30 Read×15 Edit×1 ToolSearch×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/notes/sess77_gemini_bnobt_coherency.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for run in 1 2 3; do echo "=== cross_write_read run $run ==="; timeout 180 bash -c 'MXFS_NODE_OFFSET=0 MXFS_TESTS_DIR=/src/mxfs/tests ./tests/run_
+    sleep 60; echo "waited"
+    cd /src/mxfs; grep -n 'P97\|P88\|disk_differs\|mxfs_ag_buf_disk_differs\|read_fua\|FUA' pal/linux/xfs_buf.c | head -30
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" 'mount | grep -q mxfs &
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 12 bash tools/mxfs_sshpass.sh test1 "$P" 'dmesg | grep -anE "Corruption|EFSBADCRC|EFSCORRUPTED|i != 1|i!=1|xfs_alloc|xf
+    cd /src/mxfs; echo "=== xfs_alloc.c around 2244 ==="; sed -n '2200,2260p' xfs/libxfs/xfs_alloc.c
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 12 bash tools/mxfs_sshpass.sh test1 "$P" 'dmesg | grep -anE "P47-INACT|FREE-AG-EXTENT-FAIL|ltbno|Comm:|Call Trace|xfs_i
+    cd /src/mxfs; echo "=== full reset 4 nodes (background) ==="; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized|disconnec
+    cd /src/mxfs; grep -rn 'mxfs_ag_meta_invalidate_stale\|pag_dlm_meta_gen\|b_mxfs_ag_gen\|P101\|P102' xfs/xfs_mxfs_dlm.c | head -30
+    cd /src/mxfs; grep -n 'drain_meta_buffers\|drain_alloc_buflist\|drain_inode_buffers\|mxfs_v5_dlm_ag_unlock\|bast_work_fn\|xfs_buf_stale\|evict\|XBF_STALE' xfs/x
+    cd /src/mxfs; grep -n 'mxfs_dlm_ag_drain_meta_buffers\|mxfs_dlm_ag_bast_work_fn\|ag_unlock\|mxfs_v5_dlm_ag_unlock\|drain_alloc_buflist' xfs/xfs_mxfs_dlm.c | hea
+    cd /src/mxfs; tail -25 /tmp/claude-1000/-src-mxfs/606d2d20-4859-4be3-a50f-63c3e7fe3a2e/tasks/bjuavoivu.output
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 15 bash tools/mxfs_sshpass.sh test2 "$P" 'lsmod | grep mxfs; echo "---dmesg tail---"; dmesg | tail -8; echo "---mount--
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 25 bash tools/mxfs_sshpass.sh test2 "$P" 'echo ALIVE; uptime' 2>&1 | grep -v 'Warning\|Unauthorized\|disconnect'
+    cd /src/mxfs; grep -n 'mxfs_dlm_ag_bast_work_fn\|xfs_log_force\|drain_meta_buffers\|drain_alloc_buflist\|drain_inode_buffers\|blkdev_issue_flush\|blkdev_flush\|
+    cd /src/mxfs; grep -n '^mxfs_dlm_ag_bast_work_fn\|mxfs_dlm_ag_bast_work_fn(' xfs/xfs_mxfs_dlm.c; echo "--- all ag drain/unlock callers ---"; grep -n 'mxfs_v5_dl
+    cd /src/mxfs; grep -rn 'mxfs_ag_meta_invalidate_stale' xfs/ pal/ | grep -v 'void\|static void\|^xfs/xfs_mxfs_dlm.c:2710'
+    cd /src/mxfs; grep -rn 'xfs_buf_ispinned\|xfs_buf_unpin_wait\|b_pin_count\|_xfs_buf_ioapply\|XFS_LOG_SYNC' xfs/xfs_buf.h pal/linux/xfs_buf.c 2>/dev/null | head;
+    cd /src/mxfs; grep -n 'xfs_buf_wait_unpin\|__xfs_buf_submit\|^xfs_bwrite\|xfs_bwrite(' pal/linux/xfs_buf.c | head; echo "=== __xfs_buf_submit body (wait_unpin?)
+    cd /src/mxfs; make modules 2>&1 | tail -15; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+write back).
+Now I understand the exact hole: in `mxfs_dlm_ag_drain_meta_buffers`, a bnobt buffer whose BLI is **not yet in the AIL** (still in the async CIL→AIL transition, pinned) and has an empty `b_li_list` hits the SKIP branch (P73) and is left un-durable at release. Let me check the unpin primitives available, then fix the SKIP to wait-for-unpin + write back pinned AG-meta buffers.
+`xfs_bwrite` → `xfs_buf_submit` → `__xfs_buf_submit` already calls `xfs_buf_wait_unpin` (L1647) internally. So writing a pinned AG-meta buffer is safe **as long as a log force has been issued** — which the BAST path does before the drain. The fix: in the SKIP branch, don't skip a *pinned* AG-meta buffer — fall through to the write-back path. Let me read the exact SKIP block to edit it.
+Now let me verify the rest of the BAST path (after the second drain) actually does the unlock, and that my fix's write path is reached correctly:
+I've reached the relay boundary. Let me build the fix so it's ready to deploy, then summarize. Note: the existing **P75-INSTR** detector (L5166) already logs if any bnobt/cntbt buffer is *still pinned/in-AIL at the moment of unlock* — that directly validates my hypothesis and the fix.
+Build succeeded: **srcversion `68DF68548A03059ED1292A6`** (not yet deployed). Reached the relay boundary — summary:
+
+## Session 37 summary
+
+**Decisive redirect on `cache_coherency`:** Ran the isolated `test_cross_write_read` (the criterion's failing sub-test). It does NOT fail on reader-side `.md5` staleness as sess76 thought — it triggers a **filesystem SHUTDOWN on all 4 nodes** from the deep AG corruption. With existing instrumentation:
+
+```
+Internal error "ltbno + ltlen > bno" xfs_alloc.c:2244  (xfs_free_ag_extent, via rm → xfs_inactive)
+P47: inact_ino=2097414 disk_di_mode=0100644(LIVE) disk_di_gen=MATCH → "DISK-LIVE-same-gen => A-lost-removal"
+P28: bnobt leaf disk_differs=0  → the stale image REACHED DISK
+```
+
+A live, same-incarnation file legitimately owns block 11, but the bnobt (in-core **and** on-disk) shows it free → **double-free**. The allocation that removed block 11 from free-space was lost — the bnobt cross-node lost-update (the recurring sess39-52 blocker).
+
+**Root cause (consulted Gemini per RULE 5 — this exact class failed 6+ times):** The AG-DLM release drain (`mxfs_dlm_ag_drain_meta_buffers`) filters to `IN_AIL || b_li_list non-empty` and **SKIPS a bnobt buffer still in the async CIL→AIL transition** (pinned, not yet in AIL — detector P73). `xfs_log_force(SYNC)` is issued before the drain but the CIL→AIL move + unpin completes in iclog iodone *after* `log_force` returns, so a just-committed bnobt change is left un-durable at on-disk AG unlock → peer's FUA read misses it → double-alloc/free. Saved to `notes/sess77_gemini_bnobt_coherency.md`.
+
+**Fix implemented** (`xfs/xfs_mxfs_dlm.c`, built `68DF68548A03059ED1292A6`): in the drain's SKIP branch, a **pinned** AG-meta buffer is no longer skipped — it falls through to `xfs_bwrite`, which waits for the pin to clear (`xfs_buf_wait_unpin`, guaranteed because `log_force` was already issued) then writes it back synchronously. Only genuinely-clean (unpinned) buffers are skipped. This makes the release leave AG-meta buffers strictly clean, so the acquire-side gen-invalidation never hits the pinned wall.
+
+**Next session:**
+1. `test2` is wedged (module refcount stuck post-shutdown) — `sudo virsh destroy test2; sudo virsh start test2`, wait for NFS, then `MKFS_OPTS=-f bash tests/reset4.sh 4` to deploy `68DF68548A03059ED1292A6`.
+2. Re-run isolated `test_cross_write_read` ×3 (instr=0). **Validation signal:** P75-INSTR (`REL-LEFT-DIRTY ... pinned=N`) should now read pinned=0; no `ltbno+ltlen>bno` shutdown; check the new P73-FIX log fires (confirms pinned bnobt buffers are being drained).
+3. If clean, run full `tests/criteria/cache_coherency.sh --nodes 4`, then `rsync_paired`, then the end-to-end gate.
+
+Criteria still NOT met (`cache_coherency`, `rsync_paired` FAIL) — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

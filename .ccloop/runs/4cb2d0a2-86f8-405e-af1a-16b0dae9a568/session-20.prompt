@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 20 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 19
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5f3ab00b-2645-4dab-96c3-9f06af81959e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5f3ab00b-2645-4dab-96c3-9f06af81959e.jsonl`
+- approx context at last assistant turn: 506172 tokens
+- tools used: Bash×114 Read×46 Edit×28 mcp__ccmemory__memory_write×10 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/.claude/awareness/subsystems/xfs.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/xfs/xfs_inode.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "int mxfs_force_coherent" xfs/xfs_mxfs_dlm.c | head -2; echo "=== reboot + dir_reuse mht=50 force_coherent=1 ==="; for n in test1 test2 te
+    cd /src/mxfs; grep -n "P63-HANDOFF\|mxfs_dir_evict_data_blocks\|mxfs_dir_drain_evict_data\|MXFS_IF_DIR_RELOAD\|force.*reload.*extent\|reload.*extent.*map\|xfs_i
+    cd /src/mxfs; echo "=== reboot + dir_reuse mht=50 + dir_release_invalidate=1 + dir_release_fua_write=1 ==="; for n in test1 test2 test3 test4 test5 test6 test7 
+    cd /src/mxfs; echo "=== residual failround detail (test2) ==="; timeout 8 tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "cat /root/drc_failrounds.txt 2>/dev/null"
+    cd /src/mxfs; echo "=== reboot + dir_reuse mht=50 + dir_release_invalidate=1 ONLY ==="; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qe
+    cd /src/mxfs; echo "=== residual 2 failrounds (test2) ==="; timeout 8 tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "cat /root/drc_failrounds.txt 2>/dev/null" 2>/
+    cd /src/mxfs; grep -n "mxfs_dir_release_invalidate" xfs/xfs_mxfs_dlm.c | grep -v "module_param\|MODULE_PARM\|int mxfs_dir_release"; echo "=== context of consump
+    cd /src/mxfs; grep -n "xfs_buf_incore\b" pal/linux/xfs_buf.c | head -3; echo "=== xfs_buf_incore impl return codes ==="; awk '/^xfs_buf_incore\(/{f=1} f&&/EAGAI
+    cd /src/mxfs; grep -rn "xfs_buf_incore" pal/linux/*.c xfs/*.c xfs/libxfs/*.c | grep -iE "int |EAGAIN|^.*xfs_buf_incore\(struct|return" | head; echo "=== find de
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; echo "=== reboot + dir_reuse mht=50 + dir_release_invalidate=1, build 514F57FC (trylock-retry) ==="; for n in test1 test2 test3 test4 test5 test6 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit" | head; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; echo "=== tcp_dlm_scaling test: what does it lock? ==="; sed -n '1,60p' tests/tcp/tcp_dlm_scaling.sh 2>/dev/null | grep -vE '^\s*#|^$' | head -40
+    cd /src/mxfs; for p in dir_coherent_modify dir_modify_extent_reload dir_modify_extent_adopt dir_adopt_block reuse_reload dir_postread_reread; do echo -n "$p def
+    cd /src/mxfs; echo "=== reboot + dir_reuse mht=50 + dir_release_invalidate=1 + dir_coherent_modify=1 ==="; for n in test1 test2 test3 test4 test5 test6 test7 te
+    cd /src/mxfs; echo "=== did it finish? check criteria + failrounds ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs["8/tcp"] | 
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do timeout 6 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "pkill -9 -f dir_reuse_coherency; 
+    cd /src/mxfs; grep -n "mxfs_dir_coherent_modify\|dir_coherent_modify_scan\|mxfs_dir_coherent_refresh\|coherent.*addname\|mxfs_dir2_coherent" xfs/xfs_mxfs_dlm.c 
+    cd /src/mxfs; grep -n "i_dlm_dir_loaded_gen\|i_dlm_dir_gen\|i_dlm_dir_valid_epoch\|i_dlm_dir_evicted_gen\|uint32_t.*i_dlm_dir" xfs/xfs_inode.h | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|i_dlm_dir_coherent" | head; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+before addname, re-read each dir DATA block and invalidate if disk has MORE dirents (peer adds), while SKIPPING own committed-unwritten work (no clobber). This complements dir_release_invalidate. Let me test the combination at mht=50:
+The command hit the foreground cap (dir_coherent_modify is expensive — re-reads every block before every addname). Let me check the result:
+The test is still running after 8 min, only at round 6 (~60s/round, ~5× too slow) with failrounds=0 so far — so `dir_coherent_modify=1` is **correct but unusably slow** (it re-reads every dir block before EVERY addname, O(blocks×creates), not handoff-gated). Refuted on RULE-0 speed grounds. Let me kill it and record this key finding:
+The fix direction is clear and actionable. Let me implement it: make `dir_coherent_modify`'s reliable content-compare scan **handoff-gated** (run once per peer-modify episode, not per-addname). Let me find its call site:
+`mxfs_dir_refresh_stale_data_blocks` runs its expensive per-block read on every addname (gated only on `i_dlm_dir_gen==0`). I'll add a dedicated gen tracker so it runs **once per handoff** (when `i_dlm_dir_gen` advances), not per addname. Let me find the inode gen fields:
+`i_dlm_dir_evicted_gen` shows the exact handoff-gating pattern. Let me add a dedicated gen tracker for the coherent-modify scan so it runs once per handoff. First, add the field:
+The per-addname scan is O(blocks×creates). Under EX no peer can modify mid-tenure, so one scan per handoff suffices. Let me add a dedicated gen tracker. First the field:
+I've hit the relay boundary mid-implementation. Let me complete this clean sub-step (the handoff-gating change is small and well-defined) so the next session can build+test immediately. Adding the field:
+Now the handoff-gate in the scan function:
+The handoff-gating change is complete. Let me verify it builds cleanly so the next session can test immediately:
+Build `F141D09D` is clean. Let me record this untested change for the next session, then summarize:
+I've reached the relay boundary at a clean stopping point. Brief summary of this session's work:
+
+## Session 19 — major progress; criterion NOT met (marker not written)
+
+**Core discovery:** Ran the **full 8/tcp suite for the first time** (prior sessions only validated dir_reuse standalone) → 13/17 PASS, revealing the real blocker is the **mht tradeoff**: tcp_dlm_scaling needs low mht (PASS 8/8 @ mht=50), dir_reuse needs high mht — both stress the same shared dir-EX lock, so one global knob can't satisfy both. Resolution requires making dir_reuse correct at low mht.
+
+**Validated KEEP fix:** inode-cluster cached-allocated skip (the inverse of the sess38 cached-FREE ENOENT bug) — cut inode FUA reads ~30%, **proven safe** (cache_coherency/zero_silent_loss/strong_consistency/crash_consistency all 8/8).
+
+**Path to resolving the tradeoff, narrowed via RULE-4 experiments:**
+- `dir_release_invalidate=1` cuts dir_reuse mht=50 loss **18 → ~2** failrounds (handoff-gated release-side).
+- `dir_coherent_modify=1` (acquire-side content-compare) makes it **fully correct** (failrounds=0) but ~5× too slow (per-addname).
+- **Refuted** (all worse/slower): force_coherent, dir_release_fua_write, trylock-retry+MXFS_IF_DIR_RELOAD. Lesson: aggressive/ungated reload clobbers; the fix must be handoff-gated AND surgical.
+
+**Ended mid-implementation of the most promising fix** (build `F141D09D`, builds clean, **untested**): made `dir_coherent_modify`'s scan **handoff-gated** via a new `i_dlm_dir_coherent_gen` field — runs once per handoff instead of per addname, aiming to keep its correctness while fixing the 5× slowness.
+
+**Next session's first action** (recorded in `sess19run-UNTESTED-handoff-gated-coherent-modify-build-F141D09D`): deploy F141D09D, test `mht=50 + dir_release_invalidate=1 + dir_coherent_modify=1` — if correct AND <300s, set those as defaults and re-validate the full 1/2/4/8 tcp suites. Six `sess19run-*` ccmemory entries + xfs/pal awareness docs capture everything.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

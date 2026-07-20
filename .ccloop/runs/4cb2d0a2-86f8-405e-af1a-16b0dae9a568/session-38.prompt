@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 38 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 37
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8992c13b-89c8-4811-8d1e-408663ee12f4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8992c13b-89c8-4811-8d1e-408663ee12f4.jsonl`
+- approx context at last assistant turn: 498214 tokens
+- tools used: Bash×99 Read×36 Edit×15 mcp__ccmemory__memory_write×11 mcp__ccmemory__memory_get×7 ToolSearch×3 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 18); do kill -0 2060526 2>/dev/null || { echo DONE; break; }; s
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 20); do kill -0 2060526 2>/dev/null || { echo DONE; break; }; s
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; cat $SCR/batch_zr.log; echo "=== running? ==="; kill -0 2060526 2>/dev/null && e
+    cd /src/mxfs; kill -9 2060526 2>/dev/null; ps aux | grep -E "batch.sh|run.sh|sshpass" | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null; sleep 3;
+    cd /src/mxfs; grep -n "P36-GRANTEVICT\|mxfs_dir_grant_evict\b\|grant.*evict" xfs/xfs_mxfs_dlm.c | head; echo "=== context around P36-GRANTEVICT ==="; grep -n "P
+    cd /src/mxfs; echo "=== stray procs ==="; ps aux | grep -E "batch.sh|run.sh 8|cap.sh|sshpass test" | grep -v grep | wc -l; echo "=== build keeper-equiv ==="; mo
+    cd /src/mxfs; echo "=== function containing P36-GRANTEVICT (evict loop) ==="; awk 'NR>=3700 && NR<=3880 && /^mxfs_dir|^static.*mxfs_dir.*evict|for_each_xfs_iext
+    cd /src/mxfs; echo "=== reload-on-acquire dir extent handling ==="; grep -nE "xfs_iread_extents|iread_extents|if_needextents|XFS_IFEXTENTS|xfs_need_iread_extent
+    cd /src/mxfs; echo "=== buftarg hashtable / lru iteration ==="; grep -rnE "rhashtable_walk|bt_cache|xfs_buftarg|list_lru_walk|bt_lru|for.*buf.*cache|xfs_buf_cac
+    cd /src/mxfs; echo "=== release invalidate levers + defaults ==="; grep -nE "int mxfs_dir_release_invalidate|int mxfs_dir_relinval_clean|module_param_named\(dir
+    cd /src/mxfs; echo "=== dir inode reload extent handling ==="; grep -nE "mxfs_dir.*reload|reload_inode|xfs_idestroy_fork|if_needextents|XFS_IFEXTENTS|xfs_iread_
+    cd /src/mxfs; echo "=== P28-PLATTER MATCH vs DIFFER (read-coherence) ==="; grep -h "P28-PLATTER" tests/tcp/drc_cap/stream_rank*.log 2>/dev/null | grep -oE "inco
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; nohup bash $SCR/cap.sh "dir_grant_evict=1 dir_addname_coherent=1 dir_addname_epo
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 50); do kill -0 2075478 2>/dev/null || { echo DONE; break; }; s
+    cd /src/mxfs; echo "=== stray procs ==="; ps aux | grep -E "batch.sh|run.sh 8|cap.sh|sshpass test" | grep -v grep | wc -l; echo "=== build ==="; modinfo mxfs.ko
+    cd /src/mxfs; echo "=== xfs_bwrite def ==="; awk '/^xfs_bwrite\(/{f=1} f{print} f&&/^}/{exit}' pal/linux/xfs_buf.c | head -40; echo "=== buf iodone / item compl
+    cd /src/mxfs; echo "=== xfs_buf_item_done def ==="; awk '/^xfs_buf_item_done\(|void$/{if($0 ~ /xfs_buf_item_done/) f=1} f{print} f&&/^}/{exit}' xfs/xfs_buf_item
+    cd /src/mxfs; f=$(grep -rln "^xfs_buf_item_done" xfs/ pal/ 2>/dev/null | head -1); echo "file: $f"; awk '/^xfs_buf_item_done\(/{f=1} f{print} f&&/^}/{exit}' "$f
+    cd /src/mxfs; echo "=== P33-LOGSTALE (modify-on-evicted-base) in streams ==="; grep -hc "P33-LOGSTALE" tests/tcp/drc_cap/stream_rank*.log 2>/dev/null | paste -s
+
+## Last text from previous session
+
+completion, the release bwrite **already retires the BLI**. My `dir_release_retire_bli` was therefore a **double `xfs_buf_item_done`** → use-after-free = the corruption. This means the **zombie-BLI-reflush theory is wrong** — the release path doesn't leave a zombie. Let me confirm line 1387 is the write-completion branch.
+Confirmed: line 1320 `} else {` is the **write-completion** branch, so `xfs_buf_item_done` (retire + free BLI) runs on every release bwrite completion. **The zombie-BLI theory is refuted** — the release path correctly retires BLIs, my `dir_release_retire_bli` was a double-free (the corruption), and the **delwri-submit lead is moot** (xfs_bwrite already does the same completion). This is an important course-correction. The real loss vector: a buffer **modified (RMW) on a stale base** committed with a fresh BLI, where the base was stale because a **get_buf/non-read modify path** used evicted-but-not-re-read `b_addr` (bgen=0). Let me record this correction so the next session doesn't chase the dead leads.
+The refocused angle needs the exact modify call-site that RMWs a stale (DONE=0, bgen=0) base. There's already a `P33-LOGSTALE` probe that logs when a dir buffer is **logged with XBF_DONE clear** (re-log on an invalidated/evicted base) — exactly this signal. Let me check whether it fired in the captures.
+P33-LOGSTALE fired **0×** — so modifies always happen on a DONE=1 (valid) base, not an evicted one. Combined with reads-coherent, this yields a sharper, actionable hypothesis for the loss:
+
+**The re-read-reverts mechanism**: (1) node modifies block B (adds entry X), commits → BLI in AIL, `b_addr={...,X}`, DONE=1, but **not yet written to disk**; (2) grant_evict's prior-tenure/grant-stale override force-clears XBF_DONE on B even though it's `in_ail`-undestaged (it treats the undestaged flag as a stale-prior-tenure "false positive"); (3) a subsequent read of the now-DONE=0 B re-fetches from **disk** (which lacks X) → `b_addr` reverts to `{...}`; (4) the still-in-AIL BLI is written with the reverted `b_addr` → **X durably lost**. This fits everything: reads coherent, BLI properly retired, bgen=0 at the clobber, no P33-LOGSTALE.
+
+The fix direction: the evict's prior-tenure/grant-stale overrides must **never clear XBF_DONE on a buffer that is `in_ail && undestaged`** (committed-but-unwritten *this-tenure* work) — only genuinely-durable prior-tenure buffers. I've recorded this as the lead.
+
+I'm at the ccloop relay boundary, so wrapping up this sub-step.
+
+## Session 37 — wrap-up
+
+**Criteria NOT met** (8-node tcp dir_reuse still loses a dirent; 1/2/4 pass). Build `DFAEAF39` keeper-equivalent at default; cluster clean (no stray procs).
+
+**This turn's key advance — corrected two wrong theories and produced a sharper hypothesis:**
+- **Proved `xfs_bwrite` DOES retire the BLI** (`__xfs_buf_ioend:1387` → `xfs_buf_item_done` = ail_delete + free). So the zombie-BLI-reflush theory (sess32/33) is **refuted**, the delwri-submit lead is **moot**, and my `dir_release_retire_bli` shutdown was a **double-free**, not a sign BLI-retire is bad.
+- **P33-LOGSTALE = 0** → modifies happen on DONE=1 bases (not evicted ones).
+- **New lead (recorded):** the loss is a **re-read reverting committed-but-unwritten in-core mods** after the evict wrongly clears XBF_DONE on an `in_ail`-undestaged current-tenure buffer. Fix: the grant-stale/prior-tenure evict overrides must exclude `in_ail && undestaged` buffers.
+
+**Memories written this session** (8 total incl. handoff + this turn's `sess37-CORRECTION-bwrite-retires-bli-zombie-theory-refuted`) capture: reads-are-coherent proof, the refuted levers (fua_write, tenure_reflush_skip×2, release_retire_bli), the ~50% best config, and the refined re-read-reverts hypothesis with its exact fix site (`mxfs_dir_evict_data_blocks` overrides). pal.md awareness doc updated.
+
+The loop continues — the next session should test the "don't force-evict in_ail+undestaged current-tenure buffers" fix against the best config.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,9 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_dir2_data.c",
+    "xfs/xfs_inode.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

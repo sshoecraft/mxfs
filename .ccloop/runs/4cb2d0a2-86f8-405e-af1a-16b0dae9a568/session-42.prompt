@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 42 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 41
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `37beb620-df1f-4f38-8144-08a777cbf3f5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5.jsonl`
+- approx context at last assistant turn: 501757 tokens
+- tools used: Bash×170 Read×33 Edit×30 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ccmemory__memory_search×2 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/drc_cap8.sh
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; for w in $(seq 1 30); do if grep -qE "ITER 1:|drc_cap8 done|FAIL CAP
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; grep -E "ITER [0-9]+:|drc_cap8 done|FAIL CAPTURE" $S/cap8_own.log; t
+    cd /src/mxfs; tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg 2>/dev/null|grep -oE "DRCph r=[0-9]+ rank=3 PHASE=[a-z-]+"|tail -1; echo "OWNMISS in dmesg:"; d
+    cd /src/mxfs; pkill -9 -f "drc_cap8" 2>/dev/null; pkill -9 -f "run.sh 8 tcp" 2>/dev/null; pkill -9 -f "dir_reuse_coherency" 2>/dev/null; pkill -9 -f "mxfs_sshpa
+    cd /src/mxfs; pkill -9 -f "20260628" 2>/dev/null; pkill -9 -f "dir_reuse" 2>/dev/null; pkill -9 -f "run.sh" 2>/dev/null; sleep 3; n=$(pgrep -af "run.sh 8 tcp|dr
+    cd /src/mxfs; sleep 1; echo "remaining: $(pgrep -af 'run.sh 8 tcp|drc_cap8|dir_reuse_coherency' 2>/dev/null | grep -v pgrep | wc -l)"; echo "build: $(modinfo mx
+    cd /src/mxfs; bash -n tests/suite/dir_reuse_coherency.sh && echo "test syntax OK"; bash -n tests/drc_cap8.sh && echo "drc_cap8 syntax OK"; echo "=== final ===";
+    cd /src/mxfs; rm -f tests/tcp/drc_cap/dland_*.txt; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; setsid bash tests/drc_cap8.sh 5
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; for w in $(seq 1 30); do if ls tests/tcp/drc_cap/dland_test1.txt >/d
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; grep -E "ITER [0-9]+:|drc_cap8 done" $S/cap8_sum.log; ls tests/tcp/d
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; for w in $(seq 1 30); do if ls tests/tcp/drc_cap/dland_test1.txt >/d
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/37beb620-df1f-4f38-8144-08a777cbf3f5/scratchpad; grep -E "ITER [0-9]+:|drc_cap8 done" $S/cap8_sum.log; ls tests/tcp/d
+    cd /src/mxfs; tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg 2>/dev/null|grep -oE "DRCph r=[0-9]+ rank=3 PHASE=[a-z-]+"|tail -1' 2>/dev/null|grep -vE "^Warn
+    cd /src/mxfs; pkill -9 -f "drc_cap8" 2>/dev/null; pkill -9 -f "run.sh 8 tcp" 2>/dev/null; pkill -9 -f "dir_reuse_coherency" 2>/dev/null; pkill -9 -f "mxfs_sshpa
+    cd /src/mxfs; pkill -9 -f "run.sh" 2>/dev/null; pkill -9 -f "20260628" 2>/dev/null; sleep 3; echo "procs: $(pgrep -af 'run.sh 8 tcp|drc_cap8|dir_reuse_coherency
+    cd /src/mxfs; echo "procs: $(pgrep -af 'run.sh 8 tcp|drc_cap8|dir_reuse_coherency' 2>/dev/null | grep -v pgrep | wc -l)"; echo "build: $(modinfo mxfs.ko 2>/dev/
+    cd /src/mxfs; for pat in "drc_cap8" "run.sh 8 tcp" "dir_reuse_coherency.sh" "mxfs_sshpass.*dir_reuse" "MXFS_RANK"; do pkill -9 -f "$pat" 2>/dev/null; done; slee
+    cd /src/mxfs; c=$(pgrep -af 'drc_cap8|run.sh 8 tcp|dir_reuse_coherency.sh' 2>/dev/null | grep -v pgrep | wc -l); echo "test procs remaining: $c"; if [ "$c" != 0
+    cd /src/mxfs; pkill -9 -f "20260628T132253Z" 2>/dev/null; pkill -9 -f "tools/mxfs_sshpass.sh test" 2>/dev/null; sleep 3; c=$(pgrep -af 'mxfs_sshpass.sh test|dir
+    cd /src/mxfs; c=$(pgrep -af 'mxfs_sshpass.sh test|dir_reuse_coherency.sh|run.sh 8 tcp' 2>/dev/null | grep -v pgrep | wc -l); echo "remaining test procs: $c"; ec
+
+## Last text from previous session
+
+nd_dump` (the test auto-triggers it); `tests/drc_cap8.sh N "dirland=1"` saves per-node dumps to `tests/tcp/drc_cap/`. Crucial: do NOT use `DRC_STREAM` (dmesg-follow = ~4 min/round, masks the race).
+
+### Next step (documented in ccmemory `sess41-DEFINITIVE-loss-is-insert-time-not-writeback-ring-proven`)
+Instrument the concurrent dir-ADD path — `xfs_dir2_node_addname` / `xfs_dir2_leafn_add` / `xfs_da3` split / block↔leaf↔node conversion — to catch the just-added entry being dropped during a concurrent structural modification (the growth/conversion correlation is strong). The serialization paradox (EX is serialized, yet a committed add is dropped) is the crux to resolve there.
+
+All findings are in ccmemory (3 new memories), CLAUDE.md head note, and `pal.md`. Cluster clean, build regression-free.
+Criterion not met — continuing. The `dko=0` + no-count-regression constraints leave two insert-time candidates: (a) addname stale-freeindex double-alloc, or (b) a **bmbt extent-map lost-update orphaning a written block** (which also explains the DABUF_MAP_HOLE cascade). There's a decisive discriminator using the count ring: sum the final per-daddr dirent counts for the failing incarnation — **==800 → the entry IS on disk but in a block readdir can't reach (bmbt orphan); ==799 → never written (true insert loss)**. The prior dland files were cleared; let me regenerate and compute this.
+While it runs, let me prepare: the failing incarnation's data-block final counts, summed, compared to ~802 (800 + `.` + `..`). Let me wait for a failing iteration.
+Relay boundary reached. Let me stop the background run for a clean handoff (so the next session doesn't collide with leftover procs/VM reboots) and add a one-line pointer to the decisive next analysis.
+Clean handoff state (0 test procs, build `5E7CC562` = keeper functionally). Let me record the precise immediate next step before relay.
+Relay boundary reached. Clean handoff state confirmed.
+
+## Session summary (criterion NOT met — strong diagnostic progress)
+
+**Build `5E7CC562`** on disk = keeper `B17141DA` functionally (all new params default-OFF → **no regression**; 8/tcp dir_reuse still ~6/8). Cluster clean, 0 leftover procs.
+
+### Definitive breakthrough this session (RULE 4)
+Proved the `dir_reuse` `readdir=799` loss is an **INSERT-TIME drop — the entry is never durably added** — *not* a writeback clobber, stale-base RMW, or daddr-reuse reorder. Three independent, converging ring/merge measurements:
+1. Disambiguated content-merge at the universal write chokepoint is **inert** (`dko=0` always) → in-core ⊇ disk at every write → no clobber.
+2. Overhead-free in-kernel landing ring shows **no cross-incarnation reorder**.
+3. Count-augmented ring shows **no dirent-count regression during the create phase** (only `rm` teardown drops).
+
+This confirms sess17's insert-time finding with hard evidence and **refutes** the sess40 writeback-overlap and sess41 reuse-ordering theories. Also refuted: handoff-frequency (mht=1000 still failed). Justified GPT-5.5 consult on file.
+
+### Tooling built (ready, overhead-free)
+`mxfs.dirland=1` → in-kernel landing ring (daddr/owner/incarn/content-sum/**dirent-count**/realns), auto-dumped on readdir-miss; `tests/drc_cap8.sh N "dirland=1"` saves per-node dumps to `tests/tcp/drc_cap/`. (Avoid `DRC_STREAM` — ~4 min/round; `DRC_OWNCHECK` reverted — caused near-wedge.)
+
+### Precise next step (documented in ccmemory `sess41-NEXT-sum-discriminator-bmbt-orphan-vs-insert-loss`)
+On a fail, **sum the failing incarnation's per-daddr final dirent counts**: ≈802 → the entry is on disk but in a block readdir can't reach (**bmbt extent-map orphan** — also explains the DABUF_MAP_HOLE cascade) → fix dir bmbt coherency; ≈801 → **true insert-loss** → fix the concurrent addname/leafn/freeindex path. Exact commands and parse pipeline are in that memory.
+
+Four new ccmemory entries, CLAUDE.md head note, and `pal.md` all updated. The next session has the tools and a single decisive experiment to run.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

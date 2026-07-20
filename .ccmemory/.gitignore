@@ -1,0 +1,13 @@
+# ccmemory: SQLite index is a derived cache, regenerated locally.
+.memory_index.db
+.memory_index.db-journal
+.memory_index.db-wal
+.memory_index.db-shm
+
+# ccmemory: required ignore patterns
+index.db
+index.db-journal
+index.db-wal
+index.db-shm
+._*
+.DS_Store

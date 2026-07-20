@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 15 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 14
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `5c5b9bc3-7c89-4104-bc6f-5cab574465eb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5c5b9bc3-7c89-4104-bc6f-5cab574465eb.jsonl`
+- approx context at last assistant turn: 262412 tokens
+- tools used: Bash×58 Read×21 Edit×4 ToolSearch×3 mcp__ccmemory__memory_get×3 mcp__ask_gemini__query×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== test3 dmesg: probe + wedge indicators ===" timeout 8 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass "dmesg | grep -aoE 'P-SFDIR-REVERT|
+    cd /src/mxfs echo "=== xfsaild stack on test3 ===" timeout 8 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass "pid=\$(pgrep -f 'xfsaild/sda'); echo pid=\$pid; c
+    cd /src/mxfs kill 2473037 2>/dev/null; pkill -f cache_coherency.sh 2>/dev/null; sleep 1 echo "killed run" echo "=== xfs_iflush_cluster + delwri_queue interactio
+    cd /src/mxfs pgrep -f cache_coherency.sh | head || echo "run dead" echo "=== delwri / alloc-buflist / FLUSHING sites ===" grep -rn "xfs_buf_delwri_queue\b\|_XBF
+    cd /src/mxfs kill -9 2475795 2>/dev/null; sleep 1; pgrep -f cache_coherency.sh && echo "still alive" || echo "run dead"
+    cd /src/mxfs pkill -9 -f "cache_coherency" 2>/dev/null pkill -9 -f "mxfs_test" 2>/dev/null sleep 2 pgrep -af "cache_coherency|mxfs_test" | head || echo "all dea
+    cd /src/mxfs echo "=== alloc-buflist enqueue + _XBF_MXFS_ALLOC_QUEUED set sites ===" grep -rn "_XBF_MXFS_ALLOC_QUEUED\|pag_mxfs_alloc_buflist\|mxfs_dlm_ag_drain
+    cd /src/mxfs echo "=== P112-IFLUSH-CALLER for the wedged ino on test3 ===" timeout 8 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass "dmesg | grep -aE 'P112-IF
+    cd /src/mxfs make modules 2>&1 | grep -aiE "error:|Error [0-9]" | head; echo "build exit=${PIPESTATUS[0]}" modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done sleep 3 for h in test1 test2 test3 test4; do s
+    cd /src/mxfs timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3 echo "=== verify srcversion + clear dmesg ===" for n in test1 test2 test3 test4; do   echo -n "$n
+    cd /src/mxfs nohup timeout 1500 ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_s14c.log 2>&1 & echo "started pid $!"; sleep 3; echo ok
+    cd /src/mxfs sleep 240 newlog=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1) echo "log: $newlog" sed 's/\x1b\[[0-9;]*m//g' "$newlog" | grep -aiE "\[P
+    cd /src/mxfs newlog=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1) sed 's/\x1b\[[0-9;]*m//g' "$newlog" | grep -aiE "\[PASS\]|\[FAIL\]  test|Running:|
+    cd /src/mxfs sleep 250 newlog=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1) sed 's/\x1b\[[0-9;]*m//g' "$newlog" | grep -aiE "\[PASS\]|\[FAIL\]  test
+    cd /src/mxfs newlog=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1) sed 's/\x1b\[[0-9;]*m//g' "$newlog" | grep -aiE "\[PASS\]|\[FAIL\]  test|Running:|
+    cd /src/mxfs for i in $(seq 1 36); do   grep -qaE "RESULT:" /tmp/cc_s14c.log 2>/dev/null && break   pgrep -f cache_coherency.sh >/dev/null || break   sleep 10 d
+    cd /src/mxfs echo "=== xfs_bwrite ===" grep -n "^xfs_bwrite\|^int\s*$\|xfs_bwrite(" pal/linux/xfs_buf.c | head sed -n '/^xfs_bwrite($/,/^}/p' pal/linux/xfs_buf.
+    cd /src/mxfs grep -rn "list_add.*pag_mxfs_alloc_buflist\|_XBF_MXFS_ALLOC_QUEUED\s*|\|b_flags |=.*_XBF_DELWRI_Q\|_XBF_DELWRI_Q.*_XBF_MXFS_ALLOC" xfs/ pal/ --incl
+    cd /src/mxfs make modules 2>&1 | grep -aiE "error:|Error [0-9]|warning:.*mxfs_dlm" | head; echo "build exit=${PIPESTATUS[0]}" modinfo mxfs.ko 2>/dev/null | grep
+
+## Last text from previous session
+
+cluster. This is the deep architectural issue sess112 already spent a session on (Gemini+Grok recommended re-architecture). I now have a decisive A/B experiment + fua_cnt=0 durability proof. Per RULE 5, I'll consult Gemini with the sharpened diagnosis.
+Gemini's response: the root is that `xfs_bwrite(r_bp)` clears `_XBF_DELWRI_Q` but does **not** `list_del(&bp->b_list)`, leaving the shared cluster buffer in an inconsistent state w.r.t. the alloc-buflist → list corruption / orphaned IFLUSHING. The fix: **never manually `xfs_bwrite` a cluster buffer that may be on the alloc-buflist** — use the native `xfs_buf_delwri_queue`/`xfs_buf_delwri_submit` path, or drain the AG alloc-buflist to submit it.
+
+Gemini's exact code uses removed APIs (`xfs_iflush`/`xfs_iflock`, old `blkdev_issue_flush` signature), but the strategy is sound. Let me verify the real reason the parent cluster is trapped: a freshly-created **child** inode shares the parent's 4K inode cluster, putting the shared buffer on the alloc-buflist → xfsaild's `delwri_queue` collision → parent never destaged. Let me implement an adapted, API-correct version.
+I've hit the relay boundary. Let me implement the fix as a clean sub-step (replace the leaking manual `xfs_bwrite` with the native delwri path + AG-drain fallback), re-enable the create-path call, build to confirm it compiles, then summarize for the next session.
+Now re-enable the create-path call (the leak is addressed) and build.
+Build clean — `1853FF8F` (the warning is pre-existing and unrelated). Let me save the key findings to memory, then summarize.
+I've reached the relay boundary. Summary of this session (14):
+
+## What I did
+
+**Reconciled the state**: The session-13 resume summary was a stale/divergent narrative. The authoritative state (`p` → `state.md`, plus ccmemory sess108–114) is the NEWARCH chokepoint line. Current tree stacks: NEWARCH chokepoint + sess114 torn-fork fix + sess116 self-clobber guard + session-13's `dir_inode_durable`.
+
+**Established a clean baseline** (hard-reboot + reset4, build `6B8A19F5`): cache_coherency = **2/4** — cross_visibility PASS, rename_visibility PASS *fast* (~1.4s; the chokepoint fixed the old rename wedge — earlier 250s/node-drop logs were contaminated-cluster artifacts). Failing: unlink_visibility + cross_write_read, both reducing to one root — a freshly-created small file/dirent in a **shared shortform directory** isn't promptly visible to peers.
+
+**Proved the durability gap (RULE 4)**: Added a decisive FUA probe at the lost-update detector. For the mount root (ino=128): incore=3, disk=0, **fua_cnt=0**, di_gen=0 — the LUN *genuinely* has 0 dirents; the root inode cluster was never destaged. Cold reads bypass the DLM, so the release-path flush never fires.
+
+**Named the drain-wedge root (RULE 4 + RULE 5/Gemini)**: A/B-proved that session-13's create-path flush (`mxfs_dlm_dir_inode_durable → mxfs_inode_cluster_durable`) is *necessary* for durability (removing it regressed unlink 1→30 fails) but *leaks* the shared cluster-buffer lock → P113-DRAIN-WEDGE → SIGKILL. Gemini pinpointed the leak: `xfs_bwrite` clears `_XBF_DELWRI_Q` but doesn't `list_del(&bp->b_list)`, so when a fresh child inode shares the parent's 4KiB cluster (trapped on the AG alloc-buflist), the manual bwrite orphans siblings' IFLUSHING.
+
+**Landed a fix (build `1853FF8F`, UNVERIFIED)**: Rewrote `mxfs_inode_cluster_durable` to never manually `xfs_bwrite` — instead use the native delwri path (`xfs_buf_delwri_queue`/`xfs_buf_delwri_submit`) or `mxfs_dlm_ag_drain_alloc_buflist` when the buffer is trapped on the alloc-buflist. Re-enabled the create-path call. Builds clean.
+
+## Next session
+Power-cycle all 4 (`qemu:///system` destroy+start) → `reset4.sh 4` → verify `1853FF8F` → run cache_coherency. Confirm **P113-DRAIN-WEDGE=0** (leak fixed) and whether unlink/cwr improve + ino=128 stops showing fua_cnt=0. Full detail + escalation plan saved to memory `sess115_lessons`. **Marker NOT written — cache_coherency still FAILS.**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

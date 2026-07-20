@@ -1,0 +1,1 @@
+RESULT: FAIL  criterion=cache_coherency  measured=passed=0 failed=4 of=4  threshold=failed=0  reason=see /tmp/cache_coherency.YJmDoe.log

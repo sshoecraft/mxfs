@@ -1,0 +1,13 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "xfs/libxfs/xfs_dir2_data.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

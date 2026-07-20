@@ -1,0 +1,144 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 2
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `efd1f3bd-eaba-4192-bbb1-98139d3b29f8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/efd1f3bd-eaba-4192-bbb1-98139d3b29f8.jsonl`
+- approx context at last assistant turn: 230332 tokens
+- tools used: Bash×71 Read×27 Edit×18 Write×3
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/repro_barrier_latency.sh
+- /src/mxfs/tests/repro_barrier_probe.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/state.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess50_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "MXFS_CAW_YIELD_TIMEOUT_MS\|MXFS_CAW_YIELD_BACKOFF_MS\|MXFS_CAW_MAX_RETRIES\|caw_wait_for_grant" dlm/dlm_caw.h dlm/dlm_caw.c | grep -E "d
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning.*dlm_caw|undefined|ISO C90" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -1; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 
+    cd /src/mxfs; timeout 450 bash tests/repro_barrier_latency.sh 20 70 2>&1 | grep -E "iter|seen=0"
+    until ! kill -0 $(pgrep -f repro_barrier_latency 2>/dev/null | head -1) 2>/dev/null; do sleep 10; done; echo "=== OUTPUT ==="; cat /tmp/claude-1000/-src-mxfs/ef
+    cat /tmp/claude-1000/-src-mxfs/efd1f3bd-eaba-4192-bbb1-98139d3b29f8/tasks/bfvqri9mz.output
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning.*dlm_caw|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -1; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 
+    cd /src/mxfs; timeout 450 bash tests/repro_barrier_latency.sh 20 70 2>&1 | grep -E "iter|seen=0"
+    until ! kill -0 $(pgrep -f repro_barrier_latency 2>/dev/null | head -1) 2>/dev/null; do sleep 10; done; echo "=== OUTPUT ==="; cat /tmp/claude-1000/-src-mxfs/ef
+    cat /tmp/claude-1000/-src-mxfs/efd1f3bd-eaba-4192-bbb1-98139d3b29f8/tasks/bpmi1bqel.output
+    cd /src/mxfs; echo "### STARVE ino=12583041 counts ###"; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxf
+    cd /src/mxfs; ls tests/criteria/cache_coherency.sh && grep -n "MXFS_NODE_OFFSET\|--nodes\|node pool\|NODES_DEFAULT" tests/criteria/cache_coherency.sh | head
+    cd /src/mxfs; timeout 590 bash tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -20
+    until ! kill -0 $(pgrep -f cache_coherency.sh 2>/dev/null | head -1) 2>/dev/null; do sleep 15; done; echo "=== DONE ==="; cat /tmp/claude-1000/-src-mxfs/efd1f3b
+    cat /tmp/claude-1000/-src-mxfs/efd1f3bd-eaba-4192-bbb1-98139d3b29f8/tasks/bt7pekhb8.output | tail -30
+    grep -iE "RESULT|PASS|FAIL|elapsed|test_|timed out|barrier|actual=" /tmp/claude-1000/cache_coherency.hBeC9r.log 2>/dev/null | grep -ivE "ASSERT OK" | tail -40
+    cd /src/mxfs; echo "=== deployed build + FS health ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.mxf
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo srcver=$(cat /sys/module/mx
+    cd /src/mxfs; echo "local build: $(modinfo mxfs.ko 2>/dev/null | grep srcversion)"; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 tes
+
+## Last text from previous session
+
+eaders (shared modes) should yield to writers (exclusive waiters), never writer-to-writer.
+Big improvement: 1 stall in 20 iters (vs ~4-5/20 before), no ENOENT. But iter 6 still stalled (all 4 at finalcount=3). Let me check whether starvation persists there or it's a residual different race.
+**Excellent — the starvation root is fixed.** For iter 6, STARVE fired only **once** (gen=13, no churn) vs **130× (gen churned to 1695)** before. The dominant ~60-120s starvation stall is eliminated: 4-5/20 → 1/20, and the residual 1/20 is NOT starvation (a separate, rarer dir-block lost-update race — all 4 at finalcount=3, two concurrent EX writers).
+
+This is a proven, validated win. Let me checkpoint the findings to state.md before running the real criterion.
+Now let me run the real cache_coherency criterion to measure how much the fix moved the needle.
+passed=1 failed=3 (up from passed=0). Let me see which sub-tests failed and the failure mode (timing vs content).
+Clear picture now. **passed=1 (up from 0)** — `unlink_visibility` now PASSES. Remaining residuals are *different roots* (not starvation):
+- `rename_visibility`: 1/240 fail, 130s (one residual ~120s stall — the dir-block lost-update).
+- `cross_write_read`: barrier `cwr_verify` ENOTDIR (`Not a directory`) — the **sess48 reused-inode type-mismatch** on the barrier dir itself, causing 120s timeout.
+
+Let me record the measured result in the handoff and write a memory lesson.
+Now add a short index entry to MEMORY.md (it's over its size limit, so I'll keep it brief).
+Let me verify the cluster is healthy and confirm criteria status before checkpointing.
+Output got mangled by the `tr`. Let me run a clean health check.
+The criterion left the cluster unmounted/unloaded (normal post-run cleanup). Let me confirm the local build and redeploy a clean mount so the next session starts healthy.
+Cluster is healthy: build `86855C4` deployed and mounted on all 4 nodes. 
+
+## Session summary (sess50)
+
+Following RULE 4 strictly, I **proved the root cause** of the dominant cache_coherency blocker — the ~60-120s barrier-dir visibility stall — and landed a validated fix.
+
+**What was proven (quantitative evidence):**
+- The stall is a pure readdir dir-block visibility miss (no corruption, no EIO on a clean mount).
+- It's **CAW lock writer starvation**: a non-perturbing STARVE probe in the BAST poll thread caught it firing **130× during a 69s stall** — PR readers across nodes continuously re-grant PR among themselves (slot generation churned **45→1695**, ~24/sec), so a peer's EX request never finds a zero-PR-holder window and its barrier marker stays invisible.
+- Refuted prior theories: COHOLD detector fired 0× (no PR+EX co-hold, refuting sess46); census showed sticky PR keeps the on-disk slot (refuting sess49 Q1).
+- Documented the Heisenberg trap: any dir-path logging / census double-read / 3s idle creates the read lull the writer needs and hides the stall — which is why sessions 36-49 kept losing it.
+
+**Fix landed (build `86855C4`, deployed):** anti-starvation in `mxfs_dlm_caw_lock` — a fresh *shared* (PR/CR/CW) acquire yields to a peer's pending *exclusive* (EX/PW) waiter (readers→writers only; no writer-writer/reader-reader mutual deferral).
+
+**Measured impact:**
+- `repro_barrier_latency.sh`: stalls **4-5/20 → 1/20**.
+- `cache_coherency.sh --nodes 4`: **passed 0 → 1** (`unlink_visibility` now PASSES).
+
+**Remaining residuals (precisely identified, neither is starvation):**
+1. Reused-inode ENOTDIR on the `cwr_verify` barrier dir (sess48 family) — `cross_write_read`.
+2. Dir-block lost-update (`rename` 1/240, ~1/20) — concurrent EX writers, one adds to a stale cached dir block.
+
+Criteria are **not met** (cache_coherency still FAIL: passed=1 failed=3; rsync_paired FAIL) — marker not written. State, lessons (`sess50_lessons.md`), and MEMORY index updated; two new always-on detectors and repro tools kept. This is a clean seam (~148K context) with a proven fix and two well-scoped residuals for the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

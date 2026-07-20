@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 12 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 11
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `0e2a0d51-16a9-40f4-b352-6867f81602f1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0e2a0d51-16a9-40f4-b352-6867f81602f1.jsonl`
+- approx context at last assistant turn: 257034 tokens
+- tools used: Bash×49 Read×20 ToolSearch×4 mcp__ccmemory__memory_write×3 Edit×1 Write×1 mcp__ask_gemini__query×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/repro_double_alloc.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'mount | grep -c mxfs; echo "--- 
+    cd /src/mxfs; grep -nE "mkfs|mkfs_mxfs|format|fresh_cluster_mount|teardown" tests/reset4.sh tests/criteria/lib.sh 2>/dev/null | head -20
+    cd /src/mxfs; timeout 480 bash tests/repro_double_alloc.sh 25 2>&1 | tail -50
+    cd /src/mxfs; CV=/mnt/shared/.mxfs_test/cvrepro_2; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass
+    cd /src/mxfs; echo "=== P90-PICK DIR allocations (ifmt=040755=0100000+... dir=04xxxx) per node ==="; for n in test1 test2 test3 test4; do echo "--- $n ---"; tim
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo -n "P108-REACQUIRE: "; dmes
+    cd /src/mxfs; echo "=== where reload is triggered on acquire (i_dlm_stale set, reload call) ==="; grep -nE "i_dlm_stale = true|reload_inode|mxfs_dlm_reload|forc
+    cd /src/mxfs; sed -n '1600,1690p' xfs/xfs_mxfs_dlm.c | grep -nE "ail_drain|iflush|xfs_iflush|drain_inode|log_force|xfs_log|push|mxfs_ail|sync" | head; echo "===
+    cd /src/mxfs; grep -nE "mxfs_ail_drain_inode_sync|ail_drain_inode|drain_inode_sync" xfs/xfs_mxfs_dlm.c | head; echo "=== where called relative to bast ==="; gre
+    cd /src/mxfs; for n in test1 test2 test3 test4; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; echo destroyed; sleep 4; for n in test1 test2 test3
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; echo "=== srcversion ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'cat /sys
+    cd /src/mxfs; echo "=== concurrent mkdir /mnt/shared/zz from all 4 nodes ==="; for n in test1 test2 test3 test4; do timeout 12 bash tools/mxfs_sshpass.sh $n /tm
+    cd /src/mxfs; echo "=== P90-PICK parent=128 (zz allocations) across nodes ==="; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 10 bash tools/mx
+    cd /src/mxfs; timeout 300 bash tests/repro_double_alloc.sh 12 2>&1 | grep -vE "^iter [0-9]+: clean$" | tail -25
+    cd /src/mxfs; echo "=== P90-PICK DIR allocs (ifmt=04) all nodes ==="; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_p
+    cd /src/mxfs; echo "=== P105-ACQ-DIRINODE + P105-REL-DIRINODE + P-DIR-SEQ for ino=128, merged & time-sorted ==="; for n in test1 test2 test3 test4; do timeout 1
+    cd /src/mxfs; echo "=== P106-EXGRANT / P106-EXREL for ino=128, sorted by realns ==="; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh
+    cd /src/mxfs; grep -nE "^xfs_lookup|xfs_lookup\(|STATIC int.*lookup|->lookup|xfs_vn_lookup|mxfs.*ilock_begin|dlm_ilock_begin|MXFS_LOCK_PR|MXFS_LOCK_EX" xfs/xfs_
+    cd /src/mxfs; grep -nE "^xfs_create|xfs_dir_createname|xfs_ilock.*dp|XFS_ILOCK_EXCL|mxfs.*create|xfs_dialloc" xfs/xfs_inode.c | sed -n '1,30p'
+    cd /src/mxfs; grep -nE "mxfs_dlm_dir_modify_refresh|mxfs_dlm_dir_consumer_refresh" xfs/xfs_mxfs_dlm.c | head; echo "=== body of dir_modify_refresh ==="; awk '/^
+
+## Last text from previous session
+
+ecks existence under EX.
+There's **already** an EEXIST re-check under EX in `xfs_create` (lines 1206-1257: re-acquire dp EX → `mxfs_dlm_dir_modify_refresh(dp)` → `xfs_dir_lookup_locked` → orphan+EEXIST if found). But it still creates duplicates because **root 128 is SHORTFORM** — its dirents are in the inode core, not data blocks. `mxfs_dlm_dir_modify_refresh` drops cached dir *DATA blocks*, which does nothing for shortform. Let me confirm what it does and whether it reloads the shortform inode core.
+Confirmed the hole: `mxfs_dlm_dir_modify_refresh` only calls `mxfs_dir_evict_data_blocks(dp)` — a **no-op for shortform dirs** (root 128, small `.mxfs_test`), whose dirents live in the inode core. So the EEXIST re-check at line 1257 reads the **stale in-core shortform fork** → misses peers' entries → duplicate. Let me check the consumer (read) refresh and find a shortform inode-core reload primitive.
+Both refresh paths only evict DATA blocks — **neither handles shortform** (inode-core) dirs. Confirmed: my repro showed `P106-MR-EVICT ino=128` fired but root 128 is shortform → `mxfs_dir_evict_data_blocks` is a no-op → stale shortform fork → duplicate. Let me examine `mxfs_dlm_reload_inode`'s safety (dirty/in-AIL checks) to see if I can safely reload the shortform core in the modify-refresh path.
+I've hit the relay boundary. Let me update memory with the precise code hole I just pinpointed, then summarize.
+## Session summary
+
+**Criterion NOT met** — `cache_coherency` still fails (sole failing criterion; 11/12 pass). Marker not written.
+
+### Landed this session (KEEP) — build `C69013B3`
+Replaced the gen-heuristic inode-resurrection guard in `xfs_iflush` (xfs_inode.c ~3582) with a **DLM-EX-ownership discriminator**: skip the disk copy iff `ip->i_dlm_mode != MXFS_LOCK_EX`. Gemini-validated (RULE 5): cross-node `di_gen` is randomized per-node + bumped on free, so it's not comparable — every prior gen-comparison discriminator had a ~50% peer-clobber hole. Verified: **0 shutdowns** in the criterion run; the new `P119-NONEX-FLUSH-SKIP` fired only 2× (both correct). Confirmed safe vs. the release path (`mxfs_ail_drain_inode_sync` flushes the inode core under EX *before* `i_dlm_mode=NL`).
+
+### Root cause re-proven (RULE 4, fresh evidence)
+The actual `cache_coherency` blocker is **not** the iflush guard — it's a **concurrent same-name `mkdir` cross-node TOCTOU on SHORTFORM parent dirs**. Proven: all 4 nodes acquire root inode 128 in PR within a ~6 ms window, each reading the parent as empty (`disk_size=6`), all decide to create → **4 distinct directory inodes for one name** (P90-PICK `parent=128`). Losers orphaned → invisible files + dangling-dentry EIO, escalating to inode-cluster corruption over iterations.
+
+### Exact code hole pinpointed
+`xfs_create` already has the cross-node EEXIST re-check (re-acquire dp EX → `mxfs_dlm_dir_modify_refresh` → `xfs_dir_lookup_locked` → orphan+EEXIST). But `mxfs_dlm_dir_modify_refresh`/`consumer_refresh` only call `mxfs_dir_evict_data_blocks(dp)`, which is a **no-op for shortform dirs** (dirents live in the inode core, not data blocks). So the re-check reads the stale in-core shortform fork and misses peers' entries.
+
+### Next step (documented in `sess119_lessons` memory)
+Make the modify/consumer refresh reload the **shortform inode core** FUA-fresh (via `mxfs_dlm_reload_inode`, gated to `if_format==XFS_DINODE_FMT_LOCAL`, clean inode), plus ensure the writer FUA-destages the shortform inode-cluster on **all** release paths (GPT's RULE-5 design: one durable-downconvert funnel, hold parent EX across the create-intent lookup→mutation). New reproducer `tests/repro_double_alloc.sh` (KEEP) reproduces in ~2 iters and detects split/dup-ino/corruption.
+
+I created `tests/repro_double_alloc.sh` and consulted Gemini (iflush discriminator) and GPT-5.5 (concurrent-mkdir design) per RULE 5. The full diagnosis, GPT's design, and the precise fix plan are in memory `sess119_lessons` for the next session to implement directly.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 51 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 50
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `167acd03-33f5-43d0-8669-f7688215b68e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e.jsonl`
+- approx context at last assistant turn: 497800 tokens
+- tools used: Bash×93 Read×34 Edit×30 TaskOutput×24 mcp__ccmemory__memory_write×6 Monitor×5 mcp__ccmemory__memory_get×5 ToolSearch×4 Write×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/drc_grantgen_probe.sh
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/tests/drc_timeline.sh
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; nohup bash tests/drc_reliability_relepoch.sh 4 16 > /src/mxfs/tests/_timeline_cap/fix2.log 2>&1 & echo "started pid $!"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass echo "=== P50-RELEPOCH-REREAD fire counts (run4 nodes) ===" for n in test1 test2 test3 test5; do e
+    cd /src/mxfs; timeout 260 make modules 2>&1 | grep -iE "error|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; cat > /tmp/claude-1000/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e/scratchpad/ep_run.sh <<'EOF' #!/bin/bash set -u cd /src/mxfs; SSH=tools/mxfs
+    cd /src/mxfs; until ! ps -p 3252075 >/dev/null 2>&1; do sleep 15; done; echo DONE; cat tests/_timeline_cap/ep.log
+    cd /src/mxfs; nohup make modules > /tmp/claude-1000/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e/scratchpad/build.log 2>&1 & echo "build pid $!"
+    cd /src/mxfs; tail -3 /tmp/claude-1000/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e/scratchpad/build.log | grep -iE "error|srcversion" ; modinfo mxfs.ko 2>/de
+    cd /src/mxfs; grep -iE "error|warning: unused" /tmp/claude-1000/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e/scratchpad/build.log | grep -iv "fserror_event\|u
+    cd /src/mxfs; ls -la .claude/awareness/subsystems/pal.md 2>/dev/null && tail -20 .claude/awareness/subsystems/pal.md 2>/dev/null | head -20 || echo "no pal.md"
+    cd /src/mxfs; cat >> .claude/awareness/subsystems/pal.md <<'EOF'  ## sess50 (ccloop): b_mxfs_relepoch field + dormant release-epoch dir gates (xfs_buf.c)  Added
+    cd /src/mxfs; echo "=== baked build (NFS-served to nodes) ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== cluster health ==="; for n in 1 2 4 8; 
+    cd /src/mxfs; timeout 270 make modules 2>&1 | grep -iE "error|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; cat > /tmp/claude-1000/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e/scratchpad/uf_run.sh <<'EOF' #!/bin/bash set -u cd /src/mxfs; SSH=tools/mxfs
+    cd /src/mxfs; until ! ps -p 3256317 >/dev/null 2>&1; do sleep 15; done; echo DONE; cat tests/_timeline_cap/uf.log
+    cd /src/mxfs; echo "=== lk->handoff assignments + dg_shadow ==="; grep -nE "handoff *=|dg_shadow|->handoff|prior.*owner|shadow" dlm/dlm.c | head -30
+    cd /src/mxfs; echo "=== mxfs_dlm_grant_dir_epoch (what the fast path would query) ==="; awk '/mxfs_dlm_grant_dir_epoch\(/{p=1} p{print NR": "$0} p&&/^}/{exit}' 
+    cd /src/mxfs; echo "=== baked build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== gates (both off = baseline-equiv) ==="; grep -hE "int mxfs_di
+    cd /src/mxfs; timeout 280 make modules 2>&1 | grep -iE "error|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; cat > /tmp/claude-1000/-src-mxfs/167acd03-33f5-43d0-8669-f7688215b68e/scratchpad/ep2_run.sh <<'EOF' #!/bin/bash set -u cd /src/mxfs; SSH=tools/mxf
+    cd /src/mxfs; until ! ps -p 3260745 >/dev/null 2>&1; do sleep 15; done; echo DONE; cat tests/_timeline_cap/ep2.log
+
+## Last text from previous session
+
+ far more precisely than any prior session. Let me do a final state verification.
+All clean; criteria correctly not met (marker absent). I've localized the bug to `dir_epoch` propagation. Let me take the recorded next step — add a probe inside `send_grant` logging the `dir_epoch` delivered for ino 131 — so the next run definitively localizes which grant path delivers 0. This is safe, finishable, and directly advances the fix.
+Build C69E3475. Let me run a capture correlating the three epoch probes (P64 master computes / P51 master sends / P44 grantee stores) to localize where the monotonic epoch is lost for ino 131.
+**Decisive localization.** test3 masters ino 131: it computes (P64 epoch=662) and **sends** the epoch correctly (P51 `dir_epoch_sent=662`, only 2 zeros). But **every grantee's** stored `lk->dir_epoch` (P44) lags badly — max 57-189, far below 662, with 10-48 reads at epoch=0. So the master propagates correctly, but **grantees hold a stale/phantom local epoch**: a node serving a **cached EX fast-path** keeps its old `lk->dir_epoch` while the master advances the epoch by granting peers — meaning the holder retained a **phantom grant** after the master revoked it (lost/unprocessed BAST), and modifies on a base stale by the missed epochs. This connects all the evidence (no master double-grant; reads coherent; base "not stale" by local counters because the local epoch itself is stale).
+
+Let me record this final, precisely-localized root.
+I've reached the limit of what I can productively verify this session, with the root cause localized far more precisely than at the start. Let me summarize the session's progress.
+
+## Session 50 summary — criteria NOT met (no marker written), but major diagnostic advance
+
+**Criterion**: full `./run.sh {1,2,4,8} tcp` suite 100%. Blocker remains 8/tcp `dir_reuse_coherency` — a flaky, durable, count-preserving single-dirent loss (~1 PASS/4).
+
+**What I refuted this session (each with direct kernel-log evidence — recorded so they're never retried):**
+1. **grant_gen writeback gate** (the prior session's GPT design) — `gg_mismatch=0` at every clobber; grant_gen often 0/inert.
+2. **`dir_refresh_inplace`** (disk strict-superset drop) — regresses to whole-batch loss.
+3. **`dir_acq_lockwait=600`** (LOCKED-SKIP hole) — still 0/8.
+4. **relepoch writeback-skip gate** (built it, GPT's Fix 4/5) — reliability loop 0/4 PASS; losses with 0 skips ⇒ not a writeback reflush.
+5. **modify-base-stale** — P50-RD proved `relepoch == i_dlm_epoch` at every read (base always fresh).
+6. **Case-A allocator overwrite** — ruled out (check_free would EFSCORRUPT; loss is silent).
+
+**What I proved/localized (the real advance):**
+- The loss is a **fast-path cached-EX serve on a stale base** — P51-HANDOFF-UNDERFIRE fires (grant token jumps 862→1071 with the one-shot handoff bit FALSE).
+- Root of the under-fire: `dg_grant_ex` sets handoff from `last_owner` which tracks only the *immediately prior* grant (dlm.c:2753).
+- The reliable monotonic epoch (`dg_shadow.epoch`/P64) **is computed and sent correctly by the master** (test3 sends up to 662) — but **grantees hold a stale local `lk->dir_epoch`** (max 57-189, many 0). 
+- ⇒ **Phantom cached-EX**: a holder keeps serving EX after the master revoked its grant to serve a peer (lost/unprocessed BAST or MHT held through it), modifying on a base stale by the missed epochs.
+
+**Concrete next step for the relay** (recorded in `sess50-LOCALIZED-...`): direction (A) — instrument the master's grant-to-peer path + the prior holder's BAST receipt to confirm the prior holder isn't reliably downgraded to NL, then fix that downgrade (or add grantee-side per-epoch ownership validation). This is the unfinished v6 of the master-epoch work (`sess16run-INPROGRESS`).
+
+**State**: build C69E3475 (baseline-equivalent — both relepoch gates default-OFF; all P50/P51/P44/P64 probes baked, pure instrumentation), cluster healthy, 6 detailed `sess50-*` memories forming the evidence chain. Marker correctly absent.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

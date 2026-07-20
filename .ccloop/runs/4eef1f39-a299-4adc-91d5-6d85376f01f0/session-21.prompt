@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 21 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 20
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `3dcac36a-6024-457e-b75a-e86bd21696dc`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3dcac36a-6024-457e-b75a-e86bd21696dc.jsonl`
+- approx context at last assistant turn: 254098 tokens
+- tools used: Bash×37 Read×15 Edit×8 mcp__ccmemory__memory_get×4 ToolSearch×3 mcp__ccmemory__memory_write×2 Agent×1 mcp__ask_gemini__query×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== dmesg: shutdown/bnobt/skip-stale after 20-file ==="; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 10 bash tools/mxfs_
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "echo -n 'mounted: '; mount | g
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -nE 'ltbno|Call Trace|xfs_|mxfs_|RIP:|P15-INSTR|P47-INACT|P8
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|warning:.*(implicit|undefined)|LD .*mxfs.ko|Error [0-9]' | head; echo "=== exit ${PIPESTATUS[0]} ==="; modinf
+    cd /src/mxfs; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; sleep 3; for h in test1 test2 test3 test4; d
+    cd /src/mxfs; timeout 300 bash -c 'TRANSPORT=caw bash tests/reset4.sh 4' 2>&1 | tail -4; echo "=== srcversion check ==="; for n in test1 test2 test3 test4; do e
+    cd /src/mxfs; timeout 200 bash tests/repro_rename_concurrent.sh "test1 test2 test3 test4" 100 2>&1 | tail -6; echo "=== EXIT $? ==="
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "echo -n 'mounted: '; mount|gre
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -nE 'P93|P122|P19-B3DEC|Corruption|xfs_buf_submit|Call Trace
+    cd /src/mxfs; grep -n 'mxfs_dlm_ag_drain_meta_buffers\|mxfs_ag_meta_coldread_discard\|mxfs_dlm_invalidate_ag_meta\|mxfs_ag_meta_invalidate_stale\|P117-AGMETA-ST
+    cd /src/mxfs; echo "=== exact AGF verify failure on test2 ==="; timeout 12 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -A30 'xfs_
+    cd /src/mxfs; echo "=== pag_dlm_meta_gen / meta_gen sites ==="; grep -rn 'pag_dlm_meta_gen\|dlm_meta_gen\|b_mxfs_ag_gen\|mxfs_ag_gen\|meta_gen' xfs/*.c xfs/libx
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -A12 'xfs_agf_verify' | head -20" 2>/dev/null; echo "=== xfs
+    cd /src/mxfs; echo "=== CAW slot struct + reserved ==="; grep -rn 'struct.*caw.*slot\|caw_slot\|reserved\[\|__reserved\|u8 reserved\|slot_entry\|struct mxfs_caw
+    cd /src/mxfs; echo "=== caw_lock signature + decl ==="; grep -rn 'mxfs_dlm_caw_lock' dlm/dlm_caw.h dlm/dlm_caw.c | head; echo "=== caw_lock callers ==="; grep -
+    cd /src/mxfs; echo "=== v5_dlm_ag_lock callers ==="; grep -rn 'mxfs_v5_dlm_ag_lock(' dlm/ xfs/ pal/ include/ 2>/dev/null | grep -v 'int mxfs_v5_dlm_ag_lock\|_nb
+    cd /src/mxfs; echo "=== AGSTATE / pagf_init defs ==="; grep -rn 'XFS_AGSTATE_AGF_INIT\|XFS_AGSTATE_AGI_INIT\|pagf_init\|pagi_init\|pag_opstate\|xfs_perag_clear_
+    cd /src/mxfs; echo "=== find_slot + slot read primitive ==="; grep -n 'find_slot\|read_slot\|mxfs_pal_bdev_read\|slot_offset\|static int caw_slot\|make_ag_resou
+    cd /src/mxfs; echo "=== invalidate_stale callers ==="; grep -rn 'mxfs_ag_meta_invalidate_stale' xfs/ pal/ | grep -v 'static void\|^.*://' | head; echo "=== AGF 
+    cd /src/mxfs; grep -n 'mxfs_buf_is_undestaged' xfs/xfs_mxfs_dlm.c pal/linux/xfs_buf.c xfs/*.h | head; echo "=== def ==="; awk '/mxfs_buf_is_undestaged\(struct x
+
+## Last text from previous session
+
+efore reading — and `coldread_discard` covers agf/agi/bnobt/cntbt/inobt/finobt. So the entire invalidation machinery is **dead only because `pag_dlm_meta_gen` is frozen**. My fix activates it via the global on-disk slot generation + the PAG-summary reset.
+
+Let me implement. First, the perag field for monotonic tracking.
+Now add the CAW read-generation function in `dlm_caw.c` (after `find_slot`) and its declaration.
+Now the v5_mount.c wrapper. Let me add it after `mxfs_v5_dlm_ag_lock` and declare it.
+The file uses 4-space indentation. Let me add the wrapper matching that style.
+Now declare it in v5_mount.h.
+I've identified a subtlety that affects the fix: a gen-lagging **in_ail AGF** falls into the PROTECT branch (the sess117 in_ail-discard is scoped to bnobt/cntbt only), so it won't be cold-read — and resetting `pagf_init` would just re-read the same stale in-core buffer. I need to confirm whether the destaged-LSN guard (`mxfs_buf_is_undestaged`) works for AGF/AGI before extending the in_ail-discard branch to them. Let me read it.
+Good — decisive finding: `mxfs_buf_is_undestaged` / `mxfs_ag_meta_payload_lsn` **already handle AGF/AGI/AGFL** (XFS_AGF_MAGIC→agf_lsn, etc.), so extending the sess117 in_ail-discard branch to all AG-meta types is safe. I've hit the relay boundary mid-implementation. Let me record precise progress + remaining edits to memory.
+I've reached the relay boundary. Summary of this session:
+
+## What I did
+Continued the `cache_coherency` ship-gate blocker (the only failing criterion; 11/12 pass).
+
+**Reconciled the handoff**: the `p` prompt + state.md describe sess108 NEWARCH, but the actual built module and recent work (ccloop "session 19" ≈ project sess122) are further along. The real current blocker is the **AG free-space cross-node lost-update → FS shutdown** that ~30 sessions (sess39–121) have chased.
+
+**Landed + verified the local_unlink reuse-hole fix** (build `D590F474`): cleared `MXFS_IF_LOCAL_UNLINK` at the top of `mxfs_dlm_reload_inode` so a torn reload of a reused inode# doesn't carry a stale unlink flag into the B3 inactivation guard. Necessary but insufficient.
+
+**Proved the primary root via RULE-4** (build `C740ED47` + a B3-decision probe): 20-file repro is clean, but 100-file 4-node concurrent same-dir create+rename shuts down. Decoded the corrupt in-core AGF: `agf_longest(260869) > agf_freeblks(260790)` — structurally impossible. The free-space set {AGF,AGFL,bnobt,cntbt} is RMW'd against **inconsistent stale state**, failing `xfs_agf_verify` *before* P122's write-side refresh can run. The linchpin: `pag_dlm_meta_gen` is **frozen at 1**, so all the existing read-hook invalidation is dead code.
+
+**Consulted Gemini (RULE-5)** for the architectural fix: replace the frozen local counter with the **shared on-disk CAW slot generation** as a cross-node epoch, and — the piece every prior attempt (incl sess118 evict-all) missed — **reset the in-core PAG summary** (`XFS_AGSTATE_AGF_INIT`/`AGI_INIT`) on epoch change so the cold-read AGF/AGI rebuild consistently.
+
+## Implementation progress: 5 of 8 edits done (all build-ready)
+- `xfs_ag.h`: added `pag_dlm_disk_gen_seen` field.
+- `dlm_caw.c`/`.h`: `mxfs_dlm_caw_read_generation()`.
+- `v5_mount.c`/`.h`: `mxfs_v5_dlm_ag_read_generation()`.
+
+## Remaining (3 edits in xfs_mxfs_dlm.c, then build+test)
+Exact edits, line numbers, and rationale are recorded in ccmemory `sess19b-shared-epoch-design`: (A) fresh-acquire epoch-drive + pagf/pagi reset; (B) same reset on the reclaim-discard paths; (C) extend the sess117 in_ail-discard branch to all AG-meta types (confirmed safe — `mxfs_buf_is_undestaged` already handles AGF/AGI/AGFL LSNs). Then `make modules`, virsh reboot + `TRANSPORT=caw reset4.sh 4`, run the 100-file repro ×3 requiring TOTAL_FAILS=0 + no ltbno + no AGF-verify + P93=0, then full `cache_coherency.sh` and `verify_ship.sh`.
+
+**Criteria NOT met** — `cache_coherency` still fails (the AG-meta fix is mid-implementation, not yet built/tested). Marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

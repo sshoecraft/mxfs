@@ -1,0 +1,324 @@
+===== ITER 1 =====
+
+[1m============================================[0m
+[1m  MXFS Test Run — 2026-06-03 12:29:46[0m
+[1m  Nodes: 4  Phase: cluster  Device: /dev/sda[0m
+[1m============================================[0m
+
+[0;34m[INFO][0m  Verifying environment on 4 node(s)...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test2.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test3.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test4.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Environment verified.
+[0;34m[INFO][0m  Running: [1mtest_cv_disc[0m (4 nodes)
+===== ITER 2 =====
+
+[1m============================================[0m
+[1m  MXFS Test Run — 2026-06-03 12:31:46[0m
+[1m  Nodes: 4  Phase: cluster  Device: /dev/sda[0m
+[1m============================================[0m
+
+[0;34m[INFO][0m  Verifying environment on 4 node(s)...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test2.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test3.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test4.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Environment verified.
+[0;34m[INFO][0m  Running: [1mtest_cv_disc[0m (4 nodes)
+[0;32m[PASS][0m  test_cv_disc (4 nodes)
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Cleaning up test artifacts...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+
+[1m============================================[0m
+[1m  Results: 1 tests[0m
+    [0;32mPASS: 1[0m
+    [0;31mFAIL: 0[0m
+    [0;33mSKIP: 0[0m
+    Time: 0m 17s
+[1m============================================[0m
+
+===== ITER 3 =====
+
+[1m============================================[0m
+[1m  MXFS Test Run — 2026-06-03 12:32:03[0m
+[1m  Nodes: 4  Phase: cluster  Device: /dev/sda[0m
+[1m============================================[0m
+
+[0;34m[INFO][0m  Verifying environment on 4 node(s)...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test2.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test3.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test4.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Environment verified.
+[0;34m[INFO][0m  Running: [1mtest_cv_disc[0m (4 nodes)
+===== ITER 4 =====
+
+[1m============================================[0m
+[1m  MXFS Test Run — 2026-06-03 12:34:03[0m
+[1m  Nodes: 4  Phase: cluster  Device: /dev/sda[0m
+[1m============================================[0m
+
+[0;34m[INFO][0m  Verifying environment on 4 node(s)...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test2.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test3.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test4.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Environment verified.
+[0;34m[INFO][0m  Running: [1mtest_cv_disc[0m (4 nodes)
+[0;33m[WARN][0m    Node 1 FAILED (rc=1, see /home/steve/.mxfs/results/20260603_123403/test_cv_disc/node1.log)
+      [INFO]  DISC node1 miss node4.txt => H2 (ON-DISK LOST even after drop_caches)
+      [INFO]  DISC node1 dir-listing: node1.txt node3.txt 
+      [INFO]  DISC node1 ls-li: total 8|    131 -rw-r--r-- 1 root root 18 Jun  3 17:34 node1.txt|2097344 -rw-r--r-- 1 root root 18 Jun  3 17:34 node3.txt|
+      [INFO]  DISC node1 stat-err: stat: cannot statx '/mnt/shared/.mxfs_test/cross_visibility/node4.txt': No such file or directory 
+      [FAIL]  cv_disc — 2 failure(s) in 0 assertion(s) [7.978s]
+[0;33m[WARN][0m    Node 2 FAILED (rc=1, see /home/steve/.mxfs/results/20260603_123403/test_cv_disc/node2.log)
+      [INFO]  DISC node2 miss node4.txt => H2 (ON-DISK LOST even after drop_caches)
+      [INFO]  DISC node2 dir-listing: node1.txt node3.txt 
+      [INFO]  DISC node2 ls-li: total 8|    131 -rw-r--r-- 1 root root 18 Jun  3 17:34 node1.txt|2097344 -rw-r--r-- 1 root root 18 Jun  3 17:34 node3.txt|
+      [INFO]  DISC node2 stat-err: stat: cannot statx '/mnt/shared/.mxfs_test/cross_visibility/node4.txt': No such file or directory 
+      [FAIL]  cv_disc — 3 failure(s) in 0 assertion(s) [7.138s]
+[0;33m[WARN][0m    Node 3 FAILED (rc=1, see /home/steve/.mxfs/results/20260603_123403/test_cv_disc/node3.log)
+      [INFO]  DISC node3 miss node4.txt => H2 (ON-DISK LOST even after drop_caches)
+      [INFO]  DISC node3 dir-listing: node1.txt node3.txt 
+      [INFO]  DISC node3 ls-li: total 8|    131 -rw-r--r-- 1 root root 18 Jun  3 17:34 node1.txt|2097344 -rw-r--r-- 1 root root 18 Jun  3 17:34 node3.txt|
+      [INFO]  DISC node3 stat-err: stat: cannot statx '/mnt/shared/.mxfs_test/cross_visibility/node4.txt': No such file or directory 
+      [FAIL]  cv_disc — 2 failure(s) in 0 assertion(s) [7.236s]
+[0;33m[WARN][0m    Node 4 FAILED (rc=1, see /home/steve/.mxfs/results/20260603_123403/test_cv_disc/node4.log)
+      [INFO]  DISC node4 miss node4.txt => H2 (ON-DISK LOST even after drop_caches)
+      [INFO]  DISC node4 dir-listing: node1.txt node3.txt 
+      [INFO]  DISC node4 ls-li: total 8|    131 -rw-r--r-- 1 root root 18 Jun  3 17:34 node1.txt|2097344 -rw-r--r-- 1 root root 18 Jun  3 17:34 node3.txt|
+      [INFO]  DISC node4 stat-err: stat: cannot statx '/mnt/shared/.mxfs_test/cross_visibility/node4.txt': No such file or directory 
+      [FAIL]  cv_disc — 3 failure(s) in 0 assertion(s) [7.743s]
+[0;31m[FAIL][0m  test_cv_disc (4 nodes)
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Cleaning up test artifacts...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+
+[1m============================================[0m
+[1m  Results: 1 tests[0m
+    [0;32mPASS: 0[0m
+    [0;31mFAIL: 1[0m
+    [0;33mSKIP: 0[0m
+    Time: 0m 19s
+
+  [0;31mFailed tests:[0m
+    [0;31m- test_cv_disc[0m
+[1m============================================[0m
+
+===== ITER 5 =====
+
+[1m============================================[0m
+[1m  MXFS Test Run — 2026-06-03 12:34:22[0m
+[1m  Nodes: 4  Phase: cluster  Device: /dev/sda[0m
+[1m============================================[0m
+
+[0;34m[INFO][0m  Verifying environment on 4 node(s)...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test2.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test3.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test4.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Environment verified.
+[0;34m[INFO][0m  Running: [1mtest_cv_disc[0m (4 nodes)
+[0;33m[WARN][0m    Node 1 FAILED (rc=1, see /home/steve/.mxfs/results/20260603_123422/test_cv_disc/node1.log)
+      [INFO]  DISC node1 miss node3.txt => H1 (in-core stale; ON-DISK PRESENT after drop_caches)
+      [INFO]  DISC node1 dir-listing: node1.txt node2.txt node3.txt node4.txt 
+      [INFO]  DISC node1 ls-li: total 16|    131 -rw-r--r-- 1 root root 18 Jun  3 17:34 node1.txt|4194432 -rw-r--r-- 1 root root 18 Jun  3 17:34 node2.txt|2097344 -rw-r--r-- 1 root root 18 Jun  3 17:34 node3.txt|6291587 -rw-r--r-- 1 root root 18 Jun  3 17:34 node4.txt|
+      [INFO]  DISC node1 stat-err:   File: /mnt/shared/.mxfs_test/cross_visibility/node3.txt   Size: 18        	Blocks: 8          IO Block: 4096   regular file Device: 8,0	Inode: 2097344     Links: 1 Access: (0644/-rw-r--r--)  Uid: (    0/    root)   Gid: (    0/    root) Access: 2026-06-03 17:34:26.990850672 +0000 Modify: 2026-06-03 17:34:26.990850672 +0000 Change: 2026-06-03 17:34:26.990850672 +0000  Birth: 2026-06-03 17:34:26.990850672 +0000 
+      [FAIL]  cv_disc — 1 failure(s) in 0 assertion(s) [4.555s]
+[0;31m[FAIL][0m  test_cv_disc (4 nodes)
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Cleaning up test artifacts...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+
+[1m============================================[0m
+[1m  Results: 1 tests[0m
+    [0;32mPASS: 0[0m
+    [0;31mFAIL: 1[0m
+    [0;33mSKIP: 0[0m
+    Time: 0m 14s
+
+  [0;31mFailed tests:[0m
+    [0;31m- test_cv_disc[0m
+[1m============================================[0m
+
+===== ITER 6 =====
+
+[1m============================================[0m
+[1m  MXFS Test Run — 2026-06-03 12:34:36[0m
+[1m  Nodes: 4  Phase: cluster  Device: /dev/sda[0m
+[1m============================================[0m
+
+[0;34m[INFO][0m  Verifying environment on 4 node(s)...
+Warning: Permanently added 'test1.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test2.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test3.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+Warning: Permanently added 'test4.vm.localdomain' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+[0;34m[INFO][0m  Environment verified.
+[0;34m[INFO][0m  Running: [1mtest_cv_disc[0m (4 nodes)

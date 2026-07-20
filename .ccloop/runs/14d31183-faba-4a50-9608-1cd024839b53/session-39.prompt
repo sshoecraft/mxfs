@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 39 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 38
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `af39b5cd-a9cb-4176-91f4-1746c6b41cfb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/af39b5cd-a9cb-4176-91f4-1746c6b41cfb.jsonl`
+- approx context at last assistant turn: 249786 tokens
+- tools used: Bash×96 Edit×23 Read×7 Agent×4 ToolSearch×3 TaskOutput×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/clyde_boot_recover.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -rn '"mxfs: P' /src/mxfs --include="*.c" | grep -vE "\.mod\.c" | wc -l; echo ---; grep -rn '"mxfs: P' /src/mxfs --include="*.c" | grep -vE "\.mod\.c" | awk
+    for m in P-EVICT-DISPATCH P135-HELD-MISS P-IRESURRECT P-EVICT-STAGE P90-PICK P127-DIRMISS P-NOINO-BAST P106-EXREL P106-MR-SKIP P132-CREATE P-CRNAME-DONE P-CRNAM
+    grep -rn "P124-ALLOC-REVERT" /src/mxfs --include="*.c" | cut -c1-100; grep -rn "P125-AG-DIVERGE" /src/mxfs --include="*.c" | grep -v "\*" | cut -c1-100
+    for f in xfs/xfs_mxfs_dlm.c xfs/xfs_inode.c xfs/libxfs/xfs_dir2.c xfs/libxfs/xfs_ialloc.c pal/linux/xfs_buf.c pal/linux/xfs_file.c pal/linux/xfs_iops.c pal/linu
+    grep -nE "CRITERIA=|^run_|timeout|order|for c" /src/mxfs/tests/criteria/verify_ship.sh | head -25; echo ===; cat /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md | h
+    sed -n 1,90p /src/mxfs/tests/criteria/verify_ship.sh
+    sed -n 90,170p /src/mxfs/tests/criteria/verify_ship.sh
+    cd /src/mxfs; for f in xfs/xfs_mxfs_dlm.c xfs/xfs_inode.c xfs/libxfs/xfs_dir2.c xfs/libxfs/xfs_ialloc.c pal/linux/xfs_buf.c pal/linux/xfs_file.c pal/linux/xfs_i
+    cd /src/mxfs; for f in xfs/xfs_mxfs_dlm.c xfs/xfs_inode.c xfs/libxfs/xfs_dir2.c xfs/libxfs/xfs_ialloc.c pal/linux/xfs_buf.c pal/linux/xfs_file.c pal/linux/xfs_i
+    grep -n "P51-INSTR" /src/mxfs/pal/linux/kern.c | head -2; sed -n "$(($(grep -n 'P51-INSTR' /src/mxfs/pal/linux/kern.c | head -1 | cut -d: -f1)-14)),$(($(grep -n
+    sed -n 2753,2775p /src/mxfs/pal/linux/kern.c; echo "=== P93 region ==="; sed -n 2320,2365p /src/mxfs/pal/linux/xfs_buf.c
+    grep -n "P88-CLOBBER-PRODUCER\|p93_seq" /src/mxfs/pal/linux/xfs_buf.c | head -8
+    make modules 2>&1 | grep -cE "^.*error" ; modinfo mxfs.ko | grep srcversion
+    bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2 && timeout 480 ./tests/criteria/zero_silent_loss.sh --iters 3 --dpn 100 --mode 1 2>&1 | tail -3
+    ls -la /tmp/zero_silent_loss.TCSLqJ.log; grep -nE "silent|MISSING|missing|FORENSIC|iter" /tmp/zero_silent_loss.TCSLqJ.log | head -30
+    grep -n "caw_instr_on())" /src/mxfs/dlm/dlm_caw.c | head; echo ===; for l in $(grep -n "caw_instr_on())" /src/mxfs/dlm/dlm_caw.c | cut -d: -f1); do echo "--- li
+    sed -n 1873,1905p /src/mxfs/dlm/dlm_caw.c; echo "=== 2330-2360 ==="; sed -n 2330,2362p /src/mxfs/dlm/dlm_caw.c; echo "=== 1027-1040 ==="; sed -n 1027,1040p /src
+    timeout 480 ./tests/criteria/zero_silent_loss.sh --iters 3 --dpn 100 --mode 1 2>&1 | tail -3
+    cat /tmp/zero_silent_loss.ucWI3d.log | head -40
+    ip=$(getent hosts test7.vm.localdomain | awk '{print $1}'); /src/mxfs/tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -iE "corrupt|shutdown|EFSBADCRC|
+
+## Last text from previous session
+
+All 16 sessions up, 17 LUN devices present. Re-running the cluster reset (measured budget ~180s):
+Now resuming the criterion runs. Checking the budget, then running `zero_silent_loss`:
+Only `zero_silent_loss` is failing (its last run was wedge-contaminated). Budget is 480s measured. Running it in the foreground:
+The P36-DINO-WR / P133 block is already gated (`mxfs_instr_enabled || mxfs_dirwr_enabled` at the top). Verifying the enclosing context of the other sites:
+P35E is ungated in the buffer submit path. Gating it now:
+Now reading the P35C enclosing block to classify it (anomaly-only detector vs hot trace):
+Applying the gating edits:
+The P35x/P36/P105 family is now gated. Before building, checking the volume of the remaining ungated P10-INSTR prints in the just-passed run (to decide if they also need gating):
+Odd — P105/P35E show zero but P-SFDIR-RELOAD shows 875. Checking what actually fires:
+Now P135-SLOTWR and the four P20-CLUSTER-INVAL prints:
+Build clean, new srcversion `9683085C`. Deploying to all 16 nodes and re-running `zero_silent_loss` to confirm no regression with the probes gated:
+P-IRESURRECT itself doesn't dump stacks — finding what produced the Call Traces:
+Four agents are gating the probe sites in parallel (disjoint files). While they work, checking how the full ship gate will fit the foreground-execution constraint:
+While the agents work, recording the session state in memory:
+Three of four agents are done. Waiting on the largest (xfs_mxfs_dlm.c):
+All four agents completed and the module builds. Now reviewing every diff hunk against the backups to verify only prints got gated:
+kern.c P51 is clean (error translation is outside the gate). P93 is log-only with a dump_stack — gating it:
+Rebuilding and deploying:
+Relay boundary — recording the critical finding in memory, then summarizing:
+Session summary — wrapping at the relay boundary:
+
+**Recovered from the host reset and got the cluster back.** The manual reset meant the @reboot recovery hook never ran; the missing piece was that test1–test16 can't even `virsh start` until the host is iSCSI-logged-in to all 16 per-node targets (their disks are by-path passthroughs). I logged in all 16, fixed `clyde_boot_recover.sh` to do all 17 logins on future boots, recreated `/tmp/.mxfs_pass`, and `cluster_reset_n.sh 16` came up clean on build `DE7F1BDA`. `zero_silent_loss` then passed 3/3 — confirming last session's failure was the SCST wedge, not mxfs. (Also: yes, the reset script is fully parallel across nodes, and I delivered the SCST-wedge prompt for Opus, which is now working on disk2 — properly isolated from my disk1.)
+
+**Completed the ship probe-gating sweep.** A passing run was still emitting ~36k `mxfs: P*` printk lines cluster-wide plus `dump_stack()` Call Traces (a `dmesg_clean` failure waiting to happen). I hand-gated the hot first batch, then four parallel agents gated the remaining ~46 sites behind `mxfs.dirwr || mxfs.instr` (dlm/ via dual-build-safe helpers). I diff-reviewed every hunk against `.backup` copies — all gates are print-only, lock-path semantics untouched. Build `4450524B` deployed to all 16 nodes.
+
+**The gated build exposed two real latent races — `zero_silent_loss` now FAILS.** Run 1: one created-then-lost dirent (the sess15 class). Run 2: an EUCLEAN corruption storm — `corrupt dinode 131 (btree extents)` at `xfs_iread_bmbt_block`, the known torn dinode-vs-bmbt family on the hot shared dir. The ~36k printks were evidently serializing the dir hot paths enough to mask these. They are real mxfs bugs that must be fixed at full speed — not papered over by re-adding prints.
+
+**Next session:** reproduce under `mxfs.dirwr=1` (the purpose-built low-rate detector set for exactly this family), harvest the ino-131 dinode/bmbt timeline, root-fix the torn write, then re-pass `zero_silent_loss` on the silent build and run `verify_ship.sh` end-to-end. Everything is captured in memory (`sess38-probe-gating-exposed-races`). Criteria not met — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

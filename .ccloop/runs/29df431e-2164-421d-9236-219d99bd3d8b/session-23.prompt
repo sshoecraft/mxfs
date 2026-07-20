@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 23 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 22
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `8e7b11d4-254f-4813-93b8-feb748d812a4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8e7b11d4-254f-4813-93b8-feb748d812a4.jsonl`
+- approx context at last assistant turn: 166841 tokens
+- tools used: Bash×39 Read×14 Edit×8 ToolSearch×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "STALE-SKIP total=$(dmesg|g
+    cd /src/mxfs; grep -n "bast_deferred\|DEMOTING\|deferred\|bast_process\|ISTATE_DEMOTE\|i_dlm_state ==" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; grep -n "mxfs_dlm_reload_inode\b" xfs/xfs_mxfs_dlm.c | head; echo "---"; sed -n '/^mxfs_dlm_reload_inode/,/^{/p' xfs/xfs_mxfs_dlm.c | head -5
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|warning: .*mxfs_dir_evict|LD \[M\].*mxfs.ko" | tail -5; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/
+    sleep 200; cat /tmp/claude-1000/-src-mxfs/8e7b11d4-254f-4813-93b8-feb748d812a4/tasks/b3e02vu3n.output 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+    cd ~/src/linux 2>/dev/null && grep -n "memcpy\|xlog_copy_iovec\|->iop_format\|xfs_buf_item_format" fs/xfs/xfs_log_cil.c | head -20; echo "=== where is iop_forma
+    cd ~/src/linux; awk 'NR>=540 && NR<=620 {print NR": "$0}' fs/xfs/xfs_log_cil.c | grep -E "^[0-9]+: (STATIC|static|void|int|xlog_|})" | head; echo "=== function 
+    cd ~/src/linux; for ln in 286 540 603; do echo "=== near L$ln, enclosing function ==="; awk -v target=$ln 'NR<=target && /^[a-zA-Z_].*\(/ && !/;/ {fn=$0; fnl=NR
+    cd ~/src/linux; echo "=== who calls xlog_cil_insert_format_items ==="; grep -n "xlog_cil_insert_format_items\|xlog_cil_insert_items\|xlog_cil_commit\b" fs/xfs/x
+    cd /src/mxfs; sed -n '5,12p' /tmp/claude-1000/-src-mxfs/8e7b11d4-254f-4813-93b8-feb748d812a4/tasks/b3e02vu3n.output 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'
+    cd /src/mxfs; tail -4 /tmp/claude-1000/-src-mxfs/8e7b11d4-254f-4813-93b8-feb748d812a4/tasks/b3e02vu3n.output 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g'; echo "=== 
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|LD \[M\].*mxfs.ko" | tail -3; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; until [ "$(ps aux | grep -c '[r]un_tests')" = "0" ]; do sleep 3; done; echo "background test done"; tail -3 /tmp/claude-1000/-src-mxfs/8e7b11d4-25
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -1; echo -n "srcver test1: "; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pa
+    cd /src/mxfs; until grep -q "run 4:" /tmp/claude-1000/-src-mxfs/8e7b11d4-254f-4813-93b8-feb748d812a4/tasks/bbga2uq7i.output 2>/dev/null; do sleep 5; done; sed '
+    cd /src/mxfs; echo "=== full output ==="; sed 's/\x1b\[[0-9;]*m//g' /tmp/claude-1000/-src-mxfs/8e7b11d4-254f-4813-93b8-feb748d812a4/tasks/bbga2uq7i.output; echo
+    cd /src/mxfs; for n in test2 test4; do echo "=== $n: shutdown/BUG/oops lines (not DIR-STALE-SKIP) ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|LD \[M\].*mxfs.ko" | tail -2; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+arning #2 doesn't hold for XFS's delayed-logging CIL.
+
+This means a stale block with `pin>0, dirty=0, in_ail=0` is the **async-unpin-lag** case and is safe to invalidate: by DLM serialization, if the disk holds a peer's version, our own change must already be drained (a peer can't take EX until we release+drain). Let me wait for the current run to finish, then relax the read-path guard to allow the pinned-but-clean case.
+Let me make the read-path guard relaxation now (the background run uses the deployed build, unaffected). I'll allow the pinned-but-clean case:
+The build/test loop should be near done. Let me check and then rebuild with the read-path fix:
+Run 5 failed too; the eviction-only build is clearly insufficient. Run 6 is finishing. Let me build the read-path fix now (doesn't disturb the loaded module on nodes):
+Build `C7BF9BFD` ready. Let me wait for the background run to finish, then deploy and test:
+I've hit the relay boundary, but the read-path pin-relaxation build (`C7BF9BFD`) is the key untested change. Let me deploy it and get a quick signal before wrapping up:
+The runs show empty results — the grep captured no PASS/FAIL line. Let me read the full output to see what happened:
+test1 is unresponsive (wedged) and the runs produced no results — the read-path pin-relaxation appears to have regressed. Let me quickly capture the failure mode on the responsive nodes before wrapping up:
+Decisive result: the read-path pin-relaxation (`C7BF9BFD`) causes **inode metadata corruption** (`xfs_inode_buf_verify` failures) → FS shutdown on all nodes. So clearing `XBF_DONE` and re-reading a **pinned** buffer is unsafe despite the CIL-copies-at-commit reasoning (it races the writeback/unpin machinery and clobbers inode clusters). This refutes that hypothesis. I'll revert that one change so the tree is left at the safe (eviction-only) state for the next session:
+Reverted to the safe eviction-only build (`2304C6B1`). The tree is in a known-non-corrupting state. Let me record the decisive sess64 findings at the head of state.md so the next session doesn't repeat the corrupting experiment:
+Reached the relay boundary. Brief summary of this session (sess64):
+
+## What was done
+- **Consulted Gemini (RULE 5)** on the 6+-session dir-block reader-coherency failure. It recommended the GFS2/OCFS2 **eager-invalidation-on-downgrade** pattern (evict cached dir blocks at lock release, not lazily on read).
+- **Implemented eager eviction** in `xfs_mxfs_dlm.c` (`mxfs_dir_evict_data_blocks`) wired into both the **demote-side** BAST-release drain and the **acquire-side** slow-path re-grant. **These are safe and kept** (tree left at build `2304C6B1`).
+
+## Decisive findings (RULE 4)
+- Eviction always succeeds (`EVICT-DONE=7, EVICT-SKIP=0`) but rename_visibility **still flaky-fails ~2/3 runs**.
+- Added a FUA disk-compare to the stale-skip log: the surviving stale reads are **`disk_differs=1, pin=1, dirty=0, in_ail=0`** — the cached block is *genuinely* stale (disk holds peers' renames), served on a **fast-path cached re-grant** that bypasses eviction, under CAW's silent (no-BAST) peer modification. The pin is the async CIL-unpin lag (xc_commit_wq) racing the verify read.
+- **Refuted** the "safe to invalidate a pinned-but-clean block at read time" hypothesis: build `C7BF9BFD` caused `xfs_inode_buf_verify` **metadata corruption + FS shutdown** on all nodes. **Reverted.** (Verified via kernel source that the CIL copies content at commit, so the *log* is safe — but re-reading a still-pinned buffer races writeback/unpin and clobbers in-core metadata.)
+
+## State
+- **Criteria NOT met** — cache_coherency (rename_visibility) and rsync_paired still FAIL. Marker not written.
+- Tree at safe build `2304C6B1`. **test1 is wedged** — recover next session via `virsh destroy/start` then `MKFS_OPTS=-f bash tests/reset4.sh 4`.
+- Next-step hypotheses (bounded-wait-for-unpin, or a CAW per-inode-cluster epoch poll to catch silent peer dir mods) recorded at the head of `state.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 24 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 23
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `901bc932-79d8-4e52-952d-5cbee000a42a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/901bc932-79d8-4e52-952d-5cbee000a42a.jsonl`
+- approx context at last assistant turn: 250305 tokens
+- tools used: Bash×52 Read×18 Edit×7 ToolSearch×2 mcp__ask_gemini__query×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_buf_item.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undeclared|implicit|Error [0-9]|LD \[M\]' | head -20; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/nu
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undeclared|implicit|Error [0-9]|LD \[M\]' | head -20; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/nu
+    cd /src/mxfs for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done sleep 3 for h in test1 test2 test3 test4; do s
+    cd /src/mxfs; timeout 180 bash tests/reset4.sh 4 2>&1 | tail -5 echo "=== srcversion on nodes ===" for h in test1 test2 test3 test4; do echo -n "$h: "; timeout 
+    cd /src/mxfs for h in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; done echo "=== running cache
+    cd /src/mxfs; sleep 280; grep -E 'RESULT:|passed=' /tmp/claude-1000/-src-mxfs/901bc932-79d8-4e52-952d-5cbee000a42a/tasks/b8c74fwls.output 2>/dev/null | tail -5
+    cd /src/mxfs echo "=== RESULT ==="; grep -E 'RESULT:|passed=' /tmp/claude-1000/-src-mxfs/901bc932-79d8-4e52-952d-5cbee000a42a/tasks/b8c74fwls.output 2>/dev/null
+    cd /src/mxfs L=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1) echo "log: $L" grep -E 'Running:|\[PASS\]|\[FAIL\]|not mounted|Deploy first|shutdown|Sh
+    cd /src/mxfs for h in test1 test2 test3 test4; do   echo "=== $h ==="   timeout 10 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "   echo -n 'P126-SKIP count:
+    cd /src/mxfs echo "=== test1: acquire-invalidate skip + release-drain behavior on bnobt/cntbt ===" timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "
+    cd /src/mxfs echo "=== fua module params + current values on test1 ===" timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -H . /sys/module/mxfs/p
+    cd /src/mxfs grep -rnE 'int mxfs_fua_disable|int mxfs_fua_always|module_param.*fua' pal/ xfs/ | head echo "=== sysfs (params may be unnamed) ===" timeout 8 bash
+    cd /src/mxfs grep -n 'mxfs_suppress_stale_agwrite' pal/linux/xfs_buf.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|warning:.*unused|Error [0-9]|LD \[M\]' | head; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | gr
+    cd /src/mxfs for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done sleep 3 for h in test1 test2 test3 test4; do s
+    cd /src/mxfs; timeout 180 bash tests/reset4.sh 4 2>&1 | tail -3 for h in test1 test2 test3 test4; do echo -n "$h: "; timeout 8 bash tools/mxfs_sshpass.sh "$h" /
+    cd /src/mxfs for h in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; done echo "=== cache_coheren
+    cd /src/mxfs; sleep 290; grep -E 'RESULT:|passed=' /tmp/claude-1000/-src-mxfs/901bc932-79d8-4e52-952d-5cbee000a42a/tasks/bvlre70x2.output 2>/dev/null | tail -3
+    cd /src/mxfs echo "=== RESULT ==="; grep -E 'RESULT:|passed=' /tmp/claude-1000/-src-mxfs/901bc932-79d8-4e52-952d-5cbee000a42a/tasks/bvlre70x2.output 2>/dev/null
+    cd /src/mxfs L=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1) echo "=== cross_write_read failure detail ===" grep -A40 'Running:.*test_cross_write_re
+
+## Last text from previous session
+
+ the SCST write-back cache. Let me check the FUA config and the cold-read path:
+`mxfs_fua_disable=1` — so AG-meta reads ARE plain (coherent SCST cache). That removes the FUA-inversion theory: the cold-read at acquire gets coherent nr=3. So how do we end up pushing nr=2? Two competing hypotheses:
+
+1. **Stale prior-tenure buffer survives invalidation** (but P79/P14/P47=0 says no in-AIL buffer was skipped at acquire).
+2. **The P93/P122 "revert" detection is misreading our own legitimate coalescing free** (disk nr=3, we legitimately freed blocks → in-core nr=2): then the P122 **suppression itself** would be skipping legitimate writes → leaving on-disk bnobt/cntbt/AGF inconsistent → the agf_verify + ltbno shutdowns.
+
+This is decisive new data that changes the picture. Per RULE 5's escalation, let me do a second Gemini consult with these findings:
+Gemini's second analysis is decisive and matches the new evidence: **the P122/P93 write-side suppression is the corruptor** — `numrecs` legitimately *decreases* on coalescing-frees and exact-match allocations, so suppressing "disk_nr > core_nr" writes discards legitimate bnobt updates, tearing the allocation transaction in half → AGF/bnobt desync → both the `agf_verify` and `ltbno+ltlen>bno` shutdowns. The fix (one change, measure): **rip out the write-side suppression**; the acquire/release fences are proven tight (P79/P126=0). Let me find the suppression action point:
+I'll neutralize the suppression while keeping the P93 detector as log-only (so I retain visibility). The cleanest single change: stop setting `mxfs_suppress_stale_agwrite`:
+Now build with suppression disabled:
+Build clean: `2C16B9C9` (warnings are pre-existing). Power-cycle, redeploy, retest:
+Excellent — **passed=3 failed=1**, and no cascading shutdown. cross_visibility, rename_visibility, unlink_visibility all PASS. Removing the suppression eliminated the bnobt corruption. Only `cross_write_read` remains. Let me diagnose it:
+Major progress this session: **3/4 cache_coherency subtests now pass** (was 0/4). I've hit the relay boundary. Let me record the findings to memory for the next session:
+## Session summary
+
+Major progress: **cache_coherency went 0/4 → 3/4 subtests passing**. The criterion still FAILs (cross_write_read), so the ship gate is not met and the marker is **not** written.
+
+### Root cause found (Gemini-confirmed across 2 consults)
+The long-standing bnobt/cntbt double-free + AGF corruption was **caused by the write-side suppression** (`mxfs_suppress_stale_agwrite`, P122/P93) in `pal/linux/xfs_buf.c`. Its discriminator — "on-disk numrecs > in-core numrecs ⇒ stale revert, skip the write" — is fundamentally broken: numrecs **legitimately decreases** on coalescing frees and exact-match allocations. Suppressing those writes tore the allocation transaction in half (bnobt skipped while cntbt+AGF landed) → `xfs_agf_verify` corruption and `ltbno+ltlen>bno` in-core double-free.
+
+### Fix applied (build `2C16B9C9`, KEEP)
+- Disabled the suppression (P93 detector now log-only). The acquire-invalidation and release-drain fences are proven tight this run (P79=0, P14-trylock-fail=0, P47-preserve=0, P126=0), so no stale buffer can reach the write side — suppression was unnecessary and harmful.
+- Two low-risk additions that fired 0× (harmless, kept): the sess22 pending `coldread_discard(pag,true)` on fresh acquire, and an `xfs_buf_item_push` AG-meta failsafe.
+
+Result: cross_visibility, rename_visibility, unlink_visibility all PASS with no FS shutdown cascade.
+
+### Remaining: cross_write_read
+1–2 of 6 integrity assertions fail per node, all node1-related (regular-file content md5), and dmesg shows a shutdown count of 1 — likely a **different** path (reg-file writer-durability / reader-staleness, cf. sess79/sess85/sess45), not the bnobt corruption just fixed. Recorded in memory `sess23-ccloop-suppression-was-corruptor-3of4` for the next session, which should clean power-cycle, reset4, and isolate the cross_write_read node1 failure.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

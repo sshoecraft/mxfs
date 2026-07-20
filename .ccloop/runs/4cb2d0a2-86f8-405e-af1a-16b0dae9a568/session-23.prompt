@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 23 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 22
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `4c417e47-3037-4644-823d-9b023ba51678`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4c417e47-3037-4644-823d-9b023ba51678.jsonl`
+- approx context at last assistant turn: 499384 tokens
+- tools used: Bash×123 Read×33 Edit×24 mcp__ccmemory__memory_write×15 ToolSearch×3 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_search×2 mcp__ask_gpt__query×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/xfs/libxfs/xfs_dir2_priv.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do c=$(timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -c 'P22-DATA-CLOBBER'" 2>/dev/null|grep -v "
+    cd /src/mxfs; grep -rn "xfsaild_skip\|dir.*writeback.*skip\|skip.*dir.*flush\|ABA.*writeback\|xfsaild.*dir\|P40\|dirblock.*aba" pal/linux/xfs_buf_item.c xfs/xfs
+    cd /src/mxfs; grep -rn "mxfs_dir_ex_write_guard\|P-DATACLOBBER-SKIP\|DATACLOBBER-SKIP\|ex_write_guard\|EXWR" pal/linux/xfs_buf.c | head; echo "=== detector log 
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do c=$(timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -c 'P-DATACLOBBER-SKIP'" 2>/dev/null|grep -v
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "=== build (should match keeper EFBB9861) ==="; modinfo mxfs.ko 2>/dev/null 
+    cd /src/mxfs; grep -nE "int mxfs_dir_release_fua_write|int mxfs_relsettle_skip|int mxfs_dir_release_invalidate" xfs/xfs_mxfs_dlm.c | head; echo "=== defaults ==
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; p=0; f=0; for r in 1 2 3; do res=$(MXFS_EXTRA_MODARGS='dir_release_fua_write=1' TEST_TIMEOUT=480 ./run.sh 8 tcp dir_reuse_coherency 2>&1 | grep -E
+    cd /src/mxfs; d=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); grep -E "RESULT:" "$d/test1" 2>/dev/null | grep -oE "reason=.*"|cut -c1-120; sd=
+    cd /src/mxfs; grep -rn "xfs_dir2_data_use_free\|dep->inumber = \|xfs_dir2_data_log_entry" xfs/libxfs/xfs_dir2_data.c | head; echo "=== use_free signature ==="; 
+    cd /src/mxfs; grep -n "xfs_dir2_data_use_free\|xfs_dir2_node_addname_int\|free->bests\|findex\|dbp = \|xfs_dir2_data_freescan\|xfs_dir2_free_log_bests\|bestfree
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|label|jump" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|buf_incarn|cur_incarn" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep sr
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; wc -l .claude/awareness/subsystems/pal.md 2>/dev/null; grep -nE "chokepoint|DATACLOBBER|ex_write_guard|dir.*write|clobber|^## |^### " .claude/awar
+    cd /src/mxfs; modinfo mxfs.ko 2>/dev/null | grep srcversion; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4;
+    cd /src/mxfs; grep -nE "int mxfs_dir_release_invalidate|dir_release_invalidate," xfs/xfs_mxfs_dlm.c | head -3; echo "=== test dir_release_invalidate=1 ==="; MXF
+
+## Last text from previous session
+
+md already documents the write-side chokepoint guards and notes the read-side conclusion (sess69/sess12). Let me add a tight sess22 entry confirming the refutation.
+Doc updated. The read-side fix is the decisive path but implementing+testing it safely needs a full build/reboot/multi-run cycle, and my context is nearly exhausted — starting a delicate evict-path edit now risks leaving an unvalidated tree (exactly what the write-side attempt showed is dangerous). Let me leave the cluster in a clean state (4 nodes shut down in the refuted test) so the next iteration starts fresh, then the relay continues with the documented read-side plan.
+Cluster clean, keeper safe. Let me continue with a safe, on-target read-side experiment: there's a `mxfs_dir_release_invalidate` param (default 0) — invalidating cached dir blocks on EX release is exactly the sess69-recommended read-side fix (force the next read to miss → fetch the peer's durable image). Let me test it on dir_reuse.
+`dir_release_invalidate=1` also fails (readdir=783/793) + 2 shutdowns — release-side invalidation isn't the fix either. The read-side fix must be **acquire-side** force-evict of prior-tenure blocks. I've now exhausted the safe param experiments; the remaining work is a delicate evict-path code change requiring careful validation I can't complete in remaining context. Let me record this final negative and leave the cluster clean.
+Let me implement the read-side fix as a default-OFF param so the next session can test it immediately (safe — keeper stays inert). Let me read the sess41 evict-refresh decision point to add a `dc_stale` arm.
+Critical: lines 2997-3005 reveal **sess16 already tried the acquire-side refresh I was about to implement — and REVERTED it** (causes resurrection: reverts our own undestaged work; structurally racy as the peer's write often isn't on the LUN at evict time). So acquire-side refresh is ALSO refuted, AND release-side invalidate failed this session, AND write-side suppression is refuted. This is the genuine multi-session impasse. Let me record this critical correction so the next session doesn't re-implement the refuted acquire-side fix.
+Relay boundary reached. Wrapping up.
+
+## Session 22 summary
+
+**Criteria not met** (8/tcp = 13/17). Not writing the marker. Keeper build **`D589FA5F`** is clean and deployed; cluster rebooted to a clean 8/8 state.
+
+### Banked, measurable progress
+1. **Reorder `xfs_dir_remove_child`** — eliminated the remove-path dirty-cancel **shutdown cascade**. The full 8/tcp suite went from sess21's 11/17-with-cascade to **13/17 with zero shutdowns on any node**; crash_consistency + tcp_dlm_scaling now pass 8/8.
+2. **Node-format datascan leaf-hash-hole heal** — eliminated the dir_reuse `leaf-hash lookup_fail` face.
+3. Layer-3 free-slot guard (harmless) + pal.md doc updated.
+
+### The remaining blocker, fully characterized
+`dir_reuse` `readdir=799` = a durable, content-divergent, count-preserving data-block clobber (an EX-holder RMW-ing a stale base). This session **ruled out, each with evidence**, every quick fix: `prior_tenure`, `release_fua_write`, `leaf_rebuild`, the addname free-slot guard (0×), all count-based write guards, **write-side EX-held suppression** (catastrophic — 4-node shutdown), and **release-side invalidation** (fail + 2-node shutdown). A GPT-5.5 consult confirmed the diagnosis.
+
+**Critical finding for the next session:** all three sides are refuted — write-side (indistinguishable from legit removes), release-side (this session), and acquire-side refresh (sess16 reverted it: causes resurrection + structurally racy). The naive "force-evict stale base" I nearly built IS the refuted sess16 approach. The impasse and three genuinely-novel directions (DLM-grant-tied invalidation barrier, on-disk per-block durable epoch, re-confirm the cache-hit mechanism on this build) are documented in ccmemory `sess22-CRITICAL-all-three-sides-refuted-impasse` and the sibling `sess22-*` memories. The relay continues from there.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

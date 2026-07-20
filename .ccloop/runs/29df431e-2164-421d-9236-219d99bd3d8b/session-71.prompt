@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 71 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 70
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `e8dbc4b6-1990-48a8-bcca-c2e94e6eceb2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e8dbc4b6-1990-48a8-bcca-c2e94e6eceb2.jsonl`
+- approx context at last assistant turn: 263863 tokens
+- tools used: Bash×45 Read×16 Edit×4 mcp__ccmemory__memory_get×3 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== xfs_da3_blkinfo ==="; grep -nA8 "struct xfs_da3_blkinfo {" xfs/libxfs/xfs_da_format.h; echo "=== xfs_dir3_data_hdr ==="; grep -nA4 "stru
+    cd /src/mxfs; echo "=== build ==="; timeout 400 make modules 2>&1 | grep -iE "error|warning: .*P-DIR|xfs_buf.c|xfs_mxfs_dlm.c|Error|undefined|modpost|LD \[M\]|\
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -4; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; for n in 1 2 3 4; do timeout 8 $SSH test$n.vm.localdomain "$PASS" "dmesg -C" >/dev/null 2>
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== unlink_visibility dir inode ==="; timeout 10 $SSH test2.vm.localdomain "$PASS" "
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; > /tmp/dirwr_all.txt; > /tmp/dirfastex_all.txt; for n in 1 2 3 4; do timeout 15 $SSH test$
+    cat > /tmp/analyze_dirwr.py << 'PYEOF' import re lines=open('/tmp/dirwr_all.txt').read().splitlines() rows=[] for ln in lines:     m=re.search(r'node(\d).*P-DIR
+    cd /src/mxfs; grep -n "mxfs_dir_flush_data_blocks\|mxfs_dir_evict_data_blocks\|mxfs_dir_drain_evict_data_blocks\|mxfs_dir_push_data_ags" xfs/xfs_mxfs_dlm.c | gr
+    cd /src/mxfs; grep -nE "mxfs_dir_flush_data_blocks|mxfs_dir_evict_data_blocks" xfs/xfs_mxfs_dlm.c | head; echo "---def line---"; awk '/^mxfs_dir_flush_data_bloc
+    cd /src/mxfs; echo "=== P-DIRWR comm distribution (all nodes) ==="; grep -oE "comm=\S+" /tmp/dirwr_all.txt | sort | uniq -c; echo "=== release-fence / bast sign
+    cd /src/mxfs; echo "=== mxfs_dir_data_durable def ==="; awk '/^mxfs_dir_data_durable\(|mxfs_dir_data_durable\(struct/{f=NR} END{}' xfs/xfs_mxfs_dlm.c; grep -n "
+    cd /src/mxfs; echo "=== build ==="; timeout 400 make modules 2>&1 | grep -iE "error|Error|undefined|LD \[M\]|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== run unlink_visibility ==="; timeout 300 env MXFS_TESTS_DIR=/src/mxfs/tests tests/run_tests.sh --nodes 4 --phase cl
+    cd /src/mxfs; for i in $(seq 1 40); do if ! kill -0 %% 2>/dev/null; then :; fi; if grep -qiE "\[PASS\]|\[FAIL\]" /tmp/claude-1000/-src-mxfs/e8dbc4b6-1990-48a8-b
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; > /tmp/dirwr2.txt; for n in 1 2 3 4; do timeout 15 $SSH test$n.vm.localdomain "$PASS" "dme
+    cd /src/mxfs; sed 's#/tmp/dirwr_all.txt#/tmp/dirwr2.txt#' /tmp/analyze_dirwr.py > /tmp/analyze2.py; python3 /tmp/analyze2.py 2>/dev/null | grep -E "RESURRECT|==
+    cd /src/mxfs; echo "=== build ==="; timeout 400 make modules 2>&1 | grep -iE "error|Error|undefined|LD \[M\]|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; echo "=== P-RELFLUSH counts + comm per node ==="; for n in 1 2 3 4; do echo -n "node$n: ";
+
+## Last text from previous session
+
+hole-AG `xfs_ail_push_ag_sync` before it cleans the block first, so `needs_flush` is false), and the lost-update persists via near-concurrent xfsaild flushes of in-core buffers that are 1-2 deletions behind the target.
+
+I've now proven a great deal with the write trace, but the "release-flush + reread" class of fix has failed ~4 times across sessions (sess96 ×2, sess97, my Inv1). This is the RULE-5 escalation situation, and I have major new evidence (the write trace) that the prior GPT consult lacked. Let me record progress to memory first, then consult GPT with the comprehensive new data.
+Now consult GPT with the comprehensive write-trace evidence (RULE-5 escalation; Gemini was used twice in sess96, GPT is next).
+GPT confirms my proven diagnosis and gives a clear, minimal prescription. The key insight I was missing: **on release, after the dir block is durable on the target, `xfs_buf_stale()` it** — discard the local buffer so (a) xfsaild can never flush a stale copy later, and (b) the next acquire (fast OR slow lock path) is forced to cold-read from the target. This enforces coherency at the *buffer* level, not the lock level. Combined with dropping the slow whole-AG push for the targeted per-buffer `xfs_bwrite`. Let me record this and look at the current evict function.
+I've reached the relay boundary. Let me record GPT's prescription to memory before wrapping up.
+Reached the relay boundary. Summary of this session's work:
+
+## What I did (RULE-4 loop, all measured)
+
+**Reconciled state**: The resume summary was stale. The real current blocker is `cache_coherency`/`unlink_visibility` — a durable lost-update on a shared block-format directory under 4-node concurrent unlink. Cluster test1-4, build E06FDBC3 (cumulative sess95+96+97 tree), fua_disable=1.
+
+**Built the decisive instrument that 30+ sessions wanted but never made**: a dir-block **write-submission trace** (`P-DIRWR`) in `xfs_buf_submit` — logs every dir buffer write with node/daddr/count/stale/active/in_ail/comm/wall-clock-ns, merged across all 4 nodes into one per-daddr timeline. Plus `P-DIRFASTEX` (non-shortform dir EX fast-path grants).
+
+**PROVED the root cause** (airtight, write-granularity): In the delete phase the dir block's `count` stays constant and deletions just increment `stale`, so `active` must decrease monotonically. Instead it **oscillates** — nodes flush in-core dir buffers 1-2 deletions *behind* a peer's already-flushed version, durably reverting peer deletions. **Every** target write is async `xfsaild` (in_ail=1); zero come from the release path. The DLM serializes the RMW operation but NOT the physical writeback — per-node buffer caches + async xfsaild = no global writeback order.
+
+**Found + fixed a real gap**: `mxfs_dir_data_durable` (the release-fence gate) omitted `XFS_LI_IN_AIL`, so committed-but-unwritten blocks were treated as durable and the release broke without flushing. Necessary but insufficient — `P-RELFLUSH=0` showed the per-buffer write still never runs (whole-AG push cleans it first) and reverts persist.
+
+**Consulted GPT-5.5** (RULE-5 escalation) *with* the new write-trace evidence. Prescription recorded in `sess98_gpt_fix_design`: treat shared dir buffers as **tenure-local** — on EX release, after the block is durable, **`xfs_buf_stale()`** it (the missing "discard" step) so xfsaild can't flush a stale copy and the next acquire cold-reads; drop the slow whole-AG push for targeted `xfs_bwrite`. Buffer-level coherency makes fast-path safe.
+
+## State for next session
+- Build `8AA373A2` deployed on all 4 nodes (probes + IN_AIL fix). Cluster clean/mounted.
+- **NEXT**: implement the release publish-and-discard fence (`xfs_buf_stale` + drop whole-AG `xfs_ail_push_ag_sync`) per `sess98_gpt_fix_design`, build, reset4, run unlink_visibility — expect reverts gone (P-DIRWR active monotonic), fast (~9s not 148s), rename/cwr stay PASS.
+
+**Criteria NOT met** — cache_coherency still fails (unlink_visibility durable lost-update). Marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

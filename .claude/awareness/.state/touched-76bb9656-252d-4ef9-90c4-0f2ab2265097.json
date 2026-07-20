@@ -1,0 +1,16 @@
+{
+  "source": [
+    "scripts/p29_replay.py",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_dir2_data.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "scripts/mxfs_dirdump.py",
+    "xfs/xfs_inode.c",
+    "xfs/xfs_icache.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 3
+}

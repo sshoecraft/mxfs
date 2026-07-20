@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 50 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 49
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `7459a30f-4212-49f6-a092-de1c50152f5c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7459a30f-4212-49f6-a092-de1c50152f5c.jsonl`
+- approx context at last assistant turn: 254524 tokens
+- tools used: Bash×53 Read×13 Edit×4 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/repro_dirent_loss.sh
+- /src/mxfs/tests/repro_dirent_capture.sh
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; F=$(find tests -name "*cross_write_read*" -o -name "*.sh" 2>/dev/null | xargs grep -l "cross_write_read\|data_node" 2>/dev/null | head -3); echo "
+    cd /src/mxfs; chmod +x tests/repro_dirent_loss.sh; echo "START $(date -u +%H:%M:%S)"; timeout 400 bash tests/repro_dirent_loss.sh 16 8 2>&1 | grep -vE "Permanen
+    cd /src/mxfs; chmod +x tests/repro_dirent_capture.sh; echo "START $(date -u +%H:%M:%S)"; timeout 560 bash tests/repro_dirent_capture.sh 16 20 2>&1 | grep -vE "P
+    cd /src/mxfs; grep -rn "P36-RELOAD-SELFSKIP\|RELOAD-SELFSKIP\|own mods in flight" xfs/*.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*xfs_mxfs_dlm|LD |CC .*xfs_mxfs" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | gr
+    cd /src/mxfs; echo "START $(date -u +%H:%M:%S)"; timeout 320 bash tests/reset4.sh 16 2>&1 | grep -vE "Permanently added|Unauthorized|disconnect imme|^$" | tail 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== verify build + dirwr + bind on all 16 ==="; bad=0; for n in $(seq 1 16); do r=$(timeout 12 tools/mxfs_sshpass.sh test
+    cd /src/mxfs; echo "START $(date -u +%H:%M:%S)"; timeout 560 bash tests/repro_dirent_loss.sh 16 12 2>&1 | grep -vE "Permanently added|Unauthorized|disconnect im
+    cd /src/mxfs; echo "START $(date -u +%H:%M:%S)"; timeout 560 bash tests/repro_dirent_capture.sh 16 20 2>&1 | grep -vE "Permanently added|Unauthorized|disconnect
+    cd /src/mxfs; grep -n "mxfs_dir_data_durable\|mxfs_dir_push_data_ags\|deterministic.*durable\|iflush_cluster\|log_force\|imap_to_bp\|durable.*dir\|mxfs_force_in
+    cd /src/mxfs; grep -n "mxfs_inode_cluster_durable\|S_ISDIR\|FMT_LOCAL\|XFS_DINODE_FMT_LOCAL\|P105-REL-DIRINODE\|P106-EXREL\|shortform\|SFDIR" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -rn "mxfs_dlm_dir_inode_durable" xfs/*.c; echo "=== context at xfs_create call ==="; grep -n "mxfs_dlm_dir_inode_durable\|xfs_iunlock(dp\|xfs
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|CC .*xfs_inode|CC .*xfs_mxfs|LD .*mxfs.ko" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | gr
+    cd /src/mxfs; echo "deploy ABD1F70..."; timeout 320 bash tests/reset4.sh 16 2>&1 | grep -vE "Permanently added|Unauthorized|disconnect imme|^$" | tail -3; echo 
+    cd /src/mxfs; echo "START $(date -u +%H:%M:%S)"; timeout 560 bash tests/repro_dirent_loss.sh 16 12 2>&1 | grep -vE "Permanently added|Unauthorized|disconnect im
+    cd /src/mxfs; echo "START $(date -u +%H:%M:%S)"; timeout 560 bash tests/repro_dirent_capture.sh 16 30 2>&1 | grep -vE "Permanently added|Unauthorized|disconnect
+    cd /src/mxfs; grep -n "P91-RELOAD-PROTECT\|RELOAD-PROTECT\|kept_protected\|keeping in-core authoritative cluster" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; grep -rn "P119\|NONEX-FLUSH\|i_dlm_mode.*EX\|MXFS_IF_DLM_RELFLUSH\|iflush_int\|non-EX" xfs/xfs_inode.c xfs/libxfs/xfs_inode_buf.c xfs/xfs_inode_it
+    cd /src/mxfs; grep -n "xfs_iflush_cluster\|^xfs_iflush\b\|cluster_mark_ra\|xfs_inode_item_precommit\|for_each.*cilist\|XFS_ISTALE_CAW\|P119\|refetch\|re-read" x
+    cd /src/mxfs; grep -n "xfs_iflush_cluster\b" xfs/*.c; echo "---"; grep -n "^xfs_iflush_cluster\|xfs_iflush_cluster(" xfs/xfs_inode.c
+
+## Last text from previous session
+
+wn to ~1/14 rounds (13 clean), and only the **genuinely-last** committer (`f_16`) slips. The new evidence on observer node1 reveals the residual mechanism:
+
+```
+P106-EXGRANT ino=361 mode=5 gen=18
+P-SFDIR-RELOAD ino=361 count=15 [no f_16]        ← disk already lost f_16
+P91-RELOAD-PROTECT ino=0x169 — keeping in-core authoritative cluster buffer
+DLM reload BAIL ino=361 (i_lock contended; buffer staled, will retry)
+```
+
+The disk has f_1..f_15 (everyone except f_16). node16 made f_16 durable, but a **different node's stale in-core dir-361 dinode** (in its shared inode-cluster buffer, kept by `P91-RELOAD-PROTECT`) got flushed afterward, clobbering f_16. This is the cluster-buffer analog of the self-skip. Let me examine `P91-RELOAD-PROTECT`.
+`P91-RELOAD-PROTECT` keeps the whole cluster buffer (because a *co-resident* inode has uncheckpointed mods), which prevents refreshing dir-361's stale dinode. The durable clobber comes from a node flushing a stale dir-361 dinode while **not holding EX**. There's supposed to be a guard for that (`P119-NONEX-FLUSH-SKIP` — skip copying a dir dinode into the cluster buffer when `i_dlm_mode != EX`). Let me check whether it reliably covers the async xfsaild path.
+The clobber chain is now clear: node16 writes `f_1..f_16` to disk → a co-resident node Z holds a **stale cached cluster buffer** (kept by `P91-RELOAD-PROTECT` due to a co-resident inode's uncheckpointed mods, dir-361 slot = `f_1..f_15`) → node Z's `xfs_iflush_cluster` writes that stale buffer back, with dir-361's slot **P119-skipped** (kept stale, not refreshed) → clobbers f_16. This is a shared-inode-cluster coherency gap. Let me examine `xfs_iflush_cluster` to find the safe fix point.
+I've hit the ccloop relay boundary. Let me record this session's findings and fixes to memory before wrapping up. There's a directly-relevant comment at `xfs_inode.c:4303` ("xfs_iflush_cluster... writes the WHOLE cluster, carrying this node's STALE...") that the next session should start from.
+Reached the ccloop relay boundary. Criteria are **not** met (residual dirent loss remains), so no marker written.
+
+## Session summary
+
+**Progress: 16-node `cross_write_read` went from a total hang → ~1/14-round residual.** Three proven fixes landed (RULE 4, all build-verified, current build `ABD1F70849A484A3CBBC609` on all 16 nodes):
+
+1. **Folio self-deadlock** (`xfs_mxfs_dlm.c`, `mxfs_dlm_reload_inode` REG branch): a peer EX BAST mid-read made `invalidate_inode_pages2` block on a folio the reading thread already held locked (node14 md5sum hung 122s in `folio_wait_bit_common`). Switched to non-blocking `invalidate_mapping_pages`. This unblocked the hang — `cross_visibility` now passes and `cross_write_read` completes.
+
+2. **Shortform-dir self-skip** (`P36-RELOAD-SELFSKIP`): excluded `LOCAL`-format dirs from the sess36 "own mods in flight → keep in-core" skip, which was wrongly retaining a stale in-core dir after an EX release+re-acquire and clobbering a peer's dirent.
+
+3. **Proactive file-create durability** (`xfs_inode.c:1687`): `mxfs_dlm_dir_inode_durable` was gated to mkdir children only; extended to file creates into shared shortform parents. This is why `concurrent_mkdir` passed but `cross_write_read` lost entries. Fail observations dropped 80→16, no CAW starvation.
+
+**Residual (diagnosed, not fixed):** a **co-resident inode-cluster stale-buffer clobber** — `P91-RELOAD-PROTECT` keeps a whole stale cluster buffer (because a co-resident inode has uncheckpointed mods), and `xfs_iflush_cluster` later writes it back with the peer-owned dir slot `P119-NONEX-FLUSH-SKIP`'d (not refreshed), durably clobbering the last committer's dirent. Next session should start at the comment `xfs/xfs_inode.c:4303` and make `iflush_cluster` re-read non-EX-owned slots from disk before writeback.
+
+New repros added in-tree: `tests/repro_dirent_loss.sh`, `tests/repro_dirent_capture.sh`. Full diagnosis recorded to memory `sess49-16node-shortform-dir-lost-update-3fixes-residual-cluster-clobber`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

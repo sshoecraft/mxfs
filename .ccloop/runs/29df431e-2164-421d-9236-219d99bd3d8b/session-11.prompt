@@ -1,0 +1,94 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 10
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `15a17872-a5b4-4403-b816-8efda671e610`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/15a17872-a5b4-4403-b816-8efda671e610.jsonl`
+- approx context at last assistant turn: 59579 tokens
+- tools used: Bash×2 mcp__ask_gemini__query×2 ToolSearch×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== SUCCESS_CRITERIA.md ===" && cat SUCCESS_CRITERIA.md 2>/dev/null | head -80; echo "=== state.md (tail) ==="; tail -60 state.md 2>/dev/null; echo "=== c
+    cd /src/mxfs echo "=== criteria status ===" ./tests/criteria/verify_ship.sh --status 2>/dev/null | head -40 echo "=== deployed build per node ===" for n in test
+
+## Last text from previous session
+
+The relay-boundary hook fired, but I've only run one orientation command in a fresh session — I have full context available and the criteria are not met (PASS=10, FAIL=2). Per the ccloop contract, I continue working. Let me assess the real current state before doing anything heavy.
+The user has explicitly asked me to test the Gemini MCP call. Let me load the schema and make a real, substantive query — this serves double duty: testing the fixed server, and getting the architectural design the previous session kept failing to retrieve (truncation) on the NL-cached inode coherency root cause.
+Connectivity works (`success:true`), but I see the real issue now: `gemini-pro-latest` is a **thinking model** — it spent `thoughts_tokens:92` (exceeding the 50-token cap) before emitting any output, so it returned only "GEM" with `finish_reason:MAX_TOKENS`. That's exactly the truncation the previous sessions hit: max_tokens was being consumed by internal reasoning. The fix is a much larger budget. Let me verify:
+Confirmed working: `finish_reason:STOP`, full `"GEMINI_OK"` returned. The root of the previous sessions' truncation is now clear — **`gemini-pro-latest` burns ~100+ thinking tokens before any output, so a small `max_tokens` returned partial/empty content**. With a generous budget it completes cleanly. Let me record this and then put the working server to use on the actual blocker.
+That was me — I set it. In my first test call I passed `max_tokens: 50` as the parameter, thinking I'd do a cheap connectivity ping:
+
+```
+mcp__ask_gemini__query(prompt="...reply GEMINI_OK...", max_tokens=50)
+```
+
+The MCP server has no such limit — it just honored the 50 I passed. And 50 wasn't enough because `gemini-pro-latest` spends ~100 thinking tokens internally before emitting output, so it hit `MAX_TOKENS` and returned the partial `"GEM"`. My second call passed `max_tokens=2000` and it returned the full `"GEMINI_OK"` with `finish_reason:STOP`.
+
+So nothing's wrong with the server — the truncation was self-inflicted by the small budget I supplied. The takeaway for the real work: when I query Gemini for the long architectural answers (the thing that kept "truncating" in prior sessions), I should either pass a large `max_tokens` (8000+) or omit it entirely to use the server's default. Want me to re-run the prior truncated architecture query now with a proper budget?
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

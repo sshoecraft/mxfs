@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 27 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 26
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `9f2cd211-1a2f-47f2-bb46-086b0e960a08`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9f2cd211-1a2f-47f2-bb46-086b0e960a08.jsonl`
+- approx context at last assistant turn: 498511 tokens
+- tools used: Bash×131 Read×44 Edit×29 mcp__ccmemory__memory_write×9 mcp__ccmemory__memory_get×4 Write×3 mcp__ccmemory__memory_search×3 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/wedge_capture.sh
+- /src/mxfs/tests/tcp/drc_passrate.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/tcp/drc_catch_loss.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/.claude/awareness/subsystems/xfs.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'echo "=== actual shutdown/corruption lines ==="; dmesg 2>/dev/null | grep -iE "forced shut
+    cd /src/mxfs; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg 2>/dev/null | grep -iE "Internal error" | head -2; echo "---"; dmesg 2>/dev/null | g
+    cd /src/mxfs; grep -nB2 -A6 "int mxfs_dir_modify_extent_reload\b\|int mxfs_dir_modify_extent_adopt\b" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; echo "=== procs ==="; ps -ef | grep -iE "run.sh 8|drc_catch|make modules|while pgrep" | grep -v grep | grep -v snapshot-bash | head; echo "=== new
+    cd /src/mxfs; grep -nE "cbp->b_mxfs_dir_gen != dp->i_dlm_dir_gen \|\|" xfs/libxfs/xfs_da_btree.c | head
+    cd /src/mxfs; tail -25 .claude/awareness/subsystems/xfs.md 2>/dev/null; echo "=== wc ==="; wc -l .claude/awareness/subsystems/xfs.md
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do r=$(timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass 'dmesg 2>/dev/null | grep -oE "drc round=[0-9]+ rank=[0-9]
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/9f2cd211-1a2f-47f2-bb46-086b0e960a08/scratchpad; echo "=== run log failure lines ==="; grep -iE "drc |fail|FAIL|loo
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 5; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/9f2cd211-1a2f-47f2-bb46-086b0e960a08/scratchpad; grep -E "PASS|FAIL" $SCR/genph3.log | tail -3; echo "=== per-node 
+    cd /src/mxfs; nohup bash tests/tcp/drc_catch_loss.sh 6 "dir_gen_per_handoff=1 dir_modify_extent_adopt=1" >/tmp/claude-1000/-src-mxfs/9f2cd211-1a2f-47f2-bb46-086
+    cd /src/mxfs; for i in $(seq 1 9); do pgrep -f drc_catch_loss >/dev/null || break; grep -q "capturing\|catch done" /tmp/claude-1000/-src-mxfs/9f2cd211-1a2f-47f2
+    cd /src/mxfs; echo "=== failrounds (this run) ==="; for n in 1 2 3 4 5 6 7 8; do f=tests/tcp/loss_cap/failrounds_test$n.txt; [ -s "$f" ] && { echo "-- t$n --"; 
+    cd /src/mxfs; grep -nE "xfs_dir3_free_buf_ops|b_mxfs_dir_gen|dir_gen_snap" xfs/libxfs/xfs_da_btree.c | head -20
+    cd /src/mxfs; grep -rn "mxfs_dlm_grant_dir_epoch\|dir_epoch++\|dir_epoch =\|->dir_epoch" dlm/*.c | head -15
+    cd /src/mxfs; grep -n "dir_epoch" dlm/dlm.c | grep -iE "\+\+|= .*\+ 1|increment|de =|de\+\+" | head; echo "=== context around dir_epoch compute (grant) ==="; se
+    cd /src/mxfs; grep -n "dg_grant_ex" dlm/dlm.c | head -3; echo "==="; awk '/^static.*dg_grant_ex\(|dg_grant_ex\(struct/{f=1} f{print NR": "$0} f&&/^}/{c++; if(c>
+    cd /src/mxfs; pkill -9 -f "drc_catch_loss" 2>/dev/null; pkill -9 -f "run.sh 8 tcp" 2>/dev/null; pkill -9 -f "timeout 590" 2>/dev/null; sleep 2; echo "=== procs 
+    cd /src/mxfs; ps -ef | grep -iE "drc_catch|run.sh 8 tcp" | grep -v grep | grep -v snapshot | wc -l | xargs echo "stray_procs="; modinfo mxfs.ko 2>/dev/null | gr
+
+## Last text from previous session
+
+501/800) — sess14 flagged it as problematic. Let me isolate: `gen_per_handoff=1 + extent_adopt=1` only (drop the problematic reload), clearing the contaminated failrounds file first:
+gen_per_handoff + extent_adopt: HOLE=0, all 24 rounds, 354s (normal speed), and **failrounds.txt is EMPTY** (no failures recorded). Let me confirm the actual PASS/FAIL result:
+**PASS 8/8** — `dir_gen_per_handoff=1 + dir_modify_extent_adopt=1`: no hole, normal speed (354s), zero failrounds on all nodes. This is the first clean 8/tcp dir_reuse pass with a real fix (not a band-aid). But dir_reuse is ~50% flaky — one pass isn't proof. Let me validate over consecutive clean runs:
+Run 1 of validation FAILED (355s full run) — not 100% yet. Let me check the residual failure mode:
+Major progress: `gen_per_handoff=1 + extent_adopt=1` **fixes the whole-block clobber AND the DABUF_MAP_HOLE** at normal speed (354s). The residual is now just an occasional **single-entry** loss (round 13, readdir=799, all nodes agree, no hole) — the classic deepest face, down from whole-block. (The round-1 whole-block lines in faildmesg are stale `.dmesg` files from prior runs; this run's only failure is round-13 single-entry.) Let me record this:
+Now to attack the single-entry residual (free-slot collision). For a node-format dir, free space is tracked in a separate FREE block (`xfs_dir3_free_buf_ops`). If it's not per-handoff invalidated, a node picks a stale free slot. Let me check whether the free block is gen-stamped/invalidated like data blocks:
+The read-path invalidation is generic (all dir blocks via `xfs_da_read_buf` get gen-stamped), so the free block is covered. The residual single-entry loss with per-handoff invalidation working points to an **epoch-detection miss** — if `mxfs_v5_dlm_inode_dir_epoch` occasionally fails to advance on a rapid handoff, that one handoff isn't invalidated → stale free slot → collision. Let me check the epoch's reliability:
+Reached the relay boundary. Let me ensure a clean state before wrapping up:
+Clean state confirmed (0 stray processes, build `965BDBD3` keeper-equivalent with all new levers default-0).
+
+## Session summary — criteria NOT met, but biggest progress in many sessions
+
+**8/tcp `dir_reuse_coherency`** was ~50% flaky with **whole-block** durable losses. This session found the root and a partial fix.
+
+**Root found (PROVEN, RULE-4):** The fast-path EX-grant epoch-handoff gen-bump (`xfs_mxfs_dlm.c`) is capped by `if (i_dlm_dir_gen <= i_dlm_dir_loaded_gen)`, so `i_dlm_dir_gen` advances only **once per reload cycle**. The 2nd+ intra-round fast-path handoff doesn't re-invalidate → cached dir blocks stay `bgen==dirgen` and alias a peer-superseded image as fresh → whole dir DATA block reverts. Confirmed by `dataclobber=1` detect run (`bufgen==dirgen==379` on the clobber).
+
+**Working combination** (`dir_gen_per_handoff=1 dir_modify_extent_adopt=1`):
+- `dir_gen_per_handoff` (new lever): uncap the bump → `i_dlm_dir_gen` advances on **every** cross-node handoff → per-handoff read invalidation. Fixes the whole-block clobber.
+- `dir_modify_extent_adopt` (existing): adopts the peer's grown extent map → fixes the `DABUF_MAP_HOLE` (511→0) that gen_per_handoff alone exposes (leaf re-read newer than the stale map).
+- Result: **PASS 8/8 at normal speed (354s)**, then FAIL on the next run with only a **single-entry** loss (readdir=799, round 13) — down from whole-block.
+
+**Residual:** the classic single-entry free-slot lost-update (the deepest 25-session face), not yet 100%. Next: was investigating whether `mxfs_dlm_grant_dir_epoch`/`dg_grant_ex` (dlm.c:776) ever fails to advance on a rapid same-pair handoff (an epoch miss → one un-invalidated handoff → stale free slot → collision) — that's the live thread for the next session.
+
+**Don't use** `dir_modify_extent_reload` (round-14 blowup). All findings recorded in 5 ccmemory entries this session; `xfs.md` and `pal.md` updated. Tree is keeper-equivalent at default. Not writing the criteria-met marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

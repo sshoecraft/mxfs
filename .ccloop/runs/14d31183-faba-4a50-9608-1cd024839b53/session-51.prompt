@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 51 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 50
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `20566678-4b24-4151-9c95-081536db77c2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/20566678-4b24-4151-9c95-081536db77c2.jsonl`
+- approx context at last assistant turn: 250621 tokens
+- tools used: Bash×81 Read×20 Edit×11 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 mcp__ccmemory__memory_search×2 ToolSearch×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "RESET $(date -u +%H:%M:%S)"; timeout 300 bash scripts/cluster_reset_n.sh 16 2>&1 | grep -E "ALL_OK|PREP_FAIL|MISMATCH" | tail -3; P=/tmp/.mx
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== per-node: up / module / mount ==="; for n in $(seq 1 16); do printf "t%-2d:" $n; r=$(timeout 8 tools/mxfs_sshpass.sh 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; end=$((SECONDS+120)); while [ $SECONDS -lt $end ]; do up=0; for n in 5 9 14; do timeout 5 tools/mxfs_sshpass.sh test$n "$P" "ec
+    cd /src/mxfs; echo "=== virsh state test5/9/14 ==="; for n in 5 9 14; do printf "test%d: " $n; sudo virsh -c qemu:///system domstate test$n 2>&1; done; echo "==
+    cd /src/mxfs; P=/tmp/.mxfs_pass; end=$((SECONDS+150)); while [ $SECONDS -lt $end ]; do up=0; for n in 5 9 14; do timeout 5 tools/mxfs_sshpass.sh test$n "$P" "ec
+    cd /src/mxfs; for n in 5 9 14; do printf "test%d: " $n; sudo virsh -c qemu:///system domstate test$n 2>&1 | head -1; done; echo "=== ping ==="; for n in 5 9 14;
+    cd /src/mxfs; for n in 5; do echo "=== virsh start test$n (full output) ==="; sudo virsh -c qemu:///system start test$n 2>&1; sleep 3; echo "state: $(sudo virsh
+    echo "=== existing by-path mxfs disk1 devices ==="; ls -la /dev/disk/by-path/ 2>/dev/null | grep -iE "mxfs|disk1|iscsi" | head -40; echo "=== iscsi sessions ===
+    cd /src/mxfs; echo "=== test sdf readable ==="; sudo dd if=/dev/sdf of=/dev/null bs=512 count=1 2>&1 | tail -1; echo "=== retry start 5/9/14 ==="; for n in 5 9 
+    echo "=== SCST devices ==="; sudo ls /sys/kernel/scst_tgt/devices/ 2>&1 | head; echo "=== scst service ==="; systemctl is-active scst 2>&1; echo "=== try rescan
+    for t in disk1n5 disk1n9 disk1n14; do echo "=== $t logout/login ==="; sudo iscsiadm -m node -T iqn.2026-05.local.mxfs:$t -p 127.0.0.1:3260 --logout 2>&1 | tail 
+    cd /src/mxfs; for n in 5 9 14; do printf "test%d: " $n; sudo virsh -c qemu:///system start test$n 2>&1 | head -1; done
+    cd /src/mxfs; P=/tmp/.mxfs_pass; end=$((SECONDS+150)); while [ $SECONDS -lt $end ]; do up=0; for n in $(seq 1 16); do timeout 4 tools/mxfs_sshpass.sh test$n "$P
+    cd /src/mxfs; P=/tmp/.mxfs_pass; WANT=83C1FB6A6E996A7ECDB68BF; echo "=== prep all 16 ==="; for n in $(seq 1 16); do ( out=$(cat tools/prep_tcm_node.sh | timeout
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== prep test2 full output ==="; cat tools/prep_tcm_node.sh | timeout 60 tools/mxfs_sshpass.sh test2 "$P" 'sudo bash -s' 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; WANT=83C1FB6A; for n in $(seq 1 16); do sv=$(timeout 6 tools/mxfs_sshpass.sh test$n "$P" "cat /sys/module/mxfs/srcversion 2>/de
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== reset4 $(date -u +%H:%M:%S) ==="; timeout 320 bash tests/reset4.sh 16 2>&1 | grep -E "RESET_OK|RESET_FAIL|mkfs failed
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test1 state + manual mkfs ==="; timeout 40 tools/mxfs_sshpass.sh test1 "$P" "mountpoint -q /mnt/shared && echo MOUNTE
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 30 tools/mxfs_sshpass.sh test1 "$P" "echo '--- holders of /dev/sda ---'; fuser -v /dev/sda 2>&1 | head; echo '--- mxfs 
+    cd /src/mxfs; grep -n "fresh_cluster_mount\|teardown_all\|MKFS_OK\|mkfs_mxfs\|insmod\|rmmod\|mount -t mxfs\|mount .*mxfs" tests/criteria/lib.sh | head -40
+
+## Last text from previous session
+
+are missing on clyde — the iSCSI sessions for these nodes are logged out (the known "iSCSI logins needed for VM start" issue). Let me check the iSCSI session state and the by-path devices.
+The by-path devices and iSCSI sessions all exist now (disk1n5 → sdf present) — the failure was transient. Let me retry starting test5/9/14, and verify the underlying SCSI device is readable.
+`/dev/sdf` returns ENXIO though the symlink exists — the SCST-backed LUN for n5/n9/n14 is dead (host-side SCST/iSCSI wedge from the earlier FS shutdowns). Let me check SCST state and re-login the dead iSCSI sessions to refresh the devices.
+Rescan insufficient. Let me logout+login the 3 dead iSCSI targets to recreate their SCSI devices.
+Devices recovered (sdf/sdj/sdo now readable). Start test5/9/14:
+All 3 started. Let me wait for all 16 to be SSH-reachable, then prep (load module) on all without restarting VMs again.
+All 16 up. Now prep (load module 83C1FB6A) on all nodes:
+Only test1/5/9/14 prepped OK; the other 12 failed. Let me see the actual failure reason on one.
+Individual prep works — the parallel run hit contention. Let me prep all nodes sequentially to ensure the module loads everywhere.
+All 16 on 83C1FB6A. Now mount fresh and bind, then run the probe:
+mkfs still failing on test1 with empty error. Let me run it manually to see the real error now that the device is clean.
+mkfs reports "busy" though not mounted — the loaded mxfs module holds `/dev/sda` open. reset4's teardown should rmmod first; it may be failing. Let me check what holds the device and whether rmmod works on test1.
+rmmod fails "Module in use" — the mxfs module grabs `/dev/sda` at insmod (CAW disklock heartbeat), blocking mkfs's O_EXCL. Let me read `fresh_cluster_mount` to see the ordering that worked at 06:50.
+I've hit the ccloop relay boundary. Let me record the infra recovery state and exact next step, then summarize.
+I've reached the ccloop relay boundary. Summary of this session's work:
+
+## Progress
+
+**Corrected the framing:** The handoff doc described "cross_write_read dirent loss," but `.criteria_results.json` + ccmemory showed the real state: **18/19 criteria PASS; only `posix_semantics_multi16` FAILs** (`elapsed>600s`). The 16-node cluster phase was wedging on the *first* test.
+
+**Fix #1 — PROVEN + VERIFIED (build `5276B108`, VERSION 0.5.7):** Root-caused the wedge to a **phantom EX-waiter bit leak**. Field evidence: all blocked threads were `find` PR-readers; zero EX requesters anywhere; barrier-dir slot frozen at `waiter_mode=5(EX) h_ex=0`. Code root: `recompute_waiter_mode()` never downgraded `waiter_mode` while *any* waiter bit remained, so a departed EX waiter left it sticky-EX and `defer_for_waiter` starved every fresh PR reader forever. Fixed by adding a `waiters_ex` bitmap (exclusive-class waiters) to the CAW slot so `waiter_mode` correctly downgrades EX→PR. **Verified:** cluster tests 1–4 (`concurrent_mkdir/touch/write`, `cross_visibility`) now PASS in 7–30s each (was a total >580s wedge).
+
+**Next blocker isolated:** `test_cross_write_read` shuts down the FS via a **torn directory dinode** (ino 444): `di_format=EXTENTS` core but the literal area holds stale shortform `data_node…` bytes. Since inodesize=512 (atomic sector) and the structural verifier passes (valid CRC), this is a software-written torn fork on the LOCAL→EXTENTS dir conversion. Added a write-side producer probe (`P-IFLUSH-DIRTORN`, build `83C1FB6A`) to catch the flush path that writes it.
+
+**Infra:** Recovered the cluster from two wedges (dead iSCSI LUNs after the FS shutdowns → fixed via `iscsiadm` logout/login; mkfs "device busy" → module holds /dev/sda). Documented the exact recovery procedure in memory.
+
+The repro run for the `P-IFLUSH-DIRTORN` probe is staged but the mkfs-busy infra issue blocked the final mount. The criteria are **not met** — the marker was not written. Three memories record the verified fix, the torn-dir-444 diagnosis with the precise next step, and the infra recovery procedure.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

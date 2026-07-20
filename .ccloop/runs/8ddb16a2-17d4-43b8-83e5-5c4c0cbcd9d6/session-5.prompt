@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `20cca5cf-2fe1-4010-a337-51ce98bb800a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/20cca5cf-2fe1-4010-a337-51ce98bb800a.jsonl`
+- approx context at last assistant turn: 504852 tokens
+- tools used: Bash×262 Read×29 ScheduleWakeup×19 Write×10 Edit×9 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×5 ToolSearch×2 TaskList×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/tests/suite/df_diag.sh
+- /src/mxfs/tests/suite/dlm_scaling.sh
+- /src/mxfs/run.sh
+- /src/mxfs/tests/suite/dlm_membership.sh
+- /src/mxfs/tests/suite/scaling_curve.sh
+- /src/mxfs/tests/suite/rsync_paired.sh
+- /src/mxfs/tests/suite/crash_consistency.sh
+- /src/mxfs/tests/suite/fence_during_write.sh
+- /src/mxfs/tests/suite/fault_netpartition.sh
+- /src/mxfs/tests/tcp/tcp_dlm_scaling.sh
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat /tmp/claude-1000/-src-mxfs/20cca5cf-2fe1-4010-a337-51ce98bb800a/tasks/b1r2f1tb7.output 2>/dev/null | grep -iE 'PASS|FAIL' | grep -vE '^Warning|^Unauth|^If y
+    cd /src/mxfs; for n in test1 test2; do virsh -c qemu:///system destroy $n 2>&1|head -1; done; sleep 1; for n in test1 test2; do virsh -c qemu:///system start $n
+    cd /src/mxfs; grep -n 'INACT-SKIP-STALE\|skipping destructive\|will_skip\|B3DEC\|xfs_inactive_ifree\|skip.*inactiv' xfs/xfs_inode.c | head -20
+    cd /src/mxfs; timeout 240 bash tests/setup/reset2_tcp.sh 2>&1 | grep -E 'CREATE|done|slot' | grep -vE '^Warning|^Unauth|^If you' | tail -4
+    cat /tmp/claude-1000/-src-mxfs/20cca5cf-2fe1-4010-a337-51ce98bb800a/tasks/bv9isn646.output 2>/dev/null | grep -vE '^Warning|^Unauth|^If you' | tail -4
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh for n in test1 test2; do echo -n "$n: "; timeout 12 bash $S $n $P "cat /sys/module/mxfs/srcversion|tr -
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh for n in test1 test2; do echo "=== $n ==="; timeout 12 bash $S $n $P "dmesg | grep -iE 'TCP DLM initial
+    cd /src/mxfs; echo "=== my bg loops/waits still alive ==="; ps -eo pid,etimes,args 2>/dev/null | grep -E 'until|run.sh 2 tcp|reset2_tcp|repro_pm|while|pgrep' | 
+    cat /tmp/claude-1000/-src-mxfs/20cca5cf-2fe1-4010-a337-51ce98bb800a/tasks/bcl5masof.output 2>/dev/null | tail -5; echo "=== any until-loop or sleep bg procs ===
+    cd /src/mxfs; echo "=== orphaned waiter shells ==="; ps -eo pid,ppid,args 2>/dev/null | grep -E 'until|do sleep' | grep -v grep | head; echo "=== killing sleep+
+    cd /src/mxfs; ps -eo pid,args 2>/dev/null | grep -E 'until |do sleep|sleep (8|10)$|run.sh 2 tcp|reset2_tcp' | grep -v grep | head || echo "none"; echo "=== done
+    cd /src/mxfs; for p in $(pgrep -x sleep 2>/dev/null); do pp=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' '); pa=$(ps -o args= -p "$pp" 2>/dev/null); echo "sleep 
+    cd /src/mxfs; kill -9 4123449 4128607 4139631 4139635 2>/dev/null; sleep 1; rem=$(pgrep -x sleep 2>/dev/null | wc -l); echo "remaining bare sleeps: $rem"; ps -e
+    cd /src/mxfs; for p in $(pgrep -x sleep 2>/dev/null); do pp=$(ps -o ppid= -p "$p" 2>/dev/null|tr -d ' '); ps -o args= -p "$pp" 2>/dev/null | grep -qE 'until ' &
+    cd /src/mxfs; ps -eo pid,args 2>/dev/null | grep -E 'until grep|until !|do sleep' | grep -v 'grep -' | grep -vE '\bgrep\b.*until' | head; echo "=== explicit wai
+    cd /src/mxfs; echo "=== ALL my processes (excl this snapshot shell) ==="; ps -u "$(id -un)" -o pid,ppid,etimes,stat,args --sort=-etimes 2>/dev/null | grep -iE '
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh # clear dmesg on both, then drive heavy concurrent create/unlink churn in a shared dir for n in test1 t
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh for n in test1 test2; do echo "=== $n warnings ==="; timeout 12 bash $S $n $P "dmesg | grep -ciE 'INACT
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh echo "=== test2: context around FIRST shutdown (P19-B3DEC + xfs_ifree) ===" timeout 12 bash $S test2 $P
+    cd /src/mxfs; timeout 230 bash tests/setup/reset2_tcp.sh 2>&1 | grep -E 'CREATE|done' | grep -vE '^Warning|^Unauth|^If you' | tail -3
+
+## Last text from previous session
+
+adata churn* (3000 create+unlink, no data) — test2 shut down in its **own AG1** (`disk_mode=00`, `incore_gen==disk_gen` = "disk-free"). This is a **fast single-script repro** (no full suite needed) and points to single-node inode-recycle/FUA-staleness, not cross-node. Let me capture the shutdown inode's full context.
+**Key diagnostic advance** — the shutdown inodes show `P19-B3DEC ... local_unlink=0 dlm_mode=0 ... will_skip=0 (b1=b2=b3=0)`: inodes test2 inactivates that it did **not** unlink and holds **no** DLM lock on, disk-live + gen-match (the sess111 "DISK-LIVE-same-gen / A-lost-removal" class). And I have a **fast repro** (3000 concurrent create+unlink storm wedges a node in seconds — no full suite needed). Let me record this for the next session.
+Diagnostic advance recorded. The shutdown inodes are ones a node inactivates that it **didn't unlink** (`local_unlink=0`) and holds **no lock** on (`dlm_mode=0`) with `coh_nlink=0` — i.e., a node freeing an inode another node unlinked → double-free → -117. The skip-guard doesn't cover this case. Let me read the guard to safely extend it (and confirm it's multi-node gated).
+I've reached the relay boundary. The guard analysis pinpoints the exact gap: the shutdown case is `local_unlink=0` (this node didn't unlink) + `coh_nlink=0` (coherent nlink 0) + disk-live + gen-match — which B3 deliberately does NOT skip (to avoid leaking dead-peer-replay inodes), so it falls through to `xfs_ifree` → double-free → -117. The discriminator between "cross-node cached inode (must NOT free)" and "dead-peer unlinked inode (MUST free)" is the crux for the next session. Let me reset the wedged cluster, then summarize.
+The cluster reset is running in the background to leave a clean slate for the next session. Wrapping up at the relay boundary.
+
+## Session summary
+
+**Criteria `2 node dlm=tcp test 100% successful`: NOT met** — marker not written. Progress: started at **7 PASS / 1 FAIL / 8 unimplemented**, reached a best of **13/16 PASS**.
+
+**Fixes landed (all in-tree, KEEP):**
+1. **dlm_fairness root-caused & fixed** — this LIO LUN rejects the disklock slot-claim's SCSI COMPARE-AND-WRITE (`sense 0x5/0x24`), so both TCP nodes defaulted to `node_slot=0` → both allocated in AG0 → inode-btree corruption. Added a verified **non-CAW slot claim** (`dlm/disklock.c`) → nodes get distinct slots 0/1 → distinct AGs.
+2. **All 8 PENDING tests implemented** (`tests/suite/*.sh` + `tests/tcp/tcp_dlm_scaling.sh`); dlm_membership, scaling_curve, rsync_paired, crash_consistency, fault_netpartition pass reliably.
+3. **Strict inode-AG partitioning** (`xfs/libxfs/xfs_ialloc.c`) — eliminated cross-node inode double-alloc in shared spillover AGs.
+4. Fixed fence_during_write false-positive; hardened `run.sh` prep unmount.
+
+**Remaining blocker (now precisely characterized with a fast repro):**
+The deep, non-deterministic inode-coherency wedge: `xfs_inactive_ifree → xfs_ifree -117 → FS shutdown`, which cascades all later tests (soak, tcp_dlm_scaling) to FAIL. New this session:
+- **Fast repro** (seconds, no full suite): two nodes each run 3000 `create+unlink` in one shared dir → a node's FS shuts down in its own AG. Pure metadata.
+- **Exact classification**: the crashing inodes are `local_unlink=0, dlm_mode=0, coh_nlink=0, disk-live, gen-match` — a node freeing an inode it never unlinked and holds no lock on (sess111 "A-lost-removal"). The skip-guard's B3 case requires `coh_nlink>0`, so it deliberately doesn't skip these (to avoid leaking dead-peer-replay inodes) — that's the precise gap to close.
+
+The next session should distinguish "cross-node cached inode (must NOT free)" vs "dead-peer unlinked inode (MUST free)" at the inactivation guard (`xfs_inode.c:2785`). Full diagnosis is in ccmemory (`sess-tcp-FAST-REPRO-wedge-and-classification`, `sess-tcp-HANDOFF-deep-inode-wedge-is-last-blocker`, and links). No real background work remains (the recurring "background command still running" was the documented unclearable harness phantom).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

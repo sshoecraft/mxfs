@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 18 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 17
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `1b986622-dc67-43fe-84bc-d6a9bf7d7829`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1b986622-dc67-43fe-84bc-d6a9bf7d7829.jsonl`
+- approx context at last assistant turn: 498681 tokens
+- tools used: Bash×105 Read×37 Edit×23 mcp__ccmemory__memory_write×10 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do echo -n "$n: "; timeout 12 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo -n 'RDMISS=
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== leaf-rebuild + relevant param defaults ==="; grep -nE "int mxfs_dir_leaf_rebuild|int mxfs_dir_force_evict|int mxfs_sf_merge\b" xfs/*.c |
+    cd /src/mxfs; rm -f tests/tcp/drc_cap/stream_rank*.log; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/nu
+    cd /src/mxfs; ls -la tests/tcp/drc_cap/stream_rank*.log 2>/dev/null | head -2; echo "=== failure type: RDMISS (count) vs leaf-hash lookup_fail ==="; grep -hoE '
+    cd /src/mxfs; for n in test1 test2 test5 test8; do echo -n "$n: "; timeout 12 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo -n 'RDMISS='; dmesg 2>/dev/null|gre
+    cd /src/mxfs; grep -rnE "mht|max_held|module_param.*held|hold.*tenure" xfs/xfs_mxfs_dlm.c dlm/*.c | grep -iE "module_param|int mxfs.*mht|int mxfs.*held" | head
+    cd /src/mxfs; timeout 15 tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "echo '=== hard timeout / shutdown? ==='; dmesg 2>/dev/null | grep -cE 'rc=-110|force_shutd
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== per-handoff timing on hot-master test2 (ino=131) ==="; timeout 15 tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "echo '-- P34-ACQ-SLOW dur
+    cd /src/mxfs; echo "=== fua_disable default ==="; grep -nE "int mxfs_fua_disable|fua_disable.*=.*[0-9]|module_param.*fua_disable" xfs/*.c dlm/*.c pal/*.c 2>/dev
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test1 test2 test5 test8; do echo -n "$n: "; timeout 12 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo -n 'RDMISS='; dmesg 2>/dev/null|gre
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== mht=150 failure: leaf-hash holes + lookup_fail + round timing ==="; for n in test1 test2 test5 test8; do echo -n "$n: "; timeout 12 tool
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== KEEP build (should be 544A912E, LRU+fork-adopt, default config) ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== confirm f
+    cd /src/mxfs; grep -rn "mxfs_dir_rebuild_leaf_from_data" xfs/ | grep -v "\.backup" | head; echo "=== function location ==="; grep -rn "^mxfs_dir_rebuild_leaf_fr
+
+## Last text from previous session
+
+ clean KEEP build for the relay.
+I've made a major breakthrough. Let me do one high-value check: whether the LRU data-loss fix resolves the **4/tcp full-suite contamination** (which would put 3 of 4 criterion node-counts passing). Reboot 4 clean and run the full suite.
+**4/tcp full suite = 17/17 ALL PASS!** The dg_shadow LRU fix **resolved the 4/tcp in-suite contamination** (it was the same data-loss bug). 
+
+**Criterion status: 1/tcp ✅, 2/tcp ✅, 4/tcp ✅ — 3 of 4 node-counts now pass!** Only 8/tcp remains (mht tradeoff: starvation at 300, small loss at 50). Let me search for a sweet-spot mht. Test mht=150 at 8/tcp.
+mht=150 looks promising: **RDMISS=0 (no data loss), shutdown=0 (no hard timeout)** — but failed at round 5. The failure must be leaf-hash holes or slowness. Let me check, and test adding `dir_leaf_rebuild=1`.
+mht=150 has no data loss/shutdown but still ~236 acquire-retries on the hot-dir masters (test1/2) + leaf-hash holes (P21H) + DSCAN-MISS → the failure is now leaf-hash coherency. Let me try mht=150 + `dir_leaf_rebuild=1` to close the leaf holes.
+mht=150+leaf_rebuild: data loss stays fixed (RDMISS=0) but **leaf-hash holes persist (P21H=400)** — leaf_rebuild doesn't close them. The 8/tcp residual is now the **leaf-hash lost-update** (separate from the data-block one I fixed) + hot-dir-master contention. 
+
+I've achieved major progress — **3 of 4 criterion node-counts now pass (1/2/4 tcp), data loss eliminated**. Let me verify the clean KEEP build and record the final consolidated state.
+KEEP build **544A912E** is clean and current (dg_shadow LRU + fork-adopt, leaf_rebuild default off, compiles clean). Let me record the final state-of-play.
+Major progress consolidated (3/4 criterion node-counts, data loss eliminated). Continuing on the 8/tcp leaf-hash residual — the closest correctness gap. Let me examine why the leaf-rebuild misses entries.
+I've hit the relay boundary. A final lead just surfaced: the leaf-rebuild (`mxfs_dir_rebuild_leaf_from_data`) **bails on LEAFN/node format** ("out of scope", line 652-660) — and the 8-node 800-entry storm dir is likely LEAFN format, so its leaf holes are never rebuilt. That's the concrete next step.
+
+## Session 17 summary — major breakthrough (criterion 3/4, not yet met)
+
+**Headline: went from 0/4 to 3 of 4 criterion node-counts passing**, by finding and fixing the root of a 100+ session blocker.
+
+**The breakthrough fix (build `544A912E`, KEEP):**
+- **dg_shadow LRU eviction** (`dlm/dlm.c`): the master-side handoff/epoch table (`DG_SHADOW_N=512`) recycled the *first inactive* slot, so the hot shared-dir inode's slot was evicted by the ~800 file-inode grants between its grants → `last_owner` lost + epoch reset → cross-node handoff signal under-fired ~80% on TCP → stale-base RMW → durable lost-update. Fixed with LRU eviction (`last_grant_seq`) so the hot dir inode (granted ~800×/round) is never evicted.
+- **fork-adopt** (`xfs_mxfs_dlm.c`): fast-path dir reload forces disk-superset adopt on the now-reliable handoff.
+
+**Verified results (full `./run.sh <N> tcp`):**
+- 1/tcp = 16/16 ✅, 2/tcp = 17/17 ✅, **4/tcp = 17/17 ✅** (LRU fix resolved the in-suite contamination)
+- 8/tcp: the dir_reuse **data-block lost-update is ELIMINATED** (was 799/800 lost every round → RDMISS=0)
+
+**8/tcp residual (two sub-blockers, both 8-node-only):**
+1. **Leaf-hash lost-update** — a stale leaf RMW drops peer hashvals (P21H holes). `dir_leaf_rebuild` exists but **bails on LEAFN format** (the 800-entry storm dir) → next step is to extend the rebuild to LEAFN/node-format dirs.
+2. **Hot-dir-master EX contention** — at mht=300 (no data loss) the masters of ino 131 starve → 120s timeout/shutdown + ~67s/round; lower mht is faster but reintroduces small loss.
+
+Profiling, refuted levers (per-modify epoch invalidation → timeouts; bulk evict → drops work), and the precise next steps are recorded across 8 ccmemory entries this session. The marker is **not** written (criterion not met). Work continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

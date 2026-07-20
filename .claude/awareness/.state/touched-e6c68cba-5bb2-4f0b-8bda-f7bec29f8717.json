@@ -1,0 +1,12 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_alloc.h",
+    "xfs/libxfs/xfs_alloc.c",
+    "xfs/libxfs/xfs_bmap.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/dlm.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

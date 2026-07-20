@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 28 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 27
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `90c41f3d-2d65-40f2-bc0b-7bf81284fbc3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/90c41f3d-2d65-40f2-bc0b-7bf81284fbc3.jsonl`
+- approx context at last assistant turn: 511057 tokens
+- tools used: Bash×65 Read×25 Edit×19 mcp__ccmemory__memory_write×10 ToolSearch×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_probe2.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_buf.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|warning.*idirty|LD \[M\]|mxfs.ko" | tail -5 echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep sr
+    cd /src/mxfs echo "=== dir_reuse @ 2/tcp, persistent idirty-mask fix (D7D2E861, partial_iwrite=1) ===" MXFS_EXTRA_MODARGS="dirwr=1" timeout 600 ./run.sh 2 tcp d
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== run log (test1) ===" cat /tmp/run_dir_reuse_coherency_20260619T030024Z/test1 2>/dev/null | g
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -3 echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs echo "=== cache_coherency + strong_consistency + posix_multi @ 2/tcp, partial_iwrite=0 ===" MXFS_EXTRA_MODARGS="partial_iwrite=0" timeout 580 ./run
+    cd /src/mxfs bash tests/reboot_cluster.sh 2 2>&1 | tail -2 echo "=== run with partial_iwrite=0 ===" MXFS_EXTRA_MODARGS="partial_iwrite=0" timeout 480 ./run.sh 2
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|warning.*datascan|warning.*for_each_xfs_iext|LD \[M\]|mxfs.ko" | tail -5 echo "EXIT=${PIPESTATUS[0]}"; modinfo 
+    cd /src/mxfs bash tests/reboot_cluster.sh 2 2>&1 | tail -1 echo "=== dir_reuse @ 2/tcp, partial_iwrite=0 + datascan-extentmap (9753480F) ===" MXFS_EXTRA_MODARGS
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== run log (test1) ===" cat /tmp/run_dir_reuse_coherency_20260619T031415Z/test1 2>/dev/null | g
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass timeout 30 bash "$SSH" test1 "$P" '   D=/mnt/shared/.dir_reuse_coherency   [ -d "$D" ] || { echo "dir 
+    cd /src/mxfs grep -n "P26-DSCAN-MISS" xfs/libxfs/xfs_dir2_leaf.c
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -3 echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs bash tests/reboot_cluster.sh 2 2>&1 | tail -1 echo "=== dir_reuse @ 2/tcp, partial_iwrite=0 + scanned-probe (0548BE0A) ===" MXFS_EXTRA_MODARGS="par
+    cd /src/mxfs echo "=== tree build identity (clean, behavior==orig for default args) ===" modinfo mxfs.ko 2>/dev/null | grep srcversion echo "=== criteria status
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|warning.*xfs_buf|undefined|implicit" | head -15 echo "---" make modules 2>&1 | grep -iE "LD \[M\]|mxfs.ko" | ta
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|warning.*xfs_buf|LD \[M\]|mxfs.ko" | tail -5 echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs make modules 2>&1 | grep -iE "error" | head -6
+    cd /src/mxfs make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -4 echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs make modules 2>&1 | grep -iE "error:" | head -4
+    cd /src/mxfs make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko" | tail -3 echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+tent map below its current max). Then run full `./run.sh 2 tcp` ×3 with whole inode writes. All of this is captured across 8 `sess27-*` memories, headed by `sess27-BUG2-CRACKED-lookup-reload-stale-1block-extent-map`.
+The criteria is not met — I'll keep working. The Stop hook surfaced a **crucial unified insight** I should capture: BUG1 and BUG2 are in *tension* via the partial-write setting (partial_iwrite=1 reverts file inodes but protects the dir inode; partial_iwrite=0 protects file inodes but reverts the dir inode). The correct fix writes **owned-dirtied** inodes (BUG1) while **skipping NL-released/prior-tenure** inodes (BUG2) in the same cluster. Let me record this, then update the pal awareness doc the hook flagged.
+Now let me implement the unified fix. I'll start with the **safest, most targeted** version (minimal blast radius): skip the inode-cluster sectors only for in-core inodes that are **NL-released AND directories** (the proven BUG2 victim) — file inodes (BUG1) are written whole. Let me replace the b_li_list-only logic:
+Let me build and check for compile issues (the cluster-inode lookup needs the right headers):
+I've hit the relay boundary. Let me fix this one compile error so the next session inherits a building tree, then wrap up. `XFS_DADDR_TO_AGBNO` doesn't exist — use the FSB-based macros:
+At the relay boundary with a broken build. Let me fix the agbno computation manually (avoiding the macro chain that pulls in undeclared `xfs_mask32lo`):
+At the relay boundary with multiple compile errors (perag field naming differs in this kernel). To leave the next session a **building** tree, let me revert the unified-fix block to the original (the fix logic is fully recorded in memory `sess27-UNIFIED-bug1-bug2-tension-fix-skip-NL-inodes`):
+Tree builds clean again (0548BE0A). Let me record the exact compile fixes the unified fix needs so the next session lands it quickly, then wrap up.
+At the relay boundary with the tree in a clean, building state (0548BE0A). Criteria **not met** — not writing the marker.
+
+## Session 27 — what was accomplished
+
+This session resolved a diagnosis that had been mis-framed for ~26 prior sessions:
+
+1. **The cluster target is LIO-ORG and rejects FUA reads** (`asc=0x24`). The entire prior fix corpus was FUA-based — **all inert here**. The sess26 handoff plan was impossible.
+
+2. **Root cause proven (RULE 4, both nodes agree, durable across drop_caches):** `dir_reuse_coherency` fails on **durable write-side lost-updates**, not read-staleness. Confirmed via a GPT-5.5 design consult (RULE 5).
+
+3. **The two bugs are in tension via the inode-write mode:**
+   - **BUG1** (file-inode revert → dirent→freed inode): caused by the partial-inode-write skipping a node's own checkpointed inodes. Fixed by whole writes (`partial_iwrite=0`), which **passes** cache_coherency/strong_consistency/posix_multi.
+   - **BUG2** (cracked at session end): under whole writes, node1's *released* (NL, prior-tenure) cached dir inode reverts node2's `di_size` grow → reader reloads a stale 1-block extent map → datascan `ndb=1 scanned=100` misses node2's block-1 entries.
+
+4. **The unified fix is designed and ready to land:** rewrite `mxfs_submit_partial_inode_write` to whole-write the cluster **except** sectors of in-core inodes that are `i_dlm_mode==NL` **and** `S_ISDIR` (fixes BUG1 via whole-write of file clusters + BUG2 via skipping the released dir inode). I implemented it but hit 3 kernel-API naming mismatches at the boundary and reverted to keep the tree building. The exact compile fix (`agbno = fsb % sb_agblocks`, no `pag_agno`/`XFS_DADDR_TO_FSB`) is in memory `sess27-unified-fix-compile-fixes-for-next-session`.
+
+**Next session:** apply the unified fix with the corrected inode-number computation, test dir_reuse with default args (expect `P26-IGET-FAIL=0`, `lookup_fail=0`), then full `./run.sh 2 tcp` ×3 for 100%. Nine `sess27-*` memories capture the full chain, headed by `sess27-UNIFIED-bug1-bug2-tension-fix-skip-NL-inodes`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

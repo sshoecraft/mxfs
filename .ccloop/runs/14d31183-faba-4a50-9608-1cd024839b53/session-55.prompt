@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 55 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 54
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `9cc9232f-2dbf-4c56-be40-3cb26b7a4dfe`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9cc9232f-2dbf-4c56-be40-3cb26b7a4dfe.jsonl`
+- approx context at last assistant turn: 252117 tokens
+- tools used: Bash×92 Edit×7 Read×5 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '3240,3340p' xfs/libxfs/xfs_da_btree.c
+    cd /src/mxfs; grep -nE "mxfs.*dir.*ex|dir.*dlm.*lock|i_dlm_mode|dir_dlm|EX.*dir|parent.*dlm|createname|mxfs_dlm_inode" xfs/xfs_inode.c | grep -iE "create|dir|dl
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|xfs_da_btree.*warning|LD \[M\]|mxfs.ko$" | tail; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | gre
+    cd /src/mxfs; timeout 400 env INSMOD_OPTS="instr=0" bash tests/reset4.sh 16 2>&1 | grep -aE "RESET_OK|RESET_FAIL" | tail -2
+    cd /src/mxfs; printf "build: "; timeout 6 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "cat /sys/module/mxfs/srcversion" 2>/dev/null|grep -vE "Permanently|Unauth
+    cd /src/mxfs; until grep -qaE "=== done|REPRO_HIT" /tmp/repro54.out 2>/dev/null; do sleep 5; done; echo "=== repro result ==="; grep -aE "round|SHUTDOWN|REPRO_H
+    cd /src/mxfs; for h in 6 11; do echo "===== test$h ====="; timeout 8 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -aiE 'P54-DIRBLK-PRO
+    cd /src/mxfs; sed -n '5820,5860p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -nE "ilock_begin|fast.?path|i_dlm_stale|cached.*grant|already.*hold|MXFS_IF_DIR_RELOAD|reload_inode" xfs/xfs_mxfs_dlm.c | grep -iE "ilock_beg
+    cd /src/mxfs; grep -n "mxfs_dlm_ilock_begin" xfs/xfs_mxfs_dlm.c | head; echo "=== fast-path region ==="; awk '/^int$|^mxfs_dlm_ilock_begin/{if(/ilock_begin/)fou
+    cd /src/mxfs; sed -n '4987,5120p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; awk 'NR>=5150 && NR<=5400 && (/i_dlm_stale/||/fast.?path/||/CACHED/||/reload/||/cached grant/||/goto/||/slow/)' xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; grep -n "P-DIRFASTEX\|P98\|sess98" xfs/xfs_mxfs_dlm.c | head; echo "=== region ==="; sed -n '5300,5420p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '5420,5510p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko$" | tail -4; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 400 env INSMOD_OPTS="instr=0" bash tests/reset4.sh 16 2>&1 | grep -aE "RESET_OK|RESET_FAIL" | tail -1; printf "build: "; timeout 6 tools/m
+    cd /src/mxfs; for h in $(seq 1 16); do timeout 6 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg -C 2>/dev/null" >/dev/null 2>&1 & done; wait; echo "repro 1
+    cd /src/mxfs; until grep -qaE "=== done|REPRO_HIT" /tmp/repro54b.out 2>/dev/null; do sleep 5; done; echo "=== result ==="; grep -aE "round|SHUTDOWN|REPRO_HIT|do
+    cd /src/mxfs; for h in 3 5; do echo "===== test$h ====="; timeout 8 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -aiE 'DABUF_MAP_HOLE|
+    cd /src/mxfs; for h in 3 5; do echo "===== test$h detectors ====="; timeout 8 tools/mxfs_sshpass.sh test$h /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -aiE 'P88|P
+
+## Last text from previous session
+
+map correctly — the bug is the **fast-path (cached-lock) acquire** skips it. The DIR_MODIFY evict sets `MXFS_IF_DIR_RELOAD` but NOT `i_dlm_stale`, so a cached-EX create never reloads. Let me find the fast-path acquire and how it treats `i_dlm_stale`/`MXFS_IF_DIR_RELOAD`.
+Found the exact asymmetry: the **slow-path** dir EX acquire reloads the inode (fresh extent map, line 5847), but the **fast-path** stale_base branch only calls `mxfs_dir_drain_evict_data_blocks` (refreshes data blocks, leaves the **extent map stale**) → `DABUF_MAP_HOLE` when the dir grew. Fix: add a full `mxfs_dlm_reload_inode` (rebuilds extent fork) to the fast-path stale_base branch. Let me read the exact lines to edit.
+Build and test:
+Still round 1. Let me capture the signature and check whether the fast-path reload even fired:
+New face: `imap_to_bp failed ino=134 rc=-5` (inode cluster of live parent 134 unreadable = EIO) + `dir3_block_verify block 0x78`. This is the **bnobt double-allocation** (dir-data block allocated over a live inode cluster) — the deep multi-session blocker, distinct from the stale-extent-map face my fixes addressed. Let me check which AG-corruption detectors fired:
+Key finding: my dir-coherency fix IS firing (`EVICT-RING-DIRMOD ... fmt=2 reload=1` for block/leaf dirs now). But there are **multiple independent shutdown causes**, and this run hit face B: `imap_to_bp ino=134 rc=-5` = a dir-data block allocated over a **live** inode cluster (the deep bnobt double-allocation blocker), which my reload merely surfaces. This was present in the original build too (round-1 `imap_to_bp ino=128` on test13). Let me record state before continuing on face B.
+Reached the relay boundary. Summary of this session's work:
+
+## What I did (RULE-4 loop, all measured against the fast reproducer)
+
+**Confirmed the situation:** Only `posix_semantics_multi16` fails (18/19 criteria pass). The >600s timeout is caused by FS **shutdowns** under the 16-node shared-dir workload (each shutdown → 120s barrier hangs → budget blown). The `p` prompt file is stale. Reproduced shutdowns on the original build `9C3D67D7` in round 1.
+
+**Discovered there are ≥2 independent shutdown faces** (high run-to-run variance), so the criterion needs ALL fixed:
+
+- **Face A — stale dir extent map** (`XFS_DABUF_MAP_HOLE_OK` / `dir3_block_verify`): a peer grows/regrows a shared dir, but the DIR_MODIFY evict only refreshed data blocks + only armed reload for shortform dirs → block/leaf dirs kept a stale extent fork. **FIXED with 3 changes** (all verified firing — `EVICT-RING-DIRMOD fmt=2 reload=1`):
+  1. evict callback arms `MXFS_IF_DIR_RELOAD` for all dir formats
+  2. lookup-path `mxfs_dlm_dir_consumer_refresh` consumes it via full reload (rebuilds extent fork)
+  3. fast-path EX re-grant reloads the inode (was only evicting data blocks)
+  
+  This pushed the reproducer from round-1 → round-3 shutdown.
+
+- **Face B — bnobt double-allocation** (`imap_to_bp ino=NNN rc=-5`): a dir-data block allocated over a **live** inode cluster — the deep AG free-space incoherency blocker (sess24/39/90/121 family). **UNFIXED.** Present in the original build too. My `ikeep` attempt (never free inode chunks, in `xfs_ialloc.c`) did NOT fix it (the bug is at chunk-*alloc* bnobt staleness, not chunk-free).
+
+**Builds:** progressed `9C3D67D7` → `C7F6354A` (current, on all 16 nodes). All fixes + a `P54-DIRBLK-PROBE` diagnostic are in the tree and kept (they target distinct proven bugs).
+
+## State for next session
+Full detail saved to memory `sess54-dir-coherency-and-bnobt-dblalloc-faces`. **Next step (RULE 4):** instrument data-extent allocation (`xfs_bmap_btalloc`/`xfs_alloc_vextent`) to catch a dir-data extent overlapping a live inobt chunk *at the source*, dump AG bnobt/agf freshness (`mxfs_ag_buf_disk_differs`) to prove stale-read vs durable bnobt corruption, then fix the AG-meta coherency hole at chunk-alloc time.
+
+**Criteria are NOT met** (`posix_semantics_multi16` still shuts down via Face B). Marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

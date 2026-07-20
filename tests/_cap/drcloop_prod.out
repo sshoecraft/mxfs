@@ -1,0 +1,19 @@
+=== iter 1/5 @ 05:01:25 build=7F15D2EA826BF7B10190CFC ===
+  iter 1: PASS | dataclobber-skip(t1=20 t2=10) | deadincarn(t1=0 t2=0) | corrupt=0
+    res:   PASS  dir_reuse_coherency  (nodes_pass=2/2)
+=== iter 2/5 @ 05:06:09 build=7F15D2EA826BF7B10190CFC ===
+  iter 2: FAIL | dataclobber-skip(t1=0 t2=0) | deadincarn(t1=0 t2=0) | corrupt=0
+    res:   FAIL  dir_reuse_coherency  (nodes_pass=0/2)
+    (FAIL logs snapshotted: fail_2_test{1,2}.log)
+=== iter 3/5 @ 05:11:27 build=7F15D2EA826BF7B10190CFC ===
+  iter 3: FAIL | dataclobber-skip(t1=0 t2=0) | deadincarn(t1=0 t2=0) | corrupt=138
+    res:   FAIL  dir_reuse_coherency  (nodes_pass=0/2)
+    (FAIL logs snapshotted: fail_3_test{1,2}.log)
+=== iter 4/5 @ 05:16:28 build=7F15D2EA826BF7B10190CFC ===
+  iter 4: PASS | dataclobber-skip(t1=0 t2=0) | deadincarn(t1=0 t2=0) | corrupt=36
+    res:   PASS  dir_reuse_coherency  (nodes_pass=2/2)
+=== iter 5/5 @ 05:21:14 build=7F15D2EA826BF7B10190CFC ===
+  iter 5: FAIL | dataclobber-skip(t1=0 t2=0) | deadincarn(t1=0 t2=0) | corrupt=0
+    res:   FAIL  dir_reuse_coherency  (nodes_pass=0/2)
+    (FAIL logs snapshotted: fail_5_test{1,2}.log)
+=== DONE: pass=2 fail=3 / 5 @ 05:26:05 ===

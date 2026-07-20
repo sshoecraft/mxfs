@@ -1,0 +1,14 @@
+{
+  "source": [
+    "pal/linux/kern.c",
+    "dlm/dlm.c",
+    "pal/linux/xfs_super.c",
+    "xfs/xfs_icache.c",
+    "pal/linux/xfs_iops.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

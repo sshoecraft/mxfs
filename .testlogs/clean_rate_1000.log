@@ -1,0 +1,59 @@
+===== ITER 1: reboot test1/test2 =====
+----- ITER 1: run suite -----
+it1:   PASS  precond_readiness
+it1:   PASS  cache_coherency  (nodes_pass=2/2)
+it1:   PASS  strong_consistency  (nodes_pass=2/2)
+it1:   PASS  posix_multi  (nodes_pass=2/2)
+it1:   PASS  mmap_coherency  (nodes_pass=2/2)
+it1:   PASS  zero_silent_loss  (nodes_pass=2/2)
+it1:   PASS  dlm_fairness  (nodes_pass=2/2)
+it1:   PASS  dlm_membership  (nodes_pass=2/2)
+it1:   PASS  scaling_curve  (nodes_pass=2/2)
+it1:   PASS  dlm_scaling  (nodes_pass=2/2)
+it1:   PASS  rsync_paired  (nodes_pass=2/2)
+it1:   FAIL  crash_consistency  (nodes_pass=1/2)
+it1:   PASS  fence_during_write  (nodes_pass=2/2)
+it1:   PASS  fault_netpartition  (nodes_pass=2/2)
+it1:   PASS  soak
+it1:   PASS  tcp_dlm_scaling  (nodes_pass=2/2)
+ITER 1: 1 FAIL(s)
+===== ITER 2: reboot test1/test2 =====
+----- ITER 2: run suite -----
+it2:   PASS  precond_readiness
+it2:   PASS  cache_coherency  (nodes_pass=2/2)
+it2:   PASS  strong_consistency  (nodes_pass=2/2)
+it2:   PASS  posix_multi  (nodes_pass=2/2)
+it2:   PASS  mmap_coherency  (nodes_pass=2/2)
+it2:   PASS  zero_silent_loss  (nodes_pass=2/2)
+it2:   PASS  dlm_fairness  (nodes_pass=2/2)
+it2:   PASS  dlm_membership  (nodes_pass=2/2)
+it2:   PASS  scaling_curve  (nodes_pass=2/2)
+it2:   PASS  dlm_scaling  (nodes_pass=2/2)
+it2:   PASS  rsync_paired  (nodes_pass=2/2)
+it2:   PASS  crash_consistency  (nodes_pass=2/2)
+it2:   PASS  fence_during_write  (nodes_pass=2/2)
+it2:   PASS  fault_netpartition  (nodes_pass=2/2)
+it2:   PASS  soak
+it2:   PASS  tcp_dlm_scaling  (nodes_pass=2/2)
+ITER 2: CLEAN 16/16
+===== ITER 3: reboot test1/test2 =====
+----- ITER 3: run suite -----
+it3:   PASS  precond_readiness
+it3:   PASS  cache_coherency  (nodes_pass=2/2)
+it3:   PASS  strong_consistency  (nodes_pass=2/2)
+it3:   PASS  posix_multi  (nodes_pass=2/2)
+it3:   PASS  mmap_coherency  (nodes_pass=2/2)
+it3:   PASS  zero_silent_loss  (nodes_pass=2/2)
+it3:   PASS  dlm_fairness  (nodes_pass=2/2)
+it3:   PASS  dlm_membership  (nodes_pass=2/2)
+it3:   PASS  scaling_curve  (nodes_pass=2/2)
+it3:   PASS  dlm_scaling  (nodes_pass=2/2)
+it3:   PASS  rsync_paired  (nodes_pass=2/2)
+it3:   FAIL  crash_consistency  (nodes_pass=1/2)
+it3:   PASS  fence_during_write  (nodes_pass=2/2)
+it3:   PASS  fault_netpartition  (nodes_pass=2/2)
+it3:   PASS  soak
+it3:   FAIL  tcp_dlm_scaling  (nodes_pass=1/2)
+ITER 3: 2 FAIL(s)
+===== ITER 4: reboot test1/test2 =====
+----- ITER 4: run suite -----

@@ -1,0 +1,142 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 6
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `19e33471-7ed0-4347-9529-950790189b06`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/19e33471-7ed0-4347-9529-950790189b06.jsonl`
+- approx context at last assistant turn: 254087 tokens
+- tools used: Bash×61 Read×18 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 Edit×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 30 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== ALL D-state tasks ===" ps -eL -o pid,tid,stat,comm | awk "\$3 ~ /D/ {print
+    cd /src/mxfs; echo "=== direct b_sema down/up/trylock outside the wrappers ==="; grep -rn "b_sema" xfs/ pal/ dlm/ 2>/dev/null | grep -iE "down|up\(|sema_init|tr
+    cd /src/mxfs; timeout 40 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== scan ALL threads for flush/push/lock/delwri/durable in stack ===" for t in
+    cd /src/mxfs; timeout 40 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== every thread with a non-trivial kernel stack (state D or S in mxfs/xfs/dlm
+    cd /src/mxfs; echo "=== callers of xfs_iflush_cluster ==="; grep -rn "xfs_iflush_cluster(" xfs/ | grep -v "^xfs/xfs_inode.c:.*mxfs_iflush_cluster_merge\|int xfs
+    cd /src/mxfs; echo "=== xfsaild on test1 (precise) ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "ps -eL -o pid,tid,stat,comm | grep -i aild;
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== BUG/oops/WARN/call-trace/hung in dmesg ===" dmesg | grep -niE "BUG:|oops|W
+    cd /src/mxfs; timeout 15 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== pid 1064 alive? ===" if [ -d /proc/1064 ]; then echo "EXISTS comm=$(cat /p
+    cd /src/mxfs; echo "=== xfsaild() function bounds ==="; grep -n "^xfsaild\|^STATIC int.*xfsaild\|^static int.*xfsaild\|P93-REVERT-CLOBBER\|return 0\|do_exit\|^}
+    cd /src/mxfs; echo "=== callers of kthread_stop / ail_destroy / things that stop xfsaild ==="; grep -rn "kthread_stop\|ail_task\|xfs_trans_ail_destroy\|xfs_ail_
+    cd /src/mxfs; echo "=== signal sending / force_sig / send_sig / do_exit in mxfs+xfs ==="; grep -rn "send_sig\|force_sig\|kthread_stop\|do_exit\|complete_and_exi
+    cd /src/mxfs; timeout 15 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== last 3 dmesg lines mentioning xfsaild (by pid/comm) ===" dmesg | grep -iE 
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== FULL dmesg t=77.0 .. 77.25 (the oops) ===" dmesg | awk "/\[   77\.(0|1|2)/
+    cd /src/mxfs; echo "=== P-IRESURRECT site ==="; grep -rn "P-IRESURRECT\|IRESURRECT" xfs/*.c | head; echo "=== xfs_iflush_fork: where memcpy from if_data ==="; g
+    cd /src/mxfs; echo "=== where mxfs reloads/clears in-core inode (mode=0, fork free, from_disk) ==="; grep -rn "i_mode = 0\|VFS_I(ip)->i_mode = 0\|xfs_inode_from
+    cd /src/mxfs; echo "=== xfs_idestroy_fork ==="; sed -n '/^void$/,/^}/{/xfs_idestroy_fork/,/^}/p}' xfs/libxfs/xfs_inode_fork.c | head -40; echo "=== grep idestro
+    cd /src/mxfs; timeout 14 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' echo "=== reload failure/bail signatures (whole boot) ===" dmesg | grep -ciE "from_d
+    cd /src/mxfs; echo "=== xfs_iformat_fork (mode switch) ==="; awk '/^xfs_iformat_fork\(/,/^}/' xfs/libxfs/xfs_inode_fork.c | head -75
+    cd /src/mxfs; grep -n "xfs_iformat_fork\|xfs_inode_from_disk" xfs/libxfs/xfs_inode_fork.c xfs/libxfs/xfs_inode_buf.c | head; echo "=== from_disk + iformat mode 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*xfs_mxfs_dlm|implicit|undefined|LD \[M\]" | grep -v "Clock skew\|modification time" | tail -8; echo
+
+## Last text from previous session
+
+node_from_disk` (line 318-320):
+```c
+inode->i_mode = be16_to_cpu(from->di_mode);
+if (!inode->i_mode)
+    return 0;   // mode=0 (peer-freed): returns SUCCESS, never reformats the fork
+```
+
+So in `mxfs_dlm_reload_inode`: `xfs_idestroy_fork` frees `if_data` (→NULL) but leaves `if_bytes=6`/`if_format=LOCAL`; then `xfs_inode_from_disk` on a **mode=0 peer-freed dinode early-returns 0 without rebuilding the fork** — leaving the inode `LOCAL`/`if_bytes=6`/`if_data=NULL` while still dirty (`ili_fields=DDATA`). xfsaild flushes it → `xfs_iflush_fork` `memcpy(cp, NULL, 6)` → **NULL-deref oops → xfsaild dies holding the cluster lock → drain wedge → cache_coherency 900s timeout.** No "from_disk FAILED" log because it returned 0. This matches every observation (ino=131 mode=0, RDX=6, RSI=0, no shutdown, leaked lock).
+
+The fix: when reload's `from_disk` leaves a mode=0 (freed) inode, reset the data fork to the canonical empty state (exactly as `mxfs_dlm_reset_inode_for_create` does) so a later flush is safe. Let me update my memory first, then implement.
+Now implement the fix in `mxfs_dlm_reload_inode`:
+I've reached the relay boundary. Let me build to confirm the tree compiles cleanly so the next session can deploy immediately.
+Clean build — new srcversion `159EF451`. The fix compiled with no errors/warnings.
+
+## Summary
+
+**Major breakthrough this session: the true root cause of the `cache_coherency` wedge is finally proven, and a targeted fix is built.**
+
+### What I disproved
+sess113's theory (merge_dirs forced-FUA read stalling the flush) is **wrong**. I deployed sess113's build `5E2660AC` (merge_dirs skipped under `fua_disable=1`) to a clean 4-node cluster and the `P113-DRAIN-WEDGE ino=128` still occurred at `test_rename_visibility`. A full thread census on the wedged node showed **no thread stuck in any FUA/iflush path** — the buffer lock was genuinely leaked, not stalled.
+
+### The true root cause (RULE 4, direct dmesg oops evidence)
+xfsaild **crashes with a NULL-pointer deref and dies holding the ino=128 inode-cluster buffer lock**:
+```
+RIP: memcpy_orig (RSI=0 NULL src, RDX=6 len)
+  xfs_iflush_fork ← xfs_inode_to_disk ← xfs_iflush_cluster ← xfs_inode_item_push ← xfsaild
+note: xfsaild/sda[1064] exited with irqs disabled
+```
+Traced through the source to the exact mechanism:
+1. `xfs_idestroy_fork` frees a LOCAL fork's `if_data` (→NULL) but leaves `if_bytes`/`if_format=LOCAL` stale.
+2. `xfs_inode_from_disk` early-returns `0` for a **mode=0 (peer-freed) disk inode** *without* reformatting the fork (`if (!inode->i_mode) return 0;`).
+3. So `mxfs_dlm_reload_inode`, reloading a churned shortform-dir inode (ino=131) to the peer's freed image, leaves it `LOCAL`/`if_bytes=6`/`if_data=NULL` while still dirty (`ili_fields=DDATA`).
+4. xfsaild flushes it → `xfs_iflush_fork` does `memcpy(cp, NULL, 6)` → oops → xfsaild dies holding the cluster lock → IFLUSHING never clears → BAST-release drain wedges → peer EX times out → `cache_coherency` SIGKILLs at 900s.
+
+This explains why 30+ sessions chasing FUA/bnobt/merge_dirs symptoms never closed it — nobody had spotted that **xfsaild was crashing**.
+
+### The fix (built `159EF451`, NOT yet deployed/verified)
+In `mxfs_dlm_reload_inode`, after `xfs_inode_from_disk` succeeds on a mode=0 inode, reset the data fork to the canonical empty-EXTENTS state (`if_format=EXTENTS, if_data=NULL, if_bytes=0, if_nextents=0`) — same pattern as the already-safe `mxfs_dlm_reset_inode_for_create`. Then `xfs_iflush_fork`'s EXTENTS branch sees `if_bytes=0` and copies nothing — no oops. Discarding the already-peer-freed fork is coherency-correct.
+
+### Next session
+Clean-reboot all 4 (cluster is currently wedged on test1), `reset4.sh 4`, deploy `159EF451`, run `cache_coherency.sh --nodes 4`. Confirm absence of the `memcpy_orig` oops and `P113-DRAIN-WEDGE`. If the wedge is gone and rename_visibility passes → run full `verify_ship.sh`. Full detail in memory `sess114_lessons`.
+
+**Criterion not yet met — marker not written; work continues.**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `d2c49d41-c809-41a8-95e3-cfc18ee8535a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d2c49d41-c809-41a8-95e3-cfc18ee8535a.jsonl`
+- approx context at last assistant turn: 502535 tokens
+- tools used: Bash×91 Edit×53 Read×51 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_get×4 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/include/mxfs/mxfs_dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; tools/mxfs_sshpass.sh test3 "$PASS" "dmesg | grep -iE 'Internal error|line [0-9]+ of file|Caller|Corruption 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*(unused|set but)" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== on-disk build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== sanity: source compiles, no genuine_handoff_epoch refs left
+    cd /src/mxfs; grep -n "P-DIRWR\|P-DIRRD" xfs/*.c pal/linux/*.c | grep -i "pr_warn\|log\|scnprintf" | head; echo "=== what P-DIRWR logs (find the format string) 
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== failing rounds + missing (from saved files) ==="; for n in 2 3 4; do h=test$n; tools/mxfs_sshpass.
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; h=test2; echo "=== dir inode (DIRID) round 17 ==="; tools/mxfs_sshpass.sh $h "$PASS" "grep -hE 'mxfs-drc-DIR
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; h=test2; echo "=== P-DIRWR owner=131 timeline (daddr, count, active, crc, comm) — first data block ==="; too
+    cd /src/mxfs; grep -n "mxfs_dir_sf_3way_merge\|mxfs_dir_sf_capture_base\|P-SFMERGE\|sf_3way\|i_dlm_dir_sf_base\b" xfs/xfs_mxfs_dlm.c | head -20
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; h=test2; echo "=== P56-RELOAD-MERGE lines mentioning node1_f1 (round 17 file) ==="; tools/mxfs_sshpass.sh $h
+    cd /src/mxfs; grep -n "mxfs_sfm_dbg\|module_param.*sfm\|int mxfs_sfm_dbg" xfs/xfs_mxfs_dlm.c pal/linux/*.c | head; echo "=== module params available ==="; modin
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in 2 3; do h=test$n; echo "=== $h ==="; tools/mxfs_sshpass.sh $h "$PASS" "echo -n 'SKIP-BASE(any)='; d
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; h=test2; echo "=== P64-N1F1 owner=131 timeline (present + comm + daddr) from round-18 saved dmesg ==="; tool
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; h=test2; echo "=== any present=1 for owner=131 (where node1_f1 WAS written) ==="; tools/mxfs_sshpass.sh $h "
+    cd /src/mxfs; grep -n "dir_adopt_block\|adopt.*block.*format\|disk.*block.*incore.*shortform\|sf_to_block\|adopt_disk_format\|P61-ADOPT\|mxfs_dir_adopt" xfs/xfs
+
+## Last text from previous session
+
+**orphaned in a double-allocated block0**: rank1 allocated daddr=120 for block0 (with node1_f1), a peer independently allocated daddr=2093296 for block0, and the peer's extent map wins on disk. This is **dir-block0 double-allocation from concurrent sf→block conversion** — and it's also the source of the bnobt double-free (freeing the orphan). Let me record this precisely:
+This is a decisive byte-level root — far more precise than the prior 60 sessions' "stale-base RMW" framing. The fix is to prevent the dir-block0 double-allocation by adopting a peer's already-converted block layout. The `dir_adopt_block` param (default ON) should do this but doesn't. Let me read that code to find the gap (cheap, no run):
+`mxfs_dir_adopt_block = 0` (default OFF). And there's a guard at 7598 about `xfs_dir2_sf_to_block` running **TWICE for the same incarnation** re-allocating block0 — directly the double-alloc. Let me read it:
+The P43 guard (in-core BLOCK + disk LOCAL) tries to prevent re-conversion, but the **forward** case — in-core SHORTFORM + disk already BLOCK (peer converted) — is handled by `mxfs_dir_modify_adopt_disk_format`, which is gated on `mxfs_dir_adopt_block` that is **default 0 (OFF)**. That's the missing block0-double-alloc prevention. Let me record this crucial connection:
+I've reached a decisive root + concrete fix path. Let me assess whether the forward-adopt function can be safely enabled by reading it (cheap):
+I've reached the relay boundary. Noting that `mxfs_dir_modify_adopt_disk_format` routes through the same `mxfs_dlm_reload_inode(post_release=true)` adopt path that I proved corrupts bnobt this session — so it's not a simple flag-flip; the next session must make that block-format adopt AG-consistent first. Wrapping up.
+
+## Session 64 summary
+
+**Criteria NOT met** (4/tcp `dir_reuse_coherency` still fails; 8/tcp unrun) — marker not written.
+
+**Major outcome: the decisive byte-level root cause of the 60-session `node1_f1` loss.** Using a custom always-on `P64-N1F1` tracer (exact dirent byte-pattern match, firehose-surviving), I proved:
+- node1_f1 **is durably written** — to **daddr=120** (`present=1`, by rank1).
+- But the dir's logical block0 that all peers write to and the cold-read verify sees is a **different physical block, daddr=2093296** (`present=0`, never had node1_f1).
+- → node1_f1 is **orphaned in a double-allocated dir block0**: rank1 and a peer each independently convert the reused shortform dir to block format and allocate their *own* block0 (different AGs via node affinity); the peer's extent map wins, orphaning rank1's. This same double-allocation is also the source of the coupled **bnobt `bno+len>gtbno` double-free** corruption.
+
+This **supersedes** the prior "stale-base RMW clobber" and "shortform-converter" framings (the latter explicitly refuted — all shortform-merge probes fired 0×; the dir is block-format by reload time).
+
+**Built + verified (KEEP):** full monotonic per-dir **epoch** DLM plumbing (wire field, dg_shadow epoch, grant delivery, query/bridge, inode `i_dlm_dir_valid_epoch`) — closes the proven **80% handoff under-fire** (master computes ~270 handoffs, grantees acted on ~58). 2/tcp coherence tests verified PASS (no regression).
+
+**Proved dead-ends (documented):** driving the disk-superset adopt via the epoch corrupts bnobt (it bypasses the P33/P43 *shrink* guards and frees blocks inconsistent with AG free-space state); incarnation-gating reduced but didn't eliminate it.
+
+**Fix path for next session (recorded in 6 ccmemory files):** prevent the block0 double-allocation — re-work the in-core-SHORTFORM + disk-BLOCK forward adopt (`mxfs_dir_modify_adopt_disk_format`, currently `dir_adopt_block=0` OFF), gated on the new epoch, to adopt the peer's existing block0 (incl node1_f1) instead of allocating a second one — **without** an inline cross-node free of the orphan (that's what double-frees). Current build `F20F3CAC` = baseline behavior + epoch plumbing + the `P64-N1F1` tracer for verification.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

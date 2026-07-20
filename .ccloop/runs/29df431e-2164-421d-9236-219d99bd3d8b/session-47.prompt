@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 47 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 46
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `760b6ece-53ba-47d0-831d-f56a934ad725`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/760b6ece-53ba-47d0-831d-f56a934ad725.jsonl`
+- approx context at last assistant turn: 259503 tokens
+- tools used: Bash×74 Edit×22 Read×18 ToolSearch×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/state.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess80_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '5422,5600p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '5600,5720p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '5720,5810p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n P75 REL-LEFT-DIRTY: "; timeout 15 $SSH $n $P "dmesg
+    cd /src/mxfs; grep -n "mxfs_v5_dlm_ag_unlock\b" xfs/xfs_mxfs_dlm.c; echo "=== context of each non-bast caller ==="; for ln in $(grep -n "mxfs_v5_dlm_ag_unlock(d
+    cd /src/mxfs; sed -n '6380,6520p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "_XBF_FUA_FRESH\|mxfs_buf_read_fua\|FUA_FRESH" pal/linux/xfs_buf.c | head -40
+    cd /src/mxfs; echo "=== xfs_buf.c 70-95 (where FUA_FRESH cleared) ==="; sed -n '70,95p' pal/linux/xfs_buf.c; echo "=== 2040-2095 (the FUA gate on read) ==="; se
+    cd /src/mxfs; echo "=== evict_cb typedef ==="; grep -rn "mxfs_disklock_evict_cb\|evict_cb" dlm/disklock.h include/*.h dlm/v5_mount.h compat/*.h 2>/dev/null | he
+    cd /src/mxfs; echo "=== v5_mount.c note_inode_freed + set_evict_cb 930-970 ==="; sed -n '930,970p' dlm/v5_mount.c; echo "=== v5_mount.h relevant protos ==="; gr
+    cd /src/mxfs; echo "=== disklock.h visible in xfs_mxfs_dlm.c? ==="; grep -n "disklock.h\|MXFS_EVICT_TYPE\|v5_mount.h" xfs/xfs_mxfs_dlm.c | head; echo "=== mxfs_
+    cd /src/mxfs; echo "=== does v5_mount.h include disklock.h ==="; grep -n "disklock.h\|#include" dlm/v5_mount.h | head; echo "=== xfs_mxfs_dlm.h includes ==="; g
+    cd /src/mxfs; grep -n "xfs_mxfs_dlm.h\|#include" xfs/libxfs/xfs_dir2.c | head -25
+    cd /src/mxfs; echo "=== other callers of note_freed / evict_cb signatures ==="; grep -rn "mxfs_disklock_note_freed\|mxfs_v5_dlm_note_inode_freed\|evict_cb(\|mxf
+    cd /src/mxfs; ls -la mxfs.ko 2>/dev/null && modinfo mxfs.ko | grep srcversion; echo "=== verify no errors in full build log for my files ==="; make modules 2>&1
+    cd /src/mxfs; rm -f /tmp/reset80.log; MKFS_OPTS=-f nohup bash tests/reset4.sh 4 > /tmp/reset80.log 2>&1 & echo "reset4 started pid=$!"
+    until grep -qE "RESET_OK|RESET_FAIL" /tmp/reset80.log 2>/dev/null; do sleep 10; done; tail -4 /tmp/reset80.log
+    O=/tmp/claude-1000/-src-mxfs/760b6ece-53ba-47d0-831d-f56a934ad725/tasks/bvif9stki.output; until grep -qE "RESET_OK|RESET_FAIL" /tmp/reset80.log 2>/dev/null; do 
+    until grep -qE "RESULT:" /tmp/cc_crit80.log 2>/dev/null; do sleep 15; done; echo "=== criterion result ==="; cat /tmp/cc_crit80.log
+    cat /tmp/cc_crit80.log 2>/dev/null; echo "=== per-subtest from mktemp log ==="; L=$(grep -oE '/tmp/claude-1000/cache_coherency\.[A-Za-z0-9]+\.log' /tmp/cc_crit8
+
+## Last text from previous session
+
+ the `xfs_dir_replace` wrapper:
+All edits done. Let me check for any other callers I missed, then build:
+Build succeeded (EXIT=0, only pre-existing warnings). Let me confirm the module built and the srcversion changed:
+New build **71FD67B0**. The cluster is currently torn down (criterion rmmod'd at end). Let me deploy via reset4 (nodes NFS-mount /src so they insmod the fresh module) and run the criterion. Both exceed the foreground cap — run as background tasks.
+While reset deploys (~8 min), let me reconsider durability: the producer publishes at modify-time, but D's blocks become durable via the existing dir-data-durability drain on each DLM EX handoff (all 4 nodes modify D in turn). The evict-ring only adds the missing invalidation signal for NL readers. Durability is covered. Let me wait for reset, then run the criterion.
+Reset OK, criterion launched. Let me wait for it to complete (~10-15 min) and capture the result.
+I've hit the relay boundary with the criterion test running in the background. Let me record the session's work for continuity before wrapping up.
+The criterion finished. Let me read the result before wrapping up.
+Real progress — the fix worked: **rename_visibility now PASSES** (was FAIL), and **cross_write_read RAN** (no shutdown cascade this run). passed=2 failed=2, up from passed=1 failed=3. Let me record this verified result and wrap up.
+I've reached the relay boundary with a verified improvement landed. Summary of this session:
+
+## Session summary
+
+**Criteria not met** (cache_coherency still fails: `passed=2 failed=2`), so no marker written. But real, verified progress.
+
+### What I did (RULE-4 driven, with one RULE-5 Gemini consult)
+1. **Corrected the framing & got authoritative evidence.** Ran the real `cache_coherency` criterion on the deployed build (DA1CF4D8): cross_visibility PASS, rename FAIL, unlink FAIL + **bnobt double-free shutdown** unmounting node1 → cwr FAIL. Harvested kernel dmesg directly (the reliable signal — the harness buffers stdout).
+
+2. **Pinpointed the rename root from a real assertion:** `mv: cannot stat node3_before_9` — a node can't stat its **own** just-created dirent = a **write-side dir-block lost-update** (a peer, an NL reader never BAST'd, RMW'd off a stale shared-dir block and clobbered the node's entries).
+
+3. **Landed the fix (build `71FD67B0`, deployed, VERIFIED KEEP):** generalized the heartbeat evict-ring (was inode-FREE only) to carry **DIR_MODIFY** entries. Producer at `xfs_dir_createname/removename/replace`; consumer bumps the peer's cached dir `i_dlm_dir_gen`, triggering the existing `xfs_da_read_buf` FUA re-read of stale-but-clean dir blocks. Fixes both reader visibility and the write-side lost-update. Backward-compatible wire change (`pad`→`type`), with dedup to respect the 28-deep ring.
+   - **Result: `passed=1 failed=3` → `passed=2 failed=2`. rename_visibility now PASSES, and cross_write_read now RUNS (no shutdown cascade this run).**
+
+4. **Diagnosed the bnobt double-free shutdown (still open) with decisive evidence + Gemini (RULE 5):** P47 `A-lost-removal` (live file's block-free lost from bnobt), P28 `disk_differs=0` (durable write-side clobber), P88 (pristine bnobt flushed over allocated disk), and the key finding — **`pag_dlm_meta_gen` is stuck at 1**, so the AG-meta gen coherency is effectively disabled. P75 = 0 refutes the BAST-release-drain hypothesis. Gemini's verdict: the local gen counter isn't salvageable; move AG/dir versioning to a **shared on-disk AGF epoch**.
+
+### Remaining for the next session
+- **unlink_visibility** phantom-readdir (stale dir block still lists deleted names — verify the DIR_MODIFY ring fired for the unlink dir and coexists with INODE_FREE entries).
+- **cross_write_read** di_size=0 reader-side content staleness (separate from the bnobt path).
+- **bnobt double-free shutdown** — implement the shared on-disk AGF epoch, or first prove *why* `pag_dlm_meta_gen` is stuck at 1.
+
+State and memory (`sess80_lessons.md`, MEMORY.md) updated.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

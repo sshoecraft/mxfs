@@ -1,0 +1,111 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 13 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 12
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `29b10eea-1ff9-42f3-b7bc-66bdce6ca726`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/29b10eea-1ff9-42f3-b7bc-66bdce6ca726.jsonl`
+- approx context at last assistant turn: 91157 tokens
+- tools used: Bash×15 Read×5 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/cv_discriminator.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== SUCCESS_CRITERIA.md ===" && cat SUCCESS_CRITERIA.md 2>/dev/null; echo; echo "=== criteria-met marker ==="; cat /src/mxfs/.ccloop/runs/29df431e-2164-42
+    grep -n "mxfs_dlm_reload_inode" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs echo "=== local build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion echo "=== criteria status ==="; ./tests/criteria/verify_ship.sh --status 
+    cd /src/mxfs echo "=== mxfs_sshpass.sh ==="; sed -n '1,30p' tools/mxfs_sshpass.sh 2>/dev/null echo "=== pass file locations ==="; ls -la tools/.mxfs_pass tools/
+    cd /src/mxfs echo "=== passfile ==="; ls -la /tmp/.mxfs_pass 2>/dev/null && echo "EXISTS" || echo "MISSING" echo "=== default NODES in lib ==="; grep -nE 'NODES
+    cd /src/mxfs for n in test1 test2 test3 test4; do   echo "=== $n ==="   timeout 10 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "     lsmod | grep -w mxfs && cat /s
+    cd /src/mxfs echo "=== find cross_visibility test ===" grep -rln "cross_visibility\|test_cross_visibility" tests/ 2>/dev/null | head echo "=== run_tests.sh test
+    cd /src/mxfs echo "=== run_tests.sh usage / --test handling ==="; grep -nE '\-\-test|MOUNT_POINT|NODE_ID|TOTAL_NODES|mxfs_test|barrier' tests/run_tests.sh 2>/de
+    chmod +x tests/cv_discriminator.sh && timeout 200 bash tests/cv_discriminator.sh 4 2>&1
+    cd /src/mxfs echo "=== run_tests.sh node mapping / ssh_node / NODE_OFFSET ===" grep -nE 'ssh_node|NODE_OFFSET|node_host|test\$|hostname|NODES\[|test1' tests/run
+    cd /src/mxfs echo "=== get_node_hostname + ssh_node defs ===" grep -rnA6 'get_node_hostname()\|^ssh_node()\|ssh_node()' tests/run_tests.sh tests/cluster/*.sh 2>
+    cd /src/mxfs grep -rln 'get_node_hostname' tests/ 2>/dev/null echo "---" grep -rnA8 'get_node_hostname' tests/cluster/cluster.sh 2>/dev/null | head -20 echo "==
+    cd /src/mxfs grep -nA8 'get_node_hostname()' tests/lib/cluster.sh | head -20 echo "=== ssh_node def ===" grep -nA6 'ssh_node()' tests/lib/cluster.sh | head -12 
+    cd /src/mxfs echo "=== pass file ==="; ls -la /home/steve/.mxfs/pass 2>/dev/null || echo MISSING echo "=== resolve fqdn ==="; timeout 6 tools/mxfs_sshpass.sh te
+    cd /src/mxfs for i in 1 2 3 4; do timeout 8 tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1; done echo "dmesg cleared. Running cross_vis
+
+## Last text from previous session
+
+The hook fired on my very first command — that's spurious (I just started). I'll continue the real debugging work per RULE 4. Let me look at the prime suspect identified in the sess53 handoff: whether `mxfs_dlm_reload_inode` actually re-reads the shortform (FMT_LOCAL) inline dirents.
+The hook is firing on every Bash call — clearly spurious, not a real boundary. Continuing. Let me read `mxfs_dlm_reload_inode`.
+The reload via `xfs_inode_from_disk` DOES reparse the shortform data fork — so reload, *if it fires*, correctly repopulates node4's dirent. The real question (per sess54) is whether the reader's readdir re-acquires the dir-inode DLM (slow path → reload) or fast-path re-grants without reloading. Let me look at the acquire fast/slow path decision.
+This is the slow-path (cache-miss/ACQ-FRESH) branch — it reloads correctly. The fast-path must early-return before this. Let me see the top of this acquire function to find the fast-path condition.
+Let me see the very top of the function — the initial cached-mode check that gates fast vs slow path.
+I now understand the fast/slow path. The decisive measurement (per sess53 handoff, RULE 4) is to distinguish **H1: reload not firing** (readers fast-path P63) vs **H2: reload firing but reading stale disk** (node4's inline-shortform inode cluster not durable when it released EX). Let me check cluster state and deployed build before reproducing.
+Two FAILs: cache_coherency (1/4 passing) and rsync_paired. Nodes show UNREACHABLE — likely my ssh invocation is wrong. Let me check the helper signature and how the criteria scripts reach nodes.
+Pass file is `/tmp/.mxfs_pass`. Let me check it exists and the default node list, then verify reachability properly.
+Nodes test1-4 reachable (kernel 6.8.0-101-generic). The modinfo at `extra/` returned nothing — let me find where the deployed module lives and whether it's loaded/mounted.
+All 4 nodes: C2D30DB0 loaded, mounted `/dev/sda` on `/mnt/shared`. Cluster healthy and matches local build. Now per RULE 4, let me reproduce the failure cleanly (instr=0) to confirm the current symptom. sess54 said the reliable 19s repro is the real harness `test_cross_visibility`. Let me find it.
+The failing op is `[ -f node4.txt ]` — a path lookup on the parent dir (shortform). Reader holds cached PR on the parent → fast-paths the lookup → serves stale in-core shortform → misses node4.txt. 
+
+The decisive discriminator between H1 (reload not firing — pure in-core staleness) and H2 (durability — node4's write never reached readable disk): after a failure, force a fresh on-disk reread on the reader via drop_caches and re-stat. Let me build a tight repro that does exactly this. First, how does the harness drive a single cluster test?
+The harness ssh's mxfs_test.sh onto each node with barrier coordination. Rather than fight the barrier machinery, I'll write a tight custom repro that includes the **drop_caches discriminator** — this directly separates H1 (in-core staleness, reload not firing) from H2 (durability). Let me write it in-tree per RULE 3.
+My repro's writes weren't tightly concurrent (ssh latency serialized them) — so each dir-add BAST'd cleanly. The real failure needs all 4 nodes contending for the **same shortform dir inode EX simultaneously**, which the harness barrier provides. Let me run the real harness test. First, how does run_tests.sh map node index → hostname?
+run_tests.sh uses `testN.vm.localdomain` and pass file `/home/steve/.mxfs/pass`. Let me verify these and then run the real harness cross_visibility test (instr=0) to reproduce.
+Harness reachable. Let me clear dmesg on all nodes, run the real cross_visibility harness test (instr=0) several times to reproduce the failure, and capture results.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

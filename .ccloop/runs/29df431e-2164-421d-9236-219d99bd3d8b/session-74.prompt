@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 74 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 73
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `8a97be08-cc29-40b9-ad77-1f5a32099a49`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8a97be08-cc29-40b9-ad77-1f5a32099a49.jsonl`
+- approx context at last assistant turn: 251562 tokens
+- tools used: Bash×61 Read×19 Edit×14 mcp__ccmemory__memory_write×3 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_file.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH="bash tools/mxfs_sshpass.sh"; D=/mnt/shared/.mxfs_test/unlink_visibility; echo "=== test3 BEFORE: node1_file count ==="; timeout 10 $SSH test3
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; export MXFS_TESTS_DIR=/src/mxfs/tests MXFS_NODE_OFFSET=16; timeout 300 bash tests/run_tests.sh --nodes 
+    cd /src/mxfs; grep -iE "FAIL|not exists|not gone|deleted and gone|visible" /home/steve/.mxfs/results/20260606_000431/test_unlink_visibility/node1.log 2>/dev/nul
+    cd /src/mxfs; echo "=== does readdir/lookup take a dir DLM lock? ==="; grep -n "mxfs_dlm_ilock_begin\|xfs_ilock_data_map_shared\|xfs_dir_lookup\|xfs_readdir" xf
+    cd /src/mxfs; echo "=== where is read_coherency_envelope called ==="; grep -rn "mxfs_read_coherency_envelope\|mxfs_dir_read_coherency\|read_coherency" xfs/*.c p
+    cd /src/mxfs; grep -rn "mxfs_read_coherency_envelope" pal/ mxfs_clayer/ xfs/ mxfs.c 2>/dev/null | grep -v "4632\|sess46\|4664\|definition"; echo "=== broad sear
+    cd /src/mxfs; echo "=== read_iter envelope context ==="; sed -n '340,360p' pal/linux/xfs_file.c; echo "=== dir file-ops: iterate/readdir handlers ==="; grep -n 
+    cd /src/mxfs; echo "=== mxfs_dir_evict_data_blocks ==="; grep -n "mxfs_dir_evict_data_blocks" xfs/xfs_mxfs_dlm.c | head; echo "=== i_dlm_dir_gen field decl ==="
+    cd /src/mxfs; grep -n "i_dlm_dir_gen = 0\|i_dlm_dir_loaded_gen = 0\|i_dlm_dir_gen = 0;" xfs/xfs_mxfs_dlm.c xfs/xfs_icache.c xfs/*.c 2>/dev/null | head; echo "==
+    cd /src/mxfs; grep -n "^xfs_lookup" xfs/xfs_inode.c; sed -n '600,640p' xfs/xfs_inode.c
+    cd /src/mxfs; timeout 480 make modules 2>&1 | grep -iE "error:|warning:.*consumer|warning:.*evicted|undefined|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo
+    cd /src/mxfs; until grep -qE "rc=" /tmp/claude-1000/-src-mxfs/8a97be08-cc29-40b9-ad77-1f5a32099a49/tasks/bylf3r56x.output 2>/dev/null; do sleep 5; done; cat /tm
+    sleep 60; cat /tmp/claude-1000/-src-mxfs/8a97be08-cc29-40b9-ad77-1f5a32099a49/tasks/bylf3r56x.output 2>/dev/null | tail -5
+    cd /src/mxfs; until grep -qE "rc=" /tmp/claude-1000/-src-mxfs/8a97be08-cc29-40b9-ad77-1f5a32099a49/tasks/bylf3r56x.output 2>/dev/null; do sleep 8; done; tail -6
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; SSH="bash tools/mxfs_sshpass.sh"; echo "=== deployed
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; export MXFS_TESTS_DIR=/src/mxfs/tests MXFS_NODE_OFFSET=16; echo "=== UNLINK ==="; timeout 300 bash test
+    cd /src/mxfs; SSH="bash tools/mxfs_sshpass.sh"; D=/mnt/shared/.mxfs_test/unlink_visibility; echo "=== survivors per node ==="; for n in 1 2 3 4; do timeout 8 $S
+    cd /src/mxfs; timeout 480 make modules 2>&1 | grep -iE "error:|undefined|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversio
+    cd /src/mxfs; until grep -qE "rc=" /tmp/claude-1000/-src-mxfs/8a97be08-cc29-40b9-ad77-1f5a32099a49/tasks/bycixkt0t.output 2>/dev/null; do sleep 8; done; tail -3
+
+## Last text from previous session
+
+ are done, so the refetch is guaranteed fresh. Let me implement: add a tracking field, a public wrapper, and wire it into readdir/lookup.
+Now add the public consumer-refresh function after `mxfs_dir_evict_data_blocks`.
+Now add the header declaration and initialize the field. Let me check the init site for i_dlm_dir_gen.
+Now wire into `xfs_file_readdir` (before the read) and `xfs_lookup`.
+Now wire into `xfs_lookup`. Let me find its structure.
+Now build.
+Build clean: `AF60EC48`. Redeploy via reset4 and test.
+Still failing but down to 1 survivor (was 2). Let me check whether my refresh fired and inspect the survivor.
+Progress: consumer-refresh fires ~50×/node, survivors 2→1, cluster converges. But **P-EVICT-SKIP fired once on test1** — a block was undurable (pinned/in-AIL) so it was skipped, yet `i_dlm_dir_evicted_gen` still advanced → that stale block is never retried (gen matches) = the 1 survivor. Fix: only advance `evicted_gen` if ALL blocks were successfully evicted; a skip leaves it behind so the next read retries.
+I'll change `mxfs_dir_evict_data_blocks` to return whether all blocks were evicted (no undurable skip), and only advance `evicted_gen` on full success.
+Reached the relay boundary. Let me complete this sub-step: update `consumer_refresh` to only advance `evicted_gen` on full eviction success, then build so the next session inherits a compiled module.
+Now build so the next session inherits a compiled module, and update the session memory.
+Build clean: `1B611843`. Let me update the session memory so the next session can continue, then summarize. Criteria are NOT met — I will not write the marker.
+Reached the relay boundary. Summary of this session's work:
+
+## Progress on `cache_coherency` (the last failing ship criterion)
+
+**Reconciled state**: the ccloop session count and `sessNN_lessons` numbering were out of sync; sess96 (`FB9573F7`) was the real head, with the typeflip fix intact. Built on that.
+
+### WIN 1 — Writer-side FIXED (verified, KEEP): publish-before-notify at commit
+Root (sess96, proven): peers/the owner durably lost dir updates because a node modified its dir block from a **pinned-stale buffer** (DIR-STALE-SKIP). Two prior model consults converged on a write-side fix. I wired the long-dormant `mxfs_dlm_dir_durable_signal(dp)` (log_force + `xfs_bwrite`+wait_unpin each dir block + notify) into `xfs_remove`/`xfs_create`/`xfs_rename`, **post-commit with ILOCK+EX still held** — safe there (buffer holds only this node's own change) where sess96's release-time flush clobbered.
+- **Result: `rename_visibility` 2/240 → 0 fails, PASS, 32s. DIR-STALE-SKIP eliminated.** The on-disk medium + owner are now always correct.
+
+### WIN 2 (partial) — Reader-side: consumer eager dir-block refresh
+Proved via remount that the remaining `unlink_visibility` failure is **pure peer in-core staleness** (medium clean). The lazy per-buffer hook restamps a block's gen *before* the reread, caching stale-as-current. Got a GPT design (durable per-dir seqlock epoch — saved to memory). Implemented the contained first step: `mxfs_dlm_dir_consumer_refresh()` at readdir/lookup entry eagerly evicts all clean dir blocks when a peer modified the dir (`i_dlm_dir_gen` advanced).
+- **Result: unlink survivors 2 → 1.** Found the last-survivor cause: an undurable block was skipped by the evict but `evicted_gen` still advanced, so it was never retried.
+
+### Built but NOT YET TESTED: `1B611843`
+Fix for the last survivor: `mxfs_dir_evict_data_blocks` now returns success; `consumer_refresh` advances `evicted_gen` **only when every block was evicted**, so a skipped (transiently-pinned) block is retried on the next read.
+
+**Next session**: clean reboot + `reset4.sh 4` to deploy `1B611843`, run `unlink_visibility` (target 1→0), confirm `rename_visibility` stays at 0, then the full `cache_coherency.sh`. If a survivor persists, implement the full durable-epoch seqlock design in `sess97-gpt-dir-coherency-design`.
+
+Criteria are **not** met — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

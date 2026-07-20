@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_dir2.c",
+    "xfs/libxfs/xfs_dir2_data.c",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

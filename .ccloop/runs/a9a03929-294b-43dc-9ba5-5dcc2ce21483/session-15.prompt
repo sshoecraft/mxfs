@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 15 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 14
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `1be2bd3d-94ce-4760-92dd-322231ebf963`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1be2bd3d-94ce-4760-92dd-322231ebf963.jsonl`
+- approx context at last assistant turn: 502903 tokens
+- tools used: Bash×246 Edit×18 Read×10 TaskUpdate×5 mcp__ccmemory__memory_write×5 TaskCreate×4 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/mxfs_clayer/pinned_resource.c
+- /src/mxfs/tests/suite_iter.sh
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    nohup bash -c 'cd /src/mxfs; timeout 3200 bash tests/suite_iter.sh 8 tcp > /tmp/iter8_r10.log 2>&1; echo SUITE-EXIT=$? >> /tmp/iter8_r10.log' > /dev/null 2>&1 &
+    until grep -q "SUITE-EXIT" /tmp/iter8_r10.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; 
+    until grep -q "SUITE-EXIT" /tmp/iter8_r10.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; 
+    until grep -q "SUITE-EXIT" /tmp/iter8_r10.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; 
+    for n in 1 3 6; do ./tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -c 'P14-DESTAGE'; dmesg | grep 'mxfs-TDS rank=' | tail -1" 2>/dev/null; done; D=
+    grep -B2 "FAIL  dir_reuse" /tmp/iter8_r10.log | head -4; D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo "artifact: $D"; grep -hc "DROPCACHES-HUNG" "
+    grep -A1 "FAIL  dir_reuse" /tmp/iter8_r10.log | head -3; D=/tmp/run_dir_reuse_coherency_20260704T201007Z; cat "$D"/test*_drc_failrounds.txt 2>/dev/null | sort |
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; grep -h "RDMISS" "$D"/test1 2>/dev/null | head -2; grep -h "drc-RDMISS0 round=4" "$D"/kernlog_test1 2>/dev/null
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; grep -h "node4_f9\b\|node4_f9 " "$D"/kernlog_test4 2>/dev/null | grep -vE "node4_f9\.md5" | head -12 | cut -c26
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; F="$D/test4_drc_fail_r4_rank4.dmesg"; ls -la "$F" 2>/dev/null | awk '{print $5}'; grep -h "DRCph r=4" "$F" | he
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; F="$D/test4_drc_fail_r4_rank4.dmesg"; awk '/^\[ *3(3[5-9]|4[0-9]|50)\./' "$F" | grep "534408" | grep -vE "P11-D
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; for n in 1 2 3 4 5 6 7 8; do grep -h "P-DIRWR.*owner=540021 daddr=534408" "$D/kernlog_test$n" 2>/dev/null | sed
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; grep -hc "P-DIRWR.*daddr=534408" "$D"/kernlog_test4; grep -h "P-DIRWR.*daddr=534408" "$D/kernlog_test4" | head 
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; ls "$D" | grep "fail_r4" | wc -l; for n in 1 2 3 4 5 6 7 8; do F="$D/test${n}_drc_fail_r4_rank${n}.dmesg"; [ -f
+    S=/tmp/claude-1000/-src-mxfs/1be2bd3d-94ce-4760-92dd-322231ebf963/scratchpad/wr_timeline.txt; awk '$3+0>=0 && $3!="-1"' "$S" | awk '{c=$3+0; mark=(c<prev)?" <<<
+    N=$(grep -n "P-DIRWR fmt=" /src/mxfs/pal/linux/xfs_buf.c | head -1 | cut -d: -f1); awk -v n="$N" 'NR>=n-25 && NR<=n+3' /src/mxfs/pal/linux/xfs_buf.c | grep -E "
+    S=/tmp/claude-1000/-src-mxfs/1be2bd3d-94ce-4760-92dd-322231ebf963/scratchpad/wr_timeline.txt; awk '$3+0>=0 && $3!="-1"' "$S" | awk '{print $3}' | sort -n | uniq
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; F="$D/test6_drc_fail_r4_rank6.dmesg"; grep -h "daddr=534408" "$F" | awk -F'realns=' '{n=$2+0; if (n>=1783196133
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; F="$D/test4_drc_fail_r4_rank4.dmesg"; grep -h "P38-POSTREL-ZOMBIE" "$F" | head -3; echo "=== N4 release-side ev
+    D=/tmp/run_dir_reuse_coherency_20260704T201007Z; echo "== N6 cnt=73 EX read + 74 write =="; grep -h "P50-RD owner=540021 daddr=534408" "$D/test6_drc_fail_r4_ran
+
+## Last text from previous session
+
+ase path (defense at the other assembly points):
+15/17 — drc and tds failed in-suite again. Diagnosing both:
+Pull covers the new files. Launching r7 with the instrumented script, then examining the 5-file miss face while it runs:
+Build `8E654A57` — the release candidate (floor + FIX-F + P14 + sf=40 default). Checkpointing the milestone, then validating all four columns on this exact build:
+**4/tcp: 17/17.** Now 2/tcp (destroying test3-4's live mounts first):
+2/tcp: 13/17 — four fails with a "one node failing" pattern. Diagnosing:
+Build `D07DA7D8` (FIX-G). Validation ladder — 2/tcp first (the flake column FIX-G targets):
+2/tcp-c: 16/17 — tds now fails (0/2), FIX-G fired 47× on test1. The inline destage may be taxing the hot handoff path. Checking:
+Victim add logged at t=335.86 into dir 540021, daddr=534408 off=1800. Now the block's event history between the add and the verify:
+journald rotated past round 4 — using the per-node ring snapshots (all 8 nodes failed round 4, so all have them):
+Relay boundary — capturing the final decisive finding to memory before handoff:
+Session 14 summary — criteria **not yet met** (marker not written), but this was the biggest convergence session of the run: first-ever full-suite passes at every node count, and the last remaining correctness bug is now captured to the millisecond.
+
+**Landed and verified this session (final build `4D677327`):**
+
+1. **SF-dir tenure floor** (`mxfs_dlm_sf_tenure_keep_delay/arm` + both eager unhold gates): the root of tds-8-node's 72s was 2.4 dir-EX handoffs per round — every syscall boundary handed the lock away because MHT never covered shell exec gaps. The floor keeps a young shortform-dir EX across idle gaps with the dwork serving the peer at expiry. tds standalone: 72s → 41.7s PASS 8/8.
+2. **`dir_sf_mht_ms` 15→40**: in-suite, per-op time inflates ~2× (aged log across 17 tests on one mount), so 15ms tenures stopped batching. At 40ms: **iter r8 = 17/17 — the first full-suite 8/tcp pass ever — reproduced by r9 on the compiled default**, tds 17-31s with 2× margin, cache_coherency clean.
+3. **FIX-F** (miss-reload li_list gate): proved the ds got=0 loop was the P91 guard re-serving a stale in-core cluster image after every invalidate (invalidate only checked the bli, not foreign slots' log items) — FIX-E's slot patch was gated behind the wrong condition and never ran. dlm_scaling passed every iter since.
+4. **FIX-G** (destage-then-reload, gap≥3): the 2/tcp shutdown root was P34F treating a *stuck-flush* dirty ili as authority while peers advanced the dir 13 generations, then RMW-ing the stale base into `xfs_dir2_data_use_free` corruption. First version destage-stormed the hot path (2/tcp tds crippled); the gap≥3 gate fixed it — 2/tcp 17/17 on the final build.
+5. **Harness/infra**: suite_iter 8-node timeout 1100→2600 (was silently truncating iters), drc stale-`/root` forensics cleanup (stale files from prior boots poisoned two post-mortems), bounded drop_caches with kernel-stack capture (two silent node-death iters traced to an eviction interlock in the test's cold-cache step), P14 iflush/rebase tripwires against publishing desynced SF images.
+
+**Column status:** 8/tcp 17/17 ×2 then 15/17 (r10); 4/tcp 17/17; 2/tcp 17/17 ×2 of 4; 1/tcp 16/16.
+
+**The one remaining correctness bug**, captured exactly in r10 round 4: node4's dirent add committed and published **3-9ms into node6's EX tenure** (N6 FUA-read a 73-entry base at +3.6546, N4's 74-entry write submitted +3.6579, N6's divergent 74-entry write at +3.6647 won the block) — a mutual-exclusion break at the tenure boundary, most likely an admitted-but-not-yet-pinned op window slipping past the release's quiescence check. Full forensics, fix candidates, and instrumentation plan are in ccmemory (`sess14run-DECISIVE-one-dirent-swallow-is-tenure-boundary-mutex-race`). Next session: instrument the phantom-EX writer, close the admit/release race, then accumulate repeated clean iters on all four columns before writing the marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

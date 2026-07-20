@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 22 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 21
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `4158aa69-e4ea-45ef-ab6c-b47c9e471c82`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4158aa69-e4ea-45ef-ab6c-b47c9e471c82.jsonl`
+- approx context at last assistant turn: 248629 tokens
+- tools used: Bash×126 Edit×8 Read×3 Write×3 ToolSearch×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/criteria/posix_semantics.sh
+- /src/mxfs/SUCCESS_CRITERIA.md
+- /src/mxfs/scripts/diag_single_paired_phases.sh
+- /src/mxfs/scripts/diag_data_io_shape.sh
+- /src/mxfs/xfs/xfs_platform.h
+- /src/mxfs/showstat.sh
+- /src/mxfs/scripts/diag_rsync_io_shape.sh
+- /src/mxfs/tools/mkfs_mxfs.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '735,870p' xfs/libxfs/xfs_alloc.c
+    ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 30 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -cE "P74-INSTR"; dmesg | grep
+    sed -n '2295,2340p' xfs/libxfs/xfs_alloc.c
+    grep -n "mxfs_instr_enabled" xfs/libxfs/xfs_alloc.c | head -3; sed -n '770,775p' xfs/libxfs/xfs_alloc.c
+    grep -n "mxfs_instr_enabled" xfs/xfs_mxfs_dlm.h
+    make modules 2>&1 | grep -E "error:|Error" | head -5; modinfo mxfs.ko | grep srcversion; timeout 300 tests/criteria/single_node_paired.sh --nodes 1 2>&1 | tail 
+    timeout 580 scripts/repro_peer_find.sh 4 2>&1 | grep -E "SOLO_MS|PEER_FIND|probe_hits|TRIPPED|clean|INCOMPLETE"
+    timeout 600 tests/criteria/posix_semantics.sh --nodes 1 2>&1 | tail -3
+    timeout 400 tests/criteria/scaling_curve.sh --nodes 16 2>&1 | tail -6
+    sed -n '1,60p' tests/criteria/scaling_curve.sh
+    sed -n '60,110p' tests/criteria/scaling_curve.sh
+    timeout 120 bash -c 'source tests/criteria/lib.sh; teardown_all "test1 test2"; fresh_cluster_mount test1 test2 >/dev/null && echo MOUNTED'; ip1=$(getent hosts t
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 200 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass ' T=/sys/kernel/debug/tracing echo 0 > $
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 60 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass ' T=/sys/kernel/debug/tracing echo 0 > $T
+    grep -n "read_slot\|find_slot_skip\|caw_count_resource_slots" dlm/dlm_caw.c | head -20
+    sed -n '383,440p' dlm/dlm_caw.c; sed -n '560,650p' dlm/dlm_caw.c
+    grep -n "bast_poll_fn\|bast_poll_interval\|BAST_POLL" dlm/dlm_caw.c dlm/*.h | head; grep -n "bast_poll_fn" -A 40 dlm/dlm_caw.c | sed -n '1,60p'
+    sed -n '2917,3030p' dlm/dlm_caw.c
+    grep -n "mxfs_dlm_caw_held" -A 50 dlm/dlm_caw.c | sed -n '1,70p'; grep -n "struct.*held\|held\.slots\|held_add\|held_remove" dlm/dlm_caw.c | head -10
+    grep -rn "mxfs_dlm_caw_held\|P108\|P106" xfs/xfs_mxfs_dlm.c | grep -v "^\s*\*" | head -15
+
+## Last text from previous session
+
+g the user's showstat.sh complaint. Building first:
+180% → 155%, but still failing — data path is fixed so the remaining ~1.7s lives in the small-file rsync pattern. Re-running the phase diagnostic with the new build:
+`mxfs_dlm_dir_inode_durable` is single-node gated. The kprobe stack pointed at `__mxfs_ag_dlm_lock` — checking its single-node path:
+Confirmed invalid — that run wrote to the root LV. Remounting mxfs and redoing the stack capture:
+Default `log_node_count=4` → 32MB effective log per node, half of native's 64MB. Bumping the per-slice minimum to 64MB:
+Barely moved (151%) — log size partially refuted as the driver. Re-profiling with the new geometry:
+Every FUA read comes from a hook in `xfs_alloc_fixup_trees` — ~2.7 per file created. Reading that hook:
+Only P74 is on the hot path (the others fire on corruption only). Gating it behind `mxfs.instr`:
+Declared in the header. Building and re-running the criterion:
+`mxfs_dlm_caw_held` is a sess39 *diagnostic*. Finding its hot-path callers (the P108/P106 verifies):
+Relay boundary reached — summarizing state for the next session.
+
+## Session 21 summary
+
+**Corruption blocker CLOSED.** The intermittent iflush bad-magic / error-117 corruption (the open blocker from session 20) is fixed: `mxfs_dlm_reload_inode` was unconditionally staling inode cluster buffers that carried attached log items (`P20-CLUSTER-INVAL site=reload li_empty=0` observed pre-fix). Added the sess91-class `mxfs_buf_has_uncheckpointed_mods` guard (`P91-RELOAD-PROTECT`, fires ~30×/cycle). `scripts/repro_peer_find.sh`: **12/12 cycles clean** (prior ~50% fail rate), re-confirmed 4/4 on the final build.
+
+**single_node_paired: FAIL 180% → PASS 102%.** Three instrumented root causes, each fixed and measured separately:
+1. **Large folios silently disabled** — the 6.8 compat shim for `mapping_set_folio_min_order` (`xfs/xfs_platform.h`) was a no-op; now calls `mapping_set_large_folios()`. Data path went from 3254 singleton 4KB bios / 1722ms to clean 512KB stream / 834ms (native parity).
+2. **Log slice too small** — `mkfs_mxfs` min bumped 32MB→64MB per node slice; the 1500-sync-log-write CIL storm dropped to native level (113 vs 107).
+3. **P74 probe = hidden FUA read per extent allocation** — `b_mxfs_ag_gen` is never stamped, so the "rare" stale branch fired on every alloc (9248 SCSI READ_16 per rsync). Gated behind `mxfs.instr` (`xfs/libxfs/xfs_alloc.c`).
+
+Side benefit: 2-node solo rsync 6.2s → ~3.7s. Current build `3B57EA84` deployed on test1/test2.
+
+**Also done:** posix_semantics results-key split (`posix_semantics_single` PASS recorded / `posix_semantics_multi16` pending) across `posix_semantics.sh`, `SUCCESS_CRITERIA.md`, and `showstat.sh` — the dashboard now shows two differentiated rows (addresses your showstat complaint); stale combined key removed from `.criteria_results.json`. Memory written: `sess21-ccloop-perf-roots-and-reload-guard`. Diag scripts in tree: `diag_single_paired_phases.sh`, `diag_data_io_shape.sh`, `diag_rsync_io_shape.sh`.
+
+**Open: scaling_curve FAIL (283% vs ≤150%).** Shape is a fixed multi-node penalty (flat ~7-10s from 2→16 nodes vs 3.3s solo), not super-linear contention. Instrumented root: CAW slot I/O on the create path — per file ≈2.5 serialized FUA READ_16 probes + CAW (`find_slot_skip` reads one 512B slot per round trip; `caw_count_resource_slots` on lock; `mxfs_dlm_caw_held` verify probes ~8079/run via P108/P106 checks), plus `bast_poll_fn` reading up to 256 held slots individually every 200ms (O(held) background IOPS; also only ever polls the FIRST 256 held slots — latent coverage gap). Promising next steps: cache the claimed slot index in the held-lock handle so held-checks/unlock skip the hash probe (1 read instead of chain walk), batch linear-probe reads (8-16 slots per READ_16), and bound/rotate the poller batch.
+
+**Remaining for the gate:** fix scaling_curve, run `posix_semantics_multi16`, then full `verify_ship.sh` end-to-end. Criteria marker **not** written — gate not green.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

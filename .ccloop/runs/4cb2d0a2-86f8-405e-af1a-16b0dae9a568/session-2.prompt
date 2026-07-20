@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `a383b978-3f8f-491d-a82a-c2c56e84917e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a383b978-3f8f-491d-a82a-c2c56e84917e.jsonl`
+- approx context at last assistant turn: 497453 tokens
+- tools used: Bash×145 ScheduleWakeup×40 Read×29 Edit×14 Monitor×12 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×5 ToolSearch×4 mcp__ccmemory__memory_search×4 TaskStop×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== mxfs_dataclobber definition/default/param ==="; grep -rn "mxfs_dataclobber" pal/ xfs/ dlm/ 2>/dev/null | grep -iv backup | grep -iE "mod
+    cd /src/mxfs; grep -q "=== done:" /tmp/drc_class.log 2>/dev/null && echo "CLASS DONE" || echo "class running"; tail -2 /tmp/drc_class.log
+    cd /src/mxfs; if grep -q "=== done:" /tmp/drc_class.log 2>/dev/null; then echo "CLASS DONE"; tail -3 /tmp/drc_class.log; if [ ! -f /tmp/drc_dc.log ]; then rm -f
+    cd /src/mxfs; if grep -q "=== done:" /tmp/drc_class.log 2>/dev/null; then echo "CLASS DONE"; tail -2 /tmp/drc_class.log; if [ ! -f /tmp/drc_dc.log ]; then MXFS_
+    cd /src/mxfs; timeout 6 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass 'uptime|sed "s/.*up //;s/,.*load.*//"; dmesg|grep -aoE "DRCph r=[0-9]+ rank=2 PHASE=[a-
+    cd /src/mxfs; if grep -q "=== done:" /tmp/drc_class.log 2>/dev/null; then echo "CLASS DONE"; if [ ! -f /tmp/drc_dc.log ]; then MXFS_EXTRA_MODARGS='dataclobber=2
+    cd /src/mxfs; grep -q "=== done:" /tmp/drc_dc.log 2>/dev/null && echo "DC DONE" || echo "dc running"; tail -2 /tmp/drc_dc.log; for n in test1 test2; do echo -n 
+    cd /src/mxfs; pkill -f "run.sh 4 tcp" 2>/dev/null; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 3; for v
+    cd /src/mxfs; for i in $(seq 1 20); do ok=0; for n in test1 test2 test3 test4; do timeout 5 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'true' >/dev/null 2>&1
+    cd /src/mxfs; rm -f /tmp/drc_dc.log; MXFS_EXTRA_MODARGS='dataclobber=2' stdbuf -oL nohup ./run.sh 4 tcp dir_reuse_coherency > /tmp/drc_dc.log 2>&1 & echo "relau
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 20 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'mountpoint -q /mnt/shared && { f
+    cd /src/mxfs; timeout 25 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'echo "refcnt="$(cat /sys/module/mxfs/refcnt 2>/dev/null); echo "holders:"; ls /sys/mo
+    cd /src/mxfs; for v in test1 test2 test3 test4; do virsh -c qemu:///system destroy $v >/dev/null 2>&1; done; sleep 4; for v in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; sleep 5; echo "=== post-boot state ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_p
+    cd /src/mxfs; rm -f /tmp/drc_dc.log; MXFS_EXTRA_MODARGS='dataclobber=2' stdbuf -oL nohup ./run.sh 4 tcp dir_reuse_coherency > /tmp/drc_dc.log 2>&1 & echo "launc
+    cd /src/mxfs; grep -qE "=== done:|ABORT" /tmp/drc_dc.log 2>/dev/null && echo "DONE/ABORT" || echo "running"; tail -2 /tmp/drc_dc.log; for n in test1 test2; do e
+    cd /src/mxfs; grep -qE "=== done:|ABORT" /tmp/drc_dc.log 2>/dev/null && echo "DONE" || echo "running"; tail -2 /tmp/drc_dc.log; for n in test1 test2 test3 test4
+    cd /src/mxfs; grep -qE "=== done:|ABORT" /tmp/drc_dc.log 2>/dev/null && echo "DONE" || echo "running"; for n in test1 test2 test3 test4; do echo -n "$n "; timeo
+    cd /src/mxfs; grep -qE "=== done:|ABORT" /tmp/drc_dc.log 2>/dev/null && { echo "DONE"; tail -3 /tmp/drc_dc.log; } || echo "running"
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+bber=2` run on the clean cluster — the decisive test of the writeback-clobber fix for the node1_f1 durable loss.
+Prep succeeded now. But concerning: round 2, test2 already `drcFAIL=1` and **DCSKIP=0** (the guard isn't firing). If `dc_stale` (bgen<dir_gen) never triggers, the clobber isn't a stale-tenure writeback and `dataclobber=2` won't fix it. Let me wait for the full run to confirm whether P-DATACLOBBER-SKIP ever fires at a failing round.
+Waiting for the `dataclobber=2` run to confirm whether the writeback guard catches the node1_f1 clobber (early signs suggest it may not).
+Quoting glitch. Let me re-check the run state.
+Round 7: **drcFAIL=3-5/node (HIGHER than gen-bump-only), DCSKIP barely fires (only test3=1)**. So `dataclobber=2` is **REFUTED** — the guard doesn't catch the node1_f1 clobber (it's not a `bgen<dir_gen` stale-tenure writeback), and its disk-reads perturb timing exposing *more* races. The clobber is current-tenure. Let me record this refutation and let the run finish.
+Strongest remaining lead: **logical-block0 SPLIT** (sess42) — node1_f1's dirent sits in a data block at a different physical fsb than the home dinode's logical-0 resolves to, so it's **orphaned** (leaf maps to logical-0 which points to the wrong physical block) → LOOKUP_ENOENT + REREAD_MISS with NO read/write staleness probe firing. This fits all my refutations. Let me prepare a logical-0-daddr probe while the dataclobber run finishes. First confirm the run is done.
+The old monitor timed out (stale); the current run (buzbtyhmr) is still going. Let me prepare the logical-block0 daddr probe in `xfs_da_read_buf` while it runs.
+I've reached the relay boundary. Let me verify the new probe compiles cleanly so the next session has a ready build, then summarize.
+Build clean (`924DC991`, adds the `P60-LBMAP` logical-block-map probe). I've reached the relay boundary — wrapping up.
+
+## Session summary
+
+**Criterion:** 1/2/4/8-node tcp DLM test 100%. Recorded state: 1/tcp=16/16 ✅, 2/tcp=17/17 ✅, 4/tcp=16/17 ❌ (`dir_reuse_coherency`), 8/tcp not yet run. **Not met** — `dir_reuse_coherency` at 4 nodes still fails.
+
+**Two real fixes landed this session (KEEP):**
+1. **Kernel crash fixed** (build F5D370D8, proven via `P-IGRAB-NULL`+`P-BWFN-PREIRELE`): `dir_reuse` at 4 nodes was oopsing all nodes with `BUG_ON(I_CLEAR)` in `iput` — the EDEADLK/ACQBAST DLM paths queued `bast_work_fn` on a reused dir inode mid-eviction (`igrab` returned NULL, ignored) → use-after-free. Fix: inline-drain / skip-queue on `igrab` failure + a backstop in `bast_work_fn`. **0 crashes since.**
+2. **Reader-side dir coherency** (readdir `i_dlm_dir_gen` bump, xfs_dir2_readdir.c): forced coherent dir-block re-read on contended non-EX readdir. Cut failures from every-round to ~1-2 rounds/20.
+
+**Residual (the deep blocker):** durable loss of `node1_f1` (rank-1's first file) — classified decisively as `LOOKUP_ENOENT + REREAD_MISS` on **all nodes incl. the creator** = durable dirent+leaf erasure. Refuted this session (all instrumented): reader stale-serve (`GENMATCH=0`), release-drain-gap, sf→block conversion-drop, double-conversion, and **stale-tenure writeback clobber (`dataclobber=2` REFUTED** — guard barely fires, perturbs timing, more failures). The clobber is **current-tenure**, no staleness probe catches it.
+
+**Strongest untried lead (probe staged, build 924DC991):** logical-block0 **split** (sess42 extent-map divergence) — node1_f1's dirent in a physical block the home dinode's logical-0 doesn't resolve to. The new `P60-LBMAP` probe logs logical→physical daddr per node; compare across nodes at a failing round.
+
+**Also noted:** ~13s/round vs 300s/24 perf/timeout (RULE 0); a module refcnt=1 leak on unclean unmount (cleared by virsh reset; possibly a crash-fix regression to check). Detailed state in ccmemory: `sess60-crash-fix-and-readdir-genbump-progress`, `sess60-residual-writer-side-durable-node1f1-clobber`, `sess60-FIX-CANDIDATE-enable-dataclobber-2`. Marker not written (honestly not met).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

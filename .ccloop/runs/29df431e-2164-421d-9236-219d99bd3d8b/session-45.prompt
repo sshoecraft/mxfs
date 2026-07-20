@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 45 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 44
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `0bccfd1f-b789-41aa-b942-dc42de40d63e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0bccfd1f-b789-41aa-b942-dc42de40d63e.jsonl`
+- approx context at last assistant turn: 247196 tokens
+- tools used: Bash×70 Read×27 Edit×16
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== who includes mxfs_dlm.h in xfs/ ==="; grep -rln "mxfs_dlm.h\|MXFS_LOCK_EX" xfs/*.c xfs/libxfs/*.c | head; echo "=== da_btree top include
+    cd /src/mxfs; grep -n "mxfs_dlm.h" xfs/xfs_inode.c xfs/libxfs/xfs_alloc.c; echo "=== does da_btree include it? ==="; grep -n "mxfs_dlm.h\|mxfs_clayer\|mxfs.h" x
+    cd /src/mxfs; grep -n "MXFS_LOCK_EX\|mxfs_dlm.h\|mxfs_lock_mode" xfs/xfs_mxfs_dlm.h | head
+    cd /src/mxfs; grep -rn "mxfs_dlm.h\|mxfs/mxfs" xfs/xfs_mxfs_dlm.c | head; echo "=== where enum mxfs_lock_mode lives + who includes ==="; grep -rln "enum mxfs_lo
+    cd /src/mxfs; grep -rn "MXFS_LOCK_EX\b" xfs/*.h pal/*.h pal/linux/*.h 2>/dev/null | grep -iE "define|=|enum" | head; echo "=== what xfs_mxfs_dlm.h includes ==="
+    cd /src/mxfs; head -20 xfs/xfs_mxfs_dlm.h; echo "=== grep MXFS_LOCK def anywhere ==="; grep -rn "define MXFS_LOCK_EX\|MXFS_LOCK_EX =\|MXFS_LOCK_EX\s*=" xfs/ pal
+    cd /src/mxfs; grep -nE "#include" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; grep -n "mxfs_dlm.h\|MXFS_LOCK_EX\|enum mxfs_lock" dlm/v5_mount.h | head; echo "=== include flags in Makefile/Kbuild ==="; grep -rn "ccflags\|EXTR
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined|implicit|redefin|conflicting' | head -15; echo "=== srcversion ==="; modinfo mxfs.ko 2>
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -5
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 180 bash tools/mxfs_sshpass.sh test1 "$P" '   echo "loaded=$(cat /sys/module/mxfs/srcversion)"   HN=$(hostname); D=/mnt
+    cd /src/mxfs; timeout 580 bash tests/criteria/rsync_paired.sh --nodes 4 --iters 1 2>&1 | tail -5
+    cd /src/mxfs; timeout 590 bash tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -5
+    cd /src/mxfs; until [ -s /tmp/claude-1000/-src-mxfs/0bccfd1f-b789-41aa-b942-dc42de40d63e/tasks/b76g6c322.output ] && grep -q "RESULT:" /tmp/claude-1000/-src-mxf
+    cd /src/mxfs; ls -t /tmp/claude-1000/cache_coherency.*.log 2>/dev/null | head -1 | xargs grep -iE "FAIL|PASS|test_|visib|ENOENT|EACCES|actual=|expected=|mismatc
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined|implicit' | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcvers
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; timeout 590 bash tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -4
+    cd /src/mxfs; L=$(ls -t /tmp/claude-1000/cache_coherency.*.log 2>/dev/null | head -1); echo "LOG=$L"; grep -iE "Running:|\[PASS\]|\[FAIL\].*test_|failure\(s\)|a
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined|implicit' | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcvers
+
+## Last text from previous session
+
+5%!** Now I must verify the owned_ex gate didn't regress coherency. Let me run `cache_coherency` (highest risk) and the other correctness tests:
+cache_coherency regressed: 2/4 fail (was 4/4 pass). The owned_ex gate is too aggressive. Let me see which sub-tests failed and the symptoms:
+Root cause: the `i_dlm_mode==EX` gate is unsafe for **shared dirs that went through a BAST/re-acquire cycle** — a peer may have modified the dir blocks during the release window, and the gen mechanism is exactly what refreshes them. The provably-safe signal is **`i_dlm_unpublished`**: such an inode has never had an on-disk slot, so no peer could ever have touched it. That still covers the node-private rsync_paired dirs. Let me change the gate:
+Clean build `C92E83DF`. Reset and re-verify both cache_coherency (regression) and rsync_paired:
+Worse (1/4). Let me check which sub-tests failed and whether deferred-publish itself is the culprit:
+Now cross_write_read (file content) also fails — broader than the dir skip. I changed two things (deferred-publish + dir-skip); I must isolate per RULE 4. Let me make the dir-skip runtime-toggleable via a module param so I can test deferred-publish alone without rebuilding:
+Now define the param in xfs_mxfs_dlm.c near the other module params:
+I've hit the relay boundary. Let me finish this sub-step cleanly (add the param, build) so the next session starts from a consistent state:
+Build clean (`F7BEB353`), consistent state for the next session. Criteria **not** met — no marker written.
+
+## Summary
+
+**Goal:** the sole failing criterion is `rsync_paired` (was 615%, need ≤120%).
+
+**Major progress this session:**
+1. **Implemented deferred-publish** (the sess43 design): brand-new inodes (`XFS_IGET_CREATE`) get their DLM lock granted **locally with no on-disk CAW** (`mxfs_dlm_grant_local_new`), tracked on `mp->m_mxfs_unpub_list`; published lazily (real EX slot, by inode number) only when a peer BASTs a dir/AG (`mxfs_dlm_publish_unpublished` in `bast_process` + `ag_bast_work_fn`); dropped silently on eviction. This eliminated the dominant ~8.5s per-new-inode CAW cost. **Solo rsync 22s→12.8s.**
+2. **Found the remaining gap via perf D-state stacks:** synchronous SCSI FUA reads (`mxfs_pal_scsi_read_fua_bdev` ← dir-block reads in `xfs_da_read_buf`), driven by the dir-gen invalidation clearing `_XBF_FUA_FRESH` on every clean dir block. Added an `owned_ex` fast-path in `xfs_da_read_buf` that skips the cross-node dir coherency machinery for dirs this node owns.
+3. **`rsync_paired` PASSED at 105%** (4897ms vs 4639ms ref) with the EX-based gate — solo dropped to 2914ms.
+
+**Regression hit (must fix before done):** `cache_coherency` went 4/4 → 1/4. The EX-based gate was unsafe for shared dirs that cycle through BAST/re-acquire. I narrowed the gate to **`i_dlm_unpublished`** (provably never-shared) — but cache_coherency was **still 1/4** (rename_visibility, unlink_visibility, **and now cross_write_read** failing). The cross_write_read failure (file *content*, not just dir visibility) suggests **deferred-publish itself** may also be contributing, not only the dir skip.
+
+**Left for next session (RULE-4 isolation, build `F7BEB353` ready to deploy):**
+- Added a runtime lever `mxfs.dir_unpub_skip` (default 1) gating the dir FUA-skip. **First step: deploy `F7BEB353`, reset cluster, run `cache_coherency` with `dir_unpub_skip=0`** to test deferred-publish *alone*. If it returns to 4/4 → the dir-skip is the sole culprit (refine it). If still failing → deferred-publish broke coherency (likely the publish-on-BAST not flushing file data before a peer reads, or the publish timing) — debug `mxfs_dlm_publish_unpublished`/`bast_process` ordering.
+- Reset: `MKFS_OPTS=-f bash tests/reset4.sh 4` (if test1 wedges with refcnt=1, `virsh destroy/start test1` via `LIBVIRT_DEFAULT_URI=qemu:///system`, wait for NFS, retry).
+- Once cache_coherency is 4/4 **and** rsync_paired stays ≤120%, run full `tests/criteria/verify_ship.sh` end-to-end before declaring done.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

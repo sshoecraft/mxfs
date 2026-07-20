@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/186320ae-4438-48d2-a809-30e0e77dd459/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 186320ae-4438-48d2-a809-30e0e77dd459, after session 4
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `0f683f63-3a95-4f24-ba75-c719158d845d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0f683f63-3a95-4f24-ba75-c719158d845d.jsonl`
+- approx context at last assistant turn: 502549 tokens
+- tools used: Bash×175 TaskCreate×4 mcp__ccmemory__memory_write×3 Edit×2 TaskUpdate×2 ToolSearch×2 mcp__ccmemory__memory_get×2 TaskList×1 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/klog_tail.sh
+- /src/mxfs/scripts/mpath_up.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '1095,1195p' xfs/xfs_mxfs_dlm.c
+    grep -n "mxfs_dir_owner_scan" xfs/xfs_mxfs_dlm.c | grep -E "^[0-9]+:int|module_param|= [01]" | head -4; grep -rn "int mxfs_dir_owner_scan" xfs/xfs_mxfs_dlm.c
+    grep -n "mxfs_dir_evict_owned_dir_blocks" xfs/xfs_mxfs_dlm.c | grep -v backup; echo ===; sed -n '1195,1250p' xfs/xfs_mxfs_dlm.c | grep -nE "P4E|P68|pr_warn|nevi
+    D=/tmp/run_cache_coherency_20260706T003620Z; for n in 1 3; do echo "== test$n P51-REL ino=157 (last 6) =="; grep -h "P51-REL ino=157 " $D/kernlog_test$n | tail 
+    L=$(grep -n "P11-FLUSH-CLEANSKIP" xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); echo L=$L; sed -n "$((L-75)),$((L+15))p" xfs/xfs_mxfs_dlm.c
+    D=/tmp/run_cache_coherency_20260706T003620Z; for n in 1 3; do echo "== test$n P43-OWNEREVICT ino=157 =="; grep -h "P43-OWNEREVICT ino=157" $D/kernlog_test$n | t
+    D=/tmp/run_cache_coherency_20260706T003620Z; for n in 1 3 4; do echo "== test$n P4O detail =="; grep -h "P4O-OWNEVICT ino=157" $D/kernlog_test$n | tail -5; done
+    grep -n "REQ_FUA\|_XBF_FUA_WRITE\|fua_write\|MXFS_WRITE_FUA\|write_fua" pal/linux/xfs_buf.c | head -10; grep -n "mxfs_dirwr_enabled" pal/linux/xfs_buf.c | head 
+    sed -n '6460,6560p' pal/linux/xfs_buf.c
+    sed -n '18500,18530p' xfs/xfs_mxfs_dlm.c
+    grep -n "P50-RD" pal/linux/xfs_buf.c xfs/*.c | head -3; grep -n "sizeof(names) - 14\|char names\[" pal/linux/xfs_buf.c | head -4
+    grep -rn "\"mxfs: P50-RD" xfs/ pal/ | grep -v backup | head -2; sed -n '4735,4760p' pal/linux/xfs_buf.c
+    sed -n '4190,4260p' xfs/libxfs/xfs_da_btree.c
+    grep -rn "mxfs_dir3_data_fingerprint" pal/linux/xfs_buf.c xfs/*.c | grep -v backup | head -3; L=$(grep -n "uint32_t.*mxfs_dir3_data_fingerprint" pal/linux/xfs_b
+    sed -n '2256,2316p' pal/linux/xfs_buf.c
+    D=/tmp/run_cache_coherency_20260706T003620Z; echo "== file21 inum =="; grep -h "IGET-FAIL" $D/kernlog_test2 $D/kernlog_test3 $D/kernlog_test4 2>/dev/null | grep
+    grep -rn "b_mxfs_logged_seq" pal/linux/xfs_buf.c xfs/*.c xfs/libxfs/*.c 2>/dev/null | grep -E "\+\+|= " | grep -v "==" | grep -v backup | head -8
+    sed -n '560,585p' xfs/xfs_trans_buf.c; echo ===3140-3155===; sed -n '3130,3160p' xfs/xfs_mxfs_dlm.c
+    for i in 1 2 3; do echo "=== v064f ITER $i (surgical) ==="; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1 surgical_inode_write=1" timeout 30
+    D=$(ls -dt /tmp/run_cache_coherency_* | head -1); echo D=$D; for n in 1 2 3 4; do R=$(grep -oE "reason=[^\"]*" $D/test$n 2>/dev/null | head -1); [ -n "$R" ] && 
+
+## Last text from previous session
+
+re interpreting:
+Run dirs only persist on FAIL. Pulling the ino=133 timeline from live dmesg on all nodes:
+All anchors in hand. Applying the v0.6.4 fix — pre-CAS grant-seq bump at every holder-bit-publishing CAS:
+3/3 PASS and the mechanism engages: 84 `adopt=1 clean=1` epoch-consumes on test1 alone. Continuing toward 12 with tripwire sweeps:
+test1 rebooted; the others stayed up. Pulling test1's previous-boot kernel journal to see what wedged:
+A kernel trace fired on test2 during `delete_module` (ORIG_RAX=0xb0 = rmmod). Getting the top of the trace:
+Collectors live. Persisting the diagnosis chain and fixes to memory before resuming the loop:
+mpath_up.sh errored — it ran node-side commands locally. Reading the script around the failure:
+No target-side session events at 23:52 at all — puzzling for a destroy. Checking libvirt's log for how test1 went down:
+Iterations 9–14 all green (13 total passes on this build). The nonzero STALE-EX counts need timestamps — could be pre-fix relics in persistent dmesg:
+The window clipped the event. Zooming to 380.0–381.8 on test4:
+Layout complete. Getting `mxfs_resource_id`'s layout, then scanning the backing file for every slot referencing ino=6291609:
+C hash is 32-bit FNV — my python used 64-bit, so the "1504-deep chain" was wrong. Recomputing with the correct hash:
+Build **C9745B18**. Looping until the phantom fires with the image probe armed:
+`collected=0` while the buffer demonstrably sits in cache — reading the collector's ownership filter above the snippet:
+Two similarly-named evictors exist. The adopt path calls the one at line 1130 — reading it:
+Session summary — criteria **not yet met** (4/caw still flaky; 8/16/32 pending), substantial root-cause progress this session:
+
+**Fixed and verified this session (build 9C634772, deployed on test1–4):**
+1. **Phantom-EX Fix A** — `caw_grant_seq_prebump()` before every holder-bit-publishing CAS in `dlm/dlm_caw.c` (7 sites). Proven root: grants bumped `grant_seq` only *after* the slot CAS plus a full SCSI verify read, leaving a multi-ms window where a concurrent unlock's seq checks all passed and cleared the fresh tenure. After the fix: zero `P106-STALE-EX` in workload-failing runs and `P-UNLOCK-REGRANT-ABORT` now catches the race live.
+2. **CAW epoch-consume Fix B** — at the P65 gate, `genuine_handoff=true` on CAW when post-release + epoch mismatch + self-clean (sess49's regression config excluded on both axes). Fires broadly (`adopt=1 clean=1`) but is partially defeated by the modify-path `valid_epoch` up-sync — documented as the top candidate for the next fix (separate acquire-side epoch tracker).
+3. Infra: `mpath_up.sh` apostrophe bug fixed (node-side script was executing on clyde; IQN normalization never ran — now all four nodes have unique IQNs), persistent journald + `scripts/klog_tail.sh` collectors armed for the unreproduced iter8 guest-reboot wedge.
+
+**Root cause of the remaining uv "dangling dirent" failure, proven from ledger forensics (run 003620Z):** during the unlink storm one node converts the dir block→shortform in-core early; from then on its removals edit the inode core while peers keep RMW-ing the stale dir block — two unserialized on-disk representations. test1's cold reads of the still-block disk were honest-but-stale and its release drains durably re-asserted test3's removed dirents (resurrect writes identified by name and CRC). `surgical_inode_write=1` was tested and **refuted** as a sole fix (same failure, two dangling entries).
+
+**Next steps (task list current):** fix the acquire-side adopt reliability (separate epoch tracker or force-destage of format-transition tenures before unlock), re-validate the 4/caw loop to 12+ green, fix posix_multi 3/4, full 17/17 at 4/caw, then ladder 8→16→32 and a final full-ladder rerun on one build before writing the marker. All diagnosis state is in ccmemory (`caw-uv-single-dirent-leak-hunt`, `caw-v064-prebump-epochconsume-fixes`) and reproduction is cheap (~1 in 2–5 iterations, ~90 s each).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

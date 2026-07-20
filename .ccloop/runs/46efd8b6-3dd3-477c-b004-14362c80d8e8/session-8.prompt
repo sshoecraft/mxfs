@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/46efd8b6-3dd3-477c-b004-14362c80d8e8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 46efd8b6-3dd3-477c-b004-14362c80d8e8, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `938bd26a-ebc3-4d12-81c8-916887c062ad`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad.jsonl`
+- approx context at last assistant turn: 497246 tokens
+- tools used: Bash×203 Read×17 Edit×14 mcp__ccmemory__memory_write×7 Write×2 mcp__ccmemory__memory_get×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad/rdring.py
+- /tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad/findino.py
+- /src/mxfs/xfs/libxfs/xfs_inode_fork.c
+- /src/mxfs/xfs/libxfs/xfs_bmap_btree.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_buf.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 285; tail -3 $S/run33-dirreuse16.log
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 285; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 260; tail -4 $S/run33-dirreuse16.log
+    ./showstat.sh 16 caw 2>/dev/null | head -30
+    for n in 1 2 4 8 32; do echo "=== $n/caw: $(./showstat.sh $n caw 2>/dev/null | tail -1)"; done
+    ./showstat.sh 32 caw 2>/dev/null | grep -E 'FAIL|PENDING'
+    grep -A3 -iE 'cache_coherency|dlm_scaling|dir_reuse' /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | grep -iE '32|budget|timeout' | head -8; ls /src/m
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; nohup env MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" time
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; tail -5 $S/run33-cc32.log
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; tail -3 $S/run33-cc32.log
+    grep -iE 'dlm_scaling' /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head -3 | cut -c1-200; S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; tail -3 $S/run33-ds32.log
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; tail -3 $S/run33-ds32.log
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; nohup env MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" time
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 295; tail -3 $S/run33-drc32.log
+    S=/tmp/claude-1000/-src-mxfs/938bd26a-ebc3-4d12-81c8-916887c062ad/scratchpad; sleep 290; timeout 12 /src/mxfs/tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg
+
+## Last text from previous session
+
+nd 12/24 at ~23min — pace fluctuating with contention. Waiting:
+No kernel-side 120s waits — the stall may be in the harness barrier. Reading the script between verify-done and rm-done:
+No drop_caches hangs — so it's a **barrier timeout** (120s) with one node permanently lagging since r10. Finding the laggard:
+Backend is `/home/steve/disk.img` (fileio). Getting the envelope offset, then raw-reading the torn block:
+The P61 spam rotated test1's dmesg ring — early history gone. But the run captured kernlogs on clyde and the suite snapshots per-round dmesg on the node. Checking both:
+Journal flooded too. Trying the r10 fail snapshot (taken closest to the event):
+Applying Fix C (reconcile inside `preserve_truth`) and Fix E (in-place read marker):
+Building v0.10.32:
+Build `D0A20A10` = v0.10.32. Launching the rerun:
+All 24 rounds completed in budget — **15/16 nodes passed** (from 0/16). One node failed a check. Finding it:
+No explicit failures in any node log — run.sh's `nodes_pass` counts something else. Checking its criterion and each log's tail:
+`reverify` needs NULL ops — not our path. And P15I=0 proves the failing verify never went through ioend. There must be a third caller invoking the bmbt verifier directly:
+All submit_bio in-place arms are write-side. Getting the verifier's exact return address via kprobe fetcharg to pin the true caller:
+Also noting the Fix-E defeat is resolved by correct pairing (the arm's `__ioend` clears `XBF_READ`, so iowait's second pass can't re-verify). Building v0.10.33:
+Round 11 done, test1 fully clean. The critical window is r19-24 (where test1 failed last run). Waiting through it:
+Round 22, test1 spotless through the former failure zone. Final rounds:
+**16/caw board: 17/17 PASS — COMPLETE.** Checking where the rest of the ladder stands:
+Launching cache_coherency@32 with the sess4-proven budget:
+**cache_coherency@32: PASS 32/32** — the uv ghost fell to today's fixes without needing anything more. Next: dlm_scaling@32 (was 29/32):
+Relay boundary — persisting the live-run state for the next session:
+Session 7 summary — massive progress on the criteria (1/2/4/8/16/32 caw dlm multipath 100%):
+
+**Three root causes found and fixed** (each live-debugged with kcore/ftrace/kprobe evidence, no guessing):
+
+1. **v0.10.31** — `xfs_idestroy_fork` left `if_broot_bytes` stale after freeing `if_broot`; mxfs's live fork reload then made the next extents→btree conversion write through a NULL broot (`Oops 0002`), killing the creating task in place while holding the shared dir's `i_rwsem` + `i_lock` + DLM holder count — wedging the node and starving all 15 peers. Also bounded the P36 dwork re-arm spin (was an infinite 8ms loop holding an iget ref, causing the unmount leak → post-rmmod bio panics).
+2. **v0.10.32** — the bmbt release fence ignored undestaged leaves whose `XBF_DONE` had been cleared mid-tenure (durably losing committed deltas at handoff), and the tenure-gate skip arms never staled superseded buffers (40Hz resubmit walls + CRC errors manufactured by verifying dirty in-core images).
+3. **v0.10.33** — a stale completion token on `b_iowait` (proven `done=1` at rest via kcore) let sync reads return before their DMA landed, CRC-failing pre-DMA content forever. Fixed by draining stale tokens at sync submit.
+
+**Results this session:**
+- dir_reuse_coherency@16/caw: 0/16-with-panics → **PASS 16/16** → **16/caw board complete at 17/17**
+- cache_coherency@32: 31/32 → **PASS 32/32**
+- dlm_scaling@32: 29/32 → **PASS 32/32**
+- Boards verified green: **1, 2, 4, 8, 16 all 17/17**
+
+**Remaining:** exactly one test — dir_reuse_coherency@32, running right now (pid 2828039, round 2/24, all health probes clean, finishes ~19:45Z). If it passes, the entire ladder is green and the criteria are met; the next session just needs to read the verdict from `run33-drc32.log`, confirm `showstat.sh 32 caw` = 17/17, and write the criteria marker. If it fails, the forensic toolkit and all findings are in the `AAA-ccloop46ef-sess7-*` memories.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

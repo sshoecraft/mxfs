@@ -1,0 +1,262 @@
+.\" mxfs(5) man page
+.\" Copyright (c) 2026 MXFS Project
+.\" SPDX-License-Identifier: GPL-2.0
+.\"
+.TH MXFS 5 "2026-03-10" "MXFS 0.10.0" "File Formats"
+.SH NAME
+mxfs \- Multinode XFS shared/clustered filesystem
+.SH SYNOPSIS
+.B mount \-t mxfs
+.RI [ \-o
+.IR options ]
+.I device directory
+.SH DESCRIPTION
+.B mxfs
+is a high-performance clustered filesystem that enables concurrent
+multi-node read/write access to a single shared block device.  It reads
+and writes the XFS on-disk format directly through its own DLM-aware
+caching engine, delivering native XFS compatibility with full cluster
+coordination.
+.PP
+MXFS is implemented as a single Linux kernel module
+.RB ( mxfs.ko )
+with no userspace daemon required.  All cluster coordination
+(distributed locking, peer discovery, lease management, heartbeating,
+and fencing) runs in-kernel.
+.SS Architecture
+The filesystem consists of three layers:
+.IP \(bu 3
+.B libmxfs
+\(em portable C core library implementing XFS format I/O, DLM-aware
+block/inode/directory caches, allocation, journaling, and cluster
+services.
+.IP \(bu 3
+.B PAL
+(Platform Abstraction Layer) \(em thin layer providing OS-specific
+primitives (block I/O, threads, sockets, memory, time).
+.IP \(bu 3
+.B Linux VFS frontend
+\(em translates VFS operations into libmxfs API calls.
+.SS DLM Transports
+MXFS supports two DLM (Distributed Lock Manager) transport backends:
+.TP
+.B CAW (Compare-And-Write)
+Disk-based locking via SCSI Compare-And-Write operations.  No master
+node \(em every node can acquire and release locks independently.
+Scales to 64 nodes.  Requires storage that supports SCSI CAW (e.g.,
+Linux LIO with
+.BR emulate_caw=1 ).
+.TP
+.B TCP
+Network-based locking with per-resource lock mastering.  Works with any
+storage.  Recommended for up to 16 nodes (tested to 32).
+.SS Three-Layer Fencing (CAW DLM only)
+.IP 1. 3
+.B SCSI-3 Persistent Reservations
+\(em hardware-level access control on the shared block device.
+.IP 2. 3
+.B On-disk heartbeat
+\(em per-node heartbeat sectors with ~62-second failure detection.
+.IP 3. 3
+.B DLM lock revocation
+\(em stale locks from dead nodes are purged automatically.
+.SS Features
+.IP \(bu 3
+Per-inode lock caching (locks held until BAST, eviction, or unmount)
+.IP \(bu 3
+AG (allocation group) affinity to minimize cross-node contention
+.IP \(bu 3
+Zero-config UDP multicast peer discovery (239.66.83.1:7601)
+.IP \(bu 3
+Per-node write-ahead journal with crash recovery
+.IP \(bu 3
+Extended attributes (xattrs)
+.IP \(bu 3
+POSIX ACLs
+.IP \(bu 3
+.BR fallocate (2)
+.IP \(bu 3
+.BR mmap (2)
+.IP \(bu 3
+.BR splice (2)
+.IP \(bu 3
+SEEK_HOLE / SEEK_DATA
+.IP \(bu 3
+Filesystem freeze/thaw for LVM snapshots
+.IP \(bu 3
+.BR sync (2)
+/
+.BR fsync (2)
+.SH MOUNT OPTIONS
+The following mount options are recognized by the
+.B mxfs
+filesystem type.  Options are specified as a comma-separated list
+after the
+.B \-o
+flag.
+.TP
+.BI dlm_transport= transport
+Set the DLM transport mode.  Valid values are:
+.RS
+.TP
+.B auto
+(Default.)  Auto-detect the transport.  Listen for peer discovery
+announcements for 3 seconds.  If an existing cluster is found, adopt
+that cluster's transport.  If no peers are found, probe the device for
+SCSI CAW support \(em use CAW if supported, otherwise fall back to TCP.
+.TP
+.B caw
+Force disk-based CAW DLM.  Requires SCSI Compare-And-Write support.
+.TP
+.B tcp
+Force network-based TCP DLM.  SCSI Persistent Reservations are skipped.
+.RE
+.TP
+.BI port= N
+DLM TCP port number.  Default:
+.BR 7600 .
+Valid range: 1\(en65535.
+.TP
+.BI discovery_port= N
+UDP discovery port number.  Default:
+.BR 7601 .
+Valid range: 1\(en65535.
+.TP
+.BI multicast= address
+IPv4 multicast address for peer discovery.  Default:
+.BR 239.66.83.1 .
+.TP
+.B broadcast
+Use UDP broadcast instead of multicast for peer discovery.
+.TP
+.BI block_cache= N
+Maximum number of cached disk blocks.  Default: auto-sized.
+.TP
+.BI inode_cache= N
+Maximum number of cached inodes.  Default: auto-sized.
+.TP
+.BI dir_cache= N
+Maximum number of cached directory entries.  Default: auto-sized.
+.TP
+.BI node_slot= N
+Override automatic journal slot assignment.  Normally each node claims
+a free journal slot on mount.  This option forces a specific slot.
+.TP
+.BI journal_offset= bytes
+Override the journal region byte offset.  Normally read from the MXFS
+on-disk superblock.  This option takes precedence.
+.TP
+.BI disklock_offset= bytes
+Override the disklock region byte offset.  Normally read from the MXFS
+on-disk superblock.  This option takes precedence.
+.TP
+.B noatime
+Do not update inode access times on reads.  This is the
+.B default
+for MXFS, as atime updates on shared storage trigger journal
+transactions and device flushes that cause significant read performance
+regression.
+.TP
+.B relatime
+Update atime only if it is older than mtime or ctime, or more than 24
+hours old.  On MXFS, this option is treated as
+.B noatime
+for performance.  Use
+.B strictatime
+to force per-read atime updates.
+.TP
+.B nodiratime
+Do not update directory access times.
+.TP
+.B strictatime
+Update atime on every read.  Overrides the default noatime behavior.
+Warning: may reduce read performance by up to 20% on shared storage.
+.SH FILES
+.TP
+.I /etc/mxfs/node.uuid
+Per-node UUID file.  If not present, a UUID is generated and written
+on first mount.  Used to derive the 32-bit node ID via FNV-1a hash.
+.TP
+.I /etc/modules-load.d/mxfs.conf
+Module auto-load configuration.  Contains "mxfs" to load the kernel
+module at boot.
+.TP
+.I /usr/sbin/mkfs.mxfs
+Filesystem format tool.
+.TP
+.I /usr/sbin/chk_mxfs
+Filesystem integrity checker.
+.TP
+.I /usr/sbin/fsck.mxfs
+Symlink to chk_mxfs for fstab fsck dispatch.
+.TP
+.I /usr/sbin/resize_mxfs
+Filesystem resize tool.
+.SH EXAMPLES
+Format and mount a shared iSCSI LUN:
+.PP
+.RS
+.nf
+mkfs.mxfs /dev/sdb
+insmod mxfs.ko
+mount -t mxfs /dev/sdb /mnt/shared
+.fi
+.RE
+.PP
+Mount with TCP DLM transport (for storage without SCSI CAW):
+.PP
+.RS
+.nf
+mount -t mxfs -o dlm_transport=tcp /dev/sdb /mnt/shared
+.fi
+.RE
+.PP
+Mount with custom DLM port and discovery port:
+.PP
+.RS
+.nf
+mount -t mxfs -o port=9600,discovery_port=9601 /dev/sdb /mnt/shared
+.fi
+.RE
+.PP
+Add to
+.I /etc/fstab
+for automatic boot mount:
+.PP
+.RS
+.nf
+/dev/sdb  /mnt/shared  mxfs  _netdev  0  0
+.fi
+.RE
+.PP
+The
+.B _netdev
+option ensures the filesystem is mounted after network interfaces are
+up, which is required for iSCSI devices and DLM networking.
+.SH SUPPORTED STORAGE
+Any shared block device accessible from all cluster nodes:
+.IP \(bu 3
+.B iSCSI
+\(em tested with Linux LIO (CAW + TCP) and QNAP NAS (TCP only)
+.IP \(bu 3
+.B Fibre Channel
+\(em any FC LUN with SCSI-3 PR support
+.IP \(bu 3
+.B NVMe-oF
+\(em NVMe over Fabrics shared namespaces
+.IP \(bu 3
+.B SAS
+\(em shared SAS enclosures
+.SH KERNEL COMPATIBILITY
+MXFS supports Linux kernels 5.x through 6.17 with compile-time version
+guards for API differences.  Tested distributions include Debian 11/12/13,
+Ubuntu 22.04/24.04, RHEL/AlmaLinux 9, and Proxmox VE 8.
+.SH SEE ALSO
+.BR mkfs.mxfs (8),
+.BR chk_mxfs (8),
+.BR resize_mxfs (8),
+.BR mount (8),
+.BR fstab (5),
+.BR xfs (5)
+.SH AUTHORS
+MXFS Project.

@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 25 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 24
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `dd85e01f-3309-4ee7-97b2-f454b51110e5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/dd85e01f-3309-4ee7-97b2-f454b51110e5.jsonl`
+- approx context at last assistant turn: 160507 tokens
+- tools used: Bash×35 Read×11 Edit×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "DIR-STALE-SKIP\|b_mxfs_dir_gen\|i_dlm_dir_gen" xfs/libxfs/xfs_da_btree.c | head -30
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' >/dev/null 2>&1; done; echo "cleared. runn
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n DIR-STALE-SKIP ==="; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -E "D
+    cd /src/mxfs; grep -nE "#define XBF_|XBF_DONE|XBF_STALE|_XBF_FUA_FRESH|_XBF_DELWRI_Q|_XBF_INODES|_XBF_DABUF" xfs/xfs_buf.h | head -40
+    cd /src/mxfs; grep -rn "xfs_buf_ispinned\b" xfs/*.c xfs/*.h | head; echo "=== ispinned def ==="; grep -rn "atomic_read(&bp->b_pin_count)\|b_pin_count" xfs/xfs_b
+    cd /src/mxfs; echo "=== b_pin_count writers (all files) ==="; grep -rn "b_pin_count" xfs/ pal/ dlm/ 2>/dev/null | grep -iE "inc|dec|set|init"; echo "=== xfs_buf
+    cd /src/mxfs; for n in test1 test3; do echo "=== $n ==="; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "total DIR-STALE-SKIP: $(dmesg | grep -c
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|warning:.*xfs_da_btree|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' >/dev/null 2>&1; done; MXFS_NODE_OFFSET=16
+    cd /src/mxfs; grep -n "mxfs_dir_data_durable\|mxfs_dir_push_data_ags\|mxfs_dir_evict_data_blocks" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; grep -nE "#define XFS_BLI_" xfs/xfs_buf_item.h xfs/*.h 2>/dev/null | grep -iE "HOLD|DIRTY|STALE|LOGGED|ORDERED|INODE" | head
+    cd /src/mxfs; sed -n '12,24p' xfs/xfs_buf_item.h
+    cd /src/mxfs; grep -rn "barrier_signal\|barrier_wait\|BARRIER_DIR\|barrier" tests/lib/*.sh tests/cluster/common.sh 2>/dev/null | grep -iE "dir=|=.*barrier|mkdir
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' >/dev/null 2>&1; done; MXFS_NODE_OFFSET=16
+    cd /src/mxfs; grep -nA6 "assert_file_exists\|assert_file_not_exists" tests/cluster/common.sh tests/lib/common.sh 2>/dev/null | head -30
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' >/dev/null 2>&1; done; MXFS_NODE_OFFSET=16
+    cd /src/mxfs; for f in /home/steve/.mxfs/results/20260603_155517/test_rename_visibility/node*.log; do echo "=== $f ==="; grep -iE "not found|unexpectedly exists
+    cd /src/mxfs; for run in 1 2 3; do echo "########## RUN $run ##########"; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 120 bash tests/run_tests.sh
+    cd /src/mxfs; echo "=== RUN1 result ==="; grep -cE "FAIL]  rename" /tmp/rv_run1.txt; echo "=== RUN2 fails ==="; grep -iE "not found|unexpectedly|actual=" /tmp/r
+
+## Last text from previous session
+
+The danger: the pinned buffer's content is *behind* disk (disk has peers' renames), so naively forcing it to disk would clobber peers (lost update). Per Invariant #1, this node's own dir writes are drained-before-unlock — so this lingering pin shouldn't be its own pending rename. Let me examine the dir BAST drain/FUA path for a pin/bli leak.
+Let me decode `bli_flags=0x2` and examine the BAST-release drain/evict ordering (lines 820-890).
+`bli_flags=0x2` = `XFS_BLI_DIRTY`: this node has an **in-flight modification of the dir block that post-dates phase-2 `sync`**. That's the key — something re-dirties the dir block between sync and verify. Let me check the barrier mechanism (does it write into the test dir?).
+Barriers live in a separate `.mxfs_barriers/` dir, so they don't re-dirty the test dir. Yet the test dir block is `BLI_DIRTY`+pinned at verify time. Let me capture exactly which assertions fail (own renames vs peers', name-missing vs content) to pin down the reader's view.
+Much lower miss rate now: **1 failure in 240 assertions** per node (was ~60/240 in sess63). Let me see the exact failing assertion.
+Critical new insight: the failing assertion is **not** a dir-block name miss — `assert_file_exists` for `node1_after_1` **passed**; it's **content** that reads empty (`actual=''`). This is a different bug: the reader gets the child inode with `di_size=0` (stale). The DIR-STALE-SKIP I instrumented is mostly a red herring for *this* failure. Miss rate is now 1/240 (intermittent). Let me characterize across several runs.
+I've hit the relay boundary. Let me record the key findings at the head of state.md before wrapping up.
+Criteria are not met — cache_coherency still fails (rename_visibility, ~1/3 of runs) and rsync_paired hasn't been re-run — so I have not written the marker. Summary of this session's progress:
+
+## What I established (RULE 4, all on a freshly pristine cluster)
+
+1. **Disproved sess65's alarming claim.** "Build 2304C6B1 hangs 120s and FS-shuts-down in the create phase" was a **contaminated-cluster artifact**: test1 had a wedged module (`rmmod: in use`, refcount held + SCSI `reservation conflict`) from a prior crashed run. I recovered it with `virsh destroy/start test1` + `reset4.sh`. On a genuinely pristine cluster there is **no hang and no shutdown**.
+
+2. **Narrowed cache_coherency to a single sub-test.** 3 of 4 now PASS (cross_visibility 14s, unlink_visibility 33s, cross_write_read 14s). Only **test_rename_visibility** fails, and only **~1 of 3 runs**, with a **single miss out of 240 assertions** (down from ~60/240 in sess63).
+
+3. **Re-identified the actual failure mechanism.** The failing assertion is *not* a dir-block name-visibility miss — `assert_file_exists` for the renamed name **passes**; the failure is `Content preserved … expected='content_1_1' actual=''`. It's a **stale child-inode read (di_size=0 / empty content)** — the NL-cached inode-cluster coherency gap (sess39/46/58 family), where a peer serves a `_XBF_FUA_FRESH`-gated cluster buffer cached when the inode was still free.
+
+4. **Cleared a red herring.** The DIR-STALE-SKIP pinned-dir-block path still fires (~10×/run) but is no longer what fails the criterion. I enriched its diagnostic (read-only: `pincnt/hold/has_bli/li_empty/bli_flags`) and decoded the pin as this node's own in-flight `XFS_BLI_DIRTY` modification that drains *after* the verify read — confirming why both the read-hook and the BAST-evict (which guard on `!pinned`) skip it.
+
+5. **rsync_paired:** the previously-missing `tools/mxfs_multinode_bench.sh` now exists, so that criterion is unblocked to retry once rename_visibility is green.
+
+**Next session** should chase the empty-content (di_size=0 stale child inode) bug directly — instrument the read/getattr path for the failing child's disk-vs-incore di_size and confirm the `_XBF_FUA_FRESH` gate skipping the cluster re-read. The 1/240 rate means it's close. State head updated; local diagnostic build `793113DD` is deployed on all 4 nodes.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

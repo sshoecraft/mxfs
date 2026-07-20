@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 8
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `629f0f2c-9035-4bca-9505-f89fa50c98eb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb.jsonl`
+- approx context at last assistant turn: 498042 tokens
+- tools used: Bash×116 Read×34 Edit×18 mcp__ccmemory__memory_write×10 mcp__ccmemory__memory_get×7 ToolSearch×5 mcp__ccusage__get_context_usage×2 TaskList×1 TaskStop×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n 'resource_master\|is_resource_master\|master =\|->master\|local_node.*master\|master.*local_node\|owns_resource\|resource_owner' dlm/dlm.c
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/bwby9aga4.output; for i in $(seq 1 180); do if grep -q 'FAIL at iter' "$F" 2>/dev/null; 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; S=tools/mxfs_sshpass.sh; echo "=== leftover (which ino is .dlm_fairness) ==="; for n in test1 test2; do echo -n "$n: "; timeout
+    cd /src/mxfs; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "local build: $(modinfo mxfs.ko 2>/dev/null | grep -o 'srcversion.*')"
+    cd /src/mxfs; sed -i 's/dg_grant_ex(resource, sender, gen)/dg_grant_ex(ctx, resource, sender, gen)/g; s/dg_grant_ex(resource, ctx->local_node, newlk->grant_gen)
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]' | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== dlm_fairness until fail (174E2CD5) ==="; for i in $(seq 1 40); do r=$(timeout
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/bn2n5gxxb.output; for i in $(seq 1 200); do if grep -q 'FAIL at iter' "$F" 2>/dev/null; 
+    cd /src/mxfs; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "local build: $(modinfo mxfs.ko 2>/dev/null | grep -o 'srcversion.*')"
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]' | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== dlm_fairness x30 (1AB8C27A, resurrection fix) ==="; pass=0; fail=0; for i in 
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/b8xqliimv.output; for i in $(seq 1 220); do if grep -q 'TALLY:' "$F" 2>/dev/null; then b
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/b8xqliimv.output; for i in $(seq 1 230); do if grep -q 'TALLY:' "$F" 2>/dev/null; then b
+    cd /src/mxfs; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== FULL SUITE run 1 (1AB8C27A) ==="; timeout 560 ./run.sh 2 tcp 2>&1 | grep -E '
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/bqwfz9ek4.output; for i in $(seq 1 130); do if grep -q '=== done:' "$F" 2>/dev/null; the
+    cd /src/mxfs; for run in 2 3; do echo "=== reboot + FULL SUITE run $run ==="; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; timeout 560 ./run.sh 2 
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/bp1kvla98.output; for i in $(seq 1 260); do if [ "$(grep -c '=== done:' "$F" 2>/dev/null
+    F=/tmp/claude-1000/-src-mxfs/629f0f2c-9035-4bca-9505-f89fa50c98eb/tasks/bp1kvla98.output; for i in $(seq 1 260); do if [ "$(grep -c '=== done:' "$F" 2>/dev/null
+    cd /src/mxfs; D=$(ls -d /tmp/run_cache_coherency_* 2>/dev/null | tail -1); echo "DIR=$D"; for f in "$D"/test1 "$D"/test2; do echo "-- $(basename $f) --"; grep -
+    cd /src/mxfs; timeout 200 bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "local build: $(modinfo mxfs.ko 2>/dev/null | grep -o 'srcversion.*')"
+
+## Last text from previous session
+
+tform exemption on `post_release || peer_modified_since_load` — the same rule block/leaf dirs already use safely. Same-tenure-with-in-flight-mods then correctly self-skips (keeps in-core, which has our delete).
+Built clean (1AB8C27A). Now validate — reboot and run dlm_fairness many times (base rate ~1/6–1/16, so a long clean streak is strong signal).
+**30/30 PASS** — dlm_fairness went from ~1/6–1/16 failing to a clean 30-run streak. Strong signal the resurrection fix works. Now I must validate the **full suite** (the actual criterion) and check for regressions. Let me reboot and run the complete 2/tcp suite.
+**16/16 — first clean full-suite pass of the run!** But given the flakiness history, one pass isn't enough to claim "100% successful." Let me confirm reliability with more full-suite runs (reboot between each for a clean slate).
+The fix did **not** achieve reliable 16/16: run 1 = 16/16, run 2 = 15/16 (cache_coherency **0/2** — both nodes), run 3 = 14/16. The `0/2` (both nodes failing) is a new, more systemic mode — likely my one-sided gate-flip traded resurrection for the *opposite* staleness (keep-in-core → miss peer's change). This is the fundamental shortform tension: adopt-disk loses our in-flight; keep-in-core misses peer's — neither is right without a true merge. Let me confirm the failure mode before deciding revert vs. merge-fix.
+cache_coherency failure is **file-content-empty** (`node1.txt` content `got=` empty) — a regular-file data coherency bug, **separate** from the shortform dir-entry path my fix touches. No shutdown. So the "rotating single failure" is actually **multiple distinct coherency bugs**: shortform dir-entry resurrection (dlm_fairness/crash_consistency/tcp_dlm_scaling) AND file-content-empty (cache_coherency). My fix helped the former (30/30 standalone) but the full suite still fails on residual resurrection (run 3) and the content bug (run 2). The criterion is not met. Let me record this important refinement.
+Findings recorded. Let me leave a clean state and confirm the build.
+Clean state, build 1AB8C27A on both nodes. Reached the ccloop relay boundary — wrapping up.
+
+## Session summary
+
+**Criterion (2-node dlm=tcp, all 16 pass): NOT met — but major progress.** First clean 16/16 of the entire run was achieved this session (run 1 of 3); runs 2–3 still flaked (15/16, 14/16). Marker not written.
+
+**Shipped fixes (KEEP):**
+1. **`xfs_rename` pre-dirty guard** — eliminated the FS-shutdown *cascade* (the dominant failure). Suite went from cascading ~6/16 to a stable 15/16.
+2. **Shortform reload-adoption fix (1AB8C27A)** — gated the shortform dir's "always adopt disk" so a same-tenure reload no longer rolls back this node's in-flight delete → fixed the dirent **resurrection**. dlm_fairness went 30/30 standalone (was ~1/6–1/16).
+
+**Decisive diagnostic advances (all RULE-4 proven, recorded in ccmemory):**
+- Built safe detectors → **P-DOUBLEGRANT = 0 and P-STALEMASTER-GRANT = 0 at failures**, which **eliminated the entire double-grant / split-brain family** that consumed `sess-tcp` and ~15 prior sessions. The bug is a serialized-handoff coherence gap, not a locking failure.
+- **Reframed the "rotating single failure" as MULTIPLE distinct coherency bugs:** (a) shortform dir-entry resurrection — my fix is partial; the residual needs a true **shortform MERGE** on reload (honor our committed deltas while adopting the peer's); (b) a **separate cache_coherency file-content-empty** bug (regular-file data, e.g. `node1.txt` content empty cross-node — the sess25/45 di_size family).
+
+**Next session (clear, narrow path to 16/16):** complete the shortform reload-as-merge, and fix the reg-file content-empty coherency bug. Both are precisely scoped with code sites in the `sess8-*` memories.
+
+**Cluster:** clean, idle, build 1AB8C27A both nodes; no background command running (the persistent Stop-hook signal was a verified phantom — no process/task behind it). The loop wrapper will hand the full transcript to the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

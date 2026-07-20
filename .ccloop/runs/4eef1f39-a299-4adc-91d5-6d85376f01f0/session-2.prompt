@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 1
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `9a6fb3f7-3062-4a07-8532-744ed066074b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9a6fb3f7-3062-4a07-8532-744ed066074b.jsonl`
+- approx context at last assistant turn: 248485 tokens
+- tools used: Bash×51 Read×20 Edit×12 ToolSearch×2 Write×2 mcp__ask_gemini__query×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_trans_ail.c
+- /src/mxfs/tests/repro_rvwedge.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 20 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "   echo '##### xfsaild + fs userspace #####'   ps -eo pid,stat,wchan:28,comm | grep -
+    cd /src/mxfs; grep -rn "pag_mxfs_alloc_buflist\|drain_alloc_buflist\|_XBF_MXFS_ALLOC_QUEUED\|drain_inode_buffers\|drain_meta_buffers" xfs/xfs_mxfs_dlm.c | head 
+    cd /src/mxfs; grep -rn "_XBF_DELWRI_Q\|_XBF_MXFS_ALLOC_QUEUED\|#define XBF_\|_XBF_FUA_FRESH" xfs/xfs_buf.h pal/linux/*.h include/ 2>/dev/null | grep -iE "define
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*\.c|LD \[M\]" | grep -v "Clock skew\|modification time" | tail; echo "=== srcver ==="; modinfo mxfs
+    for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; sleep 3; for h in test1 test2 test3 test4; do sudo virsh -
+    cd /src/mxfs; for try in $(seq 1 30); do up=0; for h in test1 test2 test3 test4; do timeout 5 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "true" >/dev/null 
+    cd /src/mxfs; for h in test1 test2 test3 test4; do bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1 & done; wait echo "=== cross_visib
+    cd /src/mxfs; until_done=0; for s in $(seq 1 30); do   for h in test1 test2 test3 test4; do     line=$(timeout 8 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass
+    cd /src/mxfs; timeout 25 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "   echo '##### latest stall #####'   dmesg | grep 'AG-AIL-STALL' | tail -2   echo '##
+    cd /src/mxfs; grep -n "xfs_iflush_cluster\|xfs_ilock\|xfs_iflock\|XFS_IFLUSHING\|ilock_nowait\|i_flush_lock\|->i_lock" xfs/xfs_inode.c | grep -iE "iflush_cluste
+    cd /src/mxfs; grep -n "xfs_lock_two_inodes" xfs/xfs_inode.c | head -3; echo "---"; sed -n '/^xfs_lock_two_inodes/,/^}/p' xfs/xfs_inode.c | head -60
+    cd /src/mxfs; echo "=== perag accessor ==="; grep -rn "xfs_perag_get\b\|xfs_perag_put\b\|xfs_perag_get(" xfs/xfs_mxfs_dlm.c | head; echo "=== forward decl of dr
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning:.*\.c|LD \[M\] /src/mxfs/mxfs.ko" | grep -v "Clock skew\|modification time" | tail -15; echo "=== srcv
+    for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; sleep 3; for h in test1 test2 test3 test4; do sudo virsh -
+    cd /src/mxfs; for h in test1 test2 test3 test4; do bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1 & done; wait echo "=== cross_visib
+    cd /src/mxfs; for h in test1 test2 test3 test4; do echo "===== $h ====="; timeout 10 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "   echo -n 'AG-AIL-STALL c
+    cd /src/mxfs; timeout 15 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -iE 'shutdown|BUG:|oops|corrupt|EFSBADCRC|EFSCORRUPT|assert|WARNING|meta
+    cd /src/mxfs; timeout 15 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | sed -n '/kernel NULL pointer/,/---\[ end trace/p' | head -60" 2>/dev/null | g
+    cd /src/mxfs; echo "=== sf_lookup head ==="; sed -n '/^xfs_dir2_sf_lookup(/,/sfp = /p' xfs/libxfs/xfs_dir2_sf.c | head -40; echo "=== reload sites touching if_d
+    cd /src/mxfs; sed -n '/^xfs_lookup(/,/^}/p' xfs/xfs_inode.c | grep -nE "xfs_ilock|xfs_iunlock|xfs_dir_lookup|ILOCK|lock_mode|return|d_args|reload" | head -40
+
+## Last text from previous session
+
+to investigate. Let me see what they are.
+A NULL-pointer Oops. Let me get the full stack trace.
+**Major progress, RULE 4 loop:** The drain fix is **proven** — `AG-AIL-STALL=0` on all nodes (was spinning forever), no wedge. But it unmasked a **different pre-existing bug**: a NULL-pointer Oops in `xfs_dir2_sf_lookup` (shortform dir lookup) — `ip->i_df.if_data == NULL` during a concurrent `stat`/lookup. This is the exact "reload-clobber" race state.md noted from Phase 0. The wedge was previously masking it.
+
+Let me first save the proven drain fix to memory (so it survives), then loop to the new bug.
+Now the new bug. Let me look at `xfs_dir2_sf_lookup` and find where the reload path swaps `i_df.if_data`.
+`xfs_idestroy_fork(&ip->i_df)` (line 2841) sets `if_data=NULL` then `xfs_inode_from_disk` repopulates — there's a window where `if_data==NULL`. The comment at 2686-2700 already discusses this exact hazard with shortform dirs. Let me read the reload function's locking and if_data handling.
+The reload holds `down_write(&ip->i_lock)` across destroy+repopulate, and has a sess87 snapshot-verify guard. So a reader with proper `ILOCK_SHARED` should be excluded. The crash sees `format=LOCAL` but `if_data=NULL` (half-built). Let me check the other `if_data=NULL` site (line 3295) and whether `xfs_lookup` actually holds ILOCK across `xfs_dir_lookup`.
+`reset_inode_for_create` sets format=EXTENTS (not LOCAL), so it's not the culprit. Let me check whether `xfs_lookup` actually holds `ILOCK_SHARED` across `xfs_dir_lookup` — if not, that's the unprotected window for the reader.
+I've reached the ccloop relay boundary. Let me summarize this session's progress.
+
+## Session summary
+
+**Proven and fixed the AG-AIL push wedge** (the sess108 P0 blocker for `cache_coherency`), following RULE 4 (instrument → prove → patch) and RULE 5 (Gemini consult for the architectural design).
+
+### Root cause (proven with instrumentation + blocked-task stacks)
+`mxfs_dlm_bast_process` honored invariant #1 with a **whole-AG drain** (`xfs_ail_push_ag_sync`). Under the NEWARCH chokepoint, every `-EDEADLK` upgrade routes through `bast_process`, exposing a lock inversion:
+- `rm` → `xfs_remove` → `xfs_lock_two_inodes` locks the **lower** inode (`ILOCK_EXCL`), then `-EDEADLK`s on the higher one and waits (uninterruptibly) for its BAST drain.
+- That drain waits for the **whole AG**, including the lower inode `rm` still holds. `xfs_iflush_cluster` (xfs_inode.c:3931) **skips** inodes it can't `xfs_ilock_nowait(SHARED)` → the held sibling's AIL item never drains → spins forever.
+
+I confirmed it end-to-end with added instrumentation (`pin/libuf_null/buf_pinned/ili_fields/in_ail/buf_flags` in the `AG-AIL-STALL` print) and `sysrq-w` traces.
+
+### The fix (build `C7393A5A`, Gemini-validated, KEEP)
+New `mxfs_ail_drain_inode_sync(ip)` — waits **only for ip's own** inode log item to leave the AIL (invariant #1 only needs *ip* durable; siblings carry their own DLM locks; ip's own ILOCK is free in the chokepoint path). Both whole-AG drain blocks in `bast_process` replaced with: `log_force` + `mxfs_dlm_ag_drain_alloc_buflist` (unlock alloc-queued cluster bufs) + dir-data flush + **sess29 settle (must precede the wait)** + the targeted drain.
+
+### Verified
+`AG-AIL-STALL = 0` on all 4 nodes (was spinning forever at 75K+ iters). `cross_visibility` PASS. Wedge gone.
+
+### Next bug (loop continues) — NOT yet fixed
+Removing the wedge unmasked a **pre-existing reload-clobber race**: NULL-pointer Oops in `xfs_dir2_sf_lookup` (`format=LOCAL` but `i_df.if_data==NULL`) during a concurrent `stat`/lookup — exactly the race state.md/phase0 noted. The wedge previously hit first and masked it. Open lead: whether `xfs_lookup` holds `ILOCK_SHARED` across `xfs_dir_lookup`, and which reload path leaves a half-built shortform fork visible to a reader.
+
+**Criteria NOT met** — `cache_coherency` still fails (now via the `sf_lookup` crash, not the wedge). Marker not written. Progress saved to `sess109_lessons` memory.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

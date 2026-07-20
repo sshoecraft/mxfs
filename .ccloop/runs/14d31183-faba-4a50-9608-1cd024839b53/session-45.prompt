@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 45 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 44
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `bbf5b71d-78f9-40ce-9764-fd4d751d6209`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/bbf5b71d-78f9-40ce-9764-fd4d751d6209.jsonl`
+- approx context at last assistant turn: 249326 tokens
+- tools used: Bash×99 Edit×15 Read×5 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/VERSION
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "mxfs_pal_time_ms\b" include/ --include="*.h" | head -2; grep -rn "ratelimit" dlm/*.c | head -4
+    cd /src/mxfs; grep -n "ktime_get_real_ns\|realns" dlm/dlm_caw.c | head -4; grep -rn "define mxfs_pal_time_ms\|mxfs_pal_time_ms(" include/mxfs/*.h pal/*.h pal/li
+    cd /src/mxfs; make modules 2>&1 | grep -E "error" | head -3; make modules 2>&1 | tail -1; modinfo mxfs.ko | grep srcversion; timeout 240 bash tests/reset4.sh 16
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test16 $P 'dmesg -C; mkdir -p /mnt/shared/probe16 && for i in $(seq 1 20); do echo content$i > /mnt
+    cd /src/mxfs; awk 'NR>=1907 && NR<=3270 && (/msleep|usleep|sleep_ms/ || /^mxfs_dlm_bast_process|xfs_log_force|filemap_write|mxfs_inode_cluster_durable|mxfs_dir_
+    cd /src/mxfs; sed -n '2085,2135p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '2040,2090p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -E "error" | head -3; make modules 2>&1 | tail -1; modinfo mxfs.ko | grep srcversion; timeout 240 bash tests/reset4.sh 16
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 16 2>&1 | tail -8
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'dmesg | tail -8; cat /sys/module/mxfs/srcversion 2>/dev/null; mount | grep shared' 2>/dev
+    cd /src/mxfs; grep -in "persist\|PR\b\|preempt\|clear" tools/prep_tcm_node.sh | head -5; timeout 500 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 16 2>&1 | tail -1; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do $S test$n $P 'sudo umount
+    cd /src/mxfs; timeout 240 bash tests/reset4.sh 16 2>&1 | grep -vE "Warning|Unauthorized|disconnect" | tail -6; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S te
+    ls /sys/kernel/scst_tgt/devices/ 2>/dev/null; ls /var/lib/scst/pr/ 2>/dev/null; sudo cat /sys/kernel/scst_tgt/devices/*/pr_file_name 2>/dev/null | head
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sudo sg_persist -in -r /dev/sda; sudo sg_persist -in -k /dev/sda | head -10' 2>/dev/null
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sudo sg_persist --out --register --param-sark=0xdeadbeef /dev/sda && sudo sg_persist --ou
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sudo sg_persist --out --preempt-abort --param-rk=0xdeadbeef --param-sark=0xaf6ceb8b --pro
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sudo sg_persist --out --register-ignore --param-sark=0xdeadbeef /dev/sda; echo reg_rc=$?;
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do r=$($S test$n $P 'sudo sg_persist --out --release --param-rk=0xaf6ceb8b --pro
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sudo sg_persist -in -k /dev/sda' 2>/dev/null
+
+## Last text from previous session
+
+ test-infrastructure lies — which matters, because chasing a fake failure burns days.
+
+3. **Some earlier sessions chased wrong hypotheses.** Session 38 claimed "nearly done" based on results that an instrumentation artifact had distorted. Sessions 44–52 chased a bnobt theory that turned out to be a red herring. That's the honest cost of guess-driven debugging, and it's why RULE 4 (prove with instrumentation before patching) is now enforced — progress since has been steady: each session lands a proven fix and the failure count keeps shrinking.
+
+**Where it stands right now, this session:** I found and fixed a real defect in the dir-block coherency layer (freshly-read directory blocks were never stamped with their coherency generation, causing both false staleness and doubled FUA reads). Result, measured an hour ago on a cold 16-node run: `concurrent_mkdir` and `concurrent_touch` — yesterday's blockers — both **PASS** now, and the run gets further into the suite than it ever has. What's exposed behind them: `rename_visibility` at 16 nodes (node16's renamed files missing cluster-wide — a durability loss on one writer, a known family with prior partial fixes at 4 nodes), a `concurrent_write` 1-in-20 failure, and a discovery-marker miss. Those are the work queue, in that order.
+
+I can't honestly predict "done by N sessions" — but the trajectory is real: criterion 19 went from "times out before half the suite runs" to "9 of 14 cluster tests pass cold" today. Resuming the rename_visibility diagnosis now unless you want something different.
+Not met — `posix_semantics_multi16` still fails. Continuing the rename_visibility diagnosis: the striking pattern is that *all 20* of node16's renamed files are missing cluster-wide, which smells like node16's write/rename phase failed wholesale rather than 20 independent races. Checking node16's own view:
+Timed out — that itself is a failure (RULE 0). Checking node state for wedged processes:
+The pin-wait needs a preceding log force to drive the checkpoint — verifying one exists before this point in `bast_process`:
+I'm at the relay boundary. Saving session findings to memory, then summarizing:
+## Session 44 summary
+
+**Criteria not met** (marker unwritten) — but two of yesterday's blockers flipped to PASS and the dominant slowness is root-caused with fixes built.
+
+**Landed and verified (cold 16-node run):**
+1. **Dir-gen fresh-read stamp fix** (`xfs_da_btree.c`) — freshly-read directory blocks were never stamped with the coherency generation, causing false staleness, doubled FUA reads, and false DIR-STALE-SKIP. Result: `test_concurrent_mkdir` and `test_concurrent_touch` — the sess43 blockers — both **PASS cold** for the first time.
+
+**Proven via live profiling (RULE 4, measured not guessed):**
+2. The 600s-budget eater is cleanup `rm` storms: cross-node unlink cost 53–70ms vs native <1ms. Stage timers (P137) and dual-side probes (P138) attributed it precisely: **~42ms of every migration is three blind sleeps** — `msleep(10)`×2 in the ifree path and `msleep(20)` in every BAST release. UDP BAST delivery itself is fast (~1–2ms).
+3. **Settle fixes built** (build `D9D22CF3`): replaced all three sleeps with a deterministic pin-gate (`xfs_ipincount==0` ⇒ CIL→AIL insertion complete — strictly stronger than the sleeps). Expected ~4× faster unlink migration; **not yet deployed/verified**.
+
+**Blocker at handoff:** a stale SCSI Persistent Reservation on the shared LUN (orphaned keys from dead VM sessions; holder `0xaf6ceb8b`) is rejecting mkfs writes — all in-band clear attempts conflict. Recovery options (mxfs's own PR re-registration path, or host-side SCST PR-file resync with all initiators down) are documented in memory `sess44-unlink-latency-fixes-and-pr-wedge`, along with the remaining failure queue: rename_visibility's wholesale dirent-batch loss (node16's 20 files), concurrent_write 1/20, discovery 14/16.
+
+Next session: clear the PR, verify `D9D22CF3` with the 20-file probe, then attack rename_visibility.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

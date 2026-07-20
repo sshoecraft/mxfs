@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `a582dc32-abe3-4e0e-aff1-32adbe8525f4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4.jsonl`
+- approx context at last assistant turn: 500965 tokens
+- tools used: Bash×125 Edit×37 Read×24 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/v5_mount.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system 
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system 
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad; mkdir -p $S/run74; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad/run74; grep -h "P3B-" $S/test3.dmesg; echo ===; grep -h "blocked for more than" $S/
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad/run74; awk '/task md5sum:2748 blocked for more than 30/,/<\/TASK>/' $S/test3.dmesg 
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad/run74; grep -hE "P-LKTIMEOUT|P36-RETRY|rc=-" $S/test3.dmesg | awk -F'[][]' '{ts=$2+
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad/run74; for k in 1 2 3 4 5 6 7 8; do echo -n "test$k: "; grep -h "DLM init: node_id=
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 25 $SSH test3 $PF 'for p in $(ls /proc | grep -E "^[0-9]+$"); do s=$(cat /proc/$p/stack 2>/dev/
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 25 $SSH test3 $PF 'for p in $(ls /proc | grep -E "^[0-9]+$"); do st=$(awk "{print \$3}" /proc/$
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad/run74; grep -h "P132" $S/test3.dmesg | head -6; echo ===; grep -n "P132-ILOCK-STUCK
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 20 $SSH test3 $PF "ls /proc/2747 >/dev/null 2>&1 && { echo alive; cat /proc/2747/comm; awk '{pr
+    grep -n "xfs_create(" /src/mxfs/xfs/xfs_inode.c | head -3; awk 'NR>=1250 && NR<=1500 && (/xfs_ilock\(dp/ || /xfs_iunlock\(dp/ || /goto out/ || /^ out_/ || /retu
+    S=/tmp/claude-1000/-src-mxfs/a582dc32-abe3-4e0e-aff1-32adbe8525f4/scratchpad/run74; grep -hE "P-CREATE-ERR1|P127-EEXIST|P-CR62|P-DIALLOC|DLM inode lock failed|r
+    grep -n "DLM inode lock failed" /src/mxfs/xfs/xfs_mxfs_dlm.c; ln=$(grep -n "DLM inode lock failed" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); sed -n
+    grep -n "DLM inode lock failed" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; awk 'NR>=16480 && NR<=16600' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "" | head -5
+    grep -n "inode lock failed" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -rn "DLM inode lock failed" /src/mxfs --include="*.c" | head -3
+    awk 'NR>=1900 && NR<=2050 {print NR": "$0}' /src/mxfs/xfs/xfs_inode.c | grep -E "out_|unlock_dp|iunlock|trans_cancel|return error" | head -20
+    awk 'NR>=1944 && NR<=2050 {print NR": "$0}' /src/mxfs/xfs/xfs_inode.c | grep -E "out_trans_cancel|out_release|unlock_dp_on_error|xfs_iunlock|return" 
+    awk 'NR>=1944 && NR<=2120 && (/out_trans_cancel:/ || /out_release/ || /unlock_dp_on_error/ || /xfs_iunlock/ || /^	return/)' /src/mxfs/xfs/xfs_inode.c; echo ===;
+
+## Last text from previous session
+
+nted-mode accessor. Checking `mxfs_dlm_grant_gen`'s implementation to mirror:
+Build `537A46327C5D190C130C331` with FIX-1. Cycling the wedged cluster and running:
+Still 0/8 — checking whether FIX-1 fired and what wedged this time:
+No wedge this run — different failure. Checking round progress, shutdowns, and hung tasks:
+test7's ring likely rotated past round 1. Checking dmesg start and the fail-round snapshot the test saved on-node:
+**run72 PASS (8/8, 24 rounds).** Checking whether the fixes actively fired, then continuing the consecutive-pass ladder:
+run74 FAIL 0/8 — streak broken. Diagnosing:
+holder=791468612 = **test3** — it held the dir EX 417s. Its rwsem holder is the key. Live stack sweep on test3:
+The dir ILOCK holder is pid 2747 (another bash), last took it at `xfs_create+0x4e1`. Where is 2747 now:
+**pid 2747 exited while holding the dir's ILOCK_EXCL** — an error path in `xfs_create` after the ILOCK re-take returns to userspace without unlocking. Finding the leak in xfs_create:
+The EDEADLK'd create (2747) proceeded lockless after `ilock_begin` failed, errored later, and exited while STILL holding the dp rwsem — an error-path unlock miss. Reading xfs_create's tail:
+I've hit the relay boundary. Saving the run74 analysis state to memory before wrapping up:
+**Session 4 status — criteria not met; marker not written. Two root fixes landed and verified; a third bug (pre-existing ILOCK leak) identified but not yet fixed.**
+
+## What this session accomplished
+
+**Root-caused and fixed the recurring 0/8 cluster-kill wedge (runs 68/69/71):** `xfs_ilock` maps both IOLOCK and ILOCK onto one per-inode DLM lock. Every buffered write nests ILOCK (remove_privs/update_time) inside IOLOCK_EXCL; when a BAST demote window opens between the two acquires, the inner acquire waited for a release that waits for the waiter's own outer hold — a permanent self-deadlock whose phantom EX grant convoyed all 7 peers (proven live twice with stacks, counters, and the master's grant-table dump). **FIX-1**: at `state==BAST` with local holders counted, admit requests satisfiable from the v5 mirror (restoring the mode an abort path had cleared), and route insufficient-mirror upgrades to the real slow path instead of the wait. Run72 showed 4 P79-STALEBAST-CLEAR self-recoveries, each formerly fatal.
+
+**Root-caused and fixed the round-1 durable lost-dirent (run70):** a create fast-path-admitted during a self-demote release committed its dirent after the release fence's durability pass but before the unlock; a peer cold-read the pre-add platter and double-allocated the same dir-block offset. **FIX-2**: the pre-unlock P3B audit is now enforcing — flush-and-recheck until the dir is genuinely landed (never unlock stale, 10s bound then shutdown).
+
+**Result:** runs 72 and 73 = consecutive clean 8-node TCP `dir_reuse_coherency` PASSes on build `75F70CA401646F3BE5327AF`.
+
+## Where it stands
+
+Run74 failed differently: a bash create on test3 **exited while its dir ILOCK write-hold stayed locked** (P132 forensics: `wr_last=xfs_create+0x4e1 pid=2747`, pid gone, rwsem cnt=-510 for 400s) — a pre-existing error-path leak, likely triggered by a v5-level EDEADLK (`rc=-35` at 139.978). My FIX-2 loop then wedged *inside* `mxfs_drain_ilock_read`'s own unbounded retry, so its shutdown backstop never engaged and the dir EX was held 417s, EIO-ing the whole cluster.
+
+Next session, in order: (1) bound FIX-2's drain_ilock_read so a leaked ILOCK degrades to the designed shutdown rather than a cluster hang; (2) pin and fix the create-path ILOCK leak (no cancel-path prints fired — the leak path is one that exits without honoring `unlock_dp_on_error`); (3) drive drc 8/tcp to 5 consecutive passes; (4) full `./run.sh N tcp` for N∈{8,4,2,1} on the final build. All details, evidence paths, and the exact ladder are in ccmemory `sess4-TWO-ROOT-FIXES-nest-deadlock-preunlock-audit` and `sess4-END-run74-dp-ilock-leak-and-fix2-wedge`. The cluster is still up in run74's wedged state for live inspection.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

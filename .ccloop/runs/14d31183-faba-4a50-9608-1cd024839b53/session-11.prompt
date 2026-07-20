@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 10
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `11a9bdbe-2c46-4bee-9f47-4f61bb629329`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/11a9bdbe-2c46-4bee-9f47-4f61bb629329.jsonl`
+- approx context at last assistant turn: 266268 tokens
+- tools used: Bash×76 Edit×21 Read×11
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; a=$(nm mxfs.ko | awk '$3=="xfs_ilock"{print $1}'); printf -v t '%x' $((0x$a + 0xd2)); addr2line -e mxfs.ko -i -f $t
+    cd /src/mxfs; grep -rn "ilock_data_map_shared\|ilock_attr_map_shared" xfs/xfs_mxfs_dlm.c xfs/xfs_mxfs_dentry.c xfs/xfs_dir2_readdir.c xfs/xfs_inode.c 2>/dev/nul
+    cd /src/mxfs; sed -n '370,420p' xfs/xfs_dir2_readdir.c; sed -n '525,560p' xfs/xfs_dir2_readdir.c
+    cd /src/mxfs; grep -rn "P-IRESURRECT" xfs/*.c | head -4
+    cd /src/mxfs; sed -n '3640,3700p' xfs/xfs_inode.c; sed -n '3700,3760p' xfs/xfs_inode.c | head -25
+    cd /src/mxfs; sed -n '3815,3920p' xfs/xfs_inode.c
+    cd /src/mxfs; grep -n "xfs_iflush_cluster" xfs/xfs_inode.c | head -3; sed -n "$(grep -n '^xfs_iflush_cluster' xfs/xfs_inode.c | head -1 | cut -d: -f1),+130p" xf
+    cd /src/mxfs; sed -n '4427,4530p' xfs/xfs_inode.c
+    cd /src/mxfs; grep -n "up_read(&ip->i_lock\|down_read(&ip->i_lock\|up_write(&ip->i_lock\|down_write(&ip->i_lock\|up_read(&dp->i_lock\|down_read(&dp->i_lock\|up_
+    cd /src/mxfs; grep -rn "xfs_iunlock(dp\|xfs_ilock(dp\|xfs_iunlock(ip\|ILOCK_EXCL)" xfs/xfs_inode.c | sed -n '1,10p'; grep -c "xfs_ilock\|xfs_iunlock" xfs/xfs_in
+    cd /src/mxfs; timeout 25 ./tools/mxfs_sshpass.sh test12 /tmp/.mxfs_pass "ps -eo pid,stat,wchan:36,cmd | awk '\$2 ~ /D/'; echo ---; for p in \$(ps -eo pid,stat |
+    cd /src/mxfs; timeout 25 ./tools/mxfs_sshpass.sh test12 /tmp/.mxfs_pass "sudo dmesg | grep -nE 'Shutting down|shutdown|Corruption|P97-RELFENCE|I/O error|EIO' | 
+    cd /src/mxfs; grep -n "i_dlm_mode\|i_dlm_state;" xfs/xfs_inode.h | head -8; grep -n "struct rw_semaphore\s*i_lock\|i_lock;" xfs/xfs_inode.h | head -3
+    cd /src/mxfs; grep -n "void xfs_ilock(\|void.*xfs_iunlock(\|xfs_ilock_nowait(" xfs/xfs_inode.h | head -4; grep -n "i_dlm_bast_pending = \|atomic_set\|i_dlm_mode
+    cd /src/mxfs; grep -n "i_dlm_wait\|INIT_WORK(&ip->i_dlm_bast_work\|i_dlm_ex_acquire_ns = 0" xfs/xfs_icache.c | head -5
+    cd /src/mxfs; grep -rn "i_dlm_bast_work" xfs/xfs_icache.c xfs/xfs_super.c pal/*.c 2>/dev/null | grep INIT | head -3
+    cd /src/mxfs; grep -rln "INIT_WORK(&ip->i_dlm_bast_work\|i_dlm_bast_work" --include=*.c | head -3; grep -rn "INIT_WORK(&ip->i_dlm_bast_work" --include=*.c | hea
+    cd /src/mxfs; sed -n '5325,5360p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "down_read(&ip->i_lock);" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*ilk|warning: .*mxfs_drain" | grep -v "compiler differs" | head -8; modinfo mxfs.ko | grep srcversio
+
+## Last text from previous session
+
+Continuing session 10 on the zero_silent_loss throughput blocker. First, orienting: checking RULES.md per startup protocol and verifying the probe build is ready to deploy.
+Correct (silent=0), same ~35s wall. Harvesting the decomposition probes from all 16 nodes:
+Probes fired. Initial glance: `drain_ms=21, tail_ms=0` — a consistent ~21ms drain per release. Analyzing the full distribution:
+Nodes see the tree at `/src/mxfs`. Getting geometry:
+Adding a per-mkdir phase-timing probe (`P132-CREATE`, always-on, dir-creates on multi-node only — 80 lines per storm):
+Now the final stamp after `mxfs_dlm_dir_inode_durable(dp)` plus the summary line:
+Building:
+Build `C2C5946C` clean (pre-existing warnings only). Deploying and re-running the mini-storm:
+Timed out at 300s as before — that's the reproduction. Harvesting the probe data to see where the 1600-create storm stalls:
+The worker isn't spinning — only 347 voluntary context switches total means it's parked in one long sleep, and the kernel already emitted hung-task reports with full stack traces. Pulling those:
+No drgn. Going to the code — the EDEADLK orchestration in `ilock_begin` is the prime suspect for the leak. Reading it:
+No D-state tasks on test12 — but the on-disk slot still has test12's EX bit. Did test12 shut down and abandon the bit? Checking:
+Adding the ILOCK last-locker tracking fields:
+Adding the recording hooks in xfs_inode.c:
+At the relay boundary — completing the instrumentation hooks so the build is consistent, then summarizing.
+Adding prototypes and the field init:
+Now the stuck-drain probe — a helper that replaces the blocking `down_read` in the drain loop and dumps the last-locker record when stuck:
+Building to verify the instrumentation compiles, then summarizing for the relay:
+Session 10 summary — major progress on the zero_silent_loss (#13) blocker:
+
+**What was proven this session (RULE-4 chain):**
+
+1. **The create path is fast — refuted as the bottleneck.** New `P132-CREATE` phase decomposition showed an in-tenure mkdir takes ~2ms total (commit/dirsig/publish/pdur all ≤1ms). At dpn=5, each node completes all 5 creates in a single EX tenure; the drain costs a flat 22ms per release, handoff gap 9ms.
+
+2. **The dpn=100 failure is a cluster WEDGE, not slowness.** The 1600-create storm ran at healthy speed (~600 creates in 20s) until test12's on-disk EX bit on the shared dir froze permanently (slot generation stuck at 4061). Every node then looped in 120s lock timeouts; test12 and test9 eventually force-shutdown.
+
+3. **Wedge anatomy captured live on test5**: the BAST release worker is blocked forever in the drain loop's `down_read(&ip->i_lock)` behind a queued writer — and a full stack sweep of every thread proved **no live task holds that rwsem: the dir ILOCK is leaked** by some call path. A stuck worker means that node's EX bit is never cleared on disk, starving the whole cluster.
+
+4. Corrected an earlier misreading: the "96s starvation stall" was actually the gap between the dpn=5 and dpn=100 runs in dmesg.
+
+**Built (srcversion `7EEC0BCD`, compiles clean, NOT yet deployed):** ILOCK last-locker forensics (caller IP/pid/comm recorded on every ILOCK take/release, including the raw `up_read` sites in `xfs_iflush_cluster`) plus a `P132-ILOCK-STUCK` probe replacing the drain loop's blocking `down_read` — after 5s stuck it dumps the suspected leaker, and it bails cleanly on shutdown.
+
+**Next session:** power-cycle the (currently wedged) cluster, deploy `7EEC0BCD`, re-run the dpn=100 1-iter storm, `addr2line` the leaker IP from `P132-ILOCK-STUCK`, fix the leak, re-measure. State saved in `/src/mxfs/state.md`; probe archives in `/tmp/p132b`, `/tmp/p132c`.
+
+Criteria not met — marker not written; the loop continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

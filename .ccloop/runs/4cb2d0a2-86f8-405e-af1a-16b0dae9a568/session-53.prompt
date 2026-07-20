@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 53 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 52
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `0a337c10-9ab6-46af-b254-103bab1398f0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0a337c10-9ab6-46af-b254-103bab1398f0.jsonl`
+- approx context at last assistant turn: 500680 tokens
+- tools used: Bash×121 Read×31 mcp__ccmemory__memory_write×10 Edit×8 ToolSearch×3 mcp__ccmemory__memory_get×3 mcp__ask_gpt__query×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== sites that lower/remove a local GRANTED entry on incoming messages (candidates for the uncoupled downgrade) ==="; grep -nE "lk->mode = |
+    cd /src/mxfs; echo "=== callers of mxfs_dlm_lock_convert ==="; grep -rnE "mxfs_dlm_lock_convert|lock_convert\(" dlm/*.c xfs/*.c | grep -v "^dlm/dlm.c:181[0-9]\|
+    cd /src/mxfs; echo "=== mount.c:1444 wrapper function + name ==="; sed -n '1435,1448p' dlm/mount.c; echo "=== callers of that wrapper (mxfs_dlm_convert / downgr
+    cd /src/mxfs; echo "=== where convert op is registered + called via ops table ==="; grep -rnE "dlm_convert_tcp_wrapper|->convert|\.convert|ops->convert|convert 
+    cd /src/mxfs; echo "=== callers of dlm_convert_fn (the actual downgrade trigger) ==="; grep -rnE "dlm_convert_fn|convert_fn" dlm/*.c xfs/*.c | grep -v "= dlm_co
+    cd /src/mxfs; for ln in 2998 3276; do echo "=== context around dlm.c:$ln (lk->mode = mode in a message handler) ==="; sed -n "$((ln-14)),$((ln+3))p" dlm/dlm.c |
+    cd /src/mxfs; echo "=== final build state ==="; timeout 80 make modules 2>&1 | grep -iE "error|warning: no prev" | head -2; echo "build: $(modinfo mxfs.ko 2>/de
+    cd /src/mxfs; echo "=== fail_all_pending: does it touch GRANTED entries or only pending? ==="; sed -n '/static void fail_all_pending/,/^}/p' dlm/dlm.c | head -4
+    cd /src/mxfs; echo "=== entry removal/free sites for lock entries ==="; grep -nE "lock_free\(|lock_remove|free_lock|kfree\(lk\)|->next = |list_del|unlink.*lock|
+    cd /src/mxfs; echo "=== mxfs_resource_id fields + inode type constant ==="; grep -rnE "struct mxfs_resource_id \{|uint.*ino;|uint.*type;|RESOURCE.*INODE|RES_INO
+    cd /src/mxfs; timeout 320 make modules 2>&1 | grep -iE "error|P52-GRANT|implicit|MXFS_LTYPE" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/0a337c10-9ab6-46af-b254-103bab1398f0/scratchpad; echo "START $(date)"; t0=$SECONDS; MXFS_EXTRA_MODARGS="dirwr=1 ino
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; echo "=== distinct P52-GRANT-FREE caller addresses + counts (test2, 9 phantoms) ==="; timeout 12 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; echo "=== raw P52-GRANT-FREE sample (mode=5 EX) ==="; timeout 10 $SSH test2 $PASS "dmesg|grep -a 
+    cd /src/mxfs; timeout 320 make modules 2>&1 | grep -iE "error|implicit" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/0a337c10-9ab6-46af-b254-103bab1398f0/scratchpad; echo "START $(date)"; t0=$SECONDS; MXFS_EXTRA_MODARGS="dirwr=1 ino
+    cd /src/mxfs; echo "=== mxfs_dlm_process_remote_release ==="; grep -nE "mxfs_dlm_process_remote_release" dlm/dlm.c | head; echo "---"; awk '/mxfs_dlm_process_re
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; echo "=== test2 local_node id ==="; timeout 8 $SSH test2 $PASS "dmesg|grep -aoE 'local_node=[0-9]
+
+## Last text from previous session
+
+his catches ALL removal paths in one place. Let me read lock_free.
+`lock_free` is a single central free point — ideal. Let me check the resource struct fields (ino/type) and resource-type constant for inodes, then add one decisive probe logging the caller of every GRANTED inode-entry free.
+Resource has `type==MXFS_LTYPE_INODE` and `ino`. Let me add the decisive probe in `lock_free` — logs every GRANTED inode-grant free with the caller address (resolvable to the exact removal site).
+Build clean (78F32D77). Reset and run (mht=0 for more phantoms, dirwr for P51), then correlate P52-GRANT-FREE with the phantom and resolve the caller address.
+rc=124 (probe flood slowed it past timeout). Grant-frees are high (normal — every release frees the entry). The key is the **distinct caller addresses** — the phantom-causing free is a non-bast_process site. Let me get the ret-address distribution and resolve them to source lines.
+EX grants (mode=5) are freed 740× — but the `ret=` address pattern didn't match. Let me see the raw P52-GRANT-FREE format and extract the caller addresses for EX frees specifically.
+Two distinct callers, but `%p` is hashed (kernel pointer hashing) — unresolvable. Let me switch to `%pS` (kernel resolves to symbol+offset) and gate to EX-only frees to cut the flood.
+Build clean (2A9ACF1E). Reset and run, then resolve the %pS caller symbols for the EX grant-frees.
+**FOUND IT.** Two EX grant-free callers:
+1. `mxfs_dlm_unlock` (181×) — normal bast-coupled release.
+2. **`mxfs_dlm_process_remote_release+0x21f` (58×)** — a **remote** release message frees a local EX grant, decoupled from the XFS `i_dlm_mode`. This is the phantom source. Let me read it.
+`mxfs_dlm_process_remote_release` frees `owner==sender` (a *peer's* grant in the master's table) — that's normal master operation, not the local phantom. The phantom is a node's **own** grant being freed while `i_dlm_mode` stays EX. Let me filter P52-GRANT-FREE for ino=131 with owner, get each node's own id, and correlate which caller frees the phantom node's own grant.
+I've hit the relay boundary. Let me record this final narrowing and wrap up.
+## Session 52 — final summary (relay boundary reached)
+
+**Criteria NOT met** — 8/tcp `dir_reuse_coherency` still fails (~25% flaky). Marker not written. 1/2/4 tcp pass; 8/tcp is the sole blocker.
+
+**This session achieved the central breakthrough after 50+ sessions of failed cache-coherency fixes: the root is PROVEN and now precisely localized.**
+
+The dir_reuse single-dirent loss is a **phantom-EX modify** — a directory create commits a dir-block modify under cached `i_dlm_mode=EX` while the DLM does **not** actually hold the grant (`mxfs_dlm_held_mode < EX`, `held=0`). The P51-MOD/P51-PHANTOM probes showed a clean **1:1 correlation**: the phantom modifies ARE the lost dirents (1 phantom = 1 loss). This is why every cache-coherency lever failed — the base is coherent (P28-PLATTER MATCH); it's a **missing mutual exclusion**, not a stale read/write.
+
+**Progressively narrowed via instrumentation + ruled out:**
+- Partial grant at acquire (P52-PARTIAL-GRANT = 0×), `lock_convert` (dead code), `process_remote_release` (frees peer grants on the master, not the local phantom), `bast_process` (correctly coupled + re-checks `ex_holders`).
+- **Localized to the `state=ACQUIRING` re-acquire transient**: on ino=131, grants are freed only via the normal coupled `mxfs_dlm_unlock`; the phantom is a create modifying during a slow-path **re-acquire** before the grant is confirmed (`held<EX`).
+
+**Next session (precise, recorded across 10 `sess52-*` memories):** gate the dir-block modify on `mxfs_dlm_held_mode>=EX` (loop the slow-path acquire until truly GRANTED, not just `rc==0`), and ensure no thread serves/modifies during the `ACQUIRING→CACHED` window before `held==EX`. Validate by P51-PHANTOM count → 0 and an 8/tcp pass (keep MHT for perf — mht=0 worsens phantoms).
+
+Build 2A9ACF1E is clean and baseline-equivalent (probes gated/low-volume); cluster up 8/8.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

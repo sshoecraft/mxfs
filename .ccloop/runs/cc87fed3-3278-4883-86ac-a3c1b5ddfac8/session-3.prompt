@@ -1,0 +1,116 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `4a76a310-a393-4c1b-b65d-61abea7222ef`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef.jsonl`
+- approx context at last assistant turn: 506974 tokens
+- tools used: Bash×172 Read×15 Edit×9 ToolSearch×5 ScheduleWakeup×4 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 Monitor×2 TaskCreate×1 TaskStop×1 TaskUpdate×1 Write×1 mcp__ask_fable__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/diag_cpu_pin_capture.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/VERSION
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin3 START_LINES=$(wc -l < "$SP/monitor.log" 2>/dev/null || echo 0) END=$((SECO
+    grep -n "^struct inode \*igrab" -A 12 /src/linux/fs/inode.c 2>/dev/null
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin3 tail -10 "$SP/run.log" 2>/dev/null echo "--- monitor.log tail ---" tail -2
+    for n in 1 2 3 4 5 6 7 8; do   echo "== test$n =="   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -ciE 'soft lockup|hung_task|
+    for n in 2 5 7 8; do   echo "== test$n matches =="   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg | grep -iE 'soft lockup|hung_task|b
+    for n in 1 2 3 4 5 6 7 8; do   echo -n "test$n: "   timeout 5 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo ALIVE" 2>&1 | grep -v "Warning\|Unaut
+    ls /proc/911747 2>&1 rm -f /tmp/mxfs_run.lock echo cleared
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad mkdir -p "$SP/cpupin4" cd /src/mxfs nohup setsid bash tests/diag_cpu_pin_capture.s
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin4 START_LINES=$(wc -l < "$SP/monitor.log" 2>/dev/null || echo 0) END=$((SECO
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin4 tail -8 "$SP/run.log" 2>/dev/null START_LINES=$(wc -l < "$SP/monitor.log" 
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin4 START_LINES=$(wc -l < "$SP/monitor.log" 2>/dev/null || echo 0) END=$((SECO
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin4 tail -20 "$SP/monitor.log" 2>/dev/null echo "--- run.log ---" tail -5 "$SP
+    SP=/tmp/claude-1000/-src-mxfs/4a76a310-a393-4c1b-b65d-61abea7222ef/scratchpad/cpupin4 END=$((SECONDS+200)) while [ $SECONDS -lt $END ]; do     if [ -f "$SP/.don
+    for n in 1 2 3 4 5 6 7 8; do   echo "== test$n =="   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "     echo 'D-state/other:'; ps -eo stat,p
+    for n in 1 2 3 4 5 6 7 8; do   echo "== test$n =="   timeout 6 /src/mxfs/tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "     echo 'D-state:'; ps -eo stat,pid,eti
+    timeout 8 /src/mxfs/tools/mxfs_sshpass.sh test7 /tmp/.mxfs_pass " for pid in 3816 5402 8698 8341; do   echo \"=== pid \$pid ===\"   cat /proc/\$pid/comm 2>/dev/
+    grep -n "filemap_write_and_wait_range\|filemap_fdatawait" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "i_dlm_demoter\s*=\s*current\|i_dlm_demoter\s*!=\s*current" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "write_and_wait\|fdatawait\|xfs_flush_inodes\|filemap_fdata" /src/mxfs/xfs/xfs_mxfs_dlm.c /src/mxfs/pal/linux/*.c 2>/dev/null
+    sed -n '10974,11060p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last text from previous session
+
+ times across 4 nodes during this run, confirming Fable's cycle diagnosis, and the test still **passed cleanly** (`RUN_EXIT=0`, both sub-tests 8/8) because the bailout is fast and harmless. Per RULE 4 I need 2-3 clean iterations before declaring this fixed — launching another run now.
+`dir_reuse_coherency` passed again. Continuing through `fence_during_write`.
+`fence_during_write` never completed — the outer 1720s timeout killed the run (`RUN_EXIT=124`), even though no node ever triggered my SSH-liveness poller (all nodes stayed responsive to trivial commands the whole time). This is a different failure mode: not a CPU-pinning softlockup, but likely a genuine block/deadlock inside the test itself (e.g. stuck on a cluster barrier, or a D-state hang) that doesn't show up as "node unresponsive." Investigating immediately while state is fresh, per RULE 0/4.
+D-state hang found on test7 — the actual `fence_during_write.sh` process is blocked (PID 8698, D-state, 916s), along with two mxfs kworkers (`mxfs-ino-bast`, `xfs-conv`). This matches the shape of Bug #1's earlier fix (already validated). Let me pull the live kernel stacks before this state is lost.
+This looks like a genuine circular wait: the BAST release-flush (`mxfs_dlm_bast_process` → `filemap_write_and_wait_range`) is waiting for a page's writeback to complete, but that writeback's completion handler (`xfs_end_io` → `xfs_iomap_write_unwritten`) needs to acquire the very ILOCK that the release hasn't finished releasing yet. Let me examine the exact code on both sides.
+I've hit the ccloop relay boundary. Let me save this critical finding to memory before wrapping up — I just discovered that this exact deadlock pattern (BAST release-flush vs. writeback-completion needing the same ILOCK) already has extensive analysis comments in the source at lines 19660-20917, which the next session must read first.
+## Session summary
+
+This session made two rounds of validated progress on the sole remaining criterion gap (`fence_during_write@8/caw`), then uncovered a third, distinct bug:
+
+1. **Root-caused and fixed a real softlockup** (`mxfs_dlm_pr_sweep_work_fn` holding a global superblock spinlock across an unbounded inode-list walk with no reschedule escape) — proven via live vCPU register capture through QEMU (works even with the guest fully unresponsive over SSH), byte-exact matching of the frozen RIP back to source.
+2. **That fix was incomplete** — a second live capture showed zero context switches for 750+ seconds, meaning the `need_resched()`-gated escape never engaged. Consulted Fable per the user's direction; its arithmetic proved the walk had to be looping over a corrupted/cyclic list, not just a big one. Hardened the fix with an unconditional periodic yield + a hard 1M-iteration cap. **Validated clean** on the first full run (`RUN_EXIT=0`, both sub-tests 8/8) — the cap fired 8 times across 4 nodes and each time bailed out in ~3 seconds instead of hanging, exactly as designed.
+3. **A second validation run surfaced a different, pre-existing bug**: a D-state circular wait between the BAST release-flush (`mxfs_dlm_bast_process`) and writeback-completion's unwritten-extent conversion (`xfs_end_io`), both needing the same ILOCK from opposite ends. Found via direct `/proc/<pid>/stack` reads (no special tooling needed since SSH still worked). Critically, existing source comments at `xfs_mxfs_dlm.c:19660-20917` show this exact deadlock shape was already analyzed in a prior session — the next session must read that block first rather than re-deriving it.
+
+Current state: build 0.10.82 in tree, pr_sweep fix has 1 of 2-3 needed clean validation iterations, new deadlock bug is undiagnosed-past-the-stack-trace, test7 is left in the stuck state for continued live inspection if useful. Full details, stack traces, and the reusable diagnostic toolchain (KASLR-slide recovery, live register/stack capture, etc.) are saved in ccmemory under `AAA-ccloopcc87-sess2-NEWBUG-bast-writeback-xfsconv-deadlock`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6614aa96-ece2-49ed-9628-412444b99d7d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6614aa96-ece2-49ed-9628-412444b99d7d, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `0368f570-bd7f-4fcf-955c-ad1c1a807ad3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3.jsonl`
+- approx context at last assistant turn: 499735 tokens
+- tools used: Bash×173 Read×36 Edit×19 mcp__ccmemory__memory_write×10 mcp__ccmemory__memory_get×6 ToolSearch×4 TaskStop×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null
+    while ! grep -qE "TOTAL" /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null; do sleep 45; done; cat /tmp/claude-
+    cat /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null
+    while ! grep -qE "TOTAL" /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null; do sleep 60; done; cat /tmp/claude-
+    cat /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null
+    cd /src/mxfs; echo "=== drc process? ==="; pgrep -af "drc_reliability|run.sh 4 tcp" | head; echo "=== nodes ==="; for k in 1 2 3 4; do timeout 8 tools/mxfs_sshp
+    while ! grep -qE "TOTAL" /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null; do sleep 60; done; cat /tmp/claude-
+    cat /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmateitc2.output 2>/dev/null
+    cd /src/mxfs; grep -rn "b_mxfs_relepoch =" xfs/ pal/ | grep -v backup | head -20
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 260 scripts/ccloop_reset.sh 4 >/dev/null 2>&1; echo "reset done"; timeout 900 ./run.sh 2 tcp 2>&1 | grep -E "  (PASS|FAIL|PENDING)  " | so
+    while [ "$(grep -cE '  (PASS|FAIL|PENDING)  ' /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/babh2fykk.output 2>/dev/null)" -lt 15 ]; do 
+    cd /src/mxfs; grep -n "int mxfs_dir_relepoch_reread\|module_param.*dir_relepoch_reread" xfs/xfs_mxfs_dlm.c xfs/libxfs/*.c 2>/dev/null | head; echo "=== check it
+    cd /src/mxfs; timeout 2000 scripts/drc_reliability.sh 4 6 "dir_relepoch_reread=1" 2>&1 | grep -E "RUN [0-9]|TOTAL" | sed 's/FACES.*//'
+    while ! grep -qE "TOTAL" /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmmco2u6e.output 2>/dev/null; do sleep 50; done; cat /tmp/claude-
+    cat /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmmco2u6e.output 2>/dev/null
+    while ! grep -qE "TOTAL" /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmmco2u6e.output 2>/dev/null; do sleep 60; done; cat /tmp/claude-
+    cat /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmmco2u6e.output 2>/dev/null; echo "=== relepoch_reread firing? ==="; timeout 12 /src/
+    while ! grep -qE "TOTAL" /tmp/claude-1000/-src-mxfs/0368f570-bd7f-4fcf-955c-ad1c1a807ad3/tasks/bmmco2u6e.output 2>/dev/null; do sleep 60; done; cat /tmp/claude-
+    cd /src/mxfs; echo "=== build identity ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== relepoch-evict reverted? (should find the revert comment, 
+
+## Last text from previous session
+
+e per GPT's refined roadmap. Step 1: make `b_mxfs_relepoch` reliable by stamping it on local MODIFY (not just read). Let me check the current read-side stamp condition and the modify site:
+There's ALREADY a relepoch-based re-read at the buffer-USE site (P50-RELEPOCH-REREAD, xfs_da_btree.c:4041) — exactly GPT's Step 4, WITH the correct undestaged keep-guard (unlike the evict). It's gated behind `mxfs_dir_relepoch_reread`. Let me check its default:
+`mxfs_dir_relepoch_reread=0` (default OFF; sess50 found it inert because relepoch==i_dlm_epoch at every read — but that may be because i_dlm_epoch doesn't bump on the storm's fast-path handoffs). This is GPT's Step 4 with the correct undestaged guard, already coded. Let me A/B test enabling it:
+This runs ~50 min. I must not rebuild while it runs (would contaminate). Let me wait:
+A/B still running; P50-RELEPOCH-REREAD not firing yet (consistent with sess50's "inert" — i_dlm_epoch likely doesn't bump on the storm's fast-path handoffs, so relepoch never goes stale). Let me wait for the result:
+`dir_relepoch_reread=1`: 4/6 and **P50-RELEPOCH-REREAD fired 0 times** — confirmed INERT. This is decisive: `b_mxfs_relepoch` is never < `i_dlm_epoch` at read, meaning **`i_dlm_epoch` does NOT bump on the storm dir's fast-path cached-grant re-adoption handoff**. So BOTH coherence signals (master dir_epoch propagation AND local i_dlm_epoch) fail to detect the handoff → the acquire-reload/re-read never fires → stale base RMW. That's the precise next-fix target. Let me record this refined root and finalize:
+Let me verify the tree is in the clean, verified final state (no half-applied edits):
+The tree is clean at **9762C6C6**, builds without errors, relepoch-evict fully reverted, and the verified fixes are in place. I've reached the relay boundary.
+
+## Session summary
+
+**Major breakthrough (verified):** Fixed the ~50-session `cache_coherency` deterministic-shutdown blocker. **`./run.sh 2 tcp` = 17/17 PASS** at the tree default (force_block=1), verified 3× including full-suite runs.
+
+**Root cause & fix:** Multinode dir data blocks are undestaged (destage only at DLM release). A freshly-created/reused dir block0 whose disk image is a freed prior owner's content or garbage had its `XBF_DONE` cleared by an evict/reload site, then `xfs_da_read_buf` cold-read the stale disk → `xfs_dir3_block_verify` shutdown. Fix = an **undestaged cold-read salvage** in `xfs_da_btree.c`: restore `XBF_DONE` on an undestaged, self-owned, non-stale dir buffer instead of cold-reading. Also gated benign `dump_stack()` probes that were tripping `soak`.
+
+**Column status (build 9762C6C6):**
+- **2/tcp = 17/17 ✓ SOLID**
+- 4/tcp: cache_coherency now 4/4 ✓; blocked by `dir_reuse_coherency` ~70% flaky (+ its shutdown face cascades to 3 tests)
+- 8/tcp, 1/tcp: unrun
+
+**dir_reuse lost-update — root fully PROVEN this session** (100/400 dirents durably clobbered via stale-base addname RMW; `P29-DATAWRITE CLOBBER=0` rules out stale-write). BOTH cross-node-handoff coherence signals fail for the storm dir: (1) the DLM master `dir_epoch` is sent correctly (→190) but the local granted-lock mirror stores 0/stale → all epoch gates disabled; (2) local `i_dlm_epoch` doesn't bump on the storm's fast-path cached-grant re-adoption (`P50-RELEPOCH-REREAD` fired 0×). **Next fix (documented):** make the inode-EX cached-grant re-adoption bump `i_dlm_epoch` + reload dir blocks + refresh the local `dir_epoch` (analogous to the AG path's `pag_dlm_cached` reclaim), then enable the already-coded `mxfs_dir_relepoch_reread`.
+
+**Refuted (with evidence, don't repeat):** broad owned_ex read-salvage (2/6, reverted), relepoch-EVICT (3/8, reverted — evicts current work), query-max epoch (~4/6), dir_tenure_evict/stale_bypass (4/5), force_coherent+tenure_evict (3/6). GPT-5.5 consulted; full architectural roadmap recorded.
+
+**Criterion NOT met** — dir_reuse still blocks 4/8, so the marker is not written. All findings are in the `sess5-ccloop-*` memories for the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

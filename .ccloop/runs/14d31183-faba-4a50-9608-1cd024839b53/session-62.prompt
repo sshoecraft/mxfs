@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 62 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 61
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `928bf30d-839b-4586-83fb-9239fac43ab9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/928bf30d-839b-4586-83fb-9239fac43ab9.jsonl`
+- approx context at last assistant turn: 257084 tokens
+- tools used: Bash×47 Read×24 Edit×7 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|warning:.*xfs_buf_submit_bio|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modin
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; W=""; for h in $(seq 1 16); do st=$(timeout 8 "$SSH" test$h "$P" "k=\$(grep -c '^mxfs ' /proc/modules); 
+    export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16); do $VIRSH st
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for h in $(seq 1 16); do timeout 6 "$SSH" test$h "$P" "dmesg -C" 2>/dev/null & done; wait; echo clea
+    f=/tmp/zsl61c.log; for i in $(seq 1 40); do if grep -qiE "fs_silent=|iters_completed" "$f" 2>/dev/null; then break; fi; sleep 12; done; echo "=== summary ==="; 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P61-CHOKEPOINT-SKIP-BMBT counts (owner=131) ==="; for h in $(seq 1 16); do n=$(timeout 8 "
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P61-BMBTSCAN ino=131 if_nextents>=17 (the 18-grower's release) ==="; for h in $(seq 1 16);
+    cd /src/mxfs; grep -nE "xfs_bmap_add_extent_hole_real|xfs_iext_insert|xfs_btree_insert|XFS_IFORK_PREALLOC|ifp->if_nextents|mxfs" xfs/libxfs/xfs_bmap.c | grep -i
+    cd /src/mxfs; grep -nE "mxfs_dlm_reload_inode|xfs_iread_extents|xfs_idestroy_fork|need_iread|if_nextents|XFS_IFORK_Q|xfs_iext_destroy|invalidate.*bmbt|evict_bmb
+    cd /src/mxfs; grep -nE "^mxfs_dlm_reload_inode|^static.*mxfs_dlm_reload_inode|void.*mxfs_dlm_reload_inode|xfs_iread_extents|xfs_idestroy_fork|xfs_iext_destroy|i
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== distinct leaf0 daddrs for ino=131 (RELAUDIT) across all nodes ==="; for h in $(seq 1 16); 
+    cd /src/mxfs; grep -nE "xfs_bmap_add_extent_hole_real|^xfs_bmap_add_extent|bma->cur|cur == NULL|cur != NULL|xfs_btree_insert|if_nextents\+\+|xfs_bmap_needs_btre
+    cd /src/mxfs; grep -nE "STATIC int|^static int|^xfs_bmap_add_extent_hole_real|xfs_bmap_add_extent_hole_real\(" xfs/libxfs/xfs_bmap.c | grep -iE "hole_real|hole_
+    cd /src/mxfs; echo "=== XBF_DONE clears in xfs_buf.c / dlm.c / da_btree (read path) ==="; grep -rnE "&= ~\(?.*XBF_DONE|b_flags &= ~XBF_DONE|~\(XBF_DONE" pal/lin
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|warning:.*xfs_bmbt_buf_ops|warning:.*uncheckpointed|LD \[M\].*mxfs.ko" | head; echo "rc=$
+    export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16); do $VIRSH st
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for h in $(seq 1 16); do timeout 6 "$SSH" test$h "$P" "dmesg -C" 2>/dev/null & done; wait; echo clea
+    f=/tmp/zsl61d.log; for i in $(seq 1 40); do if grep -qiE "fs_silent=|iters_completed" "$f" 2>/dev/null; then break; fi; sleep 12; done; echo "=== summary ==="; 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P61-BIO-OVER-LOGGED-BMBT counts (did the guard fire?) ==="; tot=0; for h in $(seq 1 16); d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== run d: P61-CHOKEPOINT-SKIP-BMBT total ==="; t=0; for h in $(seq 1 16); do n=$(timeout 8 "$
+
+## Last text from previous session
+
+re mods — but it's **scoped to AG-meta buffers (bnobt/cntbt/agf/agi/inobt) and does NOT cover `xfs_bmbt_buf_ops`**. That's the exact revert vector for our bmbt leaf: insert makes leaf=18 (dirty), an invalidation clears XBF_DONE, a re-read DMAs disk=17 over b_addr → iext=18/leaf=17 divergence. Let me read the guard body to extend it to bmbt.
+This is the vector: the sess110 guard protects AG-meta buffers from a plain-bio read clobbering uncheckpointed in-core mods, but **never covers `xfs_bmbt_buf_ops`**. A bmbt leaf can only carry *our* uncheckpointed mods if we hold the dir EX (in-core authoritative, no peer can modify) — so unlike the AGI/ifree case that forced the sess122 revert, refusing the read for bmbt is safe. I'll add a bmbt-scoped guard that both logs (proof) and completes in-place from in-core (fix).
+Now build with the bmbt read-over-logged guard.
+Built `BA1771B9`. Reset cluster and run the storm.
+Still 1600. Check whether the new guard fired and whether the mismatch changed.
+Guard fired **0×** — the plain-bio read-over-logged is NOT the revert vector (hypothesis refuted, RULE 4 step 2a). And the proximate state varies per run (run c: in-core iext=18/leaf=17 divergence; run d: in-core consistent but disk leaf lags). The common root: iext tree and bmbt leaf desync. Let me record this hard-won state to memory before continuing, and check the chokepoint-skip count for run d.
+Now I have a clear ORDERING framing that fits all runs: **the dinode (di_nextents=N) reaches the shared disk before the matching bmbt leaf (still N-1), and a reloading peer reads the inconsistent pair → shutdown.** Run d proves it: dir grew to 16, di=16 flushed, but leaf=16 was never written (max=15) before the cascade. Let me record this comprehensively to memory before continuing.
+I've reached the relay boundary. Brief summary of session 61:
+
+## Session 61 — zero_silent_loss: root proven deeper, 2 fix-hypotheses refuted (criterion still FAIL)
+
+**Marker NOT written** — `zero_silent_loss` (and 3 other criteria) still failing. Did not falsely escape the loop.
+
+### What was proven (RULE 4, all instrumented)
+The shutdown cascade root is now precisely characterized: for the shared storm dir (ino 131, **single stable bmbt leaf, no daddr aliasing**), the on-disk **dinode `di_nextents` reaches N while the on-disk bmbt leaf only reaches N-1**. A reloading peer reads di=N, walks leaf=N-1 → `ir.loaded != if_nextents` (xfs_bmap.c:1286) → EFSCORRUPTED → FS shutdown → the whole 16-node storm cascades = the "1600 silent" count (blast radius of one shutdown).
+- **Run d** (build BA1771B9): dir grew to 16, di=16 was flushed but **no node ever wrote leaf=16** (P60-BMBTWRITE max=15) — the dinode is published to the coherent SCST store *ahead of* the bmbt leaf.
+- **Run c** (B973EC61): the grower had in-core `iext=18 / leaf=17` and flushed that inconsistent pair.
+
+### Refuted (do NOT retry)
+1. **NL-skip at the bio chokepoint** — P61-CHOKEPOINT-SKIP fired 0× on clean clusters; all leaf writes were mode=5 (EX). The sess60 mode=0 writes were a contaminated-cluster artifact.
+2. **bmbt read-over-logged guard** (bmbt analogue of the sess110 AG-meta guard) — P61-BIO-OVER-LOGGED-BMBT fired 0×; the plain-bio read is not the revert vector.
+
+Both guards are harmless and left in the tree. Build **BA1771B9** carries 3 always-on low-volume probes (P61-BMBTSCAN, P61-CHOKEPOINT-SKIP-BMBT, P61-BIO-OVER-LOGGED-BMBT).
+
+### Next session
+The fix direction is **writer-side ordering**: for a BTREE-format dir, the matching bmbt leaf must be durable *before/atomically-with* the dinode's `di_nextents` (it currently isn't — the inode cluster is published first). Candidates and the unpinned run-c iext/leaf in-core desync (suspect: the ILOCK-drop-across-CAW-poll alloc path) are detailed in memory `sess61-zsl-root-di-ahead-of-bmbt-leaf-ordering`.
+
+**Cluster note:** the last storm re-wedged the nodes — next session must `virsh -c qemu:///system destroy+start` all 16 (~38s recovery) before re-running.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

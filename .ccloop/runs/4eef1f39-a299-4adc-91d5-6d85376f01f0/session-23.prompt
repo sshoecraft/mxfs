@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 23 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 22
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `b66d5d59-f41d-4085-99d1-5fb105405364`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b66d5d59-f41d-4085-99d1-5fb105405364.jsonl`
+- approx context at last assistant turn: 263036 tokens
+- tools used: Bash×36 Read×20 Edit×11 mcp__ccmemory__memory_get×7 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2 AskUserQuestion×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; done echo "=== cache_coheren
+    cd /src/mxfs echo "=== memories created in last ~1.5 days (yesterday's work) ===" find .ccmemory -name '*.md' -mtime -2 -printf '%TY-%Tm-%Td %TH:%TM  %p\n' 2>/d
+    cd /src/mxfs echo "=== clean power-cycle + reset4 (P124 build 77223A96) ===" for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/de
+    cd /src/mxfs echo "=== grep tree + ccmemory for Grok / multi-model rearch ===" grep -rliE 'grok' . --include='*.md' 2>/dev/null | head -20 echo "--- any 'grok' 
+    cd /src/mxfs for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; done echo "=== cache_coheren
+    cd /src/mxfs; sleep 200; tail -20 /tmp/claude-1000/-src-mxfs/b66d5d59-f41d-4085-99d1-5fb105405364/tasks/bkjbu9ykm.output 2>/dev/null
+    cd /src/mxfs echo "=== merge_dirs fua_disable early-return present? ===" grep -n 'mxfs_fua_disable' xfs/xfs_inode.c | head echo "=== AG release drain functions 
+    cd /src/mxfs echo "=== P124 run result ==="; grep -E 'RESULT:|passed=|^\s+- test' /tmp/claude-1000/-src-mxfs/b66d5d59-f41d-4085-99d1-5fb105405364/tasks/bkjbu9yk
+    cd /src/mxfs echo "=== ag_held / ag_ex_count / node-bit / on-disk holder helpers ===" grep -rnE 'mxfs_v5_dlm_ag_held|mxfs_v5_dlm_ag_ex_count|ag_holds_ondisk|nod
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|LD \[M\]' | head; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done sleep 3 for h in test1 test2 test3 test4; do s
+    cd /src/mxfs for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; done timeout 600 ./tests/cri
+    cd /src/mxfs; sleep 280; cat /tmp/claude-1000/-src-mxfs/b66d5d59-f41d-4085-99d1-5fb105405364/tasks/bq1ow9fgj.output 2>/dev/null | grep -E 'RESULT:|passed=' | ta
+    cd /src/mxfs echo "=== run output so far ==="; grep -E 'RESULT:|passed=|test_' /tmp/claude-1000/-src-mxfs/b66d5d59-f41d-4085-99d1-5fb105405364/tasks/bq1ow9fgj.o
+    cd /src/mxfs echo "=== mxfs_dlm_caw_held: disk read or cached? ===" sed -n '/^int mxfs_dlm_caw_held\|^bool mxfs_dlm_caw_held\|mxfs_dlm_caw_held(struct/,/^}/p' d
+    cd /src/mxfs echo "=== test4: coldread/discard + P124 + fastacq timeline (agno=3 focus) ===" timeout 10 bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "dmesg 
+    cd /src/mxfs echo "=== all coldread_discard call sites ===" grep -n 'mxfs_ag_meta_coldread_discard(pag)' xfs/xfs_mxfs_dlm.c echo "=== any forward decl / header 
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|LD \[M\]' | head; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; grep -rn 'mxfs_ag_meta_coldread_discard(struct xfs_perag \*pag)' xfs/ ; grep -rn 'void mxfs_ag_meta_coldread_discard' xfs/
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|LD \[M\]' | head; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+grant. 
+
+The architected fix (Inv-2 on the genuine peer-handoff path): call `coldread_discard` on the fresh grant, and on a genuine peer handoff discard in-AIL bnobt/cntbt **unconditionally** (Inv-1 guarantees no legit this-node-ahead AG-meta after a peer held it). Let me get the exact function signature:
+I've hit the relay boundary. Let me land the actual fix edit now so the next session can build and test directly, leaving the tree in a ready state. The change: add a `fresh_peer` flag to `coldread_discard` so the genuine peer-handoff path discards in-AIL bnobt/cntbt unconditionally, and call it on the fresh CAW-grant path.
+I must complete this edit set so the tree builds. Updating the two in-AIL branches and all call sites:
+Now update the 3 reclaim call sites (pass `false`) and add the call on the fresh-grant path. The reclaim sites:
+Now add the fresh-grant call. I need the point after `pag_dlm_lock` is released on the fresh path. Let me read just past the P102-ACQ block:
+I'm at the relay boundary. The tree is in a consistent, compiling state (signature + all 3 reclaim sites pass `false`, in-AIL branches honor `fresh_peer`). The one remaining edit — adding the `coldread_discard(pag, true)` call on the fresh CAW-grant path — needs careful placement *after* `pag_dlm_lock` is released, so I'll leave that as the first step for the next session rather than guess it at the boundary. Let me verify it builds:
+There's a forward declaration I need to update (conflicting types). Let me find and fix it so the tree builds clean:
+Tree builds clean (`C2AD9E9D`). Let me record the precise finding + the one remaining edit so the next session resumes exactly here:
+Relay boundary reached. Summary of this session.
+
+## What I did
+
+**Reset course, per your direction.** I started by drifting into another write-side band-aid (P124 interlock) — you stopped me three times to point out we'd already *re-architected* cache coherency yesterday. You were right on every point:
+- Found and read the actual re-architecture: the **three-invariant fence design** (Inv-1 release=checkpoint-fence, Inv-2 acquire=invalidation-fence, Inv-3 stale-skip=fatal) — the Grok+Gemini+Claude collaboration recorded (mis-attributed to "GPT") in `sess96_gpt_fix_design`, driven by `CACHE_COHERENCY_ISSUE.md`. Corrected the provenance and recorded the strategic gap in memory.
+- Established that the fence was implemented for **dir locks** (worked) but **never for the AG/allocation locks** — which is the bnobt double-free that's been the blocker.
+
+**Then proved the exact root (RULE-4) and started the real fix:**
+- Added **P125-AG-DIVERGE** (permanent exclusion assertion). It fired **0×** → refuted the exclusion-divergence theory; we *do* hold the AG on-disk when the clobber happens.
+- Decisive test4 timeline proved it's an **Inv-2 acquire-invalidation failure**: the genuinely-fresh CAW-grant path bumps the epoch and re-reads agf/agi but **never calls `coldread_discard`**, so stale in-AIL bnobt/cntbt buffers survive a peer handoff → xfsaild reverts the peer's durable allocation (`P124-ALLOC-REVERT`, nr=2 over coherent disk_nr=1).
+- Confirmed the generalized P124 suppression was *harmful* (0/4 + new corruption shutdown) — reverted it to log-only.
+
+**Fix in progress — builds clean (`C2AD9E9D`), tree consistent:**
+- `mxfs_ag_meta_coldread_discard` gained a `fresh_peer` arg; on a genuine peer handoff it now discards in-AIL bnobt/cntbt unconditionally (Inv-1 guarantees no legit this-node-ahead AG-meta there). The 3 reclaim sites pass `false`.
+
+## What's left (one edit, recorded in memory `sess22-ccloop-inv2-fresh-acquire-coldread-hole`)
+Add `mxfs_ag_meta_coldread_discard(pag, true);` on the fresh CAW-grant path *after* `pag_dlm_lock` is released, then power-cycle + `reset4` + run `cache_coherency`. Expect P124 → 0 and no double-free shutdown.
+
+**Criteria NOT met — marker not written.** `cache_coherency` still fails; the architected Inv-2 fix is one edit + one verify run from being testable.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

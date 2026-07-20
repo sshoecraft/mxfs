@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 18 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 17
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `c7d6d763-0165-4901-8a9d-a7e90c9a375e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c7d6d763-0165-4901-8a9d-a7e90c9a375e.jsonl`
+- approx context at last assistant turn: 257330 tokens
+- tools used: Bash×72 Read×24 Edit×11 mcp__ccmemory__memory_write×3 ToolSearch×2 ScheduleWakeup×1 mcp__ask_gemini__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_trans_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sleep 280; kill -0 2551268 2>/dev/null && echo RUNNING || echo DONE; grep -aE 'RESULT:' /tmp/cc_criterion.out 2>/dev/null | grep -vE 'Warning|Unau
+    cd /src/mxfs; kill -0 2551268 2>/dev/null && echo "RUNNING" || echo "DONE"; echo "--- cc_criterion.out (raw) ---"; cat /tmp/cc_criterion.out 2>/dev/null; echo "
+    cd /src/mxfs; while kill -0 2551268 2>/dev/null; do sleep 15; done; echo "=== cache_coherency.sh COMPLETE ==="; python3 -c "import json;d=json.load(open('.crite
+    cd /src/mxfs; kill -0 2551268 2>/dev/null && echo "STILL RUNNING" || echo "DONE"; python3 -c "import json;d=json.load(open('.criteria_results.json'));c=d['cache
+    cd /src/mxfs; echo "=== criterion process tree ==="; ps -o pid,etime,cmd -g $(ps -o pgid= -p 2551268 2>/dev/null | tr -d ' ') 2>/dev/null | grep -E 'run_tests|c
+    cd /src/mxfs; kill 2551268 2>/dev/null; pkill -f 'run_tests.sh' 2>/dev/null; pkill -f cache_coherency.sh 2>/dev/null; sleep 2 echo "=== test2 dmesg (why unmount
+    cd /src/mxfs; echo "=== test2 dmesg (why unmounted) ==="; timeout 10 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -aiE 'shutdown|EFSCORRUPT|fe
+    cd /src/mxfs; timeout 360 bash tests/reset4.sh 4 2>&1 | grep -vE 'Warning|Unauthorized|disconnect' | tail -3; echo "=== immediate mount check ==="; for n in tes
+    cd /src/mxfs; for r in 1 2 3; do   for n in test1 test2 test3 test4; do timeout 6 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C >/dev/null 2>&1" >/d
+    cd /src/mxfs; until ! pgrep -f 'run_tests.sh.*rename_visibility' >/dev/null 2>&1 && ! pgrep -f 'bzszqa2b0' >/dev/null 2>&1; do sleep 10; done; cat /tmp/claude-1
+    cd /src/mxfs; for r in 1 2 3 4; do   for n in test1 test2 test3 test4; do timeout 6 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C >/dev/null 2>&1" >
+    cd /src/mxfs; until ! pgrep -f 'bovdeg3ya\|run_tests.sh.*rename' >/dev/null 2>&1; do sleep 10; done; sleep 2; cat /tmp/claude-1000/-src-mxfs/c7d6d763-0165-4901-
+    cd /src/mxfs; for r in 1 2 3 4; do [ -f /tmp/rv_$r.out ] || continue; echo -n "RUN $r: "; grep -aoE 'PASS: [0-9]|FAIL: [0-9]' /tmp/rv_$r.out | tr '\n' ' '; grep
+    cd /src/mxfs; echo "=== failing content asserts from node logs ==="; find /tmp/rv_fail_1 -name 'node*.log' 2>/dev/null | head -4 | while read f; do echo "--- $f
+    cd /src/mxfs; echo "=== gen bump on free ==="; grep -n "i_generation" xfs/xfs_inode_util.c | head; echo "--- context ---"; sed -n '795,812p' xfs/xfs_inode_util.
+    cd /src/mxfs; echo "=== i_dlm_mode field + neighbors in struct xfs_inode ==="; grep -n "i_dlm_mode\|i_dlm_state\|i_dlm_lock\|i_dlm_dir_gen\|uint8_t.*i_dlm\|stru
+    cd /src/mxfs; echo "=== site 4670 context ==="; sed -n '4660,4675p' xfs/xfs_mxfs_dlm.c; echo "=== grant_local_new ==="; sed -n '4719,4735p' xfs/xfs_mxfs_dlm.c; 
+    cd /src/mxfs; grep -rn "i_dlm_mode = MXFS_LOCK_NL\|i_dlm_mode = 0\|i_dlm_dir_gen = 0\|spin_lock_init(&.*i_dlm_lock\|init.*i_dlm" xfs/*.c pal/*.c 2>/dev/null | h
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|warning: implicit' | head -15; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcver
+    cd /src/mxfs; while pgrep -f 'make modules' >/dev/null 2>&1; do sleep 8; done; cat /tmp/claude-1000/-src-mxfs/c7d6d763-0165-4901-8a9d-a7e90c9a375e/tasks/b14t1fk
+
+## Last text from previous session
+
+ure changed → block), with no gen comparison.
+
+Let me implement it. First, find the inode struct DLM fields and the EX-grant sites:
+The ACQ-FRESH path (4332) stamps mode on a genuine acquire. Let me examine the other grant sites and the modify chokepoint to place the epoch stamps correctly:
+Both 4332 and 4432 use `if (mode > ip->i_dlm_mode) ip->i_dlm_mode = mode;` — clean transition chokepoints. Let me check the 3rd grant site, grant_local_new, and where DLM fields are initialized:
+All 4 grant sites identified. Let me find where DLM inode fields are initialized:
+Line 5012 is the per-inode DLM init. Let me read it to add the field initialization:
+Gemini's design is sound and well-contained. I'll implement **Layer 1 (the epoch lineage guard)** — it directly blocks the ghost-flush that corrupts the shared on-disk inode, is purely additive (only ever *skips* a flush → ISTALE_CAW reload, never adds a write), and is safe under ILOCK. Let me implement all pieces.
+
+First, the per-inode epoch fields:
+Now the global epoch counter in xfs_mxfs_dlm.c:
+Now init the fields in `mxfs_dlm_inode_init`:
+At the relay boundary — let me complete the core edits so the fix is whole and the tree builds. Stamp grant_seq at all three EX-acquire transition sites (identical code, all are grant chokepoints):
+Now grant_local_new (new-inode EX grant):
+Now the dirty-seq stamp in `xfs_trans_log_inode`:
+Now the final piece — the epoch guard in `xfs_iflush_int`, right after the existing sess119 EX check:
+All edits complete. Let me build to confirm it compiles:
+Build clean (exit 0, no errors), new srcversion `C3B5DFE4`. The Gemini DLM-epoch guard is fully implemented and compiles. Let me record state for the relay:
+Reached the relay boundary with the tree in a clean, buildable state. Summary of this session's work:
+
+## Session summary — cache_coherency progress (build `C3B5DFE4`)
+
+**Reconciled state:** the tree is at sess111-level + sess116 fixes + ccloop sess16; sess116 had reached cache_coherency 3/4 with only `cross_write_read` failing.
+
+**FIX A (verified, KEEP) — cross_write_read `.md5`-sidecar empty-read:**
+- RULE-4 proven root: `mxfs_dlm_bast_process` set `i_dlm_mode = NL` *before* the reg-durable di_size flush, so the sess119 P119 guard (`flush only while EX`) silently skipped writing di_size → peer FUA-read di_size=0 → empty content.
+- Fix: per-inode `MXFS_IF_DLM_RELFLUSH` flag authorizes the sanctioned release-flush past the P119 guard for the inode being released.
+- **Verified: on a clean freshly-power-cycled 4-node cluster, all 4 cache_coherency sub-tests PASS.**
+
+**Key infra lesson:** cache_coherency is flaky on a *contaminated* cluster (nodes silently drop their mounts after repeated runs → false data-loss signals). Always full `virsh destroy+start` ALL 4 nodes before trusting any result.
+
+**FIX B (built, NOT yet tested) — rename_visibility flaky empty-content:**
+- After FIX A, rename_visibility is flaky (passes slow, fails 80–120/240 fast). Proven root via `P-IRESURRECT`: bidirectional inode-reuse ghost where **xfsaild flushes a freed in-core inode (mode=0) over a peer's live on-disk inode** — both directions hold `dlm_mode=EX`, so the sess119 P119 guard misses them.
+- Per RULE 5, consulted Gemini → implemented the **DLM-epoch lineage guard**: stamp `i_mxfs_ex_grant_seq` on every EX-grant transition and `i_mxfs_dirty_seq` on every modify; in `xfs_iflush_int`, skip the flush when `dirty_seq != ex_grant_seq` (dirty state from a *previous* EX tenure = stale ghost). A legit local delete / new-inode flush runs in the same tenure → flushes normally. Logs `P17B-EPOCH-GHOST-SKIP`.
+- Build `C3B5DFE4` compiles clean (exit 0).
+
+**Next session:** power-cycle all 4 + reset4, deploy `C3B5DFE4`, run rename_visibility 5–10× to confirm the empty-content is gone (and `P17B-EPOCH-GHOST-SKIP` fires only on ghosts, not legit files), then run `cache_coherency.sh` and the full `verify_ship.sh` end-to-end.
+
+Criteria are **not yet met** (FIX B untested) — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

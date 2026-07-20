@@ -1,0 +1,150 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6ab2bfb8-15ff-4de2-8458-fcd8218ecd36/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6ab2bfb8-15ff-4de2-8458-fcd8218ecd36, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `66abf11e-24b7-4285-a723-75dad7c81722`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/66abf11e-24b7-4285-a723-75dad7c81722.jsonl`
+- approx context at last assistant turn: 846573 tokens
+- tools used: Bash×340 Edit×84 Read×74 Write×10
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/repro_rename_xnode.sh
+- /src/mxfs/tests/repro_rename_concurrent.sh
+- /src/mxfs/tests/reset4.sh
+- /src/mxfs/tests/char_rename.sh
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess39_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/tests/measure_rename.sh
+- /src/mxfs/tests/ondisk_check.sh
+- /src/mxfs/tests/repro_self_loss.sh
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/xfs/libxfs/xfs_ag.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_trans_ail.c
+- /src/mxfs/xfs/xfs_trans_priv.h
+- /src/mxfs/tools/mxfs_multinode_bench.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -iE 'RESULT:|passed=|FAIL]  test_rename|FAIL]  test_unlink|FAIL]  test_cross|PASS]  test_|EXIT=' /tmp/cc_bounded.log 2>/dev/null | tail -12; echo "=== json
+    grep -iE 'RESULT:|test_rename_visibility \(|test_unlink_visibility \(|test_cross_write_read \(|test_cross_visibility \(|passed=|EXIT=' /tmp/cc_bounded.log 2>/de
+    grep -iE 'RESULT:|passed=|EXIT=|test_.*\(4 nodes\)|FAIL|PASS:' /tmp/cc_bounded.log 2>/dev/null | tail -14; echo "=== json (updated?) ==="; python3 -c "import js
+    grep -iE 'RESULT:|passed=|EXIT=' /tmp/cc_bounded.log 2>/dev/null | tail; python3 -c "import json;d=json.load(open('/src/mxfs/.criteria_results.json'));print('js
+    cat /tmp/cc_bounded.log 2>/dev/null | grep -ivE 'Warning|Unauthorized|disconnect|^$' | tail -15; echo "---"; python3 -c "import json;d=json.load(open('/src/mxfs
+    grep -iE 'RESULT:|passed=|EXIT=|test_rename_vis|test_unlink|test_cross' /tmp/cc_bounded.log 2>/dev/null | tail -12; echo "---json---"; python3 -c "import json;d
+    cd /src/mxfs; pgrep -af cache_coherency >/dev/null 2>&1 && echo "criterion STILL running" || echo "criterion ended"; cat >> /home/steve/.claude/projects/-src-mx
+    cd /src/mxfs; echo "=== lib.sh bench vars ==="; grep -nE 'MXFS_BENCH_JSON|MXFS_REPO|MXFS_MODULE|MXFS_DEV|MXFS_MOUNT|MXFS_PASS|MXFS_SSH|MXFS_MKFS|MXFS_MOUNT_OPTS
+    cd /src/mxfs; grep -nE 'rsync|md5|find.*wc|wall|cksum|md5sum' bench/rsync_bench.sh | head -15; echo "=== jq available on nodes? + bench.json exists ==="; which 
+    cd /src/mxfs; ls -la tools/mxfs_multinode_bench.sh 2>/dev/null && echo "EXISTS" || echo "MISSING"; wc -l tools/mxfs_multinode_bench.sh 2>/dev/null
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess39_lessons.md <<'EOF'  ## sess39 CORRECTION: tools/mxfs_multinode_bench.sh ALREADY EXISTS
+    cd /src/mxfs; pgrep -af 'cache_coherency|run_tests' >/dev/null 2>&1 && echo "STILL running" || echo "ENDED"; echo "log:"; cat /tmp/cc_bounded.log 2>/dev/null | 
+    cd /src/mxfs; pkill -f 'cache_coherency.sh' 2>/dev/null; pkill -f 'run_tests.sh' 2>/dev/null; sleep 1; echo "killed criterion"; sed -i 's/^int mxfs_sync_iflush 
+    cd /src/mxfs; grep -n 'int mxfs_sync_iflush' xfs/xfs_mxfs_dlm.c | head -1; pgrep -af 'cache_coherency' >/dev/null 2>&1 && echo "criterion still running" || echo
+    cd /src/mxfs; cat >> /home/steve/.claude/projects/-src-mxfs/memory/sess39_lessons.md <<'EOF'  ## sess39 CAVEAT + easy diagnostic: full cache_coherency.sh did NO
+    cd /src/mxfs; pgrep -af 'cache_coherency|run_tests|mxfs_test' >/dev/null 2>&1 && echo "STILL running" || echo "ENDED"; python3 -c "import json;d=json.load(open(
+    cd /src/mxfs; perl -0pi -e 's/int mxfs_sync_iflush = 1;\t\/\* sess39: now BOUNDED \(2s cap\), default on \*\//int mxfs_sync_iflush;\t\/* sess39 DEFAULT OFF: who
+    cd /src/mxfs; rm -f xfs/xfs_mxfs_dlm.o; make modules 2>&1 | grep -ciE 'error:'; modinfo mxfs.ko|grep srcversion; cat >> /home/steve/.claude/projects/-src-mxfs/m
+    cd /src/mxfs; python3 - <<'PY' for f in ['/src/mxfs/CLAUDE.md','/home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md']:     s=open(f).read(); s=s.replace('`7
+    cd /src/mxfs; grep -rn 'mxfs_v5_dlm_get_node_slot' dlm/v5_mount.h include/ 2>/dev/null | grep -E 'int|decl' | head -2; grep -n 'xfs_ail_push_ag_sync\b' xfs/xfs_
+
+## Last text from previous session
+
+s; **ruled out ~8 mechanisms**; established **opposite-latency-sensitivity**.
+4. **Corrected two stale assumptions:** `tools/mxfs_multinode_bench.sh` already exists/works (just run `rsync_paired`); and documented that the full `cache_coherency.sh` may hang with `sync_iflush=1` — diagnosable instantly via the runtime param toggle.
+
+**Next session** (precise "START HERE" + caveats in `sess39_lessons.md`): reset; A/B the bounded `sync_iflush` on/off in the full criterion (find/fix the hang — likely narrow the push to the node's own AG); drive the ~6 residual rename fails to 0 (few empty + ~3 missing-dirents = dir-block coherence); run `rsync_paired` for its real ratio.
+
+Validated tooling in tree (`xfs_repair -n` envelope audit at offset 100704256, `reset4.sh`, `measure_rename.sh`, `test_rename_vis_dbg.sh`). The relay continues automatically with full transcript access.
+The criterion is **wedged in uninterruptible state** after ~22 min (past both timeouts that can't kill a D-state process) — this is the **documented cross-AG `xfsaild` deadlock** that whole-AIL `xfs_ail_push_all_sync` triggers under heavy unlink load. So the whole-AIL `sync_fs` push (even bounded) is **deadlock-prone** and must default OFF. Let me flip the source default to 0 and rebuild so the next session deploys a safe build.
+Build `B090AF8` (sync_iflush default OFF — safe). The cluster is wedged (D-state), so the next session must hard-reset (`reset4.sh`/`cluster_reset.sh` do virsh destroy+start) before deploying this safe build. Let me update refs and finalize.
+Critical safety fix made and documented. I've reached the genuine end of productive work (cluster wedged, context at 84%).
+
+**Criteria NOT met — marker unset (honest).**
+
+## Session 39 — final state
+
+**Major win + a critical late discovery:**
+- **Cross-node empty-content root-caused (di_size coherence) and a fix demonstrated** — `sync_fs` never iflushed inodes to their on-disk clusters; a bounded whole-AIL push in `sync_fs` cut **rename_visibility 15 → 6 fails at 27s**.
+- **CRITICAL caveat found at the end:** the whole-AIL `sync_fs` push (even bounded) **WEDGES** under the heavy `unlink_visibility` test — the documented **cross-AG `xfsaild` deadlock** (D-state, unkillable; needs node reboot). So I **flipped `sync_iflush` default OFF** and rebuilt → **build `B090AF8` (safe, NOT yet deployed — cluster is wedged)**. The di_size root cause and the rename 15→6 result still stand; only the *whole-AIL mechanism* is deadlock-prone — the fix must use a **per-AG push** (push the node's own AG `slot%agcount`, not the whole AIL).
+- Also: disproved the "AG double-allocation" (`xfs_repair` → in-memory stale `i_df`); eliminated DLM-timeout shutdowns; landed dir-data durability barrier, di_size reload-skip, 5 detectors; ruled out ~8 mechanisms; corrected the `rsync_paired` "missing script" assumption (it exists).
+
+**Next session (precise plan in `sess39_lessons.md`):**
+1. **Hard-reset the wedged cluster** (`reset4.sh`/`cluster_reset.sh` do virsh destroy+start) and deploy `B090AF8`.
+2. **Reimplement the `sync_fs` di_size push as a per-AG bounded push** (`xfs_ail_push_ag_sync` of the node's preferred AG) to get the rename 15→6 win *without* the cross-AG deadlock, then re-enable default.
+3. Drive residual ~6 rename fails to 0 (~3 missing-dirents = dir-block coherence); run `rsync_paired`.
+
+The relay continues automatically with full transcript access; the safe build `B090AF8` and the per-AG-push solution are ready to pick up.
+The safe build `B090AF8` (default-off) is a clean stopping point — but I can productively implement the per-AG push *now* (cluster-independent, and gated behind the default-off param so it can't affect default behavior or deadlock). This advances the #1 next task. Let me check the needed accessors and implement it.
+All accessors exist. Let me implement the per-AG push (gated off by default, so zero risk to default behavior — the next session enables + tunes it). Let me view and replace the push line.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

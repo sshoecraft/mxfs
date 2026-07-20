@@ -1,0 +1,118 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 27 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 26
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `dd2c57dd-e4aa-4302-bd19-4e839d3da670`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/dd2c57dd-e4aa-4302-bd19-4e839d3da670.jsonl`
+- approx context at last assistant turn: 172104 tokens
+- tools used: Read×14 Bash×12 Edit×4 ToolSearch×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /home/steve/.claude/projects/-src-mxfs/memory/feedback_minimize_gemini.md
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ./tests/criteria/verify_ship.sh --status 2>&1 | head -50
+    modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "---nodes---"; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 
+    cd /src/mxfs; grep -n "release_pending\|pag_dlm_meta_gen\|pag_dlm_state\|release_pending" xfs/xfs_mxfs_dlm.c | head -60
+    cd /src/mxfs; grep -rn "b_mxfs_ag_gen" xfs/ pal/ | grep -v "pr_warn\|pr_err\|mxfs_idbg\|printk\|//\|\*"
+    cd /src/mxfs; grep -n "pag_dlm_release_work\|mxfs_dlm_ag_release_work_fn\|INIT_WORK.*release_work\|blkdev_issue_flush\|drain_meta_buffers\|drain_alloc_buflist" 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' >/dev/null 2>&1 & done; wait; echo "dmesg 
+    cd /src/mxfs; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 300 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_rename_visibility --p
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -aoE "P88[^\n]*|P70
+    cd /src/mxfs; for n in test3 test4; do echo "=== $n P88 full ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -aE "P88" | head -6' 2
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg | grep -aE "agno=3 |ag=3 " | grep -aE "ACQ-FRESH|FAST-PATH|P102-ACQ|REL-INLINE|
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg | grep -aE "P47-INVAL-SKIP|SKIP-no-hold|SKIP-trylock|SKIP-bli" | grep -aiE "bno
+    cd /src/mxfs; echo "=== test4 full corruption context (block 0x5f8d18) ==="; timeout 12 bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass 'dmesg | grep -aiB2 -A8
+
+## Last text from previous session
+
+ go-ahead, I'll consult Gemini with this concrete evidence package. Let me load the tool.
+Before calling, let me note one important caveat for an honest consult: P88 fires on `numrecs<=2` which a *legitimately near-empty AG* also has, and `disk_differs=1 + in_ail=1` is the normal state of any writeback (buffer ahead of disk). So P88 may be partly benign — the *unambiguous* corruption is the dir block holding file data. Let me capture the exact double-allocated block's ownership before consulting, to give Gemini airtight facts.
+The "double" on test3 is benign (the sess47 anti-double-free *guard* message). The real corruption is on test4: dir-data readahead of block `0x5f8d18` returns node3's file data (`content_3_2`). This gives me two airtight remaining hypotheses: (1) free-space double-alloc, or (2) a **stale directory bmap** — the dir inode's extent map (read from a stale cached inode-cluster buffer, the sess58–62 false-sharing family) pointing at a block that legitimately belongs to node3's file. No free-space double-alloc required.
+
+I have a comprehensive, current evidence package with three hypotheses refuted by direct measurement this session. This is the deep-architecture, 60-session-class situation RULE 5 exists for, and the user has explicitly authorized it. Consulting Gemini (max_tokens omitted):
+I've reached the relay boundary. Gemini's analysis was decisive, so let me record the key findings and the next experiment before wrapping up. First, addressing your message about Gemini — let me update the feedback memory to reflect your clarification.
+Now record the new ground truth + decisive experiment at the head of state.md for the next session:
+State recorded. Wrapping up at the relay boundary.
+
+## Summary (session 26)
+
+**On your Gemini message:** Understood — I've updated the persistent feedback memory to reflect your clarification: Gemini is authorized when genuinely stuck (worth the cost to finish), just not as a reflexive routine step. I followed exactly that this session — refuted three hypotheses by my own measurement *first*, then consulted Gemini with a hard evidence package. That produced the most useful result in many sessions.
+
+**Criteria status:** PASS=10, FAIL=2 (cache_coherency, rsync_paired). Marker not written — not met.
+
+**What I established this session (RULE 4, pristine cluster, build 793113DD):**
+1. Reproduced rename_visibility FAIL in 32s; confirmed the real corruption is a **genuine double-allocation** — dir-data block `0x5f8d18` physically holds node3's file data (`content_3_2`).
+2. **Refuted three standing hypotheses by direct measurement** (so future sessions stop re-chasing them):
+   - **H2** (gen not bumped on re-acquire) — the acquire was `ACQ-FRESH` (slow CAW path), which *does* bump the gen and force a FUA re-read.
+   - **A** (invalidation preserved a stale in-AIL bnobt) — all four skip detectors fired 0×.
+   - **Preserve-guard P86** — 0× (re-confirmed).
+3. **Gemini consult** delivered two key results:
+   - Hypothesis (C) "stale dir bmap" is **physically impossible** as sole cause — a stale bmap would *leak* a block, not double-allocate it. The **bnobt free-space staleness is the root; the dir corruption is the symptom.**
+   - New leading hypothesis **(D) asynchronous drain leak**: the releasing node unlocks the AG before its bnobt write I/O actually lands on the SCST target, so the acquirer legitimately reads "free" and double-allocates — a release-side *durability-ordering* bug, not read incoherence.
+
+**Decisive next experiment (queued in state.md):** in the `ACQ-FRESH` path, FUA-read the bnobt root; if near-pristine, `msleep(100)` and FUA-read again + memcmp. If the second read changes with no local write → Theory D (fix the release-side drain to wait for write-bio *completion*, not just submission/flush, before the on-disk unlock). If both stay pristine but a non-FUA read is correct → Theory B (SCST FUA/cache config). The next session should build that detector, deploy, and reproduce.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

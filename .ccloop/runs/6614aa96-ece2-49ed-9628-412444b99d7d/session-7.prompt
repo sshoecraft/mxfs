@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6614aa96-ece2-49ed-9628-412444b99d7d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6614aa96-ece2-49ed-9628-412444b99d7d, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `84095aaf-68fe-4134-a5a2-3f586116f971`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/84095aaf-68fe-4134-a5a2-3f586116f971.jsonl`
+- approx context at last assistant turn: 501124 tokens
+- tools used: Bash×166 Read×44 Edit×16 mcp__ccmemory__memory_write×12 mcp__ccmemory__memory_get×7 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for k in 1 2 3 4 5 6 7 8; do timeout 8 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null'
+    cd /src/mxfs; for w in $(seq 1 19); do if ! pgrep -f drc_reliability >/dev/null; then echo PROC-DONE; break; fi; sleep 30; done; cat /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; pkill -9 -f drc_reliability 2>/dev/null; sleep 2; grep "RUN 1" /tmp/claude-1000/-src-mxfs/84095aaf-68fe-4134-a5a2-3f586116f971/scratchpad/drc8b.ou
+    cd /src/mxfs; grep "RUN 1" /tmp/claude-1000/-src-mxfs/84095aaf-68fe-4134-a5a2-3f586116f971/scratchpad/drc8b.out | sed 's/FACES/\nFACES/'; echo "=== check shutdo
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for k in 1 2 3 4 5 6 7 8; do timeout 8 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null;
+    cd /src/mxfs; for w in $(seq 1 19); do if ! pgrep -f drc_reliability >/dev/null; then echo PROC-DONE; break; fi; sleep 30; done; cat /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; for w in $(seq 1 19); do if ! pgrep -f drc_reliability >/dev/null; then echo PROC-DONE; break; fi; sleep 30; done; cat /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; grep "RUN 2" /tmp/claude-1000/-src-mxfs/84095aaf-68fe-4134-a5a2-3f586116f971/scratchpad/drc8c.out | sed 's/FACES/\nFACES/'; echo "=== failrounds t
+    cd /src/mxfs; for w in $(seq 1 19); do if ! pgrep -f drc_reliability >/dev/null; then echo PROC-DONE; break; fi; sleep 30; done; cat /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; for w in $(seq 1 20); do if ! pgrep -f drc_reliability >/dev/null; then echo PROC-DONE; break; fi; sleep 30; done; cat /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; for w in $(seq 1 16); do if ! pgrep -f drc_reliability >/dev/null; then echo PROC-DONE; break; fi; sleep 30; done; cat /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== conf
+    cd /src/mxfs; grep -n "sess37: bump dir-data generation on slow-path" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for k in 1 2 3 4 5 6 7 8; do timeout 8 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null'
+    cd /src/mxfs; grep -n "RELIABLE-HANDOFF REFRESH: the grant token\|mxfs_dir_gg_refresh && hgg != 0" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for k in 1 2 3 4 5 6 7 8; do timeout 8 tools/mxfs_sshpass.sh test$k /tmp/.mxfs_pass 'rm -f /root/drc_*.dmesg /root/drc_failrounds.txt 2>/dev/null'
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning: implicit|undefined|undeclared" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+`. This **refutes both** my hypotheses: no dir-EX serve has a stale base (gen>loaded), and the demoter-bypass is never used. Gen-coherence is maintained at every RMW, yet dirents are still lost → the **disk content is behind the gen** = a **release-side durability gap** (the peer's committed dir block isn't durable on the LUN when the next acquirer cold-reads). This is the real root. Let me record it and check durable_signal's gate.
+Let me pursue the release-durability fix. Let me examine durable_signal's exact gate and add a testable lever to flush regardless of gen for shared dirs.
+I realize `fastret_stale=0` doesn't fully distinguish "refreshed" from "missed handoff (grant_gen unchanged)" — both leave gen==loaded. So the two live candidates remain: a missed-handoff (grant_gen not changing on a real handoff) OR the release-durability gap. Let me amend the memory with this nuance and the precise next diagnostic, then give honest status given my context is very high.
+Let me directly test the leading candidate (missed handoff): add a counter for how often gg_refresh actually arms (hgg != cached_grant_gen) at the storm, to see if grant_gen misses handoffs at N=8. Let me find my arming site.
+Built (213004BA). Let me run 8-node dir_reuse and read the handoff-detection counters.
+Counter data: `gg_hgg0=0` on 7/8 nodes but **test7 had gg_hgg0=87** — the grant_gen query returned 0 (stale/absent local mirror) 87×, and when hgg==0 the gg_refresh **cannot arm** (condition requires hgg!=0) → those serves never refresh even across a real handoff (the sess5 "local grant mirror lags/zeros" issue). That's a real gap. Let me test the conservative fix: arm the refresh when hgg==0 on a peer-reachable dir too (unknown token = assume handoff; drain_evict is loss-safe).
+Relay boundary reached. Let me build the candidate-A fix so the tree is consistent, then summarize.
+Built clean (900BB963). Let me record the untested candidate-A fix for the next session, then summarize.
+Relay boundary reached. Brief summary of this session:
+
+## Session summary — major progress, 3 of 4 columns at 100%
+
+**Criterion (1/2/4/8-node tcp dlm 100%): not yet met — 8/tcp is the sole remaining blocker.** Marker not written.
+
+### Verified 100%
+- **1/tcp = 16/16, 2/tcp = 17/17, 4/tcp = 17/17** (full suites).
+
+### 8/tcp = 16/17
+- Discovered and fixed a **disk-space environment bug** (test5-8 have small 6.1G disks that mxfs's kernel logging fills via rsyslog → breaks all `/tmp`-dependent tests). Masked rsyslog on all 8 nodes → 8/tcp jumped 11/17 → 16/17; every test now passes at 8/8 **except dir_reuse_coherency**.
+
+### Core fixes shipped (default-on, no regressions)
+1. `mxfs_dir_gg_refresh=1` — grant_gen-triggered loss-safe dir-base refresh (reliable handoff signal).
+2. `mxfs_dir_release_flush_leaf=1` — force-complete leaf index blocks at release.
+→ **dir_reuse 12/12 at 4 nodes** (the ~50-session blocker, fixed for 1/2/4).
+
+### 8-node dir_reuse — narrowed with decisive diagnostics
+Used behavior-neutral atomic counters (no heisenbug) to refute several hypotheses: phantom-EX (`phantom_total=0`), stale-base-serve (`fastret_stale=0`), demoter-bypass (`demoter_bypass=0`). Refuted levers with evidence: must-complete barrier, `dir_release_flush_all_done` (shutdown), `dir_tenure_evict` (shutdown). GPT-5.5 consulted.
+
+**Last finding:** test7 showed `gg_hgg0=87` — the grant_gen query returns 0 (stale local mirror) sometimes, and the old refresh condition never armed for those serves → undetected handoff → possible stale RMW. Implemented a candidate fix (arm refresh when hgg==0 on peer-reachable dirs) — **build 900BB963, compiles clean, UNTESTED**.
+
+The next session's first step (recorded in memory `sess6-ccloop-HEAD-untested-candidateA-hgg0-refresh`): test 900BB963 at 8/tcp, re-confirm 2/4 no regression; if it fixes 8-node dir_reuse → run full 8/tcp → write the marker. If not → pivot to the release-durability candidate (fully documented). All findings are in the `sess6-ccloop-*` memories.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

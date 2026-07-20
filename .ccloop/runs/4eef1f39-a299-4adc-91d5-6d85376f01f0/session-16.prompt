@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 16 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 15
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `8cd8894e-f4ea-4fc8-a9cf-e3f61377e017`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8cd8894e-f4ea-4fc8-a9cf-e3f61377e017.jsonl`
+- approx context at last assistant turn: 254911 tokens
+- tools used: Bash×45 Read×24 ToolSearch×3 mcp__ask_gemini__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; sleep 3; for h in test1 test2 test3 test4; d
+    cd /src/mxfs; nohup timeout 1100 ./tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_s15.log 2>&1 & echo "started pid $!"; sleep 5; head -20 /tmp/cc_s15.log
+    cd /src/mxfs; for i in $(seq 1 9); do sleep 30; ls /tmp/cc_s15.log >/dev/null 2>&1; if ! kill -0 2500548 2>/dev/null; then echo "=== criterion process EXITED ==
+    cd /src/mxfs; for i in $(seq 1 16); do sleep 30; if ! kill -0 2500548 2>/dev/null; then echo "=== EXITED ==="; break; fi; done; echo "--- final result ---"; sed
+    cd /src/mxfs; source tests/criteria/lib.sh 2>/dev/null; teardown_all "test1 test2 test3 test4" >/dev/null 2>&1; INSMOD_OPTS="instr=0" fresh_cluster_mount test1 
+    cd /src/mxfs; echo "=== node state ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "mount|grep -q /mn
+    cd /src/mxfs; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; sleep 3; for h in test1 test2 test3 test4; d
+    cd /src/mxfs; for n in test1 test2 test3 test4; do bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1; done; echo "=== rename_visibility
+    cd /src/mxfs; echo "=== node NFS mounts ==="; for n in test1 test2; do echo "--- $n ---"; bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "mount | grep -iE 'nfs
+    cd /src/mxfs; for n in test1 test2 test3 test4; do bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1; done; echo "=== rename_visibility
+    cd /src/mxfs; echo "=== rename_visibility dir inode + content ==="; bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "stat -c 'ino=%i' /mnt/shared/.mxfs_test/re
+    cd /src/mxfs; echo "=== inode of rename_visibility per node ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; bash tools/mxfs_sshpass.sh "$n" /tmp/.mxf
+    cd /src/mxfs; for n in test4 test2; do echo "=== $n dmesg (corruption/shutdown/dir) ==="; bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg | grep -aiE 'In
+    cd /src/mxfs; echo "=== test4 P71-INSTR (the decisive AGI line) ==="; bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "dmesg | grep -aE 'P71-INSTR' | tail -5" 
+    cd /src/mxfs; echo "=== AG-meta acquire invalidation / FUA-refresh sites ==="; grep -rn "agi\|AGI\|XFS_AGI" xfs/xfs_mxfs_dlm.c | grep -iE "stale|invalid|fua|ref
+    cd /src/mxfs; echo "=== test4: AG5 acquire/invalidate/gen activity ==="; bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "dmesg | grep -aE 'agno=5|agno=05| AG5
+    cd /src/mxfs; echo "=== test4: P117 / discard / stale events on AGI daddr 10436602 ==="; bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "dmesg | grep -aE '104
+    cd /src/mxfs; echo "=== _XBF_FUA_FRESH gate / forced FUA re-read sites ==="; grep -rn "_XBF_FUA_FRESH" pal/linux/xfs_buf.c xfs/xfs_mxfs_dlm.c | head -30
+    cd /src/mxfs; echo "=== per-node: AG5 fresh-acquire + AGI/iunlink activity ==="; for n in test1 test2 test3 test4; do echo "--- $n ---"; bash tools/mxfs_sshpass
+    cd /src/mxfs; echo "=== test4: ALL AG5 DLM lifecycle events ==="; bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "dmesg | grep -aiE 'agno=5|ag=5| AG 5 ' | gre
+
+## Last text from previous session
+
+ack (line 84-90).
+`_XBF_FUA_FRESH` is only cleared by `xfs_buf_stale` — and the AGI wasn't staled after t=69. So per static analysis the AGI buffer should never be re-read after t=69, contradicting a simple re-read-revert. Before instrumenting, let me test the load-bearing assumption "only test4 touches AG5's AGI" — check whether a *peer* also did unlinked-list ops / fresh-acquired AG5 (which would mean an AG-DLM exclusion failure, a different root).
+**Refutation of the single-node theory** (I gave Gemini a wrong premise): **test3 added ino=10485909 (agino=0x95) to AG5's unlinked list at t=72** (P82-ADD), but **test4 removes/inactivates it at t=317**. Two different nodes handle the same inode's unlinked lifecycle. test4's AGI is stale because it never saw test3's add. This is a **cross-node AGI coherency failure**, not a single-node revert. Let me get test4's full AG5 DLM lifecycle (acquire/release/BAST) to see why its AGI wasn't refreshed.
+Now the true root is exposed and the single-node theory is **refuted**: ino=10485909 (agino=0x95) is heavily **reused across nodes** — test4 created it (node4_before_20), test3 unlinked it (P82-ADD to AG5 list at t=72), it was freed+reused (gen 279186378→622545939, P103-RELOAD-REUSE-ADOPT), test4 re-adopted it for node4_after_20, then inactivates it at t=317 reading a **stale AGI**. Critically, **test4 held AG5 from t=69 to t=402 while test3 also acquired+modified AG5** — and P88-CLOBBER-PRODUCER shows test4's xfsaild writing AG5 bnobt "while NOT holding AG DLM". This is an **AG-DLM exclusion + AGI read-coherency failure under inode reuse**.
+
+Let me save this decisive diagnosis to memory before anything else.
+Hit the relay boundary. Let me save the decisive diagnosis to memory before wrapping up.
+Saved the decisive diagnosis to memory. Wrapping up at the relay boundary.
+
+## Session 15 Summary
+
+**Verified session-14's `1853FF8F` on a clean cluster — major progress confirmed:**
+- The drain-wedge is **gone**: P113-DRAIN-WEDGE=0 on all 4 nodes, no hung tasks, no SIGKILL, mounts stable. Session-14's `mxfs_inode_cluster_durable` rewrite (native delwri submit instead of the leaking manual `xfs_bwrite`) genuinely fixed the leak. **Keep `1853FF8F` as the base.**
+
+**Ship-gate result on clean `1853FF8F`: `cache_coherency` passed=1 failed=3** (cross_visibility PASS; rename/unlink/cross_write_read FAIL).
+
+**Proven the dominant remaining root cause (RULE 4, decisive probe evidence):** a **cross-node AGI unlinked-list read-coherency corruption** that forces a **filesystem shutdown**.
+- `xfs_iunlink_remove_inode` reads `agi_unlinked[bucket]` = `0xffffffff` (garbage) while a FUA disk read shows the correct head `0x95` → `agi_disk_differs=1` → corruption → shutdown (test4, t=317s).
+- The corrupting inode (10485909/agino 0x95, AG5) is **reused across nodes**: test4 creates it, **test3 unlinks it** (P82-ADD at t=72), it's freed+reused (gen bump, P103-RELOAD-REUSE-ADOPT), test4 re-adopts and later inactivates it reading a **stale AGI it never refreshed**.
+- Underlying mechanism: **AG-DLM exclusion failure** — both test3 and test4 operate on AG5 concurrently; `P88-CLOBBER-PRODUCER` shows test4's xfsaild writing AG5 bnobt "while NOT holding AG DLM"; `pag_dlm_meta_gen` for AG5 stuck at 1 (AGI never re-invalidated).
+
+**Important correction recorded for next session:** I consulted Gemini under a *wrong premise* (single-node revert); static analysis refutes its Hypothesis A (`_XBF_FUA_FRESH` is cleared only by `xfs_buf_stale`, and the AG5 AGI was staled only once). The real cause is cross-node. Next session should re-consult with the corrected premise and pursue: (1) FUA-refresh the AGI at the start of `xfs_iunlink_remove/insert` (xfs_inode_util.c:612), (2) fix the xfsaild-writes-without-AG-DLM exclusion violation, (3) bump `pag_dlm_meta_gen` on every fresh AG acquire.
+
+Full detail, exact repro commands, and probe-harvest recipe saved to memory `sess15_agi_xnode_corruption`. **Criteria NOT met — marker not written.**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

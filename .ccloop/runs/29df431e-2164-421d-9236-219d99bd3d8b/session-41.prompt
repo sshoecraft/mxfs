@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 41 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 40
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `8e07607a-e702-46a5-9d82-9f4c99fdd236`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8e07607a-e702-46a5-9d82-9f4c99fdd236.jsonl`
+- approx context at last assistant turn: 252244 tokens
+- tools used: Bash×62 Read×41 Edit×16 TaskStop×3 ToolSearch×3 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn 'mxfs_dlm_caw_lock\b' dlm/dlm_caw.c include/ dlm/*.h | head; echo "=== flags param / NOQUEUE / TRYLOCK in caw ==="; grep -n 'NOQUEUE\|TRY
+    cd /src/mxfs; grep -n 'xfs_alloc_vextent_iterate_ags\|xfs_alloc_vextent_prepare_ag\|xfs_alloc_vextent_this_ag\|xfs_alloc_vextent_start_ag\|xfs_alloc_vextent_nea
+    cd /src/mxfs; grep -rn 'MXFS_LKF_NOQUEUE\|MXFS_LKF_TRYLOCK' include/ dlm/*.h | head
+    cd /src/mxfs; awk 'NR>=3461 && /^}/ {print NR": "$0; c++; if(c>=1) exit}' xfs/xfs_mxfs_dlm.c; echo "--- next function after ---"; sed -n '3760,3800p' xfs/xfs_mx
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined' | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MKFS_OPTS=-f timeout 200 bash tests/reset4.sh 4 2>&1 | grep -aviE '^Warning|^Unauthorized|^If you|disconnect' | tail -5
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 30 sudo virsh destroy "$n" >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do echo 
+    cd /src/mxfs; P=/tmp/.mxfs_pass until for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh "$n" "$P" '[ -f /src/mxfs/mxfs.ko ] && echo ok' 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo -n up; [ -f /src/mxf
+    cd /src/mxfs; MKFS_OPTS=-f timeout 200 bash tests/reset4.sh 4 2>&1 | grep -aviE '^Warning|^Unauthorized|^If you|disconnect' | tail -4; P=/tmp/.mxfs_pass; echo -
+    cd /src/mxfs; MXFS_SSH_TIMEOUT=600 timeout 1100 ./tests/criteria/rsync_paired.sh --nodes 4 --iters 1 2>&1 | tail -8; echo "EXIT=$?"
+    cd /src/mxfs; P=/tmp/.mxfs_pass for i in $(seq 1 40); do   if grep -qE 'mxfs_multinode_bench DONE|RESULT:' /tmp/rsync_paired_run.log 2>/dev/null; then echo "BEN
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== confirm benign: actual FS-shutdown lines on each node ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; time
+    cd /src/mxfs; P=/tmp/.mxfs_pass for i in $(seq 1 45); do   if grep -qE 'mxfs_multinode_bench DONE|RESULT:' /tmp/rsync_paired_run.log 2>/dev/null; then echo "BEN
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo -n "files="; find /m
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test4; do echo -n "$n: "; timeout 20 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo -n "files="; find /mnt/shared/$(
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test4 (finished): ACQ-FRESH count + sample + dir-create AGs ==="; timeout 25 bash tools/mxfs_sshpass.sh test4 "$P" 'e
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n rsync_procs="; timeout 8 bash tools/mxfs_sshpass.sh "$n" "$P" 'pgrep -c rsync'
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 30 sudo virsh destroy "$n" >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do echo 
+    cd /src/mxfs; echo "=== local module srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== verify all sess77 edits present ==="; echo -n "pr
+
+## Last text from previous session
+
+ll be a large ratio (perf, not correctness). Let me quantify the AG-bouncing on test4 (which finished) to confirm the bottleneck before optimizing:
+Instr is off (correct for perf) so no dmesg acquire traces. test4 finished but test1/2/3 ssh times out under load. Let me do a minimal/fast liveness check (pgrep only) to see who's still rsyncing:
+Clear evidence: test4 finished but test1/2/3 are still rsyncing at t+200s+ (3 procs each) — cross-node AG contention serializes them. Correctness is fixed (`timeouts=0, fsdown=0`); the remaining barrier is the **AG-bouncing performance**. The exact ratio will be huge regardless. Let me stop this run and implement strict node-AG partitioning (each node allocates only from its own AG set → all-nested-fast-path acquires → no cross-node CAW latency).
+Correctness is proven fixed. The remaining barrier is cross-node AG-contention performance. The existing node-affinity sends each node's files to a *single* AG (`node_slot % maxagi`) and dirs to a cluster-wide *rotor* — so once a node's 580MB overflows its one AG, allocations spill into peers' AGs (contention), and every dir create bounces cluster-wide. The proper scaling fix is **node-owned AG ranges** (each node owns a contiguous block of AGs, allocates/wraps within it). Let me reset the cluster and inspect geometry to design it.
+I've reached the relay boundary. Let me confirm the build artifact matches the committed source changes, then summarize.
+All sess77 edits are intact and the module builds clean (`10C59D41`). State is saved. Wrapping up.
+
+## Summary
+
+**Task:** Pass the MXFS ship gate (`tests/criteria/verify_ship.sh`). On entry: 11/12 criteria PASS, only `rsync_paired` FAIL (cache_coherency last run passed but is flaky).
+
+**Root cause proven (RULE 4):** `rsync_paired` failure is **not** on-disk corruption — it's a **distributed ILOCK-vs-AG-DLM hold-and-wait deadlock** (the documented "ILOCK held across CAW poll" Design Tension). Direct dmesg evidence across 3 nodes: a thread holds inode ILOCK(s) + one AG's cached EX grant, then blocks up to 120s deep in the allocator acquiring a *second* AG's DLM grant; the peer doing the mirror op can't release the wanted AG (its `bast_work_fn` AIL drain needs an ILOCK its own blocked thread holds). 120s timeout → `rc=-110` → dirty `xfs_trans_cancel` → "Corruption of in-memory data (0x8)" → FS shutdown. Two faces: `xfs_rename` and `xfs_create`/`xfs_dialloc` (+ `xfs_bmap_btalloc` write path).
+
+**Fix implemented (Gemini RULE-5 design, srcversion `10C59D41`):**
+1. **Rename pre-acquire** — `xfs_rename` now acquires all participating inodes' AG-DLM grants in ascending AG order *before* any ILOCK (`mxfs_trans_preacquire_inode_ags`). **PROVEN** to eliminate the rename shutdown (build E6E943A5: test1 clean, test2/4 no Corruption/trans_cancel — was a guaranteed shutdown before).
+2. **Trylock-skip** — new `mxfs_ag_dlm_trylock` (non-blocking, `-EAGAIN` if peer-held; CAW `mxfs_v5_dlm_ag_lock_nb` via `MXFS_LKF_NOQUEUE`), wired into the allocator's native `XFS_ALLOC_FLAG_TRYLOCK` first pass (`xfs_dialloc_try_ag`, `xfs_alloc_vextent_prepare_ag`) so contended AGs are skipped instead of blocked-on.
+
+**Measured result:** With `10C59D41` deployed, the rsync ran with **`timeouts=0, fsdown=0` sustained** — the deadlock and shutdowns are gone. But `rsync_paired` still **FAILs on the ratio**: cross-node AG contention serializes nodes (test4 finished, test1/2/3 still rsyncing past t+200s vs 4.6s single-node ref).
+
+**Next (perf, not correctness):** The remaining barrier is AG-bouncing. Current affinity puts each node's files in a *single* AG (overflows at 580MB → spills into peers' AGs) and dirs on a cluster-wide rotor. The fix is **node-owned AG ranges** (each node owns a contiguous AG block, allocates/wraps within it) for both `xfs_dialloc_pick_ag` and block-alloc `start_ag`. VMs were just reset for a clean geometry inspection to size the partition.
+
+Criteria not yet met (`rsync_paired` perf outstanding) — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

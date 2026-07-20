@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 15 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 14
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8e8eaaaa-30d7-4bf1-9590-66f5bea35724`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724.jsonl`
+- approx context at last assistant turn: 497330 tokens
+- tools used: Bash×161 Read×25 Edit×22 mcp__ccmemory__memory_write×15 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/suite/coord.sh
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/tests/tcp/tcp_dlm_scaling.sh
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_600.log; for i in $(seq 1 98); do grep -q '^DONE' "$L" 2>/de
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_600.log; for i in $(seq 1 98); do grep -q '^DONE' "$L" 2>/de
+    cd /src/mxfs; echo "=== dir_reuse in-suite failrounds (real miss?) ==="; for n in test1 test4 test8; do echo -n "$n: "; timeout 10 tools/mxfs_sshpass.sh $n /tmp
+    cd /src/mxfs; timeout 14 tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "echo '=== event types ==='; dmesg 2>/dev/null | grep -aoE 'hung task|forced shutdown|Corru
+    cd /src/mxfs; timeout 14 tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "for p in 'forced shutdown' 'hung task' 'Corruption' 'DABUF' 'bnobt' 'Internal error' 'EFSC
+    cd /src/mxfs; echo "=== clyde (LIO target host) recent iSCSI/target errors ==="; dmesg 2>/dev/null | grep -aiE 'iscsi|target|abort|nopout|conn|reset|sd[a-z].*er
+    cd /src/mxfs; virsh -c qemu:///system destroy test4 >/dev/null 2>&1; sleep 2; virsh -c qemu:///system start test4 >/dev/null 2>&1 && echo "test4 restarted"; ech
+    cd /src/mxfs; echo "=== mxfs_dlm_dir_modify_refresh def + reload/bail ==="; ln=$(grep -n "^mxfs_dlm_dir_modify_refresh\|^void$" xfs/xfs_mxfs_dlm.c | grep -A1 -i
+    cd /src/mxfs; echo "=== callers of modify_reload_prelock ==="; grep -rn "mxfs_dlm_dir_modify_reload_prelock\|dir_modify_reload_prelock" xfs/*.c xfs/libxfs/*.c |
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|LD \[M\].*mxfs.ko" | head; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | gr
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do st=$(timeout 12 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "umount /mnt/shared 2>/dev/n
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_fix.log; nohup bash -c "MXFS_EXTRA_MODARGS='dir_modify_exten
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_fix.log; for i in $(seq 1 98); do grep -q '^DONE' "$L" 2>/de
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_fix.log; for i in $(seq 1 98); do grep -q '^DONE' "$L" 2>/de
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_fix.log; grep -vE '^Warning|^Unauth|^If you' "$L" | grep -E 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|LD \[M\].*mxfs.ko" | head; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; L=/tmp/claude-1000/-src-mxfs/8e8eaaaa-30d7-4bf1-9590-66f5bea35724/scratchpad/full8tcp_fix.log; echo "=== is fix-run still going? ==="; grep -q '^D
+    cd /src/mxfs; timeout 14 tools/mxfs_sshpass.sh test8 /tmp/.mxfs_pass "echo '=== context around a DABUF hole (comm, nearby probes) ==='; dmesg 2>/dev/null | grep
+    cd /src/mxfs; echo "=== b_mxfs_dir_incarn check sites ==="; grep -n "b_mxfs_dir_incarn\|i_generation.*incarn\|incarn.*i_generation\|MXFS.*incarn" xfs/libxfs/xfs
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|LD \[M\].*mxfs.ko" | head; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | gr
+
+## Last text from previous session
+
+he prior incarnation** — opposite of my earlier guess. Let me get the operation/comm and confirm inode 537965's identity.
+**Instrumented evidence (RULE 4):** the hole is dir inode 537965, logical block 2 = HOLESTARTBLOCK (-2) — the dir's extent map lacks block 2 while a leaf/op references it. Context shows a **flood of P103-RELOAD-REUSE-ADOPT** (reused inodes, gen differs by 1, adopting disk_size=0/empty incarnations) — heavy ABA inode-reuse churn at 8-way. The dir's extent map is being reloaded to an incarnation inconsistent with its leaf. Let me record this concrete signature.
+Strong lead: a stale LEAF block (prior incarnation, when block 2 existed) referencing block 2 vs the current smaller extent map. The `b_mxfs_dir_incarn` check should invalidate stale dir blocks on incarnation change — let me verify it covers LEAF blocks (not just data blocks).
+The incarn check IS in `xfs_da_read_buf` and covers leaf blocks. But the hole reconciles the contradiction with sess68: a **current-incarnation leaf references block 2 while the same-incarnation extent map lacks it** → the leaf was re-read fresh (the async evict-ring bumps `i_dlm_dir_gen`, triggering xfs_da_read_buf to re-fetch the leaf) but the **extent map wasn't reloaded** (decoupled from the gen bump). sess68's "maps agree" was at modify-prelock; this hits readdir/lookup. Let me add the smoking-gun probe at the hole site to confirm `loaded_gen < dir_gen`.
+Let me add a smoking-gun probe at the hole site logging the inode coherency state (gen vs loaded_gen — if `loaded_gen < dir_gen`, the extent map wasn't reloaded for the gen the leaf was refreshed to).
+Relay boundary reached. Let me record the probe-ready build state so the next session can immediately reproduce.
+Relay boundary reached. Brief summary of session 14:
+
+## Session 14 summary
+
+**Criterion (1/2/4/8 tcp 100%) NOT met** — not writing the marker. But major verified progress: the project went from broken defaults to **3 of 4 node counts passing**, with the 4th fully diagnosed and instrumented.
+
+### Verified results (build `61E384CC`, runtime == validated `AA8C4934` for 1/2/4)
+- **1/tcp: 16/16** ✅ · **2/tcp: 17/17** ✅ · **4/tcp: 17/17** ✅
+- **8/tcp: 12/17** at a node-scaled budget (was ~1/17) — coherency solid (cache_coherency, crash_consistency, dlm_scaling all 8/8)
+
+### Root causes fixed (KEEP)
+1. Cluster is **LIO not SCST** → LIO-correct FUA defaults (was the total dir-coherency failure).
+2. **coord_barrier `-W 2`** fake-latency → `-C` (~10s/round removed — was masquerading as MXFS slowness).
+3. **readdir DABUF_MAP_HOLE** (gen-bump-before-bailable-reload) — eliminated at 4 and 8 nodes.
+4. Async log-kick before the dir-EX release settle (safe handoff trim).
+
+### 8/tcp diagnosis (instrumented, RULE 4)
+- bnobt corruption was a 300s-timeout incomplete-recovery artifact (gone at 600s budget).
+- dir_reuse 8/tcp is **correct** (passes standalone at 600s); the workload is O(N) so the fixed 300s budget is too short.
+- The real remaining bug: **DABUF_MAP_HOLE in create/lookup/readdir at 8-way**. Captured the exact signature (`bno 2, br_startblock -2/HOLE`, amid a P103 ABA-reuse flood). Refuted my first two fix guesses (in-hole EIO guard self-amplified → reverted; epoch-reload fired 0× → neutralized). Built a **smoking-gun probe (P14-DABUF-HOLE)** in `61E384CC` to confirm the `loaded_gen < dir_gen` decoupling hypothesis (async evict-ring bumps dir_gen → fresh leaf, but extent map not reloaded → fresh-leaf/stale-map).
+
+### Next session (documented in ccmemory, just execute)
+Clean all 8 nodes, reproduce the 8-node DABUF storm (in-suite `TEST_TIMEOUT=600 ./run.sh 8 tcp`), grep `P14-DABUF-HOLE`. If `loaded_gen < dir_gen` → root proven; fix = couple the dir_gen bump with an extent-map reload (arm `MXFS_IF_DIR_RELOAD` whenever the evict-ring advances dir_gen).
+
+All findings, the winning config, every refutation, the complete 8-node map, the captured hole signature, and the probe-ready build are saved to ccmemory. Continuing the loop.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

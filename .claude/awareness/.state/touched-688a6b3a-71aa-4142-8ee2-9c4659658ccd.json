@@ -1,0 +1,13 @@
+{
+  "source": [
+    "xfs/xfs_log.c",
+    "xfs/xfs_mount.h",
+    "pal/linux/xfs_super.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

@@ -1,0 +1,119 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 19 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 18
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `f26327bd-c775-4c74-b009-30e54a9a00df`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f26327bd-c775-4c74-b009-30e54a9a00df.jsonl`
+- approx context at last assistant turn: 252884 tokens
+- tools used: Bash×68 Read×12 Edit×8 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; awk '/^__xfs_buf_ioend\(/{f=1} f{print NR": "$0} f&&/^}/{c++} c==1&&/^}/{exit}' pal/linux/xfs_buf.c | head -120
+    cd /src/mxfs; grep -rnE 'mxfs_pal_scsi_read_(fua_)?bdev|mxfs_pal_read_bdev|read_bdev|submit_bio_wait|xfs_buf_read_uncached' pal/linux/xfs_buf.c pal/*.c pal/linu
+    cd /src/mxfs; sed -n '590,695p' pal/linux/kern.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|warning: implicit|undefined|warning:.*mxfs_suppress' | head -20; echo "=== make exit: ${PIPESTATUS[0]} ==="; 
+    export LIBVIRT_DEFAULT_URI=qemu:///system; for d in test1 test2 test3 test4; do virsh destroy "$d" >/dev/null 2>&1; done; sleep 5; for d in test1 test2 test3 te
+    cd /src/mxfs; timeout 360 bash tests/reset4.sh 4 2>&1 | grep -vE 'Warning|Unauthorized|disconnect' | tail -3; echo "=== build check ==="; for n in test1 test2 t
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 6 bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C >/dev/null 2>&1" >/dev/null 2>&1; done; e
+    cd /src/mxfs; while pgrep -f 'run_tests.sh.*rename' >/dev/null 2>&1; do sleep 5; done; sleep 2; echo "=== result ==="; grep -aiE 'PASS:|FAIL:|Structure|cleaning
+    cd /src/mxfs; echo "=== result ==="; grep -aiE 'PASS:|FAIL:|Structure|cleaning|EXIT' /tmp/rv_e9_1.out | tail -10; echo "=== markers per node ==="; for n in test
+    cd /src/mxfs; D=$(ls -t /home/steve/.mxfs/results/ | head -1); echo "dir=$D"; echo "=== node1 tail ==="; tail -18 /home/steve/.mxfs/results/$D/test_rename_visib
+    cd /src/mxfs; D=$(ls -t /home/steve/.mxfs/results/ | head -1); echo "=== distinct FAIL patterns node1 ==="; grep -a '\[FAIL\]' /home/steve/.mxfs/results/$D/test
+    cd /src/mxfs; grep -n 'rename_visibility\|barrier\|_before_\|_after_\|verify' tests/mxfs_test.sh | head -40
+    cd /src/mxfs; grep -rln 'rename_visibility' tests/ | head; echo "=== find test_rename_visibility def ==="; grep -rn 'test_rename_visibility()' tests/ 2>/dev/nul
+    cd /src/mxfs; sed -n '1,120p' tests/cluster/test_rename_visibility.sh
+    cd /src/mxfs; echo "=== .mxfs_barriers contents per node ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 6 bash tools/mxfs_sshpass.sh "$n" /t
+    cd /src/mxfs; echo "=== P-DIR-LEAF-CLOBBER + dir write markers per node ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 6 bash tools/mxfs_ssh
+    cd /src/mxfs; echo "=== count before_/after_ files visible per node NOW ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash tools/mxfs_ssh
+    cd /src/mxfs; echo "=== rename_visibility dir inode + P-DIRWR sample ==="; timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "stat -c '%i' /mnt/shared/
+    cd /src/mxfs; echo "=== max count seen + fmt distribution per node ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 6 bash tools/mxfs_sshpass.
+    cd /src/mxfs; echo "=== i_dlm_dir_gen bump sites ==="; grep -rn "i_dlm_dir_gen++\|i_dlm_dir_gen =\|i_dlm_dir_gen +=" xfs/*.c | head; echo "=== dir-block invalid
+
+## Last text from previous session
+
+des, `node1_after_1=MISSING` everywhere — **20 dirents (node1's entire rename-add set) are PERMANENTLY lost on disk**. The unlink side persisted (before=0) but the add side was clobbered. This is a true directory-block durable lost-update — the same stale-write-over-peer pattern as the bnobt clobber, but for the shared directory's data block. Let me get the P-DIRWR timeline to identify the clobbering write. First find the dir's data block.
+Decisive timeline: all 4 nodes RMW the SAME block-format dir block (daddr=4174760, owner=4194433) concurrently within milliseconds, all ending at `count=63 active=62`, buffer state `in_ail=1 dirty=0 pin=0` — identical to the bnobt clobber pattern. This is a directory-block concurrent-RMW lost-update: each node reads a stale base (missing peers' adds) and writes back, losing entries. The block caps at 62 active (~60 files) — node1's 20 adds lost wholesale. Let me check the max count ever reached and whether it stayed block format (capacity/conversion race).
+The directory stayed block-format (maxcount=63, never converted to leaf despite 80 files fitting in a block), so it's a pure concurrent-RMW lost-update: nodes 2/3/4 built on stale bases missing node1's earlier adds → node1's 20 entries clobbered. Same in_ail/clean stale-buffer pattern as bnobt, but for dir blocks. The directory coherency uses `i_dlm_dir_gen` read-time invalidation; like the frozen `pag_dlm_meta_gen`, it's likely not refreshing the in_ail dir buffer. Let me examine the dir-inode reacquire/reload path and `i_dlm_dir_gen` bumping.
+I've reached the relay boundary. Let me update the memory with the decisive dir-block evidence for the next session, then summarize.
+## Session summary (ccloop session 18, build `E9963FFA`)
+
+### Major proven win: bnobt double-free SHUTDOWN eliminated
+**Root (RULE-4 decisive):** `cache_coherency`/`rename_visibility` was shutting down via `ltbno+ltlen>bno` (xfs_alloc.c:2244) — a bnobt lost-update. The `P93-REVERT-CLOBBER` detector proved the producer is **xfsaild** flushing a prior-tenure stale bnobt buffer (in-core `nr=1`) over a peer's durable split (`disk_nr=2`). Buffer state: `in_ail=1 dirty=0 pin=0`, `buf_gen==pag_gen` (meta-gen frozen). AIL presence outlives writeback, so a drained-but-lingering clean bnobt buffer gets re-pushed across AG tenures.
+
+**Why prior fixes missed it:** all act at AG acquire/release time; this is an EX-held *in-tenure* xfsaild push with no re-acquire to trigger them. My first attempt (P121 acquire-time in-AIL discard) never fired.
+
+**The fix (GPT RULE-5 consult):** write-side interlock at `xfs_buf_submit` (the only chokepoint that catches xfsaild). When a bnobt/cntbt write is a proven stale replay (`disk_nr > nr`, in_ail, clean, `!mxfs_buf_is_undestaged`), refresh `bp->b_addr` from the coherent SCST cache via `mxfs_pal_bdev_read_plain_bdev` (plain bio, not FUA — FUA reads the stale platter under `fua_disable=1`), then complete via `xfs_buf_ioend` **without** the physical write (no `xfs_buf_stale`, no LSN/CRC regression). Fail-safe shutdown if the refresh read fails.
+
+**Result (4-node clean run):** P122 fired 2× on test2/3/4; **`ltbno=0` and `shutdown=0` on ALL nodes** (was EFSCORRUPT shutdown @235s). Corruption eliminated; cross-node visibility improved.
+
+### Next blocker (diagnosed, decisive evidence captured)
+`rename_visibility` still times out — now on a **directory-block concurrent-RMW lost-update**: block-format dir (daddr=4174760), all 4 nodes RMW the same block concurrently, **node1's entire 20-rename add-set permanently lost** (after=60/80 on all nodes). Same in_ail/clean stale-buffer pattern as bnobt, but for dir blocks; coherency via `i_dlm_dir_gen` (likely frozen, same as meta-gen). Fix directions, file/line pointers, and repro steps recorded in memory `sess121-dir-block-lost-update-next`.
+
+**Criteria NOT met** (rename_visibility fails) — marker not written. Files changed: `pal/linux/xfs_buf.c` (P122 interlock), `xfs/xfs_mxfs_dlm.c` (P121 coldread extension).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

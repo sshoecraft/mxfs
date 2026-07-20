@@ -1,0 +1,120 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5aa33f28-f0c9-4409-85a6-e31246da3ae6`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6.jsonl`
+- approx context at last assistant turn: 513888 tokens
+- tools used: Bash×118 Read×32 Edit×14 TaskCreate×8 TaskUpdate×8 ToolSearch×6 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2 Agent×1 SendMessage×1 mcp__ask_fable__query×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccteam__peers×1 mcp__ccteam__status×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/VERSION
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/b2fix_v2 mkdir -p "$SP" for n in 1 2 3 4 5 6 7 8; do   nohup /src/mxfs/tools/mxfs_
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/b2fix_v2 END=$((SECONDS+540)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/.done
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/b2fix_v2 tail -5 "$SP/run.log" 2>/dev/null grep -l "VFS_BUG_ON_INODE\|invalid opco
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/b2fix_v2 tail -6 "$SP/run.log" 2>/dev/null grep -l "VFS_BUG_ON_INODE\|invalid opco
+    objdump -d /src/mxfs/mxfs.ko 2>/dev/null | grep -A2 "<mxfs_dlm_bast_notify>:" | head -5
+    printf '0x%x\n' $((0xd3c20 + 0xade)) addr2line -e /src/mxfs/mxfs.ko -f -C $(printf '0x%x' $((0xd3c20 + 0xade)))
+    grep -n "XFS_IGET_INCORE" /src/mxfs/xfs/xfs_icache.c
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/b2fix_v2 tail -6 "$SP/run.log" 2>/dev/null ps aux | grep "mxfs_sshpass.sh test" | 
+    grep -rn "xfs_inode_mark_reclaimable(" /src/mxfs/xfs/*.c | grep -v "^.*:.*xfs_inode_mark_reclaimable(\s*$"  echo "---" grep -rn "\bxfs_inactive(" /src/mxfs/xfs/
+    grep -n "xfs_inode_mark_reclaimable(ip)" /src/mxfs/xfs/*.c echo "--- context around icache.c:2941 ---" sed -n '2900,2950p' /src/mxfs/xfs/xfs_icache.c
+    grep -rn "xfs_inode_mark_reclaimable" /src/mxfs/xfs/*.c /src/mxfs/xfs/*.h /src/mxfs/pal/**/*.c 2>/dev/null
+    time make modules 2>&1 | tail -15 modinfo /src/mxfs/mxfs.ko | grep srcversion
+    bash /src/mxfs/scripts/cluster_reset_n.sh 8 2>&1 | tail -5
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/hunt_v3_iter1 mkdir -p "$SP" for n in 1 2 3 4 5 6 7 8; do   nohup /src/mxfs/tools/
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/hunt_v3_iter1 END=$((SECONDS+540)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/hunt_v3_iter1 END=$((SECONDS+540)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/hunt_v3_iter1 grep -n "VFS_BUG_ON_INODE\|invalid opcode\|kernel BUG\|Oops\|soft lo
+    SP=/tmp/claude-1000/-src-mxfs/5aa33f28-f0c9-4409-85a6-e31246da3ae6/scratchpad/hunt_v3_iter1 sed -n '148900,148990p' "$SP/live_test3.log"
+    grep -n "^int do_unlinkat\|^long do_unlinkat" /src/linux/fs/namei.c
+    grep -n "do_unlinkat" /src/linux/fs/namei.c | head -5
+
+## Last text from previous session
+
+mark_reclaimable`/`xfs_inactive` is reachable **only** via `xfs_fs_destroy_inode` (the standard VFS `destroy_inode` hook), which only runs after some `iput()` already drove `i_count` to zero and VFS already set `I_FREEING`. So "sync-inactive" firing proves a prior reference-drop already happened — confirming Topology A (a genuine over-release somewhere), not a self-contained single-call issue. Let me add targeted instrumentation at my strongest remaining candidate site, and delegate an exhaustive audit of `bast_notify`'s other exit paths in parallel.
+Let me checkpoint this critical analysis to memory before continuing, given how much has been learned and how easily it could be lost.
+The audit subagent hit a transient API error mid-response, but had apparently gotten to final verification steps. Let me resume it rather than losing that work.
+The subagent's rigorous audit found no over-release in `bast_notify` itself (though it did find a separate, real reference *leak* — wrong polarity for our crash, worth fixing later but not urgent). It recommends `mxfs_dlm_bast_process` (~3000 lines) as the next target. But first — my current repro iteration just flagged an issue on test3. Let me check that immediately.
+This is the smoking gun. `do_unlinkat` itself (stock, unmodified VFS code) shows `WARNING ... at fs/inode.c:451 ihold+0x28/0x40` from `do_unlinkat+0x272` — **before** its own later `iput()` at `+0x2d1` (the crash). `ihold()`'s own `WARN_ON(atomic_inc_return(&i_count) < 2)` fired, meaning `i_count` was already 0 when `do_unlinkat` tried to hold it — before `vfs_unlink()` even runs. Let me verify `do_unlinkat`'s actual structure in the reference kernel to confirm this ihold-before/iput-after pattern.
+Hit the ccloop relay boundary at a strong stopping point — a major breakthrough just landed.
+
+**Session summary:**
+
+Started by verifying the state left by session 3 (FIX6/FIX7 for two proven bugs, both still valid) and discovered — via `.ccmemory` cross-referencing — that the criteria's "100% PASS" surface reading in `criteria.json` is stale and not trustworthy; only 8-node is actually still in question, but the residual BUG3 (`VFS_BUG_ON_INODE` crash via `rm`'s unlink, ~20-25% hit rate) had no proven fix.
+
+Key findings this session:
+1. Added instrumentation and live-captured BUG3 three times using per-node `dmesg -T -w` streaming (the host serial console log is loglevel-filtered and misses these diagnostics entirely — this technique is what made everything below possible).
+2. Found a real comment-vs-code discrepancy in `xfs_inactive()`'s B2 gen-mismatch gate and initially "fixed" it — but **both GPT-5.6 and Fable, consulted per the user's explicit instruction, independently rejected this fix** as unsafe (it would trade an intermittent crash for intermittent silent disk corruption). Fully reverted; documented why in memory so it's never re-attempted.
+3. A background subagent exhaustively audited all ~15 exit paths of `mxfs_dlm_bast_notify` and found no over-release there (only an unrelated, wrong-polarity reference leak, noted for later).
+4. **Breakthrough on the 3rd live capture**: `do_unlinkat` itself (stock VFS code, not MXFS) hit its own `ihold()` assertion (`i_count` already ≤0) at one offset, then crashed in `iput()` at a later offset in the *same call* — proving the over-release happens *before* `vfs_unlink()` even runs, earlier than everything previously suspected (bast_notify, bast_process, trans_drain_inode_unlocks are all downstream and innocent). This completely redirects where the next session should look.
+
+Everything is checkpointed in two `.ccmemory` entries with full technical detail and prioritized next steps. VERSION is unchanged (0.10.84) — all changes this session are safe, diagnostic-only additions; the one behavioral change (B2) was reverted. Criteria not yet met — BUG3 needs its actual root cause found (now narrowed to the lookup-to-ihold window) and proven fixed before the 1/2/4/8/16/32 sweep can be trusted.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

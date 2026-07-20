@@ -1,0 +1,4 @@
+# MXFS TCP-DLM-transport tests — Category 4. Require the TCP DLM transport;
+# NOT run on a CAW run.
+#   PHASE  TEST  COORD  MINNODES  BUDGET_S
+tcp   tcp_dlm_scaling        barrier   2   300

@@ -1,0 +1,20 @@
+{
+  "source": [
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_inode.c",
+    "dlm/dlm_caw.c",
+    "xfs/xfs_icache.c",
+    "dlm/disklock.c",
+    "xfs/libxfs/xfs_dir2.c",
+    "xfs/libxfs/xfs_ialloc.c",
+    "dlm/v5_mount.c",
+    "pal/linux/xfs_file.c",
+    "pal/linux/xfs_iops.c",
+    "pal/linux/xfs_super.c",
+    "pal/linux/kern.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

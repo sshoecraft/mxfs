@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 31 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 30
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5532248c-977d-44cf-894f-4581ef5f5bf5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5532248c-977d-44cf-894f-4581ef5f5bf5.jsonl`
+- approx context at last assistant turn: 499111 tokens
+- tools used: Bash×117 Read×34 Edit×15 mcp__ccmemory__memory_write×11 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_search×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; pkill -f "full8.sh 4 dir_release" 2>/dev/null; pkill -f "run.sh 4 tcp" 2>/dev/null; sleep 2; echo "killed lingering full4exp"; ps -eo cmd 2>/dev/n
+    cd /src/mxfs; ps -eo cmd 2>/dev/null | grep -E "full8.sh|run.sh [0-9]" | grep -v grep | wc -l | xargs echo "remaining test procs:"; modinfo mxfs.ko | grep srcve
+    cd /src/mxfs; echo "=== keeper build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== source compiles clean (no errors) — re-confirm ==="; make mo
+    cd /src/mxfs; tail -40 .claude/awareness/subsystems/pal.md 2>/dev/null; echo "=== line count ==="; wc -l .claude/awareness/subsystems/pal.md
+    cd /src/mxfs; echo "=== where b_mxfs_dir_gen is STAMPED (assigned) ==="; grep -rnE "b_mxfs_dir_gen *=" xfs/ pal/ | grep -v backup | grep -v "== " | head -20
+    cd /src/mxfs; echo "=== keeper build (force-flush default-OFF == C1B0C0CE behavior + soak/crashconsist fixes) ==="; modinfo mxfs.ko 2>/dev/null | grep srcversio
+    cd /src/mxfs; echo "=== dir_gen_per_handoff bump site (fast-path) ==="; grep -n "mxfs_dir_gen_per_handoff\|i_dlm_dir_gen++\|i_dlm_dir_gen +=\|i_dlm_dir_gen = .*
+    cd /src/mxfs; echo "=== dir_epoch_adopt default ==="; grep -nE "int mxfs_dir_epoch_adopt|module_param.*dir_epoch_adopt" xfs/xfs_mxfs_dlm.c; echo "=== mxfs_v5_dl
+    cd /src/mxfs; nohup bash tests/tcp/full8.sh 2 "" > tests/tcp/drc_cap/full2cap_driver.log 2>&1 & echo "launched bare full2 pid=$! build=7FDAE615 (for create-phas
+    cd /src/mxfs; for i in $(seq 1 40); do if grep -qE "(PASS|FAIL)  dir_reuse|TOTAL" tests/tcp/drc_cap/full2_run.log 2>/dev/null && [ "$(stat -c %Y tests/tcp/drc_c
+    cd /src/mxfs; echo "=== bare 2/tcp total (build 7FDAE615) ==="; grep -E "TOTAL|wall=" tests/tcp/drc_cap/full2.log 2>/dev/null | tail -3; echo "=== AGI verifier 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undeclared|implicit|undefined" | head -15; echo "=== result ==="; modinfo mxfs.ko 2>/dev/null | grep srcversi
+    cd /src/mxfs; sed -i 's/^MOD="dir_gen_per_handoff=1.*"/MOD="agi_crc_probe=1"/' tests/tcp/prefix_dirreuse.sh; grep -n "^MOD=" tests/tcp/prefix_dirreuse.sh; nohup
+    cd /src/mxfs; for i in $(seq 1 75); do if grep -qE "(PASS|FAIL)  dir_reuse|prefix done" tests/tcp/drc_cap/prefix_run.log 2>/dev/null; then break; fi; sleep 10; 
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; for n in 1 2 3 4 5 6 7 8; do sh=$(timeout 8 $SSH test$n /tmp/.mxfs_pass "dmesg 2>/dev/null | grep -cE 'Shutti
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; for n in 1 2 3; do echo "--test$n--"; timeout 8 $SSH test$n /tmp/.mxfs_pass "ls /mnt/shared >/dev/null 2>&1 &
+    cd /src/mxfs; echo "=== dir-write chokepoint in xfs_buf_submit_bio (gen/dir_gen access) ==="; grep -n "dsi\.\|mxfs_dir_submit_info\|b_mxfs_dir_gen\|dir_gen\|P28
+    cd /src/mxfs; grep -nE "b_mxfs_dir_gen|b_mxfs_dir_incarn|b_mxfs_logged_seq|bool *b_mxfs" xfs/xfs_buf.h | head
+    cd /src/mxfs; grep -nE "int mxfs_dir_evict_prior_tenure|int mxfs_dir_tenure_evict" xfs/xfs_mxfs_dlm.c | head; sed -i 's/^MOD=.*/MOD="dir_evict_prior_tenure=1 di
+    cd /src/mxfs; for i in $(seq 1 75); do if grep -qE "(PASS|FAIL)  dir_reuse|prefix done" tests/tcp/drc_cap/prefix_run.log 2>/dev/null; then break; fi; sleep 10; 
+
+## Last text from previous session
+
+k at 2560-2593. Let me read it to see what exists and whether it covers this case.
+This is the breakthrough insight: the existing chokepoint guards all use a **racy content-compare** to distinguish stale-clobber from legit-write. But the acquire-evict already KNOWS which blocks are stale — when it SKIPS an in_ail block (can't clear DONE), it sets bgen=0 but leaves it DONE, and xfsaild then pushes it (sess28: in_ail=1 bgen=0). The clean fix: have the evict set a **positive "evict-stale" marker**, and the write chokepoint skips exactly those (no content compare). This distinguishes stale-clobber from fresh-init/legit without the racy compare. Let me check the buffer fields.
+Let me read the evict skip branch precisely to place the marker correctly.
+Precise root now identified: the dir read-time gen-invalidation hook (`xfs_da_read_buf`) **skips in_ail/dirty/pinned buffers** (can't clear DONE safely — corruption), so a dir MODIFY that reads a stale prior-tenure in_ail block RMWs the stale base (bgen=0, missing peer's dirent) → durable loss. Let me examine the read hook to see if a stale **destaged** in_ail block (content already on disk → safe to re-read) can be invalidated, closing part of the residual.
+The read hook is very mature — it already invalidates **destaged** in_ail stale blocks (sess133 undestaged discriminator). Crucially, there's a gated `dir_evict_prior_tenure`/`dir_tenure_evict` lever (epoch-based) that invalidates prior-tenure stale blocks even past the keep-guard — and it was **NOT in the winning config**. This is a promising untested-in-this-config lever for exactly the stale-base RMW. Let me test it at 8 nodes (reliable failure) via the prefix.
+Prefix running with the prior-tenure evict levers (+ the 4 default-on). Let me wait for the dir_reuse result.
+Reached the relay boundary. `dir_evict_prior_tenure`/`dir_tenure_evict` did NOT fix dir_reuse (still 0/8) and `dlm_scaling` dropped to 7/8 (extra eviction cost) — refuted. Let me record this and wrap up.
+## Session 30 summary — relay boundary
+
+**Criteria (`./run.sh {1,2,4,8} tcp` 100%) not yet met**, but strong verified progress. The marker is **not** written — `dir_reuse_coherency` still fails at 2 and 8 nodes.
+
+### Verified wins (in keeper build `37A37B10`, deployed)
+1. **crash_consistency ABBA hang FIXED** — the documented *primary 8/tcp wall*. Was a deadlock from holding `i_lock(read)` across a blocking dir-buffer get; fixed with snapshot-under-lock + i_lock-free flush (`mxfs_dir_flush_data_blocks_relsafe`). PASS 8/8 in-suite every run.
+2. **soak FIXED → 4/tcp = 17/17** — metadata buffers reaching the write path with `b_ops==NULL` skipped CRC + `dump_stack`'d; fixed with `mxfs_buf_ops_from_magic()` re-deriving the verifier from magic.
+3. **1/tcp = 16/16 ✓, 4/tcp = 17/17 ✓** (bare `run.sh`, 4 dir-coherency levers now default-on).
+
+### Sole remaining blocker: `dir_reuse_coherency` (flaky)
+Diagnosed precisely this session: the dir read-hook **cannot invalidate an in_ail/undestaged stale dir buffer** (clearing DONE corrupts; the buffer holds this node's un-written add A), so a modify RMWs a stale base (bgen=0, missing a peer's dirent) → durable single-dirent loss (399/400, `P21H-LEAFHOLE`). The residual is the genuine conflict — *our un-written A on a stale base missing peer's B* — which needs a **transactional 3-way re-apply** (the only non-refuted path).
+
+### Refuted this session (corrected over-claims)
+- `dir_release_flush_all_done` (force-flush DONE data blocks) — one flaky pass, refuted on retest.
+- `dir_evict_prior_tenure` + `dir_tenure_evict` — still 0/8, regressed dlm_scaling.
+
+All findings, the precise root, refutations, and the transactional-merge plan are in ccmemory (`sess30-TRUE-HEAD-handoff-final-corrected`, `sess30-LEAD-bgen0-clobber-block-origin-is-next-target`, `sess30-refuted-prior-tenure-evict-levers-and-relay-boundary`). The pal awareness doc was updated. State is clean: build compiles, 8 nodes up, no orphans. The relay continues automatically.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

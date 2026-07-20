@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 8
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6d09e32f-699e-4691-a4ee-98bf40d238e5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5.jsonl`
+- approx context at last assistant turn: 500210 tokens
+- tools used: Bash×226 Edit×29 Read×5 TaskCreate×4 TaskUpdate×3 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×3 ToolSearch×2 TaskList×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_trans.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_sf.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/run.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/xfs/xfs_aops.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    S=/tmp/claude-1000/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5/scratchpad; for i in $(seq 1 58); do if ! pgrep -f "run.sh 4 tcp" >/dev/null; then echo "SUITE
+    jq -r '.categories[].tests[] | select(.runs["4/tcp"] != null) | select(.runs["4/tcp"].status == "FAIL") | "\(.name): \(.runs["4/tcp"].reason)"' /src/mxfs/criter
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 20 $SSH test4 $PF "dmesg | grep mxfs-DRCph | head -2; dmesg | grep mxfs-DRCph | tail -2" 2>/dev
+    grep -n "getdents\|readdir" /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c /src/mxfs/xfs/xfs_dir2_readdir.c 2>/dev/null | head -8; grep -n "mxfs" /src/mxfs/xfs/xfs_dir2_r
+    sed -n '407,480p' /src/mxfs/xfs/xfs_dir2_readdir.c
+    grep -n "xfs_dir2_leaf_readbuf" /src/mxfs/xfs/xfs_dir2_readdir.c | head -2; sed -n "$(grep -n 'STATIC int$' /src/mxfs/xfs/xfs_dir2_readdir.c | head -3 | tail -1
+    sed -n '306,406p' /src/mxfs/xfs/xfs_dir2_readdir.c
+    grep -n "^xfs_dir3_data_read\b" -A 40 /src/mxfs/xfs/libxfs/xfs_dir2_data.c | head -55
+    grep -n "mxfs" /src/mxfs/xfs/libxfs/xfs_da_btree.c | grep -iE "read|refresh|stale|gen" | head -12
+    sed -n '3000,3110p' /src/mxfs/xfs/libxfs/xfs_da_btree.c
+    T=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); echo $T; grep -E "readdir=" $T/test2 2>/dev/null | tail -6; grep -n "readdir\|ls -" /src/mxfs/
+    sed -n '3160,3290p' /src/mxfs/xfs/libxfs/xfs_da_btree.c
+    for k in 1 2 3 4; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1 & done; wait; sleep 3; for k in 1 2 3 4; do virsh -c qemu:///system start test$k >/d
+    S=/tmp/claude-1000/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5/scratchpad; for i in $(seq 1 56); do if ! pgrep -f "run.sh 4 tcp" >/dev/null; then echo "ENDED
+    T=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); for k in 1 2 3 4; do grep -E "drc round=[0-9]+ rank" $T/test$k 2>/dev/null | tail -1; done; gr
+    S=/tmp/claude-1000/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5/scratchpad; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k in 1 2 3 4; do (tim
+    S=/tmp/claude-1000/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5/scratchpad; grep "P13-LADD.*f19.md5" $S/dmesg112_t4.txt | head -2; echo "=== all nodes' adds t
+    S=/tmp/claude-1000/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5/scratchpad; for k in 1 2 3 4; do grep "P56-DIRWRITE.*daddr=4186528" $S/dmesg112_t$k.txt | sed 
+    S=/tmp/claude-1000/-src-mxfs/6d09e32f-699e-4691-a4ee-98bf40d238e5/scratchpad; grep -h "P56-DIRWRITE" $S/dmesg112_t4.txt | head -2; for k in 1 2 3 4; do echo -n 
+    grep -rn "P3W-DIRWR" /src/mxfs/pal/linux/xfs_buf.c /src/mxfs/xfs/*.c 2>/dev/null | head -2
+
+## Last text from previous session
+
+and the actual hit:
+Both diagnostics keep their one-line evidence but the `dump_stack` (which emits "Call Trace" and fails soak) gets instr-gated:
+Now the dir_reuse in-suite pace with run106's harvested dmesg — per-round timing:
+Build `D71F29A6` (FIX-21+22+23 + soak-probe gating). Full suite on a clean cycle:
+dlm_scaling 7/8 this time (was PASS twice) — pulling the reason while the suite continues:
+13/17 — soak fixed. dir_reuse still times out; fence/fault/tds now fail with exactly one node each. Pulling reasons and dir_reuse progress:
+test7 died at 826.9s with the defer-finish error-path shutdown — the lock-timeout class. Checking what failed just before:
+Round 11 is healthy (verify=2.5s). Now the stalled round 10 across nodes — looking for a straggler:
+**dir_reuse_coherency PASS 8/8 in-suite — first ever.** FIX-24 killed the straggler stalls. fence_during_write now timed out though. Waiting for the suite end, then investigating fence:
+Now the admit arms. Locating the current pre-loop region after my FIX-24 edit:
+15/17 — dir_reuse, fence, fault, soak all green. Two remaining: dlm_scaling (test6 got=0) and tcp_dlm_scaling (2/8). Harvesting evidence:
+Relay boundary. Capturing the run112 root-cause evidence in memory before wrap-up:
+Relay boundary reached — wrapping up. **Criteria not yet met; marker not written.**
+
+## Session 8 summary
+
+**Major progress: 8/tcp suite went 12/17 → 15/17 (twice, runs 109/110), with the historical #1 and #2 blockers (dlm_fairness, dir_reuse in-suite) both now PASSING.** Current build `38D787B1`, deployed and verified.
+
+**Fixes landed and RULE-4-proven this session:**
+1. **FIX-21** — selective AG-grant migration at `xfs_trans_dup`: only AGs still referenced by pending defer work items keep their DLM grants across rolls (preserves the sess26 EFI guard exactly). Killed the cross-AG hold-and-wait convoy: `P1-AGWAIT` held-sets went empty, dlm_fairness 3/8 → 7/8.
+2. **FIX-22** — the SF rebase-union (`mxfs_dir_rebase_shortform`) re-grafted our own un-destaged removes from stale disk images (traced name-by-name via new P8-SFRM/SFIFLUSH/SFADOPT ledgers: `mv n7_r49 → .done`, union re-imported `n7_r49` 5ms later). Filter the disk image through the per-tenure removed-set → dlm_fairness **PASS 8/8, first ever** (run103), zero leftovers.
+3. **FIX-24** — demote-wait rescue poll 30s→3s: run106 proved each dir_reuse "stall" was ONE node sleeping the full 30s on a zombie DEMOTING inode before the (instant) rescue arms ran → dir_reuse **PASS 8/8 in-suite, first ever** (runs 109+110).
+4. **FIX-25** — live-stack-proven 3-task deadlock: bast drain waits on folio writeback ← folio needs `xfs_end_ioend`'s unwritten conversion ← needs ILOCK EX ← blocked by that same drain. Added `xfs_task_in_ioend()` admit arms (nested EX while mirror still EX).
+5. **FIX-23 attempted and REVERTED** (run107 regression: gen-0 release on acquire timeout kills live grants in the re-affirm case — documented in code).
+6. **Harness**: cascade guards in run.sh (pkill + `fuser -k -m` on test timeout — leftover processes were poisoning 3-5 downstream tests per run); soak's dmesg-clean criterion was failing on our own ungated diagnostic `dump_stack`s (now instr-gated).
+
+**Root evidence secured for the next blocker** (4/tcp dir_reuse readdir undercount, reproducer ~4min): a durable intra-block tear — unused-entry chain swallows a live dirent (lookup OK, readdir misses, all nodes) — with **test2's xfsaild writing the shared dir block mid-peer-tenure (`P3W-DIRWR … skip=0`)** plus a `P-DBLALLOC` on the same daddr. The exact thread to pull (P3W skip-guard at `pal/linux/xfs_buf.c:3290`, sess40/sess16 prior leads) is written up in ccmemory `sess8-part3-readdir-tear-xfsaild-dirblock-root`.
+
+**Remaining for criteria**: fix the xfsaild dir-block writeback guard (4/tcp dir_reuse), the dlm_scaling setup-visibility race, tcp_dlm_scaling pace/mesh/residual-ghosts, then measure 2/tcp and 1/tcp. Ladder today: 8/tcp 15/17, 4/tcp 14/17, 2/1 unmeasured this generation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

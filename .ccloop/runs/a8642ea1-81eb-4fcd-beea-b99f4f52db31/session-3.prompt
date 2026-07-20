@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a8642ea1-81eb-4fcd-beea-b99f4f52db31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a8642ea1-81eb-4fcd-beea-b99f4f52db31, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f84b0a3a-a986-44ff-a8e6-ccf798a62376`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376.jsonl`
+- approx context at last assistant turn: 504092 tokens
+- tools used: Bash×157 Read×14 Edit×8 mcp__ccmemory__memory_write×6 mcp__ccmemory__memory_get×5 ToolSearch×2 mcp__ask_fable__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass NOISE='Permanently added|Unauthorized access|not an authorized|^$' r=$(timeout 8 $SSH test28 $PASS 
+    cd /src/mxfs echo "=== bast_notify function start + ref acquisition (find igrab/iget before spin_lock 14140) ===" sed -n '14060,14090p' xfs/xfs_mxfs_dlm.c | gre
+    cd /src/mxfs # Find the function enclosing line 14189 awk 'NR<=14189 && /^[a-zA-Z].*\(|^static.*\(|^{/{fn=NR": "$0} /^}/{} END{}' xfs/xfs_mxfs_dlm.c >/dev/null 
+    cd /src/mxfs python3 - <<'PYEOF' f="xfs/xfs_mxfs_dlm.c" s=open(f).read() old = ( "\t\tspin_unlock(&ip->i_dlm_lock);\n" "\t\tif (!p72_busy) {\n" "\t\t\tstatic at
+    cd /src/mxfs python3 - <<'PYEOF' f="xfs/xfs_mxfs_dlm.c" s=open(f).read() old = ( "\t\txfs_irele(ip);\n" "\t\tmxfs_idbg(\"mxfs: MX-INSTR bast_notify ino=%llu BRA
+    cd /src/mxfs echo "=== edited P72 recovery region ===" sed -n '14188,14235p' xfs/xfs_mxfs_dlm.c echo "=== build v0.10.45 ===" echo "0.10.45" > VERSION make modu
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass slow="" for i in $(seq 1 32); do   r=$(timeout 6 $SSH test$i $PASS 'echo ok' 2>/dev/null | grep -c 
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass for n in test5 test24; do   virsh -c qemu:///system destroy $n 2>&1 | head -1; sleep 1; virsh -c qe
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad LOG=$SC/drc32-B8.log; rm -f $LOG nohup timeout 5200 env MXFS_DEV=/dev
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad RUNPID=$(cat $SC/b8.pid); LOG=$SC/drc32-B8.log deadline=$((SECONDS+30
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad RUNPID=$(cat $SC/b8.pid) SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_p
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass NOISE='Permanently ad
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad RUNPID=$(cat $SC/b8.pid) SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_p
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass NOISE='Permanently ad
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass NOISE='Permanently added|Unauthorized access|not an authorized|^$' # find responsive node, get r4 s
+    cd /src/mxfs SC=/tmp/claude-1000/-src-mxfs/f84b0a3a-a986-44ff-a8e6-ccf798a62376/scratchpad # kill B8 (wedged) kill -9 $(cat $SC/b8.pid) 2>/dev/null; pkill -9 -f
+    cd /src/mxfs for p in $(fuser /tmp/mxfs_run.lock 2>/dev/null); do kill -9 $p 2>/dev/null; done sleep 1; fuser /tmp/mxfs_run.lock 2>/dev/null; echo " lock_rc=$? 
+    cd /src/mxfs echo "=== sites that reset i_dlm_mode = NL (formation candidates) ===" grep -nE 'i_dlm_mode\s*=\s*MXFS_LOCK_NL' xfs/xfs_mxfs_dlm.c xfs/*.c pal/*.c 
+    cd /src/mxfs for ln in 21955 22047 22078 29471 18833; do   fn=$(awk -v L=$ln 'NR<=L && /^[a-zA-Z_].*\(|^(static |void |int |bool ).*mxfs.*\(/{f=$0; fl=NR} NR==L
+    cd /src/mxfs fuser /tmp/mxfs_run.lock 2>/dev/null; echo "lock_rc=$? (1=free)" echo "run.sh procs: $(ps -eo cmd | grep -c '[r]un.sh 32 caw')" echo "VERSION: $(ca
+
+## Last text from previous session
+
+ the diagnosis. Key points:
+1. **My acquire-side clear idea has a TOCTOU double-EX hole** unless serialized via a claim (CAS state→DEMOTING under lock, re-validate, then clear).
+2. **Root fix = reclaim-time release**: the orphan forms because inode eviction (under memory pressure — *why 32 reproduces and 16 doesn't!*) resets `i_dlm_mode→NL` WITHOUT releasing the on-disk bit. Fix every `i_dlm_mode→NL` reset site to release first.
+3. Recovery net = minimal clear (invalidate, NOT flush — flushing prior-incarnation cache is a corruption vector), not the full bast_process block.
+4. **Prerequisite: verify acquire blocks while state==DEMOTING.**
+
+Let me find the formation site (eviction resetting i_dlm_mode→NL) and verify the DEMOTING-blocks-acquire prerequisite.
+Let me identify which reset sites are the inode-reclaim/eviction path (the formation site). Let me check the enclosing functions.
+I've reached the relay boundary. Let me quickly confirm the key formation-site fact (does `mxfs_dlm_evict` release the on-disk bit before resetting mode?), record state, ensure cleanup, then summarize.
+Critical finding: `mxfs_dlm_evict` (the reclaim path) has an **unpublish fast-path (line 21953) that resets `i_dlm_mode→NL` WITHOUT a disk release** — a prime orphan-formation suspect under 32-node cache pressure. Let me record Fable's guidance + this lead, confirm cleanup, then summarize.
+Let me do a final cleanup check and confirm the tree builds before summarizing.
+The "BUILD-ERRORS-ABOVE" is a false positive from my shell logic (`head` always exits 0) — no actual error lines printed, and the module is already built at srcver 4E1FA7B6, so the tree is clean. Cluster is idle, lock free, no orphan procs.
+
+## Session summary
+
+**Criteria status: NOT yet met** — `dir_reuse_coherency@32/caw` remains the single gap (all other node counts 1/2/4/8/16 and all other 32-node tests PASS). But this session made major diagnostic progress and narrowed the root to a specific, actionable fix.
+
+**What I proved (fully instrumented, RULE 4):**
+- The 32-node wedge is **not** a fairness/starvation problem (I spent 4 runs, B2–B5, tuning the CAW yield/streak mechanism — that was the wrong tree). 
+- The real root: at the dir-reuse boundary, a peer ends up **holding inode 131's on-disk EX bit while its cached `i_dlm_mode=NL`** — an **orphaned holder bit**. All 31 peers then block 360s → `rc=-110` shutdown cascade. Proven via a new `P-ACQ-STUCK` probe dumping the live slot (e.g. B8: test27 holds `hex=0x4000000`, gen advancing, never releases).
+- **Why it forms:** `resource_id` has no inode-generation, so the reused inode maps to the same CAW slot and inherits the prior tenure's bit; the holder's inode reclaim resets `i_dlm_mode→NL` without a CAW release. (Memory-pressure eviction explains why 32 reproduces and 16 doesn't.)
+- **Why nothing clears it:** `mxfs_dlm_bast_process`'s orphan-release path (`orphan_live` + strike escalation) is **TCP-only** (`p_rel_gen` is always 0 on CAW), so a CAW incore-NL orphan is never released.
+
+**Fixes built (v0.10.45, in tree):** acquire-side self-`EDEADLK` recovery + holder-side stale-`DEMOTING` re-queue. These pushed the wedge from r2/r3 → **r4** (real progress) but didn't fully clear it.
+
+**Fable consult (RULE 5, justified):** validated the fix design — use a **claim protocol** (CAS state→DEMOTING, re-validate, then clear) to avoid a TOCTOU double-EX; **invalidate not flush** (stale prior-incarnation cache); and the **root fix is reclaim-time release**.
+
+**Formation site located:** `mxfs_dlm_evict` (xfs_mxfs_dlm.c:21934) resets `i_dlm_mode→NL` — the unpublish fast-path (21953) does so with no disk release, and the normal path's `cancel_work_sync` may drop a mid-flight demote. Next session starts here: verify acquire blocks on DEMOTING, instrument evict to confirm the shared dir orphans there, then add the reclaim-time release + minimal BAST-time clear. Full plan is in memory `AAA-ccloopa864-sess2-END-fable-design-and-evict-formation-site`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

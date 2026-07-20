@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a16ec5f2-e661-430d-b60e-1535d93bf93a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a16ec5f2-e661-430d-b60e-1535d93bf93a, after session 3
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `96c7b7e8-d368-4e9a-a137-f47fd7dbc752`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752.jsonl`
+- approx context at last assistant turn: 498781 tokens
+- tools used: Bash×165 Edit×17 Read×7 mcp__ccmemory__memory_write×3 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode_item.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n 'ratelimit' /src/mxfs/dlm/dlm.c | head -4; grep -rn 'define mxfs_pal_log\b\|mxfs_pal_log(' /src/mxfs/pal/pal.h /src/mxfs/pal/*.h 2>/dev/null | head -3
+    make modules 2>&1 | grep -E '^/src.*error|error:' | head -5; modinfo mxfs.ko | grep srcversion
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    timeout 260 scripts/ccloop_reset.sh 8 >/dev/null 2>&1; time timeout 560 env MXFS_EXTRA_MODARGS="watch_daddr=131 watch_ino=131" ./run.sh 8 tcp dir_reuse_coherenc
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; D=/tmp/claude-1000/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752/scratchpad; mkdir -p $D/run17; for k 
+    D=/tmp/claude-1000/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752/scratchpad/run17; echo "== HOLDER dumps:"; grep -h 'P-LKTIMEOUT-HOLDER' $D/test*.dmesg | head 
+    D=/tmp/claude-1000/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752/scratchpad/run17; grep -h 'drc-RDMISS round=1 ' $D/test*.dmesg | head -1 | grep -oE 'missing_f
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k in 7 8; do echo "== test$k stream log r=1 errors:"; timeout 20 $SSH test$k $PF 'grep -nE "dd:|err
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 25 $SSH test2 $PF 'ls /root/drc_fail*r1_rank2* 2>/dev/null; grep -hE "drc-RDMISS round=1 |drc-C
+    D=/tmp/claude-1000/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752/scratchpad/run17; for k in 1 2 3 4 5 6 7 8; do c=$(grep -hE 'P29-DATAWRITE|P23-.*(OVERRIDE|PRI
+    grep -n 'P29-DATAWRITE' /src/mxfs/pal/linux/xfs_buf.c /src/mxfs/xfs/*.c 2>/dev/null | head -2; grep -B6 'P29-DATAWRITE' /src/mxfs/pal/linux/xfs_buf.c 2>/dev/nul
+    sed -n 3935,3990p /src/mxfs/pal/linux/xfs_buf.c
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; D=/tmp/claude-1000/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752/scratchpad; mkdir -p $D/run18; for k 
+    D=/tmp/claude-1000/-src-mxfs/96c7b7e8-d368-4e9a-a137-f47fd7dbc752/scratchpad/run18; grep -h 'P29-DATAWRITE' $D/test*.dmesg | sed -E 's/^\[ *([0-9]+\.[0-9]+)\] m
+    grep -n 'mxfs_dir_data_durable' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2; sed -n "$(grep -n '^mxfs_dir_data_durable\|static.*mxfs_dir_data_durable(' /src/mxfs/xfs
+    sed -n "$(($(grep -n '^mxfs_dir_data_durable' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1)+56)),+50p" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    tail -30 /src/mxfs/.claude/awareness/subsystems/pal.md; wc -l /src/mxfs/.claude/awareness/subsystems/pal.md
+    cat >> /src/mxfs/.claude/awareness/subsystems/pal.md <<'EOF'  ## sess3 (ccloop a16ec5f2) — xfs_buf.c watch upgrades + partial-writer visibility  - **PW-DADDR wa
+    grep -n 'mxfs_dir_evict_owned_dir_blocks' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -4; sed -n "$(grep -n '^mxfs_dir_evict_owned_dir_blocks\|^static.*mxfs_dir_evict_o
+
+## Last text from previous session
+
+15 (`P-DBLALLOC` caught it live) → garbage over live dir data → shutdowns.
+
+**Fix** (build `780517DA`, deployed): the skip now returns `-EAGAIN` leaving the ILI dirty for retry, with matching skip handling in `xfs_iflush_cluster`. Verified operating: shortform dinode writes now occur (`PW-IFLUSH fmt=1` ×20), and runs 16/17/18 had **zero cluster shutdowns** (previously dead by r=2-7), reaching 17-19 rounds with 15-17 clean rounds per run.
+
+## What remains (next session's targets, in the END memory)
+
+- **Residual dirent loss** (1-4 tail-of-round entries, occasionally a whole creator's set at r=1): P29 write-side data proves no stale-count block was ever *submitted* — the committed adds are being discarded in-core. Top suspect: `mxfs_dir_evict_owned_dir_blocks` (the P68-PREEVICT full evict on handoff-adopt) evicting buffers whose changes are committed-in-CIL — audit its dirty/pinned/IN_AIL guards first.
+- **AG↔dir-EX ABBA** (run16's test6 -110 dirty-cancel): new `P-LKTIMEOUT-HOLDER/-REMOTE` dumps now name holders/masters on every expiry.
+- **Pace**: ~25s/round vs the 20s needed for the 480s budget — strip diagnostics after correctness.
+
+Then the criteria ladder: 8/tcp ×5 consecutive clean → 4/2/1 regression → full `./run.sh N tcp` suites ×{1,2,4,8} → only then write YES.
+Not met — continuing. First the required awareness doc update for pal (xfs_buf.c changes), then straight into the evict-guard audit:
+Doc updated. Now the evict-guard audit — reading `mxfs_dir_evict_owned_dir_blocks`:
+Relay boundary reached — wrapping up. The evict-guard audit's first read partially refutes my CIL-window hypothesis for `mxfs_dir_evict_owned_dir_blocks`: its `undurable` gate covers LI_DIRTY, LI_IN_AIL, pinned, DELWRI_Q and skips non-DONE buffers, and committed-in-CIL changes pin the buffer — so that path looks safe. The discard gap must be in one of the sibling paths (`mxfs_dir_stale_clean_data_blocks_relsafe`, `mxfs_dir_evict_data_blocks` modify-path, the `xfs_da_read_buf` tenure-evict) or the loss mechanism is different — the decisive next analysis needs no new run: **run18's dmesg (already in scratchpad/run18/) has the full dirwr P29 per-write ledger; replay the victim block's `buf_cnt` sequence per daddr (compare each write against the PREVIOUS write of the same daddr, not against disk) to name the exact write where node2_f47-49.md5 disappeared.**
+
+## Session 3 summary
+
+**Criteria not met — marker not written.** Major ground gained:
+
+1. **ROOT FIXED (proven at line level):** the cluster-wide shutdown family (urandom over dir block0 daddr 0x78 → CRC error 74, runs 12/13/15) = `P22-SFTORN-SKIP` in `xfs_iflush` consumed `ili_fields` via `flush_out` without writing, silently discarding the rm-phase dir contraction whose block frees were already durable → reload resurrected a map of freed blocks → blk15 double-allocated to file data. Fix: `-EAGAIN` keep-dirty retry (xfs_inode.c + xfs_iflush_cluster skip handling), build `780517DA` deployed. Verified: `PW-IFLUSH fmt=1` writes now occur; **zero shutdowns across runs 16/17/18** (previously dead by r=2-7); runs now reach 17-19 rounds with 15-17 clean.
+
+2. **Instrumentation now in-tree** (all default-off): `mxfs.watch_daddr` (PW-SLOT dinode decode, PW-IWR partial-writer masks, PW-WDONE completions), `mxfs.watch_ino` (PW-IFLUSH/IABORT/RELFENCE/ADOPT/BLOCK2SF/LEAF2BLOCK lifecycle), and DLM `P-LKTIMEOUT-HOLDER/-REMOTE` timeout holder dumps.
+
+3. **Remaining blockers** (checkpointed in ccmemory `sess3-END-run18-evict-cil-window-hypothesis` + `sess3-MID2…`): (a) residual tail-dirent loss (1-4 entries, occasionally a whole creator set at r=1) — no stale-count submit exists, so committed adds are discarded in-core pre-submit; (b) the AG↔dir-EX ABBA -110 (run16 test6) — holder dumps now armed for attribution; (c) pace ~25s/round vs 20s budget — strip probes after correctness.
+
+Path to criteria: fix the dirent-loss root → 8/tcp ×5 consecutive clean → 4/2/1 regression → full `./run.sh N tcp` suites for N∈{1,2,4,8}.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

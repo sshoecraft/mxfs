@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 24 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 23
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `9a865b51-d39f-4152-b679-dc3efc6f9873`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9a865b51-d39f-4152-b679-dc3efc6f9873.jsonl`
+- approx context at last assistant turn: 176270 tokens
+- tools used: Bash×40 Read×15 Edit×3
+
+## Files written or edited in the previous session
+
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -iE "shutting down|
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|LD \[M\].*mxfs.ko" | tail -3; modinfo mxfs.ko | grep srcversion
+    export LIBVIRT_DEFAULT_URI=qemu:///system; for n in test1 test2 test3 test4; do virsh destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test
+    cd /src/mxfs; grep -n "caw_lock\b\|caw_acquire\|register.*wait\|waiter\|bast_poll\|defer_for_waiter\|set_waiter\|->waiters\|slot->waiter" dlm/dlm_caw.c | head -
+    cd /src/mxfs; grep -n "bast_poll\|poll_fn\|poll_thread\|scan.*slot\|held_slots\|for.*held\|bast_cb\|bast_callback\|->bast\b\|fire.*bast\|MXFS_CAW_BAST_POLL" dlm
+    cd /src/mxfs; for i in $(seq 1 24); do up=0; for ip in 114 143 140 174; do ping -c1 -W1 192.168.120.$ip >/dev/null 2>&1 && up=$((up+1)); done; [ "$up" = 4 ] && 
+    cd /src/mxfs; sleep 20; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; timeout 400 bash tests/measure_rename.sh 4 2>&1 & BGPID=$! # wait for it wait $BGPID 2>/dev/null echo "=== done ==="
+    cd /src/mxfs; until grep -q "total_fails_sum" /tmp/claude-1000/-src-mxfs/9a865b51-d39f-4152-b679-dc3efc6f9873/tasks/bsw87lba1.output 2>/dev/null; do sleep 5; do
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n (uptime $(timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cut -d. -f1 /proc/uptime' 2>/
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -n -A40 "XFS_ERROR_REPORT\|Internal error\|xfs_trans_cancel" | tail -70'
+    cd /src/mxfs; timeout 12 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -iE "P51-INSTR caw|imap_to_bp|Internal error|miscompare|slot_appears_cor
+    cd /src/mxfs; grep -n "read_slot\b\|static.*read_slot\|FUA\|fua\|read_fua\|scsi_read" dlm/dlm_caw.c | head -30
+    cd /src/mxfs; grep -rn "bdev_read_prio\|read_prio" pal/*.c | head; echo "=== slot_offset ==="; grep -n "slot_offset\|MXFS_CAW_SLOT_SIZE\|slot_base\|table_offset
+    cd /src/mxfs; grep -rn "mxfs_pal_bdev_read_prio\|bdev_compare_and_write\|read_fua\|REQ_FUA\|REQ_PRIO\|op_flags" pal/*kernel* pal/*.c pal/ 2>/dev/null | grep -iE
+    cd /src/mxfs; grep -n "mxfs_pal_bdev_read_prio\|read16_fua\|bdev_read\b\|scsi_read16_fua\|read_prio" pal/linux/kern.c | head; echo "=== read_prio body ==="; awk
+    cd /src/mxfs; grep -rn "struct mxfs_caw_lock_slot {" include/ dlm/ compat/ 2>/dev/null; echo "=== struct def ==="; awk '/struct mxfs_caw_lock_slot \{/{f=1} f{pr
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "P51-miscompare count: $(dm
+    cd /src/mxfs; grep -n "mxfs_dir_evict_data_blocks\|mxfs_dir_data_durable\|mxfs_dir_push_data_ags\|P-SF-DURABLE\|P-EVICT" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; grep -n "xfs_dialloc\|xfs_iunlock\|xfs_ilock\|XFS_ILOCK\|drop.*lock\|mxfs.*ilock\|dp ILOCK\|reacquire\|dir_createname\|xfs_trans_cancel\|out_trans
+
+## Last text from previous session
+
+of a dirty transaction from **`xfs_create`** (xfs_trans.c:1061 → CORRUPT_INCORE).
+
+4. **Smoking gun:** test1 logged **240× `SESS50-STARVE ino=131 our_mode=EX waiters=0xe gen=29`** while test2/3/4 logged 1-2 each. → test1 holds the shared test-dir EX lock *continuously for ~120s* while the other 3 nodes starve waiting for EX → barrier timeout → dirty create cancel → shutdown.
+
+5. **Ruled out** a CAS livelock: CAW miscompares are low (7-19/node), retries 1-4, and slot reads are confirmed FUA-coherent (`read_slot` → SCSI READ16 FUA).
+
+### Leading hypothesis for next session (unproven)
+test1's create **hold-and-waits**: holds ino=131 dir EX (pinned by the open transaction) and blocks ~120s inside `xfs_dialloc`'s AG-lock CAW poll — the documented "ILOCK held across CAW poll" design tension. bast_notify keeps hitting the pin/holders deferral branch, so the release never fires.
+
+### Next step
+Verify whether `xfs_create` (xfs_inode.c ~L930) still drops the dir ILOCK across `xfs_dialloc` (sess34 claims v0.3.148 did — the *pin* may still hold even if the rwsem is dropped). Instrument exactly what test1's create blocks on while holding ino=131 EX, then either avoid holding the dir lock across the inode-alloc CAW poll or let a BAST preempt a pinned-but-blocked holder. Given this class is 60+ sessions stuck and I now have concrete evidence, a Gemini consult (RULE 5, omit `max_tokens`) is warranted before more patches.
+
+The diagnosis is recorded at the head of `/src/mxfs/state.md`. Cluster left freshly rebooted + pristine-reset with build 2304C6B1 loaded.
+Criteria not met — continuing. Let me read `xfs_create` to verify the dir-lock/pin handling across `xfs_dialloc`.
+`xfs_create` drops dp ILOCK across `xfs_dialloc` (re-acquired at L1037) — but holds dp EX **across `xfs_dir_create_child` + `xfs_trans_commit`** (L1037-commit). `xfs_dir_create_child` can allocate dir data blocks (AG CAW poll) while holding dir EX. Let me refine the hypothesis in state.md with this precise finding before the relay continues.
+Criteria remain unmet (`cache_coherency`, `rsync_paired` still FAIL) — I will not write the marker. Context is at the relay boundary; the refined diagnosis is recorded in `state.md` for the fresh session to continue from.
+
+## Progress this session (sess65)
+
+Made concrete, evidence-based progress that **redirects the investigation**:
+
+1. **Disproved sess64's premise** — build 2304C6B1 is not "flaky-fail, no corruption." On a fully-pristine cluster (hard-rebooted all 4 nodes) it hangs 120s then FS-shuts-down.
+
+2. **Relocated the bug from the read/rename phase to the CREATE phase** — shutdown is a dirty-transaction cancel from `xfs_create` (xfs_trans.c:1061), triggered during phase-1 file creation into the shared dir.
+
+3. **Identified the live mechanism**: test1 holds the shared-dir (ino=131) EX lock continuously for ~120s (240 STARVE events vs ~1 on peers), starving 3 peers → barrier timeout → shutdown. Ruled out CAS livelock (low miscompares, FUA-coherent slot reads confirmed).
+
+4. **Pinned the code path**: `xfs_create` correctly drops dp ILOCK across `xfs_dialloc`, but **holds dp ILOCK_EXCL across `xfs_dir_create_child` + commit** — and `xfs_dir_create_child` allocates dir data blocks (AG CAW poll, up to 120s) as the shared dir grows shortform→block→leaf. That's the hold-and-wait, compounded by the expensive release-side durability drain.
+
+**Next session's clear path** (recorded at the head of `/src/mxfs/state.md`): instrument *why test1 never rotates out the EX* — three candidates: (a) bast_process never scheduled, (b) it wedges in the drain (the `imap_to_bp ino=131 rc=-5` EIO is suspicious), or (c) back-to-back creates re-grab EX faster than the BAST is serviced. Then either avoid holding dir EX across the dir-block-alloc CAW poll, or let a BAST preempt a blocked holder. Given 60+ sessions on this class, a Gemini consult (RULE 5, omit `max_tokens`) with this concrete evidence is warranted. Cluster left pristine with build 2304C6B1 loaded.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

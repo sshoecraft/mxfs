@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 31 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 30
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `4e706553-4fbb-4b0a-bc51-8e6082c75af7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4e706553-4fbb-4b0a-bc51-8e6082c75af7.jsonl`
+- approx context at last assistant turn: 510061 tokens
+- tools used: Bash×52 Read×35 Edit×9 mcp__ccmemory__memory_write×6 mcp__ccmemory__memory_get×5 ToolSearch×3 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccusage__get_context_usage×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/drc_parse.sh
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== the actual DLM lock request call(s) ==="; grep -n "mxfs_v5_dlm_inode_lock(" xfs/xfs_mxfs_dlm.c; echo; echo "=== context around the reque
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|warning.*xfs_mxfs_dlm|implicit|undefined|mxfs_dir_drain_pins_at_nl" | hea
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do timeout 12 $SSH $n "$PF" 'dmesg -C 2>/dev/null' >/dev/null 2>&1; done; ech
+    chmod +x /src/mxfs/scripts/drc_parse.sh && echo "drc_parse.sh ready"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 12 $SSH $n "$PF" '   mount | grep -q "on /m
+    cd /src/mxfs; scripts/drc_parse.sh 2>&1 | head -60
+    cd /src/mxfs; D=$(ls -dt /tmp/run_dir_reuse_coherency_20260619T081938Z 2>/dev/null); echo "logdir=$D"; for f in "$D"/test1; do echo "=== tail of $f ==="; tail -
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 14 $SSH $n "$PF" '   dmesg 2>/dev/null | gr
+    cd /src/mxfs; echo "=== baseline re-run (AB435ACC, 080025Z) — did it ALSO corrupt/shutdown? ==="; D=/tmp/run_dir_reuse_coherency_20260619T080025Z; for f in "$D"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== test1: the corrupt 0xc00 buffer dump (what overwrote the inode cluster?) ==="; timeout 14
+    cd /src/mxfs; echo "=== rebuild reverted-to-baseline $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|warning.*xfs_mxfs_dlm|implicit|undefined|drain_pin
+    cd /src/mxfs; echo "=== AG-meta coherency: gen stamp + acquire-evict + detectors ==="; grep -n "b_mxfs_ag_gen\|mxfs_ag_buf_disk_differs\|drain_alloc_buflist\|P3
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 14 $SSH $n "$PF" '   echo "--- INACT-SKIP-S
+    cd /src/mxfs; echo "=== P117-AGMETA-STALE-CLEAN location + context ==="; grep -rn "P117-AGMETA-STALE-CLEAN\|P117\|AGMETA-STALE" xfs/*.c pal/linux/*.c | head; ec
+    cd /src/mxfs; echo "=== pag_dlm_meta_gen: all assignments/increments/reads ==="; grep -rn "pag_dlm_meta_gen" xfs/*.c pal/linux/*.c | head -30
+    cd /src/mxfs; echo "=== callers of mxfs_ag_meta_invalidate_stale ==="; grep -rn "mxfs_ag_meta_invalidate_stale" xfs/*.c xfs/libxfs/*.c pal/linux/*.c | grep -v "
+    cd /src/mxfs; echo "=== geometry (agcount/agblocks/isize) via chk_mxfs ==="; timeout 30 tools/chk_mxfs -v /dev/sda 2>/dev/null | grep -iE "agcount|agblocks|isiz
+    cd /src/mxfs; echo "=== P33 detector (sess24 double-alloc catcher) ==="; grep -rn "P33-\|P33 \|\"mxfs: P33" xfs/*.c xfs/libxfs/*.c pal/linux/*.c | head -15; ech
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 14 $SSH $n "$PF" '   echo "P55-ALLOC-OVER-I
+    cd /src/mxfs; echo "=== build (P-DBLALLOC always-on detector) $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|warning.*xfs_alloc|implicit|undefined|p_d
+
+## Last text from previous session
+
+-4 progress: confirm the cross-node sub-mechanism. The intra-node check (P55) is 0×, so the only "alloc-over-inode" path not yet checked on this cluster is the **cross-node on-disk** case (sess55 removed it for perf, but 2-node load is ~8× lighter than their 16-node storm). Let me read the existing cross-node catch structure to re-add a bounded on-disk check.
+There's already a **P-DBLALLOC** detector (4199+) that does exactly the decisive check — at a DATA-fork alloc, coherently plain-reads the allocated block and fires if it holds live dir/inode magic — but it's gated behind instr/dirwr (which is 100× slow and hides races). Let me read its full body, then make **just this one detector** always-on + capped, so I can run it WITHOUT instr (race-preserving, bounded perf).
+I've reached the relay boundary. The decisive next experiment is to confirm FACE C's cross-node mechanism via the existing **P-DBLALLOC** detector — but it's gated behind `instr`/`dirwr` (100× slowdown that hides the race). Let me complete this sub-step cleanly: make **only this detector** always-on + capped, so the next session can run `dir_reuse` normally (race-preserving, bounded perf) and catch the double-alloc in the act.
+Let me build to confirm the detector change compiles cleanly, leaving a ready-to-run build for the next session.
+Build clean — srcversion `01E60C6E`, the always-on P-DBLALLOC detector is ready (log-only, no behavior change). Let me record the exact next-run instructions, then summarize.
+## Session 30 summary
+
+**Criterion (`2 node dlm=tcp` 100% = `./run.sh 2 tcp` all-pass) NOT met.** Only `dir_reuse_coherency` fails (16/17 pass). I did **not** write the criteria-met marker — the test still fails.
+
+### Major diagnostic progress (the value of this session)
+I reframed `dir_reuse_coherency` from "dir-block coherency" (where prior sessions were stuck) into **three intermittent faces**, and pinned the severest:
+- **FACE A** — readdir < 200 (stale dir DATA block RMW'd/flushed).
+- **FACE B** — lookup_fail > 0 (stale dir LEAF hashval).
+- **FACE C** (severest, shutdown) — **"Structure needs cleaning": a file's urandom data physically sits on an inode cluster (daddr 0xc00, inum 3072)** → `xfs_inode_buf_verify` fail → FS shutdown ~round 16. **Corrected**: this is NOT intra-node allocator double-alloc (`P55-ALLOC-OVER-INODE`=0×) nor the sess47 double-free (INACT/P47/P81=0×) — it's a **cross-node daddr-reuse / stale-extent-map clobber**, and the offending file-data write **bypasses the xfs_buf metadata chokepoint** (iomap path), so a metadata guard can't prevent it.
+
+### Established facts
+- Target is **LIO fileio write-through → plain cold-reads are coherent** (the `project_test_cluster_scst` memory is stale for this cluster).
+- The AG-meta refresh machinery is comprehensive (gen-epoch bumps unconditionally on TCP; refresh hook wired into the bnobt btree read) yet double-ownership persists → genuinely deep cross-node coherency residual (sess110–123 territory).
+
+### Refuted this session (all reverted — don't repeat)
+1. Acquire-side pin-drain extension → regressed (block_verify, stale extent-map).
+2. NL-side pin-drain → no help (FACE C is pre-existing, not caused by it).
+3. Write-side set-superset discard → **GPT-5.5 refuted** (legit-remove resurrection + AIL-pull crash-loss).
+
+### Left ready for next session
+- Build `01E60C6E` = baseline + **only** an un-gated, capped, **log-only** `P-DBLALLOC` detector (safe to run). 
+- Exact next step recorded in `sess30-ready-detector-build-and-next-run`: **reboot cluster** (FS is shut down → `/dev/sda` busy), run `dir_reuse_coherency` **without instr** (preserves the race), grep `P-DBLALLOC`. If it fires → cross-node allocator double-alloc confirmed (fix = AG free-space cross-node coherency / check for AG-DLM double-grant); if not → stale file extent-map under inode reuse (fix that path or evict-on-free).
+- New tool: `scripts/drc_parse.sh` (per-round 3-face summary).
+- Five detailed memories recorded for continuation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

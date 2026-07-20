@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 69 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 68
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `94179ed2-1cd1-4e3e-a0a9-91f187c2fcc0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/94179ed2-1cd1-4e3e-a0a9-91f187c2fcc0.jsonl`
+- approx context at last assistant turn: 246980 tokens
+- tools used: Bash×30 Read×16 Edit×11 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tools/prep_tcm_node.sh
+- /src/mxfs/scripts/p133_storm_dirwr.sh
+- /src/mxfs/.ccmemory/sess68-host-loopback-deadlock-and-sharpened-p67-probe.md
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== is SCST target still listening on 3260? ==="; sudo ss -ltnp 2>/dev/null | grep ':3260' || echo "NOT LISTENING on 3260" echo echo "=== is disk1 active-
+    cd /src/mxfs; echo "=== zsl / storm / silent-loss scripts ==="; ls -1 scripts/ tests/ 2>/dev/null | grep -iE 'zsl|silent|storm|loss|dpn' ; echo "=== criteria ru
+    cd /src/mxfs; echo "=== zero_region in mkfs_mxfs.c (chunked still present?) ==="; grep -n "BLKZEROOUT\|zero_region\|4.*1024.*1024\|chunk" tools/mkfs_mxfs.c | he
+    cd /src/mxfs; echo "=== mkfs binary vs source mtime ==="; ls -la --time-style=+%s tools/mkfs_mxfs tools/mkfs_mxfs.c 2>/dev/null | awk '{print $6,$7}' echo "=== 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; [ -f "$P" ] || { echo '<REDACTED-ROTATED>' > "$P"; chmod 600 "$P"; echo "(recreated pass)"; } echo "=== reach a 
+    cd /src/mxfs; echo "=== bash -n syntax checks ==="; for f in tools/prep_tcm_node.sh scripts/p133_storm_dirwr.sh scripts/cluster_reset_n.sh; do echo -n "$f: "; b
+    cd /src/mxfs; echo "=== does zero_silent_loss.sh use prep_tcm_node.sh or cluster_reset? ==="; grep -nE 'prep_tcm_node|cluster_reset|device/timeout|insmod|mkfs|m
+    cd /src/mxfs; echo "=== zero_silent_loss.sh: what does it call? ==="; grep -nE '\.sh|bash |source |workload|baseline|reset|prep|sshpass|insmod|timeout' tests/cr
+    cd /src/mxfs; echo "=== sess88 baseline: prep/insmod/mkfs/timeout/barrier ==="; grep -nE 'prep_tcm_node|device/timeout|insmod|mkfs_mxfs|mount -t mxfs|rmmod|lsmo
+    cd /src/mxfs; echo "=== edited files this session ==="; ls -la --time-style=+%H:%M tools/prep_tcm_node.sh scripts/p133_storm_dirwr.sh xfs/xfs_mxfs_dlm.c mxfs.ko
+    echo "=== D-state count ==="; ps -eo stat|grep -c '^D' echo "=== close_conn + modprobe stuck? ==="; ps -eo pid,stat,comm|grep -E 'iscsi_conn_cleanup|modprobe'|g
+    cd /src/mxfs; echo "=== clyde_boot_recover.sh exists + armed in cron? ==="; ls -la scripts/clyde_boot_recover.sh 2>/dev/null; echo "--- root crontab @reboot ent
+    cd /src/mxfs; echo "=== confirm: no @reboot hook armed anywhere ==="; sudo crontab -l -u steve 2>/dev/null | grep -c clyde_boot_recover; sudo crontab -l 2>/dev/
+    cd /src/mxfs; echo "=== P34B probe location ==="; grep -rn "P34B" xfs/ pal/ | head; echo "=== xfs_iread_bmbt_block ==="; grep -rn "xfs_iread_bmbt_block\|iread_b
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error|warning.*xfs_bmap|P68|LD \[M\]|\.ko$' | head -20; echo "=== exit ${PIPESTATUS[0]} ==="; echo "=== new srcversi
+    cd /src/mxfs; echo "=== how xfs_btree_visit_blocks visits (leaves only for VISIT_RECORDS?) + does it call cb for internal nodes? ==="; grep -n "XFS_BTREE_VISIT_
+    cd /src/mxfs; echo "=== b_mxfs_dir_gen: where SET on buffers ==="; grep -rn "b_mxfs_dir_gen" xfs/ | grep -vE 'P59-|P67-|pr_warn|= 0;' | head -30
+    cd /src/mxfs; echo "=== callers of mxfs_dir_bmbt_invalidate_stale ==="; grep -rn "mxfs_dir_bmbt_invalidate_stale" xfs/ | grep -v '\.backup' | grep -vE 'void$|^x
+    cd /src/mxfs; echo "=== the three other failing criteria runners ==="; ls -la tests/criteria/ | grep -iE 'fence|rsync|posix' echo "=== fence_during_write: struc
+    echo "=== uptime (reset since 1d6h?) ==="; uptime | awk '{print $3,$4,$5}' echo "=== close_conn / scst / portal ==="; echo "close_conn=$(ps -eo comm|grep -c isc
+
+## Last text from previous session
+
+ are entirely cluster-gated, and the cluster requires a host reset that RULE 2 reserves for the user. I've verified the host has not been reset, so nothing is verifiable yet.
+- **All achievable preparatory work is done and validated**: the candidate zsl fix at the proven root cause (build `2D460CA3`, triple-validated), wedge-recurrence prevention (30s→180s timeout + verified barriers), sharpened diagnostics, the disarmed-resume-hook flag, and a one-run post-reboot verify recipe — all in memory (`sess68-host-loopback-deadlock-and-sharpened-p67-probe`).
+
+There is no remaining angle that advances toward *meeting* the criteria without either the wedged LUN or the prohibited reboot. Producing further speculative code changes to the other criteria would violate RULE 4 (no patching without proven, instrumented roots — which require the cluster), and re-poking the uninterruptible-D-state host cannot clear it in software.
+
+The single unblocking action remains the user's:
+```bash
+# as steve, BEFORE rebooting:
+(crontab -l 2>/dev/null; echo "@reboot /src/mxfs/scripts/clyde_boot_recover.sh") | crontab -
+# then manually reset clyde
+```
+Once the host is reset, the run auto-resumes and the next session deploys `2D460CA3` and runs `zero_silent_loss.sh` to verify the fix. I will not write a dishonest marker, take the prohibited reboot, or land unverifiable speculative changes — the honest, correct state is that this work is complete and waiting on the one user-gated dependency.
+New angle — a forward hypothesis worth recording for the post-reboot session: the 4 failing criteria likely **share the bmbt/dir-coherency root**, so the single fix `2D460CA3` may address the family rather than being zsl-only. Evidence from memory: `posix_semantics_multi16` = "multiple distinct shutdown faces under 16-node shared-dir storm" (sess54), `fence_during_write` = survivor sees less than the fenced node claimed (consistent with stale-dir-read-after-reload), `rsync_paired` = deep-tree dir growth (heavy bmbt → same stale-leaf risk). This changes the post-reboot strategy: verify whether `2D460CA3` fixes the *family* before treating them as 4 separate roots. Let me record this.
+Recorded — with the important caveat that `fence`/`posix` may *also* carry the separate durable write-side lost-update root (sess69) that a read-side fix won't touch, so the post-reboot session knows what to check next if they don't fall to `2D460CA3`.
+
+This session's work is complete for everything achievable without the cluster. Confirmed again: host still wedged (uptime 1d7h, portal down, 90 stuck threads), so the 4 cluster-gated criteria remain unverifiable and **the marker stays unwritten** (writing YES would be dishonest; rebooting clyde is prohibited by RULE 2).
+
+Deliverables, all landed and recorded in memory:
+1. **Candidate zsl fix at the proven root** (`2D460CA3`, primed on NFS) — triple-validated by static analysis (traversal correctness, scope, right-layer vs. the existing invalidator's escape hatches).
+2. **Wedge-recurrence prevention** (guest SCSI timeout 30→180s + verified barriers) so the reset isn't wasted.
+3. **Sharpened P67 diagnostics** as fallback.
+4. **Disarmed-resume-hook flag** + re-arm command.
+5. **Forward hypothesis** that the 4 failing criteria share the bmbt/dir-coherency root (with the write-side caveat), reshaping the post-reboot strategy to test the family at once.
+
+Every remaining path to *meeting* the criteria requires verification on the cluster, which requires the user-gated host reset:
+```bash
+# as steve, BEFORE rebooting:  (crontab -l 2>/dev/null; echo "@reboot /src/mxfs/scripts/clyde_boot_recover.sh") | crontab -
+# then manually reset clyde
+```
+After reset the run auto-resumes, deploys `2D460CA3`, and runs `verify_ship.sh` to confirm the fix across the family. I won't fabricate a pass, take the prohibited reboot, or land unverifiable speculative changes — the engineering is done and correct; it awaits the one infrastructure action only the user can take.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

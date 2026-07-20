@@ -1,0 +1,16 @@
+{
+  "source": [
+    "pal/linux/xfs_aops.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_iomap.c",
+    "xfs/libxfs/xfs_inode_buf.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "dlm/v5_mount.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

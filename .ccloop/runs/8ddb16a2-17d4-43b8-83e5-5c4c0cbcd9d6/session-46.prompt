@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 46 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 45
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `af441141-9481-4df0-ad36-4c79d1703c04`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/af441141-9481-4df0-ad36-4c79d1703c04.jsonl`
+- approx context at last assistant turn: 507604 tokens
+- tools used: Bash×83 Read×30 Edit×16 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_get×5 ToolSearch×3 TaskStop×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/tests/suite/cache_coherency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== run.sh: test loop + result collection (lines 150-340) ===" sed -n '150,260p' run.sh
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" for n in test1 test2; do   echo "---- $n basic write test ----"   timeout 20 tools/mxfs_sshpass.sh "$n" "$PASS" "     d=/mnt
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" timeout 30 tools/mxfs_sshpass.sh test1 "$PASS" "   echo '=== first error/abort/corruption BEFORE the trans_cancel shutdown =
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done sleep 2 for vm in test1 tes
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" echo "=== cache_coherency fail reason ==="; cat /tmp/tmp.rgrVJVwkN0/* 2>/dev/null | grep -hE "RESULT|reason" | head for n in
+    cd /src/mxfs echo "=== cache_coherency log files ==="; ls -la /tmp/tmp.rgrVJVwkN0/ 2>/dev/null echo "=== per-node content ===" for f in /tmp/tmp.rgrVJVwkN0/test
+    cd /src/mxfs d="/tmp/run_cache_coherency_20260620T151228Z" echo "=== $d ==="; ls -la "$d" 2>/dev/null for f in "$d"/test1 "$d"/test2; do   echo "-------- $f ---
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done sleep 2 for vm in test1 tes
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" echo "=== node health ===" for n in test1 test2; do   timeout 15 tools/mxfs_sshpass.sh "$n" "$PASS" "echo -n '$n shutdown_li
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" timeout 25 tools/mxfs_sshpass.sh test1 "$PASS" "   echo '=== the 1 shutdown + caller (benign fence test, or a real bug?) ===
+    cd /src/mxfs grep -n "Current build (sess44" CLAUDE.md | head -1
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done sleep 2 for vm in test1 tes
+    cd /src/mxfs echo "=== cache_coherency: unlink_visibility (uv) section ===" grep -n "uv\|unlink_vis\|unlink\|gone\|none remain\|coord_barrier" tests/suite/cache
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" echo "=== BASE definition in cache_coherency ==="; grep -n "BASE=" tests/suite/cache_coherency.sh | head echo "=== current v
+    cd /src/mxfs echo "=== b_mxfs_dir_gen / i_dlm_dir_gen mechanism sites ===" grep -rn "i_dlm_dir_gen\|b_mxfs_dir_gen" xfs/ pal/ --include=*.c | grep -vE "pr_warn|
+    cd /src/mxfs echo "=== i_dlm_dir_gen increment/bump sites ===" grep -rn "i_dlm_dir_gen++\|i_dlm_dir_gen +=\|i_dlm_dir_gen = .*+ 1\|i_dlm_dir_gen)++\|++.*i_dlm_d
+    cd /src/mxfs PASS="/tmp/.mxfs_pass" for vm in test1 test2; do timeout 25 virsh -c qemu:///system destroy "$vm" >/dev/null 2>&1; done sleep 2 for vm in test1 tes
+    cd /src/mxfs echo "=== EVICT-RING-DIRMOD send/recv + dir-mod broadcast trigger ===" grep -rn "EVICT-RING-DIRMOD\|DIR_MODIFY\|dir_modify\|dirmod\|evict_ring.*dir
+    cd /src/mxfs echo "=== d_revalidate / s_d_op in xfs_super.c + dentry ops ===" grep -rn "d_revalidate\|s_d_op\|mxfs_d_op\|dentry_operations\|xfs_dentry" pal/linu
+    cd /src/mxfs echo "=== mxfs_dir_force_evict + related dir-coherency module params ===" grep -rn "mxfs_dir_force_evict\|mxfs_dir_leaf_rebuild\|module_param.*dir_
+
+## Last text from previous session
+
+ = &mxfs_dentry_operations` is currently **enabled** with `mxfs_drevalidate` (node-affine-gated), yet uv still fails. So the staleness is in **XFS's dir DATA block buffer (xfs_buf), not the dcache** — d_revalidate re-does the lookup but reads the same stale xfs_buf. The fix must invalidate that buffer (bump i_dlm_dir_gen). Let me read `mxfs_drevalidate` to see if it bumps the dir gen / invalidates the dir block.
+Now the full chain is traced: `mxfs_drevalidate` IS active and takes `xfs_ilock(dp, SHARED)` on the parent dir + re-lookups — but that acquire **fast-paths on node1's cached DLM grant** (no slow-path reload → no `i_dlm_dir_gen` bump → the stale `$D` dir-block xfs_buf is never invalidated). So d_revalidate re-reads the same stale buffer and still finds node2's deleted file. The fix locus is precise: force a coherent dir-block reload in d_revalidate for peer positive dentries (or fix node2's EX to BAST-downgrade node1's PR). Let me record this exact entry point.
+The full root chain is documented with two precise fix options. Before risking a change to the delicate `i_dlm_dir_gen` counter (it feeds incarnation/eviction logic), let me read the existing dir-refresh helpers (`mxfs_dlm_dir_modify_reload_prelock` / `_refresh`) — they may give a safe, callable force-refresh I can invoke from d_revalidate.
+The comment at 2616-2620 describes the uv bug family exactly, and there's a `mxfs_dir_force_evict` module param that forces the dir-block cold-reload unconditionally (bypassing the gen gate). The discriminator proved a cold re-read fixes node1. Let me check this param — testing it is a near-zero-risk experiment (vs. a delicate code change).
+I've hit the ccloop relay boundary. Let me capture the final lead (force_evict is already on; the reader-refresh path is the locus) and wrap up.
+## Session summary
+
+**Major win: fixed the deepest 90-session blocker.** The full `./run.sh 2 tcp` suite went from effectively-contaminated to a clean **14 PASS / 3 FAIL** (build `EF006296`).
+
+### Root-caused & fixed (RULE 4, raw-disk evidence)
+The crash_consistency / inode-cluster wedge: `mxfs_submit_partial_inode_write` (pal/linux/xfs_buf.c) skips writing free-on-buffer inode slots that aren't logged this round (false-sharing protection). A freshly-`xfs_ialloc_inode_init`'d chunk stamps all inodes magic-IN via an **ordered buffer** (v3 ICREATE, not physically logged), so its brand-new **free** inodes get skipped → the reused block's old freed data survives on disk (I found the payload `"node2-d4-f24-pay"` inside a free inode slot) → later `xfs_iget` read-verify fails → shutdown.
+**Fix (KEEP):** write the WHOLE buffer when `XFS_BLI_INODE_ALLOC_BUF` is set (a freshly-allocated chunk has no peer-owned slots). Verified: crash_consistency 0/2 → **2/2**, BADVERIFY=0.
+
+### Remaining 3 (all node1, dir/visibility/perf coherency)
+- **cache_coherency** — deterministic; `uv` unlink-visibility: node1's cached `$D` dir-block xfs_buf is stale (drop_caches discriminator PROVED node2's deletes are durable, node1's cache is stale). Fully traced: node1's lookups skip the synchronous DLM, `mxfs_drevalidate` fast-paths on a cached grant (no reload/gen-bump), and the async evict-ring dedups/lags. **Fix locus identified:** `mxfs_dlm_dir_consumer_refresh` (xfs_mxfs_dlm.c:2470, called from xfs_inode.c:695) must force a coherent dir-block cold-reload for peer-shared reads. (`mxfs_dir_force_evict` already defaults to 1 — it covers the modify path, not the reader path.)
+- **dir_reuse_coherency** & **tcp_dlm_scaling** — PASS standalone, fail only cumulatively (flaky/cumulative; tcp_dlm has a separate `__xfs_trans_commit:890` corruption to chase).
+
+All findings + precise fix entry points are saved to ccmemory (7 sess45 notes) and the CLAUDE.md `[AWARENESS]` head is updated to the 14/17 state.
+
+**Criterion NOT met** (14/17, need 17/17) — not writing the marker. The next session has a known-good build (`EF006296`) and a precise fix locus for the deterministic remaining blocker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

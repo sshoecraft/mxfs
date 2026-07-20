@@ -1,0 +1,86 @@
+# Structural Map — {PROJECT_NAME}
+
+**Generated**: {YYYY-MM-DD}
+**Source files scanned**: {count}
+**Approximate token count**: {count}
+
+## Notation
+
+```
+[path/to/file.ext]
+  fn function_name(param_type param, ...) -> return_type
+    calls: fn1, fn2, fn3
+    called_by: fn4, fn5
+  struct StructName { field1: type, field2: type }
+  enum EnumName { VAL1, VAL2, VAL3 }
+  macro MACRO_NAME(args)
+  global variable_name: type
+```
+
+- `calls:` lists functions this function directly invokes
+- `called_by:` lists functions that directly invoke this function
+- Only PUBLIC / EXPORTED symbols are listed unless internal symbols cross file boundaries
+- Call graph edges are best-effort — static analysis only
+
+## Map
+
+{Generated content here — example:}
+
+```
+[src/cache/block_cache.c]
+  fn mxfs_block_cache_init(fs_ctx*) -> int
+    calls: bdev_open, hash_table_init, slab_alloc_init
+    called_by: mxfs_mount
+  fn mxfs_block_cache_write(cache*, block_id, buf*, len) -> int
+    calls: hash_lookup, mark_dirty, lru_promote
+    called_by: alloc_init_ag, format_ag, inode_write
+  struct mxfs_cache_entry { block_id, refcount, dirty, data[4096] }
+```
+
+## Cross-File Dependency Summary
+
+```
+{file1.c -> dep1.c, dep2.c}
+{file2.c -> dep1.c, dep3.c}
+```
+
+## Visual Call Graph
+
+The cross-subsystem edges are the most architecturally important — this is where
+violations and bugs live.
+
+```mermaid
+graph TD
+    subgraph Cache
+        cache_init[cache_init]
+        cache_write[cache_write]
+    end
+    subgraph DLM
+        dlm_lock[dlm_lock]
+    end
+    subgraph BlockDev
+        bdev_open[bdev_open]
+        bdev_write[bdev_write]
+    end
+    cache_init --> bdev_open
+    cache_write --> bdev_write
+    cache_write --> dlm_lock
+```
+
+To regenerate the call graph:
+```bash
+python3 ~/.claude/skills/project-awareness/scripts/generate_mermaid_callgraph.py \
+    .claude/awareness/structural-map.md --cross-subsystem-only
+```
+
+For a subsystem-filtered view:
+```bash
+python3 ~/.claude/skills/project-awareness/scripts/generate_mermaid_callgraph.py \
+    .claude/awareness/structural-map.md --subsystem {subsystem_name}
+```
+
+For a subsystem-level summary:
+```bash
+python3 ~/.claude/skills/project-awareness/scripts/generate_mermaid_callgraph.py \
+    .claude/awareness/structural-map.md --summary
+```

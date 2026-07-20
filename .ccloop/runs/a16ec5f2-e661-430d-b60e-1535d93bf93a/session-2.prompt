@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a16ec5f2-e661-430d-b60e-1535d93bf93a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a16ec5f2-e661-430d-b60e-1535d93bf93a, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `e6c68cba-5bb2-4f0b-8bda-f7bec29f8717`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717.jsonl`
+- approx context at last assistant turn: 504140 tokens
+- tools used: Bash×152 Read×25 Edit×22 TaskUpdate×8 mcp__ccmemory__memory_get×7 TaskCreate×6 ToolSearch×4 mcp__ccmemory__memory_write×4 TaskStop×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_alloc.h
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n 'MXFS_MSG_LOCK_GRANT' /src/mxfs/dlm/dlm.c | head; echo ---; grep -n 'process_grant\|handle_grant\|case MXFS_MSG_LOCK_GRANT' /src/mxfs/dlm/*.c | head
+    sed -n 260,330p /src/mxfs/dlm/v5_mount.c; grep -n 'mxfs_dlm_process_grant' /src/mxfs/dlm/dlm.c | head -3
+    grep -n 'mxfs_dlm_process_remote_grant' /src/mxfs/dlm/dlm.c | head -2; sed -n "$(grep -n 'int mxfs_dlm_process_remote_grant' /src/mxfs/dlm/dlm.c | head -1 | cut
+    sed -n 3395,3450p /src/mxfs/dlm/dlm.c
+    sed -n 3303,3395p /src/mxfs/dlm/dlm.c
+    sed -n 1740,1775p /src/mxfs/dlm/dlm.c; make modules 2>&1 | grep -cE ' error' | sed 's/^/errors=/'; modinfo mxfs.ko | grep srcversion
+    tail -3 /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/tasks/bqhnrfehm.output 2>/dev/null; echo "[interim]"
+    pkill -f drc_reliability 2>/dev/null; pkill -f 'run.sh 8 tcp' 2>/dev/null; sleep 2; pgrep -af 'drc_reliability|run.sh' | head -3; echo "[cleaned]"
+    pgrep -af 'drc_reliability|run\.sh' | head -5; echo "[check done]"
+    time scripts/drc_reliability.sh 8 1 2>&1 | tail -3
+    until grep -q 'DRCDONE' /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/tasks/bw6t3tnlq.output 2>/dev/null; do sleep 10; done; cat /tmp/claude-1
+    time scripts/drc_reliability.sh 8 1 2>&1 | tail -3
+    until grep -q 'DRCDONE' /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/tasks/bn2nw28xu.output 2>/dev/null; do sleep 10; done; cat /tmp/claude-1
+    cat /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/tasks/bn2nw28xu.output
+    cd /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/scratchpad; mkdir -p run7_8n; cd run7_8n for k in 1 2 3 4 5 6 7 8; do   (timeout 20 /src/mxfs
+    cd /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/scratchpad/run7_8n for k in 1 2 3 4 5 6 7 8; do grep 'drc-DIRID round=20' test$k.dmesg | tail
+    cd /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/scratchpad/run7_8n ml=$(grep -n 'Ending clean mount' test4.dmesg | tail -1 | cut -d: -f1) ech
+    cd /tmp/claude-1000/-src-mxfs/e6c68cba-5bb2-4f0b-8bda-f7bec29f8717/scratchpad/run7_8n echo "=== IFLUSH-GAP / fence / DINO-stale events r20 window all nodes ==="
+    grep -n 'mxfs' /src/mxfs/xfs/xfs_inode.c | sed -n "$(grep -c . /dev/null)"',$p' | awk -F: '$1>5250 && $1<5560' | head -20; echo ---; grep -n 'dir_iflush_owner_f
+    grep -n 'IFLUSH-GAP-DETECT' /src/mxfs/xfs/*.c | head -3; grep -n -B8 'P-IFLUSH-GAP-DETECT' /src/mxfs/xfs/xfs_inode.c 2>/dev/null | head -30
+
+## Last text from previous session
+
+ is 200 lines earlier). Inspecting:
+Verifying `snap` scope/usage consistency around the fixed exit:
+Background run still executing. Meanwhile, auditing the other two raw `down_write` sites (reset_inode, sf_merge) for the same leak class:
+Both other sites are balanced — the reload was the sole leak. Checking the background run:
+Snapshots secured. Rebuilding with the detector-gate fix and launching a 3-run 8/tcp batch; analyzing the round-23 loss from snapshots while it runs:
+The snapshot spans many rounds (the file recreates each round). Isolating round 23's LADD and then finding every node's activity on that block:
+All nodes converged on ino=132. Now the block-4186520 RMW timeline across nodes in the round-23 window:
+test4 itself grew this block (block index 2) and filled it. Now the interesting part — what happened on it AFTER the victim entry landed at +2.5s, from other nodes:
+Now the sess2 gate at 2086 — the hole must be the `master_ep=0` case:
+Launching the first run on the triple-fix build:
+While it runs, checkpointing the epoch-ordering root fix to memory:
+Both waits went to background — notifications will come. Meanwhile, pinning down the exact finish line per the criterion-scope memory:
+Run 2: FAIL 0/8 with NO faces and +2.5min wall — smells like a stall again. Analyzing:
+The relay boundary is here. Writing the final state checkpoint before wrapping up:
+Session 1 wrap-up. Criteria **not yet met** — no marker written. Substantial ground gained:
+
+## What this session proved and fixed (build `4FC99EB9`, deployed)
+
+**Three root causes found with instrumented proof, all fixed:**
+
+1. **FACE-1 (7-session-old leaked i_lock hang)** — `mxfs_dlm_reload_inode`'s TORN-DISK-SKIP bail returned while holding a raw `down_write(&ip->i_lock)` (and leaked `snap`). The tear is observed cluster-wide, so **all 8 nodes leaked the shared dir's lock in the same round** → the round-12 all-node create wedge. Proven by the message firing on all 8 nodes at the wedge instant + live /proc inspection showing the holder exited. Fixed (kfree + up_write).
+
+2. **Grant-epoch visibility ordering** — `process_remote_grant` woke the acquirer *before* storing `dir_epoch` in the local DLM mirror, so the first dir modify after a cross-node EX handoff saw epoch 0 and every epoch-gated coherence guard was inert → stale-base RMW → durable dirent clobber (run5's `node4_f1.md5` loss, caught in-the-act by P13-COLLIDE at the same byte offset). Fixed: mirror reconciled before signal.
+
+3. **AG↔dir hold-and-wait** — dir-growth allocations (`exact_bno`/`near_bno`) blocked up to 61s on one peer-held AG while holding the shared dir EX → `-110` → dirty-cancel shutdowns. Fixed with a trylock-skip (existing fallback sweeps cover completeness); P36 retry storms dropped 73-85/node → 1-19.
+
+Plus: 4/tcp verified **6/6 PASS** with the inherited FACE-2 reload retry, and the dead P-DBLALLOC detector gate was fixed (it had never covered file-data allocations).
+
+## Result
+First-ever clean **8/tcp dir_reuse PASS (8/8, all 24 rounds)** on this run's builds, followed by one FAIL exposing the next root: the **divergent-grow torn map** — test1's in-core dir fork froze at a holey 4-extent map (adopt refused, never re-healed) and its dinode flush published the tear; verify's cold reload then read the torn disk. The enforcement-ready fence exists but is detector-only because naive skip → OOPS; the heal/prevent design is scoped in memory (`sess1-END-state-4FC99EB9-next-divergent-grow-tear`) with the exact diagnosis steps for the next session.
+
+(To the user's note: thanks for the test1-32 offer — all 32 share the single LIO/tcm_loop LUN, so true parallel clusters need a second backing file + coord-namespace separation; I noted it as an option if wall-clock becomes the bottleneck.)
+
+**Next session picks up**: diagnose why test1's map went holey (run7 dumps saved in scratchpad), fix the heal path, then drive 8/tcp to consecutive clean runs → 4/2/1 regression → full `./run.sh N tcp` suites → marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

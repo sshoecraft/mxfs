@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 21 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 20
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5759b58e-caed-4efa-875b-0a6a9b8a3af5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5759b58e-caed-4efa-875b-0a6a9b8a3af5.jsonl`
+- approx context at last assistant turn: 510645 tokens
+- tools used: Bash×308 Read×77 Edit×17 mcp__ccmemory__memory_write×9 mcp__ccmemory__memory_get×7 ScheduleWakeup×2 ToolSearch×2 AskUserQuestion×1 Write×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1 mcp__ccteam__peers×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/tests/suite/manifest
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; kill -9 550941 2>/dev/null; pkill -9 -f 'cc_blockdir_probe' 2>/dev/null; pkill -9 -f 'mxfs_sshpass.*test[12]' 2>/dev/null; sleep 2; echo "remainin
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "probe procs: $(ps aux | grep -c '[c]c_blockdir_probe')"; for n in test1 test2; do echo -n "$n
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== FOREGROUND probe (40 50) ===" timeout 470 bash tests/cc_blockdir_probe.sh 40 50 2>&1 | gre
+    cd /src/mxfs; echo "=== FOREGROUND: run.sh 2 tcp dir_reuse_coherency (24 rounds) ==="; timeout 400 ./run.sh 2 tcp dir_reuse_coherency 2>&1 | grep -iE 'dir_reuse
+    cd /src/mxfs; echo "=== test logs (failure reason) ==="; cat /tmp/tmp.tZZhd6IEea/* 2>/dev/null | grep -iE 'RESULT|drc round|readdir|lookup_fail|missing' | head 
+    cd /src/mxfs; echo "=== per-node RESULT + drc lines ==="; for f in /tmp/tmp.tZZhd6IEea/*; do echo "--- $f ---"; grep -iE 'RESULT|drc r|readdir=|lookup_fail|miss
+    cd /src/mxfs; ./showstat.sh 2 tcp 2>/dev/null | sed -n '1,30p'
+    cd /src/mxfs; echo "=== b_mxfs_dir_incarn assignment (stamp) sites ==="; grep -rn 'b_mxfs_dir_incarn =' xfs/ pal/ | grep -v backup; echo "=== and the struct fie
+    cd /src/mxfs; echo "=== FOREGROUND: dir_reuse_coherency with dirwr=1 detectors ==="; MXFS_EXTRA_MODARGS="dirwr=1" timeout 400 ./run.sh 2 tcp dir_reuse_coherency
+    cd /src/mxfs; echo "=== callers of mxfs_dir_data_durable + the drain loop ==="; grep -n 'mxfs_dir_data_durable\|mxfs_dir_flush_data_blocks\|xfs_log_force' xfs/x
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2; do   echo "===== $n: P16 LEAF writes (ino 131) — bgen vs dgen sequence =====" 
+    cd /src/mxfs; grep -n 'P-LEAFWRITECLOBBER\|p56_bc\|p56_dc\|xfs_dir3_leaf_hdr\|p56_bh\|p56_dh' pal/linux/xfs_buf.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit|warning:.*p56' | head; echo "build exit=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | g
+    cd /src/mxfs; echo "=== FOREGROUND: dir_reuse_coherency, build 64B8DBFD, dirwr=1 (content-divergence detector) ==="; MXFS_EXTRA_MODARGS="dirwr=1" timeout 400 ./
+    cd /src/mxfs; echo "=== A/B: dir_reuse_coherency with dirskip=0 (disable NL-released suppression) ==="; MXFS_EXTRA_MODARGS="dirskip=0" timeout 400 ./run.sh 2 tc
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit' | head; echo "build exit=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== FOREGROUND: dir_reuse_coherency, build E98F295F, dirwr=1 (full leaf-write trace) ==="; MXFS_EXTRA_MODARGS="dirwr=1" timeout 400 ./run.sh
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in test1 test2; do echo "--- $n ---"; timeout 16 bash "$SSH" "$n" "$PF" 'echo -n "dirwr="; cat
+    cd /src/mxfs; grep -n 'mxfs_dlm_reload_inode\|if_format\|xfs_iformat\|xfs_inode_from_disk\|i_df\b\|reload.*extent\|bmap.*reload' xfs/xfs_mxfs_dlm.c | grep -iE '
+    cd /src/mxfs; grep -n '^mxfs_dlm_reload_inode\|^static.*mxfs_dlm_reload_inode\|mxfs_dlm_reload_inode(struct' xfs/xfs_mxfs_dlm.c | head
+
+## Last text from previous session
+
+f` (format + extents) from the peer's committed dinode.
+`mxfs_dlm_reload_inode` does rebuild the extent map (`xfs_idestroy_fork` + `xfs_inode_from_disk`, per the comment at line 2177) and is called on dir EX re-acquire. So the mechanism exists but isn't preventing divergence. Let me read the reload function to see if it reads a coherent (FUA) dinode and whether a fast-path skips it.
+Ultracode on. Let me first finish reading the reload path's self-skip resolution (it directly governs format adoption), then orchestrate a comprehensive multi-agent investigation since this is the project's hardest bug.
+We're at the relay boundary — wrapping up cleanly. One more key finding from reading the reload path, then a summary.
+
+The likely fix locus is now pinpointed: `mxfs_dlm_reload_inode` (xfs_mxfs_dlm.c:5547) has a stack of **self-skip guards** (sess36/49/58/59/8) that return early *without rebuilding `i_df` format/extents* when the inode has own mods in-flight and `mxfs_dir_disk_superset` is false. That guard is gated on `peer_modified_since_load = dir && !self_created && i_dlm_dir_gen > i_dlm_dir_loaded_gen` — i.e. it relies on the dir-gen counter to know the peer changed the dir. If a peer's **block↔leaf format conversion** doesn't reliably bump that gen relationship (or the FASTEX `post_release=false` path self-skips), the node keeps its stale **format** and the block-vs-leaf divergence results. Let me record this precise lead before the session rolls.
+## Session summary — criterion NOT met (marker correctly empty)
+
+**Net advance this session:**
+
+1. **Shipped a real, principled fix** for the original `crash_consistency` leaf-hash loss: dir-block readahead auto-disabled on multinode mounts (speculative reads bypass the coherency gen-stamp). The official 16-test `./run.sh 2 tcp` suite passes **16/16** (verified 3× consecutively + crash_consistency 3/3 standalone). I had written the criterion marker on that basis, then **cleared it at the user's direction** once the new test exposed deeper unfixed bugs — the honest state.
+
+2. **Added a tracked, reliable, safe gating test** (`dir_reuse_coherency`, criteria.json row 13) — concurrent same-dir creates *with rm-rf reuse churn* + a per-entry leaf-hash lookup check. It reliably FAILs from ~round 16 (showstat now honestly shows 16 PASS / 1 FAIL), and fails *without* wedging the cluster — a clean debug vehicle.
+
+3. **Removed the P20 write-guard** (per user decision) — it never fired in the passing suite and carried latent risk; only the principled readahead-disable fix remains.
+
+4. **Decisively reframed the remaining bug** (RULE 4, 5 hypotheses ruled out with evidence): it is **NOT** a leaf-hash hash-entry clobber. It's **cross-node directory FORMAT divergence under reuse** — for the same dir inode, test1 writes `xfs_dir3_block` (block-format) while test2 writes `xfs_dir3_leaf1` (leaf-format). Each RMWs an incompatible structure at the same daddrs → durable cross-node ENOENT (always the peer's entries) + the verifier-fail shutdown variant.
+
+5. **Pinpointed the likely fix locus**: `mxfs_dlm_reload_inode` (xfs_mxfs_dlm.c:5547) self-skip guards return early *without rebuilding the dir's `i_df` format/extent map* when own mods are in-flight and `mxfs_dir_disk_superset` is false — so a peer's block↔leaf conversion isn't adopted.
+
+**Behavioral corrections applied:** now waiting in the **foreground** (blocking) per the standing memory; killed the self-deadlocked background monitor loops that were the source of the stop-hook spinning.
+
+**For the next session** (build `E98F295F`, readahead-disable kept, P20 removed; 7 new `sess20-*` memories incl. the reframe + ruled-out list + reload-self-skip next-locus): instrument `mxfs_dlm_reload_inode` to confirm a dir reload that SELF-SKIPS while on-disk `di_format` ≠ in-core `if_format`, then fix the reload to adopt a peer's format conversion (scoped to avoid the sess36 same-tenure in-flight-grow regression). Reliable repro: `./run.sh 2 tcp dir_reuse_coherency`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

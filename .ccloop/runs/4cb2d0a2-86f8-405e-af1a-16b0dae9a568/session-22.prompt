@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 22 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 21
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `40bf5a2f-77e6-496e-ad16-70f030f86f69`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/40bf5a2f-77e6-496e-ad16-70f030f86f69.jsonl`
+- approx context at last assistant turn: 501125 tokens
+- tools used: Bash×115 Read×46 Edit×23 mcp__ccmemory__memory_write×8 ToolSearch×4 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_search×3 TaskGet×2 TaskStop×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/run.sh
+- /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md
+- /src/mxfs/CLAUDE.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; ps -eo pid,comm,args | grep -iE "run\.sh|prep_node|crash_consist|dir_reuse|while pgrep" | grep -v "grep" | grep -v "ps -eo" | head; echo "EXIT_GRE
+    cd /src/mxfs; echo "=== P51-REL + clean_skip logic ==="; grep -n "clean_skip\|P51-REL\|sf=.*clean\|shortform.*release\|sf_release\|dir_pr_release_fast\|relflush
+    cd /src/mxfs; echo "=== mxfs_pal_bdev_read_plain_bdev: FUA/coherent or cached? ==="; grep -rn "mxfs_pal_bdev_read_plain_bdev" pal/*.c | head; echo "=== def ==="
+    cd /src/mxfs; grep -n "ex_count\|ex_pop\|concurrent.*EX\|double.grant\|inode_ex_count\|EXPOP\|P52-EXPOP\|two.*nodes.*EX" xfs/xfs_mxfs_dlm.c dlm/v5_mount.c | hea
+    cd /src/mxfs; echo "=== modify_refresh call sites ==="; grep -rn "mxfs_dlm_dir_modify_refresh\|dir_modify_reload_prelock\|mxfs_dir_evict_data_blocks" xfs/*.c xf
+    cd /src/mxfs; echo "=== mxfs_dirwr_enabled: log-only or behavior? ==="; grep -n "mxfs_dirwr_enabled" xfs/xfs_mxfs_dlm.c | grep -ivE "pr_warn|pr_info|printk|idbg
+    cd /src/mxfs; for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4; do virsh -c qemu:///system start tes
+    cd /src/mxfs; f=$(grep -rln "int mxfs_pal_bdev_read_plain_bdev" pal/ 2>/dev/null | head -1); echo "FILE=$f"; awk '/int mxfs_pal_bdev_read_plain_bdev\(/{f=1} f{p
+    cd /src/mxfs; echo "=== plain bdev read DEFINITION (not prototype) ==="; grep -rn "mxfs_pal_bdev_read_plain_bdev" pal/linux/kern.c | grep -v "^519\|return mxfs_
+    cd /src/mxfs; echo "=== reuse/evict param defaults ==="; grep -nE "int mxfs_(reuse_reload|reuse_dlm|dir_force_evict|dir_evict_prior_tenure|dir_modify_extent_rel
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; f=$(ls tests/*/tcp_dlm_scaling.sh 2>/dev/null | head -1); echo "FILE=$f"; grep -n "window\|WINDOW\|rounds\|ROUNDS\|threshold\|deadline\|min_ops\|R
+    cd /src/mxfs; sed -n '1,60p' tests/criteria/tcp_dlm_scaling.sh | grep -nE "window|WINDOW|threshold|THRESH|ROUNDS|rounds|min|MIN|deadline|ops|elapsed|per_node|=[
+    cd /src/mxfs; grep -n "within window\|window\|WIN\|elapsed\|deadline\|t_start\|date +%s\|TLIMIT\|per-node\|completed\|done.*round" tests/criteria/tcp_dlm_scalin
+    cd /src/mxfs; grep -n "tds\|within\|RESULT\|FAIL\|PASS\|threshold\|measured" tests/criteria/tcp_dlm_scaling.sh | head -25
+    cd /src/mxfs; ls tests/suite/tcp_dlm_scaling.sh tests/tcp/tcp_dlm_scaling.sh 2>/dev/null; f=$(grep -rln "within window\|within.*window" tests/ 2>/dev/null | hea
+    cd /src/mxfs; grep -n "tds\|within\|window\|WINDOW\|elapsed\|deadline\|ROUNDS\|rounds\|secs\|SECS\|TIME\|t0\|t1\|date" tests/tcp/tcp_dlm_scaling.sh | head -30
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|mxfs_rb_" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+ window" requirement.
+Path 2 is a dead end: tcp_dlm_scaling has a hard 60s/150-round window (a performance assertion) that high mht fundamentally can't meet. So `dir_sf_mht` must stay low, and I **must** fix dir_reuse's low-mht race. Since printk hides the race, the concrete next step is non-perturbing atomic counters. Let me add them to the rebase decision points.
+The gen-bail at line 3885 is a sharp, testable suspect: the rebase bails if `disk di_gen != in-core gen`, and dir_reuse **reuses the dir inode with a new generation each round** — a node carrying a stale cached dir from a prior incarnation would bail (no reload) → stale-base RMW → loss. Let me add non-perturbing atomic counters (periodic dump, not per-call printk) at the rebase decision points to confirm which path is taken during a loss.
+That approach referenced non-existent mount fields. Let me fix it with file-scope static atomics referenced directly.
+Now declare the file-scope atomics and add the remaining decision-point increments. First the declarations:
+Now the cohskip / merged / adopted increments. Let me view the current coherent-skip and adopt/merge points.
+Now add the merged/adopted counter increments at the two completion points:
+Build 427A00D5 with counters (dump every 256 fires). The 8-node full dir_reuse has many rebase fires (so dumps fire) and reliably loses — and the periodic dump is non-perturbing there. Let me run it and capture the final P21-RBSTAT to see which decision dominates.
+dir_reuse PASSED this run (flaky!) and NO P21-RBSTAT dump appeared → **the rebase fires <256 times per whole test** (the dir is block-format after ~8 entries; rebase only fires in the brief shortform phase each round). Two key takeaways: (1) the loss is in the rare shortform phase and is **flaky** (passed this run), (2) since rebase is rare, a **per-fire** log would be non-perturbing (unlike dirwr's hot-path flood). Let me refine the instrumentation to log every rebase fire with the stale-base signal (in-core vs disk entry count).
+Relay boundary reached. Let me bank the diagnostic-ready state and the rare-rebase finding, then summarize.
+Relay boundary reached. Banked the diagnostic-ready state. **Criterion not met — not writing the marker.**
+
+## Session 21 summary
+
+**Build `A8911EE3`** = keeper `7B66691E` (union merge + offset fix) + non-perturbing diagnostics.
+
+**Verified passing:** 1/tcp = 16/16, 2/tcp = 17/17, 4/tcp = 17/17, tcp_dlm_scaling 4/tcp = 4/4.
+
+**Real fixes landed (keep):**
+1. **Union merge** in `mxfs_dir_rebase_shortform` (disk ∪ own-uncheckpointed entries) — fixes tcp_dlm_scaling rename-miss.
+2. **Offset-collision corruption fix** — the merge was preserving grafted entries' stale `offset` fields → `sf_to_block` overlap → real dir3_data corruption + FS shutdown. Now re-assigns fresh monotonic offsets. Load-bearing.
+
+**Major diagnostic corrections (banked):**
+- **sess20's format-gate did NOT resolve the mht tradeoff** — it made tcp_dlm_scaling fast but *broke* dir_reuse correctness (the off-by-one), misdiagnosed as a timeout. The tradeoff is real: low `dir_sf_mht` → dir_reuse off-by-one; high → tcp_dlm_scaling misses its hard 60s/150-round window. So `dir_sf_mht` must stay low and the dir_reuse race must be fixed directly.
+- The off-by-one is a **flaky fast-handoff timing race** in the per-round shortform→block growth window. Ruled out: double-grant (ex_pop=1), my offset fix (high-mht+offset passes), prior-tenure eviction, reload-read-incoherence (it's a coherent direct-bio read). printk/dirwr logging hides the race.
+- crash_consistency has a separate flaky 8-node in-suite hang (standalone 29s).
+
+**Next session:** the diagnostic build is ready — run `./run.sh 8 tcp dir_reuse_coherency` repeatedly until a node hits `readdir=799`, then read `P21-RB` to determine whether the loss is a shortform-phase stale-base RMW (incore_cnt < disk_cnt) or a block-format RMW with no rebase firing (sess68 `EVDECIDE=0` territory). That pins the root of the last 8/tcp blocker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

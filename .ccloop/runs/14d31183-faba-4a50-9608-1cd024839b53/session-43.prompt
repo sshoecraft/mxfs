@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 43 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 42
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `ecac84d8-14fc-4a75-8b78-2054f3e4bad3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ecac84d8-14fc-4a75-8b78-2054f3e4bad3.jsonl`
+- approx context at last assistant turn: 250499 tokens
+- tools used: Bash×110 Edit×10 Read×7 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/tests/lib/cluster.sh
+- /src/mxfs/tests/criteria/bail_storm_watch.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== cluster probe on 863173A4 $(date -u +%T) ==="; POSIX_PHASE=cluster timeout 580 bash tests/criteria/posix_phase_timing.sh --nodes 16 >/tm
+    sed 's/\x1b\[[0-9;]*m//g' /tmp/posix_cluster4.log | tail -25
+    sed 's/\x1b\[[0-9;]*m//g' /tmp/posix_cluster4.log | head -30
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in 1 2 3; do echo "=== test$n ==="; $S test$n $P 'mount | grep -c shared; lsmod | grep -c
+    ls /src/mxfs/scripts/ | grep -iE "reset|reboot"; head -20 /src/mxfs/scripts/cluster_reset_n.sh 2>/dev/null
+    cd /src/mxfs; echo "=== full VM reboot of test1..16 $(date -u +%T) ==="; timeout 500 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -8
+    cd /src/mxfs; sleep 10; echo "=== reset4 16 on clean VMs $(date -u +%T) ==="; timeout 240 bash tests/reset4.sh 16 2>&1 | tail -2; S=/home/steve/src/mxfs/tools/m
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'ls -la /src/mxfs/tools/mkfs_mxfs 2>&1 | tail -1; mountpoint /src 2>&1; cat /tmp/mk
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sg_persist --in --read-keys /dev/sda 2>&1 | tail -6; echo "=== resv ==="; sg_persi
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sg_persist --out --register-ignore --param-sark=0x5eed /dev/sda && sg_persist --ou
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sg_persist --out --register-ignore --param-sark=0x5eed /dev/sda >/dev/null 2>&1; e
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'dd if=/dev/zero of=/dev/sda bs=512 count=1 seek=10 oflag=direct 2>&1 | tail -1; ec
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'dd if=/dev/zero of=/dev/sda bs=512 count=1 seek=10 oflag=direct 2>&1; echo DD_RC=$
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sg_persist --out --preempt --param-rk=0x5eed --param-sark=0x4aa3fe4b --prout-type=
+    S=/home/steve/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sg_persist --in --read-full-status /dev/sda 2>&1 | head -40; echo "=== my iqn ==="
+    ls /var/lib/scst/pr/ 2>/dev/null; systemctl list-units 2>/dev/null | grep -i scst; ls /sys/kernel/scst_tgt/devices/ 2>/dev/null
+    cat /sys/kernel/scst_tgt/devices/disk1/pr_file_name 2>/dev/null; ls -la /var/lib/scst/pr 2>/dev/null; sudo -n true 2>&1 | head -1
+    for n in $(seq 1 16); do sudo virsh -c qemu:///system destroy test$n >/dev/null 2>&1 & done; wait; sleep 2; sudo virsh -c qemu:///system list --name | grep -c t
+    sleep 20; cat /tmp/claude-1000/-src-mxfs/ecac84d8-14fc-4a75-8b78-2054f3e4bad3/tasks/b9tgdvmeo.output 2>/dev/null
+    cat /tmp/claude-1000/-src-mxfs/ecac84d8-14fc-4a75-8b78-2054f3e4bad3/tasks/b9tgdvmeo.output 2>/dev/null | tail -4; systemctl is-active scst; ls /sys/kernel/scst_
+
+## Last text from previous session
+
+Y branch in `xfs_mxfs_dlm.c`.
+Helpers are fine. Building:
+Build succeeded. Since the change spans .c+.h, project notes require a clean rebuild to avoid a stale .ko:
+test1 actually has the new build loaded and mounted. Let me check all 16 nodes.
+Only test1 came up; the reset aborted at mkfs. Let me look at the mkfs step and retry.
+PASS but 137s — above the <120s healthy bar. Need to check whether a barrier timeout still occurred and whether the new path fired.
+No barrier timeouts; node1's test body was 50s. Check the per-node spread:
+The criterion runs the whole single+cluster phase under 600s. Let me check dir_stress's historical timing in past results, plus the cluster state after my 200s kill.
+All clean. Now the full `posix_semantics(16)` criterion run:
+Hit the 600s cap with output swallowed. Session 41 wrote `tests/criteria/posix_phase_timing.sh` for exactly this. First kill any orphans from the killed run, then check that script:
+The probe script streams per-test timing. Running it split by phase to stay under the foreground cap — single phase first:
+Single phase: 12/12 PASS in 16s (mount ~75s). Now the cluster phase:
+The cluster-phase probe hit the timeout — but the streamed log has the per-test deltas:
+`touch_100_files` is only 2-5s — the other ~165s is in visibility-wait/barriers. The +120s over standalone smells like one 120s barrier timeout. Checking:
+Remote orphans killed; the BAIL storm stopped with them. Now adding the two discriminating instruments. First, find the adopt point in the reload:
+Now the storm watcher (in-tree per RULE 3):
+Now rerun the cluster phase with the watcher live:
+Two incidents captured (cm_verify missing node15, cw_ready missing node13). Now the victims' own diagnostic lines:
+Declared in the header already. Build and redeploy:
+I'm at the relay boundary. Let me check the SCST restart completed, then save state for the next session.
+At the relay boundary — wrapping up. Criteria not met yet (marker not written); state saved to memory `sess42-sfdir-fix-and-p34d-fua-cache-root`.
+
+## Session 42 summary
+
+Working criterion #19, `posix_semantics_multi16` (the gate's last FAIL). Two root causes down this session:
+
+**Fix 1 — shortform-dir readdir coherency (build `56453207`, VERIFIED).** Implemented sess41's design: `MXFS_IF_DIR_RELOAD` flag armed by the evict-ring DIR_MODIFY callback for LOCAL-format dirs, consumed in `xfs_readdir` via an event-driven `mxfs_dlm_reload_inode` before shortform getdents. Standalone `test_concurrent_touch` went 5/5 PASS with all 16 nodes converging in 50-54s, zero barrier timeouts; `cross_visibility` and `dir_stress` also clean.
+
+**Fix 2 — P34D FUA-vs-SCST-cache lost update (build `863173A4`, built, NOT yet verified).** Fix 1 exposed the real remaining blocker: in-suite, almost every test's first barrier durably loses exactly one node's signal (touch succeeds, own readdir shows it, then it vanishes everywhere forever → every node burns the full 120s barrier timeout → suite blows 600s). Instrumented barrier_signal/barrier_wait proved it's not an mkdir-incarnation race; the victim's dmesg showed `P91-RELOAD-PROTECT`+`P34D-RELOAD-FRESHSRC` firing 13×. Root: with `fua_disable=1`, the SCST write cache is the cluster's coherence point, but P34D's fresh-source read used SCSI READ-FUA which pierces to the lagging platter — adopting an image older than the victim's own last flush, reverting its own just-created dirent. Fixed by sourcing the fresh dinode via plain (cache-coherent) read when `fua_disable=1`.
+
+**Cluster state:** a stale SCSI persistent reservation (un-clearable from initiators, SCST PR state desynced) wedged the LUN before the verification run. Recovery is mid-flight: all 16 VMs destroyed, SCST restart on clyde was deactivating at handoff. Next session: confirm SCST active, `scripts/cluster_reset_n.sh 16` + `tests/reset4.sh 16`, confirm `863173A4` everywhere, then run the cluster-phase timing probe expecting no 120s timeouts, and finally the full criterion under 600s.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

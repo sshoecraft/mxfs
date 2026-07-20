@@ -1,0 +1,135 @@
+{
+  "mkfs_timing": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:21:39Z",
+    "measured": "185ms",
+    "threshold": "<=10000ms",
+    "reason": ""
+  },
+  "chk_clean": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:21:50Z",
+    "measured": "rc=0 errors=0",
+    "threshold": "rc=0 errors=0",
+    "reason": ""
+  },
+  "dkms_install": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T19:57:56Z",
+    "measured": "install=0 probe=0 purge=0 clean=yes",
+    "threshold": "install=0,probe=0,purge=0,clean",
+    "reason": ""
+  },
+  "online_resize": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T19:58:00Z",
+    "measured": "pre=672MB post=1696MB delta=1024MB resize_rc=0 md5=MD5_OK",
+    "threshold": "delta>=922MB(90% of 1024MB added) resize_rc=0 md5=MD5_OK",
+    "reason": ""
+  },
+  "cluster_ops_timing": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T19:58:13Z",
+    "measured": "first=2446ms rest=4852ms umount=380ms",
+    "threshold": "first<=15000ms rest<=10000ms umount<=10000ms",
+    "reason": ""
+  },
+  "wedged_unmount": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T19:58:27Z",
+    "measured": "max_umount=400ms",
+    "threshold": "<=30000ms",
+    "reason": ""
+  },
+  "online_membership": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T19:58:47Z",
+    "measured": "n3_mount_ms=4524 n1_errs=0 n1_done=1 n3_still_mounted=0",
+    "threshold": "n3_mount_ms<=15000 n1_errs=0 n1_done=1 n3_still_mounted=0",
+    "reason": ""
+  },
+  "dmesg_clean": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T19:59:59Z",
+    "measured": "hits=0",
+    "threshold": "0-hits",
+    "reason": ""
+  },
+  "cache_caps": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:00:27Z",
+    "measured": "inode=0 (cap=unset, skipped) | block=0 (cap=unset, skipped) | dir=0 (cap=unset, skipped)",
+    "threshold": "peak<=cap*1.10",
+    "reason": ""
+  },
+  "cache_coherency": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:02:22Z",
+    "measured": "passed=4 failed=0 of=4",
+    "threshold": "failed=0",
+    "reason": ""
+  },
+  "single_node_paired": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:11:18Z",
+    "measured": "xfs=4796ms mxfs=2750ms ratio=57%",
+    "threshold": "ratio<=105%",
+    "reason": ""
+  },
+  "rsync_paired": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:11:37Z",
+    "measured": "ref_xfs=4796ms worst_mxfs=5430ms ratio=113%",
+    "threshold": "ratio<=120%",
+    "reason": ""
+  },
+  "strong_consistency": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:03:15Z",
+    "measured": "passed=3 failed=0",
+    "threshold": "failed=0",
+    "reason": ""
+  },
+  "zero_silent_loss": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:08:25Z",
+    "measured": "iters=3 dpn=100 mode=1 total_fs_silent=0 iters_with_loss=0/3 completed=3/3",
+    "threshold": "total_fs_silent=0 completed=3/3",
+    "reason": ""
+  },
+  "crash_consistency": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:09:52Z",
+    "measured": "acked=106 visible=107 bad=0",
+    "threshold": "visible>=acked bad=0",
+    "reason": ""
+  },
+  "fence_during_write": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:11:05Z",
+    "measured": "victim=test3 survivors=3 lost=0",
+    "threshold": "lost=0",
+    "reason": ""
+  },
+  "posix_semantics_single": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:00:52Z",
+    "measured": "phase=single nodes=1 passed=12 failed=0 skipped=0",
+    "threshold": "failed=0",
+    "reason": ""
+  },
+  "scaling_curve": {
+    "status": "PASS",
+    "last_run_iso": "2026-06-12T20:13:06Z",
+    "measured": "med 1n=1314ms 2n=1461ms 4n=1459ms 8n=1756ms 16n=2093ms (max16=3126ms) floor1=231ms floor16=1086ms fs1=1083ms fs16=1007ms fs_ratio16:1=92%",
+    "threshold": "fs_ratio_16:1<=150% (walls net of measured raw-device floor)",
+    "reason": ""
+  },
+  "posix_semantics_multi16": {
+    "status": "FAIL",
+    "last_run_iso": "2026-06-13T13:19:00Z",
+    "measured": "elapsed>600s",
+    "threshold": "elapsed<=600s",
+    "reason": "script wall-clock timeout"
+  }
+}

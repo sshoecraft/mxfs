@@ -1,0 +1,85 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 25 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 23
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `14e90ff2-df18-4399-bb73-7a37366cc290`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/14e90ff2-df18-4399-bb73-7a37366cc290.jsonl`
+- approx context at last assistant turn: 52058 tokens
+- tools used: Bash×3 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/wdur6o86j.output; if [ -s "$F" ]; then echo "WORKFLOW DONE ($(wc -c <$F) b
+    cd /src/mxfs; echo "=== git/build identity ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== completed prior workflow ww0pzmclc (last one) tail ===
+    cd /src/mxfs; python3 -c " import json d=json.load(open('/tmp/claude-1000/-src-mxfs/3cb66781-2426-4af0-ba4b-16f7282da178/tasks/ww0pzmclc.output')) def walk(o,p=
+
+## Last text from previous session
+
+I'll start by loading memory inventory and checking the in-flight workflow result from the previous session.
+The ccmemory tools aren't loaded yet (MCP connecting). Let me search for them and check cluster state in parallel.
+The completed workflow `ww0pzmclc` produced a concrete, code-corroborated diagnosis. Let me read its full output and load memory.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

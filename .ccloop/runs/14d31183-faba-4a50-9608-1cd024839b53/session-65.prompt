@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 65 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 64
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `73cd2b5d-70d1-4373-9cb4-866633d0acbe`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/73cd2b5d-70d1-4373-9cb4-866633d0acbe.jsonl`
+- approx context at last assistant turn: 264462 tokens
+- tools used: Bash×88 Read×12 Edit×4 mcp__ccmemory__memory_write×3 mcp__ccmemory__memory_get×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "xfs_btree_set_numrecs" xfs/libxfs/xfs_btree.c | head -3
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|warning:.*xfs_mxfs_dlm|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxf
+    cd /src/mxfs; export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1; done; sleep 4; for n in $(seq 1 16); do $V
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 6 "$SSH" test$n "$P" "dmesg -C 2>/dev/null" >/dev/null 2>&1 & done;
+    f=/tmp/zsl64f.log; for i in $(seq 1 60); do grep -q "RESULT:" "$f" 2>/dev/null && break; sleep 5; done; echo "=== RESULT ==="; cat "$f"; SSH=/src/mxfs/tools/mxf
+    cd /src/mxfs; D=/tmp/zsl64f_dmesg; echo "=== residual P59 (5) ==="; grep -h "P59-IREAD-MISMATCH" "$D"/test*.log | sort | uniq -c; echo; echo "=== P63-TORN-FLUSH
+    cd /src/mxfs; D=/tmp/zsl64f_dmesg; echo "=== actual shutdown signatures ==="; grep -hiE "Corruption detected|forced shutdown|shutting down.*log|EFSCORRUPTED|Int
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|warning:.*xfs_bmap|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko
+    cd /src/mxfs; export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1; done; sleep 4; for n in $(seq 1 16); do $V
+    f=/tmp/zsl64g.log; for i in $(seq 1 60); do grep -q "RESULT:" "$f" 2>/dev/null && break; sleep 5; done; echo "=== RESULT ==="; cat "$f"; SSH=/src/mxfs/tools/mxf
+    pgrep -af "zero_silent_loss|sess88_workload|virsh|mxfs_sshpass" 2>/dev/null | grep -v pgrep | head; echo "---done---"
+    pkill -f "test_dir_stress" 2>/dev/null; pkill -f "mxfs_test.sh" 2>/dev/null; pkill -f "DLM reload BAIL" 2>/dev/null; sleep 2; echo "=== remaining stale ==="; pg
+    pgrep -af "zero_silent_loss|sess88_workload|test_dir_stress|mxfs_test.sh|mxfs_sshpass" 2>/dev/null | grep -v pgrep | wc -l; echo "remaining count above"
+    pgrep -af "zero_silent_loss|sess88_workload|test_dir_stress|mxfs_test.sh|mxfs_sshpass" 2>/dev/null | grep -v pgrep; echo "==="; for pid in $(pgrep -f "test_dir_
+    kill -9 2868641 2899712 2899713 2899714 2>/dev/null; sleep 1; n=$(pgrep -af "zero_silent_loss|sess88_workload|test_dir_stress|mxfs_test.sh|mxfs_sshpass|sshpass.
+    pgrep -af "sshpass|mxfs_sshpass|test_dir_stress|mxfs_test" 2>/dev/null | grep -v pgrep; echo "===kill any sshpass/ssh to vm.localdomain==="; for pid in $(pgrep 
+    for pid in $(pgrep -f "DLM reload BAIL" 2>/dev/null) $(pgrep -f "root@test1 " 2>/dev/null); do kill -9 "$pid" 2>/dev/null; done; sleep 1; echo "=== final remain
+    c=$(ps -eo pid,cmd 2>/dev/null | grep -E "sshpass|test_dir_stress|mxfs_test|zero_silent_loss|sess88_workload|DLM reload BAIL" | grep -v grep | wc -l); echo "orp
+    echo "=== any nohup/background bash from my session ==="; ps -eo pid,ppid,etime,cmd 2>/dev/null | grep -iE "zero_silent_loss|sess88|nohup|virsh.*start|virsh.*de
+    echo "=== my bash children / sleeps / waits ==="; ps -eo pid,ppid,etime,stat,cmd 2>/dev/null | grep -iE "mxfs|sleep [0-9]|RESULT|/tmp/zsl|seq 1" | grep -v grep 
+
+## Last text from previous session
+
+hutdown 152→5** (P64-LEAF-REBUILD fires).
+
+### What's left
+The flush-time rebuild fixes Face A but **can't fix Face B** (it fires mid-transaction, before flush). The next step is a **source fix** for the leaf-lag itself — either broadening the P61-BIO-OVER-LOGGED-BMBT read guard (xfs_buf.c:3458) to keep the in-core leaf authoritative while the inode is EX-held, or reconcile-at-use in `xfs_bmap_add_extent_hole_real`. Both directions, with risks, are recorded in memory `sess64-face2-leftcontig-desync-leaf-lags-iext-by-one`.
+
+Build at session end: **B9C27147** (E6A40C95 fix + a diagnostic probe). All evidence and infra notes are in the two sess64 memories for the next session.
+Those are **orphaned processes from a prior session** (`test_dir_stress`, the posix_multi16 harness, and a stale dmesg-poll), not my zsl run — left hanging on SSH connections to VMs I've since rebooted. My zsl64g run completed. Let me clean them up.
+All orphaned background processes are now cleared (they were stale `test_dir_stress`/SSH pollers from a prior session, hung on connections to VMs I rebooted — not my current work).
+
+## Session 64 summary
+
+**Criterion `zero_silent_loss` still FAILS** — marker not written. But this session made real, proven progress and unified the root cause.
+
+**Root pinned**: under the 16-node shared-dir storm, the hot dir (ino=131) has its in-core bmbt **leaf buffer lag the authoritative iext tree by exactly 1** (leaf=N-1, iext=N). This one desync drives both shutdown faces:
+- **Face A (di/leaf tear)** → reloading peer trips `ir.loaded != if_nextents` (xfs_bmap.c:1286).
+- **Face B** → a LEFT_CONTIG merge lookup fails mid-`mkdir` (xfs_bmap.c:2800), proven by the new `P64-LEFTCONTIG-DESYNC iext=15 leaf=14`.
+
+**Fix landed (build E6A40C95, KEEP)**: at iflush, before `di_nextents` is published, re-serialize the single bmbt leaf from the authoritative iext list. **Result: silent loss 1600→171, P59 shutdown 152→5** — Face A largely eliminated.
+
+**What's left**: the flush-time rebuild can't fix Face B (it fires mid-transaction). Next step is a **source fix** for the leaf-lag — either broaden the P61-BIO-OVER-LOGGED-BMBT read guard (xfs_buf.c:3458) to keep the EX-held in-core leaf authoritative, or reconcile-at-use in `xfs_bmap_add_extent_hole_real`. Both directions, risks, and all evidence are recorded in memories `sess64-zsl-torn-dinode-leaf-never-14-incore-leaf-lags` and `sess64-face2-leftcontig-desync-leaf-lags-iext-by-one`.
+
+Build at session end: **B9C27147** (= the KEEP fix + a diagnostic probe). Cluster is freshly reset and idle.
+The only "background" processes are the legitimate qemu test VMs (test1–16, which must stay running — they are the cluster) and my own Claude session. There are **no orphaned mxfs/test-harness/sshpass worker processes** — those were all cleaned up. The earlier harness-tracked `run_in_background` zsl task already completed.
+
+This is a clean stopping point. Nothing of mine is still executing; the qemu VMs are the standing test cluster and are meant to remain up.
+
+## Session 64 — final status
+
+**`zero_silent_loss` still FAILS** (marker not written), but with proven progress:
+
+- **Root unified**: the hot shared dir's in-core bmbt **leaf lags the authoritative iext tree by 1** (leaf=N-1, iext=N), driving both the di/leaf-tear shutdown (Face A) and the mid-`mkdir` LEFT_CONTIG merge shutdown (Face B).
+- **Fix landed & proven (build E6A40C95, KEEP)**: rebuild the single bmbt leaf from iext at iflush before publishing `di_nextents` → **silent loss 1600→171, P59 shutdown 152→5** (Face A largely fixed).
+- **Remaining**: Face B fires mid-transaction so the flush-time rebuild can't catch it — needs a source fix for the leaf-lag (broaden the P61 read guard or reconcile-at-use in `xfs_bmap_add_extent_hole_real`).
+
+All evidence, the fix, infra notes, and next-step fix directions are recorded in the two `sess64-*` memories. Build at session end: **B9C27147** (the KEEP fix + a diagnostic probe). Cluster is reset and idle.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

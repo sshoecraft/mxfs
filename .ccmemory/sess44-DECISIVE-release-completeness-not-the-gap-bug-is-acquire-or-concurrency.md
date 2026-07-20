@@ -1,0 +1,24 @@
+---
+name: sess44-DECISIVE-release-completeness-not-the-gap-bug-is-acquire-or-concurrency
+description: sess44 PIVOTAL: a MAXIMAL release fence (whole-AIL push to completion before DLM unlock, all AGs) does NOT fix the 8/tcp dir_reuse single-entry loss…
+metadata:
+  type: project
+---
+
+## sess44 (ccloop 4cb2d0a2) — PIVOTAL NEGATIVE: release-side durability is NOT the root
+
+### What was tested (build E5382150, GPT-5.5 consult plan)
+Added `dir_release_ail_all` (default-tested ON, 20000ms): at the dir EX-release fence, AFTER the existing `xfs_log_force(SYNC)` + `xfs_ail_push_ag_sync(d_agno)`, ALSO `xfs_ail_push_all_sync_bounded(whole AIL)` so EVERY dir block this tenure committed — in ANY AG, on OR off the current extent map — is home-written to the LUN before the on-disk DLM unlock. This is the MAXIMAL form of Architectural Invariant #1 (GPT: "DLM EX unlock is a metadata home-block visibility fence"). The existing per-AG push only drains the dir INODE's AG (d_agno=XFS_INO_TO_AGNO(ino)); a grown dir's DATA/leaf blocks are scattered across OTHER AGs (agcount=50), so they could escape — the whole-AIL push closes that.
+
+### RESULT: push-only FAILED 0/2 — the round-1 single-entry loss (node8_f1, durable ENOENT all nodes) PERSISTS with a maximal release fence. No corruption, no wedge, no shutdown (clean loss).
+
+### IMPLICATION (redirects ~40 sessions): RELEASE-SIDE DURABILITY IS NOT THE GAP. Dozens of sessions (sess30/37/39/40/42/43/68/88/98 etc.) chased release-drain completeness (owner-scan, IN_AIL gate, bmbt-scan, log_force, per-AG push, fua-write). A whole-AIL push-to-completion before unlock — which makes it IMPOSSIBLE for any committed dir block to be non-durable at handoff — STILL loses an entry. So the divergence does NOT originate from a peer cold-reading a stale LUN because our release was incomplete. The bug is one of:
+1. **ACQUIRE-side**: the acquiring node modifies on its OWN cached stale buffer despite the LUN being current (cold-read / invalidation not happening under EX). The read-time revalidation in xfs_da_read_buf is gated `!owned_ex` → SKIPPED during addname (we hold EX). newtenure_evict (default on) is supposed to cold-read at new-tenure but the loss persists → it under-fires or the modify precedes it.
+2. **DLM MUTUAL-EXCLUSION (sess42 cached-EX stale-grant)**: two nodes modify the same dir block CONCURRENTLY because MHT batching (inode_mht_ms=300) keeps a node in CACHED-EX while the TCP grant silently moved to a peer (mxfs_v5_dlm_inode_held()==0 but holders>0 skips the check) → divergent RMW. No buffer fence can fix a mutual-exclusion break. sess42's deeper root: "find where the TCP grant flips to !held WITHOUT a BAST/drain (lease/membership/peer-steal)."
+
+### Other levers tested this session (all on build with the push):
+- `dir_coherent_modify=1` (broadened acquire scan: invalidate a CLEAN dir buffer on ANY fingerprint divergence, not just dcnt>bcnt): combo passed 3/4 but **P11-COHMOD-INVAL fired 0× in every pass** (so the invalidation is NOT the mechanism — passes were variance) and the 1 FAIL was a CORRUPTION (round20 node6-wide 724/800 + xfs_corruption_error). dir_coherent_modify CORRUPTS (its bmbt_scan(true)/under-lock-disk-read side effects) — REFUTED, kept default 0.
+- `dir_tenure_evict=1 dir_tenure_stale_bypass=1`: 2 pass then run3 CORRUPTION (xfs_dir2_sf_verify shutdown 5 nodes) — REFUTED [[sess44-REFUTED-tenure-stale-bypass-corrupts-fix-must-be-release-side]].
+- `dir_wseq_at_completion=1`: still fails (sess42's "insufficient alone" confirmed).
+
+### NEXT (RULE 4) — pivot to ACQUIRE/CONCURRENCY: Instrument the MODIFY moment on ino=131: at xfs_dir2_*_addname, log (node, realns, does-this-node-ACTUALLY-hold-the-EX-grant per mxfs_v5_dlm_inode_held, cached_ex_holders). If two nodes' addname realns-windows OVERLAP, it's the cached-EX stale-grant concurrency bug (sess42) → fix in the DLM layer (per-modify grant-verify; close the holders>0 MHT window; find the BAST-less grant loss). If NOT concurrent (serialized), it's pure acquire-side: instrument whether the acquiring node cold-reads the dir DATA block (newtenure_evict fire? buffer XBF_DONE/gen at addname?) and make the EX-acquire cold-read ATOMIC across data+leaf+freeindex (per-block invalidation corrupts — leaf hash vs data entries desync). The dland write-completion ring showed SEQUENTIAL rank writes w/ monotonic count — but that's async WRITE order, NOT modify order; the in-core addname can be concurrent. Build E5382150 has dir_release_ail_all (default reset to 0 for clean keeper) + the broadened P11 condition (default 0). Keeper == baseline 5F0C1457 functionally. Tools: P13-NADD/LADD offset trace + per-rank DRCph windows (decisive); dland ring (count, blind to equal-count loss). [[sess44-PROVEN-offset-collision-double-alloc-aoff1600-four-dirents]] [[sess42-SMOKINGGUN-cached-EX-stalegrant-demote-discards-uncheckpointed-dir-work]]</body>

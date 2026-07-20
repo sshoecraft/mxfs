@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/daf50d34-cc16-4192-9dda-6e2589c78764/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run daf50d34-cc16-4192-9dda-6e2589c78764, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `d49e53f4-da39-4651-b02e-670b4545bf9c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c.jsonl`
+- approx context at last assistant turn: 499582 tokens
+- tools used: Bash×92 Read×35 Edit×21 TaskUpdate×2 ToolSearch×2 TaskCreate×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "0.10.72" > VERSION && touch dlm/dlm_caw.c && make modules 2>&1 | grep -E "error|LD \[M\]" | head -5; modinfo mxfs.ko | grep srcversion
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; nohup setsid ./scripts/revalidate_cell.sh 32 t:dlm_scaling > "$SP/r76_deploy.log"
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; timeout 290 bash -c "until grep -qE 'CELL-GROUP (OK|NOT-CLEAN)|FATAL' '$SP/r76_de
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; grep -E "PASS|FAIL" "$SP/r76_deploy.log" | head -5; D=$(ls -dt /tmp/run_dlm_scali
+    timeout 20 /src/mxfs/tools/mxfs_sshpass.sh test8 /tmp/.mxfs_pass "uptime; ls -la /lib/modules/\$(uname -r)/extra/mxfs.ko 2>/dev/null | head -1" 2>/dev/null | gr
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; timeout 290 bash -c "until grep -qE 'CELL-GROUP (OK|NOT-CLEAN)|FATAL|PREP FAIL' '
+    for i in $(seq 1 32); do ( timeout 15 /src/mxfs/tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "echo 1 > /sys/module/mxfs/parameters/instr; echo 1 > /sys/module/m
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; timeout 290 bash -c "until grep -qE 'HIT|NO HIT' '$SP/storm5.log' 2>/dev/null; do
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; mkdir -p "$SP/storm5"; for i in $(seq 1 32); do ( timeout 25 /src/mxfs/tools/mxfs
+    SP=/tmp/claude-1000/-src-mxfs/d49e53f4-da39-4651-b02e-670b4545bf9c/scratchpad; printf "FOREIGN-STRIP: "; grep -h "P135-FOREIGN-STRIP" "$SP/storm5"/test*.txt | w
+    grep -n "purge\|dead\|DEAD\|lease" /src/mxfs/dlm/dlm_caw.c | sed -n 1,25p
+    objdump -d /src/mxfs/mxfs.ko --disassemble="mxfs_dlm_caw_lock" 2>/dev/null | awk '/mxfs_dlm_caw_lock>:/{base=strtonum("0x"$1)} {off=strtonum("0x"$1)-base; if (o
+    grep -n "caw_grant_seq_prebump" /src/mxfs/dlm/dlm_caw.c | head; 
+    grep -n "caw_grant_epoch_update" /src/mxfs/dlm/dlm_caw.c | head -3
+    sed -n 3800,3830p /src/mxfs/dlm/dlm_caw.c; echo ====4990-5060====; sed -n 4990,5060p /src/mxfs/dlm/dlm_caw.c
+    echo "0.10.73" > VERSION && touch dlm/dlm_caw.c && make modules 2>&1 | grep -E "error|warning.*dlm_caw|LD \[M\]" | head -5; modinfo mxfs.ko | grep srcversion
+    sed -n 2095,2135p /src/mxfs/dlm/dlm_caw.c | grep -nE "start|poll_ms|uint64|for \(retry"
+    grep -n "caw_acquire_poll_sleep" /src/mxfs/dlm/dlm_caw.c | head -4; sed -n 2076,2094p /src/mxfs/dlm/dlm_caw.c
+    sed -n 2266,2274p /src/mxfs/dlm/dlm_caw.c
+    python3 - <<'EOF' p="/src/mxfs/dlm/dlm_caw.c" s=open(p).read() old="""			ea_claim++; 				caw_acquire_poll_sleep(resource, start, &poll_ms); 				continue;""" new
+
+## Last text from previous session
+
+nt DIR-MISS probes. Checking for the specific durability-failure probes:
+test1 shows no TENURE-REFUSE — finding which nodes printed the :50/:52 refuses and their story:
+All sites identified. Writing the patch — starting with the header field and init:
+Now the init site and the acquire-entry increment:
+Verifying my increment is inside the spinlock section:
+The unlock is right after my insertion — increment is correctly under the lock. Now the four decrements, by unique context strings:
+Now the bast_notify guards — the NONE-idle branch, the orphan-release arm, and the CACHED-immediate branch:
+Now the dwork quiescence check and the pipeline-exit ownership guards:
+Final edit — the pre-unlock live-tenure guard. Checking its surrounding context first:
+`t:` single-test mode exists (used in session 1). Launching the revalidation in background with foreground polling (the session-1 pattern):
+PASS reported but the newest rundir predates my launch — verifying the run actually executed:
+The memory-only "already-held" grant path still needs visibility — reading it:
+Prep failure — test8 didn't take the new build. Retrying the deploy:
+Round-5 HIT, node1 lost. Harvesting with the full slot-CAS ledger this time:
+The strip site is the grant-taking CAS right after `caw_grant_seq_prebump`. Finding that source arm:
+Multiple prebump+CAS pairs exist — +0x459 is early in the function, likely the site at line 1805. Reading it:
+This arm only ADDS its own bit — except `caw_grant_epoch_update` at 1802, which may purge "stale-epoch" holders (the reused-inode machinery). Reading it:
+Checking the other prebump sites (batch claim, waiter register) for the same TOCTOU shape:
+Same TOCTOU shape in the batch flush (peer-join transition). Guarding it identically:
+Building 0.10.73 with the claim-race fix:
+`start/poll_ms` belong to the separate grant-wait function. Using the claim loop's own pacing instead:
+Relay boundary — recording the complete state to memory before handoff:
+Session 2 summary — criteria **not yet met**; work continues via relay.
+
+**The dirent-loss root cause is now proven end-to-end.** Two distinct bugs were found and fixed this session:
+
+1. **Fresh-grant idle-release race (fixed in 0.10.71, validated)**: storm3 forensics proved a stale pipeline exit trampled `state=ACQUIRING→NONE` during test15's 836ms grant wait; at grant time bast_notify's NONE-idle branch saw `mode=EX, holders=0` and released the 0ms-old tenure, so the mkdir ran on a phantom EX and its late AIL destage clobbered the successor's committed dirent. Fixed with an untramplable `i_dlm_acq_inflight` counter (bast_notify/dwork defer instead of releasing), pipeline state-ownership (never write NONE over ACQUIRING/CACHED), and a `mode != NL` guard before every anchored CAW unlock. The old signature (`P-NONE-HELD-IDLE-RELEASE`) went 26→0 and dlm_scaling@32 passed twice on this build — but the storm still lost dirents.
+
+2. **Claim-empty TOCTOU (fixed in 0.10.73, built, NOT yet deployed)**: after un-gating the slot-write forensics from ino≤256, `P135-FOREIGN-STRIP` caught the true killer red-handed three times: the claim path's "Bug 93" re-read of the chosen empty slot refreshes the CAS compare buffer to *whatever is on the medium now* — so when a peer's fresh claim lands between probe and re-read, our claim CAS succeeds against the peer's live image, wiping its holder bits and resetting the generation. That double-EX is what makes destages get refused (`held=0`) and dirents durably vanish. The fix refuses to claim over any live-magic image and re-probes (both the main claim arm and the batch peer-join arm).
+
+**Next session**: deploy 0.10.73 via `revalidate_cell 32 t:dlm_scaling`, re-run `mkdir_storm 32 30` expecting NO HIT with zero FOREIGN-STRIPs, then the full criteria ladder (g2@32, dir_reuse@32, 16/8/4/2/1) on the final build with `matrix_check.py --since` as the honest YES gate. Complete state is in memory `AAA-ccloopdaf5-sess2-END-claim-empty-TOCTOU-root-0.10.73-built-undeployed`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

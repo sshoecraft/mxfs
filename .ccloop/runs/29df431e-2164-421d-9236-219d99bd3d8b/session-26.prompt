@@ -1,0 +1,116 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 26 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 25
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `f4befd6e-fdd3-459a-bf58-c7cbc7310079`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f4befd6e-fdd3-459a-bf58-c7cbc7310079.jsonl`
+- approx context at last assistant turn: 164374 tokens
+- tools used: Bash×15 Read×9 Edit×1 ToolSearch×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /home/steve/.claude/projects/-src-mxfs/memory/feedback_minimize_gemini.md
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ./tests/criteria/verify_ship.sh --status 2>&1 | head -40
+    modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "---nodes---"; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 
+    cd /src/mxfs; MKFS_OPTS=-f timeout 400 bash tests/reset4.sh 4 2>&1 | tail -5
+    cd /src/mxfs; grep -n "_XBF_FUA_FRESH\|fua_fresh\|XBF_DONE" xfs/xfs_icache.c | head -30; echo "=== imap_to_bp ==="; grep -rn "xfs_imap_to_bp\|xfs_iget_cache_mis
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C' >/dev/null 2>&1; done; echo "dmesg cleared
+    cd /src/mxfs; cat tests/cluster/test_rename_visibility.sh 2>/dev/null | head -120
+    cd /src/mxfs; ls -dt /home/steve/.mxfs/results/*/test_rename_visibility 2>/dev/null | head -3; echo "=== latest fails ==="; for d in $(ls -dt /home/steve/.mxfs/
+    cd /src/mxfs; for d in $(ls -dt /home/steve/.mxfs/results/*/test_rename_visibility 2>/dev/null | head -2); do echo "## $d"; grep -rhiE "ASSERT (FAIL|MISMATCH)|✗
+    cd /src/mxfs; d=/home/steve/.mxfs/results/20260603_160414/test_rename_visibility; for f in $d/node*.log; do n=$(basename $f .log); tot=$(grep -c "file not found
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -aE "DIR-STALE-SKIP|
+    cd /src/mxfs; timeout 8 bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass 'dmesg | grep -aA10 "block 0x5f8d20" | head -24' 2>&1 | grep -avE "Permanently added|Un
+    cd /src/mxfs; grep -n "mxfs_ag_meta_invalidate_stale\|pag_dlm_meta_gen\|b_mxfs_ag_gen\|mxfs_ag_buf_disk_differs" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; grep -n "drain_meta_buffers\|drain_alloc_buflist\|xfs_log_force\|ail_push\|blkdev_flush\|blkdev_issue_flush\|bast_work_fn\|drain_inode_buffers" xf
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "P86 STALE-SKIP: $(dmesg | g
+    cd /src/mxfs; echo "=== callers of mxfs_ag_meta_invalidate_stale ==="; grep -rn "mxfs_ag_meta_invalidate_stale" xfs/ pal/ | grep -v "void$\|^xfs/xfs_mxfs_dlm.c:
+
+## Last text from previous session
+
+rux: does the release-side drain remove AG-meta buffers from the AIL (log-force), or just write them — leaving a lingering AIL item that the read hook then "preserves" as stale?
+The release drain already does per-AG `xfs_log_force(SYNC)` + `xfs_ail_push_ag_sync` + `blkdev_issue_flush` (lines 406-408, 443-445) — and importantly, the `P86-INSTR STALE-SKIP` log at line 2589 is **always-on** (ratelimited, not instr-gated). So if the AG-meta (bnobt/cntbt) stale-skip is the double-alloc source, it should already be in the dmesg from my repro. Let me check — this is the decisive RULE-4 measurement before touching any code.
+**P86 STALE-SKIP fired 0 times** — the in-AIL/dirty *preserve* branch was never hit during this failure. That **refutes** Gemini's diagnosis (and my suspicion) that the preserve-guard causes this double-alloc. Good thing I checked rather than blindly patching (RULE 4). The double-alloc comes from elsewhere — most likely the "gen-fresh but content-stale" branch (sess52's finding) or the hook not being wired into the bnobt read path at all. Let me verify the hook wiring — cheap and decisive.
+I've hit the relay boundary. Let me record the key correction (the next session must not re-chase the refuted hypothesis) and the user's feedback, then summarize.
+I've recorded the corrected findings. Summary of this session:
+
+## What I established (RULE 4, pristine cluster, build `793113DD`)
+
+1. **Reproduced the real failure** — `test_rename_visibility` fails 2/2 runs, 14/240 assertions. Did NOT trust the sess66 handoff (sess65's claim was already proven wrong once).
+
+2. **Corrected the diagnosis.** sess66 said the remaining bug was "empty content / stale child inode (di_size=0)." It's actually **AG free-space double-allocation**. The lost names are a *contiguous batch* (`node3_after_7..20`) missing on **all four nodes including the writer node3 itself** → genuine on-disk loss. The smoking gun: kernel reports `Metadata corruption at xfs_dir3_data_reada_verify block 0x5f8d20`, and the dumped block physically contains `content_3_3` — node3's **file data** sitting inside a block being read as a **directory block**. One physical block, two owners.
+
+3. **Refuted the leading fix hypothesis by measurement.** Both my suspicion and the one Gemini consult blamed the `in-AIL/dirty preserve` guard in `mxfs_ag_meta_invalidate_stale`. But `P86-INSTR STALE-SKIP` (always-on) fired **0×** across all nodes during the failure — that branch never executes here. Checking before patching saved a wasted build/deploy cycle.
+
+4. **Narrowed the next step.** The invalidation hook *is* wired into the bnobt/cntbt AG-btree read path (`xfs_btree.c:1420`). Since the skip branch isn't firing, the double-alloc comes from either (H1) the "gen-fresh-but-content-stale" branch (sess52 already proved this exists with ex_pop=1), or (H2) a re-acquire path that doesn't bump `pag_dlm_meta_gen` (the `release_pending` fast path, line 3223). The next session should add **one always-on** `disk_differs` FUA check in the gen-fresh branch to split H1/H2, then fix the gen mechanism. State.md head updated with this.
+
+**Criteria NOT met** — cache_coherency still fails (proven on-disk double-alloc), rsync_paired untouched. Marker not written.
+
+## On your message
+
+You're right, and I've stopped. That was one consult this session, but the relay loop has been leaning on Gemini hard across prior sessions because the project's `CLAUDE.md` "RULE 5" tells it to consult after a fix-class fails 2–3 times — and this class has failed ~10 sessions, so the loop kept triggering it. Your instruction overrides that. I won't call Gemini (or Flash) again unless I'm genuinely, provably blocked with no path of my own — and even the one call this session got a diagnosis my own measurement then *refuted*, which is the lesson: measure first, don't outsource. I saved this as a persistent feedback memory (`feedback_minimize_gemini.md`) so it carries into every future session of the loop, not just this one.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a8642ea1-81eb-4fcd-beea-b99f4f52db31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a8642ea1-81eb-4fcd-beea-b99f4f52db31, after session 8
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `a776bb6e-4713-4ead-a219-e8415b931acf`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf.jsonl`
+- approx context at last assistant turn: 500147 tokens
+- tools used: Bash×74 Read×21 Edit×7 Monitor×5 mcp__ccmemory__memory_write×4 TaskStop×3 TaskUpdate×3 ToolSearch×3 mcp__ccmemory__memory_get×3 TaskCreate×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_buf.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== run progress ==="; tail -6 "$SC/test57.log" 2>/dev/null; 
+    cd /src/mxfs; sleep 90; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== round progress (rank1) ==="; grep -rhoE 'DRCph 
+    cd /src/mxfs; sleep 150; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== round progress (rank1) ==="; grep -rhoE 'DRCph
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== round progress (rank1) ==="; grep -rhoE 'DRCph r=[0-9]+ r
+    cd /src/mxfs; sleep 100; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== round (rank1) ==="; grep -rhoE 'DRCph r=[0-9]+
+    cd /src/mxfs; echo "=== separate counts ==="; echo "Shutting down: $(grep -rhc 'Shutting down' tests/tcp/drc_cap/stream_rank*.log 2>/dev/null|paste -sd+|bc)"; e
+    cd /src/mxfs; sleep 110; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== round (rank1) ==="; grep -rhoE 'DRCph r=[0-9]+
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; echo "=== round (rank1) ==="; grep -hoE 'DRCph r=[0-9]+ rank=1 PHAS
+    cd /src/mxfs; sleep 85; echo "=== round (rank1) ==="; grep -hoE 'DRCph r=[0-9]+ rank=1 PHASE=[a-z-]+' tests/tcp/drc_cap/stream_rank1.log 2>/dev/null | tail -1; 
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; while pgrep -f 'run[.]sh 32 caw' >/dev/null 2>&1; do sleep 15; done
+    cd /src/mxfs; sleep 100; echo "=== round (rank1) ==="; grep -hoE 'DRCph r=[0-9]+ rank=1 PHASE=[a-z-]+' tests/tcp/drc_cap/stream_rank1.log 2>/dev/null | tail -1;
+    cd /src/mxfs; echo "=== rank1 last 8 dmesg lines (is it active?) ==="; tail -8 tests/tcp/drc_cap/stream_rank1.log 2>/dev/null | sed -E 's/\[[0-9]+\.[0-9]+\] //'
+    cd /src/mxfs; echo "=== P-IOWAIT-STUCK probe definition (is my retry involved?) ==="; grep -nB3 'P-IOWAIT-STUCK' pal/linux/xfs_buf.c | head -20; echo "=== is da
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass echo "=== rank1 (test1) stuck rm task stack ===" timeout 20 bash "$SSH" test1 "$PASS" "for 
+    cd /src/mxfs; echo "=== kill wedged run + cleanup ==="; pkill -9 -f 'run[.]sh 32 caw' 2>/dev/null; pkill -9 -f 'timeout 1800' 2>/dev/null; pkill -9 -f 'mxfs_ssh
+    cd /src/mxfs; echo "run=$(pgrep -c -f 'run[.]sh 32 caw' 2>/dev/null || echo 0)"; echo "lock=$(ls /tmp/mxfs_run.lock 2>/dev/null || echo GONE)"; echo "=== comple
+    cd /src/mxfs; fuser -k -9 /tmp/mxfs_run.lock 2>/dev/null; sleep 1; rm -f /tmp/mxfs_run.lock 2>/dev/null; echo "lock=$(ls /tmp/mxfs_run.lock 2>/dev/null || echo 
+    cd /src/mxfs; echo "=== xfs_bwrite ==="; grep -nA22 '^xfs_bwrite(' pal/linux/xfs_buf.c | head -30
+    cd /src/mxfs; echo "=== b_mxfs_sync_wait + nearby mxfs buf fields in xfs_buf.h ==="; grep -nE 'b_mxfs_sync_wait|b_mxfs_ioend_seen|b_mxfs_relse_seen|b_mxfs_dir_w
+    cd /src/mxfs; echo "0.10.58" > VERSION; cat VERSION; SC=/tmp/claude-1000/-src-mxfs/a776bb6e-4713-4ead-a219-e8415b931acf/scratchpad; : > "$SC/build58.log"; ( mak
+
+## Last text from previous session
+
+lete()`) only fires when `sync_wait=1`, but the stuck buffer had `sync_wait=0` — the snapshot at submit (line 5667 `= !(XBF_ASYNC)`) captured a **lock-free XBF_ASYNC set that slipped in between `xfs_bwrite` clearing it and the snapshot**. The async branch (1923) then relse'd the buffer a sync waiter owns → double-relse + lost wakeup. Let me read `xfs_bwrite` + `xfs_buf_submit` to fix the snapshot race at its source.
+`xfs_bwrite` (1985-1989) clears XBF_ASYNC then calls `xfs_buf_submit` — the race window. The robust fix: a per-submit **forced-sync latch** set by the sync submitter (immune to the lock-free XBF_ASYNC race), honored by the snapshot at 5667, so the ioend override always wakes the sync waiter. Let me find the `b_mxfs_sync_wait` field declaration to add `b_mxfs_force_sync` alongside.
+Now I fully understand `b_mxfs_sync_wait` (line 257). The fix: add a per-submit **`b_mxfs_force_sync`** latch that sync submitters (`xfs_bwrite`, `_xfs_buf_read`) set under the buffer lock — immune to the lock-free XBF_ASYNC race — so the snapshot and reinit at submit route the completion to wake the sync waiter. Let me implement the 4 edits, starting with the struct field.
+Monitor timed out (run was killed — expected). Continuing the wedge#2 fix. Edit 2: set the latch in `xfs_bwrite`.
+Edit 3: latch in `_xfs_buf_read` (sync reads also `xfs_buf_iowait`).
+Edit 4: honor the latch in `xfs_buf_submit` (compute `sync_wait` from it, consume it, and reinit the completion for sync submits).
+I've reached the relay boundary. Let me wrap up cleanly: bump the version, kick off the build so the next session can test immediately, and record the state.
+Reached the relay boundary. Build 0.10.58 (wedge#2 fix) is running in the background; cluster is clean (run=0, lock GONE); state recorded to memory.
+
+## Session 8 summary — real progress on the sole remaining gap (dir_reuse_coherency 32/caw)
+
+**Criteria state: NOT yet met** — dir_reuse 32/caw is still the only gap (the status board confirmed 16/17 other 32/caw cells PASS). But I made concrete, validated progress by peeling two layered bugs:
+
+**BUG 1 — round-5 shutdown → FIXED & PROVEN WORKING (0.10.57, build 78970C3C):**
+- Root-caused via wall-clock (`realns`) correlation across all 32 nodes (the per-node dmesg clocks are unsynchronized — an early mis-read cost me a detour): a shared dir bmbt leaf, rewritten ~15× in 250ms by the current EX holder, is handed off fast; the next holder cold-reads it ~30ms later and gets a **transiently torn image** (bad CRC) from multipath/SCST-cache coherency lag → `xfs_trans_cancel` → shutdown → 0/32. A later raw dump of the same block was a valid leaf (torn state settled) → transient, not durable.
+- **Fix:** bounded coherent re-read retry in `_xfs_buf_read` for multi-node dir metadata that fails read-verify CRC. **Validated live:** round 5 logged `P-DIRCRC-RETRY try=1 err=0 → RETRY-OK`, **0 shutdowns**, and the test progressed r1→r7 (vs. instant r5 shutdown on 0.10.56).
+
+**BUG 2 — wedge#2, surfaced at round 7 once BUG 1 unblocked progress → FIX BUILT, UNTESTED (0.10.58):**
+- rank1 `rm` hangs in `xfs_buf_iowait` (durable-signal bwrite) — a pre-existing lost-wakeup (sess5/6). `P-IOWAIT-STUCK sync_wait=0 ioend_seen=2` proved the sess6 `b_mxfs_sync_wait` snapshot races a lock-free XBF_ASYNC set (buf-item unpin on another CPU), so the completion mis-routes to the async/relse branch and never wakes the sync waiter.
+- **Fix:** a `b_mxfs_force_sync` latch set under the buffer lock by sync submitters (`xfs_bwrite`, `_xfs_buf_read`) before submit — immune to the race — honored by `xfs_buf_submit`'s snapshot and completion-reinit.
+
+**Next session** (details + exact commands in memory `AAA-ccloopa864-sess8-END-CRCfix-WORKS-wedge2-fix-built`): confirm build58, run `./run.sh 32 caw dir_reuse_coherency`, verify no `P-IOWAIT-STUCK`/shutdown and a full 32/32 PASS, then run 2–3× for stability before recording the criteria cell. Not writing YES — the fix chain isn't confirmed end-to-end yet.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

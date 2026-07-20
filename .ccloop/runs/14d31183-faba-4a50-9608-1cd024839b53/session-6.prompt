@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 5
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `d5ddba78-a6d6-4f2a-a797-e305f91df29b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d5ddba78-a6d6-4f2a-a797-e305f91df29b.jsonl`
+- approx context at last assistant turn: 254649 tokens
+- tools used: Bash×68 Read×18 Edit×6 ToolSearch×6 TaskStop×2 Write×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/repro_uv_create_race.sh
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do 
+    cd /src/mxfs; bash tests/repro_uv_create_race.sh r2 2>&1 | tail -55
+    cd /src/mxfs; echo "=== P106-MKDIR for .mxfs_test (who won, who lost, inos) ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; ./tools/mxfs_sshpass.sh $
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit|unused" | head; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; INSMOD_OPTS="fua_disable=1 instr=0" bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 ./tools/
+    cd /src/mxfs; echo "=== P-IGET-ENOENT on the 3 losers ==="; for n in test1 test2 test4; do echo "--- $n ---"; ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo d
+    cd /src/mxfs; echo "=== iget_cache_miss area: existing invalidation + any DLM hooks ==="; grep -n "mxfs\|dlm" xfs/xfs_icache.c | sed -n '1,60p'
+    cd /src/mxfs; grep -n "xfs_iget_check_free_state\|xfs_iget_cache_miss\|mxfs_reuse_dlm\|mxfs_reuse_reload" xfs/xfs_icache.c | head; echo "=== module params ===";
+    cd /src/mxfs; grep -rn "mxfs_reuse_dlm\|mxfs_reuse_reload" --include="*.c" . | grep -v xfs_icache | head; echo "=== cache_miss check_free_state call sites ===";
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; INSMOD_OPTS="fua_disable=1 instr=0" bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 ./tools/
+    cd /src/mxfs; INSMOD_OPTS="fua_disable=1 instr=0" bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do ./tools/mxfs_sshpass.sh $n /tmp/.m
+    cd /src/mxfs; for n in test1 test2 test3 test4; do ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo dmesg -C" >/dev/null 2>&1; done; timeout 1800 ./tests/criter
+    grep -E "PASS|FAIL" /tmp/cache_coherency.5ey79u.log | head -20; echo "==="; tail -30 /tmp/cache_coherency.5ey79u.log
+    cd /src/mxfs; R=/home/steve/.mxfs/results/20260609_222136/test_cross_write_read; for i in 2 3 4; do echo "--- node$i ---"; grep -E "FAIL|ASSERT" $R/node$i.log |
+    cd /src/mxfs; echo "=== P127-IGET-COORD / P-IGET-ENOENT / P99 on readers during cwr ==="; for n in test2 test3 test4; do echo "--- $n ---"; ./tools/mxfs_sshpass
+    cd /src/mxfs; echo "=== test1 (writer): creation of data_node1.md5 ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg | grep -E 'data_node1' | head
+    cd /src/mxfs; echo "=== test1: P90-PICK near t=816 (md5 file ino) ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg | awk -F'[][]' '{t=\$2+0; if(t
+    cd /src/mxfs; echo "=== test2 (reader): every event for ino 138 ==="; ./tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "sudo dmesg | grep -E 'ino=138[^0-9]|ino=0x8
+    cd /src/mxfs; grep -n "P103-RELOAD-REUSE-ADOPT" xfs/*.c | head -2; echo "=== publish events on test1 (creator) around t=812-825 ==="; ./tools/mxfs_sshpass.sh te
+
+## Last text from previous session
+
+esolution of `unlink_visibility` (2097281)**, which got acquired/upgraded to **EX and held 121s** (t=1020.847→1142.020). Meanwhile node1's `ls` thread does see peer files (node2/node3 files), and SESS50-STARVE fires on 2097281. This is the hard concurrent-shared-directory contention/starvation problem, now exposed after removing the stuck-stale thrash.
+
+I've removed sess126's harmful fix (verified improvement: 6m22s→2m22s, walk now reaches child lookup) but the deeper shared-dir starvation remains. This is multiple sessions deep with the stale-flag fix-class repeatedly failing, and sess126 already spent 2 Gemini consults. Per RULE 5's escalation chain, I'll consult GPT with the complete evolved diagnosis. Let me save state first, then consult.
+Now let me consult GPT with the full evolved diagnosis (escalation per RULE 5).
+Now add the ungated miss-site probe in `xfs_lookup`:
+`xfs_dir2_sf_entsize` isn't declared in xfs_inode.c's includes. Let me check where it's declared.
+3 losers this run. Now the decisive evidence — P127-DIRMISS content at miss time:
+The wait command also went to background. Let me check the first task's output directly.
+While the repro runs, let me examine run-3 kernel evidence for the loser path and create attempts.
+EIO on all 4 — the FS has likely force-shutdown. Check dmesg:
+Clean cluster on `9FB5F361`. Run the hardened repro in foreground:
+Reproduced again (deterministic!). Now the decisive probe:
+At the relay boundary with state saved. Session summary:
+
+## Major breakthrough this session
+
+**`test_unlink_visibility` PASSES (33s)** — the subtest that blocked the `cache_coherency` criterion for ~15 sessions. The criterion is now **3/4** (cross_visibility, rename_visibility, unlink_visibility all PASS).
+
+## What I did
+
+1. **Deployed and refuted sess126's fix** (build `104BEBA0`): its `dp->i_dlm_stale=true` on EEXIST provably *reintroduced* the sess91 stuck-stale d_revalidate thrash (8× P-DREVAL-STALEFLAG, zero lookups reaching the child). Removed it; kept the Phase-2 d_revalidate change.
+
+2. **Built a deterministic reproducer** (`tests/repro_uv_create_race.sh`, in-tree per RULE 3): 4 nodes racing `mkdir -p` + 30 creates. Before the fix it reproduced 100% — race losers' `mkdir -p` itself failed ("File exists"), a clean POSIX violation.
+
+3. **Found the multi-session blind spot**: the decisive probe `P-IGET-ENOENT` was gated behind `instr=1` (which is a 100× slowdown that masks races, so it was never on). Ungating it gave the proof in one run: `fua_disk_mode=0x0` — the winner's new dinode reads FREE straight off the platter.
+
+4. **Proven root cause**: durable-before-visible gap for newly created inodes. The creator's parent-dir release flushes the parent (peers see the dirent) but not the new child dinode; sess44 deferred-publish means the creator's child-EX has no CAW slot; `xfs_lookup` igets with no DLM — so nothing ever forces the creator to flush, and readers get ENOENT for a name that exists. Downstream this also drove the `xfs_difree_inobt i != 1` double-free shutdowns (hit all 4 nodes mid-session).
+
+5. **Landed the root fix** (build `1C7F8320`, deployed all 4): in `xfs_iget_cache_miss`, on free-state ENOENT in a multi-node non-CREATE transaction-free iget, do one coordinated PR acquire (BASTs the creator → its release path flushes the dinode durable) + reload + recheck. Repro went from 100% fail to 120/120 creates in ~1s/node.
+
+## Remaining
+
+`test_cross_write_read` still fails: readers adopt a reused inode's new incarnation at its not-yet-durable size=0 state (`P103-RELOAD-REUSE-ADOPT ... disk_size=0`) — same durability family, surfacing at the reload path; the writer is never BASTed. Investigation state, evidence, and the next probes/fix candidates are in `state.md` and memory `sess127-root-fix-durable-before-visible-new-inode-iget-coord`. After that: full `verify_ship.sh` end-to-end.
+
+Criteria not met (cache_coherency 3/4; full gate not run) — marker not written; the loop continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

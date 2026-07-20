@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 60 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 59
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `894c8816-93b7-4aa7-89d7-3cf75992795a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/894c8816-93b7-4aa7-89d7-3cf75992795a.jsonl`
+- approx context at last assistant turn: 248367 tokens
+- tools used: Bash×56 Read×17 Edit×7 ToolSearch×4 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/sess88_workload_a_modeN_baseline.sh
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for h in $(seq 1 16); do timeout 6 "$SSH" test$h "$P" "dmesg -C" 2>/dev/null & done; wait echo "dmesg
+    cd /src/mxfs; until grep -qaE "EXIT=" /tmp/zsl59.log 2>/dev/null; do sleep 15; done; echo "=== STORM DONE ==="; cat /tmp/zsl59.log
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== corruption/verifier dmesg (test2,test4) ===" for h in 2 4; do   echo "--- test$h ---"   tim
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== test2: full corrupt buffer dump + surrounding context ===" timeout 10 "$SSH" test2 "$P" "dm
+    cd /src/mxfs; echo "=== dir durability push functions ==="; grep -n "mxfs_dir_push_data_ags\|mxfs_dir_data_durable\|mxfs_dir_drain_evict_data_blocks\|drain_meta
+    cd /src/mxfs; ln=$(grep -n "mxfs_dir_bmbt_scan" xfs/xfs_mxfs_dlm.c | grep -v backup | grep -E "^\s*[0-9]+:.*mxfs_dir_bmbt_scan\(" | head -1 | cut -d: -f1); echo
+    cd /src/mxfs; grep -n "mxfs_dir_buf_is_undestaged" xfs/xfs_mxfs_dlm.c | grep -v backup | head; echo "=== def ==="; dln=$(grep -n "mxfs_dir_buf_is_undestaged(str
+    cd /src/mxfs; echo "=== forward decl check ==="; grep -n "mxfs_dir_buf_is_undestaged\|xfs_bmbt_buf_ops\|b_mxfs_dir_gen" xfs/xfs_mxfs_dlm.c | grep -v backup | gr
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for h in $(seq 1 16); do   mounted=$(timeout 6 "$SSH" test$h "$P" "grep -q '/mnt/shared' /proc/mounts
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for n in test2 test3 test5 test7 test15; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for h in $(seq 1 16); do timeout 6 "$SSH" test$h "$P" "dmesg -C" 2>/dev/null & done; wait echo "dmesg
+    cd /src/mxfs; until grep -qaE "EXIT=" /tmp/zsl59.log 2>/dev/null; do sleep 15; done; echo "=== STORM DONE ==="; cat /tmp/zsl59.log
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== any FS shutdown? (all nodes) ===" for h in $(seq 1 16); do   s=$(timeout 8 "$SSH" test$h "$
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== test15: P91-RELOAD-PROTECT + reload activity near the shutdown ===" timeout 10 "$SSH" test1
+    cd /src/mxfs; echo "=== mxfs logging already used in xfs_bmap.c? ==="; grep -nc "mxfs_pal_log\|mxfs_idbg\|MXFS_LOG_WARN\|pr_warn" xfs/libxfs/xfs_bmap.c; grep -n
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undeclared|LD \[M\].*mxfs.ko" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass wedged="" for h in $(seq 1 16); do   mounted=$(timeout 6 "$SSH" test$h "$P" "grep -q '/mnt/shared' /p
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for h in $(seq 1 16); do timeout 6 "$SSH" test$h "$P" "dmesg -C" 2>/dev/null & done; wait echo "clear
+    cd /src/mxfs; until grep -qaE "EXIT=" /tmp/zsl59.log 2>/dev/null; do sleep 15; done; echo "=== DONE ==="; tail -8 /tmp/zsl59.log echo "############ P59-IREAD-MI
+    cd /src/mxfs; echo "=== mxfs_dirwr_enabled control ==="; grep -rn "mxfs_dirwr_enabled\b" xfs/ pal/ | grep -viE "unlikely|pr_warn|comment" | grep -iE "module_par
+
+## Last text from previous session
+
+found walking the bmbt children from the root in `if_broot`) ≠ `if_nextents` (`di_nextents` from the dinode) — both the root and di_nextents come from the same dinode, so a cold-read **child block on disk is stale/inconsistent** with the dinode the releaser left. To quantify (one stale child vs wildly off), let me add a detail probe at the corruption point before re-running.
+`mxfs_pal_log` isn't declared in libxfs. Let me use standard `pr_warn` instead.
+Built `B24B321B`. Let me reset the cluster and re-run to capture the mismatch magnitude.
+9 nodes were wedged (post-storm), now all reset clean. Let me run B24B321B to capture the mismatch magnitude.
+Now I have precise data: **`loaded < if_nextents` in every case** (13 vs 24, 13 vs 16, 16 vs 18, etc.), `broot_lvl=1`. The freshly-reloaded root + di_nextents come from the same atomic dinode read, so they're internally consistent — meaning the **bmbt leaf blocks on disk hold fewer records than the dinode expects**. The releasing writer persisted the dinode (di_nextents) but not the latest bmbt leaf content. This is a writer-side release flush gap (or AG-daddr double-alloc, sess39 family).
+
+Let me record this precise finding, then check whether the writer's release actually flushes the bmbt leaves. First find the dir-write instrumentation knob.
+`dirwr=1` enables write-side P133/P134 (dinode+bmbt revert) probes. Let me record the precise mismatch data, then run once with `dirwr=1` to observe whether the writer actually flushes the bmbt leaves at release.
+I've reached the relay boundary. Let me summarize this session's substantial progress.
+
+## Session 59 summary
+
+**Criterion `zero_silent_loss`: still FAIL, but root-caused much deeper and reduced loss from 1600 → ~100-270.** Marker not written.
+
+### RULE-4 chain (all proven by instrumentation, not guesses)
+
+1. **Concurrent-EX REFUTED.** Added an inode-EX popcount read to the P58-SELFSKIP probe. Every fire showed `ex_pop=1 ex_nslots=1 held=1` — the clobbering node holds the dir EX *alone*. So the durable dirent loss is a **single-holder stale-base clobber** (hypothesis B), on the FASTEX (`post_release=0`) re-acquire that sess58's fix didn't cover.
+
+2. **Stale-base fix exposed the real root.** Extending the reload's disk-superset bypass to `peer_modified_since_load` made the FASTEX path reload — which triggered `corrupt dinode 131 (btree extents)` at `xfs_iread_bmbt_block` → shutdown. The forced cold-read *exposed* corruption the stale-cache self-skip was masking.
+
+3. **Stale cached bmbt CHILD blocks (FIXED, 1600→~100).** On BTREE-format dirs, `mxfs_dlm_reload_inode` invalidated the inode cluster buffer (bmbt root) but never the cached bmbt *child* blocks. Added `mxfs_dir_evict_bmbt_blocks()` (AG-walk, clear XBF_DONE on clean bmbt bufs owned by the inode), wired into the reload drain. **1495/1600 dirs now persist; verify no longer hangs.**
+
+4. **Residual quantified.** New signature `P59-IREAD-MISMATCH loaded < if_nextents` (e.g. 13 < 24, broot_lvl=1). Since root + di_nextents come from one atomic dinode read, this means the **bmbt leaf blocks on disk lag the dinode** — a writer-side release flush gap (or AG-daddr double-alloc, sess39 family).
+
+### Also fixed (KEEP)
+- Verify-phase robustness in `scripts/sess88_workload_a_modeN_baseline.sh` — `find | wc -l` was merging stderr (corrupting the count) and masking hangs as fake 1600 loss.
+
+### Current build: `B24B321B` (deployed via NFS). Next step
+Run with `INSMOD_OPTS="dirwr=1"` to enable P133/P134 write-side probes and confirm whether the releaser flushes ino=131's bmbt leaves; if not, fix the release drain to land all bmbt leaf blocks (or hunt the AG double-alloc). Full detail in memories `sess59-zsl-bmbt-stale-child-root-and-residual` and `sess59-zsl-residual-bmbt-leaf-disk-staleness`.
+
+**Cluster note:** several nodes are left mounted/wedged from the last storm — the next session must probe `umount` per node and `virsh destroy+start` the HANG ones before re-running (procedure in memory).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

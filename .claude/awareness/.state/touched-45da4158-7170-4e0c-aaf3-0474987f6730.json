@@ -1,0 +1,12 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_ialloc.c",
+    "xfs/libxfs/xfs_dir2_block.c",
+    "xfs/libxfs/xfs_dir2_data.c",
+    "xfs/libxfs/xfs_da_btree.c",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

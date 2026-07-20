@@ -1,0 +1,140 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 6
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `2f906677-2c0b-4a21-9bd1-6dcb262e2c70`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2f906677-2c0b-4a21-9bd1-6dcb262e2c70.jsonl`
+- approx context at last assistant turn: 250823 tokens
+- tools used: Bash×120 Edit×12 Read×9 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 Write×2 ToolSearch×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/state.md
+- /src/mxfs/.claude/awareness/subsystems/xfs.md
+- /src/mxfs/xfs/xfs_trans_ail.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 15 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo cat /proc/990/stack" 2>&1 | grep -v "authorized\|Warning\|prohibited"; grep -n "xfs
+    cd /src/mxfs; sed -n '2150,2215p' xfs/xfs_inode.c
+    virsh -c qemu:///system destroy test1; sleep 2; virsh -c qemu:///system start test1; cd /src/mxfs; until timeout 8 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass
+    cd /src/mxfs; timeout 120 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg -C; sudo modprobe libcrc32c; sudo insmod /src/mxfs/mxfs.ko; echo y | sudo /s
+    cd /src/mxfs; MXFS_TESTS_DIR=/src/mxfs/tests timeout 420 bash tests/run_tests.sh --nodes 1 --phase single --test test_many_files --pass-file /tmp/.mxfs_pass --d
+    cd /src/mxfs; timeout 15 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "ps axo pid,stat,wchan:30,comm | grep -E ' D' | head -8; sudo dmesg | grep -cE 'blocked f
+    cd /src/mxfs; grep -n "xfs_ail_push_all_sync" xfs/xfs_trans_ail.c; sed -n "$(grep -n '^xfs_ail_push_all_sync' xfs/xfs_trans_ail.c | cut -d: -f1),+40p" xfs/xfs_t
+    cd /src/mxfs; sed -n '735,860p' xfs/xfs_trans_ail.c
+    cd /src/mxfs; grep -n "ail_head\|struct list_head" xfs/xfs_trans_priv.h | head -5; grep -n "XFS_LI_FLUSHING\|XFS_LI_IN_AIL\|XFS_LI_FAILED" xfs/xfs_trans.h | hea
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head; modinfo mxfs.ko | grep srcversion
+    virsh -c qemu:///system destroy test1; sleep 2; virsh -c qemu:///system start test1; cd /src/mxfs; until timeout 8 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass
+    cd /src/mxfs; MXFS_TESTS_DIR=/src/mxfs/tests timeout 180 bash tests/run_tests.sh --nodes 1 --phase single --test test_many_files --pass-file /tmp/.mxfs_pass --d
+    cd /src/mxfs; grep -n "define XFS_I\|define MXFS_IF" xfs/xfs_inode.h | head -25
+    cd /src/mxfs; grep -n "MXFS_IF_FIRST_FLUSH\|P-IRESURRECT" xfs/*.c | head -15
+    cd /src/mxfs; sed -n '3770,3920p' xfs/xfs_inode.c
+    cd /src/mxfs; sed -n "$(grep -n 'xfs_inode_item_push' xfs/xfs_inode_item.c | head -2 | tail -1 | cut -d: -f1),+75p" xfs/xfs_inode_item.c
+    cd /src/mxfs; sed -n "$(grep -n 'STATIC uint$' xfs/xfs_inode_item.c | head -1 | cut -d: -f1),+80p" xfs/xfs_inode_item.c 2>/dev/null || grep -n "_item_push" xfs/
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head -3; modinfo mxfs.ko | grep srcversion
+    virsh -c qemu:///system destroy test1; sleep 2; virsh -c qemu:///system start test1; cd /src/mxfs; until timeout 8 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass
+    cd /src/mxfs; MXFS_TESTS_DIR=/src/mxfs/tests timeout 150 bash tests/run_tests.sh --nodes 1 --phase single --test test_many_files --pass-file /tmp/.mxfs_pass --d
+
+## Last text from previous session
+
+Continuing from session 5. Let me load the current state and criteria.
+Logs survive. Let me check the event ordering on test2 for ino 138.
+No churn yet. Run the full `cache_coherency` criterion — its cumulative sequence is where the reuse race shows.
+Now wire the call into `xfs_iget`'s cache-hit branch.
+VMs test5–16 reference `/dev/sdc` on the host, which doesn't exist. Compare with test1's disk config.
+All see the LUN, but NFS check failed. Inspect test5.
+All 12 mount NFS now. Check kernel versions match the module build (6.8.0-101-generic).
+All kernels match. Check how criteria scripts load the module (insmod opts) so the gate runs with the intended configuration.
+Defaults already match the test config (`fua_disable=1`, `instr=0`). Check that lib.sh's cluster setup tears down prior state, then launch the gate.
+Now tear down test1–4's current state and launch the full gate.
+Gate running in background. Updating `state.md` to cover the relay boundary while it runs.
+While the gate runs, update the xfs subsystem awareness doc with the new API per the awareness protocol.
+Gate stopped at `posix_semantics --nodes 1` — the script crashed without emitting a RESULT line. Diagnosing.
+The script destroyed/restarted test1 (teardown recovery) then exited with no RESULT. Reading the script.
+`cache_coherency.sh` also uses offset 16 and passes — so the offset means something else. Check run_tests.sh.
+Already mounted from the killed run. Run the single phase with timing.
+The hang is either `is_mounted` or the `rm -rf` cleanup of the previous run's dirs on the mxfs mount. Check test1 for hung processes.
+Adding the stuck-AIL dump probe to `xfs_ail_push_all_sync` (every ~30s of waiting, dump head items).
+Relay boundary — saving state and summarizing.
+At the relay boundary with state saved. Session summary:
+
+## Major win: cache_coherency PASSES 4/4 — the 15+ session blocker is closed
+
+**Root cause found and fixed (RULE 4, fully proven in one probe build):** `test_cross_write_read` failed because a CREATE satisfied from the inode cache (a reused inode number) keeps the prior incarnation's DLM fields — `i_dlm_mode=EX` with `i_dlm_unpublished=false` — while `xfs_inactive` had already released the prior incarnation's on-disk CAW slot. `mxfs_dlm_publish_inode` fast-bailed on the clear flag, so the creator ran on a **phantom EX with no slot**: readers' acquires of the reused number granted clean against an empty slot, never BASTed the writer, and adopted the new dinode at its not-yet-durable size=0 — empty md5 reads. Probes `P128-PUBLISH-BAIL`/`P128-INACT-EXREL` proved the chain (writer bail on ino 139 correlated exactly with three readers' size=0 adopts). Fix: `mxfs_dlm_rearm_unpublished()` called from `xfs_iget` on cache-hit `XFS_IGET_CREATE` (build `CA701441`). Full criterion: **PASS 4/4**.
+
+## Ship gate progress: 9/19, then a new pre-existing blocker
+
+Ran `verify_ship.sh` end-to-end: criteria 1–9 PASS. Criterion 10, `posix_semantics --nodes 1`, dies on its 600s watchdog: **`test_many_files` deterministically wedges a single node** — inodegc workers stuck forever in `xfs_ail_push_all_sync` behind one un-flushable AIL inode item (ino 6291584, li_buf attached, unpinned, not flushing — evidence captured via a new `P128-AILSTUCK` dump). This is pre-existing (my fixes are multi-node-gated; posix_semantics has no prior recorded run). Next step is instrumenting `xfs_inode_item_push` to see which branch refuses the flush.
+
+## Also this session
+- Per the user's directive, rewrote RULE 5 in CLAUDE.md and the `ask-escalation` memory: Gemini/GPT consults are now a last resort (zero consults used this session).
+- Brought up test5–16 (stale `/dev/sdc` LUN refs → SCST by-path device; NFS fstab) — required for the 16-node criteria.
+- Fixed silent-no-op `virsh` URIs in fence/crash criteria scripts (would have produced false confidence).
+
+Criteria not met (gate red at 10/19) — marker not written; the loop continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

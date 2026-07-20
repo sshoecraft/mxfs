@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 28 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 27
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `efdc16a7-85d5-4b89-985f-6934a7de0517`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/efdc16a7-85d5-4b89-985f-6934a7de0517.jsonl`
+- approx context at last assistant turn: 496706 tokens
+- tools used: Bash×104 Read×27 mcp__ccmemory__memory_write×13 Edit×6 mcp__ccmemory__memory_get×5 Write×3 ToolSearch×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/drc_catch2.sh
+- /src/mxfs/tests/tcp/drc_catch3.sh
+- /src/mxfs/tests/tcp/drc_passrate2.sh
+- /src/mxfs/.ccmemory/sess27-HANDOFF-head-state-and-next-step.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== owned_ex gate in xfs_da_read_buf invalidation ==="; grep -n "owned_ex\|owned.*ex\|i_dlm_mode == MXFS_LOCK_EX\|mode == MXFS_LOCK_EX" xfs/
+    cd /src/mxfs; echo "=== node addname slot-pick site (xfs_dir2_data_use_free calls in node addname) ==="; grep -n "xfs_dir2_data_use_free\|xfs_dir2_node_addname_
+    cd /src/mxfs; echo "=== stray drivers ==="; pgrep -f "drc_passrate\|drc_catch\|run.sh 8" | wc -l | xargs echo "count="; echo "=== nodes ==="; for n in 1 2 3 4 5
+    cd /src/mxfs; echo "=== mxfs externs/usage already in xfs_dir2_node.c ==="; grep -n "mxfs_v5_dlm_inode_dir_epoch\|b_mxfs_dir_epoch\|mxfs_v5_dlm_is_single_node\|
+    cd /src/mxfs; echo "=== mxfs_v5_dlm_inode_dir_epoch decl in v5_mount.h? ==="; grep -n "mxfs_v5_dlm_inode_dir_epoch\|mxfs_v5_dlm_is_single_node" dlm/v5_mount.h; 
+    cd /src/mxfs; echo "=== where b_mxfs_dir_epoch is ASSIGNED (stamped) ==="; grep -rn "b_mxfs_dir_epoch =" xfs/ pal/ | grep -v backup | grep -v "== \|!= \|< \|> "
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: implicit|undefined|xfs_dir2_node|xfs_mxfs_dlm" | head -30; echo "=== exit: build result ==="; ls -la 
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/efdc16a7-85d5-4b89-985f-6934a7de0517/scratchpad; cp "$SCR/passrate2.log" "$SCR/passrate2_dirskip.log" 2>/dev/null; 
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/efdc16a7-85d5-4b89-985f-6934a7de0517/scratchpad; for i in $(seq 1 118); do if grep -qE "run 2:|TOTAL pass=" "$SCR/p
+    cd /src/mxfs; pkill -9 -f drc_passrate2 2>/dev/null; sleep 2; echo "killed: $(pgrep -f drc_passrate2|wc -l)"; echo "=== rebuild with diagnostic ==="; make modul
+    cd /src/mxfs; echo "killed: $(pgrep -f drc_passrate2|wc -l)"; modinfo mxfs.ko 2>/dev/null | grep -oE "srcversion: *[A-F0-9]+"; ls -la mxfs.ko | awk '{print $5, 
+    cd /src/mxfs; pkill -9 -f "drc_passrate2\|run.sh 8 tcp" 2>/dev/null; sleep 3; pkill -9 -f "drc_passrate2" 2>/dev/null; sleep 1; echo "remaining: $(pgrep -f drc_
+    cd /src/mxfs; ps -ef | grep -E "drc_passrate2|run.sh 8" | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null; sleep 2; echo "remaining drc: $(pgrep 
+    cd /src/mxfs; for p in $(pgrep -f "drc_passrate2"); do kill -9 $p 2>/dev/null; done; sleep 2; echo "remaining: $(pgrep -f drc_passrate2|wc -l)"; ps -ef | grep -
+    cd /src/mxfs; pgrep -af drc_passrate2 2>/dev/null | head; echo "count=$(pgrep -f drc_passrate2 2>/dev/null | wc -l)"
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/efdc16a7-85d5-4b89-985f-6934a7de0517/scratchpad; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$
+    cd /src/mxfs; echo "=== P28-CHECK sample + P28-ADDNAME fires + shutdown on test1 ==="; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'echo "--- P28-CHE
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|xfs_dir2_node.c:[0-9]+:[0-9]+: (error|warning: implicit)" | head -15; echo "=== result ==="; modinfo mxfs.ko 
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/efdc16a7-85d5-4b89-985f-6934a7de0517/scratchpad; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$
+    cd /src/mxfs; echo "=== stray drivers ==="; pgrep -f "drc_passrate\|run.sh 8 tcp" | grep -v $$ | wc -l | xargs echo "count="; echo "=== nodes ==="; for n in 1 2
+
+## Last text from previous session
+
+freshly read with the current epoch on every addname* (gen_per_handoff forces FUA re-reads). So it's NOT a stale cache hit — my epoch-fix model is **wrong** (it can never fire; correctly inert at default param=0). The fresh FUA read returns content *missing* the peer's add → the platter lacks node5's entry at node7's read time = a concurrent-allocation/durability race, not cache staleness. Let me record this correction.
+The decisive question is now (a) write-side durability vs (b) read served stale buffer. I have the exact probe: at the addname read, FUA-read the platter daddr and compare to the returned buffer. If they match → platter genuinely lacks the victim (write-side); if they differ → buffer stale vs platter (read-side). Let me add this to the gated diagnostic and rebuild.
+Built clean — srcversion `164A6D5D`. Now the decisive run: capture `P28-PLATTER` (MATCH = write-side durability gap; DIFFER = read served stale buffer).
+**Definitive: `P28-PLATTER` shows 76 MATCH, 0 DIFFER.** The addname's in-core buffer **always equals the platter** — the read is fully coherent. So node7 faithfully reads a platter where off=1280 is free → node5's entry is **not on the platter** at node7's read time. This **confirms write-side**: a stale write reverts the platter slot between node5's add and node7's read (the read is innocent). The fix must catch the reverting write. (nodes_pass=0/8 is a diagnostic artifact — the per-addname synchronous FUA read is slow; gated behind param=1, default unaffected.) Let me record this.
+I've definitively localized the bug to a write-side stale-image platter revert (read path exonerated). The next step — the write-chokepoint live-dirent-count probe to catch the reverting write — is well-specified and references existing CLAUDE.md design guidance ("content-superset check at the dir-DATA-block bio write chokepoint"). Let me verify clean handoff state.
+Clean handoff state confirmed: no stray drivers, all 8 nodes up, build `164A6D5D` (keeper-equivalent at default — both diagnostic probes gated behind `dir_addname_epoch_refresh`, default 0).
+
+## Session conclusion — criteria NOT met; root cause PROVEN and bug definitively localized to the write side
+
+This session achieved the breakthrough for this 26-session problem and then narrowed it decisively:
+
+1. **Proved the exact mechanism** (byte-exact): an **intra-block directory slot collision** — node7's addname allocates the exact offset (off=1280) node5 just filled, overwriting node5_f46.md5.
+
+2. **Exonerated the read path**: `P28-PLATTER` (FUA-read platter vs in-core buffer at every addname) = **76 MATCH / 0 DIFFER**, and `P28-CHECK` showed `b_epoch==valid_epoch==master` always (the block is freshly FUA-read every addname). The clobberer reads a **fully coherent** platter that genuinely shows the slot free.
+
+3. **Confirmed write-side**: the platter slot is **reverted to free by a stale write** between the victim's add and the clobberer's read. The read faithfully reflects it.
+
+4. **Refuted, with evidence**: read-side staleness (`force_coherent` made it *worse*), the epoch/cache-hit-staleness model (built `dir_addname_epoch_refresh`, proven inert — block is fresh-read), and 5 mitigation levers (`release_invalidate`, `mht=600`, `release_fua_write`, `force_coherent`, `dirskip=1`).
+
+**Next session** (clearly specified in memory): a write-chokepoint live-dirent-count probe on node-format dir DATA blocks (`pal/linux/xfs_buf.c`) to catch the write that drops the victim's dirent — then a content-superset write-guard (the design the CLAUDE.md head already flagged). Build `164A6D5D` is keeper-equivalent at default; cluster clean.
+
+Recorded across these sess27 memories (head: `sess27-HANDOFF-head-state-and-next-step`; key proofs: `sess27-SMOKINGGUN-intrablock-slot-collision...`, `sess27-DEFINITIVE-read-coherent-platter-MATCH-loss-is-stale-write-revert`). The criteria-met marker remains **unwritten** — the relay continues from a far sharper position than this session began.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

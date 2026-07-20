@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/46efd8b6-3dd3-477c-b004-14362c80d8e8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 46efd8b6-3dd3-477c-b004-14362c80d8e8, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `eb86d5cb-4dfe-4534-aa32-12b1a65e25c0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/eb86d5cb-4dfe-4534-aa32-12b1a65e25c0.jsonl`
+- approx context at last assistant turn: 502616 tokens
+- tools used: Bash×154 Read×28 Edit×8 mcp__ccmemory__memory_write×5 TaskCreate×4 Write×4 mcp__ccmemory__memory_get×4 TaskUpdate×2 ToolSearch×2 TaskStop×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/run.sh
+- /src/mxfs/scripts/setup_serial_capture.sh
+- /src/mxfs/scripts/live_marker_harvest.sh
+- /src/mxfs/scripts/node_disk_hygiene.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for i in $(seq 1 32); do ( o=$(timeout 15 $SSH test$i $PF "du -sh /tmp/mxfs_harvest.cap 2>/dev/null
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 40 $SSH test9 $PF "df -h / | tail -1; du -xsh /var/log /var/crash /var/lib /root /tmp 2>/de
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 40 $SSH test9 $PF "du -xsh /var/log/* 2>/dev/null | sort -rh | head -5; ls -lah /root | sor
+    chmod +x /src/mxfs/scripts/node_disk_hygiene.sh; /src/mxfs/scripts/node_disk_hygiene.sh 32 2>&1 | grep -E 'test[0-9]+:|===' | sort -V
+    cd /src/mxfs; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency dlm_scaling
+    n=0; f=/tmp/claude-1000/-src-mxfs/eb86d5cb-4dfe-4534-aa32-12b1a65e25c0/tasks/bxs7hh9wk.output; until [ $(grep -cE '  PASS|  FAIL' $f 2>/dev/null) -ge 2 ] || [ $
+    R=/tmp/run_cache_coherency_20260710T032702Z; grep -m1 -oE 'measured=[^|]+' $R/test1; grep -m1 -oE 'reason=.{0,250}' $R/test1; echo ===; grep -m1 -oE 'reason=.{0
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 40 $SSH test9 $PF "stat -c OK /mnt/shared 2>&1 | tail -1; dmesg -T | grep -E 'P9-ICD-FAIL|S
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 40 $SSH test9 $PF "dmesg -T | grep -m4 -B2 'xfs_inode_buf_verify\|Metadata corruption' | he
+    cd /src/mxfs; echo 0.10.2 > VERSION; make modules 2>&1 | grep -E 'error|Error|warning.*mxfs_dlm' | head -5; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    n=0; f=/tmp/claude-1000/-src-mxfs/eb86d5cb-4dfe-4534-aa32-12b1a65e25c0/tasks/byas3ltgn.output; until grep -qE '  PASS|  FAIL' $f 2>/dev/null || [ $n -ge 55 ]; d
+    R=/tmp/run_cache_coherency_20260710T033921Z; grep -h 'P9-ICD-FAIL\|P9-ICD-MIDLOOP' $R/kernlog_test* 2>/dev/null | head -8; echo ===; grep -m1 -oE 'reason=.{0,12
+    R=/tmp/run_cache_coherency_20260710T033921Z; grep -n -iE 'shut.?down|SHUTDOWN' $R/kernlog_test16 | head -8; echo ===; grep -c . $R/kernlog_test16
+    cd /src/mxfs; grep -n 'xfs_imap_to_bp' xfs/libxfs/xfs_inode_buf.c | head -2; grep -n 'EIO' xfs/libxfs/xfs_inode_buf.c | head; echo ===; grep -n 'return -EIO\|= 
+    cd /src/mxfs; sed -n '255,330p' xfs/xfs_trans_buf.c
+    cd /src/mxfs; sed -n '6560,6660p' pal/linux/xfs_buf.c
+    cd /src/mxfs; grep -n 'mxfs_pal_scsi_read_fua_bdev' pal/linux/kern.c | head -2; grep -n 'fua.*read\|READ.*fua' pal/linux/kern.c | grep -in 'fail\|err' | head -5
+    R=/tmp/run_cache_coherency_20260710T033921Z; grep -hc 'P-FUA-READ-ERR' $R/kernlog_test* | paste -sd+ | bc; echo ===; grep -n 'Jul 10 03:4[34]' $R/kernlog_test16
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error|Error' | head -4; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+e 1900s budget before tests even start. Killing it and doing the power-cycle in parallel myself, then relaunching.
+All 32 cycled in parallel. Waiting for boot, then relaunching the trio.
+Understood — fix run.sh so prep power-cycles the stragglers in parallel instead of one at a time. Reading the prep escalation code.
+Rewriting the escalation loop (run.sh:194-198) to power-cycle all wedged nodes in parallel.
+Also parallelizing the step-0 "extras" power-cycle (serial destroy+start, ~3-5s per node):
+Prep OK — all 32 nodes on 30E6BF7F. Now waiting for the three test results (~15 min worst case).
+Failure logs persist at `/tmp/run_<name>_<RUN_ID>`. Reading the per-node test results.
+Confirmed — the write ledger needs `dirwr=1`. Re-running cache_coherency@32 with the ledger enabled to catch the clobberer in the act.
+Boot -2's journal is gone (aggressive vacuum). Checking pstore for panic remnants.
+Now the serial-capture rollout. Comparing test1's (working) libvirt serial config against the others.
+The multi-line echo garbled some statuses. Waiting for the cycled nodes to boot, then verifying the full end state on every node.
+All 19 repaired nodes have `console=ttyS0` in grub.cfg. Power-cycling them to activate.
+All 32 nodes have live serial capture. Recording the ssh-wrapper quoting lesson, then re-running the reproducer to catch the panic.
+Run failed 0/32 again — **with zero panics**. The panic was an amplifier in run 2, not the driver. Diagnosing this clean run's failure signature from its artifacts.
+The start command has the same wrapper-quoting hazard I just documented. Restructuring: push a remote script file, invoke it plainly.
+Now the orchestrated run: launch, arm collectors right after prep (before the test starts), collect after.
+0/32 reproduced with full live capture (138k lines, all 32 nodes, whole test window). Tracing `node1_before_1` from creation to loss.
+All nodes reclaimed (≥1.2G free), rsyslog disabled, journald capped at 200M. Recording this critical lesson, then running the honest clean-disk baseline with default params.
+Bumping the patch version and building.
+Build 2A10F6B9. Running the reproducer with the lap counters.
+Relay boundary — building the sharpened probe and saving state for the next session.
+Session 2 summary — criteria NOT yet met; substantial diagnostic progress with the root cause now cornered:
+
+**Main finding (RULE-4 chain):** cache_coherency@32 fails 0/32 with the tenure floor ON (default) and effectively passes with it OFF (3020/3021) on clean substrate. The failure mechanism is a per-run set of 1-3 **victim nodes whose mounts go EIO-dead mid-test**: the tenure dwork release runs the inode-cluster destage on a shortform parent dir (ino 131, and even root ino 128), and `xfs_imap_to_bp` returns **-EIO for 1500 consecutive laps** (proven by new lap counters, with 3 nodes wedging on the same inode in the same second) — with no SCSI errors, no verifier failures, and no shutdown message. Build **6CFAB18E** (built, not yet run) adds the decisive discriminator probe: mid-loop plain-bdev read + shutdown-flag check, which will split device-failure vs buffer-layer-refusal vs silent-shutdown on the next run.
+
+**Also this session:** repaired major test-infra rot that was fabricating failures — victim nodes' 6.1G root disks were 100% full from triplicated kernel logging (hygiene script deployed, rsyslog masked, journald capped); serial-console panic capture enabled on all 32 VMs; run.sh prep power-cycling parallelized (was ~40s/node serial); and a grub-file mangling incident from the ssh wrapper's arg flattening was diagnosed and fully repaired. Refuted along the way: slot-table ghosts, PR-key loss as current blocker, the sess-1 strand (its strike escalation now works), and the panic-as-driver theory.
+
+**Next session:** run 6CFAB18E, read `P9-ICD-MIDLOOP`, root-fix the victim-death, then re-run the trio, dir_reuse@16/@32, and the full 1/2/4/8/16/32 ladder on the final build before writing the criteria marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

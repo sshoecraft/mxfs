@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 10
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5001afa2-7702-41ae-bb76-62befca3a578`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5001afa2-7702-41ae-bb76-62befca3a578.jsonl`
+- approx context at last assistant turn: 507311 tokens
+- tools used: Bash×100 Read×30 TaskOutput×18 mcp__ccmemory__memory_write×15 Edit×13 ToolSearch×4 mcp__ccmemory__memory_get×4 mcp__ask_gpt__query×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== node1_f33.md5 create + block daddr (test1, round 14 window) ==="; timeout 25 tools/mxfs_sshpass.sh
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; for n in test1 test2 test3 test4; do timeout 15 tools/mxfs_sshpass.sh $n "$PASS" "umount -f /mnt/shared 2>/d
+    cd /src/mxfs; echo "=== all mxfs_v5_dlm_inode_unlock calls ==="; grep -n "mxfs_v5_dlm_inode_unlock(" xfs/xfs_mxfs_dlm.c; echo "=== P106-EXREL (existing release 
+    cd /src/mxfs; echo "=== fua params ==="; modinfo mxfs.ko 2>/dev/null | grep -iE "^parm:.*fua"; echo "=== P106-EXREL gate ==="; sed -n '6705,6712p' xfs/xfs_mxfs_
+    cd /src/mxfs; echo "=== reset test1-4 ==="; for n in test1 test2 test3 test4; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 4; for n in tes
+    cd /src/mxfs; echo "=== reset wedged cluster ==="; for n in test1 test2 test3 test4; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 4; for n
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; tries=0; until [ $(for n in test1 test2 test3 test4; do timeout 5 tools/mxfs_sshpass.sh $n "$PASS" "echo up"
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; SD=/tmp/claude-1000/-src-mxfs/5001afa2-7702-41ae-bb76-62befca3a578/scratchpad; mkdir -p $SD; : > $SD/r14.txt
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; SD=/tmp/claude-1000/-src-mxfs/5001afa2-7702-41ae-bb76-62befca3a578/scratchpad; : > $SD/r14full.txt; for n in
+    cd /src/mxfs; PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"; echo "=== round-14 P35E-DIRWR lines mentioning node1_f33 (any node) → gives daddr ==="; for n in test1 test2
+    cd /src/mxfs; echo "=== b_mxfs_dir_gen field def ==="; grep -rn "b_mxfs_dir_gen\|b_mxfs_dir_incarn" xfs/xfs_buf.h pal/ include/ 2>/dev/null | grep -iE "uint|u32
+    cd /src/mxfs; grep -n "dir_stamp_fresh && bp->b_mxfs_dir_gen != dir_gen_snap" xfs/libxfs/xfs_da_btree.c
+    cd /src/mxfs; echo "=== dir_stamp_fresh + dir_gen_snap computation ==="; grep -n "dir_stamp_fresh\|dir_gen_snap" xfs/libxfs/xfs_da_btree.c | head; echo "--- con
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undefined|warning: .*b_mxfs_grant|LD \[M\].*ko$" | tail -5; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxf
+    cd /src/mxfs; grep -n "owned_ex\s*=\|i_dlm_mode ==\|i_dlm_mode >=\|MXFS_LOCK\|mxfs_v5_dlm_inode_held" xfs/libxfs/xfs_da_btree.c | head
+    cd /src/mxfs; grep -rn "MXFS_LOCK_EX\b" dlm/dlm.h include/*.h 2>/dev/null | grep -iE "=|MXFS_LOCK_EX[[:space:]]*[,=]" | head
+    cd /src/mxfs; grep -rn "MXFS_LOCK_NL\|MXFS_LOCK_PR\|MXFS_LOCK_EX\|MXFS_LOCK_CW" dlm/*.h include/*.h compat/*.h 2>/dev/null | grep -iE "enum|=|MXFS_LOCK_NL" | he
+    cd /src/mxfs; grep -rn "MXFS_LOCK_NL\s*=\|MXFS_LOCK_PR\s*=\|MXFS_LOCK_EX\s*=\|define MXFS_LOCK_EX\|MXFS_LOCK_EX," $(grep -rl "MXFS_LOCK_EX" --include=*.h . 2>/d
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undefined|LD \[M\].*ko$" | tail -4; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|LD \[M\].*ko$" | tail -4; echo "EXIT=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep
+
+## Last text from previous session
+
+ad_reread gate to also fire on grant-gen mismatch under EX (the modify path), and stamp grant_gen on coherent reads.
+Let me verify `dir_stamp_fresh` means an actual disk read (not a cache hit) — critical for the grant_gen stamp to be correct.
+`dir_stamp_fresh` is true **only on a true cache miss** (`inc_rc == -ENOENT` → real disk read) — so my grant_gen stamp is correct. And critically: the pre-read invalidation block is gated on `!owned_ex` (skipped when we hold EX — the modify/clobber path!), but the `postread_reread` block (where I added the grant_gen trigger) is **not** owned_ex-gated and requires `i_dlm_mode==EX`, with the existing `clean`-only guard preventing resurrection. So my fix forces a coherent re-read of each dir block once per EX grant tenure — exactly GPT's "first RMW under a (re)acquired EX reads from device." Let me build and test.
+Build error: `MXFS_LOCK_EX` isn't visible in `xfs_da_btree.c`. I've hit the relay boundary — let me fix the reference so the tree builds, then summarize. Let me find how this file refers to the EX mode.
+At the relay boundary — let me fix the build (use the numeric EX value, confirmed by traces as `mode=5`) so the tree is left buildable. Let me verify the enum value.
+`MXFS_LOCK_EX` = 5 (enum: NL=0…EX=5; matches traces). Let me use the numeric literal so the tree builds.
+Build timed out at the tool's 2min default (the `xfs_buf.h` change forces a wide recompile). Let me rebuild with a longer timeout so the tree is left buildable with the fix in place.
+Build succeeds — **build 9527F28F** carries the per-buffer grant-gen validation fix (untested). At the relay boundary, let me record this fix for the continuing session to validate.
+I've reached the relay boundary. Summary of this session's work:
+
+## Session summary — criterion NOT met; a concrete new fix is built and staged for validation
+
+**Build:** `9527F28F` (carries FIX3, untested). **Cluster:** clean, test1-8 up.
+
+### What I did (full RULE-4 loop, 13 memory notes)
+1. **Scoped:** 1/2-node intact (2/tcp coherency all pass standalone). 4-node fails **only** on `dir_reuse_coherency` — intermittent (~80%) **durable** single-dirent loss (all nodes lose the same entry → write clobber). Plus a separate in-suite contamination + a teardown wedge (**per-run virsh reset is mandatory** for valid results).
+2. **Refuted with direct evidence (all reverted):** `dir_epoch_adopt`, fast-path `grant_gen` trigger (proven inert), fast-path handoff bool (under-fires), level epoch (constant within tenure), `dirskip`, non-owner flush, `fua_disable=0` (storage IS coherent).
+3. **Key discoveries:** the clobber is `stale_base=0` (invisible to the lossy `i_dlm_dir_gen`, which gets stamped fresh over stale content); writer durability works (`P-DSIG flush=1`); and the pre-read dir-block invalidation is **disabled when holding EX** (`!owned_ex` gate) — exactly the modify/clobber path.
+4. **GPT-5.5 consult** → the fix must make freshness mean "read under the current grant," not the lossy gen.
+
+### FIX3 (built, staged, untested) — `sess10run-FIX3-per-buffer-grant-gen-validation-UNTESTED`
+Added per-buffer `b_mxfs_grant_gen`: in `xfs_da_read_buf`, an EX-held dir block whose grant gen ≠ the inode's current `i_dlm_cached_grant_gen` (it was last read under an older grant = we lost+reacquired EX since = a peer modified) is re-read coherently before the RMW. The existing `clean`/destaged guard prevents resurrection; re-reads once per EX tenure per block (perf-bounded). Stamped only on genuine disk reads.
+
+### Next session
+Validate FIX3: `dir_reuse 4/tcp` with a virsh reset before **each** run, several cycles (need multiple clean PASSes vs ~80% baseline fail). If it fixes 4-node → run full 2/tcp (watch resurrection canaries), then 1/4/8. If not → pivot to the release-side timing experiment (`P106-EXREL` vs `P-DIRRD`); if it regresses → revert the trigger (field is harmless). The criterion remains unmet; the relay continues with a built, evidence-motivated fix ready to test.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

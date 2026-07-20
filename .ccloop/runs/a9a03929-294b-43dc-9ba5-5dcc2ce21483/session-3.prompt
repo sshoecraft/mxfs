@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 2
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c.jsonl`
+- approx context at last assistant turn: 501768 tokens
+- tools used: Bash×155 Edit×36 Read×10 mcp__ccmemory__memory_get×5 TaskUpdate×4 TaskCreate×2 ToolSearch×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/libxfs/xfs_trans_inode.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/tests/suite/coord.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '1,110p' /src/mxfs/tests/suite/coord.sh
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad; mkdir -p $S/run59; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run59; grep -h "P137" $S/test1.dmesg | head -6; echo "count: $(grep -hc P137 $S/tes
+    grep -n "mxfs_instr_enabled" /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c | head
+    python3 - <<'EOF' import re p='xfs/libxfs/xfs_dir2_leaf.c' s=open(p).read() s=s.replace("""			extern int mxfs_instr_enabled; 			struct xfs_dir3_icleaf_hdr p2lh;
+    make modules 2>&1 | grep -E "\berror\b" | head -3; make tools 2>&1 | grep -cE "\berror\b"; modinfo mxfs.ko | grep srcversion; for k in 1 2 3 4 5 6 7 8; do virsh
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad; timeout -k 10 585 ./run.sh 8 tcp dir_reuse_coherency > $S/run60.out 2>&1; echo RC=
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad; mkdir -p $S/run60; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad; head -8 $S/run60.out; D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo "
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run60; for k in 1 2 3 4 5 6 7 8; do echo -n "t$k first-verifier-fail: "; grep -h "M
+    for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/dev/null 2>&1; done; sleep 2; for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system start t
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad; mkdir -p $S/run61; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run61; D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); grep -h "drc-RDMISS ro
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run61; for k in 1 3 6 7; do echo -n "t$k r6-r9 DIRID: "; grep -h "drc-DIRID" $S/tes
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run61; echo "t6 all DIRIDs:"; grep -h "drc-DIRID" $S/test6.dmesg | head -10; D=$(ls
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run61; grep -h "mxfs\|XFS" $S/test6.dmesg | awk -F']' '{ts=$1; gsub(/\[/,"",ts); if
+    grep -rn "DLM inode reload imap_to_bp failed" /src/mxfs/xfs/*.c | head -2; L=$(grep -n "DLM inode reload imap_to_bp failed" /src/mxfs/xfs/xfs_mxfs_dlm.c | head 
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run61; grep -h -B1 -A6 "Metadata corruption\|Metadata CRC" $S/test6.dmesg | head -3
+    S=/tmp/claude-1000/-src-mxfs/1ef63dcc-4dbf-4eb7-824e-4bf4dc05707c/scratchpad/run61; grep -hiE "I/O error|blk_update|sd 0:|sda.*error|FAILED Result|timing out co
+
+## Last text from previous session
+
+sarily inactivation. Reading its context and finding EX callers on the rm path:
+The EX acquire is one-shot, no retry. Before theorizing further — RULE 4 — I'll add decisive probes. First, what the skip branch actually does (does it leave the bucket entry?):
+Now the P82-REM probe. Reading the remove function:
+Building:
+Build `A752CFE9` clean. Checking the user-mode build invariant, then cycling the cluster for run49:
+run.sh uses hostnames. Waiting for boot with an until-loop, then deploying ddwatch:
+All nodes ready. Launching run49 (foreground, 585s budget per established practice, output to file):
+FAIL 0/8 — inspecting the test logs and node dmesg:
+Log dir was cleaned up by run.sh. Collecting node dmesg streams (the real evidence):
+t7 got the dir EX and adopted disk-superset (nx 1→2), then MAP_HOLE 2ms later. Pulling the exact failure lines:
+Adding the leaf provenance probes to both verifiers:
+Build `C31890CD`. Cycling cluster and launching run50:
+Logs are preserved to `/tmp/run_<name>_<RUN_ID>`. Reading run50's per-node results:
+Fixing the unclosed brace in the P2W gate:
+The script writes phase markers to /dev/kmsg — those will show exactly which rounds ran. Checking DRCph markers and round snapshots on the nodes:
+Reading the reg-durable section and the unconditional flush to find which expensive steps run even for clean files:
+All anchors found. Making the five stage-timer edits:
+Correctness holds, but only ~2.6ms saved — the pulls may not be classifying as clean. Checking the `clean=` flag distribution:
+No improvement — either noatime didn't take effect or the CORE dirt isn't atime. Verifying the mount flags:
+The fix is harness-side (nodes source coord.sh from NFS) — no rebuild needed. Running run59 with serialized barriers:
+No round markers at all — the test never got going. Inspecting what happened:
+Relay boundary — writing the checkpoint memory with the full state and precise continuation:
+**Session 2 status — criteria not met; marker not written.**
+
+This session closed one root-caused bug, made a decisive architectural call, and isolated the next blocker:
+
+**Fixed and verified:** The run48 iunlink shutdown root — the B5 guard in `xfs_inactive` was skipping the *rightful freer* when a peer's transient PR pull demoted its EX and the one-shot re-acquire hit the DLM's blocked-upgrade contract (-EDEADLK). Run48's log had the smoking gun (`INACT-SKIP-STALE local_unlink=1 dlm_mode=3`, 5 leaked AGI bucket entries). Fix: honor the contract with an inline demote + re-acquire (the proven P60 pattern). Run49 verified: 7 fires, all recovered, zero leaks.
+
+**Decision locked (Road B):** Per-op durability barriers on TCP stay OFF. With barriers on I measured the pace floor as structural — ~14.5ms per unlink (per-op ifree log_force+drain+flush) and 10-13ms per file handoff — best possible ~21.2s/round vs the <20s budget, across runs 51-59 of stage-timed analysis (P138 sa/sb/sc/sd split, P2D drain-why, P2G who-logs). Barriers-off runs at 8-14s/round with 2× margin. Along the way: leaf-provenance probes added, clean-REG release flush-skips (13.3→10.7ms/pull), mxfs now mounts noatime (verify-phase relatime was dirtying all 800 inodes per round), plus a stale-BAST-on-recycle reset.
+
+**Open blocker (isolated in run61):** t6 hit *silent* `imap_to_bp rc=-5` sweeps over whole inode-cluster ranges at round 5 — no verifier print, no block-layer error, so the EIO is generated inside the mxfs read path — then diverged for 3 rounds until a cluster-wide dir wipe. Secondary: an all-node dir block↔leaf **format tear** on daddr 0x48 (XDD3 content under XDB3 expectation, the sess135 family). Two of my four new changes are already exonerated via modparams; noatime and the recycle-reset need a revert-bisect next.
+
+Everything — findings, suspects, exact next steps (instrument the silent-EIO site at `xfs_mxfs_dlm.c:~12225`, bisect, then the format-tear root fix), and the unchanged ladder — is in ccmemory `sess2-END-road-b-barriers-off-t6-silent-eio-blocker`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,12 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_da_btree.c",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

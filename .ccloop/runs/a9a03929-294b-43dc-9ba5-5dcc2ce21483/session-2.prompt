@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `348774c0-29cb-4b1d-9f9e-dfc093fbfe78`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78.jsonl`
+- approx context at last assistant turn: 498853 tokens
+- tools used: Bash×128 Read×24 Edit×20 TaskCreate×5 mcp__ccmemory__memory_get×5 TaskUpdate×4 ToolSearch×2 mcp__ccmemory__memory_write×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/ddwatch.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '1670,1700p' /src/mxfs/xfs/xfs_inode.c; echo ======; sed -n '2940,3000p' /src/mxfs/xfs/xfs_inode.c
+    grep -n "mxfs_dlm_dir_durable_signal" /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c | head; echo ===; sed -n "$(grep -n '^mxfs_dlm_dir_durable_signal\|mxfs_dlm_dir
+    grep -n "module_param" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -5; grep -n "int mxfs_dir_owner_scan\|bool mxfs_dir_owner_scan" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -
+    sed -n '3715,3735p' /src/mxfs/xfs/xfs_mxfs_dlm.c; echo ===; sed -n '316,345p' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -12
+    grep -n "bool mxfs_dirop_durable_needed\|void mxfs_dlm_dir_durable_signal\|void mxfs_dlm_dir_inode_durable" /src/mxfs/xfs/xfs_mxfs_dlm.h; echo ===; grep -n "mxf
+    sed -n '243,247p' /src/mxfs/xfs/xfs_mxfs_dlm.h
+    make modules 2>&1 | grep -E "\berror\b" | head -3; modinfo mxfs.ko | grep srcversion && for k in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$k >/de
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad; timeout -k 10 585 ./run.sh 8 tcp dir_reuse_coherency > $S/run48.out 2>&1; tail -4 
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad; mkdir -p $S/run48; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for k 
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad/run48; grep -hc 'forced shutdown\|EFSCORRUPTED\|Corruption' $S/*.dmesg | tr '\n' ' 
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad/run48; grep -h 'mxfs\|XFS' $S/test1.dmesg | awk '{ts=$2+0; if(ts>=179.3 && ts<=180.
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad/run48; grep -h 'mxfs\|XFS' $S/test1.dmesg | awk '{ts=$2+0; if(ts>=179.87 && ts<=180
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad/run48; grep -h 'mxfs\|XFS' $S/test1.dmesg | awk '{ts=$2+0; if(ts>=179.891 && ts<=17
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad/run48; grep -h 'ino=12584877\|0xc007ad\|ino 12584877' $S/test1.dmesg | head -12; ec
+    grep -rn "Found unrecovered unlinked" /src/mxfs/xfs/*.c | head -2; grep -n "xfs_iunlink_reload_next\|iunlink_reload" /src/mxfs/xfs/xfs_inode.c /src/mxfs/xfs/xfs
+    SB=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad; for R in run47 run48; do echo "=== $R t1 ==="; grep -h 'P47-INACT\|P137' $SB/$R/t
+    S=/tmp/claude-1000/-src-mxfs/348774c0-29cb-4b1d-9f9e-dfc093fbfe78/scratchpad/run48; for k in 2 3 5; do echo "=== t$k ==="; grep -h 'Internal error\|forced shutd
+    grep -n "P82-ADD" /src/mxfs/xfs/xfs_inode.c | head -3; sed -n "$(($(grep -n 'P82-ADD' /src/mxfs/xfs/xfs_inode.c | head -1 | cut -d: -f1)-60)),$(($(grep -n 'P82-
+    L=$(grep -n 'P82-ADD' /src/mxfs/xfs/xfs_inode.c | head -1 | cut -d: -f1); sed -n "$((L-65)),$((L+8))p" /src/mxfs/xfs/xfs_inode.c
+    grep -n 'P82-ADD' /src/mxfs/xfs/xfs_inode.c
+
+## Last text from previous session
+
+are unlock core):
+Adding the P6E probe to the ENOENT path and the legacy wrapper:
+Need to read the headers first:
+Now the unlock call replacement with the ESTALE re-arm:
+Building:
+Build `39F8AF88` OK (warnings pre-existing). Checking the user-mode build invariant, then deploying to a fresh cluster for run44:
+Outer tool cap hit — the inner 595s timeout fired but orphaned children held the pipe. Checking actual run state and collecting results:
+run.sh was killed before aggregating. Collecting node streams to see what run44 actually did:
+Checking for any other GRANTED-entry creation sites that leave gen=0:
+All grant paths stamped now. Rebuilding and rerunning (with output to file to avoid the orphaned-pipe hang):
+Master is t6 again. Extracting full per-round phase timing for both runs:
+Three ranks (t4/t6/t7) stalled together ~129s and released within 0.5s of each other — one wedged resource. Examining the stall window on t4 and the master (t6):
+Wedge-holder is **t3**. Examining its release path in the stall window:
+Master healthy through 249.75 (t3's release processed, t8 promoted). Tracing forward to the actual silence start:
+Adding the P7S probe in `fire_bast_records`, then reading bast_notify's structure to place receiver-side probes:
+Round-8 stalled creator = **t2** (374.1 vs ~259 for others). Its D-state stacks:
+The wedged md5sum blocked from ~254.5s. Examining t2's log in 252.5-256:
+Rebuilding and running run47:
+Checkpoint saved. Now the pace attack — mining run47 for phase cost drivers (RULE 4: measure before touching):
+Both barrier functions are only called from the per-op sites (the release-path drain uses `mxfs_inode_cluster_durable` directly) — safe to gate inside the functions. Implementing:
+Relay boundary reached — writing the checkpoint memory with the run48 analysis and precise continuation state:
+**Session 1 status — criteria not met; marker not written.**
+
+This session recovered from a host reboot (rebuilt the LIO/tcm_loop shared LUN, pass file, cluster), then landed and live-verified a chain of root fixes on the 8-node TCP DLM blocker test (`dir_reuse_coherency`):
+
+1. **Gen-aware DLM release** (`mxfs_dlm_unlock_gen`): a stale queued release could consume a *fresh* EX mirror and echo its current gen, which the master accepted — silently handing a peer concurrent EX → the long-standing durable dirent-loss family (run42's `master_ep=0` signature). Releases now only remove the tenure they were queued for.
+2. **Local-master grant gen stamping**: the one grant path that left `grant_gen=0` (uncontended local grants) — proven root of the run44 wedge my first fix exposed.
+3. **Strand-safe re-arm**: a refused stale release now re-arms via the MHT dwork channel (`i_dlm_bast_pending`), after run46 proved the state=BAST re-arm with zero holders stranded a getattr for 117s (ddwatch stack) and wedged the whole cluster for 120s.
+4. Result (run47): **21 rounds, zero failures, zero dangerous epoch events** — every prior correctness family closed; refusal probes fire 68-92×/node, each a prevented lost-update.
+5. **Pace root found and removed**: per-create/unlink/rename synchronous durability barriers (log-force + FUA writes, ~7-10ms each) are CAW-only requirements; gated off on TCP (`dirop_durable_tcp=0`). Run48: **all 24 rounds at 8-14s/round** — comfortably inside the 480s budget for the first time ever.
+
+Remaining blocker: run48 hit one shutdown on the rm node — `xfs_iunlink` recovery fired on stale on-disk unlinked-list state (platter now lags with barriers off) and mangled a live reused inode's nlink → EFSCORRUPTED dirty-cancel; all other node errors were fallout. The next session's job (recorded in ccmemory `sess1-END-barriers-off-pace-solved-iunlink-shutdown-blocker`): root-cause the iunlink stale-read (instrument `xfs_iunlink_reload_next`, check the CIL-resident hole in the AGI FUA-reload guards), fix it while keeping the barriers off, then the ladder — 8/tcp ×5 clean → 4/2/1 → full `./run.sh N tcp` suites for N∈{1,2,4,8}.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 16 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 15
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `9428e83f-84f5-43b2-bcd4-e1afabeb8302`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9428e83f-84f5-43b2-bcd4-e1afabeb8302.jsonl`
+- approx context at last assistant turn: 171395 tokens
+- tools used: Bash×35 Read×13 Edit×5 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/cluster/test_cv_disc.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; MXFS_TESTS_DIR=/src/mxfs/tests timeout 300 ./tests/run_tests.sh --nodes 4 --phase cluster --test test_cv_disc --pass-file /tmp/.mxfs_pass --device
+    cd /src/mxfs; grep -rn "xfs_dir2_sf_nextentry\|xfs_dir2_sf_firstentry" xfs/libxfs/xfs_dir2_sf.c | head -3; echo "=== signature ==="; grep -n "xfs_dir2_sf_nexten
+    cd /src/mxfs; timeout 580 make modules 2>&1 | tail -8; echo "=== EXIT: ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_mxfs_dlm.c:|error:|warning:" | head -20; echo "EXIT ${PIPESTATUS[0]}"
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_mxfs_dlm.c:[0-9].*error|Error [0-9]" | head; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2
+    cd /src/mxfs; grep -n '#include' xfs/xfs_mxfs_dlm.c | grep -iE "dir2|xfs_dir|libxfs" | head; echo "---"; grep -rn '#include.*xfs_dir2_priv' xfs/*.c | head -3
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_mxfs_dlm.c:[0-9].*error|Error [0-9]|cannot" | head; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mx
+    cd /src/mxfs; timeout 580 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | tail -15; echo "=== reset4 EXIT: ${PIPESTATUS[0]} ==="
+    cd /src/mxfs; for n in test1 test2 test3 test4; do v=$(timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /sys/module/mxfs/srcversion' 2>/dev/null); e
+    cd /src/mxfs; MXFS_TESTS_DIR=/src/mxfs/tests timeout 300 ./tests/run_tests.sh --nodes 4 --phase cluster --test test_cv_disc --pass-file /tmp/.mxfs_pass --device
+    until [ -f /tmp/claude-1000/-src-mxfs/9428e83f-84f5-43b2-bcd4-e1afabeb8302/tasks/btoq2rmwb.output ] && grep -q "Results\|PASS:\|FAIL:" /tmp/claude-1000/-src-mxf
+    cd /src/mxfs; for it in 1 2 3 4; do   for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; d
+    until grep -qE "ITER 4|FAILED" /tmp/claude-1000/-src-mxfs/9428e83f-84f5-43b2-bcd4-e1afabeb8302/tasks/b9b81c4r0.output 2>/dev/null && ! pgrep -f "run_tests.sh.*t
+    sleep 60; cat /tmp/claude-1000/-src-mxfs/9428e83f-84f5-43b2-bcd4-e1afabeb8302/tasks/b9b81c4r0.output 2>/dev/null
+    until ! pgrep -f "run_tests.sh.*test_cv_disc" >/dev/null 2>&1; do sleep 10; done; echo "=== loop finished ==="; grep -aE "ITER|DISC|H1|H2|dir-listing|P-SFDIR|P-
+    grep -aE "ITER|DISC|H1|H2|dir-listing|FAIL: |PASS: " /tmp/claude-1000/-src-mxfs/9428e83f-84f5-43b2-bcd4-e1afabeb8302/tasks/b9b81c4r0.output 2>/dev/null; echo "-
+    until ! pgrep -f "test_cv_disc" >/dev/null 2>&1; do sleep 10; done; echo "DONE"; grep -aE "ITER|DISC|H1|H2|dir-listing|\[test[0-9]\]|FAIL: |PASS: " /tmp/claude-
+    grep -aE "ITER|DISC|H1|H2|dir-listing|\[test[0-9]\]|FAIL: 1|FAILED" /tmp/claude-1000/-src-mxfs/9428e83f-84f5-43b2-bcd4-e1afabeb8302/tasks/b9b81c4r0.output 2>/de
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -E "ino=2097280|P-SFDIR-FASTEX ino=209
+    cd /src/mxfs; grep -n "^xfs_dir2_sf_addname\|xfs_dir2_sf_addname(\|sfp->count++\|hdr->count++" xfs/libxfs/xfs_dir2_sf.c | head
+
+## Last text from previous session
+
+heck the includes and add it.
+Clean build `0282620B6BB18DCD8CC4105`. Now deploy to all 4 nodes and re-run the discriminating test to capture the lost-update timeline.
+All 4 nodes on `0282620B`. Now run the discriminating test and capture the timeline:
+PASS on the fresh-mount run — the bug is **intermittent and correlates with accumulated cluster state** (consistent with sess46's contamination note). I need to run it repeatedly until it fails, with detectors capturing the timeline. Let me loop it.
+ITER 1-3 passed; ITER 4 was still running. Let me wait for the loop to finish properly.
+The loop reproduced it on iter 4. Decoding the inodes:
+- **cross_visibility test dir ino=2097280**: final state `[node2.txt node1.txt node4.txt]` — **node3.txt LOST**.
+- barrier dirs (ino=29360258, 10485889; entries named `node1..node4`): all 4 present — barriers succeeded.
+
+So node3.txt was lost while barriers worked (fast failure, no timeout). Let me pull the full realns-sorted timeline for the test dir ino=2097280 across all 4 nodes to see the lost-update window before dmesg is cleared.
+The data is confounded by **inode reuse across iterations** (I see `INODE-REUSE-EVICT ino=2097280 incore_ftype=1 dirent_ftype=2` — the dir inode was recycled from a prior regular file, plus `SESS50-STARVE` and `FASTEX` events spread across a 136s reuse window). I need to see each node's view *at modify time*. Let me add a detector right where a node adds a dirent to a shortform dir.
+I've hit the relay boundary. Let me record the decisive new finding in state.md so the next session starts precisely where I am, then summarize.
+Session summary (sess57):
+
+## What I proved this session
+
+Following RULE 4 (instrument before patching), I built a **discriminating reproducer** (`tests/cluster/test_cv_disc.sh`) — a harness-faithful clone of `test_cross_visibility` that, on a visibility miss, runs `drop_caches` + re-check to separate cache-staleness from on-disk loss.
+
+**Decisive result: the `cache_coherency`/`test_cross_visibility` failure is H2 — a genuine ON-DISK LOST-UPDATE**, confirmed on all 4 nodes: the missing file (node1.txt in one run, node3.txt in another) is gone from disk *even after `drop_caches`*, including on its own creator. This is the Gemini "Failure B" (concurrent shortform-dir lost-update), **not** cache staleness and **not** only inode-reuse. In the clean case the barriers succeed (fail in 5–6s, no 120s timeout).
+
+## Build + detectors deployed (`0282620B6BB18DCD8CC4105`, test1-4, mounted)
+
+Two always-on, non-perturbing detectors (KEEP):
+- **P-SFDIR-RELOAD**: dumps all shortform dirent names read from disk at each EX-acquire reload.
+- **P-SFDIR-FASTEX**: logs dir EX fast-path acquires that skip reload.
+
+## Key facts established
+
+- Bug is **intermittent** — passes ~3/4 iters, needs accumulated cluster state (fresh-mount first run passes).
+- Timeline: the lost dir ends up `[node1,node2,node4]` on disk; node3 never appears in any reload of that incarnation. Confounded by inode reuse across iterations.
+- **Ruled out**: writer-side durability (bast_process does out-of-AIL wait + bio quiesce + `blkdev_issue_flush`; no `P-SF-DURABLE-FAIL`). Slow-path EX-acquire *does* FUA-reload for dirs.
+- `P-SFDIR-FASTEX cached_mode=5(EX) state=1(CACHED)` fired on the lost dir — a node modifying via a fast-path EX acquire with a possibly-stale cached shortform image is the prime suspect.
+
+## Next step (I was mid-implementation at the relay boundary)
+
+Add an always-on detector in `xfs_dir2_sf_addname` (xfs/libxfs/xfs_dir2_sf.c, the two `sfp->count++` sites) logging each node's view *at modify time* to discriminate (A) concurrent-EX / no cluster exclusion vs (B) clobber-after-commit via the FASTEX stale-image path. The fix then follows from which mechanism it is (Gemini Part 3 dir-format re-read, or closing the FASTEX-EX stale-image window). Full details are in `state.md` (sess57 section).
+
+Criteria remain PASS=10 FAIL=2 (cache_coherency, rsync_paired) — **marker not written.**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

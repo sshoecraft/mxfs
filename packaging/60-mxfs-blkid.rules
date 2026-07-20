@@ -1,0 +1,3 @@
+# Teach blkid/mount to auto-detect MXFS filesystems.
+# MXFS superblock magic "MXFS" (4D 58 46 53) at byte offset 0.
+SUBSYSTEM=="block", ENV{ID_FS_TYPE}=="", IMPORT{program}="/bin/sh -c 'magic=$(dd if=$env{DEVNAME} bs=1 count=4 2>/dev/null) && [ \"$magic\" = MXFS ] && echo ID_FS_TYPE=mxfs'"

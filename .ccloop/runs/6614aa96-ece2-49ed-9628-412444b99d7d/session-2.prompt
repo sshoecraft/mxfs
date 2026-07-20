@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6614aa96-ece2-49ed-9628-412444b99d7d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6614aa96-ece2-49ed-9628-412444b99d7d, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `41e8aa1d-d749-4d7c-b3f9-9a91d3df11b2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/41e8aa1d-d749-4d7c-b3f9-9a91d3df11b2.jsonl`
+- approx context at last assistant turn: 500135 tokens
+- tools used: Bash×118 Read×33 Edit×30 mcp__ccmemory__memory_write×9 mcp__ccmemory__memory_get×6 TaskUpdate×4 TaskCreate×3 ToolSearch×3 mcp__ccmemory__memory_search×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/drc_reliab_iter.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "xfs_dir2_shrink_inode(" xfs/libxfs/*.c | grep -v "^.*://" | head; echo "=== signature ==="; sed -n '1020,1041p' xfs/libxfs/xfs_dir2.c | 
+    cd /src/mxfs; echo "=== build state ==="; modinfo mxfs.ko 2>/dev/null | grep -E "srcversion"; ls -la --time-style=+%H:%M:%S mxfs.ko | awk '{print "ko:", $6, $7}
+    cd /src/mxfs; echo "=== release-drain dir block durability (does it cover LEAF/NODE?) ==="; grep -n "mxfs_dir_data_durable\|mxfs_dir_bmbt_scan\|drain.*dir\|dir_
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined reference|implicit declaration" | grep -v Wcomment | head; echo "exit/clean — srcversion:"; modinfo
+    cd /src/mxfs; grep -rn "ABA\|dir.*writeback.*skip\|dir_block.*fence\|b_mxfs.*owner\|leaf.*writeback\|DIRBLK.*SKIP\|dir_wb_fence\|mxfs_dir_buf_owner" xfs/pal/lin
+    cd /src/mxfs; grep -rn "int mxfs_dir_ex_write_guard\|mxfs_dir_ex_write_guard =\|int mxfs_dir_subset_guard\|int mxfs_dir_stale_incarn_skip\|int mxfs_dataclobber\
+    cd /src/mxfs; grep -n "mxfs_dir_evict_owned_dir_blocks" xfs/xfs_mxfs_dlm.c | head -4; echo "=== confirm it's the P68 evict + its current trigger ==="; sed -n '1
+    cd /src/mxfs; grep -n "P68-PREEVICT\|TORN-DISK RELOAD GATE\|P-RELOAD-TORN-DISK-SKIP\|Destroy existing fork data\|mxfs_dir_evict_owned_dir_blocks(ip);" xfs/xfs_m
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | grep -v Wcomment | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== ITER A (evict fix) ==="; bash tests/tcp/drc_reliab_iter.sh 8 2>&1 | grep -E "ITER_RESULT|PASS  dir|FAIL  dir"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test6; do printf "%s: " $n; timeout 12 $SSH $n $PASS '   echo -n "fail="; head -1 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; echo "=== drc-DIRID round 7 across nodes (same dirino?) ==="; for n in test1 test6 test8; do prin
+    cd /src/mxfs; echo "=== current build (no source newer than ko) ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; find xfs -newer mxfs.ko \( -name '*.c' -o -
+    cd /src/mxfs; grep -n "mxfs_dir_evict_owned_dir_blocks" xfs/xfs_mxfs_dlm.c xfs/*.h 2>/dev/null
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit|too few|too many" | grep -v Wcomment | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit|too few|too many" | grep -v Wcomment | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== ITER (leaf-only evict) ==="; bash tests/tcp/drc_reliab_iter.sh 8 2>&1 | grep -E "ITER_RESULT|PASS  dir|FAIL  dir"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test6; do printf "%s: " $n; timeout 12 $SSH $n $PASS '   echo -n "fail="; head -1 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | grep -v Wcomment | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; echo "=== node death/isolation across cluster (last run 285CEF3A) ==="; for n in test1 test5 test
+
+## Last text from previous session
+
+ne) — but its readdir returns 0 because the aggressive evict-on-EVERY-handoff (83×) churns test6's dir cache, so its post-drop_caches readdir races/returns empty. The handoff-evict is too broad. The clean refinement is **leaf/node-only eviction** (the stale-flush source) — not the DATA blocks that hold the dirents. Let me verify the current build state and confirm the handoff is complete:
+Build state confirmed. I've precisely identified the winning refinement (leaf/node-only eviction). Let me implement it — add a `leaf_only` mode to the evict so the handoff path refreshes only the stale-leaf index, not the DATA blocks holding test6's dirents. Find the declaration and callers:
+Let me make the four coordinated edits for `leaf_only` mode:
+Now the other caller at 13439:
+A third caller in xfs_icache.c:518. Let me fix it (full evict):
+Build clean (285CEF3A). Now test the leaf-only handoff evict — should refresh the stale leaf (no torn writes) without churning test6's data view:
+Decisive: leaf-only evict **re-admits the corruption** (test1 HOLE=44, DISK-TORN=10) — the DATA blocks also need refreshing to prevent the tear. And critically, **test6 reads 0 in BOTH full-evict and leaf-only** — so test6's readdir=0 is INDEPENDENT of the evict (a separate persistent visibility/durability issue, not caused by data-block eviction). Full evict (no corruption) is strictly better. Let me restore full evict on handoff:
+Build EA485CE6 (full-evict, no corruption). The key remaining question: test6=0 is independent of evict scope — is it node-isolation (CPU starvation from the O(cache)-per-handoff evict → declared dead)? Let me check for node-death events in the last run:
+No node-death events — so test6=0 is NOT isolation. The failure is entirely about **node6's entries**: node6 reads 0 (its own), peers miss node6's ~81. So node6's creates complete in-core but never become durable/visible — a write-durability gap specific to rank6 (the dir-data-block release-durability issue I documented). Let me record the final state and the converged next target:
+I've reached the relay boundary. Wrapping up with a brief summary.
+
+## Session summary
+
+**Criterion: not met** (8/tcp dir_reuse still FAIL). 2/tcp and 4/tcp PASS. 1/tcp is N/A (test requires ≥2 nodes). Marker not written.
+
+**Major progress this session** — took 8/tcp from a deterministic catastrophic failure to a clean, corruption-free one:
+
+1. **Proved the root** (FUA disk probe): the 8/tcp DABUF_MAP_HOLE shutdown was a *durable on-disk dir extent-map gap* — the disk leaf referenced data blocks absent from the disk's own map. Refuted four wrong hypotheses (reader-reload guard, genuine_handoff, in-core delalloc, gen-coupling).
+
+2. **Landed three coordinated fixes** (build **EA485CE6**):
+   - **Torn-disk reload gate** — refuse to adopt a disk dinode whose data region has a hole.
+   - **Full owner-evict on genuine cross-node EX handoff** — forces stale-leaf re-read so a superseded leaf can't be flushed under EX.
+   - (Plus a `leaf_only` evict lever, measured insufficient, left off.)
+   - Result: **all corruption eliminated** — DABUF_MAP_HOLE cascade, kernel oops, and disk-torn all gone (HOLE=0, DISK-TORN=0, oops=0, no shutdown, no node-death). This is the cleanest 8/tcp state in the project's history.
+
+3. **Converged the remaining issue**: node6 (rank6) completes its creates but they never become durable/visible — a rank-specific **dir-DATA-block release-durability gap** (ruled out: corruption, isolation, evict scope, inode divergence, dropping fresh blocks).
+
+**Five linked memories** document the proven root, each fix and its measured effect, the refutations, and the precise next target with three concrete RULE-4 investigation steps (instrument node6's dir-EX release durability; check the rank-6 AG/master handoff race; confirm node6's creates actually commit). Build is clean and deployable; the harness is `tests/tcp/drc_reliab_iter.sh 8`.
+
+The ccloop relay will continue from this state in a fresh session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

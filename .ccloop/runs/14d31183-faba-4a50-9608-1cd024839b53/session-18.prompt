@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 18 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 17
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `8947b4e5-64da-4d00-92cd-b651fa0a98d7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8947b4e5-64da-4d00-92cd-b651fa0a98d7.jsonl`
+- approx context at last assistant turn: 249885 tokens
+- tools used: Bash×87 Edit×21 Read×11 mcp__ccmemory__memory_write×4 ToolSearch×2 mcp__ccmemory__memory_get×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/scripts/cluster_reset_n.sh
+- /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md
+- /src/mxfs/scripts/sess88_workload_a_modeN_baseline.sh
+- /src/mxfs/tests/criteria/zero_silent_loss.sh
+- /src/mxfs/tests/criteria/crash_consistency.sh
+- /src/mxfs/xfs/xfs_log_priv.h
+- /src/mxfs/xfs/xfs_log_recover.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn 'xlog_recover\|log_recover' xfs/xfs_mxfs_dlm.c pal/linux/xfs_super.c dlm/v5_mount.c 2>/dev/null | head; echo ===; grep -rn 'dead' dlm/v5_
+    cd /src/mxfs; ip=$(getent hosts test5.vm.localdomain | awk '{print $1}'); timeout 8 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | grep -E "log slice|re
+    cd /src/mxfs; sed -n '8440,8485p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -rn 'no longer responding\|initiating recovery' dlm/*.c xfs/*.c pal/linux/*.c | head -4; grep -rn 'xlog_alloc_log\|xlog_recover(' xfs/xfs_log
+    cd /src/mxfs; sed -n '440,500p' dlm/disklock.c
+    cd /src/mxfs; sed -n '470,512p' dlm/v5_mount.c; grep -n 'struct mxfs_v5_ctx\|xfs_mp\|->mp\b' dlm/v5_mount.c | head -10
+    cd /src/mxfs; sed -n '560,700p' xfs/xfs_log.c
+    cd /src/mxfs; sed -n '1025,1060p' xfs/xfs_mount.c
+    cd /src/mxfs; sed -n '3380,3520p' xfs/xfs_log_recover.c
+    cd /src/mxfs; grep -n 'fence_notify\|v5_dlm_opts\|mxfs_v5_dlm_init' pal/linux/xfs_super.c xfs/xfs_mxfs_dlm.c dlm/v5_mount.h 2>/dev/null | head -12
+    cd /src/mxfs; grep -n 'commit_pass2\|xlog_recover_items_pass2\|xlog_recover_commit_trans' xfs/xfs_log_recover.c | head -8; echo ===; grep -n 'peer joined — flus
+    cd /src/mxfs; sed -n '10700,10745p' xfs/xfs_mxfs_dlm.c; echo ===; grep -n 'live\b\|slot_node_id\|local_slot\|node_slot' dlm/disklock.h | head -12
+    cd /src/mxfs; sed -n '2010,2045p' xfs/xfs_log_recover.c; grep -n 'ri_type\|struct xlog_recover_item {' xfs/xfs_log_recover.c xfs/xfs_log_recover.h xfs/libxfs/xf
+    cd /src/mxfs; sed -n '140,200p' dlm/disklock.h; grep -n 'static.*void.*peer_joined\|mxfs_dlm_peer_joined\|peer joined' xfs/xfs_mxfs_dlm.c | head -4
+    cd /src/mxfs; grep -n 'XLOG_ACTIVE_RECOVERY\|XLOG_RECOVERY_NEEDED\|XLOG_IO_ERROR\|XLOG_TAIL_WARN\|l_opstate' xfs/xfs_log_priv.h | head -8; echo ===; grep -n 'XF
+    cd /src/mxfs; sed -n '10560,10600p' xfs/xfs_mxfs_dlm.c; echo ===; sed -n '155,170p' dlm/v5_mount.h; echo ===; grep -n 'set_fence_notify' dlm/v5_mount.c
+    cd /src/mxfs; grep -n 'ITEM_TYPE' xfs/xfs_log_recover.c | head -3; sed -n '210,240p' xfs/libxfs/xfs_log_format.h; echo ===; grep -n 'l_ailp' xfs/xfs_log_recover
+    cd /src/mxfs; grep -n 'struct xfs_ail {' xfs/xfs_trans_priv.h; sed -n "$(grep -n 'struct xfs_ail {' xfs/xfs_trans_priv.h | cut -d: -f1),+25p" xfs/xfs_trans_priv
+    cd /src/mxfs; grep -n 'struct mxfs_v5_dlm {' dlm/v5_mount.c dlm/v5_mount.h; sed -n '1100,1125p' dlm/v5_mount.c; grep -n 'fence_notify_fn;\|fence_notify_data;' d
+    cd /src/mxfs; sed -n '468,495p' xfs/xfs_log_priv.h
+
+## Last text from previous session
+
+Continuing from session 13's handoff: build `9C2D4FA6` (directory RELFLUSH authorization fix) is compiled but not deployed. Plan: verify build state, deploy via cluster reset, re-run the storm, then the criterion iterations.
+Now the reset — recreating `/tmp/.mxfs_pass` (wiped by the HW reset) and running with a derived 180s budget, timing the actual wall:
+Budget recorded. Running the `zero_silent_loss` criterion (480s measured budget, foreground):
+No stray processes, and nodes were freshly booted so they're clean too. Reading the rest of the workload script to map the iter loop before re-theorizing:
+Syntax-checking both scripts, then re-running the criterion:
+All three iters: 1600/1600 visible pre- and post-drop_caches, no retries needed, iter walls 107–119s. Updating the budget record and running `mkfs_timing`:
+Writer=test1, reader=test2, 15 survivors. Mounting test2 to see what's on disk now, and pulling its dmesg from the test window:
+Both ssh attempts to test2 died (exit 255) — the reader node itself may be wedged. Checking VM state and connectivity:
+You've hit your session limit · resets 2:50am (America/Chicago)
+I'm at the relay boundary mid-implementation — recording the complete design and progress in ccmemory so the next session can finish the wiring without re-deriving anything:
+Session 17 summary — three criteria moved, one root-caused mid-fix:
+
+**Hard rule recorded.** "NEVER reboot clyde" is now RULE 2 in `/src/mxfs/CLAUDE.md`, a permanent ccmemory entry, and the sess15 memory's old "sudo reboot" recovery protocol is overwritten with stop-and-report. No reboot mechanisms remain armed (crontab/atq/systemd clean). Also recorded the timeout/parallelism feedback: every timeout derived per RULE 0 (the 590s reset timeout was 17× the measured 35s — budget now 75s in TIMEOUT_BUDGETS.md), and the reset script's serial verify loop is now parallel.
+
+**zero_silent_loss: PASS** (3/3 iters, 1600/1600 visible each, 355s). The earlier 4800-loss FAIL was contamination from the duplicate-ccloop window plus a harness accounting bug that booked infra mount failures as silent loss — both fixed (mount_cluster retry + `iters_completed` tracking + honest `reason=infra`; criterion timeout 1800→480s). **mkfs_timing: PASS** (531ms).
+
+**crash_consistency: FAILED, root-caused, fix half-built.** 113 fsync-acked records, reader saw 1 — but a fresh mount that claimed the dead writer's log slice recovered all 114 on disk. The data was durably in the dead node's per-node XFS log slice; **v5 never replays a dead peer's slice live** — `v5_lease_expire_cb` only purges locks, and the lazy-drain correctness comment promising "surviving peer replays our journal slot" is unimplemented (the portable journal is vestigial: 0 commits ever). Secondary finding at 16 nodes: a false-fence storm (mutual PR preemption under 10s test leases) livelocked 12 guests — to revisit after the replay fix; the 4-node repro fails identically without it.
+
+**Fix in progress** — live foreign-slice replay on a shadow xlog: foreign-replay opstate bit, intent-family skip in pass2 (keeps the live AIL clean; slice stays dirty so mount-time claimers finish intents; LSN gating makes double-replay safe), and mount-only side-effect gates in `xlog_do_recover`/`xlog_recover` are all written. Remaining: the orchestrator in `xfs_log.c` (private dummy AIL — `xlog_find_tail` writes `ail_head_lsn`), the disklock lowest-live-slot election, the v5 dead-node callback wiring, version bump to 0.5.0, build/deploy/re-run. Full design and edit list are in ccmemory (`sess17-crash-consistency-root-and-foreign-replay-design`).
+
+Criteria not yet met — marker not written. Next session continues with the orchestrator.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

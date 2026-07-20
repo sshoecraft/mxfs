@@ -1,0 +1,120 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/703f15c3-42ed-4f2d-bd1f-11f6cf4c7b31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 703f15c3-42ed-4f2d-bd1f-11f6cf4c7b31, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `80927ebf-ec69-4017-b901-82ed8c350b63`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/80927ebf-ec69-4017-b901-82ed8c350b63.jsonl`
+- approx context at last assistant turn: 496877 tokens
+- tools used: Bash×240 Read×15 Edit×14 TaskUpdate×6 mcp__ccmemory__memory_get×5 mcp__ccmemory__memory_search×4 TaskCreate×3 ToolSearch×2 Write×2 mcp__ccmemory__memory_write×2 TaskList×1 mcp__ccmemory__memory_list×1 mcp__ccteam__peers×1 mcp__ccteam__status×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_icache.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/scripts/harvest_dblreclaim.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ps -p 343745,343754 -o pid,ppid,etimes,stat,cmd 2>&1
+    ls -la /proc/117232/cwd 2>&1 cat /proc/117232/environ 2>/dev/null | tr '\0' '\n' | grep -iE "ccloop|claude" | head -20 echo "---" ls /proc/117232/task/ 2>/dev/n
+    for pid in $(pgrep -f "^claude " 2>/dev/null; pgrep -x claude 2>/dev/null); do   cwd=$(readlink /proc/$pid/cwd 2>/dev/null)   etimes=$(ps -p $pid -o etimes= 2>/
+    for pid in 177147 331624; do   echo "=== PID $pid ==="   ps -p $pid -o pid,ppid,lstart,cmd 2>&1   echo "--- environ (session id) ---"   cat /proc/$pid/environ 2
+    ps -eo pid,ppid,user,etimes,cmd | grep -iE "run\.sh|mxfs_sshpass|fence_during|dir_reuse|repro_dblreclaim|revalidate_cell" | grep -v grep
+    crontab -l 2>&1 echo "=== other users' crontabs ===" sudo -n crontab -l -u itrader 2>&1 echo "=== at jobs ===" atq 2>&1 echo "=== systemd timers ===" systemctl 
+    echo "=== killing ALL remaining mxfs test-infra orphans (complete this time) ===" pkill -9 -f "mxfs_sshpass.sh test" 2>&1 pkill -9 -f "ssh.*root@test.*fence_dur
+    ps -eo pid,ppid,user,etimes,cmd | grep -iE "run\.sh|mxfs_sshpass|fence_during|dir_reuse|repro_dblreclaim|revalidate_cell" | grep -v grep echo "EXIT_MARKER=$?"
+    for i in 1 2 3 4 5 6 7 8; do   timeout 8 /src/mxfs/tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "pkill -9 -f fence_during_write 2>/dev/null; pkill -9 -f dir_reu
+    kill -9 326211 326213 326223 326225 2>&1 sleep 1 ps -eo pid,ppid,cmd | grep -E "326211|326213|326223|326225" | grep -v grep echo "(empty = confirmed dead)"
+    cat /tmp/mxfs_run.lock 2>&1 timeout 10 flock -n /tmp/mxfs_run.lock -c "echo LOCK_IS_FREE" 2>&1
+    for i in 1 2 3 4 5 6 7 8; do   r=$(timeout 10 /src/mxfs/tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "pgrep -af 'fence_during_write|dir_reuse_coherency'" 2>/dev
+    for i in 1 2 3 4 5 6 7 8; do   r=$(timeout 8 /src/mxfs/tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "lsmod|grep -c mxfs; mount|grep -c mxfs" 2>/dev/null | grep 
+    cd /src/mxfs SP=/tmp/claude-1000/-src-mxfs/80927ebf-ec69-4017-b901-82ed8c350b63/scratchpad nohup setsid ./scripts/revalidate_cell.sh 8 t:fault_netpartition > "$
+    LOG=/tmp/claude-1000/-src-mxfs/80927ebf-ec69-4017-b901-82ed8c350b63/scratchpad/fault_netpartition_check2.log START=$(wc -l < "$LOG") timeout 280 bash -c "until 
+    LOG=/tmp/claude-1000/-src-mxfs/80927ebf-ec69-4017-b901-82ed8c350b63/scratchpad/fault_netpartition_check2.log START=$(wc -l < "$LOG") timeout 280 bash -c "until 
+    stat -c '%y' /src/mxfs/mxfs.ko date -u -d "$(stat -c '%y' /src/mxfs/mxfs.ko)" +%FT%TZ modinfo /src/mxfs/mxfs.ko | grep -E "version|srcversion"
+    python3 -c " import json d = json.load(open('/src/mxfs/criteria.json')) node_counts = [1,2,4,8,16,32] cutoff = '2026-07-13T00:41:00' from datetime import dateti
+    python3 -c " import json d = json.load(open('/src/mxfs/criteria.json')) node_counts = [1,2,4,8,16,32] cutoff = '2026-07-13T00:40:00Z' from datetime import datet
+    cd /src/mxfs SP=/tmp/claude-1000/-src-mxfs/80927ebf-ec69-4017-b901-82ed8c350b63/scratchpad nohup setsid ./scripts/revalidate_cell.sh 1 full > "$SP/sweep_1.log" 
+
+## Last text from previous session
+
+ader`, different user `itrader`). Let me do a comprehensive sweep of every process anywhere touching mxfs test infrastructure, across all users, to find the actual source.
+Found it — this is **entirely self-inflicted**, not a rival session. My earlier cleanup killed the wrong PID layer (the `timeout`/bash wrapper) but missed the actual `sshpass`/`ssh` processes underneath, which are now orphaned (PPID=1) with a live SSH connection still running the remote test script. If these orphans inherited the lock's file descriptor via bash's `&` backgrounding, that would explain the intermittent, self-resolving lock contention without any external actor. Let me kill all of them thoroughly this time.
+Confirmed — the lock is now genuinely free. This resolves the entire "rival session" mystery: it was my own timeout-orphaned processes (which inherited the lock's file descriptor via bash's `&` backgrounding) holding the flock intermittently. No external actor was ever involved. Let me clean up the remote side too, then note this for future sessions.
+Now let's cleanly re-run the fault_netpartition validation.
+No lock error this time — clean prep in progress. Let's wait for the result.
+`fault_netpartition` PASSED cleanly (8/8, probe_sweep CLEAN) — confirmed it was purely a cascade from the wedge, not an independent bug. Task #2 done. Now let's move to the full revalidation sweep.
+Let's plan and execute the full fresh revalidation sweep. First, establish the cutoff timestamp for the honest gate.
+Now let's execute the sweep, starting with the smallest/fastest node counts. Launching N=1 full first.
+## Session summary
+
+**Root cause found and fixed** for the criteria's remaining gap: `mxfs_dlm_bast_work_fn`, `mxfs_dlm_bast_dwork_fn`, and `mxfs_trans_drain_inode_unlocks` (xfs_mxfs_dlm.c) all cleared `ip->i_dlm_demoter = NULL` one statement before their trailing `xfs_irele`/`iput` call. When that ref-drop cascaded into the inode's own synchronous inactivation (MXFS's multi-node destroy_inode path), the nested `xfs_ilock` in `xfs_attr_inactive` no longer saw `demoter == current`, so `mxfs_dlm_ilock_begin`'s wait loop — which explicitly documents "Demoter is exempt (it must re-enter during its own drain)" — treated it as a fresh cross-node request and blocked forever: a self-deadlock. Proven live via `/proc/pid/stack` on a permanently-wedged `mxfs-ino-bast` kworker plus a corroborating kernel `ihold()` WARN_ON on the same PID. Fixed in build 0.10.76 (srcversion `EAB3334D0AA6A8139C0E838`) by moving `demoter=NULL` to after each ref-drop.
+
+**Validated**: `scripts/repro_dblreclaim.sh 8 15 dir_reuse_coherency` completed all 15 iterations with "NO HIT"; the more sensitive P25-INSTR pairing check (new: `scripts/harvest_dblreclaim.sh`) showed 0 dangling/double-entry issues across two real, complete attempts. `fault_netpartition`'s prior FAIL was confirmed to be a pure cascade from the wedge — now passes cleanly (8/8) on a clean cluster.
+
+**Also resolved**: a long, confusing detour chasing what looked like a rival ccloop session fighting for `/tmp/mxfs_run.lock` turned out to be self-inflicted — my own `timeout`-orphaned per-node ssh children (from earlier repro-loop timeouts) inherited the lock's file descriptor via bash's `&` backgrounding. Root-caused, cleaned up, and documented in memory `infra-timeout-orphans-hold-run-lock-not-rival-session`.
+
+**In progress (task #3, the actual exit condition)**: full fresh single-build revalidation sweep of 1/2/4/8/16/32 caw against cutoff `2026-07-13T00:40:00Z` (build 0.10.76). Just launched `scripts/revalidate_cell.sh 1 full` in the background (nohup+setsid, survives session handoff) — log at `/tmp/claude-1000/-src-mxfs/80927ebf-ec69-4017-b901-82ed8c350b63/scratchpad/sweep_1.log`. Remaining: 2, 4, 8 (full), 16 (nodr+dr), 32 (g2+g1+dr), then `python3 scripts/matrix_check.py --since 2026-07-13T00:40:00Z` (no `--nodes` filter) as the final honest gate — must show all six node counts at 17/17 fresh PASS before writing YES.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

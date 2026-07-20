@@ -1,0 +1,10 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_inode.c",
+    "pal/linux/xfs_file.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 1
+}

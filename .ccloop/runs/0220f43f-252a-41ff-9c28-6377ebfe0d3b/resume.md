@@ -1,0 +1,73 @@
+# Resume — run 0220f43f-252a-41ff-9c28-6377ebfe0d3b, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `bccf7436-542a-4dc1-8ef5-2096fb6102b4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/bccf7436-542a-4dc1-8ef5-2096fb6102b4.jsonl`
+- approx context at last assistant turn: 499332 tokens
+- tools used: Bash×134 Read×21 Edit×10 TaskCreate×8 TaskUpdate×8 ToolSearch×4 mcp__ccmemory__memory_search×3 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/suite/coord.sh
+- /src/mxfs/tests/suite/cache_coherency.sh
+- /src/mxfs/tests/suite/posix_multi.sh
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 15 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'ps aux | grep -E "coord_check_abort|mosquitto_sub.*sig/abort|mosquitto_pub" | grep -v grep' 2>&1 | grep 
+    timeout 15 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'ps aux | grep defunct | grep -v grep; echo "defunct_count=$(ps aux | grep -c defunct)"' 2>&1 | grep -v "
+    ./run.sh 32 cawp dir_reuse_coherency 2>&1 | tail -10
+    for i in 1 2; do echo "### drc run $i ###" ./run.sh 32 cawp dir_reuse_coherency 2>&1 | tail -6 done
+    timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg -T --time-format=iso | grep "mxfs-DRCph" | awk -F"[T,+]" "\$1==\"2026-07-20\" && \$2>=\"02:17:45\"
+    timeout 15 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'free -h; echo "---loadavg---"; cat /proc/loadavg' 2>&1 | grep -v "^Warning\|^Unauthorized\|^If you"
+    ./run.sh 32 cawp prep_cluster 2>&1 | tail -6
+    for i in 1 2 3; do echo "### drc clean run $i ###" ./run.sh 32 cawp dir_reuse_coherency 2>&1 | tail -6 done
+    bash -n tests/suite/dir_reuse_coherency.sh && echo "SYNTAX OK"
+    for i in 1 2 3; do echo "### drc run $i (post drop_caches poll fix) ###" ./run.sh 32 cawp dir_reuse_coherency 2>&1 | tail -6 done
+    timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg -T --time-format=iso | grep "mxfs-DRCph" | awk -F"[T,+]" "\$1==\"2026-07-20\" && \$2>=\"02:32:29\"
+    bash -n tests/suite/dir_reuse_coherency.sh && echo "SYNTAX OK"
+    for i in 1 2 3; do echo "### drc run $i (coord.sh fix only) ###" ./run.sh 32 cawp dir_reuse_coherency 2>&1 | tail -6 done
+    timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'nproc; dmesg -T --time-format=iso | grep "mxfs-DRCph" | awk -F"[T,+]" "\$1==\"2026-07-20\" && \$2>=\"02:
+    nproc echo "--- current load ---" uptime echo "--- vcpu count check: 32 VMs x 4 vcpu ---" virsh -c qemu:///system list --name 2>/dev/null | grep -c test echo "-
+    echo "--- host-wide vmstat snapshot (steal time column 'st') ---" vmstat 1 3 echo "--- per-vm cpu time sample (top domains by cpu) ---" virsh -c qemu:///system 
+    (vmstat 1 100 > /tmp/host_vmstat_drc.log 2>&1 &)  (mpstat -P ALL 1 100 > /tmp/host_mpstat_drc.log 2>&1 &) echo "background host samplers started" ./run.sh 32 ca
+    pkill -f "vmstat 1 100" 2>/dev/null; pkill -f "mpstat -P ALL 1 100" 2>/dev/null wc -l /tmp/host_vmstat_drc.log /tmp/host_mpstat_drc.log echo "=== vmstat: cpu co
+    wc -l /tmp/host_vmstat_drc.log /tmp/host_mpstat_drc.log 2>&1 echo "=== raw vmstat tail ===" tail -30 /tmp/host_vmstat_drc.log 2>&1
+    virsh -c qemu:///system dumpxml test1 2>/dev/null | grep -E "<vcpu|<memory|currentMemory" echo "=== backing store for the LUN ===" grep -rn "vdisk_fileio\|filen
+
+## Last text from previous session
+
+ond-granularity pattern as the coord.sh bug), adding up to ~1s of pure polling padding per round even though `drop_caches` after `sync` typically completes in milliseconds. Let me verify and fix.
+The drop_caches poll fix looks unproven (verify phase got worse, not better — 8.7s avg vs 7.3s avg with just the coord.sh fix) — likely CPU contention from 20Hz polling across 32 concurrent VMs with limited vCPUs. Reverting it since it's not a clear win.
+Understood — escalating now per RULE 5 and your direction. Let me pull together the verify-phase evidence and consult GPT before trying more blind knob changes.
+While GPT works in the background, let me gather the host-level CPU data myself — that's directly actionable regardless of GPT's answer.
+GPT's analysis converges with my host data (128 vCPUs configured across 32 VMs vs 56 physical cores) and adds the key insight I was missing: my rank1-only measurements show the *reporting* node, but the barrier-gated phase time is set by the *slowest of all 32 nodes*. Let me find the actual straggler with a full-cluster capture plus host-side sampling.
+The vmstat data shows dramatic I/O-wait spikes (up to 56%) correlating with heavy write bursts (bo up to 233824), alongside the CPU oversubscription (128 vCPUs configured vs 56 physical cores). This points to host-level resource contention as the dominant remaining factor, not an MXFS bug. Let me check the VM vCPU configuration before trying GPT's cleanest discriminator experiment.
+I've hit the ccloop relay boundary. Summary of this session's progress:
+
+**Fixed and proven (via RULE-4 + one GPT consult, all reproduced 3x clean on fresh reforms):**
+- `tests/suite/coord.sh`: `coord_check_abort`/`coord_barrier_or_abort` had a 1-second MQTT polling floor padding every barrier call cluster-wide (~2.2s/round tax on `dir_reuse_coherency`). Fixed safely after reverting a first attempt that caused a real regression (PID-reuse race in a decoupled watcher) — root-caused and fixed properly.
+- `tests/suite/cache_coherency.sh`: `rename_visibility`/`unlink_visibility` subtests had O(T²) total cluster verify work (fixed per-node counts × all-T-verify). Reshaped to N-invariant bounded pools (RV_TOTAL/UV_TOTAL=128, mirroring the already-proven `dir_reuse_coherency` pattern) — 63s+ → 20-25s. Also fixed a directory-hygiene bug (`unlink_visibility` never cleared its dir on entry, so a killed run poisoned the next run's total-count asserts).
+- `tests/suite/posix_multi.sh`: same O(T²)→O(T) fix (PM_TOTAL=128) — now solid at ~10s vs previous 30s timeout.
+
+**Still open:**
+- `dir_reuse_coherency@32/cawp` remains marginal (6-9 of required 8 rounds/100s) after the coord.sh fix. Host-level investigation (this session, via vmstat/mpstat during a live run) found real contention: 128 vCPUs configured across 32 VMs vs 56 physical cores, and I/O-wait spikes up to 56% coinciding with write bursts — the backing LUN (`/home/steve/disk.img` + disk-1/disk-2.img) sits on an NVMe that's **95% full** (1.7T/1.8T used, 91G free), just discovered and not yet investigated as a contributing factor. GPT's suggested next discriminator: A/B test with reduced vCPU count per VM (4→1-2) to isolate host scheduling contention from genuine DLM/storage latency — not yet run.
+- 1/tcp `fio_perf_vs_xfs` (59%) and `fio_vs_xfs_baseline` (51%) write-throughput shortfalls — not yet started.
+- Full matrix audit: most of the board (439/548 cells) was recorded under `RULE0_CALIBRATE=1` (budget not enforced) via `ladder_rung.sh`, including at least 16 cells currently PASS while 2-11x over real budget (e.g. `dir_reuse_coherency 16/cawd`: 1086s/120s; `fio_perf 32/caw`: 328s/30s). These need fresh real-enforcement re-runs to know true status — likely a mix of stale pre-rewrite data and genuine unverified marginality. Not yet started beyond 32/cawp.
+- Final one-build enforcing sweep across all 4 conditions (blocked on the above).
+
+Task list (`TaskList`) has full current state for the next session to pick up directly.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

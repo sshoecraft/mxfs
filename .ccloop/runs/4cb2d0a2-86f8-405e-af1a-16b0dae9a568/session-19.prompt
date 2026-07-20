@@ -1,0 +1,145 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 19 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 18
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `2f62ab1d-ff35-4f81-a80c-cf9536e4ea9b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2f62ab1d-ff35-4f81-a80c-cf9536e4ea9b.jsonl`
+- approx context at last assistant turn: 502733 tokens
+- tools used: Bash×118 Read×38 Edit×13 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×3 ToolSearch×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test1 test2 test3 test4; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do virsh
+    cd /src/mxfs; for n in test1 test2; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2; do virsh -c qemu:///system start
+    cd /src/mxfs; virsh -c qemu:///system destroy test1 >/dev/null 2>&1; sleep 3; virsh -c qemu:///system start test1 >/dev/null 2>&1; echo reboot1; sleep 62; echo 
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== test1 phase deltas (no-sleep build, last 16) ==="; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -oE '^\[ *[0-9]+
+    cd /src/mxfs; echo "=== round 20: create-start and create-done abs ts per node (skew) ==="; for n in test1 test2 test3 test4 test5 test6 test7 test8; do echo -n
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do echo -n "$n: "; timeout 10 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "dmesg|grep -oE '
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; grep -n "P63-HANDOFF\|dir_ex_handoff\|force.*disk-superset\|disk-superset adopt\|post_release.*dir\|grant_gen.*acted\|fork-adopt\|forkadopt" xfs/x
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== test1 vCPUs + inodegc ==="; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "nproc; echo -n 'inodegc_workers: '; ls /sys/fs/xfs/*
+    cd /src/mxfs; grep -rn "coord_barrier\|barrier_wait\|mosquitto\|mqtt\|sleep\|poll" tests/lib/common.sh tests/lib/coord*.sh 2>/dev/null | grep -iE "sleep|poll|ba
+    cd /src/mxfs; grep -rln "coord_barrier" tests/ | head; echo "==="; f=$(grep -rln "coord_barrier()" tests/ | head -1); echo "FILE=$f"; grep -n "coord_barrier\|sl
+    cd /src/mxfs; grep -n "mxfs_dir_epoch_adopt" xfs/xfs_mxfs_dlm.c | head; echo "=== default value ==="; grep -nE "int mxfs_dir_epoch_adopt" xfs/xfs_mxfs_dlm.c; ec
+    cd /src/mxfs; grep -n "i_dlm_dir_gen\|b_mxfs_dir_gen\|mxfs_dir_evict\|XFS_DIR2_LEAF\|XFS_DIR2_FREE\|leafblk\|freeblk\|dir_gen" xfs/libxfs/xfs_da_btree.c | head 
+    cd /src/mxfs; grep -n "i_dlm_dir_gen\|b_mxfs_dir_gen\|mxfs.*invalidat\|XBF_DONE\|_XBF_FUA_FRESH\|dir_gen" xfs/libxfs/xfs_da_btree.c | head -20; echo "=== xfs_da
+    cd /src/mxfs; grep -n "mxfs_dir_locked_wait\|LOCKED.*WAIT\|2ms poll\|acquire-side LOCKED\|locked_wait\|de_lock_wait\|int mxfs_dir.*wait" xfs/xfs_mxfs_dlm.c | he
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; wc -l .claude/awareness/subsystems/pal.md 2>/dev/null; echo "=== tail (where to add) ==="; tail -30 .claude/awareness/subsystems/pal.md 2>/dev/nul
+
+## Last text from previous session
+
+the criterion is **not yet fully met** (8/tcp speed).
+
+### Verified this session (build `58360875`, all KEEP):
+- **1/tcp = 16/16, 2/tcp = 17/17, 4/tcp = 17/17** full suites PASS — no regression from my changes.
+- **8/tcp `dir_reuse_coherency` is now CORRECT**: `failrounds=0` across 3 consecutive clean runs at mht=275 (72 rounds, 0 dirent loss) and at mht=300. This was the 100+ session data-loss blocker.
+
+### Five fixes landed (all KEEP):
+1. **NO_INODE BAST recv-thread offload** — eliminated the 60s create-phase stalls (the recv thread was serializing ~800 reused-inode releases/round through synchronous log_force+drain+flush).
+2. **PR-drain skip** — read-only non-dir releases skip the unneeded drain.
+3. **clean-release log_force skip** — already-checkpointed inodes skip the global log force.
+4. **release-flush coalescing** — concurrent BAST releases share one device flush.
+5. Removed the test's per-round masking `sleep 1` (RULE-0 aligned).
+
+### Remaining blocker (honest): 8/tcp `dir_reuse` **speed straddles the 300s blanket**
+At the correctness-safe mht (275, the floor — 250 loses data), the test runs ~298–304s, passing 2 of 3 runs on time. mht=300 is reliably correct but ~337s. The slowness is **inherent 8-node single-shared-directory DLM contention** (each create ~2-3ms, serialized; ~6s/round just for the create wave), not a fixable bug. I refuted the `dir_acq_lockwait` lever (didn't fix low-mht loss).
+
+The clean path to *both* fast and correct is making the dir reload-on-handoff **100% reliable** (it's ~99.75%/handoff today — a free-slot stale-base RMW race), which would allow a fast low mht. That's the documented next-session lead (instrument which re-acquire loses: handoff-signal miss vs addname TOCTOU).
+
+I have **not** written the criterion marker — 8/tcp does not yet reliably pass `./run.sh 8 tcp` within the 300s budget. All findings, the KEEP build, and the precise reload-reliability lead are recorded in ccmemory for continuation.
+The criterion isn't met — I'll continue. First the required awareness-doc update (I changed `pal/linux/xfs_super.c`), then a new angle on the reload-reliability fix. Let me update pal.md:
+I'll add a concise pal.md entry for the change I made (flush-coalescing init in xfs_super.c):
+I've reached the relay boundary. The required pal.md awareness update is done.
+
+## Status — criterion NOT yet met (honest)
+
+**Major breakthrough this session: the 100+ session 8/tcp correctness blocker is solved**, and 1/2/4 tcp are verified passing.
+
+### Verified (build `58360875`, KEEP):
+- **1/tcp 16/16, 2/tcp 17/17, 4/tcp 17/17** full suites — no regression.
+- **8/tcp `dir_reuse_coherency` is CORRECT**: `failrounds=0` across 3 clean runs at mht=275 (72 rounds, 0 dirent loss) and at mht=300.
+
+### Five KEEP fixes:
+1. NO_INODE BAST recv-thread offload (killed the 60s create stalls).
+2. PR-drain skip, 3. clean-release log_force skip, 4. release-flush coalescing.
+5. Removed the test's masking per-round `sleep 1` (RULE-0 aligned).
+
+### Remaining blocker (the only thing between here and the criterion):
+8/tcp `dir_reuse` **speed straddles the 300s blanket** at the correctness-safe mht (275 is the floor; 250 loses data). It passes 2 of 3 runs on time (~298–304s); mht=300 is reliably correct but ~337s. The slowness is **inherent 8-node single-shared-directory DLM contention** (~6s/round just for the serialized create wave).
+
+I refuted two speed/correctness levers (`dir_acq_lockwait` increase made it worse; lower mht loses). The clean path is making the dir **reload-on-handoff 100% reliable** (it's ~99.75%/handoff today — a free-slot stale-base RMW race), which would allow a fast low mht that's both correct and fits 300s. The next session's lead: instrument *which* re-acquire loses (handoff-signal miss vs addname free-slot TOCTOU) and close that gap.
+
+All findings, the KEEP build, and the precise reload-reliability lead are in ccmemory. **Marker not written** — 8/tcp does not yet reliably pass `./run.sh 8 tcp` within budget.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

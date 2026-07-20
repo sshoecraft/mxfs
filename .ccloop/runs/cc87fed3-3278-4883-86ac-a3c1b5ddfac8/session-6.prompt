@@ -1,0 +1,120 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 5
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `30d226e3-2618-4680-960d-8475e48d965b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b.jsonl`
+- approx context at last assistant turn: 497332 tokens
+- tools used: Bash×132 Read×29 Edit×13 mcp__ccmemory__memory_get×7 mcp__ccmemory__memory_search×5 ToolSearch×3 TaskCreate×2 TaskUpdate×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccteam__peers×1 mcp__ccteam__status×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dentry.c
+- /src/mxfs/VERSION
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "TEMP BISECTION" /src/mxfs/xfs/xfs_mxfs_dlm.c || echo "clean - no bisection artifacts remain" grep -c "igrab(VFS_I(ip))" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs time make modules 2>&1 | tail -5 modinfo mxfs.ko | grep -E "^version|^srcversion"
+    rm -f /tmp/mxfs_run.lock bash /src/mxfs/scripts/cluster_reset_n.sh 2 2>&1 | tail -8
+    cd /src/mxfs time make modules 2>&1 | tail -8 modinfo mxfs.ko | grep srcversion
+    rm -f /tmp/mxfs_run.lock bash /src/mxfs/scripts/cluster_reset_n.sh 2 2>&1 | tail -8
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_diag1 mkdir -p "$SP" for n in 1 2; do   nohup /src/mxfs/tools/mxfs_sshpass
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_diag1 END=$((SECONDS+540)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_diag1 tail -5 "$SP/run.log" 2>/dev/null echo "--- checking if still runnin
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_diag1 printf 'hex: 0x%x\n' 2097289 grep -c "ino=2097289\b\|ino=0x200089\b"
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_diag1 grep -n "P135-PRSWEEP-CYCLE" "$SP/live_test2.log" | head -1 echo "--
+    cd /src/mxfs time make modules 2>&1 | tail -8 modinfo mxfs.ko | grep -E "^version|^srcversion"
+    rm -f /tmp/mxfs_run.lock bash /src/mxfs/scripts/cluster_reset_n.sh 2 2>&1 | tail -8
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_fix_validate1 mkdir -p "$SP" for n in 1 2; do   nohup /src/mxfs/tools/mxfs
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_fix_validate1 END=$((SECONDS+540)) while [ $SECONDS -lt $END ]; do   if [ 
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_fix_validate1 grep -c "P135-PRSWEEP-CYCLE" "$SP/live_test2.log" grep -c "s
+    SP=/tmp/claude-1000/-src-mxfs/30d226e3-2618-4680-960d-8475e48d965b/scratchpad/prsweep_fix_validate1 grep -n "P135-PRSWEEP-CYCLE\|soft lockup" "$SP/live_test2.lo
+    sudo virsh destroy test2 2>&1 sleep 2 sudo virsh start test2 2>&1 echo "recovering test2..."
+    grep -n "^mxfs_dlm_queue_pr_demote\|^static.*mxfs_dlm_queue_pr_demote" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "P25-INSTR sync-inactive ino=" /src/mxfs/xfs/xfs_inode.c | head -5
+    grep -rn "P25-INSTR sync-inactive ino=" /src/mxfs/xfs/*.c
+
+## Last text from previous session
+
+ail safely" design philosophy.
+This is a real behavioral fix, so I'll bump the version again.
+Let me checkpoint this second fix to memory before validation, then redeploy and test.
+Now let's redeploy and validate the mitigation.
+My fix is incomplete — it only catches a cycle that loops back to the very *first* visited node. A new softlockup started 30 seconds later, meaning the list corruption can recur elsewhere in the walk where my check doesn't look. Let me recover the node and implement a more robust check.
+Now replacing with a ring-buffer-based detector that catches a self-loop anywhere in the walk, not just at the start:
+The user has directed me to consult GPT rather than continue iterating empirically on the pr_sweep root cause. Let me load that tool and prepare a complete, evidence-based query.
+GPT's key insight reframes the puzzle: the self-loop doesn't require external list corruption — it's consistent with `pr_sweep`'s own cursor being legitimately evicted (via an over-release elsewhere) *during* its lock-drop window. The decisive experiment: a tripwire that fires if an inode enters real eviction while `pr_sweep` still believes it holds a live pin on it. Let me implement that.
+Hit the relay boundary at a good stopping point — right after getting clear, actionable guidance from GPT on the remaining open question.
+
+**Session summary:**
+
+1. **BUG3 (the original criteria blocker) — root-caused and FIXED.** Live-captured the crash 3 separate ways in the same second, with direct kernel pointer matches (identical `RDI`/`RBX` register values) across independent stack traces proving `mxfs_dlm_ilock_end`'s `idle_arm`/`need_flush` branches and `mxfs_inode_dlm_defer_bast` used raw `ihold()` instead of the codebase's own established-safe `igrab()` pattern — letting a re-entrant call during an inode's own in-flight eviction cascade resurrect a dead reference count and arm a phantom release that raced a concurrent legitimate `rm()`. Fixed all 3 sites (build 0.10.85). Validated with 5 consecutive clean full-combo iterations (previously ~20-30% crash rate), with the new `igrab()`-refusal guard observed firing 25 times with zero crashes — strong evidence the fix is both correct and exercised.
+
+2. **Started the fresh 1/2/4/8/16/32 full-suite sweep required before criteria can be trusted.** 1-node/caw: 17/17 PASS fresh. 2-node/caw hit a **second, separate, pre-existing bug** in `mxfs_dlm_pr_sweep_work_fn` (proven unrelated to BUG3 via full bisection — reverted the fix, rebuilt to byte-identical srcversion, same hang reproduced) — a VFS inode-list traversal hazard that starves `fault_netpartition`'s `drop_caches()` call for 200+ seconds.
+
+3. **Per explicit user direction ("Don't guess, ask GPT")**, stopped iterating empirically on that second bug and consulted GPT with full evidence. Got a sharp, concrete reframing: the self-loop doesn't prove list corruption — it's consistent with `pr_sweep`'s own traversal cursor being legitimately evicted (via an over-release elsewhere in the reference-counting graph) during its lock-drop window. GPT's proposed decisive experiment: a "sweep-pin tripwire" — track which inode `pr_sweep` currently believes it holds pinned, and check that marker at the moment any inode enters real eviction (the existing `P25-INSTR sync-inactive` hook in `xfs_icache.c:3314` is the right place). If it ever fires, that's direct proof of an over-release and pinpoints the offending stack.
+
+**Not yet done, for the next session:** implement that tripwire, find and fix the actual over-release site behind bug #2, validate, then resume the fresh sweep from 2-node onward through 4/8/16/32. Both bugs and the full GPT consult are checkpointed in `.ccmemory` (`AAA-ccloopcc87-sess5-BUG3-ROOT-CAUSE-PROVEN-FIXED-ilock_end-raw-ihold` and `AAA-ccloopcc87-sess5-SEPARATE-BUG-prsweep-list-corruption-bailout`) so no context is at risk. Criteria are **not yet met** — this is not a stopping point for that reason, just the natural relay boundary.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

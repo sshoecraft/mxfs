@@ -1,0 +1,67 @@
+# {PROJECT_NAME}
+
+{2-3 sentence description of what this project is and does.}
+
+## Build & Test
+```bash
+{build command}
+{test command}
+{lint/check command if applicable}
+```
+
+## Subsystems
+
+| Subsystem | Directory | Purpose |
+|-----------|-----------|---------|
+| {name} | {path} | {one-line description} |
+
+## Architectural Invariants
+
+These are the rules that must NEVER be violated. Breaking these causes subtle,
+hard-to-debug corruption or failures.
+
+1. **{INVARIANT_NAME}**: {Description of the rule and WHY it exists.}
+
+## Design Tensions
+
+Known architectural conflicts that require care at every interaction point:
+
+- **{TENSION}**: {Description — e.g., "X operates at granularity A but Y operates
+  at granularity B. Every crossing point must translate between them."}
+
+## Key Data Flows
+
+{Brief description of the primary data flows through the system. How does data
+enter, get processed, and exit? What are the critical paths?}
+
+## Routing Table
+
+When working on a specific area, load the corresponding subsystem doc:
+
+| Task / Area | Load This Doc |
+|-------------|---------------|
+| {area description} | `.claude/awareness/subsystems/{name}.md` |
+| Cross-cutting / architecture | `.claude/awareness/structural-map.md` |
+| Understanding who calls what | `.claude/awareness/structural-map.md` |
+
+## Agent Team Configuration
+
+For complex cross-cutting tasks, use this team structure:
+
+- **Lead**: Loads this CLAUDE.md + structural-map.md. Decomposes tasks,
+  synthesizes results, updates this file.
+- **{Subsystem} Worker**: Loads this CLAUDE.md + subsystems/{name}.md.
+  Works within {path}. Updates its subsystem doc on completion.
+
+## [AWARENESS]
+
+This project uses the three-layer awareness system.
+
+- **Last updated**: {YYYY-MM-DD}
+- **Subsystem docs**: {count} of {count} subsystems documented
+- **Structural map**: {date generated}, {token count} tokens
+- **Bootstrap version**: 1.0
+
+Docs location: `.claude/awareness/`
+Refresh map: `/project:refresh-map`
+Full update: `/project:update-awareness`

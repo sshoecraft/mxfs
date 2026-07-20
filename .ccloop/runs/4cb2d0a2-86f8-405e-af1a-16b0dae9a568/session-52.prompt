@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 52 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 51
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `90cb184f-46b0-4dc1-8494-cf58774a78d9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d9.jsonl`
+- approx context at last assistant turn: 495908 tokens
+- tools used: Bash×166 Read×39 Edit×13 mcp__ccmemory__memory_write×8 ToolSearch×4 mcp__ccmemory__memory_get×2 mcp__ccteam__claim×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/tests/sess51_drc_reliability.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== final tree/build state ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "(C69E3475 = clean baseline, all sess51 edits reverted)
+    cd /src/mxfs; awk '/^int$|^int mxfs_dlm_lock\(|^mxfs_dlm_lock\(/{if($0 ~ /mxfs_dlm_lock/)p=NR} p&&NR>=p&&NR<=p+90{print NR": "$0}' dlm/dlm.c | grep -nE "mxfs_dl
+    cd /src/mxfs; sed -n '1080,1145p' dlm/dlm.c | grep -nE "master|local_node|is_master|send|pending_wait|MSG_LOCK|if \(|return" | head -30; echo "=== find the func
+    cd /src/mxfs; echo "=== DLM message type enum ==="; grep -nE "MXFS_MSG_[A-Z_]+" include/*.h dlm/*.h 2>/dev/null | grep -iE "= [0-9]|MSG_LOCK_REQ|MSG_LOCK_GRANT|
+    cd /src/mxfs; grep -rnE "MXFS_MSG_LOCK_REQ\b" include/ dlm/ compat/ 2>/dev/null | head -3; echo "=== enum location ==="; grep -rln "MXFS_MSG_LOCK_GRANT" include
+    cd /src/mxfs; grep -nE "ktime_get_real_ns|mxfs_pal_time|realns" dlm/dlm.c | head -5; echo "=== dg_release current form ==="; sed -n '2805,2820p' dlm/dlm.c
+    cd /src/mxfs; echo "=== how pr_warn builds in dlm.c user mode ==="; grep -nE "ifdef __KERNEL__|define pr_warn|pr_warn_ratelimited|ktime_get_real" compat/*.h dlm
+    cd /src/mxfs; grep -nE "i_dlm_mode >= |i_dlm_mode >= mode|>= req|cached.*hit|fast.?path|ISTATE_CACHED" xfs/xfs_mxfs_dlm.c | awk -F: '$1>=13600 && $1<=14180' | h
+    cd /src/mxfs; timeout 320 make modules 2>&1 | grep -iE "error|undefined|revalidate" | head; echo "=== build id ==="; modinfo mxfs.ko 2>/dev/null | grep srcversi
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 2; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; sleep 115; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; tail -3 /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d9/scratchpad/rep
+    cd /src/mxfs; sleep 115; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; timeout 6 $SSH test1 $PASS "dmesg|grep -oE 'DRCph r=[0-9]+ rank=1 PHASE=[a-z-]+'|tail 
+    cd /src/mxfs; until ! ps -p 3316588 >/dev/null 2>&1; do sleep 20; done; echo DONE; grep -E "dir_reuse|done:" /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-
+    cat /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d9/tasks/bnus9q320.output 2>/dev/null; echo "---"; cd /src/mxfs; ps -p 3316588 >/dev/null 2>&1 
+    cd /src/mxfs; sleep 115; grep -E "dir_reuse|done:" /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d9/scratchpad/repro9.log; SSH=tools/mxfs_sshpass
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS="dir_ex_revalidate=1"; nohup bash tests/sess51_drc_reliability.sh 5 8 tcp dir_reuse_coherency > /tmp/claude-1000/-src-mx
+    cd /src/mxfs; until ! ps -p 3318819 >/dev/null 2>&1; do sleep 30; done; echo "=== reliability loop3 DONE ==="; grep -E "ITER [0-9]:|tally|DONE" /tmp/claude-1000
+    cd /src/mxfs; n=0; while ps -p 3318819 >/dev/null 2>&1; do c=$(grep -cE "ITER [0-9]: (PASS|FAIL)" /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d
+    cd /src/mxfs; grep -E "ITER [0-9]:|tally" /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d9/scratchpad/drc_rel3.log | tail -6; echo "running:$(ps 
+    cd /src/mxfs; sleep 115; grep -E "ITER [0-9]:|tally" /tmp/claude-1000/-src-mxfs/90cb184f-46b0-4dc1-8494-cf58774a78d9/scratchpad/drc_rel3.log | tail -4; echo "ru
+
+## Last text from previous session
+
+Let me find the cached-hit decision point in `ilock_begin`:
+Now I understand the structure: dirs with `pin==0` already divert to the slow-path acquire (real master round-trip) when **unpublished** (the sess-tcp phantom fix for unpublished dirs). A **published** shared dir (the storm dir after creation) with `state==CACHED && i_dlm_mode==EX` takes the else-branch fast-path serve — exactly where the phantom serves. The fix: extend the divert to published shared dirs on EX-modify. Let me add a gated param and the divert condition. First the param:
+Now add the divert condition for published shared dirs:
+Build (gated, default-off so baseline unless enabled):
+Build `CBE2E8D9`, param present. Let me clean-reboot and test with `dir_ex_revalidate=1`:
+Let me monitor — watching for losses, progress rate (perf), and any wedge:
+Round 7, no losses, rate comparable to baseline (not catastrophically slow). Let me continue monitoring:
+Round 15, **still no losses** — well past all baseline failure points (rounds 2/6/11), at a healthy rate. Strong signal. Let me wait for completion:
+This is a major breakthrough candidate. Let me record it while the run finishes:
+**8/tcp `dir_reuse_coherency` PASSED 8/8 — all 24 rounds clean — with `dir_ex_revalidate=1`, at a healthy rate.** First clean pass that directly targets the proven phantom root. Now I need multiple consecutive passes for confidence (bug was ~1/4 flaky). Let me run the full-reboot reliability loop with the param. First thread the modarg through the harness:
+The 5× full-reboot reliability loop with `dir_ex_revalidate=1` is running (~50 min). This is the critical validation. Let me block-wait and check iterations:
+Let me monitor iteration results as they complete:
+I've reached the relay boundary. Brief summary:
+
+## Session 51 — major breakthrough: phantom root fixed (verification in progress)
+
+**The criteria** (1/2/4/8 tcp 100%) hinges solely on 8/tcp `dir_reuse_coherency`, a flaky count-preserving single-dirent loss that resisted 50 sessions.
+
+**What I proved** (content-fingerprint timeline, repro6): the loss is a **count-preserving block-level divergent RMW** under correct master serialization (monotonic epoch, zero master double-grants, single stable master) ⟹ a **non-master node modifying a shared dir under a cached EX the master already moved to a peer** — a TCP "phantom cached-EX". The local held-check can't see it (the local mirror *is* the stale state); only the master's chain is authoritative. CAW caught the analog via the on-disk slot bit; TCP had no equivalent.
+
+**The fix** (build `CBE2E8D9`, gated param `mxfs_dir_ex_revalidate`, default OFF): extend the existing unpublished-dir slow-path divert in `ilock_begin` so a *published* peer-reachable dir EX-modify also re-acquires through the master (which reaffirms if we hold, or serializes if a peer holds). Non-master nodes always round-trip the master (no local short-circuit), so this restores mutual exclusion.
+
+**Result**: with `dir_ex_revalidate=1`, **8/tcp dir_reuse PASSED 8/8, all 24 rounds clean** (repro9) at a healthy rate — baseline failed by round 2/6/11. A **5× full-reboot reliability loop is running now** (pid 3318819, `drc_rel3.log`; iter1 at round 10, clean so far) to confirm consistency.
+
+**Refuted/reverted earlier this session**: grant_gen=0 (no effect), epoch-triggered whole-dir evict (inert — `force_evict=1` already evicts every modify), dirty+stale-block hypothesis (P51 probe 0 fires).
+
+**Next session**: (1) read `drc_rel3.log` for the 5-iter verdict; (2) if consistently clean, make `dir_ex_revalidate=1` the default and run the full `./run.sh {1,2,4,8} tcp` suite, watching dlm_fairness/scaling perf (RULE 0) and 1/2/4 regressions; (3) only then write the marker. Build CBE2E8D9 is deployed (gated, baseline-equivalent unless the modarg is set). **Marker NOT written** — criteria not yet verifiably met. Full detail in memory `sess51-BREAKTHROUGH-dir-ex-revalidate-master-authoritative-fix` and the other `sess51-*` entries.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

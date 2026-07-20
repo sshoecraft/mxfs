@@ -1,0 +1,11 @@
+{
+  "source": [
+    "dlm/disklock.h",
+    "dlm/net2_epoch.h",
+    "dlm/net2_msg.h",
+    "dlm/net2_epoch.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

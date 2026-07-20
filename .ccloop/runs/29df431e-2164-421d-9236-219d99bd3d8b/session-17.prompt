@@ -1,0 +1,140 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 17 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 16
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `55ac9f77-2905-41a4-a172-061548eac0f7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/55ac9f77-2905-41a4-a172-061548eac0f7.jsonl`
+- approx context at last assistant turn: 160392 tokens
+- tools used: Bash×38 Read×14 Edit×9
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_sf.c
+- /src/mxfs/tests/cluster/test_cv_disc.sh
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "include\|mxfs_pal_log\|MXFS_LOG" xfs/libxfs/xfs_ialloc.c | grep -iE "include.*mxfs|include.*pal|MXFS_LOG_WARN|extern.*mxfs_pal" | head
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_dir2_sf.c:[0-9]|error:|Error [0-9]|cannot" | head -20; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo
+    cd /src/mxfs; grep -rn "MXFS_LOG_WARN" pal/*.h include/*.h | head; echo "=== what declares mxfs_pal_log ==="; grep -rln "mxfs_pal_log" pal/*.h include/*.h | hea
+    cd /src/mxfs; grep -n "pal.h\|#include" dlm/v5_mount.h | head
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_dir2_sf.c:[0-9]|error:|Error [0-9]|cannot" | head -20; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo
+    cd /src/mxfs; timeout 580 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | tail -12; echo "=== reset4 EXIT: ${PIPESTATUS[0]} ==="
+    cd /src/mxfs; for n in test1 test2 test3 test4; do v=$(timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /sys/module/mxfs/srcversion' 2>/dev/null); e
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done; echo "dmesg cleared
+    cd /src/mxfs; cat tests/cluster/test_cv_disc.sh 2>/dev/null | head -50; echo "=== run_tests result log path ==="; grep -n "results\|RESULTS\|\.log\|FAIL\|PASS" 
+    cd /src/mxfs; OUT=/src/mxfs/tests/.cv_disc_loop.out; : > "$OUT"; for it in 1 2 3 4 5 6; do echo "===== ITER $it =====" | tee -a "$OUT"; MXFS_TESTS_DIR=/src/mxfs
+    cd /src/mxfs; OUT=/src/mxfs/tests/.cv_disc_loop.out; echo "=== test result lines ==="; grep -aE "cannot see|DISC |H1 |H2 |missing|node[0-9].txt" "$OUT" | head -
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -aE "P-SFADD|P-
+    cd /src/mxfs; sed -n '38,95p' tests/cluster/test_cv_disc.sh
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done 2>/dev/null; OUT=/sr
+    until grep -aqE ">>> FAILURE|=== loop done ===" /tmp/claude-1000/-src-mxfs/55ac9f77-2905-41a4-a172-061548eac0f7/tasks/btf837bwd.output 2>/dev/null; do sleep 10;
+    sleep 30; grep -aE "ITER|iter [0-9]|FAILURE|loop done" /tmp/claude-1000/-src-mxfs/55ac9f77-2905-41a4-a172-061548eac0f7/tasks/btf837bwd.output 2>/dev/null | tail
+    grep -aE "iter [0-9]|FAILURE|loop done" /tmp/claude-1000/-src-mxfs/55ac9f77-2905-41a4-a172-061548eac0f7/tasks/btf837bwd.output 2>/dev/null | tail -10; echo "---
+    until grep -aqE ">>> FAILURE|=== loop done ===" /tmp/claude-1000/-src-mxfs/55ac9f77-2905-41a4-a172-061548eac0f7/tasks/btf837bwd.output 2>/dev/null; do sleep 15;
+    sleep 1; echo waiting
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/55ac9f77-2905-41a4-a172-061548eac0f7/tasks/btf837bwd.output; echo "=== iters ==="; grep -aE "iter [0-9]|FAILURE" "$
+
+## Last text from previous session
+
+so built for userspace tools per Arch-Invariant-4). Let me check how the userspace build handles the mxfs dlm bridge symbols.
+I'll mirror the `xfs_da_btree.c` pattern: forward-declare externs in `xfs_dir2_sf.c`. Add the externs:
+Now add the detector at the top of `xfs_dir2_sf_addname`:
+Both `ktime_get_real_ns` and `mxfs_pal_log` are already used in libxfs. Now build the module.
+`xfs_mxfs_dlm.h` provides the logging decls. Add the include:
+Include `v5_mount.h` (which pulls `pal.h`) instead of manual externs:
+Clean build `D71D2AA3`. Now deploy to all 4 nodes:
+All nodes on `D71D2AA3`. Clear dmesg and loop the discriminating test until it fails, capturing the P-SFADD timeline.
+Failure reproduced on iter 1. Let me pull the discrimination result and the P-SFADD timeline from all nodes.
+Critical new datum: the dir-listing shows **all 4 files**, yet `test -f node1.txt` fails on nodes 2/3/4 even after drop_caches. The dirent is present but the inode lookup fails. Let me capture the dmesg timeline now.
+This is decisive. Let me read the rest of the discrimination logic to understand the `ls` vs `[ -f ]` ordering.
+The ordering confirms it: `ls -1` (readdir, no stat) shows node1.txt — the **dirent is present** — but `[ -f node1.txt ]` (which stats the child inode) fails even after drop_caches. This is a **child-inode resolution miss**, not a dirent lost-update. And critically: **every P-SFADD shows ex_pop=1 ex_nslots=1, and the final dir is fully coherent `[node1,node2,node3,node4]`** — concurrent-EX and dirent clobber are both REFUTED.
+
+Let me enhance the discrimination to capture the child inode number and the exact stat failure mode.
+Re-run the loop with the enhanced discrimination (clearing dmesg first):
+I've hit the relay boundary. Let me capture the current loop state and record the decisive finding in state.md.
+Let me record the decisive sess58 finding at the top of state.md before wrapping up.
+Session summary (sess58):
+
+## Decisive finding (RULE 4) — the cross_visibility failure is misdiagnosed
+
+Built and deployed build `D71D2AA34B5D131AEA9D4CA` with a new always-on **P-SFADD** detector at the modify site (`xfs_dir2_sf_addname`) plus an inode-EX-popcount facility (`mxfs_v5_dlm_inode_ex_count`, mirroring sess52's AG version). Reproduced the failure on iter 1 and captured the full cross-node modify timeline.
+
+**The entire sess53–57 framing (shortform-dir lost-update via concurrent-EX or dirent clobber) is REFUTED:**
+
+- **ex_pop=1 ex_nslots=1 on every single add** — never two nodes EX on the dir inode at once. CAW inode exclusion is sound.
+- Each node reloaded the current base before appending (base=[] → [node4,node1] → [node4,node1,node2]…). Perfect DLM serialization. **Final on-disk dir = `[node4,node1,node2,node3]` — all 4 dirents present and coherent.**
+- The real failure: `ls -1` (readdir) shows node1.txt — the **dirent is present** — but `[ -f node1.txt ]` (which stats the child inode) fails on the peers **even after `sync; drop_caches`**.
+- Key insight: `vm drop_caches` drops the VFS page/inode/dentry caches but **not** the XFS buffer cache. The peer's cached inode-cluster buffer for the child inode is stale and served without re-read → this is the **NL-cached inode-cluster coherency gap** (sess40/48/54/55 family), a child-inode resolution miss — NOT a dirent lost-update.
+
+## Prime suspect for next session
+
+The `_XBF_FUA_FRESH` gate: a child-inode cluster buffer read & marked fresh *before* the peer allocated the inode, never re-read. sess40 already invalidates stale cluster buffers on the iget cache-MISS path — next step is to verify whether that fix fires here or is gated out (likely by `_XBF_FUA_FRESH`).
+
+I left the reproduction loop (with enhanced `ls -li`/`stat-err` discrimination) running in the background to capture the child inode number and exact stat errno when it next fails. Full next-step plan recorded at the top of `state.md`.
+
+Criteria remain **PASS=10 FAIL=2** (cache_coherency, rsync_paired) — marker NOT written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

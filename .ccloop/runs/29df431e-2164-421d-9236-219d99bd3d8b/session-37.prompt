@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 37 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 36
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `3f69887f-d94e-480f-8fc5-aad42317a1d6`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3f69887f-d94e-480f-8fc5-aad42317a1d6.jsonl`
+- approx context at last assistant turn: 163925 tokens
+- tools used: Bash×39 Read×18 ScheduleWakeup×3 Edit×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "============ $n ============"; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" "dmes
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 15 bash tools/mxfs_sshpass.sh test4 "$P" "dmesg | grep -aE 'xfs_trans_cancel|xfs_create|xfs_dir|xfs_da|Internal error|C
+    cd /src/mxfs; echo "=== reset (test4 shut down) ==="; timeout 540 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Unauthor
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 20 bash tools/mxfs_sshpass.sh test4 "$P" 'echo "=== mount ==="; mount | grep mxfs; echo "=== lsmod ==="; lsmod | grep m
+    cd /src/mxfs; grep -n 'reboot\|sysrq\|virsh\|destroy' tests/criteria/lib.sh tests/lib/*.sh scripts/*.sh 2>/dev/null | head -15; echo "=== check teardown_all ===
+    cd /src/mxfs; echo "=== virsh reset test4 ==="; sudo virsh destroy test4 2>&1 | grep -vE '^$'; sleep 3; sudo virsh start test4 2>&1 | grep -vE '^$'; echo "=== w
+    cd /src/mxfs; echo "=== full reset 4 nodes ==="; timeout 540 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized|
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh "$n" "$P" 'dmesg -C' >/dev/null 2>&1; done; echo "dm
+    cd /src/mxfs; echo "=== which sub-test failed ==="; grep -aiE 'FAIL|PASS|test_|expected|actual|assert|✓|✗|missing|visible' /tmp/claude-1000/cache_coherency.Ty9B
+    cd /src/mxfs; f=$(grep -rl 'test_cross_write_read' tests/ 2>/dev/null | head -1); echo "FILE: $f"; grep -n 'cross_write_read\|expected\|actual\|md5\|integrity\|
+    cd /src/mxfs; f=$(grep -rl 'verifies node.*integrity\|cross_write_read()' tests/ 2>/dev/null | grep -v README | head -1); echo "FILE: $f"; grep -rln 'verifies n
+    cd /src/mxfs; cat tests/cluster/test_cross_write_read.sh | grep -vE '^\s*#' | grep -nE 'expected|actual|md5|write|read|dd|barrier|sync|verify|for |peer|node' | 
+    cd /src/mxfs; for run in 1 2; do echo "=== cache_coherency run $run ==="; timeout 400 bash tests/criteria/cache_coherency.sh --nodes 4 2>&1 | grep -aiE 'RESULT|
+    echo "criteria NOT met — cache_coherency FAIL (cross_write_read: peers read node3 .md5 empty). Characterizing reliability."
+    cd /src/mxfs; echo "=== run1 failing subtest ==="; grep -aiE 'Failed tests:|test_cross_write_read|verifies node.*integrity|expected=' /tmp/claude-1000/cache_coh
+    echo "waiting for run2; criteria not met"
+    echo "idle wait for run2 notification"
+    cd /src/mxfs; f=tests/cluster/test_unlink_visibility.sh; echo "=== $f ==="; grep -vE '^\s*#' "$f" 2>/dev/null | grep -nE 'rm |unlink|barrier|sync|remain|ls |for
+    cd /src/mxfs; ls -la notes/ 2>/dev/null | head; echo "==="; wc -l notes/sess55_gemini_design.md 2>/dev/null; sed -n '1,60p' notes/sess55_gemini_design.md 2>/dev
+    cd /src/mxfs; sed -n '60,186p' notes/sess55_gemini_design.md 2>/dev/null
+
+## Last text from previous session
+
+file reads fine. This is the reader-side empty-content family (sess45/48), not the dir lost-update. Note the test does `sync` *before* writing the `.md5` (line 16) but not after (line 19) — so the `.md5` durability/visibility on cross-read is the gap. Let me check reliability and whether it's consistent:
+I'll wait for the two reliability runs to complete.
+Waiting for the reliability runs. cache_coherency still FAILs (cross_write_read), so criteria not met.
+Run 1 of the batch failed on a **different** sub-test — `test_unlink_visibility`: "No files remain after deletion: expected='0' actual='25'" — 25 phantom dirents (stale cached dir block, peer deletes not invalidated). So the criterion flakily fails on **whichever race hits**: cross_write_read (empty small-file read) OR unlink_visibility (phantom dirents). Both must be fixed. Let me wait for run 2:
+I'll wait for the background run to complete and notify me.
+Rather than idle, let me do useful analysis while the run finishes. Let me read the unlink_visibility test and the saved Gemini architectural design:
+The unlink_visibility failure: `ls` (readdir) lists 25 deleted names, but `stat` (lookup) on each correctly returns ENOENT — a **stale cached dir DATA block** (readdir iterates it directly) while lookup via the fresh leaf hash returns gone. Both criterion failures are cross-node cache staleness. Let me read the saved Gemini architectural design:
+This is a substantial architectural problem (reader-side staleness from NL-caching) with a full Gemini design already on file. But my two current criterion failures are **reader-side**: empty small-file read and phantom readdir. Per RULE 4 I need to decisively distinguish **writer-not-durable** vs **reader-stale-cache** for the cross_write_read empty `.md5`. Let me check run2 and then reproduce in isolation with a targeted disk-vs-incore detector:
+I've hit the relay boundary. Let me record the decisive new findings to state.md before wrapping up.
+## Summary (sess76)
+
+Made a decisive **redirect** on the `cache_coherency` blocker, following RULE 4 (run the real criterion, not the synthetic stress).
+
+**What I did:**
+1. Built + deployed an always-on **P-DIR-LEAF-CLOBBER** write-side detector (build `CA0D36633E46D20A5C39365`, all 4 nodes) — at a dir2 leaf write, FUA-reads the on-disk leaf and flags `incore_active < disk_active`. Sound, never fires spuriously; KEEP.
+2. Ran the actual `tests/criteria/cache_coherency.sh --nodes 4` three times.
+
+**Key finding (changes the target):** The criterion does NOT fail on the Face B dir lost-update that sess73-75 chased via faceb_stress. It flakily fails on **whichever race hits**, rotating between two distinct READER-SIDE staleness bugs:
+- **test_cross_write_read** — peers read node3's ~33-byte `.md5` file as EMPTY (`expected=''`) while its 1MB data file reads fine. The test syncs *before* writing the `.md5`, never after → di_size=0 empty-read family (sess45/46/48).
+- **test_unlink_visibility** — `ls` returns 25 phantom names after deletion, yet every `stat`/lookup correctly returns ENOENT → stale cached dir DATA block read by readdir while the leaf hash is fresh.
+
+`cross_visibility` + `rename_visibility` pass reliably now.
+
+**Also proved:** faceb_trace 12×40 (more aggressive than the criterion) triggers a *separate, deeper* corruption — test4 `xfs_trans_cancel:1060` in xfs_create → shutdown. P-DIR-LEAF-CLOBBER fired 0× there. Don't conflate the stress-only shutdown with the criterion's reader-side staleness.
+
+**Next session (recorded at top of state.md):** Reproduce cross_write_read in isolation with a disk-vs-incore di_size detector to settle the writer-not-durable vs reader-stale-cache fork; then implement the never-built **Gemini sess55 3-part design** (notes/sess55_gemini_design.md) — the architecturally-correct fix for NL-cached reader staleness (`XFS_ISTALE_CAW` bit already reserved).
+
+**Status:** cache_coherency + rsync_paired still FAIL (PASS=10/12). Criteria **not met** — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

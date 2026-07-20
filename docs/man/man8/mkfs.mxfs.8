@@ -1,0 +1,136 @@
+.\" mkfs.mxfs(8) man page
+.\" Copyright (c) 2026 MXFS Project
+.\" SPDX-License-Identifier: GPL-2.0
+.\"
+.TH MKFS.MXFS 8 "2026-03-10" "MXFS 0.10.0" "System Administration"
+.SH NAME
+mkfs.mxfs \- format a block device for MXFS (Multinode XFS)
+.SH SYNOPSIS
+.B mkfs.mxfs
+.RB [ \-f ]
+.RB [ \-v ]
+.RB [ \-V ]
+.I device
+.SH DESCRIPTION
+.B mkfs.mxfs
+creates an MXFS filesystem on
+.IR device .
+MXFS (Multinode XFS) is a shared/clustered filesystem that enables
+concurrent multi-node read/write access to a single block device.
+.PP
+The tool creates the following on-disk layout:
+.PP
+.nf
+  [MXFS super 4KB] [journal ~64MB] [disklock ~32MB] [XFS data]
+.fi
+.PP
+The MXFS superblock is written at offset 0, preventing the device from
+being accidentally mounted as a standard XFS filesystem.  The XFS data
+region is formatted as a valid XFS v5 filesystem with CRC, ATTR2, FTYPE,
+FINOBT, and LAZYSBCOUNT features enabled.
+.PP
+.B mkfs.mxfs
+is a standalone program with no external dependencies.  It does not
+require
+.BR mkfs.xfs (8)
+or any libmxfs linkage.  All XFS structures are written natively.
+.SS On-Disk Regions
+.TP
+.B MXFS Superblock (4 KB)
+Contains magic number (0x5346584D), format version, filesystem UUID,
+and byte offsets to the journal, disklock, and XFS data regions.
+Protected by CRC32C.
+.TP
+.B Journal (~64 MB)
+Per-node circular write-ahead journals.  Contains a 512-byte journal
+superblock followed by 64 journal slots of 1 MB each.  Each node claims
+a slot on mount for crash recovery.
+.TP
+.B Disklock (~32 MB)
+Heartbeat region (64 slots x 512 bytes = 32 KB) followed by 65536 lock
+slots (32 MB) for the CAW (Compare-And-Write) disk-based DLM.
+.TP
+.B XFS Data (remainder)
+Standard XFS v5 filesystem with 4096-byte blocks, 512-byte inodes, and
+approximately 1 GB allocation groups.  The XFS region grows toward the
+end of the device, allowing future expansion with
+.BR resize_mxfs (8).
+.SS Total Reserved Space
+Approximately 96 MB is reserved for the MXFS superblock, journal, and
+disklock regions.  The remaining space is available for XFS data.
+.SH OPTIONS
+.TP
+.BR \-f
+Force formatting.  Skip the interactive confirmation prompt.
+.TP
+.BR \-v
+Verbose output.  Display detailed information about each formatting
+step, including per-slot journal initialization.
+.TP
+.BR \-V
+Print the version string and exit.
+.SH EXAMPLES
+Format a shared iSCSI LUN for use with MXFS:
+.PP
+.RS
+.nf
+mkfs.mxfs /dev/sdb
+.fi
+.RE
+.PP
+Format without confirmation prompt:
+.PP
+.RS
+.nf
+mkfs.mxfs -f /dev/sdb
+.fi
+.RE
+.PP
+After formatting, mount the filesystem on each node:
+.PP
+.RS
+.nf
+insmod mxfs.ko
+mount -t mxfs /dev/sdb /mnt/shared
+.fi
+.RE
+.SH EXIT STATUS
+.TP
+.B 0
+Filesystem created successfully.
+.TP
+.B 1
+An error occurred (device too small, I/O error, permission denied, etc.).
+.SH NOTES
+.IP \(bu 3
+The device must be at least 200 MB.
+.IP \(bu 3
+The device is opened with
+.B O_EXCL
+to ensure it is not currently mounted.
+.IP \(bu 3
+A UUID is generated from
+.I /dev/urandom
+and written to both the MXFS superblock and the XFS superblock.
+.IP \(bu 3
+XFS geometry: 2 or more allocation groups (target ~1 GB each), 4096-byte
+blocks, 512-byte sector size, 512-byte inodes, inode alignment of 8.
+.IP \(bu 3
+The root directory inode number is 128 (block-aligned at block 16 in AG 0).
+.SH FILES
+.TP
+.I /usr/sbin/mkfs.mxfs
+The format tool binary.
+.TP
+.I /usr/sbin/fsck.mxfs
+Symlink to
+.BR chk_mxfs (8)
+for fstab fsck dispatch.
+.SH SEE ALSO
+.BR mxfs (5),
+.BR chk_mxfs (8),
+.BR resize_mxfs (8),
+.BR mount (8),
+.BR mkfs.xfs (8)
+.SH AUTHORS
+MXFS Project.

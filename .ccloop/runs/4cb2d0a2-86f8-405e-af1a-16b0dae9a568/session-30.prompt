@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 30 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 29
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b181014e-4c1d-4418-b5c1-72aedaec9edb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b181014e-4c1d-4418-b5c1-72aedaec9edb.jsonl`
+- approx context at last assistant turn: 505186 tokens
+- tools used: Bash×183 Read×29 Edit×16 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×6 ToolSearch×2 mcp__ccmemory__memory_search×2 Write×1 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/tcp/drc_one.sh
+- /src/mxfs/tests/tcp/full8.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "PENDING\|run_id\|state\|RUNDIR\|runs/\|status\|showstat\|\.run_state\|mktemp" run.sh | head -20
+    cd /src/mxfs; echo "=== coordinator/broker/barrier processes ==="; ps -eo pid,etime,cmd 2>/dev/null | grep -iE 'mosquitto|mqtt|coord|barrier|nc -l|socat|broker|
+    cd /src/mxfs; echo "=== final state ==="; echo "build: $(modinfo mxfs.ko 2>/dev/null|grep -oE 'srcversion:.*')"; echo "orphan drivers: $(ps -eo cmd 2>/dev/null|
+    cd /src/mxfs; tail -30 .claude/awareness/subsystems/pal.md 2>/dev/null; echo "=== line count ==="; wc -l .claude/awareness/subsystems/pal.md
+    cd /src/mxfs; sed -n '1,60p' run.sh | grep -nE "TESTS|for t|case|tests=|\\$@|positional|named|ARGV|shift|DLM=|N=" | head -20; echo "=== how tests selected ===";
+    cd /src/mxfs; cat > /tmp/claude-1000/-src-mxfs/b181014e-4c1d-4418-b5c1-72aedaec9edb/scratchpad/seq_test.sh <<'EOF' #!/bin/bash set -u MODARGS="${1:-}"; shift SS
+    O=/tmp/claude-1000/-src-mxfs/b181014e-4c1d-4418-b5c1-72aedaec9edb/scratchpad/seqtest.log; for i in $(seq 1 19); do if grep -q "=== done" "$O" 2>/dev/null; then 
+    cd /src/mxfs; ps -eo cmd 2>/dev/null|grep -iE 'run\.sh [0-9]|full8|seq_test|one_test|passrate'|grep -v grep|grep -v qemu|wc -l|xargs echo "orphans(must be 0)=";
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "cache_coherency|=== TOTAL" tests/tcp/drc_cap/full8_run.log 2>/dev/null; then break; fi; sleep 6; done; grep 
+    cd /src/mxfs; echo "=== /tmp/tmp.oDh2cXNJYO origin in run.sh ==="; grep -n "oDh2\|/tmp/tmp\|logs:\|mktemp\|MXFS_LOG\|LOGDIR\|export.*tmp" run.sh tests/setup/pre
+    cd /src/mxfs; echo "=== full8.log (driver) ==="; head -2 tests/tcp/drc_cap/full8.log 2>/dev/null; echo "=== full8_run.log run_id + age ==="; stat -c '%y' tests/
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "cache_coherency|=== TOTAL" tests/tcp/drc_cap/full8_run.log 2>/dev/null; then break; fi; sleep 6; done; echo 
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "cache_coherency|crash_consist|=== TOTAL" tests/tcp/drc_cap/full8_run.log 2>/dev/null; then break; fi; sleep 
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "  (PASS|FAIL)  cache_coherency" tests/tcp/drc_cap/full8_run.log 2>/dev/null; then break; fi; sleep 6; done; 
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "crash_consist|=== TOTAL" tests/tcp/drc_cap/full8.log 2>/dev/null; then break; fi; sleep 6; done; grep -E "  
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "=== TOTAL" tests/tcp/drc_cap/full8.log 2>/dev/null; then break; fi; sleep 6; done; grep -q "=== TOTAL" tests
+    cd /src/mxfs; for i in $(seq 1 19); do if grep -qE "=== TOTAL" tests/tcp/drc_cap/full8.log 2>/dev/null; then break; fi; sleep 6; done; grep -q "=== TOTAL" tests
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; echo "=== node reachability ==="; up=0; for n in 1 2 3 4 5 6 7 8; do timeout 5 $SSH test$n /tmp/.mxfs_pass tr
+    cd /src/mxfs; echo "=== MXFS_IF_DIR_RELOAD set/consume sites ==="; grep -n "MXFS_IF_DIR_RELOAD" xfs/xfs_mxfs_dlm.c | head -20
+    cd /src/mxfs; ps -eo cmd 2>/dev/null|grep -iE 'run\.sh [0-9]|full8|seq_test|one_test|passrate'|grep -v grep|grep -v qemu|wc -l|xargs echo "orphan_drivers="; ech
+
+## Last text from previous session
+
+, fresh). precond PASS, cache_coherency pending. Let me wait for its fresh result.
+**Critical correction:** cache_coherency PASSES 8/8 in full8f (fresh run). My earlier "cache_coherency 0/8 ×4" was **stale log reads** — I was reading full8b's genuine flush_lockwait failure during later runs' prep windows. The winning config does NOT break cache_coherency. The full suite may actually progress. Let me watch full8f closely.
+Much better — most tests PASS 8/8. zero_silent_loss FAIL 0/8 is a new data point (may be flaky in-suite). Let me watch through crash_consistency and dir_reuse to the end.
+crash_consistency PASSED 8/8 this run (it's flaky — hung before). Currently only zero_silent_loss failed. Let me get the final tally.
+Full8f final: **11 PASS, 6 FAIL** — zero_silent_loss (isolated 0/8) + dir_reuse_coherency 0/8 (cascading to fence/fault/soak/tcp_dlm_scaling). crash_consistency PASSED (flaky). dir_reuse 0/8 in-suite (vs ~85% standalone) is a WEDGE, not the 799 loss — possibly the same flush_data_blocks ABBA. Let me check the wedge signature on the nodes.
+In-suite dir_reuse hit a **DABUF_MAP_HOLE shutdown** (extent-map/leaf staleness, sess20/54 family) → cascade — NOT the 799 dirent loss. So release_invalidate+relinval_clean fixed the dirent loss but the extent-map staleness recurs in-suite. And cache_coherency is actually FINE (my earlier "0/8" was stale-log reads). Let me record the corrected picture.
+The dir_reuse in-suite DABUF_HOLE is extent-map staleness: relinval_clean gives a fresh leaf (cold-read) but the in-core extent map (i_df) isn't rebuilt → fresh-leaf-vs-stale-map = hole. The fix: when staling dir buffers at release, also flag the inode for extent-map reload. Let me check the MXFS_IF_DIR_RELOAD mechanism.
+Relay boundary reached — wrapping up. Let me confirm clean cluster state.
+## Session 29 summary — major progress, criteria NOT met
+
+**Criteria (`./run.sh {1,2,4,8} tcp` 100%): not met.** But I substantially advanced the long-standing 8/tcp blocker and corrected my own mistaken conclusions.
+
+### Real wins
+- **dir_reuse_coherency dirent-loss SOLVED standalone (~0% → ~85%)** via two read-side coherency levers, guided by a GPT-5.5 architecture consult ("invalidate all dir-fork buffers at DLM release; plain cold-read on reacquire; FUA is not a coherency primitive"):
+  - `dir_release_invalidate=1` (existing) — stales flushed dir leaf/data buffers at EX release → `lookup_fail=0`, eliminates DABUF_HOLE/xfs_defer shutdowns standalone.
+  - **`dir_relinval_clean=1` (new this session)** — also stales *clean* cached dir blocks at release; closes most of the residual single-dirent 799 loss.
+- **Corrected a major error**: my earlier "cache_coherency 0/8 environmental contamination" was a **stale-log-read artifact** (full8.sh reuses a fixed log path; I read a previous run's failure during prep windows). cache_coherency, crash_consistency, cache all pass cleanly with the winning config. Clean full 8/tcp = **11/17**.
+
+### Remaining blockers (all in the flaky tail)
+1. **dir_reuse in-suite** hits `DABUF_MAP_HOLE_OK` shutdown = extent-map staleness (fresh leaf walked against a stale in-core `i_df` extent map). **Lead for next session**: when relinval_clean stales dir buffers at release, also arm `MXFS_IF_DIR_RELOAD` (extent-map reload machinery exists, consume sites ~3637/4220) so leaf + extent map refresh consistently.
+2. **crash_consistency** in-suite ABBA hang (flaky) — `mxfs_dir_flush_data_blocks` blocking `xfs_buf_incore` (xfs_mxfs_dlm.c:1612) holding `i_lock`. Fix structurally (don't hold i_lock across the get).
+3. **zero_silent_loss** isolated 0/8 — uninvestigated.
+
+### Refuted (don't repeat): `dir_flush_lockwait>0` (bail breaks Invariant 1), `dir_write_merge` (cross-block duplicate names), `dir_postread_reread=1` (FUA leaf re-read tears).
+
+State is clean: build `23FE6715`, all new levers default-0 (keeper-safe), no orphan drivers. Eight `sess29-*` memories capture full detail; the relay continues with full transcript access.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

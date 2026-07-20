@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 74 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 73
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `64f5e185-b9c5-46cf-b12c-5ffbb2ab4e06`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/64f5e185-b9c5-46cf-b12c-5ffbb2ab4e06.jsonl`
+- approx context at last assistant turn: 255347 tokens
+- tools used: Bash×43 Read×15 mcp__ccmemory__memory_get×7 Edit×3 mcp__ccmemory__memory_search×3 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/.ccmemory/sess73-zsl-ondisk-dinode-bmbt-inconsistent-writer-torn.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') echo "=== test1: recent ino=131
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') echo "=== full stack find 1467 
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') ip12=$(getent hosts test12.vm.l
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 15 "$SSH" "$ip1" "$PF" 
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') printf 'echo w > /proc/sysrq-tr
+    cd /src/mxfs echo "=== find xfs_ilock definition (mxfs override) ===" grep -rn "^xfs_ilock\b\|^void.*xfs_ilock\|xfs_ilock(struct\|mxfs_dlm_ilock_begin" xfs/*.c 
+    cd /src/mxfs echo "=== where are the ilock forensic fields recorded? ===" grep -rn "i_mxfs_ilk_rd_ret\|i_mxfs_ilk_wr_ret\|i_mxfs_ilk_un_ret\|i_mxfs_ilk_rd_held\
+    cd /src/mxfs echo "=== all raw i_lock up/down in xfs_mxfs_dlm.c ===" grep -nE 'down_read\(&ip->i_lock\)|down_read_trylock\(&ip->i_lock\)|up_read\(&ip->i_lock\)|
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') ip12=$(getent hosts test12.vm.l
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 30 "$SSH" "$ip1" "$PF" 
+    timeout 400 make modules 2>&1 | tail -15; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 420 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -4
+    cd /src/mxfs; timeout 200 ./tests/criteria/zero_silent_loss.sh --iters 1 2>&1 | tail -6; echo "rc=$? (124=timeout expected on verify hang)"
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass echo "=== per-node: P73-ILOCK-STUCK / shutdown / eviction / reservation ===" for n in $(seq
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}') echo "=== test2: reservation co
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in 1 5 9; do   ipn=$(getent hosts test$n.vm.localdomain | awk '{print $1}')   echo "=
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') ip2=$(getent hosts test2.vm.loc
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in 1 2; do   ipn=$(getent hosts test$n.vm.localdomain | awk '{print $1}')   echo "===
+    cd /src/mxfs SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') echo "=== test1: corrupt buffer
+    cd /src/mxfs echo "=== xfs_inode_to_disk / iflush dinode pack sites ===" grep -rn "xfs_inode_to_disk\b" xfs/*.c xfs/libxfs/*.c | head echo "=== di_nextents writ
+
+## Last text from previous session
+
+ails to prevent the di_nextents regression.
+sess62's `mxfs_iflush_force_bmbt_durable` lands leaves before writing di_nextents (fixes the UNDER-count direction). My corruption is the OVER-count (leaf ahead of a stale-low dinode being written). Let me read that function — it's the right place to add a non-perturbing "di_nextents regression" detector that catches the writer reverting the count in the act.
+This `mxfs_iflush_force_bmbt_durable` is already a heavily-worked writer-side fix (sess62/64): it destages all bmbt leaves before di_nextents is written, and even re-serializes single-leaf records from the iext list. Yet the corruption persists — which sharpens the mechanism. Let me work it out precisely and refine the memory.
+
+The mechanism: the shared dir's bmbt is a **single leaf block** (broot→leafX). Node A grows leafX to 19 records + sets di_nextents=19. Node B, operating on a **stale-low reload** (di_nextents=15, iext=15, but broot still →leafX), writes its dinode: di=15 + broot→leafX. LeafX on disk holds 19 (A's durable write). A reloading reader walks broot→leafX(19) but di=15 → `ir.loaded+19 > if_nextents` over-count → EFSCORRUPTED. The bug is a **di_nextents regression by a stale writer**, not leaf-vs-dinode skew (which sess62/64 already handle).
+Hit the relay boundary. Let me append the sharpened mechanism to the memory, then summarize.
+The core insight (writer-side: refuse to write a lower di_nextents) is already captured in the saved memory's NEXT SESSION section, so the refinement is non-critical. The criteria are not met — 4 ship-gate criteria still FAIL — so the marker stays unwritten.
+
+## Session summary
+
+**Worked the ship-gate blocker `zero_silent_loss` (1 of 4 failing criteria) to a decisively sharper root, via RULE-4 instrumentation.**
+
+Reproduced the FAIL on a freshly-reset 16-node cluster and proved two faces of the same hot-shared-dir bug (ino=131):
+
+1. **Verify-hang** (stock build `55379AA2`): the verify `find` wedges D-state forever. Proved via full thread inventory + sysrq-w that it's a **local leaked i_lock reference** (queued writer + readers, *no owner thread*), **not** a cross-node CAW orphan — unmounting the apparent EX holder (test12) didn't free it; zero evictions/shutdowns/PR-conflicts. Built a `P73-ILOCK-STUCK` forensic detector to name the leaking call path.
+
+2. **Data-loss** (instrumented `64932978`): `ls` the dir → **"Structure needs cleaning" (EFSCORRUPTED)**, 1600 silent, no shutdown. dmesg: `corrupt dinode 131 (btree extents)` at `xfs_iread_bmbt_block+0x450`.
+
+**Decisive new finding (code-proven):** the corrupt buffer decodes as a *structurally valid* bmbt leaf (`BMA3`, numrecs=19). The corruption is the over-count check, and crucially **sess70's `P70-DINO-RECONCILE` runs unconditionally** (FUA-re-reads the on-disk dinode) yet the corruption still fired — proving the **on-disk `di_nextents` is itself too low**. So the on-disk (dinode, bmbt-leaf) pair is **genuinely inconsistent on disk** → a **writer-side torn release**, not reader cache-staleness. This **rules out all read-side fixes (P68/P70)** and **refutes** both sess70's "P70 fixed it" claim and its "PR-preempt→shutdown" theory (the `reservation conflict` lines are benign join-time slot-claim races at t=62).
+
+**Mechanism:** a node with a stale-low reload (fastex reload self-skip) writes a `di_nextents` that *regresses* below a peer's committed single-leaf grow. Fix direction (saved to memory `sess73-zsl-ondisk-dinode-bmbt-inconsistent-writer-torn`): at iflush, refuse to publish a `di_nextents` lower than the on-disk value, and/or close the reload self-skip — needs careful design (invariant #1) + writer-side instrumented confirmation next session.
+
+Other FAILs unchanged: `fence_during_write` (lost=400), `rsync_paired` (148%), `posix_semantics_multi16` (>600s — same hot-dir family). Note for next session: build `64932978` carries the perturbing P73 trylock-spin (changes ilock fairness); revert or replace before measuring clean timing.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

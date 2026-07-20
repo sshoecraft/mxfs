@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 10
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `ff689449-b59f-4e1a-8c74-b0a8f885e4b1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ff689449-b59f-4e1a-8c74-b0a8f885e4b1.jsonl`
+- approx context at last assistant turn: 497461 tokens
+- tools used: Bash×286 Edit×27 Read×26 TaskUpdate×9 TaskCreate×7 ToolSearch×3 mcp__ccmemory__memory_write×3 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_iomap.c
+- /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+- /src/mxfs/tests/suite/lib.sh
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/tests/suite/fio_perf.sh
+- /src/mxfs/tests/suite/dlm_fairness.sh
+- /src/mxfs/tests/suite/crash_consistency.sh
+- /src/mxfs/scripts/raw_fio_ceiling.sh
+- /src/mxfs/tests/suite/manifest
+- /src/mxfs/tests/suite/fio_perf_vs_xfs.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    python3 -c " import json c=json.load(open('/src/mxfs/criteria.json')) for cat in c['categories']:     for t in cat['tests']:         if t['name'] in ('fsx','fio
+    grep -n "fsx\|fio_verify" /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md | head -6
+    timeout 60 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'cd /tmp && time /src/mxfs/tests/suite/tools/fsx -N 100000 /tmp/fsx_local_probe >/dev/null 2>&1; rm -f /t
+    grep -n "fsx\|fio_verify" /src/mxfs/tests/suite/manifest
+    grep -n "XFS_BASELINE" /src/mxfs/tests/suite/fio_perf.sh | head -5; grep -n "XFS_BASELINE\|xfs_fio_baseline" /src/mxfs/run.sh | head -5
+    grep -n "BASE" /src/mxfs/tests/suite/fio_perf.sh | head -8
+    sed -n '160,170p' /src/mxfs/tests/suite/fio_perf.sh
+    MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.tcp.json" MXFS_FORCE_PREP=1 ./run.sh 1 xfs 2>&1 | grep -E "^  (PASS|FAIL)" | head -14
+    until grep -qE "=== done" /tmp/claude-1000/-src-mxfs/ff689449-b59f-4e1a-8c74-b0a8f885e4b1/tasks/bqp18qhj7.output 2>/dev/null; do sleep 25; done; cat /tmp/claude
+    cat /tmp/claude-1000/-src-mxfs/ff689449-b59f-4e1a-8c74-b0a8f885e4b1/tasks/bqp18qhj7.output; ./showstat.sh 1 xfs 2>/dev/null | grep -E "fsx|fio_verify|posix_sing
+    RULE0_CALIBRATE=1 ./run.sh 1 xfs fsx fio_verify 2>&1 | grep -E "^  (PASS|FAIL)"
+    grep -n "manifest" /src/mxfs/run.sh | head; grep -rn "manifest" /src/mxfs/scripts/*.py /src/mxfs/scripts/*.sh 2>/dev/null | grep -iv "ceiling\|ladder" | head -5
+    python3 scripts/gen_criteria.py 2>&1 | tail -2; python3 -c " import json c=json.load(open('/src/mxfs/criteria.json')) for cat in c['categories']:     for t in c
+    MXFS_FORCE_PREP=1 ./run.sh 1 tcp prep_cluster 2>&1 | tail -1 && ./run.sh 1 tcp fsx fio_verify fio_perf fio_perf_vs_xfs 2>&1 | grep -E "^  (PASS|FAIL)"
+    until grep -qE "vs_xfs" /tmp/claude-1000/-src-mxfs/ff689449-b59f-4e1a-8c74-b0a8f885e4b1/tasks/bzkstg4yg.output 2>/dev/null; do sleep 25; done; cat /tmp/claude-1
+    python3 -c " import json c=json.load(open('/src/mxfs/criteria.json')) for cat in c['categories']:     for t in cat['tests']:         if t['name']=='fio_perf_vs_
+    grep -n "raw.ceiling\|wsrc\|RAWCEIL\|ceiling" /src/mxfs/tests/suite/fio_perf_vs_xfs.sh | head -12
+    sed -n '60,84p' /src/mxfs/tests/suite/fio_perf_vs_xfs.sh
+    timeout 90 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'umount /mnt/shared 2>/dev/null; true' 2>/dev/null; RAWCEIL_FORCE=1 bash scripts/raw_fio_ceiling.sh tcp 1
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() marker = "## SESS10 (Fronts A+B+C CLOSED" add = """## SESS10 FINAL (tcp ladder 2-32 GREEN on 420FBA28 
+
+## Last text from previous session
+
+*drc@32/tcp PASS — 32/32 nodes, 58/58 checks, 102s.** First ever green on this cell. Verifying repeatability with a second run:
+While chunk A runs, updating the state ledger for relay safety:
+fio_perf ran 686s with 1 node failed, then 6 nodes lost their mounts — something shut down filesystems mid-fio. Investigating:
+While fio runs, capturing the cascade analysis in memory:
+The 8m floor doubles the designed 128MB aggregate at N=32 (256MB → ~60s randW). Restoring the design constant with a 4m floor (only N=32 changes):
+Chunk B: posix_multi debt gone (21/30), only dlm_fairness remains over (40/30, improved from 49). Chunks C+D:
+Chunk C: crash_consistency still over (109/90); fault_enospc missing from output. Checking it, then chunk D:
+20/20 PASS at 32/tcp. Two debts left: dlm_fairness 40/30 and crash_consistency 109/90. Profiling fairness first:
+**Full 32/tcp board: 20/20 PASS, all within budget, one build (420FBA28).** Task 5 done. Now the tcp ladder regression on this build — 16 rung first:
+16 rung: 8/9 green; fio_perf_vs_xfs failed. Checking which gate:
+fio pair green at 16. Finishing the 16 rung:
+16/tcp: 20/20 green on the build, all within budget. Now the 8 rung:
+Confirmed — the capture replaced the whole file. Fixing the script to merge, then re-capturing at 4:
+fsx/fio_verify likely got timeout-killed mid-run before printing RESULT. Running them alone to measure:
+The documented refresh procedure is a native-XFS run on this LUN. Checking how the baseline file gets written, then running the native yardstick:
+Relay boundary hit — landing the final state into state.md and wrapping:
+Session 10 closes at the relay boundary. Summary:
+
+**Three kernel fixes landed (0.11.35 → 0.11.39, build 420FBA28 deployed cluster-wide), each RULE-4 proven live before patching:**
+
+1. **Front B (drc size=0 data loss) — root-caused and fixed.** The reload-identical path re-synced VFS i_size down to the lagging on-disk size mid-append; writeback then discarded the pages as beyond-EOF and the unwritten-conversion size advance clamped to zero (proven with paired P-RELOAD-SIZESEVER/P-WU-CLAMP probes on the exact failing inode). Fix: keep VFS i_size when the reload kept in-core state (`reload_size_keep=1` default). A side discovery: on this 6.19 base, `xfs_setfilesize` is dead code for buffered appends — the size advance lives in `xfs_iomap_write_unwritten`.
+
+2. **Front A (300ms round-open staircase) — fixed.** The ACQUIRING-deferred BAST honor site armed the release dwork for the full 300ms window instead of grace slices; create phases dropped from ~10s to 1.3-2s. The faster handoffs exposed two latent classes, both fixed: a TCP abandoned-mirror-grant convoy (a granted-but-never-consumed grant wedged release 126s while every escape was reset by the starving reader's own ACQUIRING — new `P15-TCP-ORPH-PROCEED` escape keyed on `acq_inflight==0`), and the run_bounded 1s-poll quantization in the test harness.
+
+3. **Cascade amplifier — fixed.** A force-shutdown node's grants stayed in master tables while its dead FS could never serve BASTs, so peers starved to terminal timeouts and shut down too (1 root + 5 dominoes during fio@32). Withdraw now wire-releases everything (`mxfs_dlm_withdraw_release_all`).
+
+**Matrix state: tcp 2/4/8/16/32 all 20/20 green on the one build, every cell within budget** — including first-ever drc@32 greens (102-107s) and all five 32-node budget debts closed via the established N-invariant treatments (fio rand floor, fairness total, crash rotated-subset verify). The fio-vs-xfs yardstick got time-paired median ceilings per rung plus a merge fix in the capture script. 1/tcp has one row pending re-run after the ceiling capture wiped the LUN. Front C's leak probe stayed at zero all session.
+
+**Remaining: 1/tcp final row, the untouched cawp ladder, cawd/caw regression spot-checks (the fixes are transport-shared), then the final one-build enforcing sweep of all four conditions.** Criteria not yet met — the run continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

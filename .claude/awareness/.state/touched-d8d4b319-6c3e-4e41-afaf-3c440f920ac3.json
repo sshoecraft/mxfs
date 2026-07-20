@@ -1,0 +1,10 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "mxfs_clayer/pinned_resource.c",
+    "xfs/xfs_inode.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

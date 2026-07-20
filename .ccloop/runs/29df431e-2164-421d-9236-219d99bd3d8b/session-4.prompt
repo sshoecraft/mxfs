@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 3
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `4691bd4c-2d3b-4639-9080-5cb4303fdfb3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4691bd4c-2d3b-4639-9080-5cb4303fdfb3.jsonl`
+- approx context at last assistant turn: 161723 tokens
+- tools used: Bash×34 Read×13 Edit×9
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -3; echo "=== deployed srcver per node ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done; timeout 590 bash t
+    cd /src/mxfs; until ! pgrep -f cache_coherency.sh >/dev/null 2>&1; do sleep 15; done; echo "=== DONE ==="; grep -iE "RESULT|passed=" /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; pkill -f "until ! pgrep" 2>/dev/null; pkill -f cache_coherency 2>/dev/null; sleep 2; echo "=== output ==="; cat /tmp/claude-1000/-src-mxfs/4691bd4
+    cd /src/mxfs; LOG=$(ls -t /tmp/claude-1000/cache_coherency.*.log 2>/dev/null | head -1); echo "LOG=$LOG"; grep -iE "\[FAIL\]|\[PASS\]|test_.*nodes|timed out|Not
+    cd /src/mxfs; grep -n "i_dlm_mode" xfs/xfs_inode.h xfs/libxfs/xfs_inode_buf.h 2>/dev/null | head; grep -rn "MXFS_LOCK_NL" xfs/xfs_mxfs_dlm.h 2>/dev/null | head 
+    cd /src/mxfs; grep -n "MXFS_LOCK_NL\|MXFS_LOCK_PR" xfs/xfs_inode.c | head; echo "--- def ---"; grep -rn "MXFS_LOCK_NL\s*=" xfs/*.h dlm/*.h include/*.h 2>/dev/nu
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "srcver=$(modinfo mxfs.ko 2>/dev/null | grep -oE '[A-F0-9]{20,}')"; MKFS_OPT
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'mountpoint -q /mnt/shared && echo -
+    cd /src/mxfs; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -2; echo "=== verify ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash to
+    cd /src/mxfs; timeout 30 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass 'umount /mnt/shared 2>/dev/null; for i in 1 2 3 4 5; do rmmod mxfs 2>/dev/null && brea
+    cd /src/mxfs; timeout 15 bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass 'nohup reboot >/dev/null 2>&1 &' 2>/dev/null; echo "reboot issued to test2; waiting 90
+    sudo virsh list --all 2>/dev/null | grep -iE "test|Name" || virsh list --all 2>/dev/null | grep -iE "test|Name"; echo "--- ping test2 ---"; ping -c1 -W2 test2 2
+    sudo virsh destroy test2 2>&1 | head -1; sleep 3; sudo virsh start test2 2>&1 | head -1; echo "waiting 100s for test2 boot"; sleep 100; for i in $(seq 1 8); do 
+    cd /src/mxfs; MKFS_OPTS=-f bash tests/reset4.sh 4 2>&1 | tail -2; echo "=== verify ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash to
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done; timeout 560 bash t
+    cd /src/mxfs; until ! pgrep -f cache_coherency.sh >/dev/null 2>&1; do sleep 20; done; echo "=== DONE ==="; grep -iE "RESULT|passed=" /tmp/claude-1000/-src-mxfs/
+    cd /src/mxfs; grep -iE "RESULT|passed=" /tmp/claude-1000/-src-mxfs/4691bd4c-2d3b-4639-9080-5cb4303fdfb3/tasks/bvkf2dy66.output | tail -2; echo "=== sub-tests ==
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg 2>/dev/null | grep -oE "IN
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "srcver=$(modinfo mxfs.ko 2>/dev/null | grep -oE '[A-F0-9]{20,}')"; MKFS_OPT
+
+## Last text from previous session
+
+g — hung during reboot (the wedged module can hang shutdown). Force-cycle it via virsh.
+test2 recovered (SDA-OK, module clear). Now deploy fresh to all 4 nodes:
+All 4 nodes on `41787A16`, mounted. Now run the cache_coherency criterion (the grant-less + dsz>0 guards should prevent the cross_visibility false-evict):
+Criterion running. Let me wait for it to complete.
+passed=1 failed=3 — a net regression from the passed=2 baseline. Critically, cross_visibility now stalls 125s on node4.txt (even node4 can't see its own file) — and node4 *holds* the inode, so my grant-less guard correctly skips eviction there. This means my change isn't evicting it; it's **perturbing timing** — the FUA read I added fires on empty reg-file lookups, and barrier markers (`.mxfs_barriers/.../nodeN`) are empty files on the hot path → reintroduced the barrier stall (the sess36/39 perturbation warning). Let me capture the discriminator evidence before reverting.
+**Decisive RULE-4 evidence: my `INODE-REUSE-EVICT-SIZE` and `READ-STALE-SAMEGEN` detectors fired 0×.** My eviction is completely INERT — yet the criterion regressed (passed 2→1, cross_visibility 125s stall). So:
+1. The content empty-read is **NOT** "in-core di_size=0 + disk di_size>0 + gen-mismatch" (0 fires) → it's either a writer-durability issue (disk also 0) or a dcache-level hit not reaching xfs_lookup. This redirects the next hypothesis.
+2. The regression is pure perturbation: my FUA read fires on every grant-less empty reg-file lookup (barrier markers are empty files on the hot path) → added latency → reintroduced stalls, even though it never evicts.
+
+Per RULE 4 (2a: disprove → revert, don't keep a patch on a disproven hypothesis), I'll revert the eviction block to detection-only.
+Reverted to detection-only (now a richer instr-gated probe that logs gen + dlm_mode for next session). Rebuild and deploy to restore the passed=2 baseline build for the next session:
+Build clean (`DFD5D8F0`, the reverted baseline), all 4 nodes deployed and mounted. I'm at the context cutoff. Let me record the key sess51 evidence in state.md before wrapping.
+## Session summary (sess51)
+
+Per RULE 4, I worked the cache_coherency residuals on top of the sess50 anti-starvation fix.
+
+**Confirmed baseline (build `86855C4`):** `cache_coherency.sh --nodes 4` = **passed=2 failed=2**, and critically the two remaining failures are now **FAST** (rename 12s, cross_write_read 4-5s) — the sess50 starvation fix eliminated the 120s barrier timeouts. The two roots are: (A) content empty-read (`actual=''`) and (B) ENOTDIR on the `cwr_verify` barrier dir.
+
+**Hypothesis tested and DISPROVED (RULE 4 2a → reverted):** I theorized the content empty-read was a same-type (reg→reg) reused inode — in-core di_size=0 + disk di_size>0 + gen-mismatch → evict + gen-gated recycle. I implemented it (with grant-less + dsz>0 guards) and measured:
+- **The evict detector fired 0×** — decisive proof the empty-read is NOT that pattern. It's either writer-durability (disk also 0) or a dcache-level stale hit that never reaches `xfs_lookup`. This redirects the next hypothesis.
+- It **regressed** passed 2→1 purely by **perturbation**: the FUA read I added fires on grant-less empty reg-file lookups, and barrier markers are empty files on the hot path → reintroduced the stall (re-confirming the sess36/39 "no I/O in the lookup hot path" rule).
+
+**Reverted** to a functionally-identical baseline (`DFD5D8F0`, deployed + mounted on all 4 nodes) with only a harmless `mxfs_inode_disk_di_size` di_gen extension and a richer instr-gated `INODE-REUSE-DETECT` probe for next session's durability-vs-dcache split.
+
+**Env note recorded:** a killed criterion left test2's old module wedged (refcnt stuck); `virsh destroy/start` recovered it (ssh reboot did not).
+
+**Criteria NOT met** — cache_coherency still FAIL (passed=2 failed=2), rsync_paired still FAIL. Marker not written. State and the disproved-approach + redirected hypothesis are recorded in `state.md` for the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

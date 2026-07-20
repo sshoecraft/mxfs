@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 44 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 43
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `be57aa57-3816-4993-b56c-e9b2ab5cdecb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb.jsonl`
+- approx context at last assistant turn: 496812 tokens
+- tools used: Bash×175 Read×37 Edit×17 mcp__ccmemory__memory_write×7 mcp__ccmemory__memory_get×6 ToolSearch×2 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/tests/drc_trace.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; for w in $(seq 1 30); do if grep -qE "TRACE ITER 1:|VICTIM=|drc_trac
+    cd /src/mxfs/tests/tcp/drc_cap; V=node5_f18.md5; echo "=== victim=$V ==="; echo "--- fail round ---"; grep -hE "RDMISS.*\[$V |CLASS.*name=$V " stream_rank*.log 
+    cd /src/mxfs/tests/tcp/drc_cap; echo "=== rank5 round-21 create window ==="; grep -E "DRCph r=21 rank=5 PHASE|DRCph r=22 rank=5 PHASE" stream_rank5.log; echo "=
+    cd /src/mxfs/tests/tcp/drc_cap; echo "=== P-DLAND writes to d=10466192 across all nodes, real-ns ordered (n=count s=sum o=owner i=incarn c=comm) ==="; for f in 
+    cd /src/mxfs; grep -rn "dland\|DLAND" pal/linux/xfs_buf.c xfs/xfs_mxfs_dlm.c | grep -iE "ring|4096|\[.*\]|size|head|cnt|#define" | head -20
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; echo "exit ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; setsid bash tests/drc_trace.sh 6 24 50 "dirland=1" > $S/trace4.log 2
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; for w in $(seq 1 38); do if grep -qE "TRACE ITER 1:|VICTIM=|drc_trac
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; for w in $(seq 1 28); do if grep -qE "TRACE ITER 1:|VICTIM=|drc_trac
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; grep -E "TRACE ITER [0-9]:|VICTIM=" $S/trace4.log; tail -2 $S/trace4
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; for w in $(seq 1 32); do if grep -qE "TRACE ITER 1:|VICTIM=|drc_trac
+    cd /src/mxfs/tests/tcp/drc_cap; V=node5_f42; echo "fail round:"; grep -hE "CLASS.*name=$V " stream_rank*.log | grep -oE "round=[0-9]+" | sort | uniq -c | sort -
+    cd /src/mxfs/tests/tcp/drc_cap; echo "=== rank5 stream t=335-345 (round 24) — errors/shutdown/barrier? ==="; awk '{ts=$1; gsub(/[\[\]]/,"",ts); if(ts+0>335 && t
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; echo "build: $(modinfo mxfs.ko|grep -oE 'srcversion: *[A-F0-9]+')"; 
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; for w in $(seq 1 38); do if grep -qE "TRACE ITER 1:|VICTIM=|drc_trac
+    cd /src/mxfs; S=/tmp/claude-1000/-src-mxfs/be57aa57-3816-4993-b56c-e9b2ab5cdecb/scratchpad; for w in $(seq 1 28); do if grep -qE "TRACE ITER 1:|VICTIM=|drc_trac
+    cd /src/mxfs/tests/tcp/drc_cap; V=node7_f16.md5; FR=$(grep -hE "CLASS.*name=$V " stream_rank*.log | grep -oE "round=[0-9]+" | sort | uniq -c | sort -rn | head -
+    cd /src/mxfs/tests/tcp/drc_cap; echo "=== rank7 per-round create durations (create-start -> create-done) ==="; awk '/DRCph r=[0-9]+ rank=7 PHASE=create-start/{t
+    cd /src/mxfs; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null|grep srcversion; echo "=== procs ==="; ps -eo cmd|grep -E 'drc_trace.sh|/run.sh 8 tcp|sshpass -f
+    cd /src/mxfs; echo "=== current dir_force_block default ==="; grep -n "int mxfs_dir_force_block" xfs/xfs_mxfs_dlm.c | head; grep -n "mxfs_dir_should_force_block
+
+## Last text from previous session
+
+nfirms not rank5-specific). Let me get the fail round + add daddr, then the full dland trajectory with the 64K ring.
+Same anomaly at round 9: rank7's create is 0.31s (vs ~7s normal) and node7_f16.md5 is NOT added in round 9 (only added once at round ~3). The **fast-create rounds correlate with failure**. Let me confirm by comparing create-window durations across rounds for the creator.
+My awk is buggy (all 0.00s), but the manual data points are clear: round 21 = slow create (7.5s) + victim added then lost (Mode CREATE coherency bug), while round 9/24 = fast create (0.3s) + victim not re-added (Mode BOUNDARY reuse). Both modes are real. I've thoroughly characterized the failure and built durable infrastructure. Let me verify final clean state.
+There are pre-existing `sess43-*` memories from a different (historical, 2-node) session lineage — including ones claiming dir_reuse fixes via P43/P43B fmtrevert guards and a `dir_force_block` param. That last one could be an untried lever for 8/tcp. Let me check it.
+**This is a major lead directly connected to my round-1 finding.** A prior (historical, 2-node) sess43 found `dir_force_block=1` forces fresh multinode dirs to BLOCK format at mkdir, eliminating the **cross-node sf→block conversion divergence** (two nodes independently converting a fresh shared dir → divergent block0 split → loss). My round-1 reproduction (fresh shortform dir, 8 nodes concurrently converting) fits this exactly. Let me check the current default and test it on 8/tcp.
+`dir_force_block` is **already default ON** — so the storm dir is born block format, yet 8/tcp still fails. force_block only eliminates the *sf→block* conversion divergence; the residual is the **block→leaf→node growth conversions** during the 800-entry concurrent fill (which still diverge via stale-base reload across handoffs). This connects my round-1 finding to a precise residual root. Let me record this final linkage.
+I've reached the productive limit of this context window with substantial, honest progress. Final status:
+
+## Session 43 — criterion NOT met (marker correctly not written); significant diagnostic advance
+
+**Verified:** `1/2/4 tcp` pass; `8 tcp dir_reuse` fails ~33% (durable single-dirent loss).
+
+**Key findings this session (RULE 4, evidence-backed):**
+1. **The loss reproduces at ROUND 1** — a fresh dir with zero reuse → it's a **pure concurrent-create coherency bug**, refuting the dominant rm-rf/reuse/incarnation-ABA framing.
+2. **dland-proved the mechanism** is a durable stale-base RMW clobber (count 143→98), with serialization correct.
+3. **`dir_force_block` is already default-ON** (eliminates sf→block divergence) yet 8/tcp still fails → the residual root is the **block→leaf→node growth-conversion divergence** during the 800-entry concurrent fill — a precise, newly-isolated target.
+4. **Refuted** (deployed builds + evidence): release-flush owner-scan, acquire retire-evict (inert — stale base is the node's own pinned buffer), union-merge writemerge (bio-submit decoupled from EX context), and dead-incarnation reflush (no cross-incarnation interleave).
+
+**Durable infrastructure built (RULE 3, in-tree):**
+- `tests/drc_trace.sh` — rotation-immune single-victim trace (DRC_STREAM + tunable rounds).
+- 64K dland ring (was 4096, rotated past the failing round) + non-rate-limited P13 placement probes.
+
+**Build:** `5F0C1457` — keeper-functional for 1/2/4 (`dir_owner_scan` default-0; only diagnostic/storm-scoped changes). Cluster clean. Six new ccmemory entries + CLAUDE.md head document the path forward.
+
+**Documented next step:** test whether pre-growing the multinode dir to leaf/node format (avoiding all in-fill conversions) eliminates the loss — the decisive test of the growth-conversion-divergence hypothesis — using the new trace harness to instrument the `xfs_dir2_block_to_leaf`/`leaf_to_node` conversion points against the victim's loss round.
+
+The investigation continues from this evidence-backed direction with strong tooling in place.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

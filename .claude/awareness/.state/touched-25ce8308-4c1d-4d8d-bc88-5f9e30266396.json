@@ -1,0 +1,10 @@
+{
+  "source": [
+    "dlm/dlm_caw.h",
+    "dlm/dlm_caw.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

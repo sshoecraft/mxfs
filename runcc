@@ -1,0 +1,29 @@
+#!/bin/sh
+# runcc — launch (or re-use) the mxfs Claude Code tmux session.
+#
+# tmux reads ~/.tmux.conf ONLY once, when the server first starts. If the
+# mxfs server is already running, later edits to ~/.tmux.conf are NOT
+# picked up by that server. So this script self-heals: it creates the
+# session only when it's missing, then ALWAYS (re)loads ~/.tmux.conf into
+# the running server so config edits take effect on every launch.
+
+sock="mxfs"
+sess="main"
+
+# Create the detached session (and thus start the server) only if absent.
+if ! /usr/bin/tmux -L "$sock" has-session -t "$sess" 2>/dev/null; then
+    # Size the detached session to the launching terminal. A session born at
+    # tmux's default 80x24 with NO client makes the Claude TUI initialize its
+    # input/keyboard state against a phantom terminal; the resize + terminal
+    # re-query on the first real attach then races typed input and swallows or
+    # garbles keystrokes. Matching the size up front means attaching from this
+    # terminal causes no resize.
+    cols=$(tput cols 2>/dev/null || echo 200)
+    lines=$(tput lines 2>/dev/null || echo 50)
+    /usr/bin/tmux -L "$sock" new-session -d -s "$sess" -x "$cols" -y "$lines" /src/mxfs/cc
+fi
+
+# Always (re)load the user's tmux config so edits are picked up each run.
+if [ -f "$HOME/.tmux.conf" ]; then
+    /usr/bin/tmux -L "$sock" source-file "$HOME/.tmux.conf"
+fi

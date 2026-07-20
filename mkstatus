@@ -1,0 +1,5 @@
+{
+    echo '```text'
+    for dlm in tcp cawp cawd caw; do echo ""; echo ""; for node in 1 2 4 8 16 32; do echo ""; ./showstat.sh $node $dlm; done; done
+    echo '```'
+} | tee status.md

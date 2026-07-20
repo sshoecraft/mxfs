@@ -1,0 +1,100 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 4
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `827142e4-fc9f-4b2a-9787-403cbf4cf44e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/827142e4-fc9f-4b2a-9787-403cbf4cf44e.jsonl`
+- approx context at last assistant turn: 89680 tokens
+- tools used: Bash×5 Read×4
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== criteria status ==="; ./tests/criteria/verify_ship.sh --status 2>/dev/null | head -40; echo "=== local build srcver ==="; modinfo mxfs.k
+    cd /src/mxfs; echo "=== cross_write_read test ==="; grep -rl "cross_write_read" tests/ 2>/dev/null | head; echo "---"; find tests -name '*.sh' | xargs grep -l "
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done; echo "=== running 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -C >/dev/null 2>&1'; done; echo "=== running 
+    sleep 60; echo "=== interim ==="; tail -20 /tmp/claude-1000/-src-mxfs/827142e4-fc9f-4b2a-9787-403cbf4cf44e/tasks/bu76v1qey.output 2>/dev/null
+
+## Last text from previous session
+
+I have plenty of context budget (50K of 160K). The hook is being conservative — I'll continue working. Let me get oriented on the current cluster and build state, following the sess51 handoff's prescribed next step (RULE 4: instrument the content empty-read to split writer-durability vs dcache-stale).
+Cluster is healthy, build deployed everywhere, cache_coherency at passed=1/failed=3. Context is climbing fast this session, so let me be focused and make one concrete RULE-4 advance: the sess51 handoff's prescribed step is to split the content empty-read into writer-durability (disk di_size==0) vs dcache-stale (disk>0 but VFS served stale). Let me look at exactly how `cross_write_read` reads, and the existing detect probe, so I can design a *non-perturbing* discriminator (the key constraint — sess50/51 proved per-lookup FUA perturbs).
+Now I have the precise failure surface. Critical RULE-4 insight: `actual_md5=$(md5sum "$file" | awk '{print $1}')`. If `actual=''`, md5sum produced **no stdout** → the file lookup **errored (ENOENT/read error)**, NOT a zero-length file (a zero-length file would give the empty-file hash `d41d8cd98f00b204e9800998ecf8427e`, not `''`). This discriminator distinguishes "directory visibility miss" from "di_size==0 content" — and it needs **no code change**, just a careful read of the failure log. Let me reproduce cross_write_read and capture the exact `actual` value.
+cross_write_read **PASSES in isolation** — confirms the sess49 finding that the failure is in the *sequential* criterion (cross-test contamination + variance), not any single test. Let me run the actual criterion script (its own reset + 4 tests in sequence) — the real ship gate — and capture which test fails with the exact `actual=` value to settle the ENOENT-vs-empty-content question.
+The criterion was auto-backgrounded by the harness (it's a long run, ~250-590s). It'll notify me on completion. Let me check interim progress to confirm the reset phase is proceeding.
+The criterion is still in its reset/mount phase and runs in the background (~250-590s); the harness will re-invoke me when it completes. Rather than burn context polling, I'll summarize where this session stands and let the completion notification bring me back with the result.
+
+## Status so far (session 4)
+
+**Cluster verified healthy:** all 4 nodes (test1–4) on build `DFD5D8F0`, mounted. Criteria: PASS=10, FAIL=2 (cache_coherency, rsync_paired) — unchanged from the sess51 handoff.
+
+**RULE-4 progress this session:**
+1. **`cross_write_read` PASSES in isolation** (4 nodes, fresh) — reconfirms sess49: every sub-test passes alone; only the *sequential* criterion (one mount, 4 tests back-to-back) fails. This points the root at **cross-test contamination / variance**, not a single broken op.
+2. **Key discriminator identified (no code change needed):** the test does `actual_md5=$(md5sum "$file" | awk '{print $1}')`. An `actual=''` failure means md5sum produced *no stdout* → the file **errored on open (ENOENT / read error)**, NOT a zero-length file (a 0-byte file yields the empty hash `d41d8cd98f00b204e9800998ecf8427e`, never `''`). This means the long-chased "di_size==0 empty content" framing is likely mis-stated — `actual=''` is a **directory-entry visibility miss (ENOENT)**, i.e. the reused-inode / stale-dentry family, not a writer-durability content-zero. The full-criterion run now in flight will confirm by showing the exact `actual=` value in the per-test failure log (`/home/steve/.mxfs/results/<ts>/<test>/nodeN.log`).
+
+**Next (on criterion completion):** read the failing test's nodeN.log, confirm `actual=''` vs `actual=d41d8...`. If `''` → pivot fully to dentry/ENOENT visibility (re-lookup invalidation), abandoning the di_size content theory per RULE 4. Then design a non-perturbing fix (event-driven, not per-lookup FUA — sess50/51 proved polling perturbs).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

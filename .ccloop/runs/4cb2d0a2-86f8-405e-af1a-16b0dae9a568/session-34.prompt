@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 34 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 33
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5055e620-a37e-401b-a7ec-a1b7346d527a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a.jsonl`
+- approx context at last assistant turn: 511427 tokens
+- tools used: Bash×119 Edit×43 Read×38 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_write×6 ToolSearch×3 mcp__ask_gpt__query×2 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/pal/linux/xfs_buf_item.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "loops: $(ps aux|grep -cE '[d]rc_repro_loop')"; pkill -9 -f drc_repro_loop 2>/dev/null; for pid in $(pgrep -f "^sleep " 2>/dev/null); do kill
+    cd /src/mxfs; sleep 2; echo "loops: $(ps aux|grep -cE '[d]rc_repro_loop')"; echo "sleeps: $(ps aux|grep -cE '[s]leep [0-9]')"; modinfo mxfs.ko 2>/dev/null | gre
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head; echo "=== build done ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/diag9.log; nohup setsid bash tests/tcp/drc_repro_loop.sh 6 "dir_wri
+    LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/diag9.log; until grep -qE "HIT|loop done" "$LOG" 2>/dev/null; do sleep 30; done; 
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; for n in 7 8 3; do c=$(timeout 8 $SSH test$n /tmp/.mxfs_pass "dmesg|grep -c 'P-WMERGE-STACK'" 2>/dev/null|gre
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head; echo "=== build done ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/fix10.log; nohup setsid bash tests/tcp/drc_repro_loop.sh 6 "dir_wri
+    LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/fix10.log; until grep -qE "iter 4|HIT|loop done" "$LOG" 2>/dev/null; do sleep 30;
+    LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/fix10.log; cat "$LOG"; echo "=== retire check ==="; SSH=/src/mxfs/tools/mxfs_sshp
+    LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/fix10.log; until grep -qE "loop done" "$LOG" 2>/dev/null; do sleep 30; done; echo
+    LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/fix10.log; grep -E "iter|PASS|FAIL|HIT|loop done" "$LOG"; echo "loops running: $(
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; for n in 1 2 3 4 5 6 7 8; do timeout 6 $SSH test$n /tmp/.mxfs_pass "echo test$n DR=\$(dmesg|grep -c P33-DRAIN
+    cd /src/mxfs; pkill -9 -f drc_repro_loop 2>/dev/null; sleep 2; echo "loops: $(ps aux|grep -cE '[d]rc_repro_loop')"
+    cd /src/mxfs; echo "loops: $(ps aux|grep -cE '[d]rc_repro_loop')"; echo "sleeps: $(ps aux|grep -cE '[s]leep [0-9]')"
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head; echo "=== build done ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; grep -nE "mxfs_dir_postrmw_probe|dir_postrmw_probe|P-POSTRMW" xfs/xfs_mxfs_dlm.c xfs/xfs_inode.c | head
+    cd /src/mxfs; echo "loops: $(ps aux|grep -cE '[d]rc_repro_loop')"; echo "sleeps: $(ps aux|grep -cE '[s]leep [0-9]')"; echo "build: $(modinfo mxfs.ko 2>/dev/null
+    cd /src/mxfs; LOG=/tmp/claude-1000/-src-mxfs/5055e620-a37e-401b-a7ec-a1b7346d527a/scratchpad/diag11.log; nohup setsid bash tests/tcp/drc_repro_loop.sh 6 "dir_po
+    cd /src/mxfs; wc -l .claude/awareness/subsystems/pal.md; echo "=== tail (recent edits section) ==="; tail -40 .claude/awareness/subsystems/pal.md
+
+## Last text from previous session
+
+ **Write/drain-side union-merge is a fundamental dead end**: under `dir_reuse`'s concurrent add+remove, a disk-only dirent is ambiguous (peer ADD to graft vs our REMOVE to keep) — can't resolve by name. This is why the existing `dir_write_merge` over-grafts to 803.
+- **Root fix direction**: acquire-side stale-base refresh (FUA-refresh every dir block at EX acquire so `disk_extra=0` at the drain) — the deep dir-gen/epoch coherency family.
+
+**8 fixes refuted with on-cluster evidence** (union-merge→803; write-suppression→empty-dir; release-stale; acquire/read/drain/push BLI-retire all fire 0×). **GPT-5.5 ×2 + Gemini ×1 consulted.**
+
+**Central paradox left for next session** (captured in handoff): POST-RMW shows `disk_extra=0` (superset) yet the drain sees `disk_extra=1` under nominally-continuous EX — needs tenure/epoch correlation to resolve, then fix the acquire-side refresh that misses the block.
+
+Handoff memories: `sess33-HEAD-handoff`, `sess33-union-merge-ambiguous-acquire-refresh-is-root`, `sess33-fixes-refuted-zombie-bli-reenters-after-evict`, `sess33-PROVEN-clean-inAIL-stale-reflush-not-ghost`.
+
+I will not write the criteria-met marker — the 8/tcp test still fails. The relay continues with a substantially sharper diagnosis.
+Criteria not met — continuing. The decisive next experiment: run the POST-RMW probe **together** with the release-drain P-WMERGE on a losing iter, and check whether the *lost block's* RMW base was stale (`disk_extra=1` at POST-RMW) — which would confirm the root is an acquire-side refresh miss. Let me launch it, then update the pal awareness doc while it runs.
+The CLAUDE.md change is the standard ruleset (noted). Let me update the pal awareness doc (Stop hook requirement) while the diagnostic runs. First read it.
+I've hit the relay boundary. Let me add a concise sess33 entry to pal.md (Stop-hook requirement for the pal changes), then wrap up.
+Now apply the pal.md edit:
+Reached the relay boundary. pal.md updated with the sess33 changes. A background diagnostic (diag11: POST-RMW + drain probe combined) is running on the cluster — its dmesg on the nodes will give the next session the decisive POST-RMW-vs-drain correlation.
+
+## Session wrap-up
+
+**Criteria NOT met** — 8/tcp `dir_reuse_coherency` still loses one dirent (readdir=799). 1/2/4 tcp remain 100%. Marker not written.
+
+**Decisive diagnostic advances this session (RULE 4 + GPT-5.5 ×2 + Gemini ×1):**
+1. **Mechanism B (ghost/duplicate buffer) refuted** — P-WGHOST=0 proves the loss-write is the canonical buffer.
+2. **The loss-write is the EX-release fence drain's `xfs_bwrite`** (decisive `dump_stack`: `mxfs_dir_flush_one_daddr → xfs_bwrite`, `comm=dd`) of a **stale base** (`disk_extra=1` = our in-core block lacks a peer's prior-tenure add). Gemini predicted this.
+3. **All write/drain/push/acquire-side BLI-retire and suppression fixes are dead ends** — 8 refuted with evidence; write-side union-merge is *fundamentally ambiguous* under dir_reuse's concurrent add+remove (a disk-only dirent could be a peer ADD or our REMOVE).
+4. **Root-fix direction established**: acquire-side stale-base refresh — ensure every dir block is FUA-refreshed from the coherent LUN at EX acquire so `disk_extra=0` at the drain (the deep dir-gen/epoch coherency family, sess20-26).
+
+**Central paradox for next session**: POST-RMW historically showed `disk_extra=0` (fresh base) yet the drain sees `disk_extra=1` under nominally-continuous EX — resolve via tenure/epoch correlation (the diag11 run captures this), then fix the acquire refresh that misses the block.
+
+**Build 275EF4D4 = keeper-equiv** (all 5 sess33 fix params default-0; diagnostics gated off). Cluster otherwise idle.
+
+Handoff memories: `sess33-HEAD-handoff`, `sess33-union-merge-ambiguous-acquire-refresh-is-root`, `sess33-fixes-refuted-zombie-bli-reenters-after-evict`, `sess33-PROVEN-clean-inAIL-stale-reflush-not-ghost`, `sess33-REFUTED-dir-write-merge-overgrafts-803`. The relay continues with a substantially sharper diagnosis.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

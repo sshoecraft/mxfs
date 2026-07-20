@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 16 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 15
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `652e2825-9fd6-4524-b123-69b554348b0b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/652e2825-9fd6-4524-b123-69b554348b0b.jsonl`
+- approx context at last assistant turn: 499169 tokens
+- tools used: Bash×129 Read×52 Edit×20 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_get×6 ToolSearch×4 Write×4 TaskList×1 TaskStop×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/cc_doublegrant_probe.sh
+- /src/mxfs/tests/cc_inode_timeline.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/cc_dirgrow_probe.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/tests/cc_minrepro.sh
+- /src/mxfs/tests/cc_reuse_scoped.sh
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_buf.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for f in .claude/settings.json .claude/settings.local.json ~/.claude/settings.json; do echo "=== $f ==="; [ -f "$f" ] && grep -A15 -iE '"Stop"|Sto
+    grep -n -iE 'background command still running|still running|keepgoing|def keepgoing|background' /home/steve/.local/bin/ccloop 2>/dev/null | head -25
+    file /home/steve/.local/bin/ccloop 2>/dev/null; echo "---"; grep -rn -iE 'still running|background' /home/steve/.local/bin/ccloop* 2>/dev/null | head; echo "===
+    grep -rn -iE 'still running|Background command|keepgoing|pgrep|pidof|psutil|/proc' /home/steve/.local/bin/ccloop 2>/dev/null | head -30
+    TD=/tmp/claude-1000/-src-mxfs/652e2825-9fd6-4524-b123-69b554348b0b/tasks; echo "=== task files (newest last) ==="; ls -lt --time-style=+%H:%M $TD/*.output 2>/de
+    TD=/tmp/claude-1000/-src-mxfs/652e2825-9fd6-4524-b123-69b554348b0b/tasks; echo "=== bwu102ypx.output content ==="; cat $TD/bwu102ypx.output 2>/dev/null | head; 
+    jobs -l 2>/dev/null; echo "jobs: $(jobs 2>/dev/null | wc -l)"; echo "my-session test/loop/watch procs: $(ps -u "$(id -un)" -o args 2>/dev/null | grep -ivE 'grep
+    grep -n -iE "keepgoing|'Wait|\"Wait|Background command|def cmd_|sys.argv" /home/steve/.local/bin/ccloop 2>/dev/null | head -30
+    sed -n '1,20p' /home/steve/.local/bin/ccloop 2>/dev/null; echo "=== find the real module ==="; python3 -c "import ccloop, inspect, os; print(os.path.dirname(ins
+    D=/home/steve/.local/lib/python3.12/site-packages/ccloop; grep -rn -iE "Background command|still running|Wait\." $D/*.py 2>/dev/null | head -20
+    sed -n '200,290p' /home/steve/.local/lib/python3.12/site-packages/ccloop/keepgoing.py
+    TD="/tmp/claude-$(id -u)/-src-mxfs/652e2825-9fd6-4524-b123-69b554348b0b/tasks"; echo "before: $(ls $TD/*.output 2>/dev/null | wc -l) .output files"; rm -f $TD/*
+    cd /src/mxfs; grep -rn 'b_mxfs_dir_gen' xfs/xfs_buf.h pal/*/xfs_buf.h xfs/*.h 2>/dev/null | grep -iE 'struct|;.*gen|__u|uint' | head; echo "=== declaration site
+    cd /src/mxfs; grep -n 'dir_stamp_fresh\|b_mxfs_dir_gen =\|b_mxfs_dir_gen=\|dir_gen_snap' xfs/libxfs/xfs_da_btree.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE '\berror\b|error:|undefined|implicit' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    while pgrep -f 'make modules' >/dev/null 2>&1; do sleep 5; done; cd /src/mxfs; echo "build done"; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== error
+    cd /src/mxfs; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo "=== build errors in output ==="; grep -iE 'error:|Error [0-9]|undefined' /tmp/claude-1000/-sr
+    cd /src/mxfs; timeout 90 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'bash /src/mxfs/tests/setup/prep_fs.sh' 2>&1 | grep -E 'FS_PREP_OK|FAIL'|tail -1 timeo
+    cd /src/mxfs; for n in test1 test2; do timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg --clear' 2>/dev/null; done echo "=== cc_blockdir_probe 30 
+    while pgrep -f cc_blockdir_probe >/dev/null 2>&1; do sleep 15; done; cat /tmp/claude-1000/-src-mxfs/652e2825-9fd6-4524-b123-69b554348b0b/tasks/bneudyd99.output
+
+## Last text from previous session
+
+arn alongside:
+The safe rule: invalidate only when `b_mxfs_dir_incarn != 0 && != current i_generation` — a never-stamped (0) freshly-init'd block is treated as not-ABA, so missed stamp sites can't cause data loss. Let me add the read-path stamp at line 3435:
+Now update the read-hook compare to use the safe incarn rule (alongside the owner check). Let me view and edit the condition:
+Now add the safe incarn-ABA check that bypasses the undestaged-in-AIL keep-guard (but keeps the dirty/pinned/delwri corruption guards):
+Now extend the modify-path evict (`mxfs_dir_evict_data_blocks`) for the owned_ex create RMW. Let me view its `undurable` computation:
+Both the read-path (`!owned_ex` reads) and the modify-path evict (owned_ex create RMW) now handle the incarn-ABA case. There's a residual concern about xfsaild flushing the lingering prior-incarnation BLI, but the test is the arbiter. Let me build:
+Build clean: `17DCD050`. Deploy and test:
+Both on `17DCD050`. Let me run the fast reuse probe (which reliably loses) and check for the loss + P15 detector engagement:
+Still loses (iter 16), and critically **P15-INCARN fired 0× on both nodes** — my same-inode-reuse i_generation discriminator never engaged. So either XFS isn't bumping di_gen on the reuse as I assumed, the reading node's in-core i_generation is stale, or the buffer is read via a path that bypasses my stamp. DIR-STALE-SKIP also dropped to ~0, so the loss may route differently than I modeled. Let me record this result and instrument the actual incarn values.
+The incarn fix is safe but never engaged — I need to see the actual incarn vs i_generation values at the clobber. Let me add those values to the evict-path skip log (the owned_ex create-RMW path) and reproduce. Let me find P-EVICT-SKIP:
+I've reached the ccloop relay boundary. Let me wrap up with a summary.
+
+## Session 15 summary — relay handoff
+
+**Criterion `./run.sh 2 tcp` 100% — NOT met.** Full suite is **15/16 PASS; crash_consistency the sole blocker (1/2 nodes)**.
+
+### What this session achieved
+Turned the long-standing "block-dir dirent loss" into a **precise, instrumented root cause** and a sound (but not-yet-converged) fix attempt:
+
+1. **Root proven** (RULE 4): crash_consistency loses dirents via **DIR-STALE-SKIP** — a stale dir DATA block (`buf_gen=0` vs `inode_gen`), **in-AIL + "undestaged"**, preserved by the keep-guard and used as a previous-incarnation RMW base. Proven (2×2 probe matrix) the loss **requires inode/daddr REUSE + tight timing**, which is exactly why crash_consistency passes standalone but fails in-suite.
+
+2. **Refuted** (won't be re-chased): master double-grant (P-DOUBLEGRANT=0), mastership flap, MHT window, sf_merge, clean-block evict (`dir_force_evict`), and cross-inode ABA owner-mismatch (same-inode reuse, owner matches). GPT-5.5 consulted.
+
+3. **Fix attempt** (build `17DCD050`, deployed, net-neutral/no-regression): added a buffer-level incarnation stamp (`b_mxfs_dir_incarn` = `i_generation`) with a safe ABA-invalidation rule in both the read-hook and the evict path. **Result: it did NOT fix the loss — P15-INCARN fired 0×**, meaning the `i_generation` discriminator never differed. The just-added instrumentation (incarn/cur_gen/buf_gen on P-EVICT-SKIP) will reveal why on next reproduction — candidates: di_gen doesn't bump on dir reuse, stale in-core i_generation on the reader, the stale buffer is populated via a stamp-bypassing path, or the clobber vector is the lingering prior-incarnation in-AIL BLI being flushed by xfsaild (needs binval/`xfs_buf_stale`, not just XBF_DONE clear).
+
+Everything is recorded in memory: `sess15-HEAD-status`, `sess15-PIVOTAL-loss-requires-inode-daddr-reuse`, `sess15-FIX-DESIGN-buffer-incarnation-stamp`, and `sess15-incarn-fix-implemented-but-0-fire`. Cluster is healthy (2/2 mounted, `17DCD050`); reuse-matrix probes and detectors are in-tree. The next session should build the pending instrumentation edit, reproduce, read the incarn values, and converge the discriminator.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

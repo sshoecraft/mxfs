@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 36 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 35
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `a0270ebb-3be7-4068-9f71-b53b605c32e3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a0270ebb-3be7-4068-9f71-b53b605c32e3.jsonl`
+- approx context at last assistant turn: 161473 tokens
+- tools used: Bash×19 Read×11 Edit×4 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/faceb_trace.sh
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; cat SUCCESS_CRITERIA.md 2>/dev/null; echo "=== .ccloop criteria-met? ==="; cat .ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met 2>/d
+    cd /src/mxfs; echo "=== .criteria_results.json ==="; cat .criteria_results.json 2>/dev/null | python3 -m json.tool 2>/dev/null | head -80; echo "=== state.md he
+    cd /src/mxfs; sed -n '50,120p' state.md
+    cd /src/mxfs; grep -n 'P-SFDIR-FASTEX\|mxfs_dlm_ilock_begin\|i_dlm_mode\|deferred.*BAST\|defer_bast\|i_dlm_dir_gen\|mxfs_dir_drain_evict\|mxfs_dir_evict_data_bl
+    cd /src/mxfs; echo "=== local build srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion; P=/tmp/.mxfs_pass; ls -la "$P" 2>/dev/null && echo "pass fil
+    cd /src/mxfs; sed -n '1,80p' tests/faceb_stress.sh
+    cd /src/mxfs; echo "=== build ==="; timeout 580 make modules 2>&1 | grep -aiE 'error|warning|Building|LD .*mxfs|undefined|P-DIR-SEQ' | head -30; echo "rc=${PIPE
+    cd /src/mxfs; grep -rn 'i_dlm_pin_count\|i_dlm_mode;\|i_dlm_state;\|i_dlm_dir_gen;' xfs/xfs_inode.h xfs/*.h 2>/dev/null | grep -iE 'int|u8|u16|u32|u64|atomic' |
+    cd /src/mxfs; echo "=== remount cluster (deploys D3AA5D30) ==="; timeout 480 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanent
+    cd /src/mxfs; echo "=== verify build live ==="; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" 'cat /sy
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "=========== $n P-DIR-SEQ for ino=2097280 ==========="; timeout 20 bash tools/mxfs_ss
+    cd /src/mxfs; P=/tmp/.mxfs_pass; D=/mnt/shared/.faceb/it1; for n in test1 test2 test3 test4; do echo -n "$n sees $D inode: "; timeout 12 bash tools/mxfs_sshpass
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test2 test3; do echo "=== $n: ANY P-DIR-SEQ (any ino)? + ilock_try/EVICT/RELOAD events ==="; timeout 15 bash tools/mxf
+    cd /src/mxfs; P=/tmp/.mxfs_pass; MNT=/mnt/shared; D=$MNT/.seqtest; echo "=== test1 makes dir, clear dmesg all ==="; timeout 20 bash tools/mxfs_sshpass.sh test1 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; MNT=/mnt/shared; D=$MNT/.faceb2/it1 echo "=== test1 makes dir + sync ===" timeout 20 bash tools/mxfs_sshpass.sh test1 "$P" "rm 
+    cd /src/mxfs; timeout 560 bash tests/faceb_trace.sh 12 40 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized|authorized' | head -70
+    cd /src/mxfs; grep -n 'P88\|ag_held\|bnobt\|b_ops ==\|dir3_data\|dir3_block\|xfs_dir3_data_buf_ops\|write_verify\|b_mxfs_dir_gen\|mxfs.*dir.*write' pal/linux/xf
+    cd /src/mxfs; grep -n 'mxfs_ag_buf_disk_differs\|mxfs_pal_scsi_read_fua_bdev\|int mxfs_ag_buf_disk_differs' pal/linux/xfs_buf.c | head; echo "==="; sed -n '/^.*
+    cd /src/mxfs; P=/tmp/.mxfs_pass; DINO=12583040; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" "echo \"
+
+## Last text from previous session
+
+g is racy, and my per-file stderr capture slowed creates enough to serialize them. The harness's raw tight loop creates more overlap. Let me write a focused looping reproducer that captures each node's dir-inode + create-phase EX-event count *synchronized with the failure*:
+Now I have rich evidence. This run shows true **cached divergence**: nodes disagree (test2 sees n1=32/n2=40; test1 sees n1=40/n2=9). All nodes DID cycle EX correctly (FASTEX~38, EX-ACQSLOW~3, REL=3). So the lock protocol works — the bug is that a node's cached dir block isn't reliably refreshed to the peer's durable image, and on-disk entries get lost. DIR-STALE-SKIP fired 10× on test1/test2 (the divergent nodes).
+
+I need the decisive write-side detector the previous session said was missing: at dir-block write, FUA-read the on-disk block and check if the block we're about to write is *missing dirents the disk has* (= clobber) vs benign. Let me find the dir-block write path:
+Let me read the P88 write-hook region to model a dir-block clobber detector on it:
+Let me check whether the drain-evict at acquire actually evicted or skipped, from the last failing run's dmesg:
+Critical new finding: the stale unrefreshable block is `blk=8388608` — the **dir2 leaf (hash index) block**, not a data block. drain-evict handles data blocks but the leaf stays stale+pinned (DIR-STALE-SKIP on it). And nodes genuinely diverge. Let me build the decisive write-side clobber detector (the piece sess73/74 said was missing): at dir-block write, FUA-read the on-disk block and count active dirents in both. Let me see where P88 ends and what dir2 helpers are available:
+The leaf insight is key: the stale-unrefreshable block is `blk=8388608` (the dir2 **leaf/hash-index** block), pinned by own work. drain-evict skips it (done=0 at acquire; loaded+pinned later). Let me check whether the durability-wait and evict machinery even cover the leaf block, or only data blocks:
+I've hit the relay boundary. Let me record the decisive new findings to state.md before wrapping up.
+## Summary (sess75)
+
+I made decisive diagnostic progress on the sole remaining `cache_coherency` blocker (Face B, shared-dir lost-update), following RULE 4 (instrument → prove, don't guess-patch).
+
+**What I did:**
+1. Added always-on `P-DIR-SEQ` lock-event tracing (FASTEX / EX-ACQ-SLOW / PR-ACQ-SLOW / REL for dir inodes) — build `D3AA5D30`, deployed to all 4 nodes.
+2. Wrote `tests/faceb_trace.sh` — a focused reproducer that dumps each node's per-inode dir-DLM event counts + cached view synchronized with the failure (reproduces on iter 1).
+
+**Key results (these change the picture materially):**
+- **Refuted sess74's core conclusion.** sess74 said "one node monopolizes dir EX forever, never releases." That was a single-run artifact. With real concurrency, the DLM lock protocol **cycles correctly across all 4 nodes** (symmetric ~38 fast-path + ~3 slow-path EX acquires + 3 releases each). Not a deferred-BAST/monopoly bug — don't chase the fast-path-re-grant theory.
+- **Nodes genuinely diverge** in cached dir view (e.g. test1 sees n1=40/n2=9; test2 sees n1=32/n2=40) → real on-disk lost update + stale cached reads. The divergent nodes are exactly the ones with `DIR-STALE-SKIP>0`.
+- **Localized the stale-unrefreshable block to the dir2 LEAF / hash-index block** (`blk=8388608`), not a data block. It stays stale because every refresh path (acquire drain-evict, release evict, read-hook) must skip it while it's transiently pinned by the node's own CIL-unpin tail. A stale leaf misses a peer's later-added name hashes → lookups miss exactly those names (matches the observed contiguous-suffix loss).
+
+**Status:** cache_coherency still FAIL, rsync_paired still FAIL (PASS=10/12). Criteria **not met** — marker not written. Full sharpened diagnosis + next-step plan (write-side leaf-clobber detector to prove direction; then a leaf-specific drain/refresh fix or a RULE-5 Gemini consult with the much sharper diagnosis) recorded at the top of `state.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

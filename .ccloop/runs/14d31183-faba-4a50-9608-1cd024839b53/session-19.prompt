@@ -1,0 +1,144 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 19 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 18
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `94f6cd60-94a4-4b7a-911c-650589bbd6f9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/94f6cd60-94a4-4b7a-911c-650589bbd6f9.jsonl`
+- approx context at last assistant turn: 250222 tokens
+- tools used: Bash×105 Edit×35 Read×17 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_log.c
+- /src/mxfs/xfs/xfs_log.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/criteria/crash_consistency.sh
+- /src/mxfs/tests/criteria/lib.sh
+- /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; time timeout 210 tests/criteria/fence_during_write.sh --nodes 4 2>&1 | tail -2
+    cd /src/mxfs; python3 -c " import json d=json.load(open('.criteria_results.json')) for k,v in sorted(d.items()):     print(f\"{k:28s} {v.get('result','?'):5s} {
+    cd /src/mxfs; python3 -c " import json d=json.load(open('.criteria_results.json')) print(json.dumps(list(d.items())[0], indent=1)[:500])"
+    cd /src/mxfs; python3 -c " import json d=json.load(open('.criteria_results.json')) for k,v in sorted(d.items()):     print(f\"{k:24s} {v['status']:5s} {v['last_
+    cd /src/mxfs; cat SUCCESS_CRITERIA.md
+    cd /src/mxfs; grep -E 'run_criterion|\.sh' tests/criteria/verify_ship.sh | grep -v '^#' | head -30
+    cd /src/mxfs; time timeout 330 tests/criteria/scaling_curve.sh --nodes 16 2>&1 | tail -3
+    cd /src/mxfs; sed -n '1,60p' tests/criteria/scaling_curve.sh
+    cd /src/mxfs; sed -n '60,130p' tests/criteria/scaling_curve.sh
+    cd /src/mxfs; cnt=0; for i in $(seq 1 16); do ip=$(getent hosts test$i.vm.localdomain | awk '{print $1}'); r=$(timeout 6 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxf
+    cd /src/mxfs; time timeout 330 tests/criteria/scaling_curve.sh --nodes 16 2>&1 | tail -7
+    cd /src/mxfs; for i in 1 2 3; do ip=$(getent hosts test$i.vm.localdomain | awk '{print $1}'); echo -n "test$i: "; timeout 6 ./tools/mxfs_sshpass.sh "$ip" /tmp/.
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); time timeout 35 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'fuser -k /mnt/shared 2>
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 20 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'umount /mnt/shared; echo "um
+    cd /src/mxfs; timeout 75 scripts/cluster_reset_n.sh 16 2>&1 | tail -1
+    cd /src/mxfs; time timeout 330 tests/criteria/scaling_curve.sh --nodes 16 2>&1 | grep -E 'stage=|RESULT'
+    cd /src/mxfs; for i in 1 2; do ip=$(getent hosts test$i.vm.localdomain | awk '{print $1}'); echo "=== test$i ==="; timeout 8 ./tools/mxfs_sshpass.sh "$ip" /tmp/
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 12 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'dmesg | tail -6; echo ---; c
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 10 ./tools/mxfs_sshpass.sh "$ip" /tmp/.mxfs_pass 'cat /tmp/mkfs.log 2>/dev/nul
+    cd /src/mxfs; ls tools/mkfs_mxfs 2>&1; make tools 2>&1 | tail -3; ls -la tools/mkfs_mxfs tools/chk_mxfs 2>&1
+
+## Last text from previous session
+
+n. First, loading the design memory and checking current state.
+All three sess17 edits are in place. Now reading the code sites needed for the remaining four edits:
+`VERSION` file holds 0.4.11. Now checking the xfs_super.c teardown contexts so the replay work item can be safely cancelled at unmount:
+Now the v5_mount dead-node notify plumbing:
+Now v5_mount.c: struct fields, setter, and the election + invoke in `v5_lease_expire_cb`:
+Now the xfs_mount fields:
+Now the work handler and registration in xfs_mxfs_dlm.c:
+Now the cancel sites in xfs_super.c:
+Bumping VERSION and building:
+Clean build confirms the same srcversion. Now deploying. First recreate the password file and check cluster state:
+All 16 nodes on `F0ED00DD` in 35s. Running the crash_consistency criterion at 4 nodes (210s budget):
+Still failing with READER_NO_FILE. Checking whether replay ran this time:
+Wrong sed window. Pulling the precise replay window:
+Implementing the plumbing now — disklock threshold field + setter:
+Now making all the edits:
+Now the module param in xfs_super.c and dlm_opts fill:
+Now fix the criterion script to pass the real param name:
+All nodes receive the opts. Building and re-running:
+Still failing. Checking whether detection now fires at 16s and what the reader saw:
+Param plumbing works when tested directly. So why didn't it apply in the run? Checking lib.sh's transport/module defaults:
+Also hardening the harness: ensure insmod can't silently no-op on an already-loaded module (which swallows params):
+**crash_consistency: PASS** — acked=110, visible=110, bad=0, wall 107s (budget 210s). Verifying the mechanism actually fired as designed (not a coincidental pass):
+fence_during_write: PASS (lost=0, 149s). Checking the overall gate status to plan what remains:
+Timeout = FAIL per RULE 0. Diagnosing where scaling_curve stalled:
+`rc=7` — umount fails fast (not a hang). Checking why:
+Session 18 summary — **crash_consistency is FIXED and PASSING**, plus two major test-infra defects found and fixed:
+
+**v0.5.0 foreign-slice replay completed and verified (build `CB1C5FEF`).** Finished sess17's design: orchestrator `mxfs_xlog_recover_foreign_slice` in xfs_log.c (shadow xlog over the dead slice, private dummy AIL, slice = HB slot **% node_count** — the raw-slot version silently no-op'd on the first deploy), `xlog_dealloc_log` guard so the shadow can't NULL the live `mp->m_log`, lowest-live-slot election in disklock, dead-node notify callback through v5_mount, and a work-queue handler in xfs_mxfs_dlm.c with flush-before/after and unmount-time `cancel_work_sync`.
+
+**Root cause of the remaining FAILs was the test knob, not the replay:** the `mxfs_lease_timeout_ms`/`mxfs_lease_duration_ms` params the criterion has always passed **never existed in the tree** — insmod silently ignores them, so death detection was hardcoded at 31×2s = 62s while the script waits 60s. Added a real `lease_timeout_ms` module param plumbed to the disklock dead threshold, plus an insmod-time param echo. Also fixed lib.sh to rmmod before insmod (an already-loaded module silently swallows INSMOD_OPTS). Result: detection at kill+16s, replay in 160ms, **crash_consistency PASS ×3** (2-node 123/123, 4-node 110/110 and 106/107), and **fence_during_write PASS** (lost=0).
+
+**scaling_curve timeouts root-caused as infra:** my `make clean` had wiped `tools/mkfs_mxfs` and `fresh_cluster_mount` never checked `MKFS_OK` — mkfs failed silently and every "fresh" cluster reused the previous filesystem, turning stage 2 into a cross-node unlink storm (rm wedged 275s in `xlog_wait_on_iclog`). Tools rebuilt, lib.sh now hard-fails without MKFS_OK.
+
+**Not done — criteria marker not written.** Remaining: clean reset, re-run scaling_curve (stage 1 measured healthy at 10.1s) and posix_semantics --nodes 16, watch for the test1 log-wedge recurring on a clean run, then the single end-to-end `verify_ship.sh` green run that the gate requires. Both ccmemory entries (`sess18-*`) carry the full state for the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

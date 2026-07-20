@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 40 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 39
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `89921f68-beee-4f09-81a1-1697a4fa7dbb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/89921f68-beee-4f09-81a1-1697a4fa7dbb.jsonl`
+- approx context at last assistant turn: 155541 tokens
+- tools used: Bash×42 Read×13 Edit×4 ScheduleWakeup×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sleep 180; echo "=== rsync log tail ==="; tail -15 /tmp/claude-1000/-src-mxfs/89921f68-beee-4f09-81a1-1697a4fa7dbb/tasks/bvyfunmv8.output 2>/dev/null
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for i in $(seq 1 20); do for n in test3 test4 test1 test2; do hit=$(timeout 8 bash tools/mxfs_sshpass.sh "$n" "$P" 'dmesg | gre
+    echo "=== watcher output ==="; cat /tmp/claude-1000/-src-mxfs/89921f68-beee-4f09-81a1-1697a4fa7dbb/tasks/bxrwnnzpf.output 2>/dev/null | head -40; echo "=== rsyn
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh "$n" "$P" 'm=$(mount|grep -c /mnt/sh
+    cd /src/mxfs; grep -n 'mxfs_ag_meta_invalidate_stale\|XFS_LI_IN_AIL\|in_ail\|in-AIL\|IN_AIL' xfs/xfs_mxfs_dlm.c | head -30
+    cd /src/mxfs; grep -n 'mxfs_ag_meta_invalidate_stale\|ag_meta_invalidate\|invalidate_stale\b' xfs/xfs_mxfs_dlm.c xfs/libxfs/xfs_alloc.c xfs/libxfs/xfs_btree.c |
+    cd /src/mxfs; grep -rn 'pag_dlm_meta_gen' xfs/ | grep -vE 'b_mxfs_ag_gen|P[0-9]|pr_warn|pr_info|//|/\*|\* ' | head -30
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for i in $(seq 1 40); do for n in test3 test4 test1 test2; do hit=$(timeout 8 bash tools/mxfs_sshpass.sh "$n" "$P" 'dmesg | gre
+    echo "=== rsync output ==="; tail -25 /tmp/claude-1000/-src-mxfs/89921f68-beee-4f09-81a1-1697a4fa7dbb/tasks/bvyfunmv8.output 2>/dev/null; echo "=== P28/P33 watc
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh "$n" "$P" 'm=$(mount|grep -c /mnt/sh
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 18 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo -n "mounted="; mount
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test4 corruption context ==="; timeout 25 bash tools/mxfs_sshpass.sh test4 "$P" 'dmesg | grep -aE "P28-INSTR|P33-INST
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test4: shutdown lines + surrounding ==="; timeout 25 bash tools/mxfs_sshpass.sh test4 "$P" 'dmesg | grep -anE "Corrup
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test4: first !ino_ok stack + context (lines 1240-1320) ==="; timeout 25 bash tools/mxfs_sshpass.sh test4 "$P" 'dmesg 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test4: lines 1280-1320 (rest of stack + which ino) ==="; timeout 25 bash tools/mxfs_sshpass.sh test4 "$P" 'dmesg | se
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== test1: state + does it see ino 0x1200081 (18874497)? ==="; timeout 25 bash tools/mxfs_sshpass.sh test1 "$P" 'echo -n 
+    cd /src/mxfs; grep -n 'cache_miss\|invalidate.*cluster\|stale cluster\|xfs_iget_cache_miss\|imap.*bp\|xfs_inode_from_disk\|XBF_FUA_FRESH\|xfs_imap_to_bp' xfs/xf
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error ' | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "=== try reset first ==="; MKFS_OPTS=-f timeout 200 bash tests/reset4.sh 4 2>&1 | grep -aviE 'Warning|Unauthorized|disconnect' | tail -6
+    cd /src/mxfs; for n in test1 test2 test3 test4; do timeout 30 sudo virsh destroy "$n" >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do timeo
+
+## Last text from previous session
+
+**Face B** (shortform-dir `!ino_ok`, inode=0) vs the prior **Face A** (bnobt double-free). Both are the same AG-double-alloc/coherency root. The decisive unanswered question per RULE 4: is inode 0x1200081's shortform dir **torn/stale-read** (read-coherency — disk is fine) or **durably corrupt** (write/double-alloc bug)? Let me find the sess38 cache-miss invalidation to build a FUA re-check probe at the verify failure.
+The sess38 fix already stales+FUA-re-reads the cluster for every multi-node cache-miss (lines 1142-1153), yet inode 0x1200081 still verified with inode=0. This points toward **durable on-disk corruption** (torn write or double-alloc clobber) rather than a simple stale cache-hit — but I must prove it. Let me add a decisive FUA-re-read probe at the verify-failure: re-read the cluster and check if it's *still* corrupt.
+Build clean — `4545A670`. Now reset the cluster (all nodes shut down) and reproduce. The shutdown FS will need VM restarts. Let me clean and deploy.
+Wedged again (shutdown FS). Restart all VMs, wait, redeploy.
+Reached the relay boundary. Wrapping up with state for the next session.
+
+## Session summary
+
+**Confirmed the prior session's sess78 TOCTOU/inactive fix is INSUFFICIENT** — corruption still reproduces under `rsync_paired`. But critically, I established the inactive guard *works correctly* (it fired 4× with `dlm_mode=5`/EX, skipping disk-free inodes), and the `P47-INACT inact_ino=131` field is **unreliable** (it reads a global "last inactivated inode," not the actual double-free victim).
+
+**Two distinct corruption faces of the same AG-double-alloc/coherency root:**
+- **Face A** (prior build): bnobt double-free `ltbno+ltlen>bno` via `xfs_defer_finish_noroll`.
+- **Face B** (this run, build `CF134111`): `Internal error !ino_ok at xfs_dir2.c:226` — `xfs_dir2_sf_verify` rejected **inode 0x1200081**'s shortform directory because an entry had **inode number 0x0**. Stack: `find` → stat → `xfs_lookup` → `xfs_iget` → `xfs_inode_from_disk` → `xfs_dir2_sf_verify`. All 4 nodes shut down.
+
+**Ruled out P88-on-write as the signal:** added a direction probe (disk numrecs/rec0 via FUA) to P88 — proved `disk_differs=1 in_ail=1` on bnobt writes is mostly the *normal* "flushing our own committed modification" case (both directions appear; gen IS bumped on fresh CAW acquire at xfs_mxfs_dlm.c:3716). P88 is too noisy to be the corruption signal.
+
+**The decisive open question (RULE 4):** is inode 0x1200081's shortform dir **torn/stale-read** (read-coherency — disk fine) or **durably corrupt** (write/double-alloc clobber)? The sess38 cache-miss invalidation (xfs_icache.c:1142) already FUA-re-reads every multi-node cluster, yet this still failed — leaning toward durable corruption, but unproven.
+
+**Built and ready to deploy: srcversion `4545A670E376DF08284DC2E`** — adds **P-SFV-FAIL** probe in `xfs_iget_cache_miss` (xfs_icache.c, right after `xfs_inode_from_disk`): on any multi-node verify failure, FUA-re-reads the cluster and prints `disk_differs` (1=torn/stale READ, 0=durable on-disk WRITE corruption). This single measurement determines whether the fix is read-side (invalidation) or write-side (double-alloc/durability) — and is exactly what's needed before a RULE-5 Gemini consult.
+
+**Next session:**
+1. VMs are mid-restart (just issued `virsh start` on all 4). Wait for boot, then `MKFS_OPTS=-f bash tests/reset4.sh 4` to deploy `4545A670`.
+2. Run `./tests/criteria/rsync_paired.sh --nodes 4 --iters 1`, watch dmesg for **P-SFV-FAIL disk_differs=**.
+3. If `differs=1` → read-coherency (stale cluster buffer survived); fix the invalidation/FUA gate for shortform-dir inodes. If `differs=0` → durable double-alloc; focus on AG-free-space write/durability + the dir-block/inode-cluster shared-daddr double-allocation (sess39 root).
+4. Strong RULE-5 candidate once the torn-vs-durable fact is in hand — ~40 sessions on this blocker, consult Gemini with the complete diagnosis + that measurement.
+
+Criteria **not met** — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

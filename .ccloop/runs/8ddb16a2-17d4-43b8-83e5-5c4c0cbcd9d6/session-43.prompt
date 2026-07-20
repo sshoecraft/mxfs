@@ -1,0 +1,138 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 43 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 42
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b89e50b7-1483-473a-bd96-4113d27b15cb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b89e50b7-1483-473a-bd96-4113d27b15cb.jsonl`
+- approx context at last assistant turn: 500643 tokens
+- tools used: Bash×124 Read×26 mcp__ccmemory__memory_get×9 Edit×7 mcp__ccmemory__memory_write×7 ToolSearch×3 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/drc_cap2.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== mxfs_inode_disk_di_size definition + signature ==="; grep -rnE "mxfs_inode_disk_di_size\(" xfs/ | grep -vE "extern|backup" | head; echo 
+    cd /src/mxfs; echo "=== P31E-DATAINIT-ABA in clean E8C6B4B6 run ==="; grep -c "P31E-DATAINIT-ABA" tests/_cap/test1.log tests/_cap/test2.log; echo "=== is P31E g
+    cd /src/mxfs; echo "=== includes in xfs_dir2_block.c ==="; grep -nE "#include.*(v5_mount|xfs_mxfs_dlm|xfs_inode\.h)|mxfs_v5_dlm_is_single_node" xfs/libxfs/xfs_d
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:" | head; echo "BUILD EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "build=$(modinfo mxfs.ko|awk '/srcversion/{print $2}')"; timeout 520 bash tests/drc_cap2.sh 2>&1 | tail -6
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; ps aux | grep -qE "[d]rc_cap2|[r]un.sh 2 tcp" && echo RUNNING || echo DONE; ps -eo etimes,cmd | grep -E "[t]imeout 520 bash tests/drc_cap2" | awk 
+    cd /src/mxfs; echo "=== round 15 RDMISS ==="; grep -hE "drc-RDMISS round=15" tests/_cap/test1.log tests/_cap/test2.log | grep -oE "round=15 rank=[0-9]+ readdir=
+
+## Last text from previous session
+
+ys-on (no-I/O) detector at the conversion entry.
+Let me verify xfs_dir2_block.c has the needed includes for the mxfs helpers, then build:
+Includes are present (v5_mount.h line 24). Let me build the non-perturbing P42-SFCONV detector.
+Build B8C2149E (held-check + non-perturbing P42-SFCONV detector). Let me deploy and run a capture to see if both nodes convert the same incarnation.
+Running in background. The decisive correlation: in a failing round, does ino=131's incarnation (i_gen) have a P42-SFCONV on BOTH nodes (double-conversion → block0 split)? Let me write the synthesis memory while it runs, connecting my clean findings to the sess36/37 lineage.
+Synthesis documented. The P42-SFCONV capture is the decisive non-perturbing test. Let me check its progress.
+46s, round 3, P42-SFCONV firing (detector works). Waiting for a failing round and completion.
+58s, round 4, clean so far. Waiting.
+71s, round 6, clean. Waiting for completion (or a failing round).
+83s, round 7, clean, test progressing normally (detector non-perturbing). Waiting for completion.
+95s, round 8, clean. Waiting.
+107s, round 9, clean. Waiting.
+121s, round 10, clean. Waiting for completion.
+127s, round 11, clean. Waiting.
+135s, round 12, clean. Waiting.
+146s, round 13, clean. Waiting.
+153s, round 13, clean. Waiting.
+163s, round 14, clean. Waiting.
+170s, round 15, clean. Waiting for completion.
+**Round 15 FAILED (1+1)** with P42-SFCONV data captured. Let me analyze it now (the round-15 data is already written). The decisive question: did BOTH nodes convert ino=131 for the same incarnation (i_gen)?
+I've reached the relay boundary. But this last query is **decisive**: on node1, round 15 (incarnation `i_gen=2915315106`) has **TWO P42-SFCONV conversions** — at `addname=node1_f12` (ts 31185.359) AND `addname=node1_f25` (ts 31191.408), SAME i_gen. **node1 converts shortform→block TWICE for the same incarnation.** The dir reverted block→shortform between f12 and f25, and node1 re-converted — re-initing block0 and zeroing node1_f1..f14. This non-perturbingly confirms the sess36 datainit-zero mechanism. Let me capture this and wrap up.
+## Session 42 summary — relay boundary
+
+**Criteria NOT met** (dir_reuse_coherency 2/tcp data loss persists). Marker NOT written.
+
+**Concrete wins (all in tree, build B8C2149E):**
+1. **Held-check stall fix (VERIFIED)** — `mxfs_v5_dlm_inode_held` was mode-blind (`>= EX`), false-negativing valid PR locks → P108 spurious-demote storm → 60s verify stall. Fixed with a mode-aware check. Proven: P108 re-acquires and P36-RETRY storm → **0**; 60s stall gone.
+2. **dmesg harness fix** — `drc_cap2.sh` now `dmesg -C` before `--follow`, ending the ring-buffer staleness trap that confounded timestamp correlation across many sessions. This made the rest of the diagnosis reliable.
+3. **P42-SFCONV detector** — non-perturbing (no disk I/O), always-on.
+
+**Decisive root cause (proven non-perturbingly this session):** the loss is a **double shortform→block conversion of the SAME dir incarnation**. Round 15 (clean capture): node1 ran `xfs_dir2_sf_to_block` TWICE for incarnation `i_gen=2915315106` (at node1_f12 and again at node1_f25). The dir reverts block→shortform mid-tenure (a stale reload adopting a shortform image that the sess90 size-drop guard fails to block), node1 re-converts, `xfs_dir3_data_init` re-zeroes block0 → **node1_f1..f14 lost**. This ties together and confirms the sess36 datainit-zero root + sess37 lineage. Refuted this session: DLM double-grant (P-DOUBLEGRANT=0), release-durability (C5BD4E04, reverted), P91-RELOAD-PROTECT.
+
+**Next fix (specified in ccmemory):** block the block→shortform reload revert for a multi-node dir with live block-format content (same incarnation), and/or refuse a second `sf_to_block` for an incarnation already block-format — so block0 isn't re-inited. Verify: `P42-SFCONV` shows no two same-`i_gen` lines AND drc-FAIL=0 over ≥3 runs.
+
+All findings saved to ccmemory (`sess42-*`). The relay continues from this clean diagnosis.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

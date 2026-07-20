@@ -1,0 +1,134 @@
+===== test1 FROZEN 19:54:44 =====
+
+
+### blocked tasks (D + S with stack) ###
+PID 1148 mxfs-worker st=S
+[<0>] inet_csk_accept+0x229/0x440
+[<0>] inet_accept+0x48/0xb0
+[<0>] kernel_accept+0x5b/0xc0
+[<0>] mxfs_pal_tcp_accept+0xa0/0xf0 [mxfs]
+[<0>] mxfs_peer_accept_fn+0x88/0x6c0 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1149 mxfs-worker st=S
+[<0>] mxfs_pal_cond_timedwait+0xd3/0x110 [mxfs]
+[<0>] disklock_hb_fn+0x542/0x980 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1150 mxfs-worker st=S
+[<0>] __skb_wait_for_more_packets+0x139/0x1a0
+[<0>] __skb_recv_udp+0x206/0x330
+[<0>] udp_recvmsg+0x90/0x5a0
+[<0>] inet_recvmsg+0x121/0x140
+[<0>] kernel_recvmsg+0xf1/0x120
+[<0>] mxfs_pal_udp_recvfrom+0xc5/0x160 [mxfs]
+[<0>] mxfs_discovery_recv_fn+0xc0/0x460 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1151 mxfs-worker st=S
+[<0>] mxfs_pal_cond_timedwait+0xd3/0x110 [mxfs]
+[<0>] mxfs_discovery_send_fn+0xdf/0x110 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1152 mxfs-worker st=S
+[<0>] mxfs_pal_cond_timedwait+0xd3/0x110 [mxfs]
+[<0>] mxfs_lease_renew_fn+0x1f5/0x270 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1153 mxfs-worker st=S
+[<0>] mxfs_pal_cond_timedwait+0xd3/0x110 [mxfs]
+[<0>] mxfs_lease_monitor_fn+0x255/0x2b0 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1154 mxfs-worker st=S
+[<0>] __skb_wait_for_more_packets+0x139/0x1a0
+[<0>] __skb_recv_udp+0x206/0x330
+[<0>] udp_recvmsg+0x90/0x5a0
+[<0>] inet_recvmsg+0x121/0x140
+[<0>] kernel_recvmsg+0xf1/0x120
+[<0>] mxfs_pal_udp_recvfrom+0xc5/0x160 [mxfs]
+[<0>] mxfs_lease_udp_recv_fn+0x127/0x250 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1157 xfsaild/sda st=S
+[<0>] xfsaild+0x617/0xea0 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+PID 1161 mxfs-worker st=S
+[<0>] wait_woken+0x5f/0x70
+[<0>] sk_wait_data+0x180/0x1a0
+[<0>] tcp_recvmsg_locked+0x219/0x9e0
+[<0>] tcp_recvmsg+0x84/0x200
+[<0>] inet_recvmsg+0x54/0x140
+[<0>] kernel_recvmsg+0xf1/0x120
+[<0>] mxfs_pal_tcp_recv+0xc8/0x120 [mxfs]
+[<0>] mxfs_peer_recv_fn+0x142/0x340 [mxfs]
+[<0>] kthread_fn_wrapper+0x23/0x50 [mxfs]
+[<0>] kthread+0xf2/0x120
+[<0>] ret_from_fork+0x47/0x70
+[<0>] ret_from_fork_asm+0x1b/0x30
+--
+### dmesg tail ###
+[  638.074799] mxfs: mxfs: P-DIRFLUSH ino=132 count=3 i8=0 own=1 first=[node1_file1] realns=1781484820818554062
+[  638.076354] mxfs: P128-REARM-UNPUB ino=136 dlm_mode=5 — cache-hit CREATE on reused inode, deferred-publish re-armed
+[  638.077014] mxfs: mxfs: P-DIRFLUSH ino=132 count=4 i8=0 own=1 first=[node1_file1] realns=1781484820820769111
+[  638.078545] mxfs: P128-REARM-UNPUB ino=137 dlm_mode=5 — cache-hit CREATE on reused inode, deferred-publish re-armed
+[  638.078868] mxfs: mxfs: P-DIRFLUSH ino=132 count=5 i8=0 own=1 first=[node1_file1] realns=1781484820822623513
+[  638.080311] mxfs: P128-REARM-UNPUB ino=138 dlm_mode=5 — cache-hit CREATE on reused inode, deferred-publish re-armed
+[  638.080609] mxfs: mxfs: P-DIRFLUSH ino=132 count=6 i8=0 own=1 first=[node1_file1] realns=1781484820824364707
+[  638.082134] mxfs: P128-REARM-UNPUB ino=139 dlm_mode=5 — cache-hit CREATE on reused inode, deferred-publish re-armed
+[  638.082415] mxfs: mxfs: P-DIRFLUSH ino=132 count=7 i8=0 own=1 first=[node1_file1] realns=1781484820826170579
+[  638.083942] mxfs: P128-REARM-UNPUB ino=140 dlm_mode=5 — cache-hit CREATE on reused inode, deferred-publish re-armed
+[  638.084179] mxfs: mxfs: P-DIRFLUSH ino=132 count=8 i8=0 own=1 first=[node1_file1] realns=1781484820827934691
+[  638.085753] mxfs: P128-REARM-UNPUB ino=141 dlm_mode=5 — cache-hit CREATE on reused inode, deferred-publish re-armed
+[  638.086047] mxfs: mxfs: P-DIRFLUSH ino=132 count=9 i8=0 own=1 first=[node1_file1] realns=1781484820829802022
+[  638.089135] xfs_da_read_buf: 260 callbacks suppressed
+[  638.089139] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.089162] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.089173] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.090684] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.090704] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.090722] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.092112] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.092132] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.092142] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  638.093443] mxfs: DIR-STALE-SKIP ino=132 blk=0 buf_gen=0 inode_gen=2 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.484058] mxfs: mxfs: DLM inode lock failed: ino=132 mode=3 rc=-110
+[  701.538898] mxfs: P62-RELOAD-FORK-SHRINK ino=132 incore_fmt=2 incore_nx=1 incore_size=4096 disk_fmt=2 disk_nx=2 disk_size=4096 shrink=0 in_ail=0 pin=0
+[  701.539075] mxfs: mxfs DLM cache: hit=3790 miss=225 (94%) bast: imm=8 def=5 noino=0 ag: acq=5 nest=553 rel=1 fua: ino=0 dir=0 agm=0 ino_skip=0
+[  701.539576] mxfs: P62-RELOAD-FORK-SHRINK ino=132 incore_fmt=2 incore_nx=2 incore_size=4096 disk_fmt=2 disk_nx=2 disk_size=4096 shrink=0 in_ail=0 pin=0
+[  701.589187] xfs_da_read_buf: 65 callbacks suppressed
+[  701.589191] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.590618] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.592022] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.593697] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.595293] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.596705] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.598079] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.599736] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.601195] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  701.602565] mxfs: DIR-STALE-SKIP ino=132 blk=1 buf_gen=0 inode_gen=4 flags=0x20 dirty=0 in_ail=0 pin=1 delwri=0 disk_differs=-2 pincnt=1 hold=3 has_bli=1 li_empty=1 bli_flags=0x2
+[  703.687285] mxfs: P62-RELOAD-FORK-SHRINK ino=132 incore_fmt=2 incore_nx=3 incore_size=8192 disk_fmt=2 disk_nx=3 disk_size=8192 shrink=0 in_ail=0 pin=0

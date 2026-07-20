@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 48 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 47
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `138940aa-4e27-4669-9083-92212fb2ad17`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/138940aa-4e27-4669-9083-92212fb2ad17.jsonl`
+- approx context at last assistant turn: 259684 tokens
+- tools used: Bash×74 Read×28 Edit×7 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess81_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== callers of mxfs_v5_dlm_ag_unlock ==="; grep -n "mxfs_v5_dlm_ag_unlock\|drain_meta_buffers\|drain_alloc_buflist\|drain_inode_buffers\|blk
+    cd /src/mxfs; grep -nE "mxfs_v5_dlm_ag_unlock\(" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 15 $SSH ${n}.vm.localdomain $P "
+    cd /src/mxfs; grep -rn "P29-INSTR\|bunmapi-entry\|mxfs_dbg_inactive_ino\|mxfs_dbg_disk_di_mode" xfs/*.c xfs/libxfs/*.c | head
+    cd /src/mxfs; grep -rn "bunmapi-entry\|P29-INSTR\|ext\[0\]" xfs/ | head
+    cd /src/mxfs; grep -n "di_format\|di_nextents\|di_big_nextents\|XFS_DFORK_DPTR\|XFS_DFORK_PTR\|xfs_bmbt_disk_get_all\|XFS_DFORK_NEXTENTS" xfs/libxfs/xfs_format.
+    cd /src/mxfs; grep -nE "xfs_bmap_btree.h|xfs_inode_fork.h|xfs_format.h|xfs_bmap.h" xfs/xfs_mxfs_dlm.c | head; echo "=== build ==="; make modules 2>&1 | grep -iE
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error" | head; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 560 bash tests/reset4.sh 4 2>&1 | tail -3
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 20 $SSH ${n}.vm.localdomain $P "mountpoint -q /mnt/mxfs
+    cd /src/mxfs; MXFS_NODE_OFFSET=16 timeout 220 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_unlink_visibility --pass-file /tmp/.mxfs_pass --devi
+    sleep 60; cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/138940aa-4e27-4669-9083-92212fb2ad17/tasks/bpcurgv5s.output; grep -vE "Warning: Permanently|Unauthorized|di
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/138940aa-4e27-4669-9083-92212fb2ad17/tasks/bpcurgv5s.output; until grep -qiE "Results: 1|not all nodes|RESULT|Time:" 
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/138940aa-4e27-4669-9083-92212fb2ad17/tasks/bpcurgv5s.output; grep -vE "Warning: Permanently|Unauthorized|disconnect|^
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/138940aa-4e27-4669-9083-92212fb2ad17/tasks/bpcurgv5s.output; tail -25 $O | grep -vE "Warning: Permanently|Unauthorize
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo "===== $n ====="; timeout 15 $SSH ${n}.vm.localdomain $P "
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test3; do echo "===== $n ====="; timeout 15 $SSH ${n}.vm.localdomain $P "cat /sys/mod
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 15 $SSH test3.vm.localdomain $P "dmesg 2>/dev/null | grep -nE 'Internal error|Corruption|ltb
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 15 $SSH test3.vm.localdomain $P "dmesg 2>/dev/null | sed -n '/5381.185498/,/Please unmount/p
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== node states ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 $SSH ${n
+
+## Last text from previous session
+
+edged. test3 also shut down (`xfs_trans_cancel`). Let me check what module test1 actually loaded and grep P81 directly.
+The 107s crash on test1 is stale (previous boot/module). This run, **test3** shut down at high timestamp via a *different* path (`xfs_trans_cancel:1061`), not the bnobt:2244 path — so P81 didn't fire. Let me get test3's actual crash trace from this run.
+This run test3 shut down via `xfs_trans_cancel` from `xfs_remove` (unlink) — a transaction cancelled while dirty, likely because a free/alloc op returned EFSCORRUPTED mid-unlink. Let me see test3's full call trace.
+This run hit a different corruption signature (`xfs_trans_cancel` in `xfs_remove`, not the bnobt:2244 path), so P81 didn't fire — the manifestation is stochastic. I need the bnobt:2244 path to fire on the new module. Let me also broaden the probe to the P29 bunmapi-entry point so it captures on-disk-vs-incore extent for every inactivation regardless of crash signature. First let me recover the cluster.
+I've hit the relay boundary. Let me broaden the P81 probe to the always-on P29 inactivation site (so the next session captures the decisive on-disk-vs-incore extent data regardless of which crash signature fires), then record findings.
+The secondary edit isn't matching the whitespace and I'm at the relay boundary — I'll leave it (the primary P81 probe at the alloc:2244 site is already built into D8F43418 and deployed). The tree still builds clean (D8F43418). Let me record findings for the next session.
+Let me add the index pointer to MEMORY.md, then summarize.
+MEMORY.md is already over its size limit, so I'll keep the new index entry short.
+Wrapping up at the relay boundary. Criteria are **not** met — `cache_coherency` still fails (`passed=2 failed=2`), so no marker written. We are **not ready to ship**.
+
+## What this session established
+
+**Status:** 15/16 ship criteria PASS. The lone blocker is `cache_coherency` — specifically `unlink_visibility` triggers a **filesystem shutdown** on a node, which also takes out `cross_write_read`.
+
+**The blocker is now fully traced** (the 7-session "bnobt double-free"):
+- A node frees a block (during inode inactivation) that the free-space btree already lists as free → double-free → `xfs_alloc.c:2244` corruption → FS shutdown. A second, stochastic manifestation is a dirty-transaction `xfs_trans_cancel` in `xfs_remove`.
+- **`disk_differs=0`** — the corruption is **durable on the platter**, not a stale cache.
+- **AG 3 was touched by only 2 nodes; CAW-DUP-SLOT=0** → concurrent-EX is refuted again. The node that wrote the corrupt btree released through the **fully-drained** BAST path (P75=0). So a clean-release node still durably wrote a free-space tree that lost a prior allocation.
+
+**Open question that decides the fix direction:** does the live inode's *on-disk extent map* actually claim the freed block (→ free-space-tree lost-update) or does it differ from the in-core map (→ stale in-core inode extent map / inode-coherency)? I built and deployed a probe (`P81-DEXT`, build **D8F43418**) that answers this precisely. It hasn't fired yet because this run crashed via the other (trans_cancel) signature.
+
+## Next session (concrete)
+1. `reset4` + remount `/mnt/mxfs-src` NFS on all nodes (the export is lost on host reboot — re-add `exportfs … fsid=42 192.168.120.0/24:/src`; details in sess81 memory).
+2. Re-run isolated `unlink_visibility` 1–3× until the `alloc:2244` path fires, then read the **P81-DEXT verdict** — that picks between fixing free-space-tree coherency vs inode-extent coherency.
+3. Finish broadening P81 to the always-on P29 site (the boundary-time whitespace edit didn't land) so it fires regardless of crash signature.
+
+Recorded in `sess81_lessons.md` + MEMORY.md index. The tree builds clean (D8F43418, deployed). Noted your plan to validate on physical nodes then two Proxmox servers with an OS VM build once green — that real-world target is exactly why this on-disk corruption must be fixed at the root, not masked.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,10 @@
+{
+  "source": [
+    "include/mxfs/mxfs_common.h",
+    "dlm/dlm.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

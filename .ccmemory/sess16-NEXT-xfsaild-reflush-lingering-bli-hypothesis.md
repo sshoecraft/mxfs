@@ -1,0 +1,18 @@
+---
+name: sess16-NEXT-xfsaild-reflush-lingering-bli-hypothesis
+description: sess16 refined top hypothesis: since release is durable (proven) yet entries vanish from LUN, the dropper must be an ASYNC xfsaild write of a stale d…
+metadata:
+  type: project
+---
+
+## sess16 refined TOP hypothesis for 2/tcp crash_consistency (after refuting release-drain-gap [[sess16-REFUTES-release-drain-gap-blocks-durable-at-release]]).
+
+## LOGICAL DEDUCTION from proven facts: (1) release fence makes ALL dir blocks durable+consistent at every EX release (P16-RELEASE-UNDESTAGED: undest=0 everywhere). (2) entries are durably LOST from the LUN (gone, even from the writer node). (3) EX serializes modifies. => The only way an entry leaves an always-consistent-at-release LUN is an ASYNC write that is NOT the release fence: **xfsaild flushing a STALE cached dir-block buffer image AFTER a peer's release already wrote the correct (newer) image to that daddr.**
+
+## SUPPORTING ANOMALY (seen in P-EVICT-SKIP + DIR-STALE-SKIP every time): dir blocks are `li_empty=1 (list_empty(b_li_list)) AND in_ail=1 AND bip!=NULL`. Normal XFS: after a buffer is written (xfs_buf_item_done), the BLI is removed from BOTH b_li_list AND the AIL. li_empty=1 (off the buffer's list) but STILL in_ail=1 is a transitional/lingering state where the buffer-write removed the item from the buffer list but the AIL removal didn't happen (or a relog re-added to AIL). Such a buffer can be re-pushed by xfsaild, writing its (possibly stale-vs-peer) in-core content to the LUN.
+
+## MECHANISM (proposed): node A holds dir EX, commits dir block daddr D (BLI in A's AIL). A releases -> fence xfs_bwrite's D durable. A's D-BLI lingers in A's AIL (li_empty=1 in_ail=1). B acquires EX, RMWs D (adds entries), releases -> D durable with B's entries. A's xfsaild later pushes A's lingering D-BLI -> writes A's in-core D image (A's content, MISSING B's entries) over B's durable D -> B's entries durably LOST. (Earlier [[sess16-ROOT-xfsaild-stale-flush-reused-daddr]] saw xfsaild writing shrinking dir images — dismissed as rm-drain, but the SAME vector applies to the concurrent create: a lingering post-release BLI re-flushed stale.)
+
+## NEXT (RULE 4, decisive test): instrument to catch a post-release stale xfsaild re-flush. P35E-DIRWR already logs comm + dirent NAMES per dir-block write. For a failing iter, find on node A an xfsaild (comm=xfsaild) write of daddr D whose names are MISSING entries that a CHRONOLOGICALLY-EARLIER write to D (by A's release fence or by B) CONTAINED = the clobber. Add a sequence/timestamp + "names-superset-violation" detector at the dir-block write submit (pal/linux/xfs_buf.c P35E): track per-daddr the max name-set written; if a new write drops a name previously written-durable to that daddr by ANY node, log P16-REFLUSH-CLOBBER with comm/lseq/wseq. If comm=xfsaild and it drops entries -> CONFIRMED.
+
+## FIX (if confirmed): on dir EX release, after the fence writes a block durably, REMOVE its BLI from the AIL and/or INVALIDATE the buffer (xfs_buf_stale-style, clear XBF_DONE) so xfsaild cannot re-flush a stale image, and the next acquire re-reads fresh. Must not break the in-AIL keep-guard for genuinely-uncommitted work. CAUTION: clearing XBF_DONE on in-AIL undestaged corrupts (proven [[sess16-stale-tenure-keepguard-fix]]) — so the right action is to ensure the BLI is properly retired from the AIL on release-write completion (xfs_buf_item lifecycle), not a blunt XBF_DONE clear. Investigate why li_empty=1+in_ail=1 persists (the buffer-write iodone path for mxfs dir buffers — does xfs_buf_item_done run / remove from AIL?). Cluster on 895603D7 (15/16 + diagnostics). Repro tests/cc_blockdir_probe.sh (ino131, foreground timeout 280, <15 iter). [[sess16-HEAD-status]]

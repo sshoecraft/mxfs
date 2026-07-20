@@ -1,0 +1,119 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/26c41354-6702-4fa8-98e7-0aa08fef2e9a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 26c41354-6702-4fa8-98e7-0aa08fef2e9a, after session 1
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `0c4f84bb-ba09-442c-92c2-cd8d0a97466a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/0c4f84bb-ba09-442c-92c2-cd8d0a97466a.jsonl`
+- approx context at last assistant turn: 501616 tokens
+- tools used: Bash×85 Read×20 mcp__ccmemory__memory_get×9 ToolSearch×5 mcp__ccmemory__memory_write×5 TaskCreate×4 mcp__ccmemory__memory_search×3 TaskUpdate×2 Edit×1 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/caw_preflight.sh
+- /src/mxfs/run.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; LOG=/tmp/run16_full2.log; PID=95156 last=""; t0=$SECONDS while ls -d /proc/$PID >/dev/null 2>&1; do   line=$(grep -E "  (PASS|FAIL)  |converged|==
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; ssh_node(){ timeout 12 $SSH "$1" $PASS "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If y
+    cd /src/mxfs; kill -9 95156 2>/dev/null; pkill -f 'run.sh 16 caw prec' 2>/dev/null; sleep 2 echo "=== preflight 16 ==="; timeout 500 bash scripts/caw_preflight.
+    cd /src/mxfs; ls -d /proc/95156 >/dev/null 2>&1 && kill -9 95156 2>/dev/null; sleep 2; ls -d /proc/95156 >/dev/null 2>&1 && echo "95156 ALIVE" || echo "95156 go
+    cd /src/mxfs; LOG=/tmp/repro_cc_A.log; : > "$LOG" MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 500 ./run.sh 16 caw precond_readine
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; ssh_node(){ timeout 15 $SSH "$1" $PASS "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If y
+    cd /src/mxfs; echo "=== P-IRESURRECT location ==="; grep -rn "P-IRESURRECT\|IRESURRECT" --include=*.c --include=*.h xfs/ pal/ dlm/ 2>/dev/null
+    cd /src/mxfs; echo "=== _XBF_FUA_FRESH set/clear/test sites ==="; grep -rn "_XBF_FUA_FRESH" --include=*.c --include=*.h xfs/ pal/ | head -40
+    cd /src/mxfs; echo "=== P34-LEAF-DRAIN + dir release drain fn ==="; grep -n "P34-LEAF-DRAIN\|P35-DIRHONOR\|drain_meta_buffers\|mxfs_dir_data_durable\|mxfs_drain
+    cd /src/mxfs; echo "=== relverify / release_stale / wr_barrier defaults ==="; grep -nE "int mxfs_dir_relverify|int mxfs_dir_release_stale|int mxfs_dir_wr_barrie
+    cd /src/mxfs; echo "=== module_param names for the OFF release guards ==="; grep -nE "module_param_named\((dir_relverify|dir_release_stale|dir_wr_barrier|relver
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; ssh_node(){ timeout 15 $SSH "$1" $PASS "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If y
+    cd /src/mxfs; bash -n run.sh && echo "run.sh SYNTAX OK"; echo "=== preflight 16 ==="; timeout 500 bash scripts/caw_preflight.sh 16 2>&1 | tail -3
+    cd /src/mxfs; LOG=/tmp/run16_guards.log; : > "$LOG" MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1 dir_relverify=1 dir_release_stale=1 dir_wr
+    cd /src/mxfs; LOG=/tmp/run16_guards.log; PID=120696; last=""; t0=$SECONDS while ls -d /proc/$PID >/dev/null 2>&1; do   line=$(grep -E "  (PASS|FAIL)  |converged
+    cd /src/mxfs; ls -d /proc/120696 >/dev/null 2>&1 && kill -9 120696 2>/dev/null; sleep 1; echo "guards run killed"; echo "--- final guards results ---"; grep -E 
+    cd /src/mxfs; echo "=== relverify marker ==="; grep -n "mxfs_dir_data_release_verify" xfs/xfs_mxfs_dlm.c | head -3; sed -n '/mxfs_dir_data_release_verify(struct
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; ssh_node(){ timeout 15 $SSH "$1" $PASS "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If y
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; ssh_node(){ timeout 15 $SSH "$1" $PASS "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If y
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; ssh_node(){ timeout 15 $SSH "$1" $PASS "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^If y
+
+## Last text from previous session
+
+CORRECT — every dir-EX release leaves disk==incore (removal durably applied). The dangling dirent is a **post-release async clobber**: a later write (xfsaild destaging a stale cached dir buffer) reintroduces the removed dirent. This definitively rules out the heavyweight release-drain fixes (Case A) and points at the **lightweight xfsaild dir-write ABA suppressor** — no per-handoff latency, so no RULE-0 timeout. Major narrowing. Let me record this pivotal finding.
+Case B pinned and recorded. The reintroducer is a stale cached dir buffer being async-destaged. One lightweight, no-rebuild hypothesis: `dir_release_stale=1` (invalidate the demoting node's dir buffers on release — clears flags, no FUA latency, unlike relverify). Let me test it alone at 16 (3rd distinct fix attempt) — checking it doesn't timeout AND reduces the dangling-dirent rate.
+`dir_release_stale=1` alone: still leaks (`node8_file22 not gone`, 15/16) but **no timeout** (218s) — so it's lightweight but ineffective. Since the demoter invalidating its OWN buffers didn't help, the reintroducer is a **peer's** stale cached dir buffer (or a path release_stale misses). That's my **3rd refuted fix** (after MHT-up, all-guards). The proven next step is the write-side probe (rebuild) to name the exact reintroducing write. Let me record this narrowing and update tasks.
+Reached the ccloop relay boundary. Let me update the task state and summarize — the criteria are **not** met (16/32 caw not passing), so the marker stays unwritten.
+## Session summary
+
+**Criteria status: NOT met** — 1/2/4/8 caw-multipath pass (in `criteria.json`, 8 on build 591A76FB); **16 fails, 32 not yet attempted.** Marker unwritten.
+
+### What I established (all in ccmemory)
+- **Infra is up**: booted the 16-node cluster, wrote `scripts/caw_preflight.sh` and patched `run.sh`'s `power_cycle_node` so reboots re-mount `/src` + reassemble mpatha (was cascading to PREP FAIL). No kernel edits — build stays 591A76FB, so the 1–8 records hold.
+- **The core 16-node bug (proven)**: a durable **dir-block dirent-removal lost-update** → dangling dirent (dirent survives on disk, its inode freed; `P26-IGET-FAIL … err=-2`). Always the *last* file in a node's unlink batch. ~30–50% per coherency test at 16 nodes; individual tests pass alone; passes solid at 8. The suite fails because *some* test hits the race.
+- **CASE B proven** (decisive, no rebuild): with `dir_relverify=1`, **0 `P25-RELVERIFY-MISMATCH` cluster-wide** → the release drain is *correct* (disk==incore at every EX release). The loss is a **post-release async clobber** — an xfsaild destage of a stale cached dir buffer reintroduces the removed dirent. Narrowed further to a **peer's** stale buffer (invalidating the demoter's own buffers via `dir_release_stale` didn't help).
+- **3 fixes refuted** (RULE 4/5): MHT increase (worse coherency), all-release-guards-on (RULE-0 timeout — too slow at 16-node handoff frequency), `dir_release_stale` alone (still leaks). The fix must be **lightweight** (no per-handoff latency).
+- **GPT-5.5 consulted** (ask_fable not connected) — gave the Case A/B discriminator and the write-side probe design.
+
+### Next step (precise, for the fresh session)
+Rebuild with a **write-side probe** at the xfsaild dir-block destage (`pal/linux/xfs_buf.c` ~3327, `mxfs_buf_xfsaild_skip_dir_write`): for the shared test dir, raw-FUA read current disk and log any destage whose in-core image reintroduces an inum the fresh disk lacks — naming the writer's comm / `i_dlm_mode` (expect NL/PR, i.e. a peer not holding EX) / `b_mxfs_dir_gen` vs `i_dlm_dir_gen`. Then a targeted skip: a node must not destage a dir DATA/LEAF buffer it doesn't hold EX for when a disk-proven reintroduction would result. Loop `cache_coherency` at 16 (baseline `dirwr=1 dirland=1`, always `caw_preflight.sh 16` first) until it fails to capture it.
+
+Also flagged: 16-node **membership convergence is itself flaky** (disklock slot-table read undercount) — a separate contributor to run failures.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

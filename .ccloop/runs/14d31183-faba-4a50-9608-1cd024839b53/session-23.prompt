@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 23 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 22
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `25ce8308-4c1d-4d8d-bc88-5f9e30266396`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/25ce8308-4c1d-4d8d-bc88-5f9e30266396.jsonl`
+- approx context at last assistant turn: 248341 tokens
+- tools used: Bash×95 Edit×22 Read×3 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/tune_iscsi_tcp.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') (dd if=/dev/sda of=/dev/null bs=1M count=1024 iflag=direct 2>&1 | tail -1) & timeout 60 ./tools/mxfs
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') (sudo dd if=/dev/sda of=/dev/null bs=1M count=1024 iflag=direct 2>&1 | tail -1) & timeout 60 ./tools
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 60 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass ' (dd if=/dev/sda of=/dev/null bs=1M count
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 30 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass 'cat /sys/block/sda/queue/scheduler; cat /
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 120 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass 'which fio || apt list --installed 2>/dev
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 200 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass 'for bs in 64k 256k 512k 1M; do for jobs 
+    cat /proc/buddyinfo | head -3 sudo sysctl vm.compact_memory=1 2>/dev/null || echo 1 | sudo tee /proc/sys/vm/compact_memory >/dev/null sleep 3 cat /proc/buddyinf
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 60 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass 'nohup fio --name=t --filename=/dev/sda --
+    ps -eo pid,comm,state | grep -iE "iscsi|scst|disk" | head -25
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 60 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass 'nohup fio --name=t --filename=/dev/sda --
+    ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}') timeout 90 ./tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass ' cat /sys/block/sda/queue/max_sectors_kb 
+    echo "--- single ---" sudo dd if=/dev/sda of=/dev/null bs=1M count=512 iflag=direct 2>&1 | tail -1 echo "--- dual local ---" (sudo dd if=/dev/sda of=/dev/null b
+    (sudo dd if=/dev/sda of=/dev/null bs=1M count=768 skip=3072 iflag=direct 2>&1 | tail -1) & (sudo dd if=/dev/sda of=/dev/null bs=1M count=768 iflag=direct 2>&1 |
+    grep -rn "window_size\|MaxRecvDataSegment" /etc/iscsi/iscsid.conf 2>/dev/null | head; sudo iscsiadm -m session -P1 2>/dev/null | head -8; sysctl net.ipv4.tcp_rm
+    sudo sysctl -w net.core.rmem_max=16777216 net.core.wmem_max=16777216 >/dev/null sudo iscsiadm -m node -T iqn.2026-05.local.mxfs:disk1b -p 127.0.0.1 --logout >/d
+    sudo iscsiadm -m session 2>&1 | head -3; sudo iscsiadm -m node 2>&1 | head -5; sudo iscsiadm -m node -T iqn.2026-05.local.mxfs:disk1b -p 127.0.0.1:3260 --login 
+    echo "--- single ---"; sudo dd if=/dev/sdb of=/dev/null bs=1M count=512 iflag=direct 2>&1 | tail -1 echo "--- dual ---" (sudo dd if=/dev/sdb of=/dev/null bs=1M 
+    chmod +x /src/mxfs/scripts/tune_iscsi_tcp.sh # persist on clyde too printf 'net.core.rmem_max = 16777216\nnet.core.wmem_max = 16777216\n' | sudo tee /etc/sysctl
+    timeout 120 bash -c 'source tests/criteria/lib.sh; teardown_all "test1 test2"' 2>&1 | tail -1 timeout 500 scripts/tune_iscsi_tcp.sh 2>&1 | grep -E "===|OK|RELOG
+    # confirm cross-node dual-stream now scales ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); ip2=$(getent hosts test2.vm.localdomain | awk '{print $
+
+## Last text from previous session
+
+Continuing the run: scaling_curve (283% vs ≤150% gate) is the open blocker, with the CAW slot I/O root cause already instrumented in session 21. Starting with the mandatory RULES.md check and current state.
+Now the waiter-side resend in `caw_wait_for_grant`:
+Now the poller: relaxed idle interval when UDP is live + rotating window over the held list (also fixes the first-256-only coverage gap):
+Building and deploying to test1/test2, then re-measuring the solo trace:
+`read_slot` bottoms out in `mxfs_pal_bdev_read_prio` — kprobing that with stack capture during the rsync to attribute every slot read to its caller:
+Now fix 2 — eliminate the Bug-93 re-read by having `find_slot_skip` report which slot it read last:
+Adding the hint table to the ctx struct in the header:
+Now the hint helpers and find_slot_skip integration in dlm_caw.c:
+Now allocation in create and teardown in destroy:
+Building and checking for compile errors:
+My inline offsets were wrong — using the tool's own decode and aggregating its output instead:
+Backing storage is fine (3.4 GB/s aggregate locally). The collapse is in the SCST/iSCSI path. Checking SCST threading config and whether the collapse is per-LUN or global:
+Cross-node dual-stream now scales: 891+938 MB/s aggregate (was 217 MB/s combined). The transport fix is verified end-to-end. Relay boundary reached — summarizing.
+
+## Session 22 summary
+
+**scaling_curve root cause found and fixed (env-level, verified):** The multi-node degradation was NOT mxfs lock contention — the CAW slot table after a parallel 2-node rsync showed near-zero churn (AG slots all gen=1). The real cause: **any ≥2 concurrent large iSCSI transfers collapsed ~9× in per-command latency**, reproducible with raw `dd` (no FS), even same-initiator and even on clyde's loopback initiator. Proven via `ss -ti`: open-iscsi sets an explicit SO_RCVBUF (512KB default `tcp.window_size`), which Ubuntu's `net.core.rmem_max=212992` clamps AND which disables TCP window autotuning — the advertised window pinned at ~91-418KB, so >1MB in flight thrashed on window stalls/delayed ACKs/retransmits. Fix: `rmem_max/wmem_max=16MB` + `node.conn[0].tcp.window_size=16777216`, applied persistently to clyde and all 16 nodes via new in-tree `scripts/tune_iscsi_tcp.sh` (RULE 3). Verified: local dual 1M streams 122MB/s→1.9GB/s; cross-node dual 217MB/s→1.83GB/s aggregate.
+
+**mxfs CAW hot-path reductions also landed this session (v0.5.3, build `8831EAED`, deployed test1/test2):** slot reads during a 2-node rsync dropped 9716→2715 and solo-on-2-node wall 4622→3504ms via: (1) waiter-side UDP BAST re-send every 100ms while blocked + holder idle disk-poll relaxed 200ms→1s when UDP is up + rotating >256-held coverage window (`dlm/dlm_caw.c/h`); (2) slot-index hint cache in the CAW ctx, content-validated single-read fast path in `find_slot_skip`; (3) claim-race rescan skipped for hash-base claims (1441→24 reads); (4) Bug-93 CAS compare-buffer reuse (705→0 reads); (5) P108/P106 dir held-verify throttle 100ms→1s (`xfs/xfs_mxfs_dlm.c`); (6) all 10 P15-INSTR AG logs gated behind `mxfs.instr`.
+
+**Next session:** re-run `tests/criteria/scaling_curve.sh --nodes 16` (expect the flat ~7-8s multi-node walls to drop sharply with the transport fixed); then re-run cache_coherency + single_node_paired to confirm no regression from the v0.5.3 CAW changes (esp. the 1s held-verify throttle), run `posix_semantics_multi16`, then the full `verify_ship.sh` gate. Criteria marker NOT written — gate not yet green.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

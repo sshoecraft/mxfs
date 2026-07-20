@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 34 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 33
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `4df2ba26-17a7-4153-a10e-6a76a9a7a041`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4df2ba26-17a7-4153-a10e-6a76a9a7a041.jsonl`
+- approx context at last assistant turn: 253918 tokens
+- tools used: Bash×110 Edit×7 Read×1 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/sess33_bmbt_dump.py
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for n in $(seq 1 16); do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 3; for n in $(seq 1 16); do virsh -c qemu:///system start test$n >/
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 20 $S test$n $P "journalctl -k --since '2026-06-12 13:01:03' --utc 2>/dev
+    grep " 39659168 " /tmp/dircrc3.evt | tail -25
+    grep " 39659168 " /tmp/dircrc3.evt | awk '$3=="W" || prev!=$5 {print} {prev=$5}' | head -30
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in $(seq 1 16); do timeout 12 $S test$n $P "journalctl -k --since '2026-06-12 13:01:03' --utc 2>/dev
+    grep -E "MISSING" /tmp/zero_silent_loss.XAc50a.log | head; grep -E "expected=|silent=" /tmp/zero_silent_loss.XAc50a.log | head -3
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 12 $S test1 $P "mount | grep shared; ls /mnt/shared/wa_iter1 2>/dev/null | wc -l" 2>/dev/null
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 $S test1 $P "blockdev --getsize64 /dev/sda" 2>/dev/null; timeout 280 $S test1 $P "grep -abo 'no
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 $S test1 $P "off=10787847845; blk=\$((off / 4096 * 4096)); echo block_dev_off=\$blk; dd if=/dev
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 $S test1 $P "off=10787847845; start=\$((off-8192)); dd if=/dev/sda bs=1 skip=\$start count=1638
+    grep -n "sector_offset\|SECTOR_OFFSET\|ENVELOPE" /src/mxfs/tools/mkfs_mxfs.c | head -8
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 $S test1 $P "xfs_bmap -v /mnt/shared/wa_iter1 2>&1 | head -30" 2>/dev/null
+    grep -rn "bt_sector_offset\s*=" /src/mxfs/pal/ /src/mxfs/xfs/ /src/mxfs/dlm/ 2>/dev/null | head -5; grep -rn "define.*MXFS.*OFFSET\|journal_slice\|slot_table" /
+    sed -n 2340,2372p /src/mxfs/pal/linux/xfs_super.c
+    grep -rn "struct mxfs_ondisk_super" /src/mxfs/include/ | head -2; grep -rn -A20 "struct mxfs_ondisk_super {" /src/mxfs/include/*.h | head -26
+    sed -n 30,64p /src/mxfs/include/mxfs/mxfs_super.h
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 20 $S test1 $P "od -A none -t u8 -j 88 -N 8 /dev/sda; xfs_bmap /mnt/shared/wa_iter1 2>&1 | head -4
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 25 $S test1 $P "blkstart=10787846144; dd if=/dev/sda bs=1 skip=\$blkstart count=64 2>/dev/null | x
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 $S test1 $P "python3 /src/mxfs/scripts/sess33_bmbt_dump.py /dev/sda 131" 2>/dev/null | head -20
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 30 $S test1 $P "python3 /src/mxfs/scripts/sess33_bmbt_dump.py /dev/sda 131" 2>/dev/null > /tmp/ino
+
+## Last text from previous session
+
+y) — expecting the storm to reproduce with the revert captured.
+test2 wedged from the storm run. Checking all nodes and power-cycling the stuck ones.
+One revert, on test11. Pulling the full line with stack, plus the surrounding timeline.
+P135-HELD-MISS floods the window. Filtering to just the tenure-sequence probes.
+That was an earlier tenure. Targeting the tenure immediately before the revert (realns ~…411.5).
+Build `C93393C8`. Power-cycling the cluster (last run ended in the storm) and re-running instrumented.
+Reproduced (261 quiet losses). Building the merged cross-node submission+completion timeline for ino 131.
+Checking for the same flaw at other flush/durable sites.
+Loss reduced (261→109) but persists. Verifying the new build actually ran, then checking which producers remain.
+Build confirmed, dinode reverts gone. Re-running with `dirwr=2` to get crc lineage on the remaining producer.
+Quiet run with traces — 80 losses. Collecting lineage and correlating with the missing names.
+Only 2 flagged writes, both `xfsaild` same-node anomalies. Dumping the full event history for one flagged daddr to see the true sequence.
+FS intact with 80 missing. Searching the raw device for the missing dirent's bytes.
+Two hits: one in the journal region (~96MB), one in the FS area (~10GB). Inspecting the FS-area block's header.
+Alignment is off by the envelope offset. Locating the enclosing dir-block magic around the hit.
+ino 131 is BTREE format on disk. I'll parse the on-disk bmbt directly on test1 with a python3 script to enumerate every mapped extent, then test whether the orphaned block's daddr is in the map.
+Completing the forensic check before the relay boundary: is the orphaned dirent's block (daddr ≈ 20873324) in the map?
+The forensic is conclusive. Saving the session's findings to memory and wrapping up for the relay.
+Session 33 summary — one zero_silent_loss root cause fixed and proven, the next one isolated with hard forensic evidence:
+
+**Fixed (build `6AB6018C`, KEEP):** the release-path stale-write war. `mxfs_dir_flush_data_blocks`, `mxfs_dir_data_durable`, and `mxfs_dir_bmbt_scan` all treated `!XBF_DONE` as "not yet landed on disk" — but a clean `!DONE` buffer in those paths is one the eviction fence deliberately invalidated. The BAST release drain was therefore `xfs_bwrite`-ing invalidated stale dir blocks verbatim over peers' newer durable images. Proven via merged cross-node P-DIRRD/P-DIRWR crc lineage: 27 flagged stale writes (all `done=0`, kworker release context, write-crc equal to an already-superseded image, including a test10↔test7 re-push ping-pong) → 0 genuine after the fix. The P133-DIRINO-REVERT stale-dinode writes (captured live with a stack on test11: xfsaild writing `size=8192 nx=3` over coherent disk `size=12288 nx=4`) also stopped entirely.
+
+**Remaining producer (proven, not yet fixed):** losses dropped 261→~80/iter, with zero stale writes and a monotone dinode timeline. Raw-disk forensics on the intact post-run FS found the missing dirent (`node10_dir28`) sitting in a **valid XDD3 dir data block at a daddr that is absent from ino 131's on-disk bmbt** (parsed with a new envelope-aware dumper, `scripts/sess33_bmbt_dump.py`). Concurrent dir growth replaced the dir-offset→fsblock mapping — two nodes allocated different blocks for the same dir offset and the loser's block, full of committed dirents, was orphaned. The 12:51Z `xfs_dabuf_map` HOLE shutdown storm is the same mapping inconsistency seen from the read side. Prime suspect for next session: the reload refreshes the dinode core but never invalidates cached **bmbt child buffers**, so a BTREE-format dir's extent re-read can be served stale.
+
+Also landed: `dirwr` probe split (1 = low-rate write-side, 2 = full crc traces), a `P136-DIRINO-WRDONE` completion-order probe, and the full plan in memory `sess33-run14d-zsl-relflush-stale-write-root`.
+
+Criteria not met (`zero_silent_loss` still failing) — the marker stays unwritten; the relay continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

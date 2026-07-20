@@ -1,0 +1,15 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_ag.h",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/pal.h",
+    "pal/linux/kern.c",
+    "dlm/dlm.c",
+    "xfs/xfs_dir2_readdir.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

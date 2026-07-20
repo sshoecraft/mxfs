@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 49 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 48
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f108c557-e3b0-4cc2-8006-b04e48a30f80`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f108c557-e3b0-4cc2-8006-b04e48a30f80.jsonl`
+- approx context at last assistant turn: 507600 tokens
+- tools used: Bash×94 Read×29 Edit×14 mcp__ccmemory__memory_get×4 ToolSearch×2 mcp__ccmemory__memory_write×2 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/uv_disktruth2.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; echo "=== P26-RDDIR site ==="; grep -n "P26-RDDIR\|reload_armed" xfs/*.c xfs/libxfs/*.c | head; echo "=== MXFS_IF_DIR_RELOAD arm sites ==="; grep 
+    cd /src/mxfs; echo "=== i_dlm_dir_loaded_gen assignments ==="; grep -rn "i_dlm_dir_loaded_gen =" xfs/*.c xfs/libxfs/*.c | head; echo "=== does mxfs_dlm_reload_i
+    cd /src/mxfs; echo "=== MXFS_IF_DIR_RELOAD test/reload in lookup ==="; grep -rn "MXFS_IF_DIR_RELOAD\|mxfs_dlm_reload_inode" xfs/xfs_inode.c | head; echo "=== xf
+    cd /src/mxfs; echo "=== mxfs_dlm_dir_consumer_refresh ==="; sed -n "$(grep -n '^mxfs_dlm_dir_consumer_refresh' xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1),+55p"
+    cd /src/mxfs; make modules 2>&1 | grep -E "Error|error:|mxfs.ko$" | tail -3; modinfo mxfs.ko | grep srcversion; echo "=== cache_coherency x3 PRODUCTION (no dirw
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; S=$(grep -n '^mxfs_dlm_dir_consumer_refresh' xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); echo "consumer_refresh starts L$S"; sed -n "$((S+45)),$(
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; S=$(grep -n '^mxfs_dlm_reload_inode' xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); echo "reload starts L$S"; echo "=== how reload reads the inode b
+    cd /src/mxfs; sed -n '6101,6420p' xfs/xfs_mxfs_dlm.c | grep -nE "imap_to_bp|xfs_trans_read_buf|xfs_buf_read|read_plain|xfs_buf_incore|xfs_buf_stale|_XBF_FUA_FRE
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+    cd /src/mxfs; echo "=== _XBF_FUA_FRESH gate in read path ==="; grep -rn "_XBF_FUA_FRESH" pal/linux/xfs_buf.c | head -15; echo "=== how the FUA read decides (mxf
+    cd /src/mxfs; echo "=== fua lever defaults ==="; grep -rn "int mxfs_fua_disable\|int mxfs_fua_always\|module_param.*fua_disable\|module_param.*fua_always\|mxfs_
+    cd /src/mxfs; echo "=== cache_coherency x3 with fua_disable=0 (+ my fixes, build 8B767DA4) ==="; np=0; nf=0; for i in 1 2 3; do LOG=/tmp/ccf_${i}_$(date -u +%H%
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH() { timeout 20 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 root@"$1
+
+## Last text from previous session
+
+es.
+`fua_disable=0` did NOT help (0/3) — so it's not the SCST read cache. Combined with: raw O_DIRECT reads fresh (di_format=1), test2's xfs_buf read stale (di_format=2), and drop_caches fixing it → the kernel **inode-cluster buffer is served DONE-cached without re-reading**; the reload's invalidation isn't sticking. This is deep. Let me save this hard-won diagnosis to memory before continuing (critical for context handoff).
+Memory saved. Now the decisive read-side question: test1's shortform conversion was durable 2s+ before test2's Phase-3 reads (raw O_DIRECT proves di_format=1), yet test2's reload reads di_format=2. So the re-read returns stale. Let me add a focused always-on probe in reload comparing the re-read buffer's di_format against a coherent plain-bdev read (the P31B pattern, widened to dirs).
+I've hit the ccloop relay boundary. Let me do one quick high-value check before wrapping up: there's an always-on `P133-DINO-READSTALE` probe that fires when reload's buffer mismatches a coherent plain-read — exactly my read-side hypothesis. Let me check if it fired on test2.
+`P133-DINO-READSTALE` fired **0×** on both nodes — so reload's buffer matched a coherent plain-bdev read *at reload time*. Combined with: test2's reload read block (di_format=2) during the test, but my dd O_DIRECT read shortform (di_format=1) seconds later → **both the buffer bio AND the plain-bdev "coherent" read hit a stale SCST per-initiator read cache during the test window; it only serves fresh after a latency**. FUA (`fua_disable=0`) didn't pierce it. This is a storage-layer read-cache coherency issue, deeper than the FS. Let me record this refinement.
+I've reached the ccloop relay boundary. **Criteria not yet met** (cache_coherency still ~1/3 in production; full suite not yet 100%), but this session made major, proven progress and isolated the remaining blocker precisely.
+
+## Session 48 summary
+
+**Build `8B767DA4`** carries all of this session's fixes (write-side proven correct; read-side partial).
+
+### Write-side durable lost-update — FIXED & PROVEN
+The 2/tcp `cache_coherency`/uv failure was a durable write-side lost-update: a node's committed dir deletes never reached the LUN, so the peer cold-read the stale disk. Proven via raw O_DIRECT dir-block parse + a new cross-node `P-WRACT` active-count+realns write trace. Two gaps, both fixed:
+1. **Block-format deletes** — restored contention-gated publish-before-notify in `mxfs_dlm_dir_durable_signal` (v0.5.1 had gutted it to publish-only). Gated on `i_dlm_dir_gen>0`. Hit a 150s self-deadlock first (caller holds dp i_lock WRITE → `down_read_trylock` spins) → fixed by calling the flush directly (ILOCK_EXCL already guarantees fork stability).
+2. **Shortform deletes** — the dir converts block→shortform as it shrinks; `mxfs_dlm_dir_inode_durable` was gated `!self_created`, skipping the `mkdir -p`'d (self-created) uv dir. Changed to `!self_created || gen>0`.
+
+**Proof it's fixed:** raw inode read = `di_format=01` (shortform, 0 files), byte-identical on both initiators; `drop_caches` on the outlier → it sees 0.
+
+### Read-side residual — isolated to the storage layer
+After the write-side fix the outlier still serves stale (~2/3 prod). Added reload-on-`gen>loaded` to lookup+readdir (0/3→1/3). Remaining root, refined via `P133-DINO-READSTALE` firing **0×** + dd-fresh-only-seconds-later: **a stale SCST per-initiator READ cache** serves the outlier the old inode cluster during the test window; even "coherent" plain-bdev reads see it; `fua_disable=0` doesn't pierce it. `dirwr=1` passing is a timing artifact — must validate in production.
+
+### Recorded for next session (ccmemory)
+- `sess48-uv-writeside-FIXED-readside-inode-cluster-stale`
+- `sess48-readside-refined-scst-per-initiator-readcache` (next directions: measure SCST read-cache refresh latency; verify SCST honors READ FUA; consider disabling target read-cache for the shared LUN)
+- `tests/uv_disktruth2.sh` (2-node peer-poke + raw-read harness); pal.md updated.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

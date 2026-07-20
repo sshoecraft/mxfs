@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 50 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 49
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `46b10855-2f89-4a75-ae83-22f6642e1597`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597.jsonl`
+- approx context at last assistant turn: 259847 tokens
+- tools used: Bash×91 Read×33 Edit×6 ToolSearch×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess83_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "mxfs_dlm_inode_evict\|mxfs_dlm_inode_release\|destroy_inode\|reclaim_inode\|->i_dlm_mode = MXFS_LOCK_NL" xfs/xfs_mxfs_dlm.c pal/*.c xfs/x
+    cd /src/mxfs; grep -rn "mxfs_dlm_evict\b" xfs/ pal/ | grep -v "mxfs_dlm_evict_inode_cb\|void$"; echo "=== reclaim call site context ==="; grep -n "mxfs_dlm_evic
+    cd /src/mxfs; grep -nE "struct rw_semaphore[[:space:]]+i_lock|spinlock_t[[:space:]]+i_lock|i_lock;|mrlock_t|i_ilock|struct rw_semaphore.*lock" xfs/xfs_inode.h |
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|implicit|undefined" | head; echo "build-rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 25 $SSH ${n}.vm.localdomain $P "umount /mnt/shared 2>&1
+    cd /src/mxfs; timeout 280 env MXFS_NODE_OFFSET=16 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_unlink_visibility --pass-file /tmp/.mxfs_pass --
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.output; until grep -qiE "Results:|Terminated|Time:|Total|PASS|FA
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== node health + noino-on-dir ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; time
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; INO=$(timeout 10 $SSH test1.vm.localdomain $P "stat -c %i /mnt/shared/.mxfs_test/unlink_visibility 2
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.output; wc -l "$O" 2>/dev/null; grep -vE "Warning|Unauthorized|d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo -n "test1 dir-flush errs: "; timeout 10 $SSH test1.vm.localdomain $P "dmesg 2>/dev/null | grep 
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.output; until [ -s "$O" ] || ! kill -0 %1 2>/dev/null; do sleep 
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.output; echo "lines=$(wc -l < "$O" 2>/dev/null)"; grep -vE "Warn
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.output; until [ -s "$O" ]; do sleep 15; done; echo "=== TEST OUT
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 $SSH ${n}.vm.localdomain $P "mountpo
+    cd /src/mxfs; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.output; until grep -qiE "Results:|Terminated|Total|FAIL|PASS" "$
+    cd /src/mxfs; grep -rn "barrier_signal()\|barrier_wait()\|BARRIER_DIR\|barrier.*dir\|mxfs_test/barrier\|\.barrier" tests/lib/*.sh tests/cluster/*.sh 2>/dev/null
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== barrier dirs as seen per node ==="; for n in test1 test2 test3 test4; do echo "--- $n ---"
+    cd /src/mxfs; ps aux | grep -E "[r]un_tests.sh" | head -2; echo "rc-check"; O=/tmp/claude-1000/-src-mxfs/46b10855-2f89-4a75-ae83-22f6642e1597/tasks/ben69eb4i.ou
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== barrier dir inodes ==="; for b in uv_create uv_preverify uv_delete; do INO=$(timeout 10 $S
+
+## Last text from previous session
+
+end on the same dir coherency. Let me inspect which barrier is stuck and whether signal files are cross-node visible.
+Revealing: every node consistently sees node2/3/4 but NOT node1 in all barrier dirs — including node1's own view. node1's entries are **durably lost** even from its own cache. But these barrier dirs are tiny (4 entries) = **shortform** (LOCAL format, entries inline in the dinode), which my EXTENTS-only evict fix doesn't touch — a *separate* coherency surface from the 120-entry block-format test dir. Let me check whether the run is still active and get the test-dir verdict.
+The test timed out in a barrier stall: node1's entries are durably missing from the **shortform** barrier dirs — a separate coherency surface my EXTENTS-only fix doesn't cover, and it's what stalls the barriers (→ timeout). But the block-format test-dir cleanly shows 0/0 after delete, weakly suggesting my fix helped there. Let me get concrete data: barrier dir inode format + whether they hit the noino path.
+All three barrier dirs (2097313, 2097315, 6291586) also hit noino — but they're shortform (LOCAL), where the dinode itself holds the entries and is durable-when-clean at reclaim. So noino shouldn't lose shortform entries. The node1-missing pattern may instead be that **test1 hit a failure early and exited**, leaving peers stuck. Let me check barrier_wait's timeout behavior and whether test1's process failed.
+I've reached the relay boundary. Let me record this session's findings in memory before wrapping up.
+Memory updated. Criteria are **not** met — cache_coherency still fails — so no marker written.
+
+## Session summary
+
+**Followed RULE 4 (instrument → prove → fix) and RULE 5 (Gemini consult with fresh data).**
+
+### Proven root cause (block-format dir lost-update)
+Added two always-on detectors and proved the durable lost-update mechanism:
+- **P-DIRREL-DIFFERS** (FUA disk-vs-incore compare at the end of bast_process's dir drain) fired **0×** → the normal BAST-handoff release path makes dir blocks durable. Release-side is sound.
+- The DLM stats showed `bast: noino=2..12`. **P-NOINO-BAST** detector proved the **shared test-dir inode hits the no-inode BAST branch** (test1: 4 hits) — the directory is *reclaimed from cache mid-run*, then a peer's BAST takes the direct-unlock path that does **no durability drain**, releasing the dir with its data blocks still dirty in the AIL → peer FUA-reads stale disk → clobbers the node's committed dirents (the "90/120, lost its own files").
+- Gemini confirmed 100%: `xfs_reclaim_inode` proceeds on inode-CORE-clean, but a directory's data-fork buffers are independent AIL `xfs_buf`s that `xfs_iflush` doesn't write.
+
+### Fix landed (build F08CE615, deployed test1-4, KEEP)
+In `mxfs_dlm_evict` (the reclaim hook), for multi-node EXTENTS-format dirs, drain the dir's data blocks durable (`xfs_log_force(SYNC)` + targeted per-block `mxfs_dir_flush_data_blocks` + `blkdev_issue_flush`) **before** the DLM unlock. Already hold XFS_ILOCK_EXCL (== `i_lock`) so the extent list is stable and i_lock must not be re-taken. Runs clean (0 dir-flush errors); after the delete phase the 120-entry test dir is cleanly 0/0 on all nodes (weakly positive).
+
+### Remaining (test still times out → criterion still FAIL)
+1. **Shortform barrier dirs** (`.mxfs_barriers/<name>/nodeN`, 4 entries = LOCAL format) still show node1's entries durably missing — a *separate* surface my EXTENTS-only fix doesn't cover (or test1 exited early; `barrier_wait` returns 1 on timeout and the test continues). Mechanism unresolved — needs a minimal shortform reproducer next.
+2. **Slowness**: Gemini flagged `bast_process`'s per-handoff `xfs_ail_push_ag_sync` (×~100 rounds × ~70 handoffs) as the timeout cause; replace with the same targeted flush — deliberately *not* changed yet (one change at a time; do after the shortform fix so a clean pass is observable).
+
+Detail in `sess83_lessons.md`. Build F08CE615 is deployed and clean; detectors are always-on and instr=0-safe.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

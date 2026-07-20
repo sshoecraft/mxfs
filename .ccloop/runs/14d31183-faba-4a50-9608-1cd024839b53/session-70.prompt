@@ -1,0 +1,119 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 70 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 69
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `78d18c64-b7b6-481d-ae2c-c2b3346ab2d0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/78d18c64-b7b6-481d-ae2c-c2b3346ab2d0.jsonl`
+- approx context at last assistant turn: 248650 tokens
+- tools used: Bash×72 Read×7 TaskOutput×5 ToolSearch×4 Monitor×3 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×3 Edit×2 TaskStop×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/disklock.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 400 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -4; echo "reset_rc=${PIPESTATUS[0]}"
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip=$(getent hosts test16.vm.localdomain|awk '{print $1}') echo "=== test16 current mxfs + NFS state ===
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=FE6036776397D935E906E96 echo "=== check all 16 + prep stragglers ===" for n in $(seq 1 16); do ip=
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 16 2>&1 | tail -3; echo "mount_rc=${PIPESTATUS[0]}" SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip=$
+    cd /src/mxfs; echo "=== fresh_cluster_mount + teardown_all + how module is (re)loaded ==="; grep -nE 'fresh_cluster_mount|teardown_all|insmod|rmmod|mkfs|mount -
+    cd /src/mxfs; echo "=== config vars ==="; grep -nE 'MXFS_MODULE:=|MXFS_DEV:=|MXFS_MOUNT:=|MXFS_REPO:=|DEFAULT_NODES=' tests/criteria/lib.sh | head echo "=== re-
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=FE6036776397D935E906E96 mnt=0; for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain|aw
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass for n in 2 1; do ip=$(getent hosts test$n.vm.localdomain|awk '{print $1}')   echo "=== test$n dmesg (evi
+    cd /src/mxfs; rm -f /tmp/zero_silent_loss.*.log 2>/dev/null; nohup bash tests/criteria/zero_silent_loss.sh > /tmp/zsl_run3.out 2>&1 & echo "launched pid $! (run
+    log=$(ls -t /tmp/zero_silent_loss.*.log 2>/dev/null | head -1); echo "log=$log"; tail -8 "$log" 2>/dev/null echo "=== any P-HBFALSE / evictions on test1 yet? ==
+    pkill -f zero_silent_loss 2>/dev/null; pkill -f sess88_workload 2>/dev/null; sleep 2 cd /src/mxfs; echo "=== hard reset all 16 (virsh destroy+start+prep) ==="; 
+    cd /src/mxfs; timeout 400 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -3; echo "rc=${PIPESTATUS[0]}"
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=FE6036776397D935E906E96 # prep any straggler for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; WANT=FE6036776397D935E906E96; ip=$(getent hosts test15.vm.localdomain|awk '{print $1}') echo "=== test1
+    cd /src/mxfs; rm -f /tmp/zero_silent_loss.*.log 2>/dev/null; nohup bash tests/criteria/zero_silent_loss.sh > /tmp/zsl_run4.out 2>&1 & echo "launched pid $! (run
+    SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip=$(getent hosts test2.vm.localdomain|awk '{print $1}') echo "=== test2: module refcount + rmmod attem
+    cd /src/mxfs; echo "=== prep_tcm_node.sh ==="; cat tools/prep_tcm_node.sh
+    pkill -f zero_silent_loss 2>/dev/null; pkill -f sess88_workload 2>/dev/null; sleep 2 SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip=$(getent hosts 
+    pkill -9 -f zero_silent_loss; pkill -9 -f sess88_workload; true echo "=== host health (must be clean — NOT re-wedged) ==="; ps -eo stat|grep -c '^D'; sudo ss -l
+    echo "=== host health ==="; echo "D-state=$(ps -eo stat|grep -c '^D')"; sudo ss -ltnp 2>/dev/null|grep -q ':3260' && echo "portal=UP" || echo "portal=DOWN"; ech
+
+## Last text from previous session
+
+
+Same infra blocker — `teardown test2 FAILED — mount/module still live` — zsl's per-iter teardown can't `rmmod` on a random node. Notably, run1/run2 (pre-fix) formed fine because I'd run `reset4` first (proper mkfs+mount+umount cycle); run3/run4 (post cluster_reset only) fail because rmmod hangs on a loaded-but-never-cleanly-mounted node. Let me check why rmmod fails on test2 right now.
+test2 has **refcnt=1 with no mount and no holders** — a leaked module reference after insmod, so `rmmod` fails ("in use"). The module grabs a self-ref on load (likely the disklock heartbeat/CAW join) that isn't released without a clean mount+unmount cycle. Let me check what prep_tcm_node.sh does.
+prep only `insmod`s (no mount), and run1/run2 proved `rmmod` works right after a fresh insmod (reset4 rmmod'd successfully). So test2's stuck refcnt=1 came from a **later mount→umount cycle leaking a module reference** — once a node leaks, every subsequent iter's teardown fails on it, killing the run. I need to determine if my heartbeat change caused this. Let me kill the looping run4 and do a controlled single-node mount→umount→rmmod test with my fix.
+The pkill keeps killing my own command pipeline. Let me stop the monitor task cleanly first.
+I've reached the relay boundary. Let me clean up the background run and confirm host health before summarizing.
+Let me run a clean host-health check (the previous command's output got swallowed by pkill's exit code).
+Host is healthy and clean (D-state 0, portal up, SCST suspend 0, no leaked threads). Wrapping up at the relay boundary.
+
+## Session 69 summary
+
+**Biggest win — host unwedged without a reboot.** The SCST/iSCSI stack had been hard-wedged for ~5 sessions; prior sessions wrongly concluded it required a user-gated host reboot (RULE 2). I cleared it with the documented `scst_unwedge.ko` procedure: diagnosed a CAW↔READ scsi-atomic A↔B deadlock on the disk1 vdisk via gdb/`/proc/kcore`, broke the cycle (D-state 92→0, conn_cleanup 90→0), restarted SCST, re-logged the loopback backing. Recorded as `sess69-scst-wedge-cleared-NO-REBOOT-via-unwedge` so it's never missed again.
+
+**Diagnosed the real zsl/posix_multi16 blocker** (deterministic, reproduced twice): under 16-node storm, plain (cacheable) heartbeat reads in the dead-detector return stale sectors → **live nodes falsely evicted** → expensive `purge_node` (65536-slot FUA scan) + journal replay → dir-ilock starvation → `find` verify hangs. The detector WRITES its heartbeat FUA but READS peers' with plain `mxfs_pal_bdev_read` — the codebase's signature FUA-read-coherency gap.
+
+**Built a candidate fix (`FE603677`):** confirm-before-evict — a FUA cache-bypassing re-read at the eviction decision point that logs `P-HBFALSE` and skips eviction if the heartbeat actually advanced. Stable at idle (no false evictions/shutdowns). Recorded as `sess69-heartbeat-stale-read-false-eviction-fix`.
+
+**Open blocker for next session (NOT yet resolved):** I could not get a clean zsl validation run — the test infra hits a **module-refcount leak**: after a mount→umount cycle a random node ends with `refcnt=1` (no mount, no holders) so `rmmod` fails ("in use"), and zsl's per-iter teardown then fails ("teardown testN FAILED — refusing to mkfs"). Once one node leaks, the run is stuck. **Must determine next: did `FE603677` introduce this (e.g. the added FUA read blocking clean heartbeat-thread exit during umount → leaked module ref), or is it pre-existing?** The controlled single-node mount→umount→rmmod test (on test3, fix loaded) was started to answer this but got interrupted — re-run it first. If the fix caused it, guard the confirm-read against the shutdown path; if pre-existing, replicate the run1/run2 working sequence (`cluster_reset_n` → retry `reset4` to 16/16 → zsl).
+
+**Criteria NOT met — marker stays unwritten.** 4 FAILs remain (zsl, posix_multi16, fence_during_write lost=400, rsync_paired 148%); zsl/posix_multi16 likely share the heartbeat-eviction root the new build targets.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

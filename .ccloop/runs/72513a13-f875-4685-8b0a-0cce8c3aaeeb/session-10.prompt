@@ -1,0 +1,143 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 10 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 9
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `7f84f084-bde3-4101-91b8-5995951c3a2e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7f84f084-bde3-4101-91b8-5995951c3a2e.jsonl`
+- approx context at last assistant turn: 497847 tokens
+- tools used: Bash×228 Edit×32 Read×23 TaskCreate×7 TaskUpdate×7 Write×3 mcp__ccmemory__memory_write×3 ToolSearch×2 TaskList×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/suite/posix_multi.sh
+- /src/mxfs/scripts/raw_fio_ceiling.sh
+- /src/mxfs/tests/suite/dir_add_visibility.sh
+- /src/mxfs/scripts/run_adhoc_suite_test.sh
+- /src/mxfs/tests/suite/fio_perf.sh
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/VERSION
+- /src/mxfs/tests/tcp/tcp_dlm_scaling.sh
+- /src/mxfs/run.sh
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for n in 1 2 3; do RULE0_CALIBRATE=1 ./run.sh 32 tcp dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)"; done
+    for d in $(ls -dt /tmp/run_dir_reuse_coherency_* | head -3); do grep -h "RESULT:" $d/test1 | grep -oE "reason=.*" | cut -c1-90; done
+    bash -n tests/suite/dir_reuse_coherency.sh || sed -i 's/in $(seq $(( half + 1 )) "$NFILES"))/in $(seq $(( half + 1 )) "$NFILES")/' tests/suite/dir_reuse_coheren
+    RULE0_CALIBRATE=1 ./run.sh 32 tcp dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)"; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -E "
+    timeout 12 tools/mxfs_sshpass.sh test5 /tmp/.mxfs_pass 'dmesg | awk -v a=3578 -v b=3590 "{match(\$0,/\[ *([0-9]+)\./,t); if (t[1]+0>=a&&t[1]+0<=b) print}" | gre
+    timeout 12 tools/mxfs_sshpass.sh test5 /tmp/.mxfs_pass 'dmesg | tail -3000 | grep -E "P70-BP.*ENTRY" | grep -oE "held_ms=[0-9]+" | sort -t= -k2 -n | uniq -c | t
+    RULE0_CALIBRATE=1 ./run.sh 32 tcp dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)"; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'ino=$(dmesg | gre
+    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); grep -h "RESULT:" $D/test* 2>/dev/null | grep -v ABORTED | grep -oE "reason=.*" | cut -c1-130 | sort | uni
+    timeout 10 tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass 'dmesg | grep "drc-CONTENT" | tail -2; ls -la /mnt/shared/.dir_reuse_coherency/ 2>/dev/null | head -4' 2>
+    timeout 12 tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass 'f=/mnt/shared/.dir_reuse_coherency/node5_f1; stat -c "size=%s" $f; head -c 60 $f; echo; echo ---tail---;
+    for i in 5 20; do echo "== test$i:"; timeout 8 tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass 'stat -c "size=%s" /mnt/shared/.dir_reuse_coherency/node5_f1 2>&1 | 
+    timeout 12 tools/mxfs_sshpass.sh test5 /tmp/.mxfs_pass 'ino=$(stat -c %i /mnt/shared/.dir_reuse_coherency/node5_f1); echo INO=$ino; dmesg | grep -E "ino=$ino" |
+    grep -n "P6-FAIRQ" dlm/dlm.c | head -4
+    grep -n "promote" dlm/dlm.c | head -10
+    DIRINO=$(timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'stat -c %i /mnt/shared/.dir_reuse_coherency 2>/dev/null' 2>/dev/null | grep -E "^[0-9]+$"); echo
+    grep -n "P-DIRBAST" xfs/xfs_mxfs_dlm.c | head -3; grep -n "i_dlm_stale_src\|honor" xfs/xfs_mxfs_dlm.c | grep -inE "honor|stale_src = " | head -8
+    grep -n "ACQUIRING" xfs/xfs_mxfs_dlm.c | awk -F: '$1 > 15680 && $1 < 16100' | head -8
+    grep -n "bast_during_acq" xfs/xfs_mxfs_dlm.c xfs/xfs_inode.h | head -8
+    grep -n "i_dlm_bast_during_acq" xfs/xfs_mxfs_dlm.c | grep -v "= true" | head -6
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "## SESS9 (tcp CLEARED 1-16, 0.11.35 = 30FA152F, 32/tcp rung IN FLIGHT)" new = """## SESS9 FINAL
+
+## Last text from previous session
+
+arting it:
+test4 was running but momentarily unreachable — answers now. Relaunching the rung:
+test17/test23 lost their /src NFS mount. Checking the canonical mount and applying:
+All functional green so far at 32; two calibrate-mode budget overruns noted (posix_multi 37s/30, dlm_fairness 49s/30) — will need the N-invariant treatment after the rung. Waiting:
+Rung quiet for >10 min after crash_consistency. Checking what's live:
+drc@32 has run ~29 min — only rank4's leg is still alive; the new test self-boxes at ~110s so something is stuck. Probing test4:
+The fuser -k killed my own compound shell. Redoing stepwise:
+0.11.33 = `7ECB4035`. Rebooting test4, prepping 32 on the new build:
+Prep OK (90s, all 32 on 0.11.33). Rung:
+22,822 kernel lines on test17 in that 145s window — something was flooding, and timeouts ran in multiple directions cluster-wide. Getting the composition:
+61s fail-fast — this isn't pace, a round check failed. Reading which:
+Still red — checking whether it's still dirent loss or now pace:
+Typo fixed, syntax OK. One diagnostic run, then the wave/sync split:
+Recording the mid-investigation state before continuing (relay safety):
+Continuing the loop — need BAST-arrival vs grant vs release timing on a round-open holder. One more run, then paired harvest:
+This run aborted on a round failure again — reason:
+node5_f1 shows **size=0** on test4 (expected 20480). Creator's view vs another peer:
+Relay boundary hit — landing the last finding into state.md and wrapping:
+Session 9 closes at the relay boundary. Summary of the session:
+
+**Matrix moved from tcp {1✓, 2/4 19-20, 8=15/20, 16/32 unrun} to tcp 1-16 fully green + 32/tcp at 18/19** (cawd and caw were already complete; cawp remains untouched).
+
+**Three kernel fixes landed** (0.11.32→0.11.35, current build 30FA152F on the 32/tcp rig):
+1. **Trans-drain self-deadlock** — rename's final commit ran a deferred BAST release under its own still-held ILOCKs (live-captured 22k-iteration drain wedge that shut down peer filesystems). Now punts to the BAST dwork when the committing task owns the ILOCK; confirmed processing cleanly in later runs.
+2. **Dead-demote eviction deadlock** — the igrab guard refused the release re-drive on a FREEING inode whose own eviction was the blocked waiter (29-minute ping-pong on test4). Now runs the release inline in that provably-safe context.
+3. **TCP dirent-loss root** — a node ran a whole drc round against a stale dead incarnation of the shared dir (readdir 0/128 vs peers' 124/128; its creates orphaned = the missing names). Enabled the level-triggered epoch-consume adopt on TCP with the CAW-validated guards; the dirent-count loss class has not re-fired since.
+
+**Major test-infrastructure honesty fixes**: posix_multi self-wipes (GNU mv same-inode no-op made re-runs assert inverted verdicts — the sess8 "dirent loss" there was test degeneracy); drc got fork-free content generation (each create was paying a 2-fork spawn that broke tenure batching); tcp_dlm_scaling and fio_perf got N-invariant volumes (their recorded tcp walls hid 8× budget violations); the raw-ceiling yardstick is now median-of-3 fio_perf-shaped samples with time-paired gating; run.sh prep now self-heals lost /src NFS mounts.
+
+**Open fronts at 32/tcp, all RULE-4-instrumented with a GPT (RULE 5) design ruling recorded in memory**: (A) round-open handoff staircase — BASTs proven to arrive 22-75µs after grant but the ACQUIRING-deferred honor path sleeps the full 300ms window; next step is the honor-site fix (arm remaining-grace dwork). (B) extending-write size-0 loss — the admit-ioend gate detaches setfilesize work from sync's accounting; GPT prescribed a grant-epoch drain state machine. (C) AGI unlinked-bucket leak regression (2001×/145s) — needs generation-qualified orphan intent. Also 32-node calibrate budget debts (cc 93/60, fio 127/120, fairness 49/30, crash 113/90) and the whole cawp ladder before the final one-build sweep.
+
+Criteria not met — the run continues in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

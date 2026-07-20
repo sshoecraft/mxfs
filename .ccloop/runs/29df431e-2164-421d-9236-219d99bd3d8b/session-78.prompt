@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 78 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 77
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `15c9b1fc-4146-4468-8afe-cb9d23ff77dd`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/15c9b1fc-4146-4468-8afe-cb9d23ff77dd.jsonl`
+- approx context at last assistant turn: 256496 tokens
+- tools used: Bash×81 Read×25 Edit×6 ToolSearch×3 mcp__ccmemory__memory_write×2 ScheduleWakeup×1 mcp__ask_gemini__query×1 mcp__ccmemory__memory_get×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== owned_ex computation in xfs_da_read_buf ==="; grep -n "owned_ex" xfs/libxfs/xfs_da_btree.c | head; echo "=== consumer_refresh full ===";
+    cd /src/mxfs; echo "=== where i_dlm_dir_gen / evicted_gen are initialized on inode alloc ==="; grep -rn "i_dlm_dir_gen\s*=\s*0\|i_dlm_dir_evicted_gen\s*=\|i_dlm
+    cd /src/mxfs; timeout 590 make modules 2>&1 | grep -iE "error:|undefined|implicit|warning:.*incarn" | head; echo "buildrc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/
+    OUT=/tmp/claude-1000/-src-mxfs/15c9b1fc-4146-4468-8afe-cb9d23ff77dd/tasks/bp6x790do.output; until grep -q "buildrc=" "$OUT" 2>/dev/null; do sleep 10; done; cat 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; for n in 1 2 3 4; do virsh destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4; do virsh st
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests LIBVIRT_DEFAULT_URI=qemu:///system; echo "=== cross_visibility ==="; timeout 120 bash te
+    cd /src/mxfs; D=$(ls -dt /home/steve/.mxfs/results/*/ | head -1); echo "dir=$D"; echo "=== residual FAIL lines ==="; grep -hE "\[FAIL\]" $D/test_rename_vis_dbg/
+    cd /src/mxfs; echo "=== P-EVICT-SKIP + DIR-STALE-SKIP counts per node ==="; for n in 1 2 3 4; do echo -n "t$n: evict-skip="; timeout 6 bash tools/mxfs_sshpass.s
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 800 bash tests/criteria/cache_coherency.sh --nodes 4 > /tmp/cc_full2.out 2>&1; echo "EXIT=$?"; 
+    cd /src/mxfs; until grep -qiE "RESULT:|EXIT=" /tmp/cc_full2.out 2>/dev/null; do sleep 15; done; echo "=== DONE ==="; grep -iE "Running:|\[PASS\]  test|\[FAIL\] 
+    cd /src/mxfs; L=/tmp/cache_coherency.0fP9hT.log; grep -iE "Running:|\[PASS\]  test|\[FAIL\]  test|failure\(s\)" $L | head -20
+    cd /src/mxfs; D=$(ls -dt /home/steve/.mxfs/results/*/ | head -1); echo "dir=$D"; ls $D; echo "=== cwr FAIL lines all nodes ==="; grep -hE "\[FAIL\]" $D/test_cro
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; for n in 1 2 3 4; do virsh destroy test$n >/dev/null 2>&1; done; sleep 3; for n in 1 2 3 4; do virsh st
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests LIBVIRT_DEFAULT_URI=qemu:///system; for t in test_cross_visibility test_rename_vis_dbg t
+    cd /src/mxfs; echo "=== criterion test list + sequencing ==="; sed -n '20,46p' tests/criteria/cache_coherency.sh; echo "=== is test_rename_visibility same as _v
+    cd /src/mxfs; for n in 1 2 3 4; do timeout 6 bash tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "dmesg -C>/dev/null 2>&1"; done; export MXFS_NODE_OFFSET=16 MXFS_
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests LIBVIRT_DEFAULT_URI=qemu:///system; for run in 1 2 3 4 5 6; do for n in 1 2 3 4; do time
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests LIBVIRT_DEFAULT_URI=qemu:///system; for run in 1 2 3 4; do for n in 1 2 3 4; do timeout 
+    cd /src/mxfs; echo "=== i_dlm_dir_gen++ sites ==="; grep -n "i_dlm_dir_gen++\|i_dlm_dir_gen +=" xfs/xfs_mxfs_dlm.c; echo "=== fast-path / cache-hit EX (mode<=i_
+    cd /src/mxfs; export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests LIBVIRT_DEFAULT_URI=qemu:///system; fail=0; for run in 1 2 3 4 5 6; do for n in 1 2 3 4;
+
+## Last text from previous session
+
+tely before. So a residual remains specific to cross_visibility's inode-reuse pattern. Let me reproduce the exact `cross_visibility→rename` trigger repeatedly and capture the lost entries + probes on failure.
+Clear residual signature: **one node loses ALL 20 renames, intermittently (~25%), with DIR-STALE-SKIP=0** and incarnation-evict firing. So it's NOT the dirty-skip window and NOT ABA — it's a node RMW'ing from a stale cached dir block whose `modify_refresh` was skipped because gen didn't advance (cached-EX fast-path across a BAST handoff). Let me examine where `i_dlm_dir_gen` is bumped on EX acquire.
+Let me read the cached-EX fast-path to find the window where `i_dlm_mode==EX` but a peer modified the dir (the lost-update).
+There's a sess100 `dir_ex_stale_refresh` on the EX fast-path. Let me read how it decides to refresh and whether it covers this case.
+I see the full mechanism now: there are multiple gen-tracking systems (`i_dlm_dir_evicted_gen`, `i_dlm_dir_loaded_gen`), each gated on gen being armed — and gen is only armed (0→1) on the **read** path, plus the eviction-ring DIR_MODIFY bump is gated `gen!=0` AND sess82 noted the ring is unreliable in CAW. The residual whole-node loss needs direct evidence: is it concurrent-EX (serialization failure) or fast-path-stale? Let me reproduce a failure and dump the always-on probes (P-DIRFASTEX stale_base, SESS50-COHOLD) from the loser node.
+Critical evidence: **COHOLD=0 (no concurrent-EX, serialization is correct)** but **STARVE=29-35 (heavy lock contention)**, and P-DIRFASTEX stale_base never fires (gen==0, so the entire gen-based evict is disabled). So the dir's gen is never armed → slow-path re-acquire's stale detection (`gen>loaded_gen`) can't fire → nodes RMW stale cached blocks. Let me verify the slow-path gen-bump at line ~3611 and whether it's reached for a gen==0 dir.
+I've hit the relay boundary. Let me record the residual findings for the next session before wrapping up.
+## Session summary
+
+Made significant, verified progress on the `cache_coherency` ship-blocker.
+
+**Root cause found & fixed (the big one).** Via a Gemini RULE-5 consult, identified the dominant directory lost-update as an **ABA inode-reuse bug**: XFS caches dir DATA blocks by physical `daddr`, not by inode. When one test frees inodes and the next reuses the same numbers+blocks, peers retain the *previous* incarnation's dir blocks (XBF_DONE set, `owner==ino` verifier passes). Both the modify-refresh and the eviction-ring consumer short-circuited on `i_dlm_dir_gen==0`, and the gen counter collides across incarnations — so the stale buffer escaped eviction and a peer's RMW clobbered a committer's just-added dirents.
+
+**Fixes landed (build `736ECD00`, deployed all 4 nodes):**
+1. `84AC92ED` — wired `mxfs_dlm_dir_modify_refresh` into `xfs_rename` + `xfs_create` (sess103 had only done `xfs_remove`).
+2. `736ECD00` — tied the dir-block evict to the on-disk inode generation via a new `i_dlm_dir_evicted_incarn` field; force a one-shot whole-dir evict per incarnation in both modify_refresh and consumer_refresh.
+
+**Measured result:** criterion advanced **2/4 → 3/4**. cross_visibility, rename_visibility, unlink_visibility now PASS in the full run; the 604s EX-lock-timeout **wedge/shutdown cascade is gone** (cross_write_read now fails fast instead of hanging).
+
+**Remaining (recorded in `sess104_lessons` memory):**
+- **Residual #1** — rename_visibility is flaky (~25% after cross_visibility): one node loses all 20 renames. RULE-4 evidence: `COHOLD=0` (serialization correct, no concurrent-EX), heavy `SESS50-STARVE`, and gen never armed → gen-based evict disabled. Next: arm `i_dlm_dir_gen` on the modify path (sess94 `fua_disable=1` removed the old FUA timing wall that blocked this).
+- **Residual #2** — cross_write_read: a tiny `.md5` sidecar reads empty cluster-wide (reg-file small-file content loss, separate from the dir bug).
+
+Criteria **not met** (3/4, need 0 failures) — marker not written. Work continues next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

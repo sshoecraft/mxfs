@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 22 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 21
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6a49a56d-c8a9-4b0f-83b4-e69759ff10b4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6a49a56d-c8a9-4b0f-83b4-e69759ff10b4.jsonl`
+- approx context at last assistant turn: 522381 tokens
+- tools used: Bash×68 Read×56 Edit×23 mcp__ccmemory__memory_get×8 ToolSearch×3 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/run.sh
+- /src/mxfs/tests/setup/prep_node.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/tests/force_reset.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_priv.h
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== dir_reuse_coherency 2/tcp, build 4942DEC9, DRC_ROUNDS=15 (stop before shutdown), leaf timeline ==="; MXFS_TEST_ENV="DRC_ROUNDS=15" timeo
+    cd /src/mxfs; chmod +x tests/force_reset.sh; echo "helper ready: tests/force_reset.sh"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 30 bash "$SSH" "$n" "$PF" ' echo "-- P21S-E
+    cd /src/mxfs; echo "=== callers of mxfs_dir_data_durable / mxfs_dir_flush_data_blocks ==="; grep -n 'mxfs_dir_data_durable(\|mxfs_dir_flush_data_blocks(' xfs/xf
+    cd ~/src/linux/fs/xfs; sed -n '/^xfs_dir2_block_to_leaf(/,/^}/p' libxfs/xfs_dir2_leaf.c | head -150; cd /src/mxfs
+    cd /src/mxfs; echo "=== leaf/data helpers in mxfs libxfs ==="; grep -rn 'xfs_dir2_leaf_hdr_from_disk\|xfs_dir2_leaf_hdr_to_disk\|xfs_dir3_leaf_log_ents\|xfs_dir
+    cd /src/mxfs; echo "=== xfs_dir2_priv.h relevant decls ==="; sed -n '60,120p;205,220p' xfs/libxfs/xfs_dir2_priv.h; echo "=== icleaf_hdr struct ==="; grep -rn 's
+    cd /src/mxfs; echo "=== icleaf_hdr ==="; sed -n '15,30p' xfs/libxfs/xfs_dir2_priv.h; echo "=== data-block dirent walk pattern (freescan) ==="; sed -n '/^xfs_dir
+    cd /src/mxfs; echo "=== geo->leafblk / freeblk in da geometry ==="; grep -rn 'leafblk\|freeblk\|datablk' xfs/libxfs/xfs_da_btree.h | head; echo "=== xfs_dir3_da
+    cd /src/mxfs; echo "=== MXFS_IF_ flag defs ==="; grep -rn 'define MXFS_IF_DIR_RELOAD\|define MXFS_IF_LOCAL_UNLINK\|define MXFS_IF_' xfs/libxfs/xfs_inode_fork.h 
+    cd /src/mxfs; echo "occurrences of 'skipped++;':"; grep -c 'skipped++;' xfs/xfs_mxfs_dlm.c; grep -n 'skipped++;' xfs/xfs_mxfs_dlm.c; echo "=== show with literal
+    cd /src/mxfs; echo "=== does mxfs xfs code already use sort()? ==="; grep -rln '#include <linux/sort.h>\|[^_]sort(' xfs/libxfs/*.c xfs/*.c 2>/dev/null | head; e
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|undefined|implicit|warning:.*rebuild_leaf|warning:.*mxfs_leaf' | head -30; echo "build exit=${PIPESTATUS[0]}"
+    cd /src/mxfs; bash tests/force_reset.sh test1 test2 2>&1 | tail -8
+    cd /src/mxfs; echo "=== dir_reuse_coherency 2/tcp, build 71E1C8A9 (LEAF-REBUILD FIX), DRC_ROUNDS=15 ==="; MXFS_TEST_ENV="DRC_ROUNDS=15" timeout 420 ./run.sh 2 t
+    cd /src/mxfs; echo "=== 2-node applicable tests (manifest) ==="; grep -vE '^\s*#|^\s*$' tests/suite/manifest | awk '{print $2}' | head -40; echo; echo "=== whic
+    cd /src/mxfs; sed -n '200,230p' xfs/libxfs/xfs_dir2.h; echo "=== leafblk meaning (geo) ==="; grep -rn 'geo->leafblk\s*=\|->leafblk =' xfs/libxfs/xfs_da_btree.c 
+    cd /src/mxfs; D=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); echo "DIR=$D"; for f in "$D"/test1 "$D"/test2; do echo "===== $(basename $f) ===
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|warning:|undefined|implicit' | grep -iE 'dir2_leaf|rebuild|overflow_bail|collect_dir|snap|kv|dbp' | head -25;
+    cd /src/mxfs; echo "=== dir_reuse_coherency 2/tcp, build 862A8487 (UNION rebuild), DRC_ROUNDS=15 ==="; MXFS_TEST_ENV="DRC_ROUNDS=15" timeout 420 ./run.sh 2 tcp 
+
+## Last text from previous session
+
+t me check includes and add the declaration.
+Now add the `<linux/sort.h>` include to xfs_dir2_leaf.c (guarded). Let me check its includes.
+Now wire the rebuild into `xfs_dir_createname`. Let me read it.
+Now add the call site in `xfs_dir_createname` (gated on the flag):
+Now build with the full fix.
+Build is running. Let me reconsider correctness while it compiles: the flag fires the rebuild **once per acquire** (test_and_clear on first create; subsequent FASTEX creates in the same tenure reuse the now-correct leaf) — that's both correct and perf-friendly. Let me check the build result.
+I'll wait for the build to complete (notification). Meanwhile, let me proactively clean both nodes so the test cycle is ready immediately after the build.
+Both nodes pre-cleaned. Waiting for the build to finish.
+Build succeeded — `71E1C8A9`. Both nodes clean. Now run the faithful repro (DRC_ROUNDS=15) to see if the fix closes the leaf-hash hole.
+Test running. One robustness note for later: I iterate `db` over the leaf's `bestcount`; if a peer *added* a data block our stale leaf doesn't know about, those entries would be missed — but that degrades to a partial (still-consistent) rebuild, no new corruption. For 200 entries (~2 data blocks) bestcount is stable, so the common case is covered. Let me check the result.
+I'll wait for the test-completion notification rather than poll.
+I'll stop polling and wait for the completion notification. The test is running.
+The Stop hook confirms the test is still running. Let me do useful prep: since my change touches `xfs_dir_createname` (all dir creates), I'll need a full-suite regression run after. Let me confirm the 2-node test list so I'm ready.
+Let me check the dir_reuse test result.
+I'll wait for the completion notification rather than poll further.
+Let me verify my rebuilder's address/dablk helper usage is correct while the test runs (defensive review).
+The run.sh output buffers until completion, so mid-run reads stay empty — I'll wait for the task-completion notification. The leaf-rebuild fix (build `71E1C8A9`) is under test on `dir_reuse_coherency` (15 rounds). My helper usage (`xfs_dir2_db_to_da`, `xfs_dir2_db_off_to_dataptr`, `geo->leafblk`) is verified correct.
+Criteria not yet met — the fix test is still pending. Let me check its result.
+Still FAIL. Let me harvest: did the rebuild fire, did lookup_fail change, and any new corruption.
+**Huge progress.** The leaf-rebuild fix took `dir_reuse_coherency` from ~9-29 lookup failures down to **just 1** (`checks=91 passed=90 failed=1`): rounds 1-14 fully PASS, round 15 misses a single entry (`node2_f34.md5`), no shutdown. The fix is fundamentally correct.
+
+The residual: the rebuild read an **in-core data block that was itself stale** (undestaged-skipped at acquire) for that one entry — GPT's `DATA_UNSAFE` edge. The fix: rebuild from the **union of in-core + coherent-disk** data (in-core has this node's uncommitted adds; disk has the peer's durable adds). Let me record progress, then implement the union.
+Now implement the union (in-core + coherent-disk) read. Let me re-read the current rebuilder to edit precisely.
+I've reached the relay boundary. Let me complete this sub-step cleanly: implement the union (in-core + coherent-disk) read so the rebuild can't miss an entry from a stale in-core data block, then build to ensure it compiles. First, add a dirent-collection helper.
+Now rewrite the scan loop to collect from both the in-core buffer and a coherent disk snapshot, with dedup:
+Let me build to catch any issues in the union edit (the goto/label cleanup may need fixing).
+Build OK — `862A8487` (union read: rebuild now collects from both in-core and coherent-disk data, deduped). Let me run it to see if it closes the last entry (→ 91/91).
+Test launched (background). I'll wait for the result, then summarize for the relay.
+I'll wait for the test-completion notification rather than poll the buffered output.
+I'll stop polling and wait for the completion notification.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

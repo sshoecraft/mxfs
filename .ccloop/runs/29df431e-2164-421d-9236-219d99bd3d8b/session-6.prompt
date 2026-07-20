@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 5
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `05bc3114-a589-422b-9d5a-759dd123a875`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/05bc3114-a589-422b-9d5a-759dd123a875.jsonl`
+- approx context at last assistant turn: 149455 tokens
+- tools used: Bash×26 Read×13 Edit×10 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/state.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess52_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== i_dlm_dir_gen refs ==="; grep -rn "i_dlm_dir_gen\|b_mxfs_dir_gen" xfs/ pal/ 2>/dev/null | head -40
+    cd /src/mxfs; echo "=== clearing dmesg on all nodes ==="; for n in test1 test2 test3 test4; do timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg -
+    cd /src/mxfs; timeout 240 env MXFS_TESTS_DIR=/src/mxfs/tests ./tests/run_tests.sh --nodes 4 --phase cluster --test test_cross_visibility --pass-file /tmp/.mxfs_
+    cd /src/mxfs; d=/home/steve/.mxfs/results/20260603_093304/test_cross_visibility; echo "=== node logs (FAIL/missing lines) ==="; grep -h "FAIL\|cannot see\|Barri
+    cd /src/mxfs; echo "=== test3 full corruption context ==="; timeout 15 bash tools/mxfs_sshpass.sh test3 /tmp/.mxfs_pass 'dmesg | grep -A12 "corrupted metadata b
+    cd /src/mxfs; echo "=== pag_dlm_meta_gen bump/use sites ==="; grep -rn "pag_dlm_meta_gen" xfs/ | head -30
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -iE "P70|P72|P74|P7
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -iE "P87|CAW-EXCL|D
+    cd /src/mxfs; echo "=== mxfs_v5_dlm_ag_held + ag->slot mapping ==="; grep -rn "mxfs_v5_dlm_ag_held\|ag_to_slot\|ag_slot\|slot_for_ag\|MXFS_CAW_.*AG\|caw_slot_fo
+    cd /src/mxfs; echo "=== mxfs_v5_dlm_ag_held def + ag resource build ==="; grep -rn "mxfs_v5_dlm_ag_held\b\|ag_resource\|mxfs_ag_resource_id\|resource_id.*ag\|MX
+    cd /src/mxfs; grep -rn "P88-INSTR\|bnobt-WRITE-low-numrecs\|mxfs_v5_dlm_ag_held\|mxfs_ag_buf_disk_differs" xfs/libxfs/xfs_btree.c xfs/libxfs/xfs_alloc.c xfs/xfs
+    cd /src/mxfs; grep -rn "P88-INSTR\|low-numrecs\|ag_ex_count\|mxfs_dlm_caw_held\b" xfs/ dlm/ include/ 2>/dev/null | head
+    cd /src/mxfs; grep -rln "P88" . 2>/dev/null | grep -v '\.md\|\.log\|results' | head; echo "==="; grep -rn "P88" xfs/libxfs/xfs_btree.c 2>/dev/null | head
+    cd /src/mxfs; grep -n "P88\|low-numrecs\|ag_held\|disk_differs\|holders\|popcount\|ag_ex" pal/linux/xfs_buf.c | head -20
+    cd /src/mxfs; grep -rn "int mxfs_v5_dlm_ag_held" include/ dlm/ xfs/ pal/ 2>/dev/null | grep -v "\.c:"; echo "=== caw_count_resource_slots return tail ==="; sed 
+    cd /src/mxfs; grep -rn "mxfs_v5_dlm_ag_held" --include=*.h . 2>/dev/null; echo "=== or extern in xfs_buf.c ==="; grep -n "mxfs_v5_dlm_ag_held\|mxfs_v5_dlm_ag_un
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning.*ex_count|warning.*ag_ex|P88|dlm_caw_ex|undefined|implicit" | head -30; echo "=== EXIT: ${PIPESTATUS[0
+    cd /src/mxfs; MKFS_OPTS=-f timeout 420 bash tests/reset4.sh 4 2>&1 | tail -20; echo "=== EXIT ${PIPESTATUS[0]} ==="
+    cd /src/mxfs; echo "=== loaded srcver ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -E "P88-INSTR" | ta
+
+## Last text from previous session
+
+ld clean (only a pre-existing unrelated warning), new srcversion `BDC9BB935D892B24FDFA724`. Now deploy to all 4 nodes and reproduce. Let me run reset4 to deploy + fresh-mount.
+Reset OK. Let me verify the new build is loaded, clear dmesg, and reproduce cross_visibility — all chained.
+Reproduced — node2.txt invisible to all (including node2). Now the decisive measurement: the P88 `ex_pop` / `ex_nslots` fields.
+**DECISIVE RESULT — and it refutes the leading hypothesis.** Every P88 fire across all 4 nodes shows uniformly:
+
+```
+disk_differs=1 ag_held=1 buf_gen==pag_gen fua_fresh=1  ex_pop=1  ex_nslots=1
+```
+
+**`ex_pop=1` and `ex_nslots=1` everywhere** — there is *never* more than one node holding EX on the AG, and never a duplicate slot. This **refutes transient concurrent-EX** (the "last unchecked lead" that sess44/46/47 flagged but never measured). The CAW DLM exclusion is sound: a single legitimate holder is writing a **stale, low-numrecs bnobt** (missing the peer's committed allocations) whose gen *falsely matches* `pag_gen`, so `mxfs_ag_meta_invalidate_stale` never re-reads it → lost update → block double-allocation.
+
+This is a major narrowing: the root is **single-holder read-side AG-meta staleness** (gen-stamped-fresh-but-content-stale), *not* a concurrency/locking violation. Let me record this proven finding before context runs out.
+Let me prepend a sess52 section to state.md recording the proven finding and the new build:
+Now record the proven finding in project memory. Create the sess52 lessons file:
+I've reached a strong stopping point with a major proven advance, and context is near the cutoff. Summary of this session:
+
+## What I proved (RULE 4, direct measurement)
+
+**1. The dominant `cache_coherency`/`cross_visibility` failure root = AG free-space + inode DOUBLE-ALLOCATION.** Decisive on-disk evidence: the `xfs_dir3_data_reada_verify` "corrupt directory block" hex dumps *physically contained regular-file data* — `"hello from node 1\n"` / `"hello from node 2\n"` — in blocks being verified as directory blocks. One physical block is allocated as **both** a dir data block and a file data block. `INODE-REUSE-EVICT incore_ftype=2 dirent_ftype=1` confirms inodes are double-allocated too (dir↔reg). The `actual=''` test failures are **ENOENT** (the dirent lives in the corrupt double-alloc'd dir block), not zero-content — settling the long-running sess49/51 di_size question for this mode.
+
+**2. CONCURRENT-EX IS REFUTED — the root is single-holder read-side staleness.** I built the never-run instrument that sess44/46/47 explicitly specified but never implemented (`mxfs_dlm_caw_ex_count` → `mxfs_v5_dlm_ag_ex_count`, wired into the P88 detector). Every P88 fire across all 4 nodes shows `disk_differs=1 ag_held=1 buf_gen==pag_gen ex_pop=1 ex_nslots=1`. **`ex_pop=1`/`ex_nslots=1` everywhere** means no two nodes ever hold EX on one AG and no duplicate slots — CAW exclusion is sound. The sole legitimate AG-EX holder is writing a **stale, low-numrecs bnobt** whose gen *falsely matches* `pag_gen`, so the gen-invalidation hook never re-reads it → lost update → double-alloc. This kills the "transient concurrent-EX / slot-claim-race" lead that consumed sess44/46/47.
+
+## State persisted
+- New build `BDC9BB935D892B24FDFA724` (DFD5D8F0 + the diagnostic only, no behavior change), built clean, deployed + mounted on all 4 nodes.
+- `state.md` sess52 section + `sess52_lessons.md` memory + MEMORY.md index updated.
+
+## Next session (clear RULE-4 step)
+Why is the sole-holder's bnobt buffer gen-fresh but content-stale? Add P70-style `dirty/in_ail/pin/delwri` fields to the P88 `disk_differs==1` log. Leading hypothesis: it's this node's own un-refreshable buffer that survived an AG release without drain (Arch-Invariant-1), or `mxfs_ag_meta_invalidate_stale` gen-stamps fresh without re-reading. Then targeted fix → reset4 → rerun.
+
+**Criteria are NOT met** (cache_coherency still fails — double-alloc unfixed). Marker not written; work continues next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

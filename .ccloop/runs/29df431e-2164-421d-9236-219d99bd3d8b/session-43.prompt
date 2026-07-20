@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 43 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 42
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `7dca9aa5-b270-4b0a-b453-26ec1d043ba2`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7dca9aa5-b270-4b0a-b453-26ec1d043ba2.jsonl`
+- approx context at last assistant turn: 251974 tokens
+- tools used: Bash×66 Read×30 Edit×10 ScheduleWakeup×5 ToolSearch×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 25 bash tools/mxfs_sshpass.sh "$n" "$P" '   pkill -9 rsync 2>/dev/null   umount -l
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | grep -aviE '^Warning|^Unauthorized|^If you|disconnect' | tail -6
+    cd /src/mxfs; BENCH_KEY="diag_$(date +%H%M%S)" timeout 560 bash tools/mxfs_multinode_bench.sh 1 test1 test2 test3 test4 2>&1 | grep -aviE '^Warning|^Unauthorize
+    cd /src/mxfs; timeout 900 bash tests/criteria/rsync_paired.sh --nodes 4 2>&1 | grep -aviE '^Warning|^Unauthorized|^If you|disconnect' | tail -20
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo "'"$n"': mnt=$(mountpoint -q /mnt/sh
+    cd /src/mxfs; P=/tmp/.mxfs_pass # set param on all nodes for n in test1 test2 test3 test4; do timeout 10 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo 1 > /sys/mod
+    cat /tmp/claude-1000/-src-mxfs/7dca9aa5-b270-4b0a-b453-26ec1d043ba2/tasks/bq8u5vscd.output 2>/dev/null
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" 'echo "rsync=$(pgrep -c rs
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2; do echo -n "$n: "; timeout 15 bash tools/mxfs_sshpass.sh "$n" "$P" 'D=/mnt/shared/$(hostname)/exp_caw; c1
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 20 bash tools/mxfs_sshpass.sh "$n" "$P" '   echo 0 > /sys/module/mxfs/parameters/i
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; for n in test1 test2 test3 test4; do timeout 25 virsh destroy "$n" >/dev/null 2>&1 & done; wait; echo "
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for i in $(seq 1 24); do sleep 10; up=0; for n in test1 test2 test3 test4; do timeout 6 bash tools/mxfs_sshpass.sh "$n" "$P" 'm
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | grep -aviE '^Warning|^Unauthorized|^If you|disconnect' | tail -4
+    cd /src/mxfs; P=/tmp/.mxfs_pass # Single-node bandwidth: dd 659MB to mxfs on test1 echo "=== SINGLE-NODE dd 660MB ===" timeout 120 bash tools/mxfs_sshpass.sh te
+    cd /src/mxfs; P=/tmp/.mxfs_pass echo "=== 4-NODE PARALLEL dd 660MB each ===" for n in test1 test2 test3 test4; do   ( timeout 120 bash tools/mxfs_sshpass.sh "$n
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined|warning.*owned_skip' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | grep -aviE '^Warning|^Unauthorized|^If you|disconnect' | tail -3
+    cd /src/mxfs; P=/tmp/.mxfs_pass; timeout 120 bash tools/mxfs_sshpass.sh test1 "$P" '   [ -d /root/open-gpu-kernel-modules ] || cp -a /src/open-gpu-kernel-module
+    cd /src/mxfs; awk '/^mxfs_fua_count\(/{f=1} f{print NR": "$0} f&&/^}/{exit}' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error:|Error [0-9]|undefined' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+readed rsync). Both broad removal levers wedge, so the fix must be surgical. I need the FUA composition (inode-cluster vs dir-block) to scope Gemini's safe IGET_CREATE skip. The `report_stats` counter isn't emitting — let me make `mxfs_fua_count` emit directly and drop the wedging skip branch:
+Now neuter the wedging `fua_skip` branch in xfs_buf.c (keep counting only):
+Build `092467BC`. Deploy and run a solo rsync to capture the FUA composition:
+No FUA-COUNT lines — meaning inode-cluster FUA reads are **< 1024** during the whole rsync. So inode-cluster FUA is NOT the cost. The `_XBF_FUA_FRESH` gate means each buffer FUAs only once; node-private buffers stay fresh. The sess78 "9.4s = FUA" attribution may be wrong. Let me key the counter on total FUA activity to get the real composition:
+At the relay boundary — let me finish this edit cleanly so the build is consistent, then summarize. Let me complete the counter function:
+Let me find and fix the `mxfs_fua_count` function to ensure it compiles (I left `total`/`t` unused):
+Let me add the total-keyed periodic emit so the function uses `total`/`t` and reliably surfaces the FUA composition:
+Let me verify it builds cleanly before wrapping up:
+Build clean (`9CECC6EE`). I'm at the relay boundary — criteria **not** met (rsync_paired still 615%), so no marker written. Brief summary of this session's progress:
+
+## Session summary
+
+**Goal:** rsync_paired is the sole failing criterion (11/12 PASS). Need 4-node parallel per-node wall ≤1.2× single-node XFS (≤5567ms).
+
+**Confirmed authoritative baseline (RULE 4):** Ran `tests/criteria/rsync_paired.sh --nodes 4` on the current build → **FAIL ratio=615% (worst 28552ms)**, clean (dmesg=0, ec=0, all 8714 files). The earlier raw-bench "3-7s" was a stale-mount artifact (the bench's form/join races reset4's pre-mount). Solo rsync = ~20.7s.
+
+**DECISIVE new finding — NOT bandwidth-bound:** measured LUN write bandwidth. Single-node dd = 562 MB/s; **4-node parallel dd = 1435 MB/s aggregate** (slowest node 301 MB/s, 660MB in 2.3s). So the 659MB of rsync *data* needs only ~2.3s — the other ~26s is pure **metadata coordination overhead**. The criterion IS physically achievable (a perfect metadata layer → ~3-5s parallel).
+
+**RULE-5 Gemini consult (done):** Full GFS2 AG-subordination of inode locks → fatal AB-BA deadlock (XFS `ILOCK→AGF` vs proposed `AG_DLM→ILOCK`, via parent-in-AG1/child-in-AG2 lookups). Recommended narrow "deferred-publish": grant new (XFS_INEW) inodes locally + skip FUA on XFS_IGET_CREATE while owning the AG, publish CAW at xfs_iflush before durability (relies on existing inode-durable-before-dirent-visible barrier).
+
+**Both broad removal levers WEDGE under parallel load:** `fua_skip_owned_inode=1` and `inode_caw_local=1` each caused ILOCK hung-task deadlocks (even `find` hung) → required hard-reset of all 4 VMs. So per-op coordination is load-bearing for *deadlock-freedom*, not just coherency — the fix must be surgical, not broad-skip. Removed the wedging fua_skip branch.
+
+**Open question for next session:** sess78's "9.4s = FUA reads" attribution is now in doubt — instrumentation shows inode-cluster FUA reads are **<1024** for the whole solo rsync (the `_XBF_FUA_FRESH` gate means each buffer FUAs once; node-private buffers stay fresh). So FUA is likely NOT the residual cost. **Next:** deploy build `9CECC6EE` (FUA-COUNT now keyed on total FUA every 256, surfaces ino/dir/agm split reliably), run a solo rsync, read `dmesg | grep FUA-COUNT` to get the real composition. If FUA total is small, the ~9.4s residual (20.7s − 4.8s base − 6.5s inode CAW) is something else (likely per-commit durability/AG churn or dir-inode EX CAW per dirent) — re-decompose before designing the fix.
+
+**Cluster state:** mounted on the previous build `092467BC` (not the latest `9CECC6EE`); all params at 0; source seeded on test1. Reset via `MKFS_OPTS=-f bash tests/reset4.sh 4`; if a node wedges at refcnt=1, `LIBVIRT_DEFAULT_URI=qemu:///system virsh destroy/start testN`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

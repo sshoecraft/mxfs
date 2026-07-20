@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 6
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `af35ad34-ffb3-4496-9a06-12a68b06dc4e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/af35ad34-ffb3-4496-9a06-12a68b06dc4e.jsonl`
+- approx context at last assistant turn: 149002 tokens
+- tools used: Bash×22 Read×15 Edit×6 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/state.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess53_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -rn "in_ail\|XFS_LI_IN_AIL\|b_pin_count\|_XBF_DELWRI_Q\|li_flags" pal/linux/xfs_buf.c xfs/xfs_mxfs_dlm.c 2>/dev/null | grep -i "p70\|in_ail\|pin_count\|del
+    make modules 2>&1 | grep -iE "error|warning.*p88|implicit|undefined" | head -20; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null | grep srcver
+    cd /src/mxfs; MKFS_OPTS=-f timeout 480 bash tests/reset4.sh 4 2>&1 | tail -15; echo "=== EXIT ${PIPESTATUS[0]} ==="
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo -n "$n srcver: "; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'cat /sys/module/mxfs/srcvers
+    cd /src/mxfs; timeout 300 env MXFS_TESTS_DIR=/src/mxfs/tests ./tests/run_tests.sh --nodes 4 --phase cluster --test test_cross_visibility --pass-file /tmp/.mxfs_
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "--- $n P88 ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep "P88-INSTR" | t
+    cd /src/mxfs; grep -n "mxfs_ag_meta_invalidate_stale\|XFS_LI_IN_AIL\|b_mxfs_ag_gen\|pag_dlm_meta_gen" xfs/xfs_mxfs_dlm.c | head -40
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "--- $n ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -cE "P77-INSTR|P86-
+    cd /src/mxfs; echo "=== call sites of invalidate_stale ==="; grep -rn "mxfs_ag_meta_invalidate_stale" xfs/ pal/ --include=*.c | grep -v "^xfs/xfs_mxfs_dlm.c:23"
+    cd /src/mxfs; grep -n "pag_dlm_release_pending\|pag_dlm_cached = true\|mxfs_v5_dlm_ag_unlock\|pag_dlm_meta_gen++" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "--- $n real errors ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -iE "EF
+    cd /src/mxfs; f=$(find tests -name "*cross_visibility*" 2>/dev/null | head -1); echo "TEST FILE: $f"; echo "=== body ==="; grep -nvE "^\s*#|^\s*$" "$f" 2>/dev/n
+    cd /src/mxfs; d=$(ls -dt /home/steve/.mxfs/results/*/ 2>/dev/null | head -1); echo "RESULTS: $d"; grep -rhiE "cannot see|FAIL|reads correct|sees all|actual|expe
+    cd /src/mxfs; echo "=== i_dlm_dir_gen / b_mxfs_dir_gen sites ==="; grep -rn "i_dlm_dir_gen\|b_mxfs_dir_gen" xfs/ --include=*.c | head -40
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo -n "$n sees: "; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'ls /mnt/shared/.mxfs_test/cros
+    cd /src/mxfs; for n in test1 test2 test3; do echo "--- $n ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "DIR-STALE-SKIP="$(dmesg|grep -c 
+    cd /src/mxfs; for n in test1 test2 test3; do echo "--- $n ---"; timeout 15 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'd=$(dmesg); printf "DIR-STALE-SKIP=%s 
+    cd /src/mxfs; awk 'NR>=1600 && NR<=1925 && /^[a-zA-Z_].*\(|^mxfs_|^void|^static|^int/ {print NR": "$0}' xfs/xfs_mxfs_dlm.c | tail -5; echo "=== who calls inode 
+    cd /src/mxfs; grep -n "xfs_ilock\|ILOCK_SHARED\|lock_mode\|xfs_readdir" xfs/xfs_dir2_readdir.c 2>/dev/null | head; echo "=== xfs_readdir def ==="; grep -rn "^xf
+    cd /src/mxfs; grep -n "mxfs_dlm_reload_inode" xfs/xfs_mxfs_dlm.c | head -3; echo "=== reload body: fork handling ==="; awk '/^mxfs_dlm_reload_inode/,/^}/' xfs/x
+
+## Last text from previous session
+
+on the dir actually drives the DLM acquire.
+`xfs_ilock(ILOCK_SHARED)` DOES drive `mxfs_dlm_ilock_begin(PR)`. So the question narrows to whether the verify-read (`ls` → readdir) takes ILOCK_SHARED on the dir inode and whether it slow-paths. Let me check the readdir lock path — cheap read-only confirmation of candidate (c).
+I've reached the relay boundary. Let me do one final confirming read of the main `xfs_readdir` lock path, then summarize.
+**This is the precise root.** Line 537-538: a **shortform (`XFS_DINODE_FMT_LOCAL`) directory** stores entries *inline in the inode literal area* — there are NO separate dir data blocks. The cross_visibility dir has only 4 tiny entries → it's **shortform**. That's why `DIR-STALE-SKIP=0` and `P-H18=0`: the `xfs_da_read_buf` invalidation hook only handles block/leaf dirs — **it never runs for a shortform dir**. node4.txt visibility depends entirely on the reader having a fresh copy of the **dir inode itself** (via `mxfs_dlm_reload_inode`), not a dir data block. Let me record this critical refinement.
+Let me make one final high-value check — whether `mxfs_dlm_reload_inode` reparses the shortform data fork (the prime suspect).
+`mxfs_dlm_reload_inode` calls `xfs_inode_from_disk(ip, dip)` (which reparses the shortform inline dirents) — so **if reload fires, shortform entries ARE refreshed**. That eliminates the "reload doesn't refresh shortform" sub-case and points squarely at **reload not firing** (reader fast-path re-grants the dir inode without ACQ-FRESH). Let me sharpen the state.md conclusion and wrap up.
+Let me record the sess53 lessons to memory and add a concise index pointer.
+I've reached the relay boundary with a significant RULE-4 advance this session. Summary:
+
+## What I proved this session (RULE 4, direct measurement)
+
+**Major reframe — the bnobt/P88 hunt (sess44–52) is a red herring for the active failure.**
+
+1. **Built + deployed** `C2D30DB0A37A12264B76A35` (P88 now logs `dirty/in_ail/pin/delwri` — pure diagnostic, KEEP), reset4 on all 4 nodes.
+
+2. **Reproduced cross_visibility FAIL in 13s with ZERO corruption** — no EFSBADCRC/EFSCORRUPTED/shutdown/double-free/verifier errors on any node. The sess52 corruption did not reproduce. Only flagged line: `INACT-SKIP-STALE` ×1/node = the sess47 protective fix *working*.
+
+3. **`disk_differs=1` is an artifact** — trivially true at write-back time (in-core=new, disk=old). The P88 fires are `numrecs=2` tiny extents = normal nearly-full small-AG steady state, not the `numrecs=1` pristine-revert the detector hunts. New fields uniform: `in_ail=1 dirty=0 pin=0 delwri=0 buf_gen==pag_gen`.
+
+4. **Exact failure: only `node4.txt` (highest-id node) is invisible to nodes 1/2/3** — others fully visible with correct content, after `sync` + barrier + `sleep 2`. Deterministic, not a race.
+
+5. **Root narrowed to a SHORTFORM-directory inode-reload miss.** The 4-entry dir is `XFS_DINODE_FMT_LOCAL` — dirents inline in the inode, no dir data blocks. That's exactly why `DIR-STALE-SKIP=0` and `P-H18=0`: the `xfs_da_read_buf`/`b_mxfs_dir_gen` block-dir hook never runs for shortform. Visibility depends on a fresh **dir inode**, not a dir block.
+
+6. **`mxfs_dlm_reload_inode` CAN refresh shortform** (it calls `xfs_inode_from_disk`, reparsing inline dirents) — so the bug is **reload not firing**: the reader serves the dir from a fast-path cached PR re-grant without slow-path ACQ-FRESH.
+
+## Persisted
+- `state.md` sess53 section (reframe + decisive evidence + fix hypothesis), `sess53_lessons.md`, `MEMORY.md` index.
+
+## Next session (clear RULE-4 step)
+Enable `mxfs.instr=1`, rerun cross_visibility, count `P13-INSTR ACQ-FRESH` vs `P63-INSTR FAST-PATH-DIR` on readers for the dir inode. Fix hypothesis: force `mxfs_dlm_reload_inode` on a dir-inode (S_ISDIR) fast-path re-grant after a deferred BAST — cheap single inode-cluster read, avoids the sess43 FUA-block timing wall.
+
+**Criteria are NOT met** — cross_visibility still fails. Marker not written; work continues next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

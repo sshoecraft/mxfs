@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 16 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a9a03929-294b-43dc-9ba5-5dcc2ce21483/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a9a03929-294b-43dc-9ba5-5dcc2ce21483, after session 15
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `509d9cea-cd50-4896-99b3-1e87df75518c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/509d9cea-cd50-4896-99b3-1e87df75518c.jsonl`
+- approx context at last assistant turn: 497871 tokens
+- tools used: Bash×226 Read×31 Edit×28 mcp__ccmemory__memory_write×6 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/tests/suite/fence_during_write.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/cc_loop.sh
+- /src/mxfs/tests/suite_iter.sh
+- /src/mxfs/tests/tooling/single_node_paired.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 550 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' umount /mnt/shared 2>/dev/null; rmmod mxfs 2>/dev/null mkfs.xfs -f -d agcount=50 -i size=512 /dev/sd
+    timeout 90 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'echo ===NATIVE; perf report -i /root/nat.perf --stdio --sort=dso 2>/dev/null | head -10; echo ===MXFS;
+    timeout 90 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'echo ===NATIVE-dso; perf report -i /root/nat.perf --stdio --sort=dso 2>/dev/null | grep -E "^\s+[0-9]"
+    for k in 1 2 3; do timeout 590 ./run.sh 1 tcp single_node_paired 2>&1 | grep -E "  PASS|  FAIL" | head -1; ./showstat.sh 1 tcp 2>/dev/null | grep -oE "ratio=[0-
+    ./showstat.sh 1 tcp 2>/dev/null | grep -oE "xfs=[0-9]+ms\([0-9/]+\) mxfs=[0-9]+ms\([0-9/]+\)"
+    for k in 1 2 3; do timeout 590 ./run.sh 1 tcp single_node_paired 2>&1 | grep -E "  PASS|  FAIL" | head -1; ./showstat.sh 1 tcp 2>/dev/null | grep -oE "round_rat
+    timeout 590 ./run.sh 1 tcp single_node_paired 2>&1 | grep -A2 "RESULT" | head -4; grep -rn "RESULT" /tmp/suite_*.log 2>/dev/null | tail -1
+    timeout 60 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'bash /src/mxfs/tests/tooling/single_node_paired.sh /mnt/shared 2>&1 | tail -2' 2>/dev/null | head -3
+    timeout 550 ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass ' umount /mnt/shared 2>/dev/null; rmmod mxfs 2>/dev/null mkfs.xfs -f -d agcount=50 -i size=512 /dev/sd
+    nohup bash -c 'timeout 2600 bash tests/suite_iter.sh 1 tcp > /tmp/iter1_r6.log 2>&1; echo SUITE-EXIT=$? >> /tmp/iter1_r6.log' > /dev/null 2>&1 & echo launched 1
+    until grep -q "SUITE-EXIT" /tmp/iter1_r6.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; g
+    ./showstat.sh 1 tcp 2>/dev/null | grep -E "fio_vs|single_node"; grep -n "THRESH\|RATIO" tests/tooling/fio_vs_xfs_baseline.sh | head -4
+    for k in 1 2; do timeout 500 ./run.sh 1 tcp fio_vs_xfs_baseline 2>&1 | grep -E "  PASS|  FAIL" | head -1; ./showstat.sh 1 tcp 2>/dev/null | grep -oE "seqW=[0-9/
+    nohup bash -c 'timeout 3200 bash tests/suite_iter.sh 8 tcp > /tmp/iter8_r21.log 2>&1; echo SUITE-EXIT=$? >> /tmp/iter8_r21.log' > /dev/null 2>&1 & echo launched
+    until grep -q "SUITE-EXIT" /tmp/iter8_r21.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; 
+    until grep -q "SUITE-EXIT" /tmp/iter8_r21.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; 
+    until grep -q "SUITE-EXIT" /tmp/iter8_r21.log 2>/dev/null; do sleep 29; if [ $SECONDS -gt 560 ]; then echo "...running $(date -u +%H:%M:%S)"; exit 0; fi; done; 
+    grep -B2 -A5 "FAIL  tcp_dlm_scaling" /tmp/iter8_r21.log | head -10; ./showstat.sh 8 tcp 2>/dev/null | grep tcp_dlm; for n in 1 4 8; do timeout 6 ./tools/mxfs_ss
+    timeout 8 ./tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "dmesg | grep -m3 'P-LKTIMEOUT-HOLDER'; dmesg | grep -m2 'Shutting down'; dmesg | grep -c 'P135-GRANTWIN
+    nohup bash -c 'timeout 3200 bash tests/suite_iter.sh 8 tcp > /tmp/iter8_r22.log 2>&1; echo SUITE-EXIT=$? >> /tmp/iter8_r22.log' > /dev/null 2>&1 & echo launched
+
+## Last text from previous session
+
+isting helper skips DELWRI-queued buffers — exactly the state the evicted child's cluster is in. Writing FIX-I as a targeted one-buffer durability wait in the P78 skip arm:
+Fixing a reference-count bug in my edit (incore's hold already survives the unlock — the extra hold leaks):
+**2/tcp r7: 17/17** on FIX-I. Checking whether the fix engaged:
+mkfs failed at prep — the previous 8-node run's test5-8 are still alive with the LUN mounted, racing the disklock zeroing. Destroying the leftovers and retrying:
+1/tcp r4: 15/16 — `single_node_paired` failed (first time this session). Checking:
+Wrong offsets — correcting (logblocks is at 0x60):
+Nodes mount the source tree at `/src` — correcting paths and profiling:
+On-CPU is clean — the delta is wait time, not CPU. Comparing block-layer I/O counts between legs (extra log writes / flushes × iSCSI RTT would be the gap):
+Trace parse failed — dumping raw and parsing locally:
+416 distinct reads — 348 issued synchronously from rsync's own context. Bucketing by AG and size:
+Reads match the control (405 vs 416) — theory dead. What's left: flush/FUA flags on writes. Counting barrier ops in both traces:
+Applying FIX-J — single-node quantum exhaustion behaves like the lazy path:
+No improvement — verifying FIX-J actually fires (is_single_node may be false under the harness's TCP setup):
+Now one targeted overhead check — does `ilock_end` early-return single-node like begin does:
+A wedge — 184-242 timeout/shutdown events per node. Getting the holder signature:
+Relay boundary reached — r22 is running in the background (`/tmp/iter8_r22.log`); the next session picks it up. All findings are checkpointed in ccmemory (five sess15 memories).
+
+## Session 15 summary — criteria **not yet met** (marker not written), four root fixes landed
+
+**FIX-H family (the sess14 "tenure-boundary mutex race" — interpretation was inverted):** The r10 one-dirent swallow was not an admit-side race. Node6's `bast_notify` P135 branch misread the TCP **grant-completion window** (receive kworker links the mirror before the blocked acquirer resumes) as an orphan and wire-released node6's *own just-granted tenure* with a valid gen echo → master granted node4 0.7ms later → true double-EX → same-offset dirent adds. Fixed in three layers (GRANTWIN-PARK at queue time, orphan-live abort at the P15 recheck with 4-strike stranded-release escalation, and — the r13 lesson — a **self-demote exemption**, since the P109 EDEADLK recovery is the legitimate resolver entering with the same signature; blocking it wedged the cluster).
+
+**FIX-I (crash_consistency face, fully instrumented):** the test's drop_caches evicts an unpublished child inode on the *creator*; the P78-PUB-SKIP arm then skipped the master claim while nothing made the child's dinode-cluster durable before the dirent went peer-visible — the reader FUA-read prior-mkfs dinodes (UUID verifier reject, proven via objdump offset→line 891) with no BAST and no mirror. The skip arm now forces the child's cluster durable (log force + AIL wait) before the dir handoff returns; fired 126×/run, `settled=1`.
+
+**FIX-J (single_node_paired, 17%→~5%):** ftrace+blktrace proved 211 of 213 log forces came from the throttled every-128th-unlock CIL kick in `mxfs_ag_dlm_unlock` — ~550 extra FLUSH/FUA round-trips per rsync. Gated single-node (multi-node untouched); the bench itself was rebuilt into position-balanced rounds after proving the old protocol was a host-cache coin flip.
+
+**Validation tally:** 8/tcp 17/17 ×7 (r14-r20), 4/tcp ×3, 2/tcp ×4, 1/tcp ×2 clean before the perf work; r21 on the newest build hit a tds 0/8 wedge (ino-158 waiter starvation — r22 running to discriminate FIX-J flap vs known tds long-tail).
+
+**Remaining blockers:** (1) single_node_paired's honest ~5% floor (leads in memory: deferred-unlock kmalloc, heartbeat-read interference, l_logsize); (2) fio_vs_xfs_baseline needs the balanced-rounds treatment; (3) r22 verdict, then streak accumulation on the final build across all four columns.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

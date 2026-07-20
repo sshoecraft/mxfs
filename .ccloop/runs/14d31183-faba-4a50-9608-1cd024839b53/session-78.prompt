@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 78 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 77
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `9e3d9abb-28f0-4c40-bcc2-81e38dbd4030`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030.jsonl`
+- approx context at last assistant turn: 249914 tokens
+- tools used: Bash×127 Read×11 Edit×5 mcp__ccmemory__memory_get×5 mcp__ccmemory__memory_search×4 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode_item_recover.c
+- /src/mxfs/tests/repro_sfblock_corrupt.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bd6ke1bj1.output; until grep -qE "DONE" "$f" 2>/dev/null; do sleep 20; done; cat "$f" | 
+    cd /src/mxfs; sed -n '1,90p' tests/cluster/test_cross_write_read.sh
+    cd /src/mxfs; timeout 500 bash tests/repro_sfblock_corrupt.sh "$(seq -s, -f 'test%g' 1 16)" 30 2>&1 | grep -vE "Warning|Unauthorized|disconnect" | grep -E "roun
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bu5w580u6.output; until grep -qE "=== RESULT:" "$f" 2>/dev/null; do sleep 20; done; echo
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/btyd6vlvs.output; until grep -qE "DONE" "$f" 2>/dev/null; do sleep 20; done; cat "$f"
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bu5w580u6.output; echo "now $(date -u +%H:%M:%S)"; grep -vE "Warning|Unauthorized|discon
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bu5w580u6.output; until grep -qE "=== RESULT:" "$f" 2>/dev/null; do sleep 25; done; grep
+    cd /src/mxfs; timeout 580 bash tests/repro_sfblock_corrupt.sh "$(seq -s, -f 'test%g' 1 16)" 25 2>&1 | grep -vE "Warning|Unauthorized|disconnect" | grep -E "roun
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bmyagrirs.output; until grep -qE "=== RESULT:|CORRUPTION DETECTED" "$f" 2>/dev/null; do 
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bmyagrirs.output; until grep -qE "=== RESULT:" "$f" 2>/dev/null; do sleep 30; done; echo
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bmyagrirs.output; echo "now $(date -u +%H:%M:%S)"; grep -vE "Warning|Unauthorized|discon
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bmyagrirs.output; until grep -qE "=== RESULT:" "$f" 2>/dev/null; do sleep 30; done; grep
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bmyagrirs.output; echo "now $(date -u +%H:%M:%S)"; grep -vE "Warning|Unauthorized|discon
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bmyagrirs.output; echo "=== raw tail ==="; tail -5 "$f" | grep -vE "Warning|Unauthorized
+    pkill -f repro_sfblock_corrupt 2>/dev/null; cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for i in $(seq 1 16); do ( $SSH test$i $PF "p
+    export LIBVIRT_DEFAULT_URI=qemu:///system; for i in $(seq 1 16); do ( virsh destroy test$i >/dev/null 2>&1; sleep 1; virsh start test$i >/dev/null 2>&1 ) & done
+    cd /src/mxfs; grep -rln "xfs_dir2_sf_to_block\|xfs_bmap_local_to_extents" xfs/ --include=*.c | head; echo "=== local_to_extents signature/site ==="; grep -n "xf
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; until ok=0; for i in $(seq 1 16); do $SSH test$i $PF true >/dev/null 2>&1 && ok=$((ok+1))
+    f=/tmp/claude-1000/-src-mxfs/9e3d9abb-28f0-4c40-bcc2-81e38dbd4030/tasks/bzb3uapco.output; until grep -qE "reset rc=" "$f" 2>/dev/null; do sleep 15; done; grep -
+    cd /src/mxfs; grep -rn "DLM inode from_disk FAILED\|from_disk FAILED\|inode from_disk" xfs/*.c | head
+
+## Last text from previous session
+
+ocs each) — the 6s readdir storm starved EX creates cluster-wide (sess50 starvation at scale). That's a real liveness issue but a different symptom than the corruption, and it's wedging the cluster. Let me kill the repro and clean up:
+Let me record the additional findings (standalone-repro results + the starvation stall) for the next iteration:
+Let me reboot the cluster to clear the D-state wedge (leaves it usable), and in parallel examine the sf→block conversion path for instrumentation:
+This is the standard transactional XFS conversion — the corruption is cross-node (a DLM reload reading an inode whose on-disk `di_format` and data-fork content are mismatched — the inode-cluster coherency family, matching memory sess57/59). Fixing it requires the real-harness reproducer plus instrumentation, a multi-cycle effort. Let me leave the cluster clean and ready for continuation:
+Clean cluster, build `3DC74E7D` deployed. Let me add targeted instrumentation at the inode-reload validation site (where the corruption is caught) so the next loop-until-repro cycle captures exactly what's inconsistent. Let me find it:
+This connects directly to the proven write-side root in memory (sess60: "writer RELEASES dinode di_nextents=14 with on-disk bmbt holding only 13 records"). My corruption is the extreme case: `di_format=EXTENTS` flushed but the inline literal area still holds shortform dir bytes — the writer releases an inode whose core is ahead of its data fork. Let me capture this sharpened target:
+I've reached the relay boundary. Let me summarize this session's work.
+
+## Session 77 Summary
+
+**One criterion FIXED + validated; one root-caused to a precise, known mechanism.**
+
+### ✅ `fence_during_write` — FIXED → PASS (build `3DC74E7D`)
+- **Root** (from sess76): foreign journal replay of a fenced node's slice reverts peers' committed shortform-dir changes, because the newer-on-disk skip uses `XFS_LSN_CMP(di_lsn, current_lsn)` — meaningless across MXFS per-node log slices.
+- **Fix** (`xfs/xfs_inode_item_recover.c`): during `xlog_is_mxfs_foreign_replay`, skip the replay when `di_changecount` (node-independent, monotonic) on-disk ≥ logged, instead of the LSN compare.
+- **Proven** via the `P77-FRINODE` probe: the single reverting record (`ino=131 disk_cc=7 ≥ log_cc=5`, `lsn_cmp=0` → old code would APPLY) is now correctly SKIPped while all 219 legitimate dead-node records APPLY. Criterion **PASS lost=0** (×2). **crash_consistency** (also foreign replay) re-verified PASS — no regression.
+
+### 🔬 `posix_semantics_multi16` (>600s) — root-caused
+- The >600s is **FS shutdowns**: under the 16-node concurrent shared-dir storm, one random node's mount force-shuts-down → every op returns EIO → barrier `find`s 120s-timeout → cumulative >600s.
+- **Shutdown cause = durable on-disk dir-inode corruption**: barrier dir `cwr_write` (inode 29360562) has `di_format=EXTENTS` but its inline literal area still holds **shortform dir bytes** (`node7` decoded as a bmbt rec). Confirmed durable — healthy nodes also get "Structure needs cleaning."
+- This is the **writer-torn-release** family (memory sess60/61/73): a node releases an inode whose core (format/`di_nextents`) is ahead of its data fork. Sharp next target: instrument the dir DLM-release/iflush path and refuse to write a `di_format`/`di_nextents` that regresses below the on-disk/peer value.
+- **Important process finding:** the first "lost-dirent at 16 nodes" leads were **contamination** from an orphaned `run_tests.sh` (D-state procs holding buffer locks). A clean `virsh destroy+start` of all 16 is mandatory before trusting any 16-node result.
+
+### State
+- Build `3DC74E7D` deployed; cluster clean + mounted (16 nodes).
+- New tool: `tests/repro_sfblock_corrupt.sh`. Findings saved to memory (`sess77-fence-during-write-FIXED-…`, `sess77-posix-multi16-durable-dir-format-content-corruption`, `sess77-posix-multi16-repro-notes-and-starvation`).
+- **Marker NOT written** — `posix_semantics_multi16` and `rsync_paired` still FAIL.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

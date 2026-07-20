@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 37 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 36
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8406bf94-06c7-43bf-a6eb-d21d4a616019`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019.jsonl`
+- approx context at last assistant turn: 499403 tokens
+- tools used: Bash×153 Read×45 Edit×11 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_search×3 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; timeout 8 $SSH test1 /tmp/.mxfs_pass "echo -n up=; awk '{print int(\$1)}' /proc/uptime; echo -n ' shut='; dme
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 4); do grep -qE "cap done" "$SCR/cap_defer.log" 2>/dev/null && 
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 4); do grep -qE "cap done" "$SCR/cap_defer.log" 2>/dev/null && 
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; nohup bash $SCR/batch.sh "dir_grant_evict=1 dir_ail_defer=1" 6 24 > $SCR/batch_c
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 4); do grep -qE "iter 1:" "$SCR/batch_combo.log" 2>/dev/null &&
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 4); do grep -qE "iter 1:" "$SCR/batch_combo.log" 2>/dev/null &&
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 4); do n=$(grep -cE "iter [0-9]+:" "$SCR/batch_combo.log" 2>/de
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; timeout 8 $SSH test1 /tmp/.mxfs_pass "echo -n up=; awk '{print int(\$1)}' /proc/uptime; echo -n ' shut='; dme
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; echo "=== batch log ==="; cat $SCR/batch_combo.log 2>/dev/null; echo "=== node r
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 3); do n=$(grep -cE "iter [0-9]+:" "$SCR/batch_combo.log" 2>/de
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 3); do n=$(grep -cE "iter [0-9]+:" "$SCR/batch_combo.log" 2>/de
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; for i in $(seq 1 3); do n=$(grep -cE "iter [0-9]+:" "$SCR/batch_combo.log" 2>/de
+    cd /src/mxfs; ps aux | grep -E "batch.sh|cap.sh|run.sh 8 tcp" | grep -v grep | awk '{print $2}' | xargs -r kill -9 2>/dev/null; sleep 1; echo "batch killed; fin
+    cd /src/mxfs; echo "=== where ail_defer triggers XFS_ITEM_LOCKED ==="; grep -rn "mxfs_dir_ail_defer\|XFS_ITEM_LOCKED" xfs/xfs_buf_item.c pal/linux/xfs_buf.c 2>/
+    cd /src/mxfs; grep -rn "mxfs_dir_ail_defer\|mxfs_dir_buf_should_defer\|ail_defer" xfs/*.c pal/linux/*.c 2>/dev/null | grep -v ".backup" | head; echo "=== buf_it
+    cd /src/mxfs; echo "=== dir_zombie_retire default + impl ==="; grep -n "int mxfs_dir_zombie_retire\|mxfs_dir_zombie_retire" xfs/xfs_mxfs_dlm.c | head; echo "===
+    cd /src/mxfs; echo "=== stray procs ==="; ps aux | grep -E "batch.sh|cap.sh|run.sh 8|sleep 3[08]|drc_repro" | grep -v grep | wc -l; echo "=== build ==="; modinf
+    cd /src/mxfs; echo "=== log space / grant head APIs ==="; grep -rnE "xlog_space_left|l_logBBsize|reserve_head|grant.*space|xfs_log_space|ailp->ail_target|push_t
+    cd /src/mxfs; sed -n '/int mxfs_dir_release_fua_write/,+6p' xfs/xfs_mxfs_dlm.c | head -10; echo "=== usage ==="; grep -n "mxfs_dir_release_fua_write\|release_fu
+    SCR=/tmp/claude-1000/-src-mxfs/8406bf94-06c7-43bf-a6eb-d21d4a616019/scratchpad; ( time bash $SCR/cap.sh "dir_release_fua_write=1" 24 ) > $SCR/cap_fw.log 2>&1 & 
+
+## Last text from previous session
+
+ombie-retire (`!DONE`-gated, misses the DONE=1 stale write), the prior epoch evict levers.
+
+The clearly-scoped next task is the `ail_defer` liveness valve (bound deferred-block accumulation / prompt coherent release under log pressure) so the proven-correct GFS2-invariant defer no longer starves — that would make the `grant_evict + ail_defer` combo a candidate fix.
+Criteria not met — continuing. Let me build the **liveness valve** for `ail_defer` so it stops starving the log tail, then measure the combo's true pass rate. The fix: when the log is under pressure, allow destages (advance the tail) instead of deferring indefinitely. Let me find XFS's log-space API.
+I've reasoned that `ail_defer` is fundamentally deadlock-prone (the AIL push it defers is what dd needs for log-space progress → the 184s wedge), so it's a dead end. Re-focusing on the real mechanism: the loss-write writes a base missing a peer's entry that IS on disk at write-time but was NOT visible at the reader's FUA re-read — the **platter-lag** (writer's drain didn't reach the LIO platter before the reader's FUA read). `target_flush` (reader-side) was flaky; the correct fix is at the **writer's release-drain** — force the drained entry to the platter via FUA-write. Let me check `dir_release_fua_write`.
+`dir_release_fua_write` does a SCSI WRITE(16)+FUA at the release-drain to force the block to the platter before DLM unlock — the writer-side platter-durability fix. Let me check its default and test it (alone, and combined with grant_evict).
+`dir_release_fua_write` does a SCSI WRITE(16)+FUA (explicit SCSI command, which works on LIO where bio-level REQ_FUA is dropped) to force the writer's released block to the platter before DLM unlock — directly fixing the platter-lag, and stronger than the flaky `target_flush` (which used bio-level `blkdev_issue_flush`). Let me test it. Single run first to check pass + RULE-0 timing.
+Relay boundary reached. Let me update the handoff memory with this session's final lead and conclusions, then summarize.
+## Session 36 summary
+
+**Criteria NOT met** — the 8-node TCP `dir_reuse_coherency` single-dirent durable loss (readdir=799/800) remains the sole blocker (1/2/4 tcp pass on the keeper). Marker not written.
+
+**Build state:** `CF57F8AB` on disk = keeper `4703FA18` + two A/B levers (`dir_grant_evict`, `dir_conv_genbump`), **both default-off → keeper-equivalent, no regression**. Cluster clean, all 8 nodes reachable, no stray processes. One capture (`dir_release_fua_write=1`) is running; its result lands in `scratchpad/cap_fw.log` for the next session.
+
+**Substantive progress (all RULE-4, clean-reboot evidence):**
+
+1. **Implemented the long-documented sess10/61 grant-gen evict** — and used it to **prove the loss is a stale WRITE, not a stale RMW base** (a guaranteed-fresh base still loses the entry). This retires ~100 sessions of base-refresh theories.
+
+2. **Captured the exact clobber** (P-DATACLOBBER-SKIP, 168 events): the EX-holder writes a dir block whose base was missing a peer's entry that *is on disk at write-time* — pointing to **platter-lag** (the writer's release-drain doesn't reach the LIO platter before the reader's FUA re-read pierces to the stale platter).
+
+3. **Refuted and documented** (so they aren't retried): conv-bump, drain-merge (catastrophic), grant-evict-alone, target-flush (bio-flush is LIO-dropped), `ail_defer` (proven a **deadlock** — it defers the AIL push dd needs for log progress → 184s starvation), zombie-retire (`!DONE`-gated, the loss block is DONE=1).
+
+**The current best lead** (testing in flight): `dir_release_fua_write` issues an **explicit SCSI WRITE(16)+FUA** at the release-drain to force the writer's block to the platter before unlock — a stronger, LIO-honored mechanism than the flaky bio-level flush, directly targeting the proven platter-lag. Next session: read `cap_fw.log`, and if it passes, batch-confirm → default-on → full 1/2/4/8 tcp run. The handoff memory `sess36-HEAD-handoff` has the full plan.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

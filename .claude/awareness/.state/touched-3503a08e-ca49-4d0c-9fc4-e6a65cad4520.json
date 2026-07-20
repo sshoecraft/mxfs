@@ -1,0 +1,11 @@
+{
+  "source": [
+    "pal/linux/xfs_buf.c",
+    "xfs/libxfs/xfs_bmap.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

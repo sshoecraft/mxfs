@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 81 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 80
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `16d47a4a-fcd8-468a-b181-f8025efd8190`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/16d47a4a-fcd8-468a-b181-f8025efd8190.jsonl`
+- approx context at last assistant turn: 246438 tokens
+- tools used: Bash×109 TaskStop×4 Edit×3 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 Read×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/reboot_cluster.sh
+- /src/mxfs/tests/ct_decompose.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== conn error timeline test1 (first/last few with timestamps) ==="; timeout 8 $SSH test1 $
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== test1: current uptime vs last conn error ==="; timeout 8 $SSH test1 $PF 'echo -n "uptim
+    cd /src/mxfs; nohup bash tests/reboot_cluster.sh 16 > /tmp/reboot16c.log 2>&1 & echo "reboot pid $!"; pkill -9 -f "ssh -o StrictHost" 2>/dev/null; pkill -9 -f "
+    until grep -qE "REBOOT_OK|REBOOT_FAIL" /tmp/reboot16c.log; do sleep 8; done; tail -2 /tmp/reboot16c.log
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== post-reboot iSCSI conn error check (fresh sessions) ==="; for n in test1 test5 test10 t
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 8 $SSH test1 $PF 'echo -n "uptime_s: "; cut -d. -f1 /proc/uptime; echo -n "last conn err 
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; until [ "$(timeout 6 $SSH test1 $PF 'cut -d. -f1 /proc/uptime' 2>/dev/null | tr -dc 0-9)" -gt 130
+    cd /src/mxfs; echo "=== search repo for qnap control ==="; grep -rilE "qnap|192.168.1.4|power.?cycle|iscsi.*reset|target.*reset" scripts/ tools/ tests/ 2>/dev/n
+    cd /src/mxfs; echo "=== tune_iscsi_tcp.sh ==="; cat scripts/tune_iscsi_tcp.sh 2>/dev/null | head -60; echo "=== prep_qnap_node.sh (head) ==="; head -40 tools/pr
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== test1 iSCSI sessions/connections ==="; timeout 10 $SSH test1 $PF 'iscsiadm -m session 2
+    cd /src/mxfs; SSH=./tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== conn error delta over 15s (is it ongoing?) ==="; a=$(timeout 6 $SSH test1 $PF 'dmesg 2>
+    cd /src/mxfs; echo "=== qnap creds/recovery in repo ==="; grep -rniE "qnap.*(pass|pw|cred|admin|ssh)|ssh.*qnap|192.168.1.4.*22|sshpass.*1.4" scripts/ tools/ tes
+    cd /src/mxfs; echo "=== clyde: is it an iSCSI initiator to QNAP? ==="; sudo -n iscsiadm -m session 2>/dev/null || iscsiadm -m session 2>/dev/null || echo "(no i
+    cd /src/mxfs; echo "=== clyde uptime vs last reservation conflict ==="; cut -d. -f1 /proc/uptime; sudo -n dmesg 2>/dev/null | grep -E "reservation conflict" | t
+    cd /src/mxfs; echo "=== run posix_semantics --nodes 16 (the gate criterion) $(date -u +%T) ==="; MXFS_TESTS_DIR=/src/mxfs/tests timeout 780 bash tests/criteria/
+    cd /src/mxfs; grep -aE "Running:|\[PASS\]|\[FAIL\]|Phase:|mounted|RESULT" /tmp/posix16_gate.log | sed 's/\x1b\[[0-9;]*m//g' | grep -avE "single-node" | tail -25
+    cd /src/mxfs; echo "=== log size + tail ==="; wc -l /tmp/posix16_gate.log; grep -avE "Unauthorized|disconnect|authorized user|Permanently added|^$" /tmp/posix16
+    cd /src/mxfs; for pat in posix_semantics run_tests.sh mxfs_test.sh "mxfs_sshpass" "sshpass -f" "ssh -o StrictHost"; do pkill -9 -f "$pat" 2>/dev/null; done; sle
+    cd /src/mxfs; for pat in posix_semantics run_tests.sh mxfs_test.sh mxfs_sshpass "sshpass -f" "ssh -o StrictHost"; do pkill -9 -f "$pat" 2>/dev/null; done; echo 
+    cd /src/mxfs; echo "local procs: $(ps aux|grep -E 'posix_sem|run_tests|sshpass|mxfs_test'|grep -v grep|wc -l)"
+
+## Last text from previous session
+
+lyde) used by the gate, and /dev/sdb (50G, direct QNAP). The conn errors are on the QNAP connection. The SCST passthrough on clyde may have a stuck connection. Let me check clyde's SCST + its initiator session to the QNAP — restarting the SCST *service* (not rebooting clyde, RULE 2) may clear it.
+Key finding: clyde is the SCST target (re-exporting the shared LUN as disk1/disk1nN to the VMs), and clyde dmesg shows repeated **SCSI PR reservation conflicts on disk1** — stale persistent reservations from the crashed/fenced nodes are blocking I/O → the wedge + conn-error storm. Let me check if these are current and clear the stale PR reservations (idempotent, as rsync_paired does).
+PR reservation state is normal (WE-RO, all 16 registered); the reservation conflicts were 17 min ago during the wedge, not current. Bulk I/O works at 2.9GB/s. The conn errors may be cosmetic and the earlier wedge may have been contamination. Rather than more infra archaeology, let me run the actual gate criterion now on this fresh cluster — the definitive test.
+It wedged again (killed at 780s). Let me see where in the log.
+The gate log is **empty** — it wedged in teardown/mount before run_tests even started. So the infra (iSCSI flapping) now blocks even mounting 16 nodes. This is a hard infra blocker I must clear. Let me kill the wedged run and assess node state.
+You're right — that was dumb. The mount and the test are separate phases and I bundled them under one 780s blocking timeout with output buffered to a file I never tailed. I should mount first with a ~150s cap, verify it succeeded, *then* run the test as its own step — and stream progress so a wedge shows in seconds, not after 13 minutes.
+
+Let me assess state, then do it in stages.
+Hit the relay boundary. Brief summary of this session:
+
+## Status: gate NOT green — marker not written
+
+**Real gate blockers** (`.criteria_results.json`, build 305641B7): 17/20 PASS. The resume's "cache_coherency" framing was stale — that now PASSES. The actual failures are:
+- `rsync_paired` — 235% of native XFS (threshold 120%)
+- `posix_semantics_multi16` — >600s
+- (`posix_semantics_multi2` is not in `verify_ship.sh` — ignore)
+
+**What I established this session:**
+1. **posix_multi16 has two distinct >600s failure modes**, both real: (a) durable dir-bmap-HOLE corruption (`xfs_dabuf_map !HOLE_OK` line 2814) on a shared dir → shutdown → barrier-timeout hang (sess77 family; chk_mxfs confirmed durable orphan inodes + SB icount drift); (b) a clean barrier wedge with no corruption.
+2. **Timing variance is dominated by contamination** — concurrent_touch was 182s contaminated vs 30s on a fully clean reboot. Wrote `tests/reboot_cluster.sh` (virsh destroy+start all N) and `tests/ct_decompose.sh`.
+3. **Create throughput is CAW EX-handoff bound** — `mxfs_dir_evict_data_blocks` whole-dir evict per create = O(n²). MHT (`inode_mht_ms`) raises speed (55s→7.8s) but causes **durable divergence** — not a safe knob.
+4. **Infra is currently degraded**: the shared LUN is QNAP (192.168.1.4) re-exported via clyde SCST as disk1. iSCSI `conn error (1020)` fires ~every 2.5s even at idle and now blocks even *mounting* 16 nodes (the last gate run wedged in teardown/mount — empty log). clyde dmesg showed SCSI PR reservation conflicts during the wedge. Bulk reads still hit 2.9 GB/s, so it's connection-flap, not dead.
+
+**Process fix for next session (my mistake):** mount and test must be *separate* staged operations — mount with a ~150s cap, verify success, then run the test streaming output. Never bundle under one long blocking timeout.
+
+**Immediate next step:** recover the infra — clear stale SCSI PR (`sg_persist` register/clear, idempotent), re-login iSCSI sessions, and if conn errors persist restart the **SCST service on clyde** (NOT a reboot — RULE 2) since clyde is the target. Then get one clean 16-node mount + posix_multi16 baseline before touching MXFS code. Findings saved to memory `sess80-posix-multi16-root-dir-bmap-hole-and-contamination`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

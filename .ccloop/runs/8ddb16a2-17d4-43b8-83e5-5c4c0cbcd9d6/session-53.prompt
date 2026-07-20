@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 53 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 52
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `bcd1e621-3cd5-4d3f-9f29-ab716e540ce9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/bcd1e621-3cd5-4d3f-9f29-ab716e540ce9.jsonl`
+- approx context at last assistant turn: 502077 tokens
+- tools used: Bash×109 Read×50 mcp__ccmemory__memory_get×7 Edit×6 TaskUpdate×6 TaskCreate×3 mcp__ccmemory__memory_write×3 ScheduleWakeup×2 TaskGet×2 ToolSearch×2 mcp__ccmemory__memory_search×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp/reliability_loop.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; f=$(ls -t /tmp/relrun_[1-5].log 2>/dev/null|head -1
+    cd /src/mxfs; sleep 460; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/r
+    cd /src/mxfs; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/relrun_[1-5]
+    cd /src/mxfs; sleep 420; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/r
+    cd /src/mxfs; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/relrun_[1-5]
+    cd /src/mxfs; sleep 560; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/r
+    cd /src/mxfs; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; f=$(ls -t /tmp/relrun_[1-5].log 2>/dev/null|head -1
+    cd /src/mxfs; sleep 480; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/r
+    cd /src/mxfs; echo "=== @ $(date -u +%T) ==="; cat /tmp/sess52_optB2.log | grep -E 'RUN [0-9]|RELIABILITY:'; echo "--- failures ---"; for f in /tmp/relrun_[1-5]
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH="timeout 12 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"; echo "=== @
+    cd /src/mxfs; P=/tmp/.mxfs_pass; SSH="timeout 14 sshpass -f $P ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5"; echo "=== n
+    cd /src/mxfs; echo "=== xfs_inode_from_disk(ip, snap...) call site in reload ==="; grep -n 'xfs_inode_from_disk(ip\|xfs_inode_from_disk(\|from_disk(ip, snap\|sn
+    cd /src/mxfs; echo "=== killing loop (run4 failed, build superseded) ==="; pkill -9 -f reliability_loop; pkill -9 -f 'run.sh 2 tcp'; pkill -9 -f mxfs_sshpass; s
+    cd /src/mxfs; sleep 2; pgrep -f 'reliability_loop|run.sh 2 tcp'|grep -v pgrep | head && echo "still some" || echo CLEAN; echo "=== reload exit/cleanup (7770-780
+    cd /src/mxfs; for pid in 2741608 2741609 2742974 2744177 2744201; do kill -9 $pid 2>/dev/null; done; pkill -9 -f 'run.sh 2 tcp'; pkill -9 -f mxfs_sshpass; pkill
+    cd /src/mxfs; sleep 2; pgrep -af 'reliability_loop|run.sh 2 tcp'|grep -v pgrep|grep -v $$|head || echo CLEAN; echo "=== P34D adopt block (7250-7310) ==="; sed -
+    cd /src/mxfs; pgrep -f 'reliability_loop|run.sh 2 tcp'|grep -v pgrep|grep -v $$|head && echo "STILL BUSY" || echo CLEAN; echo "=== build @ $(date -u +%T) ==="; 
+    cd /src/mxfs; kill -9 2744605 2744606 2>/dev/null; pkill -9 -f 'run.sh 2 tcp'; pkill -9 -f mxfs_sshpass; pkill -9 -f reliability_loop; sleep 2; pgrep -f 'reliab
+    cd /src/mxfs; sleep 2; pgrep -f 'reliability_loop|run.sh 2 tcp' | grep -v pgrep | grep -v $$ | head -3 || echo CLEAN; echo "---"; pgrep -f 'reliability_loop' >/
+    cd /src/mxfs; echo "=== reliability_loop procs ==="; ps -eo pid,ppid,pgid,comm,args | grep -E 'reliability_loop|run.sh 2 tcp' | grep -v grep | head; echo "=== k
+
+## Last text from previous session
+
+from_disk`. Let me find that call.
+Key: line **7358 `dip = snap`**, then line **7591 `xfs_inode_from_disk(ip, dip)`** — the actual adopt uses the finalized `snap` (the FUA-fresh freed image), not the raw cached buffer my guard checked. I need the guard at the real adopt point. Let me read the context there to place it with correct cleanup.
+The fork is destroyed at line 7562, so the guard must go *before* it, checking the **finalized `dip`** (= `snap` after line 7358, which holds the FUA-fresh freed image). My 6841 guard checked the raw cached buffer (wrong image). Let me kill the now-superseded loop, then read the cleanup pattern to place the guard correctly at ~7560.
+Let me kill the remaining run.sh processes and read the exact P34D adopt block to guard it (the cleaner fix — skip adopting the FUA-fresh freed image, keeping the protected cached buffer).
+I'll guard the P34D FUA-fresh adopt (the run-4 path): skip adopting a freed different-incarnation image into a live dir, keeping the protected cached buffer instead.
+Now there are two complementary guards: P52-RELOAD-FREEDREUSE-DIR-SKIP (raw cached buffer path) and P52-FRESHSRC-FREEDREUSE-DIR-SKIP (FUA-fresh read path). Let me verify the cluster is clean and build.
+I've hit the relay boundary. Let me clean up leftover processes and checkpoint the state to memory before wrapping up.
+Processes are respawning — a detached reliability_loop survived. Let me find and kill its full process tree.
+Clean now. Build **D67776EC** (option B + both freed-reuse guards) is ready but not yet deployed/tested. Let me checkpoint the final state to memory for the next session.
+Memory checkpointed. Let me update the task tracker and wrap up.
+## Session 52 Summary
+
+**Criterion** (`./run.sh 2 tcp` reliably 17/17) — **not yet met**, but solid progress. Marker not written.
+
+### Landed this session
+1. **Option B (build C16AAEAC)** — the sess51 primary blocker is **fixed**: broad release-skip (`dir_pr_release_fast=2`) + a new acquire-side LOCKED-block bounded-wait (`dir_acq_lockwait=60`). This killed the `tcp_dlm_scaling` PR→EX upgrade **livelock** (EDEADLK counts hundreds→~4) and the `dir_reuse_coherency` **slowness** (round 18 @3min vs baseline's near-timeout). Measured **3/5** reliable 17/17.
+
+2. **Root-caused the real residual**: it's *not* the livelock — both remaining failures are a pre-existing intermittent **dir-inode fork-revert → `{EXTENTS,nx=0}` invalid state → `xfs_dabuf_map` HOLE → dirty-trans-cancel → FS shutdown → cascade** (the sess45/77/80 DABUF family). Proved node1-local (node2 had zero NXSHRINK), with a clean **gen-mismatch freed-reuse** signature on the dominant face.
+
+3. **Two reload guards (build D67776EC, HEAD — built, not yet deployed)**:
+   - `P52-RELOAD-FREEDREUSE-DIR-SKIP` (~6841): raw-cached-buffer path.
+   - `P52-FRESHSRC-FREEDREUSE-DIR-SKIP` (~7295): the **FUA-fresh-read** path — run-4 proved the corrupting adopt is the P34D fresh image, not the raw buffer (CE9B0FD4 with only the first guard reached 3/4 before run-4 hit this path). Both refuse to adopt a freed *different-incarnation* image into a live in-core directory.
+
+### State at relay
+- Cluster **clean/idle**; local `mxfs.ko` = **D67776EC** (not deployed).
+- Full diagnosis + exact next steps in ccmemory `sess52-FIX-broad-skip-plus-acquire-lockwait-optB` and `sess52-residual-is-dir-fork-revert-DABUF-shutdown-cascade`.
+
+### Next session
+1. Deploy + run `reliability_loop.sh 5` with `MXFS_EXTRA_MODARGS='dir_pr_release_fast=2 dir_acq_lockwait=60'`; confirm the P52 guards fire and the freed-reuse cascade is gone.
+2. If a run-3-style failure persists (root-dir `P32-IFLUSH-NXSHRINK`, no reload signature — the sess32/33 conversion/leaf-tear face), implement the GPT-designed Step-4 fork-flush fence in `xfs_iflush_cluster` or extend `P33-DIRGROW-REVERT-SKIP` to keep in-core under EX.
+3. Once reliably 17/17: flip `mxfs_dir_pr_release_fast` default 1→2, rebuild, re-verify a **plain** `./run.sh 2 tcp`, then write the criteria marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

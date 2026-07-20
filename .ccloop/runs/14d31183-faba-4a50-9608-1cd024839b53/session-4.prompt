@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 3
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `457e5334-e410-432c-965b-64d92dd29bd4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/457e5334-e410-432c-965b-64d92dd29bd4.jsonl`
+- approx context at last assistant turn: 260909 tokens
+- tools used: Bash×35 Read×22 Edit×7 ToolSearch×3 mcp__ccmemory__memory_get×3 Write×1 mcp__ask_gemini__query×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_btree.c
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "^mxfs_dlm_ag_drain_meta_buffers\|^mxfs_dlm_ag_drain_alloc_buflist\|^mxfs_dlm_ag_meta_iodone\|^static.*drain_meta_buffers" xfs/xfs_mxfs_dl
+    cd /src/mxfs; echo "=== xfs_log_force in dlm drain/bast paths ==="; grep -n "xfs_log_force\|XFS_LOG_SYNC\|log_force" xfs/xfs_mxfs_dlm.c | head -30; echo ""; ech
+    cd /src/mxfs; echo "=== test1 (node1, saw 0) dir-coherency dmesg ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg | grep -iE 'P-DIR|dir_gen|dir_e
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*undeclared|implicit" | grep -v "no previous prototype\|within comment\|defined but not used\|modifi
+    cd /src/mxfs; for n in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2 test3 test4; do 
+    cd /src/mxfs; INSMOD_OPTS="fua_disable=1 instr=0" bash tests/reset4.sh 4 2>&1 | tail -3; echo "=== verify srcversion + clear dmesg ==="; for n in test1 test2 te
+    cd /src/mxfs; MXFS_NODE_OFFSET=0 MXFS_TESTS_DIR=/src/mxfs/tests timeout 600 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_unlink_visibility --pa
+    cd /src/mxfs; R=/home/steve/.mxfs/results/20260609_200933; echo "=== results ==="; for n in node1 node2 node3 node4; do echo -n "$n: "; grep -h "^status=" $R/te
+    cd /src/mxfs; echo "=== test1 (node1): find unlink_visibility dir ino + its activity ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg | grep -iE 
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "===== $n ====="; ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo dmesg | grep -E 'P106-MKDIR.*unlink_v
+    cd /src/mxfs; grep -rn "P106-MKDIR" xfs/ pal/ 2>/dev/null
+    cd /src/mxfs; for n in test1 test4; do echo "===== $n: P105-CREATE-PARENT for node*_file (dir inode used for file creates) ====="; ./tools/mxfs_sshpass.sh $n /t
+    cd /src/mxfs; echo "=== test1 ALL P105-CREATE-PARENT (parent inode histogram) ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg | grep -E 'P105-CR
+    cd /src/mxfs; echo "=== test1: ino=4194433 timeline (all events) ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dmesg | grep -E 'ino=4194433|4194433'
+    cd /src/mxfs; echo "=== d_revalidate / mkdir wrapper / d_drop sites ==="; grep -rn "d_revalidate\|\.d_revalidate\|xfs_vn_mkdir\|xfs_generic_create\|xfs_vn_looku
+    cd /src/mxfs; echo "=== mkdir/create VFS wrappers + EEXIST d_drop in iops ==="; grep -rn "xfs_vn_mkdir\|xfs_generic_create\|xfs_vn_create\|xfs_vn_lookup\|d_drop
+    cd /src/mxfs; echo "=== find xfs_vn_mkdir / generic_create / lookup ==="; grep -rln "xfs_vn_mkdir\|xfs_generic_create\|xfs_vn_lookup" xfs/ pal/ 2>/dev/null; ech
+    cd /src/mxfs; echo "=== test1: ino=131 (.mxfs_test parent) consumer-refresh + evict-skip + dir-seq ==="; ./tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "sudo dme
+    cd /src/mxfs; grep -n "P-SFDIR-RELOAD\|P-SFDIR-FASTEX\|reload_inode\|if_format.*LOCAL\|XFS_DINODE_FMT_LOCAL\|sf.*reload\|shortform" xfs/xfs_mxfs_dlm.c | head -3
+    cd /src/mxfs; for n in test1 test2 test3 test4; do ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo dmesg | grep -E 'P-SFDIR-RELOAD ino=131|P-SFDIR-REVERT ino=1
+
+## Last text from previous session
+
+node (coordinated by inode reload), so all my EXTENTS-only dir-block machinery (and my dir-flush reorder) doesn't touch it. This is the known sess13/84/85/119 blocker.
+
+Let me preserve this sharp diagnosis to state/memory before continuing, so the relay is clean:
+Before consulting, let me get the decisive RULE-4 instrument: the cross-node timeline of ino=131's shortform entry set (P-SFDIR-RELOAD dumps names), merged and sorted, to confirm where `unlink_visibility` appears then vanishes on node1:
+This **refutes my shortform-parent theory** and sharpens the diagnosis decisively. node1 (test1) DID reload ino=131 with **count=2 names=[test_unlin unlink_vis]** at t=79 and keeps it — so node1's shortform **parent is coherent and resolves `unlink_visibility` fine**. The real bug is the earlier anomaly: node1's **cached winner-dir INODE 4194433 is stale** — `incore_mode=00` (appears free), `incore_gen=disk_gen+1`, while disk has the live dir (`mode=040755, nlink=2`). node1 resolves the name to 4194433 but serves a stale mode=0 incarnation → readdir sees 0. And `d_revalidate`'s gen/type recheck is gated on `S_ISDIR(incore mode)` — which is false for mode=0 — so it returns "valid" for the stale inode. This is reused-inode stale-cache on the **directory inode** (sess40/114 family). Let me correct the handoff before the relay boundary:
+Let me record the corrected diagnosis to memory, then wrap up at the relay boundary.
+At the relay boundary. cache_coherency is still RED, so the criteria marker stays unwritten.
+
+## Summary
+
+Worked the sole failing ship-gate criterion (`cache_coherency` / `test_unlink_visibility`); 11/12 still pass. Two code changes landed (build `1371EA35`), and the root cause was narrowed decisively through RULE-4 instrumentation + one RULE-5 Gemini consult.
+
+**Changes made (both KEEP):**
+1. **Modify-time tenure stamping** — moved `b_tenure_id` stamping from read-time (3 sites: xfs_btree/xfs_ialloc/xfs_alloc) to modify-time in `mxfs_ag_meta_track`. A cache-hit read no longer re-stamps a prior-tenure stale buffer "current". Verified: no regression, timing fast, preserves the sess123 AGI fix. (P124 still fires — residual is the in_ail ghost, which no tenure stamp can reach.)
+2. **Dir-flush reorder** — moved `mxfs_dir_flush_data_blocks` after the sess29 settle so committed dir blocks are visible as IN_AIL and flushed out of the AIL before DLM handoff (Gemini Q1). Architecturally correct for EXTENTS dirs; no regression.
+
+**Root cause (corrected, sharp):** Not the shortform parent — I *disproved* that (the merged 4-node `P-SFDIR-RELOAD ino=131` timeline shows node1 reloads the parent with `count=2 [test_unlink unlink_vis]` and keeps it). The real bug is **reused-inode stale-cache on the winner directory inode** (4194433): node1's in-core copy is a stale *freed* incarnation (`incore_mode=00, incore_gen=disk_gen+1`) while disk has the live dir (`040755, nlink=2`). node1 resolves the name correctly but serves its mode=0 cached inode → readdir sees 0, create/rm hit ENOENT. `d_revalidate` fails to evict it because its GENMISS/TYPEMISS FUA rechecks are gated on `S_ISDIR(incore mode)`, which is false when the cached mode is 0. node4 passes because its cached copy is live.
+
+**Next session (concrete, in `state.md` + memory `sess125-shortform-parent-dir-lost-update-is-the-root`):**
+1. Cheap fix first: in `mxfs_drevalidate`, when a positive dentry resolves to the same ino but the in-core `i_mode == 0`, run the lockless FUA `di_gen/di_mode` recheck unconditionally (drop the `S_ISDIR(incore)` gate for the mode-0 case) → mark stale + evict → re-iget the live dir. Measure node1 `actual=120`; watch for sess91 ISTALE-CAW thrash / rename regression.
+2. Deeper/true root: make `xfs_iget_cache_hit` reload a dir inode cached as mode-0 when a peer/dirent shows it live, instead of returning the stale freed incarnation.
+
+Gemini consult #1 done this session; if the above two attempts fail, do Gemini consult #2 then escalate to GPT per the RULE-5 chain.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

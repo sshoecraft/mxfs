@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 40 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 39
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `3503a08e-ca49-4d0c-9fc4-e6a65cad4520`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3503a08e-ca49-4d0c-9fc4-e6a65cad4520.jsonl`
+- approx context at last assistant turn: 246859 tokens
+- tools used: Bash×56 Read×25 Edit×3 ScheduleWakeup×3 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_bmap.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; ip=$(getent hosts test1.vm.localdomain 2>/dev/null|awk '{print $1}'); [ -z "$ip" ]&&ip=test1; echo "=== full 19:34:20 WARNING block ==="; timeout 
+    cd /src/mxfs; grep -n "P20-BIO-READ-LOGGED\|BIO-READ-LOGGED" pal/linux/xfs_buf.c
+    cd /src/mxfs; echo "=== all dump_stack() call sites in hot mxfs files + nearest gate ==="; for f in pal/linux/xfs_buf.c pal/linux/xfs_super.c xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; for ln in 1743 2056 2110 2253 2363 3233; do echo "=== xfs_buf.c:$ln enclosing condition ==="; awk -v L=$ln 'NR>=L-40 && NR<=L { if (/if \(.*mxfs_i
+    cd /src/mxfs; for ln in 1743 2056 2110 2253; do echo "=== xfs_buf.c context around $ln (condition + probe name) ==="; sed -n "$((ln-30)),$((ln+2))p" pal/linux/x
+    cd /src/mxfs; grep -n "mxfs_instr_enabled\|mxfs_dirwr_enabled" xfs/libxfs/xfs_bmap.c | head -5
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning: .*P29|P20" | head; echo "=== build rc + srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversio
+    cd /src/mxfs; echo "=== MXFS_MODULE path + mount logic in lib.sh ==="; grep -nE "MXFS_MODULE=|insmod|modprobe|fresh_cluster_mount|MXFS_MODULE\b" tests/criteria/
+    cd /src/mxfs; bash tests/criteria/dmesg_clean.sh --nodes 4 2>&1 | tail -5
+    cd /src/mxfs; echo "build: $(modinfo mxfs.ko|grep -oP 'srcversion: *\K\S+')"; for c in "mkfs_timing.sh --nodes 1" "chk_clean.sh --nodes 2" "dkms_install.sh --no
+    cd /src/mxfs; for c in "online_resize.sh --nodes 1" "cluster_ops_timing.sh --nodes 4" "wedged_unmount.sh --nodes 4"; do echo "--- $c ---"; bash tests/criteria/$
+    cd /src/mxfs; for c in "online_membership.sh --nodes 3" "dmesg_clean.sh --nodes 4" "cache_caps.sh --nodes 1"; do echo "--- $c ---"; bash tests/criteria/$c 2>&1 
+    cat /tmp/claude-1000/-src-mxfs/3503a08e-ca49-4d0c-9fc4-e6a65cad4520/tasks/br4yk464c.output 2>/dev/null | grep -E '^(---|RESULT:)'
+    cd /src/mxfs; bash tests/criteria/posix_semantics.sh --nodes 1 2>&1 | grep -E '^RESULT:' | tail -1
+    cd /src/mxfs; bash tests/criteria/cache_coherency.sh --nodes 4 2>&1 | grep -E '^RESULT:' | tail -1
+    cd /src/mxfs; bash tests/criteria/strong_consistency.sh --nodes 4 2>&1 | grep -E '^RESULT:' | tail -1
+    cd /src/mxfs; bash tests/criteria/zero_silent_loss.sh --iters 3 --dpn 100 --mode 1 2>&1 | grep -E '^RESULT:|iter [0-9]:' | tail -6
+    cat /tmp/claude-1000/-src-mxfs/3503a08e-ca49-4d0c-9fc4-e6a65cad4520/tasks/bbdgla06f.output 2>/dev/null | grep -E 'iter [0-9]:|RESULT:|silent'; echo "=== proc ==
+    cd /src/mxfs; grep -nE "^## |^### " .claude/awareness/subsystems/pal.md | head -40; echo "=== total lines ==="; wc -l .claude/awareness/subsystems/pal.md
+    cat /tmp/claude-1000/-src-mxfs/3503a08e-ca49-4d0c-9fc4-e6a65cad4520/tasks/bbdgla06f.output 2>/dev/null | grep -E 'RESULT:'; echo "--- live log ---"; ls -t /tmp/
+
+## Last text from previous session
+
+ build changed (probe-gating only — functionally inert, just fewer printks), so for a valid single-build end-to-end gate I'll re-run the full sequence in gate order on `5D2D50C8`. Foreground, in order. Group 1:
+Group 1: 3/3 PASS. Group 2a:
+Group 2a: 3/3 PASS. Group 2b:
+The harness backgrounded group 2b. I'll wait for its completion notification (not poll). Meanwhile, let me record this session's findings to memory — I touched `pal/linux/xfs_buf.c` and the build identity changed.
+Group 2b finished. Let me check the result, then write the memory.
+Group 2b: 3/3 PASS (dmesg_clean confirmed again). 9/19 gate criteria green on `5D2D50C8`. Let me record the finding to memory, then continue the gate.
+Memory recorded. Continuing the gate — **posix_semantics (1 node)**:
+posix_semantics(1): PASS (12/12). 10/19 done. **cache_coherency (4 nodes)** — the recently-fixed criterion:
+cache_coherency: PASS (4/4). 11/19. **strong_consistency (4 nodes)**:
+strong_consistency: PASS (3/3). 12/19. Now the critical one — **zero_silent_loss** (16-node storm, the prior blocker):
+The harness backgrounded zero_silent_loss (it's the ~6-8 min one). I'll wait for the completion notification — no polling.
+The pal.md awareness doc is high-level (API/architecture) and my change is a diagnostic-probe gating tweak — no public API change — so it doesn't warrant a doc edit (the memory captures it). 
+
+zero_silent_loss is running (16-node storm, ~6-8 min). I'll wait for its completion notification rather than poll. 12/19 gate criteria green on `5D2D50C8`; this is the prior blocker, so its result is the key checkpoint.
+Let me check zsl progress and update the pal.md awareness doc as the hook requests.
+zsl still running. Let me update pal.md with the probe-gating invariant. Let me see its structure to place the note well.
+Let me add a probe-gating pitfall to pal.md:
+I've hit the relay boundary. Let me check the zsl result before summarizing.
+Hit the relay boundary. Brief summary of state:
+
+**Build:** `5D2D50C8` (= prior `4450524B` + two ship-cleanliness fixes: gated the ungated `P20-BIO-READ-LOGGED` `dump_stack()` and the flooding `P29-INSTR` probe, both behind `mxfs_instr||mxfs_dirwr`).
+
+**Key result this session:** The sole remaining blocker `zero_silent_loss` is **green on a clean cluster** — it passed 1/1 then 3/3 (0 silent loss); the JSON FAIL at 19:12 (1590 loss) was a sess38-contaminated cluster, proven non-perturbingly (0 `P-REG-DURABLE-FAIL`/torn-dinode events across all 16 nodes during the passing run). Then I found `dmesg_clean` was failing on `5D2D50C8`'s predecessor — root-caused to the ungated `P20` `dump_stack` emitting 8 `Call Trace:` lines (sess38 sweep missed it) — and fixed it (now PASS, hits=0, confirmed ×2).
+
+**Ship-gate progress on `5D2D50C8` (running end-to-end, foreground, gate order):** 12/19 PASS — mkfs_timing, chk_clean, dkms_install, online_resize, cluster_ops_timing, wedged_unmount, online_membership, dmesg_clean, cache_caps, posix_semantics(1), cache_coherency(4/4), strong_consistency(3/3).
+
+**In flight:** `zero_silent_loss` (task `bbdgla06f`) — **iter 1/3 passed clean (silent=0)**, iters 2-3 running.
+
+**Remaining gate criteria** (next session, foreground, gate order): finish zero_silent_loss, then crash_consistency(2), fence_during_write(4), single_node_paired(1), rsync_paired(4), scaling_curve(16), posix_semantics(16). If all green, the gate is met.
+
+**Also recorded:** a real but separate latent bug — `xfs_assert_ilocked` WARNING in `mxfs_drevalidate` (SHARED-vs-EXCL lock-mode race when the DLM reload hook resets `i_df` mid-lookup); fires only under the BTREE-dir storm, not dmesg_clean's lighter workload. Documented in memory `sess39-run14d-zsl-cleanstate-pass-dmesgclean-p20-gate` and pal.md; address if it surfaces in dmesg_clean.
+
+Process correction noted: per CLAUDE.md/`feedback_wait_in_foreground`, I switched from background+ScheduleWakeup polling to foreground criterion-by-criterion runs. Criteria **not** yet met — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

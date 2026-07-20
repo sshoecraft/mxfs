@@ -1,0 +1,118 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 46 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 45
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `c7a1cdc2-eb0c-4346-8ff9-94213bb4cc23`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c7a1cdc2-eb0c-4346-8ff9-94213bb4cc23.jsonl`
+- approx context at last assistant turn: 0 tokens
+- tools used: Bash×52 mcp__ccmemory__memory_get×2 Edit×1 Read×1 ToolSearch×1 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/scst_atomic_edges.py
+- /src/mxfs/scripts/scst_unwedge/scst_unwedge.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; head -40 scripts/scst_atomic_wedge_diag.py 2>/dev/null | grep -E "usage|Usage|argv|run" ; ls scripts/scst_unwedge/ 2>/dev/null
+    cd /src/mxfs; sed -n '1,60p' scripts/scst_atomic_wedge_diag.py
+    cd /sys/module/scst/sections && sudo gdb -q -batch -ex "set confirm off" -ex "add-symbol-file /lib/modules/$(uname -r)/extra/scst.ko $(sudo cat .text) -s .data 
+    cd /src/mxfs; grep -n "blocker\|blocked\|verify\|topolog" scripts/scst_unwedge/scst_unwedge.c | head -30; wc -l scripts/scst_unwedge/scst_unwedge.c
+    cd /src/mxfs; sed -n '60,120p' scripts/scst_atomic_wedge_diag.py
+    cd /sys/module/scst/sections && sudo gdb -q -batch -ex "set confirm off" -ex "add-symbol-file /lib/modules/$(uname -r)/extra/scst.ko $(sudo cat .text) -s .data 
+    cd /src/mxfs/scripts/scst_unwedge && make 2>&1 | tail -3 && modinfo scst_unwedge.ko | grep -m2 "description\|vermagic"
+    sudo insmod /src/mxfs/scripts/scst_unwedge/scst_unwedge.ko blocker=0xffff8a69cab03700 blocked=0xffff8a5e6f23b180; echo rc=$?; sleep 3; sudo dmesg | tail -6; sud
+    printf 'version 1\ngeneration 0\n' | sudo tee /sys/kernel/scst_tgt/devices/disk1/pr_state >/dev/null && echo CLEARED; sudo cat /sys/kernel/scst_tgt/devices/disk
+    for l in /sys/kernel/scst_tgt/devices/disk1/exported/*; do echo "$l -> $(sudo readlink $l)"; done 2>/dev/null | head; sudo dmesg | grep pr_state | tail -2
+    ls /sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/; sudo cat /sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/mgmt 2>&1 | head -
+    echo "del 0" | sudo tee /sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/mgmt >/dev/null && echo del0_ok; echo "del 3" | sudo tee /sys/kernel/scs
+    echo "add disk1 0" | sudo tee /sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/mgmt >/dev/null && echo add0_ok; echo "add disk1 3" | sudo tee /sy
+    sudo iscsiadm -m session 2>/dev/null | awk '{print $4}' | sort | uniq -c | sort -rn | head; sudo iscsiadm -m session 2>/dev/null | wc -l
+    sudo iscsiadm -m node -u >/dev/null 2>&1; sleep 2; sudo iscsiadm -m session 2>&1 | head -2; for t in disk1 disk1b $(seq -f "disk1n%g" 2 16); do sudo iscsiadm -m
+    virsh -c qemu:///system dumpxml test1 2>/dev/null | grep -A3 "<disk" | head -12; ls -l /dev/disk/by-path/ 2>/dev/null | grep -m4 mxfs
+    for n in $(seq 1 16); do virsh -c qemu:///system start test$n >/dev/null 2>&1 && echo -n "test$n "; done; echo started
+    sleep 45; cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; $S test1 $P 'sudo sg_persist -in -r /dev/sda; sudo sg_persist -in -k /dev/sda | head -3; sud
+    cd /src/mxfs; S=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; until $S test1 $P 'true' 2>/dev/null; do sleep 5; done; $S test1 $P 'sudo sg_persist -in -r /dev/sda; 
+    cd /src/mxfs; until tools/mxfs_sshpass.sh test16 /tmp/.mxfs_pass 'true' 2>/dev/null; do sleep 5; done; timeout 240 bash tests/reset4.sh 16 2>&1 | grep -vE "Warn
+
+## Last text from previous session
+
+Session 45. Resuming from the handoff: build `D9D22CF3` (pin-gate replacing three blind sleeps) is built but undeployed because a stale SCSI Persistent Reservation on the shared LUN is rejecting mkfs writes. First: orient — RULES.md check, criteria, and the PR-wedge memory.
+dd reports `0+0 records` yet rc=0 — it never even read from /dev/zero, which is odd. Full output plus dmesg:
+`pr_state` is writable. Check the SCST source for its store handler format before writing:
+Nodes report no matching node records, yet test1 clearly has an active session (/dev/sda works). Check session mode directly:
+All sessions logged out. Now clear PR state on disk1 (and check disk1b/disk2):
+EBUSY — something still holds a nexus. Check SCST's view of sessions:
+SCST still holds zombie sessions for ~10 targets (TCP gone but session objects alive), plus the copy_manager session. Force-close the iSCSI zombies:
+Force-close isn't completing. Inspect a stuck session and dmesg:
+`close_conn` is looping on something not draining. Check what it waits for:
+Same shape as sess43: 1–2 unkillable active commands per session. Run the sess43 wedge diagnostic:
+The edges live in each blocker's `scsi_atomic_blocked_cmds` array. Dump those arrays:
+Breaking the A→B edge — requeueing CAW `0xffff8a5e6f23b180`:
+Deadlock broken — the cascade drained everything and all 10 zombie sessions closed. Now clear the PR state:
+Still EBUSY — sessions are gone, so the remaining nexus is likely copy_manager's auto-attach. Check disk1's remaining exports:
+PR state cleared. Restore copy_manager LUNs as found, re-login iSCSI, restart the VMs:
+180 logins — far more than the 17 that existed before; stale node records logged into everything. Check what's active:
+There's an issue with the selected model (claude-fable-5). It may not exist or you may not have access to it. Run /model to pick a different model.
+There's an issue with the selected model (claude-fable-5). It may not exist or you may not have access to it. Run /model to pick a different model.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

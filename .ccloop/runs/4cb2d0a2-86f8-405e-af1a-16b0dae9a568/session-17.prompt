@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 17 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 16
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `66bbb5f2-b527-472f-9afa-194187063e65`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/66bbb5f2-b527-472f-9afa-194187063e65.jsonl`
+- approx context at last assistant turn: 500970 tokens
+- tools used: Bash×82 Read×33 Edit×30 mcp__ccmemory__memory_write×19 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_search×3 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/xfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for n in test2 test5; do echo "=== $n ==="; timeout 8 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo -n 'P68-EVDECIDE(total)='; dmesg 2>/dev/null|
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|undeclared" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== failrounds: content-loss vs timeout? ==="; for n in test1 test2 test5; do echo -n "$n: "; timeout 8 tools/mxfs_sshpass.sh $n /tmp/.mxfs_
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|undeclared|undefined reference" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; echo "=== dir3 block init sites (where fresh dir blocks get their header) ==="; grep -rnE "xfs_dir3_data_init|xfs_dir3_leaf_init|xfs_dir3_free_ini
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|undeclared" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs; grep -rn "b_mxfs_logged_seq" xfs/ pal/ --include=*.c | grep -iE "\+\+|= .*\+ 1|increment|bump" | head; echo "=== xfs_trans_log_buf def ==="; grep 
+    cd /src/mxfs; echo "=== dir2 data/leaf log fn signatures ==="; grep -nA4 "^xfs_dir2_data_log_entry\|^xfs_dir2_leaf_log_ents\|^xfs_dir3_leaf_log_header\|^xfs_dir
+    cd /src/mxfs; grep -n "mxfs_dir_evict_prior_tenure &&" xfs/xfs_mxfs_dlm.c; sed -n '/{ extern int mxfs_dir_evict_prior_tenure;/,/dbp->b_flags & XBF_DONE)) {/p' x
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|undeclared" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|conflicting|redeclar" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/nul
+    cd /src/mxfs; for n in test1 test2 test3 test4 test5 test6 test7 test8; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 tes
+    cd /src/mxfs; for n in test2 test4; do echo "=== $n ==="; timeout 8 tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "echo -n 'P65-EPOCH-ADOPT count='; dmesg 2>/dev/nul
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|undeclared|incomplete" | grep -v "within comment" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/nu
+
+## Last text from previous session
+
+read block in `xfs_da_read_buf`** (every read passes through it). Let me record this precise conclusion and confirm the safe baseline.
+I have a clean, well-defined next step and budget. Let me implement it: add the epoch-stale term to the always-on PRE-read invalidation in `xfs_da_read_buf`, gated by the same `dir_evict_prior_tenure` param. Let me read the exact condition:
+I referenced `mxfs_instr_enabled`/`mxfs_dirwr_enabled` before their extern decls. Let me check and fix:
+Duplicate externs in the same block are legal C. Let me build:
+Build 4509825F. Test the pre-read epoch check at mht=50/dirwr=0:
+Still fails. Let me cheaply verify the root suspicion — whether `i_dlm_dir_valid_epoch` actually advances on the clobbering nodes (P65-EPOCH-ADOPT is always-on):
+**Root of the epoch approach's failure identified:** valid_epoch DOES advance (0→66) but it's set only at the *end* of the reload (line 9389), *after* the keep-guards — which frequently short-circuit the reload before reaching it. So `i_dlm_dir_valid_epoch` **lags the actual handoffs**: a block stamped at epoch 66 isn't flagged because valid_epoch is also stuck ≤66 even after later handoffs (grant_epoch reached 70). The comparison must use the **master's authoritative `mxfs_v5_dlm_inode_dir_epoch`**, not the lagging locally-adopted valid_epoch. Let me record this precise root and confirm the safe baseline.
+I have the precise root and budget for a focused attempt at the actual fix. Let me swap the lagging `i_dlm_dir_valid_epoch` for the authoritative master epoch at the check site. First add the extern and use it in the pre-read check:
+Update the P16-PREREAD log to print `cur_ep`:
+I've hit the relay boundary. Let me ensure the tree compiles (so the next session inherits a building baseline) before wrapping up:
+The tree compiles (build E3CDB9F1). Let me record the in-progress state and wrap up.
+I've reached the relay boundary. Final summary:
+
+## Session 16 — summary (criteria NOT met, marker not written)
+
+**The 8/tcp blocker is `dir_reuse_coherency`** — a durable cross-node dir-block lost-update (a peer writes a block with 126 entries, another node clobbers it back to 77). This session **decisively narrowed** it and built most of a fix.
+
+**Major decisive results (all instrumented, RULE 4):**
+1. **Double-grant RULED OUT** — built an always-on `MX-DOUBLEGRANT` master-table auditor (KEEP); fired **zero** times on a failing run, disproving the TCP-double-grant root assumed since sess49. The DLM serializes EX correctly.
+2. **No mht value reliably passes** — it fails at mht=300 too (the "mht tradeoff" and "16/17 baseline" were lucky runs of a **timing race**, which dirwr/instr tracing masks). The bug must be eliminated, not tuned around.
+3. **Acquire-side disk-compare refresh is structurally racy**; coherence must be tied to grant tenure.
+4. Refuted ~8 fix levers (force_coherent, postread_reread, release_invalidate, release_fua, leaf-refresh [caught+reverted a regression], prior-tenure evict, pre-read epoch check).
+5. **Root of why the tenure-epoch approach didn't converge:** `i_dlm_dir_valid_epoch` **lags real handoffs** (set only at reload-end, after keep-guards that short-circuit) — measured valid_epoch=66 vs master grant_epoch=70. The comparison must use the **master's authoritative `mxfs_v5_dlm_inode_dir_epoch`**.
+
+**In-progress fix (build E3CDB9F1, compiles, all gated OFF = safe baseline == 48C6A95E):** full tenure-epoch plumbing (`b_mxfs_dir_epoch` field, stamps at dir-block create/modify, pre-read + evict-override checks). The pre-read **check** was just switched to the master epoch; the **stamps** still need the same swap (precise sites listed in memory). Next session: finish the stamp swap, enable `dir_evict_prior_tenure=1`, validate at dirwr=0 across ≥5 runs; fall back to GPT's release-side REVOKING fence if it still fails.
+
+15 ccmemory entries record the complete diagnosis and the exact remaining steps. The work continues in the next session against the same criteria.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

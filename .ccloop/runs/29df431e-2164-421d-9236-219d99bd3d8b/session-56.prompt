@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 56 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 54
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `2cc57d0c-b810-4172-8dfa-1df7bb657e91`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2cc57d0c-b810-4172-8dfa-1df7bb657e91.jsonl`
+- approx context at last assistant turn: 251211 tokens
+- tools used: Bash×107 Edit×6 Read×3 ToolSearch×2 TaskList×1 Write×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess88_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for run in 1 2 3 4 5 6; do echo -n "run $run: "; timeout 150 env MXFS_NODE_OFFSET=16 ./tests/run_tests.sh --nodes 4 --phase cluster --test test_re
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 10 $SSH $n.vm.localdomain $P "mount | g
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test3 corruption/shutdown ==="; timeout 10 $SSH test3.vm.localdomain $P "dmesg 2>/dev/null
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; echo "reset-rc=$?"; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 te
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -8; echo "rc=$?"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test3 dmesg tail ==="; timeout 10 $SSH test3.vm.localdomain $P "dmesg 2>/dev/null | tail -
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; virsh destroy test3 2>&1 | head -1; sleep 5; virsh start test3 2>&1 | head -1; echo "waiting for boot..
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 80 $SSH test3.vm.localdomain $P "modprobe libcrc32c 2>/dev/null; mountpoint -q /src || mount
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; allok=1; for n in test1 test2 test3 test4; do m=$(timeout 8 $SSH $n.vm.localdomain $P "mount | grep 
+    cd /src/mxfs; timeout 560 ./tests/criteria/cache_coherency.sh --nodes 4 2>&1 | tail -3; echo "rc=$?"
+    cd /src/mxfs; ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1 | xargs grep -iE "Running:|PASS\]|FAIL\]|passed=|not mounted" 2>/dev/null | tail -15; echo 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; for v in test1 test2 test3 test4; do virsh destroy $v >/dev/null 2>&1; done; echo "all destroyed"; slee
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -6; echo "rc=$?"
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do timeout 8 $SSH $n.vm.localdomain $P "mountpoint -q /mnt/mxfs-sr
+    cd /src/mxfs; grep -nE "Running:|\[PASS\]|\[FAIL\]  test_|failure\(s\) in|not mounted|cannot see" /tmp/cache_coherency.WzO0Y8.log | grep -iE "cross_vis|rename|u
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 $SSH $n.vm.localdomain $P "dmesg 2>/d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test1 P88 + shutdown context ==="; timeout 10 $SSH test1.vm.localdomain $P "dmesg 2>/dev/n
+    cd /src/mxfs; grep -rn "pag_dlm_meta_gen" xfs/*.c xfs/libxfs/*.c | head -30
+    cd /src/mxfs; echo "=== L4600-4640 ==="; sed -n '4600,4640p' xfs/xfs_mxfs_dlm.c; echo "=== L4770-4795 ==="; sed -n '4770,4795p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '1630,1665p' pal/linux/xfs_buf.c
+
+## Last text from previous session
+
+ne. The remaining blocker is now the **bnobt AG-meta lost-update** (P88-INSTR, 34–40×/node) — a node writing a stale low-numrecs bnobt block over durable disk content → shutdown (sess44–52 family). This is the dominant corruption now. Let me capture a clean P88 sample to consult Gemini (RULE 5 — this class resisted ~8 sessions).
+Clean P88 analysis: most fire benign (in-core == disk, only LSN differs at in_ail). But the real one (daddr=20873208, agno=10): **in-core `numrecs=2 rec0=[32777,7]` vs disk `nr=3 rec0=[32777,1]`** — disk has a peer's newer free (3 recs), in-core is stale (2 recs), yet **`buf_gen=1 pag_gen=1` MATCH** so gen-invalidation treats it as fresh → serves stale → writes over peer → shutdown. The root is the **frozen `pag_dlm_meta_gen`** (sess46): it doesn't bump when a peer modifies the AG. Let me find where it's bumped to understand the freeze.
+`pag_dlm_meta_gen` is bumped only "on every fresh AG acquire" (slow-path DLM grant). When a node holds the AG-DLM **cached** across ops (fast-path, no fresh acquire), the gen doesn't bump even though a peer modified the AG → frozen → stale served. Same class as the dir gen. Let me read the bump sites and acquire path.
+The shutdown is `Corruption of in-memory data at xfs_buf_submit` (write-verify), not just a lost-update. Let me see exactly what verifier fails at xfs_buf.c:1656 to characterize the bnobt corruption precisely for the consult.
+The shutdown is `SHUTDOWN_CORRUPT_INCORE` from `xfs_buf_verify_write` failing — the in-core bnobt block itself becomes structurally invalid. This is the sess44–52 bnobt corruption class, now cleanly **isolated** as the sole remaining blocker after the dir-block fix.
+
+Let me first save a thorough memory checkpoint of this session's proven win and the isolated next blocker, then consult Gemini on the bnobt.
+Let me add the index pointer to MEMORY.md.
+I've reached the relay boundary. Let me add the index pointer and wrap up.
+## Session summary
+
+**Proven win (RULE 4 + RULE 5): the dir-block durable lost-update is FIXED.** Build `73B57CCD` deployed on all 4 nodes (KEEP).
+
+- **Root, instrumented-proven this session:** rename_visibility had a node losing its OWN dirent in 4-node concurrent same-shared-dir rename — a write-side durable lost-update. `DIR-STALE-SKIP in_ail=1/pin=1 disk_differs=1` (20–40×) + `P-NOINO-BAST` (11–15×/node) on the shared dir inode showed the cause: the `mxfs_dlm_bast_notify` NO_INODE branch (peer BASTs a dir inode this node had *reclaimed*) released the DLM slot with **no dir-data drain** — reclaim flushes only the inode cluster, leaving dir-data buffers dirty in the AIL → a peer FUA-reads the stale platter, RMWs, and durably reverts the dirent (invariant #1 violation).
+- **Fix (Gemini-designed scoped flush):** before the unlock, flush by the inode's AG (no extent map without an inode): `xfs_log_force(SYNC)` + bounded `xfs_ail_push_ag_sync_bounded(…, 50, 8)` + `blkdev_issue_flush`.
+- **Result:** `DIR-STALE-SKIP` → **0**; rename_visibility passes 0/240 in isolation (was 2/240); the unlink_visibility shutdown is eliminated; cross_write_read now runs (baseline never reached it).
+- **Correctly reverted** an eviction-on-reclaim addition that regressed (clearing `XBF_DONE` on a re-AIL'd buffer → un-pushable → xfsaild hung 39k iters).
+
+**Criterion NOT met** — cache_coherency still `passed=1 failed=3`. But the dir-block class is resolved and the failure mode shifted. The remaining blocker is now cleanly **isolated**: the **bnobt AG-meta in-core corruption** (P88 34–40×/node → `xfs_buf_verify_write` → `SHUTDOWN_CORRUPT_INCORE`) — the sess44–52 family. Decisive evidence: in-core `numrecs=2` vs disk `nr=3`, `buf_gen=1 pag_gen=1` falsely matching, sole EX holder → root is `pag_dlm_meta_gen` frozen at 1. Next step (queued): consult Gemini / implement the shared on-disk AGF-epoch direction (sess80).
+
+Cluster left clean: 4 nodes mounted on `73B57CCD`. Full detail in `sess88_lessons.md`. I am **not** writing the criteria-met marker.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

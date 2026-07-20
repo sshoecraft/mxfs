@@ -1,0 +1,41 @@
+#!/usr/bin/expect -f
+#
+# Usage: mxfs_ssh.exp <host> <passfile> <command>
+#        mxfs_ssh.exp <host> <passfile> SCP <src> <dst>
+#
+set timeout 120
+set host [lindex $argv 0]
+set passfile [lindex $argv 1]
+set mode [lindex $argv 2]
+
+# Read password from file (avoids shell ! expansion issues)
+set fp [open $passfile r]
+set pass [read -nonewline $fp]
+close $fp
+
+if {$mode eq "SCP"} {
+    set src [lindex $argv 3]
+    set dst [lindex $argv 4]
+    spawn scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -r $src root@$host:$dst
+} else {
+    # $mode is the command to run
+    set cmd [join [lrange $argv 2 end] " "]
+    spawn ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$host $cmd
+}
+
+expect {
+    -re "assword:" {
+        send -- "$pass\r"
+        expect {
+            -re "assword:" {
+                puts "\nERROR: password rejected"
+                exit 1
+            }
+            eof {}
+        }
+    }
+    eof {}
+}
+
+set result [wait]
+exit [lindex $result 3]

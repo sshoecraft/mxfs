@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/46efd8b6-3dd3-477c-b004-14362c80d8e8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 46efd8b6-3dd3-477c-b004-14362c80d8e8, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `9f2f86f9-753c-4548-bd3b-fa4c2eb0cd82`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9f2f86f9-753c-4548-bd3b-fa4c2eb0cd82.jsonl`
+- approx context at last assistant turn: 502586 tokens
+- tools used: Bash×147 Read×34 Edit×26 TaskCreate×4 TaskUpdate×3 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    f=/tmp/claude-1000/-src-mxfs/9f2f86f9-753c-4548-bd3b-fa4c2eb0cd82/tasks/bjz2jlmf1.output; n=0; until grep -qE '  PASS|  FAIL|ABORT|PREP FAIL' $f 2>/dev/null || 
+    R=/tmp/run_cache_coherency_20260710T080142Z; for p in 'P67-BMBT-EVICT-ENTER' 'P59-BMBT-EVICT' 'P59-BMBT-ROOT-EVICT' 'P59-BMBT-ROOT-KEEP' 'P67-BMBT-EVICT-SKIP' '
+    R=/tmp/run_cache_coherency_20260710T080142Z; grep -h 'P59-BMBT-ROOT-KEEP' $R/kernlog_test* | grep -E '08:0[3-9]|08:1' | awk '{for(i=1;i<=NF;i++){if($i~/DONE=|pi
+    R=/tmp/run_cache_coherency_20260710T080142Z; grep -h 'raw_bmbt_fallback' $R/kernlog_test* 2>/dev/null | grep -E '08:0|08:1' | head -4; R2=/tmp/run_cache_coheren
+    R=/tmp/run_cache_coherency_20260710T080142Z; grep -h 'raw_bmbt' $R/kernlog_test* 2>/dev/null | grep -E '08:0|08:1' | head -5; echo "=== count:"; grep -h 'raw_bm
+    R=/tmp/run_cache_coherency_20260710T080142Z; grep -h 'DISK_MAPS_WANT\|PLATTER-SCAN' $R/kernlog_test* | grep -E '08:0|08:1' | sort | uniq -c | sort -rn | head -6
+    grep -n 'mxfs_dir_bmbt_release_audit' xfs/xfs_mxfs_dlm.c | head; grep -n 'mxfs_dir_hole_disk_probe' xfs/xfs_mxfs_dlm.h xfs/libxfs/xfs_da_btree.c | head -4
+    echo 0.10.15 > VERSION && make modules 2>&1 | grep -E ' error|Error' -A2 | head -10; modinfo mxfs.ko | grep srcversion
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    f=/tmp/claude-1000/-src-mxfs/9f2f86f9-753c-4548-bd3b-fa4c2eb0cd82/tasks/b2j9mek0s.output; n=0; until grep -qE '  PASS|  FAIL|ABORT|PREP FAIL' $f 2>/dev/null || 
+    R=/tmp/run_cache_coherency_20260710T081342Z; grep -h 'P70-REL-AUDIT' $R/kernlog_test* 2>/dev/null | grep -E '08:1[5-9]|08:2' | sort | head -14; echo "=== verdic
+    grep -n 'XFS_DIR3_LEAFN_MAGIC\|XFS_DIR3_LEAF1_MAGIC\|XFS_DA3_NODE_MAGIC' xfs/libxfs/xfs_da_format.h | head -4; grep -n 'struct xfs_da3_blkinfo {' xfs/libxfs/xfs
+    python3 - <<'PYEOF' p = 'xfs/xfs_mxfs_dlm.c' s = open(p).read()  # 1) Fix the P70 audit decoder: only decode LEAF1/LEAFN; count nodes old_audit = """				blocks_
+    grep -n 'P70-REL-AUDIT ino' xfs/xfs_mxfs_dlm.c | head -2
+    echo 0.10.16 > VERSION && make modules 2>&1 | grep -E ' error|Error' -A2 | head -8; modinfo mxfs.ko | grep srcversion
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    sed -n '1518,1540p' dlm/dlm_caw.c | grep -n 'prebump\|caw_slot' ; echo ===; grep -n 'caw_grant_meta_store_unless_releasing(ctx' dlm/dlm_caw.c | head
+    grep -n 'caw_grant_seq_prebump(ctx' dlm/dlm_caw.c; echo ===; awk 'NR>=1560 && NR<=1610' dlm/dlm_caw.c | grep -n 'prebump\|caw_slot\|holders_for_mode' | head -5
+    f=/tmp/claude-1000/-src-mxfs/9f2f86f9-753c-4548-bd3b-fa4c2eb0cd82/tasks/bib3oa3mp.output; n=0; until grep -qE '  PASS|  FAIL|ABORT|PREP FAIL' $f 2>/dev/null || 
+    grep -n 'b_mxfs_dir_gen' xfs/libxfs/xfs_da_btree.c | head -8
+
+## Last text from previous session
+
+ a safe release:
+Now the probe-read fix — LBA forensics plus FUA-path fallback (the FUA read works for the inode cluster in this same function):
+The PLATTER-SCAN leaf reads use the same failing plain read — adding the fallback there too:
+Build v0.10.10:
+0/32 again — but now the discriminators should have fired. Reading the verdicts:
+Build and run:
+While the run executes, mining the previous run for evict-skip evidence (locked/dirty survivors at reload):
+`mxfs_dir_bmbt_scan` exists for exactly this (sess133). Checking whether it's actually wired into the release fence's break condition, and every call site:
+Correcting the log-item member path (`bli_item.li_flags`):
+Now the P68 dirty-at-reload probe — reading the evict walk's tail:
+The evict-skip forensics are gated behind off-by-default instrumentation flags — making the skip print always-on (capped), since it's the manufacture-site witness:
+Refining the skip print to exclude already-evicted (!DONE) noise:
+Now closing the vacuous-durable bail — fall through to the map-independent owner scans instead of returning true:
+Updating the handoff memory with the proven chain while the run executes:
+All scans clean — build and run with the straggler discriminator:
+One SCST device, one target — but write-back mode (`write_through=0`), and the paths might not both be SCST sessions. Checking the initiator's sessions:
+Adding the root-pointer-driven evict helper (walk-miss-proof):
+Writing the post-release platter audit and leaf-write tracker:
+Adding the data-region hole census to the audit print:
+Relay boundary — persisting the final state delta before handoff:
+Session 4 summary — criteria NOT met (no marker written); the investigation advanced through seven build/run cycles and eliminated most of the suspect space:
+
+**Root-cause progress (all RULE-4 instrumented, 7 runs on 7 builds v0.10.9→0.10.16):**
+1. **Cold-iget mechanism REFUTED** — the sess3 discriminator (P14 `iget_age_ms`) showed 10–25s ages; the failing inodes were long-lived in-core.
+2. **P15H strand-reap storm found and fixed** — 45 force-releases of live grants in 35s across 23 nodes (the 100ms strand threshold was calibrated for healthy clusters; the tenure floor makes ≤6s unconsumed grants legitimate). Threshold now 280 samples (~7s); reaps went to 0. Plus: CAW no-anchor unlocks made safe (P6ZC release-if-no-tenure), grant-meta bucket no-wipe hardening, table 4096→32768.
+3. **The probe that was silent all of sess3/4 fixed** — `m_bsize` is in 512-byte sectors (=8), not bytes; every raw read EINVAL'd. With reads working, the "PLATTER-TORN" verdicts appeared — then were **proven decoder artifacts** (the scan misdecoded the dir's da3 interior node block as a leaf; its 2 child pointers looked like ghost refs).
+4. **Writers and platter fully exonerated** — the new post-release audit (P70: raw FUA readback of dinode+bmbt+leaves right after every wire unlock, correct decoder) came back **refs_into_holes=0 on all 36 audits**. Laundering (P67: 1 benign fire) and cross-boundary stragglers (P63 extension: 0) also refuted.
+5. **The remaining suspect is precisely cornered**: walkers under PR follow a leaf entry to a legally-freed data block with a fresh map — a stale *local cached leaf buffer*. The read-time dir-buffer invalidation (xfs_da_btree.c ~3776) trylock-skips dirty/locked buffers and then serves the stale image — the write side of that exact gap got the sess12 guard; the local-read side never did.
+
+**Next session**: add the P72-READSKIP-STALE probe at the read-time invalidation skip arms, correlate with same-node P14s, then fix (read-around or bounded evict-retry); plus the queued grant-meta invalidate-at-unlock (kills the ghost-seq problem underlying the P15H false-orphan signature). Then cache_coherency@32 ×2 green → trio → dir_reuse → full 1/2/4/8/16/32 ladder. Handoff memories `AAA-ccloop46ef-sess4-PLATTER-TORN-PROVEN-laundering-hunt` and `AAA-ccloop46ef-sess4-END-writers-exonerated-readskip-next` carry the full evidence chain.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

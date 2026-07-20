@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 68 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 67
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `8386b3e8-2dcd-41fe-8369-6634f3734d01`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8386b3e8-2dcd-41fe-8369-6634f3734d01.jsonl`
+- approx context at last assistant turn: 255840 tokens
+- tools used: Bash×51 Read×22 Edit×12 Agent×5 mcp__ccmemory__memory_write×5 ToolSearch×4 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_search×2 AskUserQuestion×1 TaskStop×1 Write×1 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/ASYMMETRIC_MDS_PLAN.md
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/include/mxfs/mxfs_dlm.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/disklock.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat /tmp/claude-1000/-src-mxfs/8386b3e8-2dcd-41fe-8369-6634f3734d01/tasks/bzkade1lv.output 2>/dev/null | tail -20; echo "=== ocfs2-tools / scst present? ==="; l
+    [redacted: local source-inspection commands]
+    cd /src/mxfs; grep -rn "struct mxfs_caw_slot\|holders_ex\|holders_pr\|waiter_mode\|yield_to\|ex_head\|ex_tail\|uint64_t waiters\|granted_mode" dlm/*.h | head -3
+    cd /src/mxfs; echo "=== dlm/ files ==="; ls dlm/*.c | head -40; echo "=== TCP / message / RPC / send-recv primitives ==="; grep -rlnE "rpc|request.*reply|send_m
+    cd /src/mxfs; echo "=== peer.c transport primitives ==="; grep -nE "send|recv|sock|tcp|connect|msg|rpc|request|reply" dlm/peer.c | head -30; echo "=== TCP DLM g
+    cd /src/mxfs; echo "=== mxfs_dlm_msg_hdr + msg types ==="; grep -rnE "struct mxfs_dlm_msg_hdr|MXFS_MSG_|msg_type|enum.*msg" dlm/*.h include/*.h 2>/dev/null | he
+    cd /src/mxfs; grep -rn "mxfs_dlm_msg_hdr\|MXFS_PEER_MAX_MSG" dlm/*.h include/*.h 2>/dev/null | head; echo "=== struct def ==="; grep -rn -A14 "struct mxfs_dlm_m
+    cd /src/mxfs; echo "=== v5 mount ctx struct (node_id, transport, peer) ==="; grep -nE "struct mxfs_v5_mount_ctx|mxfs_node_id_t.*node|transport|peer;|node_slot|-
+    cd /src/mxfs; grep -nE "node_slot = |claim_slot|ctx->node_slot|->mounted = true|return ctx|CAW transport|transport == MXFS_V5_TRANSPORT_CAW|else \{" dlm/v5_moun
+    cd /src/mxfs; grep -rn "mxfs_v5_dlm_get_node_slot\|mxfs_v5_dlm_is_single_node" --include=*.h | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning.*v5_mount|LD \[M\].*mxfs.ko" | tail -15; echo "---srcversion---"; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs; echo "=== discovery peer cb + peer add/connect in TCP path ==="; grep -nE "v5_discovery_peer_cb|mxfs_peer_add|mxfs_peer_connect|discovery_peer_cb|
+    cd /src/mxfs; grep -nE "mxfs_peer_init|mxfs_peer_set_msg_cb|mxfs_peer_start|mxfs_peer_shutdown|typedef.*msg_cb|mxfs_peer_msg_cb" dlm/peer.h | head
+    cd /src/mxfs; grep -nE "mxfs_dlm_msg_type|MXFS_DLM_MSG|enum" include/mxfs/mxfs_dlm.h | head; echo "=== enum body ==="; sed -n '/enum mxfs_dlm_msg_type/,/};/p' i
+    cd /src/mxfs; grep -nE "mxfs_pal_(completion|wait|event|sem|atomic)|mxfs_completion|mxfs_pal_thread_create|mxfs_pal_sleep_ms|mxfs_pal_time_ms|mxfs_pal_mutex|mxf
+    cd /src/mxfs; grep -nE "find_node_slot|node_by_slot|slot_to_node|node_id.*slot|get_node_id|mxfs_disklock_(find|get|node)" dlm/disklock.c dlm/disklock.h 2>/dev/n
+    cd /src/mxfs; grep -rn "mxfs_v5_peer_joined_notify_fn\|typedef.*mxfs_v5.*notify_fn" dlm/v5_mount.h | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\].*mxfs.ko" | tail -15; echo "---srcversion---"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+->peer` exists. So Step 2 is: create+start the peer mesh in the CAW path before discovery starts. Let me verify the peer API signatures.
+Now let me look at the message-type enum to add the metadata RPC types (Step 3):
+Let me read the full header region to add the metadata message types and request/reply structs:
+Adding the metadata RPC message types to the enum:
+Now the request/reply structs. Let me find the end of the message-struct section:
+Message types and structs are in. Now the core RPC machinery — synchronous request/reply over the peer mesh with reply correlation. Let me check the PAL concurrency primitives available (completion/wait, atomics):
+CV-based RPC primitives exist. Now the MDS-resolution wrinkle: clients must map "MDS = slot 0" to a node_id to send the RPC. Let me check what slot→node_id lookup the disklock provides.
+`slot_node_id[]` maps slot→node_id (populated from heartbeat scans). Let me add a public resolver, then build the RPC transport. First the disklock helper:
+Now add a slot→node_id resolver that scans the heartbeat slots:
+Now the RPC machinery in v5_mount.c. First, add the pending-request table, CV, and server-handler callback to the context struct:
+I'm at the relay boundary mid-implementation. Let me make the tree self-consistent (add the missing typedef + define the struct references) so it stays buildable with dormant scaffolding, rather than leaving a broken build.
+Adding the typedef, define, and the request-handler signature to the header:
+Let me build to verify the tree state for a clean handoff:
+Tree builds clean (`EC07F422`) — the scaffolding is dormant and self-consistent. Let me update the session memory with the precise handoff state, then summarize.
+Wrapping up at the relay boundary.
+
+## Session summary
+
+This was a strategic-pivot session, not another patch attempt.
+
+**Re-established ground truth:** The inherited build (99635EAD) was handed off as "3/4 passing." On a freshly power-cycled clean cluster it's actually **0/4 and wedges every run** on a 120-second CAW disk-lock timeout. The optimistic handoff didn't survive a clean reboot — a recurring pattern across these sessions.
+
+**Studied the proven implementations** (at your direction): GFS2, OCFS2, and the kernel DLM. The decisive finding: the proven production clustered-XFS design is **asymmetric** (one metadata-server node owns the log and runs all create/unlink/rename; clients forward those ops). MXFS is symmetric (every node writes metadata directly) — which GPT confirmed is "the tar pit" that XFS's own architecture fights against.
+
+**Decision (GPT-5.5 + you):** pivot to the asymmetric MDS model. Saved the rationale and phased plan to memory as you asked.
+
+**Code landed (tree builds clean, `EC07F422`, all dormant — no behavior change yet):**
+1. MDS identity — `is_mds` / `mxfs_v5_dlm_is_mds()` (static v1: MDS = disklock slot 0).
+2. Metadata RPC wire protocol — message types + `mxfs_md_req`/`mxfs_md_reply` structs (header already carries `epoch`).
+3. `mxfs_disklock_get_slot_node_id()` so clients can address the MDS.
+4. RPC plumbing struct fields + full header API; bodies are the next step.
+
+**Next session (precise checklist in `sess67_lessons`):** write the RPC request/reply bodies, bring up the peer mesh in CAW mode (existing discovery auto-connects peers), register the XFS-layer server handler, gate the XFS dir-mutation ops to forward to the MDS, force client dir-cache revalidation, then test. End of that work = `cache_coherency` should pass because metadata serializes on one log.
+
+Criteria are **not** met — `cache_coherency` is 0/4 and the new path is incomplete — so I have not written the marker. The work continues from a committed, documented architecture instead of churning on symptom patches.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

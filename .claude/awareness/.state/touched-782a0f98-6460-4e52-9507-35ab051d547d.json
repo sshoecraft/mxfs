@@ -1,0 +1,17 @@
+{
+  "source": [
+    "xfs/xfs_trans_buf.c",
+    "dlm/dlm_caw.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "pal/linux/xfs_file.c",
+    "dlm/dlm_caw.h",
+    "xfs/xfs_mount.h",
+    "pal/linux/xfs_super.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

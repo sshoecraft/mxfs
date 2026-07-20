@@ -1,0 +1,36 @@
+● Criteria met — marker written.
+
+  Final summary
+
+  The success criteria — 1/2/4/8/16/32-node CAW DLM multipath test working 100% — are satisfied on a single build, 0.10.120 (srcversion F2443A0C), against the multipath device /dev/mapper/mpatha:
+
+  ┌────────┬──────────────────────────────────────────────────────────┐
+  │  Rung  │                       Board result                       │
+  ├────────┼──────────────────────────────────────────────────────────┤
+  │ 1/caw  │ 30 PASS, 0 FAIL (suite + caw + all tooling rows)         │
+  ├────────┼──────────────────────────────────────────────────────────┤
+  │ 2/caw  │ 20 PASS, 0 FAIL                                          │
+  ├────────┼──────────────────────────────────────────────────────────┤
+  │ 4/caw  │ 20 PASS, 0 FAIL                                          │
+  ├────────┼──────────────────────────────────────────────────────────┤
+  │ 8/caw  │ 20 PASS, 0 FAIL                                          │
+  ├────────┼──────────────────────────────────────────────────────────┤
+  │ 16/caw │ 20 PASS, 0 FAIL                                          │
+  ├────────┼──────────────────────────────────────────────────────────┤
+  │ 32/caw │ 20 PASS, 0 FAIL (cc 3021/3021, dir_reuse 32/32 at 3417s) │
+  └────────┴──────────────────────────────────────────────────────────┘
+
+  Verifiable evidence: criteria.json rows (ISO-stamped 2026-07-17), ./showstat.sh N caw for each rung, and tests/logs/ladder_rung_{1,2,4,8,16}caw.log.
+
+  What it took this session:
+
+  1. The multi-session double-alloc blocker is root-caused and fixed. Instrumented reproduction (iter_14) captured the full braid: a cold disk read of an inode-cluster buffer that still had inode log items attached clobbered a
+  just-iflushed dinode image (a dir block→shortform shrink); the queued writeback then pushed the stale pre-shrink image back to disk and the flush completion marked the inode clean, so the shrink existed only in RAM. Peers adopted the
+  stale extent map, and the freed block's later legal reuse cross-linked two inodes. The fix — P150 READ-PRESERVE in pal/linux/xfs_buf.c — snapshots EX-held slots before such reads and restores them after the DMA (the read-side mirror of
+  the existing partial inode write). Validated by four corruption-clean reproducer iterations at a pre-fix hit rate of ~1-in-2, then the full ladder.
+  2. A self-inflicted perf regression caught and reverted: un-ratelimiting the P56 diagnostic print (0.10.118) alone dropped dlm_scaling@32 below its op-rate floor (~18K printk lines/4min/node); 0.10.120 restores the ratelimit.
+  3. Testbed stall family eliminated: clyde was memory-exhausted (62GB qemu RSS + full swap), causing multi-minute I/O stalls, heartbeat purges, and MQTT barrier collapses. All 32 VMs were live-ballooned 4G→2.5G (persisted in config),
+  and the swap debt was cleared.
+
+  Known latent items recorded in memory for future work (neither affected any ladder row): occasional mxfs_ili object leak at rmmod after abnormal teardowns, and the pre-existing hold-and-wait tension around CAW polls under host I/O
+  pressure.

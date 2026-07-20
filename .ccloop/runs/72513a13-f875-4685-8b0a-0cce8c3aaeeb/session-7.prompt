@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get all 4 conditions in ./conditions.md working 100% up to 32 nodes
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/72513a13-f875-4685-8b0a-0cce8c3aaeeb/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 72513a13-f875-4685-8b0a-0cce8c3aaeeb, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `4571427f-ddb6-4220-b414-83b0f08f8b5d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4571427f-ddb6-4220-b414-83b0f08f8b5d.jsonl`
+- approx context at last assistant turn: 499837 tokens
+- tools used: Bash×231 Edit×13 Read×3 Write×3 ToolSearch×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/fairness_optime.sh
+- /src/mxfs/scripts/caw_slot_sampler.py
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/cc_cv_optime.sh
+- /src/mxfs/xfs/xfs_inode.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 10 tools/mxfs_sshpass.sh test16 /tmp/.mxfs_pass 'grep -o "CONFIG_HZ=[0-9]*" /boot/config-$(uname -r)' 2>&1 | grep HZ; grep -n "sleep_ms(1)\|msleep(1)\|s
+    timeout 15 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'for i in 1 2 3; do echo "fresh_$i" > /mnt/shared/.rvopt/fresh_$i; done; sync' >/dev/null 2>&1 timeout 30
+    sed -n 925,960p /src/mxfs/xfs/xfs_mxfs_dlm.c; grep -n "qsrc=14\|bastq_src = 14" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3
+    sed -n 15720,15790p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "pr_idle_release_ms\s*=\|module_param_named(pr_idle_release" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; sed -n 12580,12615p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -n "int mxfs_pr_idle_release_ms" /src/mxfs/xfs/xfs_mxfs_dlm.c; sed -n 28020,28040p /src/mxfs/xfs/xfs_mxfs_dlm.c
+    SCRATCH=/tmp/claude-1000/-src-mxfs/4571427f-ddb6-4220-b414-83b0f08f8b5d/scratchpad for i in $(seq 1 32); do ( timeout 8 tools/mxfs_sshpass.sh test$i /tmp/.mxfs_
+    timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'for i in $(seq 20 29); do echo "f_$i" > /mnt/shared/.rvopt/fresh_$i; done; sync' >/dev/null 2>&1 timeout
+    SCRATCH=/tmp/claude-1000/-src-mxfs/4571427f-ddb6-4220-b414-83b0f08f8b5d/scratchpad timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'rm -rf /mnt/shared/.r
+    RULE0_CALIBRATE=1 timeout 300 ./run.sh 32 cawd cache_coherency 2>&1 | grep -E "PASS|FAIL" | tail -1; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dme
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "## SESS6 PART-4" new = """## SESS6 PART-5 — read-side term found+fixed; negative lookups now TH
+    timeout 30 tools/mxfs_sshpass.sh test16 /tmp/.mxfs_pass ' D=/mnt/shared/.cache_coherency/rename_visibility dmesg | wc -l > /tmp/c1 for n in 3 4 5; do for i in 1
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "- NEXT (RULE 4): instrument the negative-lookup path" new = """- MEASURED: solo/settled negativ
+    SCRATCH=/tmp/claude-1000/-src-mxfs/4571427f-ddb6-4220-b414-83b0f08f8b5d/scratchpad timeout 20 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'rm -rf /mnt/shared/.r
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "- NEXT (RULE 4): instrument the negative-lookup path" new = """- CORRECTION (isolated rv-shape 
+    for i in $(seq 1 32); do ( timeout 10 tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass 'a=$(dmesg | grep -c "P15H-PEER-STARVE"); b=$(dmesg | grep -oE "P34-ACQ-SLOW.
+    for h in test1 test5 test16; do timeout 10 tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass 'dmesg | awk "{split(\$2,a,\".\"); t=a[1]+0; if (t>=790 && t<=880) print}" |
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "- OLD-NEXT (superseded): instrument the negative-lookup path" new = """- STALL CENSUS (last 79s
+    awk 'NR>=20545 && NR<=22250' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "DEMOTING" | head -12
+    python3 - <<'PYEOF' s = open('/src/mxfs/state.md').read() old = "## SESS6 PART-5" new = """## SESS6 PART-6 — GPT RULE-5 consult on the strand fix (design AGREED
+
+## Last text from previous session
+
+ing to the last cc run only:
+Criteria still not met — the relay continues with a fully quantified frontier. Where this session leaves the run:
+
+## Session 6 final state
+
+**Landed and verified (0.11.18 → 0.11.21, all evidence-proven):**
+1. **Churn corruption root fix** (`MXFS_IF_DLM_RELFLUSH` inactivation window) — killed the "Free inode has blocks allocated" shutdowns that had masqueraded as fairness starvation since sess5.
+2. **32-node icluster stale-EX wedge fixes** (ICLUSTER unlock backoff + honest unlock rc at 2 sites + EDEADLK self-clear) — the 380s all-node starvation shape is gone, verified live.
+3. **`caw_fair_handoff` default ON** — fair=0 free-for-all provably hangs 16/32 nodes at 32-scale.
+4. **Adaptive MHT tenure floor** (`i_dlm_tenure_ops`, 15ms one-shot grace).
+
+**Board state:** 8/cawd all 20 rows green (first ever); 16/cawd all green except deferred drc; 32/cawd has fio/strong/precond green and cache_coherency functionally perfect (3021/3021) at 77-79s vs the 60s bar.
+
+**The remaining work is one quantified class plus a program**, all in state.md with repro recipes:
+- The cc@32 gap is set by ~10-30 serialized **strand rescues** per run — dir-EX handoffs that miss the normal BAST path and get rescued at exactly 3s (starve-force) or 6s (ACQUIRE_WAIT retry). Sess5's designed fix (self-nudge at entry-NL abort) is the named candidate.
+- `close_release` TTL design (cold cross-node reads went 10ms→2ms with it off, but off breaks drc's unlink path — needs the ~1.5s reap variant).
+- drc's 21s/round pipeline program, then fairness@32, then the tcp/cawp/caw ladders and the matrix.
+Criteria not met — continuing on the strand class. The mechanism is now clear: local re-acquires slip into the in-core-NL→disk-unlock window, the anchored release aborts (P15-REL-ABORT), repeat until the 3s starve-force — and the durable fix touches the core release-ordering invariants where GPT already gave structural recommendations in sess5. Per RULE 5, escalating with the complete evidence brief before implementing:
+Relay boundary — banking the GPT design and the located code pointers, then wrapping:
+Session 6 ends at the relay boundary. Summary of where the run stands:
+
+## What this session accomplished
+
+**Four structural fixes landed and verified (0.11.17 → 0.11.21, current tree `1D77D832`):**
+1. **Churn corruption root fix** — freed inodes were never destaged under NL; the recycle path resurrected stale disk state into frankenstein dinodes and shutdowns. Fixed via the sanctioned `MXFS_IF_DLM_RELFLUSH` window in `xfs_inactive`. This single fix turned dlm_fairness@8 from always-fail to 10s-green and unlocked the **first-ever full 20-row 8/cawd board PASS**.
+2. **32-node icluster stale-EX wedge** — three fixes (ICLUSTER unlock backoff, honest unlock rc at both release sites, EDEADLK self-clear escape); the 380s all-cluster starvation is gone.
+3. **`caw_fair_handoff` default ON** — measured: the free-for-all hangs 16/32 nodes at 32-scale; fair rotation completes all 32.
+4. **Adaptive MHT tenure floor** — one-shot tenures yield in 15ms instead of 40ms.
+
+**Rung status:** 8/cawd fully green; 16/cawd green (drc deferred); 32/cawd green through fio/strong with cache_coherency functionally perfect (3021/3021) at 77-79s vs the 60s budget.
+
+**The frontier, fully diagnosed with an agreed design:** the remaining cc@32 gap is 10-30 per-run **strand rescues** — local ops racing the release drain's in-core-NL window, aborting the anchored unlock repeatedly until the 3s starve-force or 6s retry rescues the peer. GPT (RULE 5) confirmed the fix: make DEMOTING authoritative through the wire unlock with publication-time cookie validation; entry points and the 9-item trap list are banked in state.md. After that: the close_release TTL design (cold reads 10ms→2ms proven), drc's round pipeline, fairness@32, then the tcp/cawp/caw ladders and the final matrix.
+
+Criteria not met — the next session picks up at the strand-fence implementation with everything quantified.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

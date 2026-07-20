@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 72 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 71
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `e02c1682-9cff-4ed4-93f6-1eb2b62fc7e0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e02c1682-9cff-4ed4-93f6-1eb2b62fc7e0.jsonl`
+- approx context at last assistant turn: 250108 tokens
+- tools used: Bash×56 Read×38 Edit×5 ScheduleWakeup×3 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 400 make modules 2>&1 | grep -iE "error:|undefined|LD \[M\]|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep 
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== unlink_visibility ==="; MXFS_NODE_OFFSET=0 MXFS_TESTS_DIR=/src/mxfs/tests timeout 360 bash tests/run_tests.sh --no
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; for n in 1 2 3 4; do echo -n "node$n: "; timeout 8 $SSH test$n.vm.localdomain "$PASS" "ech
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; echo "=== FULL cache_coherency ==="; timeout 590 env MXFS_TESTS_DIR=/src/mxfs/tests bash tests/criteria/cache_coherency.sh -
+    until grep -qiE "RESULT:|passed=" /tmp/claude-1000/-src-mxfs/e02c1682-9cff-4ed4-93f6-1eb2b62fc7e0/tasks/bf4j3km3x.output 2>/dev/null; do sleep 10; done; echo "=
+    cd /src/mxfs; echo -n "criterion proc: "; pgrep -f cache_coherency.sh >/dev/null && echo "RUNNING" || echo "EXITED"; echo "current subtest: $(ps aux | grep run_
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.sh"; for n in 1 2 3 4; do echo -n "node$n: "; timeout 8 $SSH test$n.vm.localdomain "$PASS" "ech
+    cd /src/mxfs; pgrep -f cache_coherency.sh >/dev/null && echo "RUNNING" || echo "EXITED"; ps aux | grep run_tests.sh | grep -v grep | grep -oE '\-\-test test_[a-
+    cd /src/mxfs; pgrep -f cache_coherency.sh >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | tail -1)" 
+    cd /src/mxfs; pgrep -f cache_coherency.sh >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | tail -1)" 
+    cd /src/mxfs; P=$(pgrep -f "cache_coherency.sh --nodes" | head -1); echo "pid=$P elapsed=$(ps -o etimes= -p $P 2>/dev/null|tr -d ' ')s"; PASS=/tmp/.mxfs_pass; S
+    cd /src/mxfs; pgrep -f "cache_coherency.sh --nodes" >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | 
+    cd /src/mxfs; for p in $(pgrep -f "cache_coherency.sh"); do echo "pid=$p etimes=$(ps -o etimes= -p $p|tr -d ' ')s cmd=$(ps -o args= -p $p | cut -c1-60)"; done; 
+    cd /src/mxfs; pgrep -f "cache_coherency.sh --nodes" >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | 
+    cd /src/mxfs; pgrep -f "cache_coherency.sh --nodes" >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | 
+    cd /src/mxfs; pgrep -f "cache_coherency.sh --nodes" >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | 
+    cd /src/mxfs; pgrep -f "cache_coherency.sh --nodes" >/dev/null && echo "RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_]+' | 
+    cd /src/mxfs; grep -nE "MXFS_NODE_OFFSET|NODES=|parse_common_args|DEFAULT.*NODE|test1[0-9]|test17" tests/criteria/cache_coherency.sh tests/criteria/lib.sh 2>/de
+    cd /src/mxfs; pgrep -f "cache_coherency.sh --nodes" >/dev/null && echo "STILL RUNNING subtest=$(ps aux | grep run_tests.sh | grep -v grep | grep -oE 'test_[a-z_
+
+## Last text from previous session
+
+detector in xfs_buf.c to design a write-suppress that catches the async xfsaild revert directly.
+This P93 detector sits right at the bnobt write submission — the exact corruption point. A write-suppress here is tempting, but `disk_nr > nr` can't distinguish a stale-base *revert* from a *legitimate* record-count reduction (merge) without knowing the buffer's load epoch — and the gen mechanism is frozen (buf_gen==pag_gen==1). The bnobt class already had 2 GPT consults (sess92) and many failed sessions, so I won't patch it speculatively (RULE 4). It's also intermittent (didn't escalate this run). Let me check the criterion result.
+unlink is slow (264s, the whole-AG push at L1372 that sess98 flagged — a known timing issue to address after correctness). I'll wait for the run to finish rather than poll repeatedly. The background watcher will notify me when the RESULT appears.
+I'll wait for the background task completion notification.
+Let me verify which nodes the criterion is actually running on (it sets MXFS_NODE_OFFSET=16) and that they have my build — this matters for interpreting the result.
+Confirmed: the criterion runs on test1-4 with my build D6AD04FE (the offset is internal slot numbering; SSH targets are test1-4 per DEFAULT_NODES). No shutdown, run is valid and progressing. I'll wait for the background task's completion notification.
+I've hit the relay boundary. Let me record the current state to memory before wrapping up.
+Let me do a final check on whether the criterion finished.
+The full cache_coherency criterion is still running on unlink_visibility (no result yet). I've reached the relay boundary. Criteria are NOT met — the ship gate hasn't passed. Summary of this session's work:
+
+## Session 71 summary (RULE-4 loop, all measured)
+
+**Implemented GPT's release-side publish-and-discard (sess98 design) and PROVED it fixes the primary blocker.**
+
+### FIX 1 — release-side `xfs_buf_stale` on dir DATA blocks (KEEP, PROVEN)
+New `mxfs_dir_stale_data_blocks` in `xfs/xfs_mxfs_dlm.c`, wired into the dir BAST-release path replacing the old clear-DONE evict. On release, durable dir blocks are `xfs_buf_stale()`'d so xfsaild can never re-flush a superseded image and the next acquire cold-reads.
+- **Measured result:** the P-DIRWR write trace went from oscillating (sess98) to **perfectly monotonic — ZERO reverts** (stale 0→110). The block-format dir durable lost-update (the PRIMARY proven sess98 root) is fixed.
+- **unlink_visibility now PASSES in isolation** (0 survivors) — was 2-21 survivors in sess98.
+
+### FIX 2 — AG-meta bnobt/cntbt release-side stale (KEEP, currently inert)
+Added to `mxfs_dlm_ag_drain_meta_buffers`. Intended to stop the bnobt P93-REVERT-CLOBBER run-killer, but it fires 0× — xfsaild flushes the stale bnobt buffer asynchronously *before* the release drain, so the revert is outside the release window. Harmless, kept.
+
+### DISPROVEN (RULE-4 2a, reverted) — acquire-side `xfs_buf_stale`
+Converting the acquire-side drain_evict to stale REGRESSED unlink (all 4 nodes lost files). Confirms sess96: aggressive acquire-side cold-read under `fua_disable=1` returns stale/racing target content. GPT's "release+acquire are a pair" is wrong here — release-side is correct, acquire-side cold-read is harmful.
+
+### Remaining blocker
+**bnobt P93-REVERT-CLOBBER** (xfsaild flushing a stale-base AG free-space tree buffer over a peer's durable split) still fires 4-12×/node and intermittently escalates to `ltbno+ltlen>bno` shutdown — it killed an earlier full criterion run during cross_visibility. The current full run got past cross_visibility + rename_visibility **without** a shutdown and is on unlink. This bnobt class is a deep multi-session blocker (2 prior GPT consults, sess92).
+
+**Current build `D6AD04FE` deployed on test1-4.** Builds this session: BA0A5E6D (dir-stale, 1 survivor) → 18848E6D (acquire-stale, regressed, reverted) → D6AD04FE (current). Full state and next steps recorded in `sess99_lessons`. Criteria not met; marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

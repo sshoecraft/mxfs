@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_bmap_btree.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "xfs/xfs_trans_buf.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

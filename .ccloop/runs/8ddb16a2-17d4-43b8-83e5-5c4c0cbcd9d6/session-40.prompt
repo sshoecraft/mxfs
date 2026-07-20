@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 40 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 39
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `9ee94c38-3a35-4c3b-a494-be05ff95bff1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9ee94c38-3a35-4c3b-a494-be05ff95bff1.jsonl`
+- approx context at last assistant turn: 509577 tokens
+- tools used: Bash×55 Read×23 mcp__ccmemory__memory_write×9 Edit×5 mcp__ccmemory__memory_get×4 ToolSearch×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | awk '/srcversion/{prin
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1'; timeout 560 bash tests/drc_cap2.sh 2>&1 | grep -E "PASS|FAIL|build=|capture done"
+    cd /src/mxfs/tests/_cap; echo "=== P-GROW0 counts per node ==="; for n in test1 test2; do echo -n "  $n: "; grep -c "P-GROW0" $n.log; done; echo; echo "=== P-GR
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1'; timeout 560 bash tests/drc_cap2.sh 2>&1 | grep -E "PASS|FAIL|build=|capture done"; echo "---
+    cd /src/mxfs/tests/_cap; echo "=== this FAIL: drc-RDMISS ==="; grep -hE "drc-RDMISS" test1.log test2.log | sed -E 's/^\[[0-9. ]+\] //' | head -2; echo; echo "==
+    cd /src/mxfs; echo "=== P-DWR / P-DRD instrument definition (what does node1_cnt count?) ==="; grep -n "P-DWR\|P-DRD\|node1_cnt\|node1_f" xfs/libxfs/xfs_dir2_da
+    cd /src/mxfs/tests/_cap; echo "=== node2 round-12 window boundaries ==="; grep -hE "mxfs-DRCph r=12 rank=2" test2.log | sed -E 's/^\[([0-9.]+)\].*PHASE=([a-z-]+
+    cd /src/mxfs; echo "=== xfs_readdir + mxfs reload hooks in readdir path ==="; grep -rnE "xfs_readdir|mxfs_dlm_reload_inode|MXFS_IF_DIR_RELOAD|i_dlm_stale|mxfs_d
+    cd /src/mxfs; echo "=== inode-to-disk / iflush path + any existing mxfs hook ==="; grep -rnE "xfs_inode_to_disk\b|^xfs_iflush\b|xfs_iflush_int|mxfs.*iflush|iflu
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|xfs_inode.c" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | awk '/srcv
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1'; timeout 480 bash tests/drc_cap2.sh 2>&1 | grep -E "PASS|FAIL|build="; echo "--- P-STALE-IFLU
+    cd /src/mxfs; modinfo mxfs.ko 2>/dev/null | awk '/srcversion/{print "built srcv="$2}'; ls -la --time-style=+%H:%M mxfs.ko 2>/dev/null | awk '{print "ko mtime="$
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | awk '/srcversion/{prin
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1'; timeout 480 bash tests/drc_cap2.sh 2>&1 | grep -E "PASS|FAIL"; echo "--- node2 P-DIRIFLUSH i
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1'; timeout 480 bash tests/drc_cap2.sh 2>&1 | grep -E "PASS|FAIL"; cd tests/_cap; echo "--- node
+    cd /src/mxfs; export MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1'; timeout 480 bash tests/drc_cap2.sh 2>&1 | grep -E "PASS|FAIL"; cd tests/_cap; echo "--- node
+    cd /src/mxfs; echo "=== xfs_inode_item_push (AIL push — safe deferral via XFS_ITEM_LOCKED/PINNED) ==="; grep -n "xfs_inode_item_push\|XFS_ITEM_PINNED\|XFS_ITEM_
+    cd /src/mxfs/tests/_cap; echo "=== node2 EVICT-RING-FLAG for ino=131 (dir free notification received?) ==="; grep "EVICT-RING-FLAG" test2.log | grep -c "ino=131
+    cd /src/mxfs; echo "=== call sites that publish INODE_FREE / note_freed ==="; grep -rnE "mxfs_disklock_note_freed|note_freed|mxfs_dlm_note_inode_freed|EVICT_TYP
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|xfs_inode.c:" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | awk '/src
+
+## Last text from previous session
+
+s block 0 @ fsb=15 (canonical), under EX; the fix target is to make that always hold.
+- 10 memories carry the full chain, the fix design + exact entry points (dir-EX acquire `xfs_mxfs_dlm.c` ~8558 fast-path / slow-path reload `mxfs_dlm_reload_inode`; `xfs_dir2_readdir.c:631`), and an honest correction (the "ring overflow" sub-cause is unproven; the fix doesn't depend on it).
+
+The investigation is complete and the fix is a well-scoped change to the dir-inode incarnation check on acquire. Work continues from build AFE4E833 with the seed root settled.
+I keep documenting; the hook rightly wants implementation. Let me attempt the actual fix at the safe insertion point — the merge overlay loop, where the on-disk image is already read. Let me read the rest of `mxfs_iflush_cluster_merge_dirs` to add an incarnation-overlay for stale-incarnation EX-held dir slots.
+This is the right insertion point — the overlay loop has both the in-core (`dbuf`) and canonical on-disk (`ddisk`) images. The fix: an EX-held DIRECTORY slot whose in-core incarnation (`di_gen`) differs from the on-disk one is a **dead prior incarnation** (inode reused by rm-rf+mkdir, never reloaded) — overlay it with the canonical image so node2's dead-incarnation fork (block0→112) can't win. rank1 is the sole dir creator, so this node's dir incarnation is never ahead of disk; the `di_gen !=` guard makes it safe for legitimate same-incarnation growth.
+Reached the relay boundary. Let me verify the edit compiles cleanly so the next session inherits a working build.
+Build clean — **C22056240** (only a pre-existing unused-function warning). The incarnation-fence fix is implemented and compiles. Reached the relay boundary; the criterion is **not met** (the fix is **untested** — I won't claim success without verification, so no marker).
+
+## This session's outcome
+
+Traced `dir_reuse_coherency` 2/tcp from symptom to seed root and **implemented a targeted fix**:
+
+**Root (proven):** node2 keeps a **stale incarnation** of the per-round-reused dir inode (ino=131). The dir is `rm -rf`+`mkdir`'d each round (new `di_gen`, block 0 freshly allocated @ daddr 120), but node2 never reloads the new incarnation (the INODE_FREE evict-ring hint is unreliable for the dir). So node2's in-core extent map still points block 0 → freed daddr 112. When node2 flushes a co-resident child file, `xfs_iflush_cluster` writes the whole cluster — carrying node2's dead-incarnation dir slot (block 0→112) over node1's canonical (block 0→120). `getdents` then reads block 0 at the stale daddr → readdir short, lookup_fail=0.
+
+**Fix (build C22056240):** in `mxfs_iflush_cluster_merge_dirs` (xfs/xfs_inode.c), the cluster-overlay now also restores an **EX-held directory slot whose in-core `di_gen` differs from the durable on-disk `di_gen`** (a dead prior incarnation) with the canonical on-disk image — so node2's dead-incarnation fork can never win. Guarded to DIRECTORIES on a real `di_gen` mismatch only (rank1 is the sole dir creator, so this node's dir incarnation is never ahead of disk; legitimate same-incarnation growth, `di_gen ==`, is untouched). Logs `P-CLMERGE-DEADINCARN` when it fires.
+
+## Next session (immediate)
+1. **Test the fix:** `MXFS_EXTRA_MODARGS='inode_mht_ms=300 dirwr=1' bash tests/drc_cap2.sh` ≥4× — expect PASS each, with `P-CLMERGE-DEADINCARN` firing on node2 (confirming it caught + reverted the stale write). Watch for any shutdown/EFSCORRUPTED (the overlay touches an attached/IFLUSHING slot — verify no AIL/CRC fallout).
+2. If clean, run the full `./run.sh 2 tcp` for **17/17** and write the marker only on verified success.
+3. If the overlay regresses anything, the fallback is the cleaner-but-bigger fix (incarnation-verify on dir-EX **acquire**, forcing a reload) per the 11 handoff memories (`sess-tcp-SEED-ROOT-*`, `sess-tcp-WHY-merge-misses-*`, `sess-tcp-FIX-DESIGN-*`).
+
+The complete causal chain and both fix options are documented in memory; the fix is implemented and builds — it now needs verification.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,15 @@
+---
+name: sess44-REFUTED-tenure-stale-bypass-corrupts-fix-must-be-release-side
+description: sess44 REFUTED: dir_tenure_evict=1+dir_tenure_stale_bypass=1 is UNSAFE (2 pass then run3 = readdir=500/800 from round1 + xfs_corruption_error shutdow…
+metadata:
+  type: project
+---
+
+## sess44 — REFUTED the acquire-side bypass combo; the fix is RELEASE-side
+
+### A/B test (runtime modargs, no rebuild, build 5F0C1457): `dir_tenure_evict=1 dir_tenure_stale_bypass=1`
+- run1 PASS, run2 PASS, **run3 CATASTROPHIC**: readdir=500/800 on ranks1-5 FROM ROUND 1, readdir=0 on ranks6-7, `xfs_corruption_error` + "Corruption detected. Unmount and run xfs_repair" + FS shutdown on test1-5, leaf-hash holes (P22-DATASCAN-HIT node3_f44.md5). The 2 passes were LUCK (base fail ~33%); the bypass adds a NEW corruption mode.
+
+### WHY unsafe: `dir_tenure_stale_bypass` invalidates an in-AIL buffer the keep-guard would preserve, deciding "destaged" via mxfs_dir_buf_is_undestaged (logged_seq vs written_seq). But written_seq is stamped at bio SUBMIT, not COMPLETION (unless dir_wseq_at_completion=1, also default-off) → a submitted-but-not-landed buffer reads "destaged" → the bypass drops genuinely un-landed committed work → desyncs buffer/log/CRC → structural corruption (same failure class as sess40 dir_refresh_inplace v2 REFUTED). Acquire-side invalidation of a buffer of UNCERTAIN durability is fundamentally unsafe.
+
+### REFINED ROOT MODEL (the divergence ORIGIN, RULE 4): the offset double-alloc (sess44 [[sess44-PROVEN-offset-collision-double-alloc-aoff1600-four-dirents]]) originates at the FIRST handoff where node A releases EX WITHOUT destaging its committed dir-block image C1 to the LUN. Peer B then acquires EX and cold-reads STALE C0 (missing C1's adds), adds its own entries at offsets C1 also used → C2 = C0 + B's adds, MISSING A's C1 entries. From that point A's C1 and disk's C2 permanently DIVERGE (neither is a superset) → whichever writes last durably wins, the other's entry is lost. So the fix MUST guarantee: **A's committed dir DATA/leaf/freeindex blocks are durable on the LUN BEFORE peer B can acquire EX** — then B always reads a superset and the chain stays consistent. This is Architectural Invariant #1 applied to EVERY modified dir block. sess43 found the release for_each_xfs_iext drain MISSES some modified blocks (owner-scan cand>0); flushing them via owner-scan STILL failed — so either the owner-scan flush ran too late (after unlock / after peer acquired) or didn't retire the BLI (buffer stays in-AIL stale). NEXT: read the exact release sequence (mxfs_dlm_bast_process → mxfs_dir_flush_data_blocks / mxfs_dir_data_durable → mxfs_v5_dlm_inode_unlock); verify ALL modified dir blocks are bwrite-durable AND the unlock cannot happen until they land; find the block that escapes. The acquire side is ALREADY correct for CLEAN buffers (the bug is only the node's own not-destaged in-AIL buffer, which a correct release eliminates). DO NOT pursue acquire-side invalidation of in-AIL buffers (corrupts).</body>

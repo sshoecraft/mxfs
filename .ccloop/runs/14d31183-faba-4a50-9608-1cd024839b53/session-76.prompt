@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 76 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 75
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `db6a4d05-0da5-4070-aca0-83e5ff6b3aac`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/db6a4d05-0da5-4070-aca0-83e5ff6b3aac.jsonl`
+- approx context at last assistant turn: 257895 tokens
+- tools used: Bash×66 Read×30 Edit×22 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 540 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -3
+    cd /src/mxfs; INSMOD_OPTS="dirwr=1" timeout 200 ./tests/criteria/zero_silent_loss.sh --iters 2 --dpn 100 --mode 1 2>&1 | tail -2; echo "rc=$?"
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); r=$
+    cd /src/mxfs; grep -n "percpu_counter_init(&btp->bt_readahead_count" pal/linux/xfs_buf.c
+    cd /src/mxfs; timeout 420 make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko" | grep -viE "clock skew|BTF|vmlinux" | tail -4; echo "=== srcversion ==="; modi
+    cd /src/mxfs; timeout 540 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -3
+    cd /src/mxfs; INSMOD_OPTS="dirwr=1" timeout 200 ./tests/criteria/zero_silent_loss.sh --iters 2 --dpn 100 --mode 1 2>&1 | tail -2; echo "rc=$?"
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); r=$
+    cd /src/mxfs; echo "=== ALL bt_readahead_count refs in tree ==="; grep -rn "bt_readahead_count" --include=*.c --include=*.h xfs/ pal/ dlm/ mxfs_clayer/ 2>/dev/n
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip=$(getent hosts test5.vm.localdomain | awk '{print $1}'); timeout 12 "$SSH" "$ip" "$PF"
+    cd /src/mxfs; grep -nE "&= *~\(?.*XBF_READ_AHEAD" pal/linux/xfs_buf.c
+    cd /src/mxfs; timeout 420 make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko" | grep -viE "clock skew|BTF|vmlinux" | tail -4; echo "=== srcversion ==="; modi
+    cd /src/mxfs; timeout 420 make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko" | grep -viE "clock skew|BTF|vmlinux" | tail -5; echo "=== srcversion ==="; modi
+    cd /src/mxfs; timeout 540 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -2
+    cd /src/mxfs; INSMOD_OPTS="dirwr=1" timeout 200 ./tests/criteria/zero_silent_loss.sh --iters 2 --dpn 100 --mode 1 2>&1 | tail -2; echo "rc=$?"
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain | awk '{print $1}'); w=$
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip=$(getent hosts test5.vm.localdomain | awk '{print $1}'); timeout 10 "$SSH" "$ip" "$PF"
+    cd /src/mxfs; grep -rn "mxfs_dir_bmbt_invalidate_stale" xfs/ pal/ | head; echo "=== def location ==="; grep -rln "mxfs_dir_bmbt_invalidate_stale" xfs/*.c
+    cd /src/mxfs; echo "=== residual RAT/probe refs (should be empty) ==="; grep -nE "mxfs_rat|P-RALEAK|P-BMBTIOEND|P-RA-DECSKIP|P-UMNT-WAIT|P-RAT" pal/linux/xfs_bu
+    cd /src/mxfs; timeout 420 make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko" | grep -viE "clock skew|BTF|vmlinux" | tail -4; echo "=== srcversion ==="; modi
+
+## Last text from previous session
+
+e exactly how `touch` reached `_xfs_buf_read` on an in-flight readahead.
+Full mechanism now clear. The stack shows `mxfs_dir_bmbt_invalidate_stale` → `xfs_iread_extents` → `xfs_btree_read_buf_block` → `_xfs_buf_read` on a bmbt block that's a **counted readahead**. The readahead's flags (READ|READ_AHEAD|ASYNC, not cleared) show its ioend never ran, yet `touch` holds it. Let me read `mxfs_dir_bmbt_invalidate_stale` — it's the MXFS hook that creates this situation.
+**Root cause fully proven.** The stack shows: under the dir storm, `xfs_iread_extents` (reloading a dir's extent map) issues a bmbt **readahead** (counts `bt_readahead_count`), then the same lookup path synchronously reads the same bmbt block via `_xfs_buf_read`, which clears `XBF_READ_AHEAD` while the buffer is still counted. The eventual ioend sees `ra=0` and skips the decrement → count leaks +1 → `xfs_buftarg_wait` hangs unmount forever. The fix: settle the readahead accounting in `_xfs_buf_read` when it steals a counted readahead's flag.
+
+Let me implement the fix and strip the heavy diagnostics. First, the fix in `_xfs_buf_read`:
+Now strip the diagnostics. Remove the RAT array + helpers:
+I've hit the relay boundary, but I must leave the tree compilable (several stale references to the removed RAT helpers remain). Let me finish the cleanup quickly.
+Now remove the three probe blocks at the top of `__xfs_buf_ioend`:
+Now restore `xfs_buftarg_wait` to original (remove the dump call + verbose logging):
+Now remove the RAT reset at buftarg init:
+Let me verify no stale RAT references remain and the tree compiles:
+Cleanup complete, fix in place. Let me do a quick build to confirm the tree compiles before the relay:
+Clean build `CE6B0445` (FIX1+FIX2 from prior session + the new readahead-count fix). Let me record the findings in memory before the relay.
+Reached the relay boundary. Summary of this session:
+
+## What was accomplished
+
+**1. Deployed FIX1+FIX2 (build 67597818 from sess74) — major win:** On the 16-node v5 cluster, `zero_silent_loss --iters 1` dropped from **1600 → 3** silent dirent losses, with no shutdown cascade, all 16 nodes mounted, and no verify hang. FIX1 (readdir ILOCK self-deadlock) and FIX2 (torn-dinode iflush barrier) are confirmed working.
+
+**2. Found + fixed a new hard blocker (RULE 4, decisively proven): `bt_readahead_count` leak → unmount wedge.** Multi-iter zsl was failing as infra (completed 1/3) because the inter-iteration umount wedged a node in `xfs_buftarg_wait` (D-state, no sysrq exit) on a *healthy* device. Through layered instrumentation I proved the root: under the dir storm, a dir extent-map reload issues a bmbt **readahead** (increments `bt_readahead_count`), then the same lookup synchronously reads that block via `_xfs_buf_read`, which clears `XBF_READ_AHEAD` while the buffer is still counted — so the completion skips the matching decrement and the count leaks +1, hanging unmount forever. Stack/probe evidence: `P-RA-CLEAR-AT-BUFREAD ... ops=xfs_bmbt comm=touch` through `xfs_iread_extents → xfs_btree_read_buf_block → _xfs_buf_read`.
+
+**Fix (build `CE6B0445`):** in `_xfs_buf_read` (pal/linux/xfs_buf.c), decrement `bt_readahead_count` when stealing a counted readahead's flag. All heavy diagnostics stripped; tree is fix-only and **builds clean**.
+
+## State
+- Build `CE6B04452408D59E943C040` is **built but NOT yet deployed/tested**.
+- Criteria **NOT met** — marker stays unwritten. `zero_silent_loss` still fails (residual ~3-9/iter dir-block lost-update where a creator's own dirent is durably lost with no error), plus `fence_during_write`, `posix_semantics_multi16`, `rsync_paired`.
+
+## Next session
+1. Deploy CE6B0445 (`scripts/cluster_reset_n.sh 16`), then run `zsl --iters 3 --dpn 100 --mode 1`; confirm the umount wedge is gone (3/3 iters complete, `P-RAFIX-BUFREAD` fires without wedging).
+2. With multi-iter runnable, chase the remaining dir-block lost-update (RULE 4).
+
+Full detail saved to memory `sess75-readahead-count-leak-unmount-wedge-fix`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

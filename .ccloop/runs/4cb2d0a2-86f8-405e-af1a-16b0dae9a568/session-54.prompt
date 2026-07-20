@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 54 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 53
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c.jsonl`
+- approx context at last assistant turn: 500349 tokens
+- tools used: Bash×62 Read×36 Edit×8 mcp__ccmemory__memory_get×6 Monitor×5 ToolSearch×5 TaskCreate×3 Write×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2 mcp__ask_gpt__query×1
+
+## Files written or edited in the previous session
+
+- /tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/consult_draft.md
+- /src/mxfs/tests/tcp/drc_phantom_diag.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/phantom_diag.txt; sed -n '/PHANTOM DIAGNOSIS/,$p' "$F" | grep -A1 -E 
+    cd /src/mxfs; grep -nE "dg_grant_ex|->handoff|\.handoff|handoff =|dg_shadow|grant_handoff|prior.*owner|last_ex_owner|prev.*ex" dlm/dlm.c | head -30
+    cd /src/mxfs; echo "=== all 'state = ...GRANTED' assignments ==="; grep -nE "state = MXFS_LSTATE_GRANTED|->state = MXFS_LSTATE_GRANTED" dlm/dlm.c; echo; echo "=
+    cd /src/mxfs; grep -nE "int mxfs_dir_epoch_adopt|int mxfs_dir_gen_per_handoff|int mxfs_dir_owner_scan" xfs/xfs_mxfs_dlm.c | head; echo "=== dir_epoch_adopt defa
+    cd /src/mxfs; grep -n "P51-HANDOFF-UNDERFIRE" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; timeout 400 make modules 2>&1 | grep -iE "error|warning: .*mxfs_dir_ex_grantgen|implicit|undefined" | head; echo "=== build done, srcversion: ==="
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; ( timeout 1700 bash tests/drc_cap8.sh 3 "dir_ex_
+    cd /src/mxfs; grep -nE "define DG_SHADOW_N|DG_SHADOW_N " dlm/dlm.c | head; echo "=== struct dg_shadow_ent + last_owner field ==="; sed -n '2616,2650p' dlm/dlm.c
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; if grep -q "EXIT=" "$F"
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; if grep -q "EXIT=" "$F"
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; grep -E "ITER [0-9]+:|E
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; grep -E "ITER [0-9]+:|E
+    cd /src/mxfs; echo "=== grant-response handler: does grantee store resp.handoff onto lk->handoff? ==="; grep -nE "->handoff = |\.handoff|resp.*handoff|handoff_o
+    cd /src/mxfs; grep -nE "handoff" dlm/dlm.c | grep -iE "resp|process|grant_resp|MSG_LOCK_GRANT|store|->handoff =|newlk|incoming|remote_grant|de\b" | head -25; ec
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; grep -E "ITER [0-9]+:|E
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; grep -E "ITER [0-9]+:|E
+    cd /src/mxfs; F=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/fix1_grantgen.txt; echo "now=$(date -u +%T)"; grep -E "ITER [0-9]+:|E
+    cd /src/mxfs; timeout 400 make modules 2>&1 | grep -iE "error|implicit|undefined|P-DGEX" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep s
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/dgex_diag.txt; ( timeout 900 bash tests/tcp/drc_phantom_diag.sh "" 
+    cat > /tmp/claude-1000/-src-mxfs/6f5d46bf-0f8a-4a9c-9244-6a58d2d8aa7c/scratchpad/gpt_design.md <<'EOF' # GPT-5.5 design (sess53) — reliable handoff + safe refre
+
+## Last text from previous session
+
+ted with the DABUF_HOLE regression + an architectural question).
+Let me send the GPT-5.5 consult in parallel with the diagnosis (RULE-5: proven diagnosis + own fix refuted + architectural question), then set up the monitor.
+GPT-5.5 gave an excellent architectural answer. Core insight: **the cache-validity predicate is lossy**. The fix has three parts:
+1. **Root**: replace the evictable `last_owner` handoff with an **exact `owner_epoch`** (advances only on cross-node EX owner change); on master state-loss/eviction, **fail closed (force refresh), never return "no handoff"**.
+2. **Safe refresh**: a **separate MXFS coherency epoch** (NOT the XFS dir-gen, which triggers the extent-map-bound leaf re-read → my hole), with **per-buffer `validated_epoch`**; coherently re-read the operation's **write-set** buffers (data+leaf+free) under lock, respecting the dirty/in-AIL keep-guard, **fail-closed to slow path on extent-map hole**.
+3. Key the DLM resource by **inode generation**, not ino alone (reuse across rounds).
+
+Let me save this design and set up the monitor for the under-fire diagnosis (which tells me if the under-fire is eviction → the immediate fail-closed fix).
+Let me monitor the under-fire diagnosis for the decisive P-DGEX breakdown.
+While the diagnosis runs, GPT's design clarifies the path: the existing `b_mxfs_dir_epoch` + `i_dlm_dir_valid_epoch` per-buffer mechanism IS close to GPT's per-buffer-validated-epoch model, and `dir_addname_epoch_refresh` (node.c) is already a structurally-safe **data-block-only** reread (no dir-gen bump, no leaf disturbance) — but both depend on the master `dg_shadow.epoch`, which under-fires (same `handoff` computation). So the keystone fix is making the master epoch **exact/reliable**. The P-DGEX data (running) tells me the exact under-fire mechanism. Let me set up task tracking for this plan.
+I've hit the relay boundary. Let me capture the decisive state durably (the GPT design + plan) in memory, since the scratchpad is on `/tmp`.
+## Session 53 summary — criteria NOT met (dir_reuse 8/tcp still fails); marker not written
+
+**Decisive progress this session (RULE-4 instrumented, durable):**
+
+1. **Re-classified the root.** Built `tests/tcp/drc_phantom_diag.sh` and proved the 8/tcp dir_reuse single-dirent loss is **NOT a phantom / mutual-exclusion break** (`P42-STALEEX-SERVE=0` on all nodes) — it's **read-staleness from the master's handoff signal under-firing** (`P51-HANDOFF-UNDERFIRE`: grant_gen advanced/lock changed hands, but the handoff bit was FALSE → fast-path EX serve RMW'd a stale dir base → durable `.md5`-sidecar clobber). This refutes the phantom theory that consumed ~50 prior sessions.
+
+2. **Refuted two fix attempts** with evidence: `dir_evict_prior_tenure=1` → worse corruption (duplicate dirents); my own `dir_ex_grantgen_refresh` → delayed the loss (round 11→19) but regressed to a DABUF_MAP_HOLE flood (bumping XFS dir_gen re-reads **leaf** blocks against a kept-stale extent map). **Reverted.** Lesson: the refresh must be **data-content-only**, never disturbing leaf/extent-map.
+
+3. **GPT-5.5 architectural consult** (RULE-5, justified): the cache-validity predicate is **lossy**. Fix = exact per-resource **owner_epoch** (fail-closed on eviction, never "no handoff") + separate MXFS coherency epoch with **per-buffer write-set reread** (keep-guard, fail-closed to slow path on hole), triggered on owner_epoch not grant_gen.
+
+**State:** build `9473C7AD` = baseline + `P-DGEX`/`P-DGEX-NEWSLOT` probes in `dg_grant_ex`. A diagnosis run (`dgex_diag`) was in flight to pin the exact under-fire mechanism (eviction vs missed `dg_release` vs stale `last_owner`).
+
+**Next session** (tasks #1-3 + memories `sess53-ROOT-PROVEN-...` and `sess53-HANDOFF-gpt-design-...`): read the P-DGEX counts → make the master epoch exact/fail-closed → enable the existing **structurally-safe** `dir_addname_epoch_refresh` (data-block-only, node.c:2034) → test 8/tcp for 0 loss AND 0 hole → extend to leaf/free write-set if residual.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

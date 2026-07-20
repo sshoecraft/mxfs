@@ -1,0 +1,22 @@
+{
+  "source": [
+    "dlm/net2_ctx.h",
+    "dlm/net2_midcomms.h",
+    "dlm/net2_link.h",
+    "dlm/net2_overlay.h",
+    "dlm/net2_midcomms.c",
+    "dlm/net2_link.c",
+    "dlm/net2_overlay.c",
+    "dlm/net2.c",
+    "dlm/net2.h",
+    "tests/net2/harness/harness.h",
+    "tests/net2/harness/vcluster.c",
+    "dlm/net2_stats.h",
+    "tests/net2/harness/scen_midcomms.c",
+    "tests/net2/harness/net2_harness.c",
+    "include/mxfs/mxfs_ports.h"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 57 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 56
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `ef075c5e-748a-45be-994c-b48981361363`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/ef075c5e-748a-45be-994c-b48981361363.jsonl`
+- approx context at last assistant turn: 502976 tokens
+- tools used: Bash×69 Read×28 Edit×15 mcp__ccmemory__memory_get×5 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    make modules 2>&1 | grep -E 'error|Error:|undefined|implicit' | grep -vE 'within comment' | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/null | grep srcve
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done sleep
+    cd /src/mxfs; PLAIN=1 NOREBOOT=1 RUN_TIMEOUT=560 bash tests/tcp/fg_one_run.sh s7
+    cd /src/mxfs echo "=== repro_rename_drain.sh — what it does ===" sed -n '1,60p' tests/tcp/repro_rename_drain.sh 2>/dev/null echo "=== other repro scripts target
+    cd /src/mxfs echo "=== standalone repro (build 22887A0A loaded, name-dump active) ===" timeout 560 bash tests/tcp/repro_rename_drain.sh 150 12 2>&1 | tail -25
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for h in "$N1" "$N2"; do   nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)   timeout 2
+    cd /src/mxfs DINO=8929665 echo "=== merged chronological P56 name-dump for dir $DINO (both nodes), around n2_i1_r125 ===" { grep -hE "P56-RELOAD-MERGE ino=$DINO
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 SSH(){ timeout 200 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 SSH(){ timeout 120 sshpass -f "$P" ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for h in "$N1" "$N2"; do   nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)   timeout 2
+    cd /src/mxfs make modules 2>&1 | grep -E 'error|Error:|undefined|implicit' | grep -vE 'within comment' | head echo "=== build ==="; modinfo mxfs.ko 2>/dev/null 
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done sleep
+    cd /src/mxfs echo "=== fast repro with dirty==0 FUA-refresh fix (build 706064E9) ===" timeout 560 bash tests/tcp/repro_rename_drain.sh 150 15 2>&1 | grep -vE '^
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for h in "$N1" "$N2"; do   nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)   timeout 2
+    cd /src/mxfs make modules 2>&1 | grep -E 'error|Error:|undefined|implicit' | grep -vE 'within comment' | head echo "=== build ==="; modinfo mxfs.ko 2>/dev/null 
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done sleep
+    cd /src/mxfs P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done sleep
+    cd /src/mxfs DINO=8929665 echo "=== rrd2 node2: ALL markers for dir $DINO between 754-758s (the resurrection window) ===" awk '/\[   75[4-8]\./' /tmp/rrd2_node2
+    cd /src/mxfs DINO=8929665 echo "=== rrd2 node2: all $DINO markers 753-758s ===" grep -hE "$DINO" /tmp/rrd2_node2.dmesg | grep -E '\[ *75[3-8]\.' | sed 's/mxfs: 
+    cd /src/mxfs echo "=== P-CLMERGE location + what 'restored' does ===" grep -nE 'P-CLMERGE|CLMERGE|mxfs_iflush_cluster_merge_dirs|cluster_merge_dirs' xfs/*.c pal
+
+## Last text from previous session
+
+ers to catch it (and the write-probe) before the deadlock. Reboot+prep+repro(3 iters):
+3 iters drained clean (intermittent). Rather than burn more cycles on the flaky repro, let me re-mine the **earlier successful capture** (rrd2, which caught `n2_i2_r1`) for the full operation context around the `[n1_i2_r53]→[n2_i2_r1]` transition — all markers, not just P56:
+Rich evidence. The resurrection chain on node2 at 754.6s:
+1. `P-CONVBLK-DENY held_mode=PR req_mode=EX → EDEADLK` (PR→EX conversion denied for deadlock avoidance)
+2. `DLM inode lock failed rc=-35`, self-demote PR→NL
+3. `P51-REL held_mode=5(EX) drain_ms=0` — **EX released with NO drain**
+4. `P119-NONEX-FLUSH-SKIP in_ail=1 comm=mv` — the mv's committed change stranded in_ail at NL
+5. `P-CLMERGE restored ino=... slot=1` — the cluster-merge **restores** a stale dir image
+
+Let me find P-CLMERGE (the apparent resurrection point) and the P51-REL drain logic:
+Let me read the cluster-merge logic where the dir slot is "restored":
+I've reached the relay boundary and found the **decisive root** of the residual resurrection. Let me record it precisely for continuation.
+
+The resurrection is in `mxfs_iflush_cluster_merge_dirs` (xfs_inode.c:5508): it `memcpy(dbuf, ddisk, inodesize)` — overlays the **stale disk** image onto a dir slot whenever the buffer is *not strictly ahead* of disk. The guard at 5487-5506 only protects **adds** (`bsf->count > dsf->count`), not **removals** (buffer behind disk = our committed removal). So node2's `mv` removal (in_ail, not yet durable; disk still has `n2_i2_r1`) gets reverted by the overlay → resurrection. The `P119-NONEX in_ail=1` proves node2 had the committed change.
+## Session 56 summary — major progress, criterion NOT yet met
+
+**Criterion** (reliable 2-node dlm=tcp 17/17): **NOT met.** Improved from ~50% baseline to ~67% (s5✓ s6✗ s7✓), with two load-bearing fixes landed and the residual root now precisely identified.
+
+### Two fixes landed (KEEP — verified load-bearing)
+1. **Release-drain wait-until-clean** (`mxfs_inode_cluster_durable`, xfs_mxfs_dlm.c ~1684): on a BAST release (state DEMOTING/BAST), wait up to ~3s for the inode to leave the AIL instead of giving up after 50ms. **Eliminated the d11 drain-give-up interlock** (P9-ICD-FAIL → 0); suite went 50%→16/17.
+2. **Partial-write skips any not-logged DIR slot** (`mxfs_submit_partial_inode_write`, xfs_buf.c ~1727): a dir's on-disk slot is written ONLY by its EX-holder's logged flush; every co-resident cluster flush leaves it untouched. Closed the co-resident stale-buffer resurrection path → s5/s7 PASS.
+
+### Residual root — PROVEN this session (the remaining ~1/3 failures)
+The durable dirent resurrection is `mxfs_iflush_cluster_merge_dirs` (xfs_inode.c **5508**): it overlays the **stale disk** image onto a dir slot that's *behind* disk. The count-guard (5487) only protects committed **adds** (buffer ahead), not committed **removals** (buffer behind). So a node's `mv`-removal that's in_ail-but-not-yet-durable gets reverted by the overlay → the removed dirent resurrects. Captured the full chain: `CONVBLK-DENY → self-demote → P51-REL drain_ms=0 → P119-NONEX in_ail=1 → P-CLMERGE restored`.
+
+**Next-session fix (documented in ccmemory `sess56-ROOT2-clmerge-overlay-reverts-committed-removal`):** skip the overlay when the slot's in-core inode is `in_ail`/pinned (authoritative local delta) — same clean-gate principle as the reload-merge and the partial-write skip.
+
+### Key accelerator discovered
+`tests/tcp/repro_rename_drain.sh 150 N` reproduces the leak **standalone in ~2 min** (vs ~9 min full suite) — `mv` succeeds silently while the source dirent resurrects. (A separate sess13 AG-DLM deadlock shutdown appears only under heavy repro churn, ~iter 3-7; the full suite doesn't trigger it.)
+
+Build in tree carries both fixes plus diagnostic probes; the dead `dirty==0` FUA-refresh was reverted (it caused a CORRUPT_INCORE shutdown — never FUA-read into a buffer mid-submit). The criteria marker is **not** written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

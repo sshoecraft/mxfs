@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 58 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 57
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `42c33ee3-08a7-47ce-9577-9b33dff3d25a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/42c33ee3-08a7-47ce-9577-9b33dff3d25a.jsonl`
+- approx context at last assistant turn: 499832 tokens
+- tools used: Bash×60 Read×33 Edit×9 mcp__ccmemory__memory_get×6 mcp__ccmemory__memory_write×4 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "dir_hold_ex\|hold_ex\|mxfs_dlm_dir_hold\|dirty_holders\|dirty_pin\|MXFS_IF_DLM_RELFLUSH\b.*set\|hold_ex_until" xfs/*.c xfs/*.h | grep -i
+    cd /src/mxfs; awk '/^mxfs_inode_disk_di_size\(/{p=1} p{print NR": "$0} p&&/^}/{exit}' xfs/xfs_mxfs_dlm.c | head -70
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error|Error:|undefined|implicit|warning:.*mxfs_dlm_dir_inode_durable' | grep -vE 'within comment' | head -15; echo "=
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; export MXFS_PASS=/tmp/.mxfs_pass echo "=== repro_rename_drain 150 x8 (build AD8BD518, durable-verify fix) ===" timeout 360 bash tests/tcp/repro_re
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for h in "$N1" "$N2"; do   nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)   timeout 
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for h in "$N1" "$N2"; do   nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)   timeout 
+    cd /src/mxfs echo "=== node2 P-CLMERGE + P119 lines (the escaped resurrection) ===" grep -E 'P-CLMERGE restored|P119-NONEX' /tmp/s57d_node2.dmesg echo "" echo "
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error|Error:|undefined|implicit' | grep -vE 'within comment' | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/nul
+    cd /src/mxfs echo "=== node2 ino=17316667 timeline 548.5-549.8s (releases + state before P119) ===" grep -E '17316667' /tmp/s57d_node2.dmesg | grep -E '\[ *54[8
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error|Error:|undefined|implicit' | grep -vE 'within comment' | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/nul
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for h in "$N1" "$N2"; do   nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)   timeout 
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error|Error:|undefined|implicit' | grep -vE 'within comment' | head; echo "=== build ==="; modinfo mxfs.ko 2>/dev/nul
+    cd /src/mxfs; grep -n "mht\|MHT\|min.*hold\|minimum.*hold\|mht_ms\|mht_us\|module_param.*mht" xfs/xfs_mxfs_dlm.c | grep -iE "module_param|int mxfs.*mht|mxfs_dlm
+    cd /src/mxfs; P=/tmp/.mxfs_pass; N1=192.168.120.186; N2=192.168.120.182 for n in test1 test2; do virsh -c qemu:///system destroy "$n" >/dev/null 2>&1; done slee
+    cd /src/mxfs; grep -n "i_dlm_mode = MXFS_LOCK_NL\|i_dlm_mode = MXFS_LOCK_PR\|->i_dlm_mode = 0" xfs/xfs_mxfs_dlm.c | head -30
+    cd /src/mxfs; grep -rn "^xfs_trans_log_inode" xfs/*.c xfs/libxfs/*.c | head; echo "=== signature/body ==="; awk '/^xfs_trans_log_inode\(/{p=1} p{print NR": "$0}
+    cd /src/mxfs; grep -rn "^xfs_inode_item_pin\|xfs_inode_item_pin(" xfs/*.c | head; echo "=== body ==="; awk '/^xfs_inode_item_pin\(/{p=1} p{print NR": "$0} p&&/^
+
+## Last text from previous session
+
+ faces at once.
+
+The criterion (`2 node dlm=tcp test 100% successful`) is **not met** — current reliability is ~50%, and the convergent fix is the ICLUSTER lock, which is the next session's task. I have not written the criteria-met marker.
+The criterion is not met. New angle, driven by a fact I've been under-using: **`P57-PREUNLOCK-DIRTY=0` proves the strand is NOT via the bast_process release site I instrumented** (neither the EX-release nor the self-demote — both log P51-REL there). So the dir reaches NL+in_ail via a *different* code path. Let me find every site that sets `i_dlm_mode = NL` and instrument the one that bypasses the drain.
+Let me examine the NL transitions at 4311/4317 — these are before the drain loop, suggesting a separate early-release path.
+`P57-PREUNLOCK-DIRTY=0` creates a real contradiction: the bast_process release is clean, yet the dir is `in_ail` at NL later. The decisive question: is a dir dirent change being **committed/logged while the dir is at non-EX** (which would mean a modify without proper authority)? Let me add a targeted probe at `xfs_trans_log_inode` that fires only for a dir logged at non-EX — this pinpoints the strand source.
+`xfs_trans_log_inode` asserts ILOCK_EXCL and stamps `i_mxfs_dirty_seq = i_mxfs_ex_grant_seq` — so a dir change is always logged under EX, and the epoch guard (P17B) skips it if a tenure boundary intervenes. The contradiction (clean at release, dirty at NL later) needs a definitive probe at the **pin** (CIL-commit) point. Let me find `xfs_inode_item_pin` and instrument it to log `i_dlm_mode` when a dir is committed — if a dir pins at NL, that's the smoking gun.
+Relay boundary reached. Wrapping up.
+
+## Session 57 wrap-up — criterion NOT met (~50% reliability)
+
+**Tree state:** clean baseline `DDF775DDF8E3198DEA4254A` (drain-sample fix only; all other experiments reverted). Builds clean. Marker NOT written.
+
+**This session's results:**
+- **Kept (1):** drain-sample-under-ilock fix in the bast_process dir drain loop — correct but proven not load-bearing for the observed strand (`P57-DRAIN-RACE-CAUGHT=0`).
+- **Refuted (3), all reverted with evidence:** durable-verify-retry (FUA-platter lags the SCST write-cache; can't fix an already-discarded change), AG-deadlock pre-acquire (shifts deadlock to rename mv-timeout, risks suite regression), MHT-lower (`inode_mht_ms=20` → 15/17, worse).
+- **One clean 17/17** (run1) but 16/17 on runs 2 and d (tcp_dlm_scaling resurrection).
+
+**Key findings recorded in ccmemory** (`sess57-FINAL-state-and-next-steps`, `sess57-durable-verify-flawed-...`, `sess57-MHT-lower-refuted`):
+1. The resurrection is the deep release-race **interlock** — a committed dir removal strands at NL un-durable (commit appears `in_ail` at NL ~22ms *after* a clean `P51-REL EX drain_ms=0`, despite the `mxfs_dlm_dir_hold_ex` EX-pin), then lost via P119-discard / merge-overlay / reload-adopt-stale-disk. The three faces interlock; no single in_ail guard converges (sess44–57).
+2. **New storage fact:** the FUA-platter read lags the SCST write-cache (peers read the cache via plain reads when `fua_disable=1`) — the cache, not the platter, is the coherence point. Critical for the ICLUSTER fresh-RMW read.
+3. `P57-PREUNLOCK-DIRTY=0` **proves** the strand is NOT via the bast_process release site — the change pins/enters-AIL *after* a clean release, an unresolved ordering contradiction.
+
+**Next steps for the fresh session:**
+- **Decisive probe I was mid-adding:** instrument `xfs_inode_item_pin` (xfs_inode_item.c:689, the CIL-commit/pin point) to log `i_dlm_mode` for a dir — if a dir pins (commits) while at non-EX, that's the smoking gun resolving the strand contradiction and pointing at a targeted fix.
+- **Convergent fix:** the per-4KB-inode-cluster ICLUSTER DLM lock with fresh-RMW *from the cache coherence point* (sess54 GPT design) — makes on-disk clusters always coherent so adopt-disk is always correct, closing all three faces. Model on `__mxfs_ag_dlm_lock` (xfs_mxfs_dlm.c:13070).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

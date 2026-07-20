@@ -1,0 +1,10 @@
+{
+  "source": [
+    "scripts/scst_atomic_wedge_diag.py",
+    "scripts/scst_unwedge/scst_unwedge.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 0
+}

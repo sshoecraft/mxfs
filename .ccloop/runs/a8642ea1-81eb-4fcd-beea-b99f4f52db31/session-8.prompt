@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/a8642ea1-81eb-4fcd-beea-b99f4f52db31/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run a8642ea1-81eb-4fcd-beea-b99f4f52db31, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `bb58c94d-d3dc-4f40-80ca-58972b214e6f`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f.jsonl`
+- approx context at last assistant turn: 514349 tokens
+- tools used: Bash×78 Read×15 Edit×7 mcp__ccmemory__memory_get×5 mcp__ccmemory__memory_write×5 Monitor×3 TaskStop×3 ToolSearch×2 mcp__ccmemory__memory_search×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/scratchpad/fix-plan.md
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "waiter out: $(cat /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/tasks/b3i6ghtjd.output 2>/dev/null || echo none)"; echo "r
+    cd /src/mxfs; echo "waiter out: [$(cat /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/tasks/b3i6ghtjd.output 2>/dev/null)]"; echo "run alive=$(
+    cd /src/mxfs; echo "waiter: [$(cat /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/tasks/b3i6ghtjd.output 2>/dev/null)]"; echo "alive=$(pgrep -c
+    cd /src/mxfs; echo "waiter: [$(cat /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/tasks/b3i6ghtjd.output 2>/dev/null)]"; echo "alive=$(pgrep -c
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; echo "=== test1: full context 291.5-293s (adopt→evict→CRC), + P15I-CRCFAIL block content, 
+    cd /src/mxfs; SSH="$PWD/tools/mxfs_sshpass.sh"; PASS=/tmp/.mxfs_pass; echo "=== P60-RELAUDIT tally on healthy peers (do WRITERS release inconsistent bmbt?) ==="
+    cd /src/mxfs; echo "run procs=$(pgrep -c -f 'run[.]sh 32 caw' 2>/dev/null || echo 0)"; fuser -k -9 /tmp/mxfs_run.lock 2>/dev/null; pkill -9 -f 'mxfs_sshpass.sh 
+    cd /src/mxfs; fuser -k -9 /tmp/mxfs_run.lock 2>/dev/null; pkill -9 -f "grep -vE .\^Warning" 2>/dev/null; sleep 2; rm -f /tmp/mxfs_run.lock 2>/dev/null; echo "lo
+    cd /src/mxfs; echo "=== call sites of bmbt-evict / drain-evict ==="; grep -nE 'mxfs_dir_evict_bmbt_blocks\(|mxfs_dir_evict_bmbt_by_root\(|mxfs_dir_drain_evict_d
+    cd /src/mxfs; echo "=== P15I-CRCFAIL location ==="; grep -rnE 'P15I-CRCFAIL' pal/linux/*.c xfs/*.c xfs/libxfs/*.c 2>/dev/null | head; echo "=== context: the CRC
+    cd /src/mxfs; echo "=== symbols in xfs_buf.c scope ==="; grep -nE 'XFS_BMAP_CRC_MAGIC|bt_sector_offset|mxfs_fua_disable|mxfs_pal_bdev_read_plain_bdev|#include "
+    cd /src/mxfs; echo "0.10.56" > VERSION; echo "VERSION=$(cat VERSION)"; echo "run=$(pgrep -c -f 'run[.]sh 32 caw' 2>/dev/null || echo 0) make=$(pgrep -xc make 2>
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/scratchpad; ( for i in $(seq 1 100); do if grep -qE "Leaving directory .*linux-
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/tasks/bpvhcif0g.output 2>/dev/null; echo "=== srcversion ==="; modinfo mxfs.ko
+    cd /src/mxfs; SC=/tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/scratchpad; : > "$SC/diag56.log"; echo "=== launch 0.10.56 run ==="; nohup time
+    cd /src/mxfs; ( SSH=/src/mxfs/tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; while pgrep -f 'run[.]sh 32 caw' >/dev/null 2>&1; do   hit=$(timeout 8 bash "$SSH" te
+    cat /tmp/claude-1000/-src-mxfs/bb58c94d-d3dc-4f40-80ca-58972b214e6f/tasks/b3nf8wkio.output 2>/dev/null
+    cd /src/mxfs; pkill -9 -f 'run[.]sh 32 caw' 2>/dev/null; pkill -9 -f 'timeout 4600 env MXFS_DEV' 2>/dev/null; sleep 1; fuser -k -9 /tmp/mxfs_run.lock 2>/dev/nul
+    cd /src/mxfs; echo "run=$(pgrep -c -f 'run[.]sh 32 caw' 2>/dev/null || echo 0)"; echo "lock=$(ls /tmp/mxfs_run.lock 2>/dev/null || echo GONE)"; fuser /tmp/mxfs_
+    cd /src/mxfs; kill -9 1094382 1094393 1094417 2>/dev/null; fuser -k -9 /tmp/mxfs_run.lock 2>/dev/null; sleep 2; rm -f /tmp/mxfs_run.lock 2>/dev/null; echo "lock
+
+## Last text from previous session
+
+(GFS2 `go_sync`-style consistent publish before unlock, or the AG block-reuse ordering). My diagnosis, both instruments, and fix directions are all recorded in memory + fix-plan.md, so the work survives a context handoff. Waiting on the verdict.
+The Stop hook wants the pal awareness doc updated (I changed `pal/linux/xfs_buf.c`). That's a quick, legitimate task while the verdict run progresses. Let me read the current pal doc and update it.
+The verdict waiter completed! Let me read the decisive `P15I-MEDIUM` result first — this is the R-a/R-b answer I've been driving toward. (I'll update the pal doc right after.)
+The `P15I-MEDIUM` probe did **not** fire — only `P15I-CRCFAIL` (daddr=56517168=0x35e6230, secrc shows sectors 0–1 have content, 2–6 all-zero). My `!in_interrupt()` guard skipped the medium read → **the CRC-fail completion runs in interrupt/softirq context**, so the blocking plain-bio read was correctly skipped. I didn't get the direct medium verdict this cycle.
+
+I've hit the relay boundary. The ccmemory hook surfaced a **critical convergence**: sess32/sess40 already identified **"Bug B = AG free-space double-alloc → file data over inode cluster → EFSCORRUPTED"** — which is exactly my R-a diagnosis (a block double-allocated as bmbt-leaf AND dir-data). Let me kill the stalled run, read that prior finding, and record a tight handoff.
+Lock still held by 3 leftover grep-pipeline procs. Let me clear them definitively.
+Cluster clean (run=0, lock GONE). Let me record the tight handoff (P15I-MEDIUM interrupt-context miss + the sess32/40 "Bug B" convergence) and a concise pal.md update, then summarize.
+Now the pal.md doc update (Stop hook requirement) — a concise entry noting the P15I-MEDIUM probe and the softirq-context pitfall.
+Wrap-up complete. Here's the session 7 summary.
+
+## Session 7 summary — dir_reuse_coherency @ 32/caw (the sole remaining criteria gap)
+
+**Criteria state: NOT met.** Audit this session confirmed **101 of 102 applicable caw cells PASS** across 1/2/4/8/16/32 nodes — the single gap is `dir_reuse_coherency 32/caw` (FAIL, nodes_pass=0/32).
+
+**Root cause diagnosed (RULE 4, 3 live reproductions):** rank1 (the dir-lifecycle owner) shuts down at ~r3–r7 when it re-acquires the shared dir inode 131 after a stall while 31 peers grew it. It manifests as a corruption *family* — `xfs_bmbt_read_verify` reading a dir-DATA block (XDD3) where it expects a bmbt leaf (BMA3), or a torn-shortform verify — all rooted in the same thing.
+
+**Determined it's R-a (writer/allocation-side), not reader-side:**
+- My enhanced `P133-DINO-READSTALE` probe (dfork-memcmp) **did not fire** → rank1 adopted the *coherent* dinode; the adopt is not stale.
+- `P60-RELAUDIT INCONSISTENT-AT-RELEASE` fires **frequently on healthy peers** (test10: 21×; e.g. di_nextents=26 vs leafsum=63) → nodes release the dir with dinode and bmbt leaves mutually inconsistent.
+- The adopt-side bmbt-eviction runs but doesn't help → the **coherent medium itself** holds a block double-used as bmbt-leaf *and* dir-data.
+- **This converges with a prior-known, never-closed finding: sess32/sess40 "Bug B = AG free-space double-alloc."**
+
+**Instruments built & deployed (all in tree, diagnostic-only, KEEP):** 0.10.54 `P-BROOT-REPURPOSE`, 0.10.55 enhanced `P133` dfork-memcmp, 0.10.56 `P15I-MEDIUM` (current). The `P15I-MEDIUM` medium-read missed because the CRC-fail completion runs in **softirq context** (documented as a pal.md pitfall) — next session should defer that read to process context, or proceed on the already-strong R-a evidence.
+
+**Handoff:** Full diagnosis + next-step plan in ccmemory `AAA-ccloopa864-sess7-ROOT-bmbt-XDD3-crc-shutdown-diagnosed`; pal.md and fix-plan.md updated. Cluster left **clean** (run killed, lock cleared). Next session: study the prior "Bug B" AG free-space double-alloc work (`ccmemory get sess32-GPT2-verdict-handoff-checkpoint-iflush-fence`) and pursue the allocation-coherency / GFS2-style consistent-publish fix. Not writing YES — criteria not met.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

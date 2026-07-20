@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    "CLAUDE.md",
+    ".claude/awareness/subsystems/xfs.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

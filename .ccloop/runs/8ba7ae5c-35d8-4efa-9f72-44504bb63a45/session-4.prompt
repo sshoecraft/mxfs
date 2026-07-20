@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ba7ae5c-35d8-4efa-9f72-44504bb63a45/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ba7ae5c-35d8-4efa-9f72-44504bb63a45, after session 3
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `c3e0cf70-602e-42b7-8037-063399206b7b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c3e0cf70-602e-42b7-8037-063399206b7b.jsonl`
+- approx context at last assistant turn: 503116 tokens
+- tools used: Bash×145 Edit×16 mcp__ccmemory__memory_get×8 mcp__ccmemory__memory_write×4 Write×3 mcp__ccmemory__memory_search×3 Read×2 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/VERSION
+- /src/mxfs/scripts/dblalloc_repro.sh
+- /src/mxfs/scripts/xref_owners.py
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    L=/src/mxfs/tests/logs/dblalloc_repro/iter_1b grep -h "P-DBLALLOC-AGF" $L/probes_test*.log | grep -oE "differ=[01] — .*" | sort | uniq -c; echo ===; grep -h "P-
+    L=/src/mxfs/tests/logs/dblalloc_repro/iter_1b grep -h "Metadata corruption" $L/probes_test*.log | grep -oE "detected at [a-z_0-9.+]+ \[mxfs\], [a-z_0-9 ]+" | so
+    L=/src/mxfs/tests/logs/dblalloc_repro/iter_1b grep -h "Metadata corruption" $L/probes_test*.log | head -4; echo ===; ls /tmp/tmp.7wwwC1IV1c 2>/dev/null | head -
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass timeout 40 $S test18 $P "journalctl -k --since '2026-07-16 20:00:30' --until '2026-07-16 20:01:30' --no-pag
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass timeout 40 $S test18 $P "journalctl -k --since '2026-07-16 20:00:36' --until '2026-07-16 20:00:45' --no-pag
+    L=/src/mxfs/tests/logs/dblalloc_repro/iter_1b grep -h "P-DBLALLOC " $L/probes_test*.log | grep -oE "holds=[a-z-]+" | sort | uniq -c; echo ===; grep -h -A20 "hol
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass timeout 40 $S test9 $P "journalctl -k --since '2026-07-16 20:00:00' --until '2026-07-16 20:00:15' --no-page
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; SP=/tmp/claude-1000/-src-mxfs/c3e0cf70-602e-42b7-8037-063399206b7b/scratchpad mkdir -p $SP/ag9 for i in $(
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for i in $(seq 1 32); do ( timeout 30 $S test$i $P "umount /mnt/shared 2>&1 | head -1" >/dev/null 2>&1 ) & 
+    S=/src/mxfs/tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for i in 21 26 28; do r=$(timeout 10 $S test$i $P "mount | grep -c ' /mnt/shared '" 2>/dev/null | grep -vE 
+    python3 /src/mxfs/scripts/xref_owners.py /home/steve/disk.img 2>&1 | tail -50
+    python3 - /home/steve/disk.img <<'EOF' import struct, sys img = sys.argv[1] f = open(img, 'rb') sb0 = f.read(96) xfs_off, = struct.unpack_from('<Q', sb0, 88) f.
+    grep -n "mxfs\|MXFS" /src/mxfs/xfs/libxfs/xfs_inode_buf.c | head -20; echo ===; grep -n "imap_to_bp" /src/mxfs/xfs/xfs_icache.c | head -8
+    sed -n '75,140p' /src/mxfs/xfs/libxfs/xfs_inode_buf.c
+    sed -n '1380,1500p' /src/mxfs/xfs/xfs_icache.c
+    grep -n "mxfs_dlm_publish_unpublished" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -4
+    grep -n "^mxfs_dlm_publish_unpublished\|static.*mxfs_dlm_publish_unpublished" /src/mxfs/xfs/xfs_mxfs_dlm.c; awk '/^mxfs_dlm_publish_unpublished\(/,/^}/' /src/mx
+    grep -n "alloc_buflist\|MXFS_ALLOC_QUEUED\|mxfs" /src/mxfs/xfs/libxfs/xfs_ialloc.c | head -20
+    sed -n '440,520p' /src/mxfs/xfs/libxfs/xfs_ialloc.c
+    make modules 2>&1 | grep -E "error|warning.*ialloc" | head -8; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+efore deep code reading — the xfs awareness doc covers the AG-DLM architecture. Loading it plus the drain function.
+There's already an AG-held check around line 6529 in a write path — possibly an existing AG-meta write guard. Reading it:
+There's a 9-day-old compiled memory on exactly this chain. Fetching it:
+Now implementing the diagnostic patches. First, locating the exact fresh-acquire point, all AG unlock sites, and the perag struct:
+I have the full picture — implementing the probes now. First the tail of coldread_discard (to place the P131 log at its discard action):
+Now making the edits. Patch 1: lineage flag in the perag struct:
+Patch 2: P130 check + lineage-open at the fresh-acquire site:
+Need to verify `disk_gen` is in scope at my insertion point:
+Now close the lineage at each sanctioned unlock site. Finding current positions:
+Patch 4: extend the P75 release census to count the CIL-resident class:
+Patch 5: extend P-DBLALLOC with owner parse + AGF read-vs-write discriminator:
+Build clean. Fixing the VERSION write:
+Iteration 1b: cache_coherency PASSED, but **posix_multi collapsed 0/32 (no terminal records)** and **1148 probe hits** fired. Examining what fired:
+test9 wasn't the carver. Sweeping all nodes for AG9 lock events and the chunk's icreate in the fatal window:
+All unmounted. Running the full cross-reference on the quiesced image:
+Relay boundary. Saving the session-state playbook memory, then summarizing:
+Session 3 summary — stopping at the relay boundary with the fix built and ready to validate.
+
+**Where the criteria stand:** 1/2/4/8/16-node CAW multipath are 100% complete in criteria.json. At 32 nodes, 19 of 20 tests PASS; the sole remaining blocker is `cache_coherency@32/caw` (FAIL from yesterday's ladder: test1 saw one ghost dirent after the unlink storm).
+
+**What this session established:**
+
+1. **Proven on-disk double-allocation** (static, third-party-verifiable): after the failed ladder run, `unlink_visibility`'s dir fork and `.posix_multi`'s fork both referenced the same physical blocks (fsb 1311015, 1835313) — all six of uv-dir's blocks were re-handed out by the allocator across six different AGs. Every existing fence-violation probe (PROBE-A, P125, P88, P75, P79, P121, P117, P70/74) was silent on the 24 nodes with surviving journals. A GPT consult (RULE 5) ranked "false-fresh acquire discarding CIL-resident allocation state" as the top mechanism; I built the lineage-certificate probe (P130) and discard-lifecycle probe (P131) to catch it — both stayed silent in the live repro, so that mechanism is refuted and the double-alloc root remains open, now with much tighter instrumentation.
+
+2. **Root-caused and fixed a second, catastrophic bug caught live by the new repro harness** (`scripts/dblalloc_repro.sh`): peers looking up freshly-created files read the inode cluster's disk location before the carver's chunk-init ever destaged — the block still held a prior owner's urandom data, the read verifier hard-failed with no retry path, and posix_multi collapsed 0/32. Cluster-init durability was tied only to AG-DLM release while name visibility travels via dir-DLM. Fix: synchronous write of the fully-CRC'd cluster buffer at carve time (`P133-ICLUSTER-SYNCINIT`, once per 64 inodes) — build 0.10.110 / srcversion 76FA993D is compiled but **not yet deployed**.
+
+3. **Tooling that persists** (RULE 3): the one-command repro harness, `scripts/xref_owners.py` (quiesced-image dual-ownership fsck — this is what proved both the corruption and, later, iter_1b's cleanliness), and per-iteration journal capture that beats the fast journald rotation on nodes 1-8.
+
+**Next session:** run repro iterations on build 76FA993D (expect the posix_multi collapse gone), watch for uv-ghost/double-alloc recurrence with the xref checker, then re-run the full 32/caw ladder to flip cache_coherency to PASS, regression-check 16/8/4/2/1, and only then write the criteria marker. Full playbook is in memory `AAA-ccloop8ba7-sess3-END-state-and-next-steps`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

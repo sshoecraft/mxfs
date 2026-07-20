@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 17 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 16
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `b210f8fb-bb9c-4e7b-b925-b16f433ad021`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b210f8fb-bb9c-4e7b-b925-b16f433ad021.jsonl`
+- approx context at last assistant turn: 252755 tokens
+- tools used: Bash×53 Read×23 Edit×6 mcp__ccmemory__memory_get×3 ToolSearch×2 mcp__ask_gemini__query×2 mcp__ccmemory__memory_write×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; bash tools/mxfs_sshpass.sh test4 /tmp/.mxfs_pass "echo '=== xfsaild stack ==='; for p in \$(pgrep xfsaild); do echo \"pid \$p:\"; cat /proc/\$p/st
+    cd /src/mxfs; grep -n "xfs_iunlock\|xfs_iflush_cluster\|xfs_iflush(\|XFS_ILOCK\|mxfs" xfs/xfs_inode.c | sed -n '1,5p'; echo "=== xfs_iflush_cluster body: xfs_iu
+    cd /src/mxfs; grep -n "^mxfs_dlm_ilock_end\|^mxfs_dlm_bast_process\|mxfs_dlm_ilock_end(\|mxfs_dlm_bast_process(" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; echo "=== mxfs_inode_dlm_defer_bast + any async inode BAST worker ==="; grep -n "mxfs_inode_dlm_defer_bast\|inode.*bast.*work\|bast.*work.*inode\|
+    cd /src/mxfs; grep -n "^xfs_iflush_cluster" xfs/xfs_inode.c
+    cd /src/mxfs; echo "=== xfs_iunlock + mxfs_dlm_ilock_end call sites ==="; grep -n "mxfs_dlm_ilock_end\|mxfs_dlm_ilock_begin" xfs/xfs_inode.c | head; echo "=== x
+    cd /src/mxfs; echo "=== remaining xfs_iunlock in iflush_cluster (4032-4190) ==="; awk 'NR>=4032 && NR<=4200' xfs/xfs_inode.c | grep -n "xfs_iunlock\|up_read\|i_
+    cd /src/mxfs; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; echo "destroyed; waiting"; sleep 4; for h in
+    cd /src/mxfs; bash tests/reset4.sh 4 2>&1 | tail -5; echo "=== srcversion (expect 9F289917) ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; bash tool
+    cd /src/mxfs; for n in test1 test2 test3 test4; do bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1; done; echo "launching cache_coher
+    cd /src/mxfs; for i in $(seq 1 16); do sleep 30; if ! kill -0 2526541 2>/dev/null; then echo "=== EXITED after ~$((i*30))s ==="; break; fi; done; echo "--- stil
+    cd /src/mxfs; for i in $(seq 1 16); do sleep 30; if ! kill -0 2526541 2>/dev/null; then echo "=== EXITED after additional ~$((i*30))s ==="; break; fi; done; kil
+    cd /src/mxfs; LOG=$(ls -t /tmp/cache_coherency.*.log 2>/dev/null | head -1); echo "=== LOG=$LOG ==="; grep -aE "Running:|\[PASS\]|\[FAIL\]|failure\(s\)|elapsed"
+    cd /src/mxfs; echo "########## cross_write_read ##########"; cat tests/cluster/test_cross_write_read.sh 2>/dev/null; echo; echo "########## unlink_visibility (h
+    cd /src/mxfs; echo "=== node state ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; bash tools/mxfs_sshpass.sh "$n" /tmp/.mxfs_pass "lsmod|grep -q mxf
+    cd /src/mxfs; echo "=== test2 SESS50-STARVE samples ==="; bash tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -a 'SESS50-STARVE' | head -4; echo ...;
+    cd /src/mxfs; grep -n "defer_for_waiter\|lock_compat\[" dlm/dlm_caw.c | head; echo "=== defer_for_waiter region ==="; sed -n '1410,1500p' dlm/dlm_caw.c
+    cd /src/mxfs; grep -n "filemap_write_and_wait\|S_ISREG\|reg.*durable\|durable.*reg\|DA1CF4D8\|sess79\|bast.*flush\|writer.*durab\|i_mapping" xfs/xfs_mxfs_dlm.c 
+    cd /src/mxfs; echo "=== mxfs_reg_release_durable default ==="; grep -n "mxfs_reg_release_durable" xfs/xfs_mxfs_dlm.c | head; grep -rn "int mxfs_reg_release_dura
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko$" | head; echo "=== srcversion ==="; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+the deep CAW reader/writer starvation (sess50). sess50's `defer_for_waiter` makes readers yield to writers, but the current run shows **both** directions starving (`our_mode=5(EX) waiter_mode=3(PR)` too) over 369s — the EX-holder-starves-PR-reader direction isn't covered, and sess50 found bidirectional yielding breaks things. First, let me preserve this session's verified win (the deadlock fix) to memory before going further.
+Let me read the existing anti-starvation `defer_for_waiter` logic to include accurate context for a Gemini consult on the remaining two deep failures.
+I now have full context on both remaining failures. Both are deep, recurring classes (CAW starvation = sess50; small-file content = sess79) — squarely RULE 5 territory, and I've done thorough RULE-4 diagnosis. Let me consult Gemini with the complete picture.
+The parameter is `prompt`, not `query`. Resending.
+Gemini gave concrete fixes for both. **Problem B is the most contained** — the reg-file BAST-release flushes the inode cluster but not the dirty page-cache data; add `filemap_write_and_wait` before the cluster flush. Per RULE 4, let me fix B first and measure. Let me find the existing reg-file BAST-release durability code.
+The reg-file release flushes the inode cluster (di_size/extent map) but never flushes dirty **data pages** — exactly Gemini's diagnosis. Let me check the `mxfs_reg_release_durable` default and the enclosing function context.
+I've hit the relay boundary. Let me apply the Problem B fix now (small, well-defined) so the next session can build and test it, leaving the tree buildable. Per Gemini: flush dirty data pages before the inode-cluster flush in the reg-file BAST-release.
+Let me confirm the tree builds, then summarize for the relay.
+Build clean: `92CE435D`. Let me record the new build + Gemini's Problem A design in memory before the relay.
+Reached the relay boundary. Summary of this session's work:
+
+## Session 16 summary — major progress on `cache_coherency` (the last failing criterion)
+
+**Verified win — fixed the dominant drain-wedge (xfsaild self-deadlock):**
+- RULE-4 proof via kernel stack: `xfsaild → xfs_inode_item_push → xfs_iflush_cluster` holds the inode-cluster buffer locked, then calls `xfs_iunlock(ip, XFS_ILOCK_SHARED)` → `mxfs_dlm_ilock_end` → inline `mxfs_dlm_bast_process` drain that waits forever for that same buffer (inode 25165953 stuck in_ail ~610s, P113-DRAIN-WEDGE).
+- Root: accounting **asymmetry** — `xfs_ilock_nowait(XFS_ILOCK_SHARED)` deliberately skips the DLM for ILOCK (atomic context), so iflush takes no DLM holder ref, but `xfs_iunlock` unconditionally fires the BAST drain.
+- Fix (build `9F289917`): the 3 flush-ILOCK releases in `xfs_iflush_cluster` now use raw `up_read(&ip->i_lock)`.
+- **Result (clean 4-node run): passed=1 → passed=2.** cross_visibility + rename_visibility now PASS; **P113-DRAIN-WEDGE=0 on all nodes**, no wedge, no slowness on rename, no shutdown (previously test4 shut down at t=317s and the run was SIGKILL'd at 900s).
+
+**Two failures remain (passed=2 failed=2):**
+1. **cross_write_read** — an unsynced 33-byte `.md5` sidecar reads EMPTY cross-node (1 MB synced file is fine). Root: reg-file BAST-release flushed the inode cluster but not dirty **data pages**. Fix applied (build `92CE435D`, **built clean, not yet tested**): added `filemap_write_and_wait(vip->i_mapping)` before the cluster flush in `mxfs_dlm_bast_process`.
+2. **unlink_visibility** — bidirectional CAW lock starvation (369s, SESS50-STARVE both directions on the hot shared dir). Not yet coded. Gemini provided a concrete handoff-token design (set `yield_to |= waiters` on BAST-release; strict turn-ticket check on fresh acquire) using existing on-disk slot fields.
+
+**Next session:** deploy `92CE435D` (power-cycle + `tests/reset4.sh 4`), run cache_coherency, confirm cross_write_read passes; then implement the Problem-A starvation fix. Full detail saved to memory `sess16_ccloop_xfsaild_deadlock_fix`. Criteria NOT met — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

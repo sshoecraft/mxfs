@@ -1,0 +1,128 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 73 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 72
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `881763ff-4a47-4c30-9988-b1c61717ce1f`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/881763ff-4a47-4c30-9988-b1c61717ce1f.jsonl`
+- approx context at last assistant turn: 267540 tokens
+- tools used: Bash×80 Read×17 Edit×15 mcp__ccmemory__memory_get×3 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 400 make modules 2>&1 | grep -iE "error:|undefined|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversio
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -1; PASS=/tmp/.mxfs_pass; SSH="bash tools/mxfs_sshpass.s
+    cd /src/mxfs; PASS=/tmp/.mxfs_pass for t in test_rename_visibility test_unlink_visibility; do   env MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests bash test
+    cd /src/mxfs; until grep -q "test_unlink_visibility" /tmp/claude-1000/-src-mxfs/881763ff-4a47-4c30-9988-b1c61717ce1f/tasks/byhk42qf2.output 2>/dev/null && grep 
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/881763ff-4a47-4c30-9988-b1c61717ce1f/tasks/byhk42qf2.output 2>/dev/null; echo "=====fallback====="; echo "RENAME:";
+    cd /src/mxfs; until grep -qE "Results:" /tmp/test_unlink_visibility.log 2>/dev/null; do sleep 6; done; echo "UNLINK:"; grep -iE "\[PASS\]|\[FAIL\]|failure|remai
+    cat /tmp/claude-1000/-src-mxfs/881763ff-4a47-4c30-9988-b1c61717ce1f/tasks/bm0lp9uu9.output 2>/dev/null
+    cd /src/mxfs; grep -iE "\[PASS\]|\[FAIL\]|failure|remain after|Time:" /tmp/test_unlink_visibility.log | head -8
+    cd /src/mxfs; echo "proc:"; pgrep -af run_tests.sh | grep -o "test_[a-z_]*" | tail -1; echo "log size:"; ls -la /tmp/test_unlink_visibility.log 2>/dev/null; ech
+    cd /src/mxfs; until grep -qiE "Results:|remain after deletion" /tmp/test_unlink_visibility.log 2>/dev/null; do sleep 6; done; sleep 3; grep -iE "\[PASS\]|\[FAIL
+    cat /tmp/claude-1000/-src-mxfs/881763ff-4a47-4c30-9988-b1c61717ce1f/tasks/bzpomh6yk.output 2>/dev/null; echo "---direct---"; grep -iE "\[PASS\]|\[FAIL\]|failure
+    cd /src/mxfs; pgrep -f run_tests.sh >/dev/null && echo RUNNING || echo DONE; wc -l /tmp/test_unlink_visibility.log; grep -ciE "ASSERT OK|FAIL" /tmp/test_unlink_
+    cd /src/mxfs; until grep -qE "Results: 1 tests" /tmp/test_unlink_visibility.log 2>/dev/null; do sleep 6; done; grep -iE "\[PASS\]|\[FAIL\]|failure|remain after|
+    sleep 1; echo waiting
+    cat /tmp/claude-1000/-src-mxfs/881763ff-4a47-4c30-9988-b1c61717ce1f/tasks/bsedzd1b6.output 2>/dev/null || echo "no output yet"
+    cd /src/mxfs; grep -iE "\[PASS\]|\[FAIL\]|failure|remain after|Time:" /tmp/test_unlink_visibility.log | head -8
+    cd /src/mxfs; echo "=== callers of durable_signal / note_dir_modified ==="; grep -rn "mxfs_dlm_dir_durable_signal\|mxfs_dlm_note_dir_modified" xfs/*.c | grep -v
+    cd /src/mxfs; echo "=== all callers across tree ==="; grep -rn "dir_durable_signal\|note_dir_modified" xfs/ pal/ mxfs.c mxfs_clayer/ 2>/dev/null | grep -iE "cre
+    cd /src/mxfs; grep -n "if (dir_ex_stale_refresh)" xfs/xfs_mxfs_dlm.c | cat -A
+    cd /src/mxfs; timeout 400 make modules 2>&1 | grep -iE "error:|\.ko$" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+ changed" signal but the changed block isn't on the shared device yet (sits in the modifier's CIL/AIL until xfsaild or BAST-release). That's why cross-visibility fails when all nodes cache the dir (no BAST → no release-fence destage).
+
+My acquire-side refresh is a dead-end (4 variants failed). Let me revert it to the baseline (best-known 3/4), then consult GPT with this decisive new evidence. First revert the refresh action:
+Before reverting, I have a concrete new hypothesis worth putting to GPT: the cross-visibility gap is a **write-side destage** problem (deletes never reach the shared device because no node releases the dir), not an acquire-side refresh problem — and my 4 acquire-side variants all failed. Let me consult GPT with this decisive evidence rather than burn more build cycles guessing.
+I've reached the relay boundary. GPT confirmed the new diagnosis decisively: the root is **write-side ("publish before notify")** — the gen bump must happen only AFTER the modified dir blocks are written+flushed to the shared LUN. My 4 acquire-side variants were a dead-end. Let me revert the acquire-side changes (they're net-harmful without the write-side fix) so the source returns to the baseline, then record the design for the next session.
+The big comment has unicode chars causing match issues. Let me neutralize the regression minimally — disable the action block:
+The line has 3 tabs. Let me match exactly:
+Let me verify it compiles, then record the design for the next session:
+Compiles clean (DB19A553, ≈baseline behavior). Now record the decisive findings and GPT's write-side design for the next session:
+Reached the relay boundary. Criteria are **not** met — I will not write the marker.
+
+## Session 72 summary
+
+**Decisive progress: identified the true root of the `cache_coherency` / `unlink_visibility` blocker, confirmed by a GPT consult.**
+
+### What I proved (RULE 4, all measured on clean-reboot runs)
+- The unlink failure is **reader-staleness**: a peer-durably-deleted file stays visible on one node (1–3 survivors); all other nodes incl. the owner agree it's gone. In isolation there's no create-loss (the 16-file create-loss was a cumulative-run artifact).
+- Traced the producer: dir EX/PR **fast-path re-grants** detect `stale_base` (`i_dlm_dir_gen > i_dlm_dir_loaded_gen`) but did no refresh.
+
+### Acquire-side refresh is a DEAD END (4 variants, all reverted)
+EX evict (unlink PASS / rename 0→40) → +`blkdev_issue_flush` barrier (rename 40→14) → +PR readers (rename PASS / unlink 3 survivors) → +conservative loaded_gen (unlink 24s→**500s** flush storm, still stale). Advancing `loaded_gen` serves stale forever; not advancing causes a flush storm. **The acquire side can't fix it because there's nothing newer on the medium to read.**
+
+### THE REAL ROOT (GPT-confirmed) — write-side "publish before notify"
+`mxfs_dlm_note_dir_modified` bumps peers' gen at commit but **never writes the modified dir block to the shared LUN**. Destage happens only via lazy xfsaild or the BAST-release fence — and in the 4-node all-cache-the-dir test **no node is ever BAST'd**, so deletes sit in each node's local cache forever. The durable variant `mxfs_dlm_dir_durable_signal` (log_force + bwrite + note) exists but **was never wired in**.
+
+### Next session (design in `sess100_lessons`)
+Wire in **publish-before-notify**: in `xfs_remove/create/rename`, post-commit (ILOCK held, outside txn) do `log_force(SYNC)` + `xfs_bwrite` modified dir blocks + `blkdev_issue_flush` + **then** bump gen; remove the in-txn `note_dir_modified` calls (xfs_dir2.c:411/633/696); treat rename as one visibility unit. Reader side then only needs gen-gated clear-DONE invalidate + plain re-read (no acquire-side flush). Start synchronous for correctness, then coalesce per-dir to manage the cost.
+
+**Source reverted to ≈baseline (built `DB19A553`); deployed build on nodes is the regressed `84EA79C2` — next session builds the write-side fix and redeploys. Known-good baseline = `D6AD04FE` (3/4).**
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

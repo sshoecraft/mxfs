@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 33 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 32
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `160f3570-152b-491c-bd0f-3341f846edb0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/160f3570-152b-491c-bd0f-3341f846edb0.jsonl`
+- approx context at last assistant turn: 164090 tokens
+- tools used: Bash×35 Read×20 Edit×8 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/pal/linux/xfs_file.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/state.md
+- /home/steve/.claude/projects/-src-mxfs/memory/sess72_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n 'xfs_setup_existing_inode\|xfs_setup_inode\|xfs_setup_iops' pal/linux/xfs_iops.c xfs/*.c xfs/*.h include/*.h 2>/dev/null | head; echo "===
+    cd /src/mxfs; grep -rn 'xfs_setup_existing_inode' pal/ xfs/ include/ | head; echo "=== def ==="; grep -rn 'void\s*$\|xfs_setup_existing_inode' pal/linux/xfs_iop
+    cd /src/mxfs; grep -rn 'xfs_dir_file_operations\b' pal/linux/*.c pal/linux/*.h xfs/*.h | head
+    cd /src/mxfs; grep -n '#include "xfs_file.h"\|xfs_file.h' xfs/xfs_inode.c | head
+    cd /src/mxfs; make modules 2>&1 | grep -iE 'error|warning: .*xfs_inode|undefined' | grep -v 'iomap\|Clock skew\|modification time\|compiler differs\|built by\|u
+    cd /src/mxfs; timeout 300 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized access|authorized user, disconnect'
+    cd /src/mxfs; timeout 400 bash tests/catch_rename_fail.sh 10 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized access|authorized user, disconnect' | grep -aE
+    cd /src/mxfs; latest=$(ls -dt ~/.mxfs/results/*/test_rename_visibility 2>/dev/null | head -1); echo "=== which node failed ==="; for f in "$latest"/node*.log; d
+    cd /src/mxfs; P=/tmp/.mxfs_pass; for n in test2; do echo "===== $n trace for ino=131 / node1_after_1 ====="; timeout 12 bash tools/mxfs_sshpass.sh "$n" "$P" "dm
+    cd /src/mxfs; grep -n 'mxfs_dlm_reload_inode\|xfs_inode_from_disk\|xfs_setup_iops' xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; grep -rn 'xfs_setup_iops' xfs/*.h pal/linux/*.h include/*.h 2>/dev/null; echo "=== decl in xfs_inode.h? ==="; grep -n 'xfs_setup_iops\|xfs_setup_i
+    cd /src/mxfs; grep -n 'xfs_iops.h\|#include "xfs_inode.h"' xfs/xfs_mxfs_dlm.c | head; echo "=== build ==="; make modules 2>&1 | grep -iE 'error|implicit|undefin
+    cd /src/mxfs; timeout 300 bash -c 'MKFS_OPTS=-f bash tests/reset4.sh 4' 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized access|authorized user, disconnect'
+    cd /src/mxfs; timeout 580 bash tests/catch_rename_fail.sh 15 2>&1 | grep -aviE 'Warning: Permanently|Unauthorized access|authorized user, disconnect' | grep -aE
+    cd /src/mxfs; while kill -0 $(pgrep -f catch_rename_fail 2>/dev/null) 2>/dev/null; do sleep 10; done; echo "=== run finished ==="; grep -aE 'iter|FAIL on iter|r
+    cd /src/mxfs; grep -aE 'iter|FAIL on iter|result:|PASS:|FAIL:' /tmp/claude-1000/-src-mxfs/160f3570-152b-491c-bd0f-3341f846edb0/tasks/bk62l591s.output 2>/dev/nul
+    cd /src/mxfs; pkill -f 'kill -0' 2>/dev/null; latest=$(ls -dt ~/.mxfs/results/*/test_rename_visibility 2>/dev/null | head -1); echo "=== dir: $latest ==="; for 
+    cd /src/mxfs; latest=$(ls -dt ~/.mxfs/results/*/test_rename_visibility 2>/dev/null | head -1); echo "dir: $latest"; for f in "$latest"/node*.log; do echo "--- $
+    cd /src/mxfs; P=/tmp/.mxfs_pass; echo "=== P-RELOAD-IOPS-REWIRE firings (confirms Face A fix engaged) ==="; for n in test1 test2 test3 test4; do c=$(timeout 12 
+    cd /src/mxfs; grep -rn 'i_dlm_dir_gen' xfs/ pal/ | head -40
+
+## Last text from previous session
+
+ The `P-RELOAD-TYPEFLIP` detector right above it (line 1408) already catches the DIR→REG flip. After `xfs_inode_from_disk` updates `i_mode`, nothing re-wires `i_fop`. Let me check `xfs_setup_iops` visibility and the surrounding code.
+`xfs_setup_iops` is declared in `xfs/xfs_iops.h` and only re-wires `i_op`/`i_fop`/`a_ops` (pure pointer writes, no I/O or locking). Let me apply the fix at the proven reload site.
+Now I need to close the extra brace I opened. Let me find the end of the `else` block.
+The `else` block closes at line 1536. I need to close my extra opening brace. Let me add it.
+Now check that `xfs_iops.h` (declaring `xfs_setup_iops`) is included in `xfs_mxfs_dlm.c`, then build.
+Build clean — `8B1A4AD61C2D29EC5B5D0DB`. Deploy and verify the fix.
+The 15-iter run backgrounded. Let me wait for it to complete.
+Major improvement — 8 consecutive passes (was failing at iter 2), but iter 9 failed. Let me check whether it's the same Face A or a different failure mode.
+Excellent — the **Face A type-confusion fix is PROVEN** (8 consecutive passes, was failing ~1/2). Iter 9 is a **different failure: Face B — concurrent dir-block lost-update** (node3 can't even stat its OWN `node3_before_4..8` to rename them; contiguous-suffix loss of its just-created entries on all nodes). Let me first confirm my fix actually engaged during the passes.
+**Face A fix PROVEN AND VALIDATED**: `P-RELOAD-IOPS-REWIRE` fired (test2×1, test3×2) re-wiring iops on type-flip, and **zero "Is a directory" errors** across the entire 9-iter run (was the dominant ~1/2 failure). Let me record this win durably, then tackle the now-exposed Face B (dir-block lost-update).
+Now let me investigate Face B. Let me look at the dir-block coherency hook and `i_dlm_dir_gen` mechanism.
+I've reached the relay boundary. Let me record the proven fix as a durable memory, then summarize.
+I've reached the relay boundary. Summary of this session (sess72):
+
+## What I did — RULE 4 loop, decisive
+
+**Followed sess71's coded-but-unbuilt experiment** (P-DIROPEN in `xfs_dir_open`), built `63613E90`, deployed pristine, reproduced Face A (`cat node1_after_1: Is a directory`) at iter 2.
+
+**Got decisive proof** by adding `ip=%px` + `fop_dir=%d` to P-EVICT-RESULT and `ip=%px` to P-DIROPEN (build `51A6A9DC`):
+- `P-EVICT-RESULT ino=131 ip=ffff8e0a99f7cd80 final_mode=0100644(REG) inew=0 fop_dir=1`
+- `P-DIROPEN ino=131 ip=ffff8e0a99f7cd80 mode=REG` — **same pointer**
+
+→ ONE in-core inode with `i_mode=REG` but `i_fop = xfs_dir_file_operations`. `cat` opens → `xfs_dir_open` → read → `generic_read_dir` → **-EISDIR**.
+
+## Root cause (PROVEN) + fix
+An in-place dinode reload that flips S_IFMT (DIR→REG on inode-number reuse) updates `i_mode` in `xfs_inode_from_disk` but never re-wires `i_op`/`i_fop`/`a_ops`. `xfs_setup_iops` runs only on the `XFS_INEW` iget path; the reload returns a live cache-hit (`inew=0`), so the vtable stays stale. **This is why 17 sessions of inode-layer fixes never closed it — the residue was the operations vtable, not the inode.**
+
+**Fix** (`xfs/xfs_mxfs_dlm.c` `mxfs_dlm_reload_inode` ~L1420): capture old S_IFMT before `xfs_inode_from_disk`; if it changed, call `xfs_setup_iops(ip)`. Build `8B1A4AD6`, deployed.
+
+**Validated (RULE 4 step 2b)**: repro went from FAIL@iter2 → **8 consecutive PASS**; `P-RELOAD-IOPS-REWIRE` fired (test2×1, test3×2); **zero "Is a directory" errors** all run.
+
+## Remaining — Face B (now sole failure, ~1/9)
+Iter 9 hit **concurrent dir-block lost-update** (sess69 Face B): node3 `mv: cannot stat node3_before_4..8` — a contiguous suffix of its own committed entries clobbered by a peer writing a stale cached shared dir block. Next step (in progress, was reading the code at boundary): instrument `i_dlm_dir_gen` bump on the dir-inode **write-path acquire** vs the dir-block modify, per the H-DIR hypothesis.
+
+State.md, sess72 memory, and MEMORY.md index updated. Cluster on `8B1A4AD6`, pristine+mounted. Criteria **PASS=10 FAIL=2** — marker NOT written (work not done).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

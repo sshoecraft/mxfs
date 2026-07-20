@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 29 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 28
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `7a24109a-721b-4e34-8b37-4926135eb769`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7a24109a-721b-4e34-8b37-4926135eb769.jsonl`
+- approx context at last assistant turn: 505372 tokens
+- tools used: Bash×89 Read×34 Edit×28 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×4 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== test1+test2: P133-DIRINO-REVERT (write-side di_size revert) + dir reload probes ===" for n i
+    cd /src/mxfs grep -rn "DIRINO-REVERT\|di_size.*revert\|dir.*di_size\|shrink.*di_size\|writing.*smaller\|P133-DIRINO" pal/linux/xfs_buf.c | head echo "=== any ex
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass echo "=== test1+test2: P62-RELOAD ino=131 cases where incore != disk (the revert/grow window) ===" for
+    cd /src/mxfs echo "=== buffer read + invalidation in mxfs_dlm_reload_inode (5670-5970) ===" sed -n '5780,5970p' xfs/xfs_mxfs_dlm.c | grep -nE "xfs_imap_to_bp|xf
+    cd /src/mxfs echo "=== inode BAST/release drain — does it flush the inode cluster (di_size) durable? ===" grep -n "mxfs_dlm_inode_unlock\|inode.*bast\|bast.*ino
+    cd /src/mxfs echo "=== i_dlm_dir_gen read-time invalidation in dir-block read path ===" grep -rn "i_dlm_dir_gen\|b_mxfs_dir_gen\|dir_gen" xfs/libxfs/xfs_da_btre
+    cd /src/mxfs grep -n "^extern int mxfs_\|^int mxfs_dirwr\|^int mxfs_instr\|extern int mxfs_dirwr_enabled, mxfs_instr_enabled" pal/linux/xfs_buf.c | head
+    cd /src/mxfs echo "=== all mxfs_instr_enabled / mxfs_dirwr_enabled declarations in xfs_buf.c (to see scope at line 3135) ===" grep -n "mxfs_instr_enabled\|mxfs_
+    cd /src/mxfs make modules 2>&1 | grep -iE "error:|undeclared|mxfs_iwr" | head
+    cd /src/mxfs echo "=== function containing line 3135 + its dirwr extern ===" awk 'NR>=2980 && NR<=3135 && (/extern int mxfs_(dirwr|instr)/ || /^[a-z_]+\(/ || /^
+    cd /src/mxfs echo "=== function boundaries around 3135 ===" awk 'NR>=2900 && NR<=3140 && /^[a-zA-Z_].*\(/ {print NR": "$0}' pal/linux/xfs_buf.c | tail -5 echo "
+    cd /src/mxfs awk 'NR<=3135 && /^(static |void |int |bool |struct )?[a-zA-Z_]+\($/{ln=NR; sig=$0} /^[a-zA-Z_].*\(.*\)$/{if(NR<=3135){ln=NR;sig=$0}} END{}' pal/li
+    cd /src/mxfs echo "=== function at 2384 top (look for instr/dirwr extern) ===" sed -n '2384,2410p' pal/linux/xfs_buf.c | grep -nE "extern|^[a-z].*\(|mxfs_dirwr|
+    cd /src/mxfs sed -n '3108,3136p' pal/linux/xfs_buf.c | grep -nE "extern|mxfs_dirwr|mxfs_instr|^[[:space:]]*if"
+    cd /src/mxfs make modules 2>&1 | grep -iE "error:|undeclared|invalid storage" | head modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs echo "=== dir_reuse @ 2/tcp, P133-DIRINO-REVERT under iwr (0270D870) ===" date -u +%T time MXFS_EXTRA_MODARGS="iwr=1" timeout 560 ./run.sh 2 tcp di
+    cd /src/mxfs SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass LOG=/tmp/run_dir_reuse_coherency_20260619T054502Z echo "=== failing round ===" for f in $LOG/test1 $LO
+    cd /src/mxfs echo "=== tests applicable to 2/tcp ===" ls tests/suite/*.sh 2>/dev/null | xargs -n1 basename | sed 's/.sh$//' echo "=== criteria.json current 2/tc
+    cd /src/mxfs echo "=== dir_reuse @ 2/tcp, RDMISS logging (0270D870), iwr=1 ===" date -u +%T time MXFS_EXTRA_MODARGS="iwr=1" timeout 560 ./run.sh 2 tcp dir_reuse
+    cd /src/mxfs LOG=/tmp/run_dir_reuse_coherency_20260619T055419Z echo "=== which entries missing from readdir (decisive: which node, pattern) ===" grep -hE "drc-R
+
+## Last text from previous session
+
+ombined with `lookup_fail=0`, the remaining failure (readdir 188/200, ~12-16 dirents missing) is a **dir DATA-block content lost-update** (stale-base RMW reverting peer dirents, or a durability gap). Let me update memory with this narrowing, then check the dir-block read-invalidation (which is bypassed when `i_dlm_dir_gen==0` — and the dir is freshly created each round, resetting it to 0):
+Let me examine the dir-block read-invalidation gen logic and the gen==0 bypass:
+The dir-block read-invalidation does engage even at gen==0 (bumps 0→1) but only invalidates CLEAN buffers. P133-DIRINO-REVERT=0 only rules out *inode* di_size reverts, not dir DATA-block content reverts. Before more dir-block work, let me verify the gen fix didn't regress other 2/tcp tests (it's in the create path used everywhere). Let me see the applicable test list:
+Many tests. The criterion needs the full 2/tcp suite, but dir_reuse is the active blocker. To diagnose the dir-data-block loss precisely, I need to know WHICH entries are missing from readdir (the test only logs lookup failures, not readdir shortfalls). Let me add that to the test:
+The test change is a shell script (propagates via NFS, no rebuild). Let me run to capture which entries are lost from readdir:
+I've hit the relay boundary. Let me capture the decisive RDMISS evidence for the next session, then wrap up:
+Decisive evidence captured: the missing entries are **node1's first 12 data files (node1_f1..f12, no .md5)** — exactly the "writer's first-dir-block entries clobbered" pattern (a stale cached block-0 RMW reverts node1's first-wave dirents). Let me record this for the next session, then wrap up at the relay boundary.
+At the relay boundary. Summary of this session's work:
+
+## Major breakthrough: the inode-revert root cause is fixed
+
+After 27 sessions stuck on `dir_reuse_coherency` 2/tcp, I found and fixed the **primary root cause** (`P26-IGET-FAIL`, the durable inode-revert):
+
+**Root (proven, RULE 4):** XFS assigns a fresh random generation to a new inode only on the cache-**miss** create path. Under MXFS multi-node, a freed inode lingers in cache (held EX, never reclaimed — peer *allocation* via the AGI/inobt doesn't BAST the per-inode lock), so re-allocating the same inum **cache-hits a stale struct whose gen is 1 behind the disk's free-bumped gen**. The `P25-RESURRECT-SKIP` guard then sees `disk_gen > incore_gen` and drops the node's flush of its *own* just-created file → the inode never persists → reader's dirent→iget returns a free inode.
+
+**Fix (build C887AFA3, in `xfs_icreate`):** assign a fresh `get_random_u32()` generation to every newly-allocated inode regardless of cache hit/miss. Verified: `P25-RESURRECT-SKIP=0` (was firing every round), `P26-IGET-FAIL=0`, `lookup_fail=0`, created inums now get fresh varying gens.
+
+## Remaining blocker (well-narrowed, decisive evidence)
+
+`dir_reuse` now fails differently: `readdir=184-188/200`, a **dir DATA-block content lost-update**. New RDMISS test logging shows the missing entries are exactly **node1's first-wave data files (node1_f1..f12, no .md5)** — the classic "writer's first-dir-block (block 0) clobbered by a stale-base RMW" pattern. Ruled out: inode-revert (lookup_fail=0) and di_size write-revert (`P133-DIRINO-REVERT=0`). Suspected ABA: the dir is recreated each round (gen resets), so the `i_dlm_dir_gen` read-invalidation can't distinguish a prior-incarnation block-0 buffer at the reused daddr.
+
+## State for next session
+- Build `0270D870`: gen fix (the keeper) + write-side inode-cluster skip + `iwr` diagnostic probes + RDMISS test logging. Tree builds clean.
+- 4 memories written, headed by `sess28-dir-data-block-RDMISS-first-block-clobber` with the exact next steps (dir-data-block content detector under `iwr`; incorporate inode incarnation into the dir-block staleness stamp).
+- **Criterion NOT met** — dir_reuse still fails on the dir-data-block lost-update; marker not written. Reboot cluster before runs (test2 rmmod-wedges after kills).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

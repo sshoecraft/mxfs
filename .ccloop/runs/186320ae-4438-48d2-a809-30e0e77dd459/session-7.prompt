@@ -1,0 +1,133 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/186320ae-4438-48d2-a809-30e0e77dd459/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 186320ae-4438-48d2-a809-30e0e77dd459, after session 6
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `6c721768-e0be-448d-bd94-e717cae072a8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8.jsonl`
+- approx context at last assistant turn: 498619 tokens
+- tools used: Bash×164 Read×28 Edit×27 TaskCreate×8 TaskUpdate×5 mcp__ccmemory__memory_write×4 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tools/mxfs_sshpass.sh
+- /src/mxfs/run.sh
+- /src/mxfs/tests/setup/prep_node.sh
+- /src/mxfs/scripts/mpath_up.sh
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    until timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -aq 'DRCph r=4 rank=1 PHASE=create-start' /root/dmesg.stream" 2>/dev/null; do sleep 20; done; 
+    grep -n "i_dlm_dir_gen++\|i_dlm_dir_gen =\|i_dlm_dir_gen++" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -8
+    sed -n '17580,17615p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    make modules 2>&1 | grep -E "error|Error" | head -5; modinfo mxfs.ko | grep srcversion
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 1300 ./run.sh 8 caw dir_reuse_coherency 2>&1 | grep -E "PASS|FAIL|converged|prep OK|A
+    until timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -aq 'DRCph r=4 rank=1 PHASE=create-start' /root/dmesg.stream" 2>/dev/null; do sleep 20; done; 
+    until grep -qE "PASS|FAIL|ABORT" /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/bwsaz3kfo.output 2>/dev/null; do sleep 25; done; cat /tmp
+    until grep -qE "PASS|FAIL|ABORT" /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/bwsaz3kfo.output 2>/dev/null; do sleep 25; done; cat /tmp
+    grep -n "mxfs_dir_data_owner_scan" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; grep -n "write_fua\|FUA" /src/mxfs/xfs/xfs_mxfs_dlm.c | awk -F: '$1>2600 && $1<3200' 
+    grep -n "FUA_FRESH\|fua" /src/mxfs/xfs/libxfs/xfs_da_btree.c | head -8; grep -rn "dir.*fua\|fua.*dir" /src/mxfs/pal/linux/xfs_buf.c | grep -iE "read" | head -6
+    sed -n '2955,2985p' /src/mxfs/xfs/libxfs/xfs_da_btree.c; sed -n '3070,3090p' /src/mxfs/xfs/libxfs/xfs_da_btree.c
+    grep -n "P-LEAFDROP owner" /src/mxfs/pal/linux/xfs_buf.c; sed -n '/P-LEAFDROP owner/,+12p' /src/mxfs/pal/linux/xfs_buf.c | cat -A | head -4
+    python3 - << 'EOF' import re p = '/src/mxfs/pal/linux/xfs_buf.c' s = open(p).read() old = '''pr_err("mxfs: P-LEAFDROP owner=%llu daddr=%lld buf_cnt=%u disk_cnt=
+    make modules 2>&1 | grep -cE "error"; modinfo mxfs.ko | grep srcversion
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" MXFS_TEST_ENV="DRC_ROUNDS=12" timeout 900 ./run.sh 8 caw dir_reuse_coherency 2>&1 | grep -E "
+    until timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -aq 'P-LEAFDROP' /root/dmesg.stream" 2>/dev/null; do if ! pgrep -f 'run.sh 8 caw dir_reuse' >/
+    until timeout 8 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "grep -a 'P-LEAFDROP' /root/dmesg.stream | awk -F'[][ ]+' '\$2+0>5000' | grep -q ." 2>/dev/null; do 
+    cat /tmp/claude-1000/-src-mxfs/6c721768-e0be-448d-bd94-e717cae072a8/tasks/bfr2j1q2o.output; echo ===; timeout 12 tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "gr
+    timeout 12 tools/mxfs_sshpass.sh test8 /tmp/.mxfs_pass "lsmod | grep mxfs; mountpoint /mnt/shared; dmesg | tail -4; ls -la /src/mxfs/mxfs.ko 2>&1 | head -2" 2>/
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" MXFS_TEST_ENV="DRC_ROUNDS=12" timeout 900 ./run.sh 8 caw dir_reuse_coherency 2>&1 | grep -E "
+
+## Last text from previous session
+
+t_modify`, noted "Default OFF". Checking:
+Now the function body — gate change plus the leaf-range branch:
+20 min without a verdict — the 1300s wrapper may have killed the run without emitting a matching line. Checking directly:
+Cleaning up my edit — `do_data` must be a function-scope local, not that bogus global:
+owner_scan writes plain `xfs_bwrite` (cache-resident). Now checking whether dir leaf cold reads are FUA (platter):
+Build `591A76FB`. Diagnostic run shortened to 12 rounds (burst appears by ~r7):
+Those are the previous run's lines (dmesg --follow re-dumps the ring; clock 3630 = the earlier run). Filtering for fresh events only:
+test8 came up without the module (empty srcversion) — readiness caught it. Checking test8:
+Relay boundary — checkpointing the live investigation state to memory for the next session:
+Relay boundary reached — ending with the session summary. **Criteria not yet met** (marker not written).
+
+## Session 6 summary
+
+**Ladder state: 1/2/4 caw green; 8/caw at 14/17 with dir_reuse_coherency as the active blocker (real kernel bug, mid-diagnosis).**
+
+### Infra — 2/caw unblocked and the harness made self-healing (tasks #1, #2, #3-mostly done)
+- **Root-caused session 5's 2-node formation failure as pure infra, no kernel bug**: leftover higher-rung nodes inflated membership; a silently-failed teardown left a stale same-build mount that passed readiness while the LUN was re-mkfs'd under it; discovery then correctly ignored foreign-uuid announces (`single=1` was right). Fixed in `run.sh`: superset teardown of all running VMs outside the node set, verified step-1 teardown with `virsh` power-cycle escalation, and the converge gate is now a **hard abort** (was WARN+proceed).
+- **Boot self-heal was broken fleet-wide**: `iscsid`/`open-iscsi` disabled AND `node.startup=manual` on all records + iscsid.conf. Fixed on all 32 nodes and in `mpath_up.sh` — power-cycled nodes now reassemble mpatha unattended.
+- **2/caw went 17/17** (soak fixed by re-gating the P124 diagnostic dump_stack to `instr`-only — it false-positived on healthy sole-EX-holder writeback).
+
+### 8/caw — one RULE-4 refutation and one live root-cause hunt
+- 14/17 recorded PASS (formation converges in ~12-38s at 8 nodes). fault_netpartition + soak not yet run at 8.
+- **dir_reuse budget**: proved the 40s/round pace structural (A/B with `dirop_durable_caw=0` halved the create wave but durably lost a dirent at r17 — CAW coherency is FUA-read/platter-based, so per-op platter publish is load-bearing; knob kept, default 1, refutation documented in-code). Budget recalibrated to 140×N for CAW per project precedent.
+- **The remaining blocker**: durable cluster-wide **leaf-hash holes** (~1/20 rounds), masked by the P22 data-scan healer, expressed as 799/800 readdir loss or — when a leaf→block conversion crystallizes the hole — a `__xfs_dir3_data_check` verifier **shutdown** (fully forensically reconstructed, round 11 hex-level). Built a set-based `P-LEAFDROP` detector that caught the criminal write in the act: the per-op publish (`xfs_create → durable_signal → owner_scan → xfs_bwrite`) writes a leaf whose base is missing exactly the *previous op's own add* (adjacent-sorted-hash ping-pong signature → dual buffer instances or content reversion, **not** cross-node cache staleness — a tenure-start leaf refresh scan I added ran but never found divergence, refuting that theory).
+- In flight at relay: build `591A76FB` logs `bp/hold/lseq/wseq/bli/inail` per P-LEAFDROP event; a 12-round diagnostic run (task `ba9wr73be`) is executing. Next session: read the `bp` pattern (alternating = dual instances; constant = reversion, with P5R's FUA-read memcpy-restore as prime reversion suspect since publishes are cache-resident), then fix at root and sweep 8 → 16 → 32 → full-ladder rerun on one build.
+
+All diagnosis state is in ccmemory (`caw-8node-leafhash-hole-shutdown-diagnosis`, `caw-perop-durable-barriers-refutation`, `caw-multipath-matrix-progress`); awareness docs updated (pal.md).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

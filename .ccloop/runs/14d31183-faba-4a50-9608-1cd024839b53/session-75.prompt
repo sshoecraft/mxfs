@@ -1,0 +1,120 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 75 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 74
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `d993613a-1f41-49f5-81fb-c1c4b3ebb769`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d993613a-1f41-49f5-81fb-c1c4b3ebb769.jsonl`
+- approx context at last assistant turn: 252888 tokens
+- tools used: Bash×40 Read×15 ToolSearch×4 Edit×3 mcp__ccmemory__memory_get×3 mcp__ask_gemini__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/pal/linux/xfs_file.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip12=$(getent hosts test12.vm.localdomain | awk '{print $1}'); echo "=== test12: 40 lines
+    cd /src/mxfs; echo "=== direct if_nextents assignments (mxfs-introduced) across tree ==="; grep -rn "if_nextents\s*=\|if_nextents =" xfs/*.c xfs/libxfs/*.c | gr
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); echo "=== test1 mount + shut
+    cd /src/mxfs; echo "=== mxfs symbols referenced in xfs_inode.c ==="; grep -n "mxfs_v5_dlm_is_single_node\|m_mxfs_dlm\|for_each_xfs_iext\|xfs_need_iread_extents\
+    cd /src/mxfs; timeout 420 make modules 2>&1 | grep -iE "error|warning: |LD \[M\]|mxfs.ko" | grep -viE "clock skew|modification time|BTF|vmlinux" | tail -8; echo
+    cd /src/mxfs; timeout 480 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -3
+    cd /src/mxfs; INSMOD_OPTS="dirwr=1" timeout 260 ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 2>&1 | tail -4; echo "rc=$?"
+    cd /src/mxfs; LOG=$(ls -t /tmp/zero_silent_loss.*.log 2>/dev/null | head -1); echo "=== log tail: $LOG ==="; tail -12 "$LOG" 2>/dev/null; echo; SSH=/src/mxfs/to
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; echo "=== per-node: D-state find/ls + P73-ILOCK-STUCK + P138-WAIT ==="; for n in $(seq 1 
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); echo "=== test1 P73-ILOCK-ST
+    cd /src/mxfs; grep -n "mxfs_dlm_dir_consumer_refresh\|dir_consumer_refresh" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; echo "=== xfs_file_readdir def + ilock usage ==="; grep -n "xfs_file_readdir\|mxfs_dlm_dir_consumer_refresh\|xfs_ilock.*ILOCK\|xfs_readdir\b" xfs/
+    cd /src/mxfs; grep -rn "xfs_file_readdir" xfs/*.c | head; echo "=== xfs_readdir body (lock flow) ==="; sed -n '513,575p' xfs/xfs_dir2_readdir.c
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); echo "=== test1: trigger sys
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); timeout 8 "$SSH" "$ip1" "$PF
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); echo "=== raw blocked-state 
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); echo "=== all D-state tasks 
+    cd /src/mxfs; SSH=/src/mxfs/tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; ip1=$(getent hosts test1.vm.localdomain | awk '{print $1}'); echo "=== pid 1353 state + s
+    cd /src/mxfs; grep -rn "xfs_file_readdir\b" xfs/ pal/ | grep -iE "readdir\(|\.iterate|static.*readdir|xfs_file_readdir" | head; echo "=== def ==="; grep -rn "xf
+    cd /src/mxfs; timeout 420 make modules 2>&1 | grep -iE "error:|LD \[M\]|mxfs.ko" | grep -viE "clock skew|BTF|vmlinux" | tail -5; echo "=== srcversion ==="; modi
+
+## Last text from previous session
+
+1` hangs — the dir is permanently wedged (P73 still firing at t=446). Let me get the blocked-task backtraces in two steps.
+The EX-wanter is find pid **1353**, stuck 400s. `rd_held=1` is a *persistent* reader (transient getattr/ls readers come and go as `rd_last`). The reload can't rebuild the fork (`DLM reload BAIL i_lock contended`) so `need_iread=1` stays, and every readdir needs EXCL → permanent starvation. Let me get the actual kernel stacks of pid 1353 and find the persistent SHARED holder via /proc.
+All threads are in **R (running)** state, not D — they're spinning in the P73 trylock loop trying to acquire the ILOCK. The same find pid 1353 appeared as both the read-holder (`rd_last=xfs_file_readdir`) and the EX-wanter (`wr_last=xfs_ilock_data_map_shared`) — a **double-lock by one thread**: it holds ILOCK_SHARED from the readdir VFS hook, then wants ILOCK_EXCL to load extents (need_iread). Let me find `xfs_file_readdir`.
+**Root cause found.** `xfs_file_readdir` (pal/linux/xfs_file.c:1856-1858) takes `ILOCK_SHARED`, then calls `xfs_readdir`, which internally calls `xfs_ilock_data_map_shared` — and that takes `ILOCK_EXCL` when `need_iread` (extents not loaded, e.g. right after a `consumer_refresh` reload). Taking EXCL while the same thread holds SHARED on the same rwsem = **self-deadlock** → the permanent `rd_held=1 / want=EX` wedge the P73 detector reports. The comment's "nested ILOCK_SHARED is allowed" assumption is false when `need_iread` forces EXCL.
+
+The fix: only hold the outer SHARED for **shortform** dirs (where `xfs_readdir` takes no ILOCK and `if_data` needs stabilizing). For non-shortform, let `xfs_readdir` take its own lock (correctly SHARED or EXCL) with no outer lock held.
+Build, reset, and rerun:
+I've hit the relay boundary. Let me save the key findings to memory before wrapping up.
+## Summary
+
+Worked the `zero_silent_loss` ship-gate blocker (1 of 4 failing criteria) and landed two fixes via the RULE-4 loop, with a decisively proven root for the dominant failure face.
+
+**FIX 1 — readdir ILOCK self-deadlock (DECISIVELY PROVEN, KEEP):** Built sess73's P73-ILOCK-STUCK detector into a live wedge and it named the leaker: `xfs_file_readdir` (pal/linux/xfs_file.c) unconditionally held `ILOCK_SHARED` across `xfs_readdir`, but for a non-shortform dir with unloaded extents (`need_iread=1`, the state a peer reload leaves) `xfs_readdir`→`xfs_ilock_data_map_shared` takes `ILOCK_EXCL`. The same thread upgrading SHARED→EXCL on one rwsem deadlocks forever (`P73-ILOCK-STUCK ino=131 want=EX rd_held=1`, same find pid as both holder and EX-wanter). The BMBT reload then perpetually BAILs "i_lock contended", so `need_iread` never clears = permanent hot-dir wedge. Fixed: hold the outer SHARED only for shortform dirs; let `xfs_readdir` lock itself for all other formats.
+
+**FIX 2 — write-boundary torn-dinode barrier (Gemini-designed, KEEP):** In `xfs_iflush`, before packing the dinode, reconcile `if_nextents` to the actual in-core iext-tree count (`P74-IFNEXT-SKEW`), restoring the upstream invariant so a torn dinode (the sess60/65-proven `if_nextents ≠ tree` divergence) is never written → no EFSCORRUPTED → no CORRUPT_INCORE shutdown → no cluster-wide SCSI-PR reservation-conflict cascade (which I confirmed this session is the 1→1600-loss multiplier).
+
+**Evidence chain:** the FIX2 build ran with zero shutdowns/corruption (all 16 nodes mounted) but the verify `find` hung — which *exposed* the readdir deadlock as the now-dominant blocker and led to FIX 1.
+
+**State:** Current build `67597818` (FIX1+FIX2) is **built but not yet reset/deployed/tested** — I hit the relay boundary right after the build. Criteria NOT met (zsl unverified; `fence_during_write`/`rsync_paired`/`posix_semantics_multi16` unchanged), so the marker stays unwritten. Full next-session path saved to memory `sess74-readdir-ilock-self-deadlock-and-torn-dinode-barrier`: deploy 67597818, rerun zsl with `dirwr=1`, confirm `P73-ILOCK-STUCK`==0 and no verify hang, then iterate.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

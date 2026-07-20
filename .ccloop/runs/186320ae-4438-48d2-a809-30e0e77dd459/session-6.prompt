@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 6 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/186320ae-4438-48d2-a809-30e0e77dd459/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 186320ae-4438-48d2-a809-30e0e77dd459, after session 5
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `a5bd466c-6356-4a09-8f15-e7eac4ffbdbf`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a5bd466c-6356-4a09-8f15-e7eac4ffbdbf.jsonl`
+- approx context at last assistant turn: 499557 tokens
+- tools used: Bash×195 Read×32 Edit×23 TaskUpdate×8 TaskCreate×6 ToolSearch×2 mcp__ccmemory__memory_write×2 TaskList×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_sf.c
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw precond_readiness cache_coherency dlm_fairness 2>&1 | grep -E "PAS
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw posix_multi mmap_coherency strong_consistency 2>&1 | grep -E "PASS
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw zero_silent_loss dlm_membership 2>&1 | grep -E "PASS|FAIL"
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw scaling_curve dlm_scaling 2>&1 | grep -E "PASS|FAIL"
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw rsync_paired crash_consistency 2>&1 | grep -E "PASS|FAIL"
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw dir_reuse_coherency dlm_lock_correctness 2>&1 | grep -E "PASS|FAIL
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw fence_during_write 2>&1 | grep -E "PASS|FAIL"
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw fault_netpartition 2>&1 | grep -E "PASS|FAIL"; jq -r '.categories[
+    grep -n "soak\|SOAK" tests/suite/soak.sh 2>/dev/null | head -5; ls tests/suite/ | grep soak; grep -rn "duration\|DURATION\|SOAK_SECS" tests/suite/soak.sh 2>/dev
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 4 caw soak 2>&1 | grep -E "PASS|FAIL"; echo "=== criteria.json 4/caw sum
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 570 ./run.sh 1 caw 2>&1 | tail -25
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 590 ./run.sh 2 caw 2>&1 | tail -25
+    for h in test1 test2; do echo "== $h =="; timeout 8 tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass "mount -t mxfs | head -1; dmesg | tail -5 | grep -E 'mxfs|error' | 
+    timeout 10 tools/mxfs_sshpass.sh test2 /tmp/.mxfs_pass "dmesg | grep -iE 'shutdown|SHUTDOWN|corrupt|force' | tail -8" 2>/dev/null; echo ===; timeout 10 tools/mx
+    jq -r '.categories[] | .tests[]? | select(.runs["2/caw"] != null) | "\(.runs["2/caw"].status) \(.name) \(.runs["2/caw"].iso // "")"' criteria.json | head -20
+    for h in test3 test4; do echo "== $h =="; timeout 8 tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass "mount -t mxfs | head -1; dmesg | grep -cE 'P131-SELF-FENCE'; lsmod
+    for h in test3 test4; do echo "== $h cleanup =="; timeout 30 tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass "umount -f /mnt/shared 2>&1; rmmod mxfs 2>&1; lsmod | grep
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="dirwr=1 dirland=1" timeout 590 ./run.sh 2 caw 2>&1 | grep -E "PASS|FAIL|prep OK"
+    D=$(ls -td /tmp/run_cache_coherency_* | head -1); echo D=$D; for n in 1 2; do echo "-- t$n --"; tail -6 $D/test$n 2>/dev/null; done
+    for h in test1 test2; do echo "== $h =="; timeout 8 tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass "cat /sys/fs/mxfs/*/active_count 2>/dev/null || dmesg | grep -E 'ac
+
+## Last text from previous session
+
+k-emptiness helper using the proper `xfs_dir3_block_read`. Checking its signature:
+Both sites have `tp`. Implementing the helper and patching both:
+precond fixed, core green. Sweeping the remaining suite in chunks:
+1/caw: **17/17 in one pass.** Now 2/caw:
+2/caw mass-failed — same build just passed 17/17 at 4 nodes, so this smells like infra (node2 dropped out) rather than FS regressions. Checking:
+test2's FS went down mid-suite (I/O errors) and cascaded. Finding the original shutdown:
+`P131-SELF-FENCE: device reformatted under live mount` on test2 — mid-suite identity change. Checking which test failed first and the full 2/caw record:
+Still mass-failing after cleanup — different root. Pulling the actual failure output:
+Relay boundary — wrapping up with the session summary.
+
+---
+
+## Session 5 summary — criteria **not yet met**, major progress: 4/caw went from flaky to 17/17
+
+**Everything below is on build `656E89B4` (v0.6.5), deployed on test1-4.**
+
+### Fixed and verified this session (five RULE-4-proven fixes)
+
+1. **`i_dlm_dir_acq_epoch`** — the P65 CAW adopt gate now compares the grant epoch against a tracker that only advances at the reload's adopt fall-through, immune to the modify-path `valid_epoch` up-syncs that erased the gate's lag. Closed the uv dangling-dirent family: cache_coherency went 13/13 (prior fail rate 1-in-2-to-5).
+2. **P106-STALE-EX-BAIL** — the phantom cached-EX serve tripwire is now enforcement: demote to NL and `goto restart` for a real on-disk re-acquire (gated pin==0/CACHED/no-demoter/3 laps).
+3. **P5R-TRANSREFRESH** — a stale-flagged dir block joined to *our own clean transaction* (trylock can never win) is now FUA-refreshed in place under the trans lock.
+4. **P-ICD-TENURE-REFUSE + `i_dlm_icd_refused`** — destage-time slot verify refuses inode-cluster writes from dead tenures, and the sticky flag forces the next reload to 3-way-merge instead of clean-wholesale-adopt (which had been reverting committed renames).
+5. **Block-format-for-life + `xfs_dir_block_isempty`** — multinode dirs never shrink back to shortform (killing the sf ghost machinery); a tp-aware block-emptiness check at rmdir/rename-target keeps empty block dirs removable (fixed the precond regression this introduced).
+
+dlm_fairness went from ~1-in-3 failing to 8/8+ green through fixes 2-5; each failure iteration was forensically traced (ghost lifecycles `n2_r15`, `n4_r10.done`, `n2_r1`, `n3_r1`) before patching. Also fixed instrumentation blindness: P136 now logs LOCAL-format dinodes (was silently skipping them — root of a sess4 misdiagnosis) with fmt/gen fields and a 60k cap.
+
+### Ladder status
+- **4/caw: ALL 17 tests PASS** (chunked sequential runs, one build). Task #4 complete.
+- **1/caw: 17/17 PASS** in a single pass.
+- **2/caw: blocked on infra, not FS code.** Two independent failures found: (a) downward ladder transitions (4→2) leave higher-numbered nodes mounted and heartbeating — they self-fence (`P131-SELF-FENCE`) when the LUN is re-mkfs'd under them (cleaned test3/4 manually); (b) even after cleanup, the 2-node cluster **never converged** — test1 ran `single=1 dlm_mode=0` and test2's membership decayed to `active_count=1`, so both nodes ran as independent single-node filesystems on one LUN (mutual invisibility, then I/O errors). run.sh's converge gate printed nothing for 2/caw — next session should find why prep proceeded without convergence and why discovery failed to join the two nodes.
+
+### Next steps
+1. Fix 2-node cluster formation (discovery/converge in prep; add leftover-node teardown for downward transitions).
+2. 2/caw full suite green, then 8/16/32 rungs (VMs test5-16 exist; test17-32 per `caw-scripts-all-3-conditions-proven`; use `scripts/mpath_up.sh` + `verify_infra.sh`).
+3. Final full-ladder rerun 1/2/4/8/16/32 on one build → write the marker.
+
+All diagnosis state persisted to ccmemory (`caw-v065-fix-chain-4caw-17of17`, `caw-v065-acq-epoch-fix`). Reproduction commands and per-run artifact paths are in the memory notes.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

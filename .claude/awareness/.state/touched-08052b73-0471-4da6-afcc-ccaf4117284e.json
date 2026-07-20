@@ -1,0 +1,16 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "include/mxfs/mxfs_dlm.h",
+    "dlm/dlm.h",
+    "dlm/dlm.c",
+    "dlm/v5_mount.c",
+    "dlm/mount.c",
+    "dlm/disklock.h"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/dlm.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

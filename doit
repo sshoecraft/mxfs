@@ -1,0 +1,4 @@
+#!/bin/bash
+export CLAUDE_CODE_EFFORT_LEVEL="max"
+id=$(ls -lot .ccloop/runs | head -2 | tail -1 | awk '{ print $NF }')
+ccloop --cutoff=500  --resume-run $id

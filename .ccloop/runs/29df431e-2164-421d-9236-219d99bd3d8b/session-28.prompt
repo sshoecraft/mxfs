@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 28 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 27
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `8ba51db4-245d-4ec6-9c86-86b0370163ea`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8ba51db4-245d-4ec6-9c86-86b0370163ea.jsonl`
+- approx context at last assistant turn: 159410 tokens
+- tools used: Bash×43 Read×11 Edit×6 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/catch_rename_fail.sh
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    export LIBVIRT_DEFAULT_URI=qemu:///system; which virsh && virsh list --all 2>/dev/null | grep -iE "test1\b|test1 " | head; echo "---try reboot test1---"; virsh 
+    export LIBVIRT_DEFAULT_URI=qemu:///system; virsh start test1 2>&1 | head -2; echo "waiting for test1 ssh..."; until timeout 5 bash /src/mxfs/tools/mxfs_sshpass.
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -5; echo "=== verify+clear ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; 
+    cd /src/mxfs; MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 150 bash tests/run_tests.sh --nodes 4 --phase cluster --test test_rename_visibility --p
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n P88 count ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'dmesg | grep -ac "P88-
+    cd /src/mxfs; echo "=== test1 sample P88 (new fields) ==="; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -a "P88-INSTR" | grep -aoE
+    cd /src/mxfs; timeout 10 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -a "P88-INSTR" | head -6' 2>/dev/null
+    cd /src/mxfs; timeout 580 bash tests/catch_rename_fail.sh 8 2>&1 | tail -60
+    cd /src/mxfs; find tests -name "*rename_visibility*" -o -name "*.sh" | xargs grep -l "rename_visibility\|test_rename" 2>/dev/null | head; echo "==="; find tests
+    cd /src/mxfs; cat tests/cluster/test_rename_visibility.sh
+    cd /src/mxfs; latest=$(ls -1dt /home/steve/.mxfs/results/*/ 2>/dev/null | head -1); echo "latest=$latest"; echo "=== assertion failures ==="; grep -rahiE "FAIL|
+    cd /src/mxfs; latest=/home/steve/.mxfs/results/20260603_165117/; echo "=== files in results ==="; find "$latest" -type f | head -20; echo "=== which node logged
+    cd /src/mxfs; grep -n "ftype\|mode_to_ftype\|i_dlm_stale\|retry_iget\|prune_aliases\|ENOTDIR\|type.*mismatch\|TYPE-MISMATCH" xfs/xfs_inode.c | head -40
+    cd /src/mxfs; echo "=== node module/mount state ==="; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pa
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -4
+    cd /src/mxfs; timeout 580 bash tests/catch_rename_fail.sh 8 2>&1 | grep -aE "iter|result|FAIL on" | tail -20
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n ==="; timeout 12 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo "INODE-REUSE-EVICT: $(dmesg
+    cd /src/mxfs; latest=$(ls -1dt /home/steve/.mxfs/results/*/ | head -1); echo "latest=$latest"; echo "=== FAIL assertions ==="; grep -rahE "\[FAIL\]" "$latest" 2
+    cd /src/mxfs; latest=$(ls -1dt /home/steve/.mxfs/results/*/ | head -1); echo "=== node3.log: its own create/rename phase + errors ==="; grep -aiE "creating|rena
+    cd /src/mxfs; grep -rn "i_dlm_dir_gen\|b_mxfs_dir_gen\|mxfs_dir_data_durable\|mxfs_dir_push_data_ags" xfs/xfs_mxfs_dlm.c xfs/libxfs/xfs_da_btree.c xfs/xfs_inode
+
+## Last text from previous session
+
+stale inode type confusion** (sess48/54/55 family). The bnobt/P88 chase was a red herring. There are existing mechanisms (`INODE-REUSE-EVICT` ftype-mismatch + `ISTALE-CAW-EVICT`) — both emit always-on warnings. I need to measure whether they fire on this failure. Let me reset and re-run capturing those.
+Failed on iter 1. Now let me pull the eviction-mechanism diagnostics and the type-confusion correlation from the nodes.
+No evictions fired, no corruption, no shutdown — yet the test FAILED. This failure is different. Let me get the actual assertion.
+Different failure this run: **node3's renamed files 11–20 (contiguous batch) are "No such file or directory" on ALL 4 nodes including node3 itself** — genuine dir-entry loss, no corruption/shutdown/eviction. This is the **dir-block lost-update** (sess46/50 family). Let me confirm node3 created+renamed them locally (so they were lost *after* being written).
+**Decisive new evidence.** The failure is in **Phase 2 on node3 itself**: node3 created `before_1..20` in Phase 1, but by Phase 2 `before_11..20` had **already vanished** (`mv: cannot stat ... No such file`). node3 lost its *own just-created* directory entries (contiguous suffix 11..20, 1..10 survived). This is a genuine **concurrent dir-block lost-update**: a peer modified+wrote the shared dir block from a stale cached copy, clobbering node3's committed entries on the medium.
+
+Let me record this major reframe to state, then instrument the dir-block coherency path.
+Now let me examine the dir-block coherency machinery — `i_dlm_dir_gen` bumping and the read-hook invalidation.
+I've reached the relay boundary. State is recorded. Let me give a brief summary.
+
+## Session 69 summary
+
+**Major reframe, all evidence-backed (RULE 4):** The bnobt/P88 double-allocation chase that consumed sessions 44–68 was a **red herring**. Three things proven by direct measurement this session:
+
+1. **Theory D (release-side async drain leak / medium incoherence) REFUTED.** I built a decisive probe (`mxfs_acq_fresh_durability_probe`): on a fresh AG EX acquire it FUA-reads the bnobt root, sleeps 100ms, FUA-reads again, memcmps. **7/7 samples `differs=0`** — the medium is stable under our exclusive hold; no peer's late I/O lands. Combined with P88 *always* showing `ex_pop=1 + ag_held=1`, the DLM serialization and medium durability are sound.
+
+2. **P88 is benign.** It fires ~30×/run even on **passing** runs with no shutdown. New identity fields (`bp`/`hold`/`lsn`) proved the numrecs=1 writes are normal single-free-extent-AG allocations on the *same buffer over time* (no aliasing); `disk_differs=1` is just buffer-ahead-of-disk at writeback.
+
+3. **The real failure is directory-metadata NL-cache staleness**, two faces, both reproducing in ~1/1–3 runs at ~29s on a pristine cluster:
+   - **Dominant — concurrent dir-block lost-update:** node3 creates `before_1..20`; by Phase 2, `mv` reports `cannot stat node3_before_11..20: No such file` — a contiguous suffix of node3's *own just-created* entries vanished (1..10 survived), missing on all nodes including node3. A peer wrote the shared dir block from a stale cached copy and clobbered node3's committed entries on the medium.
+   - **Child-inode type confusion:** peer `cat node1_after_1` → "Is a directory"; existing `INODE-REUSE-EVICT`/`ISTALE-CAW-EVICT` mechanisms exist but did not fire.
+
+**Artifacts:** build `7DD0626E` deployed on all 4 nodes (probe gated behind `mxfs.instr_enabled`, P88 identity fields). New in-tree reproducer `tests/catch_rename_fail.sh`. state.md updated with the full reframe and the leading next hypothesis (**H-DIR**: `i_dlm_dir_gen` likely not bumped on a fast dir-inode re-grant → stale cached dir blocks served without FUA re-read → lost-update). I was mid-examination of the dir-gen machinery (`xfs/libxfs/xfs_da_btree.c:2873/2954`, `xfs_mxfs_dlm.c:2078`/`mxfs_dir_data_durable`) when I hit the boundary.
+
+Criteria remain **PASS=10 FAIL=2** (cache_coherency, rsync_paired) — not met, marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

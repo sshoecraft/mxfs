@@ -1,0 +1,1 @@
+{"seq_write_1m":{"bw_mib":1508},"seq_read_1m":{"bw_mib":603},"rand_write_4k":{"iops":39103},"rand_read_4k":{"iops":28031},"size":"1024m"}

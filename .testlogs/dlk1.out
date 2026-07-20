@@ -1,0 +1,7 @@
+Warning: Permanently added 'test1' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+mv: '/mnt/shared/.posix_multi/op_link_1' and '/mnt/shared/.posix_multi/op_renamed_1' are the same file
+RESULT: FAIL | test=posix_multi | nodes=2 | measured=checks=211 passed=209 failed=2 | reason=pm r1 node1 hardlink-name gone pm r1 node2 hardlink-name gone

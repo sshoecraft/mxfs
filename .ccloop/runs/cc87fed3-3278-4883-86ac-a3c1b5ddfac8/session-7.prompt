@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 6
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `f52a55c3-3963-458c-b155-f3a9f74735b9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9.jsonl`
+- approx context at last assistant turn: 502465 tokens
+- tools used: Bash×124 Read×28 Edit×19 TaskCreate×10 mcp__ccmemory__memory_write×6 TaskUpdate×4 mcp__ccmemory__memory_get×4 ToolSearch×3 mcp__ask_fable__query×3 TaskList×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/VERSION
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_icache.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "inode_sb_list_del\b" /src/linux/fs/inode.c
+    grep -n "inode_sb_list_add\b" /src/linux/fs/inode.c echo "---" grep -n "unlock_new_inode\|EXPORT_SYMBOL(unlock_new_inode)\|EXPORT_SYMBOL(iget_locked)\|EXPORT_SY
+    grep -n "^xfs_reclaim_igrab\|^static.*xfs_reclaim_igrab" /src/mxfs/xfs/xfs_icache.c
+    grep -n "^xfs_iget_recycle" /src/mxfs/xfs/xfs_icache.c
+    make modules 2>&1 | tail -15
+    modinfo mxfs.ko | grep -E "^srcversion" rm -f /tmp/mxfs_run.lock; bash scripts/cluster_reset_n.sh 2 2>&1 | tail -10
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/recycle_race_validate1 mkdir -p "$SP" echo "SP=$SP" for n in 1 2; do   nohup /src/
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/recycle_race_validate1 END=$((SECONDS+480)) while [ $SECONDS -lt $END ]; do   if g
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/recycle_race_validate1 echo "=== P139 hits with context ===" grep -n "P139-RECYCLE
+    grep -n "^__xfs_inode_free\|^static.*__xfs_inode_free" /src/mxfs/xfs/xfs_icache.c
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/recycle_race_validate1 echo "=== all P140 for ino=0x83 (131) ===" grep "P140-RECLA
+    make modules 2>&1 | tail -25
+    modinfo mxfs.ko | grep -E "^srcversion" rm -f /tmp/mxfs_run.lock; bash scripts/cluster_reset_n.sh 2 2>&1 | tail -10
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/fix_validate1 mkdir -p "$SP" echo "SP=$SP" for n in 1 2; do   nohup /src/mxfs/tool
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/fix_validate1 END=$((SECONDS+480)) while [ $SECONDS -lt $END ]; do   if [ -f "$SP/
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/fix_validate1 kill -0 1845790 2>/dev/null && echo "still running" || echo "exited"
+    ps -eo pid,cmd | grep -E "run\.sh 2 caw|dmesg -T -w" | grep -v grep echo "check done"
+    kill -9 1840195 1840196 1840198 1840199 1840200 1840201 1845771 1845772 1845774 1845775 1845776 1845777 2>/dev/null pkill -9 -f "^/bin/bash \./run\.sh" 2>/dev/n
+    rm -f /tmp/mxfs_run.lock bash scripts/cluster_reset_n.sh 2 2>&1 | tail -10
+    SP=/tmp/claude-1000/-src-mxfs/f52a55c3-3963-458c-b155-f3a9f74735b9/scratchpad/fix_validate1 echo "=== P135 hits this run ===" grep "P135-PRSWEEP-CYCLE" "$SP/liv
+
+## Last text from previous session
+
+ determines the actual race window.
+Let me cross-reference the P140 reclaim-commit audit trail for ino=0x83 against the exact P139 firing timestamps — this will confirm whether the background reclaim walker legitimately reclaimed this inode shortly before each recycle collision.
+14 P139 hits across the run — this is a real, frequent race, not a rare fluke. Given `list_empty()` returning true is unambiguous proof the inode isn't linked into *any* list right now, the correct fix is to re-link it via `inode_sb_list_add()` (which I confirmed is `EXPORT_SYMBOL_GPL`) right there in `xfs_iget_recycle`, healing the state before it can ever become visible as a self-referential list entry to any walker. Let me implement this.
+Clean build — `inode_sb_list_add` resolved fine. Bumping to 0.10.91 (real behavioral fix) and deploying.
+Let me checkpoint this fix before validation, then re-run the repro.
+Clean start. Polling now for the fix validation.
+The fix made things worse — dir_reuse_coherency itself now times out, P135 still fires (15x), and softlockups still occur (10x). Blindly re-linking isn't the right repair. Let me clean up and reassess before iterating further.
+Clean. Recovering the cluster now.
+Let me examine what actually happened in the failed fix validation before deciding the next move.
+The fix made it worse in a very telling way: P135's first hit now shows `visited=17` (a real multi-node cycle, not just a 1-hop self-loop) — blind re-linking is stitching stale nodes back into longer broken chains. I need to revert this specific remediation, keep the diagnostic, and get Fable's read on this new negative result before trying again.
+Fable refused this specific query for unclear reasons. Let me retry once with adjusted phrasing before escalating to GPT per the chain.
+Hit the relay boundary right after Fable's second refusal. Let me checkpoint the exact state before wrapping up.
+**Session 6 summary:**
+
+Picked up from session 5's incomplete pr_sweep fix, made substantial root-cause progress on the second bug blocking the criteria (the first, BUG3, was already fixed+validated in session 5):
+
+1. **Rebuilt and validated the ring-buffer pr_sweep fix** (0.10.87) session 5 had written but never compiled — caught a stale-mtime trap (module predated source) before it could waste a validation cycle.
+2. **Proved the ring-buffer mitigation was insufficient**: the same list corruption independently hangs unmodified stock kernel code (`drop_pagecache_sb`, zero protection) — fixing pr_sweep alone could never be sufficient.
+3. **Refuted GPT's sweep-pin tripwire hypothesis** with clean negative evidence (0.10.88), then proved via heartbeat instrumentation (0.10.89) that pr_sweep itself isn't the long-running lock holder during the hang.
+4. **Consulted Fable** with the full evidence trail; it correctly identified the corruption signature as a double `inode_sb_list_add()`, pointing at a specific `xfs_iget_cache_hit` code block.
+5. **Found and proved the actual mechanism** (0.10.90): `xfs_iget_recycle` regularly reuses a `struct inode` that VFS has already unlinked (`i_sb_list` empty) — confirmed 14 times live, every time via the same `mkdir`→`xfs_create` path on a reused inode under churn.
+6. **Attempted a fix (0.10.91), and it made things measurably worse** — cycle length grew from clean 1-hop self-loops to a 17-node cycle, and a previously-clean test started failing. Reverted the fix in source (not yet rebuilt/deployed — the currently *deployed* 0.10.91 is the bad build).
+7. Fable refused to engage on the follow-up question (twice); per RULE 5 the next consult should go to GPT.
+
+Criteria are **not met**. Full state, the working "zombie inode" theory for the failed fix, and the exact next steps are checkpointed in `.ccmemory` (`AAA-ccloopcc87-sess6-END-fix-reverted-fable-refused-next-GPT` and its sibling memories) so the next session can pick up immediately — starting with rebuilding the reverted diagnostic-only source before any further test runs.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

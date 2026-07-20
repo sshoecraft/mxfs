@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 50 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 49
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `51047f31-093c-4ad8-b992-08e057dd4db3`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3.jsonl`
+- approx context at last assistant turn: 503975 tokens
+- tools used: Bash×104 mcp__ccmemory__memory_get×37 Read×24 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_search×6 Edit×5 Monitor×5 ToolSearch×5 TaskCreate×4 TaskUpdate×4 Write×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/drc_reliability.sh
+- /src/mxfs/tests/suite_tcp_clean.sh
+- /src/mxfs/tests/drc_capture_clobber.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; echo "=== run49d per-node sample ==="; sed -n '/--- test1 ---/,/--- test3 ---/p'
+    cd /src/mxfs; SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; SCRATCH=$SCR nohup bash tests/drc_reliability.sh "" 24 3 8 >$SCR/s
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; echo "=== run49d: failrounds first-line per node + P13/DIRTYSKIP ==="; awk '/^--
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; tail -8 $SCR/sweep49_8node.log 2>/dev/null; echo "proc: $(ps -p 3172406 >/dev/nu
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; grep -E 'N=8 run=' $SCR/sweep49_8node.log 2>/dev/null; echo "proc: $(ps -p 31724
+    cd /src/mxfs; echo "=== drain_evict_data_blocks: incarn/ABA bypass present? ==="; awk '/mxfs_dir_drain_evict_data_blocks\(struct xfs_inode/,/^}/' xfs/xfs_mxfs_d
+    cd /src/mxfs; grep -n "mxfs_dir_drain_evict_data_blocks\|b_mxfs_dir_incarn\|mxfs_dir_data_buf_owner_mismatch" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; grep -n "^mxfs_dir_drain_evict_data_blocks\|^static.*mxfs_dir_drain_evict_data_blocks\|mxfs_dir_drain_evict_data_blocks(struct" xfs/xfs_mxfs_dlm.c
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; grep -E 'N=8 run=|TALLY|OVERALL' $SCR/sweep49_8node.log 2>/dev/null; echo "proc:
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; grep -E 'N=8 run=|TALLY|OVERALL' $SCR/sweep49_8node.log 2>/dev/null; echo "proc:
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; grep -E 'N=8 run=|TALLY|OVERALL' $SCR/sweep49_8node.log 2>/dev/null; echo "proc:
+    cd /src/mxfs; echo "=== mxfs_buf_xfsaild_skip_dir_write present? ==="; grep -n "mxfs_buf_xfsaild_skip_dir_write\|P40-INCARN-ABA-DIRSKIP\|incarn_aba\|b_mxfs_dir_
+    cd /src/mxfs; echo "=== mxfs_dir_data_track (modify-time stamp) ==="; awk '/mxfs_dir_data_track\(/{f=1} f{print NR": "$0} f&&/^}/{exit}' xfs/xfs_mxfs_dlm.c | gr
+    cd /src/mxfs; grep -nE "int mxfs_dirskip_enabled|mxfs_dirskip_enabled =|module_param.*dirskip" pal/linux/xfs_buf.c xfs/xfs_mxfs_dlm.c | head; echo "=== how dir_
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; grep -E 'N=8 run=|TALLY|OVERALL' $SCR/sweep49_8node.log 2>/dev/null; echo "proc:
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; echo "=== sweep r1 per-node failrounds + shutdown ==="; awk '/^--- test[0-9]+ --
+    SCR=/tmp/claude-1000/-src-mxfs/51047f31-093c-4ad8-b992-08e057dd4db3/scratchpad; grep -E 'N=8 run=|TALLY|OVERALL' $SCR/sweep49_8node.log 2>/dev/null; echo "proc:
+    cd /src/mxfs; echo "=== b_mxfs_grant_gen stamp/use sites ==="; grep -rn "b_mxfs_grant_gen" xfs/ pal/ | head -20; echo "=== i_dlm_cached_grant_gen (current grant
+    cd /src/mxfs; echo "=== does data_init birth-stamp b_mxfs_grant_gen? ==="; grep -n "b_mxfs_grant_gen\|b_mxfs_dir_epoch\|i_dlm_cached_grant_gen" xfs/libxfs/xfs_d
+    cd /src/mxfs; grep -nE "^int mxfs_dir_ex_write_guard|^int mxfs_dataclobber|^int mxfs_dir_subset_guard|^int mxfs_dir_stale_incarn_skip|^int mxfs_dir_refresh_inpl
+
+## Last text from previous session
+
+grant_gen` IS stamped at read-completion (xfs_da_btree.c:3871, only on a real fresh read — correct).
+- **GAP 1**: data_init birth-init stamps `b_mxfs_dir_epoch` but NOT `b_mxfs_grant_gen` — so fresh blocks aren't grant-stamped (would fail a writeback gate).
+- **GAP 2**: the writeback path (mxfs_buf_xfsaild_skip_dir_write) uses incarn/NL/content, NOT grant_gen — the FACE-1 gate is missing.
+
+Let me see how `dir_skip` is actually applied in the submit path (enforced vs detect-only) before implementing the grant_gen writeback gate.
+The writeback path already has several skip arms (incarn/NL detect-only-refuted; reflush/tenure under own params; and a sess41 arm). Let me read the sess41 arm to see its discriminator — the comment says it uses `b_mxfs_dir_gen < i_dlm_dir_gen` (the LOSSY/stuck dir_gen), whereas GPT prescribes the reliable `b_mxfs_grant_gen` vs `i_dlm_cached_grant_gen`.
+The writeback path already has an `ex_guard` arm (`mxfs_dir_ex_write_guard`: skip a dir write when NOT held EX — sess12's "only the EX holder may destage" rule, which is GPT's "writeback requires EX" gate) and a lossy `dc_stale` (using dir_gen, not grant_gen). GPT's complete gate = (not EX) OR (grant_gen mismatch). Let me check these param defaults — testing `mxfs_dir_ex_write_guard=1` is the cheapest experiment for FACE-1 if the clobbers are mode≠EX.
+Relay boundary reached. Let me record the precise next step and update tasks before wrapping up.
+Relay boundary reached. Brief summary of this session:
+
+## Session 49 summary — major advance: 8-node SHUTDOWN fixed; criterion not yet met
+
+**Criterion** (clarified): full `./run.sh {1,2,4,8} tcp` suite passing 100% — dir_reuse_coherency was the headline 8-node blocker.
+
+**FIXED + BAKED (build 3B0EB406):** The 8-node test was *shutting down* (not just losing dirents as the prior handoff claimed). Root-caused it: `dir_epoch_adopt=1` (a sess14–48 default) forced `mxfs_dlm_reload_inode` to bypass the P33/P43 keep-stale guards and destroy+rebuild the in-core data fork from a **not-yet-durable, stale-smaller disk dinode** → dir-fork shrink → a leaf-referenced block became a DELAYSTARTBLOCK hole → `xfs_dabuf_map` !HOLE_OK + `xfs_free_ag_extent` double-free → FS shutdown (8-node-only; 4-node clean). Baked `dir_epoch_adopt=0`. **Verified: shutdowns eliminated** (run49c PASS 8/8, 0 RDMISS). Confirmed it won't regress read-coherency (the EX-gated P43/P33 guards already let PR readers adopt grows/deletes).
+
+**Remaining residual (the 130-session core):** flaky (~1 PASS/4 FAIL) DURABLE write-side dir-block lost-update, NO shutdown — two faces: FACE1 = xfsaild flushes a stale block-0 over a peer's durable add (`comm=xfsaild`, daddr=120, disk_cnt=buf_cnt+1, all nodes agree); FACE2 = reader enumerates a stale cached block (lookup_fail=0, readdir-short). 4-node PASSES.
+
+**GPT-5.5 consult (RULE 5, justified — 130-session core, param space + enforce-skips refuted):** the fix is DLM-grant-epoch authority — a buffer is valid only if its stamped epoch == the inode's current grant epoch; stamp at read-completion + birth-init (NEVER writeback/modify); gate read/writeback/modify; invalidate-on-demote. This defeats both the live-clobber and the dead-incarnation ghost without content comparison.
+
+**Concrete next step** (recorded in `sess49-NEXT-add-grant-gen-writeback-gate-exguard-already-on`): the foundation already exists (`b_mxfs_grant_gen`, stamped at fresh read). `mxfs_dir_ex_write_guard=1` (not-EX writeback skip) is already on yet the clobber persists → clobbers are mode==EX, so the missing piece is the **grant-epoch writeback gate**: (1) birth-stamp `b_mxfs_grant_gen` at `xfs_dir3_data_init`; (2) add a writeback-skip arm `b_mxfs_grant_gen != 0 && != i_dlm_cached_grant_gen` (reliable epoch, not the lossy dir_gen). Then test FACE-2 read gate if readdir-short persists.
+
+All findings persisted across 8 `sess49-*` ccmemory entries. Marker NOT written — criterion unmet, relay continues from the grant-epoch writeback-gate implementation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

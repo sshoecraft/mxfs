@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 32 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 31
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `64328b22-9a90-4fd3-90d9-2aeae133af28`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/64328b22-9a90-4fd3-90d9-2aeae133af28.jsonl`
+- approx context at last assistant turn: 502929 tokens
+- tools used: Bash×64 Read×25 mcp__ccmemory__memory_get×8 Edit×7 TaskUpdate×4 TaskCreate×3 ToolSearch×3 mcp__ccmemory__memory_write×3 mcp__ask_gpt__query×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do timeout 12 $SSH $n "$PF" 'dmesg -C 2>/dev/null' >/dev/null 2>&1 && echo "$
+    cd /src/mxfs; echo "=== reason ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs["2/tcp"].reason' criteria.json 2>/dev/null; ech
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 16 $SSH $n "$PF" ' echo "--- RDMISS detail 
+    cd /src/mxfs; echo "=== DIR-STALE-SKIP site ==="; grep -rn "DIR-STALE-SKIP" xfs/libxfs/xfs_da_btree.c xfs/*.c xfs/libxfs/*.c pal/linux/*.c | head
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n DIR-STALE-SKIP state breakdown ====="; timeout 16 $SSH $n "
+    cd /src/mxfs; echo "=== written_seq bump sites + mxfs_dir_buf_is_undestaged ==="; grep -rn "b_mxfs_written_seq\|mxfs_dir_buf_is_undestaged\|b_mxfs_logged_seq" p
+    cd /src/mxfs; echo "=== xfs_log_force usage in dlm/drain paths ==="; grep -rn "xfs_log_force\|xlog_cil\|xfs_ail_push_all_sync\|xfs_log_force_seq" xfs/xfs_mxfs_d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n fence markers (build 5E706CBF run) ====="; timeout 16 $SSH 
+    cd /src/mxfs; echo "=== b_mxfs_dir_incarn assignments (where stamped) ==="; grep -rn "b_mxfs_dir_incarn\s*=" xfs/libxfs/xfs_da_btree.c xfs/xfs_mxfs_dlm.c pal/li
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 16 $SSH $n "$PF" ' echo "--- release-stale 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do timeout 12 $SSH $n "$PF" 'dmesg -C 2>/dev/null' >/dev/null 2>&1 && echo "$
+    cd /src/mxfs; echo "=== reason (dirskip=1) ==="; jq -r '.categories[].tests[] | select(.name=="dir_reuse_coherency") | .runs["2/tcp"].reason' criteria.json 2>/d
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; for n in test1 test2; do echo -n "$n: "; timeout 12 $SSH $n "$PF" 'mount | grep -q "on /mnt/shared 
+    cd /src/mxfs; echo "=== regression check: reload-heavy tests with P116 fix (build 5E706CBF) at $(date -u +%T) ==="; timeout 580 ./run.sh 2 tcp cache_coherency c
+    cd /src/mxfs; echo "=== where mxfs_dir_evict_data_blocks is CALLED (acquire path) ==="; grep -rn "mxfs_dir_evict_data_blocks\|consumer_refresh\|mxfs_dir_consume
+    cd /src/mxfs; echo "=== dir_force_evict module param name ==="; grep -rn "mxfs_dir_force_evict\|dir_force_evict" xfs/xfs_mxfs_dlm.c | grep -iE "module_param|MOD
+    cd /src/mxfs; echo "=== xfs_dir3_data_init + the block-add/convert read path ==="; grep -n "xfs_dir3_data_init\b" xfs/libxfs/xfs_dir2_data.c | head; echo; grep 
+    cd /src/mxfs; echo "=== build $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|xfs_dir2_data.c.*warning|m_mxfs_dlm|mxfs_v5_dlm_is_sin
+    cd /src/mxfs; grep -n '#include "xfs_mxfs_dlm.h"\|#include "../dlm/v5_mount.h"\|#include "xfs_dir2_priv.h"' xfs/libxfs/xfs_dir2_data.c | head
+    cd /src/mxfs; echo "=== rebuild $(date -u +%T) ==="; make modules 2>&1 | grep -iE "error|implicit|undefined|xfs_dir2_data.c.*warning" | grep -v "force_peer_flus
+
+## Last text from previous session
+
+ 2nd GPT consult (RULE 5: GPT 2× before Gemini).
+GPT-5.5's 2nd consult is decisive. The "bounded-wait-then-skip pinned" is the correctness hole, and the **most likely root** is one of:
+- **(a)** `xfs_trans_read_buf()` returns a cached stale XBF_DONE block 0 without disk I/O (cache_coherency passes because the metadata path doesn't always cold-read), OR
+- **(b)** this node's **stale inode data-fork** makes it treat block 0 as new/hole → enters `xfs_dir3_data_init()` (get_buf) → **zeroes a reused daddr that already holds the peer's durable dirents** (ABA clobber).
+
+GPT's recommended decisive detector: catch `xfs_dir3_data_init(lblk=0)` when a coherent raw read of that daddr already holds live dirents. Let me find `xfs_dir3_data_init` and add it.
+`xfs_dir3_data_init` uses `xfs_da_get_buf` (line 736) — the **get_buf path that does NOT read from disk**, exactly GPT's ABA concern. If a node calls this on a logical block whose physical daddr already holds the peer's durable dirents, it **zeroes them**. Let me add GPT's decisive detector: right after get_buf, plain-read the daddr; if it already holds live dir dirents, the ABA clobber is confirmed.
+Let me build and fix any missing includes.
+I've hit the relay boundary. Let me fix the build (missing include) so the next session has a clean, ready-to-run detector build, then summarize.
+Build clean (`63035077`) — the P31E-DATAINIT-ABA detector is ready (log-only, safe to run). Let me record the precise next-step for continuation, then summarize.
+## Session 31 Summary
+
+**Criterion (`./run.sh 2 tcp` 100%) NOT met** — `dir_reuse_coherency` still fails (16/17). Marker **not** written (honest).
+
+### Real progress this session
+
+**FIXED one of the failure faces (FACE B) — verified, regression-free.** The inode-revert / `P26-IGET-FAIL` / `lookup_fail` face: a dirent pointed at an inode that read **free** in-core while the coherent disk showed it **live** (`cached_disk_mode=0x81a4`). Root: the `P116-RELOAD-SELFCLOBBER-SKIP` guard kept the in-core inode only when **dirty**, but by verify-time the node's own create is checkpointed-clean, so the reload adopted the stale-free disk image and reverted the node's own live inode → ENOENT.
+
+**Fix (build `5E706CBF`, KEEP):** in `mxfs_dlm_reload_inode`, keep the in-core inode when the node **still holds the DLM grant** (`i_dlm_mode != MXFS_LOCK_NL`) — grant ownership, not dirtiness, is the authority (per the `i_dlm_epoch` invariant; node-affine inode alloc makes a held grant authoritative). Result: `P-RELOAD-IOPS-REWIRE new_mode=00 = 0×`, `P26-IGET-FAIL = 0×`, and cache_coherency / zero_silent_loss / crash_consistency all **PASS 2/2** (no regression).
+
+### Remaining blocker fully diagnosed
+Sole residual = **dir-DATA-block first-wave dirent loss** (`readdir ~185/200`, e.g. node1_f1..f12). Confirmed **all** release/acquire architectural fixes are already present and working (CIL-force + drain + stale on release; force-evict default on acquire). Refuted `dirskip=1` (hangs).
+
+### Two GPT-5.5 consults (RULE 5)
+1st confirmed the release-side CIL-force architecture (already implemented). 2nd identified the likely root: either (a) `xfs_trans_read_buf` returns a **cached stale XBF_DONE** block 0, or (b) a **stale inode data-fork** makes the node treat block 0 as new → `xfs_dir3_data_init` (get_buf) **zeroes a reused daddr holding the peer's durable dirents** (ABA). The "bounded-wait-then-skip pinned dir buffer" is the core correctness hole.
+
+### Left ready for next session
+Build **`63035077`** = FACE B fix + log-only **P31E-DATAINIT-ABA detector** (`xfs_dir3_data_init`). Next: run `dir_reuse_coherency`, grep `P31E-DATAINIT-ABA`. If it **fires** → stale-inode-fork ABA confirmed (fix = refresh dir inode fork at acquire); if **not** → cached-stale-read path (fix = force cold-read of block 0, never skip a pinned old-epoch base). Exact instructions + GPT verdicts in memory `sess31-GPT2-ABA-datainit-detector-next-run`. Three KEEP detectors and the FACE B fix carry forward.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 72 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 71
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `6dc2d5cd-17c0-4b75-a8ce-7a158f91224a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6dc2d5cd-17c0-4b75-a8ce-7a158f91224a.jsonl`
+- approx context at last assistant turn: 260755 tokens
+- tools used: Bash×73 mcp__ccmemory__memory_get×6 Edit×4 Read×4 Write×3 ToolSearch×2 AskUserQuestion×1 TaskStop×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tools/prep_qnap_node.sh
+- /src/mxfs/scripts/qnap_storm.sh
+- /src/mxfs/SCST_PROBLEM.md
+- /src/mxfs/scripts/qnap_scale.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== reference_network.md ==="; cat .ccmemory/reference_network.md 2>/dev/null; echo; echo "=== project_test_cluster_scst.md ==="; sed -n '1,
+    ls -lat /tmp/claude-1000/-src-mxfs/6dc2d5cd-17c0-4b75-a8ce-7a158f91224a/tasks/ 2>/dev/null; echo "=== live snapshot-bash procs (excl current) ==="; ps -eo pid,e
+    echo "=== D-state (NFS-stuck) procs ==="; ps -eo pid,stat,etime,cmd 2>/dev/null | awk '$2 ~ /D/ {print}' | grep -v "ps -eo" | head; echo "=== any root find/grep
+    echo "=== ssh/sshpass procs ==="; pgrep -af "sshpass|ssh -o|ssh root@" 2>/dev/null | grep -v pgrep | grep -v "$$" | head; echo "=== established conns to test no
+    PF=/tmp/.mxfs_pass; echo "=== pve1 reachable? ==="; timeout 3 bash -c "echo > /dev/tcp/192.168.1.80/22" 2>/dev/null && echo "pve1:22 OPEN" || echo "pve1:22 clos
+    cd /src/mxfs; PF=/tmp/.mxfs_pass echo "=== clean all 16: umount/rmmod, re-login QNAP ===" for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain|awk '
+    cd /src/mxfs; grep -vE "Warning|Unauthorized|^\[" /tmp/qnap_fua2.log | grep -iE "teardown|form |join |FAIL|MOUNT|MKFS|PREP|refusing|DIAG" | head -25
+    cd /src/mxfs; PF=/tmp/.mxfs_pass echo "=== virsh destroy+start all 16 ===" for n in $(seq 1 16); do ( sudo virsh destroy test$n >/dev/null 2>&1; sudo virsh star
+    cd /src/mxfs; PF=/tmp/.mxfs_pass echo "=== prep QNAP on all 16 (staggered to avoid discovery storm) ===" for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.lo
+    cd /src/mxfs; rm -f /tmp/qnap_fua3.log INSMOD_OPTS="force_transport=1 fua_disable=0" timeout 280 bash scripts/qnap_storm.sh /src/mxfs/mxfs.ko 100 1 1 2>&1 | tee
+    cd /src/mxfs; echo "=== form failure detail from run3 log ==="; grep -vE "Warning|Unauthorized" /tmp/qnap_fua3.log | grep -iE "form test1|MKFS|MOUNT|PREP|DIAG|P
+    cd /src/mxfs; PF=/tmp/.mxfs_pass echo "=== iSCSI conn errors per node ===" for n in $(seq 1 16); do ip=$(getent hosts test$n.vm.localdomain|awk '{print $1}'); c
+    cd /src/mxfs; echo "=== tune_iscsi_tcp.sh ==="; cat scripts/tune_iscsi_tcp.sh 2>/dev/null; echo "=== current iscsi timeo on test1 (QNAP node) ==="; PF=/tmp/.mxf
+    cd /src/mxfs; PF=/tmp/.mxfs_pass; TGT=iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772 echo "=== apply iSCSI hardening (noop 30s + 16MB window) to all 16, l
+    cd /src/mxfs; rm -f /tmp/qnap_fua4.log INSMOD_OPTS="force_transport=1 fua_disable=0" timeout 280 bash scripts/qnap_storm.sh /src/mxfs/mxfs.ko 100 1 1 > /tmp/qna
+    echo "=== locate SCST source (bounded) ==="; for d in /home/steve/src /usr/src /root/src /home/steve /opt; do find "$d" -maxdepth 3 -type d \( -iname "scst*" -o
+    cd /src/mxfs; for d in /home/steve /data /root; do find "$d" -maxdepth 4 -type f \( -iname "scst_main.c" -o -iname "scst_targ.c" -o -iname "iscsi.c" \) 2>/dev/n
+    pgrep -af "find /home|find /data|find /root|mxfs_sshpass|qnap_storm|wa_iter" 2>/dev/null | grep -v pgrep | grep -v "$$"; echo "count=$(pgrep -af 'find /home|fin
+    pkill -9 -f "mxfs_sshpass.sh test3" 2>/dev/null; pkill -9 -f "DLM reload BAIL" 2>/dev/null; sleep 1; echo "remaining: $(pgrep -af 'mxfs_sshpass|wa_iter|find /ho
+    cd /src/mxfs; PF=/tmp/.mxfs_pass; chmod +x scripts/qnap_scale.sh echo "=== virsh reset all 16 ===" for n in $(seq 1 16); do ( sudo virsh destroy test$n >/dev/nu
+
+## Last text from previous session
+
+sing yet**, but it's a *different, more tractable* kind of broken — clean failures (mount fails, ENOENT) instead of silent data loss + shutdown. The remaining problems split into iSCSI tuning (likely fixable, just applied) and genuine MXFS join/coherency behavior under the 16-node storm (real, fixable in mxfs).
+
+The blunt truth: **every run I've done today has been rushed and contaminated** (orphaned procs, wedged nodes, back-to-back without clean resets). I have not produced a single trustworthy clean 16-node QNAP+TCP result. Before I claim QNAP+TCP is "fucked up" or "fine," I owe you exactly one disciplined run: clean reset → hardened iSCSI → single iter → read the actual numbers. Want me to do that one clean run now, or hold?
+That's the right call — a scaling sweep finds the wall precisely. Let me build a clean scaling harness (1→2→4→8→16 nodes on QNAP + TCP DLM + FUA), reporting silent-loss, mounted count, and iSCSI conn-errors at each step so the wall is unambiguous.
+Harness ready. For a trustworthy wall I need a clean start (last run left nodes half-mounted/possibly wedged). Reset all 16, re-attach QNAP (hardened iSCSI settings persist in `/etc/iscsi/nodes` across the power-cycle):
+Caught a problem: `noop_out_timeout=5` on **all** nodes — my earlier hardening got wiped. The reason: `prep_qnap_node.sh` runs `iscsiadm -m discovery`, which **re-creates the node records from `iscsid.conf` defaults** (still 5s), overwriting the per-record update. The durable fix is to harden `iscsid.conf` itself *before* discovery. Let me bake that into the prep script:
+Hit the relay boundary — wrapping up here. Brief summary of this session:
+
+## What this session established
+
+**The big finding:** The `zero_silent_loss` 1600-dir loss is the **SCST clyde-loopback nexus storm**, not MXFS corruption. Proven by switching the test rig to **direct VM→QNAP iSCSI + TCP DLM** (your suggestion): zero reservation conflicts, zero FS shutdowns, FS stayed up through the storm. Also proven `mxfs_scsipr_preempt` is **not even compiled in** (`dlm/mount.c` absent from Kbuild) — which invalidates the last ~5 sessions' "a peer preempts a live node's PR key" theory.
+
+**SCST hand-off done:** `/src/mxfs/SCST_PROBLEM.md` spells out the three linked defects for the dedicated SCST session — (1) leaked `iscsi_conn_cleanup` kthread → permanent `EXEC_CHECK_BLOCKING` device wedge; (2) CAW↔READ atomic deadlock on same LBA; (3) serialized-CAW drain exceeds the 60s initiator timeout.
+
+**QNAP-direct path is not clean yet either**, but it's a *different, tractable* kind of broken (clean mount failures / ENOENT, not silent loss + shutdown). Two issues to separate: iSCSI `conn error 1020` drops (root: `noop_out_timeout=5s` too aggressive for the routed path) and real MXFS join/coherency behavior under the 16-node storm (needs `fua_disable=0` for separate-initiator coherency).
+
+## In progress (your directive: scaling sweep to find the wall)
+
+Built `scripts/qnap_scale.sh` — runs the storm at 1→2→4→8→16 nodes (TCP DLM + FUA), reporting per-step `mounted/expected/found/silent/conn_errs/shutdown` so the wall is unambiguous. Also `tools/prep_qnap_node.sh` + `scripts/qnap_storm.sh`.
+
+**Just fixed (last edit):** `prep_qnap_node.sh` now bakes `noop_out_timeout=30` into `iscsid.conf` *before* discovery — the earlier hardening was being wiped because `iscsiadm -m discovery` rewrites node records from `iscsid.conf` defaults (still 5s).
+
+## Immediate next step for the next session
+1. Re-prep all 16 with the fixed script: confirm `noop_out_timeout=30` actually sticks this time.
+2. `bash scripts/qnap_scale.sh 100 1 2 4 8 16` (foreground, ~6 min) → read the per-N `RESULT:` lines to identify the wall.
+
+QNAP facts: target `iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772` @ `192.168.1.4`, no CHAP, LUN = `/dev/sdb` 50G; `force_transport=1` (TCP DLM), `fua_disable=0`. Cluster is currently reset + logged in but with stale `noop=5` (re-prep needed). Criteria still 15/19 PASS — marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

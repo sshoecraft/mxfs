@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 54 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 53
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `7ba77e77-ab4e-4293-96a5-399031997af5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7ba77e77-ab4e-4293-96a5-399031997af5.jsonl`
+- approx context at last assistant turn: 256010 tokens
+- tools used: Bash×92 Edit×10 Read×7 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /home/steve/.claude/projects/-src-mxfs/memory/sess87_lessons.md
+- /home/steve/.claude/projects/-src-mxfs/memory/MEMORY.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 260 bash tests/reset4.sh 4 >/tmp/reset_s53d.log 2>&1; echo "reset-rc=$?"; tail -2 /tmp/reset_s53d.log; SSH=tools/mxfs_sshpass.sh; P=/tmp/.
+    cd /src/mxfs; grep -rn "xfs_dialloc_pick_ag\|node_slot.*maxagi\|node-affine\|node_affine\|pick_ag" xfs/libxfs/xfs_ialloc.c | head -20
+    cd /src/mxfs; sed -n '1987,2095p' xfs/libxfs/xfs_ialloc.c
+    cd /src/mxfs; tail -3 /tmp/reset_s53d.log 2>/dev/null; echo "=== slots + maxagi + geometry ==="; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 te
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/7ba77e77-ab4e-4293-96a5-399031997af5/tasks/bctjct6sc.output 2>/dev/null | tail -4; echo "=== geometry via chk_mxfs 
+    cd /src/mxfs; echo "=== reset task running? ==="; ps aux | grep -c "[r]eset4.sh"; echo "=== test3 reachable? ==="; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass;
+    cd /src/mxfs; echo "=== reset output ==="; cat /tmp/claude-1000/-src-mxfs/7ba77e77-ab4e-4293-96a5-399031997af5/tasks/bctjct6sc.output 2>/dev/null; echo "=== res
+    cd /src/mxfs; pkill -9 -f reset4.sh 2>/dev/null; sleep 1; export LIBVIRT_DEFAULT_URI=qemu:///system; echo "=== destroy+start test3 ==="; virsh destroy test3 2>&
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; virsh domstate test3 2>&1; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 8 $SSH test3.vm.locald
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; export LIBVIRT_DEFAULT_URI=qemu:///system; for i in $(seq 1 30); do if timeout 6 $SSH test3.vm.local
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== geometry from test1 ==="; timeout 25 $SSH test1.vm.localdomain $P "dmesg 2>/dev/null | gre
+    cat /tmp/claude-1000/-src-mxfs/7ba77e77-ab4e-4293-96a5-399031997af5/tasks/bnrcmz2qy.output 2>/dev/null | tail -4
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; timeout 10 $SSH test3.vm.localdomain $P "uptime" 2>&1 | tail -1; export LIBVIRT_DEFAULT_URI=qemu:///
+    cd /src/mxfs; export LIBVIRT_DEFAULT_URI=qemu:///system; virsh destroy test3 2>&1; sleep 5; virsh start test3 2>&1
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for i in $(seq 1 40); do if timeout 6 $SSH test3.vm.localdomain $P "echo up" >/dev/null 2>&1; then e
+    cd /src/mxfs; grep -nE "xfs_dialloc_ag\b|xfs_dialloc_ag_inobt|newino|XFS_AGINO_TO_INO.*newino|\*new_ino =|alloc_ag\(" xfs/libxfs/xfs_ialloc.c | head -20
+    cat /tmp/claude-1000/-src-mxfs/7ba77e77-ab4e-4293-96a5-399031997af5/tasks/bgo324zha.output 2>/dev/null | tail -3
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== ensure /src + /mnt/mxfs-src on test3 ==="; timeout 15 $SSH test3.vm.localdomain $P "mountp
+    cd /src/mxfs; sed -n '2150,2240p' xfs/libxfs/xfs_ialloc.c
+    cd /src/mxfs; sed -n '/^mxfs_inode_disk_di_size(/,/^}/p' xfs/xfs_mxfs_dlm.c | head -70
+
+## Last text from previous session
+
+the reset finished and inspect the actual node slots and maxagi.
+test3 is wedged (ssh dead, libvirt "running") from the corruption — reset is stuck on it. Let me hard-recover test3 and re-reset.
+test3 still booting. Let me wait for it with a background poll loop.
+While test3 boots, let me compute the AG of ino 4194435 and get the real node slots + maxagi from the live nodes to test the slot-collision hypothesis.
+Computed: ino 4194435 = AG 2, agino 131. With node slots 0,1,2,3 → AGs 0,1,2,3, AG2 is test3's affine AG. Both `.mxfs_barriers` (dir) and the colliding reg file are in AG2 — pointing to a **single-node double-alloc within its own AG**, or a peer wrapping into AG2. This needs allocation-event instrumentation. Let me check test3 boot status first.
+While test3 boots, let me design a decisive double-alloc detector. Let me examine where `xfs_dialloc` selects the free inode, so I can add a FUA check that the on-disk dinode is actually free (di_mode==0) at allocation.
+test3 is up. Let me ensure NFS mounts and run a full reset to get a clean 4-node cluster.
+Reset OK. Now let me add a decisive double-alloc detector: FUA-read the on-disk dinode at allocation time and flag if it's already live (`di_mode != 0`). Let me read the tail of `xfs_dialloc`.
+There's already a comment noting `xfs_iget` should catch reallocation. Let me look at the existing FUA dinode-read helper to reuse for a detector at allocation time.
+I've reached the relay boundary. Let me save a memory checkpoint of this session's findings before wrapping up.
+Let me add the index pointer to MEMORY.md.
+Memory checkpoint saved. The criterion is **not** met, so I am not writing the criteria-met marker.
+
+## Session summary
+
+**Two concrete advances this session, both proven via RULE-4 instrumentation:**
+
+### Fix landed (build `77C90663`, deployed test1–4, KEEP)
+The cache_coherency shutdown during `unlink_visibility` was traced to `mxfs_dlm_reload_inode`: it called `xfs_idestroy_fork()` **before** `xfs_inode_from_disk()` validates the disk image. The `down_write_trylock` spin loop opened a wide window in which a concurrent re-read of the **shared inode-cluster buffer** mutated `dip` between any check and `from_disk` → verify failed *after* the fork was destroyed → half-built in-core inode → next `xfsaild` flush → `xfs_iflush_cluster` SHUTDOWN (and a corruption-propagation cycle: bad in-core flushed to disk with a valid CRC, peers reload it). **Fix:** after taking `i_lock` exclusive (spin window closed), copy the dinode into a stable private snapshot, verify the *snapshot*, retry torn reads, and bail keeping the authoritative in-core inode on persistent failure — only a verified, immutable snapshot is fed to `from_disk`. This eliminated the reload shutdown.
+
+### Deep root finally pinned: **inode double-allocation**
+With the shutdown gone, the failure resolved to a hang: `/mnt/shared/.mxfs_barriers` (ino 4194435 = AG2, agino 131) is a **directory in-core but a regular file on disk on all 4 nodes**, with `P-RELOAD-TYPEFLIP` showing **identical generation** (411917721) for both types. Same gen + different type = the inode number was allocated twice with no intervening free (a free+realloc would bump `di_gen`). The reg-file write won on disk, so the `.mxfs_barriers` dirent resolves to a reg dinode → every barrier `mkdir` fails → all sub-tests time out. This is the long-standing AG/inode double-alloc bug (sess44–52 family). Node-affine allocation puts AG2 with test3, suggesting either a single-node own-AG double-alloc or a peer wrapping into AG2.
+
+### Next session
+1. Add the FUA `di_mode != 0` detector at `xfs_dialloc` (`xfs_ialloc.c` ~L2168, reuse the FUA read from `mxfs_inode_disk_di_size`) to prove single- vs cross-node and whether finobt showed a live inode as free.
+2. Then escalate to Gemini (RULE 5 — this class has resisted ~10 sessions) with the clean same-gen dir/reg evidence.
+
+Cluster state: reset clean, 4 nodes mounted on `77C90663`. Full detail in `sess87_lessons.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

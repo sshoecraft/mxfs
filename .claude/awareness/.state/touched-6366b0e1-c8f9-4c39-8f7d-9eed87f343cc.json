@@ -1,0 +1,18 @@
+{
+  "source": [
+    "pal/linux/kern.c",
+    "pal/pal.h",
+    "pal/linux/user.c",
+    "pal/linux/xfs_super.c",
+    "dlm/dlm_caw.h",
+    "dlm/dlm_caw.c",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

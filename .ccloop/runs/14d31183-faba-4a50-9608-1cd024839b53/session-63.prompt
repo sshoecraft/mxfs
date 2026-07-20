@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 63 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 62
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `bfa4cc6b-9b8d-4554-bf40-4719c5b86f9a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/bfa4cc6b-9b8d-4554-bf40-4719c5b86f9a.jsonl`
+- approx context at last assistant turn: 250437 tokens
+- tools used: Bash×38 Read×15 Edit×8 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; awk 'NR>=4630 && NR<=5260 && (/mxfs_dir_evict_bmbt_blocks/||/mxfs_dir_drain_evict_data_blocks/||/mxfs_dir_evict_data_blocks/||/xfs_iread_extents/|
+    cd /src/mxfs; grep -n "mxfs_dlm_reload_inode" xfs/xfs_mxfs_dlm.c | head; echo "--- def line ---"; grep -n "^mxfs_dlm_reload_inode\|^static.*mxfs_dlm_reload_inod
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep
+    export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16); do $VIRSH st
+    cd /src/mxfs; nohup ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl62c.log 2>&1 & echo "launched pid $!"; f=/tmp/zsl62c.log; for i 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; declare -A s1 s2 s3; t1=0;t2=0;t3=0; echo "=== per-node first shutdown signature ==="; for h in $(se
+    cd /src/mxfs; grep -n "P59-IREAD\|ir.loaded != ifp->if_nextents\|P59-IREAD-MISMATCH" xfs/libxfs/xfs_bmap.c | head; echo "--- context around 1286 ---"; sed -n '1
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P59-IREAD-MISMATCH samples (loaded vs if_nextents, broot_lvl) ==="; for h in 1 4 7 8 9 10;
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P61-BMBTSCAN where leafrecs != if_nextents (single-leaf desync) ino=131 ==="; for h in $(s
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P60-BMBTWRITE owner=131 (leaf writes actually submitted to bio) ==="; for h in $(seq 1 16)
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undeclared|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep
+    export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16); do $VIRSH st
+    cd /src/mxfs; nohup ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl62d.log 2>&1 & echo "launched pid $!"; f=/tmp/zsl62d.log; for i 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== per-signature totals + P60-BMBTWRITE owner=131 + P62-IFLUSH-FORCE ==="; for h in $(seq 1 1
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    export VIRSH="virsh -c qemu:///system"; for n in $(seq 1 16); do $VIRSH destroy test$n >/dev/null 2>&1 & done; wait; sleep 3; for n in $(seq 1 16); do $VIRSH st
+    cd /src/mxfs; nohup ./tests/criteria/zero_silent_loss.sh --iters 1 --dpn 100 --mode 1 > /tmp/zsl62e.log 2>&1 & echo "launched pid $!"; f=/tmp/zsl62e.log; for i 
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== P62-IFLUSH-FORCE for ino=131 (did hook run? nheld/wrote) ==="; for h in $(seq 1 16); do n=
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test4/test6 (writers): did force-write bio land? P60-BMBTWRITE owner=131 ==="; for h in 4 
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|LD \[M\].*mxfs.ko" | head; echo "rc=${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+an't tell which. Let me make it always-on to settle it.
+`xfs_iflush(131)` → my hook ran on only **test4/test6** (the EX-holders/writers), with `nheld=1 wrote=1` — so it *did* force-write the leaf there. Yet reloaders still see di>leaf. Either the force-write's bio didn't land, or di=N reaches disk via a **non-iflush path** (release drain) that bypasses my hook. Let me check P60-BMBTWRITE on the writers and how the release path publishes the dinode.
+**Pinned the mechanism.** On the writers (test4/test6), my force-write *did* land the leaf bio (`P60-BMBTWRITE owner=131 daddr=25048232 numrecs=14`), but at that flush `P62-IFLUSH-FORCE` reported `if_nextents=15` and `nheld=1`. So the leaf buffer written holds **14 records while di_nextents=15**, and only **1** leaf was found/flushed though broot_lvl=1 (likely a post-split 2nd leaf with the 15th record that isn't cached/flushed). The skew is structural in-core: **the on-disk leaf sum lags `if_nextents` by 1**, so flushing the leaf still writes short. Let me checkpoint this decisive finding.
+To distinguish "single leaf, iext ahead of bmbt" vs "post-split 2nd leaf uncached", I need the broot's leaf-pointer count and the summed leaf records. Let me add those to the always-on P62-IFLUSH-FORCE log (cheap, decisive per RULE 4).
+Hit the relay boundary. Let me add the missing `leafsum` declaration and build to leave the tree in a compiling state.
+Tree compiles cleanly (build `360E8B1A`). Relay boundary reached — wrapping up honestly: **`zero_silent_loss` still FAILS, marker NOT written.**
+
+## Session 62 summary
+
+**Criteria state:** 15 PASS, 4 FAIL (`zero_silent_loss`, `fence_during_write`, `rsync_paired`, `posix_semantics_multi16`). Worked `zero_silent_loss`.
+
+**Acknowledging the user's "you are seriously struggling":** fair. This blocker is genuinely deep and plagued by run-to-run variance that masked progress. This session I cut through that by switching from the (useless, variance-dominated) `total_fs_silent` count to **per-signature dmesg counts**, which let me actually pin the mechanism.
+
+**What I proved (RULE 4, all instrumented):**
+1. The shutdown cascade has 3 faces (`ir.loaded != if_nextents`, dir-block `HOLE`, bmbt `i != 1`) — all one root: the shared storm dir (ino 131) has `di_nextents = N` on disk while its bmbt leaf records sum to `N-1`.
+2. **The skew is genuinely on-disk** — adding a reload-time bmbt-leaf eviction (forces a cold disk read) did *not* remove signature 1, ruling out reader-side stale cache.
+3. **Pinned the exact mechanism**: on the EX-holder, at `xfs_iflush(131)`, `P62-IFLUSH-FORCE if_nextents=15 nheld=1` and the leaf bio that lands is `P60-BMBTWRITE numrecs=14`. **The leaf written is structurally one record behind `if_nextents`** — so forcing the leaf flush still writes a short leaf, and `di_nextents` is published ahead of it. `broot_lvl=1`, only 1 leaf found/cached.
+
+**Refuted:** reload-fork-shrink hypothesis (`shrink=1` fired 0×; reload state is consistent).
+
+**Code landed (build `360E8B1A`, all KEEP-able / harmless):** reload bmbt-eviction (correct, proved skew is on-disk); `mxfs_iflush_force_bmbt_durable` (unconditional leaf destage before dinode — lands the bio but writes the short leaf, so ineffective alone); always-on probes `P62-IFLUSH-FORCE` (now logs `leafsum`/`broot_nrecs`) and `P62-RELOAD-FORK-SHRINK`.
+
+**Next session (decisive fork, deploy `360E8B1A` and run):** the new `leafsum`/`broot_nrecs` fields will distinguish — if `broot_nrecs=2` → a post-split 2nd leaf (holding the Nth record) isn't being cached/flushed (fix: enumerate leaves via the broot pointers, not the lossy rhashtable walk); if `broot_nrecs=1` and `leafsum < if_nextents` → the in-core iext tree is genuinely ahead of the bmbt (instrument the `xfs_iext_insert`/`xfs_btree_insert` lockstep in the dir-grow alloc path, suspect the MXFS ILOCK-drop-across-CAW-poll). Two memories written: `sess62-zsl-bmbt-leaf-write-never-submitted-confirmed` and `sess62-zsl-leaf-buffer-lags-nextents-by-one`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 51 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 50
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `c98cf3b8-9124-4943-b415-e8be3d882246`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/c98cf3b8-9124-4943-b415-e8be3d882246.jsonl`
+- approx context at last assistant turn: 503051 tokens
+- tools used: Bash×104 Read×29 mcp__ccmemory__memory_get×10 Edit×7 mcp__ccmemory__memory_write×2 ToolSearch×1 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/tcp/reliability_loop.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; if grep -q 'RELIABILITY: ' /tmp/reliability_fixB.log 2>/dev/null; then echo "DONE:"; grep -E 'RUN [0-9]:|PARTIAL|RELIABILITY:' /tmp/reliability_fi
+    cat /tmp/claude-1000/-src-mxfs/c98cf3b8-9124-4943-b415-e8be3d882246/tasks/biz510q0l.output 2>/dev/null | tail -25; echo "[end]"
+    cd /src/mxfs; grep -E 'RUN [0-9]: (PASS|PARTIAL)|RELIABILITY RUN [0-9]/3|RELIABILITY: ' /tmp/reliability_fixB.log 2>/dev/null; echo "--- relrun_1 final? ---"; g
+    cd /src/mxfs; LOG=/tmp/reliability_fixB.log; i=0; until grep -qE 'RUN 1: (PASS|PARTIAL)' "$LOG" 2>/dev/null; do sleep 15; i=$((i+1)); [ $i -ge 20 ] && break; do
+    cd /src/mxfs; echo "=== tcp_dlm_scaling FAIL reason in relrun_1 ==="; grep -A2 -E 'FAIL  tcp_dlm_scaling|tcp_dlm_scaling' /tmp/relrun_1.log | head; echo "=== co
+    cd /src/mxfs; LOG=/tmp/reliability_fixB.log; i=0; until grep -q 'RELIABILITY: ' "$LOG" 2>/dev/null; do sleep 20; i=$((i+1)); [ $i -ge 60 ] && break; done; echo 
+    cd /src/mxfs; echo "=== MXFS_LOCK_ACQUIRE_WAIT_MS + MHT + bast defer constants ==="; grep -rnE 'MXFS_LOCK_ACQUIRE_WAIT_MS|inode_mht_ms|MHT|bast_defer|D9.*pin|mh
+    cd /src/mxfs; grep -E 'RUN [0-9]: (PASS|PARTIAL)|^      FAIL|RELIABILITY: ' /tmp/reliability_fixB.log 2>/dev/null; echo "--- run2/3 in flight ---"; for f in /tm
+    cd /src/mxfs; LOG=/tmp/reliability_fixB.log; i=0; until grep -q 'RELIABILITY: ' "$LOG" 2>/dev/null; do sleep 20; i=$((i+1)); [ $i -ge 60 ] && break; done; echo 
+    cat /tmp/claude-1000/-src-mxfs/c98cf3b8-9124-4943-b415-e8be3d882246/tasks/brhmuzbb0.output 2>/dev/null | tail -15; echo "[end]"; cd /src/mxfs; grep -E 'RELIABIL
+    cd /src/mxfs; LOG=/tmp/reliability_fixB.log; i=0; until grep -q 'RELIABILITY: ' "$LOG" 2>/dev/null; do sleep 25; i=$((i+1)); [ $i -ge 40 ] && break; done; echo 
+    cd /src/mxfs; grep -E 'RUN [0-9]: (PASS|PARTIAL)|RELIABILITY: ' /tmp/reliability_fixB.log 2>/dev/null; echo "--- run3 in flight? ---"; for f in /tmp/relrun_2.lo
+    cd /src/mxfs; grep -E 'RUN [0-9]:|RELIABILITY:' /tmp/reliability_fixB.log 2>/dev/null; echo "=== run2 result ==="; grep -E 'done: ran=|FAIL ' /tmp/relrun_2.log 
+    cd /src/mxfs; echo "relrun_2: PASS=$(grep -c 'PASS ' /tmp/relrun_2.log 2>/dev/null) FAIL=$(grep -c 'FAIL ' /tmp/relrun_2.log 2>/dev/null)"; tail -1 /tmp/relrun_
+    cd /src/mxfs; LOG=/tmp/reliability_fixB.log; i=0; until grep -q 'RELIABILITY: ' "$LOG" 2>/dev/null || ! pgrep -f reliability_loop >/dev/null; do sleep 25; i=$((
+    cd /src/mxfs; echo "=== mxfs_dlm_lock retry wrapper ==="; grep -n 'mxfs_dlm_lock(' dlm/dlm.c | head; sed -n '/^int mxfs_dlm_lock(/,/^}/p' dlm/dlm.c | grep -nE '
+    cat /tmp/claude-1000/-src-mxfs/c98cf3b8-9124-4943-b415-e8be3d882246/tasks/bvcfmebwt.output 2>/dev/null | tail -8; echo "[end]"; cd /src/mxfs; grep -E 'RUN [0-9]
+    cd /src/mxfs; echo "relrun_2: PASS=$(grep -c 'PASS ' /tmp/relrun_2.log 2>/dev/null) $(grep -oE 'done: ran=[0-9]+' /tmp/relrun_2.log 2>/dev/null|tail -1)"; tail 
+    cd /src/mxfs; LOG=/tmp/reliability_fixB.log; i=0; until grep -q 'RELIABILITY: ' "$LOG" 2>/dev/null || ! pgrep -f reliability_loop >/dev/null; do sleep 30; i=$((
+    cd /src/mxfs; echo "=== reliability loop state ==="; grep -E 'RUN [0-9]:|RELIABILITY: ' /tmp/reliability_fixB.log 2>/dev/null; echo "loop alive: $(pgrep -f reli
+
+## Last text from previous session
+
+-suite lock traffic. Let me examine the acquire retry/stall path while waiting for the loop to free the cluster.
+**Critical finding:** `mxfs_dlm_lock` retries up to **60×** on -ETIMEDOUT, each waiting `MXFS_LOCK_ACQUIRE_WAIT_MS=1000ms` → a single stalled handoff can consume **~60s**, blowing the entire test window. So one intermittent handoff stall = the whole failure. Let me read the full retry loop to understand the budget precisely.
+The acquire budget is ~60s (60 retries × 1s), so one stalled handoff blows the window. This is the known cross-resource dir-EX↔AG-DLM distributed-deadlock / lost-message stall (sess13/sess33), worse under in-suite contention. I need the cluster free to characterize it. Let me check if the loop has finished.
+Loop still on run 2. Let me check run 2's status — it may have hit a stall too.
+Run 2 still on dir_reuse_coherency (~5min test). The stall is likely a single ~60s handoff deadlock (rounds 1-45 fast, round 46 stalled the full retry budget → op failed). I need the cluster free to characterize it. Let me wait for the loop to complete.
+Monitor set for loop completion (~up to 20min). While I wait for the cluster to free, let me study the documented cross-resource deadlock (sess13 cooperative-yield) to prepare the slowness fix.
+I've hit the relay boundary. Let me update the memory with the complete current state (Fix B + the slowness residual) before wrapping up.
+Memory updated. Let me do a final check of the reliability loop result for an accurate summary.
+I've reached the relay boundary. The reliability loop is still running in the background (it'll finish and free the cluster; I'm deliberately not killing it — that would wedge the module). Here's the session summary.
+
+## Session 50 summary
+
+**Major breakthrough: root-caused and fixed the directory-dirent RESURRECTION** (the 90-session `tcp_dlm_scaling`/`dlm_fairness` "durable leftover dirent" blocker family).
+
+**Root (PROVEN, RULE 4):** Not a DLM double-grant (refuted: `P106-STALE-EX`=0, `P-DOUBLEGRANT`=0, request-path already re-affirms, `purge_stale` is dead code). The real cause is the **cached-EX FAST-PATH `sf` 3-way merge** re-adding the node's **own** async-destaged-then-removed shortform dirent. I proved it with a new slow-path probe (`sfm_dbg` → `P-SFM-READD`): the leftover (`n1_i2_r119`→ino132) is re-added at `state=CACHED, peer_mod=0` — i.e. while the node holds the grant continuously (no peer could have modified). xfsaild async-destages an intermediate create; the node removes it in-core; the fast-path merge sees it on disk (`!ours !base`) and mis-classifies the node's own entry as a peer-add.
+
+**Fix B (KEEP, build `E67385C9`):** on a continuous-hold fast path the in-core fork is authoritative — don't adopt lagging disk. One-line gate at `xfs_mxfs_dlm.c:9018` (`mxfs_sf_fastpath_adopt`, default 0 = fixed). Correct by construction; verified fast-path re-adds dropped to 0/0.
+
+**Validation:** full `./run.sh 2 tcp` = **17/17 once** with Fix B.
+
+**Criterion NOT yet met.** Reliability run 1 (clean reboot+reformat) then FAILED `tcp_dlm_scaling` on a **different residual: SLOWNESS/stall** — `got=45/150 rounds, >60s window, both nodes`. Diagnosis: a single dir-EX/AG-DLM handoff stalls (the acquire retries 60×1s=60s in `dlm_lock_impl`), blowing the window. This is the sess13/sess33 **cross-resource dir-EX↔AG-DLM distributed-deadlock** / lost-message family, worse in-suite (tcp_dlm_scaling runs last, contaminated LUN). Standalone passes.
+
+**Next session:** read `/tmp/relrun_{1,2,3}.log` for stall consistency; reproduce the in-suite stall and instrument any DLM acquire taking >2s (seconds-scale = instrumentable, unlike the µs resurrection); fix the handoff stall root. Full diagnosis + fix direction saved in ccmemory `sess50-ROOT-resurrection-is-fastpath-sfmerge-readd-FIX-B`. Build `E67385C9` (Fix B) deployed on both nodes.
+
+I did not write the criteria-met marker — the 2-node tcp suite is not yet reliably 100% (the handoff-stall residual remains).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

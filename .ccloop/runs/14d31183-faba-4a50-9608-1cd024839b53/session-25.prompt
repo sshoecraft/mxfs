@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 25 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 24
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `67bdbba4-5079-4024-b95b-f6ef5e047eb9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/67bdbba4-5079-4024-b95b-f6ef5e047eb9.jsonl`
+- approx context at last assistant turn: 247286 tokens
+- tools used: Bash×75 Edit×26 Read×2
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/diag_vnop_profile.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -rn "i_dlm_unpublished = true" /src/mxfs/xfs --include="*.c"
+    bash -c ' ip1=$(getent hosts test1.vm.localdomain | awk "{print \$1}") timeout 30 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass " dmesg | grep -cE \"P128-REARM-U
+    bash -c ' ip1=$(getent hosts test1.vm.localdomain | awk "{print \$1}") timeout 30 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass " dmesg | grep -E \"P24-QUEUE|P24
+    grep -n "xfs_trans_commit\|xfs_icreate\|xfs_dir_create_new_child\|p132_tpre" /src/mxfs/xfs/xfs_inode.c | sed -n '1,20p'
+    sed -n '1500,1532p' /src/mxfs/xfs/xfs_inode.c
+    make modules 2>&1 | grep -cE " error"; modinfo mxfs.ko | grep srcversion; bash -c ' set +u; source tests/criteria/lib.sh 2>/dev/null teardown_all "test1 test2" 
+    bash -c ' ip1=$(getent hosts test1.vm.localdomain | awk "{print \$1}") timeout 90 tools/mxfs_sshpass.sh "$ip1" /tmp/.mxfs_pass " dmesg -C mkdir -p /mnt/shared/s
+    sed -n '138,145p' /src/mxfs/xfs/xfs_inode.h
+    grep -n "i_mxfs_self_created = false" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    make modules 2>&1 | grep -cE " error"; modinfo mxfs.ko | grep srcversion; bash -c ' set +u; source tests/criteria/lib.sh 2>/dev/null teardown_all "test1 test2" 
+    make modules 2>&1 | grep -E " error|Error" | head -5; echo "rc=$?"; ls -la mxfs.ko; modinfo mxfs.ko | grep srcversion
+    MXFS_PROF_FUNCS='xfs_vn_setattr xfs_ilock mxfs_dlm_ilock_begin mxfs_v5_dlm_inode_lock xfs_log_force mxfs_pal_scsi_read_fua_bdev mxfs_dlm_reload_inode' bash -c '
+    ip2=$(getent hosts test2.vm.localdomain | awk '{print $1}'); timeout 30 tools/mxfs_sshpass.sh "$ip2" /tmp/.mxfs_pass 'dmesg | grep -iE "starve|timeout|stall|ret
+    MXFS_PROF_FUNCS='xfs_log_force mxfs_v5_dlm_inode_lock' bash -c 'scripts/diag_vnop_profile.sh test1 test2' 2>&1 | grep -E "WALL|raw"
+    for i in 1 2; do MXFS_PROF_FUNCS='xfs_log_force' bash -c 'scripts/diag_vnop_profile.sh test1 test2' 2>&1 | grep WALL; done; for i in 1 2; do MXFS_PROF_FUNCS='xf
+    bash -c ' set +u; source tests/criteria/lib.sh teardown_all "test1 test2" >/dev/null 2>&1 fresh_cluster_mount test1 test2 >/dev/null 2>&1 || { echo MOUNT FAIL; 
+    grep -n "xfs_log_force" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -20; grep -n "^mxfs_ag_dlm_unlock\|mxfs_ag_dlm_unlock(" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -5
+    sed -n '9072,9200p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n '9200,9345p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -rn "mxfs_ag_yield_quantum\|MXFS_BAST_YIELD_QUANTUM\|MXFS_AG_YIELD_DOUBLE_THRESH" /src/mxfs/xfs/*.c /src/mxfs/xfs/*.h /src/mxfs/pal/linux/*.c 2>/dev/null |
+
+## Last text from previous session
+
+ which hit the backstop:
+All 5 queued dirs were claimed — yet all 5 are `unpub=1` again at utimensat. Something re-sets the flag after the claim. Finding all set-sites:
+Moving the queue site to just before the commit:
+Now the backstop gate in `mxfs_dlm_ilock_begin`:
+Initializing the new flag in `mxfs_dlm_inode_init` (where `self_created` is initialized):
+DIRSLOW 5 → 0, claims happening. But the build grep showed 1 error — verifying:
+Build clean. Now the full measurement — 2-node walls plus profile:
+The eager-drain path fires `xfs_log_force(SYNC)` whenever the per-AG yield quantum exhausts, even with zero peer contention. Checking the quantum values:
+Relay boundary reached — summarizing for the next session.
+
+## Session 24 summary
+
+**Gate status: scaling_curve still the open blocker; major progress this session.** Build `75C79BB3AF894FC795686EA` deployed and verified on test1/test2.
+
+### Walls (2-node parallel rsync, warm)
+- Solo: **2864-2939 ms** (improved from ~3070 baseline)
+- 2-node: test1 **3847-4356 ms** (~134% — under the 150% gate), test2 **4967-5507 ms** (~190% — still over). One transient 22s outlier on test2, not reproduced.
+
+### Fixes landed this session (each ftrace/dmesg-proven per RULE 4)
+1. **Self-created gate on P108/sess107 slot verifies** (`xfs_mxfs_dlm.c`, two sites in `mxfs_dlm_ilock_begin`): a never-BASTed self-created dir can't have lost its on-disk holder bit. `mxfs_v5_dlm_inode_held` 1610 → 2 calls/run (−320ms).
+2. **Self-created gate on `dir_ex_stale_refresh`**: the gen 0→1 arming by our own first read (`xfs_da_read_buf:2925`) is not a peer modify; without the gate the refresh refired on every parent-dir EX acquire (own dirty blocks keep `left>0`). `mxfs_dir_drain_evict_data_blocks` 31305 → 709 calls (−440ms + FUA churn).
+3. **Async publish-on-mkdir**: new `m_mxfs_publish_work` (xfs_mount.h) + `mxfs_dlm_publish_dirs_work` (acquire-then-clear ordering; dirs only) queued pre-commit in `xfs_create`; INIT_WORK in `pal/linux/xfs_super.c`.
+4. **Backstop gate `i_mxfs_reused_create`** (new bit in xfs_inode.h, set by `rearm_unpublished`, cleared by `grant_local_new`): the synchronous unpublished-dir-EX backstop now fires only for reused incarnations or BAST-touched inodes. Proven: the first EX op (rsync chmod/utimensat) lands ~30µs after mkdir, so no async worker can win — this gate is what removed the ~1.5ms-per-dir in-syscall claim. `xfs_vn_setattr` 1021/1295ms → **78/99ms**; `mxfs_dlm_ilock_begin` 1.8s → **0.3s**; `reload_inode` 708 → 4 calls; P24-DIRSLOW 5 → 0.
+
+### Key disproven/corrected attributions
+- The 711 `mxfs_v5_dlm_inode_lock` calls were the **dir backstop via setattr** (stack-trace proven), NOT `xfs_inactive` (earlier wrong guess) — P23-SLOWPATH "0 in dmesg" was a wrapped ring buffer (P-IRESURRECT spam).
+- Diagnostic probes still in tree (capped, remove before ship): P24-DIRSLOW, P24-QUEUE, P24-WORKER/P24-SCAN dumps in worker.
+
+### Next step (instrumented, ready)
+**test2's residual ~1.2s vs test1** — all 1681 `xfs_log_force` calls on test2 trace to ONE site: the eager AG drain in `mxfs_ag_dlm_unlock` (quantum exhaustion under `mxfs_lazy_ag_drain=1`), from rename(844)/delalloc(479)/create(350) commits, ~0.4-0.7ms each ≈ 0.7-1.2s/node in-syscall. Quantum: `mxfs_ag_yield_quantum` = `MXFS_BAST_YIELD_QUANTUM` (value at `xfs_mxfs_dlm.c:6047`, module param `ag_yield_quantum`, adaptive doubling capped at the static value, `MXFS_AG_YIELD_DOUBLE_THRESH=4`). Candidate fix: raise the adaptive cap (or quantum default) so zero-contention epochs never sync-drain — cautious of sess31-33 history (binary skip caused 600s peer starvation; async submit on lazy path is load-bearing). Also check why test1≠test2 asymmetry (test1 ~3.9s with the same log_force count — compare per-call latency/disk contention). After scaling_curve ≤150% at 2 nodes, re-verify at 16 nodes, then re-run cache_coherency ~3×, `posix_semantics.sh --nodes 16`, then full `verify_ship.sh`.
+
+Criteria marker NOT written — scaling_curve not yet green.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

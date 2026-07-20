@@ -1,0 +1,118 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+success.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/5d123e7b-0ac1-4067-835d-680ebf6da55d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 5d123e7b-0ac1-4067-835d-680ebf6da55d, after session 2
+
+## Original task
+
+MXFS NET2: continue DLM_PLAN.md v2 §11 from the step-2 stop point. Before ANY work read, in order: state.md (exact stop point + engine facts — do not re-derive them), DLM_IMPL_PLAN.md, docs/net2.md. Use the deep-focus skill. Work the success.md criteria in order: finish gate 2 (kernel smoke) if authorized, then step 3 + gate 3, then step 4 + gate 4, then step 5 + gate 5. Obey success.md's HARD BOUNDARIES and CLAUDE.md RULES 0-5: never reboot clyde; written RULE-0 budget before every run and a timeout IS a failure; RULE-4 loop for every failure; RULE-5 GPT escalation before any issue enters a second session unproven; foreground waits only. CAW criteria-met status is stop-the-line protected. Write a fresh sessNN-* ccmemory each session; handoff is the relay + ccmemory, not rolling files. Write DONE only per success.md's DONE protocol.
+
+
+## Previous session
+
+- session-id: `891fc515-3171-4159-b3e6-f8cd5679d7dd`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/891fc515-3171-4159-b3e6-f8cd5679d7dd.jsonl`
+- approx context at last assistant turn: 226017 tokens
+- tools used: Bash×68 Edit×32 Read×3 Skill×1 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/net2_shard.c
+- /tmp/claude-1000/-src-mxfs/891fc515-3171-4159-b3e6-f8cd5679d7dd/scratchpad/analysis.md
+- /src/mxfs/dlm/net2_msg.h
+- /src/mxfs/tests/net2/harness/scen_shard.c
+- /src/mxfs/dlm/net2_shard.h
+- /src/mxfs/dlm/net2_lock.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n "$(grep -n 'struct net2_shard \*net2_shard_get' /src/mxfs/dlm/net2_shard.c | cut -d: -f1),+40p" /src/mxfs/dlm/net2_shard.c; echo ---; sed -n "$(grep -n '
+    sed -n '480,530p' /src/mxfs/dlm/net2_lock.c; grep -n 'N2DBG' /src/mxfs/dlm/net2_lock.c | head -3; grep -n '#include' /src/mxfs/dlm/net2_lock.c | head
+    grep -n 'N2DBG' /src/mxfs/dlm/net2_shard.h | head -3; grep -n 'define N2DBG' /src/mxfs/dlm/net2_shard.c
+    make >/dev/null 2>&1 && N2_DEBUG=1 timeout 90 stdbuf -oL -eL ./net2_harness run sh_reconfig > /tmp/claude-1000/rcfg.log 2>&1; grep -E 'CHECK-FAIL|RESULT' /tmp/c
+    make 2>&1 | grep -E 'error' | head -5; echo "make_done"; ls -la net2_harness | awk '{print $5}'
+    sed -n '40,55p' /src/mxfs/dlm/net2_shard.h
+    grep -n 'N2DBG\|n2dbg' /src/mxfs/dlm/net2_shard.h /src/mxfs/dlm/net2_shard.c | head -8; sed -n '44,54p' /src/mxfs/dlm/net2_shard.c
+    sed -n '34,42p' /src/mxfs/dlm/net2_shard.c
+    make 2>&1 | grep -E ': error' | head -3; N2_DEBUG=1 timeout 90 stdbuf -oL -eL ./net2_harness run sh_reconfig > /tmp/claude-1000/rcfg.log 2>&1; grep -E 'CHECK-FA
+    grep -n 'SNAPSHOT_REQ\|SNAPSHOT_CHUNK\|xfer_active\|shard_send_snapshot\|rx_snapshot' /src/mxfs/dlm/net2_shard.c | head -20
+    sed -n '599,660p' /src/mxfs/dlm/net2_shard.c; sed -n '1043,1130p' /src/mxfs/dlm/net2_shard.c
+    make 2>&1 | grep -E ': error' | head -3; timeout 90 ./net2_harness run sh_reconfig 2>&1 | grep -E 'CHECK-FAIL|RESULT'
+    grep -n 'xfer_src\|xfer_chunk\|xfer_active' /src/mxfs/dlm/net2_shard.h
+    grep -n 'xfer_src' /src/mxfs/dlm/net2_shard.c | head; make 2>&1 | grep -E ': error' | head -3; echo BUILD_DONE
+    timeout 90 ./net2_harness run sh_reconfig 2>&1 | grep -E 'CHECK-FAIL|RESULT'
+    N2_DEBUG=1 timeout 90 stdbuf -oL -eL ./net2_harness run sh_reconfig > /tmp/claude-1000/rcfg2.log 2>&1; grep -E 'CHECK-FAIL' /tmp/claude-1000/rcfg2.log | head -2
+    grep -n 'STALE_GEN\|is_release\|N2_RELEASE' /src/mxfs/dlm/net2_lock.c | sed -n '1,20p'; sed -n "$(grep -n 'release validity\|N2L_RELEASE;' /src/mxfs/dlm/net2_lo
+    sed -n '610,645p' /src/mxfs/dlm/net2_lock.c
+    make 2>&1 | grep -E ': error' | head -3; N2_DEBUG=1 timeout 90 stdbuf -oL -eL ./net2_harness run sh_reconfig > /tmp/claude-1000/rcfg3.log 2>&1; grep -E 'CHECK-F
+    grep -n 'epoch_bump\|shenv_epoch\|->epoch = \|epoch = 1\|epoch_commit' harness/scen_shard.c | head; sed -n "$(grep -n 'static void shenv_epoch_bump' harness/sce
+
+## Last text from previous session
+
+Continuing NET2 step 4 from the session-1 stop point. First: load memory tools, list memories, and read the mandated files (state.md, DLM_IMPL_PLAN.md, docs/net2.md, success.md).
+Build is green. Reading the session-1 design snapshot and the kill-points scenario code.
+The APPEND body ends at offset 72. Since nothing is deployed (harness-only wire), I'll append `entry_term` as a trailing 4-byte field. Finding the body-size validation to update:
+Applying the two-term fix — wire first (5 spots in net2_msg.h), then the shard logic:
+Wire done. Now the shard logic — sender uses leader term + entry term; receiver stores/compares the entry term:
+kp3 **PASSES** (8/8). Running the full 9-point kill matrix (budget 120s), then the whole shard group:
+Winner is slot1 — need to know whether slot1 is the scenario's `f2`. Checking what leader introspection the harness has (the fix needs it anyway):
+`net2_lockspace_shard_probe` provides the needed introspection. Per RULE 4: first prove the mis-selection with a print while keeping the old behavior, then fix. Adding a helper + diagnostic:
+Now the client_rx GRANT orphan path (deferred send via tick — sending under `cl_lock` would invert the shard>cl lock order) and detached-record reaping:
+Build and verify against sh_partitions, then regression-check the whole group:
+sh_partitions **16/16 green**. Full group:
+N2DBG is in the shared header. Adding the two traces:
+Now the chunk-rx rewrite — single-stream guard, no leader adoption for the designated rank-0, and a become-leader completion path:
+The field existed but was never wired — now it is, and the build is clean. Rerunning:
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

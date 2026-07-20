@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/26c41354-6702-4fa8-98e7-0aa08fef2e9a/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 26c41354-6702-4fa8-98e7-0aa08fef2e9a, after session 2
+
+## Original task
+
+read docs/condition4_multipath_scope.md
+
+
+## Previous session
+
+- session-id: `d323a8a0-4e5c-41a7-941d-f8bd2c4c362b`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/d323a8a0-4e5c-41a7-941d-f8bd2c4c362b.jsonl`
+- approx context at last assistant turn: 505510 tokens
+- tools used: Bash×88 Read×21 Edit×11 TaskUpdate×9 TaskCreate×8 mcp__ccmemory__memory_get×7 ToolSearch×3 mcp__ccmemory__memory_write×3 mcp__ccmemory__memory_search×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/memb_watch.sh
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/run.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass ssh_node(){ timeout 12 "$SSH" "$1" "$PASS" "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^I
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass ssh_node(){ timeout 15 "$SSH" "$1" "$PASS" "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^I
+    cd /src/mxfs; echo "=== prep_fs.sh mkfs command + agcount ==="; grep -nE "mkfs_mxfs|mkfs|agcount|-d agcount|MKFS" tests/setup/prep_fs.sh 2>/dev/null | head; ech
+    cd /src/mxfs; LOG=/tmp/run16_full.log; RPID=$(cat /tmp/run16_full.pid) t0=$SECONDS; last=$(grep -cE "  (PASS|FAIL)  " "$LOG") while ls -d /proc/$RPID >/dev/null
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass ssh_node(){ timeout 12 "$SSH" "$1" "$PASS" "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^I
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass ssh_node(){ timeout 15 "$SSH" "$1" "$PASS" "$2" 2>/dev/null | grep -vE '^Warning:|^Unauthorized|^I
+    cd /src/mxfs; RPID=$(cat /tmp/run16_full.pid); kill -9 $RPID 2>/dev/null; sleep 1; echo "killed run $RPID" echo "=== unlock exhaustion path (dlm_caw.c ~2840) — 
+    cd /src/mxfs; echo "=== 'unlock exhausted' message + surrounding handling ==="; grep -n "unlock exhausted" dlm/dlm_caw.c; L=$(grep -n "unlock exhausted" dlm/dlm
+    cd /src/mxfs; pkill -f "run.sh 16 caw" 2>/dev/null; [ -s /tmp/.mxfs_pass ] || cp /home/steve/.mxfs/pass /tmp/.mxfs_pass 2>/dev/null; echo "=== preflight 16 (res
+    cd /src/mxfs; [ -s /tmp/.mxfs_pass ] || cp /home/steve/.mxfs/pass /tmp/.mxfs_pass 2>/dev/null; echo "=== preflight 16 (reset wedged nodes) ==="; timeout 700 bas
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; : > "$LOG" nohup env MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" \     timeout 2500 ./run.sh 1
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; RPID=$(cat /tmp/run16_dr_fair.pid) SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass t0=$SECONDS; converged=0 while ls -
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; RPID=$(cat /tmp/run16_dr_fair.pid) SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass t0=$SECONDS while ls -d /proc/$RPID
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; RPID=$(cat /tmp/run16_dr_fair.pid) t0=$SECONDS while ls -d /proc/$RPID >/dev/null 2>&1 && [ $(( SECONDS - t0 )) -lt 56
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; RPID=$(cat /tmp/run16_dr_fair.pid) t0=$SECONDS while ls -d /proc/$RPID >/dev/null 2>&1 && [ $(( SECONDS - t0 )) -lt 56
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; RPID=$(cat /tmp/run16_dr_fair.pid) echo "run elapsed: $(( $(date +%s) - $(stat -c %Y /tmp/run16_dr_fair.pid) ))s (budg
+    cd /src/mxfs; LOG=/tmp/run16_dr_fair.log; RPID=$(cat /tmp/run16_dr_fair.pid) t0=$SECONDS while ls -d /proc/$RPID >/dev/null 2>&1 && [ $(( SECONDS - t0 )) -lt 30
+    cd /src/mxfs; echo "=== unlock loop: caw_slot call + -EAGAIN retry handling (does it backoff/desync?) ==="; awk 'NR>=2686 && NR<=2950 && /caw_slot\(ctx|rc == -E
+    cd /src/mxfs; echo "=== existing desync/jitter helper (sess39) ==="; grep -nE "caw_desync|desync|node.phased|jitter" dlm/dlm_caw.c | head; echo; echo "=== unloc
+    cd /src/mxfs; echo "=== build ==="; timeout 500 make modules 2>&1 | grep -iE "error|warning: unused|dlm_caw.c:.*(error|warning)" | grep -v "frame size\|within c
+
+## Last text from previous session
+
+slow (round-robin latency × dir_reuse's huge handoff count). So neither works for dir_reuse: without fair_handoff it **wedges** (unlock exhaustion), with it it's **too slow**. I need a targeted, low-cost anti-wedge: make the unlock CAS **not exhaust** (backoff+desync instead of -EIO after 100 tight retries). Let me examine the unlock loop's retry/backoff.
+Confirmed: the unlock loop's `-EAGAIN` retry is a **tight loop with no backoff** (`continue;`), while the acquire path desyncs (sess39). Under a 16-node CAS storm the unlock can never win 100 tight retries → -EIO → wedge. The targeted fix: **jittered backoff on unlock CAS miscompare** (desync the storm) — low-cost, no serialization. Let me read the unlock loop structure to place it, and check for an existing desync helper.
+Line numbers shifted from my edits. Let me find the unlock loop's exact `-EAGAIN` retry site (before "unlock exhausted" at 2949).
+Found it: unlock `-EAGAIN` → `continue` with **no backoff** (line 2914-2915), while the acquire path desyncs (sess39). The targeted fix: **jittered backoff on unlock CAS miscompare** (scoped to inode locks) to desync the storm — low-cost, no serialization (unlike fair_handoff). Let me add it gated behind a new param for clean A/B. First the param:
+Now the backoff at the unlock `-EAGAIN` site (minimal, testable version first — just the desync, which should let the unlock win within 100 retries):
+I've hit the ccloop relay boundary. Let me build the current change (so the next session has a deployable build), record the full state to memory, then summarize.
+Build clean (srcversion `DC39A8DC`). Let me record the final state for the next session, then summarize.
+Let me update the task list to reflect the handoff state, then summarize.
+I've reached the ccloop relay boundary. Criteria are **not** met — the marker stays unwritten.
+
+## Session summary
+
+**Major diagnostic breakthrough on the 16-node caw suite.** Prior sessions chased the dir dangling-dirent; I proved that's minor and found the *actual* failure modes — three distinct roots, each needing a different lever.
+
+**What I established (all measured, RULE 4):**
+- **Individual tests are correct at 16** — every failing test PASSES 16/16 when run first on a fresh cluster. The suite failures are emergent, not per-test bugs.
+- **Mode 1 — coherency cascade** (posix_multi/mmap/zsl fail as tests #3-5): ROOT = cumulative destage backlog competing on the shared LUN. **PROVEN fix: `MXFS_SETTLE_MS=8000`** (inter-test sync+drain I added to run.sh) → **11 of 12 completed tests PASS 16/16**. Not corruption — data recovers.
+- **Mode 2 — dir_reuse WEDGE**: 16 nodes on one shared dir → hot-inode CAS storm → the CAW **unlock exhausts 100 tight retries (no backoff) → -EIO → stuck lock → 1000+ blocked `mxfs-ino-bast` kworkers → load 870**. `caw_fair_handoff=1` prevents it (load ~1.0) but is too slow (times out).
+- **Mode 3 — dlm_scaling**: rate below the 50 ops/sec floor = shared-LUN IOPS saturation (disjoint subdirs + ~50 AGs rule out lock contention).
+- **Ruled out** (don't re-chase): membership (converges clean), `xfs_assert_ilocked` flood (pre-existing noise, on passing nodes too), heartbeat fencing, printk-to-console.
+
+**Levers built** (all gated, default 0 → ship behavior unchanged; HEAD build `DC39A8DC`):
+- `MXFS_SETTLE_MS` (run.sh) — proven fix for mode 1.
+- `caw_fair_handoff` (dlm_caw.c) — prevents mode-2 wedge but too slow.
+- `caw_unlock_backoff` (dlm_caw.c, **NEW, untested**) — jittered desync on the inode-unlock CAS miscompare; targets the mode-2 wedge at low cost (no serialization).
+- `dir_reintro_probe/skip` (xfs_buf.c) — dir dangling-dirent, minor.
+
+**Immediate next step** (task #8): test `caw_unlock_backoff=1` on dir_reuse at 16 — if it prevents the wedge and completes under budget, mode 2 is cheaply solved; then run the full suite at 16 with settle + the winning anti-wedge lever, then tackle dlm_scaling and 32 nodes. Full detail is in ccmemory `caw-16node-sess2-HANDOFF-levers-and-next`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

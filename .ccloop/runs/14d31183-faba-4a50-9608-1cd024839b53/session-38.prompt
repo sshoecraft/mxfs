@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 38 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 37
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `e56ff47a-9329-4409-a733-2c2916875b64`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e56ff47a-9329-4409-a733-2c2916875b64.jsonl`
+- approx context at last assistant turn: 141205 tokens
+- tools used: Bash×66 Read×3 ToolSearch×2 mcp__ccmemory__memory_get×2 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/scst_block_diag.py
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "scst_pr_register\|static.*pr_register\|PR_REGISTER" /home/steve/src/scst/scst/src/scst_pres.c | head -10; grep -n "find_registrant\|scst_pr_find" /home
+    sed -n 1560,1700p /home/steve/src/scst/scst/src/scst_pres.c
+    sed -n 1140,1220p /home/steve/src/scst/scst/src/scst_pres.c
+    sed -n 1380,1410p /home/steve/src/scst/scst/src/scst_pres.c; sed -n 1404,1440p /home/steve/src/scst/scst/src/scst_pres.c
+    grep -n "Wait time expired\|Wait time after shutdown" /home/steve/src/scst/iscsi-scst/kernel/conn.c; grep -n "static void close_conn\|^static.*close_conn" /home
+    grep -rn "Wait time expired" /home/steve/src/scst/iscsi-scst/kernel/*.c | head -3
+    sed -n 240,420p /home/steve/src/scst/iscsi-scst/kernel/nthread.c
+    for s in /sys/kernel/scst_tgt/targets/iscsi/iqn.2026-05.local.mxfs:disk1/sessions/*/; do echo "== $(basename $s)"; sudo cat $s/commands 2>/dev/null; done
+    ls /sys/kernel/scst_tgt/; echo ---; sudo grep -l . /sys/kernel/scst_tgt/*.txt 2>/dev/null; sudo cat /sys/kernel/scst_tgt/last_sysfs_mgmt_res 2>/dev/null
+    sudo cat /sys/kernel/scst_tgt/trace_cmds 2>/dev/null | head -30
+    grep -rn "block_show\|block_store\|dev_block" /home/steve/src/scst/scst/src/scst_sysfs.c | head -10
+    sed -n 3732,3854p /home/steve/src/scst/scst/src/scst_sysfs.c
+    grep -rn "scst_check_blocked_dev\|EXEC_CHECK_BLOCKING" /home/steve/src/scst/scst/src/*.c | grep -v "\.o" | head; grep -n "scst_check_blocked_dev" /home/steve/sr
+    sed -n 13818,13920p /home/steve/src/scst/scst/src/scst_lib.c
+    which drgn crash 2>/dev/null; python3 -c "import drgn; print(drgn.__version__)" 2>&1 | head -1; grep -n "EXPORT_SYMBOL.*scst_unblock_dev\|EXPORT_SYMBOL.*scst_bl
+    file /home/steve/src/scst/scst/src/scst.ko | cut -c1-120; objdump -h /home/steve/src/scst/scst/src/scst.ko 2>/dev/null | grep -c debug; modinfo /home/steve/src/
+    sudo /home/steve/.local/bin/drgn scripts/scst_block_diag.py 2>&1 | head -30
+    sudo python3 -c "import drgn; print('ok')" 2>&1; python3 -c "import drgn; print(drgn.__file__)"
+    sudo PYTHONPATH=/home/steve/.local/lib/python3.12/site-packages python3 /src/mxfs/scripts/scst_block_diag.py 2>&1 | head -30
+    which gdb pahole; sudo cat /sys/module/scst/sections/.text /sys/module/scst/sections/.data /sys/module/scst/sections/.bss 2>/dev/null
+
+## Last text from previous session
+
+Continuing from session 36: build `DE7F1BDA` has the three proven fixes and passed the 3-iter zero_silent_loss criterion twice; the third run failed in a different mode (cluster-join failure, launched without a power-cycle). First step is to verify the deployed build and re-run after a clean power-cycle to determine whether the join failure is contaminated-state or real.
+While VMs boot, examining the iter-3 join-failure evidence from the last run's harness log:
+While waiting for boot, reviewing the criterion script's teardown→re-form sequence to understand what could leave the device unjoinable:
+The host has D-state `iscsi_conn_cleanup` threads right now — the sess14 wedge signature. Pulling that memory for the known recovery procedure:
+PR clear didn't take — reservation still present. Getting the actual PROUT result codes from test1:
+REGISTER succeeds but CLEAR conflicts — key mismatch somewhere. Checking whether 0x5eed actually landed in the registration list:
+PR generation bumped (two REGISTERs accepted) but 0x5eed never appears in the key list — SCST is accepting REGISTER but not recording it. Testing from the host directly to isolate:
+`dump_prs` likely dumps to the kernel log. Reading it:
+PRIN READ FULL STATUS will show which I_T nexus holds each key, including the reservation holder:
+You're right — the sess15 protocol says exactly that: document the wedge and report, don't tinker. Here's the state:
+
+**Clyde's SCST target is wedged and needs a manual host reset.**
+
+Evidence:
+- 54 D-state `iscsi_conn_cleanup` kernel threads, accumulated starting 12:20:22 local (the moment iter 3 of the last `zero_silent_loss` run failed its joins).
+- ~48 commands stuck >1100s in `EXEC_CHECK_BLOCKING` across all 16 per-node targets (all backed by SCST device `disk1`). Root: a strictly-serialized command (CAW) blocked the device, its connection died, and the unblock never ran — `block_count` is leaked, so every subsequent command parks forever.
+- Knock-on: 3 zombie sessions per target shadow the PR registrations, so the shared LUN is effectively unwritable from every node (the EIO/`read_slot -5`/join-failure storm).
+- `systemctl stop scst` and module unload are impossible with the D-state threads (sess14 confirmed); session logout/login doesn't clear it.
+
+This was **not** an mxfs regression — build `DE7F1BDA` passed the 3-iter criterion twice on clean boots before the infra wedged.
+
+After you reset clyde, the recovery path is the documented one: `clyde_boot_recover.sh` handles scst + iscsi login + NFS on boot, then I recreate `/tmp/.mxfs_pass`, run `scripts/cluster_reset_n.sh 16`, and resume the criterion runs (accumulate `zero_silent_loss` passes, then strip/gate the P35x/P36 probes, then full `verify_ship.sh`).
+
+One thing worth saying for prod relevance: your Proxmox iSCSI setup won't hit this — the trigger is SCST's strict serialization of CAW under 16 initiators hammering one LUN through a loopback target, and the leak is an SCST bug, not an initiator-side or mxfs-side one.
+
+I'll wait — ping me when the host is back up.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

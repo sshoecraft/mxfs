@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 14 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 13
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `1556d0f8-485d-4576-8815-ce5825191f77`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1556d0f8-485d-4576-8815-ce5825191f77.jsonl`
+- approx context at last assistant turn: 249226 tokens
+- tools used: Bash×83 Edit×9 Read×5 ToolSearch×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '2012,2090p' dlm/dlm_caw.c
+    cd /src/mxfs; sed -n '2110,2175p' dlm/dlm_caw.c
+    cd /src/mxfs; grep -n 'mxfs_dlm_bast_work_fn' xfs/xfs_mxfs_dlm.c | head -2; n=$(grep -n 'mxfs_dlm_bast_work_fn(' xfs/xfs_mxfs_dlm.c | tail -1 | cut -d: -f1); se
+    cd /src/mxfs; grep -rn 'MXFS_VERSION' include/*.h mxfs.c 2>/dev/null | grep -v Binary | head -5
+    cd /src/mxfs; grep -rn '0\.4\.\|MODULE_VERSION\|version' mxfs.c 2>/dev/null | head -4; ls include/ | head
+    cd /src/mxfs; ls; grep -rn 'MODULE_VERSION' pal/linux/*.c include/mxfs/*.h 2>/dev/null | head -3
+    cd /src/mxfs; cat VERSION
+    cd /src/mxfs; echo "0.4.7" > VERSION; make modules 2>&1 | grep -E 'error' | head -5; modinfo mxfs.ko | grep srcversion
+    cd /src/mxfs; echo "0.4.10" > VERSION; timeout 590 ./scripts/cluster_reset_n.sh 16 2>&1 | tail -2
+    cd /src/mxfs; timeout 320 bash scripts/p133_storm_errcap.sh 100 2>&1 | tail -4
+    cd /src/mxfs; mkdir -p /tmp/p135d; for i in $(seq 1 16); do timeout 15 ./tools/mxfs_sshpass.sh test$i /tmp/.mxfs_pass "sudo dmesg" > /tmp/p135d/dmesg.test$i 2>/
+    cd /src/mxfs; for i in $(seq 1 16); do grep -h 'P105-REL-DIRINODE ino=131\|P105-ACQ-DIRINODE ino=131' /tmp/p135d/dmesg.test$i | sed "s/^/n$i /"; done | awk '{fo
+    cd /src/mxfs; n=$(grep -n 'DABUF_MAP_HOLE' /tmp/p135d/dmesg.test1 | head -1 | cut -d: -f1); sed -n "$((n-20)),$((n+3))p" /tmp/p135d/dmesg.test1 | grep -vE 'P135
+    cd /src/mxfs; grep -n 'mxfs_dlm_ilock_begin' xfs/*.c | head -5; echo ===; sed -n '2480,2530p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '2530,2580p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n 'MXFS_IF_DLM_RELFLUSH\|P119-NONEX-FLUSH-SKIP' xfs/xfs_inode.c xfs/xfs_inode.h xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; sed -n '3915,3990p' xfs/xfs_inode.c
+    cd /src/mxfs; sed -n '2608,2620p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; sed -n '2440,2480p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -E 'error' | head -5; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+Continuing from session 12: build `5306E3F8` (bmbt buffer-lock leak fix) compiled but not deployed. Plan: deploy, re-run the storm, then the criterion iterations. First, orienting on the current state.
+State is clear. Verifying the build identity and checking the criteria status, then resetting the cluster and deploying.
+Build `5306E3F8` is in place. Resetting the 16-node cluster (power-cycle + deploy) per the plan.
+A claim-race detector already exists from sess47. Checking whether it's wired in and what it does on detection:
+The detector exists and runs after every fresh claim. Checking whether it fired in this run:
+Now the dump at `held()==0`:
+Clean build `315E9910`. Resetting the cluster (deploys the new module via NFS mount) and re-running the storm:
+Much milder run (3 failures, 55 silent loss, no mass shutdown — nondeterministic). Harvesting the P135/P108 data:
+Bad run (good for diagnosis). Harvesting and correlating unlock callers with the slot losses:
+Now the main fix — serializing the `bast_notify` cleanup path:
+The work fn handles the ref correctly. Checking the version file to rev the patch version per project convention:
+CLAUDE.md history mentions v0.4.9 already existed — setting VERSION above it to avoid a backwards rev:
+Verifying the enclosing gate lets dirs reach this loop at all:
+Dirs do enter the loop — the only missing piece was the RELFLUSH authorization. Building and re-running:
+Session 13 summary — two root causes found via RULE-4 chains, one verified fixed, one fix built but untested:
+
+**1. P108 "on-disk slot lost" — root-caused and FIXED (verified).** New `P135-SLOTWR`/`P135-INO-UNLOCK` instrumentation logged every CAW slot write for the hot dir with caller attribution. The proof: `bast_notify`'s NONE_mode_NL cleanup branch called the DLM unlock inline with no serialization; its CAS-retry loop re-read the slot after a miscompare and stripped a **fresh EX grant** that this node's own concurrent acquire had just landed (unlock entered 88.3794 → EXGRANT 88.3806 → strip 88.3814 → P108 88.3821). The forced P108 reload then discarded logged-but-not-durable dir growth. Four alternative hypotheses (duplicate-slot claim race, repair false-positive, dead-node purge, foreign-bit strip) were each refuted by zero detector firings. Fix in build `7E3AC2BF`: orphan cleanup now verifies an on-disk bit exists and routes through the serialized DEMOTING+bast_process pipeline, plus `caw_unlock` exits without writing when our bit is absent (also eliminating 2441 no-op gen-bump writes/run on the hot slot). Verified: P108 dropped 21 → 1.
+
+**2. The remaining dabuf-map HOLE — root-caused, fix built, NOT yet tested.** With the strip race gone, acquirers still imported a torn dir: on-disk dir data/freeindex blocks were ahead of the on-disk dinode extent map. The release path's deterministic iflush loop *does* run for dirs (sess84), but `xfs_iflush_int` refuses the copy-in at the P119 non-EX guard because the `MXFS_IF_DLM_RELFLUSH` authorization was set for regular files only — observed live as `P119-NONEX-FLUSH-SKIP ino=131` in every release window. Fix: set/clear the flag for directories too. Build `9C2D4FA6` compiles clean, awaiting deploy.
+
+Next session: deploy `9C2D4FA6`, re-run the dpn=100 storm expecting 0 HOLEs/shutdowns, then the 3-iteration `zero_silent_loss.sh` criterion. Criteria not yet met; marker not written.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,142 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ba7ae5c-35d8-4efa-9f72-44504bb63a45/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ba7ae5c-35d8-4efa-9f72-44504bb63a45, after session 1
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `9d50416d-f29e-4998-bec4-efd690d93fe1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1.jsonl`
+- approx context at last assistant turn: 447610 tokens
+- tools used: Bash×182 Edit×10 Read×9 TaskUpdate×7 TaskCreate×5 ToolSearch×3 Monitor×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 AskUserQuestion×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/caw/dlm_lock_correctness.sh
+- /src/mxfs/tools/mkfs_mxfs.c
+- /src/mxfs/run.sh
+- /src/mxfs/state.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/.claude/awareness/subsystems/tests.md
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "mxfs_dlm_bast_work_fn" xfs/xfs_mxfs_dlm.c | head -4; n=$(grep -n "^mxfs_dlm_bast_work_fn\|static.*mxfs_dlm_bast_work_fn(" xfs/xfs_mxfs_dlm.c | head -1 
+    sed -n '3320,3395p' xfs/xfs_icache.c; grep -n "P-DBLRECLAIM" xfs/xfs_icache.c | head -3
+    sudo -n sed -n '9280,9372p' /var/log/libvirt/qemu/test4-serial.log 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -vE "^\[  OK  \]|Starting |Finished |Reached t
+    grep -n "i_dlm_bast_work\b" xfs/xfs_mxfs_dlm.c xfs/xfs_icache.c pal/linux/*.c 2>/dev/null | grep -v "container_of" | head -10
+    for ln in 15341 15447 15580 15643 15726; do echo "=== site @$ln ==="; sed -n "$((ln-22)),$((ln+6))p" xfs/xfs_mxfs_dlm.c | grep -nE "igrab|ihold|xfs_iget|queue_w
+    grep -rn "\bihold(" xfs/*.c pal/linux/*.c dlm/*.c mxfs_clayer/*.c 2>/dev/null | grep -v "^\s*\*\|WARN\|comment" | head -20
+    for ln in 12460 13968 21475 27046; do echo "=== xfs_mxfs_dlm.c:$ln ==="; sed -n "$((ln-14)),$((ln+4))p" xfs/xfs_mxfs_dlm.c; done
+    sed -n '22400,22440p' xfs/xfs_mxfs_dlm.c
+    sed -n '27010,27065p' xfs/xfs_mxfs_dlm.c
+    sed -n '12459,12468p' xfs/xfs_mxfs_dlm.c; echo ===; sed -n '13967,13976p' xfs/xfs_mxfs_dlm.c; echo ===; sed -n '21474,21481p' xfs/xfs_mxfs_dlm.c
+    echo "0.10.108" > VERSION; make modules 2>&1 | grep -iE "error" | head -5; echo "---build done---"; modinfo mxfs.ko | grep srcversion
+    timeout 550 bash scripts/caw_preflight.sh 32 2>&1 | tail -4
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; rm -f /tmp/mxfs_run.lock; nohup timeout 5400 env MXFS_DEV=/dev/mapper/mpatha RULE
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+    SP=/tmp/claude-1000/-src-mxfs/9d50416d-f29e-4998-bec4-efd690d93fe1/scratchpad; PID=$(cat "$SP/ladder_32caw_r2.pid"); END=$((SECONDS+560)); while [ $SECONDS -lt 
+
+## Last text from previous session
+
+Starting up: loading memory tools and checking prior run state, since this is session 1 of a new ccloop run with criteria "get 1/2/4/8/16/32 node caw dlm multipath test working 100%".
+The prompt file points to state.md — reading it now.
+You're right — let me pull the full framing from the `conditions` file and the compiled memory.
+Preflight scripts are intact. Running N=1 preflight (teardown of leftover mxfs on test1 + mpatha assembly + readiness verify).
+Run launched (PID 417200). Waiting in the foreground for it.
+23/29 PASS so far, all green. Continuing the wait.
+14/19 green. Waiting for the remainder (dir_reuse_coherency is the long one).
+While the idle clock runs, preparing the failure-analysis toolkit: reading the dir_reuse test script (to interpret rank2's failure concretely) and locating the SCST backing file for the raw-disk experiment.
+~2.5 min left in the window. Using it to check run.sh's dir_reuse case-arm so the solo run's timing envelope is known.
+That's suite-era probe flood. Filtering for the actual unmount event in the idle window.
+**Fix 2**: mkfs formalizes the scratch sector (explicit zero + layout print). Finding the format sequence to place it:
+Syntax-check run.sh, rebuild mkfs_mxfs, bump VERSION:
+Rebuilding mkfs with the bumped VERSION, then sweeping the bare-mountpoint debris off all unmounted nodes (guarded so a mounted FS can never be touched):
+Both nodes still mounted — the unmount is gone. Now the solo dir_reuse rerun immediately (old failure precondition, no idle):
+**Solo rerun: PASS** (261s, 145/145) — this exact sequence failed 100% before the fix. Final leg: the full original recipe with the 600s idle.
+Idle clock armed. Using the window for documentation (local only): memory write first, then state.md and awareness docs.
+Now the awareness docs — checking pal.md's stale investigation entry and tests.md's harness section:
+pal.md's top entry describes the investigation as unresolved — updating it with the resolution (surgical edit):
+Now tests.md — reading its structure to add the harness changes:
+~7 min left in the window. Using it to derive RULE-0 ceilings for the remaining rungs from recorded per-test data:
+Retry converged; 14/19 green. dir_reuse (the 330s-class test) next — continuing the wait.
+dir_reuse@4 passed (341s). The fence test failed 2/4 with empty pulled logs — reading the test to understand roles and expected end-state at N=4:
+blocksize=4096, agcount=50. Need exact `sb_agblocks` — parsing the XFS superblock straight from the backing file:
+VERSION bump and kernel rebuild:
+Build 106 converged first try; 14/19 green. The critical test (fence_during_write) comes after dir_reuse — waiting:
+14/19 at 8 nodes. dir_reuse@8 (590s class) running — continuing:
+**8/caw on 0.10.107: 19/19 PASS** — fence green. Checking whether the new dirty-data guard actually fired (live engagement evidence):
+16/caw complete — pulling the full scorecard:
+32 nodes converged first try. This is the long one — waiting in chunks:
+~19 minutes with no new result — cache_coherency@32 is either grinding or wedged. Checking live progress on the nodes:
+Wrong boot index — listing test4's boots to find the crashed one:
+The VMs run **netconsole panic capture to clyde** — and the serial log should hold the panic further back. Checking both:
+**Panic found**: `RIP: radix_tree_tag_set+0xae` → fatal exception, 782s into test4's fresh boot = 16:52, during cache_coherency@32. Extracting the full trace:
+Applying the igrab conversion to all four sites:
+fio done (428s); now inside cache_coherency@32 — the test that panicked test4 on build 107. Watching:
+dir_reuse@32 at round 10/24 (~110s/round → ~2600s projected, inside its 4480s budget). Waiting through:
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

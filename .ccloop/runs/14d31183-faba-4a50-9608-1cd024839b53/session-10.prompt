@@ -1,0 +1,138 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 10 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/14d31183-faba-4a50-9608-1cd024839b53/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 14d31183-faba-4a50-9608-1cd024839b53, after session 9
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `7af57993-e677-409f-a32f-8cd99d00de8f`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7af57993-e677-409f-a32f-8cd99d00de8f.jsonl`
+- approx context at last assistant turn: 247392 tokens
+- tools used: Bash×99 Edit×30 Read×8 ToolSearch×1 Write×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 330 bash scripts/cluster_reset_n.sh 16 2>&1 | tail -3
+    cd /src/mxfs; grep -n "stat_last_report\|dlm stats\|STAT-REPORT" xfs/xfs_mxfs_dlm.c | head -5; grep -rn "bast_immediate\|bast_deferred" xfs/xfs_mxfs_dlm.c | gre
+    cd /src/mxfs; sed -n '1300,1345p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; time timeout 420 scripts/sess88_workload_a_modeN_baseline.sh /src/mxfs/mxfs.ko 5 1 1 2>&1 | grep -vE "Unauthorized|disconnect|Warning: Perm|^$" | 
+    cd /src/mxfs; for n in test1 test8; do echo "=== $n"; timeout 10 ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass "sudo dmesg | grep 'DLM cache:' | tail -2" 2>/dev/nu
+    cd /src/mxfs; time timeout 580 scripts/sess88_workload_a_modeN_baseline.sh /src/mxfs/mxfs.ko 100 1 1 2>&1 | grep -vE "Unauthorized|disconnect|Warning: Perm|^$" 
+    cd /src/mxfs; grep -n "mxfs_dlm_mht_defer_bast\|i_dlm_ex_acquire_ns" xfs/xfs_mxfs_dlm.c xfs/xfs_inode.h xfs/xfs_icache.c 2>/dev/null | head -12
+    cd /src/mxfs; sed -n '2580,2680p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "mxfs_v5_dlm_inode_unlock\|inode_unlock(" xfs/xfs_mxfs_dlm.c | head -10; grep -n "static.*bast_process\|bast_work_fn" xfs/xfs_mxfs_dlm.c |
+    cd /src/mxfs; sed -n '2400,2512p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n "P106-EXGRANT" xfs/xfs_mxfs_dlm.c | head -3; sed -n "$(grep -n 'P106-EXGRANT' xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1),+8p" xfs/xfs_mxf
+    cd /src/mxfs; sed -n '4530,4570p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; mkdir -p /tmp/p106; for n in $(seq 1 16); do ( timeout 12 ./tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "sudo dmesg | grep -E 'P106-EXGRANT ino=1
+    cd /tmp/p106 && python3 - <<'EOF' import re, glob evs=[] for f in glob.glob('n*.txt'):     for line in open(f):         m=re.search(r'(test\d+).*P106-(EXGRANT|E
+    cd /tmp/p106 && python3 - <<'EOF' import re, glob evs=[] for f in glob.glob('n*.txt'):     for line in open(f):         m=re.search(r'(test\d+).*P106-(EXGRANT|E
+    cd /tmp/p106 && python3 - <<'EOF' import re, glob evs={} for f in glob.glob('n*.txt'):     for line in open(f):         m=re.search(r'(test\d+).*P106-(EXGRANT|E
+    cd /src/mxfs; for n in test1 test2 test5 test10; do r=$(timeout 8 ./tools/mxfs_sshpass.sh $n /tmp/.mxfs_pass 'echo $(date +%s.%N)' 2>/dev/null | tail -1); echo 
+    cd /src/mxfs; awk 'NR>=2100 && NR<=2420 && /^(static )?(void|int|bool)$|^mxfs_dlm_bast_process|^[a-z_]+\(/' xfs/xfs_mxfs_dlm.c | head; grep -n "^mxfs_dlm_bast_p
+    cd /src/mxfs; sed -n '1346,1420p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error" | grep -v "compiler differs" | head -5; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+ | correctness OK (silent=0); times out: ~10-16 creates/s, need ≥64/s |
+| 14 | crash_consistency (2) | ⏳ not run on current build | — | — |
+| 15 | fence_during_write (4) | ⏳ not run on current build | — | — |
+| 16 | single_node_paired (1) | ⚠️ PASS on old build | Jun 2 | ratio 104% (≤105%) — re-verify in final gate |
+| 17 | rsync_paired (4) | ⚠️ PASS on old build | Jun 4 | ratio 103% — re-verify in final gate |
+| 18 | scaling_curve (16) | ⏳ not run on current build | — | — |
+| 19 | posix_semantics (16) | ⏳ not run on current build | — | — |
+
+**Final gate**: one end-to-end `verify_ship.sh` run with all 19 green (~55 min) — blocked on #13.
+
+#13 is the only criterion ever failing now: the 16-node same-directory mkdir storm is correct but ~10× too slow, with a 120s lock-starvation tail. That's the work in progress.
+Continuing on #13. Adding cheap always-on probes to discriminate the three hypotheses (H1: MHT tenure not applying, H2: slow handoff/drain, H3: unfair grant racing). First, locating the inode BAST release path and the MHT machinery:
+`P106-EXREL` is already always-on for dir EX releases with wall-clock ns. Checking for the paired grant probe:
+Both grant and release probes are already always-on for dir inodes — the mini-storm's dmesg already contains a full handoff timeline. Harvesting it from all 16 nodes:
+Cross-node clock skew may be polluting this. Checking per-node time ranges:
+Adding drain-time decomposition to `bast_process` and an always-on long-wait probe in the grant path:
+At the relay boundary. Session 9 summary:
+
+## Done this session
+
+**1. Ghost-writer root cause PROVEN and FIXED** (build `06E672C2`, deployed + verified). O_DIRECT dumps showed 11 live old-generation mounts heartbeating into a re-mkfs'd LUN plus 1,972 stale lock records — the cause of the sess130 zero_silent_loss shutdown. Fix: (a) **self-fence** — heartbeat thread re-checks the super's fs_uuid every 2s and force-shuts-down if the device was reformatted under it (`P131-SELF-FENCE`); (b) fs_gen tag in heartbeat records with foreign-gen filtering in monitor/claim/stale-mask/MDS-resolve; (c) foreign-volume lock slots recyclable in `find_slot_skip`. Verified by deliberate repro: re-mkfs under two live mounts → both fenced in ~1-2s, LUN stayed clean, new generation mounted clean, fenced nodes unmount clean.
+
+**2. zero_silent_loss blocker re-isolated as pure throughput.** Correctness now passes (silent=0). Criterion times out (300s RULE-0 budget): the 16-node same-dir mkdir storm runs ~10-16 creates/s, needs ≥64/s. P106 timeline analysis (clocks verified synced ~10ms): 131 EX grants / 269 releases for 80 creates, p50 tenure 100ms — **each ~100-170ms EX tenure accomplishes <1 create**; the cost is inside the tenure (create + release drain pipeline), not the handoff gap (p50 5.6ms) — plus a starvation tail at full size.
+
+**3. Built decomposition probes** (build `6FDA6A850CC4D9009F3F642`, compiled clean, NOT yet deployed): `P106-EXREL` now reports `drain_ms` (bast_process entry → pre-publish) and `tail_ms` (publish → unlock); new always-on `P131-WAITLONG` logs any lock grant that waited >1s with resource detail.
+
+## Next session
+1. Deploy `6FDA6A85` (`scripts/cluster_reset_n.sh 16`, ~3.5 min).
+2. Run mini-storm (`scripts/sess88_workload_a_modeN_baseline.sh /src/mxfs/mxfs.ko 5 1 1`), harvest `P106-EXREL drain_ms/tail_ms` + `P131-WAITLONG` from dmesg → pinpoint whether the ~100ms/handoff is the drain (log force / dir-data push / double blkdev flush / publish walk) or the create itself.
+3. Patch the proven cost (RULE 4), re-measure, then dpn=100 1-iter, then the full criterion within 300s.
+4. Then: crash_consistency, fence_during_write, scaling_curve(16), posix_semantics(16), and the full `verify_ship.sh` gate (~55 min) before writing the marker.
+
+Gate: 14/19 recorded PASS, zero_silent_loss is the only active failure. `state.md` and ccmemory `sess131-ghost-writers-FIXED-selffence-gen-identity` carry the full detail. Marker not written; criteria not yet met.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 47 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 46
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `b12986b5-7133-44cf-b903-64387db59567`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567.jsonl`
+- approx context at last assistant turn: 497740 tokens
+- tools used: Bash×119 Read×40 Edit×20 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×3 ToolSearch×2 AskUserQuestion×1 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/tests/drc_detail8.sh
+- /src/mxfs/CLAUDE.md
+- /src/mxfs/STATE.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== leftover procs ==="; ps aux | grep -E "[d]rc_detail8|[d]rc_batch8|[r]un.sh 8" | wc -l; echo "=== on-disk build ==="; modinfo mxfs.ko 2>/
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; nohup bash tests/drc_detail8.sh 6 > "$OUT" 2>&1 
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; until grep -qE "drc_detail8 done" "$OUT" 2>/dev/null; do sleep
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; grep -E "ITER [0-9]+:" "$OUT" 2>/dev/null; echo "deaths=$(grep
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; until grep -qE "drc_detail8 done" "$OUT" 2>/dev/null; do sleep
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; until grep -qE "drc_detail8 done" "$OUT" 2>/dev/null; do sleep
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; grep -E "ITER [0-9]+:" "$OUT" 2>/dev/null; echo "deaths=$(grep
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; until grep -qE "drc_detail8 done" "$OUT" 2>/dev/null; do sleep
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_hung2.log; until grep -qE "drc_detail8 done" "$OUT" 2>/dev/null; do sleep
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning.*xfs_dir2_node|implicit" | head; echo "=== new build ==="; modinfo mxfs.ko 2>/dev/null | grep srcvers
+    cd /src/mxfs; OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_capped.log; nohup bash tests/drc_detail8.sh 4 > "$OUT" 2>&1
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_capped.log; until grep -qE "END DETAIL CAPTURE iter|drc_detail8 done" "$O
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_capped.log; until grep -qE "END DETAIL CAPTURE iter|drc_detail8 done" "$O
+    cd /src/mxfs; grep -n "Subsystems documented\|Current build (sess46\|Prior build (sess39\|^# \[AWARENESS\]\|Bootstrap version" CLAUDE.md | head
+    cd /src/mxfs; python3 - <<'PY' import re p='CLAUDE.md' lines=open(p).read().split('\n') # find indices start=end=None for i,l in enumerate(lines):     if l.star
+    cd /src/mxfs; python3 - <<'PY' p='CLAUDE.md' lines=open(p).read().split('\n') start=next(i for i,l in enumerate(lines) if l.startswith('- **Current build (sess4
+    cd /src/mxfs; echo "=== CLAUDE.md size + any remaining state/handoff lines ==="; wc -l CLAUDE.md; grep -niE "current build|srcversion|sess[0-9]+|readdir=799|cri
+    cd /src/mxfs; rm -f STATE.md; echo "STATE.md deleted: $([ ! -f STATE.md ] && echo yes)"; echo "=== CHANGELOG.md present? ==="; ls -la CHANGELOG.md 2>/dev/null &
+    OUT=/tmp/claude-1000/-src-mxfs/b12986b5-7133-44cf-b903-64387db59567/scratchpad/detail8_capped.log; until grep -qE "drc_detail8 done" "$OUT" 2>/dev/null; do slee
+    echo "=== my stray background poll-loops / batches ==="; ps -u steve -o pid,etime,args | grep -E "drc_detail8|drc_batch8|run.sh 8 tcp|until grep|sleep 6" | grep
+
+## Last text from previous session
+
+ letting finish (gathering the per-round grow data); it's still going and I'm leaving it alone. I'm not starting any new work.
+
+I'm holding for your answer on the two open things:
+1. Is the handoff model I described the one you want (CLAUDE.md = rules only; handoff = ccloop relay + ccmemory; CHANGELOG.md = version changes only; no STATE.md)?
+2. Or were you pointing at a deeper problem — that I'm reaching for files because the relay/ccmemory handoff isn't serving well enough, and you want me to fix that instead?
+
+Nothing further until you steer.
+Honest answer: I *was* using the relay — partly. I started this session from the relay's resume block, and I wrote ccmemory notes throughout (`sess46-*`). So the real handoff channels were already in motion.
+
+What I *also* did, wrongly, was keep feeding the `CLAUDE.md` awareness blob on top of that. The reason is plain and not flattering: **I copied the inherited pattern instead of questioning it.**
+
+- The resume block I received at session start, and every prior session's notes, treated "update the CLAUDE.md `[AWARENESS]` current-build bullet" as part of the handoff ritual. So I pattern-matched and kept appending to it.
+- I conflated two different things: the **awareness-protocol** instruction "keep the awareness docs current / update before handoff" (which is about *stable* architecture docs) with **session state handoff** (build srcversion, current blocker, what I proved). I dumped the latter into the former.
+- I never stopped to ask "does the relay already carry this?" It does. So the CLAUDE.md blob was pure redundancy — it added nothing the relay+ccmemory didn't already have, just unbounded bloat that every future session then pays to load.
+
+So: not a missing capability, a thinking failure. I followed a broken convention 45 sessions deep instead of noticing it duplicated a mechanism that already exists. Going forward I rely on the relay (automatic) + ccmemory (durable notes); CLAUDE.md stays rules/architecture only.
+
+The batch you let finish has completed (it produced the per-round grow data for the SINGLE-mode question). I won't touch it or restart diagnostics until you tell me to proceed.
+Good catch — no, I hadn't yet. A feedback memory is exactly the durable mechanism (it persists across sessions and surfaces on recall). Let me write one.
+Durable feedback memory written: `feedback-handoff-state-via-relay-and-ccmemory-never-claude-md`. Future sessions will surface it on `memory_list`/recall, so the rule sticks: **handoff = ccloop relay + ccmemory only; never CLAUDE.md, STATE.md, or CHANGELOG.md.**
+
+I've hit the relay boundary, so a brief wrap-up:
+
+**On the process correction (this conversation):**
+- `CLAUDE.md` stripped to stable rules/architecture only; the 34 KB build-history blob archived to `.claude/awareness/build-history.md`.
+- `STATE.md` deleted (you confirmed: no rolling state file).
+- Confirmed model: handoff via the relay (auto) + ccmemory (`sessNN-*`); CHANGELOG.md is version changes only.
+- Feedback memory written so this doesn't recur.
+
+**One loose end to flag:** there are leftover background `run.sh 8 tcp` processes from my diagnostic batch (PIDs ~2942224, 2955437, 2956xxx). I didn't kill them because you'd interrupted — they should be cleaned up (`pkill -f "drc_detail8\|run.sh 8 tcp"`) so they don't contaminate the next session's cluster state, as stray runs did at the start of this one.
+
+**On the actual criterion (unchanged, NOT met):** 8/tcp `dir_reuse_coherency` is the blocker. This session's substantive finding (in ccmemory `sess46-*`) is that the 8/tcp failure is multi-modal — a dominant **node-isolation/wedge** mode (a node stalls >25s → TCP_USER_TIMEOUT → declared dead → its round work lost) plus the consistent **SINGLE** intra-block loss — and that several sess45 assumptions (host oversubscription, FUA-read efficacy, release inode gap) were wrong. The next session should chase the >25s wedge with the hung-task watchdog now wired into `tests/drc_detail8.sh`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

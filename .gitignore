@@ -1,0 +1,40 @@
+# ---- Kernel module build artifacts ----
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+.*.cmd
+*.symvers
+Module.symvers
+modules.order
+.tmp_versions/
+
+# ---- Userspace tool binaries (rebuilt by `make tools`) ----
+/tools/mkfs_mxfs
+/tools/chk_mxfs
+/tools/resize_mxfs
+/tools/fua_verify
+/tools/caw_verify
+
+# ---- Test-run captures (dmesg / timeline / stream dumps) ----
+tests/**/*.txt
+tests/**/*.log
+tests/**/*.log.*
+
+# ---- Editor / OS cruft ----
+*.swp
+*~
+.DS_Store
+._*
+
+# ---- Working backups & stale copies (recoverable from git history; never ship publicly) ----
+*.backup
+*.backup-*
+*-backup
+*.old
+
+# ---- ccloop session transcripts: symlinks to full raw session JSONL under
+# ---- ~/.claude/projects/, absolute-path (non-portable) and can carry
+# ---- arbitrary sensitive content (commands run, secrets, etc). Never track.
+.ccloop/runs/*/transcripts/

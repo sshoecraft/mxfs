@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 48 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 47
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `001e9443-5368-43fa-89fb-1e952caee77c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/001e9443-5368-43fa-89fb-1e952caee77c.jsonl`
+- approx context at last assistant turn: 504422 tokens
+- tools used: Bash×104 Read×39 Edit×8 mcp__ccmemory__memory_write×6 ToolSearch×4 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_search×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_detail8.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs echo "=== P47-FILEBLOCK by comm (mode/state when blocking) ===" grep -hoE "P47-FILEBLOCK ino=[0-9]+ req=[0-9]+ mode=[0-9]+ state=[0-9]+ ex_h=[0-9]+
+    cd /src/mxfs; L=tests/tcp/drc_cap/stream_rank3.log echo "=== u10 (bast) stack ===" awk '/task:kworker\/u10.*state:D/{f=1} f{print} f&&/<\/TASK>/{exit}' "$L" 2>/
+    cd /src/mxfs; grep -n "MXFS_IF_DLM_RELFLUSH\|mxfs_v5_dlm_inode_unlock(" xfs/xfs_mxfs_dlm.c | awk -F: '$1>8344 && $1<10330'
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*xfs_mxfs_dlm|implicit" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; NODES="test1 test2 test3 test4 test5 test6 test7 test8" timeout 8 mosquitto_sub -h 127.0.0.1 -t '
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; NODES="test1 test2 test3 test4 test5 test6 test7 test8" timeout 8 mosquitto_sub -h 127.0.0.1 -t '
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass for n in test1 test2 test3 test4 test5 test6 test7 test8; do   echo -n "$n: "   timeout 10 $SSH $n
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass echo "=== test4 fatal ==="; timeout 10 $SSH test4 $PASS "dmesg | grep -iE 'Internal error|Corrupti
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; NODES="test1 test2 test3 test4 test5 test6 test7 test8" timeout 8 mosquitto_sub -h 127.0.0.1 -t '
+    cd /src/mxfs; grep -rn "P13-COLLIDE\|stale-base free-slot double-alloc" xfs/ | head
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass timeout 12 $SSH test4 $PASS "dmesg | grep -nE 'xfs_trans_cancel|Internal error|Corruption|EFSCORRU
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass timeout 6 $SSH test1 $PASS "cd /sys/module/mxfs/parameters 2>/dev/null; for p in dir_release_fua_w
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass timeout 6 $SSH test1 $PASS "cd /sys/module/mxfs/parameters 2>/dev/null; for p in dir_release_retir
+    cd /src/mxfs; echo "build: $(modinfo mxfs.ko 2>/dev/null | grep -oE 'srcversion: +[A-F0-9]+')"; echo "strays: $(ps -u steve -o args 2>/dev/null | grep -E 'run.s
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass echo "=== mht / hold-time levers ===" timeout 6 $SSH test1 $PASS "cd /sys/module/mxfs/parameters 2
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; NODES="test1 test2 test3 test4 test5 test6 test7 test8" timeout 8 mosquitto_sub -h 127.0.0.1 -t '
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*xfs_mxfs_dlm|implicit" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; NODES="test1 test2 test3 test4 test5 test6 test7 test8" timeout 8 mosquitto_sub -h 127.0.0.1 -t '
+    cd /src/mxfs echo "=== P14-DABUF-HOLE gen state (sample) ===" grep -hoE "P14-DABUF-HOLE ino=[0-9]+ bno=[0-9]+ fmt=[0-9]+ nextents=[0-9]+ disize=[0-9]+ i_gen=[0-
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*xfs_mxfs_dlm|implicit" | head; echo "keeper build: $(modinfo mxfs.ko 2>/dev/null | grep -oE 'srcver
+
+## Last text from previous session
+
+map is current and correctly has block 1 as a HOLE, but the **leaf hash index still references block 1**. This is an on-disk **TORN dir**: a node destaged a stale cached LEAF over a peer's durable leaf+free update, re-referencing a freed block. This is the ~30-session architectural core (cross-node leaf-vs-data/extent coherence on reused-dir churn). I have a proven, instrumented diagnosis; the wedges are now cleared; dozens of same-class fixes (postread/invalidate/evict/retire/tenure) have been refuted. This meets the RULE 5 bar for an architectural consult. Let me load GPT-5.5:
+GPT-5.5 gave a strong architectural direction. The key actionable insight: the release pipeline must **force-COMPLETE (write+wait, normal iodone retires the BLI) ALL dir-fork buffers including LEAF/NODE blocks** — and a stale prior-tenure leaf must be invalidated, not kept dirty/destaged later. The on-disk tear comes from a lingering stale leaf BLI surviving the handoff. Let me record this and verify whether the release flush actually force-completes leaf blocks:
+Now let me verify the gap: does the release flush actually force-complete (bwrite) LEAF blocks, or exclude them? Let me read flush_one_daddr's write section:
+I've hit the relay boundary. Let me rebuild so the on-disk module matches the reverted source (keeper = 3 wedge fixes, `tenure_evict=0`), then summarize:
+Keeper build is `05BC5765` (3 wedge fixes, `dir_tenure_evict=0`), no strays. Relay boundary reached — brief summary:
+
+## Session summary — major progress, criterion NOT met
+
+**Criterion** (1/2/4/8-node tcp dir_reuse 100%) is **not met** — 8-node is ~33–50%, so I am not writing YES.
+
+**Fixed this session (build `05BC5765`, 3 KEEP fixes, all RULE-4 proven via live NFS hung-task capture):**
+1. **relsafe lock** — a lock-free `for_each_xfs_iext` in the release flush produced garbage daddrs → 410727× `WARN_ON` console flood → node stall → false death.
+2. **ilock_end defer-to-bast-wq** — inline release flush self-deadlocked on a readdir-held buffer.
+3. **conversion-admit** — bast_process's `filemap_write_and_wait` deadlocked with the `xfs_end_io` unwritten-extent conversion (mode pre-cleared to NL); admit it while the on-disk grant is still held during DEMOTING.
+
+**Results:** these eliminated all wedges/deadlocks (the test went from *always wedges/timeout* → *completes*). **2/tcp PASS, 4/tcp PASS, 8/tcp PASSED clean 8/8 (run 1)** — the first clean 8-node pass.
+
+**Key meta-finding:** most prior "DABUF-hole" 8-node failures were **contamination** from killed runs (proved via 4/tcp: 0/4 dirty → 4/4 after full sanitize). Always fully reset (`rm /root/drc_*`, `dmesg -C`, virsh destroy/start all, `mosquitto --remove-retained`) between runs.
+
+**Remaining blocker (intermittent ~50%):** the reused-dir **LEAF-vs-data durable tear** — on-disk leaf hash index references data block `bno=1` that the current extent map (`loaded_gen==dir_gen`) has as a HOLE → `xfs_dabuf_map` `!HOLE_OK` → shutdown. A node modifies/destages a stale cached leaf over a peer's durable free.
+
+**Consulted GPT-5.5** (RULE-5-justified: proven instrumented diagnosis of the ~30-session core, many same-class fixes refuted). Design recorded in ccmemory `sess47-GPT-consult-*`: release-side **force-complete the entire data fork incl LEAF/NODE** (write+wait, normal iodone retires BLI — not force-abort), a **grant-seq write-fence** at buffer submit, **invalidate-all clean dir buffers on acquire**, and **once-per-handoff leaf rebuild** as guardrail. Next concrete step (mid-investigation at boundary): the release-drain prior-tenure skip currently **excludes LEAF** ("never LEAF — leaf skip desyncs hashes"), so a stale prior-tenure leaf is written home = the tear; the fix is to invalidate (not write) a stale prior-tenure leaf + rebuild on acquire.
+
+All findings persisted in ccmemory (`sess47-BREAKTHROUGH-*`, `sess47-FIXED-*`, `sess47-FINAL-*`, `sess47-GPT-consult-*`). The next session continues the leaf-coherence fix on the 3-wedge-fix foundation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

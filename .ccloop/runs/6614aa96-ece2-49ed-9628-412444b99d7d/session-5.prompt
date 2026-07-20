@@ -1,0 +1,126 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/6614aa96-ece2-49ed-9628-412444b99d7d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 6614aa96-ece2-49ed-9628-412444b99d7d, after session 4
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `45da4158-7170-4e0c-aaf3-0474987f6730`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/45da4158-7170-4e0c-aaf3-0474987f6730.jsonl`
+- approx context at last assistant turn: 500203 tokens
+- tools used: Bash×109 Read×28 Edit×14 mcp__ccmemory__memory_write×9 mcp__ccmemory__memory_get×8 ToolSearch×2 mcp__ccmemory__memory_search×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/scripts/drc_reliability.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/pal/linux/xfs_buf.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; pass=0; fail=0; for i in 1 2 3; do timeout 200 scripts/ccloop_reset.sh 2 >/dev/null 2>&1; r=$(./run.sh 2 tcp cache_coherency 2>&1 | grep -E "  (PA
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 200 scripts/ccloop_reset.sh 2 >/dev/null 2>&1; r=$(./run.sh 2 tcp cache_coherency 2>&1); echo "$r" | grep -E "PASS|FAIL  cache"; echo "===
+    cd /src/mxfs; echo "=== mxfs hooks in buf item push / iop_push / delwri for dir blocks ==="; grep -rn "iop_push\|xfs_buf_item_push\|XFS_ITEM_FLUSHING\|delwri_qu
+    cd /src/mxfs; grep -n "^xfs_buf_stale\|void$\|xfs_buf_stale(" pal/linux/xfs_buf.c | head; echo "=== xfs_buf_stale body start ==="; awk '/^xfs_buf_stale\(/{print
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 200 scripts/ccloop_reset.sh 2 >/dev/null 2>&1; r=$(./run.sh 2 tcp cache_coherency 2>&1); echo "$r" | grep -E "PASS|FAIL  cache"; echo "===
+    cd /src/mxfs; grep -n "xfs_buf_item_push\|iop_push\|XFS_ITEM_FLUSHING\|XFS_ITEM_PINNED\|mxfs.*dir.*push\|delwri_queue\|return XFS_ITEM" xfs/xfs_buf_item.c | hea
+    cd /src/mxfs; f=$(find . -name "xfs_buf_item.c" -not -path "*/old/*" 2>/dev/null | head -1); echo "file: $f"; grep -n "xfs_buf_item_push\|iop_push\|XFS_ITEM_FLU
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; timeout 200 scripts/ccloop_reset.sh 2 >/dev/null 2>&1; r=$(./run.sh 2 tcp cache_coherency 2>&1); echo "$r" | grep -E "PASS|FAIL  cache"; echo "===
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion; timeout 200 scripts/ccloop_reset.s
+    cd /src/mxfs; grep -n "mxfs_dir_zombie_push_retire\|mxfs_dir_ail_push_defer\|drain.*dir\|dir.*drain\|relepoch\|undestaged.*clear\|clear.*undestaged\|b_mxfs_rele
+    cd /src/mxfs; grep -n "mxfs_dir_ail_push_defer\|mxfs_dir_zombie_push_retire" xfs/xfs_mxfs_dlm.c | head; echo "=== ail_push_defer body ==="; awk '/^mxfs_dir_ail_
+    cd /src/mxfs; grep -n "int mxfs_dir_ail_defer\|module_param_named(dir_ail_defer" xfs/xfs_mxfs_dlm.c; echo "=== test: cache_coherency 2/tcp force_block=1 with di
+    cd /src/mxfs; grep -n "^mxfs_dir_buf_is_undestaged\|mxfs_dir_buf_is_undestaged(struct" xfs/xfs_mxfs_dlm.c; awk '/^mxfs_dir_buf_is_undestaged\(struct/{f=NR} f&&N
+    cd /src/mxfs; grep -rn "b_mxfs_written_seq" xfs/ pal/ | grep -v backup | grep -E "=|written_seq =" | grep -vE "!=|==| != | == " | head -20
+    cd /src/mxfs; echo "=== xfs_mxfs_dlm.c:2409 context ==="; sed -n '2380,2415p' xfs/xfs_mxfs_dlm.c; echo "=== pal/xfs_buf.c:1346 context ==="; sed -n '1325,1350p'
+    cd /src/mxfs; grep -n "int mxfs_dir_wseq_at_completion\|module_param_named(dir_wseq_at_completion" xfs/xfs_mxfs_dlm.c pal/linux/*.c 2>/dev/null | head; echo "==
+
+## Last text from previous session
+
+ block0 (retiring BLI, no write) instead of writing it — which fires on `DONE=0 + destaged`. That requires `mxfs_dir_buf_is_undestaged` returning FALSE for block0. If that's a false-negative for a never-written block, it's the root. Let me examine that function.
+The crux function: `undestaged = (b_mxfs_logged_seq != b_mxfs_written_seq)`. P-RDPATH showed `undest=1` at T0 then eviction — so between, `written_seq` was bumped to `logged_seq` (marking "written"), yet **no bio was submitted (P16=0) and disk stays 0xFF**. So a **write-SKIP path bumps `b_mxfs_written_seq` without actually writing** → false "destaged" → block0 unprotected → evicted → 0xFF. Let me find where `written_seq` is set and the skip that wrongly bumps it.
+Three sites set `written_seq = logged_seq`. One likely bumps it in a skip path without a real write. Let me examine all three.
+The write_seq mechanism: at SUBMIT (xfs_buf.c:4394) `written_seq=logged_seq` unless `mxfs_dir_wseq_at_completion` defers it to bio COMPLETION (1346, only fires if a real bio was counted). The comment says "**skip-emulated writes keep the submit-time stamp**" — so if block0 enters the write path but its bio is skipped (P16=0, no actual write), it's still marked destaged at submit → false destaged → evicted → 0xFF. **`mxfs_dir_wseq_at_completion=1` should fix this** (only mark destaged when a real bio completes). Let me check its default and test.
+`dir_wseq_at_completion=1` also didn't fix it (0/3) — so the false-destage isn't via the submit-time write_seq stamp either. Three candidate levers now refuted (dir_ail_defer, dir_wseq_at_completion, undestaged-keep-guard). The eviction must be via the BLI leaving the AIL without a write — GPT's explicit next instrumentation target (`xfs_trans_ail_delete`/`xfs_buf_item_done`). Let me record the refutations + precise next step, then verify the tree is clean.
+I've reached the relay boundary. The tree is clean (build `C7C10753`, diagnostic probes only — my one behavior-change fix attempt was reverted). Criterion not met, marker not written.
+
+## Session 4 summary
+
+**Milestone achieved:** Full `./run.sh 2 tcp` = **17/17 PASS** at `dir_force_block=0` (recovers the sess58 2-node criterion). Corrected the sess3 handoff: the winning config is `force_block=0` (the tree *default* `force_block=1` deterministically breaks cache_coherency at every node count).
+
+**Column status** (force_block=0): 1/tcp 13/16 (tooling only), **2/tcp 17/17 ✓**, 4/tcp 14/17 (dir_reuse flaky), 8/tcp unrun.
+
+**Root-cause breakthrough** (the single blocker across force_block=1 cache_coherency AND force_block=0 dir_reuse 4/8), proven via a chain of kernel probes:
+- A committed, EX-held dir block0 lives **only in-core** (multinode dir data blocks are never written by xfsaild — P16=0; they destage only at DLM release).
+- That undestaged buffer gets **evicted** (BLI retired + `written_seq` bumped + staled — all *without* an actual write), then a later read **cold-fetches never-written disk (0xFF)** → `xfs_dir3_block_verify` EFSCORRUPTED → shutdown.
+
+**GPT-5.5 consult** confirmed the diagnosis (a committed-undestaged buffer vanishing violates XFS lifecycle) and gave the fix architecture: pin undestaged dir buffers (`xfs_buf_hold`, release at real write completion) and/or epoch-gated xfsaild writeback under EX with a drain-wait on release.
+
+**Refuted this session** (with evidence): bnobt double-alloc (P-DBLALLOC-BIRTH = 0 foreign), divergent extent map (P62 in-core==disk), invalidate levers, `dir_ail_defer`, `dir_wseq_at_completion`, and a read-path keep-guard.
+
+**Sharp next step** (GPT's explicit recommendation): instrument `xfs_trans_ail_delete`/`xfs_buf_item_done`/`xfs_buf_item_unpin` and the release-drain `xfs_bwrite` for daddr 112/120 to find who retires block0's BLI + marks it destaged without the bio landing, then apply the pin/epoch-writeback fix. Fast repro: `./run.sh 2 tcp cache_coherency` at default force_block=1. All findings are captured across the `sess4-ccloop-*` memories.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

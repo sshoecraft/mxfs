@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 20 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/29df431e-2164-421d-9236-219d99bd3d8b/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 29df431e-2164-421d-9236-219d99bd3d8b, after session 19
+
+## Original task
+
+read the entire file ./p for context
+
+
+## Previous session
+
+- session-id: `aba62c99-7293-4822-abb0-e3f27a771615`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/aba62c99-7293-4822-abb0-e3f27a771615.jsonl`
+- approx context at last assistant turn: 162746 tokens
+- tools used: Bash×31 Read×7 Edit×4 ToolSearch×1 mcp__ask_gemini__query×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; echo "=== scsi_read_fua_bdev decl ==="; grep -rn "mxfs_pal_scsi_read_fua_bdev" pal/ include/ xfs/ 2>/dev/null | grep -v "\.o:" | head; echo "=== b
+    cd /src/mxfs; echo "=== b_log_item field ==="; grep -n "b_log_item\|struct xfs_buf_log_item" xfs/xfs_buf.h | head; echo "=== xfs_inode_log_item ili_inode + XFS_
+    cd /src/mxfs; grep -rn "XFS_LI_INODE" xfs/libxfs/xfs_log_format.h | head -3; echo "=== xfs_inode_log_item include in xfs_inode.c ==="; grep -n "xfs_inode_item.h
+    cd /src/mxfs; grep -n "mxfs_pal_log\|MXFS_LOG_WARN\|ktime_get_real_ns\|kmalloc\|GFP_NOFS\|pag_agno\b" xfs/xfs_inode.c | head; echo "=== mxfs_pal_log decl ==="; 
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "xfs_inode.c:[0-9]|error:|Error [0-9]|undefined|warning:.*xfs_inode" | head -20; echo "=== EXIT ${PIPESTA
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -4; echo "=== verify srcversion ==="; for n in test1 test2 test3 test4; do echo -n "$n
+    cd /src/mxfs; timeout 560 bash tests/cv_sfadd_loop.sh 20 2>&1 | tail -25; echo "=== loop EXIT ${PIPESTATUS[0]} ==="
+    sleep 180; cd /src/mxfs; echo "=== loop output so far ==="; grep -aE "ITER|H2|=> H2|loop done|STOP" tests/.cv_sfadd_loop.out | tail -25
+    cd /src/mxfs; grep -aE "ITER|H2|=> H2|loop done|STOP" tests/.cv_sfadd_loop.out | tail -25; echo "=== bg task running? ==="; ps -ef | grep -c "[c]v_sfadd_loop"
+    cd /src/mxfs; for n in test1 test2 test3 test4; do echo "=== $n P-CLMERGE/P-DIRFLUSH (current iter) ==="; timeout 10 bash tools/mxfs_sshpass.sh $n /tmp/.mxfs_pa
+    cd /src/mxfs; i=0; while ps -ef | grep -q "[c]v_sfadd_loop" && [ $i -lt 110 ]; do sleep 5; i=$((i+1)); done; echo "=== loop finished or timed out (waited ${i}x5
+    cd /src/mxfs; echo "=== final loop output ==="; tail -30 /tmp/claude-1000/-src-mxfs/aba62c99-7293-4822-abb0-e3f27a771615/tasks/bqyry7udj.output; echo "=== .out 
+    cd /src/mxfs; echo "=== P-CLMERGE anywhere? ==="; grep -ac "P-CLMERGE" tests/.cv_sfadd_loop.out; grep -a "P-CLMERGE" tests/.cv_sfadd_loop.out | head; echo "=== 
+    cd /src/mxfs; timeout 580 make modules 2>&1 | grep -iE "error:|Error [0-9]|undefined" | head; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/dev/null 
+    cd /src/mxfs; MKFS_OPTS=-f timeout 300 bash tests/reset4.sh 4 2>&1 | tail -2; for n in test1 test2 test3 test4; do echo -n "$n: "; timeout 8 bash tools/mxfs_ssh
+    cd /src/mxfs; timeout 560 bash tests/cv_sfadd_loop.sh 20 > /tmp/cvloop_2498.out 2>&1; echo "EXIT $?"
+    cd /src/mxfs; i=0; until timeout 8 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass 'dmesg | grep -aq "P-CLMERGE-GATE"' 2>/dev/null || [ $i -ge 18 ]; do sleep 5
+    cd /src/mxfs; i=0; while ps -ef | grep -q "[c]v_sfadd_loop" && [ $i -lt 115 ]; do sleep 5; i=$((i+1)); done; echo "=== loop done (waited ${i}x5s) ==="; grep -aE
+    cd /src/mxfs; grep -aE "ITER|=> H2|loop done|STOP|missing=" tests/.cv_sfadd_loop.out | tail -30
+    cd /src/mxfs; echo "=== failing dir + final listing ==="; grep -aE "dir-listing|miss node|ls-li" tests/.cv_sfadd_loop.out | tail -6; echo; echo "=== which dir i
+
+## Last text from previous session
+
+E fix path is actually firing (proves the merge engages), while the loop continues:
+Iters passing but P-CLMERGE hasn't needed to fire yet this iter. Let me wait for the background loop to complete using a proper until-loop on the task liveness:
+The repro loop completed. Let me read its result:
+H2 still reproduces, but now at **iter 9** instead of iter 1 — the fix helped but didn't eliminate it. The failing dir this iter is ino=132. Critical question: did P-CLMERGE fire? Let me check the full dump:
+**Critical finding: P-CLMERGE fired ZERO times** — the merge path never engaged, even across 8 passing iters and the failing one. And the failure pattern changed: dir 132 only reached count=2 (not count=4), and the reverting writes come from **test1** (which created co-resident child 134, cino=134 adjacent to dir 132). So the merge *should* have fired (132 is foreign to test1 when flushing child 134) but didn't. I need to know which gate blocked it. Per RULE 4, let me add gate-decision instrumentation rather than guess:
+Now run the loop in background and wait for it:
+While the loop runs, let me sample whether `P-CLMERGE-GATE` fires at all and with what gate values (it logs on every cluster flush that contains a foreign dir):
+The merge **is** firing and restoring foreign dirs (test1 restored ino=128, test2 restored ino=4194434 slot=2; all gates clean: `bli_dirty=0 map_count=1 ni=32`). My earlier "fired zero times" was an artifact — the loop's H2-dump grep didn't include `P-CLMERGE`. The merge works as designed.
+
+Let me wait for this run's result. If H2 still reproduces, the failing dir's dmesg persists (loop stops without clearing), so I can pull P-CLMERGE for it:
+H2 at iter 4. The failing iter's dmesg is intact on the nodes. Let me pull the complete picture — find the failing dir and trace P-CRNAME, P-DIRFLUSH, and P-CLMERGE for it across all nodes:
+I've hit the relay boundary. Let me record the session's findings to `state.md` before wrapping:
+## Session summary (sess61)
+
+Worked the `cache_coherency` blocker via RULE 4 (instrument → prove → fix → re-measure) and RULE 5 (Gemini consult).
+
+**Proved the root cause** (RULE 4 step 2b). Deployed the narrowed P-DIRFLUSH detector and captured the decisive timeline for dir ino=4194434: test3→count=1, test2→2, test1→3, **test4→4** (all four dirents durable on disk), then **test2→count=2 ~248ms later** (revert; node1.txt+node4.txt lost). test2 created the adjacent child inode 4194435 (same 16KB inode-cluster); flushing that co-resident dirty child carried test2's stale dir slot back to disk. Exact cross-inode cluster-buffer false-sharing.
+
+**Consulted Gemini** (RULE 5 — 18-session class, deep arch, 1 prior failed attempt at this site). Key corrections applied: predicate must be "not ours to write" (b_li_list + buf-log-item), not FMT_LOCAL-restricted; the `di_next_unlinked` corruption hole is closed by skipping when a dirty buf-log-item is attached; CRC-safe because we copy the full dinode incl. `di_lsn`.
+
+**Implemented + proved-firing the fix.** `mxfs_iflush_cluster_merge_dirs()` in `xfs/xfs_inode.c` (called in `xfs_iflush_cluster` before write): FUA-reads the current on-disk cluster and overlays every foreign directory inode's region from durable disk. Confirmed engaging (`P-CLMERGE restored ino=4194434 slot=2`, all gates clean).
+
+**Result: improved but not eliminated.** H2 moved from iter-1 to iter-4..9 — the merge closes the foreign-dir revert but a residual path remains: a node flushing its **own** stale in-core dir inode (in its `b_li_list`, which the merge correctly excludes). Next session should instrument whether the first sub-max disk write is an own-flush with a stale in-core image (→ in-core reload reversion, sess46/53 family) vs foreign, and pivot accordingly. Full analysis + two hypotheses (H-A in-core staleness, H-B chain corruption) recorded at the head of `state.md`.
+
+Criteria remain **PASS=10 FAIL=2** (cache_coherency, rsync_paired). Marker not written — the gate is not green.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

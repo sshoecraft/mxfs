@@ -1,0 +1,17 @@
+{
+  "source": [
+    "xfs/xfs_buf.h",
+    "pal/linux/xfs_buf.c",
+    "scripts/decode_bufev.py",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_mount.h",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "pal/linux/xfs_super.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "xfs/xfs_fsops.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

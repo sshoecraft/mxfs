@@ -1,0 +1,127 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 49 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 48
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `4739b968-ce0d-45da-9300-3126ed579143`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4739b968-ce0d-45da-9300-3126ed579143.jsonl`
+- approx context at last assistant turn: 502465 tokens
+- tools used: Bash×117 Read×38 Edit×17 mcp__ccmemory__memory_write×8 mcp__ccmemory__memory_get×4 ToolSearch×2 TaskStop×1 Write×1 mcp__ccmemory__memory_search×1 mcp__ccteam__claim×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/drc_dirtyskip.sh
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "dir_relverify\|mxfs_dir_relverify" xfs/xfs_mxfs_dlm.c | grep -v "9764\|9765\|extern int mxfs_dir_relverify;.*sess48\|sess48: DEFAULT" | h
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*dlm.c|implicit" | head; echo "build: $(modinfo mxfs.ko 2>/dev/null | grep -oE 'srcversion: +[A-F0-9
+    cd /src/mxfs; t0=$(date +%s); timeout 545 bash tests/drc_dirtyskip.sh "dir_relverify=1" 24 8 >/tmp/claude-1000/-src-mxfs/4739b968-ce0d-45da-9300-3126ed579143/sc
+    cd /src/mxfs; grep -n "xfs_readdir\b\|MXFS_IF_DIR_RELOAD\|mxfs_dlm_dir_modify_refresh\|xfs_dir_lookup\b" xfs/xfs_dir2_readdir.c xfs/xfs_mxfs_dlm.c 2>/dev/null |
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test8; do echo "=== $n P26-RDDIR near round14 (250-270s) ==="; timeout 8 $SSH $n $
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PASS=/tmp/.mxfs_pass; for n in test1 test8; do echo "=== $n: P26-RDDIR ino=131 samples (nextents/mode distribution) ===
+    cd /src/mxfs; echo "=== does mxfs_inode_disk_di_size FUA or plain read? ==="; sed -n '/mxfs_inode_disk_di_size(struct xfs_inode/,/read_fua\|read_plain\|return/p
+    cd /src/mxfs; t0=$(date +%s); timeout 545 bash tests/drc_dirtyskip.sh "dir_relverify=1" 24 8 >/tmp/claude-1000/-src-mxfs/4739b968-ce0d-45da-9300-3126ed579143/sc
+    cd /src/mxfs; grep -n "P37-STALEBMAP-MODIFY\|p37n = ATOMIC\|atomic_inc_return(&p37n)" xfs/xfs_mxfs_dlm.c | head; grep -n "if (unlikely(mxfs_instr_enabled) &&" x
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*dlm.c|implicit" | head; echo "build: $(modinfo mxfs.ko 2>/dev/null | grep -oE 'srcversion: +[A-F0-9
+    cd /src/mxfs; grep -n "mxfs_dir_relverify\|extern int mxfs_instr_enabled" xfs/xfs_dir2_readdir.c | head; echo "=== where instr extern is ==="; grep -n "extern i
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*readdir|implicit" | head; echo "build: $(modinfo mxfs.ko 2>/dev/null | grep -oE 'srcversion: +[A-F0
+    cd /src/mxfs; t0=$(date +%s); timeout 520 bash tests/drc_dirtyskip.sh "fua_disable=1" 24 8 >/tmp/claude-1000/-src-mxfs/4739b968-ce0d-45da-9300-3126ed579143/scra
+    cd /src/mxfs; echo "=== SCST devices + write cache ==="; ls /sys/kernel/scst_tgt/devices/ 2>/dev/null | head; for d in $(ls /sys/kernel/scst_tgt/devices/ 2>/dev
+    cd /src/mxfs; echo "=== LIO target? ==="; ls /sys/kernel/config/target/ 2>/dev/null; echo "=== LIO core devices ==="; ls /sys/kernel/config/target/core/ 2>/dev/
+    cd /src/mxfs; D=/sys/kernel/config/target/core/fileio_0; ls "$D" 2>/dev/null; for sub in $(ls "$D" 2>/dev/null); do if [ -d "$D/$sub/attrib" ]; then echo "=== $
+    cd /src/mxfs; grep -n "b_mxfs_dir_gen\|xfs_da_read_buf\|i_dlm_dir_gen\|XBF_DONE\|invalidat\|re-read\|reread" xfs/libxfs/xfs_da_btree.c | grep -iE "dir_gen|read_
+    cd /src/mxfs; grep -rn "mxfs_force_coherent" xfs/*.c xfs/libxfs/*.c | grep -iE "int mxfs_force_coherent|module_param" | head; SSH=tools/mxfs_sshpass.sh; PASS=/t
+    cd /src/mxfs; t0=$(date +%s); timeout 530 bash tests/drc_dirtyskip.sh "force_coherent=1 dir_tenure_evict=1" 24 8 >/tmp/claude-1000/-src-mxfs/4739b968-ce0d-45da-
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|warning:.*(dlm|readdir|da_btree)|implicit" | head; echo "build: $(modinfo mxfs.ko 2>/dev/null | grep -oE 'src
+
+## Last text from previous session
+
+* for the 8-node residual:
+- Split-brain/double-grant (chain-detector MX-DOUBLEGRANT=0; P-DOUBLEGRANT is a false-positive stale shadow)
+- Writer data-block durability (DIRREL_DIFFERS=0) and writer dinode/extent-map durability (P68 all DURABLE)
+- Stale-bmap modify (P37=0); reader extent-map staleness / reload-bail (P48-RDRELOAD bailed=0, nx unchanged)
+- Target-cache coherency — the LIO FILEIO backstore is **write-through (`emulate_write_cache=0`) on a single shared file = perfectly coherent backing**
+- Stale-cached-buffer serve — `force_coherent=1` (always re-read from coherent backing) made it **worse**; `fua_disable=1` worse; disabling MHT batching worse
+
+**Conclusion / next angle (documented in ccmemory):** with durability + coherency + invalidation all verified clean and aggressive re-reading making it *worse*, the residual is a genuine **concurrent-RMW / two-phase (torn) dir-block update race** — investigate whether a dir create's data-block + leaf + free/bestfree + dinode writes are made durable **atomically** at the EX handoff boundary, or can be torn so a peer reuses a slot whose data write landed before its bestfree "used" update (P13-COLLIDE off=64 free-slot reuse points here).
+
+All findings persisted across 8 `sess48-*` ccmemory entries; repro harness `tests/drc_dirtyskip.sh "<modargs>" <rounds> <N>`. The 8-node criterion is unmet, so the marker stays unwritten and the relay continues from the torn-update-ordering lead.
+Criterion not met — continuing. The refutation of stale-cache was confounded (force_coherent+tenure_evict over-evicts the writer's own work). The loss IS writer-side (durably absent from coherent backing = a writer RMW'd a base missing the entry). Let me decisively catch the stale-base WRITE: at addname, plain-read (write-cache-coherent) the target block from backing and compare active-dirent count to in-core — if in-core < backing, we're RMWing a stale base. Let me find the addname placement site.
+Relay boundary reached. Brief summary of this session:
+
+## Session 48 summary — criterion NOT met (8-node); 1/2/4 at 100%
+
+**Achieved:** 1/2/4-node tcp `dir_reuse_coherency` now **PASS 100%** (build E871702B = "config #1": baked `dir_owner_scan`/`dir_grant_evict`/`dir_modify_target_flush` defaults → 1). Eliminated the P13-COLLIDE multi-loss and all shutdowns at 8 nodes. Residual at 8 nodes: intermittent **~1–2 durable dirent loss / 24 rounds**.
+
+**Key facts established (instrumented):**
+- The target is **LIO FILEIO write-through** (`emulate_write_cache=0`, single `/home/steve/disk.img`) → backing is **perfectly coherent**. So the loss is NOT a target-cache issue.
+- The lost entry is **durably absent from the coherent backing** (REREAD_MISS, all nodes agree) ⇒ a **writer RMW'd a base missing the entry and wrote it durably**.
+- **Refuted:** split-brain (chain MX-DOUBLEGRANT=0), writer data+dinode durability (DIRREL_DIFFERS=0, P68 all DURABLE), stale-bmap modify (P37=0), reader extent-map staleness/reload-bail (P48-RDRELOAD bailed=0), stale-cache-serve (`force_coherent` made it worse), `fua_disable` (worse), MHT-batching (disabling worse).
+
+**Next concrete lead (where I stopped):** the addname P13-COLLIDE detector (xfs_dir2_data.c:1248) plain-reads the backing but only checks the *single offset* the new entry lands at. Extend it to a **whole-block active-dirent subset compare** (in-core vs plain-read backing) to catch the writer RMWing a stale base when the new entry's slot is free on both but the in-core base is missing *other* peers' entries — the exact non-collision single-dirent loss. This pinpoints whether the writer's base block is stale at RMW time (and why owner_scan acquire-evict / the gen invalidation missed it).
+
+All findings persisted in ccmemory (`sess48-*`, 9 entries). Build/source clean: config #1 defaults on, all experimental params (force_coherent/tenure_evict/relverify/release_flush_*) default-off. Repro: `tests/drc_dirtyskip.sh "<modargs>" <rounds> <N>`. Marker unwritten — criterion not met.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

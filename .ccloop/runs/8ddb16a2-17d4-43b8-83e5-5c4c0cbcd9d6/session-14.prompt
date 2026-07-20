@@ -1,0 +1,130 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 14 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 13
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `19587aae-8003-4586-9784-12743f49fc51`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/19587aae-8003-4586-9784-12743f49fc51.jsonl`
+- approx context at last assistant turn: 502000 tokens
+- tools used: Bash×117 Read×48 Edit×13 mcp__ccmemory__memory_write×10 mcp__ccmemory__memory_get×7 ToolSearch×5 Write×4 TaskOutput×2 mcp__ccmemory__memory_search×2 TaskStop×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/tcp_scaling_capture.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/tcp_lkt_doublegrant.sh
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/tests/tcp_lkt_dirtrace.sh
+- /src/mxfs/tests/tcp/tcp_dlm_scaling.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    echo "=== zombies ==="; ps -eo pid,ppid,stat,args 2>/dev/null | awk '$3 ~ /Z/' | head echo "=== anything referencing this run uuid or tasks dir (excluding this 
+    echo "=== full tasks dir contents (all files, not just .output) ==="; ls -la /tmp/claude-1000/-src-mxfs/19587aae-8003-4586-9784-12743f49fc51/tasks/ 2>/dev/null;
+    d=/tmp/claude-1000/-src-mxfs/19587aae-8003-4586-9784-12743f49fc51/tasks echo "=== b2761o2pz.output (62b) ==="; cat "$d/b2761o2pz.output" 2>/dev/null echo "=== m
+    cd /src/mxfs; grep -n 'mxfs_v5_dlm_inode_held\|make_inode_resource\|find_lock\|resource_equal.*owner\|local_node\|ctx->local' dlm/v5_mount.c | head -20
+    d=/tmp/claude-1000/-src-mxfs/19587aae-8003-4586-9784-12743f49fc51/tasks echo "=== before ==="; ls "$d" # Remove ONLY the 4 confirmed-terminal background-task or
+    cd /src/mxfs; grep -rn 'lockwr\|P-LKT\|lktdump\|P_LKT\|lkt_ring' dlm/dlm.c dlm/*.c pal/*.c 2>/dev/null | head -20; echo "=== module params ==="; grep -rn 'modul
+    cd /src/mxfs; grep -n 'lktdump\|mxfs_lkt_dump\|module_param.*lktdump' xfs/xfs_mxfs_dlm.c dlm/dlm.c | head; echo "=== dump trigger setter ==="; sed -n '/lktdump/
+    cd /src/mxfs; for n in test1 test2; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2; do virsh -c qemu:///system start
+    cd /src/mxfs; chmod +x tests/tcp_lkt_doublegrant.sh; timeout 560 tests/tcp_lkt_doublegrant.sh 10 2>&1 | tail -70
+    cd /src/mxfs; grep -n 'DOUBLEGRANT\|dg_grant_ex\|dg_shadow\|dg_check\|double.grant\|two.*EX\|popcount' dlm/dlm.c | head -20
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass for n in test1 test2; do ip=$(getent hosts $n|awk '{print $1}'); echo "=== $n ==="; timeout 8 "$SSH" 
+    cd /src/mxfs; sed -n '/^mxfs_dir_data_durable/,/^}/p' xfs/xfs_mxfs_dlm.c | head -60; echo "=== if not found, grep def ==="; grep -n 'mxfs_dir_data_durable' xfs/
+    cd /src/mxfs; make modules 2>&1 | grep -iE '\berror\b|mxfs_lkt_ino.*undeclared|mxfs.ko' | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in test1 test2; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2; do virsh -c qemu:///system start
+    cd /src/mxfs; for n in test1 test2; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2; do virsh -c qemu:///system start
+    cd /src/mxfs; for n in test1 test2; do virsh -c qemu:///system destroy $n >/dev/null 2>&1; done; sleep 3; for n in test1 test2; do virsh -c qemu:///system start
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass T1=$(getent hosts test1|awk '{print $1}') echo "=== test1: reload-decision detectors for the test dir
+    cd /src/mxfs; grep -n 'mxfs_dir_sf_refresh_if_disk_differs' xfs/xfs_mxfs_dlm.c xfs/*.c xfs/libxfs/*.c 2>/dev/null
+    cd /src/mxfs; grep -n 'sf_disk_check' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -rn 'i_dlm_dir_loaded_gen\|i_dlm_dir_gen;' xfs/xfs_inode.h include/ 2>/dev/null | head
+
+## Last text from previous session
+
+ir-churn residual). Build `CF359E6C` deployed; non-regressing changes + harnesses in tree; comprehensive memory written. Criterion **not met** — marker not written. Next action is implementing Option A per the recorded plan.
+Criterion not met — implementing the fix. The proven mechanism: nodes RMW the shortform dir from a stale base because the reload is heartbeat-gated and lags. Fix (Option A): force-adopt the coherent on-disk shortform fork before every shortform-dir RMW under EX. Let me read the existing P9-SFREFRESH helper to adapt it for an inline (ILOCK-held) fork replace.
+There's already `mxfs_dir_sf_refresh_if_disk_differs` (coherent SF compare+reload with a clean gate). Let me find where it's called — if it's not on the modify path, that's the gap.
+`mxfs_dir_sf_refresh_if_disk_differs` IS called on the cached-EX fast path, gated by `sf_disk_check`. Let me find that gate condition — it likely excludes the case that's failing.
+Critical realization through the implementation analysis: **flush-then-adopt (Option A) is WRONG**. The shortform dir is a single dinode, so disk = the last writer's *full* image ({our-prior-durable + peer-current}) and our in-core = {our-current-uncommitted + our-*stale* peer-view}. Flushing our in-core would clobber the peer's current changes (the resurrection); adopting disk would drop our uncommitted changes. **Neither side is a superset → a true 3-way merge (base/ours/theirs) is required** (Option B, GPT-endorsed for disjoint names). This is the decisive conclusion. Let me record it with the implementation plan.
+Definitive conclusion reached and recorded: the fix is a 3-way shortform-dir merge. Let me begin implementing it. First, locate the per-inode mxfs fields to add the base snapshot.
+Relay boundary reached. I'm at a clean stopping point — no partial edits in flight; the tree is consistent and builds (`CF359E6C` deployed).
+
+## Session 13 summary — decisive progress, criterion NOT met
+
+**Criterion (`2 node dlm=tcp test 100%`) is not met** — I did not write the marker. 2/tcp is 14–15/16 with one rotating shared-dir-churn failure.
+
+### What this session decisively established (all instrumented, RULE-4)
+1. **Double-grant REFUTED** — dir-filtered P-LKT timeline shows strictly serialized PR/EX grants; `P-DOUBLEGRANT=0`, `P-STALEMASTER-GRANT=0`. The TCP DLM exclusion is correct. (Closes a question open across many prior sessions.)
+2. **Release durability is sound** (incl. shortform — the `bast_process` `!in_ail` barrier covers the dinode).
+3. **Exact mechanism proven** — the residual is the **shortform concurrent-modify merge conflict**: `P62-RELOAD-FORK-SHRINK incore_size=51 disk_size=32 in_ail=0 pin=0` (in-core ahead of disk *and clean*); a node RMWs a stale base (`P58-STALE-BASE-ADD loaded_gen<dir_gen`) because reload is gated on the laggy/bursty heartbeat. Leftovers are the node's own files.
+4. **Definitive fix identified** — reasoned out that *both* "adopt-disk" and "flush-then-adopt" are wrong (single dinode ⇒ neither in-core nor disk is a superset). The correct fix is a **3-way shortform merge** (base/ours/theirs, ours-wins-per-changed-name) — GPT-endorsed for the disjoint-name workload. Full implementation plan recorded.
+
+### Deliverables for the next session
+- Build `CF359E6C` deployed (CONVBLK + sess13 changes + `lkt_ino` P-LKT filter); non-regressing.
+- Diagnostic harnesses: `tests/tcp_lkt_dirtrace.sh`, `tests/tcp_scaling_capture.sh`, plus `lkt_ino`/`lktdump` hooks in `tcp_dlm_scaling.sh`.
+- Memory: `sess13-FIX-REQUIRED-3way-sf-merge` (implementation plan), `sess13-modeB-MECHANISM-shortform-merge-conflict`, `sess13-doublegrant-REFUTED-serialized-stale`, `sess13-HEAD-status`.
+
+**Next action (next session):** implement the 3-way SF merge — add an `i_dlm_dir_sf_base` snapshot (captured where `i_dlm_dir_loaded_gen` is set, `xfs_inode.h:136`), and merge base/ours/theirs in `mxfs_dir_sf_refresh_if_disk_differs` instead of the adopt-or-skip; then validate `run.sh 2 tcp` ×3 on a clean reboot.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

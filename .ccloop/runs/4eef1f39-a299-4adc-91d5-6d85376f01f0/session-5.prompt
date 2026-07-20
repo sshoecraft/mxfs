@@ -1,0 +1,134 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 5 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+SUCCESS_CRITERIA.md
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4eef1f39-a299-4adc-91d5-6d85376f01f0/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4eef1f39-a299-4adc-91d5-6d85376f01f0, after session 4
+
+## Original task
+
+read the file p as your prompt - read the complete file
+
+
+## Previous session
+
+- session-id: `8a845315-5d96-4492-b0cb-a06c1c3f0ce9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9.jsonl`
+- approx context at last assistant turn: 249996 tokens
+- tools used: Bash×52 Read×13 Edit×6 mcp__ccmemory__memory_write×2 AskUserQuestion×1 ToolSearch×1 Write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/CACHE_COHERENCY_ISSUE.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -n "P109-EDEADLK\|orchestrating release\|EDEADLK\|self.release\|orchestrat" xfs/xfs_mxfs_dlm.c | head
+    cd /src/mxfs; echo "=== xfs_iflush_cluster callers ==="; grep -n "xfs_iflush_cluster" xfs/xfs_mxfs_dlm.c; echo "=== xfs_imap_to_bp callers ==="; grep -n "xfs_im
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning.*xfs_mxfs_dlm|LD \[M\]|implicit" | grep -v "Clock skew\|modification time" | tail -10; echo "=== srcve
+    cd /src/mxfs; pkill -f cache_coherency 2>/dev/null; sleep 1; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1 & do
+    cd /src/mxfs; for h in test1 test2 test3 test4; do echo -n "$h: "; timeout 12 bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "uptime|grep -o 'up [^,]*'; echo -
+    cd /src/mxfs; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; done; echo "destroyed"; sleep 4; for h in test1 te
+    cd /src/mxfs; timeout 300 bash tests/reset4.sh 4 2>&1 | tail -4; echo "=== verify ==="; for h in test1 test2 test3 test4; do echo -n "$h: "; timeout 10 bash too
+    cd /src/mxfs; for h in test1 test2 test3 test4; do bash tools/mxfs_sshpass.sh "$h" /tmp/.mxfs_pass "dmesg -C" >/dev/null 2>&1; done; echo "dmesg cleared"; echo 
+    cd /src/mxfs; echo "=== test output ==="; tail -20 /tmp/claude-1000/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9/tasks/bdh5yuhgj.output 2>/dev/null; echo "===
+    sleep 150; cd /src/mxfs; echo "=== test output ==="; tail -25 /tmp/claude-1000/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9/tasks/bdh5yuhgj.output 2>/dev/null
+    cd /src/mxfs; until [ -s /tmp/claude-1000/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9/tasks/bqx7v8t1c.output ] && grep -q "per-node" /tmp/claude-1000/-src-mx
+    cd /src/mxfs; cat /tmp/claude-1000/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9/tasks/bqx7v8t1c.output 2>/dev/null; echo "=== current test tail ==="; tail -8 
+    cd /src/mxfs; echo "=== test tail ==="; tail -12 /tmp/claude-1000/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9/tasks/bdh5yuhgj.output 2>/dev/null; echo "=== p
+    cd /src/mxfs; echo "=== poll bqx7v8t1c ==="; cat /tmp/claude-1000/-src-mxfs/8a845315-5d96-4492-b0cb-a06c1c3f0ce9/tasks/bqx7v8t1c.output 2>/dev/null; echo "=== t
+    cd /src/mxfs; echo "=== virsh state ==="; for h in test1 test2 test3 test4; do echo -n "$h: "; sudo virsh -c qemu:///system domstate "$h" 2>&1; done; echo "=== 
+    cd /src/mxfs; echo "=== test1 dmesg via longer-timeout SSH ==="; timeout 40 bash tools/mxfs_sshpass.sh test1 /tmp/.mxfs_pass "dmesg | grep -E 'P112-DRAIN-RECOVE
+    cd /src/mxfs; echo "=== libvirt serial log config ==="; sudo virsh -c qemu:///system dumpxml test1 2>/dev/null | grep -iA2 "serial\|console\|<log"; echo "=== ca
+    cd /src/mxfs; echo "=== live console pts (5s capture) ==="; sudo timeout 5 cat /dev/pts/0 2>/dev/null | tail -25; echo "=== (end) ==="; echo "=== cache_coherenc
+    cd /src/mxfs; pkill -f cache_coherency 2>/dev/null; sleep 1; for h in test1 test2 test3 test4; do sudo virsh -c qemu:///system destroy "$h" >/dev/null 2>&1; don
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|warning.*xfs_(inode|mxfs_dlm)|LD \[M\]|implicit" | grep -v "Clock skew\|modification time" | tail -8; echo "sr
+
+## Last text from previous session
+
+ike a regression from the P112 recovery. I can't reach dmesg via SSH; let me pull the serial console log libvirt writes to disk.
+The serial console is an unlogged pty — no file capture. test1 is hard-hung (ping works, all shells dead) while test2/3/4 stay clean (`P112=0`). This pattern — test1-only hard hang right when the recovery would fire — indicates my `P112` force-unlock recovery is **unsafe** (force-`up()` on a sema that may have had a real holder → corruption/deadlock). Let me try to capture any live console output (hung_task/BUG) before resetting.
+No live console output (no panic spam). test1 is hard-hung exactly where the recovery would fire while test2/3/4 stay clean — so the `P112` force-`up()` on a possibly-real-held sema is unsafe and made it worse. That's a failed hypothesis-fix (RULE 4: revert it). 
+
+Plan: hard-reset the cluster, **revert the dangerous force-unlock**, keep the enhanced probe, and add a **safe** leaker-capture (log `%pS` caller whenever `xfs_iflush_cluster` sets IFLUSHING on the wedge inode) so the next repro names the exact leaking call site. First, recover the cluster.
+VMs rebooting. While they come up, let me revert the unsafe recovery and add the safe leaker-capture. First, revert the `P112` force-unlock block.
+Now add the safe leaker-capture in `xfs_iflush_cluster` — log the caller whenever IFLUSHING is set on the root-dir inode (the consistent wedge inode), with no lock manipulation.
+I've hit the relay boundary. Let me build the leaker-capture instrumentation (so it's ready), update memory, then summarize.
+Build clean: `6403DE59` (those two warnings are pre-existing, unrelated). Let me record the session's findings to memory before wrapping up.
+I've reached the ccloop relay boundary. Criteria **not met** — `cache_coherency` still fails. Summary of this session:
+
+## What I established (real progress)
+
+**Pinned the wedge to an exact, reproducible kernel state** (RULE 4, direct live evidence — not code-reading):
+- The blocker on the current path is a release-side drain wedge on the **root-dir inode (ino=128)** in `mxfs_ail_drain_inode_sync`.
+- An enhanced probe (reading `li_buf` directly) + a full task-stack dump proved the cluster buffer is `XBF_DONE` only, off all lists, no `_XBF_DELWRI_Q`, **locked with a leaked `b_sema`** (no holder thread over 97k+ iterations, no I/O errors). Inode is `IFLUSHING + in_ail`.
+- That is **bit-for-bit the state right after `xfs_iflush_cluster()` and before `xfs_bwrite()`** — an abandoned flush, from a race on the *shared* cluster buffer.
+
+**Ruled out** all the obvious leak sites by code (`iop_push`, both durable paths, `merge_dirs`, `bast_process` pre-drain) — the leaker is a concurrent race, not yet named.
+
+**Two external consultations (Gemini + Grok) converged** with my evidence: the disk-level model is sound; the architectural fault is the **synchronous drain running inside the BAST kworker**. Full self-contained writeup saved to `/src/mxfs/CACHE_COHERENCY_ISSUE.md`.
+
+## What failed (and was reverted)
+
+Build `5B40B6AA` added a `P112-DRAIN-RECOVER` force-unlock recovery. It **regressed** — `xfs_buf_unlock()` on a sema we don't own **hard-hung test1** (ping alive, all shells dead) the moment it fired. Reverted. This empirically confirms the AIs' point: don't bolt recovery hacks onto this locus.
+
+## State for next session
+
+- Cluster was hard-reset (test1 was hung); needs `reset4.sh 4` + redeploy.
+- Current build **`6403DE59`** (built, not deployed): enhanced probe kept, dangerous recovery removed, and a **safe leaker-capture** added — `xfs_iflush_cluster` now logs `P112-IFLUSH-CALLER ino=128 caller=%pS` whenever it sets IFLUSHING on the root dir.
+- **Next step:** deploy `6403DE59`, run `cache_coherency`, grep `P112-IFLUSH-CALLER` — the last caller before the `P109` wedge names the exact path that abandons the flush. Fix that site (or commit to the GFS2-style drain-out-of-BAST re-architecture both AIs recommend).
+
+Findings recorded in memory `sess112_lessons`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

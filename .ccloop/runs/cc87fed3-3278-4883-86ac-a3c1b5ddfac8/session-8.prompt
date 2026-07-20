@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/cc87fed3-3278-4883-86ac-a3c1b5ddfac8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run cc87fed3-3278-4883-86ac-a3c1b5ddfac8, after session 7
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690.jsonl`
+- approx context at last assistant turn: 496169 tokens
+- tools used: Bash×186 Read×62 Edit×24 TaskUpdate×9 TaskCreate×7 mcp__ccmemory__memory_get×6 ToolSearch×2 mcp__ccmemory__memory_search×2 mcp__ccmemory__memory_write×2 Agent×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_iops.c
+- /src/mxfs/VERSION
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_cc_ds echo "=== P144-EPOCH-FREE-RESET total ===" grep -c "P144-EPOCH-FREE-
+    grep -n "^xfs_ifree(\|^xfs_inactive(\|^int$" /src/mxfs/xfs/xfs_inode.c | grep -B1 "xfs_ifree\|xfs_inactive" | head -20
+    grep -n "mxfs_dlm_note_inode_freed\|mxfs_v5_dlm_note_inode_freed" /src/mxfs/xfs/*.c
+    grep -n "^void mxfs_dlm_evict\|^mxfs_dlm_evict(" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    awk 'NR==23263,NR==23600' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "mxfs_dlm_lock_release\|mxfs_dlm_caw_unlock\|mxfs_dlm_ilock_end\|_dlm_unlock\|^}" | head -20
+    grep -n "^int mxfs_v5_dlm_inode_unlock\|^void mxfs_v5_dlm_inode_unlock" /src/mxfs/dlm/v5_mount.c
+    grep -n "mxfs_v5_dlm_inode_unlock\b" /src/mxfs/dlm/v5_mount.h
+    grep -n "#include.*v5_mount" /src/mxfs/xfs/xfs_mxfs_dlm.c
+    make modules 2>&1 | tail -25
+    make modules 2>&1 | grep -i "error:" | head -10; echo "---check done, no errors above means clean---"; modinfo mxfs.ko | grep srcversion
+    rm -f /tmp/mxfs_run.lock; bash scripts/cluster_reset_n.sh 32 2>&1 | tail -6
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_ds2 mkdir -p "$SP" for n in $(seq 1 32); do   nohup /src/mxfs/tools/mxfs_s
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_ds2 END=$((SECONDS+480)) while [ $SECONDS -lt $END ]; do   if ! kill -0 20
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_ds2 echo "=== P144-EPOCH-FREE-RESET total ===" grep -c "P144-EPOCH-FREE-RE
+    grep -n "mxfs_v5_dlm_inode_unlock(" /src/mxfs/xfs/*.c | grep -v "\.h:"
+    make modules 2>&1 | grep -iE "error:|Error [0-9]" ; echo "---build check done---"; modinfo mxfs.ko | grep srcversion
+    rm -f /tmp/mxfs_run.lock; bash scripts/cluster_reset_n.sh 32 2>&1 | tail -6
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_ds3 mkdir -p "$SP" for n in $(seq 1 32); do   nohup /src/mxfs/tools/mxfs_s
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_ds3 END=$((SECONDS+480)) while [ $SECONDS -lt $END ]; do   if ! kill -0 20
+    SP=/tmp/claude-1000/-src-mxfs/8fb9a2f7-4b4c-4b34-9a8e-c7e800ae9690/scratchpad/repro32_ds3 echo "=== P144-EPOCH-FREE-RESET total ===" grep -c "P144-EPOCH-FREE-RE
+
+## Last text from previous session
+
+ without declaring it as extern in this file — let me fix that.
+Now let's declare this in the header and wire the call into `mxfs_dlm_evict`.
+Good, already included. Let me add the declaration.
+Now let's wire the actual call into `mxfs_dlm_evict`.
+Clean build, no errors. Let's redeploy to the 32-node cluster and re-test.
+`dlm_scaling` PASSED 32/32! Let's verify P144 actually fired this time to confirm the mechanism engaged.
+P144 still never fired, yet the test passed — meaning this specific test is likely just flaky at 32-node scale, and I haven't gotten positive proof my fix engages at all. `mxfs_dlm_evict` only runs via the *lazy* background reclaim walker — the test may finish before that ever happens. Let me find every actual release point for an inode's DLM lock.
+This is likely the actual prompt release point for dlm_scaling's fast churn — `xfs_inactive`'s own synchronous EX-lock release, not the lazy reclaim path. Let me see the full context before adding the hook here too.
+Clean build. Let's redeploy and test.
+Let's check if P144 finally fired with this corrected hook location.
+Still zero — my calls may not even be reaching the CAS logic, or something upstream is gating differently than I think. I need much more granular visibility rather than continuing to guess hook locations. Let me instrument every branch of the actual function.
+**Summary at relay boundary:**
+
+This session made substantial, validated progress on the primary blocking bug, plus partial progress on two secondary issues at 32-node scale. Criteria are **not yet met**.
+
+**Completed and validated:**
+1. **Root-caused and fixed the primary list-corruption bug** that blocked sessions 5-6: `xfs_setup_inode` (pal/linux/xfs_iops.c) called `inode_sb_list_add()` unconditionally instead of guarding with `list_empty()` like stock `inode_insert5` does. Proven via live stack trace (`xfs_setup_inode ← xfs_icreate ← xfs_create`) hitting a struct left permanently linked by `mxfs_dlm_reset_inode_for_create`. Fixed in build 0.10.94, validated **clean across fresh full 16-test suites at 1/2/4/8/16-node** (all 16/16, zero corruption/softlockup signals) plus the exact 3-test repro that broke every prior session on this bug.
+2. **Defensive fix** for a related, much rarer page-cache-staleness gap in the same reset function (build 0.10.95) — structurally justified but the original symptom (`fence_during_write` fdw-MISS) never recurred to confirm it decisively either way.
+
+**In progress, not working yet:**
+3. **dlm_scaling@32** (pre-existing, well-diagnosed-but-never-implemented issue): designed and wired `mxfs_dlm_caw_invalidate_epoch` at two candidate hook points (lazy reclaim via `mxfs_dlm_evict`, and `xfs_inactive`'s synchronous inactivation-lock release), but the proof diagnostic (P144) has **never fired** across 3 separate 32-node runs despite the failure count fluctuating (12→9→0→3), meaning the fix's actual effect is unconfirmed and the apparent improvements are likely just run-to-run noise. Was mid-way through adding branch-by-branch instrumentation to `mxfs_dlm_caw_invalidate_epoch` itself to determine why neither hook engages, when the relay boundary hit. Next session should pick up exactly here.
+4. **cache_coherency@32** ("uv gone" unlink-visibility failures) — confirmed present both before and after this session's fixes, so unrelated to my changes, still unresolved.
+5. **One kernel panic** (`radix_tree_tag_set` BUG via `mxfs_dlm_bast_dwork_fn → xfs_irele → evict`) occurred once during a 32-node cache_coherency run — looks structurally like a pre-existing reference-count bug in the same family as the already-fixed BUG3, has not recurred, not yet root-caused.
+
+Current tree is fully buildable at VERSION 0.10.98 (srcversion CA7758B71DB0F29F8F89B73), deployed to the 32-node cluster, no incomplete edits. 1/2/4/8/16-node caw are in good shape pending one more fresh confirmation pass; 32-node has two known open failures plus the panic to chase before the criteria can be met.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

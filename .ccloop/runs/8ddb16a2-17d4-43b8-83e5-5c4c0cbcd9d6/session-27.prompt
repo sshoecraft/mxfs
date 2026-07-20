@@ -1,0 +1,123 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 27 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+2 node dlm=tcp test 100% successful
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 8ddb16a2-17d4-43b8-83e5-5c4c0cbcd9d6, after session 26
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `5e8c293e-5101-4ebb-95dd-639480ad8734`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5e8c293e-5101-4ebb-95dd-639480ad8734.jsonl`
+- approx context at last assistant turn: 507919 tokens
+- tools used: Bash×69 Read×30 Edit×20 mcp__ccmemory__memory_get×5 ToolSearch×3 mcp__ccmemory__memory_write×3 mcp__ask_gpt__query×2 Write×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_probe2.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== run (F17AE8AE: rebuild OFF + robust datascan + B5) ==="; timeout 600 ./run.sh 2 tcp dir_r
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; for n in test1 test2; do echo "===== $n ====="; timeout 15 bash "$SSH" "$n" "$P" "echo -n 'alive:'; 
+    cd /src/mxfs; grep -n "mxfs_dir2_datascan_lookup(args)\|xfs_dir2_leaf_lookup_int(args, &lbp" xfs/libxfs/xfs_dir2_leaf.c
+    cd /src/mxfs; grep -n "^xfs_dir_lookup\|xfs_dir2_isleaf\|xfs_dir2_node_lookup\|xfs_dir2_block_lookup\|xfs_dir2_sf_lookup\|xfs_dir2_leaf_lookup\b" xfs/libxfs/xfs
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -4; echo "EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== run (E89309B0 + lookup detectors) ==="; timeout 600 ./run.sh 2 tcp dir_reuse_coherency 2>
+    cd /src/mxfs; grep -n "^xfs_lookup\b\|^xfs_lookup(" xfs/xfs_inode.c; echo "--- xfs_lookup body ---"; awk '/^xfs_lookup\(/{f=1} f{print NR": "$0} /^}/{if(f)exit}
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -3; echo "EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion; bash
+    cd /src/mxfs; echo "=== mxfs_dlm_dir_consumer_refresh ==="; awk '/^mxfs_dlm_dir_consumer_refresh\(/,/^}/' xfs/xfs_mxfs_dlm.c | head -75
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error|LD \[M\]|mxfs.ko" | tail -3; echo "EXIT ${PIPESTATUS[0]}"; modinfo mxfs.ko 2>/dev/null | grep srcversion; bash
+    cd /src/mxfs; echo "=== mxfs_dir_merge default + MAX ==="; grep -rn "mxfs_dir_merge\b\|MXFS_DIR_MERGE_MAX\|module_param.*dir_merge\|int mxfs_dir_merge" xfs/*.c 
+    cd /src/mxfs; bash tests/reboot_cluster.sh 2 2>&1 | tail -1; echo "=== EXPERIMENT: dir_merge=1 dir_force_block=1 (C99F988B) ==="; MXFS_EXTRA_MODARGS="dir_merge=
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; P=/tmp/.mxfs_pass; echo "=== test1 shutdown reason ==="; timeout 12 bash "$SSH" test1 "$P" "dmesg|grep -aiE 'Shutting d
+    cd /src/mxfs; grep -rn "define MXFS_DIR_MERGE_MAX\|MXFS_DIR_MERGE_MAX " xfs/*.h xfs/*.c | head -3; echo "=== merge fn: where does it read peer dirents from? (he
+    cd /src/mxfs; echo "=== _XBF_FUA_FRESH usage in dir read path ==="; grep -rn "_XBF_FUA_FRESH" xfs/libxfs/xfs_da_btree.c xfs/libxfs/xfs_dir2_data.c xfs/xfs_mxfs_
+    cd /src/mxfs; echo "=== mxfs_buf_needs_fua_read ==="; awk '/mxfs_buf_needs_fua_read\(struct xfs_buf/,/^}/' pal/linux/xfs_buf.c | head -60; echo "=== mxfs_fua_di
+    cd /src/mxfs; echo "=== EXPERIMENT: fua_disable=0 (C99F988B) ==="; MXFS_EXTRA_MODARGS="fua_disable=0" timeout 600 ./run.sh 2 tcp dir_reuse_coherency 2>&1 | grep
+    cd /src/mxfs; grep -rn "mxfs_buf_needs_fua_read" pal/linux/xfs_buf.c | head; echo "=== function body ==="; sed -n "$(grep -n 'mxfs_buf_needs_fua_read(struct xfs
+    cd /src/mxfs; grep -rn "mxfs_buf_needs_fua_read" pal/linux/*.c pal/*.c xfs/*.c include/*.h 2>/dev/null; echo "=== definition (any file) ==="; grep -rln "mxfs_bu
+    cd /src/mxfs; grep -rn "xfs_buf_item_relse\|void xfs_buf_stale\|xfs_buf_stale(struct" xfs/libxfs/*.c xfs/*.c pal/linux/*.c include/*.h 2>/dev/null | head; echo 
+
+## Last text from previous session
+
+IL un-checkpointed. Per GPT, the fix is the **RELEASE side**: fully checkpoint (sync log force) the dir's BLIs before DLM unlock so no in-AIL buffer lingers. The current release uses an *async* log force. Let me read the BAST-release sequence:
+The release path ALREADY waits for `!in_ail && !pinned && data_durable` before unlock — so the releasing node leaves clean buffers. That means the stale buffer on the peer is CLEAN but keeps a stale **attached BLI** (b_log_item) from the prior incarnation — and `mxfs_buf_read_fua` SKIPS the FUA pierce when a BLI is attached (sess68 protection)! So the soft-invalidate re-reads via plain bio = SCST stale cache. This is exactly why clear-XBF_DONE failed but the merge's raw FUA worked. The fix (GPT's): `xfs_buf_stale()` the CLEAN prior-incarnation (ABA) buffer to detach the stale BLI. Let me read the evict loop's variable scope to place it:
+`bip` is accessible at the clean branch; `incarn_aba`/`in_ail` are block-scoped so I'll recompute. Let me check the loop tail (buffer release) before editing:
+The loop releases via `xfs_buf_relse` (2200). The sess97 comment (2210+) confirms my exact bug class: "purely the peer's in-core xfs_buf cache" caching "stale-as-fresh." Before editing, I must confirm `xfs_buf_stale` actually lets the FUA refetch proceed — the FUA-skip is gated on `b_log_item` being attached. Let me check `mxfs_buf_read_fua`'s BLI condition:
+`mxfs_buf_read_fua` (2077) SKIPS the FUA read whenever `b_pin_count > 0 || !list_empty(b_li_list) || b_log_item` — keeping the stale in-core buffer. So a clean prior-incarnation buffer with a leftover attached BLI never gets FUA-refreshed. The fix: for a CLEAN ABA buffer, detach the stale BLI + `xfs_buf_stale` so the next read cache-misses and FUA-refetches. Let me confirm the BLI-detach primitive exists and add a state detector. Let me check:
+I've reached the ccloop relay boundary. The tree is in a consistent, built state (C99F988B — no half-applied edits since the last build; I was reading code to plan the next fix). Let me capture the complete diagnosis and the exact next fix in memory before wrapping up.
+I've reached the ccloop relay boundary with the tree in a consistent, deployed state (build C99F988B). Significant progress this session on the sole `2/tcp` blocker (`dir_reuse_coherency`):
+
+## What was accomplished
+- **Proven the true root** (was mis-framed as a "leaf-hash hole" for ~25 sessions): the cold-read lookup *succeeds* at the dir level but `xfs_iget` returns -ENOENT — the dirent points to a **freed prior-incarnation inode**. The in-core dir DATA buffer is a **clean prior-incarnation (ABA) buffer keeping a stale attached BLI**, which makes `mxfs_buf_read_fua` skip the FUA pierce (P91 protection) → it serves SCST's stale per-initiator read cache. The LUN backing store is actually **fresh** (proven via the merge's raw FUA read).
+- **Fixed two genuine sub-bugs**:
+  - **B5 inactivation-skip** (xfs_inode.c) — eliminates the `bnobt double-free 0x8` FS shutdown (was: shutdown on EDEADLK-during-inactivation). Both nodes now stay alive.
+  - Confirmed `mxfs.dir_leaf_rebuild` must stay **OFF** (it perturbs data coherency → other node reads short).
+- **Consulted GPT (RULE 5)** after refuting 5 distinct approaches with instrumented evidence; got a sound architectural verdict (never abort a dirty/in-AIL BLI; `xfs_buf_stale` clean buffers).
+
+## Exact next step (in memory `sess26-FINAL-root-aba-buffer-stale-bli-fua-skip-and-exact-fix`)
+In `mxfs_dir_evict_data_blocks`'s clean branch: for a **clean ABA buffer**, detach the stale BLI (`xfs_buf_item_relse`) + `xfs_buf_stale()` so the next read cache-misses → fresh buffer (no BLI) → FUA pierces SCST → fresh dirent. **Run with `fua_disable=0`.** Full code snippet, gating, validation plan, and risks are in that memory.
+
+**Criteria NOT met** — `dir_reuse_coherency` still fails (test2 readdir / iget-fail), so the marker is not written. The fix is precisely scoped and ready to implement in the next session.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

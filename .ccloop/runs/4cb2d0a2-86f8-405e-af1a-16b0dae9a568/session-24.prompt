@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 24 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8 node tcp dlm test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4cb2d0a2-86f8-405e-af1a-16b0dae9a568/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4cb2d0a2-86f8-405e-af1a-16b0dae9a568, after session 23
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `3ce26658-1f9d-4e76-b550-c450bf9e921f`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3ce26658-1f9d-4e76-b550-c450bf9e921f.jsonl`
+- approx context at last assistant turn: 500569 tokens
+- tools used: Bash×104 Read×33 Edit×25 mcp__ccmemory__memory_write×16 ToolSearch×3 mcp__ccmemory__memory_get×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/dlm/dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; ln=$(grep -nE "^dg_grant_ex|^static bool dg_grant_ex\(struct mxfs_dlm_ctx \*ctx,$" dlm/dlm.c | grep -v ";" | tail -1 | cut -d: -f1); echo "body ne
+    cd /src/mxfs; grep -nE "DG_SHADOW_N|define DG_SHADOW|dg_shadow\[" dlm/dlm.c | head
+    cd /src/mxfs; awk 'NR>=2620 && /^static void dg_release/{f=1} f{print NR": "$0} f&&/^}/{exit}' dlm/dlm.c | head -45
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|grant_count" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; up=0; for n in 1 2 3 4 5 6 7 8; do c=$(timeout 8 tools/mxfs_sshpass.sh test$n /tmp/.mxfs_pass "echo up" 2>/dev/null); [ "$c" = up ] && up=$((up+1)
+    cd /src/mxfs; d=$(ls -dt /tmp/run_dir_reuse_coherency_* /tmp/tmp.* 2>/dev/null | head -1); echo "rundir=$d"; grep -hoE "reason=.*" "$d"/test1 2>/dev/null|head -
+    cd /src/mxfs; d=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); echo "r21 RDMISS:"; grep -hoE "RDMISS round=21 rank=1 missing_from_readdir=\[[^]
+    cd /src/mxfs; for n in 1 2; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2; do virsh -c qemu:///system start test$n >/de
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; d=$(ls -dt /tmp/run_dir_reuse_coherency_* /tmp/tmp.* 2>/dev/null | head -1); echo "latest=$d"; grep -hE "RESULT:" "$d"/test1 2>/dev/null | head -1
+    cd /src/mxfs; virsh -c qemu:///system destroy test1 >/dev/null 2>&1; sleep 3; virsh -c qemu:///system start test1 >/dev/null 2>&1; sleep 45; up=$(timeout 8 tool
+    cd /src/mxfs; sleep 120; cat /tmp/claude-1000/-src-mxfs/3ce26658-1f9d-4e76-b550-c450bf9e921f/tasks/bg6cxp19j.output 2>/dev/null | grep -iE "PASS|FAIL|test1=" | 
+    cat /tmp/claude-1000/-src-mxfs/3ce26658-1f9d-4e76-b550-c450bf9e921f/tasks/bg6cxp19j.output 2>/dev/null | grep -iE "PASS|FAIL|RESULT|[0-9]+/[0-9]+|ran=" | tail -
+    wc -l /tmp/claude-1000/-src-mxfs/3ce26658-1f9d-4e76-b550-c450bf9e921f/tasks/bg6cxp19j.output; echo "=== tail 40 ==="; tail -40 /tmp/claude-1000/-src-mxfs/3ce266
+    cd /src/mxfs; for n in 1 2 3 4; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4; do virsh -c qemu:///system start tes
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|implicit|undefined|xfs_ilock_nowait|bast_evict" | head; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; sleep 4; for n in 1 2 3 4 5 6 7 8; do virsh -c qemu:///
+    cd /src/mxfs; grep -nE "process_remote_release|promote.*wait|grant.*wait|process_release|LOCK_RELEASE|wake_waiters|promote_waiter|grant_next" dlm/dlm.c | head -
+    cd /src/mxfs; echo "=== b_mxfs_dir_epoch stamp sites by file ==="; grep -rln "b_mxfs_dir_epoch =" xfs/ | grep -v backup; echo "=== xfs_dir2_node.c (free block) 
+
+## Last text from previous session
+
+efore-durable window (master granting the next node before the prior holder's release is processed):
+The fence path drains before unlock, but there may be OTHER release paths that skip the dir drain. Let me check the other `mxfs_v5_dlm_inode_unlock` sites (8128, 8235) for whether they drain dir blocks first:
+I've inspected the protocol paths — the release fence drains before the unlock-send (which precedes the grant), so the basic ordering is sound. The bug is subtler than a gross ordering gap, and both buffer-invalidation directions are refuted. Let me record a precise new hypothesis for the 8-node-specific threshold to direct the relay efficiently, since I've reached the productive limit of this window:
+Strong confirmation via XFS format math (no test run needed): the dir2 leaf→node format transition happens when leaf hash entries exceed one leaf block ≈ blocksize/8 = 4096/8 ≈ **512 entries**. At 4 nodes = 400 entries (leaf format, no separate free block); at 8 nodes = 800 entries (**node format, with the xfs_dir2_free freeindex block**). The 8-node threshold falls exactly across the leaf→node boundary — strongly confirming the free-block-coherency hypothesis. Let me record this high-confidence finding:
+Let me verify a concrete smoking-gun candidate: whether the node-format FREE block (`xfs_dir2_free`) gets epoch-stamped at modify like data/leaf blocks do:
+**Confirmed smoking gun:** `xfs_dir2_node.c` (the node-format freeindex/free-block handling) has **ZERO** `b_mxfs_dir_epoch`/`b_mxfs_dir_gen`/`b_mxfs_dir_incarn` stamps — the free block is the ONE node-format-only block type that doesn't participate in the modify-time coherency stamping that data (`xfs_dir2_data.c`) and leaf (`xfs_dir2_leaf.c`) blocks get. Combined with the format-threshold confirmation, this precisely localizes the 8-node bug. Let me record this and the concrete fix candidate:
+Relay boundary reached. Wrapping up.
+
+## Session 23 summary — criteria NOT met (marker not written)
+
+8/tcp `dir_reuse_coherency` remains flaky, so the criteria aren't met. But this session made the deepest, best-localized progress of the run.
+
+**Validated keeper advance (build EF6000F0 ≡ 18064D1D at default):**
+- `dg_shadow` **eviction-immunity** fix (dlm/dlm.c): eviction now recycles the coldest (lowest grant-count) inactive slot, so the hot shared-dir inode is never LRU-evicted → its cross-node handoff **epoch is now reliable** (verified advancing to 41).
+- **Validated non-regressing: 1/tcp = 16/16, 2/tcp = 17/17, 4/tcp dir_reuse = 4/4.** Strict improvement over prior keeper D589FA5F.
+- Two new params (`dir_tenure_evict`, `dir_bast_evict`) left DEFAULT-OFF → keeper inert.
+
+**Blocker localized to high confidence:** 8/tcp `dir_reuse` is the lone failure, and it's the **node-format freeindex path**:
+- Format math: leaf→node transition ≈512 entries; 4 nodes = 400 (leaf, no free block, PASSES), 8 nodes = 800 (node format, freeindex block exists, FAILS) — the threshold matches exactly.
+- **Smoking gun:** `xfs_dir2_node.c` (the freeindex block) has ZERO coherency stamps (`b_mxfs_dir_epoch/gen/incarn`) — the one dir block type excluded from the modify-time stamping that data and leaf blocks get. A stale freeindex drives addname to a slot a peer already filled → durable clobber.
+
+**Dead-ends eliminated (with evidence):** acquire/read-side epoch invalidation (structurally racy → flaky), release-side eager-evict-on-BAST (harmful — leaf-hash corruption), DLM release→grant ordering (inspected sound). Buffer eviction is the wrong lever.
+
+**Next session (precise, high-confidence):** instrument `xfs_dir2_node_addname_int` to prove freeindex-said-free vs data-block-occupied, then fix freeindex coherency (stamp it at modify and/or coherently re-read it before slot selection on a cross-node node-format addname). All detail in ccmemory `sess23-SMOKINGGUN-freeindex-not-epoch-stamped-node-format` and the linked sess23 notes. Keeper EF6000F0 deployed; relay continues from a materially stronger position.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

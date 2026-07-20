@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+get 1/2/4/8/16/32 node caw dlm multipath test working 100%
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/46efd8b6-3dd3-477c-b004-14362c80d8e8/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 46efd8b6-3dd3-477c-b004-14362c80d8e8, after session 3
+
+## Original task
+
+.
+
+
+## Previous session
+
+- session-id: `8fee6096-7964-407b-a251-bab8bb6bf4de`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8fee6096-7964-407b-a251-bab8bb6bf4de.jsonl`
+- approx context at last assistant turn: 503035 tokens
+- tools used: Bash×154 Read×33 Edit×25 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×4 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/run.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_bmap_btree.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    R=/tmp/run_cache_coherency_20260710T053633Z; f=$R/kernlog_test3; grep -n -m1 'Internal error' $f | head -1; n=$(grep -n -m1 'Internal error' $f | cut -d: -f1); 
+    R=/tmp/run_cache_coherency_20260710T053633Z python3 - <<'EOF' import re, os R=os.environ['R']; f=R+'/kernlog_test3' lines=[l for l in open(f, errors='replace')]
+    grep -n 'tenure' xfs/xfs_mxfs_dlm.c | grep -inE 'dwork|delayed|expire|floor' | head -12; echo ===; grep -n 'dir_ex_tenure_floor' xfs/xfs_mxfs_dlm.c | head -8
+    grep -n 'i_dlm_bast_dwork' xfs/xfs_mxfs_dlm.c | head -6; grep -n 'INIT_DELAYED_WORK\|bast_dwork_fn\|dwork_fn' xfs/xfs_mxfs_dlm.c | head -6
+    grep -n 'xfs_bmdr_maxrecs\|xfs_dir2_leaf_hdr_from_disk\|XFS_DIR2_NULL_DATAPTR\|xfs_dir2_dataptr_to_db' xfs/libxfs/xfs_bmap_btree.h xfs/libxfs/xfs_dir2.h xfs/lib
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1" timeout 1400 ./run.sh 32 caw cache_coherency
+    n=0; f=/tmp/claude-1000/-src-mxfs/8fee6096-7964-407b-a251-bab8bb6bf4de/tasks/be1jsibtb.output; until grep -qE '  PASS|  FAIL|ABORT' $f 2>/dev/null || [ $n -ge 5
+    R=/tmp/run_cache_coherency_20260710T054904Z; grep -h 'P-HOLE-DISK' $R/kernlog_test* 2>/dev/null | awk '{m=match($0,/[0-9]{2}:[0-9]{2}:[0-9]{2}/); if (substr($0,
+    cd /src/mxfs; timeout 120 tools/chk_mxfs -v /dev/mapper/mpatha 2>&1 | tail -30
+    ls /dev/mapper/ 2>/dev/null | head; lsblk -o NAME,SIZE,TYPE 2>/dev/null | grep -E 'mpath|sd' | head -8
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 200 $SSH test1 $PF "umount /mnt/shared 2>&1; /src/mxfs/tools/chk_mxfs -v /dev/mapper/mpatha
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 200 $SSH test1 $PF "/src/mxfs/tools/chk_mxfs -v /dev/mapper/mpatha 2>&1 | grep -iE 'error|c
+    cd /src/mxfs; SSH=tools/mxfs_sshpass.sh; PF=/tmp/.mxfs_pass; timeout 200 $SSH test1 $PF "/src/mxfs/tools/chk_mxfs -v /dev/mapper/mpatha 2>&1 | grep -nE 'ERROR|F
+    MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="caw_fair_handoff=1 dir_ex_tenure_floor=0" timeout 1400 ./run.sh 32 caw cache_coherency
+    grep -n 'i_mxfs_iget_ns\|i_mxfs_ex_grant_seq;' xfs/xfs_inode.h | head -4; grep -n 'i_mxfs_self_created' xfs/xfs_inode.h | head -2
+    sed -n '160,170p' xfs/xfs_inode.h
+    grep -n 'iversion.h' xfs/libxfs/xfs_da_btree.c | head -1; grep -n '#include "xfs_platform.h"' xfs/libxfs/xfs_da_btree.c | head -1
+    grep -n 'inode_peek_iversion\|iversion' xfs/xfs_platform.h pal/linux/*.h 2>/dev/null | head -3
+    echo 0.10.8 > VERSION && make modules 2>&1 | grep -E ' error|Error' | head -5; modinfo mxfs.ko 2>/dev/null | grep srcversion; echo ===AB===; f=/tmp/claude-1000/
+    tail -4 /tmp/claude-1000/-src-mxfs/8fee6096-7964-407b-a251-bab8bb6bf4de/tasks/bm7t6h1bs.output
+
+## Last text from previous session
+
+e function to find all whole-write fallthroughs, then instrumenting.
+**Edit 3** — extending P66-LEAFWRITE with tenure stamp and LSN:
+Build 5663A605 with the discriminator probes. Running cache_coherency@32.
+Reproduced. Reading the P62-DUALREAD verdicts.
+Zero P-DIRDW for the failing dir. Checking whether ANY P-DIRDW fired (and for what inos).
+Two dip sources: the home-cluster buffered read, and `dip = snap` — a snapshot. Reading the surrounding code.
+Still 0/32 — but did the poison stop? Checking the new run's write hygiene and failure shape.
+Finding the exact bail idiom used by the existing keep-stale guards after the snapshot, so the new changecount guard cleans up identically.
+Inserting the universal never-adopt-older guard after the P43B keep-stale guard, mirroring its bail idiom.
+`inode_peek_iversion` is already consulted at 16173 — checking whether an existing guard already compares changecounts (the sess8 reload-identical skip).
+Build FF5E7827 clean. Running the discriminator.
+mpatha lives on the nodes (host is the target). Running chk_mxfs from test1 after unmounting it.
+Now the P14 print extension and the PLATTER-SCAN debug:
+Now the surgical per-inode FUA write path (the un-instrumented writer):
+Relay boundary — building to validate the probe edits compile, and collecting the floor=0 A/B result.
+Build 9C813539 (v0.10.8) compiled clean; the floor=0 A/B (run 055755Z) is still in flight at the relay boundary. Recording the final delta.
+The floor=0 A/B just completed — grabbing its result before wrapping up.
+Session 3 summary — criteria NOT met (no marker written); major forensic and infrastructure progress, with the blocker now cornered to one mechanism:
+
+**Headline result:** cache_coherency@32 is a clean A/B on the current build (FF5E7827): `dir_ex_tenure_floor=0` → **PASS 32/32**; floor=1 (default) → 0/32. The floor's mixed-era metadata composition is the single remaining blocker for this cell.
+
+**Root-cause chain fully traced (was "silent EIO victims" for 2 sessions):** victims die in the rename phase when a lookup/shrink walks dir LEAF/FREE structure referencing a data block the in-core extent map lacks → `EFSCORRUPTED` → dirty `xfs_trans_cancel` → *"Corruption of in-memory data … Shutting down filesystem"* → per-mount EIO. The shutdown was never silent on the nodes — the artifact collector used `journalctl`, which rotates in ~85s under probe volume and dropped the XFS alerts (collection now uses `dmesg -T` first). Post-mortem `chk_mxfs` proves the platter is CONSISTENT at rest — the tear is a reader-side composition of an older map with newer structure, cornered to cold-iget of an evicted dir inode adopting the legitimately-lagging home image.
+
+**Real bugs found and fixed (kept — verified non-regressive by the 32/32 run):** (1) every bmbt leaf write bypassed the sess66 tenure-authority gate via the sess63 FUA passthrough — stale unlogged leaf re-publishes were landing freely; the gate now runs on the FUA path, plus a read-side tenure stamp so fresh-read images stay re-publishable (the bare gate alone starved the platter). (2) A never-adopt-older changecount guard in the reload. (3) run.sh: exclusive flock (rival-run protection), dmesg-first log collection, and the P-HOLE-DISK probe ungated from `ino<=256`.
+
+**Infrastructure sabotage eliminated:** both predecessor ccloop sessions were still ALIVE post-relay and actively launching rival runs that power-cycled nodes mid-test (the "membership splits" and one whole 0/32 were fabricated). Killed, documented in memory, and guarded by the run lock.
+
+**Ready for next session:** build 9C813539 (v0.10.8) is compiled with the decisive discriminator — `iget_age_ms` on the P14 hole probe — which will confirm or refute the cold-iget mechanism in one run, plus complete write-history instrumentation. The handoff memories (`AAA-ccloop46ef-sess3-STATE-…` and `…-END-build-9C813539-next-steps`) carry the full evidence chain and the exact next sequence through to the 1/2/4/8/16/32 ladder.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
