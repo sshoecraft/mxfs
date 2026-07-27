@@ -1,1 +1,0 @@
-RESULT: FAIL  criterion=cache_coherency  measured=passed=3 failed=1 of=4  threshold=failed=0  reason=see /tmp/cache_coherency.gGI6XU.log

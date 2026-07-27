@@ -1,0 +1,141 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 1
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `21ec103c-2baf-45d4-a73d-f01af9bfcfb1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/21ec103c-2baf-45d4-a73d-f01af9bfcfb1.jsonl`
+- approx context at last assistant turn: 503037 tokens
+- tools used: Bash×258 Edit×55 TaskUpdate×17 TaskCreate×10 mcp__ccmemory__memory_write×5 ToolSearch×2 mcp__ccmemory__memory_get×2 Read×1 TaskList×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/run.sh
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/lease.h
+- /src/mxfs/dlm/lease.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/scsipr.h
+- /src/mxfs/dlm/scsipr.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    S=/src/mxfs/tools/mxfs_sshpass.sh # Racy join: umount both, then mount BOTH SIMULTANEOUSLY (background both, wait) timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 15 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; virsh -c qemu:///system destroy test2 2>&1 | head -1; d
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 15 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg | grep -iE 'disklock|slot' | head -5" 2>/dev/null; /src/mxfs/tools/chk_m
+    sudo -n /src/mxfs/tools/chk_mxfs -v /dev/disk/by-path/ip-127.0.0.1:3260-iscsi-iqn.2026-05.local.mxfs:node1-lun-0 2>&1 | head -25
+    grep -n 'MXLK\|struct.*hb\|flags\|ACTIVE' /src/mxfs/dlm/disklock.h | head -15; grep -n 'MXFS_DISKLOCK_F_ACTIVE\|hb_rec\|le32\|le64' /src/mxfs/dlm/disklock.c | h
+    sed -n 40,70p /src/mxfs/dlm/disklock.h
+    grep -n 'HB_SIZE\|hb_record\|struct mxfs_disklock_hb' /src/mxfs/dlm/disklock.h | head -5; sed -n "$(grep -n 'struct mxfs_disklock_hb' /src/mxfs/dlm/disklock.h |
+    grep -n 'heartbeat' /src/mxfs/dlm/disklock.c | grep -iE 'write|record|struct|pack' | head -5; grep -n 'fs_gen\|ts_ms\|node_id' /src/mxfs/dlm/disklock.c | head -
+    grep -n 'struct mxfs_disklock_heartbeat {' -A12 /src/mxfs/dlm/*.h /src/mxfs/include/mxfs/*.h 2>/dev/null | head -16; grep -rn 'fs_gen =' /src/mxfs/dlm/disklock.
+    DEV=/dev/disk/by-path/ip-127.0.0.1:3260-iscsi-iqn.2026-05.local.mxfs:node1-lun-0 sudo -n dd if=$DEV bs=512 skip=$((67117056/512 + 1)) count=1 2>/dev/null | xxd 
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "umount /mnt/shared && echo T1_UMOUNTED; dmesg -C" 2>/dev/null python3 - <<'EOF
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 90 $S 192.168.120.186 /tmp/.mxfs_pass " t0=\$(date +%s%3N); mount -t mxfs /dev/sda /mnt/shared; rc=\$?; t1=\$(date +%
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 20 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg | tail -20" 2>/dev/null | grep -vE 'RELOAD|TYPEFLIP'
+    virsh -c qemu:///system start test2 2>&1 | head -1; S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "umount /mnt/shared 2>/dev/
+    S=/src/mxfs/tools/mxfs_sshpass.sh # Read both keys, then from test2 preempt test1's key (t2's key as RK). K=$(timeout 20 $S 192.168.120.182 /tmp/.mxfs_pass "sg_
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg -C" 2>/dev/null # test2 preempts test1's key (0x1ac28b6c) using its own 
+    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "umount /mnt/shared 2>&1; rmmod mxfs 2>&1; echo CLEANED" 2>/dev/null; head -50 
+    head -80 /src/mxfs/scripts/ladder_rung.sh
+    sed -n 80,140p /src/mxfs/scripts/ladder_rung.sh
+    python3 - <<'EOF' import json d=json.load(open('/src/mxfs/criteria.json')) for cell in ('32/cawp','32/tcp','16/cawp','8/cawp'):     tot=0; rows=[]     for c in 
+
+## Last text from previous session
+
+ith the self-fence escalation:
+Building and checking the include:
+Build clean. Bumping to 0.11.80 and running verification leg 1: hard-kill fence.
+Now update the v5 helper to compute and pass live_members:
+Wiring into v5_mount.c — finding both register sites:
+Now the periodic self-check in the TCP death worker:
+Patterns don't match pr_warn lines — safe. Deploying and verifying D8:
+Code is correct as-built. Getting direct evidence — thread liveness and any oops:
+Updating the awareness docs with the new protocol surfaces:
+The stamp names the last 0→1 holder. Extending P125 to print it, then re-running the deterministic repro:
+Reading the begin/end entry gates — the leak likely lives in an asymmetric early-return:
+Batch-instrumenting the mutation sites via pattern replace:
+The predicted if/else brace break at one site. Fixing:
+Prep reloaded the module — re-arm watch_ino post-prep, then repro:
+Run 1 clean (P125=0, no underflow noise). Confirming with a second run plus the regression subset:
+Relay boundary reached — wrapping up. Marking #2 complete and recording the CAW results:
+**Session 1 summary — criteria "is it production ready?": NOT YET. Six defects were found and fixed this session (each RULE-4 proven); the full-matrix and QNAP acceptance legs remain.**
+
+## Fixed and verified this session (v0.11.76 → v0.11.81, all uncommitted per no-git rule)
+
+1. **D9 (v0.11.77)** — "abort mount" didn't abort: DLM-init failure fell back to "continuing single-node," which mounted **both** nodes uncoordinated on one shared LUN. Now fail-closed (`-ENOTCONN`); verified via injection knob.
+2. **D7 (v0.11.78)** — the 4.7–20s joiner stall was the 20s wall-clock membership-settle gate freezing every node's EX after any membership change. Fixed with a lease-beacon view-hash convergence proof: join wall 20.1s → **0.66s**, probe shows `waited=300ms confirmed=1`.
+3. **D6 (v0.11.79)** — clean umount now broadcasts NODE_LEAVE: survivor's post-departure EX work went **38s → 10ms**, zero retry spam; real-death grace intact (fence/netpartition/membership green).
+4. **D4 (v0.11.80)** — kernel v5 never PR-preempted dead peers at all. Added READ-KEYS-classified fencing before purge/remaster in both death paths, with a topology guard (the tcm_loop VM rig shares ONE I_T nexus across all VMs — per-node PR is impossible there and the unguarded version false-self-fenced the survivor). Double-unregister eliminated.
+5. **D8 (v0.11.80)** — mount-time PR conformance probe + 30s periodic self-check; advisory latch verified on the shared-nexus rig, and on the cawp rig (real per-node nexuses): positive preempt verified (`P-PR-FENCE preempted`, victim key removed) plus the full fence resolution — preempted node's heartbeat bounced **EBADE within ~2s → withdraw shutdown, no re-register**.
+6. **P125 holder leak (v0.11.81)** — ring-traced a leaked EX/PR holder to `ilock_end`'s single-node/`!dlm` early-returns skipping the decrement for multi-node-era begins; this class feeds the historic busy-inodes/teardown-corruption family. Deterministic repro went 2/2-failing → 2/2-clean.
+
+Also fixed: run.sh's cluster marker (was recording PASSes against a stale build/wrong rig — now rig-aware + live-verified) and clyde's LIO `/etc/target/pr` (missing dir made every PR OUT fail-with-side-effects). Both VM boards (1/tcp, 2/tcp) re-validated green; CAW settle gate, racy join, and ghost-slot rescan all executed and verified on cawp. Awareness docs and 5 ccmemory entries updated.
+
+## Remaining before the criteria can be answered YES
+- **#9**: full 25-cell matrix (tcp/caw/cawd/cawp × 1–32 nodes) on final build v0.11.81 — ladder chunk lists and recorded cell walls are in memory `cawp-gate-pr-fence-full-verification`; next command is `scripts/rig.sh pass 32` then cawp rungs 32→1.
+- **#10**: QNAP phys-rig re-validation (the PR program changes behavior there) + phys fio baseline + missing board rows.
+- **#7**: quiet-window fio re-baseline (bar met but margin collapsed under loadavg-30 host noise).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

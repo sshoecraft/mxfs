@@ -1,0 +1,144 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 3 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+all known issues resolved
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4dd776bf-77c7-4a40-b22e-8d96ba4f5b18/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4dd776bf-77c7-4a40-b22e-8d96ba4f5b18, after session 2
+
+## Original task
+
+read continue_troubelshooting.md for prompt
+
+
+## Previous session
+
+- session-id: `6f9caa74-f1ba-4879-a410-65b72f0fded4`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4.jsonl`
+- approx context at last assistant turn: 506192 tokens
+- tools used: Bash×149 Read×41 Edit×20 TaskCreate×3 ToolSearch×3 Write×3 TaskUpdate×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 TaskList×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/scripts/p144_join.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_iops.c
+- /src/mxfs/scripts/abba_stack_capture.sh
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/scripts/agi_wedge_repro.sh
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/libxfs/xfs_alloc.c
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); N=$(grep -n "P-CR3-CANCEL" $LOGD/live_test2.log | head -1 | c
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); N=$(grep -n "P62-SF2BLK-CALLED" $LOGD/live_test2.log | head -
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n: frees/allocs of AG1 bno 48
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n: AG1 bno=27 events ==="; gr
+    grep -rn "P145-FREE" /src/mxfs/xfs/libxfs/*.c | head -2; grep -n "xfs_dir2_shrink_inode\|xfs_dir2_grow_inode" /src/mxfs/xfs/libxfs/xfs_dir2.c | head -4
+    grep -n "xfs_alloc_fixup_trees\|STATIC int" /src/mxfs/xfs/libxfs/xfs_alloc.c | grep -A1 -B1 fixup | head -6; grep -n "args->agbno = \|args->len = " /src/mxfs/xf
+    grep -rn "P34C-DIRGROW" /src/mxfs/xfs/ | grep -v Binary | head -2
+    echo "0.11.52" > VERSION && make modules 2>&1 | grep -E "error:" | head -4; modinfo mxfs.ko | grep srcversion
+    MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster 2>&1 | tail -1; TS=$(date -u +%Y%m%d_%H%M%SZ); LOGD=/src/mxfs/tests/logs/vmrig_dialloc_$TS; mkdir -p $LOGD; echo $
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); N1=test1 N2=test2 MXFS_PASS=/tmp/.mxfs_pass scripts/agi_wedge
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); N1=test1 N2=test2 MXFS_PASS=/tmp/.mxfs_pass scripts/agi_wedge
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); grep -nE "Corruption|Internal error" $LOGD/live_test1.log | h
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); sed -n '489440,489490p' $LOGD/live_test1.log | grep -vE "P144
+    grep -rn "agi-recycle" /src/mxfs/xfs/ | grep -v Binary | head -2
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/6f9caa74-f1ba-4879-a410-65b72f0fded4/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n 0x80008e / agino 0x8e histo
+    grep -n "mkfs" /src/mxfs/run.sh | head -6; grep -n "mkfs" /src/mxfs/tests/setup/prep_node.sh 2>/dev/null | head -4
+    echo "0.11.53" > VERSION && make modules 2>&1 | grep -E "error:" | head -3; modinfo mxfs.ko | grep srcversion
+    grep -n "mxfs_v5_dlm_is_single_node\|#include" /src/mxfs/xfs/libxfs/xfs_inode_util.c | head -14
+    grep -n "mxfs_dlm\|v5_mount" /src/mxfs/xfs/libxfs/xfs_dir2.c | head -3; grep -rn "mxfs_v5_dlm_is_single_node" /src/mxfs/xfs/xfs_mount.h /src/mxfs/xfs/xfs_platfo
+    make modules 2>&1 | grep -E "error:" | head -3; modinfo mxfs.ko | grep srcversion
+
+## Last text from previous session
+
+ing to the cluster and running a churn round:
+VMs up; test1 still carries the shutdown FS mount. Full re-prep with the new build:
+Round still failed — test2 shutdown at 56s (dirty trans_cancel). Autopsy time: which flavor, and did the new handoff arm fire?
+Verifying the DLM acquire is actually wired into `xfs_ilock` (so the guard sits after the reload point):
+P36-STACK forensics already exist (8/boot cap) — the deadlock round's logs should contain the wait-site stacks. Extracting:
+Three P36-STACK dumps on test1 — checking whether episodes 2 and 3 show a different wait site (the inversion path):
+The skip must also clean in-core unlinked-list state. Reading the failing check and the in-core list helpers:
+Reading the function's tail to wire labels correctly:
+Landing the ifree revalidation guard:
+Now checking `mxfs_dlm_ilock_end`'s signature (the m0-undo for the backoff) and the retries plumbing in dlm.c:
+Now the hint fields on `xfs_inode`. Finding the mxfs DLM field block:
+Now the bail in the unrecoverable-rc handler:
+Now the lock_two backoff loop. Checking the jitter idiom used in this tree:
+Building to validate the four-layer change:
+The mounts survived (both nodes still mounted) — the Corruption/shutdown hits may be pre-round dmesg replay. Verifying timestamps:
+Now checking -EAGAIN propagates from `xfs_dialloc_ag_inobt` through `xfs_dialloc_ag` to `try_ag`, then building:
+Same `iunlink_remove:693` signature but through a path where the in-core mode stayed live (my guard checks mode==0 after the reload). Autopsy:
+Build, deploy, resume rounds:
+Clean round 1 on v0.11.51 with the dialloc reservation firing (3×). Rounds 2–5:
+Clean. Running rounds until the dir-form flavor fires with instrumentation:
+Relay boundary — landing the recycle heal (small and now fully understood), building, and checkpointing.
+Build clean (v0.11.53 = CFF7AD86). Final memory checkpoint before relay:
+**Session 2 summary — criteria NOT met yet; substantial convergence.**
+
+**Root causes proven and fixed this session (v0.11.47 → 0.11.53, build CFF7AD86, built but not yet deployed):**
+
+1. **Inobt double-free root (flavor 1) was not buffer divergence** — the P144 cross-node join proved every cold read FRESH and the record braid coherent. The real chain: a clean in-core zombie inode kept at a handoff re-acquire because P116's keep was handoff-blind (peer realloc assigns a *random* generation, defeating the gen+1 arm). Fixed with a handoff-bit-gated adopt — firing and rescuing live.
+2. **Truncate-on-flipped-incarnation** (`__xfs_bunmapi` on a dir fork) — added SETSIZE-REVALIDATE (clean -ESTALE after the EX-acquire reload; VFS retries). Firing and rescuing.
+3. **Ifree double-free mid-inactivation** — two revalidation arms in `xfs_inactive_ifree` (adopted-free image; coherent-empty AGI bucket = undestaged concurrent peer free).
+4. **The 184s cross-node deadlock family** (three stack-captured shapes) — added the `xfs_lock_two_inodes` bounded-second-acquire backoff (P-ABBA-BACKOFF, firing ~48×/round) and, per a GPT design consult, the **dialloc-time child-ino reservation** before the inobt RMW (enforcing "no new blocking DLM acquire after the transaction is dirty") — the both-edges-dirty deadlock shape hasn't recurred since.
+5. **Leaked AGI bucket entry** on inode reuse now heals (P-IUNLINK-RECYCLE-HEAL) instead of shutting down the cluster from a dirty droplink.
+
+**Remaining wall:** the dir/AGI lineage family — one round showed dir 131's block0 and its new leaf mapped to the same physical block (a stale-base dir-block free is suspected), another showed durable on-disk dinode garbage. New instrumentation (P145-ALLOC, P148-DIRSHRINK, P34C coherency stamps) is in the build to name the poison step on next firing. Next session: deploy CFF7AD86, run fresh-FS-per-round churn, autopsy with the new probes, then the verification ladder (≥5 clean rounds → deadshell_repro → full suite) and the task-#3 open items. All state is in memory (`ccloop4dd7-sess2-B-final-state-and-next`).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -90,6 +90,17 @@ enum {
 static inline bool mxfs_agmeta_ops(const struct xfs_buf_ops *ops);
 extern const struct xfs_buf_ops xfs_bnobt_buf_ops;
 extern const struct xfs_buf_ops xfs_cntbt_buf_ops;
+extern const struct xfs_buf_ops xfs_inobt_buf_ops;
+extern const struct xfs_buf_ops xfs_finobt_buf_ops;
+
+/* P144 coverage (ccloop-4dd7 extended it to the inode btrees for the inobt
+ * double-free record corruption): all four short-form AG btrees. */
+static inline bool
+mxfs_p144_ops(const struct xfs_buf_ops *ops)
+{
+	return ops == &xfs_bnobt_buf_ops || ops == &xfs_cntbt_buf_ops ||
+	       ops == &xfs_inobt_buf_ops || ops == &xfs_finobt_buf_ops;
+}
 
 /*
  * sess6 (ccloop 8ba7ae5c) P144 — free-space btree content fingerprint.
@@ -112,7 +123,10 @@ mxfs_p144_print(struct xfs_buf *bp, const char *tag)
 		return;
 	pr_warn("mxfs: P144-%s %s agno=%u daddr=%lld crc=%08x nr=%u lvl=%u lsn=%llx comm=%s realns=%llu\n",
 		tag,
-		bp->b_ops == &xfs_bnobt_buf_ops ? "bnobt" : "cntbt",
+		bp->b_ops == &xfs_bnobt_buf_ops ? "bnobt" :
+		bp->b_ops == &xfs_cntbt_buf_ops ? "cntbt" :
+		bp->b_ops == &xfs_inobt_buf_ops ? "inobt" :
+		bp->b_ops == &xfs_finobt_buf_ops ? "finobt" : "agbt?",
 		xfs_daddr_to_agno(bp->b_mount, bp->b_maps[0].bm_bn),
 		(long long)bp->b_maps[0].bm_bn,
 		crc32c(0, (char *)bp->b_addr + 56, BBTOB(bp->b_length) - 56),
@@ -135,6 +149,32 @@ mxfs_buf_ev(struct xfs_buf *bp, unsigned int type)
 
 	bp->b_mxfs_evring[bp->b_mxfs_evi++ & 7] = v;
 }
+
+/*
+ * sess-pve (AGI umount-wedge, RULE-4): record one b_hold mutation into the
+ * per-buffer hold/rele ring.  MUST be called with bp->b_lock held (all b_hold
+ * mutations already are, except the single-threaded alloc init) and AFTER the
+ * mutation, so bp->b_hold reads the post-mutation value.  The P-HOLDRING drain
+ * dump replays this ring to name whichever acquisition has no matching release.
+ * Compiles to nothing when MXFS_HOLD_TRACE == 0.
+ */
+#if MXFS_HOLD_TRACE
+static inline void
+mxfs_hold_ev(struct xfs_buf *bp, u8 site, s8 delta, unsigned long caller)
+{
+	struct mxfs_hold_evt *e =
+		&bp->b_mxfs_hold_ring[bp->b_mxfs_hri++ % MXFS_HOLD_RING];
+
+	e->caller = caller;
+	e->flags = bp->b_flags;
+	e->hold_after = (u16)bp->b_hold;
+	e->site = site;
+	e->delta = delta;
+}
+#else
+static inline void
+mxfs_hold_ev(struct xfs_buf *bp, u8 site, s8 delta, unsigned long caller) {}
+#endif
 
 /*
  * ccloop3e02 sess2 ROOT FIX for dir_reuse@32/caw wedge#2a residual: route a
@@ -284,8 +324,10 @@ xfs_buf_stale(
 	spin_lock(&bp->b_lock);
 	atomic_set(&bp->b_lru_ref, 0);
 	if (!(bp->b_state & XFS_BSTATE_DISPOSE) &&
-	    (list_lru_del_obj(&bp->b_target->bt_lru, &bp->b_lru)))
+	    (list_lru_del_obj(&bp->b_target->bt_lru, &bp->b_lru))) {
 		bp->b_hold--;
+		mxfs_hold_ev(bp, MXFS_HS_STALE_LRU, -1, _RET_IP_);
+	}
 
 	ASSERT(bp->b_hold >= 1);
 	spin_unlock(&bp->b_lock);
@@ -552,6 +594,7 @@ xfs_buf_alloc(
 	 * the unlock to do anything non-trivial).
 	 */
 	bp->b_hold = 1;
+	mxfs_hold_ev(bp, MXFS_HS_ALLOC, 1, _RET_IP_);
 	sema_init(&bp->b_sema, 0); /* held, no waiters */
 
 	spin_lock_init(&bp->b_lock);
@@ -727,6 +770,7 @@ xfs_buf_try_hold(
 		return false;
 	}
 	bp->b_hold++;
+	mxfs_hold_ev(bp, MXFS_HS_TRYHOLD, 1, _RET_IP_);
 	spin_unlock(&bp->b_lock);
 	return true;
 }
@@ -1155,6 +1199,7 @@ _xfs_buf_read(
 		if (bp->b_hold > 1) {
 			bp->b_hold--;
 			stole_hold = true;
+			mxfs_hold_ev(bp, MXFS_HS_RA_ORPHAN, -1, _RET_IP_);
 		}
 		spin_unlock(&bp->b_lock);
 		pr_warn_ratelimited("mxfs: P-RAFIX-BUFREAD settled stolen readahead daddr=%lld ops=%s hold_after=%d droppedhold=%d async=%d comm=%s\n",
@@ -1351,7 +1396,7 @@ xfs_buf_read_map(
 		 * of the P144-WR submission print (multi-node bnobt/cntbt). */
 		if (!error && bp->b_addr && target->bt_mount->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(target->bt_mount->m_mxfs_dlm) &&
-		    (ops == &xfs_bnobt_buf_ops || ops == &xfs_cntbt_buf_ops))
+		    mxfs_p144_ops(ops))
 			mxfs_p144_print(bp, "RD");
 	} else {
 		/* Buffer already read; all we need to do is check it. */
@@ -1528,12 +1573,14 @@ xfs_buf_hold(
 
 	spin_lock(&bp->b_lock);
 	bp->b_hold++;
+	mxfs_hold_ev(bp, MXFS_HS_HOLD, 1, _RET_IP_);
 	spin_unlock(&bp->b_lock);
 }
 
 static void
 xfs_buf_rele_uncached(
-	struct xfs_buf		*bp)
+	struct xfs_buf		*bp,
+	unsigned long		caller)
 {
 	ASSERT(list_empty(&bp->b_lru));
 
@@ -1548,7 +1595,9 @@ xfs_buf_rele_uncached(
 		spin_unlock(&bp->b_lock);
 		return;
 	}
-	if (--bp->b_hold) {
+	--bp->b_hold;
+	mxfs_hold_ev(bp, MXFS_HS_RELE_UNCACHED, -1, caller);
+	if (bp->b_hold) {
 		spin_unlock(&bp->b_lock);
 		return;
 	}
@@ -1558,7 +1607,8 @@ xfs_buf_rele_uncached(
 
 static void
 xfs_buf_rele_cached(
-	struct xfs_buf		*bp)
+	struct xfs_buf		*bp,
+	unsigned long		caller)
 {
 	struct xfs_buftarg	*btp = bp->b_target;
 	struct xfs_perag	*pag = bp->b_pag;
@@ -1580,6 +1630,7 @@ xfs_buf_rele_cached(
 	}
 	if (bp->b_hold > 1) {
 		bp->b_hold--;
+		mxfs_hold_ev(bp, MXFS_HS_RELE_CACHED, -1, caller);
 		goto out_unlock;
 	}
 
@@ -1592,10 +1643,13 @@ xfs_buf_rele_cached(
 		 */
 		if (list_lru_add_obj(&btp->bt_lru, &bp->b_lru))
 			bp->b_state &= ~XFS_BSTATE_DISPOSE;
-		else
+		else {
 			bp->b_hold--;
+			mxfs_hold_ev(bp, MXFS_HS_RELE_CACHED, -1, caller);
+		}
 	} else {
 		bp->b_hold--;
+		mxfs_hold_ev(bp, MXFS_HS_RELE_CACHED, -1, caller);
 		/*
 		 * most of the time buffers will already be removed from the
 		 * LRU, so optimise that case by checking for the
@@ -1630,11 +1684,13 @@ void
 xfs_buf_rele(
 	struct xfs_buf		*bp)
 {
+	unsigned long		caller = _RET_IP_;
+
 	trace_xfs_buf_rele(bp, _RET_IP_);
 	if (xfs_buf_is_uncached(bp))
-		xfs_buf_rele_uncached(bp);
+		xfs_buf_rele_uncached(bp, caller);
 	else
-		xfs_buf_rele_cached(bp);
+		xfs_buf_rele_cached(bp, caller);
 }
 
 /*
@@ -1730,7 +1786,45 @@ xfs_buf_lock(
 
 	if (atomic_read(&bp->b_pin_count) && (bp->b_flags & XBF_STALE))
 		xfs_log_force(bp->b_mount, 0);
-	down(&bp->b_sema);
+	/*
+	 * ccloop-4dd7 sess3 (b54r1 test1 node-wide convoy, RULE-4 probe):
+	 * the inode-cluster buffer at daddr 128 was left LOCKED with no live
+	 * holder thread anywhere on the node (exhaustive /proc/pid/stack
+	 * sweep) and flags XBF_WRITE|ASYNC|DONE — a submitted write whose
+	 * completion never ran, or a locker that returned without unlock.
+	 * rmdir blocked here inside do_rmdir's dput (which this kernel runs
+	 * BEFORE inode_unlock(parent)), so the parent dir i_rwsem convoyed
+	 * every worker; the peer starved on the dir DLM 184s -> -110 ->
+	 * dirty-cancel shutdown.  Self-name the wedge: after 30s blocked,
+	 * report the buffer identity, the last locker (b_lock_ip), and the
+	 * completion forensics (evring, ioend/relse counters, sync credit)
+	 * every 30s, then keep waiting — no behavior change.
+	 */
+	while (down_timeout(&bp->b_sema, 30 * HZ) != 0) {
+		static atomic_t pbls_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&pbls_n) <= 400) {
+			unsigned int evi = bp->b_mxfs_evi;
+
+			pr_warn("mxfs: P-BUFLOCK-STUCK daddr=%lld len=%d ops=%s flags=0x%x hold=%u pin=%d err=%d lock_ip=%pS ioend_seen=%u relse_seen=%u syncw=%d evi=%u ev=[%016llx %016llx %016llx %016llx %016llx %016llx %016llx %016llx] waiter=%pS comm=%s\n",
+				(long long)bp->b_maps[0].bm_bn, bp->b_length,
+				bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
+				(unsigned int)bp->b_flags, bp->b_hold,
+				atomic_read(&bp->b_pin_count), bp->b_error,
+				bp->b_lock_ip,
+				bp->b_mxfs_ioend_seen, bp->b_mxfs_relse_seen,
+				atomic_read(&bp->b_mxfs_sync_waiters), evi,
+				bp->b_mxfs_evring[(evi + 0) & 7],
+				bp->b_mxfs_evring[(evi + 1) & 7],
+				bp->b_mxfs_evring[(evi + 2) & 7],
+				bp->b_mxfs_evring[(evi + 3) & 7],
+				bp->b_mxfs_evring[(evi + 4) & 7],
+				bp->b_mxfs_evring[(evi + 5) & 7],
+				bp->b_mxfs_evring[(evi + 6) & 7],
+				bp->b_mxfs_evring[(evi + 7) & 7],
+				__builtin_return_address(0), current->comm);
+		}
+	}
 	mxfs_buf_sema_dualock_check(bp, "lock");
 	bp->b_lock_ip = __builtin_return_address(0);
 
@@ -3007,6 +3101,97 @@ mxfs_submit_partial_inode_write(
 		if ((logged | bli_dirty) & slotbits) {
 			if (is_free || is_nl)
 				n_nl_logged++;
+			/*
+			 * ccloop c7ee71c6 sess14 D3 ROOT FIX (PROVEN, byte-exact,
+			 * cv 18:39:39): "logged this round" out-ranked the NL
+			 * guard, so a DIRECTORY slot copied into this buffer
+			 * under a PRIOR tenure got written after the grant was
+			 * released — reverting the platter to our stale entry
+			 * set.  Merged 32-node ledger: test27 wrote 7 names at
+			 * mode=5, 57ms later test5 wrote its own 3-name image at
+			 * **mode=0 (NL)**, erasing node16/23/27/32 permanently
+			 * (exactly the 4 files cache_coherency reported missing;
+			 * every later write built on the reverted base).
+			 *
+			 * A dir slot we no longer hold must never be published
+			 * from our cached image: if our committed change landed,
+			 * our release drain wrote it (rewriting can only revert
+			 * peers); if it did not land, that is a drain defect to
+			 * fix at the drain — never by racing the platter from
+			 * NL.  (GPT RULE-5 invariant: never write an inode core
+			 * at NL; land-before-release or recovery-owned.)
+			 * Non-dir slots keep the legacy behaviour.
+			 */
+			/*
+			 * sess14 REFINEMENT (RULE 4 — the unrefined skip caused
+			 * a REGRESSION, caught same session): skipping EVERY
+			 * NL logged dir slot also suppressed the landing of a
+			 * freshly created dir whose creator had already
+			 * released the grant.  Proven: ino 33554569 (test7's
+			 * fdw node7 dir, daddr=33491712 slot=9, img fmt=1
+			 * size=6) was skipped repeatedly, never reached the
+			 * platter (disk slot read mode=0/FREE), test1 could not
+			 * see the dir at all, and test7 finally poisoned its
+			 * own in-core copy (P34H-INCARN-POISON) → permanent
+			 * ESTALE on its own directory.
+			 *
+			 * The write is only harmful when a PEER has superseded
+			 * the platter since our image was valid — the same
+			 * supersession proof P32E uses: master dir_epoch >
+			 * our i_dlm_dir_valid_epoch.  With no peer tenure since
+			 * our copy (fresh create, private dir), our logged
+			 * image is the ONLY source of that dinode and must be
+			 * written.  (GPT: retire/skip only on proven
+			 * supersession, else land it.)
+			 */
+			/*
+			 * Discriminator (sess14, THIRD iteration — GPT RULE-5
+			 * design, and the one that is actually an invariant).
+			 * Refuted first: "skip every NL dir slot" stranded a
+			 * freshly created dir (its landing IS a post-demote
+			 * write) — platter slot stayed FREE, dir invisible
+			 * cluster-wide, local ESTALE poison.  Refuted second:
+			 * gating on the dir epoch — after release the local
+			 * DLM resource view is gone and the epoch lookup
+			 * returns 0, so the gate silently disabled the skip
+			 * and the cv revert returned (5 files lost at .127).
+			 *
+			 * The correct question is not "are we NL?" but "do we
+			 * still hold publication AUTHORITY for this image?" —
+			 * i.e. can a successor writer exist right now?  MXFS
+			 * already has exactly that token: MXFS_IF_DLM_RELFLUSH
+			 * is set only across the sanctioned release drain, and
+			 * per its own invariant (xfs_inode.h:585,
+			 * xfs_mxfs_dlm.c:23160) **the on-disk DLM grant is
+			 * still HELD for that whole window** — no peer can
+			 * have taken EX, so no successor image can exist and
+			 * publishing ours is safe (this is the land-before-
+			 * release path itself).  Without the token we are a
+			 * background flusher (xfsaild/kworker) racing whoever
+			 * owns the dir now: our prior-tenure image can only
+			 * revert them — the proven cv clobber (test5 mode=0
+			 * wrote 3 names over test27's 7, erasing 4 files).
+			 */
+			{ extern int mxfs_dir_nl_logged_skip;
+			  bool authorized = ip &&
+				xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH);
+			if (is_nl && !is_free && !authorized &&
+			    (be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR &&
+			    mxfs_dir_nl_logged_skip) {
+				skip |= slotbits;
+				nskip++;
+				pr_warn_ratelimited(
+					"mxfs: P56-NL-LOGGED-DIR-SKIP daddr=%lld slot=%d ino=%llu img_fmt=%u img_size=%llu valid_epoch=%u self_created=%d comm=%s — logged dir slot at NL without publication authority (no RELFLUSH token); refusing to publish prior-tenure image over the current owner\n",
+					(long long)bp->b_maps[0].bm_bn, s,
+					(unsigned long long)be64_to_cpu(d->di_ino),
+					d->di_format,
+					(unsigned long long)be64_to_cpu(d->di_size),
+					ip->i_dlm_dir_valid_epoch,
+					ip->i_mxfs_self_created ? 1 : 0,
+					current->comm);
+				continue;
+			}
+			}
 			/* sess56 write-side probe: dump the shortform names of a
 			 * LOGGED dir slot being written, so the resurrecting write
 			 * (one persisting a stale prior-tenure entry set) is caught
@@ -3019,11 +3204,22 @@ mxfs_submit_partial_inode_write(
 
 				mxfs_sf_disk_names(mp, d, wn, sizeof(wn));
 				pr_warn_ratelimited(
-					"mxfs: P56-DIRWRITE ino=%llu daddr=%lld incore=%d mode=%d logged=%d write=[%s]\n",
+					"mxfs: P56-DIRWRITE ino=%llu daddr=%lld incore=%d mode=%d logged=%d relflush=%d dgen=%u lgen=%u vep=%u sfc=%d comm=%s write=[%s]\n",
 					(unsigned long long)(ip ? ip->i_ino : 0),
 					(long long)bp->b_maps[0].bm_bn,
 					ip ? 1 : 0, ip ? ip->i_dlm_mode : -1,
-					(int)!!(logged & slotbits), wn);
+					(int)!!(logged & slotbits),
+					/* sess14: does this write carry the
+					 * release-drain publication token (grant
+					 * still held) or is it a background
+					 * flusher racing the current owner? */
+					(ip && xfs_iflags_test(ip,
+						MXFS_IF_DLM_RELFLUSH)) ? 1 : 0,
+					ip ? ip->i_dlm_dir_gen : 0,
+					ip ? ip->i_dlm_dir_loaded_gen : 0,
+					ip ? ip->i_dlm_dir_valid_epoch : 0,
+					(ip && ip->i_mxfs_self_created) ? 1 : 0,
+					current->comm, wn);
 			} else if ((be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR) {
 				/* sess3 (ccloop 46efd8b6): grown-dir dinode image
 				 * entering the platter via a logged partial write —
@@ -3333,6 +3529,180 @@ mxfs_dir3_data_fingerprint(struct xfs_mount *mp, const void *blk,
 	return cnt;
 }
 EXPORT_SYMBOL(mxfs_dir3_data_fingerprint);
+
+/*
+ * ccloop c7ee71c6 sess14: P172-WRTR — NON-PERTURBING write-provenance ring
+ * for the D3 co-resident stale clobber (32/caw cache_coherency durable data
+ * loss).  sess13 proved the race is µs-wide and printk-serialization at the
+ * write path SUPPRESSES it (4/4 catastrophic hits with dirwr=0 vs 0/3 with
+ * dirwr>=1, Fisher p≈0.03), and the capped always-on traces (P170-CLWR cap
+ * 800, P3W cap 6000) exhaust during prep/storm long before the clobber.  So:
+ * a memory-only circular ring recording EVERY dir-metadata and inode-cluster
+ * buffer write submission on a multi-node mount — no printk, no lock, ~µs —
+ * dumped only AFTER detection (mxfs.dirring_dump=1 poke from the harness, or
+ * auto-throttled on P26-IGET-FAIL).  Merged across nodes by daddr+realns,
+ * the write that regressed a slot/dirent-set names the clobberer + path.
+ */
+#define MXFS_WRTR_N	8192
+struct mxfs_wrtr_ent {
+	u64	ns;		/* ktime_get_real_ns at submit */
+	u64	daddr;
+	u64	owner;		/* dir owner ino / first dinode ino in cluster */
+	u64	mask;		/* cluster: dirmask<<32|allocmask; dir: sum<<32|xor */
+	u32	crc;		/* lineage crc32c past 48B hdr (cluster: whole buf) */
+	s32	cnt;		/* active dirents / allocated slots; -1 n/a */
+	u32	pid;
+	u16	flags;		/* bit0 delwri bit1 fua_fresh bit2 in_ail bit3 dirty
+				 * bit4 pin bit5 done bit6 stale bit7 xbf_async */
+	u8	type;		/* 0=inocluster 1=block 2=data 3=leaf1 4=leafn 5=danode */
+	u8	gmode;		/* DLM granted mode of owner dir (255 = n/a) */
+	char	comm[12];
+};
+static struct mxfs_wrtr_ent mxfs_wrtr[MXFS_WRTR_N];
+static atomic_t mxfs_wrtr_idx = ATOMIC_INIT(0);
+
+static void
+mxfs_wrtr_record(struct xfs_buf *bp)
+{
+	struct mxfs_wrtr_ent *e;
+	struct xfs_buf_log_item *bip = bp->b_log_item;
+	u64 owner = 0, mask = 0;
+	s32 cnt = -1;
+	u8 type, gmode = 255;
+
+	if (bp->b_ops == &xfs_inode_buf_ops) {
+		int isz = bp->b_mount->m_sb.sb_inodesize;
+		int nsl = isz ? (int)(BBTOB(bp->b_length) / isz) : 0;
+		u32 am = 0, dm = 0;
+		int i;
+
+		type = 0;
+		if (nsl > 32)
+			nsl = 32;
+		cnt = 0;
+		for (i = 0; i < nsl; i++) {
+			struct xfs_dinode *d = (struct xfs_dinode *)
+				((char *)bp->b_addr + i * isz);
+			u16 mode;
+
+			if (be16_to_cpu(d->di_magic) != XFS_DINODE_MAGIC)
+				continue;
+			if (!owner)
+				owner = be64_to_cpu(d->di_ino);
+			mode = be16_to_cpu(d->di_mode);
+			if (mode) {
+				am |= 1U << i;
+				cnt++;
+				if (S_ISDIR(mode))
+					dm |= 1U << i;
+			}
+		}
+		mask = ((u64)dm << 32) | am;
+	} else if (bp->b_ops == &xfs_dir3_block_buf_ops ||
+		   bp->b_ops == &xfs_dir3_data_buf_ops) {
+		u32 s = 0, x = 0;
+
+		type = (bp->b_ops == &xfs_dir3_block_buf_ops) ? 1 : 2;
+		cnt = (s32)mxfs_dir3_data_fingerprint(bp->b_mount, bp->b_addr,
+				BBTOB(bp->b_length), type == 1, &s, &x);
+		mask = ((u64)s << 32) | x;
+		owner = be64_to_cpu(
+			((struct xfs_dir3_blk_hdr *)bp->b_addr)->owner);
+	} else if (bp->b_ops == &xfs_dir3_leaf1_buf_ops ||
+		   bp->b_ops == &xfs_dir3_leafn_buf_ops) {
+		struct xfs_dir3_leaf_hdr *lh = bp->b_addr;
+
+		type = (bp->b_ops == &xfs_dir3_leaf1_buf_ops) ? 3 : 4;
+		owner = be64_to_cpu(lh->info.owner);
+		cnt = (s32)be16_to_cpu(lh->count) - (s32)be16_to_cpu(lh->stale);
+	} else if (bp->b_ops == &xfs_da3_node_buf_ops) {
+		struct xfs_da3_node_hdr *nh = bp->b_addr;
+
+		type = 5;
+		owner = be64_to_cpu(nh->info.owner);
+		cnt = (s32)be16_to_cpu(nh->__count);
+	} else {
+		return;
+	}
+
+	if (type && owner && bp->b_mount->m_mxfs_dlm)
+		gmode = mxfs_v5_dlm_inode_granted_mode(bp->b_mount->m_mxfs_dlm,
+						       owner);
+
+	e = &mxfs_wrtr[(u32)atomic_inc_return(&mxfs_wrtr_idx) % MXFS_WRTR_N];
+	e->ns = ktime_get_real_ns();
+	e->daddr = (u64)xfs_buf_daddr(bp);
+	e->owner = owner;
+	e->mask = mask;
+	e->crc = type ? crc32c(0, (char *)bp->b_addr + 48,
+			       BBTOB(bp->b_length) - 48)
+		      : crc32c(0, bp->b_addr, BBTOB(bp->b_length));
+	e->cnt = cnt;
+	e->pid = current->pid;
+	e->flags = ((bp->b_flags & _XBF_DELWRI_Q) ? 1 : 0) |
+		   ((bp->b_flags & _XBF_FUA_FRESH) ? 2 : 0) |
+		   ((bip && test_bit(XFS_LI_IN_AIL,
+				     &bip->bli_item.li_flags)) ? 4 : 0) |
+		   ((bip && test_bit(XFS_LI_DIRTY,
+				     &bip->bli_item.li_flags)) ? 8 : 0) |
+		   (xfs_buf_ispinned(bp) ? 16 : 0) |
+		   ((bp->b_flags & XBF_DONE) ? 32 : 0) |
+		   ((bp->b_flags & XBF_STALE) ? 64 : 0) |
+		   ((bp->b_flags & XBF_ASYNC) ? 128 : 0);
+	e->type = type;
+	e->gmode = gmode;
+	strscpy(e->comm, current->comm, sizeof(e->comm));
+}
+
+void mxfs_wrtr_dump(void);
+void mxfs_wrtr_dump_auto(void);
+
+void
+mxfs_wrtr_dump(void)
+{
+	u32 idx = (u32)atomic_read(&mxfs_wrtr_idx);
+	int i;
+
+	pr_warn("mxfs: P172-WRTR-DUMP total=%u ring=%u\n", idx,
+		idx > MXFS_WRTR_N ? MXFS_WRTR_N : idx);
+	for (i = 0; i < MXFS_WRTR_N; i++) {
+		struct mxfs_wrtr_ent *e =
+			&mxfs_wrtr[(idx + 1 + i) % MXFS_WRTR_N];
+
+		if (!e->ns)
+			continue;
+		pr_warn("mxfs: P172-WRTR t=%u daddr=%llu owner=%llu cnt=%d mask=%016llx crc=%08x gm=%u fl=%02x comm=%s pid=%u ns=%llu\n",
+			e->type, (unsigned long long)e->daddr,
+			(unsigned long long)e->owner, e->cnt,
+			(unsigned long long)e->mask, e->crc, e->gmode,
+			e->flags, e->comm, e->pid,
+			(unsigned long long)e->ns);
+	}
+}
+EXPORT_SYMBOL(mxfs_wrtr_dump);
+
+/*
+ * Auto-dump on detection (P26-IGET-FAIL in xfs_inode.c): throttled hard —
+ * a dump is ~8K printk lines (~1MB dmesg), and the 16M dmesg ring is the
+ * only evidence store under journald rotation.  Max 4 per boot, 120s apart.
+ */
+void
+mxfs_wrtr_dump_auto(void)
+{
+	static atomic_t auto_n = ATOMIC_INIT(0);
+	static unsigned long last_jif;
+	int n;
+
+	if (last_jif && time_before(jiffies, last_jif + 120 * HZ))
+		return;
+	n = atomic_inc_return(&auto_n);
+	if (n > 4)
+		return;
+	last_jif = jiffies;
+	pr_warn("mxfs: P172-WRTR-AUTO n=%d (detection-triggered dump)\n", n);
+	mxfs_wrtr_dump();
+}
+EXPORT_SYMBOL(mxfs_wrtr_dump_auto);
 
 /*
  * sess26(ccloop) SUBSET CHECK (sess25's identified path): does the DISK dir
@@ -7629,9 +7999,70 @@ xfs_buf_submit_ex(
 	if ((bp->b_flags & XBF_WRITE) && bp->b_addr && bp->b_mount &&
 	    bp->b_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm) &&
-	    (bp->b_ops == &xfs_bnobt_buf_ops ||
-	     bp->b_ops == &xfs_cntbt_buf_ops))
+	    mxfs_p144_ops(bp->b_ops))
 		mxfs_p144_print(bp, "WR");
+
+	/* ccloop c7ee71c6 sess13: P170-CLWR — inode-CLUSTER write provenance
+	 * for the D3 co-resident stale-slot clobber (32/caw cache_coherency:
+	 * platter slot 170 regressed to a prior dir incarnation while
+	 * neighbor slots advanced to mode=0 — some node's cluster write
+	 * carried a stale slot).  One line per cluster-buf write submission
+	 * with EVERY slot's ino:mode:gen-tail; per-node dmesg + realns merge
+	 * across nodes names the writer that regressed a slot, independent
+	 * of which stale-base mechanism fed it.  Cap 800 always-on (covers a
+	 * fresh-prep repro window); uncapped under mxfs.instr. */
+	if ((bp->b_flags & XBF_WRITE) && bp->b_addr && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm) &&
+	    bp->b_ops == &xfs_inode_buf_ops) {
+		static atomic_t clwr_n = ATOMIC_INIT(0);
+		int clwr_c = atomic_inc_return(&clwr_n);
+
+		if (clwr_c <= 800 || unlikely(mxfs_instr_enabled)) {
+			char clwr_s[420];
+			int clwr_sp = 0, clwr_i;
+			int clwr_isz = bp->b_mount->m_sb.sb_inodesize;
+			int clwr_ns = clwr_isz ?
+				(int)(BBTOB(bp->b_length) / clwr_isz) : 0;
+
+			if (clwr_ns > 32)
+				clwr_ns = 32;
+			for (clwr_i = 0; clwr_i < clwr_ns &&
+			     clwr_sp < (int)sizeof(clwr_s) - 32; clwr_i++) {
+				struct xfs_dinode *clwr_d =
+					(struct xfs_dinode *)((char *)bp->b_addr +
+						clwr_i * clwr_isz);
+
+				if (be16_to_cpu(clwr_d->di_magic) !=
+				    XFS_DINODE_MAGIC) {
+					clwr_sp += scnprintf(clwr_s + clwr_sp,
+						sizeof(clwr_s) - clwr_sp, "x,");
+					continue;
+				}
+				clwr_sp += scnprintf(clwr_s + clwr_sp,
+					sizeof(clwr_s) - clwr_sp, "%llu:%o:%u,",
+					(unsigned long long)be64_to_cpu(clwr_d->di_ino),
+					be16_to_cpu(clwr_d->di_mode),
+					be32_to_cpu(clwr_d->di_gen) % 10000);
+			}
+			pr_warn("mxfs: P170-CLWR daddr=%lld len=%u comm=%s flags=0x%x delwri=%d [%s] realns=%llu\n",
+				(long long)xfs_buf_daddr(bp),
+				(unsigned)BBTOB(bp->b_length),
+				current->comm, (unsigned)bp->b_flags,
+				(bp->b_flags & _XBF_DELWRI_Q) ? 1 : 0,
+				clwr_s,
+				(unsigned long long)ktime_get_real_ns());
+		}
+	}
+
+	/* ccloop c7ee71c6 sess14: P172-WRTR always-on memory ring (see
+	 * mxfs_wrtr_record above) — every dir-metadata + inode-cluster write
+	 * submission on a multi-node mount, no printk (printk suppresses the
+	 * D3 race).  Dump via mxfs.dirring_dump=1 or auto on P26-IGET-FAIL. */
+	if ((bp->b_flags & XBF_WRITE) && bp->b_addr && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm))
+		mxfs_wrtr_record(bp);
 
 	if (unlikely(mxfs_instr_enabled || mxfs_dirwr_enabled >= 2 ||
 		     READ_ONCE(mxfs_watch_ino) > 1) &&
@@ -7641,12 +8072,19 @@ xfs_buf_submit_ex(
 	    (bp->b_ops == &xfs_dir3_block_buf_ops ||
 	     bp->b_ops == &xfs_dir3_data_buf_ops ||
 	     bp->b_ops == &xfs_dir3_leaf1_buf_ops ||
-	     bp->b_ops == &xfs_dir3_leafn_buf_ops)) {
+	     bp->b_ops == &xfs_dir3_leafn_buf_ops ||
+	     /* ccloop c7ee71c6 sess6: da3 NODE blocks were the ONE dir
+	      * metadata type this trace missed — and the torn-CRC block
+	      * that shut down 5/8 nodes (crash_consistency 181124Z,
+	      * daddr 11002400) was exactly a da3_node.  Same owner field
+	      * (xfs_da3_blkinfo), same lineage-crc semantics. */
+	     bp->b_ops == &xfs_da3_node_buf_ops)) {
 		static atomic_t dwn = ATOMIC_INIT(0);
 		struct xfs_buf_log_item *dwbip = bp->b_log_item;
 		const char *dwfmt;
 		long long dwowner = -1;
 		int dwcount = -1, dwstale = -1, dwactive = -1;
+		uint8_t dwgmode = 255;
 		bool dwwatch;
 
 		if (bp->b_ops == &xfs_dir3_block_buf_ops) {
@@ -7669,6 +8107,13 @@ xfs_buf_submit_ex(
 			dwcount = be16_to_cpu(lh->count);
 			dwstale = be16_to_cpu(lh->stale);
 			dwactive = dwcount - dwstale;
+		} else if (bp->b_ops == &xfs_da3_node_buf_ops) {
+			struct xfs_da3_node_hdr *nh = bp->b_addr;
+			dwfmt = "danode";
+			dwowner = be64_to_cpu(nh->info.owner);
+			dwcount = be16_to_cpu(nh->__count);
+			dwstale = 0;
+			dwactive = dwcount;
 		} else {
 			struct xfs_dir3_blk_hdr *bh = bp->b_addr;
 			dwfmt = "data";
@@ -7685,17 +8130,26 @@ xfs_buf_submit_ex(
 		    ((mxfs_instr_enabled || mxfs_dirwr_enabled >= 2) &&
 		     atomic_inc_return(&dwn) <= 8000)) {
 
+			/* ccloop c7ee71c6 sess6: granted mode of the OWNER
+			 * dir's inode lock at submit — the torn-write
+			 * discriminator: a dir-block write submitted while
+			 * the local mirror is NOT EX-granted names the
+			 * exclusivity break directly. */
+			if (dwowner > 0 && bp->b_mount->m_mxfs_dlm)
+				dwgmode = mxfs_v5_dlm_inode_granted_mode(
+					bp->b_mount->m_mxfs_dlm,
+					(uint64_t)dwowner);
 			/* crc of everything past the 48-byte xfs_dir3_blk_hdr
 			 * (magic/crc/blkno/LSN/uuid/owner): the LSN+CRC change
 			 * on every relog even when the dirent content is
 			 * identical, so hashing past them makes equal entry
 			 * content hash equal across nodes/commits — the
 			 * lineage key for the merged P-DIRWR/P-DIRRD timeline. */
-			pr_warn("mxfs: P-DIRWR fmt=%s owner=%lld daddr=%lld crc=%08x count=%d stale=%d active=%d dirty=%d in_ail=%d pin=%d delwri=%d done=%d comm=%s pid=%d realns=%llu\n",
+			pr_warn("mxfs: P-DIRWR fmt=%s owner=%lld daddr=%lld crc=%08x count=%d stale=%d active=%d gmode=%u dirty=%d in_ail=%d pin=%d delwri=%d done=%d comm=%s pid=%d realns=%llu\n",
 				dwfmt, dwowner, (long long)bp->b_maps[0].bm_bn,
 				crc32c(0, (char *)bp->b_addr + 48,
 				       BBTOB(bp->b_length) - 48),
-				dwcount, dwstale, dwactive,
+				dwcount, dwstale, dwactive, dwgmode,
 				(dwbip && test_bit(XFS_LI_DIRTY,
 					&dwbip->bli_item.li_flags)) ? 1 : 0,
 				(dwbip && test_bit(XFS_LI_IN_AIL,
@@ -8094,6 +8548,137 @@ xfs_buf_submit_ex(
 		return;
 	}
 
+	/*
+	 * ccloop c7ee71c6 sess7 — FENCE-V1 (P123): tenure-authorized dir-block
+	 * write fence (GPT RULE-5 blueprint; root proof in sess6-C).  A dir
+	 * metadata write submitted while the owner dir's DLM granted mode is
+	 * below EX is a stale cached image about to interleave with the real
+	 * holder's writes on the shared LUN — the captured producer of the
+	 * torn da3 CRC block (19 PR + 1 NL writes vs the holder's leaf1->node
+	 * split; 5/8-node EUCLEAN shutdown cascade).  Legal writers never
+	 * trip this: in-tenure AIL pushes and the release drain both run with
+	 * the physical grant still EX (gmode=EX), log recovery is excluded by
+	 * flag, and an EX-outgoing drain's mode-transition tail is sanctioned
+	 * by the task registry.  Disposition (GPT verdict 2):
+	 *  - NO log obligation (no bli, or bli clean+off-AIL, and unpinned):
+	 *    the content is a duplicate of durable data or a superseded stale
+	 *    image — suppress: complete as SUCCESS without I/O (wseq stamps at
+	 *    ioend so the release fence's data_durable converges; skipping
+	 *    never worsens the platter).  A bli-free buffer is also STALED so
+	 *    the next access cold-reads the peer's current image; a bli
+	 *    carrier keeps its state machine untouched (P122 precedent).
+	 *  - Log obligation (in-AIL / dirty bli / pinned): committed content
+	 *    whose durable supersession we cannot prove — ALLOW (suppressing
+	 *    could lose the only copy) and print the P-FENCE-AILLEAK census;
+	 *    this is the residual v2 target (certificates + quarantine).
+	 */
+	if ((bp->b_flags & XBF_WRITE) && bp->b_addr && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm) &&
+	    !(bp->b_flags & _XBF_LOGRECOVERY) &&
+	    (bp->b_ops == &xfs_dir3_block_buf_ops ||
+	     bp->b_ops == &xfs_dir3_data_buf_ops ||
+	     bp->b_ops == &xfs_dir3_leaf1_buf_ops ||
+	     bp->b_ops == &xfs_dir3_leafn_buf_ops ||
+	     bp->b_ops == &xfs_dir3_free_buf_ops ||
+	     bp->b_ops == &xfs_da3_node_buf_ops)) {
+		extern bool mxfs_task_in_dir_drain(void);
+		long long fowner = -1;
+		const char *ffmt;
+
+		/* Owner ino from the block's own header (all six types embed
+		 * it: dir3_blk_hdr.owner / dir3_leaf_hdr.info.owner /
+		 * da3_node_hdr.info.owner / dir3_free_hdr.hdr.owner). */
+		if (bp->b_ops == &xfs_dir3_block_buf_ops ||
+		    bp->b_ops == &xfs_dir3_data_buf_ops ||
+		    bp->b_ops == &xfs_dir3_free_buf_ops) {
+			struct xfs_dir3_blk_hdr *fh = bp->b_addr;
+
+			fowner = be64_to_cpu(fh->owner);
+			ffmt = bp->b_ops == &xfs_dir3_block_buf_ops ? "block" :
+			       bp->b_ops == &xfs_dir3_data_buf_ops ? "data" :
+			       "free";
+		} else if (bp->b_ops == &xfs_da3_node_buf_ops) {
+			struct xfs_da3_node_hdr *fh = bp->b_addr;
+
+			fowner = be64_to_cpu(fh->info.owner);
+			ffmt = "danode";
+		} else {
+			struct xfs_dir3_leaf_hdr *fh = bp->b_addr;
+
+			fowner = be64_to_cpu(fh->info.owner);
+			ffmt = bp->b_ops == &xfs_dir3_leaf1_buf_ops ?
+			       "leaf1" : "leafn";
+		}
+
+		/* This submission has not (yet) been suppressed — reset the
+		 * one-shot verdict consumed by flush_one_daddr's FUA arm. */
+		bp->b_mxfs_fence_skipped = false;
+
+		/* Unresolvable owner => cannot prove sub-EX; fail open. */
+		if (fowner > 0 &&
+		    mxfs_v5_dlm_inode_granted_mode(bp->b_mount->m_mxfs_dlm,
+				(uint64_t)fowner) < MXFS_LOCK_EX) {
+			struct xfs_buf_log_item *fbip = bp->b_log_item;
+			bool f_ail = fbip && test_bit(XFS_LI_IN_AIL,
+						&fbip->bli_item.li_flags);
+			bool f_dirty = fbip && test_bit(XFS_LI_DIRTY,
+						&fbip->bli_item.li_flags);
+			bool f_pin = xfs_buf_ispinned(bp);
+			/* v1.1 (run 185647Z refutation): the drain sanction is
+			 * ATTRIBUTION ONLY, never an allow.  The P97 relfence
+			 * loop orders full publication BEFORE the wire unlock,
+			 * so a sanctioned drain write observed at sub-EX is by
+			 * construction a post-unlock retry tail republishing
+			 * already-durable content — and run 185647Z caught one
+			 * regressing the new holder's leaf (count=290@PR vs
+			 * tip 320) plus paired danode republishes, all allowed
+			 * only via the sanction.  Suppress them like any other
+			 * unobligated sub-EX write. */
+			bool f_drain = mxfs_task_in_dir_drain();
+
+			if (!f_ail && !f_dirty && !f_pin) {
+				static atomic_t f_dumps = ATOMIC_INIT(0);
+
+				pr_warn_ratelimited("mxfs: P123-DIRFENCE-SKIP fmt=%s owner=%lld daddr=%lld gmode=%u has_bli=%d in_drain=%d lseq=%llu wseq=%llu done=%d comm=%s — sub-EX stale dir-block write suppressed\n",
+					ffmt, fowner,
+					(long long)bp->b_maps[0].bm_bn,
+					mxfs_v5_dlm_inode_granted_mode(
+						bp->b_mount->m_mxfs_dlm,
+						(uint64_t)fowner),
+					fbip ? 1 : 0, f_drain ? 1 : 0,
+					(unsigned long long)bp->b_mxfs_logged_seq,
+					(unsigned long long)bp->b_mxfs_written_seq,
+					(bp->b_flags & XBF_DONE) ? 1 : 0,
+					current->comm);
+				/* Producer attribution: first few suppressions
+				 * get a stack (which flush arm / evict path
+				 * feeds the fence). */
+				if (atomic_inc_return(&f_dumps) <= 5)
+					dump_stack();
+				bp->b_mxfs_fence_skipped = true;
+				if (!fbip) {
+					xfs_buf_stale(bp);
+					bp->b_flags &= ~XBF_DONE;
+				}
+				xfs_buf_ioerror(bp, 0);
+				xfs_buf_ioend(bp);
+				return;
+			}
+			pr_warn_ratelimited("mxfs: P-FENCE-AILLEAK fmt=%s owner=%lld daddr=%lld gmode=%u in_ail=%d dirty=%d pin=%d in_drain=%d lseq=%llu wseq=%llu comm=%s — log-obligated sub-EX dir write ALLOWED (v2 target)\n",
+				ffmt, fowner,
+				(long long)bp->b_maps[0].bm_bn,
+				mxfs_v5_dlm_inode_granted_mode(
+					bp->b_mount->m_mxfs_dlm,
+					(uint64_t)fowner),
+				f_ail ? 1 : 0, f_dirty ? 1 : 0, f_pin ? 1 : 0,
+				f_drain ? 1 : 0,
+				(unsigned long long)bp->b_mxfs_logged_seq,
+				(unsigned long long)bp->b_mxfs_written_seq,
+				current->comm);
+		}
+	}
+
 	/* In-memory targets are directly mapped, no I/O required. */
 	if (xfs_buftarg_is_mem(bp->b_target)) {
 		xfs_buf_ioend(bp);
@@ -8300,15 +8885,59 @@ xfs_buf_submit_ex(
 		 * release-drain fences are tight (P79/P14/P47/P126 = 0), so letting
 		 * the read proceed cannot serve stale data.  Make this LOG-ONLY:
 		 * keep the timeline probe, but DO NOT short-circuit the read.
+		 *
+		 * ccloop-4dd7 sess4 (b60r2, RULE 4): the blanket disable was
+		 * ITSELF proven harmful — `P110-BIO-OVER-LOGGED daddr=16
+		 * ops=xfs_cntbt pin=1 comm=bash` was followed within 500µs by
+		 * `i != 1` at xfs_alloc_fixup_trees + xfs_free_ag_extent in
+		 * the SAME task → defer_finish dirty-cancel shutdown: the
+		 * read DMA'd the platter cntbt over PINNED (in-CIL, this
+		 * tenure's) records while the bnobt kept the newer in-core
+		 * state → bnobt/cntbt divergence.  A PINNED (or
+		 * committed-unwritten by payload-LSN) AG-meta buffer can
+		 * never legitimately adopt the disk image: we hold the AG EX
+		 * for the in-flight change, so no peer image can be newer.
+		 * The sess122-legit adopt case (AGI during ifree) was a
+		 * DESTAGED lingering-BLI buffer — mxfs_buf_is_undestaged()
+		 * distinguishes exactly that (pinned || li_lsn newer than the
+		 * payload write-stamp).  Refuse the DMA only for undestaged;
+		 * destaged-lingering stays LOG-ONLY and the read proceeds.
 		 */
+		{
+		extern bool mxfs_buf_is_undestaged(struct xfs_buf *);
+		bool undest = mxfs_buf_is_undestaged(bp);
+
 		pr_warn_ratelimited(
-		    "mxfs: P110-BIO-OVER-LOGGED daddr=%lld ops=%s pin=%d li_empty=%d has_bli=%d delwri=%d flags=0x%x comm=%s — LOG-ONLY (read proceeds; sess122 disabled the in-core-keep action)\n",
+		    "mxfs: P110-BIO-OVER-LOGGED daddr=%lld ops=%s pin=%d li_empty=%d has_bli=%d delwri=%d flags=0x%x undest=%d comm=%s — %s\n",
 		    (long long)bp->b_maps[0].bm_bn, opsname,
 		    atomic_read(&bp->b_pin_count),
 		    list_empty(&bp->b_li_list) ? 1 : 0,
 		    bp->b_log_item ? 1 : 0,
 		    !!(bp->b_flags & _XBF_DELWRI_Q),
-		    bp->b_flags, current->comm);
+		    bp->b_flags, undest ? 1 : 0, current->comm,
+		    undest ? "UNDESTAGED — refusing DMA, completing read from in-core (sess4 b60r2 cntbt revert)" :
+			     "LOG-ONLY (destaged-lingering; read proceeds per sess122)");
+		if (undest) {
+			bp->b_error = 0;
+			/*
+			 * sess9 (ccloop c7ee71c6) D1b: this in-place completion
+			 * MUST skip verify_read, exactly like the P91 FUA-path
+			 * twin (v0.10.32 b_mxfs_inplace_read): the in-core image
+			 * is authoritative but its embedded CRC is only stamped
+			 * at write submit, so verifying logically-dirty content
+			 * manufactures EFSBADCRC on a healthy buffer.  PROVEN:
+			 * t1 bnobt daddr 2093232 (drc@16 r13, run 203759Z) —
+			 * P126 staled the dirty buf, this path served it,
+			 * verify_read CRC-failed (P15I-CRCFAIL err=-74, platter
+			 * magic VALID per P15I-MEDIUM) → force shutdown → the
+			 * withdraw tear poisoned the whole cluster.
+			 */
+			bp->b_mxfs_inplace_read = true;
+			bp->b_flags |= XBF_DONE;
+			xfs_buf_ioend(bp);
+			return;
+		}
+		}
 	}
 
 	/*
@@ -8831,14 +9460,52 @@ xfs_buftarg_drain_rele(
 		 * never ran to drop its hold).  Rate-limited.
 		 */
 		pr_warn_ratelimited(
-			"mxfs: P-DRAINSTUCK daddr=%lld ops=%s hold=%d flags=0x%x state=0x%x pin=%d li_empty=%d has_bli=%d delwri=%d\n",
+			"mxfs: P-DRAINSTUCK daddr=%lld ops=%s hold=%d flags=0x%x state=0x%x pin=%d li_empty=%d has_bli=%d delwri=%d agmeta_hold=%d\n",
 			(long long)bp->b_maps[0].bm_bn,
 			(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
 			bp->b_hold, bp->b_flags, bp->b_state,
 			atomic_read(&bp->b_pin_count),
 			list_empty(&bp->b_li_list) ? 1 : 0,
 			bp->b_log_item ? 1 : 0,
-			!!(bp->b_flags & _XBF_DELWRI_Q));
+			!!(bp->b_flags & _XBF_DELWRI_Q),
+			atomic_read(&bp->b_mxfs_agmeta_hold));
+#if MXFS_HOLD_TRACE
+		/*
+		 * sess-pve: replay this buffer's hold/rele ring so the leaked
+		 * reference's acquisition site + caller is named directly.
+		 * Once per buffer (b_mxfs_hr_dumped), and capped globally so
+		 * multiple stuck buffers or the drain's repeated LRU re-walk
+		 * cannot flood the log.
+		 */
+		if (!bp->b_mxfs_hr_dumped) {
+			static atomic_t hrdump_n = ATOMIC_INIT(0);
+
+			bp->b_mxfs_hr_dumped = 1;
+			if (atomic_inc_return(&hrdump_n) <= 8) {
+				static const char * const sn[] = {
+					"ALLOC", "TRYHOLD", "HOLD", "STALE_LRU",
+					"RA_ORPHAN", "RELE_UNCACH", "RELE_CACHED" };
+				unsigned int h = bp->b_mxfs_hri;
+				unsigned int n = (h < MXFS_HOLD_RING) ? h : MXFS_HOLD_RING;
+				unsigned int i;
+
+				pr_warn("mxfs: P-HOLDRING daddr=%lld ops=%s hold=%d flags=0x%x — %u events (oldest first):\n",
+					(long long)bp->b_maps[0].bm_bn,
+					(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
+					bp->b_hold, bp->b_flags, n);
+				for (i = 0; i < n; i++) {
+					unsigned int idx = (h - n + i) % MXFS_HOLD_RING;
+					struct mxfs_hold_evt *e = &bp->b_mxfs_hold_ring[idx];
+
+					pr_warn("mxfs:   [%02u] %-11s delta=%+d hold=%u flags=0x%x caller=%pS\n",
+						i,
+						(e->site < ARRAY_SIZE(sn)) ? sn[e->site] : "?",
+						e->delta, e->hold_after, e->flags,
+						(void *)e->caller);
+				}
+			}
+		}
+#endif
 		/* need to wait, so skip it this pass */
 		spin_unlock(&bp->b_lock);
 		trace_xfs_buf_drain_buftarg(bp, _RET_IP_);

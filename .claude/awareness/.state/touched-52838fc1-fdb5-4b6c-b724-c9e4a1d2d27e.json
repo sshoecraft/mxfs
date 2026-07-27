@@ -1,0 +1,14 @@
+{
+  "source": [
+    "pal/linux/xfs_file.c",
+    "pal/linux/xfs_buf.c",
+    "pal/linux/xfs_iops.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md",
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

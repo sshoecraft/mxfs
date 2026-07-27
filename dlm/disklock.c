@@ -376,6 +376,92 @@ static void disklock_hb_fn(void *arg)
                                          rhb, sizeof(*rhb));
                 mxfs_pal_mutex_unlock(ctx->lock);
 
+                /*
+                 * sess9 (ccloop c7ee71c6) D2: a slot in recovery-pending
+                 * is owned by the recovery protocol — the elected
+                 * replayer zeroes it only AFTER the dead node's log
+                 * slice is durably replayed.  Watch for that transition
+                 * (or a rejoin: same node, new epoch — its own mount
+                 * recovery replayed the slice) and only then run the
+                 * DEFERRED local purge via recovered_cb.  FUA-confirm
+                 * before releasing the barrier: a stale cached read must
+                 * not unfreeze the dead node's grants early.
+                 */
+                {
+                    bool pend;
+                    mxfs_node_id_t pn;
+                    mxfs_epoch_t pe;
+
+                    mxfs_pal_mutex_lock(ctx->lock);
+                    pend = ctx->recovery_pending[slot];
+                    pn = ctx->pending_node[slot];
+                    pe = ctx->pending_epoch[slot];
+                    mxfs_pal_mutex_unlock(ctx->lock);
+
+                    if (pend) {
+                        bool still_dead_stamp = (rr == 0) &&
+                            rhb->magic == MXFS_DISKLOCK_MAGIC &&
+                            rhb->node_id == pn &&
+                            rhb->epoch == pe;
+
+                        if (rr == 0 && !still_dead_stamp) {
+                            mxfs_pal_mutex_lock(ctx->lock);
+                            crr = mxfs_pal_bdev_read_prio(ctx->dev, off,
+                                                          rhb, sizeof(*rhb));
+                            mxfs_pal_mutex_unlock(ctx->lock);
+                            if (crr == 0 &&
+                                !(rhb->magic == MXFS_DISKLOCK_MAGIC &&
+                                  rhb->node_id == pn &&
+                                  rhb->epoch == pe)) {
+                                mxfs_pal_mutex_lock(ctx->lock);
+                                ctx->recovery_pending[slot] = false;
+                                mxfs_pal_mutex_unlock(ctx->lock);
+                                mxfs_pal_log(MXFS_LOG_WARN,
+                                    "mxfs: P163-RECOVERED slot=%u node=%u — "
+                                    "dead slice replay complete (slot "
+                                    "reclaimed); running deferred local purge",
+                                    slot, pn);
+                                if (ctx->recovered_cb)
+                                    ctx->recovered_cb(ctx->recovered_cb_data,
+                                                      (int)slot, pn);
+                            }
+                        }
+                        continue;
+                    }
+                }
+
+                /*
+                 * sess9 (ccloop c7ee71c6) D2: explicit WITHDRAWN stamp =
+                 * voluntary death declaration by a force-shutdown FS.
+                 * Confirmed via a cache-piercing re-read (same
+                 * discipline as the stale-HB dead-confirm below), it
+                 * skips the 31-sample window entirely — peers must start
+                 * fence+replay within seconds, with the withdrawn node's
+                 * grants frozen meanwhile.  This replaces the old
+                 * withdraw_release_all instant-promotion (which handed
+                 * peers the withdrawn node's TORN, unreplayed state —
+                 * PROVEN drc@16 r13 dirent→freed-inode dangle).
+                 */
+                if (rr == 0 && rhb->magic == MXFS_DISKLOCK_MAGIC &&
+                    rhb->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN &&
+                    !hb_gen_foreign(ctx, rhb) &&
+                    ctx->monitored[slot] && nt->live) {
+                    mxfs_pal_mutex_lock(ctx->lock);
+                    crr = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb,
+                                                  sizeof(*rhb));
+                    mxfs_pal_mutex_unlock(ctx->lock);
+                    if (crr == 0 && rhb->magic == MXFS_DISKLOCK_MAGIC &&
+                        rhb->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN) {
+                        mxfs_pal_log(MXFS_LOG_WARN,
+                            "mxfs: P163-WITHDRAW-SEEN slot=%u node=%u — "
+                            "peer declared voluntary death (FS shutdown); "
+                            "initiating recovery now",
+                            slot, ctx->slot_node_id[slot]);
+                        nt->last_epoch = rhb->epoch;
+                        goto fire_dead;
+                    }
+                }
+
                 if (rr < 0 ||
                     rhb->magic != MXFS_DISKLOCK_MAGIC ||
                     rhb->flags != MXFS_DISKLOCK_FLAG_ACTIVE ||
@@ -774,6 +860,44 @@ void mxfs_disklock_stop_heartbeat(struct mxfs_disklock_ctx *ctx)
     mxfs_pal_log(MXFS_LOG_DEBUG, "disklock: heartbeat stopped");
 }
 
+int mxfs_disklock_release_slot(struct mxfs_disklock_ctx *ctx)
+{
+    uint8_t buf[MXFS_DISKLOCK_RECORD_SIZE];
+    struct mxfs_disklock_heartbeat *hb =
+        (struct mxfs_disklock_heartbeat *)buf;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || ctx->local_slot < 0)
+        return -EINVAL;
+    if (ctx->running)
+        return -EBUSY;      /* stop_heartbeat first — no racing rewrites */
+
+    off = ctx->base_offset +
+          (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
+    rc = read_sector(ctx, off, buf);
+    if (rc < 0)
+        return rc;
+
+    /* Only clear a record that is still OURS — an evicted/re-claimed
+     * slot belongs to someone else's story now. */
+    if (hb->magic != MXFS_DISKLOCK_MAGIC ||
+        hb->node_id != ctx->local_node)
+        return -ESTALE;
+
+    hb->flags = 0;
+    rc = write_sector_fua(ctx, off, buf);
+    if (rc == 0)
+        mxfs_pal_log(MXFS_LOG_INFO,
+                     "disklock: released heartbeat slot %d (clean teardown)",
+                     ctx->local_slot);
+    else
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "disklock: slot %d release write failed: %d",
+                     ctx->local_slot, rc);
+    return rc;
+}
+
 int mxfs_disklock_write_grant(struct mxfs_disklock_ctx *ctx,
                                const struct mxfs_resource_id *resource,
                                mxfs_node_id_t owner,
@@ -972,8 +1096,12 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
             if (rc < 0)
                 continue;
             phb = (struct mxfs_disklock_heartbeat *)buf;
+            /* sess9 D2: also clear a WITHDRAWN stamp — zeroing the dead
+             * node's HB sector is the cluster-wide "slice replay done"
+             * signal that releases every peer's deferred local purge. */
             if (phb->magic == MXFS_DISKLOCK_MAGIC &&
-                phb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+                (phb->flags == MXFS_DISKLOCK_FLAG_ACTIVE ||
+                 phb->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN) &&
                 phb->node_id == node_id) {
                 rc = write_sector(ctx, hb_off, zerobuf);
                 if (rc < 0)
@@ -1036,6 +1164,129 @@ int mxfs_disklock_read_all(struct mxfs_disklock_ctx *ctx,
     mxfs_pal_log(MXFS_LOG_DEBUG,
                  "disklock: read_all found %d active lock records", found);
     return 0;
+}
+
+/*
+ * sess9 (ccloop c7ee71c6) D2 — voluntary death declaration ("withdraw").
+ * The owning FS has force-shut down; its journal slice may hold committed
+ * transactions whose buffers were only partially destaged (PROVEN drc@16
+ * r13: ifree destaged, dirent-remove abandoned → durable dangling
+ * dirent).  Peers MUST replay that slice before they touch anything we
+ * held, and they must find out NOW, not after the 62 s stale-sample
+ * window.  Stop our heartbeat, then stamp our own HB slot WITHDRAWN
+ * (magic/node/fs_gen/epoch kept so the monitor can attribute and
+ * generation-check it).  Peers' monitors treat a confirmed WITHDRAWN
+ * stamp as instant death → fence → elected slice replay → purge; our
+ * grants stay frozen until the replay lands.
+ *
+ * Sleeps (heartbeat thread join) — process context only.  If the stamp
+ * write fails the peers still converge via the normal 62 s stale window;
+ * the stamp is a latency optimization for correctness that is enforced
+ * by the deferred-purge protocol regardless.
+ */
+void mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || ctx->local_slot < 0)
+        return;
+
+    mxfs_disklock_stop_heartbeat(ctx);
+
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "disklock: withdraw stamp alloc failed — peers will "
+                     "detect death via the stale-heartbeat window");
+        return;
+    }
+    memset(hb, 0, sizeof(*hb));
+    hb->magic = MXFS_DISKLOCK_MAGIC;
+    hb->flags = MXFS_DISKLOCK_FLAG_WITHDRAWN;
+    hb->node_id = ctx->local_node;
+    hb->fs_gen = ctx->fs_gen;
+    hb->timestamp_ms = mxfs_pal_time_ms();
+    hb->epoch = ctx->epoch;
+
+    off = ctx->base_offset +
+          (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = write_sector_fua(ctx, off, hb);
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "mxfs: P163-WITHDRAW-STAMP slot=%d node=%u rc=%d — "
+                 "voluntary death declared; peers will fence, replay our "
+                 "slice, then purge",
+                 ctx->local_slot, ctx->local_node, rc);
+    mxfs_pal_free(hb);
+}
+
+void mxfs_disklock_set_recovered_cb(struct mxfs_disklock_ctx *ctx,
+                                    mxfs_disklock_recovered_cb cb, void *data)
+{
+    ctx->recovered_cb = cb;
+    ctx->recovered_cb_data = data;
+}
+
+void mxfs_disklock_mark_recovery_pending(struct mxfs_disklock_ctx *ctx,
+                                         int slot, mxfs_node_id_t node)
+{
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return;
+    mxfs_pal_mutex_lock(ctx->lock);
+    ctx->recovery_pending[slot] = true;
+    ctx->pending_node[slot] = node;
+    ctx->pending_epoch[slot] = ctx->node_track[slot].last_epoch;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "mxfs: P163-RECOVERY-PENDING slot=%d node=%u epoch=%llu — "
+                 "purge deferred until slice replay completes",
+                 slot, node,
+                 (unsigned long long)ctx->pending_epoch[slot]);
+}
+
+bool mxfs_disklock_recovery_is_pending(struct mxfs_disklock_ctx *ctx, int slot)
+{
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return false;
+    return ctx->recovery_pending[slot];
+}
+
+void mxfs_disklock_clear_recovery_pending(struct mxfs_disklock_ctx *ctx,
+                                          int slot)
+{
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return;
+    mxfs_pal_mutex_lock(ctx->lock);
+    ctx->recovery_pending[slot] = false;
+    mxfs_pal_mutex_unlock(ctx->lock);
+}
+
+mxfs_node_id_t mxfs_disklock_pending_node(struct mxfs_disklock_ctx *ctx,
+                                          int slot)
+{
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return 0;
+    return ctx->pending_node[slot];
+}
+
+int mxfs_disklock_recovery_pending_iter(struct mxfs_disklock_ctx *ctx,
+                                        int prev, mxfs_node_id_t *node)
+{
+    int slot;
+
+    if (!ctx)
+        return -1;
+    for (slot = prev + 1; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        if (ctx->recovery_pending[slot]) {
+            if (node)
+                *node = ctx->pending_node[slot];
+            return slot;
+        }
+    }
+    return -1;
 }
 
 void mxfs_disklock_set_expire_cb(struct mxfs_disklock_ctx *ctx,
@@ -1247,9 +1498,16 @@ int mxfs_disklock_find_node_slot(struct mxfs_disklock_ctx *ctx,
     if (!ctx || !ctx->dev)
         return -1;
 
-    /* Check in-memory mapping first (populated by monitor_node) */
+    /*
+     * Check in-memory mapping first (populated by monitor_node / the
+     * auto-monitor).  sess9 (ccloop c7ee71c6) D2: do NOT gate on
+     * monitored[] — fire_dead clears it right before invoking expire_cb,
+     * and the expire path needs this lookup to mark recovery pending.
+     * slot_node_id[] persists (cleared only by unmonitor_node on a clean
+     * leave), and a node→slot binding never changes within a generation.
+     */
     for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
-        if (ctx->monitored[slot] && ctx->slot_node_id[slot] == node_id)
+        if (ctx->slot_node_id[slot] == node_id)
             return (int)slot;
     }
 
@@ -1264,8 +1522,11 @@ int mxfs_disklock_find_node_slot(struct mxfs_disklock_ctx *ctx,
         int rc = mxfs_pal_bdev_read(ctx->dev, off, hb, sizeof(*hb));
         if (rc < 0)
             continue;
+        /* sess9 D2: a WITHDRAWN stamp still names its slot — the expire
+         * path must resolve it to mark recovery pending. */
         if (hb->magic == MXFS_DISKLOCK_MAGIC &&
-            hb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+            (hb->flags == MXFS_DISKLOCK_FLAG_ACTIVE ||
+             hb->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN) &&
             hb->node_id == node_id) {
             found = (int)slot;
             break;

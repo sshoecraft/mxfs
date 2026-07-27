@@ -1082,6 +1082,33 @@ xfs_dir2_shrink_inode(
 	tp = args->trans;
 	da = xfs_dir2_db_to_da(args->geo, db);
 
+#ifdef __KERNEL__
+	/*
+	 * ccloop-4dd7 sess2 P148-DIRSHRINK — every dir-block free with the
+	 * BASE COHERENCY stamps at free time.  The round-3 double-map's
+	 * suspected poison step is a shrink whose base predates a peer's
+	 * regrow (stale-lineage free of the peer's live block).  Joined with
+	 * P145-ALLOC/FREE per agbno, the wrong free names itself: its
+	 * loaded_gen/valid_epoch lag the grant's current stamps.
+	 */
+	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+	    S_ISDIR(VFS_I(dp)->i_mode)) {
+		static atomic_t p148_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p148_n) <= 4000)
+			pr_warn("mxfs: P148-DIRSHRINK ino=%llu db=%d da=%u fmt=%d nx=%d size=%lld dir_gen=%u loaded_gen=%u acq_epoch=%u valid_epoch=%u dlm_mode=%u comm=%s realns=%llu\n",
+				(unsigned long long)dp->i_ino, (int)db,
+				(unsigned)da, dp->i_df.if_format,
+				(int)dp->i_df.if_nextents,
+				(long long)dp->i_disk_size,
+				dp->i_dlm_dir_gen, dp->i_dlm_dir_loaded_gen,
+				dp->i_dlm_dir_acq_epoch,
+				dp->i_dlm_dir_valid_epoch,
+				dp->i_dlm_mode, current->comm,
+				(unsigned long long)ktime_get_real_ns());
+	}
+#endif
+
 	/* Unmap the fsblock(s). */
 	error = xfs_bunmapi(tp, dp, da, args->geo->fsbcount, 0, 0, &done);
 	if (error) {
@@ -1443,6 +1470,31 @@ xfs_dir_remove_child(
 		 * up.  Only after removename succeeds do we log the parent and
 		 * drop the link.
 		 */
+		/*
+		 * ccloop-4dd7 DEAD-CHILD GUARD (RULE-4 proven, ino 2097824
+		 * droplink -117 autopsy): under multi-node churn our cached dir
+		 * base can still list a dirent for a child a PEER has already
+		 * unlinked+freed — the child's reload adopted the freed state
+		 * (P9-NLEDGE from_disk old=1 new=0: nlink went 0) while the dir
+		 * content lagged.  Upstream then hits xfs_droplink(nlink==0) →
+		 * -EFSCORRUPTED AFTER removename dirtied the transaction =
+		 * dirty xfs_trans_cancel = whole-fs shutdown.  Detect the dead
+		 * child while the transaction is still CLEAN and return -ENOENT
+		 * (the name is already gone cluster-wide; the dir refresh
+		 * machinery converges our stale base).  nlink==0 at remove
+		 * entry cannot occur single-node (a dirent pins nlink>=1), so
+		 * this fires only for the peer-raced case.
+		 */
+		if (VFS_I(ip)->i_nlink == 0 &&
+		    tp->t_mountp->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(tp->t_mountp->m_mxfs_dlm)) {
+			pr_warn("mxfs: MX-REMOVE-DEADCHILD dp=%llu ip=%llu name=\"%.*s\" nlink=0 — peer already unlinked+freed; clean -ENOENT (was dirty-cancel shutdown)",
+				(unsigned long long)dp->i_ino,
+				(unsigned long long)ip->i_ino,
+				name->len, (const char *)name->name);
+			return -ENOENT;
+		}
+
 		error = xfs_dir_removename(tp, dp, name, ip->i_ino, resblks);
 		if (error) {
 			pr_warn("mxfs: MX-INSTR remove dp=%llu ip=%llu name=\"%.*s\" xfs_dir_removename rc=%d (clean-cancel, node stays up)",

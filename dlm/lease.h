@@ -88,7 +88,13 @@
  */
 #define MXFS_LEASE_SUSPECT_MISSES        150
 
-/* UDP lease heartbeat packet — multicast wire format */
+/* UDP lease heartbeat packet — multicast wire format.
+ * v0.11.78 (D7): grew view_count/view_hash — the sender's DLM membership
+ * view signature (0 = sender has no TCP DLM / no view yet).  RX treats a
+ * packet of the ORIGINAL length as a valid beacon without a view report
+ * (see MXFS_LEASE_UDP_MSG_V1_LEN), so a short packet never fakes a
+ * confirmation; all cluster nodes run the same build per the support
+ * contract, this is just defensive parsing. */
 #pragma pack(push, 1)
 struct mxfs_lease_udp_msg {
     uint32_t        magic;
@@ -97,8 +103,13 @@ struct mxfs_lease_udp_msg {
     mxfs_node_id_t  node_id;
     uint8_t         volume_uuid[16];
     uint64_t        lease_duration_ms;
+    uint32_t        view_count;
+    uint32_t        pad2;
+    uint64_t        view_hash;
 };
 #pragma pack(pop)
+#define MXFS_LEASE_UDP_MSG_V1_LEN \
+    (offsetof(struct mxfs_lease_udp_msg, view_count))
 
 /* Per-node lease state */
 struct mxfs_node_lease {
@@ -143,6 +154,16 @@ struct mxfs_lease_ctx {
 
     mxfs_lease_expire_cb    expire_cb;
     void                    *expire_cb_data;
+
+    /* v0.11.78 (D7): view-signature piggyback.  view_sig_cb supplies the
+     * local DLM's {count,hash} for each outgoing beacon; view_report_cb
+     * delivers a peer's received signature (only called when the packet
+     * actually carried one). */
+    uint64_t (*view_sig_cb)(void *data, uint32_t *count);
+    void     *view_sig_cb_data;
+    void     (*view_report_cb)(void *data, mxfs_node_id_t node,
+                               uint32_t count, uint64_t hash);
+    void     *view_report_cb_data;
 };
 
 /* Lifecycle */
@@ -174,5 +195,14 @@ int  mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx,
 /* Callback registration */
 void mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx,
                                mxfs_lease_expire_cb cb, void *data);
+
+/* v0.11.78 (D7): view-signature piggyback wiring */
+void mxfs_lease_set_view_provider(struct mxfs_lease_ctx *ctx,
+                                  uint64_t (*cb)(void *data, uint32_t *count),
+                                  void *data);
+void mxfs_lease_set_view_report_cb(struct mxfs_lease_ctx *ctx,
+                                   void (*cb)(void *data, mxfs_node_id_t node,
+                                              uint32_t count, uint64_t hash),
+                                   void *data);
 
 #endif /* MXFS_LIBMXFS_LEASE_H */

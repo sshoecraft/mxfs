@@ -793,6 +793,18 @@ xfs_dir2_sf_verify(
 	uint8_t				filetype;
 
 	/*
+	 * mxfs sess13(c7ee71c6): a concurrent fork teardown (xfs_idestroy_fork
+	 * sets if_data=NULL, if_bytes briefly unchanged) exposed a NULL sfp to
+	 * a flusher-side verify — PANIC (RIP xfs_dir2_sf_verify+0x26, CR2=1,
+	 * test6+test12 dual crash during 32/caw cache_coherency).  The torn
+	 * window is an invariant breach upstream of here; refuse it as a
+	 * verifier failure instead of dereferencing NULL so the node survives
+	 * to report it (the caller prints the forensics).
+	 */
+	if (unlikely(!sfp))
+		return __this_address;
+
+	/*
 	 * Give up if the directory is way too short.
 	 */
 	if (size <= offsetof(struct xfs_dir2_sf_hdr, parent) ||

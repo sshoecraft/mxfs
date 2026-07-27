@@ -1,31 +1,31 @@
 {
     "2": {
-        "seqW_mib": 447,
-        "randW_iops": 81072,
+        "seqW_mib": 445,
+        "randW_iops": 66547,
         "legs_sw": 2,
         "legs_rw": 2
     },
     "4": {
-        "seqW_mib": 330,
-        "randW_iops": 132597,
+        "seqW_mib": 176,
+        "randW_iops": 70813,
         "legs_sw": 4,
         "legs_rw": 4
     },
     "8": {
-        "seqW_mib": 715,
-        "randW_iops": 128318,
+        "seqW_mib": 200,
+        "randW_iops": 63606,
         "legs_sw": 8,
         "legs_rw": 8
     },
     "16": {
-        "seqW_mib": 230,
-        "randW_iops": 97873,
+        "seqW_mib": 253,
+        "randW_iops": 51052,
         "legs_sw": 16,
         "legs_rw": 16
     },
     "32": {
-        "seqW_mib": 1076,
-        "randW_iops": 271874,
+        "seqW_mib": 713,
+        "randW_iops": 57516,
         "legs_sw": 32,
         "legs_rw": 32
     }

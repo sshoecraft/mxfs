@@ -852,6 +852,21 @@ static int peer_connect_impl(struct mxfs_peer_ctx *ctx,
     mxfs_pal_log(MXFS_LOG_DEBUG,
                  "peer: connected to node %u at %s:%u",
                  node_id, peer->host, peer->port);
+
+    /* ccloop c7ee71c6 sess12 (16/tcp join-storm false death, RULE-4
+     * PROVEN live): connect_cb fired ONLY from the accept path, so an
+     * OUTBOUND reconnect — the announce-driven ensure-connected heal
+     * after a duplicate-connection flap — restored the peer silently.
+     * The mount layer's 40 s suspect timer was never cancelled and
+     * v5_tcp_death_worker_fn then declared a peer with a live ESTAB
+     * socket dead (ss -tn proved ESTAB on test3/test8 → test16 WHILE
+     * P164 rejected its announces): lock-table purge → phantom PR at
+     * the master → root-ino EX starved 120 s → 15-node -110 cascade.
+     * Fire the same callback the accept path fires; the mount layer's
+     * handler is direction-agnostic (P164-gates, cancels the pending
+     * death, re-registers the lease, refreshes membership). */
+    if (ctx->connect_cb)
+        ctx->connect_cb(ctx->connect_cb_data, node_id);
     return 0;
 }
 

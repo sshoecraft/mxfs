@@ -1,0 +1,16 @@
+{
+  "source": [
+    "xfs/xfs_buf.h",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_buf_item.c",
+    "xfs/xfs_inode.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md",
+    ".claude/awareness/subsystems/xfs.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

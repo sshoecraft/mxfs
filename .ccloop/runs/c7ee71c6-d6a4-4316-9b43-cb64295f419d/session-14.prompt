@@ -1,0 +1,129 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 14 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 13
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `a0fd413e-2cb0-466e-9635-8c67e045d460`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a0fd413e-2cb0-466e-9635-8c67e045d460.jsonl`
+- approx context at last assistant turn: 498778 tokens
+- tools used: Bash×174 Edit×14 Read×4 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_trans_ail.c
+- /src/mxfs/tests/wedge_load.sh
+- /src/mxfs/tests/repro_32caw_wedge.sh
+- /src/mxfs/state.md
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_sf.c
+- /src/mxfs/xfs/libxfs/xfs_inode_fork.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '2040,2060p' xfs/xfs_inode.c; echo ===; sed -n '4995,5010p' xfs/xfs_inode.c
+    cd /src/mxfs; grep -n 'xfs_ifork_verify_local_dir' xfs/libxfs/xfs_inode_fork.c xfs/libxfs/*.h | head -4; sed -n "$(grep -n 'xfs_ifork_verify_local_dir' xfs/libx
+    cd /src/mxfs; grep -rn 'xfs_ifork_verify_local_dir' xfs/ | grep -v '\.o' | head -5
+    cd /src/mxfs; grep -rn 'xfs_dir2_sf_verify' xfs/libxfs/*.c xfs/*.c | grep -v xfs_mxfs_dlm | grep -v '\.o' | head -8
+    cd /src/mxfs; sed -n '675,730p' xfs/libxfs/xfs_inode_fork.c
+    cd /src/mxfs; sed -n '780,800p' xfs/libxfs/xfs_dir2_sf.c
+    cd /src/mxfs; echo "0.11.117" > VERSION; make modules 2>&1 | grep -E 'error|Error' | head -6; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; ./run.sh 32 caw prep_cluster 2>&1 | tail -3
+    cd /src/mxfs; tests/wedge_load.sh start 120; PF=$(tools/mxfs_secrets.sh passfile); timeout 170 tools/mxfs_sshpass.sh test1 "$PF" 'for t in $(seq 1 28); do pgrep
+    cd /src/mxfs; tests/wedge_load.sh stop >/dev/null 2>&1; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'rm -rf /mnt/shared/.
+    cd /src/mxfs; jq -r '.categories[].tests[] | select(.name=="cache_coherency") | .runs["32/caw"].reason' criteria.json | cut -c1-200; PF=$(tools/mxfs_secrets.sh 
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 30 tools/mxfs_sshpass.sh test24 "$PF" 'ls -li /mnt/shared/.cache_coherency/cross_write_read/ 2>&1 | 
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 30 tools/mxfs_sshpass.sh test24 "$PF" 'ls -li /mnt/shared/.cache_coherency/cross_write_read/ 2>&1 | 
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); for i in $(seq 1 32); do (timeout 10 tools/mxfs_sshpass.sh test$i "$PF" 'echo 1 > /sys/module/mxfs/parameter
+    cd /src/mxfs; tests/wedge_load.sh stop >/dev/null 2>&1; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'rm -rf /mnt/shared/.
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); for i in $(seq 1 32); do (timeout 10 tools/mxfs_sshpass.sh test$i "$PF" 'echo 0 > /sys/module/mxfs/parameter
+    cd /src/mxfs; tail -6 .claude/awareness/subsystems/pal.md 2>/dev/null; echo ---; tail -4 .claude/awareness/subsystems/xfs.md 2>/dev/null
+    cd /src/mxfs; cat >> .claude/awareness/subsystems/pal.md <<'EOF'  ## sess13 (ccloop c7ee71c6, 2026-07-26, v0.11.115-117) delta - xfs_buf.c write-submission (~77
+    cd /src/mxfs; tail -8 .claude/awareness/subsystems/pal.md; ls -la .claude/awareness/subsystems/pal.md pal/linux/xfs_buf.c | awk '{print $6,$7,$8,$9}'
+    cd /src/mxfs; grep -n 'xfs_dir2_priv.h\|xfs_dir2.h\|xfs_da_format' pal/linux/xfs_buf.c | head -4; grep -rn 'xfs_dir2_data_entsize' xfs/libxfs/xfs_dir2.h xfs/lib
+
+## Last text from previous session
+
+uppresses the race (0/3 with tracing)** — the TOCTOU window is microseconds wide, so the named next step is a non-perturbing in-memory write-provenance ring dumped on detection.
+
+2. **D4 — kernel panic (new discovery):** Found an unnoticed dual-node crash class: `xfs_dir2_sf_verify` NULL-deref (torn shortform fork — `if_data` NULLed visible to a flusher) in the BAST-release path; test6+test12 both panicked mid-test today, collapsing membership to 30 and hanging the cluster. v0.11.117 now refuses the NULL (node survives) and prints P171-SFNULL forensics naming the last ILOCK writer — the next occurrence identifies the mutator. Root invariant breach remains OPEN per RULE 6.
+
+3. **D1 — fence-wedge shutdown:** Overturned sess12-E's diagnosis with journal forensics (the truncate's AG wait succeeded; bash parked 222 seconds somewhere else holding ILOCK — every candidate eliminated by absent prints). Escalated to GPT per RULE 5: leading theory is a log grant-head/CIL wait (periodically-waking, hence hung_task-invisible). Deployed the decisive probe: at every AG-AIL stall the kernel now names the ILOCK owner and dumps its stack.
+
+4. **D2 — aged 4× slope:** Mechanism found in code — once a directory has any peer-contact history, every create/unlink pays a ~1.65ms synchronous durability barrier forever; `rerr=-11` decoded as benign. Fix design pending a 5-minute A/B proof.
+
+All evidence is banked in `state.md` and three sess13 ccmemory dossiers; the cluster is prepped at v0.11.117 with all probes live and the recipe ready to fire. The relay continues from a defect factory with instruments attached, not a cold trail.
+Criteria: NO — continuing. First verifying the pal.md append actually landed (the hook flagged it), then building the D3 non-perturbing ring:
+Relay boundary. Recording the last verified detail (helpers confirmed available) so session 14 starts coding immediately:
+Relay boundary — session 13 complete. **Criteria answer: NO — not production ready** (four open defects, including reproducible durable data loss and a kernel panic; the YES marker stays unwritten).
+
+**Session 13 delivered:**
+
+1. **D3 (durable data loss) went from mystery to on-tap:** a new 2-minute recipe (`tests/wedge_load.sh` churn → tree removal → cache_coherency) reproduced catastrophic coherency failures **4 of 4 untraced attempts**: a cluster-wide-lost rename with physical platter proof (the reused ino's slot still carries the prior directory incarnation — decoded byte-level), vanished writer files, and erased dirents. The decisive discovery: **printk tracing at the dir-RMW point suppresses the race entirely (0/3)** — so session 14's provenance capture is specified as a memory-only write ring (design + helper availability verified and written into state.md).
+
+2. **D4 (new kernel panic class) found, contained, and trapped:** `xfs_dir2_sf_verify` NULL-deref during BAST release crashed test6+test12 simultaneously today (and once unnoticed this morning). v0.11.117 now survives it and prints P171-SFNULL forensics naming the mutator's identity on next occurrence. Root invariant breach stays open per RULE 6.
+
+3. **D1 (fence-wedge shutdown) re-diagnosed:** journal forensics overturned sess12-E's cycle theory (all candidate parking spots eliminated by absent prints); GPT consult (RULE 5) points to a log grant-head/CIL wait. The decisive kernel probe is deployed: every AG-AIL stall now names and stack-dumps the ILOCK holder.
+
+4. **D2 (aged 4× slope) mechanism found in code:** a permanent per-dirop durability barrier triggered once a dir has any peer history; `rerr=-11` watch item resolved benign.
+
+State is fully banked: `state.md` rewritten with all four threads and exact next steps, three ccmemory dossiers (sess13-A/B/C), awareness docs updated, v0.11.117 (`998BB363E007879ED6F57E7`) built and prepped on all 32 nodes with every probe live and `dirwr=0` (the race left open for the hunt). Session 14 starts by coding the specified dir-write ring, then names the clobberer.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

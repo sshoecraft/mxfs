@@ -1,7 +1,7 @@
 # xfs (XFS-6.19 fork + MXFS overlay)
 
 **Owner files**: `xfs/` (331 files), `mxfs_clayer/` (4 files), top-level `mxfs.c`
-**Last updated**: 2026-06-21 (sess58)
+**Last updated**: 2026-07-25 (ccloop c7ee71c6 sess6 — FIX-26 writepages admit + AG orphan-NAK; dated section at end)
 
 > **sess58 (2/tcp criterion MET, build 60EFBE5E)** — two lock-coordination roots fixed in `xfs_inode.c`:
 > 1. **AG↔dir lock order must be consistent (AG→dir).** create (dialloc-first) and rename (`mxfs_trans_preacquire_inode_ags`) acquire AG before dir; `xfs_remove` was dir→AG and ABBA-deadlocked a peer create. FIX: `xfs_remove` pre-acquires the child's AG (standalone `mxfs_ag_dlm_lock`) before `xfs_trans_alloc_dir`.
@@ -88,6 +88,7 @@ struct xfs_perag {
 2. **bast_work_fn for an AG runs at most one at a time.** Routed through `m_mxfs_ag_bast_wq` ordered queue. Multiple parallel invocations starve xfsaild and saturate event-pool. v0.3.147.
 3. **`pag_dlm_acquire_lock` MUST NOT be held across `mxfs_v5_dlm_ag_lock` CAW poll.** The CAW poll sleeps up to 120s; `mxfs_dlm_ag_meta_iodone` needs `pag_dlm_lock` to fire deferred releases the CAW grant may be waiting on. Holding deadlocks.
 4. **AG-DLM grant validity = on-disk slot state.** `pag_dlm_cached=true` is a hint for fast-path acquire; the authoritative grant is the disk slot, not the in-memory flag.
+5. **The AG-meta track hold is a ONE-SHOT token — released by writeback OR abort, never leaked (2026-07-21 fix).** Every logged AG-meta buffer gets an extra `xfs_buf_hold` + `pag_dlm_meta_pending++` from `mxfs_ag_meta_track` (idempotent per dirty epoch via `XFS_BLI_MXFS_AGMETA_TRACKED`). That hold's ONLY writeback releaser is `mxfs_dlm_ag_meta_iodone` (installed as `b_iodone`, which fires only in `__xfs_buf_ioend`). On a forced shutdown the dirty AG-meta buffers are aborted WITHOUT writeback (`xfs_buf_item_release` abort branch → `xfs_buf_item_done`, no ioend), so iodone never fires — the OLD code leaked the hold and wedged `xfs_buftarg_drain` at umount (agi/inobt/finobt stuck `b_hold=2`, PROVEN via the new P-HOLDRING dump). FIX: a one-shot `atomic_t bp->b_mxfs_agmeta_hold` armed by track, consumed (`cmpxchg 1→0`) by EXACTLY ONE of iodone (writeback) or the new **`mxfs_ag_meta_reclaim_abort(bp)`** — called from `pal/linux/xfs_buf_item.c`'s abort branch to drop the hold + dec pending (logs P-AGMETA-RECLAIM). NEVER re-key AG-meta cleanup on `b_iodone` alone — abort paths don't run ioend. See ccmemory `pve-agi-wedge-ROOT-agmeta-track-hold-leak-FIX-and-pve1-hung`.
 
 ## Known Pitfalls
 
@@ -310,3 +311,135 @@ storms.  Contrast P56-CORESIDENT-DIR-SKIP (pal/linux/xfs_buf.c) which fires
 per partial-cluster WRITE: it must stay pr_warn_ratelimited (un-ratelimiting
 it cost dlm_scaling@32 its 50 ops/s floor — see ccmemory
 ccloop8ba7-sess7-printk-volume-is-a-perf-criterion).
+
+## sess5 (ccloop-4dd7) — s_remove_count shadow ledger + drain RCU fix
+- ALL nlink writes on xfs inodes route through `mxfs_set_nlink`/`mxfs_drop_nlink`/
+  `mxfs_inc_nlink` (xfs_inode.h) maintaining `MXFS_IF_RMC_ACCT` (bit 23) = "this inode's
+  nlink-0 state holds +1 in sb->s_remove_count". Unpaired 0→N decs scream (P9-RMC-*).
+  Corpse rule: I_CLEAR inodes adopt nlink RAW (accounting closed by __destroy_inode);
+  `xfs_reinit_inode` sets i_state=0 BEFORE the restore to re-open accounting. Root #6:
+  the sess40 reuse-reload ran from_disk on destroyed corpses → counter -1 → per-op WARN
+  storm at fs/inode.c:289 (= the suite-soak 833-hit failure) + permanent remount-ro EBUSY.
+- `mxfs_dlm_ag_drain_meta_buffers`: never sleep inside rhashtable_walk_start..stop (RCU).
+  The write path stops/resumes the walk around blocking lock+bwrite; whole walk repeats
+  until a pass writes nothing (≤8, P-DRAIN-PASSCAP). Invariant 1 coverage is now ≥ the
+  old single pass.
+- Deferred-deadshell CREATE verdict (xfs_iget_recycle): when the cluster buffer is
+  P91-protected, the DISKLIVE reject verdict side-reads the platter (P-CR63-SIDEREAD)
+  instead of trusting the kept (possibly pre-free) cached bytes — b70r1 -117 shutdown root.
+
+## v0.11.81 — ilock_end holder bookkeeping is unconditional (2026-07-25)
+
+**INVARIANT (P125 root fix, ring-proven):** `mxfs_dlm_ilock_end`
+(xfs_mxfs_dlm.c) must run the ex/pr holder-count decrement UNCONDITIONALLY —
+the `!m_mxfs_dlm` / `is_single_node` gates sit AFTER the bookkeeping and
+gate only the multi-node machinery (BAST fire, flush arming). The old
+head-gates leaked one holder whenever membership collapsed to single-node
+(peer death) or the DLM was torn down (umount) between an op's begin and
+end; leaked `i_dlm_ex/pr_holders` block the reclaim gates and feed the
+busy-inodes-after-unmount / VFS_BUG_ON(I_FREEING) teardown family.
+P71-UNDERFLOW prints are multi-node-gated (single-node unpaired ends are
+expected — ilock_begin's bypass never incremented).
+Forensics kept in-tree: the `mxfs_dlmtr` watch-ino ring records ex/pr
+counts per event (`MXFS_DLMTR_H` annotations at every holder mutation);
+P125-EVICT-SUSPECT prints the EX-admission stamp (exh_pid/comm/age) and
+auto-dumps the ring when `mxfs.watch_ino` matches the inode.
+Deterministic repro (kept for regression): converged 2-node, hard-kill
+peer, `touch` on survivor (blocks through gate+death), umount → pre-fix
+P125 2/2, post-fix 0/2.
+
+## v0.11.87-93 — FIX-26 writepages admit + AG orphan-NAK detection (ccloop c7ee71c6 sess6, 2026-07-25)
+
+`xfs/xfs_mxfs_dlm.c`:
+- `mxfs_ilock_admit_ioend` WIDENED (FIX-26): admits `xfs_task_in_writepages()`
+  tasks (bdi flusher / sync / fsync — they hold FOLIO LOCKS across
+  ->map_blocks' delalloc-convert `xfs_ilock(EX)`) through the BAST/DEMOTING
+  demote-wait under a still-granted EX/PR mirror, exactly like the FIX-25
+  ioend admit (nested EX, ex_holders-counted, release aborts at holders gate).
+  Without it: permanent AB-BA vs the bast drain's `filemap_write_and_wait`
+  (`__folio_lock`) — captured live on test8 (P73 ino=10485894 req=5 mode=3
+  state=3=BAST work_busy=3 every 30s, 70+ min; every later run's create-wave
+  `sync` then wedged behind the dead flusher).  P25 print: `src=ioend|writepages`.
+- `mxfs_dlm_ag_bast_notify`: orphan-grant NAK detection — unheld shape
+  (`holders==0 && !pag_dlm_cached && !bast_scheduled` && bast pending >3s)
+  → `mxfs_v5_dlm_ag_orphan_nak` outside `pag_dlm_lock` + `P5N-AG-ORPHAN-NAK
+  src=bast-rx`.  Companion + full anatomy in dlm.md v0.11.92 section.
+- EX-flow fact worth keeping: the mode==EX fast path serves EX requests even
+  in state=BAST (drain hasn't pre-cleared mode yet) — only sub-EX-mode
+  requests park in the demote-wait.  bast_process pre-clears mode→NL early
+  (~12362-12390, RELFLUSH set first), so its own drain writeback converts
+  delalloc at mode=0 via the demoter-bypass (P26PRE dem_cur=1 = normal).
+
+`xfs/xfs_aops.h`: + `bool xfs_task_in_writepages(void)` (FIX-26; impl in
+pal/linux/xfs_aops.c — see pal.md same-date entry).
+
+## v0.11.95-98 — FENCE-V1 dir-block write fence + leaf-rebuild format gate (ccloop c7ee71c6 sess7, 2026-07-25)
+
+The crash_consistency@8/tcp torn-da3 root (sess6-C dossier) is CLOSED:
+20/20 rung green at srcver 02D5804CDD34C15FF16DF06.
+
+`xfs/libxfs/xfs_dir2_leaf.c` — **THE root fix**:
+- `mxfs_dir_rebuild_leaf_from_data` now gates on
+  `xfs_dir2_format(args,&frc) == XFS_DIR2_FMT_LEAF` before its
+  `xfs_dir3_leaf_read(geo->leafblk)`.  Ungated it (a) probed LEAF_OFFSET on
+  BLOCK-form dirs via `xfs_dabuf_map` WITHOUT HOLE_OK → corruption machinery
+  (mark_sick + "Corruption detected" + P14-DABUF-HOLE + ms-long FUA hole
+  probes) on every armed create (= Defect B's original signature), and
+  (b) mid leaf→node split could relog a STALE LEAF1 image of the block
+  becoming the da3 root — the committed/AIL stale image xfsaild + drains then
+  wrote at any gmode = the sess6 torn-block producer family (Defect A).
+
+`xfs/xfs_mxfs_dlm.c`:
+- FENCE-V1 dir-drain task registry (~:11334): `mxfs_dirdrain_{enter,exit,
+  set_mode}` + `mxfs_task_in_dir_drain()` (returns true only for an
+  EX-outgoing bracket).  All 6 `mxfs_dlm_bast_process` call sites bracketed;
+  `set_mode(p_held_mode)` stamped at bast entry.  v1.1: the sanction is
+  ATTRIBUTION-ONLY — the fence never allows on it (P97 relfence orders
+  publication before unlock, so sub-EX drain writes are republishes).
+- `mxfs_dir_flush_one_daddr` FUA arm gated on `!dbp->b_mxfs_fence_skipped`:
+  a fence-suppressed "write" must not have its stale bytes FUA-republished
+  (raw SCSI passthrough bypassed the fence and races holder bios at the
+  target — the 185647Z residual torn reads).
+- `mxfs_danode_crcfail_probe` (~:17322) — P-DACRC/P-DACRC-RAW forensics at
+  the instant a multinode da3 read fails CRC: per-sector crcs + lineage crc
+  (same crc32c-past-48 key as P-DIRWR) of the failing image + immediate
+  plain and FUA raw re-reads → torn-on-LUN vs torn-in-flight vs
+  cache/platter divergence, matchable against the P-DIRWR write timeline.
+  Hooked from `xfs_da3_node_read_verify` (CRC-fail + alien-magic branches).
+
+`xfs/xfs_buf.h`: + `bool b_mxfs_fence_skipped` (one-shot verdict, set by the
+fence's suppress arm, cleared when a dir write passes the fence; consumed by
+the FUA arm above).
+
+Facts worth keeping:
+- The fence's suppress = complete-as-success without I/O (P122 idiom):
+  wseq stamps at ioend so `mxfs_dir_data_durable` converges; bli-free
+  buffers also staled+!DONE (next access cold-reads).  Log-obligated
+  (bli-dirty / IN_AIL / pinned) sub-EX writes are ALLOWED + P-FENCE-AILLEAK
+  census (zero observed since the gate).
+- P123 still fires occasionally during GREEN runs (dir_reuse 19:55: leaf1
+  lseq=0 done=0 has_bli=0 kworker) — the fence is load-bearing against a
+  residual sub-EX republish producer (suspected same family as the transient
+  readdir undercount, open task).
+- P146V-UNLANDED + P5U-AGUNLOCK + P25 src=writepages firing during green
+  runs = the heal arms working as designed, not failures.
+
+## sess10 (ccloop c7ee71c6, 2026-07-26, v0.11.104-108) delta
+- xfs_inode.c xfs_lookup P95 block: reused-ino reloads are now BOUNDED-BLOCKING (≤200×10ms)
+  for both typeflip (until in-core ftype == dirent ftype; P95B print) and sametype (until
+  i_dlm_stale clears; P95C) — lookup must never return an unconverged stale incarnation
+  (Shape-1 root fix; lost creates via ENOTDIR + empty reads).
+- xfs_inactive ifree: mode/gen disk read SKIPPED under MXFS_IF_LOCAL_UNLINK &&
+  mxfs_inact_dlm_locked (sentinel 0xFFFF; B1/B2 inert by design) — the last synchronous
+  per-unlink target round-trip; dlm_scaling@32 15→34 ops/s.
+- xfs_mxfs_dlm.c mxfs_dbg_disk_di_mode: primary read now coherent plain-bio; FUA is the
+  instr-gated P103-FUA-DIVERGE secondary.
+
+## sess13 (ccloop c7ee71c6, 2026-07-26, v0.11.115-117) delta
+- xfs_trans_ail.c xfs_ail_push_ag_sync_bounded: D1 wedge probe — mxfs_rwsem_owner_peek on the
+  stuck ino's i_lock; P67-STALL-OWNER line per stall-abort (item lsn, AIL min, l_tail_lsn,
+  grant heads, owner identity, mxfs_ilk last-locker) + P67-STALL-OWNER-STACK throttled
+  sched_show_task of the holder (30s).
+- libxfs/xfs_dir2_sf.c xfs_dir2_sf_verify: refuses sfp==NULL (was a PANIC: RIP +0x26 CR2=1,
+  test6+test12 dual crash — torn-fork window, root OPEN). libxfs/xfs_inode_fork.c
+  xfs_ifork_verify_local_data prints P171-SFNULL forensics (ilk last-locker = mutator id).

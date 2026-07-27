@@ -142,6 +142,23 @@ struct mxfs_dlm_ctx {
      * window (P-STALEMASTER-GRANT at active_count<N).  0 = no change yet. */
     uint64_t            last_memb_change_ms;
 
+    /* v0.11.78 (D7): view-signature convergence proof.  The wall-clock
+     * settle window above is the FALLBACK; the fast path settles as soon
+     * as every node in my active view has confirmed (via the lease
+     * beacon's piggybacked view signature) that it computes the SAME
+     * sorted-membership signature — i.e. mastery (nodes[hash%count]) is
+     * provably identical cluster-wide.  my_view_* are written under
+     * active_nodes.lock together with the set; peer_views[] entries are
+     * written by the lease RX path and read by the settle gate. */
+    uint32_t            my_view_count;
+    uint64_t            my_view_hash;
+    struct {
+        mxfs_node_id_t  node_id;    /* 0 = slot empty */
+        uint32_t        count;
+        uint64_t        hash;
+        uint64_t        rx_ms;      /* mxfs_pal_time_ms() at receipt */
+    } peer_views[MXFS_MAX_NODES];
+
     /* Pending remote requests (waiting for remote master grant) */
     struct mxfs_dlm_pending *pending_buckets[MXFS_DLM_PENDING_SIZE];
     mxfs_mutex_t        *pending_lock;
@@ -181,6 +198,14 @@ int mxfs_dlm_unlock(struct mxfs_dlm_ctx *ctx,
  * remote master — phantom-grant reconcile only (see dlm.c). */
 int mxfs_dlm_send_unconditional_release(struct mxfs_dlm_ctx *ctx,
                                         const struct mxfs_resource_id *resource);
+
+/* ccloop c7ee71c6 sess6: guarded orphan-grant NAK — sends the FIX-20b
+ * unconditional release ONLY if the local table holds no entry of ANY state
+ * for the resource (in-flight acquires block it).  -EBUSY = held locally,
+ * nothing sent.  Heals master-side zombie grants left by the
+ * membership-change table purge (see dlm.c). */
+int mxfs_dlm_release_orphan_if_unheld(struct mxfs_dlm_ctx *ctx,
+                                      const struct mxfs_resource_id *resource);
 
 /* Gen-aware release (sess1 ccloop a9a03929): releases ONLY the tenure whose
  * grant_gen == expected_gen.  Returns -ESTALE (touching nothing) if a
@@ -222,6 +247,14 @@ mxfs_node_id_t mxfs_dlm_resource_master(struct mxfs_dlm_ctx *ctx,
                                         const struct mxfs_resource_id *resource);
 bool mxfs_dlm_is_resource_master(struct mxfs_dlm_ctx *ctx,
                                  const struct mxfs_resource_id *resource);
+/* v0.11.78 (D7): view-signature convergence proof plumbing.
+ * get_view_sig is the lease-TX provider (returns my hash, fills count);
+ * report_peer_view is fed by the lease RX path with a peer's signature. */
+uint64_t mxfs_dlm_get_view_sig(struct mxfs_dlm_ctx *ctx, uint32_t *count);
+void mxfs_dlm_report_peer_view(struct mxfs_dlm_ctx *ctx,
+                               mxfs_node_id_t node,
+                               uint32_t count, uint64_t hash);
+
 int mxfs_dlm_update_active_nodes(struct mxfs_dlm_ctx *ctx,
                                  const mxfs_node_id_t *nodes, int count);
 bool mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx);

@@ -1,0 +1,16 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_ialloc.c",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_icache.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_dir2.c",
+    "xfs/xfs_inode.c",
+    "xfs/xfs_extent_busy.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

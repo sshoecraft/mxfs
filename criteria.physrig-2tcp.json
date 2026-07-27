@@ -1,0 +1,4796 @@
+{
+  "categories": [
+    {
+      "category": "suite",
+      "transport": "any",
+      "tests": [
+        {
+          "name": "prep_cluster",
+          "group": "P0",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 300,
+          "budget_scale": "flat",
+          "runs": {
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 1/xfs)",
+              "reason": "",
+              "iso": "2026-07-20T19:34:48Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 1/caw)",
+              "reason": "",
+              "iso": "2026-07-20T06:30:53Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 2/caw)",
+              "reason": "",
+              "iso": "2026-07-20T06:41:07Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 4/caw)",
+              "reason": "",
+              "iso": "2026-07-20T06:48:27Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 8/caw)",
+              "reason": "",
+              "iso": "2026-07-20T06:55:26Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 16/caw)",
+              "reason": "",
+              "iso": "2026-07-20T07:04:28Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 32/caw)",
+              "reason": "",
+              "iso": "2026-07-20T07:14:51Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 2/cawd)",
+              "reason": "",
+              "iso": "2026-07-20T05:49:04Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 32/cawd)",
+              "reason": "",
+              "iso": "2026-07-20T06:20:35Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 8/cawd)",
+              "reason": "",
+              "iso": "2026-07-20T06:02:18Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 16/cawd)",
+              "reason": "",
+              "iso": "2026-07-20T06:10:15Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 1/cawd)",
+              "reason": "",
+              "iso": "2026-07-20T05:42:09Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 4/cawd)",
+              "reason": "",
+              "iso": "2026-07-20T05:55:26Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 1/tcp)",
+              "reason": "",
+              "iso": "2026-07-20T03:19:20Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 2/tcp)",
+              "reason": "",
+              "iso": "2026-07-26T08:12:00Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 4/tcp)",
+              "reason": "",
+              "iso": "2026-07-20T03:44:35Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 8/tcp)",
+              "reason": "",
+              "iso": "2026-07-20T03:54:12Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 16/tcp)",
+              "reason": "",
+              "iso": "2026-07-20T04:05:08Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 32/tcp)",
+              "reason": "",
+              "iso": "2026-07-20T04:19:43Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 1/cawp)",
+              "reason": "",
+              "iso": "2026-07-20T04:33:34Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 2/cawp)",
+              "reason": "",
+              "iso": "2026-07-20T04:47:04Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 4/cawp)",
+              "reason": "",
+              "iso": "2026-07-20T04:54:13Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 8/cawp)",
+              "reason": "",
+              "iso": "2026-07-20T05:02:12Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 16/cawp)",
+              "reason": "",
+              "iso": "2026-07-20T05:11:10Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "skipped (marker matched 32/cawp)",
+              "reason": "",
+              "iso": "2026-07-20T05:22:00Z",
+              "elapsed_s": 0,
+              "budget_s": 300
+            }
+          }
+        },
+        {
+          "name": "precond_readiness",
+          "group": "P0",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:01:46Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:08Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:47:15Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:14:09Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:42:37Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:21Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:36:30Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:03Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:57:18Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:06:41Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:27:21Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:12:34Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:00Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:04:05Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:04Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:44:29Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:50:35Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:57:06Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:08:55Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:20Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:00Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:49:14Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:55:51Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:04:07Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:13:32Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "posix_single",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 15,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=29 passed=29 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:14:10Z",
+              "elapsed_s": 1,
+              "budget_s": 15
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "checks=29 passed=29 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:23Z",
+              "elapsed_s": 2,
+              "budget_s": 15
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "checks=29 passed=29 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:27:23Z",
+              "elapsed_s": 2,
+              "budget_s": 15
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "checks=29 passed=29 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:06Z",
+              "elapsed_s": 2,
+              "budget_s": 15
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "checks=29 passed=29 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:22Z",
+              "elapsed_s": 2,
+              "budget_s": 15
+            }
+          }
+        },
+        {
+          "name": "fsx",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 88,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=2 passed=2 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:14:59Z",
+              "elapsed_s": 49,
+              "budget_s": 88
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "checks=2 passed=2 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:32Z",
+              "elapsed_s": 9,
+              "budget_s": 88
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "checks=2 passed=2 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:27:50Z",
+              "elapsed_s": 27,
+              "budget_s": 88
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "checks=2 passed=2 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:16Z",
+              "elapsed_s": 10,
+              "budget_s": 88
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "checks=2 passed=2 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:31Z",
+              "elapsed_s": 9,
+              "budget_s": 88
+            }
+          }
+        },
+        {
+          "name": "fio_verify",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 42,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:23Z",
+              "elapsed_s": 24,
+              "budget_s": 42
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:35Z",
+              "elapsed_s": 3,
+              "budget_s": 42
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:29:07Z",
+              "elapsed_s": 7,
+              "budget_s": 42
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:19Z",
+              "elapsed_s": 3,
+              "budget_s": 42
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:34Z",
+              "elapsed_s": 3,
+              "budget_s": 42
+            }
+          }
+        },
+        {
+          "name": "integrity_filetypes",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=13 passed=13 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:28Z",
+              "elapsed_s": 5,
+              "budget_s": 10
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "checks=13 passed=13 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:37Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "checks=13 passed=13 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:27:53Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "checks=13 passed=13 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:21Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "checks=13 passed=13 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:36Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "fio_perf",
+          "group": "P1",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 120,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 seqW=731MiB/s seqR=10893MiB/s randW=998iops randR=102721iops",
+              "reason": "",
+              "iso": "2026-07-20T03:17:52Z",
+              "elapsed_s": 69,
+              "budget_s": 120
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 seqW=1735MiB/s seqR=626MiB/s randW=32735iops randR=41690iops",
+              "reason": "",
+              "iso": "2026-07-20T06:29:00Z",
+              "elapsed_s": 13,
+              "budget_s": 120
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 seqW=99MiB/s seqR=111MiB/s randW=18897iops randR=21250iops",
+              "reason": "",
+              "iso": "2026-07-20T19:30:20Z",
+              "elapsed_s": 68,
+              "budget_s": 120
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 seqW=2198MiB/s seqR=1120MiB/s randW=80589iops randR=74920iops",
+              "reason": "",
+              "iso": "2026-07-20T06:38:47Z",
+              "elapsed_s": 14,
+              "budget_s": 120
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 seqW=2102MiB/s seqR=1808MiB/s randW=109318iops randR=120597iops",
+              "reason": "",
+              "iso": "2026-07-20T06:48:27Z",
+              "elapsed_s": 13,
+              "budget_s": 120
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 seqW=2244MiB/s seqR=3330MiB/s randW=180920iops randR=231194iops",
+              "reason": "",
+              "iso": "2026-07-20T06:53:03Z",
+              "elapsed_s": 12,
+              "budget_s": 120
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 seqW=2103MiB/s seqR=3495MiB/s randW=188234iops randR=395509iops",
+              "reason": "",
+              "iso": "2026-07-20T07:04:28Z",
+              "elapsed_s": 14,
+              "budget_s": 120
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 seqW=7915MiB/s seqR=2489MiB/s randW=301099iops randR=485797iops",
+              "reason": "",
+              "iso": "2026-07-20T07:12:32Z",
+              "elapsed_s": 31,
+              "budget_s": 120
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 seqW=5459MiB/s seqR=7296MiB/s randW=575476iops randR=489109iops",
+              "reason": "",
+              "iso": "2026-07-20T06:18:05Z",
+              "elapsed_s": 27,
+              "budget_s": 120
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 seqW=1665MiB/s seqR=3917MiB/s randW=203622iops randR=238078iops",
+              "reason": "",
+              "iso": "2026-07-20T06:00:00Z",
+              "elapsed_s": 15,
+              "budget_s": 120
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 seqW=4371MiB/s seqR=2443MiB/s randW=332733iops randR=273053iops",
+              "reason": "",
+              "iso": "2026-07-20T06:07:52Z",
+              "elapsed_s": 18,
+              "budget_s": 120
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 seqW=1969MiB/s seqR=518MiB/s randW=51040iops randR=50568iops",
+              "reason": "",
+              "iso": "2026-07-20T05:30:45Z",
+              "elapsed_s": 12,
+              "budget_s": 120
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 seqW=2585MiB/s seqR=1640MiB/s randW=85058iops randR=80387iops",
+              "reason": "",
+              "iso": "2026-07-20T05:46:45Z",
+              "elapsed_s": 13,
+              "budget_s": 120
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 seqW=2516MiB/s seqR=2296MiB/s randW=141543iops randR=143696iops",
+              "reason": "",
+              "iso": "2026-07-20T05:53:09Z",
+              "elapsed_s": 12,
+              "budget_s": 120
+            },
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 seqW=111MiB/s seqR=86MiB/s randW=29974iops randR=17511iops",
+              "reason": "",
+              "iso": "2026-07-26T08:14:04Z",
+              "elapsed_s": 119,
+              "budget_s": 120
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 seqW=1616MiB/s seqR=30328MiB/s randW=1022iops randR=344833iops",
+              "reason": "",
+              "iso": "2026-07-20T03:42:14Z",
+              "elapsed_s": 88,
+              "budget_s": 120
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 seqW=638MiB/s seqR=38674MiB/s randW=1196iops randR=489231iops",
+              "reason": "",
+              "iso": "2026-07-20T03:51:52Z",
+              "elapsed_s": 88,
+              "budget_s": 120
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 seqW=1654MiB/s seqR=52406MiB/s randW=948iops randR=954998iops",
+              "reason": "",
+              "iso": "2026-07-20T04:02:43Z",
+              "elapsed_s": 86,
+              "budget_s": 120
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 seqW=4224MiB/s seqR=46087MiB/s randW=959iops randR=1723398iops",
+              "reason": "",
+              "iso": "2026-07-20T04:17:22Z",
+              "elapsed_s": 103,
+              "budget_s": 120
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 seqW=1558MiB/s seqR=1519MiB/s randW=50104iops randR=55072iops",
+              "reason": "",
+              "iso": "2026-07-20T04:26:55Z",
+              "elapsed_s": 11,
+              "budget_s": 120
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 seqW=1817MiB/s seqR=3034MiB/s randW=61944iops randR=88585iops",
+              "reason": "",
+              "iso": "2026-07-20T04:47:04Z",
+              "elapsed_s": 11,
+              "budget_s": 120
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 seqW=812MiB/s seqR=3766MiB/s randW=78123iops randR=136871iops",
+              "reason": "",
+              "iso": "2026-07-20T04:51:51Z",
+              "elapsed_s": 20,
+              "budget_s": 120
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 seqW=2115MiB/s seqR=3297MiB/s randW=133280iops randR=285007iops",
+              "reason": "",
+              "iso": "2026-07-20T05:02:12Z",
+              "elapsed_s": 18,
+              "budget_s": 120
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 seqW=556MiB/s seqR=2031MiB/s randW=308887iops randR=516061iops",
+              "reason": "",
+              "iso": "2026-07-20T05:11:10Z",
+              "elapsed_s": 30,
+              "budget_s": 120
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 seqW=11345MiB/s seqR=9867MiB/s randW=268931iops randR=508343iops",
+              "reason": "",
+              "iso": "2026-07-20T05:19:38Z",
+              "elapsed_s": 25,
+              "budget_s": 120
+            }
+          }
+        },
+        {
+          "name": "fio_perf_vs_xfs",
+          "group": "P1",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "1/caw": {
+              "status": "PASS",
+              "measured": "seqW=98% seqR=113% randW=80% randR=158% worst(write)=80% (threshold>=70%, wsrc=xfs-baseline)",
+              "reason": "",
+              "iso": "2026-07-20T06:29:01Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "SKIP",
+              "measured": "n/a",
+              "reason": "no native-XFS equivalent under the xfs baseline condition",
+              "iso": "2026-07-19T22:57:39Z",
+              "elapsed_s": null,
+              "budget_s": null
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "seqW=235% seqR=210% randW=101% randR=159% worst(write)=101% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T06:38:47Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "seqW=246% seqR=289% randW=87% randR=411% worst(write)=87% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T06:48:28Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "seqW=198% seqR=616% randW=80% randR=540% worst(write)=80% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T06:53:04Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "seqW=115% seqR=576% randW=80% randR=901% worst(write)=80% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T07:04:28Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "seqW=291% seqR=412% randW=91% randR=1733% worst(write)=91% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T07:12:32Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "seqW=507% seqR=1203% randW=211% randR=1010% worst(write)=211% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T06:18:06Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "seqW=232% seqR=671% randW=158% randR=536% worst(write)=158% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T06:00:00Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "seqW=1900% seqR=441% randW=339% randR=807% worst(write)=339% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T06:07:53Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "seqW=130% seqR=86% randW=107% randR=113% worst(write)=107% (threshold>=70%, wsrc=xfs-baseline)",
+              "reason": "",
+              "iso": "2026-07-20T05:30:45Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "seqW=578% seqR=299% randW=104% randR=198% worst(write)=104% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T05:46:46Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "seqW=762% seqR=386% randW=106% randR=422% worst(write)=106% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T05:53:09Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "seqW=181% seqR=147% randW=101% randR=89% worst(write)=101% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T03:17:53Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "seqW=105% seqR=125% randW=82% randR=179% worst(write)=82% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-25T00:08:52Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "seqW=376% seqR=257% randW=90% randR=318% worst(write)=90% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T03:42:14Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "seqW=205% seqR=298% randW=78% randR=459% worst(write)=78% (threshold>=70%, wsrc=xfs-baseline)",
+              "reason": "",
+              "iso": "2026-07-20T03:51:52Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "seqW=653% seqR=475% randW=113% randR=862% worst(write)=113% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T04:02:44Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "seqW=505% seqR=378% randW=71% randR=1535% worst(write)=71% (threshold>=70%, wsrc=xfs-baseline)",
+              "reason": "",
+              "iso": "2026-07-20T04:17:23Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "seqW=90% seqR=71% randW=117% randR=106% worst(write)=90% (threshold>=70%, wsrc=xfs-baseline)",
+              "reason": "",
+              "iso": "2026-07-20T04:26:56Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "seqW=553% seqR=168% randW=92% randR=175% worst(write)=92% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T04:47:04Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "seqW=221% seqR=224% randW=107% randR=309% worst(write)=107% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T04:51:51Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "seqW=716% seqR=200% randW=86% randR=652% worst(write)=86% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T05:02:13Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "seqW=92% seqR=122% randW=139% randR=1069% worst(write)=92% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T05:11:11Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "seqW=3427% seqR=600% randW=91% randR=1089% worst(write)=91% (threshold>=70%, wsrc=raw-ceiling)",
+              "reason": "",
+              "iso": "2026-07-20T05:19:38Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "cache_coherency",
+          "group": "P2",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=534 passed=534 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:01:58Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=542 passed=542 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:19Z",
+              "elapsed_s": 6,
+              "budget_s": 60
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=558 passed=558 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:47:27Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=534 passed=534 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:36:39Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=558 passed=558 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:16Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=542 passed=542 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:42:48Z",
+              "elapsed_s": 6,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=590 passed=590 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:57:35Z",
+              "elapsed_s": 12,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=654 passed=654 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:07:11Z",
+              "elapsed_s": 25,
+              "budget_s": 60
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=530 passed=530 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:30:27Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=530 passed=530 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:44Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=534 passed=534 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:44:38Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=654 passed=654 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:13:03Z",
+              "elapsed_s": 25,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=558 passed=558 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:13Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=590 passed=590 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:04:22Z",
+              "elapsed_s": 12,
+              "budget_s": 60
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=530 passed=530 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:28Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=542 passed=542 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:50:45Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=530 passed=530 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:36Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=590 passed=590 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:57:24Z",
+              "elapsed_s": 13,
+              "budget_s": 60
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=654 passed=654 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:09:28Z",
+              "elapsed_s": 29,
+              "budget_s": 60
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=530 passed=530 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:42Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=534 passed=534 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:09Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=542 passed=542 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:49:26Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=558 passed=558 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:56:03Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=590 passed=590 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:04:25Z",
+              "elapsed_s": 13,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=654 passed=654 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:14:03Z",
+              "elapsed_s": 26,
+              "budget_s": 60
+            }
+          }
+        },
+        {
+          "name": "strong_consistency",
+          "group": "P2",
+          "coord": "ordered",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 30,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:02:05Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:24Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:47:33Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:07:20Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:36:44Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:22Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:57:42Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:42:53Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:30:32Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:49Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:13:12Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:19Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:04:29Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:33Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:44:43Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:50:51Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:40Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:57:32Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:09:39Z",
+              "elapsed_s": 6,
+              "budget_s": 30
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:47Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:15Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:49:31Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:56:18Z",
+              "elapsed_s": 10,
+              "budget_s": 30
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:04:32Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=3 passed=3 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:14:13Z",
+              "elapsed_s": 5,
+              "budget_s": 30
+            }
+          }
+        },
+        {
+          "name": "posix_multi",
+          "group": "P2",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 30,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=140 passed=140 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:02:13Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:31Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:47:40Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:07:33Z",
+              "elapsed_s": 7,
+              "budget_s": 30
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:00Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=140 passed=140 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:36:50Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:29Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:57:51Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=266 passed=266 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:30:37Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=266 passed=266 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:54Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=140 passed=140 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:44:49Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:13:24Z",
+              "elapsed_s": 7,
+              "budget_s": 30
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:26Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:04:37Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=266 passed=266 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:38Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:50:58Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=266 passed=266 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:45Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:57:41Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:09:51Z",
+              "elapsed_s": 7,
+              "budget_s": 30
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=266 passed=266 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:52Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=140 passed=140 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:21Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:49:38Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:56:25Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=56 passed=56 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:04:41Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=80 passed=80 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:14:25Z",
+              "elapsed_s": 7,
+              "budget_s": 30
+            }
+          }
+        },
+        {
+          "name": "mmap_coherency",
+          "group": "P2",
+          "coord": "ordered",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 30,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:02:19Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:36Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=11 passed=11 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:47:46Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=35 passed=35 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:07:43Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:05Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:36:56Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=11 passed=11 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:35Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=19 passed=19 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:57:57Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:30:53Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:59Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=35 passed=35 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:13:34Z",
+              "elapsed_s": 5,
+              "budget_s": 30
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=11 passed=11 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:32Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=19 passed=19 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:04:45Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:43Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:44:55Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:51:03Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:50Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=19 passed=19 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:57:48Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=35 passed=35 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:10:03Z",
+              "elapsed_s": 7,
+              "budget_s": 30
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:57Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:26Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:49:43Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=11 passed=11 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:56:31Z",
+              "elapsed_s": 2,
+              "budget_s": 30
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=19 passed=19 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:04:48Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=35 passed=35 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:14:38Z",
+              "elapsed_s": 8,
+              "budget_s": 30
+            }
+          }
+        },
+        {
+          "name": "zero_silent_loss",
+          "group": "P2",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=44 passed=44 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:02:25Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=84 passed=84 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:43Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=164 passed=164 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:47:54Z",
+              "elapsed_s": 3,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=644 passed=644 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:08:13Z",
+              "elapsed_s": 26,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=44 passed=44 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:02Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=164 passed=164 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:43Z",
+              "elapsed_s": 4,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=324 passed=324 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:58:11Z",
+              "elapsed_s": 9,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=84 passed=84 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:12Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=24 passed=24 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:30:59Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=24 passed=24 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:28:04Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=44 passed=44 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:01Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=644 passed=644 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:14:04Z",
+              "elapsed_s": 25,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=164 passed=164 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:41Z",
+              "elapsed_s": 3,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=324 passed=324 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:04:58Z",
+              "elapsed_s": 9,
+              "budget_s": 60
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=24 passed=24 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:48Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=84 passed=84 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:51:10Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=24 passed=24 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:56Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=324 passed=324 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:57:59Z",
+              "elapsed_s": 6,
+              "budget_s": 60
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=644 passed=644 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:10:26Z",
+              "elapsed_s": 19,
+              "budget_s": 60
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=24 passed=24 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:26:02Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=44 passed=44 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:32Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=84 passed=84 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:49:50Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=164 passed=164 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:56:39Z",
+              "elapsed_s": 4,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=324 passed=324 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:05:02Z",
+              "elapsed_s": 9,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=644 passed=644 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:15:07Z",
+              "elapsed_s": 25,
+              "budget_s": 60
+            }
+          }
+        },
+        {
+          "name": "dlm_fairness",
+          "group": "P3",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 30,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:02:32Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:38:51Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:48:07Z",
+              "elapsed_s": 8,
+              "budget_s": 30
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:58:30Z",
+              "elapsed_s": 14,
+              "budget_s": 30
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:08:34Z",
+              "elapsed_s": 16,
+              "budget_s": 30
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:22Z",
+              "elapsed_s": 6,
+              "budget_s": 30
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:09Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:50:57Z",
+              "elapsed_s": 9,
+              "budget_s": 30
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:31:04Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:28:10Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:14:24Z",
+              "elapsed_s": 15,
+              "budget_s": 30
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:57:54Z",
+              "elapsed_s": 9,
+              "budget_s": 30
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:05:15Z",
+              "elapsed_s": 12,
+              "budget_s": 30
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:54Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:08Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:51:19Z",
+              "elapsed_s": 5,
+              "budget_s": 30
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:16:01Z",
+              "elapsed_s": 1,
+              "budget_s": 30
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:58:15Z",
+              "elapsed_s": 11,
+              "budget_s": 30
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:10:44Z",
+              "elapsed_s": 13,
+              "budget_s": 30
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:26:07Z",
+              "elapsed_s": 0,
+              "budget_s": 30
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:39Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:50:00Z",
+              "elapsed_s": 6,
+              "budget_s": 30
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:56:53Z",
+              "elapsed_s": 9,
+              "budget_s": 30
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:05:20Z",
+              "elapsed_s": 14,
+              "budget_s": 30
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:15:28Z",
+              "elapsed_s": 16,
+              "budget_s": 30
+            }
+          }
+        },
+        {
+          "name": "dlm_membership",
+          "group": "P3",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "budget_s": 30,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:02:41Z",
+              "elapsed_s": 5,
+              "budget_s": 30
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:39:00Z",
+              "elapsed_s": 5,
+              "budget_s": 30
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:48:15Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:16Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:58:39Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:29Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:51:06Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:08:45Z",
+              "elapsed_s": 6,
+              "budget_s": 30
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:14:35Z",
+              "elapsed_s": 5,
+              "budget_s": 30
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:58:02Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:05:24Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:16Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:51:26Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:58:24Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:10:55Z",
+              "elapsed_s": 6,
+              "budget_s": 30
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:47Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:50:07Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:57:01Z",
+              "elapsed_s": 3,
+              "budget_s": 30
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:05:29Z",
+              "elapsed_s": 4,
+              "budget_s": 30
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:15:39Z",
+              "elapsed_s": 6,
+              "budget_s": 30
+            }
+          }
+        },
+        {
+          "name": "scaling_curve",
+          "group": "P4",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 90,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:03:04Z",
+              "elapsed_s": 8,
+              "budget_s": 90
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:39:08Z",
+              "elapsed_s": 3,
+              "budget_s": 90
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:48:24Z",
+              "elapsed_s": 4,
+              "budget_s": 90
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:22Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:58:47Z",
+              "elapsed_s": 4,
+              "budget_s": 90
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:35Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:51:13Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:09:01Z",
+              "elapsed_s": 11,
+              "budget_s": 90
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:33:11Z",
+              "elapsed_s": 3,
+              "budget_s": 90
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:28:15Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:14:51Z",
+              "elapsed_s": 11,
+              "budget_s": 90
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:58:09Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:05:32Z",
+              "elapsed_s": 4,
+              "budget_s": 90
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:59Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:21Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:51:32Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:16:07Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:58:37Z",
+              "elapsed_s": 7,
+              "budget_s": 90
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:11:30Z",
+              "elapsed_s": 30,
+              "budget_s": 90
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:26:12Z",
+              "elapsed_s": 0,
+              "budget_s": 90
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:35:52Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:50:13Z",
+              "elapsed_s": 1,
+              "budget_s": 90
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:57:09Z",
+              "elapsed_s": 3,
+              "budget_s": 90
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:05:38Z",
+              "elapsed_s": 4,
+              "budget_s": 90
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:16:07Z",
+              "elapsed_s": 24,
+              "budget_s": 90
+            }
+          }
+        },
+        {
+          "name": "dlm_scaling",
+          "group": "P4",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 90,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:03:20Z",
+              "elapsed_s": 11,
+              "budget_s": 90
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:39:24Z",
+              "elapsed_s": 12,
+              "budget_s": 90
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:48:43Z",
+              "elapsed_s": 14,
+              "budget_s": 90
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:38Z",
+              "elapsed_s": 12,
+              "budget_s": 90
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:59:12Z",
+              "elapsed_s": 20,
+              "budget_s": 90
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:43:52Z",
+              "elapsed_s": 13,
+              "budget_s": 90
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:51:32Z",
+              "elapsed_s": 14,
+              "budget_s": 90
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:09:42Z",
+              "elapsed_s": 36,
+              "budget_s": 90
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:31:24Z",
+              "elapsed_s": 7,
+              "budget_s": 90
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:28:28Z",
+              "elapsed_s": 9,
+              "budget_s": 90
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:36Z",
+              "elapsed_s": 11,
+              "budget_s": 90
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:15:32Z",
+              "elapsed_s": 35,
+              "budget_s": 90
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:58:28Z",
+              "elapsed_s": 14,
+              "budget_s": 90
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:05:56Z",
+              "elapsed_s": 19,
+              "budget_s": 90
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:30:14Z",
+              "elapsed_s": 10,
+              "budget_s": 90
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:51:49Z",
+              "elapsed_s": 12,
+              "budget_s": 90
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:16:24Z",
+              "elapsed_s": 13,
+              "budget_s": 90
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:59:05Z",
+              "elapsed_s": 24,
+              "budget_s": 90
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:12:21Z",
+              "elapsed_s": 46,
+              "budget_s": 90
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:26:25Z",
+              "elapsed_s": 8,
+              "budget_s": 90
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:36:09Z",
+              "elapsed_s": 12,
+              "budget_s": 90
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:50:30Z",
+              "elapsed_s": 12,
+              "budget_s": 90
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:57:29Z",
+              "elapsed_s": 16,
+              "budget_s": 90
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:06:05Z",
+              "elapsed_s": 22,
+              "budget_s": 90
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:16:45Z",
+              "elapsed_s": 34,
+              "budget_s": 90
+            }
+          }
+        },
+        {
+          "name": "rsync_paired",
+          "group": "P5",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:03:32Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:39:32Z",
+              "elapsed_s": 4,
+              "budget_s": 60
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:48:52Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:46Z",
+              "elapsed_s": 4,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:59:34Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:44:11Z",
+              "elapsed_s": 14,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:51:53Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:10:09Z",
+              "elapsed_s": 21,
+              "budget_s": 60
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:31:31Z",
+              "elapsed_s": 3,
+              "budget_s": 60
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:28:35Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:15:59Z",
+              "elapsed_s": 21,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:58:46Z",
+              "elapsed_s": 14,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:06:23Z",
+              "elapsed_s": 22,
+              "budget_s": 60
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:30:21Z",
+              "elapsed_s": 3,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:45Z",
+              "elapsed_s": 4,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:52:07Z",
+              "elapsed_s": 13,
+              "budget_s": 60
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:16:31Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:59:19Z",
+              "elapsed_s": 9,
+              "budget_s": 60
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:12:43Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:26:32Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:36:18Z",
+              "elapsed_s": 5,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:50:41Z",
+              "elapsed_s": 6,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:57:48Z",
+              "elapsed_s": 15,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:06:27Z",
+              "elapsed_s": 18,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=6 passed=6 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:17:16Z",
+              "elapsed_s": 24,
+              "budget_s": 60
+            }
+          }
+        },
+        {
+          "name": "fault_enospc",
+          "group": "P6",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:15:30Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:27:38Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:31:33Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:29:22Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "checks=4 passed=4 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:25:36Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "crash_consistency",
+          "group": "P6",
+          "coord": "fault",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 90,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=104 passed=104 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:03:45Z",
+              "elapsed_s": 8,
+              "budget_s": 90
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:39:43Z",
+              "elapsed_s": 7,
+              "budget_s": 90
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=404 passed=404 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:49:13Z",
+              "elapsed_s": 16,
+              "budget_s": 90
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=354 passed=354 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:00:05Z",
+              "elapsed_s": 26,
+              "budget_s": 90
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:44:23Z",
+              "elapsed_s": 8,
+              "budget_s": 90
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=104 passed=104 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:37:55Z",
+              "elapsed_s": 4,
+              "budget_s": 90
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=404 passed=404 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:52:12Z",
+              "elapsed_s": 15,
+              "budget_s": 90
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:11:07Z",
+              "elapsed_s": 52,
+              "budget_s": 90
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=54 passed=54 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:33:19Z",
+              "elapsed_s": 3,
+              "budget_s": 90
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=54 passed=54 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:28:42Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:16:54Z",
+              "elapsed_s": 51,
+              "budget_s": 90
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=404 passed=404 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:59:05Z",
+              "elapsed_s": 14,
+              "budget_s": 90
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=354 passed=354 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:06:54Z",
+              "elapsed_s": 25,
+              "budget_s": 90
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=54 passed=54 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:30:27Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=104 passed=104 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:45:54Z",
+              "elapsed_s": 5,
+              "budget_s": 90
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:52:19Z",
+              "elapsed_s": 7,
+              "budget_s": 90
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=54 passed=54 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:16:38Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=354 passed=354 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:59:56Z",
+              "elapsed_s": 33,
+              "budget_s": 90
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:14:04Z",
+              "elapsed_s": 76,
+              "budget_s": 90
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=54 passed=54 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:26:39Z",
+              "elapsed_s": 2,
+              "budget_s": 90
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=104 passed=104 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:36:28Z",
+              "elapsed_s": 5,
+              "budget_s": 90
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:50:53Z",
+              "elapsed_s": 8,
+              "budget_s": 90
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=404 passed=404 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:58:08Z",
+              "elapsed_s": 15,
+              "budget_s": 90
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=354 passed=354 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:06:59Z",
+              "elapsed_s": 26,
+              "budget_s": 90
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=204 passed=204 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:18:21Z",
+              "elapsed_s": 61,
+              "budget_s": 90
+            }
+          }
+        },
+        {
+          "name": "dir_reuse_coherency",
+          "group": "P6",
+          "coord": "barrier",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 120,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=135 passed=135 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:05:33Z",
+              "elapsed_s": 103,
+              "budget_s": 120
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=156 passed=156 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:44:03Z",
+              "elapsed_s": 104,
+              "budget_s": 120
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=128 passed=128 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:53:40Z",
+              "elapsed_s": 103,
+              "budget_s": 120
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=121 passed=121 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:54:54Z",
+              "elapsed_s": 105,
+              "budget_s": 120
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=163 passed=163 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:40:35Z",
+              "elapsed_s": 103,
+              "budget_s": 120
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=142 passed=142 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:47:03Z",
+              "elapsed_s": 100,
+              "budget_s": 120
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=100 passed=100 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:02:57Z",
+              "elapsed_s": 106,
+              "budget_s": 120
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=65 passed=65 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:14:19Z",
+              "elapsed_s": 101,
+              "budget_s": 120
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=170 passed=170 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T19:34:08Z",
+              "elapsed_s": 44,
+              "budget_s": 120
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=170 passed=170 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:30:22Z",
+              "elapsed_s": 77,
+              "budget_s": 120
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=72 passed=72 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:20:03Z",
+              "elapsed_s": 112,
+              "budget_s": 120
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=121 passed=121 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:01:46Z",
+              "elapsed_s": 101,
+              "budget_s": 120
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=170 passed=170 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:31:41Z",
+              "elapsed_s": 51,
+              "budget_s": 120
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=170 passed=170 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:48:32Z",
+              "elapsed_s": 102,
+              "budget_s": 120
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=149 passed=149 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:54:55Z",
+              "elapsed_s": 101,
+              "budget_s": 120
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=100 passed=100 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:09:44Z",
+              "elapsed_s": 106,
+              "budget_s": 120
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=170 passed=170 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:18:49Z",
+              "elapsed_s": 52,
+              "budget_s": 120
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=107 passed=107 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:04:35Z",
+              "elapsed_s": 106,
+              "budget_s": 120
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=72 passed=72 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:19:10Z",
+              "elapsed_s": 101,
+              "budget_s": 120
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 checks=170 passed=170 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:27:51Z",
+              "elapsed_s": 50,
+              "budget_s": 120
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=163 passed=163 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:39:13Z",
+              "elapsed_s": 101,
+              "budget_s": 120
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=156 passed=156 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:53:41Z",
+              "elapsed_s": 105,
+              "budget_s": 120
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=114 passed=114 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:01:09Z",
+              "elapsed_s": 106,
+              "budget_s": 120
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=86 passed=86 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:09:56Z",
+              "elapsed_s": 102,
+              "budget_s": 120
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=58 passed=58 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:21:28Z",
+              "elapsed_s": 104,
+              "budget_s": 120
+            }
+          }
+        },
+        {
+          "name": "fence_during_write",
+          "group": "P6",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=8 passed=8 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:05:57Z",
+              "elapsed_s": 16,
+              "budget_s": 60
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:40:04Z",
+              "elapsed_s": 16,
+              "budget_s": 60
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:49:35Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:38:16Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:00:28Z",
+              "elapsed_s": 19,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:44:44Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:52:34Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:11:33Z",
+              "elapsed_s": 20,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:17:19Z",
+              "elapsed_s": 19,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:59:27Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:07:16Z",
+              "elapsed_s": 18,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:46:15Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:52:40Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:00:19Z",
+              "elapsed_s": 19,
+              "budget_s": 60
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:14:29Z",
+              "elapsed_s": 19,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:36:49Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:51:14Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:58:30Z",
+              "elapsed_s": 17,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:07:22Z",
+              "elapsed_s": 18,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:18:47Z",
+              "elapsed_s": 20,
+              "budget_s": 60
+            }
+          }
+        },
+        {
+          "name": "fault_netpartition",
+          "group": "P6",
+          "coord": "fault",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-26T08:06:09Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:40:17Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:49:48Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:38:28Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:00:41Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:44:56Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:52:46Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T07:11:55Z",
+              "elapsed_s": 18,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:17:33Z",
+              "elapsed_s": 9,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:59:39Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T06:07:28Z",
+              "elapsed_s": 8,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:46:27Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:52:51Z",
+              "elapsed_s": 6,
+              "budget_s": 60
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:00:33Z",
+              "elapsed_s": 9,
+              "budget_s": 60
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:14:47Z",
+              "elapsed_s": 13,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:37:00Z",
+              "elapsed_s": 6,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:51:25Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:58:42Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:07:35Z",
+              "elapsed_s": 7,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=5 passed=5 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T05:19:06Z",
+              "elapsed_s": 14,
+              "budget_s": 60
+            }
+          }
+        },
+        {
+          "name": "soak",
+          "group": "P7",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1248 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-26T08:06:42Z",
+              "elapsed_s": 33,
+              "budget_s": 60
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1608 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T03:44:35Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1615 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T03:54:12Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1733 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T03:19:20Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1375 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:47:35Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1835 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:30:53Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1381 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:41:07Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1352 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:55:26Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1340 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T07:03:29Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1263 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T07:14:51Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "dur=30s ops=823 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T19:34:39Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1227 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:20:35Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1362 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:02:18Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1233 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T06:10:15Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1627 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T05:32:11Z",
+              "elapsed_s": 30,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1356 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T05:49:04Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1342 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T05:55:26Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1453 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T04:05:08Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1348 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T04:19:42Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1929 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T04:28:22Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1296 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T04:39:45Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1304 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T04:54:13Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1261 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T05:01:40Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1182 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T05:10:28Z",
+              "elapsed_s": 32,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "dur=30s ops=1117 errs=0 dmesg_hits=0",
+              "reason": "",
+              "iso": "2026-07-20T05:22:00Z",
+              "elapsed_s": 31,
+              "budget_s": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "category": "tooling",
+      "transport": "any",
+      "tests": [
+        {
+          "name": "mkfs_timing",
+          "group": "tooling",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "1288ms (threshold<=10000ms)",
+              "reason": "",
+              "iso": "2026-07-20T03:19:22Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "215ms (threshold<=10000ms)",
+              "reason": "",
+              "iso": "2026-07-20T06:30:54Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "88ms (threshold<=10000ms)",
+              "reason": "",
+              "iso": "2026-07-20T19:34:49Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "232ms (threshold<=10000ms)",
+              "reason": "",
+              "iso": "2026-07-20T05:32:12Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "255ms (threshold<=10000ms)",
+              "reason": "",
+              "iso": "2026-07-20T04:28:23Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "chk_clean",
+          "group": "tooling",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "rc=0 errors=0",
+              "reason": "",
+              "iso": "2026-07-20T03:19:23Z",
+              "elapsed_s": 1,
+              "budget_s": 10
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "rc=0 errors=0",
+              "reason": "",
+              "iso": "2026-07-20T06:30:54Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "rc=0 errors=0",
+              "reason": "",
+              "iso": "2026-07-20T19:34:49Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "rc=0 errors=0",
+              "reason": "",
+              "iso": "2026-07-20T05:32:12Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "rc=0 errors=0",
+              "reason": "",
+              "iso": "2026-07-20T04:28:23Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "online_resize",
+          "group": "tooling",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 25,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "pre=1695MB post=3743MB delta=2048MB/+2048MB data_intact=yes",
+              "reason": "",
+              "iso": "2026-07-20T03:19:25Z",
+              "elapsed_s": 2,
+              "budget_s": 25
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "pre=1695MB post=3743MB delta=2048MB/+2048MB data_intact=yes",
+              "reason": "",
+              "iso": "2026-07-20T06:31:06Z",
+              "elapsed_s": 12,
+              "budget_s": 25
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "pre=1984MB post=4032MB delta=2048MB/+2048MB data_intact=yes",
+              "reason": "",
+              "iso": "2026-07-20T19:34:51Z",
+              "elapsed_s": 2,
+              "budget_s": 25
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "pre=1695MB post=3743MB delta=2048MB/+2048MB data_intact=yes",
+              "reason": "",
+              "iso": "2026-07-20T05:32:25Z",
+              "elapsed_s": 13,
+              "budget_s": 25
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "pre=1695MB post=3743MB delta=2048MB/+2048MB data_intact=yes",
+              "reason": "",
+              "iso": "2026-07-20T04:28:35Z",
+              "elapsed_s": 12,
+              "budget_s": 25
+            }
+          }
+        },
+        {
+          "name": "dkms_install",
+          "group": "infra",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 240,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "add=0 build=0 install=0 installed=yes remove=0 clean=yes",
+              "reason": "",
+              "iso": "2026-07-20T03:21:03Z",
+              "elapsed_s": 98,
+              "budget_s": 240
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "add=0 build=0 install=0 installed=yes remove=0 clean=yes",
+              "reason": "",
+              "iso": "2026-07-20T06:32:50Z",
+              "elapsed_s": 104,
+              "budget_s": 240
+            },
+            "1/xfs": {
+              "status": "SKIP",
+              "measured": "n/a",
+              "reason": "no native-XFS equivalent under the xfs baseline condition",
+              "iso": "2026-07-19T23:00:00Z",
+              "elapsed_s": null,
+              "budget_s": null
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "add=0 build=0 install=0 installed=yes remove=0 clean=yes",
+              "reason": "",
+              "iso": "2026-07-20T05:33:56Z",
+              "elapsed_s": 91,
+              "budget_s": 240
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "add=0 build=0 install=0 installed=yes remove=0 clean=yes",
+              "reason": "",
+              "iso": "2026-07-20T04:30:04Z",
+              "elapsed_s": 88,
+              "budget_s": 240
+            }
+          }
+        },
+        {
+          "name": "single_node_paired",
+          "group": "benchmark",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 90,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "xfs=(4836/3415/3019/2960)ms mxfs=(3941/3026/4926/3334)ms round_ratios=81,88,112,163 ratio=100% files=8714/8714",
+              "reason": "",
+              "iso": "2026-07-20T03:21:53Z",
+              "elapsed_s": 50,
+              "budget_s": 90
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "xfs=(3652/2723/2579/2793)ms mxfs=(2983/2994/2780/2663)ms round_ratios=81,95,107,109 ratio=101% files=8714/8714",
+              "reason": "",
+              "iso": "2026-07-20T06:33:25Z",
+              "elapsed_s": 35,
+              "budget_s": 90
+            },
+            "1/xfs": {
+              "status": "SKIP",
+              "measured": "n/a",
+              "reason": "no native-XFS equivalent under the xfs baseline condition",
+              "iso": "2026-07-19T23:00:00Z",
+              "elapsed_s": null,
+              "budget_s": null
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "xfs=(2632/2694/2922/2855)ms mxfs=(2805/2823/2822/3303)ms round_ratios=96,104,106,115 ratio=105% files=8714/8714",
+              "reason": "",
+              "iso": "2026-07-20T05:42:47Z",
+              "elapsed_s": 36,
+              "budget_s": 90
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "xfs=(3195/2668/2714/2653)ms mxfs=(2640/2707/2664/2650)ms round_ratios=82,98,99,101 ratio=98% files=8714/8714",
+              "reason": "",
+              "iso": "2026-07-20T04:34:07Z",
+              "elapsed_s": 33,
+              "budget_s": 90
+            }
+          }
+        },
+        {
+          "name": "fio_vs_xfs_baseline",
+          "group": "benchmark",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 180,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "seqW=592/259MiB rounds=63,228,251,23→145% randW=720/901iops rounds=96,79,134,115→105% worst_write=105% [reads cache-bound: seqR 112% randR 95%]",
+              "reason": "",
+              "iso": "2026-07-20T03:24:03Z",
+              "elapsed_s": 130,
+              "budget_s": 180
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "seqW=932/734MiB rounds=70,126,97,43→83% randW=28093/23393iops rounds=156,120,63,220→138% worst_write=83% [reads cache-bound: seqR 119% randR 87%]",
+              "reason": "",
+              "iso": "2026-07-20T06:35:29Z",
+              "elapsed_s": 123,
+              "budget_s": 180
+            },
+            "1/xfs": {
+              "status": "SKIP",
+              "measured": "n/a",
+              "reason": "no native-XFS equivalent under the xfs baseline condition",
+              "iso": "2026-07-19T23:00:00Z",
+              "elapsed_s": null,
+              "budget_s": null
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "seqW=390/191MiB rounds=100,204,133,51→116% randW=10429/10725iops rounds=134,97,122,145→128% worst_write=116% [reads cache-bound: seqR 89% randR 98%]",
+              "reason": "",
+              "iso": "2026-07-20T05:37:05Z",
+              "elapsed_s": 133,
+              "budget_s": 180
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "seqW=353/613MiB rounds=124,57,110,87→98% randW=38058/26301iops rounds=118,144,130,160→137% worst_write=98% [reads cache-bound: seqR 120% randR 94%]",
+              "reason": "",
+              "iso": "2026-07-20T04:32:59Z",
+              "elapsed_s": 135,
+              "budget_s": 180
+            }
+          }
+        },
+        {
+          "name": "cluster_ops_timing",
+          "group": "lifecycle",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 10,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "first=132ms rest=130ms umount=387ms",
+              "reason": "",
+              "iso": "2026-07-20T03:24:06Z",
+              "elapsed_s": 3,
+              "budget_s": 10
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "first=97ms rest=96ms umount=446ms",
+              "reason": "",
+              "iso": "2026-07-20T06:35:31Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "first=111ms rest=67ms umount=7ms",
+              "reason": "",
+              "iso": "2026-07-20T19:34:51Z",
+              "elapsed_s": 0,
+              "budget_s": 10
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "first=403ms rest=401ms umount=112ms",
+              "reason": "",
+              "iso": "2026-07-20T05:37:07Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "first=91ms rest=100ms umount=440ms",
+              "reason": "",
+              "iso": "2026-07-20T04:33:01Z",
+              "elapsed_s": 2,
+              "budget_s": 10
+            }
+          }
+        },
+        {
+          "name": "fault_io_error",
+          "group": "faultinj",
+          "coord": "fault",
+          "min_nodes": 1,
+          "max_nodes": 1,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "1/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 eio=yes wms=6 bad_dmesg=0 remount=yes data_intact=yes chk_rc=0",
+              "reason": "",
+              "iso": "2026-07-20T03:24:12Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            },
+            "1/caw": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 eio=yes wms=5 bad_dmesg=0 remount=yes data_intact=yes chk_rc=0",
+              "reason": "",
+              "iso": "2026-07-20T06:35:38Z",
+              "elapsed_s": 3,
+              "budget_s": 60
+            },
+            "1/xfs": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 eio=yes wms=5 bad_dmesg=0 remount=yes data_intact=yes chk_rc=0",
+              "reason": "",
+              "iso": "2026-07-20T19:34:57Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 eio=yes wms=5 bad_dmesg=0 remount=yes data_intact=yes chk_rc=0",
+              "reason": "",
+              "iso": "2026-07-20T05:37:14Z",
+              "elapsed_s": 3,
+              "budget_s": 60
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "nodes_pass=1/1 eio=yes wms=5 bad_dmesg=0 remount=yes data_intact=yes chk_rc=0",
+              "reason": "",
+              "iso": "2026-07-20T04:33:08Z",
+              "elapsed_s": 2,
+              "budget_s": 60
+            }
+          }
+        },
+        {
+          "name": "precond_xinit_coherency",
+          "group": "substrate",
+          "coord": "ordered",
+          "min_nodes": 2,
+          "max_nodes": 1,
+          "budget_s": 90,
+          "budget_scale": "flat",
+          "runs": {}
+        }
+      ]
+    },
+    {
+      "category": "caw",
+      "transport": "caw",
+      "tests": [
+        {
+          "name": "dlm_lock_correctness",
+          "group": "caw",
+          "coord": "none",
+          "min_nodes": 1,
+          "max_nodes": 0,
+          "budget_s": 60,
+          "budget_scale": "flat",
+          "runs": {
+            "1/caw": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T06:28:43Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "2/caw": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T06:38:28Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "16/caw": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T07:00:42Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "4/caw": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T06:44:56Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "8/caw": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T06:52:47Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "32/caw": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T07:11:55Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "2/cawd": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T05:46:27Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "32/cawd": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T06:17:33Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "8/cawd": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T05:59:40Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "1/cawd": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T05:30:28Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "4/cawd": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T05:52:52Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "16/cawd": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T06:07:28Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "1/cawp": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T04:26:39Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "2/cawp": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T04:37:01Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "4/cawp": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T04:51:26Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "8/cawp": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T04:58:43Z",
+              "elapsed_s": 1,
+              "budget_s": 60
+            },
+            "16/cawp": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T05:07:35Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            },
+            "32/cawp": {
+              "status": "PASS",
+              "measured": "fua=ok caw=ok lba=131087",
+              "reason": "",
+              "iso": "2026-07-20T05:19:07Z",
+              "elapsed_s": 0,
+              "budget_s": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "category": "tcp",
+      "transport": "tcp",
+      "tests": [
+        {
+          "name": "tcp_dlm_scaling",
+          "group": "tcp",
+          "coord": "barrier",
+          "min_nodes": 2,
+          "max_nodes": 0,
+          "budget_s": 300,
+          "budget_scale": "flat",
+          "runs": {
+            "2/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=2/2 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-25T00:14:38Z",
+              "elapsed_s": 39,
+              "budget_s": 300
+            },
+            "4/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=4/4 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:40:42Z",
+              "elapsed_s": 21,
+              "budget_s": 300
+            },
+            "8/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=8/8 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T03:50:19Z",
+              "elapsed_s": 27,
+              "budget_s": 300
+            },
+            "16/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=16/16 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:01:12Z",
+              "elapsed_s": 34,
+              "budget_s": 300
+            },
+            "32/tcp": {
+              "status": "PASS",
+              "measured": "nodes_pass=32/32 checks=7 passed=7 failed=0",
+              "reason": "",
+              "iso": "2026-07-20T04:15:33Z",
+              "elapsed_s": 41,
+              "budget_s": 300
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

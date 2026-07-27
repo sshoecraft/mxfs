@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 8 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 7
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `9d314b3a-01a3-48f1-a058-0ea827a43931`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/9d314b3a-01a3-48f1-a058-0ea827a43931.jsonl`
+- approx context at last assistant turn: 501909 tokens
+- tools used: Bash×206 Edit×27 Read×8 TaskUpdate×8 TaskCreate×7 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_buf.h
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for i in 1 2 3; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done
+    tot=0; for n in $(seq 1 16); do c=$(./tools/mxfs_sshpass.sh test$n x 'dmesg | grep -c "P48-RDRELOAD-RETRY"' 2>/dev/null | grep -v 'Warning\|Unauthorized' | head
+    for i in 1 2 3 4; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done
+    for D in $(ls -dt /tmp/run_dir_reuse_coherency_* | head -3); do echo "== $D"; cat $D/test*_drc_failrounds.txt 2>/dev/null | head -3; done; tot=0; for n in $(seq
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; ls $D | grep -v 'kernlog\|dmesg' | head; grep -rh 'P21F-RELFLUSH-LEAF\|P26-REBUILD' $D/kernlog_test6 2>/dev/nul
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; for n in $(seq 1 16); do grep -h "P-DIRWR fmt=leaf" $D/kernlog_test$n 2>/dev/null | grep "owner=132 " | awk -v 
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; grep -h "P-DIRWR" $D/kernlog_test6 2>/dev/null | tail -3; grep -c 'P-DIRWR' $D/kernlog_test6 $D/kernlog_test1 2
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; for n in $(seq 1 16); do grep -h "P-DIRWR fmt=leaf" $D/kernlog_test$n 2>/dev/null | grep "daddr=6279792" | awk 
+    ./run.sh 16 tcp precond_readiness crash_consistency cache_coherency strong_consistency posix_multi mmap_coherency 2>&1 | grep -E '^  (PASS|FAIL)'
+    ./run.sh 16 tcp precond_readiness crash_consistency cache_coherency strong_consistency posix_multi mmap_coherency 2>&1 | tail -10
+    MXFS_FORCE_PREP=1 ./run.sh 16 tcp prep_cluster 2>&1 | tail -1 && ./run.sh 16 tcp precond_readiness crash_consistency cache_coherency strong_consistency posix_mu
+    grep -n 'i_dlm_dir_loaded_gen\|i_dlm_dir_gen;' /src/mxfs/xfs/xfs_inode.h | head -4; grep -n 'mxfs_v5_dlm_inode_grant_gen' /src/mxfs/dlm/v5_mount.h
+    grep -n 'P60-RDGEN\|else if (want_block_refresh)' /src/mxfs/xfs/xfs_dir2_readdir.c | head -3; sed -n "$(grep -n 'P60-RDGEN' /src/mxfs/xfs/xfs_dir2_readdir.c | h
+    grep -n 'v5_mount.h\|mxfs_v5_dlm_inode_grant_gen' /src/mxfs/xfs/xfs_dir2_readdir.c | head -3; echo 0.11.101 > VERSION && make modules 2>&1 | grep -E ' error:' |
+    for n in $(seq 1 16); do ./tools/mxfs_sshpass.sh test$n x 'umount -f /mnt/shared 2>/dev/null; for i in 1 2 3 4; do rmmod mxfs 2>/dev/null && break; sleep 2; don
+    for i in 1 2 3; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done; true
+    tot=0; totr=0; for n in $(seq 1 16); do c=$(./tools/mxfs_sshpass.sh test$n x 'echo "$(dmesg | grep -c P60-RDVGG) $(dmesg | grep -c P48-RDRELOAD-RETRY)"' 2>/dev/
+    grep -n -A14 'uint32_t mxfs_v5_dlm_inode_grant_gen' /src/mxfs/dlm/v5_mount.c | head -18
+    grep -n -A10 'uint32_t mxfs_dlm_grant_gen' /src/mxfs/dlm/dlm.c | head -14
+    sed -n '3093,3125p' /src/mxfs/dlm/dlm.c
+
+## Last text from previous session
+
+ow full cluster prep on 8/tcp:
+Cluster up on build 28C5B1A1 (all 8 nodes, active_count=8). Now the decisive run — crash_consistency@8/tcp, which reproduced the torn-block corruption within ~30s on sess6's build:
+Still failing (6/8 nodes, 100 failed checks). Harvesting what changed — CRC errors and fence counters:
+Stream logs are stale captures. Finding where the harness's check results live:
+The failed checks are cross-node md5 durability mismatches. The forensic markers went to the kernel logs — pulling them:
+Empty result — the harness may clean up its dir at test end. Verifying:
+That's the benign death-watch poller. Checking whether the suppression loop is still firing now (post-kill) and what the bast pipeline looks like:
+Adding the verdict field, gating the FUA arm, and auditing every other raw FUA-write bypass:
+bmbt-only — not a dir bypass. Building v0.11.97 and re-running the loop:
+Run completed (no livelock), same check-failure shape. Harvesting the current window (19:23+):
+test4 dropped its mount (post-run shutdown). Re-prep and run:
+`xfs_dir2_format` is the right predicate. Checking its enum then applying both edits:
+Now the rung at final srcver. Checking the suite roster and budgets to plan foreground batches:
+The board looks green but state.md warns these rows may be stale. Verifying row timestamps and srcver against the current deploy:
+All four pass — including the two prior FAILs. Confirming the full board:
+**20/20 PASS on the 8/tcp rung at v0.11.98.** Now the health-counter sweep across all nodes (state.md item 5):
+16/tcp: both defect reproducers **PASS 16/16** — the fix carries. Running the rest of the 16/tcp rung:
+P137 is always-on above 15ms — the failing run's kernlogs already hold the evidence:
+×3 green. Did the retry arm actually fire (fix active vs lucky runs)?
+Two fresh failures — one aborting in round 1 (14s, new shape?). Autopsying both:
+Now wiring the grant-episode validation into xfs_readdir:
+Session 7 summary — criteria **not met** (not production ready; one defect family still open, wider matrix unrun), handing off at the relay boundary.
+
+**The headline: both critical defects from sess6 are closed.** The root of the torn-block corruption (Defect A) and the DABUF-HOLE storms (Defect B) turned out to be the same producer: `mxfs_dir_rebuild_leaf_from_data` ran ungated — probing LEAF_OFFSET on block-format dirs (firing the corruption machinery on every armed create) and relogging stale leaf1 images while racing leaf→node splits (the committed stale images the drains and xfsaild then tore blocks with). Gating it on `xfs_dir2_format()==LEAF` took crash_consistency from 5-node shutdown cascades to **PASS 8/8 ×3 with every corruption counter at zero**, at both 8 and 16 nodes.
+
+**Also landed this session (v0.11.95→101):**
+- FENCE-V1: the submit-side dir-block write fence (suppresses sub-EX stale writes, allow+census for log-obligated ones) plus a raw-FUA bypass gate found mid-session — it remains load-bearing against a residual republish producer.
+- 8/tcp rung **20/20 green** (including the two previously failing tests); 16/tcp rung green except the drc intermittent.
+- dlm_scaling@16/tcp rate-floor fixed: the unlink path paid 3 raw SCSI reads per inactivation (a detector read now instr-gated, a nlink read provably unused under local unlink now skipped) — 39→55 ops/s.
+- A GPT RULE-5 consult produced the tenure-coherence ruling (DLM grants ≠ cache coherence; gen 0 = unknown; LVB-cookie Phase-2 design), and its Phase-1 conservative patch (grant-episode readdir validation) is in the tree.
+
+**Open for the next session:** the dir_reuse intermittent family — Shape 1's fix is landed but unexercised (batch runs needed to prove or refute), Shape 2 (persistent lookup holes with clean durable state) needs the per-name DA-walk instrumentation from the consult; then single-srcver rung re-runs and the wider ladder (32 nodes, caw/cawp/cawd, QNAP, final matrix). All detail is in state.md and the three sess7 ccmemory entries.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

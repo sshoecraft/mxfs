@@ -553,6 +553,7 @@ void mxfs_pal_log(int level, const char *fmt, ...);
  * forensics).
  */
 void mxfs_pal_dump_stack(void);
+void mxfs_pal_dump_task_stack(int pid);	/* dump another task's kernel stack by pid (0 = no-op) */
 
 /* ─── CRC32C ─── */
 

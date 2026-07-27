@@ -359,6 +359,15 @@ xfs_da3_node_read_verify(
 	switch (be16_to_cpu(info->magic)) {
 		case XFS_DA3_NODE_MAGIC:
 			if (!xfs_buf_verify_cksum(bp, XFS_DA3_NODE_CRC_OFF)) {
+#ifdef __KERNEL__
+				/* ccloop c7ee71c6 sess7: torn-read forensics
+				 * at the failure instant (see P-DACRC). */
+				{
+					extern void mxfs_danode_crcfail_probe(
+							struct xfs_buf *);
+					mxfs_danode_crcfail_probe(bp);
+				}
+#endif
 				xfs_verifier_error(bp, -EFSBADCRC,
 						__this_address);
 				break;
@@ -380,6 +389,14 @@ xfs_da3_node_read_verify(
 			bp->b_ops->verify_read(bp);
 			return;
 		default:
+#ifdef __KERNEL__
+			/* A torn mix can also present as an alien magic. */
+			{
+				extern void mxfs_danode_crcfail_probe(
+						struct xfs_buf *);
+				mxfs_danode_crcfail_probe(bp);
+			}
+#endif
 			xfs_verifier_error(bp, -EFSCORRUPTED, __this_address);
 			break;
 	}
@@ -2398,7 +2415,7 @@ xfs_da_grow_inode_int(
 		    dp->i_mount->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm)) {
 			for (i = 0; i < mapi; i++)
-				pr_warn("mxfs: P34C-DIRGROW ino=%llu startoff=%llu fsb=0x%llx len=%llu next=%llu size=%lld fmt=%d realns=%llu\n",
+				pr_warn("mxfs: P34C-DIRGROW ino=%llu startoff=%llu fsb=0x%llx len=%llu next=%llu size=%lld fmt=%d dir_gen=%u loaded_gen=%u acq_epoch=%u valid_epoch=%u realns=%llu\n",
 					(unsigned long long)dp->i_ino,
 					(unsigned long long)mapp[i].br_startoff,
 					(unsigned long long)mapp[i].br_startblock,
@@ -2406,6 +2423,10 @@ xfs_da_grow_inode_int(
 					(unsigned long long)dp->i_df.if_nextents,
 					(long long)dp->i_disk_size,
 					dp->i_df.if_format,
+					dp->i_dlm_dir_gen,
+					dp->i_dlm_dir_loaded_gen,
+					dp->i_dlm_dir_acq_epoch,
+					dp->i_dlm_dir_valid_epoch,
 					(unsigned long long)ktime_get_real_ns());
 		}
 	}

@@ -259,6 +259,29 @@ xfs_inode_free(
 	ASSERT(!xfs_iflags_test(ip, XFS_IFLUSHING));
 
 	/*
+	 * sess5 shadow ledger — DISCARD-LEAK probe: freeing an inode whose
+	 * nlink==0 state still holds a +1 in s_remove_count (flag set)
+	 * means no __destroy_inode dec will ever run for it — the counter
+	 * leaks +1 permanently (remount-ro -EBUSY forever).  Upstream shape:
+	 * xfs_iget_cache_miss reads a FREED dinode (from_disk set_nlink(0)
+	 * INCS), then xfs_iget_check_free_state fails the lookup and
+	 * out_destroy lands here with no VFS destroy.  Rare upstream; COMMON
+	 * under MXFS cross-node reuse (dirent visible while peer freed the
+	 * ino).  Evidence first (capped print), rebalance fix after proof.
+	 */
+	if (VFS_I(ip)->i_nlink == 0 &&
+	    xfs_iflags_test(ip, MXFS_IF_RMC_ACCT)) {
+		static atomic_t p9dl_n = ATOMIC_INIT(0);
+		if (atomic_inc_return(&p9dl_n) <= 30) {
+			pr_alert("mxfs: P9-RMC-DISCARD-LEAK ino=%llu rmcnt=%ld last0=%pS comm=%s — freeing accounted-zero inode with no destroy dec (+1 leak)\n",
+				(unsigned long long)ip->i_ino,
+				atomic_long_read(&VFS_I(ip)->i_sb->s_remove_count),
+				ip->i_rmc_last0_ra, current->comm);
+			dump_stack();
+		}
+	}
+
+	/*
 	 * Because we use RCU freeing we need to ensure the inode always
 	 * appears to be reclaimed with an invalid inode number when in the
 	 * free state. The ip->i_flags_lock provides the barrier against lookup
@@ -422,12 +445,43 @@ xfs_reinit_inode(
 	if (nlink == 0) {
 		static atomic_t p9rc_n = ATOMIC_INIT(0);
 		if (atomic_inc_return(&p9rc_n) <= 4000)
-			pr_warn("mxfs: P9-NLEDGE reinit0 ino=%lu rmcnt=%ld comm=%s\n",
-				inode->i_ino,
+			pr_warn("mxfs: P9-NLEDGE reinit0 ino=%llu rmcnt=%ld acct=%d comm=%s\n",
+				(unsigned long long)XFS_I(inode)->i_ino,
 				atomic_long_read(&inode->i_sb->s_remove_count),
+				xfs_iflags_test(XFS_I(inode), MXFS_IF_RMC_ACCT) ? 1 : 0,
 				current->comm);
 	}
-	set_nlink(inode, nlink);
+	/*
+	 * sess5 shadow ledger: inode_init_always above RAW-wrote __i_nlink=1,
+	 * so mxfs_set_nlink(0) below goes through clear_nlink and INCS
+	 * s_remove_count — correct re-accounting, because the corpse's prior
+	 * zero was dec'd by __destroy_inode at VFS eviction (which also
+	 * cleared the flag).  A flag still SET here means the destroy-side
+	 * dec never ran for this corpse — the double-inc anomaly.
+	 */
+	if (nlink == 0 && xfs_iflags_test(XFS_I(inode), MXFS_IF_RMC_ACCT)) {
+		static atomic_t p9di_n = ATOMIC_INIT(0);
+		if (atomic_inc_return(&p9di_n) <= 50) {
+			pr_alert("mxfs: P9-RMC-REINIT0-STILL-ACCT ino=%llu rmcnt=%ld comm=%s — recycled corpse still flagged accounted (destroy dec missing?)\n",
+				(unsigned long long)XFS_I(inode)->i_ino,
+				atomic_long_read(&inode->i_sb->s_remove_count),
+				current->comm);
+			dump_stack();
+		}
+		/* raw 1 was just written; the accounted zero it replaced was
+		 * unpaired — drop the stale flag so mxfs_set_nlink(0) below
+		 * re-arms it against the clear_nlink inc it performs. */
+		xfs_iflags_clear(XFS_I(inode), MXFS_IF_RMC_ACCT);
+	}
+	/*
+	 * sess5 (b68r1 -45 flood): the corpse still carries I_FREEING|I_CLEAR
+	 * here — xfs_iget_recycle stamps I_NEW only after we return — and
+	 * mxfs_set_nlink's corpse-raw arm would swallow the re-accounting
+	 * inc this restore must perform.  This inode is becoming LIVE again:
+	 * re-open its VFS accounting before the nlink restore.
+	 */
+	inode->i_state = 0;
+	mxfs_set_nlink(XFS_I(inode), nlink);
 	inode->i_generation = generation;
 	inode_set_iversion_queried(inode, version);
 	inode->i_mode = mode;
@@ -448,7 +502,8 @@ xfs_reinit_inode(
 static int
 xfs_iget_recycle(
 	struct xfs_perag	*pag,
-	struct xfs_inode	*ip)
+	struct xfs_inode	*ip,
+	bool			deadshell_create)
 {
 	struct xfs_mount	*mp = ip->i_mount;
 	struct inode		*inode = VFS_I(ip);
@@ -568,10 +623,20 @@ xfs_iget_recycle(
 	 * same incarnation → keep in-core.  xfs_reinit_inode preserved
 	 * i_generation, so the compare is valid.
 	 */
-	if (!error && ip->i_dlm_stale && mp->m_mxfs_dlm &&
-	    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+	if (!error && mp->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+	    /*
+	     * ccloop-4dd7: a peer-freed dead shell may arrive with
+	     * i_dlm_stale unset (the peer freed it without ever BASTing our
+	     * per-inode DLM), so a deferred-deadshell CREATE forces the disk
+	     * re-read regardless — the P-RECYCLE-SANITIZE / reject arms
+	     * below resolve the shell from the platter verdict.
+	     */
+	    (ip->i_dlm_stale || deadshell_create)) {
 		struct xfs_buf	*rbp = NULL;
 		struct xfs_buf	*stale_bp = NULL;
+		bool		p91_protected = false;
+		void		*sr_tmp = NULL;
 
 		if (xfs_buf_incore(mp->m_ddev_targp, ip->i_imap.im_blkno,
 				   ip->i_imap.im_len, 0, &stale_bp) == 0) {
@@ -588,6 +653,7 @@ xfs_iget_recycle(
 				    (unsigned long long)ip->i_ino,
 				    (unsigned long long)ip->i_imap.im_blkno,
 				    stale_bp->b_flags);
+				p91_protected = true;
 			} else {
 				/* P20 forensic: every cluster invalidate is
 				 * logged — a later re-read of this daddr pulls
@@ -610,6 +676,51 @@ xfs_iget_recycle(
 			struct xfs_dinode *dip =
 				xfs_buf_offset(rbp, ip->i_imap.im_boffset);
 
+			/*
+			 * sess5 ROOT FIX (b70r1 shutdown, RULE-4 proven): when
+			 * the cluster buffer is P91-PROTECTED (carries our
+			 * uncheckpointed mods to a co-resident inode), the
+			 * xfs_imap_to_bp read above is a CACHE HIT on that
+			 * kept buffer — for a deferred-deadshell CREATE the
+			 * verdict then evaluates PRE-FREE bytes: b70r1 read
+			 * gen=...547 mode=0100644 from the kept buffer while
+			 * the PLATTER already held the peer's destaged free
+			 * (gen=...548 mode=0, seen by this same node 360ms
+			 * earlier) → the DISKLIVE reject misfired -117 → a
+			 * dirty xfs_trans_cancel shutdown on a healthy FS.
+			 * Side-read the platter into a private buffer (P9-ICD
+			 * pattern; never touches the protected cluster buf)
+			 * and give the VERDICT the real disk bytes.
+			 */
+			if (deadshell_create && p91_protected) {
+				extern int mxfs_pal_bdev_read_plain_bdev(
+					struct block_device *, uint64_t,
+					void *, uint32_t);
+				uint32_t sr_len = BBTOB(ip->i_imap.im_len);
+
+				sr_tmp = ((sr_len & 511) == 0 && sr_len) ?
+					kmalloc(sr_len, GFP_NOFS) : NULL;
+				if (sr_tmp &&
+				    mxfs_pal_bdev_read_plain_bdev(
+					mp->m_ddev_targp->bt_bdev,
+					(uint64_t)ip->i_imap.im_blkno +
+					mp->m_ddev_targp->bt_sector_offset,
+					sr_tmp, sr_len) == 0) {
+					struct xfs_dinode *sdip = sr_tmp +
+						ip->i_imap.im_boffset;
+
+					if (sdip->di_mode != dip->di_mode ||
+					    sdip->di_gen != dip->di_gen)
+						pr_warn("mxfs: P-CR63-SIDEREAD ino=%llu cached[mode=0%o gen=%u] platter[mode=0%o gen=%u] — protected cluster buf lagged the platter; verdict uses platter\n",
+							(unsigned long long)ip->i_ino,
+							be16_to_cpu(dip->di_mode),
+							be32_to_cpu(dip->di_gen),
+							be16_to_cpu(sdip->di_mode),
+							be32_to_cpu(sdip->di_gen));
+					dip = sdip;
+				}
+			}
+
 			/* sess70: decisive always-on diagnostic for the
 			 * INODE-REUSE type-confusion residual.  When a stale
 			 * inode is recycled, log disk di_mode/di_gen vs the
@@ -624,12 +735,40 @@ xfs_iget_recycle(
 				VFS_I(ip)->i_mode,
 				VFS_I(ip)->i_generation,
 				(be16_to_cpu(dip->di_mode) != 0 &&
-				 be32_to_cpu(dip->di_gen) !=
-					 VFS_I(ip)->i_generation) ? 1 : 0);
+				 (s32)(be32_to_cpu(dip->di_gen) -
+				       VFS_I(ip)->i_generation) > 0) ? 1 : 0);
 
-			if (be16_to_cpu(dip->di_mode) != 0 &&
-			    be32_to_cpu(dip->di_gen) !=
-				    VFS_I(ip)->i_generation) {
+			if (deadshell_create &&
+			    be16_to_cpu(dip->di_mode) != 0) {
+				/*
+				 * ccloop-4dd7: dialloc handed out this ino as
+				 * free (inobt under AG DLM) yet the platter
+				 * dinode is LIVE — genuine cross-node
+				 * incoherence (double-alloc territory), not
+				 * the peer-freed shell we deferred for.  Fail
+				 * the recycle (flows into the re-add-to-
+				 * reclaim recovery below); the create errors
+				 * loudly instead of clobbering a live inode.
+				 */
+				pr_warn("mxfs: P-CR63-DEFER-DISKLIVE ino=%llu disk_mode=0%o disk_gen=%u incore_gen=%u — deferred deadshell CREATE found LIVE platter image; failing recycle\n",
+					(unsigned long long)ip->i_ino,
+					be16_to_cpu(dip->di_mode),
+					be32_to_cpu(dip->di_gen),
+					VFS_I(ip)->i_generation);
+				error = -EFSCORRUPTED;
+			} else if (be16_to_cpu(dip->di_mode) != 0 &&
+			    /*
+			     * ccloop-4dd7 ORDERING GUARD (RULE-4 proven, ino
+			     * 1862 autopsy: adopt=1 of disk_gen 3097500574 OVER
+			     * newer incore_gen 3097500575 resurrected a freed
+			     * incarnation's extent map).  di_gen only moves
+			     * forward (xfs_inode_uninit ++), so adopt ONLY a
+			     * strictly NEWER disk image; an equal or OLDER gen
+			     * is a lagging platter/cached read of a prior
+			     * incarnation — keep the in-core state.
+			     */
+			    (s32)(be32_to_cpu(dip->di_gen) -
+				  VFS_I(ip)->i_generation) > 0) {
 				xfs_idestroy_fork(&ip->i_df);
 				if (xfs_inode_has_attr_fork(ip))
 					xfs_idestroy_fork(&ip->i_af);
@@ -642,6 +781,12 @@ xfs_iget_recycle(
 				if (xfs_inode_from_disk(ip, dip) == 0) {
 					i_size_write(VFS_I(ip),
 						     ip->i_disk_size);
+					/* ccloop-4dd7: adopted a DIFFERENT
+					 * incarnation — the old life's
+					 * local-unlink intent must not leak
+					 * onto it (sess37 flag-leak). */
+					xfs_iflags_clear(ip,
+						MXFS_IF_LOCAL_UNLINK);
 					/*
 					 * sess68 (RULE 4): we just adopted a
 					 * DIFFERENT incarnation of this reused dir
@@ -660,9 +805,60 @@ xfs_iget_recycle(
 					if (S_ISDIR(VFS_I(ip)->i_mode))
 						mxfs_dir_evict_owned_dir_blocks(ip, false);
 				}
+			} else if (deadshell_create &&
+				   be16_to_cpu(dip->di_mode) == 0 &&
+				   VFS_I(ip)->i_mode != 0) {
+				/*
+				 * ccloop-4dd7 FIX: peer-freed dead shell — the
+				 * platter image is FREE while the in-core shell
+				 * still carries the dead incarnation (the
+				 * authorized xfs_inode_uninit ran on the PEER;
+				 * the local INACT-SKIP authority guard never
+				 * zeroed our copy).  Emulate the missed local
+				 * uninit in-core reset here, in the same
+				 * exclusive context the adopt path already
+				 * relies on (XFS_IRECLAIM set, sole owner):
+				 * destroy the stale fork state (the peer's
+				 * truncate freed those blocks on disk long ago)
+				 * and mark the shell free, adopting the disk
+				 * generation (the peer's uninit bumped it).  A
+				 * CREATE then reuses the clean shell
+				 * (xfs_inode_init); a plain lookup correctly
+				 * sees a free inode.
+				 */
+				xfs_idestroy_fork(&ip->i_df);
+				if (xfs_inode_has_attr_fork(ip))
+					xfs_idestroy_fork(&ip->i_af);
+				if (ip->i_cowfp) {
+					xfs_idestroy_fork(ip->i_cowfp);
+					kmem_cache_free(xfs_ifork_cache,
+							ip->i_cowfp);
+					ip->i_cowfp = NULL;
+				}
+				ip->i_df.if_format = XFS_DINODE_FMT_EXTENTS;
+				ip->i_df.if_bytes = 0;
+				ip->i_df.if_data = NULL;
+				ip->i_df.if_nextents = 0;
+				VFS_I(ip)->i_mode = 0;
+				ip->i_disk_size = 0;
+				i_size_write(VFS_I(ip), 0);
+				ip->i_nblocks = 0;
+				ip->i_forkoff = 0;
+				ip->i_diflags = 0;
+				ip->i_diflags2 = mp->m_ino_geo.new_diflags2;
+				VFS_I(ip)->i_generation =
+					be32_to_cpu(dip->di_gen);
+				/* ccloop-4dd7: prior-life intent must not leak
+				 * into the new life (sess37 flag-leak). */
+				xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK);
+				pr_warn_ratelimited(
+				    "mxfs: P-RECYCLE-SANITIZE ino=%llu disk_gen=%u — peer-freed dead shell reset to free (missed local uninit emulated)\n",
+				    (unsigned long long)ip->i_ino,
+				    be32_to_cpu(dip->di_gen));
 			}
 			xfs_buf_relse(rbp);
 		}
+		kfree(sr_tmp);
 		ip->i_dlm_stale = false;
 	}
 
@@ -991,6 +1187,16 @@ xfs_iget_cache_hit(
 	struct inode		*inode = VFS_I(ip);
 	struct xfs_mount	*mp = ip->i_mount;
 	int			error;
+	/*
+	 * ccloop-4dd7: CREATE cache-hit a peer-freed IRECLAIMABLE dead shell
+	 * (nlink==0, in-core mode never zeroed because the sess47 authority
+	 * guard skipped local destructive inactivation).  When set, skip the
+	 * fatal xfs_iget_check_free_state (dialloc's inobt-free verdict under
+	 * AG DLM is authoritative — this is NOT corruption) and let the
+	 * IRECLAIMABLE recycle path resolve the shell from disk evidence
+	 * (P-RECYCLE-SANITIZE emulates the missed local xfs_inode_uninit).
+	 */
+	bool			cr63_defer_deadshell = false;
 
 	/*
 	 * check for re-use of an inode within an RCU grace period due to the
@@ -1068,16 +1274,67 @@ xfs_iget_cache_hit(
 	 * pass falls through.
 	 */
 	if (ip->i_mount->m_mxfs_dlm && (flags & XFS_IGET_CREATE) &&
-	    !(ip->i_flags & XFS_IRECLAIMABLE) &&
 	    (VFS_I(ip)->i_mode != 0 || ip->i_nblocks != 0)) {
-		struct inode *inode_grabbed = igrab(inode);
+		/*
+		 * P-CR63 (RULE 4, pve1 ino-489 dialloc -117 autopsy): dialloc
+		 * picked this ino under AG DLM hold, so free-cluster-wide is
+		 * authoritative — yet the cached in-core struct still shows
+		 * allocated content.  Three sub-cases arrive here; name which
+		 * (field reads only — safe under rcu + i_flags_lock):
+		 *  - VFS-live shell -> reset-for-create + EAGAIN (rescued);
+		 *  - igrab failure  -> mid-teardown window, FALLS THROUGH to
+		 *    the fatal check_free_state (hole);
+		 *  - IRECLAIMABLE   -> dead shell whose i_mode was never
+		 *    zeroed (peer freed the ino; local ifree never ran —
+		 *    sess47 guard skips destructive inactivation), FALLS
+		 *    THROUGH to the fatal check_free_state (hole; the pve1
+		 *    shutdown signature: mode=0x81a4 dlm_stale=1 platter-free).
+		 */
+		bool cr63_reclaimable = !!(ip->i_flags & XFS_IRECLAIMABLE);
 
-		if (inode_grabbed) {
-			spin_unlock(&ip->i_flags_lock);
-			rcu_read_unlock();
-			mxfs_dlm_reset_inode_for_create(ip);
-			iput(inode_grabbed);
-			return -EAGAIN;
+		pr_warn_ratelimited("mxfs: P-CR63-SHELL ino=0x%llx mode=0%o nlink=%u nblk=%llu iflags=0x%lx istate=0x%lx reclaimable=%d dlm_mode=%u dlm_state=%u stale=%d src=%u comm=%s\n",
+			(unsigned long long)ip->i_ino, VFS_I(ip)->i_mode,
+			VFS_I(ip)->i_nlink,
+			(unsigned long long)ip->i_nblocks,
+			ip->i_flags, VFS_I(ip)->i_state,
+			cr63_reclaimable ? 1 : 0,
+			ip->i_dlm_mode, ip->i_dlm_state,
+			ip->i_dlm_stale ? 1 : 0, ip->i_dlm_stale_src,
+			current->comm);
+
+		if (!cr63_reclaimable) {
+			struct inode *inode_grabbed = igrab(inode);
+
+			if (inode_grabbed) {
+				spin_unlock(&ip->i_flags_lock);
+				rcu_read_unlock();
+				mxfs_dlm_reset_inode_for_create(ip);
+				iput(inode_grabbed);
+				return -EAGAIN;
+			}
+			pr_warn("mxfs: P-CR63-IGRAB-FAIL ino=0x%llx istate=0x%lx — mid-teardown shell falls through to check_free_state\n",
+				(unsigned long long)ip->i_ino,
+				VFS_I(ip)->i_state);
+		} else if (VFS_I(ip)->i_nlink == 0) {
+			/*
+			 * ccloop-4dd7 FIX (RULE-4 proven chain, vmrig ino 139:
+			 * P19-B3DEC will_skip=1 b4_noauth=1 → INACT-SKIP-STALE →
+			 * P-CR63-DEADSHELL → false "Corruption detected!" −117 →
+			 * dirty trans_cancel → cluster-wide shutdown): a PEER
+			 * freed this ino.  The local unlink left nlink==0, but
+			 * the authority guard rightly skipped local destructive
+			 * inactivation, so — unlike a locally-freed shell — its
+			 * in-core mode/forks were never reset by
+			 * xfs_inode_uninit.  The shell is dead; defer the free-
+			 * state verdict to the recycle path's disk re-read.
+			 */
+			cr63_defer_deadshell = true;
+			pr_warn("mxfs: P-CR63-DEADSHELL-DEFER ino=0x%llx nlink=0 stale=%d — peer-freed dead shell; deferring free-state check to recycle disk evidence\n",
+				(unsigned long long)ip->i_ino,
+				ip->i_dlm_stale ? 1 : 0);
+		} else {
+			pr_warn("mxfs: P-CR63-DEADSHELL ino=0x%llx nlink=%u — IRECLAIMABLE stale-mode LINKED shell falls through to check_free_state\n",
+				(unsigned long long)ip->i_ino, VFS_I(ip)->i_nlink);
 		}
 	}
 
@@ -1245,10 +1502,16 @@ xfs_iget_cache_hit(
 	/*
 	 * Check the inode free state is valid. This also detects lookup
 	 * racing with unlinks.
+	 *
+	 * ccloop-4dd7: skipped for a peer-freed dead shell on a multi-node
+	 * CREATE (see cr63_defer_deadshell above) — the recycle path below
+	 * resolves the shell from disk evidence instead.
 	 */
-	error = xfs_iget_check_free_state(ip, flags);
-	if (error)
-		goto out_error;
+	if (!cr63_defer_deadshell) {
+		error = xfs_iget_check_free_state(ip, flags);
+		if (error)
+			goto out_error;
+	}
 
 	/* Skip inodes that have no vfs state. */
 	if ((flags & XFS_IGET_INCORE) &&
@@ -1269,7 +1532,7 @@ xfs_iget_cache_hit(
 		spin_unlock(&ip->i_flags_lock);
 		rcu_read_unlock();
 
-		error = xfs_iget_recycle(pag, ip);
+		error = xfs_iget_recycle(pag, ip, cr63_defer_deadshell);
 		if (error)
 			return error;
 	} else {

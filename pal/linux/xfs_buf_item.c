@@ -831,6 +831,13 @@ xfs_buf_item_release(
 	 */
 	if (aborted || xlog_is_shutdown(lip->li_log)) {
 		ASSERT(list_empty(&bip->bli_buf->b_li_list));
+		/*
+		 * sess-pve: this bli detaches WITHOUT writeback (xfs_buf_item_done
+		 * runs no ioend, so bp->b_iodone never fires) — reclaim any
+		 * outstanding mxfs_ag_meta_track hold here or it leaks and wedges
+		 * xfs_buftarg_drain at unmount (agi/inobt/finobt stuck at b_hold=2).
+		 */
+		mxfs_ag_meta_reclaim_abort(bp);
 		xfs_buf_item_done(bp);
 		goto out_release;
 	}

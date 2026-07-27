@@ -11,7 +11,9 @@
 #                   show each test's most-recent run across all conditions.
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd); cd "$SCRIPT_DIR" || exit 1
-CRIT="criteria.json"; LASTRUN=".last_run.json"
+# MXFS_CRIT mirrors run.sh: a second rig's board lives in its own file (cells
+# are keyed "<N>/<dlm>" with no rig dimension), so point both at the same one.
+CRIT="${MXFS_CRIT:-criteria.json}"; LASTRUN=".last_run.json"
 [ -s "$CRIT" ] || { echo "no criteria.json — run scripts/gen_criteria.py" >&2; exit 1; }
 
 NODES="${1:-}"; DLM="${2:-}"

@@ -1,0 +1,18 @@
+{
+  "source": [
+    "pal/linux/xfs_super.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "dlm/lease.h",
+    "dlm/lease.c",
+    "dlm/v5_mount.c",
+    "dlm/scsipr.h",
+    "dlm/scsipr.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

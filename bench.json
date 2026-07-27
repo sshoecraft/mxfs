@@ -9764,5 +9764,2307 @@
         "iops": 485797
       }
     }
+  },
+  "fio_perf_1n_xfs_1784575818": {
+    "ts": "2026-07-20T19:30:18Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 99
+      },
+      "seq_read_1m": {
+        "bw_mib": 111
+      },
+      "rand_write_4k": {
+        "iops": 18897
+      },
+      "rand_read_4k": {
+        "iops": 21250
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784582725": {
+    "ts": "2026-07-20T21:25:25Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 111
+      },
+      "rand_write_4k": {
+        "iops": 26280
+      },
+      "rand_read_4k": {
+        "iops": 31887
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784583143": {
+    "ts": "2026-07-20T21:32:23Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 110
+      },
+      "rand_write_4k": {
+        "iops": 28390
+      },
+      "rand_read_4k": {
+        "iops": 30913
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784588882": {
+    "ts": "2026-07-20T23:08:02Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 153
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 27316
+      },
+      "rand_read_4k": {
+        "iops": 30584
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784589119": {
+    "ts": "2026-07-20T23:11:59Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 154
+      },
+      "seq_read_1m": {
+        "bw_mib": 113
+      },
+      "rand_write_4k": {
+        "iops": 27531
+      },
+      "rand_read_4k": {
+        "iops": 35508
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784590467": {
+    "ts": "2026-07-20T23:34:27Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 110
+      },
+      "rand_write_4k": {
+        "iops": 24415
+      },
+      "rand_read_4k": {
+        "iops": 33071
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784590706": {
+    "ts": "2026-07-20T23:38:26Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 112
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 29259
+      },
+      "rand_read_4k": {
+        "iops": 28203
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784590928": {
+    "ts": "2026-07-20T23:42:08Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 115
+      },
+      "rand_write_4k": {
+        "iops": 28242
+      },
+      "rand_read_4k": {
+        "iops": 28190
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784914628": {
+    "ts": "2026-07-24T17:37:08Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 663
+      },
+      "seq_read_1m": {
+        "bw_mib": 10409
+      },
+      "rand_write_4k": {
+        "iops": 847
+      },
+      "rand_read_4k": {
+        "iops": 210129
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784921134": {
+    "ts": "2026-07-24T19:25:34Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1355
+      },
+      "seq_read_1m": {
+        "bw_mib": 9230
+      },
+      "rand_write_4k": {
+        "iops": 1446
+      },
+      "rand_read_4k": {
+        "iops": 187996
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784925365": {
+    "ts": "2026-07-24T20:36:05Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 476
+      },
+      "seq_read_1m": {
+        "bw_mib": 15795
+      },
+      "rand_write_4k": {
+        "iops": 995
+      },
+      "rand_read_4k": {
+        "iops": 125042
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784931741": {
+    "ts": "2026-07-24T22:22:21Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 544
+      },
+      "seq_read_1m": {
+        "bw_mib": 15130
+      },
+      "rand_write_4k": {
+        "iops": 1012
+      },
+      "rand_read_4k": {
+        "iops": 146511
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784933889": {
+    "ts": "2026-07-24T22:58:09Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 691
+      },
+      "seq_read_1m": {
+        "bw_mib": 18666
+      },
+      "rand_write_4k": {
+        "iops": 1061
+      },
+      "rand_read_4k": {
+        "iops": 200417
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784938129": {
+    "ts": "2026-07-25T00:08:49Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 387
+      },
+      "seq_read_1m": {
+        "bw_mib": 15243
+      },
+      "rand_write_4k": {
+        "iops": 924
+      },
+      "rand_read_4k": {
+        "iops": 201030
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784950851": {
+    "ts": "2026-07-25T03:40:51Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 751
+      },
+      "seq_read_1m": {
+        "bw_mib": 15889
+      },
+      "rand_write_4k": {
+        "iops": 843
+      },
+      "rand_read_4k": {
+        "iops": 147131
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1784951952": {
+    "ts": "2026-07-25T03:59:12Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 706
+      },
+      "seq_read_1m": {
+        "bw_mib": 18534
+      },
+      "rand_write_4k": {
+        "iops": 1030
+      },
+      "rand_read_4k": {
+        "iops": 195673
+      }
+    }
+  },
+  "fio_perf_1n_tcp_1784952514": {
+    "ts": "2026-07-25T04:08:34Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 212
+      },
+      "seq_read_1m": {
+        "bw_mib": 10556
+      },
+      "rand_write_4k": {
+        "iops": 957
+      },
+      "rand_read_4k": {
+        "iops": 110703
+      }
+    }
+  },
+  "fio_perf_1n_tcp_1784952623": {
+    "ts": "2026-07-25T04:10:23Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 712
+      },
+      "seq_read_1m": {
+        "bw_mib": 12487
+      },
+      "rand_write_4k": {
+        "iops": 1361
+      },
+      "rand_read_4k": {
+        "iops": 105703
+      }
+    }
+  },
+  "fio_vs_xfs_1n_tcp_1784953142": {
+    "ts": "2026-07-25T04:19:02Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "tcp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 267
+      },
+      "seq_read_1m": {
+        "bw_mib": 7529
+      },
+      "rand_write_4k": {
+        "iops": 1108
+      },
+      "rand_read_4k": {
+        "iops": 108324
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 194
+      },
+      "seq_read_1m": {
+        "bw_mib": 7757
+      },
+      "rand_write_4k": {
+        "iops": 663
+      },
+      "rand_read_4k": {
+        "iops": 103861
+      }
+    },
+    "ratio_pct": {
+      "seqW": 68,
+      "seqR": 103,
+      "randW": 90,
+      "randR": 95
+    }
+  },
+  "fio_vs_xfs_1n_tcp_1784953289": {
+    "ts": "2026-07-25T04:21:29Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "tcp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 264
+      },
+      "seq_read_1m": {
+        "bw_mib": 5019
+      },
+      "rand_write_4k": {
+        "iops": 1069
+      },
+      "rand_read_4k": {
+        "iops": 107085
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 551
+      },
+      "seq_read_1m": {
+        "bw_mib": 8258
+      },
+      "rand_write_4k": {
+        "iops": 557
+      },
+      "rand_read_4k": {
+        "iops": 104858
+      }
+    },
+    "ratio_pct": {
+      "seqW": 139,
+      "seqR": 164,
+      "randW": 70,
+      "randR": 97
+    }
+  },
+  "fio_vs_xfs_1n_tcp_1784953478": {
+    "ts": "2026-07-25T04:24:38Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "tcp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 393
+      },
+      "seq_read_1m": {
+        "bw_mib": 5224
+      },
+      "rand_write_4k": {
+        "iops": 706
+      },
+      "rand_read_4k": {
+        "iops": 97669
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 676
+      },
+      "seq_read_1m": {
+        "bw_mib": 7314
+      },
+      "rand_write_4k": {
+        "iops": 754
+      },
+      "rand_read_4k": {
+        "iops": 99750
+      }
+    },
+    "ratio_pct": {
+      "seqW": 70,
+      "seqR": 140,
+      "randW": 106,
+      "randR": 102
+    }
+  },
+  "fio_perf_1n_xfs_1784959846": {
+    "ts": "2026-07-25T06:10:46Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1822
+      },
+      "seq_read_1m": {
+        "bw_mib": 1684
+      },
+      "rand_write_4k": {
+        "iops": 44522
+      },
+      "rand_read_4k": {
+        "iops": 42227
+      }
+    }
+  },
+  "fio_perf_32n_cawp_1784961146": {
+    "ts": "2026-07-25T06:32:26Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5355
+      },
+      "seq_read_1m": {
+        "bw_mib": 8315
+      },
+      "rand_write_4k": {
+        "iops": 410302
+      },
+      "rand_read_4k": {
+        "iops": 579507
+      }
+    }
+  },
+  "fio_perf_16n_cawp_1784962115": {
+    "ts": "2026-07-25T06:48:35Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3879
+      },
+      "seq_read_1m": {
+        "bw_mib": 3223
+      },
+      "rand_write_4k": {
+        "iops": 151624
+      },
+      "rand_read_4k": {
+        "iops": 373575
+      }
+    }
+  },
+  "fio_perf_1n_xfs_1784962185": {
+    "ts": "2026-07-25T06:49:45Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1741
+      },
+      "seq_read_1m": {
+        "bw_mib": 1855
+      },
+      "rand_write_4k": {
+        "iops": 44162
+      },
+      "rand_read_4k": {
+        "iops": 42446
+      }
+    }
+  },
+  "fio_perf_16n_cawp_1784962335": {
+    "ts": "2026-07-25T06:52:15Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2708
+      },
+      "seq_read_1m": {
+        "bw_mib": 4226
+      },
+      "rand_write_4k": {
+        "iops": 195438
+      },
+      "rand_read_4k": {
+        "iops": 274109
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1784962778": {
+    "ts": "2026-07-25T06:59:38Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2044
+      },
+      "seq_read_1m": {
+        "bw_mib": 3506
+      },
+      "rand_write_4k": {
+        "iops": 90748
+      },
+      "rand_read_4k": {
+        "iops": 261120
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1784963475": {
+    "ts": "2026-07-25T07:11:15Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1787
+      },
+      "seq_read_1m": {
+        "bw_mib": 2001
+      },
+      "rand_write_4k": {
+        "iops": 59427
+      },
+      "rand_read_4k": {
+        "iops": 222148
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1784963545": {
+    "ts": "2026-07-25T07:12:25Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2056
+      },
+      "seq_read_1m": {
+        "bw_mib": 3640
+      },
+      "rand_write_4k": {
+        "iops": 177648
+      },
+      "rand_read_4k": {
+        "iops": 206939
+      }
+    }
+  },
+  "fio_perf_4n_cawp_1784963792": {
+    "ts": "2026-07-25T07:16:32Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 251
+      },
+      "seq_read_1m": {
+        "bw_mib": 1823
+      },
+      "rand_write_4k": {
+        "iops": 121935
+      },
+      "rand_read_4k": {
+        "iops": 139844
+      }
+    }
+  },
+  "fio_perf_2n_cawp_1784964143": {
+    "ts": "2026-07-25T07:22:23Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1929
+      },
+      "seq_read_1m": {
+        "bw_mib": 2273
+      },
+      "rand_write_4k": {
+        "iops": 29631
+      },
+      "rand_read_4k": {
+        "iops": 78906
+      }
+    }
+  },
+  "fio_perf_2n_cawp_1784964345": {
+    "ts": "2026-07-25T07:25:45Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2314
+      },
+      "seq_read_1m": {
+        "bw_mib": 2500
+      },
+      "rand_write_4k": {
+        "iops": 23490
+      },
+      "rand_read_4k": {
+        "iops": 78250
+      }
+    }
+  },
+  "fio_perf_2n_cawp_1784964393": {
+    "ts": "2026-07-25T07:26:33Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 204
+      },
+      "seq_read_1m": {
+        "bw_mib": 2511
+      },
+      "rand_write_4k": {
+        "iops": 64429
+      },
+      "rand_read_4k": {
+        "iops": 71391
+      }
+    }
+  },
+  "fio_perf_1n_cawp_1784964543": {
+    "ts": "2026-07-25T07:29:03Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1976
+      },
+      "seq_read_1m": {
+        "bw_mib": 1715
+      },
+      "rand_write_4k": {
+        "iops": 38963
+      },
+      "rand_read_4k": {
+        "iops": 42834
+      }
+    }
+  },
+  "fio_vs_xfs_1n_cawp_1784964965": {
+    "ts": "2026-07-25T07:36:05Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "cawp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 697
+      },
+      "seq_read_1m": {
+        "bw_mib": 1620
+      },
+      "rand_write_4k": {
+        "iops": 15458
+      },
+      "rand_read_4k": {
+        "iops": 39695
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 328
+      },
+      "seq_read_1m": {
+        "bw_mib": 1641
+      },
+      "rand_write_4k": {
+        "iops": 24833
+      },
+      "rand_read_4k": {
+        "iops": 41011
+      }
+    },
+    "ratio_pct": {
+      "seqW": 51,
+      "seqR": 101,
+      "randW": 139,
+      "randR": 103
+    }
+  },
+  "fio_perf_1n_xfs_1784967011": {
+    "ts": "2026-07-25T08:10:11Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1590
+      },
+      "seq_read_1m": {
+        "bw_mib": 550
+      },
+      "rand_write_4k": {
+        "iops": 47284
+      },
+      "rand_read_4k": {
+        "iops": 46087
+      }
+    }
+  },
+  "fio_perf_32n_cawd_1784967560": {
+    "ts": "2026-07-25T08:19:20Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7476
+      },
+      "seq_read_1m": {
+        "bw_mib": 7306
+      },
+      "rand_write_4k": {
+        "iops": 280329
+      },
+      "rand_read_4k": {
+        "iops": 294258
+      }
+    }
+  },
+  "fio_perf_16n_cawd_1784968111": {
+    "ts": "2026-07-25T08:28:31Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3776
+      },
+      "seq_read_1m": {
+        "bw_mib": 2668
+      },
+      "rand_write_4k": {
+        "iops": 102729
+      },
+      "rand_read_4k": {
+        "iops": 363025
+      }
+    }
+  },
+  "fio_perf_8n_cawd_1784968542": {
+    "ts": "2026-07-25T08:35:42Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1699
+      },
+      "seq_read_1m": {
+        "bw_mib": 3243
+      },
+      "rand_write_4k": {
+        "iops": 113689
+      },
+      "rand_read_4k": {
+        "iops": 235009
+      }
+    }
+  },
+  "fio_perf_4n_cawd_1784968878": {
+    "ts": "2026-07-25T08:41:18Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 338
+      },
+      "seq_read_1m": {
+        "bw_mib": 1941
+      },
+      "rand_write_4k": {
+        "iops": 67150
+      },
+      "rand_read_4k": {
+        "iops": 125639
+      }
+    }
+  },
+  "fio_perf_2n_cawd_1784969224": {
+    "ts": "2026-07-25T08:47:04Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1807
+      },
+      "seq_read_1m": {
+        "bw_mib": 1105
+      },
+      "rand_write_4k": {
+        "iops": 50843
+      },
+      "rand_read_4k": {
+        "iops": 75188
+      }
+    }
+  },
+  "fio_perf_1n_cawd_1784969529": {
+    "ts": "2026-07-25T08:52:09Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1805
+      },
+      "seq_read_1m": {
+        "bw_mib": 621
+      },
+      "rand_write_4k": {
+        "iops": 38596
+      },
+      "rand_read_4k": {
+        "iops": 40108
+      }
+    }
+  },
+  "fio_vs_xfs_1n_cawd_1784969961": {
+    "ts": "2026-07-25T08:59:21Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "cawd",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 481
+      },
+      "seq_read_1m": {
+        "bw_mib": 506
+      },
+      "rand_write_4k": {
+        "iops": 21530
+      },
+      "rand_read_4k": {
+        "iops": 31675
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 254
+      },
+      "seq_read_1m": {
+        "bw_mib": 495
+      },
+      "rand_write_4k": {
+        "iops": 27496
+      },
+      "rand_read_4k": {
+        "iops": 28593
+      }
+    },
+    "ratio_pct": {
+      "seqW": 83,
+      "seqR": 97,
+      "randW": 174,
+      "randR": 90
+    }
+  },
+  "fio_perf_1n_xfs_1784970982": {
+    "ts": "2026-07-25T09:16:22Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1622
+      },
+      "seq_read_1m": {
+        "bw_mib": 1542
+      },
+      "rand_write_4k": {
+        "iops": 35812
+      },
+      "rand_read_4k": {
+        "iops": 27444
+      }
+    }
+  },
+  "fio_perf_32n_caw_1784971739": {
+    "ts": "2026-07-25T09:28:59Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2864
+      },
+      "seq_read_1m": {
+        "bw_mib": 5695
+      },
+      "rand_write_4k": {
+        "iops": 96881
+      },
+      "rand_read_4k": {
+        "iops": 596022
+      }
+    }
+  },
+  "fio_perf_16n_caw_1784972216": {
+    "ts": "2026-07-25T09:36:56Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1864
+      },
+      "seq_read_1m": {
+        "bw_mib": 2375
+      },
+      "rand_write_4k": {
+        "iops": 114948
+      },
+      "rand_read_4k": {
+        "iops": 396647
+      }
+    }
+  },
+  "fio_perf_8n_caw_1784972638": {
+    "ts": "2026-07-25T09:43:58Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 218
+      },
+      "seq_read_1m": {
+        "bw_mib": 2104
+      },
+      "rand_write_4k": {
+        "iops": 48977
+      },
+      "rand_read_4k": {
+        "iops": 181333
+      }
+    }
+  },
+  "fio_perf_4n_caw_1784973036": {
+    "ts": "2026-07-25T09:50:36Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 214
+      },
+      "seq_read_1m": {
+        "bw_mib": 2130
+      },
+      "rand_write_4k": {
+        "iops": 86107
+      },
+      "rand_read_4k": {
+        "iops": 125868
+      }
+    }
+  },
+  "fio_perf_2n_caw_1784973397": {
+    "ts": "2026-07-25T09:56:37Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 318
+      },
+      "seq_read_1m": {
+        "bw_mib": 1164
+      },
+      "rand_write_4k": {
+        "iops": 67166
+      },
+      "rand_read_4k": {
+        "iops": 58253
+      }
+    }
+  },
+  "fio_perf_1n_caw_1784973704": {
+    "ts": "2026-07-25T10:01:44Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 422
+      },
+      "seq_read_1m": {
+        "bw_mib": 547
+      },
+      "rand_write_4k": {
+        "iops": 32637
+      },
+      "rand_read_4k": {
+        "iops": 46348
+      }
+    }
+  },
+  "fio_perf_1n_caw_1784974048": {
+    "ts": "2026-07-25T10:07:28Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1517
+      },
+      "seq_read_1m": {
+        "bw_mib": 596
+      },
+      "rand_write_4k": {
+        "iops": 34456
+      },
+      "rand_read_4k": {
+        "iops": 39864
+      }
+    }
+  },
+  "fio_vs_xfs_1n_caw_1784974323": {
+    "ts": "2026-07-25T10:12:03Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "caw",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 421
+      },
+      "seq_read_1m": {
+        "bw_mib": 442
+      },
+      "rand_write_4k": {
+        "iops": 16642
+      },
+      "rand_read_4k": {
+        "iops": 21544
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 335
+      },
+      "seq_read_1m": {
+        "bw_mib": 560
+      },
+      "rand_write_4k": {
+        "iops": 26442
+      },
+      "rand_read_4k": {
+        "iops": 26468
+      }
+    },
+    "ratio_pct": {
+      "seqW": 93,
+      "seqR": 126,
+      "randW": 158,
+      "randR": 122
+    }
+  },
+  "fio_perf_1n_xfs_1784975544": {
+    "ts": "2026-07-25T10:32:24Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 840
+      },
+      "seq_read_1m": {
+        "bw_mib": 9309
+      },
+      "rand_write_4k": {
+        "iops": 1186
+      },
+      "rand_read_4k": {
+        "iops": 102721
+      }
+    }
+  },
+  "fio_perf_32n_tcp_1784976428": {
+    "ts": "2026-07-25T10:47:08Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2902
+      },
+      "seq_read_1m": {
+        "bw_mib": 30808
+      },
+      "rand_write_4k": {
+        "iops": 1026
+      },
+      "rand_read_4k": {
+        "iops": 1594269
+      }
+    }
+  },
+  "fio_perf_1n_xfs_1784985045": {
+    "ts": "2026-07-25T13:10:45Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 820
+      },
+      "seq_read_1m": {
+        "bw_mib": 1505
+      },
+      "rand_write_4k": {
+        "iops": 1031
+      },
+      "rand_read_4k": {
+        "iops": 18337
+      }
+    }
+  },
+  "fio_perf_8n_tcp_1784985509": {
+    "ts": "2026-07-25T13:18:29Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1451
+      },
+      "seq_read_1m": {
+        "bw_mib": 24473
+      },
+      "rand_write_4k": {
+        "iops": 848
+      },
+      "rand_read_4k": {
+        "iops": 513832
+      }
+    }
+  },
+  "fio_perf_8n_tcp_1785009282": {
+    "ts": "2026-07-25T19:54:42Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 288
+      },
+      "seq_read_1m": {
+        "bw_mib": 43557
+      },
+      "rand_write_4k": {
+        "iops": 1010
+      },
+      "rand_read_4k": {
+        "iops": 536323
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785010109": {
+    "ts": "2026-07-25T20:08:29Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2114
+      },
+      "seq_read_1m": {
+        "bw_mib": 42977
+      },
+      "rand_write_4k": {
+        "iops": 1156
+      },
+      "rand_read_4k": {
+        "iops": 994498
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785028130": {
+    "ts": "2026-07-26T01:08:50Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1122
+      },
+      "seq_read_1m": {
+        "bw_mib": 48377
+      },
+      "rand_write_4k": {
+        "iops": 983
+      },
+      "rand_read_4k": {
+        "iops": 994078
+      }
+    }
+  },
+  "fio_perf_8n_tcp_1785030204": {
+    "ts": "2026-07-26T01:43:24Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 594
+      },
+      "seq_read_1m": {
+        "bw_mib": 45471
+      },
+      "rand_write_4k": {
+        "iops": 1103
+      },
+      "rand_read_4k": {
+        "iops": 654695
+      }
+    }
+  },
+  "fio_perf_32n_tcp_1785030993": {
+    "ts": "2026-07-26T01:56:33Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6291
+      },
+      "seq_read_1m": {
+        "bw_mib": 29204
+      },
+      "rand_write_4k": {
+        "iops": 1512
+      },
+      "rand_read_4k": {
+        "iops": 1593787
+      }
+    }
+  },
+  "fio_perf_32n_tcp_1785032753": {
+    "ts": "2026-07-26T02:25:53Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1775
+      },
+      "seq_read_1m": {
+        "bw_mib": 32531
+      },
+      "rand_write_4k": {
+        "iops": 1062
+      },
+      "rand_read_4k": {
+        "iops": 1445897
+      }
+    }
+  },
+  "fio_perf_32n_tcp_1785035166": {
+    "ts": "2026-07-26T03:06:06Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4376
+      },
+      "seq_read_1m": {
+        "bw_mib": 43460
+      },
+      "rand_write_4k": {
+        "iops": 1177
+      },
+      "rand_read_4k": {
+        "iops": 842747
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785036714": {
+    "ts": "2026-07-26T03:31:54Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1594
+      },
+      "seq_read_1m": {
+        "bw_mib": 45451
+      },
+      "rand_write_4k": {
+        "iops": 935
+      },
+      "rand_read_4k": {
+        "iops": 968503
+      }
+    }
+  },
+  "fio_perf_16n_cawp_1785037807": {
+    "ts": "2026-07-26T03:50:07Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 394
+      },
+      "seq_read_1m": {
+        "bw_mib": 35784
+      },
+      "rand_write_4k": {
+        "iops": 1858
+      },
+      "rand_read_4k": {
+        "iops": 1132392
+      }
+    }
+  },
+  "fio_perf_4n_tcp_1785038306": {
+    "ts": "2026-07-26T03:58:26Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 178
+      },
+      "seq_read_1m": {
+        "bw_mib": 29689
+      },
+      "rand_write_4k": {
+        "iops": 854
+      },
+      "rand_read_4k": {
+        "iops": 359033
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1785040032": {
+    "ts": "2026-07-26T04:27:12Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 567
+      },
+      "seq_read_1m": {
+        "bw_mib": 22867
+      },
+      "rand_write_4k": {
+        "iops": 1096
+      },
+      "rand_read_4k": {
+        "iops": 209639
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1785042397": {
+    "ts": "2026-07-26T05:06:37Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 799
+      },
+      "seq_read_1m": {
+        "bw_mib": 25559
+      },
+      "rand_write_4k": {
+        "iops": 779
+      },
+      "rand_read_4k": {
+        "iops": 189558
+      }
+    }
+  },
+  "fio_perf_1n_tcp_1785042770": {
+    "ts": "2026-07-26T05:12:50Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 682
+      },
+      "seq_read_1m": {
+        "bw_mib": 13298
+      },
+      "rand_write_4k": {
+        "iops": 856
+      },
+      "rand_read_4k": {
+        "iops": 110330
+      }
+    }
+  },
+  "fio_perf_4n_tcp_1785043126": {
+    "ts": "2026-07-26T05:18:46Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 486
+      },
+      "seq_read_1m": {
+        "bw_mib": 35373
+      },
+      "rand_write_4k": {
+        "iops": 933
+      },
+      "rand_read_4k": {
+        "iops": 370687
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785043704": {
+    "ts": "2026-07-26T05:28:24Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 280
+      },
+      "seq_read_1m": {
+        "bw_mib": 42197
+      },
+      "rand_write_4k": {
+        "iops": 996
+      },
+      "rand_read_4k": {
+        "iops": 1062968
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785043959": {
+    "ts": "2026-07-26T05:32:39Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 695
+      },
+      "seq_read_1m": {
+        "bw_mib": 30317
+      },
+      "rand_write_4k": {
+        "iops": 943
+      },
+      "rand_read_4k": {
+        "iops": 786074
+      }
+    }
+  },
+  "fio_perf_2n_cawd_1785044735": {
+    "ts": "2026-07-26T05:45:35Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1939
+      },
+      "seq_read_1m": {
+        "bw_mib": 1057
+      },
+      "rand_write_4k": {
+        "iops": 61692
+      },
+      "rand_read_4k": {
+        "iops": 80466
+      }
+    }
+  },
+  "fio_perf_4n_cawd_1785046351": {
+    "ts": "2026-07-26T06:12:31Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 322
+      },
+      "seq_read_1m": {
+        "bw_mib": 1692
+      },
+      "rand_write_4k": {
+        "iops": 86199
+      },
+      "rand_read_4k": {
+        "iops": 160715
+      }
+    }
+  },
+  "fio_perf_8n_cawd_1785046805": {
+    "ts": "2026-07-26T06:20:05Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1934
+      },
+      "seq_read_1m": {
+        "bw_mib": 2355
+      },
+      "rand_write_4k": {
+        "iops": 23685
+      },
+      "rand_read_4k": {
+        "iops": 207644
+      }
+    }
+  },
+  "fio_perf_8n_cawd_1785046936": {
+    "ts": "2026-07-26T06:22:16Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1862
+      },
+      "seq_read_1m": {
+        "bw_mib": 3503
+      },
+      "rand_write_4k": {
+        "iops": 184927
+      },
+      "rand_read_4k": {
+        "iops": 202526
+      }
+    }
+  },
+  "fio_perf_8n_cawd_1785047028": {
+    "ts": "2026-07-26T06:23:48Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2010
+      },
+      "seq_read_1m": {
+        "bw_mib": 2333
+      },
+      "rand_write_4k": {
+        "iops": 77218
+      },
+      "rand_read_4k": {
+        "iops": 238120
+      }
+    }
+  },
+  "fio_perf_16n_cawd_1785048682": {
+    "ts": "2026-07-26T06:51:22Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 287
+      },
+      "seq_read_1m": {
+        "bw_mib": 2083
+      },
+      "rand_write_4k": {
+        "iops": 203406
+      },
+      "rand_read_4k": {
+        "iops": 396462
+      }
+    }
+  },
+  "fio_perf_16n_cawd_1785050086": {
+    "ts": "2026-07-26T07:14:46Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawd",
+    "fs": "cawd",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1970
+      },
+      "seq_read_1m": {
+        "bw_mib": 3099
+      },
+      "rand_write_4k": {
+        "iops": 51464
+      },
+      "rand_read_4k": {
+        "iops": 396402
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1785050832": {
+    "ts": "2026-07-26T07:27:12Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 382
+      },
+      "seq_read_1m": {
+        "bw_mib": 3142
+      },
+      "rand_write_4k": {
+        "iops": 38571
+      },
+      "rand_read_4k": {
+        "iops": 191964
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1785050930": {
+    "ts": "2026-07-26T07:28:50Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1944
+      },
+      "seq_read_1m": {
+        "bw_mib": 2399
+      },
+      "rand_write_4k": {
+        "iops": 25822
+      },
+      "rand_read_4k": {
+        "iops": 217306
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1785051240": {
+    "ts": "2026-07-26T07:34:00Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 847
+      },
+      "seq_read_1m": {
+        "bw_mib": 2112
+      },
+      "rand_write_4k": {
+        "iops": 44244
+      },
+      "rand_read_4k": {
+        "iops": 163528
+      }
+    }
+  },
+  "fio_perf_1n_xfs_1785051298": {
+    "ts": "2026-07-26T07:34:58Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1878
+      },
+      "seq_read_1m": {
+        "bw_mib": 1723
+      },
+      "rand_write_4k": {
+        "iops": 37751
+      },
+      "rand_read_4k": {
+        "iops": 39385
+      }
+    }
+  },
+  "fio_perf_8n_cawp_1785051398": {
+    "ts": "2026-07-26T07:36:38Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 512
+      },
+      "seq_read_1m": {
+        "bw_mib": 1728
+      },
+      "rand_write_4k": {
+        "iops": 75222
+      },
+      "rand_read_4k": {
+        "iops": 210353
+      }
+    }
+  },
+  "fio_perf_4n_caw_1785051967": {
+    "ts": "2026-07-26T07:46:07Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 778
+      },
+      "seq_read_1m": {
+        "bw_mib": 1727
+      },
+      "rand_write_4k": {
+        "iops": 64925
+      },
+      "rand_read_4k": {
+        "iops": 125088
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1785053641": {
+    "ts": "2026-07-26T08:14:01Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 86
+      },
+      "rand_write_4k": {
+        "iops": 29974
+      },
+      "rand_read_4k": {
+        "iops": 17511
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785053934": {
+    "ts": "2026-07-26T08:18:54Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2795
+      },
+      "seq_read_1m": {
+        "bw_mib": 54535
+      },
+      "rand_write_4k": {
+        "iops": 869
+      },
+      "rand_read_4k": {
+        "iops": 966757
+      }
+    }
+  },
+  "fio_perf_16n_tcp_1785056864": {
+    "ts": "2026-07-26T09:07:44Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1090
+      },
+      "seq_read_1m": {
+        "bw_mib": 40533
+      },
+      "rand_write_4k": {
+        "iops": 792
+      },
+      "rand_read_4k": {
+        "iops": 882333
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1785057269": {
+    "ts": "2026-07-26T09:14:29Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1179
+      },
+      "seq_read_1m": {
+        "bw_mib": 20029
+      },
+      "rand_write_4k": {
+        "iops": 884
+      },
+      "rand_read_4k": {
+        "iops": 190512
+      }
+    }
+  },
+  "fio_perf_4n_tcp_1785057774": {
+    "ts": "2026-07-26T09:22:54Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 663
+      },
+      "seq_read_1m": {
+        "bw_mib": 30616
+      },
+      "rand_write_4k": {
+        "iops": 1105
+      },
+      "rand_read_4k": {
+        "iops": 345330
+      }
+    }
+  },
+  "fio_perf_1n_tcp_1785058352": {
+    "ts": "2026-07-26T09:32:32Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 276
+      },
+      "seq_read_1m": {
+        "bw_mib": 10240
+      },
+      "rand_write_4k": {
+        "iops": 961
+      },
+      "rand_read_4k": {
+        "iops": 107436
+      }
+    }
+  },
+  "fio_vs_xfs_1n_tcp_1785058814": {
+    "ts": "2026-07-26T09:40:14Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "tcp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 312
+      },
+      "seq_read_1m": {
+        "bw_mib": 4923
+      },
+      "rand_write_4k": {
+        "iops": 825
+      },
+      "rand_read_4k": {
+        "iops": 106563
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 170
+      },
+      "seq_read_1m": {
+        "bw_mib": 6918
+      },
+      "rand_write_4k": {
+        "iops": 700
+      },
+      "rand_read_4k": {
+        "iops": 110145
+      }
+    },
+    "ratio_pct": {
+      "seqW": 116,
+      "seqR": 140,
+      "randW": 80,
+      "randR": 103
+    }
+  },
+  "fio_vs_xfs_1n_tcp_1785058986": {
+    "ts": "2026-07-26T09:43:06Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "tcp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 508
+      },
+      "seq_read_1m": {
+        "bw_mib": 6736
+      },
+      "rand_write_4k": {
+        "iops": 596
+      },
+      "rand_read_4k": {
+        "iops": 105363
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 149
+      },
+      "seq_read_1m": {
+        "bw_mib": 6918
+      },
+      "rand_write_4k": {
+        "iops": 1011
+      },
+      "rand_read_4k": {
+        "iops": 102882
+      }
+    },
+    "ratio_pct": {
+      "seqW": 79,
+      "seqR": 102,
+      "randW": 106,
+      "randR": 97
+    }
+  },
+  "fio_perf_16n_cawp_1785062460": {
+    "ts": "2026-07-26T10:41:00Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "cawp",
+    "fs": "cawp",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3476
+      },
+      "seq_read_1m": {
+        "bw_mib": 3662
+      },
+      "rand_write_4k": {
+        "iops": 77094
+      },
+      "rand_read_4k": {
+        "iops": 373133
+      }
+    }
+  },
+  "fio_vs_xfs_1n_cawp_1785062865": {
+    "ts": "2026-07-26T10:47:45Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "cawp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 787
+      },
+      "seq_read_1m": {
+        "bw_mib": 1532
+      },
+      "rand_write_4k": {
+        "iops": 18456
+      },
+      "rand_read_4k": {
+        "iops": 38348
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 171
+      },
+      "seq_read_1m": {
+        "bw_mib": 1446
+      },
+      "rand_write_4k": {
+        "iops": 29084
+      },
+      "rand_read_4k": {
+        "iops": 44311
+      }
+    },
+    "ratio_pct": {
+      "seqW": 65,
+      "seqR": 94,
+      "randW": 132,
+      "randR": 115
+    }
+  },
+  "fio_vs_xfs_1n_cawp_1785063084": {
+    "ts": "2026-07-26T10:51:24Z",
+    "test": "fio_vs_xfs_baseline",
+    "nodes": 1,
+    "dlm": "cawp",
+    "size": "256m",
+    "xfs": {
+      "seq_write_1m": {
+        "bw_mib": 305
+      },
+      "seq_read_1m": {
+        "bw_mib": 1267
+      },
+      "rand_write_4k": {
+        "iops": 22981
+      },
+      "rand_read_4k": {
+        "iops": 45073
+      }
+    },
+    "mxfs": {
+      "seq_write_1m": {
+        "bw_mib": 331
+      },
+      "seq_read_1m": {
+        "bw_mib": 1600
+      },
+      "rand_write_4k": {
+        "iops": 33248
+      },
+      "rand_read_4k": {
+        "iops": 47732
+      }
+    },
+    "ratio_pct": {
+      "seqW": 78,
+      "seqR": 126,
+      "randW": 137,
+      "randR": 105
+    }
   }
 }

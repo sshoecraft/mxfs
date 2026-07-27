@@ -184,6 +184,21 @@ struct mxfs_v5_dlm {
      * so peers' dead-node purge reclaims whatever this node still holds. */
     bool                        withdrawn;
 
+    /* sess11 (ccloop c7ee71c6) withdraw@2: identities that died this
+     * mount (withdrawn / fenced / departed cleanly).  A force-shut-down
+     * zombie stays MOUNTED with its discovery+lease threads running; its
+     * ~500ms announces re-register it into the lease, and nothing in the
+     * P163 recovery path ever unregistered it — so hash%active_nodes
+     * mastership kept routing to a node that drops all master traffic
+     * (PROVEN: survivor retried ino=128 PR against master=dead for 184s,
+     * rc=-110, force-shutdown).  Node ids derive from per-MOUNT random
+     * uuids, so a dead id never legitimately returns — a rejoining node
+     * mints a fresh id.  Fixed append ring; benign races (plain aligned
+     * u32 loads/stores, refresh-filter is the airtight backstop). */
+#define MXFS_V5_DEAD_SET 32
+    mxfs_node_id_t              dead_nodes[MXFS_V5_DEAD_SET];
+    unsigned int                dead_next;
+
     /* BAST notification callback (Phase 3: lock caching) */
     mxfs_v5_bast_notify_fn      bast_notify_fn;
     void                        *bast_notify_data;
@@ -284,6 +299,10 @@ static int v5_dlm_send_cb_tcp(struct mxfs_dlm_ctx *dlm_ctx,
  * peer wants a lock WE hold — dispatch to the v5 layer notify_fn so
  * the XFS code can flush+release.
  */
+static void v5_refresh_active_nodes(struct mxfs_v5_dlm *ctx);
+static bool v5_node_is_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id);
+static void v5_note_dead_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id);
+
 static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
                                void *msg, size_t len)
 {
@@ -295,6 +314,20 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
 
     hdr = (const struct mxfs_dlm_msg_hdr *)msg;
     if (hdr->magic != MXFS_DLM_MAGIC)
+        return;
+
+    /*
+     * sess9 (ccloop c7ee71c6) D2: a withdrawn node must not serve MASTER
+     * duties.  Granting a lock during the withdraw-recovery window would
+     * hand a peer a resource whose durable state may still be torn
+     * (our slice unreplayed).  Drop request/convert/release traffic —
+     * requesters retry inside their 60 s budgets and re-route once the
+     * recovery purge remasters our resources (a few seconds).
+     */
+    if (ctx->withdrawn &&
+        (hdr->type == MXFS_MSG_LOCK_REQ ||
+         hdr->type == MXFS_MSG_LOCK_CONVERT ||
+         hdr->type == MXFS_MSG_LOCK_RELEASE))
         return;
 
     switch (hdr->type) {
@@ -348,10 +381,27 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
         break;
     }
     case MXFS_MSG_NODE_LEAVE:
+        /* v0.11.79 (D6): a clean-departing peer said goodbye.  Drop it from
+         * membership NOW: clear any suspect entry (its imminent TCP close is
+         * expected, not a death), purge its (already-released) grants, and
+         * refresh the active view so EX work never grinds the 40s death
+         * grace against a node that is simply gone. */
+        mxfs_pal_log(MXFS_LOG_INFO,
+                     "mxfs: P-GOODBYE-RX node %u departed cleanly", sender);
+        if (ctx->tcp_suspect_lock) {
+            int gslot = (int)(sender % MXFS_MAX_NODES);
+
+            mxfs_pal_mutex_lock(ctx->tcp_suspect_lock);
+            if (ctx->tcp_suspect_node[gslot] == sender)
+                ctx->tcp_suspect_since[gslot] = 0;
+            mxfs_pal_mutex_unlock(ctx->tcp_suspect_lock);
+        }
         if (ctx->dlm)
             mxfs_dlm_purge_node(ctx->dlm, sender);
         if (ctx->lease)
             mxfs_lease_unregister_node(ctx->lease, sender);
+        v5_note_dead_node(ctx, sender);   /* sess11: id never returns */
+        v5_refresh_active_nodes(ctx);
         break;
     default:
         break;
@@ -364,6 +414,30 @@ static void v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender,
  * over a 3s window; we do the simpler immediate update here — sess27
  * priority is correctness, not low-churn membership.
  */
+/* sess11: see dead_nodes in the ctx.  Membership entry points MUST treat a
+ * retired identity as if it never spoke again. */
+static bool v5_node_is_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
+{
+    int i;
+
+    if (!node_id)
+        return false;
+    for (i = 0; i < MXFS_V5_DEAD_SET; i++)
+        if (ctx->dead_nodes[i] == node_id)
+            return true;
+    return false;
+}
+
+static void v5_note_dead_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
+{
+    if (!node_id || v5_node_is_dead(ctx, node_id))
+        return;
+    ctx->dead_nodes[ctx->dead_next++ % MXFS_V5_DEAD_SET] = node_id;
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "mxfs: P164-DEAD-NOTE node=%u — identity retired; its "
+                 "announces/connects are ignored from now on", node_id);
+}
+
 static void v5_refresh_active_nodes(struct mxfs_v5_dlm *ctx)
 {
     mxfs_node_id_t nodes[MXFS_MAX_NODES];
@@ -374,7 +448,16 @@ static void v5_refresh_active_nodes(struct mxfs_v5_dlm *ctx)
 
     count = mxfs_lease_get_active_nodes(ctx->lease, nodes, MXFS_MAX_NODES);
     /* lease registers self at index 0 with state=ACTIVE in mxfs_lease_create,
-     * so the returned list already includes us — no append needed. */
+     * so the returned list already includes us — no append needed.
+     *
+     * sess11: deliberately NO dead_nodes filtering here.  A dying node
+     * leaves the lease (and thus mastership) ONLY at recovery completion
+     * (v5_recovered_cb / mxfs_v5_dlm_recovery_complete unregister it) —
+     * filtering at refresh time would remaster its resources the moment
+     * it is fenced, re-opening the fence→replay-complete torn window the
+     * D2 deferred-purge protocol closes.  The dead set only gates
+     * RE-registration (announce/connect), which cannot occur before the
+     * unregister that makes it matter. */
     if (count > 0)
         mxfs_dlm_update_active_nodes(ctx->dlm, nodes, count);
 }
@@ -489,8 +572,53 @@ static void v5_membership_cb_tcp(struct mxfs_dlm_ctx *dlm_ctx)
  * grace-checker thread after the peer fails to reconnect within the grace
  * window.  Idempotent: a second call for an already-purged node is a no-op.
  */
+/* v0.11.80 (D4): hardware-fence a dead/departed node's PR registration
+ * BEFORE purging its locks and remastering — a TCP-dead-but-disk-alive
+ * peer (partition, stall-then-revive) must lose its write access first,
+ * so its next journal write bounces EBADE (WE-RO) and the D1 machinery
+ * shuts it down cleanly.  fence_node does READ KEYS classification (no
+ * blind preempt of absent keys).  Returns false when OUR OWN key turned
+ * out to be gone: this node may itself be the fenced one — it self-fences
+ * (freeze via fence_notify) and the caller must NOT continue recovery. */
+static bool v5_pr_fence_dead_node(struct mxfs_v5_dlm *ctx,
+                                  mxfs_node_id_t dead_node)
+{
+    mxfs_node_id_t live[MXFS_MAX_NODES];
+    int nlive = 0, i, fret;
+
+    if (!ctx->scsipr)
+        return true;
+    /* live member count INCLUDING self, EXCLUDING the victim (the lease
+     * may still list a hard-dead node as ACTIVE during the TCP grace). */
+    if (ctx->lease) {
+        nlive = mxfs_lease_get_active_nodes(ctx->lease, live, MXFS_MAX_NODES);
+        for (i = 0; i < nlive; i++) {
+            if (live[i] == dead_node) {
+                nlive--;
+                break;
+            }
+        }
+    }
+    if (nlive < 1)
+        nlive = 1;      /* self is always live here */
+    fret = mxfs_scsipr_fence_node(ctx->scsipr, dead_node, nlive);
+    if (fret == -ESTALE) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "mxfs: P-PR-SELFFENCE own PR key gone while fencing "
+                     "node %u — freezing this node (no auto-re-register)",
+                     dead_node);
+        if (ctx->fence_notify_fn)
+            ctx->fence_notify_fn(ctx->fence_notify_data);
+        return false;
+    }
+    return true;
+}
+
 static void v5_tcp_declare_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id)
 {
+    if (!v5_pr_fence_dead_node(ctx, node_id))
+        return;
+    v5_note_dead_node(ctx, node_id);      /* sess11: fenced = retired */
     if (ctx->dlm)
         mxfs_dlm_purge_node(ctx->dlm, node_id);
     if (ctx->lease)
@@ -503,8 +631,40 @@ static void v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id)
     struct mxfs_v5_dlm *ctx = data;
     int slot = (int)(node_id % MXFS_MAX_NODES);
 
+    /* sess11: a retired identity reconnecting (zombie peer manager) must
+     * not re-register or cancel a pending death. */
+    if (v5_node_is_dead(ctx, node_id)) {
+        pr_warn_ratelimited(
+            "mxfs: P164-DEAD-REJECT connect node=%u — retired identity ignored\n",
+            node_id);
+        return;
+    }
+
     mxfs_pal_log(MXFS_LOG_INFO,
                  "mxfs: TCP peer %u connected", node_id);
+
+    /*
+     * sess5 (ccloop-4dd7) pve9 split-brain ROOT FIX: an inbound/fallback
+     * TCP connect can be this node's FIRST sight of any peer — the
+     * accepting node's own discovery of the initiator arrives LATER and
+     * early-returns on mxfs_lease_has_node (we register the node below),
+     * so the discovery-path single→multi transition NEVER runs here.
+     * Without it, the refresh below exits single-node and WIPES the DLM
+     * lock table while the XFS layer still believes it holds its single-
+     * node grants (pag_dlm_cached etc.) — phantom holds; both nodes then
+     * self-master the same resources with ZERO BASTs and split-brain the
+     * shared LUN (pve9-1/pve9-2: divergent root dirs within seconds).
+     * Mirror the discovery path's ordering: XFS flush + perag/inode DLM
+     * cache invalidation (peer_joined_notify) FIRST, then registration/
+     * refresh.  was_single gates re-connect flaps to a no-op.
+     */
+    if (ctx->dlm && mxfs_dlm_is_single_node(ctx->dlm) &&
+        ctx->peer_joined_notify_fn) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: TCP peer %u connected while SINGLE-NODE — running deferred single→multi transition (inbound-connect-first join)",
+                     node_id);
+        ctx->peer_joined_notify_fn(ctx->peer_joined_notify_data);
+    }
 
     /* sess45 (ccloop 4cb2d0a2) SELF-FENCE on EVERY reconnect.  This MUST be
      * unconditional — NOT only inside the suspect-cancel branch below.  The
@@ -552,6 +712,19 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 {
     struct mxfs_v5_dlm *ctx = data;
     int slot = (int)(node_id % MXFS_MAX_NODES);
+
+    /* v0.11.79 (D6): a peer that already broadcast NODE_LEAVE was
+     * unregistered from the lease and purged — its socket close is the
+     * expected tail of a CLEAN departure, not a death.  Skip the suspect
+     * marking and the EX self-fence entirely.  A merely-SUSPECT node (lease
+     * misses) still has_node==true, so the fast TCP death path is intact
+     * for real failures. */
+    if (ctx->lease && !mxfs_lease_has_node(ctx->lease, node_id)) {
+        mxfs_pal_log(MXFS_LOG_INFO,
+                     "mxfs: TCP peer %u closed after clean departure — no death grace",
+                     node_id);
+        return;
+    }
 
     /*
      * sess39 ROOT FIX: a TCP disconnect under heavy load is usually a
@@ -604,6 +777,7 @@ static void v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id)
 static void v5_tcp_death_worker_fn(void *arg)
 {
     struct mxfs_v5_dlm *ctx = arg;
+    int selfcheck_ticks = 0;
 
     while (!ctx->tcp_death_stop) {
         int i;
@@ -612,6 +786,46 @@ static void v5_tcp_death_worker_fn(void *arg)
         mxfs_pal_sleep_ms(500);
         if (ctx->tcp_death_stop)
             break;
+
+        /* v0.11.80 (D8): periodic PR self-check (~30s).  READ KEYS is a
+         * cheap PR IN; catches a target that silently dropped our
+         * registration (measured on QNAP QTS: purges ALL registrations
+         * on session events with no PRgen bump) before a write bounces.
+         * Unambiguous preemption → self-fence, never re-register. */
+        if (++selfcheck_ticks >= 60) {
+            selfcheck_ticks = 0;
+            if (ctx->scsipr && ctx->lease && ctx->mounted) {
+                mxfs_node_id_t live[MXFS_MAX_NODES];
+                int nlive = mxfs_lease_get_active_nodes(ctx->lease, live,
+                                                        MXFS_MAX_NODES);
+                int scret;
+
+                if (nlive < 1)
+                    nlive = 1;
+                scret = mxfs_scsipr_self_check(ctx->scsipr, nlive);
+                {
+                    /* D8 RULE-4 probe: every tick's verdict, first 20 */
+                    static int d8_tick_logs;
+
+                    if (d8_tick_logs < 20) {
+                        d8_tick_logs++;
+                        mxfs_pal_log(MXFS_LOG_WARN,
+                                     "mxfs: P-D8-TICK nlive=%d ret=%d",
+                                     nlive, scret);
+                    }
+                }
+                if (scret == -ESTALE) {
+                    mxfs_pal_log(MXFS_LOG_ERR,
+                                 "mxfs: P-PR-SELFFENCE self-check found own "
+                                 "PR key preempted — freezing this node "
+                                 "(no auto-re-register)");
+                    if (ctx->fence_notify_fn)
+                        ctx->fence_notify_fn(ctx->fence_notify_data);
+                    return;
+                }
+            }
+        }
+
         if (!ctx->tcp_suspect_lock)
             continue;
 
@@ -628,6 +842,26 @@ static void v5_tcp_death_worker_fn(void *arg)
             }
             mxfs_pal_mutex_unlock(ctx->tcp_suspect_lock);
 
+            if (dead != 0 && ctx->peer &&
+                mxfs_peer_is_connected(ctx->peer, dead)) {
+                /* ccloop c7ee71c6 sess12: never declare dead a peer the
+                 * peer layer holds an ACTIVE socket to.  The proven
+                 * incident was an outbound reconnect that skipped
+                 * connect_cb (fixed in peer_connect_impl), but ANY
+                 * future silent re-establish path must not let this
+                 * timer kill a live connection: a wrong death here
+                 * purges the lock table (phantom grants at masters),
+                 * P164-retires a LIVE identity with no rejoin path,
+                 * and forks membership → divergent hash-mastership.
+                 * A truly half-dead ACTIVE socket cannot hide: its
+                 * next send/recv errors, re-arms the suspect entry,
+                 * and the next grace cycle reaps it. */
+                mxfs_pal_log(MXFS_LOG_WARN,
+                             "mxfs: TCP peer %u suspect grace expired but "
+                             "peer socket is ACTIVE — cancelling death "
+                             "(late/silent reconnect)", dead);
+                dead = 0;
+            }
             if (dead != 0) {
                 mxfs_pal_log(MXFS_LOG_WARN,
                              "mxfs: TCP peer %u did not reconnect within "
@@ -708,6 +942,16 @@ static void v5_discovery_peer_cb(void *data,
 
     if (ann->node_id == ctx->node_id)
         return;
+
+    /* sess11: a retired identity (withdrawn/fenced/departed) keeps
+     * announcing every ~500ms until its zombie mount is unmounted —
+     * never let it back into the lease or the peer mesh. */
+    if (v5_node_is_dead(ctx, ann->node_id)) {
+        pr_warn_ratelimited(
+            "mxfs: P164-DEAD-REJECT announce node=%u — retired identity ignored\n",
+            ann->node_id);
+        return;
+    }
 
     /* v0.3.111 sess27: discovery announces fire every ~500ms.  Dedup
      * here so we don't repeatedly flush+register the same peer.  The
@@ -807,39 +1051,78 @@ static void v5_self_fence_cb(void *data)
         ctx->fence_notify_fn(ctx->fence_notify_data);
 }
 
+/* v0.11.78 (D7): lease-beacon view-signature glue.  TCP-only in effect —
+ * on the CAW branch ctx->dlm is NULL, the provider returns 0 and the RX
+ * report is a no-op, so wiring is unconditionally safe. */
+static uint64_t v5_view_sig_provider(void *data, uint32_t *count)
+{
+    struct mxfs_v5_dlm *ctx = data;
+
+    return mxfs_dlm_get_view_sig(ctx->dlm, count);
+}
+
+static void v5_view_report_cb(void *data, mxfs_node_id_t node,
+                              uint32_t count, uint64_t hash)
+{
+    struct mxfs_v5_dlm *ctx = data;
+
+    mxfs_dlm_report_peer_view(ctx->dlm, node, count, hash);
+}
+
 static void v5_lease_expire_cb(void *data, mxfs_node_id_t dead_node)
 {
     struct mxfs_v5_dlm *ctx = data;
     int dead_slot = -1;
 
     mxfs_pal_log(MXFS_LOG_WARN,
-                 "mxfs: node %u lease expired — purging locks", dead_node);
+                 "mxfs: node %u lease expired/died — fencing; recovery "
+                 "starting", dead_node);
 
-    if (ctx->disklock) {
+    /* v0.11.80 (D4): fence FIRST — no slice replay or remaster while the
+     * (possibly only TCP/lease-dead) node can still write. */
+    if (!v5_pr_fence_dead_node(ctx, dead_node))
+        return;
+
+    /* sess11: from the moment the fence lands, this identity must never
+     * re-enter membership — its zombie mount keeps announcing until the
+     * operator unmounts it.  (Lease unregistration itself is deferred to
+     * recovery completion: mastership must stay frozen on the dead node
+     * until its slice is replayed, per the D2 deferred-purge protocol.) */
+    v5_note_dead_node(ctx, dead_node);
+
+    if (ctx->disklock)
         dead_slot = mxfs_disklock_find_node_slot(ctx->disklock, dead_node);
-        if (dead_slot >= 0 && ctx->dlm_caw)
-            mxfs_dlm_caw_purge_node(ctx->dlm_caw, (uint8_t)dead_slot);
-        mxfs_disklock_purge_node(ctx->disklock, dead_node);
-    }
-
-    if (ctx->dlm) {
-        mxfs_dlm_purge_node(ctx->dlm, dead_node);
-        v5_refresh_active_nodes(ctx);
-    }
-    v5_membership_beacon_caw(ctx);     /* v0.6.0: no-op on TCP */
 
     /*
-     * v0.5.0 foreign-slice replay election.  The dead node's
-     * fsync-acknowledged metadata may exist only in its per-node XFS log
-     * slice; one survivor must replay it NOW or readers serve stale data
-     * until some future mount claims the slice.  Lowest live heartbeat
-     * slot wins; replay is LSN-gated/idempotent, so a divergent election
-     * view merely duplicates work.  This runs in the heartbeat thread —
-     * the notify body queues work and returns.
+     * sess9 (ccloop c7ee71c6) D2: DO NOT purge here.  The dead node's
+     * journal slice may carry committed-but-partially-destaged
+     * transactions (PROVEN drc@16 r13: ifree destaged, dirent-remove
+     * abandoned with the log → durable dangling dirent) — releasing its
+     * grants before the slice is replayed hands every peer that torn
+     * view.  Instead: mark recovery pending; the elected survivor
+     * replays the slice, then runs mxfs_v5_dlm_recovery_complete (shared
+     * purges + zeroing the dead HB slot); every other survivor's monitor
+     * sees the zeroed slot and runs its deferred LOCAL purge
+     * (v5_recovered_cb).  Grants held by the dead node stay frozen for
+     * the few seconds this takes — conflicting acquires simply wait
+     * inside their 60 s budgets, so the sess10 -ETIMEDOUT domino (which
+     * motivated the old instant withdraw_release_all) cannot re-form.
+     *
+     * Both the disklock monitor (2 s scans) and the lease layer (600 s)
+     * register this callback — the pending flag doubles as the
+     * duplicate-invocation guard.
      */
     if (ctx->disklock && dead_slot >= 0 && ctx->dead_node_notify_fn) {
-        int low = mxfs_disklock_lowest_live_slot(ctx->disklock, dead_slot);
+        int low;
+        int p;
+        mxfs_node_id_t pn;
 
+        if (mxfs_disklock_recovery_is_pending(ctx->disklock, dead_slot))
+            return;
+        mxfs_disklock_mark_recovery_pending(ctx->disklock, dead_slot,
+                                            dead_node);
+
+        low = mxfs_disklock_lowest_live_slot(ctx->disklock, dead_slot);
         if (low >= 0 && low == ctx->disklock->local_slot) {
             mxfs_pal_log(MXFS_LOG_WARN,
                          "mxfs: elected (slot %d) to replay dead node %u's "
@@ -849,10 +1132,142 @@ static void v5_lease_expire_cb(void *data, mxfs_node_id_t dead_node)
         } else {
             mxfs_pal_log(MXFS_LOG_INFO,
                          "mxfs: not elected for dead-slice replay "
-                         "(lowest live slot %d, local %d)",
+                         "(lowest live slot %d, local %d) — deferring "
+                         "local purge until the slot is reclaimed",
                          low, ctx->disklock->local_slot);
         }
+
+        /*
+         * Re-election sweep: if the node that just died was itself the
+         * elected replayer of an EARLIER pending slot, that slot would
+         * wedge forever.  Recompute the election for every other pending
+         * slot against the shrunken live set; replay is LSN-gated and
+         * idempotent, so a duplicate election costs only duplicate work.
+         */
+        for (p = mxfs_disklock_recovery_pending_iter(ctx->disklock, -1, &pn);
+             p >= 0;
+             p = mxfs_disklock_recovery_pending_iter(ctx->disklock, p, &pn)) {
+            if (p == dead_slot)
+                continue;
+            low = mxfs_disklock_lowest_live_slot(ctx->disklock, p);
+            if (low >= 0 && low == ctx->disklock->local_slot) {
+                mxfs_pal_log(MXFS_LOG_WARN,
+                             "mxfs: re-elected (slot %d) to replay pending "
+                             "slice %d (node %u) after replayer death",
+                             low, p, pn);
+                ctx->dead_node_notify_fn(ctx->dead_node_notify_data,
+                                         (uint32_t)p);
+            }
+        }
+        return;
     }
+
+    /*
+     * Fallback — no disklock slot / no replay hook (user-mode tools,
+     * pre-claim deaths): the legacy immediate purge.  Nothing to replay
+     * or no way to coordinate it; behave as before.
+     */
+    if (ctx->disklock) {
+        if (dead_slot >= 0 && ctx->dlm_caw)
+            mxfs_dlm_caw_purge_node(ctx->dlm_caw, (uint8_t)dead_slot);
+        mxfs_disklock_purge_node(ctx->disklock, dead_node);
+    }
+    if (ctx->dlm) {
+        mxfs_dlm_purge_node(ctx->dlm, dead_node);
+        v5_refresh_active_nodes(ctx);
+    }
+    v5_membership_beacon_caw(ctx);     /* v0.6.0: no-op on TCP */
+}
+
+/*
+ * sess9 (ccloop c7ee71c6) D2: deferred LOCAL purge, fired by the disklock
+ * monitor when a recovery-pending slot reads reclaimed (the elected
+ * replayer zeroed it after replaying the slice, or the dead node itself
+ * remounted with a new epoch — its own mount recovery replayed it).
+ * Runs in the heartbeat thread, same context the old expire-time purge
+ * used.
+ */
+static void v5_recovered_cb(void *data, int slot, mxfs_node_id_t dead_node)
+{
+    struct mxfs_v5_dlm *ctx = data;
+
+    (void)slot;
+    /* sess11: recovery is complete — NOW the dead identity leaves the
+     * membership view.  Without this the lease still lists it, refresh
+     * pushes the same node list, and hash%active_nodes mastership keeps
+     * routing 1/N of all resources to a node that drops master traffic
+     * (PROVEN withdraw@2: 184s of P-LKTIMEOUT-REMOTE on ino=128 →
+     * rc=-110 → survivor force-shutdown). */
+    v5_note_dead_node(ctx, dead_node);
+    if (ctx->lease)
+        mxfs_lease_unregister_node(ctx->lease, dead_node);
+    if (ctx->dlm) {
+        mxfs_dlm_purge_node(ctx->dlm, dead_node);
+        v5_refresh_active_nodes(ctx);
+    }
+    v5_membership_beacon_caw(ctx);     /* v0.6.0: no-op on TCP */
+}
+
+/*
+ * sess9 (ccloop c7ee71c6) D2: called by the elected replayer (XFS-side
+ * foreign-replay worker) once the dead node's slice is durably replayed.
+ * Order matters: shared purges first (CAW lock table, disklock lock
+ * records), local grant purge, THEN zero the dead HB slot — the zeroing
+ * is the cluster-wide "replay done" signal that releases every peer's
+ * deferred local purge (their monitors poll the slot).  Process context;
+ * sleeping I/O throughout.
+ */
+void mxfs_v5_dlm_recovery_complete(struct mxfs_v5_dlm *ctx, uint32_t dead_slot)
+{
+    mxfs_node_id_t dead_node;
+
+    /* sess10 (ccloop c7ee71c6): both bail paths below were SILENT — a
+     * withdraw_recovery_test FAIL showed the elected replayer finish the
+     * slice replay yet never print P163-RECOVERY-COMPLETE, with nothing
+     * wedged; name the exit taken so the next run is decisive. */
+    if (!ctx || !ctx->disklock || dead_slot >= MXFS_DISKLOCK_HB_SLOTS) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P163-COMPLETE-BAIL slot=%u ctx=%d disklock=%d",
+                     dead_slot, ctx ? 1 : 0,
+                     (ctx && ctx->disklock) ? 1 : 0);
+        return;
+    }
+    dead_node = mxfs_disklock_pending_node(ctx->disklock, (int)dead_slot);
+    if (!dead_node) {
+        /* Not marked pending (legacy path already purged) — nothing to
+         * complete. */
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P163-COMPLETE-NOPEND slot=%u pending=%d — "
+                     "no pending node recorded; completion skipped",
+                     dead_slot,
+                     mxfs_disklock_recovery_is_pending(ctx->disklock,
+                                                      (int)dead_slot) ? 1 : 0);
+        return;
+    }
+
+    if (ctx->dlm_caw)
+        mxfs_dlm_caw_purge_node(ctx->dlm_caw, (uint8_t)dead_slot);
+    /* sess11: drop the dead identity from the lease BEFORE refreshing, or
+     * the refresh re-reads the same stale list and mastership never
+     * leaves the dead node (see v5_recovered_cb).  Elected replayer runs
+     * this; every other survivor runs the identical pair in
+     * v5_recovered_cb when its monitor sees the zeroed slot. */
+    v5_note_dead_node(ctx, dead_node);
+    if (ctx->lease)
+        mxfs_lease_unregister_node(ctx->lease, dead_node);
+    if (ctx->dlm) {
+        mxfs_dlm_purge_node(ctx->dlm, dead_node);
+        v5_refresh_active_nodes(ctx);
+    }
+    mxfs_disklock_clear_recovery_pending(ctx->disklock, (int)dead_slot);
+    /* Zero the dead node's lock records + HB sector — the broadcast. */
+    mxfs_disklock_purge_node(ctx->disklock, dead_node);
+    v5_membership_beacon_caw(ctx);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "mxfs: P163-RECOVERY-COMPLETE slot=%u node=%u — slice "
+                 "replayed, shared purges done, dead slot zeroed (peers "
+                 "will run their deferred purges)",
+                 dead_slot, dead_node);
 }
 
 /* ─── Init ─── */
@@ -987,14 +1402,32 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
             ctx->scsipr = mxfs_scsipr_create(ctx->dev, "mxfs", ctx->node_id);
             if (ctx->scsipr) {
                 if (mxfs_scsipr_register(ctx->scsipr)) {
-                    mxfs_pal_log(MXFS_LOG_WARN,
+                    /* v0.11.75: the device HAS PR but refused our
+                     * REGISTER — peers may hold/enforce WE-RO while we
+                     * are unfenced, so every write (incl. the journal)
+                     * can bounce EBADE at any moment while the mount
+                     * looks healthy (proven on the QNAP physical rig).
+                     * Parity with the CAW branch: abort the mount.
+                     * A device with NO PR support returns 0 from
+                     * register (via -EOPNOTSUPP) and proceeds as
+                     * before. */
+                    mxfs_pal_log(MXFS_LOG_ERR,
                                  "mxfs: TCP SCSI PR register failed — "
-                                 "slot-claim CAW may be rejected");
+                                 "aborting mount (node would be unfenced "
+                                 "under a possible WE-RO reservation)");
                     mxfs_scsipr_destroy(ctx->scsipr);
                     ctx->scsipr = NULL;
-                } else {
-                    mxfs_scsipr_reserve(ctx->scsipr);
+                    mxfs_peer_shutdown(ctx->peer);
+                    ctx->peer = NULL;
+                    mxfs_dlm_destroy(ctx->dlm);
+                    ctx->dlm = NULL;
+                    goto err_free;
                 }
+                mxfs_scsipr_reserve(ctx->scsipr);
+                /* v0.11.80 (D8): provisioning-time conformance probe —
+                 * says at mount whether per-node PR is real on this
+                 * target/topology or advisory-only. */
+                mxfs_scsipr_probe(ctx->scsipr);
             }
         }
 
@@ -1038,6 +1471,10 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
                                  ret);
                 mxfs_disklock_set_expire_cb(ctx->disklock,
                                              v5_lease_expire_cb, ctx);
+                /* sess9 D2: deferred-purge release when the dead slot
+                 * reads reclaimed (slice replay done). */
+                mxfs_disklock_set_recovered_cb(ctx->disklock,
+                                               v5_recovered_cb, ctx);
             }
         }
 
@@ -1066,6 +1503,12 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
                                         "239.66.83.1", MXFS_PORT_LEASE_V5, false);
         if (ctx->lease) {
             mxfs_lease_set_expire_cb(ctx->lease, v5_lease_expire_cb, ctx);
+            /* v0.11.78 (D7): view-signature piggyback — peers prove
+             * membership convergence instead of the 20s settle window. */
+            mxfs_lease_set_view_provider(ctx->lease,
+                                         v5_view_sig_provider, ctx);
+            mxfs_lease_set_view_report_cb(ctx->lease,
+                                          v5_view_report_cb, ctx);
             ret = mxfs_lease_start(ctx->lease);
             if (ret)
                 mxfs_pal_log(MXFS_LOG_WARN,
@@ -1074,9 +1517,85 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 
         ctx->mounted = true;
 
+        /* Print BEFORE the settle gate below: run.sh's convergence awk
+         * resets its beacon window at this line, and the joiner's only
+         * MXFS-MEMBERSHIP beacon fires DURING the gate (the join
+         * callbacks) — printing after would orphan that beacon and hard-
+         * fail prep ("no beacon this incarnation"). */
         mxfs_pal_log(MXFS_LOG_INFO,
                      "mxfs: TCP DLM initialized (port=%u node_id=%u slot=%d)",
                      dlm_port, ctx->node_id, ctx->node_slot);
+
+        /*
+         * sess5 (ccloop-4dd7) MEMBERSHIP-SETTLE GATE (pve9 n1_seed loss):
+         * the disklock slot table is ground truth of liveness — if OTHER
+         * ACTIVE slots exist at mount time, an existing cluster owns this
+         * LUN, and returning before DLM membership includes those nodes
+         * lets the first local write self-grant on a stale base and
+         * durably clobber the existing members' state (the joiner's touch
+         * beat the peer-connect transition by ~1s and lost pve9-1's
+         * unflushed root dirent).  Wait (bounded) until the lease view
+         * covers every active foreign slot; dead slots simply time the
+         * gate out and the heartbeat monitor evicts them later.
+         */
+        if (ctx->disklock && ctx->lease) {
+            uint64_t fmask = 0;
+
+            if (mxfs_disklock_get_stale_slot_mask(ctx->disklock, 0,
+                                                  ctx->node_slot,
+                                                  &fmask) == 0 && fmask) {
+                int foreign = 0, want, have = 0, waited = 0;
+                bool ghost_checked = false;
+                mxfs_node_id_t mnodes[MXFS_MAX_NODES];
+                uint64_t m;
+
+                for (m = fmask; m; m &= (m - 1))
+                    foreign++;
+                want = foreign + 1;
+                while (waited < 15000) {
+                    have = mxfs_lease_get_active_nodes(ctx->lease, mnodes,
+                                                       MXFS_MAX_NODES);
+                    if (have >= want)
+                        break;
+                    /* v0.11.76 (D5): not settled after 2s — one-time
+                     * liveness rescan separates live peers (heartbeat
+                     * advancing) from ghosts (ACTIVE flag, frozen
+                     * timestamp: crash leftovers) and stops waiting for
+                     * lease entries the ghosts will never produce.
+                     * All-live joins settle in <2s and never pay this. */
+                    if (waited >= 2000 && !ghost_checked) {
+                        uint64_t stale = 0;
+
+                        ghost_checked = true;
+                        if (mxfs_disklock_get_stale_slot_mask(
+                                ctx->disklock, 5000, ctx->node_slot,
+                                &stale) == 0 && (stale &= fmask)) {
+                            int nstale = 0;
+
+                            for (m = stale; m; m &= (m - 1))
+                                nstale++;
+                            foreign -= nstale;
+                            want = foreign + 1;
+                            mxfs_pal_log(MXFS_LOG_WARN,
+                                         "mxfs: P-MEMB-GATE-GHOSTS %d frozen foreign slot(s) discounted (crash leftovers; monitor will evict)",
+                                         nstale);
+                        }
+                        waited += 5000;
+                        continue;
+                    }
+                    mxfs_pal_sleep_ms(250);
+                    waited += 250;
+                }
+                if (have >= want)
+                    mxfs_pal_log(MXFS_LOG_INFO,
+                                 "mxfs: membership settled at mount: %d active slot(s) on LUN, lease sees %d node(s) after %dms",
+                                 foreign, have, waited);
+                else
+                    mxfs_pal_log(MXFS_LOG_WARN,
+                                 "mxfs: P-MEMB-SETTLE-TIMEOUT %d active foreign slot(s) on LUN but lease sees only %d node(s) after %dms — proceeding (slots may be dead; monitor will evict)",
+                                 foreign, have, waited);
+            }
+        }
         return ctx;
     }
 
@@ -1105,6 +1624,8 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
             goto err_scsipr;
         }
         mxfs_scsipr_reserve(ctx->scsipr);
+        /* v0.11.80 (D8): provisioning-time conformance probe */
+        mxfs_scsipr_probe(ctx->scsipr);
     }
 
     /* 2. Disklock — claim heartbeat slot */
@@ -1180,6 +1701,9 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
         mxfs_pal_log(MXFS_LOG_WARN,
                      "mxfs: disk heartbeat start failed: %d", ret);
     mxfs_disklock_set_expire_cb(ctx->disklock, v5_lease_expire_cb, ctx);
+    /* sess9 D2: deferred-purge release when the dead slot reads
+     * reclaimed (slice replay done). */
+    mxfs_disklock_set_recovered_cb(ctx->disklock, v5_recovered_cb, ctx);
 
     /*
      * 6.5. Cross-instance stale-slot purge.
@@ -1251,9 +1775,70 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts)
 
     ctx->mounted = true;
 
+    /* Print BEFORE the settle gate — see the TCP-branch comment (run.sh
+     * convergence awk resets its beacon window at this line). */
     mxfs_pal_log(MXFS_LOG_INFO,
                  "mxfs: DLM initialized (CAW, slot=%d, node_id=%u)",
                  node_slot, ctx->node_id);
+
+    /* sess5: same membership-settle gate as the TCP branch — the joiner
+     * race (mount returns before the lease view covers the LUN's active
+     * slots; first local write self-grants on a stale base) is transport-
+     * independent. */
+    if (ctx->disklock && ctx->lease) {
+        uint64_t fmask = 0;
+
+        if (mxfs_disklock_get_stale_slot_mask(ctx->disklock, 0,
+                                              ctx->node_slot,
+                                              &fmask) == 0 && fmask) {
+            int foreign = 0, want, have = 0, waited = 0;
+            bool ghost_checked = false;
+            mxfs_node_id_t mnodes[MXFS_MAX_NODES];
+            uint64_t m;
+
+            for (m = fmask; m; m &= (m - 1))
+                foreign++;
+            want = foreign + 1;
+            while (waited < 15000) {
+                have = mxfs_lease_get_active_nodes(ctx->lease, mnodes,
+                                                   MXFS_MAX_NODES);
+                if (have >= want)
+                    break;
+                /* v0.11.76 (D5): same one-time ghost discrimination as
+                 * the TCP branch — see there. */
+                if (waited >= 2000 && !ghost_checked) {
+                    uint64_t stale = 0;
+
+                    ghost_checked = true;
+                    if (mxfs_disklock_get_stale_slot_mask(
+                            ctx->disklock, 5000, ctx->node_slot,
+                            &stale) == 0 && (stale &= fmask)) {
+                        int nstale = 0;
+
+                        for (m = stale; m; m &= (m - 1))
+                            nstale++;
+                        foreign -= nstale;
+                        want = foreign + 1;
+                        mxfs_pal_log(MXFS_LOG_WARN,
+                                     "mxfs: P-MEMB-GATE-GHOSTS %d frozen foreign slot(s) discounted (crash leftovers; monitor will evict)",
+                                     nstale);
+                    }
+                    waited += 5000;
+                    continue;
+                }
+                mxfs_pal_sleep_ms(250);
+                waited += 250;
+            }
+            if (have >= want)
+                mxfs_pal_log(MXFS_LOG_INFO,
+                             "mxfs: membership settled at mount: %d active slot(s) on LUN, lease sees %d node(s) after %dms",
+                             foreign, have, waited);
+            else
+                mxfs_pal_log(MXFS_LOG_WARN,
+                             "mxfs: P-MEMB-SETTLE-TIMEOUT %d active foreign slot(s) on LUN but lease sees only %d node(s) after %dms — proceeding (slots may be dead; monitor will evict)",
+                             foreign, have, waited);
+        }
+    }
 
     return ctx;
 
@@ -1297,21 +1882,42 @@ void mxfs_v5_dlm_shutdown_withdraw(struct mxfs_v5_dlm *ctx)
 
     ctx->withdrawn = true;
     mxfs_pal_log(MXFS_LOG_WARN,
-                 "mxfs: P-WITHDRAW — FS shut down; leaving cluster DLM "
-                 "(acquires fenced, heartbeat stopping; peers will purge "
-                 "our slots)");
-    /* sess10 (ccloop 72513a13): a withdrawn node's FS can never serve
-     * another BAST, but its grants stay in every master's table — peers'
-     * conflicting requests then starve to terminal -ETIMEDOUT and force-
-     * shut down too (the 32/tcp fio cascade: 1 dirty-cancel + 5 rc=-110
-     * dominoes on ino=128).  Wire-release everything we hold FIRST so
-     * peers promote immediately; the dead FS has no valid cache to
-     * protect.  TCP path only — on CAW the disklock slot purge (below,
-     * via heartbeat stop) already clears our on-disk holder bits. */
-    if (ctx->dlm)
-        mxfs_dlm_withdraw_release_all(ctx->dlm);
+                 "mxfs: P-WITHDRAW — FS shut down; declaring voluntary "
+                 "death (acquires fenced, grants FROZEN until peers "
+                 "replay our journal slice)");
+    /*
+     * sess9 (ccloop c7ee71c6) D2: withdraw_release_all REMOVED.  It
+     * wire-released every grant so peers promoted IMMEDIATELY — straight
+     * into our torn, unreplayed state (our log was just abandoned by the
+     * force-shutdown with buffers only partially destaged).  PROVEN
+     * drc@16 r13: t1's mid-rm shutdown released 155 grants, peers
+     * consumed a dirent→freed-inode tear, and the cluster served
+     * persistent lookup ENOENTs on live files.
+     *
+     * The sess10 -ETIMEDOUT domino that motivated the instant release
+     * came from death-DETECTION latency (62 s stale window / 600 s
+     * lease), not from the freeze itself.  The WITHDRAWN stamp below
+     * collapses detection to one monitor scan (~2-4 s); peers then
+     * fence us, the elected survivor replays our slice, and only after
+     * that do grants flow (deferred-purge protocol).  Conflicting
+     * acquires ride their 60 s budgets through the few-second window.
+     */
     if (ctx->disklock)
-        mxfs_disklock_stop_heartbeat(ctx->disklock);
+        mxfs_disklock_withdraw(ctx->disklock);
+    /* sess11: stop discovery announces — a dead identity must not keep
+     * advertising itself (peers' P164 gates reject it anyway; a corpse
+     * has no business soliciting connections).  Lease RENEWALS keep
+     * running on purpose: they hold our entry ACTIVE in every survivor's
+     * lease until recovery completion unregisters it, which is exactly
+     * the D2 freeze — mastership must not migrate off us before our
+     * journal slice is replayed.  (Stopping renewals here made survivors
+     * mark us SUSPECT ~2s in and remaster 4s BEFORE replay completed —
+     * measured 253.74 vs 258.00 on withdraw@2.)  Post-unregister the
+     * renewals are ignored as unknown-node until unmount stops them.
+     * Idempotent; process context (same workqueue that joins the HB
+     * thread). */
+    if (ctx->discovery)
+        mxfs_discovery_stop(ctx->discovery);
 }
 
 bool mxfs_v5_dlm_is_withdrawn(struct mxfs_v5_dlm *ctx)
@@ -1342,14 +1948,47 @@ void mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx)
         ctx->tcp_suspect_lock = NULL;
     }
 
-    if (ctx->dlm_caw)
+    /*
+     * sess9 (ccloop c7ee71c6) D2: a withdrawn (post-force-shutdown)
+     * teardown must NOT wire-release its grants either — our journal
+     * slice may still be unreplayed, and releasing here hands peers the
+     * same torn state the withdraw path froze (mirrors the D3/D6
+     * !withdrawn gates below).  Peers' recovery (fence → elected replay
+     * → purge) reclaims everything; local table teardown below frees the
+     * memory regardless.
+     */
+    if (ctx->dlm_caw && !ctx->withdrawn)
         mxfs_dlm_caw_release_all(ctx->dlm_caw);
-    if (ctx->dlm)
+    if (ctx->dlm && !ctx->withdrawn)
         mxfs_dlm_release_all(ctx->dlm);
 
     if (ctx->journal) {
         mxfs_journal_release_slot(ctx->journal);
         mxfs_journal_destroy(ctx->journal);
+    }
+
+    /* v0.11.79 (D6): clean departure says GOODBYE.  All grants are released
+     * and the journal slot is clean at this point, so peers can drop us from
+     * membership NOW instead of riding the TCP-disconnect suspect path
+     * (40s death grace + EX freeze + retry storm against a master that is
+     * simply gone).  A withdrawn/fenced teardown must NOT claim clean
+     * departure — peers have to treat it as a death and recover (mirrors
+     * the D3 !withdrawn gate on the disklock slot release below). */
+    if (ctx->peer && ctx->dlm && !ctx->withdrawn) {
+        struct mxfs_dlm_node_msg leave;
+
+        memset(&leave, 0, sizeof(leave));
+        leave.hdr.magic = MXFS_DLM_MAGIC;
+        leave.hdr.version = MXFS_DLM_VERSION;
+        leave.hdr.type = MXFS_MSG_NODE_LEAVE;
+        leave.hdr.length = sizeof(leave);
+        leave.hdr.sender = ctx->node_id;
+        leave.hdr.epoch = mxfs_dlm_get_epoch(ctx->dlm);
+        leave.volume_id = ctx->volume_id;
+        mxfs_peer_broadcast(ctx->peer, &leave, sizeof(leave));
+        mxfs_pal_log(MXFS_LOG_INFO,
+                     "mxfs: P-GOODBYE-SENT clean departure broadcast (node %u)",
+                     ctx->node_id);
     }
 
     if (ctx->lease) {
@@ -1364,6 +2003,13 @@ void mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx)
 
     if (ctx->disklock) {
         mxfs_disklock_stop_heartbeat(ctx->disklock);
+        /* v0.11.76 (D3): clean departure clears our heartbeat record so
+         * later mounts don't ghost-count it in the settle gate and the
+         * peers' auto-monitor doesn't keep evicting it.  A withdrawn
+         * (post-shutdown) teardown keeps it ACTIVE — peers must still
+         * detect the death and recover the slice. */
+        if (!ctx->withdrawn)
+            mxfs_disklock_release_slot(ctx->disklock);
         mxfs_disklock_destroy(ctx->disklock);
     }
 
@@ -1392,6 +2038,19 @@ void mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx)
 
     mxfs_pal_free(ctx);
     mxfs_pal_log(MXFS_LOG_INFO, "mxfs: DLM shutdown complete");
+}
+
+uint64_t mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx)
+{
+    uint64_t key;
+
+    if (!ctx || !ctx->scsipr)
+        return 0;
+
+    key = mxfs_scsipr_key(ctx->scsipr);
+    mxfs_scsipr_abandon(ctx->scsipr);
+    ctx->scsipr = NULL;
+    return key;
 }
 
 /* ─── Lock helpers ─── */
@@ -2170,6 +2829,26 @@ int mxfs_v5_dlm_ag_lock_nb(struct mxfs_v5_dlm *ctx, uint32_t agno)
 
     /* -EAGAIN / -EWOULDBLOCK: peer holds it; caller skips this AG. */
     return ret;
+}
+
+/*
+ * ccloop c7ee71c6 sess6: orphan-grant NAK (see dlm.c
+ * mxfs_dlm_release_orphan_if_unheld for the full anatomy).  Called from the
+ * AG bast-notify when the FS layer provably does not hold the AG yet a
+ * master keeps BASTing us — the divergence left by the membership-change
+ * table purge.  TCP engine only: CAW has no remote master table to diverge
+ * (the on-disk slot is the single truth).
+ */
+int mxfs_v5_dlm_ag_orphan_nak(struct mxfs_v5_dlm *ctx, uint32_t agno)
+{
+    struct mxfs_resource_id res;
+
+    if (!ctx || !ctx->dlm)
+        return 0;
+    if (ctx->withdrawn)
+        return 0;
+    make_ag_resource(&res, ctx->volume_id, agno);
+    return mxfs_dlm_release_orphan_if_unheld(ctx->dlm, &res);
 }
 
 int mxfs_v5_dlm_ag_held(struct mxfs_v5_dlm *ctx, uint32_t agno)

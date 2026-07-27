@@ -398,7 +398,7 @@ xfs_inode_from_disk(
 	 */
 	if (unlikely(from->di_version == 1)) {
 		/* di_metatype used to be di_onlink */
-		set_nlink(inode, be16_to_cpu(from->di_metatype));
+		mxfs_set_nlink(ip, be16_to_cpu(from->di_metatype));
 		ip->i_projid = 0;
 	} else {
 		/*
@@ -416,14 +416,15 @@ xfs_inode_from_disk(
 			if ((p9_old == 0) != (p9_new == 0)) {
 				static atomic_t p9nl_n = ATOMIC_INIT(0);
 				if (atomic_inc_return(&p9nl_n) <= 4000)
-					pr_warn("mxfs: P9-NLEDGE from_disk ino=%llu old=%u new=%u rmcnt=%ld comm=%s\n",
+					pr_warn("mxfs: P9-NLEDGE from_disk ino=%llu old=%u new=%u rmcnt=%ld acct=%d comm=%s\n",
 						(unsigned long long)ip->i_ino,
 						p9_old, p9_new,
 						atomic_long_read(&inode->i_sb->s_remove_count),
+						xfs_iflags_test(ip, MXFS_IF_RMC_ACCT) ? 1 : 0,
 						current->comm);
 			}
 		}
-		set_nlink(inode, be32_to_cpu(from->di_nlink));
+		mxfs_set_nlink(ip, be32_to_cpu(from->di_nlink));
 		ip->i_projid = (prid_t)be16_to_cpu(from->di_projid_hi) << 16 |
 					be16_to_cpu(from->di_projid_lo);
 		if (xfs_dinode_is_metadir(from))

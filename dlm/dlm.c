@@ -96,6 +96,46 @@ extern int mxfs_memb_settle_ms;
  * forever (it falls through and the normal grant/retry path runs). */
 #define MXFS_DLM_SETTLE_MAX_WAIT_MS 60000
 
+/* v0.11.78 (D7): positive convergence proof.  TRUE iff every node in my
+ * current active view has reported (via the lease beacon's piggybacked view
+ * signature, ~500ms cadence) the SAME {count,hash} as mine, received AFTER
+ * my last membership change.  Equal signatures over the sorted member list
+ * mean every confirmer computes the identical nodes[hash%count] mastery
+ * mapping — the exact property the wall-clock settle window approximates.
+ * Runs only inside the (rare) settle window, so the mutex is off the hot
+ * path.  A node whose beacons we cannot see keeps this FALSE and the
+ * wall-clock fallback below behaves exactly as before. */
+static bool dlm_view_confirmed(struct mxfs_dlm_ctx *ctx)
+{
+    bool ok = true;
+    int i, j;
+
+    mxfs_pal_mutex_lock(ctx->active_nodes.lock);
+    if (ctx->my_view_hash == 0 || ctx->active_nodes.count <= 1) {
+        mxfs_pal_mutex_unlock(ctx->active_nodes.lock);
+        return false;
+    }
+    for (i = 0; i < ctx->active_nodes.count && ok; i++) {
+        mxfs_node_id_t n = ctx->active_nodes.nodes[i];
+        bool found = false;
+
+        if (n == ctx->local_node)
+            continue;
+        for (j = 0; j < MXFS_MAX_NODES; j++) {
+            if (ctx->peer_views[j].node_id != n)
+                continue;
+            found = (ctx->peer_views[j].hash == ctx->my_view_hash &&
+                     ctx->peer_views[j].count == ctx->my_view_count &&
+                     ctx->peer_views[j].rx_ms >= ctx->last_memb_change_ms);
+            break;
+        }
+        if (!found)
+            ok = false;
+    }
+    mxfs_pal_mutex_unlock(ctx->active_nodes.lock);
+    return ok;
+}
+
 static inline bool dlm_membership_settling(struct mxfs_dlm_ctx *ctx)
 {
     uint64_t since;
@@ -104,7 +144,58 @@ static inline bool dlm_membership_settling(struct mxfs_dlm_ctx *ctx)
     if (ctx->active_nodes.count <= 1)
         return false;   /* single node: mastership is trivially consistent */
     since = mxfs_pal_time_ms() - ctx->last_memb_change_ms;
-    return since < (uint64_t)mxfs_memb_settle_ms;
+    if (since >= (uint64_t)mxfs_memb_settle_ms)
+        return false;
+    /* Inside the wall-clock window: a positive convergence proof ends the
+     * freeze early (v0.11.78 D7 — the 20s window was eating every first
+     * EX after any membership event, incl. a joiner's mount root-EX). */
+    return !dlm_view_confirmed(ctx);
+}
+
+uint64_t mxfs_dlm_get_view_sig(struct mxfs_dlm_ctx *ctx, uint32_t *count)
+{
+    uint64_t h;
+
+    if (!ctx) {
+        if (count)
+            *count = 0;
+        return 0;
+    }
+    mxfs_pal_mutex_lock(ctx->active_nodes.lock);
+    if (count)
+        *count = ctx->my_view_count;
+    h = ctx->my_view_hash;
+    mxfs_pal_mutex_unlock(ctx->active_nodes.lock);
+    return h;
+}
+
+void mxfs_dlm_report_peer_view(struct mxfs_dlm_ctx *ctx,
+                               mxfs_node_id_t node,
+                               uint32_t count, uint64_t hash)
+{
+    int i, free_slot = -1;
+
+    if (!ctx || !node || !hash)
+        return;
+    mxfs_pal_mutex_lock(ctx->active_nodes.lock);
+    for (i = 0; i < MXFS_MAX_NODES; i++) {
+        if (ctx->peer_views[i].node_id == node)
+            break;
+        if (free_slot < 0 && ctx->peer_views[i].node_id == 0)
+            free_slot = i;
+    }
+    if (i == MXFS_MAX_NODES) {
+        if (free_slot < 0) {
+            mxfs_pal_mutex_unlock(ctx->active_nodes.lock);
+            return;
+        }
+        i = free_slot;
+        ctx->peer_views[i].node_id = node;
+    }
+    ctx->peer_views[i].count = count;
+    ctx->peer_views[i].hash = hash;
+    ctx->peer_views[i].rx_ms = mxfs_pal_time_ms();
+    mxfs_pal_mutex_unlock(ctx->active_nodes.lock);
 }
 
 /*
@@ -1094,11 +1185,26 @@ static int dlm_lock_impl(struct mxfs_dlm_ctx *ctx,
      */
     if (mode == MXFS_LOCK_EX && dlm_membership_settling(ctx)) {
         int waited = 0;
+        /* D7 RULE-4 probe: quantify the settle-gate share of slow EX
+         * acquires (joiner root-EX stall 4.7-20s).  Entry logs how long
+         * ago the view changed; exit logs the wall actually spent here. */
+        uint64_t d7_since = mxfs_pal_time_ms() - ctx->last_memb_change_ms;
+
         while (dlm_membership_settling(ctx) && !ctx->shutting_down &&
                waited < MXFS_DLM_SETTLE_MAX_WAIT_MS) {
             mxfs_pal_sleep_ms(100);
             waited += 100;
         }
+        if (waited > 0)
+            mxfs_pal_log(MXFS_LOG_WARN,
+                         "mxfs: P-D7-SETTLEGATE type=%u ino=%llu ag=%u mode=%u "
+                         "since_change=%llums settle_ms=%d waited=%dms confirmed=%d",
+                         resource->type,
+                         (unsigned long long)resource->ino,
+                         resource->ag_number, mode,
+                         (unsigned long long)d7_since,
+                         mxfs_memb_settle_ms, waited,
+                         dlm_view_confirmed(ctx) ? 1 : 0);
         if (ctx->shutting_down)
             return -ESHUTDOWN;
     }
@@ -1876,6 +1982,7 @@ int mxfs_dlm_unlock_gen(struct mxfs_dlm_ctx *ctx,
     mxfs_node_id_t master;
     uint32_t rel_gen = 0;   /* sess-tcp: gen to echo in LOCK_RELEASE */
     uint32_t other_gen = 0; /* gen of a same-owner GRANTED entry we skipped */
+    bool ag_orphan_nak = false; /* ccloop c7ee71c6 sess6: AG unlock-ENOENT heal */
 
     if (!ctx || !resource)
         return -EINVAL;
@@ -1974,11 +2081,18 @@ int mxfs_dlm_unlock_gen(struct mxfs_dlm_ctx *ctx,
                          "local_node=%u", ctx->local_node);
         /* sess5(a16ec5f2): AG unlock that found nothing to release —
          * the local table thinks we hold nothing while the master may
-         * still carry our GRANTED entry (run31 AG-0 wedge shape). */
-        if (resource->type == MXFS_LTYPE_AG)
+         * still carry our GRANTED entry (run31 AG-0 wedge shape).
+         * ccloop c7ee71c6 sess6: no longer just logged — heal it.  The
+         * shape went live (test6 AG-9: membership-change purge ate the
+         * local GRANTED record; this ENOENT then sent nothing and the
+         * master's zombie starved the cluster for 500+ s).  Set the flag;
+         * the guarded orphan NAK is sent after table_rwlock drops. */
+        if (resource->type == MXFS_LTYPE_AG) {
             pr_warn_ratelimited(
                 "mxfs: P5U-AGUNLOCK-ENOENT ag=%u master=%u local=%u\n",
                 resource->ag_number, master, ctx->local_node);
+            ag_orphan_nak = true;
+        }
         /* sess1(a9a03929): count storm-dir unlocks that found nothing —
          * the residue an eaten mirror leaves behind (the FS layer believed
          * it held; the local table disagrees). */
@@ -1989,6 +2103,18 @@ int mxfs_dlm_unlock_gen(struct mxfs_dlm_ctx *ctx,
                         expected_gen, dlm_cur_comm());
         }
         mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+        /* ccloop c7ee71c6 sess6: guarded orphan NAK — outside the rwlock
+         * (the helper re-scans under rdlock; the send can sleep).  The
+         * caller is the release path, so the FS layer no longer believes
+         * it holds this grant; if a concurrent local acquire raced in,
+         * the helper's any-state scan sees its entry and refuses. */
+        if (ag_orphan_nak) {
+            int nak_rc = mxfs_dlm_release_orphan_if_unheld(ctx, resource);
+
+            pr_warn_ratelimited(
+                "mxfs: P5N-AG-ORPHAN-NAK ag=%u master=%u src=unlock-enoent rc=%d\n",
+                resource->ag_number, master, nak_rc);
+        }
         return -ENOENT;
     }
 
@@ -2195,6 +2321,59 @@ int mxfs_dlm_send_unconditional_release(struct mxfs_dlm_ctx *ctx,
     rel.resource = *resource;
     rel.grant_gen = 0;
     return ctx->send_cb(ctx, master, &rel, sizeof(rel));
+}
+
+/*
+ * ccloop c7ee71c6 sess6 — ORPHAN-GRANT NAK (zombie AG grant, captured live).
+ *
+ * mxfs_dlm_update_active_nodes purges the ENTIRE local lock table on every
+ * membership change, and nodes process membership events at different
+ * times.  During the 1->N mount ramp a node can acquire a grant whose
+ * master's table then SURVIVES (the master's view had already settled)
+ * while the holder's own record is purged moments later by its next
+ * membership event.  The holder's eventual release then hits local -ENOENT
+ * and — before this fix — sent NOTHING: the master carried the zombie
+ * GRANTED entry forever, every requester queued behind it retrying 1/s,
+ * and the whole cluster starved on that AG (test6 AG-9 17:28:15
+ * P5U-AGUNLOCK-ENOENT -> test2 master holder=test6 hstate=2 re-BASTing
+ * 1/s for 500+ s -> test1 rm-rf stuck in mxfs_trans_preacquire_inode_ags
+ * holding the dir ILOCK -> every dir_reuse run DNF).
+ *
+ * Heal: when we can PROVE we hold nothing locally — no entry of ANY state
+ * (granted / converting / waiting / in-flight pend_waiter) for the
+ * resource in the local table — send the FIX-20b unconditional (gen=0)
+ * LOCK_RELEASE to the resource's current master.  If the master has a
+ * zombie entry for us it is cleared and the queue promotes; if it has
+ * nothing it logs RREL-ENOENT and no-ops.  The any-state scan is the
+ * safety gate: a live in-flight acquire (WAITING + pend_waiter) blocks
+ * the NAK, so a late grant can never be released out from under a local
+ * waiter.  Callers must additionally ensure the FS layer does not believe
+ * it holds the grant (pag cached=0 / release path already committed).
+ */
+int mxfs_dlm_release_orphan_if_unheld(struct mxfs_dlm_ctx *ctx,
+                                      const struct mxfs_resource_id *resource)
+{
+    uint32_t bucket;
+    struct mxfs_lock *lk;
+    bool held = false;
+
+    if (!ctx || !resource)
+        return -EINVAL;
+
+    bucket = resource_hash(resource, ctx->bucket_count);
+    mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
+    for (lk = ctx->buckets[bucket]; lk; lk = lk->next) {
+        if (resource_equal(&lk->resource, resource) &&
+            lk->owner == ctx->local_node) {
+            held = true;
+            break;
+        }
+    }
+    mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+
+    if (held)
+        return -EBUSY;
+    return mxfs_dlm_send_unconditional_release(ctx, resource);
 }
 
 /* ─── mxfs_dlm_lock_convert — Mode upgrade/downgrade ─── */
@@ -2728,9 +2907,27 @@ int mxfs_dlm_update_active_nodes(struct mxfs_dlm_ctx *ctx,
     }
 
     if (changed) {
+        uint64_t h = 0xcbf29ce484222325ULL;   /* FNV-1a 64 over sorted ids */
+
         memcpy(ctx->active_nodes.nodes, sorted,
                (size_t)count * sizeof(mxfs_node_id_t));
         ctx->active_nodes.count = count;
+        /* v0.11.78 (D7): my view signature — deterministic across nodes
+         * because the list is sorted.  Peers echo theirs on the lease
+         * beacon; equality proves identical mastery mapping. */
+        for (i = 0; i < count; i++) {
+            uint32_t id = sorted[i];
+            int b;
+
+            for (b = 0; b < 4; b++) {
+                h ^= (id >> (8 * b)) & 0xff;
+                h *= 0x100000001b3ULL;
+            }
+        }
+        h ^= (uint32_t)count;
+        h *= 0x100000001b3ULL;
+        ctx->my_view_count = (uint32_t)count;
+        ctx->my_view_hash = h;
     }
 
     mxfs_pal_mutex_unlock(ctx->active_nodes.lock);

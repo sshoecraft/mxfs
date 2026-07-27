@@ -12,7 +12,7 @@
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
-PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
+PASS="${MXFS_PASS:-$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null || echo /tmp/.mxfs_pass)}"
 N="${1:?usage: run_adhoc_suite_test.sh <N> <dlm> <test> [timeout_s]}"
 DLM="${2:?}"
 NAME="${3:?}"
@@ -26,11 +26,20 @@ DEV="${MXFS_DEV:-/dev/sda}"
 SCRIPT="/src/mxfs/tests/suite/${NAME}.sh"
 [ -f "$REPO/tests/suite/${NAME}.sh" ] || { echo "no such test: $NAME"; exit 2; }
 
+# Rank->host map: default test1..testN, or MXFS_NODE_LIST (comma/space list of
+# hostnames/IPs) for external rigs (Proxmox pve1/pve2, bare metal), matching
+# run.sh's node-list mechanism.
+if [ -n "${MXFS_NODE_LIST:-}" ]; then
+    IFS=', ' read -r -a NODES <<< "$MXFS_NODE_LIST"
+else
+    mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
+fi
+
 tmpd=$(mktemp -d /tmp/adhoc_${NAME}_XXXX)
-echo "=== adhoc $NAME @ ${N}/${DLM} (run_id=$RUN_ID, logs $tmpd) ==="
+echo "=== adhoc $NAME @ ${N}/${DLM} (run_id=$RUN_ID, logs $tmpd, nodes=${NODES[*]}) ==="
 pids=()
 for i in $(seq 1 "$N"); do
-    ( timeout "$TT" "$SSH" "test$i" "$PASS" \
+    ( timeout "$TT" "$SSH" "${NODES[$((i-1))]}" "$PASS" \
         "MXFS_NODES=$N MXFS_RANK=$i MXFS_DLM=$DLM MXFS_DEV='$DEV' \
          MXFS_EXPECT_FSTYPE=mxfs MXFS_FS_LABEL=$DLM \
          MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$PREFIX COORD_TIMEOUT=$CT \

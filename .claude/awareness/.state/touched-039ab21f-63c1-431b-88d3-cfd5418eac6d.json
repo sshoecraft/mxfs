@@ -1,0 +1,17 @@
+{
+  "source": [
+    "xfs/xfs_aops.h",
+    "pal/linux/xfs_aops.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "dlm/dlm.c",
+    "dlm/dlm.h",
+    "dlm/v5_mount.h",
+    "dlm/v5_mount.c",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

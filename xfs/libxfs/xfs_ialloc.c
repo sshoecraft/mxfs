@@ -1272,6 +1272,106 @@ xfs_dialloc_check_ino(
 	return 0;
 }
 
+#ifdef __KERNEL__
+/*
+ * P150 (RULE-4, ccloop-4dd7 inobt double-free record corruption): record-
+ * level trace of EVERY inobt/finobt record RMW in multi-node mode.  Joined
+ * across nodes per (agno,startino), the ALLOC/FREE interleaving shows
+ * directly where a peer's alloc/free vanished from the record (stale-base
+ * RMW / lost destage), independent of WHICH buffer-coherency mechanism
+ * failed.  tenure/mgen are the AG-DLM coherency stamps at RMW time;
+ * btenure/bgen are the leaf buffer's stamps (btenure!=tenure at an RMW =
+ * modifying a base not re-validated under the current AG hold).  Capped.
+ */
+static void
+mxfs_p150_inorec(
+	struct xfs_btree_cur		*cur,
+	const char			*tag,
+	int				offset,
+	uint64_t			pre_free,
+	int				pre_fc,
+	const struct xfs_inobt_rec_incore *post)
+{
+	static atomic_t			p150_n = ATOMIC_INIT(0);
+	struct xfs_perag		*pag;
+	struct xfs_buf			*bp = NULL;
+	struct xfs_btree_block		*bb;
+	struct xfs_mount		*mp = cur->bc_mp;
+
+	if (!mp->m_mxfs_dlm || mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+		return;
+	if (atomic_inc_return(&p150_n) > 20000)
+		return;
+	pag = to_perag(cur->bc_group);
+	bb = xfs_btree_get_block(cur, 0, &bp);
+	pr_warn("mxfs: P150-%s agno=%u startino=%u off=%d pre=0x%llx/%d post=0x%llx/%d tenure=%llu mgen=%llu btenure=%llu bgen=%llu daddr=%lld lsn=%llx comm=%s realns=%llu\n",
+		tag, pag_agno(pag), (unsigned)post->ir_startino, offset,
+		(unsigned long long)pre_free, pre_fc,
+		(unsigned long long)post->ir_free, (int)post->ir_freecount,
+		(unsigned long long)pag->ag_dlm_tenure_id,
+		(unsigned long long)pag->pag_dlm_meta_gen,
+		bp ? (unsigned long long)bp->b_tenure_id : 0,
+		bp ? (unsigned long long)bp->b_mxfs_ag_gen : 0,
+		bp ? (long long)bp->b_maps[0].bm_bn : -1LL,
+		bb ? (unsigned long long)be64_to_cpu(bb->bb_u.s.bb_lsn) : 0,
+		current->comm,
+		(unsigned long long)ktime_get_real_ns());
+}
+#else
+#define mxfs_p150_inorec(cur, tag, offset, pre_free, pre_fc, post) do { } while (0)
+#endif
+
+#ifdef __KERNEL__
+/*
+ * ccloop-4dd7 sess2 (GPT-reviewed design; deadlock-3 autopsy): reserve the
+ * candidate ino's cluster DLM EX at SELECTION time, BEFORE the inobt/finobt
+ * record RMW dirties the transaction.  Upstream's create order is
+ * AG -> (dirty) -> child-ino ILOCK at icreate/iget; a peer's truncate order
+ * is ino -> AG.  When the peer holds a grant on our candidate with its
+ * holder blocked wanting OUR AG, the old blocking child acquire at iget
+ * deadlocked with BOTH edges dirty (unbreakable; 180s -> -110 -> cluster
+ * shutdown).  The invariant this enforces: no NEW blocking cluster acquire
+ * after the transaction is irrevocable.  Bounded 1-retry acquire (~1s: one
+ * master round-trip + one BAST-served release; uncontended = fast); on
+ * contention while still CLEAN return -EAGAIN — xfs_dialloc's AG loop skips
+ * to the next AG (same contract as mxfs_ag_dlm_trylock above).  If already
+ * dirty (mid-chunk-alloc path that did not roll), proceed loudly — the old
+ * behavior, now instrumented as the invariant violation it is.  On success
+ * the grant is node-cached, so icreate/iget's ilock fast-paths on it — the
+ * reservation IS the handoff token.
+ */
+static int
+mxfs_dialloc_reserve_ino(
+	struct xfs_perag	*pag,
+	struct xfs_trans	*tp,
+	xfs_ino_t		ino)
+{
+	struct xfs_mount	*mp = pag_mount(pag);
+	int			rc;
+
+	if (!mp->m_mxfs_dlm || mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+		return 0;
+
+	rc = mxfs_v5_dlm_inode_lock_retries(mp->m_mxfs_dlm, ino,
+					    MXFS_LOCK_EX, 1);
+	if (rc == 0)
+		return 0;
+
+	if (tp->t_flags & XFS_TRANS_DIRTY) {
+		pr_warn_ratelimited(
+		    "mxfs: P-DIALLOC-RESV-DIRTY ino=%llu agno=%u rc=%d — candidate contended but trans already dirty; falling through to blocking iget acquire\n",
+			(unsigned long long)ino, pag_agno(pag), rc);
+		return 0;
+	}
+	pr_warn_ratelimited(
+	    "mxfs: P-DIALLOC-RESV-BUSY ino=%llu agno=%u rc=%d — peer holds candidate ino; skipping AG this pass\n",
+		(unsigned long long)ino, pag_agno(pag), rc);
+	return -EAGAIN;
+}
+#else
+#define mxfs_dialloc_reserve_ino(pag, tp, ino) (0)
+#endif
+
 /*
  * Allocate an inode using the inobt-only algorithm.
  */
@@ -1531,8 +1631,19 @@ alloc_inode:
 			goto error0;
 	}
 
-	rec.ir_free &= ~XFS_INOBT_MASK(offset);
-	rec.ir_freecount--;
+	error = mxfs_dialloc_reserve_ino(pag, tp, ino);
+	if (error)
+		goto error0;
+
+	{
+		uint64_t p150_pre = rec.ir_free;
+		int p150_fc = rec.ir_freecount;
+
+		rec.ir_free &= ~XFS_INOBT_MASK(offset);
+		rec.ir_freecount--;
+		mxfs_p150_inorec(cur, "ALLOC-IBT", offset, p150_pre, p150_fc,
+				 &rec);
+	}
 	error = xfs_inobt_update(cur, &rec);
 	if (error)
 		goto error0;
@@ -1787,8 +1898,15 @@ xfs_dialloc_ag_update_inobt(
 	ASSERT((XFS_AGINO_TO_OFFSET(cur->bc_mp, rec.ir_startino) %
 				   XFS_INODES_PER_CHUNK) == 0);
 
-	rec.ir_free &= ~XFS_INOBT_MASK(offset);
-	rec.ir_freecount--;
+	{
+		uint64_t p150_pre = rec.ir_free;
+		int p150_fc = rec.ir_freecount;
+
+		rec.ir_free &= ~XFS_INOBT_MASK(offset);
+		rec.ir_freecount--;
+		mxfs_p150_inorec(cur, "ALLOC-UI", offset, p150_pre, p150_fc,
+				 &rec);
+	}
 
 	if (XFS_IS_CORRUPT(cur->bc_mp,
 			   rec.ir_free != frec->ir_free ||
@@ -1885,11 +2003,22 @@ xfs_dialloc_ag(
 			goto error_cur;
 	}
 
+	error = mxfs_dialloc_reserve_ino(pag, tp, ino);
+	if (error)
+		goto error_cur;
+
 	/*
 	 * Modify or remove the finobt record.
 	 */
-	rec.ir_free &= ~XFS_INOBT_MASK(offset);
-	rec.ir_freecount--;
+	{
+		uint64_t p150_pre = rec.ir_free;
+		int p150_fc = rec.ir_freecount;
+
+		rec.ir_free &= ~XFS_INOBT_MASK(offset);
+		rec.ir_freecount--;
+		mxfs_p150_inorec(cur, "ALLOC-FIN", offset, p150_pre, p150_fc,
+				 &rec);
+	}
 	if (rec.ir_freecount)
 		error = xfs_inobt_update(cur, &rec);
 	else
@@ -2608,13 +2737,43 @@ xfs_difree_inobt(
 			(unsigned long long)rec.ir_free, (int)rec.ir_freecount,
 			(unsigned)be32_to_cpu(dbg_agi->agi_freecount),
 			(int)(mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)));
+		/*
+		 * ccloop-4dd7 sess3 (round-5 ino 134 autopsy): in multi-node
+		 * mode this is not a can't-happen — it is the SECOND
+		 * inactivation of an inode whose unlink+free a peer already
+		 * completed.  Our in-core mirror adopted nlink=0 from disk
+		 * (P9-NLEDGE from_disk, rmcnt=0, no local unlink) and VFS
+		 * inactivated it again on last iput.  This inobt read is
+		 * coherent (AG DLM held; the peer destaged AG-meta before its
+		 * handoff — invariant #1), so the set bit is authoritative:
+		 * everything this ifree would do is already done.  Proceeding
+		 * desynced agi_freecount from the mask popcount and then shut
+		 * the FS down at the (coherently empty) AGI bucket in
+		 * xfs_iunlink_remove (P71 → -EFSCORRUPTED with the tx dirty).
+		 * Nothing in this transaction is modified yet — only lookups
+		 * have run — so abort with -ESTALE (unused elsewhere in the
+		 * ifree graph) for xfs_inactive_ifree to convert into a clean
+		 * adopted-peer-free skip.
+		 */
+		if (mp->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+			error = -ESTALE;
+			goto error0;
+		}
 	}
 	ASSERT(!(rec.ir_free & XFS_INOBT_MASK(off)));
 	/*
 	 * Mark the inode free & increment the count.
 	 */
-	rec.ir_free |= XFS_INOBT_MASK(off);
-	rec.ir_freecount++;
+	{
+		uint64_t p150_pre = rec.ir_free;
+		int p150_fc = rec.ir_freecount;
+
+		rec.ir_free |= XFS_INOBT_MASK(off);
+		rec.ir_freecount++;
+		mxfs_p150_inorec(cur, "FREE-IBT", off, p150_pre, p150_fc,
+				 &rec);
+	}
 
 	/*
 	 * When an inode chunk is free, it becomes eligible for removal. Don't
@@ -2790,8 +2949,15 @@ xfs_difree_finobt(
 		goto error;
 	}
 
-	rec.ir_free |= XFS_INOBT_MASK(offset);
-	rec.ir_freecount++;
+	{
+		uint64_t p150_pre = rec.ir_free;
+		int p150_fc = rec.ir_freecount;
+
+		rec.ir_free |= XFS_INOBT_MASK(offset);
+		rec.ir_freecount++;
+		mxfs_p150_inorec(cur, "FREE-FIN", offset, p150_pre, p150_fc,
+				 &rec);
+	}
 
 	if (XFS_IS_CORRUPT(mp,
 			   rec.ir_free != ibtrec->ir_free ||

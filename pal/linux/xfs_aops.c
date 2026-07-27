@@ -20,6 +20,8 @@
 #include "xfs_errortag.h"
 #include "xfs_error.h"
 #include "xfs_mxfs_dlm.h"
+#include <mxfs/mxfs_dlm.h>	/* FIX-26/P26PRE: MXFS_LOCK_* modes */
+#include <linux/hashtable.h>	/* FIX-26 writepages task registry */
 
 /* sess45: declared locally (as in xfs_da_btree.c) — not exported via a header. */
 extern bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx);
@@ -100,7 +102,26 @@ xfs_setfilesize(
 
 /*
  * IO write completion.
+ *
+ * io_bio was a pointer and io_type (IOMAP_UNWRITTEN) / IOMAP_F_SHARED were
+ * the classifiers pre-v6.17; v6.17 embeds io_bio and replaces io_type with
+ * per-ioend IOMAP_IOEND_UNWRITTEN/IOMAP_IOEND_SHARED flags (GPT-assisted
+ * port, cross-checked against 6.17.2-1-pve's actual linux/iomap.h before
+ * applying -- see pal.md Known Pitfalls). mxfs_ioend_unwritten/shared below
+ * hide the difference so xfs_end_ioend's own logic doesn't fork.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+#define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio->bi_status)
+#define mxfs_ioend_shared(ioend)	((ioend)->io_flags & IOMAP_F_SHARED)
+#define mxfs_ioend_unwritten(ioend)	((ioend)->io_type == IOMAP_UNWRITTEN)
+#define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio->bi_end_io = (fn))
+#else
+#define mxfs_ioend_bi_status(ioend)	((ioend)->io_bio.bi_status)
+#define mxfs_ioend_shared(ioend)	((ioend)->io_flags & IOMAP_IOEND_SHARED)
+#define mxfs_ioend_unwritten(ioend)	((ioend)->io_flags & IOMAP_IOEND_UNWRITTEN)
+#define mxfs_ioend_set_bi_end_io(ioend, fn)	((ioend)->io_bio.bi_end_io = (fn))
+#endif
+
 STATIC void
 xfs_end_ioend(
 	struct iomap_ioend	*ioend)
@@ -134,9 +155,9 @@ xfs_end_ioend(
 	 * longer dirty. If we don't remove delalloc blocks here, they become
 	 * stale and can corrupt free space accounting on unmount.
 	 */
-	error = blk_status_to_errno(ioend->io_bio->bi_status);
+	error = blk_status_to_errno(mxfs_ioend_bi_status(ioend));
 	if (unlikely(error)) {
-		if (ioend->io_flags & IOMAP_F_SHARED) {
+		if (mxfs_ioend_shared(ioend)) {
 			xfs_reflink_cancel_cow_range(ip, offset, size, true);
 			mxfs_bmap_punch_delalloc_range(ip, offset,
 					offset + size);
@@ -147,9 +168,9 @@ xfs_end_ioend(
 	/*
 	 * Success: commit the COW or unwritten blocks if needed.
 	 */
-	if (ioend->io_flags & IOMAP_F_SHARED)
+	if (mxfs_ioend_shared(ioend))
 		error = xfs_reflink_end_cow(ip, offset, size);
-	else if (ioend->io_type == IOMAP_UNWRITTEN)
+	else if (mxfs_ioend_unwritten(ioend))
 		error = xfs_iomap_write_unwritten(ip, offset, size, false);
 
 	if (!error && xfs_ioend_is_append(ioend))
@@ -162,10 +183,11 @@ done:
 		static atomic_t p_ioerr_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p_ioerr_n) <= 300)
-			pr_warn("mxfs: P-IOEND-ERR ino=%llu off=%llu sz=%zu type=%u err=%d vfs=%llu disk=%llu\n",
+			pr_warn("mxfs: P-IOEND-ERR ino=%llu off=%llu sz=%zu unwritten=%d shared=%d err=%d vfs=%llu disk=%llu\n",
 				(unsigned long long)ip->i_ino,
 				(unsigned long long)offset, size,
-				ioend->io_type, error,
+				!!mxfs_ioend_unwritten(ioend),
+				!!mxfs_ioend_shared(ioend), error,
 				(unsigned long long)i_size_read(VFS_I(ip)),
 				(unsigned long long)ip->i_disk_size);
 	}
@@ -227,11 +249,79 @@ xfs_task_in_ioend(void)
 	return w && w->func == xfs_end_io;
 }
 
+/*
+ * FIX-26 (ccloop c7ee71c6 sess6): registry of tasks currently inside
+ * xfs_vm_writepages.  Writeback SUBMISSION (bdi flusher, sync, fsync) holds
+ * the folio lock across ->map_blocks, whose delalloc conversion takes
+ * xfs_ilock(EX) -> mxfs_dlm_ilock_begin.  If the inode is mid-BAST, the
+ * demote-wait would park the submitter while the drain's
+ * filemap_write_and_wait spins on the submitter's folio lock — a permanent
+ * two-worker deadlock (captured live on test8, 2026-07-25: flusher D-state
+ * in mxfs_dlm_ilock_begin under iomap_writepage_map, mxfs-ino-bast worker
+ * D-state in __folio_lock under mxfs_dlm_bast_process).  There is no work-fn
+ * signature usable here (wb_workfn is static to fs core and sync/fsync enter
+ * from syscall context), so the writepages wrapper brackets the call with a
+ * stack-resident registry entry keyed by task pointer.
+ */
+#define XFS_WPTASK_HASH_BITS	6
+static DEFINE_SPINLOCK(xfs_wptask_lock);
+static DEFINE_HASHTABLE(xfs_wptask_hash, XFS_WPTASK_HASH_BITS);
+
+/* FIX-26 verification injection — see xfs_map_blocks.  Debug-only, 0 = off. */
+int mxfs_fix26_delay_ms;
+module_param_named(fix26_delay_ms, mxfs_fix26_delay_ms, int, 0644);
+MODULE_PARM_DESC(fix26_delay_ms,
+	"DEBUG: widen the writeback folio-locked->ilock window by N ms so a peer BAST can be deterministically collided with the FIX-26 admit (0=off)");
+
+struct xfs_wptask {
+	struct hlist_node	node;
+	struct task_struct	*task;
+};
+
+static void
+xfs_wptask_enter(struct xfs_wptask *e)
+{
+	e->task = current;
+	spin_lock(&xfs_wptask_lock);
+	hash_add(xfs_wptask_hash, &e->node, (unsigned long)current);
+	spin_unlock(&xfs_wptask_lock);
+}
+
+static void
+xfs_wptask_exit(struct xfs_wptask *e)
+{
+	spin_lock(&xfs_wptask_lock);
+	hash_del(&e->node);
+	spin_unlock(&xfs_wptask_lock);
+}
+
+bool
+xfs_task_in_writepages(void)
+{
+	struct xfs_wptask	*e;
+	bool			found = false;
+
+	spin_lock(&xfs_wptask_lock);
+	hash_for_each_possible(xfs_wptask_hash, e, node,
+			       (unsigned long)current) {
+		if (e->task == current) {
+			found = true;
+			break;
+		}
+	}
+	spin_unlock(&xfs_wptask_lock);
+	return found;
+}
+
 void
 xfs_end_bio(
 	struct bio		*bio)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 	struct iomap_ioend	*ioend = bio->bi_private;
+#else
+	struct iomap_ioend	*ioend = iomap_ioend_from_bio(bio);
+#endif
 	struct xfs_inode	*ip = XFS_I(ioend->io_inode);
 	unsigned long		flags;
 
@@ -302,6 +392,71 @@ xfs_convert_blocks(
 {
 	int			error;
 	unsigned		*seq;
+
+	/* FIX-26 verification injection (ccloop c7ee71c6 sess6): hold the
+	 * conversion — folio locked, xfs_ilock(EX) imminent — for up to N ms
+	 * OR until a peer BAST lands on this inode, whichever first.  This
+	 * turns every armed conversion into a near-certain BAST collision so
+	 * the demote-wait admit (P25 src=writepages) is provably exercised.
+	 * (v1 slept at xfs_map_blocks entry: every folio slept but only the
+	 * first folio of a walk converts, so ~all sleep time bought no admit
+	 * window — 0 collisions in 45s.)  Demoter-exempt; default 0 = off;
+	 * unlocked racy read of i_dlm_state is fine for debug pacing. */
+	if (unlikely(mxfs_fix26_delay_ms > 0) && ip->i_dlm_demoter != current) {
+		int fix26_left = mxfs_fix26_delay_ms;
+		uint8_t fix26_st0 = ip->i_dlm_state;
+		uint8_t fix26_md0 = ip->i_dlm_mode;
+		static atomic_t p26dbg = ATOMIC_INIT(0);
+
+		while (fix26_left-- > 0 &&
+		       ip->i_dlm_state == MXFS_DLM_ISTATE_CACHED)
+			msleep(1);
+		if (atomic_inc_return(&p26dbg) <= 40)
+			pr_warn("mxfs: P26DBG-INJ ino=%llu st0=%u md0=%u st1=%u md1=%u waited_ms=%d wp=%d comm=%s\n",
+				(unsigned long long)ip->i_ino,
+				fix26_st0, fix26_md0,
+				ip->i_dlm_state, ip->i_dlm_mode,
+				mxfs_fix26_delay_ms - fix26_left - 1,
+				xfs_task_in_writepages() ? 1 : 0,
+				current->comm);
+	}
+
+	/* P26PRE-DELALLOC-SUBEX (ccloop c7ee71c6 sess6) — PRECURSOR PROBE for
+	 * the test8 live wedge.  Writeback found delalloc to convert while
+	 * i_dlm_mode < EX.  Under the drain invariant (bast_process flushes +
+	 * invalidates ALL dirty data BEFORE any downconvert) this state should
+	 * be impossible: every dirty delalloc page was created under a
+	 * fast-path EX hold and must be flushed by the tenure's release.  The
+	 * live wedge proves it happens (flusher converting ino=10485894 under
+	 * mode=PR, 30s dirty-expiry after its last EX write).  Print the full
+	 * lock state at the moment of the violation so the leak path — drain
+	 * skip, invalidate -EBUSY leftovers, admitted-write TOCTOU, recycle
+	 * carrying stale dlm state — is identified from a live run instead of
+	 * post-hoc log archaeology.  FIX-26's admit keeps the run alive
+	 * through the collision, so this probe can actually be harvested. */
+	if (unlikely(ip->i_dlm_mode < MXFS_LOCK_EX) &&
+	    ip->i_mount->m_mxfs_dlm) {
+		static atomic_t p26pre = ATOMIC_INIT(0);
+
+		/* dem_cur=1 = the printing task IS the drain (normal: the
+		 * drain flushing its own tenure's data after the mode
+		 * pre-clear — 22/22 of the first harvest).  dem_cur=0 = a
+		 * FOREIGN task (flusher/sync) converting under a sub-EX mode
+		 * — the FIX-26 wedge population; each such event should be
+		 * followed by a P25 src=writepages admit, never a P73. */
+		if (atomic_inc_return(&p26pre) <= 200)
+			pr_warn("mxfs: P26PRE-DELALLOC-SUBEX ino=%llu mode=%u state=%u relflush=%d stale=%d demoter=%d dem_cur=%d exh=%u prh=%u pin=%u wp=%d comm=%s\n",
+				(unsigned long long)ip->i_ino,
+				ip->i_dlm_mode, ip->i_dlm_state,
+				xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) ? 1 : 0,
+				ip->i_dlm_stale ? 1 : 0,
+				ip->i_dlm_demoter ? 1 : 0,
+				ip->i_dlm_demoter == current ? 1 : 0,
+				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
+				ip->i_dlm_pin_count,
+				xfs_task_in_writepages() ? 1 : 0,
+				current->comm);
+	}
 
 	if (whichfork == XFS_COW_FORK)
 		seq = &XFS_WPC(wpc)->cow_seq;
@@ -471,6 +626,9 @@ allocate_blocks:
 	return 0;
 }
 
+static void xfs_discard_folio(struct folio *folio, loff_t pos);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 static int
 xfs_prepare_ioend(
 	struct iomap_ioend	*ioend,
@@ -486,7 +644,7 @@ xfs_prepare_ioend(
 	nofs_flag = memalloc_nofs_save();
 
 	/* Convert CoW extents to regular */
-	if (!status && (ioend->io_flags & IOMAP_F_SHARED)) {
+	if (!status && mxfs_ioend_shared(ioend)) {
 		status = xfs_reflink_convert_cow(XFS_I(ioend->io_inode),
 				ioend->io_offset, ioend->io_size);
 	}
@@ -494,11 +652,68 @@ xfs_prepare_ioend(
 	memalloc_nofs_restore(nofs_flag);
 
 	/* send ioends that might require a transaction to the completion wq */
-	if (xfs_ioend_is_append(ioend) || ioend->io_type == IOMAP_UNWRITTEN ||
-	    (ioend->io_flags & IOMAP_F_SHARED))
-		ioend->io_bio->bi_end_io = xfs_end_bio;
+	if (xfs_ioend_is_append(ioend) || mxfs_ioend_unwritten(ioend) ||
+	    mxfs_ioend_shared(ioend))
+		mxfs_ioend_set_bi_end_io(ioend, xfs_end_bio);
 	return status;
 }
+#else
+/*
+ * v6.17+: -> map_blocks moved inside -> writeback_range (this is where
+ * xfs_map_blocks's existing per-offset delalloc-to-real-extent logic now
+ * gets called from); -> discard_folio is no longer a generic hook, XFS
+ * calls xfs_discard_folio() itself on failure; -> prepare_ioend's job
+ * (CoW conversion + deciding whether the ioend needs the deferred
+ * completion workqueue) moves into -> writeback_submit, driven off
+ * wpc->wb_ctx instead of a passed-in ioend.
+ */
+static ssize_t
+xfs_writeback_range(
+	struct iomap_writepage_ctx	*wpc,
+	struct folio			*folio,
+	u64				pos,
+	unsigned int			len,
+	u64				end_pos)
+{
+	ssize_t				ret;
+
+	ret = xfs_map_blocks(wpc, folio->mapping->host, pos);
+	if (!ret)
+		ret = iomap_add_to_ioend(wpc, folio, pos, end_pos, len);
+	if (ret < 0)
+		xfs_discard_folio(folio, pos);
+	return ret;
+}
+
+static int
+xfs_writeback_submit(
+	struct iomap_writepage_ctx	*wpc,
+	int				error)
+{
+	struct iomap_ioend		*ioend = wpc->wb_ctx;
+	unsigned int			nofs_flag;
+
+	if (!ioend)
+		return iomap_ioend_writeback_submit(wpc, error);
+
+	nofs_flag = memalloc_nofs_save();
+
+	/* Convert CoW extents to regular */
+	if (!error && mxfs_ioend_shared(ioend)) {
+		error = xfs_reflink_convert_cow(XFS_I(ioend->io_inode),
+				ioend->io_offset, ioend->io_size);
+	}
+
+	memalloc_nofs_restore(nofs_flag);
+
+	/* send ioends that might require a transaction to the completion wq */
+	if (xfs_ioend_is_append(ioend) || mxfs_ioend_unwritten(ioend) ||
+	    mxfs_ioend_shared(ioend))
+		mxfs_ioend_set_bi_end_io(ioend, xfs_end_bio);
+
+	return iomap_ioend_writeback_submit(wpc, error);
+}
+#endif
 
 /*
  * If the folio has delalloc blocks on it, the caller is asking us to punch them
@@ -538,11 +753,18 @@ xfs_discard_folio(
 				folio_pos(folio) + folio_size(folio));
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 static const struct iomap_writeback_ops xfs_writeback_ops = {
 	.map_blocks		= xfs_map_blocks,
 	.prepare_ioend		= xfs_prepare_ioend,
 	.discard_folio		= xfs_discard_folio,
 };
+#else
+static const struct iomap_writeback_ops xfs_writeback_ops = {
+	.writeback_range	= xfs_writeback_range,
+	.writeback_submit	= xfs_writeback_submit,
+};
+#endif
 
 STATIC int
 xfs_vm_writepages(
@@ -550,6 +772,8 @@ xfs_vm_writepages(
 	struct writeback_control *wbc)
 {
 	struct xfs_writepage_ctx wpc = { };
+	struct xfs_wptask	wpt;
+	int			ret;
 
 	/*
 	 * Writing back data in a transaction context can result in recursive
@@ -559,7 +783,20 @@ xfs_vm_writepages(
 		return 0;
 
 	xfs_iflags_clear(XFS_I(mapping->host), XFS_ITRUNCATED);
-	return iomap_writepages(mapping, wbc, &wpc.ctx, &xfs_writeback_ops);
+	/* FIX-26: mark this task as writeback submission for the duration —
+	 * mxfs_dlm_ilock_begin admits it through a BAST/DEMOTING demote-wait
+	 * (it holds folio locks the drain needs; see xfs_task_in_writepages). */
+	xfs_wptask_enter(&wpt);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+	ret = iomap_writepages(mapping, wbc, &wpc.ctx, &xfs_writeback_ops);
+#else
+	wpc.ctx.inode = mapping->host;
+	wpc.ctx.wbc = wbc;
+	wpc.ctx.ops = &xfs_writeback_ops;
+	ret = iomap_writepages(&wpc.ctx);
+#endif
+	xfs_wptask_exit(&wpt);
+	return ret;
 }
 
 STATIC int

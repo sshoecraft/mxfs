@@ -95,6 +95,24 @@ xfs_trans_log_inode(
 	xfs_assert_ilocked(ip, XFS_ILOCK_EXCL);
 	ASSERT(!xfs_iflags_test(ip, XFS_ISTALE));
 
+	/*
+	 * sess14 (ccloop c7ee71c6) D3 residual — publication obligation,
+	 * wiring step 1 of 4 (design + remaining steps at xfs_inode.h's
+	 * i_mxfs_pub_pending_seq block; rationale in ccmemory sess14-J).
+	 * Every logged inode-core change creates an obligation to land that
+	 * change at the home location before the DLM grant is handed off.
+	 * This is the single chokepoint for "a change was committed" and is
+	 * deliberately independent of ili_fields / XFS_LI_DIRTY / AIL
+	 * membership — those all read clean while a committed change sits in
+	 * the log, which is exactly how the release drain came to print
+	 * "flushed=1 wrote=0 rerr=-11" and then release the grant, durably
+	 * losing peers' dirents (tests/logs/firstcc_205730).
+	 * We hold ILOCK_EXCL here (asserted above), so a plain increment is
+	 * safe.  Counter only — nothing consumes it until step 3 gates the
+	 * drain's success return on pending == durable.
+	 */
+	ip->i_mxfs_pub_pending_seq++;
+
 	/* sess2 (a9a03929) P2G-LOGWHO: name whoever logs a REGULAR file's
 	 * core during the rm-phase window (P2D-DRAINWHY shows every rm-target
 	 * inode dirty-in-AIL with fields=0x1 at its own release, re-appearing

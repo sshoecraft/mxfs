@@ -54,6 +54,7 @@
 #include <linux/delay.h>
 #include <linux/ktime.h>
 #include <linux/sched.h>
+#include <linux/sched/debug.h>	/* sess4: sched_show_task for mxfs_pal_dump_task_stack */
 #include <linux/sort.h>
 #include <linux/net.h>
 #include <linux/in.h>
@@ -2612,6 +2613,26 @@ void mxfs_pal_dump_stack(void)
 	dump_stack();
 }
 
+/* ccloop-4dd7 sess4: dump another task's kernel stack by pid (holder
+ * forensics — the b58r1 184s cross-node stall's EX-admission holders were
+ * blocked at a wait site no probe could see; this lets the demote-refusal
+ * path print the holder's stack directly).  Safe from process/work context:
+ * takes a task ref, uses the scheduler's blocked-task backtrace printer. */
+void mxfs_pal_dump_task_stack(int pid)
+{
+	struct task_struct *t;
+
+	rcu_read_lock();
+	t = pid_task(find_vpid(pid), PIDTYPE_PID);
+	if (t)
+		get_task_struct(t);
+	rcu_read_unlock();
+	if (!t)
+		return;
+	sched_show_task(t);
+	put_task_struct(t);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
  * CRC32C
  * ═══════════════════════════════════════════════════════════════════ */
@@ -2694,6 +2715,16 @@ static const struct pr_ops *get_pr_ops(struct mxfs_bdev *dev)
  */
 #define MXFS_PR_UA_RETRIES 5
 
+/*
+ * v0.11.75 DEBUG one-shot: force the next PR REGISTER to fail so the
+ * TCP-branch mount-abort (unfenced-node prevention) can be verified
+ * deterministically.  Never enable in production.
+ */
+static int mxfs_dbg_pr_register_fail;
+module_param_named(dbg_pr_register_fail, mxfs_dbg_pr_register_fail, int, 0644);
+MODULE_PARM_DESC(dbg_pr_register_fail,
+	"DEBUG one-shot: fail the next SCSI PR register (mount-abort test). Never enable in production.");
+
 int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 {
 	const struct pr_ops *ops;
@@ -2706,6 +2737,14 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 	ops = get_pr_ops(dev);
 	if (!ops || !ops->pr_register)
 		return -EOPNOTSUPP;
+
+	if (unlikely(mxfs_dbg_pr_register_fail) &&
+	    xchg(&mxfs_dbg_pr_register_fail, 0)) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs-pal: P-DBG-PR-REGISTER-FAIL injecting "
+			     "register failure (one-shot)");
+		return -EIO;
+	}
 
 	/* REGISTER_AND_IGNORE: old_key=0, new_key=key (idempotent — safe
 	 * to reissue after a UA-consumed attempt) */
@@ -2794,6 +2833,52 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 
 	return ret;
 }
+
+/*
+ * Raw-bdev unregister for the deferred umount path: the scsipr ctx's own
+ * mxfs_bdev clone is already closed by v5 shutdown when the unmount
+ * record has been written, so the late unregister goes through the
+ * mount's still-open data device instead.
+ */
+/* declared in xfs/xfs_mxfs_dlm.h; redeclared here to silence
+ * -Wmissing-prototypes since kern.c does not include xfs_mxfs_dlm.h. */
+int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key);
+int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
+{
+	const struct pr_ops *ops;
+	int ret = -EOPNOTSUPP;
+	int ua_try;
+
+	if (!bdev)
+		return -EINVAL;
+
+	if (!bdev->bd_disk || !bdev->bd_disk->fops ||
+	    !bdev->bd_disk->fops->pr_ops)
+		return -EOPNOTSUPP;
+	ops = bdev->bd_disk->fops->pr_ops;
+	if (!ops->pr_register)
+		return -EOPNOTSUPP;
+
+	/* Unregister: old_key=key, new_key=0 */
+	for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+		ret = ops->pr_register(bdev, key, 0, 0);
+		if (ret != SAM_STAT_CHECK_CONDITION)
+			break;
+		msleep(2 << ua_try);
+	}
+
+	/*
+	 * RESERVATION CONFLICT (0x18 / 24): our key was already
+	 * removed — preempted by another node or a previous
+	 * unregister succeeded. The key is gone, which is the
+	 * desired outcome.
+	 */
+	if (ret == 0x18 || ret == -EBUSY)
+		return 0;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_unregister_bdev);
 
 int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
 {
@@ -3477,6 +3562,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_sleep_ms);
 EXPORT_SYMBOL_GPL(mxfs_pal_cond_resched);
 EXPORT_SYMBOL_GPL(mxfs_pal_log);
 EXPORT_SYMBOL_GPL(mxfs_pal_dump_stack);
+EXPORT_SYMBOL_GPL(mxfs_pal_dump_task_stack);
 EXPORT_SYMBOL_GPL(mxfs_pal_sort);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_register);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_reserve);

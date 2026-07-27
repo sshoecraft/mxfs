@@ -60,12 +60,42 @@ xfs_extent_busy_insert_list(
 
 		if (new->bno < busyp->bno) {
 			rbp = &(*rbp)->rb_left;
-			ASSERT(new->bno + new->length <= busyp->bno);
+			if (unlikely(new->bno + new->length > busyp->bno))
+				pr_warn_ratelimited("mxfs: P-BUSY-OVERLAP xg=%u new[bno=%u len=%u] busy[bno=%u len=%u] comm=%s — overlapping in-flight extent frees (double-free family)\n",
+					xg->xg_gno, new->bno, new->length,
+					busyp->bno, busyp->length,
+					current->comm);
 		} else if (new->bno > busyp->bno) {
 			rbp = &(*rbp)->rb_right;
-			ASSERT(bno >= busyp->bno + busyp->length);
+			if (unlikely(bno < busyp->bno + busyp->length))
+				pr_warn_ratelimited("mxfs: P-BUSY-OVERLAP xg=%u new[bno=%u len=%u] busy[bno=%u len=%u] comm=%s — overlapping in-flight extent frees (double-free family)\n",
+					xg->xg_gno, new->bno, new->length,
+					busyp->bno, busyp->length,
+					current->comm);
 		} else {
-			ASSERT(0);
+			/*
+			 * ccloop-4dd7 (RULE-4 proven, 2-CPU soft-lockup
+			 * autopsy): an EXACT-duplicate busy bno means this node
+			 * queued the SAME extent free twice in-flight (the
+			 * cross-node stale-map double-free family).  Upstream's
+			 * ASSERT(0) is a no-op in production and the walk then
+			 * never advances *rbp — an INFINITE LOOP holding
+			 * eb_lock (observed: insert spinning on one CPU,
+			 * xlog_cil_committed→busy_clear spinning behind it,
+			 * node wedges, peer's DLM times out 184s and shuts
+			 * down).  Log loudly and bail without inserting: the
+			 * range is already busy-protected by the first entry;
+			 * skipping ours only shortens the busy window to the
+			 * first transaction's commit.  The duplicate free
+			 * itself remains the defect to hunt via this probe.
+			 */
+			pr_warn("mxfs: P-BUSY-DUP xg=%u bno=%u len=%u vs busy[len=%u flags=0x%x] comm=%s — duplicate in-flight extent free; skipping insert (upstream would loop forever)\n",
+				xg->xg_gno, new->bno, new->length,
+				busyp->length, busyp->flags, current->comm);
+			spin_unlock(&eb->eb_lock);
+			xfs_group_put(new->group);
+			kfree(new);
+			return;
 		}
 	}
 

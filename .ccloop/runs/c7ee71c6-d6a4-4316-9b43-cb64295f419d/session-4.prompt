@@ -1,0 +1,124 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 3
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `931c117f-2e77-4914-abf7-432940f3d98c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c.jsonl`
+- approx context at last assistant turn: 484086 tokens
+- tools used: Bash×104 Read×45 Edit×27 TaskCreate×2 ToolSearch×2 TaskUpdate×1 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_dir2_readdir.c
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n 'flush_out:' /src/mxfs/xfs/xfs_inode.c | head -2; sed -n '6180,6215p' /src/mxfs/xfs/xfs_inode.c
+    D=/tmp/run_dir_reuse_coherency_20260725T153014Z; grep -h 'P-CLMERGE-DEADINCARN' $D/kernlog_test1 | tail -5; echo ==COUNT-ALL-NODES; grep -hc 'P-CLMERGE-DEADINCA
+    grep -rn 'i_mxfs_dirty_seq =' /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c 2>/dev/null | head -6
+    echo 0.11.86 > VERSION && make modules 2>&1 | grep -E ' error|Error' | head; modinfo mxfs.ko | grep srcversion && unset RULE0_CALIBRATE && MXFS_FORCE_PREP=1 ./r
+    unset RULE0_CALIBRATE; for r in 1 2 3; do ./run.sh 8 tcp dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done
+    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo $D; tail -3 $D/test1 2>/dev/null | cut -c1-160; ./tools/mxfs_sshpass.sh 192.168.120.186 x 'ps -eo pid
+    ./tools/mxfs_sshpass.sh 192.168.120.186 x 'cat /proc/8619/stack 2>/dev/null; echo ===; cat /proc/8619/comm' 2>/dev/null | tail -15
+    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; ls $D | head -6; for i in 1 2 3; do echo "== t$i last-phase:"; grep -h 'DRCph' $D/kernlog_test$i 2>/dev/null | 
+    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; for m in P34J-RELOAD-DEMOTE-BAIL P34J-RELOAD-RACE-BAIL P34H-INCARN-POISON P34H-POISON-EVICT P-CLMERGE-AUTH-KEEP
+    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; grep -h '15:4[5-7]:' $D/kernlog_test1 | grep -vE 'P-D8-TICK|DRCph|P12-DLMTR' | awk '{print $6}' | sort | uniq -
+    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; grep -h '15:45:1[5-9]\|15:45:[2-5]' $D/kernlog_test1 | grep -vE 'P-D8-TICK|DRCph|P12-DLMTR' | grep -E 'XFS|Corr
+    for D in /tmp/run_dir_reuse_coherency_20260725T153014Z /tmp/run_dir_reuse_coherency_20260725T152115Z /tmp/run_dir_reuse_coherency_20260725T150937Z; do echo -n "
+    for D in $(ls -dt /tmp/run_dir_reuse_coherency_* | head -3); do echo "== $D"; grep -h 'RESULT' $D/test1 2>/dev/null | head -1 | cut -c1-150; done
+    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; grep -h 'P21H-LEAFHOLE' $D/kernlog_test1 | awk '$4 ~ /15:4[5-7]/' | head -4; grep -h 'HOLE_OK' $D/kernlog_test1
+    unset RULE0_CALIBRATE && S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad && (./run.sh 8 tcp dir_reuse_coherency > $S/drc_probe.out 
+    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo $D; for m in P34H-INCARN-POISON P34H-POISON-EVICT; do echo -n "$m: "; grep -h "$m" $D/kernlog_test* 2
+    unset RULE0_CALIBRATE && S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad && rm -f $S/probe_*.txt && (./run.sh 8 tcp dir_reuse_coher
+    S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad; grep -l 'mxfs\|xfs_' $S/probe_*.txt 2>/dev/null; for f in $S/probe_*.txt; do n=$(g
+    grep -rn 'coord_get()\|coord_put()\|coord_signal_abort()\|drc_barrier()' /src/mxfs/tests/suite/*.sh /src/mxfs/tests/lib/*.sh 2>/dev/null | head -6; grep -rln 'c
+    unset RULE0_CALIBRATE && S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad && rm -f $S/p3_*.txt && (./run.sh 8 tcp dir_reuse_coherenc
+
+## Last text from previous session
+
+Starting session 3. First: load ccmemory tools and read `state.md` (the original task, and it carries the Phase A design from the previous session).
+The release drain covers the dinode cluster; dir data blocks are handled by `mxfs_dir_flush_data_blocks` at the release "sd stage". The hole must be in that path — finding it and how it enumerates blocks:
+Now the INACT-EXREL deferral in xfs_inode.c:
+Adding the poison flag (bit 24) with recycle-reset semantics:
+Now the three reload-site poison edits. Site 1 — the non-FUA P52-RELOAD branch (split clean/dirty):
+Now the reload-entry early-exit for poisoned shells — locating the function start:
+Now the op-entry ESTALE checks (plan item c). Viewing the iget evict block and the op entry points:
+Now the readdir entry check:
+Phase A core is in. Bumping version and building:
+Deployed in 72s. Running the sensitive triad — round 1:
+The PASS line (7/7 checks, 16s) conflicts with the FAIL line I grepped — likely I read a stale run dir. Verifying:
+Guards fire but reverts persist — need this run's precise interleave. Pulling the full marker timeline for the affected ino on test1:
+A watch-gated PW-IABORT probe already exists in `xfs_iflush_abort`. Checking the failing runs for it:
+Verifying the dirty_seq stamp site so the release-path re-log actually earns the authority bit:
+`xfs_trans_log_inode` stamps the equality, so the release-path re-log earns authority. Building v0.11.86 and re-verifying:
+Regression — runs now hang (NO_TERMINAL_RECORD at the 120s box). Diagnosing the wedge before touching anything else:
+That's the death worker's normal poll sleep — false lead. Checking what phase each node stalled in:
+All nodes stalled in round-1 **verify** (post drop_caches). Checking whether my P34J bails are storming there:
+State checkpointed. Writing the compact memory entry, then catching the wedge **live** with an in-run prober:
+The prober had a quoting bug (remote awk silently broken) — D-state absence is unproven. Rerunning with a robust prober that dumps stack+wchan of every drc-related process regardless of state:
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,7 +1,7 @@
 # dlm (Distributed Lock Manager)
 
 **Owner files**: `dlm/` (21 files, ~20K LOC), `include/` (4 headers), `compat/` (1 file)
-**Last updated**: 2026-05-08
+**Last updated**: 2026-07-25 (sess6: v0.11.92 orphan-grant NAK — see dated section at end)
 
 ## Purpose
 
@@ -212,3 +212,186 @@ release path drains like the BAST path" (under a correct DLM a lost msg should S
   lock_alloc/lock_free/promote_waiters.
 - Verified: runs 21-26 = 0 P-DOUBLEGRANT / 0 MX-DOUBLEGRANT / 0 readdir dirent
   loss (previously every 8/tcp dir_reuse run lost dirents).
+
+## sess5 (ccloop-4dd7) — TCP join hardening (v0.11.72/73)
+- `v5_peer_connect_cb_tcp` (v5_mount.c): an INBOUND/fallback TCP connect can be a node's
+  first sight of any peer; it now fires `peer_joined_notify_fn` (XFS flush + DLM-cache
+  invalidation) BEFORE lease-register/refresh when still single-node. Without it the later
+  discovery announcement early-returns on `mxfs_lease_has_node` and the single→multi
+  transition never runs on that node → phantom holds → split-brain (pve9 pair root #7).
+- MEMBERSHIP-SETTLE GATE (both TCP and CAW mount branches, v5_mount.c): if the disklock
+  slot table shows ACTIVE foreign slots at mount, the mount blocks (≤15s, 250ms poll)
+  until the lease view covers them (`P-MEMB-SETTLE-TIMEOUT` on dead slots). Prevents the
+  joiner's first write from self-granting on a stale base (root #8: durable dirent loss).
+  The "DLM initialized" log line MUST print BEFORE this gate — run.sh's convergence awk
+  resets its beacon window at that line.
+
+## v0.11.74-76 — SCSI PR teardown ordering + slot release (physical QNAP campaign, 2026-07-24)
+
+- **TEARDOWN-ORDER INVARIANT: PR unregister must FOLLOW the final XFS log write.**
+  `xfs_fs_put_super` calls `mxfs_v5_dlm_detach_pr_key(v5dlm)` (v5_mount.h) BEFORE
+  `mxfs_v5_dlm_shutdown`, then `mxfs_pal_scsi_pr_unregister_bdev(bt_bdev, key)`
+  AFTER `xfs_unmountfs`. Unregistering inside v5 shutdown fenced the node's own
+  unmount record on WE-RO-enforcing targets (EBADE log-error shutdown on every
+  clean non-holder umount; unmount record lost → recovery next mount). Never
+  reorder this back. New: `mxfs_scsipr_key/abandon` (scsipr.h).
+- **`mxfs_disklock_release_slot(ctx)`** (disklock.h): clean teardown clears the
+  heartbeat record's ACTIVE flag (FUA). Called from v5 shutdown when
+  `!ctx->withdrawn` — withdraw/crash keeps the record ACTIVE so peers detect
+  death + recover the slice. Without it every tenure ghost-taxes later mounts.
+- **Settle gate ghost discrimination**: both gates (TCP+CAW) run a one-time
+  liveness rescan (`get_stale_slot_mask` threshold=5000) if not settled after
+  2s; frozen slots are discounted (`P-MEMB-GATE-GHOSTS`), worst case ~7s vs 15s.
+  All-live joins settle <2s and never pay it.
+- **TCP branch aborts mount on PR register failure** (parity with CAW): device
+  with PR that refuses REGISTER = unfenced node under possible WE-RO → abort.
+  One-shot injection `mxfs.dbg_pr_register_fail` (kern.c) verifies the path.
+- **QNAP TS-453 Pro PR is NON-CONFORMANT**: purges ALL registrations on session
+  logout/login without PRgen bump; UNREGISTER doesn't bump gen; enforcement of
+  WE-RO vs unregistered writers is strict. PR on this target is advisory-only —
+  D4 (preempt hygiene) + D8 (periodic PR self-check w/ self-fence) still open.
+- **OPEN D7**: joiner root-ino EX acquire stalls 4.7-20s (variable) when holder
+  has unflushed root-EX at join; joiner-side, self-mastered, pre-grant wait,
+  attempts=1. Needs request-ID timestamps (see memory physrig-fixes-v74-76).
+- **OPEN D6**: clean umount sends no goodbye → surviving peer's umount grinds
+  the full 40s tcp_death_grace with "lock request retrying" spam.
+
+## v0.11.77-80 — fail-closed mount, view-proof settle, goodbye, PR fence program (ccloop c7ee71c6 sess1, 2026-07-25)
+
+- **v0.11.77 (D9) FAIL-CLOSED MOUNT INVARIANT**: an envelope volume whose
+  `mxfs_v5_dlm_init` returns NULL must FAIL the mount (`xfs_super.c` →
+  -ENOTCONN, `goto out_filestream_unmount`). The old "continuing single-node"
+  fallback mounted BOTH test nodes uncoordinated on one LUN when PR-register
+  aborted DLM init. Never restore the fallback; single-node use = DLM init
+  succeeding as a 1-node cluster.
+- **v0.11.78 (D7 CLOSED)**: the 4.7-20s joiner EX stall was the sess39/45
+  wall-clock membership-settle gate (`memb_settle_ms=20000`) riding every
+  membership change — it froze EVERY node's EX for up to 20s. Fix: lease UDP
+  beacon (500ms) carries a FNV-1a-64 **view signature** (sorted member ids +
+  count; `mxfs_lease_udp_msg.view_count/view_hash`, old-length packets remain
+  valid beacons sans report). `dlm_view_confirmed()` (dlm.c) settles the gate
+  as soon as every active peer reports MY exact signature received after MY
+  last change. Wall-clock window is the fallback — behavior identical when
+  proof is absent. Join wall 20.1s → 0.66s. APIs:
+  `mxfs_dlm_get_view_sig/report_peer_view` (dlm.h),
+  `mxfs_lease_set_view_provider/report_cb` (lease.h), glue in v5_mount.c TCP
+  branch. Probe `P-D7-SETTLEGATE` stays in-tree.
+- **v0.11.79 (D6 CLOSED) GOODBYE PROTOCOL**: `mxfs_v5_dlm_shutdown` broadcasts
+  `MXFS_MSG_NODE_LEAVE` (after release_all + journal-slot release, before
+  peer_shutdown, only when `!ctx->withdrawn`). RX clears the tcp_suspect
+  entry, purges, lease-unregisters, and **refreshes active nodes** (P-GOODBYE-RX);
+  the disconnect cb skips suspect/EX-freeze for nodes no longer in the lease
+  (`mxfs_lease_has_node`) — "closed after clean departure — no death grace".
+  Survivor EX work after peer clean-umount: 38s → 10ms. Fenced/withdrawn nodes
+  never send goodbye (peers must recover their slice).
+- **v0.11.80 (D4/D8) PR FENCE PROGRAM**: v5 never PR-preempted dead nodes at
+  all (legacy mount.c blind preempts are user-mode only). Now both death paths
+  (`v5_lease_expire_cb`, `v5_tcp_declare_dead`) call
+  `v5_pr_fence_dead_node` FIRST (fence before purge/remaster/slice-replay):
+  `mxfs_scsipr_fence_node(ctx, victim, live_members)` does READ KEYS
+  classification — preempt only PRESENT victim keys; **topology guard**
+  (count<live ⇒ P-PR-ADVISORY, no preempt/self-fence — shared-I_T-nexus rigs
+  like the tcm_loop VM rig hold ONE registration for ALL VMs, each register
+  overwrites the last); own-key-gone self-fence (-ESTALE → fence_notify)
+  only when unambiguous (count>=live && live>=2). `registered` flag makes
+  destroy's safety-net unregister idempotent (double-PROUT gone).
+  D8: `mxfs_scsipr_probe` after register+reserve (both branches) logs
+  per-node-PR usability at mount (P-PR-PROBE); periodic self-check in the TCP
+  death worker (30s) → P-PR-ADVISORY latch / P-PR-SELFFENCE. Pending on
+  sane-nexus rigs (cawd/QNAP): positive preempt + real ESTALE execution.
+
+## v0.11.92 — orphan-grant NAK: membership-purge zombie heal (ccloop c7ee71c6 sess6, 2026-07-25)
+
+**Defect (live-captured, TCP)**: `mxfs_dlm_update_active_nodes` (dlm.c)
+purges the ENTIRE local lock table on EVERY membership change, and nodes
+process membership events at different times during the mount ramp.  A
+node's own GRANTED record can be purged locally while the (settled)
+master's record survives.  The holder's later release then hits local
+`-ENOENT` in `mxfs_dlm_unlock_gen` and — before this fix — sent NOTHING:
+the master's zombie GRANTED entry starved the whole cluster (test6 AG-9:
+`P5U-AGUNLOCK-ENOENT` at 17:28:15; master test2 re-BASTed 1/s for 500+s,
+`P12-AGBAST-RX holders=0 cached=0 schedule=0`; test1's rm-rf blocked in
+`mxfs_trans_preacquire_inode_ags` HOLDING the dir ILOCK → P132 →
+3/3 runs DNF as SYSCALL_HANG/ABORTED_BY_PEER).
+
+**New public API**:
+- `mxfs_dlm_release_orphan_if_unheld(ctx, resource)` (dlm.c, decl dlm.h):
+  guarded NAK — scans the bucket for ANY-state local-owner entry
+  (GRANTED/CONVERTING/WAITING incl. in-flight `pend_waiter`); if one
+  exists returns `-EBUSY` (never releases under a live local tenure or
+  in-flight acquire), else sends the FIX-20b unconditional (gen=0)
+  `LOCK_RELEASE` to the resource's current master.
+- `mxfs_v5_dlm_ag_orphan_nak(ctx, agno)` (v5_mount.c, decl v5_mount.h):
+  AG wrapper; TCP engine only (`ctx->dlm`) — CAW's on-disk slot is the
+  single truth, no remote master table to diverge.
+
+**Wire points**:
+- `mxfs_dlm_unlock_gen` ENOENT branch (AG type): sets `ag_orphan_nak`,
+  sends after `table_rwlock` drops, prints `P5N-AG-ORPHAN-NAK
+  src=unlock-enoent rc=%d`, still returns -ENOENT.
+- `mxfs_dlm_ag_bast_notify` (xfs_mxfs_dlm.c): unheld shape
+  (`holders==0 && !cached && !bast_scheduled` && bast pending >3s) →
+  NAK outside `pag_dlm_lock`, `P5N ... src=bast-rx`.  Self-limiting:
+  fires once per incoming bast (~1/s) and stops when the master drops
+  the zombie.
+
+**Decode notes**: P12-AGBAST-RX's `page_ms` = ms since bast first went
+pending (NOT paging); its `holder=` pid/comm is the stale LAST holder.
+`schedule=` requires `cached=1` — `cached=0 holders=0` + old pending is
+the zombie signature.
+
+**Open (deferred, unobserved)**: the REVERSE purge arm — master's record
+purged while the holder keeps its fs-layer grant → possible concurrent
+EX after the 20s settle freeze.  Must be reasoned/instrumented before
+any production verdict.  P5N/P5U counters are the standing harvest.
+
+## sess10 (ccloop c7ee71c6, 2026-07-26, v0.11.104-108) delta
+- v5_mount.c mxfs_v5_dlm_recovery_complete: both silent early-returns now print
+  (P163-COMPLETE-BAIL / P163-COMPLETE-NOPEND) — permanent sentinels after the frankenstein
+  NFS-module incident (see sess10-B memory).
+
+## sess11 (ccloop c7ee71c6, 2026-07-26, v0.11.109-111) delta
+- **Post-death membership (withdraw@2 fix)**: lease membership drives TCP mastership
+  (`mxfs_dlm_resource_master` = active_nodes[hash%count]; active_nodes ⇐
+  `mxfs_lease_get_active_nodes` = ACTIVE|JOINING entries). The P163 recovery path now
+  calls `mxfs_lease_unregister_node(dead)` in BOTH `mxfs_v5_dlm_recovery_complete`
+  (elected replayer) and `v5_recovered_cb` (deferred survivors), immediately before
+  their `v5_refresh_active_nodes`. Do NOT unregister earlier (fence time): mastership
+  must stay ON the dead node until its journal slice is replayed (sess9-D2 freeze).
+- **P164 dead-identity set** (`mxfs_v5_dlm.dead_nodes[32]` ring): noted at fence
+  (v5_lease_expire_cb), v5_tcp_declare_dead, GOODBYE. `v5_discovery_peer_cb` and
+  `v5_peer_connect_cb_tcp` reject retired ids (P164-DEAD-REJECT) — a force-shutdown
+  zombie keeps announcing/renewing until unmounted and must never re-enter membership.
+  `v5_refresh_active_nodes` deliberately does NOT filter on the dead set (comment in
+  code): filtering there would remaster at fence time and re-open the torn window.
+- Victim side: `mxfs_v5_dlm_shutdown_withdraw` now also runs `mxfs_discovery_stop`
+  (announce silence). Lease renewals intentionally KEEP running until unmount — they
+  hold the entry ACTIVE so mastership stays frozen until the complete-unregister;
+  post-unregister they're ignored (lease.c unknown-node print, now ratelimited).
+- Print-level trap: "lease: unregistered node" is DEBUG (invisible in dmesg);
+  P163-RECOVERY-COMPLETE prints AFTER a multi-second disklock_purge_node zeroing pass;
+  the "peer joined — flushing" lines during recovery are the foreign-replay worker
+  reusing mxfs_dlm_peer_joined_flush (NOT a membership join).
+
+## TCP peer-connection lifecycle & the false-death class (sess12, v0.11.114)
+- **Connection heal paths are asymmetric by construction**: `v5_discovery_peer_cb`
+  (dlm/v5_mount.c) re-connects a lease-known-but-disconnected peer on EVERY ~500ms
+  announce (lower-id → `mxfs_peer_connect`, higher-id → `_connect_force`). The peer
+  layer (dlm/peer.c) resolves duplicate/simultaneous connections by REPLACING in the
+  accept path — a join-storm flap where the two sides keep different sockets is normal.
+- **connect_cb MUST fire on BOTH connect directions.** Historic defect: only the
+  accept (inbound) path fired `ctx->connect_cb`; an outbound reconnect success left
+  the v5 suspect timer armed → `v5_tcp_death_worker_fn` declared a peer with a live
+  ESTAB socket dead after 40s → `v5_tcp_declare_dead` → whole-table purge (phantom
+  grants at surviving masters) + P164 permanent exile of a LIVE node + membership
+  fork (15 vs 16) → divergent hash-mastership → FIX-20b reconcile releases routed to
+  the wrong master (silent rc=0) → root-ino EX starved → cluster-wide rc=-110.
+  Fixed in `peer_connect_impl` (fires connect_cb after start_recv_thread) + a
+  death-worker belt: cancel any suspect whose `mxfs_peer_is_connected()` is ACTIVE.
+- **Debug affordances**: `ss -tn | grep :7600` on a node is ground truth for the peer
+  mesh vs the DLM's beliefs; deterministic flap repro = `ss -K dst <peer> dport/sport
+  = 7600` (both sides must print "deferring death" then "connected + cancelling
+  pending death" within ~1s; the lower-id side heals OUTBOUND).
+- ctx->peer / suspect table / death worker exist ONLY under
+  `MXFS_V5_TRANSPORT_TCP` (v5_mount.c:1339) — CAW transports have no TCP mesh, so
+  peer.c changes cannot regress CAW conditions.

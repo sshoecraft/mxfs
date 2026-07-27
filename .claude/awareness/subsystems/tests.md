@@ -23,7 +23,8 @@ Shell-based test infrastructure that drives 2-node bench/stress against test1/te
 | `scripts/cluster_reset.sh` | sysrq-safe FULL reset: unmount, rmmod (with retry for transient busy), re-mkfs on test1, mount on both. Includes 8× retry × 10s sleep for rmmod. |
 | `scripts/stress_session.sh <iters> <mb>` | Stress harness, requires T1_DD_OK + T2_DD_OK markers per iter (sess23-fixed; pre-sess23 used `shutdown_check` alone, missed silent EIO). |
 | `scripts/stress_session_4node.sh` | 4-node variant (not currently used; reserved for sess34+ scaling). |
-| `tools/mxfs_sshpass.sh` | SSH+sshpass wrapper. Auth via `/tmp/.mxfs_pass`. All test scripts use this. |
+| `tools/mxfs_sshpass.sh` | SSH+sshpass wrapper. All test scripts use this. Password is resolved from the lab secrets store `~/.config/mxfslab/secrets` (via `tools/mxfs_secrets.sh`), which materializes the `/tmp/.mxfs_pass` passfile — the wrapper re-resolves it if missing, so every caller works without a password in the tree. |
+| `tools/mxfs_secrets.sh` | Resolves `~/.config/mxfslab/secrets` (source of truth for test creds) → materializes the sshpass passfile. `passfile [path]` writes the node pw; `get <key> [field]` reads a field. The node root pw lives ONLY in the store (kept in sync with osimager `images/linux`) — never write it into the tree. |
 | `scripts/probe_sweep.sh <N>` | (ccloop daf50d34) Post-run cluster sweep of the 0.10.65+ xfs_buf integrity probes (P-SEMA-OVERUP/DUALLOCK, P-WRCNT-RESUBMIT, P-BLI-DOUBLEDONE) + SYSCALL_HANG/shutdown/BUG/Oops across test1..N dmesg rings. Exit 0 iff CLEAN. Run after every criteria run, BEFORE any VM recycle (ring dies on reboot). |
 | `scripts/revalidate_cell.sh <N> <full\|nodr\|dr\|g1\|g2>` | (ccloop daf50d34) One matrix-cell-group re-validation on the current build: clears rings, runs `run.sh N caw <group>` with RULE-0 TEST_TIMEOUT (600@32, 480@16, 300 else; dir_reuse auto 140*N inside run.sh), then probe_sweep. g1/g2 = the 32-node coherency/destructive split. |
 | `tests/cluster/`, `tests/single/`, `tests/stress/` | Per-area test cases. |
@@ -202,3 +203,30 @@ whatever the new hang-detection doesn't itself catch.
   nothing", check `findmnt /mnt/shared` / `stat -f` (fstype!) on EVERY node
   FIRST. `stat` succeeding on the shared path proves nothing — a bare
   rootfs mountpoint answers stat too.
+
+## sess5 (ccloop-4dd7)
+- tests/suite/soak.sh persists DPAT-matching dmesg lines to /root/soak_hits.$MARKER.txt on
+  the node and prints SOAK-HIT samples on failure (threshold unchanged) — node journals are
+  lost on virsh destroy, so a soak FAIL without this is undiagnosable post-hoc.
+- scripts/wire_vms.sh accepts any DEFINED libvirt domain name (pve9-1 etc.), not just testN.
+- pve9-1/pve9-2 = Proxmox 9.1 VMs (kernel 6.17.2-1-pve) for PVE-kernel verification: build
+  the module ON the node from a LOCAL copy (/root/mxb) — never `make` in the NFS tree from
+  a foreign-kernel node (clobbers clyde's 6.8 objects). Nodes mount 192.168.1.4:/src.
+
+## run.sh marker validity (2026-07-25, ccloop c7ee71c6)
+
+`.cluster_marker.json` now records `node_list` (the actual hosts prepped) and
+`marker_matches()` LIVE-verifies each node's `/sys/module/mxfs/srcversion` +
+`/mnt/shared` mountpoint before any filtered run reuses the cluster. Cause: a
+physrig-session marker (same N/dlm/srcversion fields, different rig) matched a
+VM-fleet invocation and 5 tests were recorded PASS against a stale module.
+Old markers lack node_list → mismatch → forced prep. If PR register fails on
+the VM rig: check clyde's `/etc/target/pr/` exists first (LIO APTPL metadata
+dir; PROUTs execute-but-fail NOT READY without it, with side effects).
+
+## sess10 (ccloop c7ee71c6, 2026-07-26, v0.11.104-108) delta
+- run.sh passes MXFS_KO_MD5 to tests/setup/prep_node.sh, which copies mxfs.ko to node-local
+  /root/mxfs.ko.prep and drop_caches+retries until md5 matches before insmod — NFS mixed-page
+  module images are real (srcver can match while code is stale). Never revert.
+- tests/withdraw_recovery_test.sh args: N [victim] [creator] — "16 tcp" sshs to host "tcp".
+- 32-node chunked boards saturate clyde (load 40-64): run budget-tight rows standalone.

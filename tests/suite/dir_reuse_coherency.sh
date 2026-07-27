@@ -54,6 +54,14 @@ fi
 rm -f /root/drc_create_r*.dmesg /root/drc_fail_r*.dmesg \
       /root/drc_failverify_r*.dmesg /root/drc_failrounds.txt 2>/dev/null
 rm -rf /root/drc_blkdump_r* 2>/dev/null
+# ccloop c7ee71c6 sess6: the newer capture families were MISSING from this
+# clean-slate rm — run 155524Z's artifact contained drc_dchang_r14 /
+# drc_hang_rm_r{1,3,4} snapshots whose in-file uptimes (134s..5329s) span
+# FIVE different boots; they read as "this run reached round 14 and hung rm
+# three times" when the run actually died in round 1.  Every /root capture
+# family this script can emit must be cleared here.
+rm -f /root/drc_dchang_r*.dmesg /root/drc_hang_rm_r*.dmesg \
+      /root/drc_hang_mkdir_r*.dmesg 2>/dev/null
 
 # sess8 (ccloop 72513a13) TEST REARCHITECTURE — user directive: 1380s for one
 # test is itself the failure; a debug loop that takes 20+ minutes per attempt

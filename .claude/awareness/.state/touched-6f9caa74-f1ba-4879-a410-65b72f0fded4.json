@@ -1,0 +1,19 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_iops.c",
+    "xfs/xfs_inode.c",
+    "dlm/v5_mount.c",
+    "xfs/xfs_inode.h",
+    "xfs/libxfs/xfs_ialloc.c",
+    "xfs/libxfs/xfs_alloc.c",
+    "xfs/libxfs/xfs_dir2.c",
+    "xfs/libxfs/xfs_da_btree.c",
+    "xfs/libxfs/xfs_inode_util.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

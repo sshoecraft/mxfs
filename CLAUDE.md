@@ -155,6 +155,52 @@ proven fix is faster than three guessed fixes.
 
 ---
 
+### RULE 6 — ZERO ACCEPTED KNOWN DEFECTS
+
+MXFS's release and promotion bar is ZERO UNRESOLVED CREDIBLE DEFECTS.
+A defect is any observed or evidence-backed violation of required
+correctness, coherency, durability, recovery, safety, or RULE 0
+performance behavior.  Reproducibility is a troubleshooting objective,
+not a requirement for the defect to count.
+
+Every credible defect remains OPEN until exactly one evidence-backed
+disposition is reached:
+
+1. DISPROVED — direct evidence establishes that the reported behavior
+   was not an MXFS defect.
+2. FIXED AND VERIFIED — RULE 4 proves the cause, the patch targets that
+   cause, and testing that exercises the cause passes cleanly under
+   unchanged acceptance criteria.
+
+"Cannot reproduce" is not DISPROVED.  A patch, plausible explanation,
+clean single run, workaround, or documentation is not FIXED AND
+VERIFIED.  Instrument, narrow, stress, and preserve the evidence until
+one of the two dispositions is proven.  A session ending requires an
+explicit open-status handoff, not closure.
+
+FORBIDDEN: accepting, normalizing, closing, or relabeling a defect
+because it is rare, intermittent, difficult to reproduce, low-impact,
+pre-existing, inherited from upstream, triggered only by stress or an
+unusual workload, covered by a workaround, risky or difficult to fix,
+blocked by a deadline or session boundary, or also present in another
+filesystem.  Never cite GFS2, OCFS2, XFS, or any other system's defects
+as permission for MXFS to retain one.  Never rename a defect a "known
+limitation," "expected behavior," or "documented issue," and never
+redefine the requirement after failure to make the defect disappear.
+
+Be cautious about HOW to fix; never about WHETHER an established defect
+must be fixed.  Do not rush, guess, weaken a test, or claim success
+without verification.  State only what the evidence proves: the observed
+defect was fixed under the stated verification.  Never promise that an
+untested workload cannot reveal a new defect.  That limit on claims is
+an integrity requirement, not permission to accept, defer, close, ship,
+or recommend promotion with an unresolved defect.
+
+(Numbered 6 because RULE 5 — ESCALATE TO GPT — already exists lower in
+this file; this rule lives in the prohibitions block for its force.)
+
+---
+
 ## Development Notes
 
 (Project-specific notes — these are NOT prohibitions, just guidance.)
@@ -171,6 +217,13 @@ proven fix is faster than three guessed fixes.
   based detection in `dlm/dlm_caw.c::slot_appears_corrupt`.
 - Test cluster: 192.168.120.186 (test1) + 192.168.120.182 (test2), both UTC.
   Local Claude shell may be CDT — use `date -u` for journalctl --since.
+- **Test secrets live in `~/.config/mxfslab/secrets`** (mode 600, NOT in the repo —
+  the password is never committed). `tools/mxfs_secrets.sh` resolves it and
+  materializes the sshpass passfile; `tools/mxfs_sshpass.sh` (the SSH chokepoint all
+  scripts use) and `run.sh` reference it, so a fresh checkout needs only this file.
+  The node root password is kept in sync with osimager's `images/linux`
+  secret so osimager-built nodes match. NEVER hardcode a test password in the
+  tree — that includes prose, docs, comments, and handoff notes, not just code.
 - Stress harness: `scripts/stress_session.sh <iters> <mb>` (sess23-fixed)
   requires T1_DD_OK + T2_DD_OK every iter.  `shutdown_check` alone is
   insufficient — it missed sess22's iter-1 EIO failures and produced
@@ -192,7 +245,7 @@ This project uses the three-layer awareness system (see
 
 - **Last bootstrapped**: 2026-05-08
 - **Subsystems documented**: 5 of 5 (xfs, dlm, pal, tools, tests)
-- **Structural map**: 2026-07-19, ~58442 tokens
+- **Structural map**: 2026-07-26, ~59370 tokens
 - **Bootstrap version**: 1.0
 
 ## ⚠️ USE MXFS TOOLS, NOT XFS TOOLS

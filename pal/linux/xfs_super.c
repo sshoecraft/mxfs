@@ -684,6 +684,12 @@ xfs_init_mount_workqueues(
 	/* v0.5.4 sess24: background dir-slot publisher (runs on
 	 * m_mxfs_inode_bast_wq; flushed with it at put_super). */
 	INIT_WORK(&mp->m_mxfs_publish_work, mxfs_dlm_publish_dirs_work);
+	/* ccloop c7ee71c6 sess2: coalesced destage kick (see xfs_mount.h). */
+	{
+		extern void mxfs_destage_kick_fn(struct work_struct *);
+		INIT_DELAYED_WORK(&mp->m_mxfs_destage_kick,
+				  mxfs_destage_kick_fn);
+	}
 
 	return 0;
 
@@ -794,6 +800,27 @@ xfs_fs_destroy_inode(
 	ASSERT(!rwsem_is_locked(&inode->i_rwsem));
 	XFS_STATS_INC(ip->i_mount, vn_rele);
 	XFS_STATS_INC(ip->i_mount, vn_remove);
+	/*
+	 * sess5 shadow ledger: __destroy_inode (which just ran) DECS
+	 * s_remove_count for i_nlink==0 — verify the zero was accounted,
+	 * and clear the flag so a later recycle's re-inc is expected.
+	 */
+	if (inode->i_nlink == 0) {
+		if (!xfs_iflags_test(ip, MXFS_IF_RMC_ACCT)) {
+			static atomic_t p9dst_n = ATOMIC_INIT(0);
+			if (atomic_inc_return(&p9dst_n) <= 50) {
+				pr_alert("mxfs: P9-RMC-UNPAIRED-DESTROY ino=%llu rmcnt=%ld last0=%pS lastclr=%pS comm=%s — destroy-at-0 dec with UNACCOUNTED zero\n",
+					(unsigned long long)ip->i_ino,
+					atomic_long_read(&inode->i_sb->s_remove_count),
+					ip->i_rmc_last0_ra,
+					ip->i_rmc_lastclr_ra,
+					current->comm);
+				dump_stack();
+			}
+		}
+		xfs_iflags_clear(ip, MXFS_IF_RMC_ACCT);
+		ip->i_rmc_lastclr_ra = __builtin_return_address(0);
+	}
 	xfs_inode_mark_reclaimable(ip);
 }
 
@@ -1371,6 +1398,7 @@ xfs_fs_put_super(
 	struct super_block	*sb)
 {
 	struct xfs_mount	*mp = XFS_M(sb);
+	uint64_t		pr_late_key = 0;
 
 	xfs_notice(mp, "Unmounting Filesystem %pU", &mp->m_sb.sb_uuid);
 
@@ -1413,6 +1441,16 @@ xfs_fs_put_super(
 		 */
 		mp->m_mxfs_dlm = NULL;
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
+		/*
+		 * v0.11.74: keep our PR registration alive across
+		 * xfs_unmountfs.  Unregistering inside v5 shutdown fenced
+		 * our OWN unmount log record on WE-RO targets whenever a
+		 * peer still held the reservation (EBADE -> log-error
+		 * shutdown on every clean non-holder umount, unmount record
+		 * lost, dirty slice recovered on next mount).  The key is
+		 * unregistered below, after the final log write.
+		 */
+		pr_late_key = mxfs_v5_dlm_detach_pr_key(v5dlm);
 		mxfs_v5_dlm_shutdown(v5dlm);
 		/*
 		 * v0.5.0: drain any pending foreign-slice replay while
@@ -1422,9 +1460,22 @@ xfs_fs_put_super(
 		 */
 		cancel_work_sync(&mp->m_mxfs_foreign_replay_work);
 	}
+	/* ccloop c7ee71c6 sess2: stop the destage kick while mp->m_log is
+	 * still valid (same teardown-ordering family as foreign_replay). */
+	cancel_delayed_work_sync(&mp->m_mxfs_destage_kick);
 
 	xfs_filestream_unmount(mp);
 	xfs_unmountfs(mp);
+
+	/* Deferred PR unregister — the unmount record is on disk now. */
+	if (pr_late_key) {
+		int prret = mxfs_pal_scsi_pr_unregister_bdev(
+				mp->m_ddev_targp->bt_bdev, pr_late_key);
+		if (prret)
+			xfs_notice(mp,
+				   "MXFS: late PR unregister failed: %d",
+				   prret);
+	}
 
 	xfs_rtmount_freesb(mp);
 	xfs_freesb(mp);
@@ -2055,6 +2106,34 @@ mxfs_drevalidate(struct dentry *dentry, unsigned int flags)
 		    !S_ISDIR(VFS_I(ip)->i_mode) &&
 		    XFS_INO_TO_AGNO(dp->i_mount, ip->i_ino) ==
 			(dp->i_mount->m_mxfs_node_slot % dp->i_mount->m_maxagi)) {
+			/*
+			 * sess10 (ccloop c7ee71c6) P165: this is the ONLY positive-
+			 * dentry exit that ignores the parent hold-epoch.  Suspected
+			 * vector for the cc uv 127/128 lost create: a STALE positive
+			 * dentry (name -> own-affine-AG recycled ino) from a dead
+			 * incarnation of the parent dir is blessed here forever, so
+			 * open(O_CREAT) truncates the CURRENT occupant of the reused
+			 * ino instead of creating (test16 node16_file1 -> live
+			 * node16_after_1, run 233839Z).  Decisive probe: log every
+			 * affine blessing whose d_time does not match dp's CURRENT
+			 * dlm epoch — a fresh binding validated this epoch never
+			 * mismatches, a resurrected/stale one always does.
+			 */
+			if (dentry->d_time != READ_ONCE(dp->i_dlm_epoch)) {
+				static atomic_t p165n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&p165n) <= 100000)
+					pr_warn("mxfs: P165-AFFINE-STALE name=%.*s ino=%llu dp=%llu d_time=%lu dp_epoch=%lu dp_mode=%d child_gen=%u realns=%llu\n",
+						dentry->d_name.len,
+						dentry->d_name.name,
+						(unsigned long long)ip->i_ino,
+						(unsigned long long)dp->i_ino,
+						dentry->d_time,
+						(unsigned long)READ_ONCE(dp->i_dlm_epoch),
+						READ_ONCE(dp->i_dlm_mode),
+						VFS_I(ip)->i_generation,
+						(unsigned long long)ktime_get_real_ns());
+			}
 			dput(parent);
 			return 1;
 		}
@@ -2291,8 +2370,24 @@ mxfs_drevalidate(struct dentry *dentry, unsigned int flags)
 	return ret;
 }
 
+/* d_revalidate gained (dir, name) params in v6.17 (the dentry and flags
+ * args still carry everything mxfs_drevalidate needs -- dir/name are
+ * unused here, this is purely a calling-convention adapter). */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+static int
+mxfs_drevalidate_v617(struct inode *dir, const struct qstr *name,
+		      struct dentry *dentry, unsigned int flags)
+{
+	return mxfs_drevalidate(dentry, flags);
+}
+#endif
+
 static const struct dentry_operations mxfs_dentry_operations = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	.d_revalidate = mxfs_drevalidate_v617,
+#else
 	.d_revalidate = mxfs_drevalidate,
+#endif
 };
 
 static int
@@ -2357,7 +2452,12 @@ xfs_fs_fill_super(
 	 * invisible because node1's cached positive dentry for the peer's file
 	 * was never revalidated → stat() found a stale-but-deleted inode).
 	 */
+	/* set_default_d_op() replaces direct sb->s_d_op assignment in v6.17 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
+	set_default_d_op(sb, &mxfs_dentry_operations);
+#else
 	sb->s_d_op = &mxfs_dentry_operations;
+#endif
 
 	/*
 	 * Delay mount work if the debug hook is set. This is debug
@@ -2710,7 +2810,20 @@ xfs_fs_fill_super(
 		atomic64_set(&mp->m_mxfs_flush_epoch, 1);
 		mp->m_mxfs_dlm = mxfs_v5_dlm_init(&dlm_opts);
 		if (!mp->m_mxfs_dlm) {
-			xfs_warn(mp, "MXFS DLM init failed (continuing single-node)");
+			/*
+			 * v0.11.77 fail-closed: an envelope volume is a
+			 * cluster volume.  With no DLM this node cannot see
+			 * peers, cannot be fenced, and cannot prove it is
+			 * alone — mounting anyway means a possible second
+			 * uncoordinated writer on a shared LUN (observed
+			 * 2026-07-25: PR-register abort inside v5_dlm_init
+			 * left BOTH test nodes mounted "single-node" on one
+			 * LUN).  Abort the mount; repair tooling (chk_mxfs)
+			 * works on the unmounted device.
+			 */
+			xfs_alert(mp, "MXFS DLM init failed — aborting mount of cluster (envelope) volume");
+			error = -ENOTCONN;
+			goto out_filestream_unmount;
 		} else {
 			mp->m_mxfs_dlm_was_active = true;
 			mp->m_mxfs_node_slot =

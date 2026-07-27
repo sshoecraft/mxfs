@@ -91,7 +91,17 @@ PY
 fi
 eff_xsw="${xsw:-0}"; eff_xrw="${xrw:-0}"; wsrc="xfs-baseline"
 if [ "${ceil_sw:-0}" -gt 0 ]; then eff_xsw="$ceil_sw"; wsrc="raw-ceiling"; fi
-if [ "${ceil_rw:-0}" -gt 0 ]; then eff_xrw="$ceil_rw"; fi
+# sess11 (ccloop c7ee71c6): randW gates against the NATIVE-XFS baseline (the
+# test's stated purpose), NOT the raw-device ceiling.  The ceiling override
+# here misfired on 8/cawp: same-day triple measurement — raw randW 64442,
+# native XFS 37751 (59% of raw: FS allocation+journal overhead raw doesn't
+# pay), mxfs@8 44244 (117% of native) — flagged "68% FAIL" against raw while
+# mxfs BEAT native XFS.  The ceiling stays the seqW yardstick (N-sharer
+# bandwidth split, its original motivation) and the randW fallback when no
+# xfs baseline was captured for the condition.
+if [ "${ceil_rw:-0}" -gt 0 ] && ! { [ "${xrw:-0}" -gt 0 ] 2>/dev/null; }; then
+    eff_xrw="$ceil_rw"
+fi
 
 psw=$(pct "$mxsw" "${eff_xsw:-0}"); psr=$(pct "$mxsr" "${xsr:-0}")
 prw=$(pct "$mxrw" "${eff_xrw:-0}"); prr=$(pct "$mxrr" "${xrr:-0}")

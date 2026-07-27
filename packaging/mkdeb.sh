@@ -51,6 +51,12 @@ mxfs_stage_manpages "$STAGING"
 mkdir -p "$STAGING/etc/modules-load.d"
 echo "mxfs" > "$STAGING/etc/modules-load.d/mxfs.conf"
 
+# --- 4b. udev rule: teach blkid/lsblk/mount to auto-detect MXFS by its
+# on-disk magic, so `blkid`/`lsblk -f`/`mount` (no -t) recognize the fstype
+# without needing it explicitly specified.
+mkdir -p "$STAGING/etc/udev/rules.d"
+cp "$SCRIPTDIR/60-mxfs-blkid.rules" "$STAGING/etc/udev/rules.d/60-mxfs-blkid.rules"
+
 # --- 5. DEBIAN control files ---
 mkdir -p "$STAGING/DEBIAN"
 
@@ -78,6 +84,8 @@ echo "Registering MXFS ${VERSION} with DKMS ..."
 dkms add -m mxfs -v ${VERSION} 2>/dev/null || true
 dkms build -m mxfs -v ${VERSION}
 dkms install -m mxfs -v ${VERSION}
+udevadm control --reload-rules 2>/dev/null || true
+udevadm trigger --subsystem-match=block 2>/dev/null || true
 echo "MXFS ${VERSION} installed. Module will auto-load on boot."
 echo ""
 echo "To mount a filesystem:"
@@ -94,6 +102,8 @@ cat > "$STAGING/DEBIAN/prerm" << PRERMEOF
 set -e
 echo "Removing MXFS ${VERSION} from DKMS ..."
 dkms remove -m mxfs -v ${VERSION} --all 2>/dev/null || true
+rm -f /etc/udev/rules.d/60-mxfs-blkid.rules
+udevadm control --reload-rules 2>/dev/null || true
 PRERMEOF
 chmod 755 "$STAGING/DEBIAN/prerm"
 

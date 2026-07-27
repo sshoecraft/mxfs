@@ -15,7 +15,21 @@ source "$SCRIPT_DIR/lib.sh"
 R="$RANK"; T="$NODES"
 D="$MNT/.fence_during_write"
 HOT="$D/hot"
-mkdir -p "$D/node${R}" "$HOT" 2>/dev/null
+# sess11 (8/cawd): this mkdir silently failed on 4/8 nodes right after a
+# dir_reuse_coherency row — every storm write then ENOENTed for the whole
+# window and the row failed as "still writable" with zero diagnostic.  Keep
+# the failure a FAILURE (no masking) but make it loud and typed, and retry
+# once so the rest of the row still measures what it was built to measure.
+mkerr=$(mkdir -p "$D/node${R}" "$HOT" 2>&1); mkrc=$?
+if [ "$mkrc" -ne 0 ]; then
+    echo "mxfs-fdw-MKDIR-FAIL rank=$R rc=$mkrc err=[$mkerr]" > /dev/kmsg 2>/dev/null
+    echo "FDW-MKDIR-FAIL rc=$mkrc err=[$mkerr]"
+    sleep 0.5
+    mkerr2=$(mkdir -p "$D/node${R}" "$HOT" 2>&1); mkrc2=$?
+    echo "mxfs-fdw-MKDIR-RETRY rank=$R rc2=$mkrc2 err2=[$mkerr2]" > /dev/kmsg 2>/dev/null
+    echo "FDW-MKDIR-RETRY rc2=$mkrc2 err2=[$mkerr2]"
+fi
+ckeq "fdw setup mkdir clean" 0 "$mkrc"
 
 WINDOW="${FENCE_WINDOW:-15}"
 MARK="MXFS_FDW_$(date +%s)_${R}"

@@ -587,6 +587,26 @@ xfs_alloc_fixup_trees(
 
 	mp = cnt_cur->bc_mp;
 
+#ifdef __KERNEL__
+	/*
+	 * ccloop-4dd7 sess2 P145-ALLOC — the alloc-side twin of P145-FREE
+	 * (every extent leaving the free space).  The round-3 leaf/data
+	 * double-map (dir 131 block0 and its new LEAF both at AG1 bno 27)
+	 * needs the full cross-node ALLOC/FREE interleave for one agbno to
+	 * name the step that handed out a still-referenced block.
+	 */
+	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+		static atomic_t p145a_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p145a_n) <= 8000)
+			pr_warn("mxfs: P145-ALLOC agno=%u bno=%u len=%u comm=%s realns=%llu\n",
+				cnt_cur->bc_group ?
+				  pag_agno(to_perag(cnt_cur->bc_group)) : (xfs_agnumber_t)-1,
+				rbno, rlen, current->comm,
+				(unsigned long long)ktime_get_real_ns());
+	}
+#endif
+
 	/*
 	 * Look up the record in the by-size tree if necessary.
 	 */

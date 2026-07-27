@@ -41,9 +41,15 @@ parse_nodes() {
         local a num
         for a in "$@"; do
             if [[ "$a" =~ ^[0-9]+$ ]]; then num="$a"; else num="${a#test}"; fi
-            [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "$MAXNODE" ] \
-                || fail "bad node '$a' (expect 1..$MAXNODE or testN)"
-            echo "test$num"
+            if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "$MAXNODE" ]; then
+                echo "test$num"
+            elif $VIRSH dominfo "$a" >/dev/null 2>&1; then
+                # sess5 (ccloop-4dd7): any DEFINED libvirt domain may be wired
+                # (pve9-1/pve9-2 Proxmox VMs etc.), not just the testN fleet.
+                echo "$a"
+            else
+                fail "bad node '$a' (expect 1..$MAXNODE, testN, or a defined VM name)"
+            fi
         done
     fi
 }

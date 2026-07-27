@@ -22,8 +22,16 @@ while [ "$(date +%s)" -lt "$end" ]; do
   ops=$((ops + 1))
 done
 echo ok > "$W/final" 2>/dev/null && [ "$(cat "$W/final" 2>/dev/null)" = ok ] || errs=$((errs + 1))
-# dmesg hits since our marker
-dmesg_hits=$(dmesg 2>/dev/null | awk -v m="$MARKER" 'f{print} $0 ~ m{f=1}' | grep -ciE "$DPAT")
+# dmesg hits since our marker — persist the matching lines for forensics
+# (count/threshold unchanged; a FAIL without the lines is undiagnosable
+# once the VM reboots, since virsh destroy loses the unflushed journal).
+HITFILE="/root/soak_hits.$MARKER.txt"
+dmesg 2>/dev/null | awk -v m="$MARKER" 'f{print} $0 ~ m{f=1}' | grep -iE "$DPAT" > "$HITFILE"
+dmesg_hits=$(grep -c . "$HITFILE")
+if [ "${dmesg_hits:-0}" -gt 0 ]; then
+  echo "SOAK-HIT-SAMPLE ($(hostname), first 5 of $dmesg_hits):"
+  head -5 "$HITFILE" | sed 's/^/  SOAK-HIT: /'
+fi
 st=PASS; reason=""
 if [ "$errs" -gt 0 ]; then st=FAIL; reason="$errs op failures"; fi
 if [ "${dmesg_hits:-0}" -gt 0 ]; then st=FAIL; reason="${reason:+$reason; }$dmesg_hits dmesg error hits"; fi

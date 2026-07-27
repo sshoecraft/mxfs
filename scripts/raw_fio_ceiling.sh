@@ -26,6 +26,11 @@ COND="${1:?usage: raw_fio_ceiling.sh <cond> [Nlist]}"
 NLIST="${2:-2,4,8,16,32}"
 OUT="$REPO/.raw_fio_ceiling.${COND}.json"
 DEV="${RAWCEIL_DEV:-/dev/sda}"   # guest-side shared LUN device on every rig
+# fio's --filename splits on ':' (multi-file syntax) — an unescaped by-path
+# device name silently becomes several CREATED regular files (one lands in
+# guest devtmpfs = RAM) and the "ceiling" measures memory bandwidth
+# (2026-07-25: cawd captured 95GiB/s seqW this way).  Escape every colon.
+DEV="${DEV//:/\\:}"
 SIZE_MB="${RAWCEIL_SIZE_MB:-512}"
 
 say() { echo "[rawceil] $*"; }
@@ -39,12 +44,14 @@ if [ "${RAWCEIL_FORCE:-0}" != 1 ]; then
 fi
 
 # One concurrent N-sharer sample: writes "sw sw_ok rw rw_ok" to stdout.
-# Legs share fio_perf's discipline (O_DIRECT QD32, run twice over the same
-# stripe, report only the SECOND pass).  Volumes: seq = fio_perf's own
-# 2048/N MB formula; rand scales 256/N (floor 8m) because the device's
-# ~900-1400 aggregate 4k iops divide across N legs — a fixed-size rand leg
-# takes N× longer as N grows and blows the 300s leg timeout (measured at
-# N=4 with 256m legs).  Past ~30s of IO the steady iops is volume-blind.
+# Legs share fio_perf's discipline (O_DIRECT QD32).  Volumes: seq = fio_perf's
+# own 2048/N MB formula; rand scales 256/N (floor 8m); the size is the STRIPE
+# SPAN only — legs are time_based (ramp 5s, measure 15s) so the number is the
+# sustained pipe, not burst absorption.  (2026-07-25: the old size-bounded
+# 2-pass legs completed sub-second on the cawd in-guest-iSCSI path and
+# reported 68GiB/s "seqW" at N=32 — 24x the physical NVMe — pure in-flight
+# pipelining.  time_based steady-state measures what the yardstick claims:
+# what the transport+device actually delivers to N concurrent sharers.)
 sample_n() {
     local N="$1" sz sp rsz d i off v sw sw_ok rw rw_ok
     sz=$(( 2048 / N )); [ "$sz" -lt 64 ] && sz=64; [ "$sz" -gt 1024 ] && sz=1024
@@ -54,7 +61,7 @@ sample_n() {
     for i in $(seq 1 "$N"); do
         off=$(( 4 + (i - 1) * sp ))
         ( timeout 300 "$SSH" "test$i" "$PASS" \
-            "for p in 1 2; do sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; fio --name=rc --filename=$DEV --offset=${off}G --rw=write --bs=1M --size=${sz}m --ioengine=libaio --direct=1 --iodepth=32 --output-format=json > /tmp/rawceil.json 2>/dev/null; done; python3 -c \"import json; j=json.load(open('/tmp/rawceil.json')); print(int(j['jobs'][0]['write']['bw_bytes']/1048576))\"" \
+            "sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; fio --name=rc --filename=$DEV --offset=${off}G --rw=write --bs=1M --size=${sz}m --time_based --runtime=15 --ramp_time=5 --ioengine=libaio --direct=1 --iodepth=32 --output-format=json > /tmp/rawceil.json 2>/dev/null; python3 -c \"import json; j=json.load(open('/tmp/rawceil.json')); print(int(j['jobs'][0]['write']['bw_bytes']/1048576))\"" \
             2>/dev/null | tail -1 > "$d/sw_$i" ) &
     done
     wait
@@ -66,7 +73,7 @@ sample_n() {
     for i in $(seq 1 "$N"); do
         off=$(( 4 + (i - 1) * sp ))
         ( timeout 300 "$SSH" "test$i" "$PASS" \
-            "for p in 1 2; do sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; fio --name=rc --filename=$DEV --offset=${off}G --rw=randwrite --bs=4k --size=${rsz}m --ioengine=libaio --direct=1 --iodepth=32 --output-format=json > /tmp/rawceil.json 2>/dev/null; done; python3 -c \"import json; j=json.load(open('/tmp/rawceil.json')); print(int(j['jobs'][0]['write']['iops']))\"" \
+            "sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; fio --name=rc --filename=$DEV --offset=${off}G --rw=randwrite --bs=4k --size=${rsz}m --time_based --runtime=15 --ramp_time=5 --ioengine=libaio --direct=1 --iodepth=32 --output-format=json > /tmp/rawceil.json 2>/dev/null; python3 -c \"import json; j=json.load(open('/tmp/rawceil.json')); print(int(j['jobs'][0]['write']['iops']))\"" \
             2>/dev/null | tail -1 > "$d/rw_$i" ) &
     done
     wait

@@ -1871,6 +1871,38 @@ xfs_file_readdir(
 	}
 
 	/*
+	 * sess11 (ccloop c7ee71c6) 16/cawd ghost-dirent ROOT FIX: if a peer
+	 * staled this dir (BAST/epoch arm -> i_dlm_stale), the reload MUST
+	 * land BEFORE we take ILOCK_SHARED below — the DLM hook inside
+	 * xfs_ilock arms mxfs_dlm_reload_inode, but the reload needs the
+	 * ilock WRITE side and our own read hold makes it bail forever
+	 * ("DLM reload BAIL ... rd_last=xfs_file_readdir" x256 captured),
+	 * so readdir serves the stale inline body: a removed name stayed
+	 * listed cluster-wide for minutes (stat=ENOENT, ls=present,
+	 * drop_caches-immune — the pinned in-core SF fork never converges
+	 * until some EX op reloads it).  Same bounded-blocking contract as
+	 * the P95B/C lookup arms: reload clears i_dlm_stale on success,
+	 * leaves it set on any bail.  No locks held here.  Gated on the
+	 * flag so a coherent dir costs one test.
+	 */
+	if (ip->i_dlm_stale) {
+		int p95d = 0;
+
+		while (p95d++ < 200 && !xfs_is_shutdown(ip->i_mount)) {
+			mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN, false);
+			if (!ip->i_dlm_stale)
+				break;
+			ip->i_dlm_stale = true;	/* keep armed across bails */
+			msleep(10);
+		}
+		pr_warn_ratelimited(
+			"mxfs: P95D-READDIR-WAIT ino=%llu resolved=%d rounds=%d fmt=%d\n",
+			(unsigned long long)ip->i_ino,
+			ip->i_dlm_stale ? 0 : 1, p95d,
+			ip->i_df.if_format);
+	}
+
+	/*
 	 * sess74 (ccloop 14d31183) SELF-DEADLOCK FIX (RULE 4, PROVEN by
 	 * P73-ILOCK-STUCK ino=131 want=EX rd_held=1: find holds ILOCK_SHARED from
 	 * here while xfs_readdir's xfs_ilock_data_map_shared wants ILOCK_EXCL):

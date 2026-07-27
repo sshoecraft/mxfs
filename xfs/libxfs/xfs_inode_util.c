@@ -17,6 +17,7 @@
 #include "xfs_trans.h"
 #include "xfs_ialloc.h"
 #include "xfs_health.h"
+#include "../../dlm/v5_mount.h"	/* ccloop-4dd7 sess2: mxfs_v5_dlm_is_single_node (recycle heal) */
 #include "xfs_bmap.h"
 #include "xfs_mxfs_dlm.h"
 #include "xfs_error.h"
@@ -278,11 +279,11 @@ xfs_inode_init(
 					XFS_ICHGTIME_ACCESS;
 
 	if (args->flags & XFS_ICREATE_TMPFILE)
-		set_nlink(inode, 0);
+		mxfs_set_nlink(ip, 0);
 	else if (S_ISDIR(args->mode))
-		set_nlink(inode, 2);
+		mxfs_set_nlink(ip, 2);
 	else
-		set_nlink(inode, 1);
+		mxfs_set_nlink(ip, 1);
 	inode->i_rdev = args->rdev;
 
 	if (!args->idmap || pip == NULL) {
@@ -484,6 +485,31 @@ xfs_iunlink_insert_inode(
 			VFS_I(ip)->i_nlink, VFS_I(ip)->i_mode,
 			(next_agino == agino) ? "yes" : "no",
 			xfs_verify_agino_or_null(pag, next_agino));
+		/*
+		 * mxfs (ccloop-4dd7 sess2, ino 0x80008e round-3 autopsy): a
+		 * bucket head ALREADY naming our agino is a LEAKED entry from
+		 * this number's PRIOR life (an inactivation skip whose unleak
+		 * could not run — the P2L-INACT-LEAK family), hit again when
+		 * the reused number is unlinked.  Upstream's detect-only
+		 * -EFSCORRUPTED fires inside xfs_droplink's DIRTY transaction
+		 * = cluster-wide shutdown.  The on-disk state ALREADY equals
+		 * the post-add state we want (head = our agino), and the
+		 * reused dinode's di_next_unlinked was re-initialized to
+		 * NULLAGINO at icreate, so the chain terminates cleanly —
+		 * ADOPT the leaked entry as our own insert instead of dying
+		 * (same bounded-loss precedent as the broken-list sole-head
+		 * heal below).  Multinode only; single-node keeps upstream's
+		 * strict check.
+		 */
+		if (next_agino == agino && mp->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+			pr_warn("mxfs: P-IUNLINK-RECYCLE-HEAL ino=0x%llx agino=0x%x bucket=%d — adopting leaked prior-life bucket entry as this unlink's insert\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index);
+			ip->i_next_unlinked = NULLAGINO;
+			ip->i_prev_unlinked = NULLAGINO;
+			return 0;
+		}
 		xfs_buf_mark_corrupt(agibp);
 		xfs_ag_mark_sick(pag, XFS_SICK_AG_AGI);
 		return -EFSCORRUPTED;
@@ -789,10 +815,10 @@ xfs_droplink(
 		xfs_info_ratelimited(tp->t_mountp,
  "Inode 0x%llx link count dropped below zero.  Pinning link count.",
 				ip->i_ino);
-		set_nlink(inode, XFS_NLINK_PINNED);
+		mxfs_set_nlink(ip, XFS_NLINK_PINNED);
 	}
 	if (inode->i_nlink != XFS_NLINK_PINNED)
-		drop_nlink(inode);
+		mxfs_drop_nlink(ip);
 
 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 
@@ -833,7 +859,7 @@ xfs_bumplink(
  "Inode 0x%llx link count exceeded maximum.  Pinning link count.",
 				ip->i_ino);
 	if (inode->i_nlink != XFS_NLINK_PINNED)
-		inc_nlink(inode);
+		mxfs_inc_nlink(ip);
 
 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 }

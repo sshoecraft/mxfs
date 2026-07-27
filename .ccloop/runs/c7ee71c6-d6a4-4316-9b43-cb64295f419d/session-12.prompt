@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 12 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 11
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `601a764e-a230-4ac3-ba4e-e420de8e7887`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/601a764e-a230-4ac3-ba4e-e420de8e7887.jsonl`
+- approx context at last assistant turn: 506056 tokens
+- tools used: Bash×271 Edit×23 Read×6 Write×4 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/caw/caw_align_probe.c
+- /tmp/claude-1000/-src-mxfs/601a764e-a230-4ac3-ba4e-e420de8e7887/scratchpad/sgio_caw.bt
+- /src/mxfs/tests/withdraw_recovery_test.sh
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/lease.c
+- /src/mxfs/state.md
+- /src/mxfs/tests/repro_mkdir_race.sh
+- /src/mxfs/tests/suite/fence_during_write.sh
+- /src/mxfs/pal/linux/xfs_file.c
+- /src/mxfs/scripts/rig.sh
+- /src/mxfs/tests/suite/fio_perf_vs_xfs.sh
+- /src/mxfs/run.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; python3 - <<'EOF' import re p='tests/withdraw_recovery_test.sh' s=open(p).read() s=s.replace('''nodes="" for i in $(seq 1 "$N"); do nodes="$nodes 
+    cd /src/mxfs; export MXFS_PASS=/tmp/.proxmox_pass MXFS_NODE_LIST=192.168.1.80,192.168.1.81 timeout 500 tests/withdraw_recovery_test.sh 2 192.168.1.80 192.168.1.
+    cd /src/mxfs; timeout 30 tools/mxfs_sshpass.sh 192.168.1.81 /tmp/.proxmox_pass 'dmesg | grep -E "P163|fenc|lease expired|elected|P-D8|scsipr|PR-FENCE|replay" | 
+    cd /src/mxfs; export MXFS_NODE_LIST=192.168.1.80,192.168.1.81 MXFS_PASS=/tmp/.proxmox_pass MXFS_DEV=/dev/sdb MXFS_CRIT=/src/mxfs/criteria.physrig-2tcp.json rm -
+    cd /src/mxfs; export MXFS_NODE_LIST=192.168.1.80,192.168.1.81 MXFS_PASS=/tmp/.proxmox_pass MXFS_DEV=/dev/sdb MXFS_CRIT=/src/mxfs/criteria.physrig-2tcp.json ./ru
+    cd /src/mxfs; timeout 30 tools/mxfs_sshpass.sh 192.168.1.80 /tmp/.proxmox_pass 'mount | grep mxfs; lsmod | grep ^mxfs; umount /mnt/shared 2>&1 | head -2; rmmod 
+    cd /src/mxfs; export MXFS_NODE_LIST=192.168.1.80,192.168.1.81 MXFS_PASS=/tmp/.proxmox_pass MXFS_DEV=/dev/sdb MXFS_CRIT=/src/mxfs/criteria.physrig-2tcp.json rm -
+    cd /src/mxfs; export MXFS_NODE_LIST=192.168.1.80,192.168.1.81 MXFS_PASS=/tmp/.proxmox_pass MXFS_DEV=/dev/sdb MXFS_CRIT=/src/mxfs/criteria.physrig-2tcp.json ./ru
+    cd /src/mxfs; export MXFS_NODE_LIST=192.168.1.80,192.168.1.81 MXFS_PASS=/tmp/.proxmox_pass MXFS_DEV=/dev/sdb MXFS_CRIT=/src/mxfs/criteria.physrig-2tcp.json ./ru
+    cd /src/mxfs; export MXFS_NODE_LIST=192.168.1.80,192.168.1.81 MXFS_PASS=/tmp/.proxmox_pass MXFS_DEV=/dev/sdb MXFS_CRIT=/src/mxfs/criteria.physrig-2tcp.json rm -
+    cd /src/mxfs; timeout 30 tools/mxfs_sshpass.sh 192.168.1.80 /tmp/.proxmox_pass 'umount /mnt/shared 2>/dev/null; rmmod mxfs 2>/dev/null; echo "released: mxfs=$(l
+    cd /src/mxfs; unset MXFS_NODE_LIST MXFS_PASS MXFS_DEV MXFS_CRIT; rm -f .cluster_marker.json; timeout 590 scripts/rig.sh tcp 16 2>&1 | tail -4
+    cd /src/mxfs; ./run.sh 16 tcp prep_cluster 2>&1 | tail -1; ./run.sh 16 tcp precond_readiness fio_perf fio_perf_vs_xfs cache_coherency strong_consistency posix_m
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile) timeout 25 tools/mxfs_sshpass.sh test1 "$PF" 'dmesg | grep -E "Shutting down|SHUTDOWN|unrecoverable|P163|P164
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile) timeout 25 tools/mxfs_sshpass.sh test1 "$PF" 'echo "mounted=$(mountpoint -q /mnt/shared && echo yes || echo n
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); for n in 1 5 10 16; do r=$(timeout 8 tools/mxfs_sshpass.sh test$n "$PF" 'echo alive-$(mountpoint -q /mnt/sha
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile) timeout 20 tools/mxfs_sshpass.sh test5 "$PF" 'echo "up=$(cut -d. -f1 /proc/uptime)s"; dmesg | grep -E "Shutti
+    ls -ls /home/steve/disk.img; sudo targetcli ls 2>/dev/null | grep -E 'mxfs|write' | head -3; grep -n 'write_back\|write_thru\|disk.img\|truncate\|fallocate' /sr
+    cd /src/mxfs; scripts/lio_tcm_setup.sh teardown 2>&1 | tail -1; scripts/lio_tcm_setup.sh setup 2>&1 | tail -2; sudo targetcli ls 2>/dev/null | grep mxfs | head 
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""**Saved**: 2026-07-26 ~06:3x UTC — ccloop run c7ee71c6 session 11 (id 601a764e) MID
+
+## Last text from previous session
+
+prerequisites (reachability + credentials):
+Credentials located. Checking the wiring task:
+All three background tasks terminated by my pkill (their command lines matched the pattern) — intended cleanup. Now running the login block on all 16 nodes in parallel:
+All 16 wired. Resuming the cawd ladder at 4:
+`fence_during_write` FAIL at 8/cawd (4/8 nodes). Getting the per-node reasons:
+The tripwire fired — fence FAIL again (1/16 nodes) with instrumentation live. Harvesting:
+3× green. Verifying the new arm actually fires (not just absence of failure):
+Both nodes ready (6.17.2-1-pve, QNAP LUN present, campaign-era module installed). Syncing the current tree and rebuilding:
+Module built (C8246A58) but one error-matching line — checking it:
+Clean on rerun. Installing on both nodes:
+Same md5 locally on pve2 but its size differs from pve1's build — the scp must not have replaced the file. Checking what pve2's `/root/mxb/mxfs.ko` really is:
+Both nodes verified at C8246A58. Running the physical board (campaign's 15-row subset + precond + fio_perf informational, then withdraw):
+The old victim (pve1) didn't release mxfs and the VM-style power-cycle escalation can't touch a physical host. Checking what's wedged on pve1:
+**Physical rig: 16/16 board rows + withdraw PASS at v0.11.113.** One informational fio capture for the record:
+Victim's unmounted post-withdraw (expected). Re-prep + fio:
+test5 is alive but unmounted; test1/test10 wedged; host load hit 82 during the fio flood. Getting the story from a responsive node:
+Session 11 summary — relay boundary reached, state saved (state.md + three sess11 ccmemory dossiers + awareness docs).
+
+**Answer to the criteria ("is it production ready?"): No** — but this session closed the two biggest fronts: the CAW transport family is now fully validated on a trustworthy rig, and the physical PvE boxes the user asked about are green at the current build.
+
+**Root-caused and closed (v0.11.109→113):**
+
+1. **cawp-on-LIO catastrophe DISPROVED as mxfs** — kernel `target_core_sbc.c` CAW emulation assumes single-entry SGLs ("Currently assumes NoLB=1 and SGLs are PAGE_SIZE"); tcm_loop passes initiators' raw SGLs through, so any page-crossing CAW payload writes stale/zero garbage while reporting success. qemu's per-instance bounce address makes ~25% of VM instances corruptors (proven by bpftrace at `sg_io()`, clyde-direct crossing sweeps, and a purpose-built `caw_align_probe`). CAW validation moved to the SCST stack, which sweeps clean at every offset.
+2. **withdraw@2 survivor shutdown FIXED AND VERIFIED** — the recovery path never removed a dead node from lease-derived membership, so hash-modulo mastership routed root-inode locks at a corpse forever (184s of timeouts → rc=-110 → suicide). Fix: unregister at recovery completion (preserving the D2 replay-freeze, trace-proven) + P164 dead-identity gates against the zombie's announces. Withdraw passes at 2/4/8/16 across tcp/cawd/cawp/caw and on the physical rig.
+3. **Ghost-dirent readdir defect FIXED AND VERIFIED** — a peer-removed name stayed listed for minutes (drop_caches-immune) because readdir's own ILOCK_SHARED made its armed reload bail 256×; P95D pre-lock bounded converge fixes it, with the arm observed firing.
+
+**Boards green at v0.11.113:** cawd 2/4/8/16, cawp 8, caw-mpath 4 (all + withdraw), physical pve1/pve2+QNAP 16 rows + withdraw + fio at GbE line rate. tcp was green 1/2/4/16 at .111.
+
+**Why not yet ready:** the 16/tcp re-verify at .113 collapsed when the rebuilt LIO rig's write-back backstore (contradicting its own setup script) let fio absorb 2.8GB/s into host cache, starving the root-lock master VM past every peer's retry budget — mass shutdown. The rig rebuild to write-through is mid-flight (targetcli still shows write-back — verify the flag, restart the 16 VMs, re-run the board). Also open: the tripwired one-shot fence-mkdir ENOENT, a design note that a stalled-but-connected master can still starve peers, 32-node spot checks, and the uncommitted tree.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

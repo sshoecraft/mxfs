@@ -43,7 +43,11 @@ MODE="${1:?usage: rig.sh status|mpath|direct|pass|tcp [N]}"
 N="${2:-32}"
 [[ "$N" =~ ^[0-9]+$ ]] && [ "$N" -ge 1 ] && [ "$N" -le "$MAXNODE" ] || { echo "N must be 1..$MAXNODE"; exit 2; }
 mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
-mapfile -t ALLNODES < <(seq 1 "$MAXNODE" | sed 's/^/test/')
+# ALLNODES drives the global cleanout.  Sweep only VMs that are actually
+# RUNNING (plus the requested set): sweeping all 32 when test17-32 are
+# destroyed marks them "bad", power-cycles them, and serially waits 180s
+# each — a ~48min stall observed sess11 (ccloop c7ee71c6) wiring direct 16.
+mapfile -t ALLNODES < <( { virsh -c qemu:///system list --name 2>/dev/null | grep -E '^test[0-9]+$'; seq 1 "$N" | sed 's/^/test/'; } | sort -u -V)
 
 say() { echo "[rig] $*"; }
 ssh_n() { timeout "${3:-30}" "$SSH" "$1" "$PASS" "$2" 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you'; }

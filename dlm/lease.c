@@ -68,6 +68,16 @@ static void mxfs_lease_renew_fn(void *arg)
         msg.node_id = ctx->local_node;
         memcpy(msg.volume_uuid, ctx->volume_uuid, 16);
         msg.lease_duration_ms = mxfs_cpu_to_le64(ctx->default_duration_ms);
+        /* v0.11.78 (D7): piggyback my DLM view signature so peers can
+         * prove membership convergence instead of riding out the
+         * wall-clock settle window. */
+        if (ctx->view_sig_cb) {
+            uint32_t vc = 0;
+            uint64_t vh = ctx->view_sig_cb(ctx->view_sig_cb_data, &vc);
+
+            msg.view_count = mxfs_cpu_to_le32(vc);
+            msg.view_hash = mxfs_cpu_to_le64(vh);
+        }
 
         /* Update local node's lease timestamp */
         mxfs_pal_mutex_lock(ctx->lock);
@@ -144,7 +154,9 @@ static void mxfs_lease_udp_recv_fn(void *arg)
             continue;
         }
 
-        if (ret < (int)sizeof(pkt))
+        /* v0.11.78 (D7): accept the original (pre-view) packet length as a
+         * valid beacon; only a full-length packet carries a view report. */
+        if (ret < (int)MXFS_LEASE_UDP_MSG_V1_LEN)
             continue;
 
         /* Validate magic and version */
@@ -163,6 +175,17 @@ static void mxfs_lease_udp_recv_fn(void *arg)
 
         /* Process the renewal */
         mxfs_lease_process_renewal(ctx, pkt.node_id, 0);
+
+        /* v0.11.78 (D7): forward the peer's view signature (if carried) */
+        if (ret >= (int)sizeof(pkt) && ctx->view_report_cb) {
+            uint64_t vh = mxfs_le64_to_cpu(pkt.view_hash);
+
+            if (vh)
+                ctx->view_report_cb(ctx->view_report_cb_data,
+                                    pkt.node_id,
+                                    mxfs_le32_to_cpu(pkt.view_count),
+                                    vh);
+        }
     }
 
     mxfs_pal_log(MXFS_LOG_DEBUG, "lease: UDP recv thread exiting");
@@ -635,9 +658,12 @@ int mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
     nl = lease_find(ctx, node_id);
     if (!nl) {
         mxfs_pal_mutex_unlock(ctx->lock);
-        mxfs_pal_log(MXFS_LOG_WARN,
-                     "mxfs: heartbeat received from unknown node %u "
-                     "(may be joining or was recently removed)", node_id);
+        /* sess11: a withdrawn-but-still-mounted zombie keeps renewing
+         * every ~500ms after recovery unregistered it — ratelimit or
+         * this line floods every survivor until the corpse unmounts. */
+        pr_warn_ratelimited(
+            "mxfs: heartbeat received from unknown node %u "
+            "(may be joining or was recently removed)\n", node_id);
         return -ENOENT;
     }
 
@@ -733,4 +759,25 @@ void mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx,
         return;
     ctx->expire_cb = cb;
     ctx->expire_cb_data = data;
+}
+
+void mxfs_lease_set_view_provider(struct mxfs_lease_ctx *ctx,
+                                  uint64_t (*cb)(void *data, uint32_t *count),
+                                  void *data)
+{
+    if (!ctx)
+        return;
+    ctx->view_sig_cb = cb;
+    ctx->view_sig_cb_data = data;
+}
+
+void mxfs_lease_set_view_report_cb(struct mxfs_lease_ctx *ctx,
+                                   void (*cb)(void *data, mxfs_node_id_t node,
+                                              uint32_t count, uint64_t hash),
+                                   void *data)
+{
+    if (!ctx)
+        return;
+    ctx->view_report_cb = cb;
+    ctx->view_report_cb_data = data;
 }

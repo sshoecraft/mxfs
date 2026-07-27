@@ -1,6 +1,14 @@
 {
-  "source": [],
-  "docs": [],
-  "regen_done": false,
-  "nudges": 0
+  "source": [
+    "xfs/xfs_platform.h",
+    "pal/linux/xfs_super.c",
+    "pal/linux/xfs_iops.c",
+    "pal/linux/xfs_aops.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
 }

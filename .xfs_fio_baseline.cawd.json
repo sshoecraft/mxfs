@@ -1,1 +1,1 @@
-{"seq_write_1m":{"bw_mib":1812},"seq_read_1m":{"bw_mib":606},"rand_write_4k":{"iops":43574},"rand_read_4k":{"iops":48402},"size":"1024m"}
+{"seq_write_1m":{"bw_mib":1590},"seq_read_1m":{"bw_mib":550},"rand_write_4k":{"iops":47284},"rand_read_4k":{"iops":46087},"size":"1024m"}

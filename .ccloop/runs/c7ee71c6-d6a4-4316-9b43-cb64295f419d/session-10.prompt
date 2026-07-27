@@ -1,0 +1,137 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 10 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 9
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `1faae63f-3788-410e-9c1e-191b2ce1fd0c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/1faae63f-3788-410e-9c1e-191b2ce1fd0c.jsonl`
+- approx context at last assistant turn: 500153 tokens
+- tools used: Bash×118 Read×26 Edit×21 TaskCreate×5 TaskUpdate×4 Write×3 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ccmemory__memory_get×2 TaskList×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/withdraw_recovery_test.sh
+- /src/mxfs/tests/goingdown.py
+- /src/mxfs/state.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for i in 7 8 9; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E 'PASS|FAIL'; done
+    for i in 10 11 12; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E 'PASS|FAIL'; done
+    for i in 13 14 15; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E 'PASS|FAIL'; done; echo "== counters (all 16 nodes, boot-total):"; for n in $(seq 1 16)
+    grep -E '^\| *(16|any)' /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head -30; echo ===; ./run.sh 16 tcp --list 2>/dev/null | head -30 || grep -n '
+    ./showstat.sh 16 tcp 2>/dev/null | head -40
+    ./run.sh 16 tcp cache_coherency strong_consistency posix_multi mmap_coherency dlm_fairness dlm_membership 2>&1 | grep -E 'PASS|FAIL'
+    D=$(ls -dt /tmp/run_cache_coherency_* 2>/dev/null | head -1); echo "$D"; grep -rh 'FAIL' $D/result* $D/*.txt 2>/dev/null | head -10; ls $D | head
+    D=/tmp/run_cache_coherency_20260725T231542Z; ls $D | grep -v kernlog; for f in $D/node_*.log $D/*result*; do [ -f "$f" ] && grep -l 'FAIL' "$f" 2>/dev/null; don
+    D=/tmp/run_cache_coherency_20260725T231542Z; echo "== events in run window (23:15:40-23:16:10) all nodes:"; grep -h '23:1[56]:' $D/kernlog_test13 $D/kernlog_tes
+    grep -n 'hello from node\|sees\|content of' /src/mxfs/tests/suite/cache_coherency.sh | head -12; echo ===; sed -n '1,50p' /src/mxfs/tests/suite/cache_coherency.
+    D=/tmp/run_cache_coherency_20260725T231542Z; for n in 3 4; do echo "== t$n 23:15:45-23:16:05:"; grep -h '23:15:4[5-9]\|23:15:5\|23:16:0' $D/kernlog_test$n 2>/de
+    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h '18874498' $D/kernlog_test3 2>/dev/null | grep '23:15:5' | head -25
+    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h '18874498' $D/kernlog_test13 2>/dev/null | grep '23:15:5' | grep -E 'P62-REL|P146|P63|P65|CONV|P11-DATALOG|
+    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h 'mxfs-CCph' $D/kernlog_test3 | tail -6; echo ===; grep -h 'CCph' $D/kernlog_test13 | tail -4; echo "=== t3 
+    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h 'mxfs-CCph' $D/kernlog_test3 | head -8; echo ===; ls $D/test3/ 2>/dev/null | head; grep -rn 'node13' $D/tes
+    grep -rn 'mxfs_disklock_find_node_slot' /src/mxfs/dlm/*.c /src/mxfs/xfs/*.c 2>/dev/null | grep -v 'disklock.c' | head -8
+    for i in 1 2 3 4 5 6; do ./run.sh 16 tcp cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'; done
+    D=$(ls -dt /tmp/run_cache_coherency_* | head -1); grep -rh 'RESULT: FAIL' $D 2>/dev/null | head -3
+    sed -n '3480,3560p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n '3656,3745p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+
+## Last text from previous session
+
+ster:
+Module failed to load cluster-wide. Checking the insmod error on one node:
+The reset pipes `prep_tcm_node_scst.sh` to each node and greps for PREP_OK — output was empty, so prep failed silently. Running one node's prep manually with full output:
+Node can't see the SCST LUN. Checking the SCST target state on clyde:
+The current rig's LUN source is the question — checking test1's VM XML for the shared-disk backing device:
+VMs get clyde's local `/dev/sda` (symlinked 06:54 today) passed through directly. What is sda right now:
+Infra is exactly canonical (O_DSYNC write-through + WCE advertised). Launching the first run on 0.11.102 — deploy + drc@16 sanity:
+SSH quoting mangled the inline python. Nodes mount /src/mxfs over NFS — writing the injector as a tree file per RULE 3:
+No output after the injector ran — checking whether test1 shut down and whether the withdraw chain fired (or wedged):
+Stamp + detection work (15/15 survivors saw it in seconds). The elected replay never completed. Hunting the election and replay-work logs:
+6/6 PASS. Continuing the gauntlet:
+The board shows 20/20 but rows are from mixed srcvers — only drc ran at .103. Re-running the full board at the single final srcver in budget-sized chunks:
+cache_coherency FAIL (588/590, 2 checks). Pulling the failing checks from the run artifacts:
+Only dead-node paths call it — no regression vector; the cc failure is the pre-existing Shape-1 family. Measuring its rate at .103 (cc is 14 s/run):
+Relay boundary — state is fully saved (state.md rewritten, three memory dossiers, task list current). Summary of this session:
+
+## Session 9 summary
+
+**Root-caused and closed drc Shape-2** (the round-13 persistent `lookup_fail=3`), reconstructing the complete chain from the preserved failed-run artifacts:
+1. xfsaild pushed t1's dirty AG1 bnobt → P126 staled it as "prior-tenure" → the rm's re-read refused DMA (P110) and completed from in-core → `verify_read` CRC-failed on the dirty image (CRCs are only stamped at write submit; the platter was actually valid) → **t1 force-shutdown mid-rm**.
+2. The shutdown-withdraw path **wire-released 155 grants immediately** — peers promoted straight into t1's torn, unreplayed state (ifree destaged, dirent-removes abandoned with the log) → dangling dirent→freed-inode, unrepairable online; t6's recreates failed ESTALE and its live in-core inodes got zombie-adopted.
+
+**Fixes landed (v0.11.102-103, deployed 16/tcp):**
+- **D1b**: P110's in-place read completion now sets `b_mxfs_inplace_read` (mirrors the existing P91 convention) — no more manufactured EFSBADCRC shutdowns.
+- **D2**: withdraw is now an *active death declaration* — WITHDRAWN heartbeat stamp (peer detection ~1.5 s vs 62-600 s), no grant release; the elected survivor replays the dead slice *first*, then purges and zeroes the dead slot as the cluster-wide done-signal; every peer defers its local purge until then. Withdrawn nodes also stop serving master duties, and unmount of a withdrawn node no longer leaks grants.
+- **Verification**: new `tests/withdraw_recovery_test.sh` (deterministic mid-rm dirty-cancel shutdown injection) — **PASS**: replay ~5 s, zero dangling dirents, zero timeout dominoes. Plus **16 consecutive drc@16 PASS** and 6 more board tests green at the single srcver.
+
+**New open front with a fast reproducer**: cache_coherency@16 fails ~2-in-7 (14 s/run) with the drc Shape-1 signature — first-view ENOENT/undercount around **dir format conversions** (sf→block/block→leaf) plus reused-ino adoption lag from unorderable random generations. Captured live with fork-level evidence; the RULE-4 instrumentation plan (P164-CONV + drain-coverage of conversion blocks) and the GPT phase-2 cookie design direction are queued as task 5.
+
+Production-ready: **no** — the Shape-1/conversion coherency family is open, the 16/tcp board rerun is mid-flight (cache_coherency failing), and the 8/tcp, 32-node, CAW-transport, and physical-rig matrix remain. Next session continues with the cc reproducer loop.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

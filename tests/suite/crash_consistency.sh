@@ -19,6 +19,15 @@ R="$RANK"; T="$NODES"
 D="$MNT/.crash_consistency"
 mkdir -p "$D" 2>/dev/null
 
+# ccloop c7ee71c6 sess6: arm the kernel dir-block probe family (P-DIRWR incl.
+# the new danode arm, P10-RDBLK, ...) on THIS run's shared dir.  The 181124Z
+# torn da3-node CRC (5-node shutdown cascade) had ZERO write-side traces
+# because only dir_reuse armed watch_ino.  Same pattern/knob as dir_reuse.
+if [ "${MXFS_WATCH_ARM:-1}" = 1 ]; then
+    cc_watch=$(stat -c '%i' "$D" 2>/dev/null)
+    [ -n "$cc_watch" ] && echo "$cc_watch" > /sys/module/mxfs/parameters/watch_ino 2>/dev/null || true
+fi
+
 NFILES="${CC_NFILES:-50}"
 
 ck "cc barrier ready" coord_barrier "cc_ready"

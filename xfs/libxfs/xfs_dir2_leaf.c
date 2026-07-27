@@ -742,6 +742,27 @@ mxfs_dir_rebuild_leaf_from_data(
 		return 0;	/* shortform / btree: not a single-leaf dir */
 	}
 
+	/*
+	 * ccloop c7ee71c6 sess7: gate on the ACTUAL dir format before probing
+	 * geo->leafblk.  The old unconditional leaf_read assumed "no leaf
+	 * block -> clean failure", but xfs_dir3_leaf_read maps the offset via
+	 * xfs_dabuf_map WITHOUT XFS_DABUF_MAP_HOLE_OK, so on a BLOCK-form dir
+	 * (extents, nextents=1, disize=blksize) it fires the full corruption
+	 * machinery — xfs_dirattr_mark_sick + "Corruption detected" console
+	 * storm + the P14-DABUF-HOLE forensics (FUA disk probe, ms each) — on
+	 * EVERY leaf-stale-armed create while the shared dir is still small
+	 * (run 192304Z: every P14 in the run was this probe read, comm=dd,
+	 * fmt=2 nextents=1 disize=4096).  Only a LEAF-format dir is in this
+	 * rebuild's scope; everything else bails clean, matching the
+	 * "no repair this op" contract.
+	 */
+	{
+		int	frc = 0;
+
+		if (xfs_dir2_format(args, &frc) != XFS_DIR2_FMT_LEAF || frc)
+			return 0;
+	}
+
 	error = xfs_dir3_leaf_read(tp, dp, args->owner, geo->leafblk, &lbp);
 	if (error || !lbp)
 		return 0;	/* no leaf block (block format) -> nothing to do */
@@ -779,6 +800,7 @@ mxfs_dir_rebuild_leaf_from_data(
 	{
 		extern int mxfs_pal_bdev_read_plain_bdev(struct block_device *,
 				uint64_t, void *, uint32_t);
+		extern int mxfs_dir_leaf_rebuild;
 		int kvcap = max_ents * 2;
 		void *snap = NULL;
 		uint32_t snaplen = 0;
@@ -855,8 +877,30 @@ mxfs_dir_rebuild_leaf_from_data(
 			if (nent < 0)
 				goto overflow_bail;
 
-			/* coherent on-disk source (union) */
-			if (mp->m_ddev_targp && mp->m_ddev_targp->bt_bdev) {
+			/*
+			 * ccloop c7ee71c6 sess2 (RULE 4, cache_coherency rv
+			 * "old gone" fail ×8 nodes, P26-REBUILD-OK comm=mv on
+			 * the rv dir): the on-disk union is DELETE-UNSAFE.  A
+			 * dirent our committed-but-undestaged removename just
+			 * freed is still LIVE in the disk snapshot, and
+			 * "in-core free + disk live" is indistinguishable from
+			 * a peer add — the union resurrects the removed name's
+			 * (hash,dataptr) into the relogged leaf, and any node
+			 * that cold-reads the not-yet-destaged data block then
+			 * fully resolves the old name (rename-visibility loss,
+			 * durably).  The union existed to compensate for an
+			 * acquire-refresh SKIPPED on own-dirt — but in that
+			 * state the peer already RMW'd the block from a base
+			 * missing our dirt (data-level break the leaf cannot
+			 * repair), while in the healthy release-destage world
+			 * the post-refresh IN-CORE data already carries every
+			 * peer entry.  Rebuild from in-core only: fixes leaf
+			 * HOLES (peer hashvals dropped by a stale pinned leaf
+			 * relog) without resurrecting deletes.  Disk union
+			 * kept behind mxfs_dir_leaf_rebuild=2 for A/B.
+			 */
+			if (mxfs_dir_leaf_rebuild >= 2 &&
+			    mp->m_ddev_targp && mp->m_ddev_targp->bt_bdev) {
 				uint32_t blen = BBTOB(dbp->b_length);
 				uint64_t lba = (uint64_t)xfs_buf_daddr(dbp) +
 					mp->m_ddev_targp->bt_sector_offset;

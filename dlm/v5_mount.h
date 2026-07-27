@@ -77,12 +77,26 @@ struct mxfs_v5_dlm *mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts);
 void mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx);
 
 /*
+ * v0.11.74: detach the SCSI PR registration from the ctx before
+ * shutdown and return its key (0 if none/no PR).  The caller owns the
+ * deferred unregister, issued via mxfs_pal_scsi_pr_unregister_bdev
+ * AFTER the unmount log record is on disk — unregistering inside
+ * shutdown fenced the node's own final log write on WE-RO targets.
+ */
+uint64_t mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx);
+
+/*
  * sess9 (ccloop a864): owning FS force-shut-down (still mounted) — leave the
  * cluster: fence all new acquires (inode + AG return -ESHUTDOWN) and stop the
  * disklock heartbeat so peers' dead-node purge reclaims our slots.  Sleeps
  * (<=5s thread join); process context only.  Idempotent.
  */
 void mxfs_v5_dlm_shutdown_withdraw(struct mxfs_v5_dlm *ctx);
+/* sess9 (ccloop c7ee71c6) D2: called by the elected replayer after the
+ * dead node's slice is durably replayed — shared purges + zeroing the
+ * dead HB slot (the cluster-wide "replay done" signal). */
+void mxfs_v5_dlm_recovery_complete(struct mxfs_v5_dlm *ctx,
+                                   uint32_t dead_slot);
 bool mxfs_v5_dlm_is_withdrawn(struct mxfs_v5_dlm *ctx);
 
 /* ─── Inode lock interface ─── */
@@ -141,6 +155,11 @@ int  mxfs_v5_dlm_ag_lock(struct mxfs_v5_dlm *ctx, uint32_t agno);
 int  mxfs_v5_dlm_ag_lock_nb(struct mxfs_v5_dlm *ctx, uint32_t agno);
 void mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx, uint32_t agno);
 int  mxfs_v5_dlm_ag_held(struct mxfs_v5_dlm *ctx, uint32_t agno);
+/* ccloop c7ee71c6 sess6: orphan-grant NAK — when a bast arrives for an AG the
+ * FS layer does not hold (holders=0, !cached, nothing scheduled), tell the
+ * master to drop its zombie GRANTED entry for us.  Guarded: no-op if the
+ * local dlm table holds any entry (incl. an in-flight acquire).  TCP only. */
+int  mxfs_v5_dlm_ag_orphan_nak(struct mxfs_v5_dlm *ctx, uint32_t agno);
 /* sess19: read shared on-disk AG slot generation (cross-node coherency epoch) */
 int  mxfs_v5_dlm_ag_read_generation(struct mxfs_v5_dlm *ctx, uint32_t agno,
                                     uint64_t *out_gen);

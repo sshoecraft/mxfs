@@ -62,8 +62,10 @@
 #include <asm/unaligned.h>
 #endif
 
-/* inode_state helpers added in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* inode_state helpers added in v6.19 (commit d8753f788ab4, Mateusz Guzik,
+ * 2025-10-09) -- native version returns enum inode_state_flags_enum, not
+ * unsigned long, but that's integer-compatible with our bitwise callers. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
 static inline unsigned long inode_state_read_once(struct inode *inode)
 {
 	return READ_ONCE(inode->i_state);
@@ -99,8 +101,8 @@ static inline int dax_break_layout_inode(struct inode *inode, void *cb)
 }
 #endif
 
-/* mapping_set_folio_min_order added in ~6.13 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/* mapping_set_folio_min_order added in v6.12 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 static inline void mapping_set_folio_min_order(struct address_space *mapping,
 					       unsigned int order)
 {
@@ -118,13 +120,13 @@ static inline void mapping_set_folio_min_order(struct address_space *mapping,
 }
 #endif
 
-/* secs_to_jiffies added in ~6.13 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/* secs_to_jiffies is a macro upstream -- ifndef is robust across versions */
+#ifndef secs_to_jiffies
 #define secs_to_jiffies(s) ((unsigned long)(s) * HZ)
 #endif
 
-/* super_set_uuid added in ~6.13 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/* super_set_uuid added in v6.9 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
 static inline void super_set_uuid(struct super_block *sb, const u8 *uuid,
 				  unsigned int len)
 {
@@ -134,8 +136,8 @@ static inline void super_set_uuid(struct super_block *sb, const u8 *uuid,
 }
 #endif
 
-/* bdev file API changed in ~6.10: bdev_handle → struct file */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+/* bdev file API changed in v6.9: bdev_handle → struct file */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
 static inline struct file *bdev_file_open_by_path(const char *path,
 		blk_mode_t mode, void *holder, const struct blk_holder_ops *hops)
 {
@@ -171,8 +173,10 @@ static inline bool inode_generic_drop(struct inode *inode)
 }
 #endif
 
-/* dax_break_layout_final added in ~6.19 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
+/* dax_break_layout_final added in v6.15 (commit 0e2f80afcfa6, "fs/dax:
+ * ensure all pages are idle prior to filesystem unmount") -- upstream
+ * signature is void, not int; older kernels lacking it get a no-op. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
 static inline int dax_break_layout_final(struct inode *inode)
 {
 	return 0;
@@ -211,13 +215,13 @@ static inline unsigned long mapping_max_folio_size_supported(void)
 	kvrealloc(p, newsize, gfp)
 #endif
 
-/* WQ_PERCPU added in ~6.13 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/* WQ_PERCPU added in v6.17 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 #define WQ_PERCPU 0
 #endif
 
-/* bio_add_vmalloc/bio_add_virt_nofail added in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* bio_add_vmalloc/bio_add_virt_nofail added in v6.16 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 #include <linux/bio.h>
 static inline int bio_add_vmalloc(struct bio *bio, void *data, unsigned int len)
 {
@@ -240,16 +244,16 @@ static inline void bio_add_virt_nofail(struct bio *bio, void *data,
 }
 #endif
 
-/* max_pow_of_two_factor added in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* max_pow_of_two_factor added in v6.17 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 static inline unsigned int max_pow_of_two_factor(unsigned int n)
 {
 	return n & -n;
 }
 #endif
 
-/* memtostr_pad — new in ~6.13 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/* memtostr_pad — new in v6.10 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 #define memtostr_pad(dest, src) do { \
 	size_t _len = min(sizeof(dest) - 1, sizeof(src)); \
 	memcpy(dest, src, _len); \
@@ -262,8 +266,12 @@ static inline unsigned int max_pow_of_two_factor(unsigned int n)
 /* Stub: just use sb_start_write/sb_end_write directly */
 #endif
 
-/* bdev atomic write helpers — new in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* bdev atomic write helpers — real versions differ per-symbol:
+ * bdev_can_atomic_write v6.11, bdev_atomic_write_unit_{min,max}_bytes
+ * v6.13, bdev_validate_blocksize v6.15, bio_add_max_vecs v6.16. Gated
+ * as one block on the latest (v6.16) since that's the highest bar that
+ * still needs to hold for all five to be shimmed together. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 static inline bool bdev_can_atomic_write(struct block_device *bdev) { return false; }
 static inline unsigned int bdev_atomic_write_unit_min_bytes(struct block_device *bdev) { return 0; }
 static inline unsigned int bdev_atomic_write_unit_max_bytes(struct block_device *bdev) { return 0; }
@@ -273,21 +281,24 @@ static inline unsigned int bio_add_max_vecs(void *data, unsigned int len) {
 }
 #endif
 
-/* bdev_rw_virt — new in ~6.15 */
+/* bdev_rw_virt — new in v6.16 */
 /* Compat provided after xfs_rw_bdev declaration (see bottom of this file) */
 
-/* bio_add_vmalloc_chunk — new in ~6.15, differs from bio_add_vmalloc */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* bio_add_vmalloc_chunk — new in v6.16, differs from bio_add_vmalloc */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 #define bio_add_vmalloc_chunk bio_add_vmalloc
 #endif
 
-/* super_set_sysfs_name_id — new in ~6.19 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
+/* super_set_sysfs_name_id — added in v6.10 (commit ae8c51175730, "fs: add
+ * FS_IOC_GETFSSYSFSPATH") */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 static inline void super_set_sysfs_name_id(struct super_block *sb) { }
 #endif
 
-/* freeze_super/thaw_super gained 3rd arg (NULL) in ~6.19 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
+/* freeze_super/thaw_super gained 3rd arg (owner) in v6.16 (commit
+ * 1af3331764b9, "super: add filesystem freezing helpers for suspend and
+ * hibernate") */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 #define mxfs_freeze_super(sb, who) freeze_super(sb, who)
 #define mxfs_thaw_super(sb, who) thaw_super(sb, who)
 #else
@@ -295,15 +306,20 @@ static inline void super_set_sysfs_name_id(struct super_block *sb) { }
 #define mxfs_thaw_super(sb, who) thaw_super(sb, who, NULL)
 #endif
 
-/* fd_file/fd_empty — new in ~6.19, 6.8 uses fd.file directly */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
+/* fd_file/fd_empty added in v6.12 (commit 1da91ea87aef, "introduce
+ * fd_file(), convert all accessors to it") -- struct fd was repacked
+ * from a plain .file pointer to a packed .word bitfield around the
+ * same change, so fd_file()/fd_empty() are the only portable accessors
+ * on 6.12+; kernels below that still expose fd.file directly. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 #include <linux/file.h>
 static inline bool fd_empty(struct fd f) { return !f.file; }
 static inline struct file *fd_file(struct fd f) { return f.file; }
 #endif
 
-/* struct file_kattr renamed from struct fileattr in ~6.19 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
+/* struct file_kattr renamed from struct fileattr in v6.17 (commit
+ * ca115d7e7546) */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 #include <linux/fileattr.h>
 #define file_kattr fileattr
 #endif
@@ -319,15 +335,15 @@ static inline struct file *fd_file(struct fd f) { return f.file; }
 #define STATX_WRITE_ATOMIC 0
 #endif
 
-/* generic_fill_statx_atomic_writes — new in ~6.13 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/* generic_fill_statx_atomic_writes — new in v6.11 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
 static inline void generic_fill_statx_atomic_writes(struct kstat *stat,
 		unsigned int unit_min, unsigned int unit_max,
 		unsigned int unit_max_opt) { }
 #endif
 
-/* fill_mg_cmtime — new in ~6.15, takes 3 args (stat, request_mask, inode) */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* fill_mg_cmtime — new in v6.13, takes 3 args (stat, request_mask, inode) */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
 #define fill_mg_cmtime(stat, mask, inode) do { \
 	(stat)->ctime = inode_get_ctime(inode); \
 	(stat)->mtime = inode_get_mtime(inode); \
@@ -356,13 +372,8 @@ struct iomap_write_ops {
 };
 #endif
 
-/* iomap helpers — new in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
-static inline int iomap_fill_dirty_folios(void *iter, loff_t *foffset,
-		loff_t fend, unsigned int *flags)
-{
-	return 0;
-}
+/* iomap_last_written_block / iomap_write_delalloc_release — new in v6.12 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 static inline loff_t iomap_last_written_block(struct inode *inode,
 		loff_t pos, ssize_t written)
 {
@@ -374,22 +385,53 @@ static inline loff_t iomap_last_written_block(struct inode *inode,
 	do { if (punch) (punch)(inode, start, (end) - (start), iomap); } while (0)
 #endif
 
-/* iomap_zero_range gained write_ops param in ~6.15 */
+/* iomap_fill_dirty_folios — new in v6.19 (commit ed61378b4dc6, real
+ * signature `unsigned int iomap_fill_dirty_folios(struct iomap_iter *,
+ * loff_t *, ...)`, differs from this no-op stub's signature -- fine
+ * since the stub is only ever called, never compared/assigned by type). */
+/* No-op stub: on kernels lacking this, there is no dirty-folio-driven
+ * early cutoff, so the caller's intended range must be preserved as-is.
+ * Leaving *foffset at its caller-supplied starting value (instead of
+ * advancing it to fend) made xfs_buffered_write_iomap_begin's caller
+ * (the IOMAP_ZERO unwritten-mapping trim in pal/linux/xfs_iomap.c)
+ * collapse end_fsb down to offset_fsb -- a zero-length iomap that
+ * iomap_iter can never advance past, spinning forever. PROVEN live via
+ * ftrace on 6.17.2-1-pve: identical xfs_buffered_write_iomap_begin call
+ * sequence repeating at microsecond intervals during a QEMU zero-range
+ * write (detect-zeroes) to a sparse raw disk image, zero disk progress. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
+static inline int iomap_fill_dirty_folios(void *iter, loff_t *foffset,
+		loff_t fend, unsigned int *flags)
+{
+	*foffset = fend;
+	return 0;
+}
+#endif
+
+/* iomap_zero_range gained write_ops param in v6.15, then a further
+ * trailing `void *private` param in v6.17 (commit 2a5574fc57d1). */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
 #define mxfs_iomap_zero_range(inode, pos, len, did_zero, ops, wops) \
 	iomap_zero_range(inode, pos, len, did_zero, ops)
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 #define mxfs_iomap_zero_range(inode, pos, len, did_zero, ops, wops) \
 	iomap_zero_range(inode, pos, len, did_zero, ops, wops)
+#else
+#define mxfs_iomap_zero_range(inode, pos, len, did_zero, ops, wops) \
+	iomap_zero_range(inode, pos, len, did_zero, ops, wops, NULL)
 #endif
 
-/* iomap_truncate_page gained write_ops param in ~6.15 */
+/* iomap_truncate_page gained write_ops param in v6.15, then a further
+ * trailing `void *private` param in v6.17 (same commit as above). */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
 #define mxfs_iomap_truncate_page(inode, pos, did_zero, ops, wops) \
 	iomap_truncate_page(inode, pos, did_zero, ops)
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 #define mxfs_iomap_truncate_page(inode, pos, did_zero, ops, wops) \
 	iomap_truncate_page(inode, pos, did_zero, ops, wops)
+#else
+#define mxfs_iomap_truncate_page(inode, pos, did_zero, ops, wops) \
+	iomap_truncate_page(inode, pos, did_zero, ops, wops, NULL)
 #endif
 
 /* IOMAP_IOEND_DIRECT, IOMAP_DIO_BOUNCE, IOMAP_DIO_FSBLOCK_ALIGNED — new in 6.15+ */
@@ -471,8 +513,8 @@ static inline bool generic_atomic_write_valid(struct kiocb *iocb,
 #define iomap_bio_readahead(rac, ops)     iomap_readahead(rac, ops)
 #endif
 
-/* icount_read added to linux/fs.h in ~6.15 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+/* icount_read added to linux/fs.h in v6.18 (commit 37b27bd5d621) */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 static inline int icount_read(const struct inode *inode)
 {
 	return atomic_read(&inode->i_count);

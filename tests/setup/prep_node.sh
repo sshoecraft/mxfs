@@ -42,7 +42,23 @@ if ! mountpoint -q "$NFS_MOUNT"; then
         -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp,rsize=1048576,wsize=1048576 \
         || fail "NFS mount $NFS_SERVER -> $NFS_MOUNT failed"
 fi
-[ -f "$MODULE" ] || fail "module not found at $MODULE"
+# 1a. Decide WHICH module this node loads.  The repo .ko is built on the dev
+#     host for ITS OWN kernel and NFS-shared to the fleet: on the test VMs
+#     (same kernel) that is precisely the build under test, so prefer it.  A
+#     node running a DIFFERENT kernel (Proxmox VE 9 / 6.17.2-1-pve vs the dev
+#     host's 6.8.0-101-generic) cannot load it at all — insmod rejects it with
+#     "could not insert module: Invalid parameters" — and instead carries its
+#     own DKMS-built mxfs, which is the build under test THERE.  Detect by
+#     vermagic rather than by a hand-set flag so the test-VM path is untouched.
+KREL=$(uname -r)
+KO_VERMAGIC=$(modinfo "$MODULE" 2>/dev/null | awk '/^vermagic:/{print $2}')
+if [ -f "$MODULE" ] && [ "$KO_VERMAGIC" = "$KREL" ]; then
+    MODULE_SOURCE=repo
+elif modinfo -F srcversion mxfs >/dev/null 2>&1; then
+    MODULE_SOURCE=installed
+else
+    fail "no loadable mxfs module: repo $MODULE is vermagic '${KO_VERMAGIC:-none}' but this node runs '$KREL', and no installed mxfs module was found (dkms status?)"
+fi
 
 # 2. Test-dependency tools (best-effort — don't fail prep if apt is offline).
 for pkg in fio mosquitto-clients sg3-utils attr; do
@@ -76,8 +92,41 @@ fi
 
 # 4. Load the module with the chosen transport.
 modprobe libcrc32c 2>/dev/null || true
-insmod "$MODULE" $MODARGS ${MXFS_EXTRA_MODARGS:-} || fail "insmod $MODULE $MODARGS ${MXFS_EXTRA_MODARGS:-} failed"
-lsmod | grep -q '^mxfs' || fail "mxfs not loaded after insmod"
+case "$MODULE_SOURCE" in
+    repo)
+        # sess10 (ccloop c7ee71c6) NFS-STALENESS-PROOF LOAD.  The repo ko is
+        # relinked IN PLACE on the NFS export; with server/client clock skew a
+        # client can keep MIXED stale/new cached pages of it and insmod a
+        # frankenstein image (PROVEN: test25 ran a module reporting the NEW
+        # srcversion while executing PRE-FIX v5_mount code — the withdraw
+        # recovery-completion no-fire; `strings` on its ko lacked a symbol the
+        # srcversion said it had).  Copy to node-local disk, and when the
+        # caller supplied the build host's md5 (MXFS_KO_MD5), drop caches and
+        # re-copy until the local copy matches; then insmod the LOCAL file so
+        # the running module can never be a mixed NFS view.
+        LOCAL_KO=/root/mxfs.ko.prep
+        ko_ok=0
+        for kt in 1 2 3 4 5 6; do
+            cp -f "$MODULE" "$LOCAL_KO" 2>/dev/null || { sleep 1; continue; }
+            lmd5=$(md5sum "$LOCAL_KO" 2>/dev/null | awk '{print $1}')
+            if [ -z "${MXFS_KO_MD5:-}" ] || [ "$lmd5" = "$MXFS_KO_MD5" ]; then
+                ko_ok=1; break
+            fi
+            echo "WARN: mxfs.ko md5 $lmd5 != expected ${MXFS_KO_MD5} (stale NFS pages) — dropping caches, retry $kt"
+            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+            sleep 2
+        done
+        [ "$ko_ok" = 1 ] || fail "mxfs.ko content never matched expected md5 ${MXFS_KO_MD5:-?} after cache-drop retries (NFS staleness)"
+        insmod "$LOCAL_KO" $MODARGS ${MXFS_EXTRA_MODARGS:-} \
+            || fail "insmod $LOCAL_KO $MODARGS ${MXFS_EXTRA_MODARGS:-} failed" ;;
+    installed)
+        # /etc/modprobe.d/mxfs.conf may already carry options (force_transport=1
+        # is mandatory on rigs whose LUN has no real SCSI CAW); passing MODARGS
+        # explicitly is still correct — modprobe merges both.
+        modprobe mxfs $MODARGS ${MXFS_EXTRA_MODARGS:-} \
+            || fail "modprobe mxfs $MODARGS ${MXFS_EXTRA_MODARGS:-} failed" ;;
+esac
+lsmod | grep -q '^mxfs' || fail "mxfs not loaded after load ($MODULE_SOURCE)"
 
 # 4a2. Catch in-guest wedges with stacks: run21 had a 112s whole-node stall
 #      that khungtaskd's default 120s window just missed.  30s + all-cpu
@@ -124,4 +173,4 @@ mkdir -p "$MXFS_MOUNT"
 mount -t mxfs "$MXFS_DEV" "$MXFS_MOUNT" || fail "mount -t mxfs $MXFS_DEV $MXFS_MOUNT failed"
 mountpoint -q "$MXFS_MOUNT" || fail "$MXFS_MOUNT not mounted after mount"
 
-echo "NODE_PREP_OK transport=$TRANSPORT dev=$MXFS_DEV mount=$MXFS_MOUNT timeout=$(cat /sys/block/$DEVNAME/device/timeout 2>/dev/null)"
+echo "NODE_PREP_OK transport=$TRANSPORT dev=$MXFS_DEV mount=$MXFS_MOUNT module=$MODULE_SOURCE srcversion=$(cat /sys/module/mxfs/srcversion 2>/dev/null) timeout=$(cat /sys/block/$DEVNAME/device/timeout 2>/dev/null)"

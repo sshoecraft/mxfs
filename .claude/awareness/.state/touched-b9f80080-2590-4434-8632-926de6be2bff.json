@@ -1,0 +1,18 @@
+{
+  "source": [
+    "dlm/scsipr.h",
+    "dlm/scsipr.c",
+    "pal/linux/kern.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "dlm/v5_mount.h",
+    "dlm/v5_mount.c",
+    "pal/linux/xfs_super.c",
+    "dlm/disklock.h",
+    "dlm/disklock.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

@@ -1,0 +1,94 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 9 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 8
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `22e1be04-b1a5-4f22-afd1-89f9b13ddbd8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/22e1be04-b1a5-4f22-afd1-89f9b13ddbd8.jsonl`
+- approx context at last assistant turn: 125177 tokens
+- tools used: Bash×12 Read×5 TaskCreate×4 ToolSearch×2 mcp__ccmemory__memory_get×2 TaskUpdate×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+_(none)_
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cat VERSION && modinfo mxfs.ko 2>/dev/null | grep srcversion; for n in 1 6 16; do echo -n "test$n: "; ./tools/mxfs_sshpass.sh test$n x 'mount | grep -c " type m
+    ls /src/mxfs/tests/criteria/ | head -40; echo ---; grep -rn 'lookup_fail' /src/mxfs/tests/criteria/dir_reuse_coherency* 2>/dev/null | head -20
+    grep -rln 'dir_reuse_coherency' /src/mxfs/tests/ /src/mxfs/run.sh 2>/dev/null | head; echo ---; find /src/mxfs/tests -name '*dir_reuse*' | head
+    tot60=0; tot48=0; for n in $(seq 1 16); do o=$(./tools/mxfs_sshpass.sh test$n x 'echo "$(dmesg | grep -c P60-RDVGG) $(dmesg | grep -c P48-RDRELOAD-RETRY)"' 2>/d
+    grep -n 'xfs_dir_lookup' /src/mxfs/xfs/xfs_inode.c /src/mxfs/xfs/libxfs/xfs_dir2.c /src/mxfs/xfs/libxfs/xfs_dir2.h | head -20; echo ===; grep -n 'P10-DIRDUMP-BL
+    grep -n 'datascan\|P26-\|P21-\|leaf_lookup_int' /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c | head -30; echo ===; grep -n 'xfs_dir2_leaf_lookup\b\|xfs_dir2_leaf_lookup
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; ls $D 2>/dev/null | head -5; grep -h 'P26-LKFMT\|P26-DSCAN\|P22-DATASCAN\|P26-LKERR' $D/kernlog_test* 2>/dev/nu
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== counts:"; grep -h 'P26-DSCAN\|P22-DATASCAN' $D/kernlog_test* 2>/dev/null | grep -oE 'P26-DSCAN-MISS|P2
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== DSCAN-MISS detail:"; grep -h 'P26-DSCAN-MISS' $D/kernlog_test2 2>/dev/null | head -4; echo "== P127-DI
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== node6_f1/f2/f3 events across all nodes:"; grep -h 'node6_f[123]"' $D/kernlog_test* 2>/dev/null | grep 
+    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== IGET-FAIL all nodes/all time:"; grep -h 'P26-IGET-FAIL' $D/kernlog_test* 2>/dev/null | awk '{print $6,
+    grep -rn 'P26-IGET-FAIL' /src/mxfs/xfs/*.c | head -3; grep -rn 'mxfs_icluster_dlm' /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c 2>/dev/null | head -10
+
+## Last text from previous session
+
+Cluster is live on the current build (0.11.101). The dir_reuse test lives elsewhere — locating it and the lookup_fail logic:
+There's already a P127-DIRMISS shortform dump on ENOENT. Now the dispatcher and walk internals:
+There's an existing "datascan-heal" in the leaf lookup path. Checking what it does and what it prints — it may already be half of the P61 instrumentation:
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

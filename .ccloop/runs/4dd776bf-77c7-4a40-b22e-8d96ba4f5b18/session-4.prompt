@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 4 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+all known issues resolved
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4dd776bf-77c7-4a40-b22e-8d96ba4f5b18/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4dd776bf-77c7-4a40-b22e-8d96ba4f5b18, after session 3
+
+## Original task
+
+read continue_troubelshooting.md for prompt
+
+
+## Previous session
+
+- session-id: `4bbf6b23-3b4f-4892-82d1-ec65131d0379`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379.jsonl`
+- approx context at last assistant turn: 491981 tokens
+- tools used: Bash×119 Read×37 Edit×15 TaskCreate×3 ToolSearch×3 mcp__ccmemory__memory_write×2 TaskList×1 TaskUpdate×1 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/scripts/dialloc_round.sh
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); echo "=== test1: its own stuck acquire (135) ==="; grep -E "P
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); echo "=== test2(master): BAST fires for 135 in stall window =
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); grep -E "ino=135[^0-9]" $LOGD/b56r1_test2.live | awk '$3 >= "
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); echo "=== test2: LAST P4L-ALLOC/FREE for 135 ==="; grep -E "P
+    grep -n "v0.3.148\|re-acquire\|relock" /src/mxfs/xfs/xfs_inode.c | head -10; grep -n "xfs_create(" /src/mxfs/xfs/xfs_inode.c | head -3
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n P36-STACK dump ==="; N=$(gr
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); echo "=== test1: last EX(131) grant + subsequent 131 events =
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); grep -E "ino=131[^0-9]" $LOGD/b56r1_test1.live | awk '$3 >= "
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); echo "=== strikeout / dwork prints test1 ==="; grep -cE "P36-
+    grep -n "i_dlm_bast_starve_since_ns" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -8; grep -n "fast path\|fastpath\|FASTEX" /src/mxfs/xfs/xfs_mxfs_dlm.c | sed -n '1,10p'
+    awk 'NR>=22150 && NR<=22330' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "ex_holders++\|pr_holders++\|CACHED" | head -8; grep -n "mxfs_dlm_ilock_begin(" /src/mxfs/xf
+    awk 'NR>=21850 && NR<=22060' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "i_dlm_mode >= mode\|mode <= ip->i_dlm_mode\|ISTATE_CACHED\|fast" | head -10
+    awk 'NR>=21600 && NR<=21860' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "i_dlm_mode == MXFS_LOCK_EX\|== MXFS_DLM_ISTATE_CACHED\|if (\(*ip->i_dlm" | head -8; sed -n 
+    sed -n '21540,21620p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    sed -n '21470,21545p' /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -n "if\|CACHED\|BAST" | head -14; sed -n '21486,21540p' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -30
+    sed -n '21420,21476p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    grep -rn "mxfs_inode_mht_ms" /src/mxfs/pal/linux/xfs_super.c /src/mxfs/mxfs.c 2>/dev/null | head -4; grep -rn "int mxfs_inode_mht_ms\|module_param.*mht" /src/mx
+    echo "0.11.57" > /src/mxfs/VERSION && make modules 2>&1 | grep -E "error:" | head -5; modinfo mxfs.ko | grep srcversion
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); TAG=b57r1 LOGDIR=$LOGD scripts/dialloc_round.sh 180 24; echo 
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4bbf6b23-3b4f-4892-82d1-ec65131d0379/scratchpad/logdir.txt); TAG=b57r2 LOGDIR=$LOGD scripts/dialloc_round.sh 180 24; echo 
+
+## Last text from previous session
+
+so far are idle. Continuing the sweep — xfsaild and remaining kworkers:
+Now W2. Adding the setter-stamp fields to `xfs_inode.h` next to the existing DLM diag fields:
+New fields need init at inode (re)initialization — checking the reset site at 25149 (`i_dlm_acq_inflight = 0`):
+Build clean (v0.11.55 = 52205D4F). Checkpointing state to memory, then deploying (prep will power-cycle the wedged test1):
+Deployed after power-cycling wedged test1 (192s). Round 1 on v0.11.55:
+Let me check what the status script is actually reporting before I answer precisely:
+Direct answers to both questions:
+
+**1. I'm testing on test1/test2 — the libvirt VMs on clyde — not PVE 1/2.** The defect family I'm chasing was originally observed on the PVE pair (the dialloc corruption from `continue_troubelshooting.md`), and session 1 of this run built a VM-rig reproducer for it because the VMs give a ~5-minute cycle (fresh mkfs + 180s churn) versus the much slower PVE cycle. The PVE pair re-enters later in the queue — there's a pve2-specific `flush_workqueue` unmount wedge on the open-items list, and final verification should include the real hardware. But everything you've watched this session is VM-rig.
+
+**2. Both things are true, and here's the reconciliation:** the status script reports the last *formal suite* run — `.last_run.json` shows it: July 21, three days ago, on an older build. That suite (prep_cluster, posix, fsx, fio, coherency, etc.) passed. What I'm running now is **not in the criteria suite** — it's `agi_wedge_repro.sh`, a diagnostic amplifier where both nodes hammer the *same* hot directory with 24 workers each, concurrent create/write/unlink/mkdir/rmdir on shared names. Under that workload the cluster still shuts down roughly every other round — FS shutdowns, a double-free of an inode both nodes inactivated, a 184-second DLM starvation deadlock. Those are real RULE-6 defects; the formal suite just never generates this collision pattern, which is exactly why it passes while this fails.
+
+So: **it's not passing — the suite is stale (3 days old) and under-covers this workload.** Two honest gaps on my side:
+
+- The suite hasn't been rerun on the current builds (0.11.47→55). My plan gates on it: 5 consecutive clean stress rounds → deadshell repro → full `./run.sh 2 tcp` rerun, which will refresh the status you're looking at.
+- The shared-hot-dir churn workload isn't represented in criteria at all. Once the defects are fixed, this repro should probably become a criterion (e.g. `shared_dir_churn`) so the status can never again say "all passing" while this workload kills the cluster.
+
+Current state of the campaign itself: three roots proven and fixed so far this session (peer-freed double-inactivation → clean-skip fix; plus two self-naming instruments for a leaked buffer-lock and a leaked DLM-acquire state that caused the 184s deadlock), build v0.11.55 deployed, and I was mid-way through the clean-round ladder when you interrupted.
+
+Want me to continue the stress rounds on the VMs, or rerun the formal suite first so the status reflects current reality — or move this campaign onto the PVE pair?
+Criteria not met — continuing. First the required awareness-doc update for pal (xfs_buf.c change), then resuming rounds:
+Field-index slip (time is $3 in the live format). Redoing:
+The `if (false && ...)` hack is ugly — restructuring cleanly: dir arm removed here (flag only), executed at the tail after both releases:
+Now adding the dir arm at the function tail, after both releases:
+The bail arms return before the tail, so the relocation preserves main-path-only semantics with only the ordering changed. Building v0.11.56:
+GPT consult running in background. Meanwhile, closing the remaining attribution gap: who held EX(131) on test1 for the whole stall:
+Adding the tenure-cap knob next to its siblings:
+Now the gate in the dir-strict fast-path conditional:
+Building v0.11.57 with the tenure cap:
+b57 round 1 CLEAN (1/5; the cap didn't need to fire this round). Round 2:
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

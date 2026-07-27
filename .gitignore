@@ -31,10 +31,21 @@ tests/**/*.log.*
 # ---- Working backups & stale copies (recoverable from git history; never ship publicly) ----
 *.backup
 *.backup-*
+*.backup.*
 *-backup
 *.old
+
+# ---- Compiled test helpers (rebuilt from the .c beside them) ----
+/tests/caw/caw_align_probe
+/tests/net2/net2_harness
 
 # ---- ccloop session transcripts: symlinks to full raw session JSONL under
 # ---- ~/.claude/projects/, absolute-path (non-portable) and can carry
 # ---- arbitrary sensitive content (commands run, secrets, etc). Never track.
 .ccloop/runs/*/transcripts/
+
+# ---- Per-handoff working snapshot: transient (rewritten fresh each handoff,
+# ---- NOT history — history lives in CHANGELOG.md) AND carries secrets
+# ---- (test-node credentials, IPs). Never track. Durable notable-change
+# ---- history goes in CHANGELOG.md; durable context goes in ccmemory.
+state.md

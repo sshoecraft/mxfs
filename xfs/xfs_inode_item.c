@@ -716,8 +716,19 @@ xfs_inode_item_pin(
 	if (S_ISDIR(VFS_I(ip)->i_mode)) {
 		struct mxfs_v5_dlm *p58dlm = ip->i_mount->m_mxfs_dlm;
 
+		/*
+		 * sess5 (ccloop-4dd7): b64r1-b69r4 measured 380+ fires, ALL
+		 * with ex_h=1 — a live EX ADMISSION whose i_dlm_mode field
+		 * lags at NL during the release/re-admit window (kworker
+		 * inactivation commits).  Zero correctness failures across
+		 * 14 clean rounds + 20/20 suite with that signature, and its
+		 * dump_stack "Call Trace:" lines poison any dmesg-clean test
+		 * window.  The sess58 defect needs authority actually GONE:
+		 * require no EX admission (and no dlm pin) besides mode!=EX.
+		 */
 		if (p58dlm && !mxfs_v5_dlm_is_single_node(p58dlm) &&
-		    ip->i_dlm_mode != MXFS_LOCK_EX) {
+		    ip->i_dlm_mode != MXFS_LOCK_EX &&
+		    ip->i_dlm_ex_holders == 0 && ip->i_dlm_pin_count == 0) {
 			static atomic_t p58_dumped = ATOMIC_INIT(0);
 
 			pr_warn("mxfs: P58-DIRPIN-NONEX ino=%llu dlm_mode=%u state=%u ex_h=%d pr_h=%d dlm_pin=%d comm=%s realns=%llu — dir committed WITHOUT EX authority\n",
@@ -1077,6 +1088,24 @@ xfs_iflush_finish(
 		iip->ili_flush_lsn = 0;
 		clear_bit(XFS_LI_FLUSHING, &lip->li_flags);
 		spin_unlock(&iip->ili_lock);
+		/*
+		 * sess18 (ccloop c7ee71c6) D3 residual, wiring step 2 of 4:
+		 * THE confirmed home-location write completion, for every flush
+		 * path there is.  We are inside xfs_buf_inode_iodone, which
+		 * __xfs_buf_ioend reaches only after the b_error check, so the
+		 * in-place dinode image stamped at xfs_iflush copy-in is on the
+		 * platter.  Discharge the publication obligation up to exactly
+		 * that image's watermark -- NOT up to pending, which may already
+		 * have advanced past what this buffer carried.
+		 *
+		 * sess14 advanced durable only at the release drain's own
+		 * xfs_bwrite, so inodes landed by xfsaild/reclaim/sync never
+		 * discharged and read "obligation open" forever (P176 x116 in a
+		 * PASSING run).  This is the correct discharge point; the drain's
+		 * eager assignment is removed in the same change.
+		 */
+		iip->ili_inode->i_mxfs_pub_durable_seq =
+			iip->ili_inode->i_mxfs_pub_flush_seq;
 		xfs_iflags_clear(iip->ili_inode, XFS_IFLUSHING);
 		if (drop_buffer)
 			xfs_buf_rele(bp);

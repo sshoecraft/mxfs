@@ -288,8 +288,15 @@ xfs_generic_create(
 		 * unlinked list.  Therefore we have to set nlink to 1 so that
 		 * d_tmpfile can immediately set it back to zero.
 		 */
-		set_nlink(inode, 1);
+		mxfs_set_nlink(ip, 1);
 		d_tmpfile(tmpfile, inode);
+		/* sess5 shadow ledger: d_tmpfile's internal drop_nlink took
+		 * i_nlink back to 0 and INC'd s_remove_count outside our
+		 * wrappers — re-arm the accounted flag to match. */
+		if (inode->i_nlink == 0) {
+			xfs_iflags_set(ip, MXFS_IF_RMC_ACCT);
+			ip->i_rmc_last0_ra = __builtin_return_address(0);
+		}
 	} else
 		d_instantiate(dentry, inode);
 
@@ -1129,6 +1136,28 @@ xfs_setattr_size(
 
 	lock_flags |= XFS_ILOCK_EXCL;
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
+
+	/*
+	 * mxfs (ccloop-4dd7 sess2, ino 133 autopsy): the DLM EX acquire inside
+	 * xfs_ilock can RELOAD this inode to a DIFFERENT incarnation — a peer
+	 * freed the number and reused it (P-RELOAD-TYPEFLIP incore=0100644
+	 * disk=040755) or the reload adopted a peer-freed image (mode 0).  The
+	 * VFS resolved the dentry against the OLD incarnation; truncating the
+	 * new one walks a fork in the wrong state (__xfs_bunmapi on a LOCAL-
+	 * format dir fork -> !xfs_ifork_has_extents internal error -> dirty
+	 * trans_cancel -> cluster shutdown).  The transaction is still clean
+	 * here: bail with -ESTALE, which do_filp_open / do_sys_truncate retry
+	 * with LOOKUP_REVAL — the re-lookup binds the current incarnation (or
+	 * cleanly fails).  Mirrors REMOVE-REVALIDATE-MISS in xfs_remove.
+	 */
+	if (!S_ISREG(VFS_I(ip)->i_mode)) {
+		pr_warn_ratelimited(
+		    "mxfs: SETSIZE-REVALIDATE-MISS ino=%llu mode=0%o gen=%u (incarnation changed at EX acquire; clean -ESTALE, no shutdown)\n",
+		    (unsigned long long)ip->i_ino, VFS_I(ip)->i_mode,
+		    VFS_I(ip)->i_generation);
+		error = -ESTALE;
+		goto out_trans_cancel;
+	}
 	xfs_trans_ijoin(tp, ip, 0);
 
 	/*
@@ -1253,7 +1282,14 @@ xfs_vn_setattr(
 	return error;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+/* enum fs_update_time (3-arg update_time) does not exist in any released
+ * kernel through 6.17.2 -- verified absent from 6.17.2-1-pve's actual
+ * headers (S_ATIME/S_MTIME/S_CTIME are still a plain enum there, and
+ * .update_time is still `int (*)(struct inode *, int)`). It only exists
+ * in an unreleased/future commit (no reachable release tag). Gated high
+ * until a real shipped kernel is confirmed to need it -- do not lower
+ * this without verifying against that kernel's actual headers first. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 90, 0)
 STATIC int
 xfs_vn_update_time(
 	struct inode		*inode,
@@ -1299,7 +1335,8 @@ xfs_vn_update_time(
 	{ extern bool mxfs_inode_is_peer_ag(struct xfs_inode *ip);
 	  extern bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *);
 	  bool atime_only;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+/* see the fs_update_time note above xfs_vn_update_time's definition */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 90, 0)
 	  atime_only = (type == FS_UPD_ATIME);
 #else
 	  atime_only = ((flags & (S_ATIME | S_MTIME | S_CTIME)) == S_ATIME);
@@ -1314,7 +1351,8 @@ xfs_vn_update_time(
 	if (inode->i_sb->s_flags & SB_LAZYTIME) {
 		int dirty;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+/* see the fs_update_time note above xfs_vn_update_time's definition */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 90, 0)
 		dirty = inode_update_time(inode, type, flags);
 #else
 		dirty = inode_update_time(inode, flags);
@@ -1329,8 +1367,32 @@ xfs_vn_update_time(
 		/* Capture the iversion update that just occurred */
 		log_flags |= XFS_ILOG_CORE;
 	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
-		/* flags carries IOCB_* on 6.15+; on 6.8 it carries S_* */
+		/*
+		 * The IOCB_NOWAIT fast-fail belongs ONLY to the 3-arg
+		 * ->update_time form (enum fs_update_time type, unsigned int
+		 * flags) where `flags` genuinely carries IOCB_* bits.  That form
+		 * was introduced upstream by commit 761475268fa8 ("fs: refactor
+		 * ->update_time handling"), first released in v7.0-rc1 (verified
+		 * via `git describe --contains` in the reference tree) — the same
+		 * boundary the 3-arg-signature gates in this function use.
+		 *
+		 * Before v7.0 (every kernel through 6.17.2, incl. the 6.17.2-1-pve
+		 * target) ->update_time is the 2-arg form whose single `int flags`
+		 * carries S_* time bits, and S_VERSION == 8 == IOCB_NOWAIT (0x8).
+		 * An ordinary version-bumping write passes flags = S_MTIME|S_CTIME
+		 * |S_VERSION (0xE), which the old KERNEL_VERSION(6,15,0) gate then
+		 * matched against IOCB_NOWAIT and returned a SPURIOUS -EAGAIN to a
+		 * blocking O_DIRECT write.  RULE-4 proven on pve1/pve2: fio_perf
+		 * recorded seqW=0/randW=0 because every rewrite after drop_caches
+		 * (which evicts the inode so file_modified re-runs ->update_time)
+		 * EAGAIN'd here.  The bug was invisible on 6.8 (< 6.15 => compiled
+		 * out) which is where the whole matrix was validated.
+		 *
+		 * The VFS caller (file_modified_flags) already returns -EAGAIN for
+		 * a genuine IOCB_NOWAIT write BEFORE ever calling ->update_time, so
+		 * the pre-7.0 (2-arg, S_*) form must not repeat the test here.
+		 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 90, 0)
 		if (flags & IOCB_NOWAIT)
 			return -EAGAIN;
 #endif
@@ -1341,7 +1403,8 @@ xfs_vn_update_time(
 		return error;
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+/* see the fs_update_time note above xfs_vn_update_time's definition */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 90, 0)
 	if (type == FS_UPD_ATIME)
 		inode_set_atime_to_ts(inode, current_time(inode));
 	else

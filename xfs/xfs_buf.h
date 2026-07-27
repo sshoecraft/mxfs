@@ -196,6 +196,42 @@ struct xfs_buf_ops {
 	xfs_failaddr_t (*verify_struct)(struct xfs_buf *bp);
 };
 
+/*
+ * sess-pve (AGI umount-wedge, RULE-4 instrumentation): per-buffer HOLD/RELE
+ * history ring.  The 2/tcp post-fence umount wedges in xfs_buftarg_drain on ONE
+ * xfs_agi buffer stuck at b_hold=2 (XBF_ASYNC|XBF_DONE|_XBF_KMEM, no bli, not
+ * pinned; NOT the sess75/76 readahead leak — XBF_READ_AHEAD is clear).  Exactly
+ * one non-LRU reference leaked.  This ring records the site + caller (_RET_IP_)
+ * + resulting b_hold at EVERY b_hold mutation (all of which happen under b_lock,
+ * except the single-threaded alloc init — so the ring is written under b_lock,
+ * no torn entries), and the P-HOLDRING dump at the drain-stuck site replays it
+ * so the leaked reference's acquisition site/caller is named directly.  Toggle
+ * with MXFS_HOLD_TRACE; compiles out to nothing when 0.  NOT reset at
+ * xfs_buf_stale — a hold leaked across an incarnation boundary must stay
+ * visible.
+ */
+#define MXFS_HOLD_TRACE 1
+/* site enum is unconditional so the call sites compile with the toggle at 0 */
+enum mxfs_hold_site {
+	MXFS_HS_ALLOC = 0,	/* _xfs_buf_alloc: initial b_hold = 1 */
+	MXFS_HS_TRYHOLD,	/* xfs_buf_try_hold: rcu cache-hit hold */
+	MXFS_HS_HOLD,		/* xfs_buf_hold: explicit external hold */
+	MXFS_HS_STALE_LRU,	/* xfs_buf_stale: drop the LRU reference */
+	MXFS_HS_RA_ORPHAN,	/* _xfs_buf_read: drop orphaned readahead hold */
+	MXFS_HS_RELE_UNCACHED,	/* xfs_buf_rele_uncached */
+	MXFS_HS_RELE_CACHED,	/* xfs_buf_rele_cached */
+};
+#if MXFS_HOLD_TRACE
+#define MXFS_HOLD_RING 32
+struct mxfs_hold_evt {
+	unsigned long	caller;		/* _RET_IP_ of the mutation site */
+	u32		flags;		/* b_flags snapshot after the mutation */
+	u16		hold_after;	/* b_hold after the mutation */
+	u8		site;		/* enum mxfs_hold_site */
+	s8		delta;		/* +1 acquire, -1 release */
+};
+#endif
+
 struct xfs_buf {
 	/*
 	 * first cacheline holds all the fields needed for an uncontended cache
@@ -248,6 +284,7 @@ struct xfs_buf {
 	uint32_t		b_mxfs_dir_epoch;	/* sess16(ccloop) GPT-5.5 tenure model: owning dir inode's i_dlm_dir_valid_epoch (reliable level-triggered cross-node handoff epoch) at last COHERENT read of this dir block. If b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch, this block was read under an EARLIER tenure than the inode now knows coherent (a peer was granted + modified the LUN since) -> the cached payload is a STALE RMW base -> re-read before use, OVERRIDING the payload-LSN undestaged keep-guard (epoch only advances after WE released EX, whose work Invariant-1 drained durable -> nothing un-drained to resurrect). 0 = never handed off (single-node / never-BAST'd) -> never stale. */
 	u64			b_mxfs_idirty_mask;	/* sess27: PERSISTENT per-sector mask of inode-cluster sectors THIS node has logged (modified) in this buffer incarnation. mxfs_submit_partial_inode_write accumulates currently-logged sectors here and writes the UNION, so a freshly-allocated inode whose log item already detached (but whose sector was never whole-written) is still written -> fixes the dir_reuse durable inode-alloc REVERT. A peer inode this node only READ is never logged -> never in the mask -> never written -> false-sharing still protected. Cleared on xfs_buf_stale (buffer invalidation/reuse) so an ABA-reused buffer does not carry a stale mask. */
 	bool			b_mxfs_dir_wr_counted;	/* sess40 (ccloop, GPT-5.5 writeback-completion-barrier): this dir DATA/leaf write bio was counted into mp->m_mxfs_dir_wr_inflight at submit; the matching __xfs_buf_ioend decrements + wakes exactly once.  The dir EX release fence waits for the counter to reach 0 so NO prior-tenure stale dir-block write can land after the next holder begins (root of dir_reuse readdir=799 single-dirent durable loss). */
+	bool			b_mxfs_fence_skipped;	/* ccloop c7ee71c6 sess7 (FENCE-V1): the P123 dir-block write fence SUPPRESSED this buffer's most recent write submission (sub-EX, no log obligation): the "success" completion the submitter saw put NOTHING on the LUN.  Consumed by mxfs_dir_flush_one_daddr's werr==0 postlude to skip the raw SCSI FUA re-publish (mxfs_dir_release_fua_write), which would otherwise bypass the fence and land the suppressed stale bytes on the platter anyway (the run-185647Z leaf1@PR regression).  Set in the fence's suppress arm; cleared whenever a dir-block write passes the fence (both under b_sema at submit). */
 	uint32_t		b_mxfs_dir_wrcnt_max;	/* sess40 (ccloop) COUNT-REGRESSION detector: high-water mark of the active-dirent count this dir DATA/block buffer has ever WRITTEN.  A subsequent write with a LOWER count (without a matching in-txn remove) = this node RMW'd a stale base that lost entries it previously held = the silent dir_reuse readdir=799 lost-update that dataclobber's disk-superset compare MISSES (disk also lacked the entry at submit).  Logged as P-COUNTREGRESS at xfs_buf_submit_bio; reset to 0 on xfs_buf_stale (buffer reuse). */
 	uint32_t		b_mxfs_relepoch;	/* sess50 (ccloop) PROVEN dir_reuse cross-node clobber fix: owning dir inode's i_dlm_epoch (RELIABLE LOCAL release counter — bumped on EVERY grant loss/stale, xfs_mxfs_dlm.c:9327 et al; immune to the unreliable grant_gen/i_mxfs_ex_grant_seq handoff-underfire) at the last time THIS node read/modified this dir DATA/leaf block coherently.  If at writeback b_mxfs_relepoch != 0 && < ip->i_dlm_epoch, this node RELEASED the dir grant since this image was coherent -> a peer may have superseded the block on the shared LUN (PROVEN: xnode=1, disk_cnt=buf_cnt+1, peer wrote the extra dirent) -> xfsaild flushing this stale image durably REVERTS the peer's add (the readdir=799 single-dirent loss).  Skip the reflush (buffer is CLEAN = already-durable from the release drain, so nothing is lost) and re-read.  0 = never stamped (fresh) -> never skipped. */
 	bool			b_mxfs_inplace_read;	/* v0.10.32 (sess7 46efd8b6): this READ is being completed IN PLACE from the in-core image (no DMA) — set by the P91-FUA-SKIP-LOGGED guard just before its emulated xfs_buf_ioend.  __xfs_buf_ioend consumes it and SKIPS verify_read: the in-core image of a logged buffer is authoritative by definition, but its embedded CRC is only stamped at write submit, so CRC-verifying a modified-since-last-write image manufactures EFSBADCRC out of thin air (run 154203Z test1: every read of its own dirty bmbt leaf returned "Metadata CRC error" with the LUN fully valid -> 40 min of ENOENT; same family as the sess15 P15I inobt corpse). */
@@ -263,6 +300,19 @@ struct xfs_buf {
 	u64			b_mxfs_rd_preserve_mask;	/* bit i = inode slot i of this cluster is restored from b_mxfs_rd_preserve at read completion. */
 	atomic_t		b_mxfs_sync_waiters;	/* ccloop3e02 sess2 ROOT FIX for dir_reuse@32/caw wedge#2a residual (lost b_iowait wakeup + the double-relse it causes): PROVEN via live /proc/kcore inspection (b_sema.count read 83 on a live-wedged buffer, vs the correct 0/1) that the sess6/8/9 fixes' shared per-buffer bool (b_mxfs_sync_wait) lets an UNRELATED concurrent submitter (xfsaild's async delwri push racing mxfs_dir_data_owner_scan's synchronous durable flush on the SAME xfs_buf — the buffer lock no longer excludes this once b_sema.count has already drifted off 0/1 from an EARLIER occurrence of this exact bug) overwrite the flag between the sync submitter's snapshot and its own completion, so the sync waiter's wakeup is silently lost AND both completions take the async/relse branch (a double xfs_buf_relse -> the very b_sema leak that lets the NEXT occurrence race even more easily -- self-reinforcing, hence "residual"/non-deterministic across many prior fix attempts).  Fix: an ADDITIVE atomic credit incremented once per truly-synchronous xfs_buf_submit, consumed by exactly one completion event via mxfs_buf_completion_wake_sync() (atomic_add_unless -1/0) regardless of which bio's completion runs first or how many unrelated submissions race on this buffer; a completion that finds no credit falls back to the pre-existing flags-based (XBF_ASYNC) relse/complete decision, so the normal single-submitter case is unchanged.  0 = no sync waiter currently registered. */
 	void			(*b_iodone)(struct xfs_buf *bp);
+
+	/*
+	 * sess-pve (AGI umount-wedge fix): one-shot ownership token for the
+	 * extra reference mxfs_ag_meta_track takes on an AG-meta buffer.
+	 * 1 = a track hold is outstanding for the current dirty epoch.
+	 * Consumed (cmpxchg 1->0) by EXACTLY ONE of mxfs_dlm_ag_meta_iodone
+	 * (normal writeback) or mxfs_ag_meta_reclaim_abort (shutdown/abort
+	 * detach with no writeback), which then drops the hold + decrements
+	 * pag_dlm_meta_pending.  Without it the abort path leaked the hold,
+	 * pinning agi/inobt/finobt at b_hold=2 -> xfs_buftarg_drain wedge.
+	 * 0 at alloc (zalloc).
+	 */
+	atomic_t		b_mxfs_agmeta_hold;
 
 	/*
 	 * async write failure retry count. Initialised to zero on the first
@@ -292,6 +342,13 @@ struct xfs_buf {
 	 * drain probe names the exact caller that locked it and never relse'd.
 	 */
 	void			*b_lock_ip;
+
+#if MXFS_HOLD_TRACE
+	/* sess-pve AGI umount-wedge hold/rele history — see MXFS_HOLD_TRACE above */
+	struct mxfs_hold_evt	b_mxfs_hold_ring[MXFS_HOLD_RING];
+	u16			b_mxfs_hri;		/* free-running write cursor */
+	u8			b_mxfs_hr_dumped;	/* P-HOLDRING dump-once guard */
+#endif
 
 	const struct xfs_buf_ops	*b_ops;
 	struct rcu_head		b_rcu;

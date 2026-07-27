@@ -833,6 +833,17 @@ xfs_readdir(
 	if (xfs_ifork_zapped(dp, XFS_DATA_FORK))
 		return -EIO;
 
+	/*
+	 * ccloop c7ee71c6 sess3 (Phase A): a POISONED dead dir incarnation
+	 * must not serve dirents from the dead universe (the 140939Z
+	 * "readdir got=0/128 of a corpse" round).  -ESTALE, synchronously
+	 * visible.  Only the IOLOCK is held here — no d_prune (the caller's
+	 * path re-resolution handles retirement via xfs_lookup).
+	 */
+	if (dp->i_mount->m_mxfs_dlm &&
+	    xfs_iflags_test(dp, MXFS_IF_INCARN_STALE))
+		return -ESTALE;
+
 	ASSERT(S_ISDIR(VFS_I(dp)->i_mode));
 	xfs_assert_ilocked(dp, XFS_IOLOCK_SHARED | XFS_IOLOCK_EXCL);
 	XFS_STATS_INC(dp->i_mount, xs_dir_getdents);
@@ -880,9 +891,27 @@ xfs_readdir(
 		 * block->shortform delete-shrink and getdents the freed block.
 		 * Gated (gen==loaded => no disk traffic); reload advances
 		 * loaded_gen so it fires once per peer change. */
+		/*
+		 * ccloop c7ee71c6 sess7 (GPT RULE-5 tenure-coherence ruling —
+		 * the round-1 identical 112/128 first-view root): a DLM grant
+		 * proves EXCLUSION, not cache coherence.  The triggers below
+		 * are all event/gen driven and treat i_dlm_dir_gen==0 as
+		 * "nothing to refresh" — but gen 0 means UNKNOWN: a fresh-iget
+		 * fork (or one surviving a BAST revoke + re-grant) can predate
+		 * peers' final EX tenures with no ring event yet delivered
+		 * (the ring is async and lossy under barrier storms; missed
+		 * events must not affect correctness).  Validate the fork
+		 * ONCE PER GRANT EPISODE: any grant-gen change since the last
+		 * validated readdir forces a synchronous reload.  Solo dirs
+		 * hold one grant forever -> exactly one initial validation
+		 * (the sess38/91 anti-poll constraint preserved).
+		 */
+		uint32_t rd_gg = mxfs_v5_dlm_inode_grant_gen(
+					dp->i_mount->m_mxfs_dlm, dp->i_ino);
 		bool need_reload =
 			xfs_iflags_test_and_clear(dp, MXFS_IF_DIR_RELOAD) ||
-			dp->i_dlm_dir_gen > dp->i_dlm_dir_loaded_gen;
+			dp->i_dlm_dir_gen > dp->i_dlm_dir_loaded_gen ||
+			rd_gg != dp->i_mxfs_rd_vgg;
 		/*
 		 * sess60 ROOT FIX (RULE 4, PROVEN root
 		 * [[sess59-drc-root-grantless-readdir-async-evict-latency]]):
@@ -953,8 +982,41 @@ xfs_readdir(
 		if (need_reload || want_block_refresh) {
 			extern int mxfs_dir_relverify;
 			unsigned long long p48_nx0 = dp->i_df.if_nextents;
+			long long p48_sz0 = dp->i_disk_size;
+			int p48_try;
+
 			dp->i_dlm_stale = true; dp->i_dlm_stale_src = 1;
 			mxfs_dlm_reload_inode(dp, XFS_DIR3_FT_UNKNOWN, true);
+			/*
+			 * ccloop c7ee71c6 sess7 — the transient readdir
+			 * undercount root (dir_reuse 117/128 & 112/128,
+			 * lookup_fail=0, all recovered on re-probe): under a
+			 * 16-way verify storm the reload's i_lock trylock
+			 * BAILS, the "consistent-stale + retry next readdir"
+			 * arm keeps the STALE extent map, and the FIRST
+			 * enumeration misses the peers' last-grown blocks —
+			 * while the lookup path's blocking reload heals, so
+			 * every listed name still resolves.  Bounded retry
+			 * until the reload lands (ILOCK holds here are
+			 * sub-ms; lock order i_rwsem->i_lock is the global
+			 * order so waiting is safe).  On exhaustion the old
+			 * consistent-stale behavior remains.
+			 */
+			for (p48_try = 0;
+			     p48_try < 200 && dp->i_dlm_stale &&
+			     !xfs_is_shutdown(dp->i_mount);
+			     p48_try++) {
+				msleep(1);
+				dp->i_dlm_stale = true;
+				dp->i_dlm_stale_src = 1;
+				mxfs_dlm_reload_inode(dp, XFS_DIR3_FT_UNKNOWN,
+						      true);
+			}
+			if (unlikely(p48_try) && !dp->i_dlm_stale)
+				pr_warn_ratelimited(
+				    "mxfs: P48-RDRELOAD-RETRY ino=%llu tries=%d — readdir extent-map reload landed after contention (stale first-view prevented)\n",
+					(unsigned long long)dp->i_ino,
+					p48_try);
 			/* sess48 (RULE 4): decisive readdir-reload probe (light, gated
 			 * dir_relverify).  Did the reload BAIL (stale kept) or change the
 			 * extent count?  A bail under i_lock contention leaves a stale
@@ -971,8 +1033,29 @@ xfs_readdir(
 				/* Reload BAILED (trylock contention): extent map NOT
 				 * refreshed.  Do NOT bump i_dlm_dir_gen — keep the
 				 * in-core leaf/extent view CONSISTENT-stale (no hole,
-				 * no shutdown) and retry on the next readdir. */
+				 * no shutdown) and retry on the next readdir.  vgg NOT
+				 * latched — the grant-episode trigger re-fires. */
 				xfs_iflags_set(dp, MXFS_IF_DIR_RELOAD);
+			} else if (rd_gg != dp->i_mxfs_rd_vgg &&
+				   (dp->i_df.if_nextents != p48_nx0 ||
+				    dp->i_disk_size != p48_sz0)) {
+				/* sess7 grant-episode validation PROVED the fork
+				 * stale (shape changed across the grant gap):
+				 * force coherent re-reads of the cached dir
+				 * blocks too, exactly like want_block_refresh.
+				 * A no-change validation (solo dirs' one-time
+				 * check) does NOT bump — gen stays 0 and the
+				 * anti-poll fast path is preserved.  (Residual:
+				 * intra-block-only staleness with no fork delta
+				 * is not covered here — lookup-side heals it.) */
+				dp->i_dlm_dir_gen++;
+				pr_warn_ratelimited(
+				    "mxfs: P60-RDVGG ino=%llu gg=%u nx %llu->%llu sz %lld->%lld dir_gen->%llu (grant-episode validation caught stale fork)\n",
+					(unsigned long long)dp->i_ino, rd_gg,
+					p48_nx0,
+					(unsigned long long)dp->i_df.if_nextents,
+					p48_sz0, (long long)dp->i_disk_size,
+					(unsigned long long)dp->i_dlm_dir_gen);
 			} else if (want_block_refresh) {
 				/* Reload succeeded: extent map is now fresh from the
 				 * platter.  NOW force the cached leaf/data blocks to be
@@ -983,6 +1066,13 @@ xfs_readdir(
 					(unsigned long long)dp->i_ino, dp->i_dlm_mode,
 					(unsigned long long)dp->i_dlm_dir_gen);
 			}
+			/* sess7: latch the grant-episode validation on EVERY
+			 * successful reload — a bail keeps vgg unlatched so the
+			 * trigger re-fires; a landed reload (changed or not)
+			 * ends this episode's obligation (solo dirs validate
+			 * exactly once per grant). */
+			if (!dp->i_dlm_stale)
+				dp->i_mxfs_rd_vgg = rd_gg;
 		}
 	}
 

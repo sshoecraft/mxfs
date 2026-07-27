@@ -1,7 +1,79 @@
 # pal (Platform Abstraction Layer)
 
 **Owner files**: `pal/` (29 files, ~27K LOC)
-**Last updated**: 2026-07-19 (ccloop 72513a13 sess10, 0.11.36-0.11.39 —
+**Last updated**: 2026-07-25 (ccloop-c7ee71c6 sess6, VM rig, 0.11.87-93 —
+`pal/linux/xfs_aops.c`: FIX-26 — writeback-SUBMISSION tasks (bdi flusher /
+sync / fsync inside `xfs_vm_writepages`) hold folio locks across
+`->map_blocks`' delalloc-convert `xfs_ilock(EX)`; parking them in the
+mxfs demote-wait deadlocked permanently against the bast drain's
+`filemap_write_and_wait` (`__folio_lock` on the submitter's folio) —
+both stacks captured D-state live on test8.  NEW PUBLIC API:
+`xfs_task_in_writepages()` (decl in `xfs/xfs_aops.h`) — stack-resident
+task registry (`DEFINE_HASHTABLE` + spinlock) bracketing both
+`iomap_writepages` calls in `xfs_vm_writepages`; consumed by
+`xfs/xfs_mxfs_dlm.c::mxfs_ilock_admit_ioend` (FIX-25 admit widened to
+writepages tasks; P25 print gained `src=ioend|writepages`).  Also NEW
+debug instrumentation in this file (both default-off/capped):
+`fix26_delay_ms` module param — `xfs_convert_blocks` holds the conversion
+(folio locked, ilock imminent) until a peer BAST lands or N ms elapse,
+demoter-exempt (deterministic FIX-26 collision driver, see
+`scripts/fix26_wb_bast_exerciser.sh`); `P26PRE-DELALLOC-SUBEX` print
+(cap 200) — fires when writeback converts delalloc at `i_dlm_mode < EX`,
+with full dlm state + `dem_cur` (demoter==current).  INVARIANT learned:
+`dem_cur=1` events (the drain's OWN writeback after bast_process
+pre-clears mode to NL) are NORMAL and common (~25/node/run);
+`dem_cur=0` (foreign flusher/sync task) is the deadlock population and
+must always pair with a `P25 src=writepages` admit, never a `P73`.
+Header needs `<mxfs/mxfs_dlm.h>` for `MXFS_LOCK_*` (not pulled in by
+`xfs_mxfs_dlm.h`).  Dated addendum at end; companion dlm.md entry for
+the same session's orphan-grant NAK.)
+Prior: 2026-07-25 (ccloop-c7ee71c6 sess1, VM rig, 0.11.77 —
+`pal/linux/xfs_super.c`: envelope mounts are now FAIL-CLOSED (D9).
+`xfs_fs_fill_super`: `m_mxfs_has_envelope` + `mxfs_v5_dlm_init()==NULL` ⇒
+`xfs_alert` + `error = -ENOTCONN` + `goto out_filestream_unmount`; the old
+"MXFS DLM init failed (continuing single-node)" fallback is REMOVED — it
+mounted BOTH test nodes uncoordinated on one LUN when a PR-register
+failure aborted DLM init (observed live).  No public-API change.  INVARIANT:
+a legitimate single-node mount is a SUCCESSFUL 1-node DLM init, never a
+failed one; repair tooling (chk_mxfs) works on the unmounted device.
+Unwind-label safety proven live via the `mxfs.dbg_pr_register_fail`
+one-shot injection: armed → mount(2) fails ENOTCONN cleanly, node stable,
+next mount succeeds.  Dated addendum at end of this doc; companion
+teardown-order + goodbye interplay in dlm.md v0.11.77-80 section.)
+Prior: 2026-07-24 (ccloop-4dd7 sess3, VM rig, 0.11.55 —
+`pal/linux/xfs_buf.c`: `xfs_buf_lock()` now waits via a
+`down_timeout(30s)` loop instead of a bare `down()`, printing
+`P-BUFLOCK-STUCK` (daddr/ops/flags/hold/pin/err/**b_lock_ip %pS**/
+ioend_seen/relse_seen/sync_waiters/evring/waiter) every 30s while still
+blocked — no behavior change, pure self-naming.  Motivation (RULE-4
+proven, b54r1): the AG0 inode-cluster buffer (daddr 128) was left
+LOCKED with flags XBF_WRITE|ASYNC|DONE and NO live holder anywhere
+(exhaustive /proc/*/stack sweep) — a submitted write whose completion
+never ran, or a leaked lock.  rmdir blocked on it inside do_rmdir's
+dput — NOTE THE KERNEL PITFALL: on this 6.8 base `do_rmdir`/`do_unlinkat`
+run `dput(child)` (→ destroy_inode → xfs_inactive) BEFORE
+`inode_unlock(parent)`, so a child-inactivation stall convoys the whole
+parent dir behind i_rwsem with every waiter showing only VFS wchans.
+Companion (xfs.md): leaked ISTATE_ACQUIRING forensics + orphan-reclaim.)
+Prior: 2026-07-24 (ccloop-4dd7 sess1, VM rig, 0.11.41-46 —
+`pal/linux/xfs_buf.c`: P144 btree content-fingerprint extended from
+bnobt/cntbt to ALL FOUR short-form AG btrees via new static-inline gate
+`mxfs_p144_ops(ops)` (+ externs `xfs_inobt_buf_ops`/`xfs_finobt_buf_ops`);
+tag now prints `bnobt|cntbt|inobt|finobt`.  No public-API change.  Pitfall
+proven: `b_mxfs_ag_gen` is stamped ONLY on the FUA-read success path (~L6458),
+and inobt buffers never travel it on the tcm_loop/TCP rig (`bgen=0` on every
+P150 RMW line) — gen-keyed coherency is inert for them there.  Full dated
+addendum at end of this doc.)
+Prior: 2026-07-20 (interactive session, Proxmox 6.17.2-1-pve —
+0.11.40: fixed the `xfs_vn_update_time` `IOCB_NOWAIT`-check version gate in
+`xfs_iops.c` (`6.15.0` → `6.90.0`).  `S_VERSION == 8 == IOCB_NOWAIT (0x8)`
+on the pre-v7.0 2-arg `->update_time(inode, int flags)` form, so an ordinary
+version-bumping write (`flags = S_MTIME|S_CTIME|S_VERSION`) matched the check
+and returned a SPURIOUS `-EAGAIN` to a blocking O_DIRECT write — the
+Proxmox 2-node `fio_perf seqW=0/randW=0` bug (fix: 0 → 110-154 MiB/s).
+`xfs_file.c`/`xfs_buf.c` also carried throwaway RULE-4 probes this session,
+all reverted — no net change there.  See the dated addendum at the end.
+Prior: 2026-07-19 (ccloop 72513a13 sess10, 0.11.36-0.11.39 —
 append-size pipeline probes in `xfs_aops.c`/`xfs_iomap.c` (P-SFS,
 P-IOEND-ERR, P-WU-CLAMP) + the load-bearing invariant that
 `xfs_setfilesize` is dead code for buffered appends on this 6.19 base:
@@ -115,6 +187,12 @@ costs that handoff a full poll backstop).
 
 ## Known Pitfalls
 
+- **Do not trust this codebase's `~6.X` kernel-version-guard comments at face value — verify against the target kernel's actual installed headers before relying on one.** PROVEN (2026-07-20, Proxmox VE 9 / kernel 6.17.2-1-pve portability session): building against a real 6.17.2 kernel (previously only 6.8.0-101-generic had ever been validated) surfaced ~30 wrong version thresholds in `xfs/xfs_platform.h` alone — most guessed as landing "in ~6.19" (the fork's nominal upstream baseline) when the real upstream commit landed anywhere from v6.9 to v6.18, in both directions (some shims were removed too early, some too late). Two `pal/linux/` sites were part of this same class of bug and got fixed this session:
+  - **`pal/linux/xfs_super.c`**: `d_revalidate` gained new leading `(struct inode *dir, const struct qstr *name)` params in v6.17 (verified against `linux/dcache.h` on 6.17.2-1-pve: `int (*d_revalidate)(struct inode *, const struct qstr *, struct dentry *, unsigned int)`), and `set_default_d_op()` replaces the direct `sb->s_d_op = ...` assignment starting the same version. Fixed via a thin calling-convention adapter (`mxfs_drevalidate_v617`, `LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)`) that forwards to the existing (unchanged) `mxfs_drevalidate(dentry, flags)` — the new `dir`/`name` params carry nothing `mxfs_drevalidate` doesn't already derive from `dentry` itself, so the 400-line function body needed zero changes.
+  - **`pal/linux/xfs_iops.c`**: `xfs_vn_update_time`'s `enum fs_update_time`-typed 3-arg `.update_time`/`inode_update_time()` form (guarded `>= 6.15` in the code) does **not exist in any released kernel through 6.17.2** — verified absent from 6.17.2-1-pve's actual `linux/fs.h` (still the plain `int (*update_time)(struct inode *, int)` 2-arg form, and `S_ATIME`/`S_MTIME`/`S_CTIME` are still there, just as an `enum` instead of `#define`). The 3-arg form only exists in an unreleased/future commit in the local kernel reference tree (`/src/linux`, no reachable release tag via `git describe --contains`). Threshold raised to `KERNEL_VERSION(6, 90, 0)` (i.e. effectively disabled) with a comment not to lower it without checking a real kernel's headers first — **do not casually "fix" this back down to 6.15/6.17 without that check**, it was deliberately raised, not a leftover mistake.
+  - **Verification method that worked**: for a "does kernel already have symbol X" question, `ssh` to the target and `grep` its `/usr/src/linux-headers-$(uname -r)/include/linux/*.h` directly — far more reliable than guessing from a version number alone. For "what version did X actually land in", `git log --all --oneline -S"X" -- path/to/header.h` then `git describe --contains --match 'v6.*' <commit> | sed -E 's/~.*//; s/(-rc[0-9]+)?\^.*//'` against the local kernel source reference tree at `/src/linux` (see project `CLAUDE.md` RULE 1) — fast and precise once you have a commit hash; `git tag --contains` on the same commit is far slower and sometimes hangs on old commits, prefer `describe`.
+  - Also hit and reverted: a `replace_all: true` Edit meant for the `xfs_vn_update_time` fix accidentally matched **6 other** unrelated `KERNEL_VERSION(6, 15, 0)` guards in the same file (`xfs_vn_mkdir`'s dentry-return change, `STATX_DIO_READ_ALIGN` reporting, an `IOCB_NOWAIT` check in `xfs_vn_update_time`'s own lazytime branch) — **always use unique surrounding context per version-guard edit in `xfs_iops.c`/`xfs_platform.h`, never `replace_all` on a bare `#if LINUX_VERSION_CODE >= KERNEL_VERSION(...)` line**, this file reuses the same threshold constant at many unrelated sites.
+  - Not yet fixed as of this note: `pal/linux/xfs_aops.c`'s buffered-writeback path (`xfs_end_ioend`, `xfs_map_blocks`, `xfs_writeback_ops`, `xfs_vm_writepages`) needs a real port to the 6.17+ `iomap_writeback_ops.writeback_range/writeback_submit` API (replaces `map_blocks`/`prepare_ioend`/`discard_folio`; `iomap_ioend` lost `io_type`/pointer-`io_bio` in favor of `IOMAP_IOEND_UNWRITTEN`/`IOMAP_IOEND_SHARED` flags and an embedded `struct bio io_bio`) — this is not a threshold fix, it's a genuine upstream API rework (Christoph Hellwig's iomap writeback-range conversion), still in progress.
 - **`mxfs_pal_mutex_t` can sleep — never call a `mxfs_pal_mutex_*`-protected accessor from code that already holds a spinlock (kernel `spinlock_t`, or another `mxfs_spinlock_t`).** PROVEN (2026-07-13, fence_during_write@8/caw bug #3): `xfs/xfs_mxfs_dlm.c::mxfs_dlm_bast_process` holds `ip->i_dlm_lock` (a real `spinlock_t`) continuously across its orphan-release decision block; an early draft called `dlm/dlm_caw.c`'s existing `grant_meta`-table accessors from there, which take `grant_meta_lock` (`mxfs_mutex_t` → `mutex_lock()`, sleep-capable) — scheduling-while-atomic. Caught by tracing every `spin_lock`/`spin_unlock` on `ip->i_dlm_lock` from function entry to the call site (`awk` over the function body) BEFORE deploying, not by a runtime crash. Fix was a new dedicated `mxfs_spinlock_t`-protected table (`ctx->orphan_clock`, own lock, NOT sharing `grant_meta`'s struct or lock — sharing the struct while protecting it with a DIFFERENT lock would itself be a cross-lock data race on the overlapping fields). **Before adding any new cross-subsystem accessor call inside a function that already holds a lock, grep the enclosing function for the lock's acquire with no matching release before your insertion point, then check what lock type the callee itself takes** (`mxfs_pal_mutex_*` = sleep-capable, never call under a spinlock; `mxfs_pal_spinlock_*` = safe to nest).
 - **`mxfs_pal_time_ms()` is boot-relative, not wall-clock — NEVER compare it across nodes.** In-kernel it's `ktime_get_boottime_ns()`; two independently-booted (or independently power-cycled) nodes have unrelated origins for this clock, sometimes off by hours. A timestamp written by node A and subtracted-from by node B (`age = mxfs_pal_time_ms() - remote_ts`, unsigned) silently underflows to a huge value whenever B has less boot-uptime than A had at write time — the value doesn't look wrong, it just looks like "instantly expired." PROVEN (2026-07-13, fence_during_write@8/caw): this exact bug defeated `dlm/dlm_caw.c`'s CAW fair-handoff anti-starvation ticket (`yield_set_ms`), which is written by the releasing node and read by every other waiter. Use `mxfs_pal_time_real_ms()` (wall-clock) for any timestamp that crosses node boundaries; reserve `mxfs_pal_time_ms()` for single-node-local elapsed/backoff timers where the writer and reader are provably the same node. When auditing for this class of bug, grep for `mxfs_pal_time_ms()` call sites whose result is stored in an on-disk/shared struct (CAW slot fields like `last_modified_ms`, DLM lease fields, etc.) rather than a local stack variable — a local `uint64_t start = mxfs_pal_time_ms()` compared later by the SAME function/node is fine.
 - **`xfs_super.c` / `xfs_buf.c` carry both XFS-derived plumbing and MXFS hooks.** These files were copied from `~/src/linux/fs/xfs/` at 6.19-rc0 and are now project source code — modify them directly. Search for `mxfs` / `MXFS_` / `m_mxfs_` to find MXFS-added regions when reading; not all changes are flagged but most are. (There is no "upstream" to merge from.)
@@ -188,7 +266,11 @@ costs that handoff a full poll backstop).
 
 ## Pitfalls
 
-- **sess65 — `xfs_setattr_size` (xfs_iops.c) truncate-staleness guard does NOT work.** A tried-and-reverted fix added a FUA dinode-header read before `xfs_itruncate_extents` to catch a stale cached reg-file inode (the dir_reuse_coherency `do_truncate → xfs_free_ag_extent` bnobt double-free). It fired 0× and was removed: the staleness lives in the in-core **bmbt extent records (contents)**, not the dinode header — di_gen/di_mode/di_nextents/di_size all MATCH disk while the actual mapped blocks differ. A header-only FUA compare cannot detect it. `xfs_iops.c` is back to pristine. Lesson: reg-file stale-extent detection needs an extent-map comparison or (better) the inode/dentry-reuse coherency fixed upstream of the truncate.
+- **sess65 — `xfs_setattr_size` (xfs_iops.c) truncate-staleness guard does NOT work.** A tried-and-reverted fix added a FUA dinode-header read before `xfs_itruncate_extents` to catch a stale cached reg-file inode (the dir_reuse_coherency `do_truncate → xfs_free_ag_extent` bnobt double-free). It fired 0× and was removed: the staleness lives in the in-core **bmbt extent records (contents)**, not the dinode header — di_gen/di_mode/di_nextents/di_size all MATCH disk while the actual mapped blocks differ. A header-only FUA compare cannot detect it. (Superseded on the *incarnation* axis by the ccloop-4dd7 sess2 guard below — which checks the VFS mode class, a different and provable signal — but the extent-CONTENT staleness lesson still stands.)
+
+## ccloop-4dd7 sess2 — `xfs_setattr_size` (xfs_iops.c) SETSIZE-REVALIDATE-MISS guard (KEEPER, PROVEN)
+
+`xfs_setattr_size` now revalidates the inode's incarnation right after `xfs_ilock(ip, XFS_ILOCK_EXCL)` (which runs the mxfs DLM EX acquire + `mxfs_dlm_reload_inode`) and BEFORE `xfs_trans_ijoin`: if `!S_ISREG(VFS_I(ip)->i_mode)`, it cancels the still-clean transaction and returns **-ESTALE** (probe `SETSIZE-REVALIDATE-MISS`). Rationale (RULE-4 proven, ino 133/139 autopsies): the reload at that EX acquire can legitimately FLIP the inode to a peer's new incarnation (`P-RELOAD-TYPEFLIP` file→dir, or a `P116-ZOMBIE-ADOPT` free image with mode 0); proceeding walked a LOCAL-format dir fork in `__xfs_bunmapi` → `!xfs_ifork_has_extents` internal error → dirty `xfs_trans_cancel` → cluster-wide shutdown. `-ESTALE` is retried by `do_filp_open`/`do_sys_truncate` with `LOOKUP_REVAL`, so userspace sees a clean re-lookup, not an error. Mirrors `REMOVE-REVALIDATE-MISS` in `xfs/xfs_inode.c::xfs_remove`. Cross-subsystem: pairs with the xfs-side `IFREE-REVALIDATE-SKIP` (xfs_inactive_ifree) — both enforce "revalidate after any DLM re-acquire inside an op, before the transaction dirties". Firing + rescuing in live churn (v0.11.48+).
 
 ## sess18 (ccloop) — release-flush COALESCING state init (xfs_super.c)
 
@@ -947,6 +1029,32 @@ xfs_file.c now includes "xfs_mxfs_dlm.h" (was not included before); the
 i_dlm_bastq_src codes gained 14=close_release, 15=pr_idle_release,
 16=dir_ex_sweep (documented in xfs_inode.h field comment).
 
+### xfs_super.c: m_mxfs_destage_kick lifecycle (v0.11.82, ccloop c7ee71c6 sess2)
+- New `struct delayed_work m_mxfs_destage_kick` in xfs_mount.h; worker
+  `mxfs_destage_kick_fn` + queueing helper `mxfs_destage_kick(mp)` live in
+  xfs/xfs_mxfs_dlm.c (extern'd in xfs_mxfs_dlm.h; the INIT site in
+  xfs_super.c uses a local extern for the fn).
+- Mount: `INIT_DELAYED_WORK(&mp->m_mxfs_destage_kick, mxfs_destage_kick_fn)`
+  right after the `m_mxfs_publish_work` INIT in the same setup fn.
+- Unmount (put_super): `cancel_delayed_work_sync(&mp->m_mxfs_destage_kick)`
+  placed just AFTER the v5dlm shutdown block (unconditional — INIT is
+  unconditional too) and BEFORE `xfs_unmountfs` — same teardown-ordering
+  family as `m_mxfs_foreign_replay_work`: the worker calls
+  `xfs_log_force`, so it must be dead while `mp->m_log` is still valid.
+- Purpose (perf/correctness split, see xfs.md + state.md): unlink no longer
+  does the eager per-ifree force+drain+flush (`mxfs.ifree_eager_durable=0`
+  default); ifree and create instead queue this debounced (10ms) worker,
+  which does one ASYNC `xfs_log_force(mp, 0)` + `xfs_ail_push_all` per
+  batch so freed/created inode clusters reach the LUN within ~ms (the
+  reuse-convergence machinery — VISNUDGE/iget-retry — assumes ms-scale
+  destage; pure-lazy xfsaild left 30-55s gaps).
+- PITFALL: a SYNC force here at 2ms cadence taxed the slowest node's own
+  commit stream ~15% (dlm_scaling node1 rate 47/s vs floor 50) — keep the
+  force async and the debounce ≥10ms.
+- Queueing uses `queue_delayed_work(system_unbound_wq, ...)` (NOT
+  mod_delayed_work: a pending timer must keep its deadline or storms
+  starve the kick forever).
+
 ## sess9 (ccloop a8642ea1, 2026-07-11) — buffer event ring + shutdown withdrawal (v0.10.59-60, build CEB546B0)
 
 ### pal/linux/xfs_buf.c: per-buffer lifecycle event ring (v0.10.59, diagnostic)
@@ -1447,3 +1555,390 @@ what sync waits on).  Cross-subsystem: the destage-side twin tripwire
 `P-CCREGRESS` (di_changecount regression at iflush serialize) lives in
 xfs/libxfs/xfs_inode_buf.c; cross-incarnation inode reuse fires it
 benignly (gen-qualified reads required before treating as clobber).
+
+### Addendum (0.11.40, 2026-07-20 interactive): update_time IOCB_NOWAIT gate fix + AGI-wedge known-open bug
+
+**FIX (landed, verified) — `xfs_iops.c::xfs_vn_update_time`, `IOCB_NOWAIT`
+check gate `6.15.0` → `6.90.0`.**  The non-SB_LAZYTIME `else` branch does
+`#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,90,0) if (flags & IOCB_NOWAIT)
+return -EAGAIN; #endif`.  The check belongs ONLY to the 3-arg
+`->update_time(inode, enum fs_update_time type, unsigned int flags)` form
+where `flags` genuinely carries IOCB_* bits — introduced upstream by commit
+`761475268fa8` ("fs: refactor ->update_time handling"), first released in
+**v7.0-rc1** (pinned via `git describe --contains` in `/src/linux`; matches
+the sibling 3-arg-signature gates already in this function).  Before v7.0
+(every kernel through 6.17.2) `->update_time` is the 2-arg `int flags` form
+carrying **S_*** time bits, and **`S_VERSION == 8 == IOCB_NOWAIT (0x8)`**
+(verified against 6.17.2-1-pve's real `linux/fs.h`: the S_ time flags are an
+enum `S_ATIME=1, S_MTIME=2, S_CTIME=4, S_VERSION=8`).  A version-bumping write
+passes `flags = S_MTIME|S_CTIME|S_VERSION = 0xE`, which the old `6.15.0` gate
+matched against IOCB_NOWAIT and returned a spurious `-EAGAIN` to a BLOCKING
+write.  RULE-4 proven (Proxmox 2-node): `fio_perf` recorded seqW=0/randW=0
+because every O_DIRECT rewrite after `drop_caches` (which evicts the inode so
+`file_modified` re-runs `->update_time`) EAGAIN'd here; fix → 110-154 MiB/s,
+dir_reuse 11/11, full 2/tcp battery green.  Invisible on 6.8 (<6.15 =
+compiled out), which is where the whole matrix was validated.  The VFS caller
+`file_modified_flags` already returns `-EAGAIN` for a genuine IOCB_NOWAIT
+write BEFORE calling `->update_time`, so the pre-v7.0 form must not repeat it.
+**New invariant:** never test `flags & IOCB_NOWAIT` in the 2-arg
+`->update_time` form — `flags` is S_* there and S_VERSION collides with
+IOCB_NOWAIT's bit.  See ccmemory `pve-fio-odirect-write-eagain-after-dropcaches`.
+
+**AGI-buffer umount wedge — ROOT-CAUSED + FIXED (2026-07-21).**  After a forced
+shutdown (dirty `xfs_trans_cancel`, `xfs_create`→`xfs_dialloc`), `umount` hung
+forever in `xfs_buftarg_drain` on AG-alloc-meta buffers stuck at `b_hold=2`
+(`xfs_agi` daddr=2, `xfs_inobt` 24, `xfs_finobt` 32; flags
+`XBF_ASYNC|XBF_DONE|_XBF_KMEM`, no bli, pin=0, not delwri).  GPT's a-priori
+`xfs_trans_bhold` guess was WRONG; the instrument found the real culprit.
+
+- **New instrument (permanent, toggleable) — per-buffer HOLD/RELE ring.**
+  `MXFS_HOLD_TRACE` toggle + `struct mxfs_hold_evt` + `b_mxfs_hold_ring[32]` in
+  `xfs/xfs_buf.h`; recorder `mxfs_hold_ev(bp, site, delta, caller)` in
+  `pal/linux/xfs_buf.c`, called at ALL 8 `b_hold` mutation sites (alloc,
+  `xfs_buf_try_hold`, `xfs_buf_hold`, stale-LRU-drop, RA-orphan-drop,
+  `xfs_buf_rele_uncached`, `xfs_buf_rele_cached`×3).  Dumped as **P-HOLDRING**
+  (site + `%pS` caller + hold_after) at the P-DRAINSTUCK drain-stuck site in
+  `xfs_buftarg_drain_rele`, once per buffer, globally capped.
+- **API change (pal-internal):** `xfs_buf_rele_uncached` / `xfs_buf_rele_cached`
+  now take an extra `unsigned long caller` (the external `_RET_IP_` captured in
+  `xfs_buf_rele`) so the ring names the real releaser, not the dispatcher.
+- **INVARIANT confirmed:** every `b_hold` mutation is under `bp->b_lock` (except
+  the single-threaded `_xfs_buf_alloc` init) — so the ring is written under
+  b_lock with no extra locking / no torn entries.
+- **PROVEN root cause:** the leaked ref is the extra `xfs_buf_hold` taken by
+  `mxfs_ag_meta_track` (xfs_mxfs_dlm.c) on every logged AG-meta buffer.  Its ONLY
+  releaser is `mxfs_dlm_ag_meta_iodone`, installed as `b_iodone` — and `b_iodone`
+  is invoked at EXACTLY ONE site, `__xfs_buf_ioend` (`xfs_buf.c:2507`), i.e. only
+  on writeback completion.  On forced shutdown the dirty AG-meta buffers are
+  aborted WITHOUT writeback: `xfs_buf_item_release`'s `(aborted ||
+  xlog_is_shutdown)` branch (`pal/linux/xfs_buf_item.c:832`) detaches the bli via
+  `xfs_buf_item_done`, which never runs ioend → iodone never fires → the hold +
+  `pag_dlm_meta_pending` leak forever.
+- **PITFALL (this doc's files):** the `xfs_buf_item_release` abort branch and the
+  `xfs_buf_item_unpin` STALE branch detach the bli with NO ioend, so ANY cleanup
+  keyed on `b_iodone` leaks there.  (The unpin `remove` branch is safe — it calls
+  `xfs_buf_ioend_fail` → ioend → iodone.)
+- **FIX (one-shot ownership token — GPT "consumed once by completion-OR-abort"):**
+  `mxfs_ag_meta_track` arms `atomic_t bp->b_mxfs_agmeta_hold=1`; consumed
+  (`cmpxchg 1→0`) by exactly one of `mxfs_dlm_ag_meta_iodone` (writeback) or the
+  new `mxfs_ag_meta_reclaim_abort(bp)` — **called from `pal/linux/xfs_buf_item.c`'s
+  abort branch** to drop the hold + dec pending when the bli detaches without
+  writeback.  Logs **P-AGMETA-RECLAIM** when it fires.  Cross-subsystem: pal
+  buf-item teardown now calls into the xfs AG-meta DLM tracking.
+- **DO NOT** force-relse in `xfs_buftarg_drain` (double-free/UAF) — fix stayed at
+  the owning path.
+- **STATUS:** builds clean (`D1DA64…`); one natural post-shutdown umount completed
+  cleanly (0 P-DRAINSTUCK).  Definitive deterministic A/B (GOINGDOWN-mid-churn,
+  `scripts/agi_wedge_verify_det.sh`) PENDING — blocked by pve1 hung on `sysrq-b`
+  (HP Z400, no iLO; needs manual reset).  See ccmemory
+  `pve-agi-wedge-ROOT-agmeta-track-hold-leak-FIX-and-pve1-hung`.
+
+**P144 btree fingerprint extended to the inode btrees (2026-07-24, ccloop-4dd7).**
+The always-on multi-node content fingerprint (`mxfs_p144_print`: crc32c of the
+short-btree body past the 56-byte header, emitted as `P144-WR` at write
+submission and `P144-RD` at cold-read completion) now covers **all four
+short-form AG btrees**.  New helper `mxfs_p144_ops(ops)` (static inline, top of
+`pal/linux/xfs_buf.c`) gates both call sites; the tag prints
+`bnobt|cntbt|inobt|finobt`.  Two new externs: `xfs_inobt_buf_ops`,
+`xfs_finobt_buf_ops`.  Purpose: the inobt double-free corruption campaign — an
+offline realns-ordered join of both nodes' `P144-WR`/`P144-RD` per
+(agno,daddr) decides whether a reader's first post-handoff image matches the
+writer's last write (reader-served-stale vs writer-destaged-late).  Measured
+rate at 2/tcp churn: ~1400-1900 inobt WRs vs only ~120 cold RDs per 180s round
+— cold re-reads are RARE, so cached-buffer staleness across AG handoffs
+dominates; see ccmemory `ccloop4dd7-sess1-C-inobt-divergence-root-lead`.
+
+**Cross-subsystem note (same campaign, consumer of pal's stamps):** every
+`P150-*` inobt record-RMW probe line (xfs/libxfs/xfs_ialloc.c) prints this
+file's per-buffer coherency stamps — `btenure` = `bp->b_tenure_id` (stamped
+MODIFY-time by `mxfs_ag_meta_track`), `bgen` = `bp->b_mxfs_ag_gen` (stamped
+ONLY on the FUA-read success path here, ~line 6458).  **Pitfall proven this
+session:** `bgen==0` on every inobt RMW = those buffers never travelled the
+FUA path, so any coherency logic keyed on `b_mxfs_ag_gen` is inert for them on
+the tcm_loop/TCP rig.
+
+**Busy-extent duplicate guard (2026-07-24, `xfs/xfs_extent_busy.c` — noted here
+because the failure presents as a pal-level wedge):** upstream
+`xfs_extent_busy_insert_list` on an EXACT-duplicate `bno` hits `ASSERT(0)`
+(no-op in production) and then **never advances `*rbp` → infinite loop holding
+`eb_lock`** — observed as a 2-CPU soft-lockup (insert spinning; `xlog_ioend_work
+→ xlog_cil_committed → xfs_extent_busy_clear` spinning behind it), wedging the
+node hard enough that the peer's DLM requests time out (184s) and IT shuts
+down.  Now logs `P-BUSY-DUP` and bails without inserting (`P-BUSY-OVERLAP`
+ratelimited for partial overlaps).  A duplicate insert = the same extent freed
+twice in-flight on one node — the cross-node stale-map double-free family; the
+probe exists to catch the producer.
+
+**New PAL API: `mxfs_pal_dump_task_stack(int pid)` (2026-07-24, ccloop-4dd7
+sess4; `pal/linux/kern.c` next to `mxfs_pal_dump_stack`, declared in
+`pal/pal.h`, EXPORT_SYMBOL_GPL).**  Dumps ANOTHER task's kernel stack by pid
+(rcu pid lookup + task ref + `sched_show_task`; pid 0/gone = no-op; needs
+`<linux/sched/debug.h>`, added to kern.c includes).  Safe from process/work
+context.  Consumer: `xfs_mxfs_dlm.c` P36-EXH-STACK — when the inode-DLM demote
+dwork has been refused >200 strikes by a live EX admission, the stamped holder
+(`i_dlm_exh_pid`/`_comm`/`_since_ns`, new diag fields in `xfs/xfs_inode.h`,
+stamped at every `i_dlm_ex_holders` 0→1 site) gets its stack dumped, which is
+how the b58r1/b61r6 184s dual-shutdown root was proven (writer parked on
+i_rwsem while holding the DLM admission → xfs_ilock lock-order fix v0.11.62).
+Pitfall: the dump output (`task:... state:D` + trace lines) lands in dmesg —
+any test that greps dmesg for error patterns (e.g. criteria `soak`) may count
+these diagnostic lines as hits; scope/gate accordingly (open item, sess4 end:
+soak FAILed with 833 dmesg hits on an otherwise-clean build/boot).
+
+**P110-BIO-OVER-LOGGED re-armed, undestaged-gated (2026-07-24 sess4,
+`pal/linux/xfs_buf.c` ~8395, v0.11.61+63).**  The sess122 blanket LOG-ONLY
+disable of the AG-meta plain-bio read interlock was itself proven a corruptor:
+b60r2 `i != 1` (read DMA'd platter cntbt over PINNED in-CIL records, same task,
+500µs before the shutdown).  The keep action is back, gated on
+`mxfs_buf_is_undestaged(bp)` (NOT the broad `mxfs_buf_has_uncheckpointed_mods`)
+— refuses the DMA and completes the read in place (`XBF_DONE` + `xfs_buf_ioend`,
+mirrors the active sess61 bmbt guard below it) ONLY for pinned /
+committed-unwritten buffers; destaged-lingering BLIs still read-proceed
+(preserves the sess122 cache_coherency fix).  The print now includes
+`undest=%d` and names the arm taken.  CRITICAL cross-subsystem dependency: the
+gate's strength comes from the v0.11.63 `mxfs_buf_is_undestaged` fix
+(xfs/xfs_mxfs_dlm.c) — a live BLI that is unpinned and NOT in the AIL (the
+async CIL→AIL callback window) now reports undestaged; before that, b62r4's
+bnobt slipped through this guard as `undest=0` mid free-chain and the platter
+re-read reverted a committed free (the durable bnobt/cntbt divergence root).
+
+## sess5 (ccloop-4dd7) — s_remove_count shadow-ledger hooks in the PAL glue
+
+Context: root #6 (the suite-soak "833 dmesg hits" WARN storm) was an
+`sb->s_remove_count` underflow.  The ledger core lives in xfs/xfs_inode.h
+(`MXFS_IF_RMC_ACCT` flag bit 23 + `mxfs_set_nlink`/`mxfs_drop_nlink`/
+`mxfs_inc_nlink` wrappers); the PAL owns the two VFS boundary points:
+
+### pal/linux/xfs_super.c — destroy-side verifier
+- `xfs_fs_destroy_inode()` now checks, for every `i_nlink == 0` destroy,
+  that `MXFS_IF_RMC_ACCT` is set — i.e. the `__destroy_inode()` dec that
+  just ran (VFS calls it immediately before this sop) was paired with an
+  accounted 0-edge.  Unpaired → capped `P9-RMC-UNPAIRED-DESTROY` pr_alert
+  + dump_stack with `last0=`/`lastclr=` provenance (%pS of the last
+  0-install / last flag-clear, stored in `ip->i_rmc_last0_ra` /
+  `i_rmc_lastclr_ra`).  It then CLEARS the flag and stamps lastclr — this
+  is load-bearing, not just diagnostic: a recycled corpse must present
+  flag=0 so `xfs_reinit_inode`'s re-inc (set_nlink(0) after the raw
+  __i_nlink=1 from inode_init_always) re-arms it correctly.
+- Pitfall: `destroy_inode()` runs `__destroy_inode()` BEFORE the sop, so
+  this hook can only verify/clean up after the dec — it cannot prevent it.
+  Prevention lives in the wrappers' corpse-raw arm (I_CLEAR inodes adopt
+  nlink raw; see xfs.md sess5 entry).
+
+### pal/linux/xfs_iops.c — tmpfile accounting seam
+- The O_TMPFILE dance (`xfs_generic_create`) converted to
+  `mxfs_set_nlink(ip, 1)` before `d_tmpfile()`.  d_tmpfile internally
+  calls drop_nlink (VFS code, invisible to the xfs wrappers) taking
+  i_nlink back to 0 and INCrementing s_remove_count — so the code
+  re-arms `MXFS_IF_RMC_ACCT` + stamps `i_rmc_last0_ra` right after
+  d_tmpfile returns when i_nlink==0.  Without this, every tmpfile evict
+  or linkat would report a false unpaired dec.
+- Pitfall for future edits: any OTHER VFS helper that changes nlink
+  outside the xfs wrappers (d_tmpfile is the only known one) needs the
+  same flag resync at the call site.
+
+### Cross-subsystem contract
+- Flag writers/consumers span three subsystems: libxfs (from_disk, init,
+  droplink/bumplink), xfs (reinit, reset4create, the corpse-raw rule),
+  and these two PAL files.  The invariant: at any instant, flag set ⇔
+  this inode's current nlink-0 state contributed +1 to s_remove_count.
+  A skewed counter is user-visible: `sb_prepare_remount_readonly` returns
+  -EBUSY whenever s_remove_count != 0, and a NEGATIVE counter WARNs at
+  fs/inode.c:289 once per unlink+destroy pair (exactly one line per op —
+  the soak failure signature).
+- `xfs_inode_free` (xfs/xfs_icache.c) carries the armed DISCARD-LEAK
+  tripwire for the upstream-inherited +1 leak (from_disk incs, then
+  iget error path frees with no destroy dec).  Never observed live;
+  do not "fix" it without a P9-RMC-DISCARD-LEAK observation (RULE 4).
+
+## v0.11.74-75 additions (2026-07-24, physical QNAP campaign)
+
+### kern.c
+- `mxfs_pal_scsi_pr_unregister_bdev(struct block_device*, key)` (decl in
+  xfs_mxfs_dlm.h, local redecl in kern.c per the read_fua_bdev pattern):
+  raw-bdev PROUT unregister for the deferred umount path — the scsipr ctx's
+  own bdev clone is closed by v5 shutdown before the late unregister runs,
+  so it goes through mp->m_ddev_targp->bt_bdev. Treats RESERVATION CONFLICT
+  (0x18/-EBUSY) as success (key already gone = desired outcome).
+- `mxfs.dbg_pr_register_fail` one-shot module param: fails the next PR
+  REGISTER (in `mxfs_pal_scsi_pr_register`, after the pr_ops check) to
+  verify the TCP-branch mount-abort. Never enable in production.
+
+### xfs_super.c — put_super teardown ORDER INVARIANT (do not regress)
+`xfs_fs_put_super` sequence is now:
+1. `pr_late_key = mxfs_v5_dlm_detach_pr_key(v5dlm)` — detaches the scsipr
+   ctx from the v5 ctx (dlm/v5_mount.h API) so `mxfs_v5_dlm_shutdown` skips
+   PR teardown entirely (its `if (ctx->scsipr)` block no-ops).
+2. `mxfs_v5_dlm_shutdown(v5dlm)` — unchanged otherwise.
+3. `xfs_unmountfs(mp)` — writes the unmount log record.
+4. `if (pr_late_key) mxfs_pal_scsi_pr_unregister_bdev(...)` — the PR key is
+   unregistered ONLY NOW, after the unmount record is on disk and before
+   `xfs_shutdown_devices` closes the bdev.
+WHY: unregistering inside v5 shutdown (the old order) fenced the node's OWN
+final log write on WE-RO-enforcing targets whenever a peer still held the
+reservation — EBADE → log-error shutdown on EVERY clean non-holder umount,
+unmount record lost, dirty slice recovered on next mount (QNAP physical rig,
+3/3 repro; fixed and verified 0/7 with recovery drained across all slices).
+Mount-FAILURE error paths (xfs_super.c:2797/2824) intentionally keep the
+old inline shutdown behavior — no unmount record exists to protect there.
+Cross-subsystem: pairs with dlm-side `mxfs_scsipr_key/abandon` (scsipr.h)
+and `mxfs_disklock_release_slot` (see dlm.md same-date section).
+
+## v0.11.77 (D9) — envelope mount is fail-closed (2026-07-25)
+
+`xfs_fs_fill_super` (pal/linux/xfs_super.c): `m_mxfs_has_envelope` +
+`mxfs_v5_dlm_init` NULL ⇒ `xfs_alert` + `error = -ENOTCONN` +
+`goto out_filestream_unmount`. The removed "MXFS DLM init failed (continuing
+single-node)" fallback let two nodes mount one LUN uncoordinated (observed).
+Repair tooling works on the unmounted device; a legitimate single-node mount
+is a SUCCESSFUL 1-node DLM init, never a failed one. Verified via
+`mxfs.dbg_pr_register_fail` injection: armed → mount(2) fails ENOTCONN clean.
+
+### D9 unwind + put_super interplay (constraints proven this session)
+
+- The D9 abort uses `goto out_filestream_unmount` from the DLM-init site —
+  safe there because the adjacent zoned/reflink error paths use the same
+  label and `m_mxfs_dlm` is NULL on this path (the label's DLM teardown
+  block self-gates). Verified live: armed injection → clean mount(2)
+  failure, node stable, subsequent mount succeeds.
+- Teardown order (unchanged, still load-bearing): put_super runs
+  `mxfs_v5_dlm_detach_pr_key` BEFORE `mxfs_v5_dlm_shutdown`, and the final
+  PR unregister via `mxfs_pal_scsi_pr_unregister_bdev` AFTER
+  `xfs_unmountfs`. The v5 shutdown itself now broadcasts the D6 goodbye
+  (dlm.md v0.11.79) between release_all and peer teardown — no pal-side
+  ordering change, but any future put_super reshuffle must keep goodbye
+  after the final log write path.
+
+## v0.11.87-93 (FIX-26) — writepages admit registry + collision instrumentation (2026-07-25, sess6)
+
+`pal/linux/xfs_aops.c`:
+
+- **FIX-26 registry**: `xfs_task_in_writepages()` — global 64-bucket
+  hashtable of `struct xfs_wptask` nodes keyed by task pointer; nodes are
+  STACK-RESIDENT in `xfs_vm_writepages` (zero allocation), added before and
+  removed after the `iomap_writepages` call on both the <6.17 and >=6.17
+  branches.  Decl lives in `xfs/xfs_aops.h` next to `xfs_task_in_ioend`.
+  Consumer: `mxfs_ilock_admit_ioend` (xfs_mxfs_dlm.c) now admits
+  writepages tasks through the BAST/DEMOTING demote-wait under a
+  still-granted EX/PR mirror — same nested-EX/ex_holders contract as the
+  FIX-25 ioend admit (release pipeline aborts at its holders!=0 gate and
+  re-arms).
+- **Deadlock anatomy this closes** (test8, live, wedge persisted 70+ min
+  and poisoned every subsequent run via `sync` hanging behind the dead
+  flusher): flusher holds folio lock in `iomap_writepage_map` →
+  `xfs_bmapi_convert_delalloc` → `xfs_ilock(EX)` parks (state=BAST,
+  P73 `req=5 mode=3 work_busy=3`); bast worker's
+  `filemap_write_and_wait` blocks in `__folio_lock` on that folio.
+- **fix26_delay_ms** (module param, 0644, default 0): in
+  `xfs_convert_blocks`, wait up to N ms — 1 ms granularity, exits the
+  moment `i_dlm_state` leaves CACHED — before the conversion, folio held.
+  Demoter-exempt so the injection can never stall the drain itself.
+  P26DBG-INJ (cap 40) prints st0/md0→st1/md1 + waited_ms + wp flag.
+- **P26PRE-DELALLOC-SUBEX** (cap 200): writeback converting delalloc at
+  `i_dlm_mode < EX`.  Fields: mode/state/relflush/stale/demoter/dem_cur/
+  exh/prh/pin/wp/comm.  First harvest: all events were `mode=0
+  relflush=1 demoter=1` = bast_process's own drain flush after its early
+  mode pre-clear (xfs_mxfs_dlm.c ~12350-12390) — NORMAL.  Watch
+  `dem_cur=0`.
+- Pitfalls: `MXFS_LOCK_*` needs `<mxfs/mxfs_dlm.h>` explicitly;
+  `conv=notrunc` rewrites produce NO delalloc (exerciser must
+  truncate-reallocate); mode==EX bast collisions are served by the
+  fast path BY DESIGN (only sub-EX requests park in the demote-wait).
+
+## v0.11.95-98 — FENCE-V1 submit-site dir-block write fence (ccloop c7ee71c6 sess7, 2026-07-25)
+
+`pal/linux/xfs_buf.c` — `xfs_buf_submit_ex`, right after the P122
+stale-AG-write act block:
+- **P123 dir-block write fence**: for multinode XBF_WRITE submissions of the
+  six dir metadata ops (dir3 block/data/leaf1/leafn/free + da3_node), the
+  owner ino is read from the block header and
+  `mxfs_v5_dlm_inode_granted_mode(owner) < MXFS_LOCK_EX` classifies the
+  write.  No log obligation (no bli-dirty, not IN_AIL, unpinned) →
+  SUPPRESS: `P123-DIRFENCE-SKIP` + (bli-free) `xfs_buf_stale` + ~XBF_DONE,
+  then `xfs_buf_ioerror(bp,0)+xfs_buf_ioend` (complete-as-success, the P122
+  idiom — wseq stamps at ioend so release loops converge).  Obligated →
+  ALLOW + `P-FENCE-AILLEAK` census.  `bp->b_mxfs_fence_skipped` records the
+  verdict for `mxfs_dir_flush_one_daddr`'s FUA arm (xfs.md same-date entry).
+  Sanction query `mxfs_task_in_dir_drain()` is attribution-only (v1.1).
+  Fail-open when the owner is unresolvable; `_XBF_LOGRECOVERY` exempt.
+  First 5 suppressions per boot dump_stack for producer attribution.
+
+## sess10 (ccloop c7ee71c6, 2026-07-26, v0.11.104-108) delta
+- xfs_super.c mxfs_drevalidate affine own-AG fast path: P165-AFFINE-STALE probe (cap 100000)
+  logs epoch-mismatched positive-dentry blessings — path is epoch-blind by design; ~40/run/node,
+  benign so far, harden only with evidence.
+
+## sess13 (ccloop c7ee71c6, 2026-07-26, v0.11.115-117) delta
+- xfs_buf.c write-submission (~7730, next to P144-WR): P170-CLWR — inode-CLUSTER write
+  provenance (per-write daddr + every slot's ino:mode:gen-tail + comm + realns; cap 800
+  always-on, uncapped under mxfs.instr). Built for the D3 co-resident stale-slot clobber
+  (32/caw cache_coherency). NOTE: dirwr>=1 printk tracing SUPPRESSES the D3 race (4/4 hits
+  untraced vs 0/3 traced) — session-14 needs an in-memory ring instead for dir-block writes.
+
+## sess14 (ccloop c7ee71c6, 2026-07-26, v0.11.118-131) delta — xfs_buf.c
+
+### New: P172-WRTR non-perturbing write-provenance ring (~3430, after mxfs_dir3_data_fingerprint)
+- `mxfs_wrtr_record(bp)` (static) + `mxfs_wrtr_dump(void)` / `mxfs_wrtr_dump_auto(void)`
+  (both EXPORTED — called from xfs_mxfs_dlm.c's `dirring_dump` module param and from
+  xfs_inode.c at P26-IGET-FAIL respectively).
+- 8192-entry static ring, ~64B/entry. Records EVERY dir-metadata + inode-cluster write
+  submission on a multi-node mount from `xfs_buf_submit_ex` (call site sits right after
+  P170-CLWR): daddr, owner ino, live-dirent/allocated-slot count, slot masks (cluster:
+  dirmask<<32|allocmask; dir: inum sum<<32|xor), lineage crc32c (past the 48B hdr for dir
+  blocks, whole buffer for clusters), DLM granted mode, buffer flags, comm/pid, realns.
+- **WHY memory-only:** sess13 proved printk at the dir write path SUPPRESSES the D3 race
+  (4/4 hits untraced vs 0/3 with dirwr>=1). Never add a printk to this path to debug it.
+- Dump: `echo 1 > /sys/module/mxfs/parameters/dirring_dump` per node, or auto (hard-throttled,
+  max 4/boot, 120s apart) on P26-IGET-FAIL. Merge nodes with `tests/d3_ring_analyze.py`;
+  `tests/d3_dirring.sh` runs the repro recipe and harvests automatically on failure.
+
+### New: P56-NL-LOGGED-DIR-SKIP in mxfs_submit_partial_inode_write (~3101)
+- The co-resident cluster-write filter's legacy rule was "slot logged/buf-dirtied THIS round
+  => ALWAYS write", evaluated BEFORE the NL/free guards. PROVEN byte-exact to cause durable
+  loss: a node published a DIRECTORY slot image from a PRIOR tenure after going NL, reverting
+  the platter (7 names -> 3) and erasing 4 peers' files permanently.
+- Now a DIR slot is skipped when the in-core grant is NL **and we do not hold the
+  publication token** `MXFS_IF_DLM_RELFLUSH`. Param `mxfs.dir_nl_logged_skip` (default 1).
+- **INVARIANT (learn this before touching the filter):** `MXFS_IF_DLM_RELFLUSH` is the only
+  valid post-demote publication authority — it is set solely across the sanctioned release
+  drain, during which the on-disk DLM grant is STILL HELD (xfs_inode.h:585,
+  xfs_mxfs_dlm.c:23160), so no successor EX can exist and publishing is safe. Anything else
+  writing a dir slot at NL is a background flusher racing the current owner.
+- **PITFALL (cost two deploy cycles):** two other discriminators were tried and REFUTED.
+  (1) Skipping every NL dir slot stranded a freshly created dir — its landing legitimately
+  happens after demote — leaving the platter slot FREE, the dir invisible cluster-wide, and
+  the creator poisoning its own inode (permanent ESTALE). (2) Gating on the dir epoch is
+  useless here: after release the local DLM resource view is dropped and
+  `mxfs_v5_dlm_inode_dir_epoch()` returns 0, silently disabling the guard.
+- **A publish-side filter cannot repair a poisoned RMW base.** When this filter's token check
+  showed the reverting writes carried `relflush=1`, that proved the image itself was already
+  wrong and the real defect was acquire-side (fixed in xfs/ as P174-STALEGEN-ADOPT). Check
+  `dgen` vs `lgen` before designing any new write-side guard.
+
+### Extended: P56-DIRWRITE trace (~3116)
+Now prints `relflush= dgen= lgen= vep= sfc= comm=` alongside the shortform name list. These
+fields are what made the acquire-side root visible (`mode=0 relflush=1 dgen=8 lgen=5` = an
+authorized drain publishing a fork never rebuilt across 3 generations of peer changes).
+Merge across nodes by realns to get the cluster-wide publish ledger.
+
+### sess14 CLOSING lesson for anyone touching the cluster-write filter
+The write-side guards in `mxfs_submit_partial_inode_write` (P56-NL-LOGGED-DIR-SKIP and
+friends) are **assertions, not the fix**, and must stay that way. Four predicates were built
+and refuted in one session trying to make this filter decide correctness on its own:
+1. skip every NL logged DIR slot -> stranded a freshly created dir (permanent ESTALE);
+2. gate on dir epoch -> `mxfs_v5_dlm_inode_dir_epoch()` returns 0 after release, guard dead;
+3. gate on `i_mxfs_self_created` -> heuristic about peer *interest*, not about successor
+   images (cold LUN reads never BAST, so the flag stays true on genuinely shared dirs);
+4. compare shortform fork content in the release drain -> defect recurred with 0 fires.
+Root reason they all fail: at write time the buffered image may ALREADY be a poisoned RMW
+base, and every locally available signal (dirty flags, AIL membership, header equality,
+content equality) reads identical whether or not a committed change is still owed. The
+correct mechanism lives in xfs/ (per-inode pending-vs-durable publication obligation +
+land-before-release), not here. Before adding any new predicate to this filter, read
+ccmemory `ccloop-c7ee71c6-sess14-J-P175-REFUTED-obligation-tracking-required`.
+
+**Cross-subsystem note:** this filter's only valid post-demote authority is
+`MXFS_IF_DLM_RELFLUSH` (set in xfs/xfs_mxfs_dlm.c across the release drain, during which the
+on-disk grant is still held). Anything else publishing a dir slot at NL is racing the
+current owner. The P56-DIRWRITE trace now prints `relflush=`, `dgen=`, `lgen=` precisely so
+that distinction is visible in a merged cross-node ledger.

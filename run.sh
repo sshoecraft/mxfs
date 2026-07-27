@@ -83,7 +83,10 @@ XFS_NO_EQUIVALENT=(dkms_install single_node_paired fio_vs_xfs_baseline fio_perf_
 xfs_no_equivalent() { local t; for t in "${XFS_NO_EQUIVALENT[@]}"; do [ "$t" = "$1" ] && return 0; done; return 1; }
 
 SSH="$REPO/tools/mxfs_sshpass.sh"
-PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
+# Node SSH password: resolved from the lab secrets store (~/.config/mxfslab/secrets
+# via tools/mxfs_secrets.sh), which materializes the sshpass passfile. Falls back to
+# a pre-existing /tmp/.mxfs_pass if the store is absent. MXFS_PASS still overrides.
+PASS="${MXFS_PASS:-$("$REPO/tools/mxfs_secrets.sh" passfile 2>/dev/null || echo /tmp/.mxfs_pass)}"
 MNT="${MXFS_MOUNT:-/mnt/shared}"
 # Per-condition default shared-LUN device (MXFS_DEV always overrides):
 #   caw  -> the multipathd-assembled map (2 paths).
@@ -97,7 +100,11 @@ case "$DLM" in
     *)    DEV_DEFAULT=/dev/sda ;;
 esac
 DEV="${MXFS_DEV:-$DEV_DEFAULT}"
-CRIT="$REPO/criteria.json"
+# Cells are keyed "<N>/<dlm>" with no rig dimension, so running the same
+# condition against a DIFFERENT rig overwrites the board in place.  Point
+# MXFS_CRIT at a separate file to keep a second rig's results off the primary
+# board (e.g. MXFS_CRIT=$REPO/criteria.pve.json for the Proxmox nodes).
+CRIT="${MXFS_CRIT:-$REPO/criteria.json}"
 LAST="$REPO/.last_run.json"
 # ---------------------------------------------------------------------------
 # Cluster-state marker (2026-07-14): records what (nodes, dlm, build) the
@@ -120,25 +127,60 @@ if [ "$DLM" = xfs ]; then
 else
     WANT_SRCVER=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^srcversion:/{print $2}')
 fi
-marker_read() {  # sets MK_NODES / MK_DLM / MK_SRCVER (empty if no marker file)
-    MK_NODES=""; MK_DLM=""; MK_SRCVER=""
+marker_read() {  # sets MK_NODES / MK_DLM / MK_SRCVER / MK_NODELIST (empty if no marker file)
+    MK_NODES=""; MK_DLM=""; MK_SRCVER=""; MK_NODELIST=""
     [ -s "$MARKER" ] || return 0
     MK_NODES=$(jq -r '.nodes // empty' "$MARKER" 2>/dev/null)
     MK_DLM=$(jq -r '.dlm // empty' "$MARKER" 2>/dev/null)
     MK_SRCVER=$(jq -r '.srcversion // empty' "$MARKER" 2>/dev/null)
+    MK_NODELIST=$(jq -r '.node_list // empty' "$MARKER" 2>/dev/null)
 }
-marker_write() {  # nodes dlm srcver
-    jq -n --argjson n "$1" --arg d "$2" --arg s "$3" --arg t "$(date -u +%FT%TZ)" \
-        '{nodes:$n, dlm:$d, srcversion:$s, iso:$t}' > "$MARKER" 2>/dev/null
+marker_write() {  # nodes dlm srcver — node_list records WHICH hosts were prepped
+    local nl; nl=$(IFS=,; echo "${NODES[*]}")
+    jq -n --argjson n "$1" --arg d "$2" --arg s "$3" --arg nl "$nl" --arg t "$(date -u +%FT%TZ)" \
+        '{nodes:$n, dlm:$d, srcversion:$s, node_list:$nl, iso:$t}' > "$MARKER" 2>/dev/null
 }
-marker_matches() { [ "$MK_NODES" = "$N" ] && [ "$MK_DLM" = "$DLM" ] && [ "$MK_SRCVER" = "$WANT_SRCVER" ]; }
+# A marker match is a claim about LIVE cluster state, so verify it live: the
+# marker file survives reboots, other campaigns' module reloads, and rig
+# switches (MXFS_NODE_LIST), all of which invalidate the prep silently.
+# (2026-07-25: a physrig-session marker matched a VM-fleet invocation and 5
+# tests were recorded PASS against a stale build — hence this check.)
+marker_live_ok() {
+    [ "$DLM" = xfs ] && return 0
+    local cn live
+    for cn in "${NODES[@]}"; do
+        live=$(ssh_node "$cn" "cat /sys/module/mxfs/srcversion 2>/dev/null; mountpoint -q /mnt/shared && echo MOUNTED" | tr '\n' ' ')
+        live=$(echo $live)   # squeeze/trim whitespace (ssh banner filtering can pad)
+        case "$live" in
+            "$WANT_SRCVER MOUNTED"*) ;;
+            *) echo "    marker stale: $cn live='$live' want='$WANT_SRCVER MOUNTED'"; return 1 ;;
+        esac
+    done
+    return 0
+}
+marker_matches() {
+    [ "$MK_NODES" = "$N" ] && [ "$MK_DLM" = "$DLM" ] && [ "$MK_SRCVER" = "$WANT_SRCVER" ] \
+        && [ "$MK_NODELIST" = "$(IFS=,; echo "${NODES[*]}")" ] && marker_live_ok
+}
 BROKER="${MXFS_COORD_BROKER:-192.168.1.149}"
 # Per-test wall budget for coordinated launches (RULE 0: a timeout IS a FAIL).
 # coord_barrier waits up to COORD_TIMEOUT (120s); give the launch headroom.
 COORD_TIMEOUT="${COORD_TIMEOUT:-120}"
 TEST_TIMEOUT="${TEST_TIMEOUT:-300}"
 
-mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
+# Node set: defaults to the project's own test1..testN fleet, but can be
+# pointed at arbitrary hosts (e.g. a Proxmox pair, or any other cluster not
+# using the test1..testN naming/DNS convention) via MXFS_NODE_LIST -- a
+# space- or comma-separated list of hostnames/IPs, exactly $N entries.
+if [ -n "${MXFS_NODE_LIST:-}" ]; then
+    mapfile -t NODES < <(echo "$MXFS_NODE_LIST" | tr ',' ' ' | tr -s ' ' '\n' | sed '/^$/d')
+    [ "${#NODES[@]}" -eq "$N" ] || {
+        echo "ERROR: MXFS_NODE_LIST has ${#NODES[@]} entries, N=$N requires exactly $N"
+        exit 2
+    }
+else
+    mapfile -t NODES < <(seq 1 "$N" | sed 's/^/test/')
+fi
 NODE1="${NODES[0]}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 
@@ -186,7 +228,39 @@ if ! flock -n 9; then
 fi
 echo "$$ $(date -u +%FT%TZ) run.sh $N $DLM ${ONLY[*]:-}" >&9
 
-ssh_node() { "$SSH" "$1" "$PASS" "$2" 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you'; }
+# The REMOTE command's exit status must survive.  As a bare pipeline this
+# returned grep's status instead (no pipefail here), so any check whose remote
+# command is silent by design -- `mount | grep -q ...` at the two readiness
+# gates below -- resolved on whether ssh printed a login banner rather than on
+# what the remote actually did: test1's /etc/issue.net carries blank lines that
+# outlive the filter (grep -v emits them => always 0, gate inert), Proxmox has
+# no banner (nothing survives => always 1, gate always fails).  PIPESTATUS[0]
+# keeps the filter streaming (line 828 pipes a multi-MB base64 tar through
+# here, so buffering the output in a variable is not an option).
+ssh_node() {
+    local rc
+    "$SSH" "$1" "$PASS" "$2" 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you'
+    rc=${PIPESTATUS[0]}
+    return "$rc"
+}
+
+# sess11 (ccloop c7ee71c6): foreign-kernel fleets (physrig: 6.17.2-1-pve vs
+# clyde's 6.8 repo build) — the artifact under test is the NODE-INSTALLED
+# module, so the marker identity must be its srcversion, not the repo .ko's
+# (same doctrine as prep_cluster's build-ref resolution at ~line 540; without
+# this the marker written after a physrig prep never matches marker_live_ok
+# and every row invocation demands a re-prep).
+if [ "$DLM" != xfs ]; then
+    _repo_vermagic=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^vermagic:/{print $2}')
+    _node_krel=$(ssh_node "$NODE1" "uname -r" 2>/dev/null | tr -d '\r\n ')
+    if [ -n "$_node_krel" ] && [ -n "$_repo_vermagic" ] && [ "$_repo_vermagic" != "$_node_krel" ]; then
+        _node_srcv=$(ssh_node "$NODE1" "modinfo -F srcversion mxfs 2>/dev/null" 2>/dev/null | tr -d '\r\n ')
+        if [ -n "$_node_srcv" ]; then
+            WANT_SRCVER="$_node_srcv"
+            echo "--- foreign-kernel fleet: build ref = node-installed mxfs $WANT_SRCVER (repo ko is $_repo_vermagic, nodes run $_node_krel) ---"
+        fi
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Record one test's aggregated result into criteria.json under "<N>/<dlm>".
@@ -254,6 +328,22 @@ TEARDOWN='
 # device to come back.  Recovery of TEST VMs only (never the host — RULE 2).
 power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
     local n="$1" dl
+    # This recovery is libvirt-only: it assumes the node IS a VM in the local
+    # test fleet whose domain name equals the node name.  Under MXFS_NODE_LIST
+    # the nodes are external (IPs / real hosts) and no such domain exists, so
+    # virsh silently no-ops and we would report a "power-cycle" that never
+    # happened -- then march on and mount whatever wedged state was already
+    # there (seen 2026-07-20 against Proxmox: pve2 had a withdrawn, shut-down
+    # FS that never released; prep "recovered" it and the cluster split 2-vs-1).
+    # Refuse loudly instead: an external node needs a real operator decision.
+    if [ -n "${MXFS_NODE_LIST:-}" ]; then
+        echo "    CANNOT auto-recover $n: MXFS_NODE_LIST nodes are external —"
+        echo "    virsh has no domain for them and power-cycling is not this"
+        echo "    harness's call.  Clear it by hand, then re-run:"
+        echo "      umount -f $MNT (or -l); rmmod mxfs   # check 'dmesg | grep P-WITHDRAW'"
+        echo "    A shut-down/withdrawn FS holds the module and will NOT release."
+        return 1
+    fi
     echo "    power-cycling $n (virsh destroy+start)"
     virsh -c qemu:///system destroy "$n" >/dev/null 2>&1
     sleep 2
@@ -317,6 +407,13 @@ prep_cluster() {
     #    re-mkfs: they join the new cluster's discovery (active_count
     #    inflates past N so the converge gate can never pass) and later
     #    P131-self-fence when they notice the re-mkfs (sess5 evidence).
+    #    This is entirely about this project's own libvirt test1..testN
+    #    fleet (virsh list/destroy/start against qemu:///system) -- with an
+    #    external node list (MXFS_NODE_LIST) there is no local fleet to
+    #    check, and running this against unrelated hosts by IP would be
+    #    meaningless at best (virsh's list never matches an IP) so just
+    #    skip it rather than pay the virsh round-trip for nothing.
+    if [ -z "${MXFS_NODE_LIST:-}" ]; then
     local v extras=() epids=() dirty=""
     for v in $(virsh -c qemu:///system list --name 2>/dev/null | grep -E '^test[0-9]+$'); do
         case " ${NODES[*]} " in *" $v "*) ;; *) extras+=("$v") ;; esac
@@ -345,6 +442,7 @@ prep_cluster() {
             done
             for v in "${epids[@]}"; do wait "$v"; done
         fi
+    fi
     fi
 
     # 1. Clean slate on the participating nodes so the LUN is free to
@@ -420,15 +518,20 @@ prep_cluster() {
     out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' bash /src/mxfs/tests/setup/prep_fs.sh")
     echo "$out" | grep -q FS_PREP_OK || { echo "PREP FAIL (mkfs): $out"; return 1; }
 
+    # sess10 (ccloop c7ee71c6): ship the build host's ko md5 so prep_node.sh
+    # can defeat NFS stale-page module images (mixed old/new ko pages after an
+    # in-place relink under clock skew — proven frankenstein module on test25).
+    local KO_MD5; KO_MD5=$(md5sum "$REPO/mxfs.ko" 2>/dev/null | awk '{print $1}')
+
     # 3. Form the cluster on node1 (load module w/ transport + mount).
-    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT")
+    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT")
     echo "$out" | grep -q NODE_PREP_OK || { echo "PREP FAIL (form $NODE1): $out"; return 1; }
 
     # 4. Join the remaining nodes in parallel.
     pids=()
     local tmpd; tmpd=$(mktemp -d)
     for n in "${NODES[@]:1}"; do
-        ( ssh_node "$n" "MXFS_DEV='$DEV' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT" > "$tmpd/$n" 2>&1 ) &
+        ( ssh_node "$n" "MXFS_DEV='$DEV' MXFS_KO_MD5='$KO_MD5' MXFS_EXTRA_MODARGS='${MXFS_EXTRA_MODARGS:-}' bash /src/mxfs/tests/setup/prep_node.sh $BASE_TRANSPORT" > "$tmpd/$n" 2>&1 ) &
         pids+=($!)
     done
     for pid in "${pids[@]}"; do wait "$pid"; done
@@ -438,9 +541,28 @@ prep_cluster() {
     #    prior run can satisfy the mount check while running an OLD module (a
     #    failed prep_node rmmod leaves the old mount up) — that silently runs the
     #    test on mismatched builds and yields an INVALID result.  Assert the
-    #    loaded srcversion matches the local .ko on every node.
-    local want_srcv
+    #    loaded srcversion matches the build under test on every node.
+    #
+    #    The reference build depends on where the nodes get their module (see
+    #    tests/setup/prep_node.sh step 1a).  Same-kernel fleet (the test VMs):
+    #    it is the NFS-shared repo .ko, so compare against that.  Different
+    #    kernel (Proxmox VE 9 on 6.17.2-1-pve vs this host's 6.8.0-101-generic):
+    #    the nodes load their own DKMS build and the dev host's .ko is simply
+    #    not the artifact under test -- comparing against it would fail every
+    #    run by construction.  The invariant that actually matters is unchanged
+    #    and still asserted: every node runs the SAME build, and that build is
+    #    the one currently INSTALLED on the node (which is what catches the
+    #    stale-leftover-mount-on-an-old-module case this check exists for).
+    local want_srcv ko_vermagic node_krel
     want_srcv=$(modinfo /src/mxfs/mxfs.ko 2>/dev/null | awk '/^srcversion:/{print $2}')
+    ko_vermagic=$(modinfo /src/mxfs/mxfs.ko 2>/dev/null | awk '/^vermagic:/{print $2}')
+    node_krel=$(ssh_node "$NODE1" "uname -r" 2>/dev/null | tr -d '\r\n ')
+    if [ -n "$node_krel" ] && [ "$ko_vermagic" != "$node_krel" ]; then
+        want_srcv=$(ssh_node "$NODE1" "modinfo -F srcversion mxfs 2>/dev/null" 2>/dev/null | tr -d '\r\n ')
+        echo "--- build ref: node-installed module ${want_srcv:-<none>}" \
+             "(repo .ko is vermagic $ko_vermagic, nodes run $node_krel) ---"
+        [ -n "$want_srcv" ] || { echo "PREP FAIL: no installed mxfs module on $NODE1 to reference"; rm -rf "$tmpd"; return 1; }
+    fi
     local bad=""
     for n in "${NODES[@]}"; do
         ssh_node "$n" "mount | grep -q ' on $MNT type mxfs'" >/dev/null 2>&1 || { bad="$bad $n(unmounted)"; continue; }
@@ -483,7 +605,20 @@ prep_cluster() {
             local allN=1 n
             local cgd; cgd=$(mktemp -d)
             for n in "${NODES[@]}"; do
-                ( ssh_node "$n" "dmesg | grep -oE 'MXFS-MEMBERSHIP local=[0-9]+ active_count=[0-9]+' | tail -1 | grep -oE 'active_count=[0-9]+' | cut -d= -f2" 2>/dev/null | tr -d '\r\n ' > "$cgd/$n" ) &
+                # Anchor to the CURRENT module incarnation.  dmesg is a log, not
+                # live state, and the ring survives rmmod/insmod: on a rig whose
+                # nodes are not power-cycled between runs (any external node
+                # list -- Proxmox, bare metal), the newest MXFS-MEMBERSHIP line
+                # can belong to a PREVIOUS incarnation that really did converge.
+                # Reading it unanchored would false-PASS this gate on a cluster
+                # that never formed -- exactly the split-brain the gate exists to
+                # prevent.  Every transport logs "... DLM initialized ..." at
+                # init (dlm/v5_mount.c:1078 TCP, :1255 CAW), so reset at each one
+                # and keep only beacons emitted after the last: no beacon yet for
+                # this incarnation reads as empty (not converged), never as a
+                # stale success.  If a build ever stops printing that marker the
+                # awk degrades to "last beacon in the ring" = the old behaviour.
+                ( ssh_node "$n" "dmesg | awk '/DLM initialized/{m=\"\"} /MXFS-MEMBERSHIP/{m=\$0} END{print m}' | grep -oE 'active_count=[0-9]+' | cut -d= -f2" 2>/dev/null | tr -d '\r\n ' > "$cgd/$n" ) &
             done
             wait
             for n in "${NODES[@]}"; do
@@ -506,7 +641,7 @@ prep_cluster() {
             # damage.  Fail loudly with each node's view for diagnosis.
             echo "PREP FAIL: cluster did NOT converge to $N members within $(( 90 + 5 * N ))s:"
             for n in "${NODES[@]}"; do
-                echo "    $n: $(ssh_node "$n" "dmesg | grep -oE 'MXFS-MEMBERSHIP local=[0-9]+ active_count=[0-9]+' | tail -1" 2>/dev/null | tr -d '\r')"
+                echo "    $n: $(ssh_node "$n" "dmesg | awk '/DLM initialized/{m=\"\"} /MXFS-MEMBERSHIP/{m=\$0} END{print (m==\"\") ? \"(no beacon this incarnation)\" : m}'" 2>/dev/null | tr -d '\r')"
             done
             return 1
         fi
@@ -635,12 +770,24 @@ run_coord() {  # name cat budget scale
             # bug being fixed (dirop_durable_caw batching), not budget
             # material.
             #
-            # COORD_TIMEOUT formula unchanged: barrier waits must exceed
-            # DRC_HANG_THRESHOLD_S's scaled value so peers don't
-            # BARRIER_TIMEOUT before rank1's own run_bounded gives up on a
-            # genuine hang.
+            # COORD_TIMEOUT ordering (2026-07-25, ccloop c7ee71c6 sess6):
+            # hang-threshold (N*10, floor 20 — the script's
+            # DRC_HANG_THRESHOLD_S) < ct < tt (kill box).  The old floor-150
+            # exceeded tt=120, so a genuine barrier stall was KILLED at 120s
+            # before the 150s barrier timeout could write its
+            # BARRIER_TIMEOUT record — three straight wedged runs produced
+            # zero terminal records (NO_TERMINAL_RECORD) and burned a
+            # session chasing a "silent" wedge that the barrier layer had
+            # detected but was never allowed to report.  ct sits 20s above
+            # the hang threshold (rank1's run_bounded reports first) and
+            # 15s under the kill box (peers' BARRIER_TIMEOUT records land).
+            # N>=12 makes hang-threshold itself exceed the flat 120s budget
+            # — that infeasibility is owned by the round-pace defect (per-op
+            # durable-publish tax), not by this formula.
             ct=$(( N * 12 ))
-            [ "$ct" -lt 150 ] && ct=150
+            [ "$ct" -lt $(( N * 10 + 20 )) ] && ct=$(( N * 10 + 20 ))
+            [ "$ct" -gt $(( tt - 15 )) ] && ct=$(( tt - 15 ))
+            [ "$ct" -lt 30 ] && ct=30
             ;;
     esac
     # RULE0_CALIBRATE=1: measurement run, no real budget to enforce yet --
@@ -668,10 +815,17 @@ run_coord() {  # name cat budget scale
     # "sticky" until reform) otherwise turns into hours of un-attributable
     # coherency FAILs.  Runs before t0 so it never counts against the test's
     # RULE-0 budget.
+    # ccloop c7ee71c6 sess12: mountpoint+fstype alone passes a SHUTDOWN
+    # ZOMBIE (fs_shut=1 but still in the mount table — test14 after the
+    # 32/caw spurious shutdown).  A zombie at a coord barrier then stalls
+    # every healthy node to the row budget (the all-32 NO_TERMINAL_RECORD
+    # cache_coherency rerun).  Require a live readdir of the mount root:
+    # a shutdown FS fences it (P-SHUTDOWN-FENCE → EIO) while a healthy
+    # node's converge is bounded (P95B/C ≈2s worst case).
     local pa_bad="" pa_pids=() pa_n
     for pa_n in "${NODES[@]}"; do
         ( timeout 15 "$SSH" "$pa_n" "$PASS" \
-            "mountpoint -q '$MNT' && mount | grep -q ' on $MNT type $fstype '" \
+            "mountpoint -q '$MNT' && mount | grep -q ' on $MNT type $fstype ' && timeout 10 ls '$MNT'/. >/dev/null 2>&1" \
             >/dev/null 2>&1 ) &
         pa_pids+=($!)
     done
@@ -682,9 +836,9 @@ run_coord() {  # name cat budget scale
     done
     if [ -n "$pa_bad" ]; then
         record "$name" FAIL "pre-assert" \
-            "PRE-ASSERT: $fstype not mounted on$pa_bad — a prior test broke cluster formation state; reform required" \
+            "PRE-ASSERT: $fstype not mounted/readable on$pa_bad — a prior test broke cluster formation state (unmounted or shutdown zombie); reform required" \
             0 "$real_budget"
-        echo "  FAIL  $name  (pre-assert: $fstype not mounted on$pa_bad)"
+        echo "  FAIL  $name  (pre-assert: $fstype not mounted/readable on$pa_bad)"
         rm -rf "$tmpd"
         return 1
     fi

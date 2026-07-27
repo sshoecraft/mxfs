@@ -1,0 +1,136 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 11 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 10
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `21b5f331-5970-4dd8-b9e6-8c7f95281084`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/21b5f331-5970-4dd8-b9e6-8c7f95281084.jsonl`
+- approx context at last assistant turn: 498924 tokens
+- tools used: Bash×193 Read×20 Edit×9 Write×3 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/VERSION
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/state.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/setup/prep_node.sh
+- /src/mxfs/run.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ./run.sh 32 tcp dlm_scaling 2>&1 | grep -E '  (PASS|FAIL)'; ./run.sh 32 tcp dir_reuse_coherency fence_during_write fault_netpartition soak tcp_dlm_scaling 2>&1 
+    ./run.sh 32 tcp fence_during_write 2>&1 | grep -E '  (PASS|FAIL)'; uptime
+    for n in $(seq 17 32); do virsh -c qemu:///system destroy test$n >/dev/null 2>&1; done; virsh -c qemu:///system list | grep -c running; rm -f /src/mxfs/.cluster
+    ./run.sh 16 tcp precond_readiness fio_perf fio_perf_vs_xfs cache_coherency strong_consistency posix_multi mmap_coherency zero_silent_loss dlm_fairness dlm_membe
+    ./run.sh 16 tcp scaling_curve dlm_scaling rsync_paired crash_consistency dir_reuse_coherency fence_during_write fault_netpartition soak tcp_dlm_scaling 2>&1 | g
+    timeout 500 tests/withdraw_recovery_test.sh 16 2>&1 | tail -2; rm -f /src/mxfs/.cluster_marker.json; ./run.sh 16 caw prep_cluster 2>&1 | tail -2
+    PF=$(tools/mxfs_secrets.sh passfile); timeout 30 tools/mxfs_sshpass.sh test1 "$PF" 'uptime' 2>&1 | tail -1; virsh -c qemu:///system list | grep -cE 'test([1-9]|
+    sed -n '440,470p' run.sh
+    ./run.sh 16 caw prep_cluster 2>&1 | tail -2
+    grep -n 'mpatha\|DEV=' run.sh | head -10
+    sed -n '40,105p' run.sh | grep -nE 'caw|cawp|cawd|tcp|DEV_DEFAULT|#' | head -25; PF=$(tools/mxfs_secrets.sh passfile); tools/mxfs_sshpass.sh test1 "$PF" 'sg_opc
+    sed -n '94,103p' run.sh
+    timeout 5 bash -c 'echo > /dev/tcp/192.168.120.1/3260' 2>&1 && echo PORTAL-UP || echo PORTAL-DOWN; rm -f /src/mxfs/.cluster_marker.json; ./run.sh 16 cawp prep_c
+    ./run.sh 16 cawp precond_readiness fio_perf fio_perf_vs_xfs cache_coherency strong_consistency posix_multi mmap_coherency zero_silent_loss dlm_fairness dlm_memb
+    PF=$(tools/mxfs_secrets.sh passfile); tools/mxfs_sshpass.sh test7 "$PF" 'dmesg | grep -E "Shutting down|shutdown|SHUTDOWN|EFSCORRUPTED|CAW" | tail -8' 2>/dev/nu
+    rm -f /src/mxfs/.cluster_marker.json; ./run.sh 16 tcp prep_cluster 2>&1 | tail -1 & for f in xfs dlm pal tests; do ls .claude/awareness/subsystems/$f.md >/dev/n
+    for f in xfs dlm pal tests; do cat >> .claude/awareness/subsystems/$f.md <<'EOF'  ## sess10 (ccloop c7ee71c6, 2026-07-26, v0.11.104-108) delta EOF done cat >> .
+    rm -f /src/mxfs/.cluster_marker.json; ./run.sh 4 tcp prep_cluster 2>&1 | tail -1; ./run.sh 4 tcp precond_readiness fio_perf fio_perf_vs_xfs cache_coherency stro
+    ./run.sh 4 tcp dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired crash_consistency dir_reuse_coherency fence_during_write fault_netpartition so
+    cat >> /src/mxfs/state.md <<'EOF'  ## Late addition (post-save) - **4/tcp full board 19/19 PASS** at B2A39830 (verified deploy, in-chunk, comfortable margins). 
+
+## Last text from previous session
+
+y including exactly the epoch fast-path I'd design (d_time == i_dlm_epoch). Reading the rest plus the install site to see what's actually disabled:
+Now bump the version and build:
+Deployed 6FD0D962. Looping until FAIL:
+FAIL captured with the probe alive. Harvesting:
+Cutoff was wrong — filtering to the failing run's uv window (~epoch 1785024690+):
+test6 skipped node6_file1 AND node6_file2 — matching got=126. Now the decisive check — P165 on test6 for those names:
+v0.11.106, build + deploy + loop:
+**40 consecutive cache_coherency PASS** at v0.11.106. Now dir_reuse_coherency (the heaviest ino-reuse surface) ×3, then the full board:
+Withdraw test's injection didn't fire. Checking the injection step:
+A backtrace fired inside the replay work fn, and dmesg goes silent right where P163-RECOVERY-COMPLETE should print. Pulling the full trace:
+**8/tcp: 20/20 + withdraw PASS.** Next rung: 32/tcp:
+v0.11.108 — build, deploy at 32, rerun:
+**dlm_scaling@32 PASS (63s/90s).** Quantifying the inactivation cost drop, then completing the 32 board:
+Replay completed but neither the bail prints NOR the completion fired — so the work fn is stuck between them, in the second peer-joined flush. Checking:
+Second flush completed — so it IS inside recovery_complete's body, wedged in a callee. Broad-scanning stacks:
+Deployment integrity fixed. Re-prepping 32 with verified load, then re-running the withdraw test:
+The withdraw victim (test1) is down by design — re-prep, then the verified board:
+Session 10 summary — relay boundary reached, state fully saved (state.md + two ccmemory dossiers + awareness docs).
+
+**Answer to the criteria ("is it production ready?"): No** — but this session closed the biggest open defect and got the entire TCP transport matrix green.
+
+**Root-caused and fixed (v0.11.104→108, srcver B2A39830):**
+
+1. **Shape-1 coherency family CLOSED.** Three live captures proved `xfs_lookup` was returning reused-inode-number inodes whose in-place reload had silently bailed under contention: the type-flip flavor made every walk fail ENOTDIR for ~1s (silently lost creates — the uv census 127/128), and the same-type flavor served stale size-0 shells (empty reads). The smoking gun was sitting in the node shell logs the whole time ("Not a directory"). Fix: the lookup now block-retries the reload (≤2s, converges in 1 round) instead of handing the VFS an unconverged incarnation. Verified: **40 consecutive cache_coherency@16 PASS** (pre-fix ~2-in-7 fail), with the fix arms firing constantly and resolving every time.
+2. **dlm_scaling@32 collapse fixed** (15→34 ops/s): the last synchronous per-unlink disk read (46-123ms queue-wait) is now skipped when the node holds local authority (LOCAL_UNLINK + EX), mirroring the existing sess7 nlink-skip precedent.
+3. **Deployment integrity (nasty one):** nodes were sometimes loading *frankenstein* mxfs.ko images — mixed stale/new NFS pages with a matching srcversion but old code (proven by `strings` on the loaded ko). That was the real cause of both withdraw-recovery "completion never fired" anomalies. The prep now copies the module node-local and md5-verifies against the build host before insmod. Withdraw test passes at 16 and 32 since.
+
+**Board status at single srcver, verified deployment: 4/tcp 19/19, 8/tcp 20/20, 16/tcp 20/20 in-chunk, 32/tcp all rows pass standalone** (32-node chunked runs saturate clyde at load 40-64 — dispositioned as host capacity, real 32-scale belongs to the physical rig).
+
+**Why not production ready:** the first-ever CAW-transport run on this LIO rig is catastrophically broken (cross-visibility failures everywhere, CAW EX publish failures, one node shutdown) — historical CAW validation was all SCST, so next session starts with `tools/caw_verify` against the LIO LUN before suspecting mxfs code. Also outstanding: caw/cawd portal infrastructure, 2/1-node boards, and the physical-rig matrix — the noisy boxes behind you stay relevant only for that final phase; they can remain powered off until then.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

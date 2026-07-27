@@ -397,6 +397,14 @@ typedef struct xfs_mount {
 	 * ~1.5 ms each ≈ +1 s/node on a 2-node parallel rsync).
 	 */
 	struct work_struct	m_mxfs_publish_work;
+	/* ccloop c7ee71c6 sess2: coalesced background destage kick — unlink
+	 * (ifree) and create queue this debounced worker (one log_force +
+	 * AIL push per ~2ms batch) so freed/created inode clusters reach the
+	 * shared LUN within ms WITHOUT charging a synchronous force+drain+
+	 * flush to every syscall (the tcp dlm_scaling collapse).  The
+	 * reuse-convergence machinery (VISNUDGE/iget-retry/reload) assumes
+	 * ms-scale destage; xfsaild's lazy tail push alone left 30-55s gaps. */
+	struct delayed_work	m_mxfs_destage_kick;
 
 	/* MXFS per-node XFS log slicing (Phase 5) */
 	uint32_t		m_mxfs_log_node_count;

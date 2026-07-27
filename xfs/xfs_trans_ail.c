@@ -1077,6 +1077,21 @@ xfs_log_item_in_ag(
  * MUST NOT release.  Sess27 finding "bounded per-AG drain is unsafe"
  * referred to release-after-bound, not abort-after-bound.
  */
+#include <linux/sched/debug.h>	/* sess13(c7ee71c6): sched_show_task */
+
+/* sess13(c7ee71c6): peek the i_lock rwsem owner — a writer, or the last
+ * reader hint (RWSEM_READER_OWNED-tagged, best-effort).  Same technique the
+ * kernel's own rwsem_spin_on_owner uses; task_struct deref is RCU-safe.
+ * Debug read for the AG-AIL stall probe: names the task that blocks iflush. */
+static struct task_struct *
+mxfs_rwsem_owner_peek(struct rw_semaphore *sem, bool *reader)
+{
+	unsigned long o = atomic_long_read((atomic_long_t *)&sem->owner);
+
+	*reader = (o & 1UL) != 0;
+	return (struct task_struct *)(o & ~7UL);
+}
+
 int
 xfs_ail_push_ag_sync_bounded(
 	struct xfs_ail		*ailp,
@@ -1118,7 +1133,28 @@ xfs_ail_push_ag_sync_bounded(
 			 * dir PR->EX conversion EDEADLK-retries cross-node, so iflush
 			 * can never take ILOCK_SHARED and the AG drain stalls. */
 			bool stuck_ilocked = false;
+			/* sess13(c7ee71c6): 32/caw fence wedge forensics — the
+			 * incident boot proved a 212s continuously-rwsem-held
+			 * stuck inode with the holder invisible to hung_task
+			 * (short-sleep/interruptible waits).  Name the holder:
+			 * rwsem owner peek + the mxfs_ilk last-locker stamps +
+			 * item LSN + log tail/grant heads, and (throttled) dump
+			 * the owner task's stack from inside the walk while the
+			 * AIL ref keeps the inode live. */
+			xfs_lsn_t stuck_lsn = 0, ail_min_lsn = 0;
+			struct task_struct *stuck_owner = NULL;
+			bool stuck_owner_rd = false;
+			char stuck_owner_comm[16] = "";
+			int stuck_owner_pid = 0;
+			unsigned int stuck_owner_state = 0;
+			unsigned long stuck_owner_nvcsw = 0, stuck_owner_nivcsw = 0;
+			unsigned long stuck_wr_ret = 0, stuck_rd_ret = 0, stuck_un_ret = 0;
+			int stuck_wr_pid = 0, stuck_rd_pid = 0, stuck_rd_held = 0;
+			char stuck_wr_comm[16] = "", stuck_rd_comm[16] = "";
 			spin_lock(&ailp->ail_lock);
+			if (!list_empty(&ailp->ail_head))
+				ail_min_lsn = list_first_entry(&ailp->ail_head,
+					struct xfs_log_item, li_ail)->li_lsn;
 			found = false;
 			list_for_each_entry(lip, &ailp->ail_head, li_ail) {
 				if (!xfs_log_item_in_ag(lip, agno))
@@ -1158,6 +1194,62 @@ xfs_ail_push_ag_sync_bounded(
 							stuck_buf_pinned = atomic_read(
 								&lip->li_buf->b_pin_count) > 0;
 							stuck_buf_flags = lip->li_buf->b_flags;
+						}
+						/* sess13(c7ee71c6) wedge forensics */
+						{
+							struct xfs_inode *sip = iip->ili_inode;
+
+							stuck_lsn = lip->li_lsn;
+							stuck_wr_ret = sip->i_mxfs_ilk_wr_ret;
+							stuck_wr_pid = sip->i_mxfs_ilk_wr_pid;
+							memcpy(stuck_wr_comm, sip->i_mxfs_ilk_wr_comm,
+							       sizeof(stuck_wr_comm) - 1);
+							stuck_rd_ret = sip->i_mxfs_ilk_rd_ret;
+							stuck_rd_pid = sip->i_mxfs_ilk_rd_pid;
+							memcpy(stuck_rd_comm, sip->i_mxfs_ilk_rd_comm,
+							       sizeof(stuck_rd_comm) - 1);
+							stuck_rd_held = atomic_read(&sip->i_mxfs_ilk_rd_held);
+							stuck_un_ret = sip->i_mxfs_ilk_un_ret;
+							if (stuck_ilocked) {
+								rcu_read_lock();
+								stuck_owner = mxfs_rwsem_owner_peek(
+									&sip->i_lock, &stuck_owner_rd);
+								if (stuck_owner) {
+									stuck_owner_pid = stuck_owner->pid;
+									memcpy(stuck_owner_comm,
+									       stuck_owner->comm,
+									       sizeof(stuck_owner_comm) - 1);
+									stuck_owner_state = READ_ONCE(
+										stuck_owner->__state);
+									stuck_owner_nvcsw = stuck_owner->nvcsw;
+									stuck_owner_nivcsw = stuck_owner->nivcsw;
+									/* Throttled holder stack dump from
+									 * inside the walk: the AIL entry keeps
+									 * sip live; RCU keeps the task deref
+									 * safe (rwsem_spin_on_owner pattern).
+									 * Only once a stall episode is on. */
+									{
+										static unsigned long mxfs_stalldump_j;
+
+										if (stall >= 4 &&
+										    time_after(jiffies,
+											mxfs_stalldump_j + 30 * HZ)) {
+											mxfs_stalldump_j = jiffies;
+											pr_warn("mxfs: P67-STALL-OWNER-STACK agno=%u ino=%llu owner=%s/%d rd=%d state=0x%x nvcsw=%lu/%lu — dumping holder stack\n",
+												agno,
+												(unsigned long long)stuck_ino,
+												stuck_owner_comm,
+												stuck_owner_pid,
+												stuck_owner_rd ? 1 : 0,
+												stuck_owner_state,
+												stuck_owner_nvcsw,
+												stuck_owner_nivcsw);
+											sched_show_task(stuck_owner);
+										}
+									}
+								}
+								rcu_read_unlock();
+							}
 						}
 					}
 					break;
@@ -1200,6 +1292,34 @@ xfs_ail_push_ag_sync_bounded(
 						agno, iter, stall, total,
 						n_buf, n_inode, n_other,
 						n_pinned_buf);
+					/* sess13(c7ee71c6): name the ILOCK holder +
+					 * log/AIL position so the wedge's blocking
+					 * task and log-space state are in every
+					 * abort line (the incident boot had neither). */
+					if (stuck_ino) {
+						struct xlog *sl = ailp->ail_log;
+
+						pr_warn("mxfs: P67-STALL-OWNER agno=%u ino=%llu lsn=0x%llx ail_min=0x%llx tail=0x%llx resv=0x%llx write=0x%llx owner=%s/%d rd=%d st=0x%x csw=%lu/%lu wr_last=%pS/%d/%s rd_last=%pS/%d/%s rd_held=%d un_last=%pS\n",
+							agno,
+							(unsigned long long)stuck_ino,
+							(unsigned long long)stuck_lsn,
+							(unsigned long long)ail_min_lsn,
+							(unsigned long long)atomic64_read(&sl->l_tail_lsn),
+							(unsigned long long)atomic64_read(&sl->l_reserve_head.grant),
+							(unsigned long long)atomic64_read(&sl->l_write_head.grant),
+							stuck_owner ? stuck_owner_comm : "-",
+							stuck_owner_pid,
+							stuck_owner_rd ? 1 : 0,
+							stuck_owner_state,
+							stuck_owner_nvcsw,
+							stuck_owner_nivcsw,
+							(void *)stuck_wr_ret,
+							stuck_wr_pid, stuck_wr_comm,
+							(void *)stuck_rd_ret,
+							stuck_rd_pid, stuck_rd_comm,
+							stuck_rd_held,
+							(void *)stuck_un_ret);
+					}
 					return -EAGAIN;
 				}
 			}

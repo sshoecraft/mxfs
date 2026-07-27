@@ -75,6 +75,24 @@ mkfs_mxfs writes super, zeros journal+disklock regions, then runs `format_xfs_na
 - **On `dm-multipath`, always use `--retry-ua`** (or expect a spurious first-command UNIT ATTENTION). CAW and PR work through `/dev/mapper/mpathX`; verified at the storage layer 2026-07-05 (see `docs/condition4_multipath_scope.md`). PR-across-paths uses `sg_persist --param-alltgpt` (NOT `--all-tg-pt`, which sg_persist rejects).
 - **mkfs version bumps:** the MXFS super has a layout version. Bump on every layout change so older tools refuse to read newer layouts.
 
+## 2026-07-25 refresh (post-7/16 changes)
+
+- **Secrets chokepoint (2026-07-21)**: `tools/mxfs_secrets.sh {get <key> [field]|passfile [path]}`
+  resolves test credentials from `~/.config/mxfslab/secrets` (mode 600, NOT in repo) and
+  materializes the sshpass passfile. `tools/mxfs_sshpass.sh HOST PASSFILE CMD` is the single
+  SSH chokepoint every script uses; it FLATTENS the remote command args (keep remote snippets
+  one single-quoted block; no nested single quotes). Node root password stays synced with
+  osimager's `images/linux` secret.
+- **chk_mxfs "slot N" output = JOURNAL slot table** (region 2, 1MB/slot headers), NOT the
+  disklock heartbeat slots. Disklock HB records live at `disklock_offset` (67117056 on the
+  standard VM LUN) + slot×512: magic "MXLK" 0x4D584C4B, flags@4 (bit0 ACTIVE), node_id@8,
+  fs_gen@12 (folded volume id — forged/ghost records MUST match live fs_gen to be counted),
+  ts_ms@16. chk also decodes the MEPOCH record inside each HB slot.
+- **fio `--filename` colon-splitting trap** (2026-07-25, scripts/raw_fio_ceiling.sh): fio
+  splits `--filename` on `:` (multi-file syntax). Passing an iSCSI by-path device name
+  unescaped makes fio CREATE regular files (one in guest devtmpfs = RAM) and benchmarks
+  memory. Escape colons (`\:`) or use the plain `/dev/sdX` node.
+
 ## Historical Bugs
 
 - **2026-03-06 layout refactor**: super moved from end-of-device to offset 0 to prevent `mount -t xfs /dev/sda` accidentally mounting the raw device (which would corrupt the MXFS envelope). XFS data region grows toward end. mkfs_mxfs version bumped to 0.7.1.

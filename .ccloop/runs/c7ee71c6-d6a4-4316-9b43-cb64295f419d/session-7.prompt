@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 7 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 6
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `039ab21f-63c1-431b-88d3-cfd5418eac6d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/039ab21f-63c1-431b-88d3-cfd5418eac6d.jsonl`
+- approx context at last assistant turn: 502741 tokens
+- tools used: Bash×134 Read×37 Edit×36 Write×5 mcp__ccmemory__memory_write×4 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_aops.h
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/run.sh
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/scripts/fix26_wb_bast_exerciser.sh
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/state.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/suite/crash_consistency.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    ./tools/mxfs_sshpass.sh test3 x 'dmesg | sed -n "113890,113916p"' 2>&1 | grep -v 'Warning\|Unauthorized\|disconnect'
+    D=/tmp/run_crash_consistency_20260725T181124Z; for n in 1 2 3 4 5 6 7 8; do c=$(grep -hc '11002400\|0xa7e220' $D/kernlog_test$n 2>/dev/null); echo -n "t$n=$c ";
+    grep -n 'P-DIRWR' /src/mxfs/xfs/*.c /src/mxfs/pal/linux/*.c 2>/dev/null | head -5
+    grep -n 'xfs_da3_node_buf_ops' /src/mxfs/pal/linux/xfs_buf.c | head -3; grep -n 'struct xfs_da3_blkinfo {' -A 8 /src/mxfs/xfs/libxfs/xfs_da_format.h | head -12;
+    grep -n 'struct xfs_da3_node_hdr' -A 5 /src/mxfs/xfs/libxfs/xfs_da_format.h | head -8; grep -n 'mxfs_v5_dlm_inode_granted_mode' /src/mxfs/dlm/v5_mount.h | head 
+    echo 0.11.94 > /src/mxfs/VERSION && make modules 2>&1 | grep -E ' error:' | head -5; modinfo mxfs.ko | grep srcversion
+    for n in 1 2 3 4 5 6 7 8; do r=$(./tools/mxfs_sshpass.sh test$n x 'pkill -9 -f "crash_consistency|dir_reuse|drc_" 2>/dev/null; umount -f /mnt/shared 2>&1; for i
+    for n in 1 2 3 4 5 6 7 8; do r=$(./tools/mxfs_sshpass.sh test$n x 'lsmod | grep -q "^mxfs" && echo LOADED || echo CLEAN; mount | grep -q mxfs && echo STILL_MOUN
+    for n in 1 2 3 4 5 6 7 8; do r=$(./tools/mxfs_sshpass.sh test$n x 'pkill -9 -f "crash_consistenc[y]" 2>/dev/null; pkill -9 -f "dir_reus[e]" 2>/dev/null; umount 
+    ./tools/mxfs_sshpass.sh test1 x 'insmod /mnt/mxfs-src/mxfs.ko 2>/dev/null || insmod /src/mxfs/mxfs.ko; echo y | /src/mxfs/tools/mkfs_mxfs -f /dev/sda 2>&1 | tai
+    MXFS_FORCE_PREP=1 ./run.sh 8 tcp prep_cluster 2>&1 | tail -3
+    unset RULE0_CALIBRATE; ./run.sh 8 tcp crash_consistency 2>&1 | grep -E '^  (PASS|FAIL)'
+    D=$(ls -dt /tmp/run_crash_consistency_* | head -1); echo $D; for n in 1 2 3 4 5 6 7 8; do r=$(grep -hcE 'CRC error|Corruption detected' $D/kernlog_test$n 2>/dev
+    D=/tmp/run_crash_consistency_20260725T182439Z; printf 'daddr dec: %d\n' 0x9fb620; echo ==distinct corrupted blocks:; grep -h 'CRC error' $D/kernlog_test* | grep
+    D=/tmp/run_crash_consistency_20260725T182439Z; echo "==gmode distribution for daddr 10466848:"; grep -h 'P-DIRWR' $D/kernlog_test* | grep 'daddr=10466848' | gre
+    awk 'NR<7729 && /^(static |STATIC |int |void |__)/ && /submit|ioapply/ {print NR": "$0}' /src/mxfs/pal/linux/xfs_buf.c | tail -3; grep -n '_XBF_LOGRECOVERY\|XBF
+    grep -n 'xfs_buf_submit_ex(struct xfs_buf \*bp, bool fresh)' /src/mxfs/pal/linux/xfs_buf.c; awk 'NR>=7600 && NR<=7700 && (/^xfs_buf_submit/ || /^static.*submit/
+    grep -n 'mxfs_suppress_stale_agwrite' /src/mxfs/pal/linux/xfs_buf.c
+    grep -n 'mxfs_release_coalesced_flush' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; awk '/^void$|^mxfs_release_coalesced_flush/,/^}/' /src/mxfs/xfs/xfs_mxfs_dlm.c | 
+    grep -n '^mxfs_dir_flush_data_blocks\|^mxfs_release_coalesced_flush\|^int mxfs_dir_flush_data_blocks\|^static.*mxfs_dir_flush_data_blocks' /src/mxfs/xfs/xfs_mxf
+
+## Last text from previous session
+
+hange lock-table purge (orphan-grant NAK heal, both at unlock-ENOENT and bast-RX). Plus the harness fixes that were hiding both: barrier timeout now fits inside the kill box (no more NO_TERMINAL_RECORD), and stale `/root` forensic captures are cleaned at test start.
+- **Current build v0.11.93** (srcver 84A5D634...) deployed on 8/tcp: dir_reuse_coherency green ×3, cache_coherency 558/558 in 8s, dlm_scaling 7/7 in 14s, and all health counters (P73, P132, P146V) at zero.
+- I was partway into the **full 8/tcp rung** (batch 1: precond_readiness passed; posix_single/integrity_filetypes/fault_enospc were queued when you interrupted).
+
+Holding here until you tell me how you'd like to proceed.
+Criteria not met — continuing. First the flagged awareness-doc update for pal (and the dlm/xfs docs I also touched, per project rules), then resuming the rung:
+pal.md done. Now the dlm.md entry for the orphan-grant NAK (dlm.c/v5_mount.c changed there too, per project doc rules):
+Docs updated (pal, dlm, xfs — the sed warnings are the known NFS root-squash quirk; edits verified). Resuming the full 8/tcp rung:
+Extending P-DIRWR with the danode arm + granted-mode, and watch-arming crash_consistency:
+The format string gained `gmode=%u` but the argument list needs `dwgmode` inserted. Fixing:
+Field names and declaration confirmed. Now the CC harness watch-arm:
+The pkill pattern matched its own ssh cmdline and killed the shell — the exact state.md lesson. Redoing with the bracket trick:
+**Reproduced on a fresh LUN** — the failure regenerates, and this time the danode write traces are armed. Harvesting:
+Now the RULE-5 consult with the evidence fresh:
+Implementing fence v1. First, the chokepoint's enclosing function and its early-return pattern, plus the log-recovery buffer flag:
+Prior art exists in this very function — `mxfs_suppress_stale_agwrite` implements suppress-and-complete-without-I/O for stale AG-meta writes. Finding the act-site to mirror its mechanics:
+Session 6 summary — criteria **not met** (not production ready; one critical defect open), handing off at the relay boundary.
+
+**Fixed and verified this session (v0.11.87→94):**
+- **FIX-26**: permanent writeback-vs-bast-drain deadlock (flusher holding a folio lock while parked in the demote-wait; bast drain blocked on that folio) — live-captured on test8, fixed by admitting writeback-submission tasks like ioend workers. The wedge had been silently poisoning every subsequent run via hung `sync`.
+- **Orphan-grant NAK**: membership-change table purges can leave a master holding a zombie AG grant the "holder" no longer knows about (captured: 500s of 1/s re-BASTs starving the whole cluster). Unlock-ENOENT and bast-RX now send a guarded unconditional release.
+- **Harness**: barrier timeout now fits inside the kill box (ends the NO_TERMINAL_RECORD blindness), stale forensic captures cleaned per run, crash_consistency now arms the dir-block write tracer.
+- Green on current build: dir_reuse ×6, cache_coherency, dlm_scaling, and 8 more rung tests re-run current.
+
+**The open front — a critical, reproducible on-disk corruption (Defect A):** under an 8-node create storm, peer nodes write **stale cached dir-block images while holding only PR (19 captured) or after release (1, via xfsaild)**; interleaved with the real holder's leaf→node split write, they tear the block on the LUN → CRC failure → 5-of-8-node shutdown cascade. Root proven with per-write granted-mode tracing; reproduces on a fresh filesystem in ~30s. A GPT design review produced the fix blueprint (tenure-authorized write fence + exhaustive publish registry); the provably-safe v1 fence is specced with exact code sites in state.md and ccmemory for the next session. Defect B (dir format-decision TOCTOU, EUCLEAN-only) is the same family read-side.
+
+Note for the next session: **the shared LUN is corrupted from the repro — mkfs before any runs.** All detail is in the four ccmemory entries and state.md (written now, at the handoff, per its intended use).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -31,6 +31,16 @@
 
 #define MXFS_DISKLOCK_FLAG_ACTIVE       1
 #define MXFS_DISKLOCK_FLAG_EMPTY        0
+/*
+ * sess9 (ccloop c7ee71c6) D2: voluntary death stamp.  A force-shutdown FS
+ * writes this into its own heartbeat record (magic/node_id/epoch kept) so
+ * peers detect the death on their next monitor scan (~2-4 s) instead of
+ * after the 31-sample stale window (62 s).  Peers then run the same
+ * fence → elected-slice-replay → purge pipeline as for a crashed node —
+ * the withdrawn node's grants stay frozen until its journal slice has
+ * been replayed (see mxfs_disklock_recovered_cb).
+ */
+#define MXFS_DISKLOCK_FLAG_WITHDRAWN    2
 
 /* Offset where lock records begin (after heartbeat region) */
 #define MXFS_DISKLOCK_HB_SIZE           (MXFS_DISKLOCK_HB_SLOTS * \
@@ -190,6 +200,22 @@ struct mxfs_disklock_node_track {
 typedef void (*mxfs_disklock_expire_cb)(void *data, mxfs_node_id_t dead_node);
 
 /*
+ * sess9 (ccloop c7ee71c6) D2: recovery-complete callback.  Fired by the
+ * monitor when a slot previously marked recovery-pending (fire_dead ran;
+ * purge was DEFERRED) reads as reclaimed on disk — i.e. the elected
+ * replayer zeroed it AFTER replaying the dead node's log slice (see
+ * mxfs_v5_dlm_recovery_complete), or the dead node itself remounted (its
+ * own mount-time recovery replayed the slice; epoch differs).  The body
+ * performs the LOCAL half of the old expire-time purge (DLM grant
+ * tables, membership refresh).  Deferring that purge is what keeps peers
+ * off the dead node's resources until its journal is replayed — the
+ * PROVEN drc@16 r13 tear (ifree destaged, dirent-remove abandoned) was
+ * consumed by peers precisely because grants flowed before replay.
+ */
+typedef void (*mxfs_disklock_recovered_cb)(void *data, int slot,
+                                           mxfs_node_id_t dead_node);
+
+/*
  * sess131: self-fence callback.  Fired (once) by the heartbeat thread when it
  * detects that the device's MXFS superblock no longer matches the volume this
  * mount belongs to — i.e. the device was re-mkfs'd under a live mount.  The
@@ -236,6 +262,23 @@ struct mxfs_disklock_ctx {
     void                             *expire_cb_data;
 
     /*
+     * sess9 (ccloop c7ee71c6) D2: per-slot recovery-pending state.  Set
+     * (under ctx->lock) by mxfs_disklock_mark_recovery_pending when the
+     * v5 expire path defers the purge behind the dead node's slice
+     * replay; cleared by the monitor when the slot reads reclaimed
+     * (recovered_cb fires) or by the elected replayer via
+     * mxfs_disklock_clear_recovery_pending just before it zeroes the
+     * slot itself.  pending_node/pending_epoch pin the exact incarnation
+     * we are waiting out, so a rejoin (same node, new epoch) also reads
+     * as resolved.
+     */
+    bool                             recovery_pending[MXFS_DISKLOCK_HB_SLOTS];
+    mxfs_node_id_t                   pending_node[MXFS_DISKLOCK_HB_SLOTS];
+    mxfs_epoch_t                     pending_epoch[MXFS_DISKLOCK_HB_SLOTS];
+    mxfs_disklock_recovered_cb       recovered_cb;
+    void                             *recovered_cb_data;
+
+    /*
      * sess131 generation identity.  fs_gen is a nonzero 32-bit fold of the
      * volume_id (FNV-1a of the XFS sb_uuid); written into every heartbeat
      * record this node emits.  Heartbeat records with a different fs_gen are
@@ -279,6 +322,14 @@ void mxfs_disklock_destroy(struct mxfs_disklock_ctx *ctx);
 int  mxfs_disklock_start_heartbeat(struct mxfs_disklock_ctx *ctx);
 void mxfs_disklock_stop_heartbeat(struct mxfs_disklock_ctx *ctx);
 
+/* v0.11.76 (D3): clear our heartbeat record's ACTIVE flag on CLEAN
+ * teardown (FUA).  Without this every past tenure stays ACTIVE on the
+ * platter forever: later mounts count the ghost as an active foreign
+ * slot (15s settle-gate tax) and the auto-monitor keeps re-evicting it.
+ * Call AFTER stop_heartbeat; not on withdraw (peers must still detect
+ * the death and recover the slice). */
+int  mxfs_disklock_release_slot(struct mxfs_disklock_ctx *ctx);
+
 /* Lock record operations */
 int  mxfs_disklock_write_grant(struct mxfs_disklock_ctx *ctx,
                                 const struct mxfs_resource_id *resource,
@@ -300,6 +351,22 @@ int  mxfs_disklock_read_all(struct mxfs_disklock_ctx *ctx,
 
 void mxfs_disklock_set_expire_cb(struct mxfs_disklock_ctx *ctx,
                                   mxfs_disklock_expire_cb cb, void *data);
+
+/* sess9 (ccloop c7ee71c6) D2 — withdraw + deferred-purge recovery API */
+void mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx);
+void mxfs_disklock_set_recovered_cb(struct mxfs_disklock_ctx *ctx,
+                                    mxfs_disklock_recovered_cb cb, void *data);
+void mxfs_disklock_mark_recovery_pending(struct mxfs_disklock_ctx *ctx,
+                                         int slot, mxfs_node_id_t node);
+bool mxfs_disklock_recovery_is_pending(struct mxfs_disklock_ctx *ctx, int slot);
+void mxfs_disklock_clear_recovery_pending(struct mxfs_disklock_ctx *ctx,
+                                          int slot);
+mxfs_node_id_t mxfs_disklock_pending_node(struct mxfs_disklock_ctx *ctx,
+                                          int slot);
+/* Iterate pending slots: first call prev=-1; returns next pending slot
+ * (> prev) with *node filled, or -1 when exhausted. */
+int mxfs_disklock_recovery_pending_iter(struct mxfs_disklock_ctx *ctx,
+                                        int prev, mxfs_node_id_t *node);
 
 /*
  * sess131 generation identity.  set_fs_identity must be called after create

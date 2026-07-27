@@ -41,6 +41,11 @@ extern int mxfs_p125_ag_diverge;
  * (P-DIRWR write submission + P-DIRRD read completion in xfs_buf.c).
  * Cheap enough to leave on through a whole coherency run, unlike instr. */
 extern int mxfs_dirwr_enabled;
+/* ccloop c7ee71c6 sess2: eager per-ifree durability chain (default 0). */
+extern int mxfs_ifree_eager_durable;
+extern int mxfs_inact_defer_unlock;
+/* ccloop c7ee71c6 sess2: coalesced background destage kick. */
+void mxfs_destage_kick(struct xfs_mount *mp);
 /* ccloop 72513a13: max -EAGAIN requeue cycles for a deferred extent-free
  * whose blocking AG-DLM acquire returned -ETIMEDOUT (peer-held AG under
  * saturation).  Each cycle re-registers the 120s CAW waiter.  0 = legacy
@@ -643,6 +648,8 @@ extern int mxfs_fua_disable;
 extern int mxfs_publish_dirs;
 void mxfs_ag_meta_track(struct xfs_buf *bp);
 void mxfs_dlm_ag_meta_iodone(struct xfs_buf *bp);
+void mxfs_ag_meta_reclaim_abort(struct xfs_buf *bp);
+extern int mxfs_dbg_dialloc_shutdown;	/* DEBUG one-shot AGI umount-wedge test */
 
 /*
  * v0.3.70: returns true while the FUA-read window is open for the AG that
@@ -700,6 +707,11 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
  * FUA-rewrite of released bufs in mxfs_dlm_bast_process. */
 int mxfs_pal_scsi_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				   const void *buf, uint32_t len);
+
+/* v0.11.74: deferred PR unregister after the unmount log record — a
+ * non-holder that unregisters before xfs_unmountfs bounces its final
+ * log write off the peer's WE-RO reservation (EBADE shutdown). */
+int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key);
 
 /* sess47 diagnostic: FUA-read the on-disk di_mode of a bare inode number
  * (0 = free on disk).  Used at the AG bnobt double-free site to tell a

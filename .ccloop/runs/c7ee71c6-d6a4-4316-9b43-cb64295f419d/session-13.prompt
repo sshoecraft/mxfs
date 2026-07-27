@@ -1,0 +1,125 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 13 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 12
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `995444b7-35e8-4d17-b415-2edc0560ecb0`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0.jsonl`
+- approx context at last assistant turn: 497700 tokens
+- tools used: Bash×256 Edit×6 Read×5 mcp__ccmemory__memory_write×5 Write×3 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/peer.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/state.md
+- /src/mxfs/tests/suite/dlm_scaling.sh
+- /src/mxfs/tests/stallcap_watch.sh
+- /src/mxfs/tests/repro_32caw_wedge.sh
+- /src/mxfs/run.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 25 tools/mxfs_sshpass.sh test14 "$PF" 'journalctl -k -b -2 -o short-monotonic --no-pager 2>/dev/null
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""P95D BAIL storm on ino=128 observed mid-readdir. READ ccmemory **sess12-D FIRST**""
+    cd /src/mxfs; grep -rn 'mxfs_trans_preacquire_inode_ags' xfs/ pal/ | grep -v '\.o' | head -8
+    cd /src/mxfs; sed -n '31180,31260p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""Fix shape: preacquire extent AGs pre-dirty (extend mxfs_trans_preacquire_inode_ags 
+    cd /src/mxfs; grep -n 'xfs_itruncate_extents_flags\|xfs_itruncate_extents' xfs/xfs_inode.c xfs/xfs_inode.h | head -5
+    cd /src/mxfs; sed -n '2940,3080p' xfs/xfs_inode.c
+    cd /src/mxfs; grep -n 'xfs_bunmapi_range' xfs/libxfs/xfs_bmap.c | head -3; sed -n "$(grep -n '^xfs_bunmapi_range' xfs/libxfs/xfs_bmap.c | cut -d: -f1),+45p" xfs
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""Fix shape REFINED (sess12 close): mxfs_trans_preacquire_inode_ags (xfs_mxfs_dlm.c:3
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""   Recommend: A for prevention + B as the structural backstop; implement B    first
+    cd /src/mxfs; for t in 1 2 3 4 5 6; do pgrep -f repro_32caw >/dev/null || break; sleep 5; done 2>/dev/null; tail -12 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d
+    grep -A40 'harvesting' /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratchpad/wedge_loop2.log | tail -12; cd /src/mxfs; PF=$(tools/mxfs_secr
+    tail -6 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratchpad/wedge_loop2.log; pgrep -f repro_32caw >/dev/null && echo LOOP-RUNNING || echo
+    for t in $(seq 1 40); do pgrep -f repro_32caw >/dev/null || break; sleep 5; done; tail -8 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratc
+    tail -12 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratchpad/wedge_loop2.log; pgrep -f repro_32caw >/dev/null && echo LOOP-RUNNING || ech
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'python3 -c " import os, time d=\"/mnt/shared/.pyprobe_aged/n1\
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""   Verify: repro chain 30+ sequences; readopt must grant within ms    (P1-AGWAIT → 
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'cd /sys/kernel/debug/tracing && echo 0 > function_profile_enab
+    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 60 tools/mxfs_sshpass.sh test1 "$PF" 'cd /sys/kernel/debug/tracing/trace_stat && awk "FNR>2 {hit[\$1
+    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""Next: ftrace    the solo op on the degraded cluster (function_graph on mxfs_dlm_ilo
+
+## Last text from previous session
+
+cate rolls inside `xfs_bunmapi_range` — reading it to find the per-batch loop and clean-trans point:
+Working state at this boundary — **criteria: NO** — with two precisely-scoped open defects, both root-chased deep into the code this burst:
+
+**Defect 1 — 32/caw spurious shutdown (deadlock), root PROVEN:** the truncate path (`xfs_setattr_size → __xfs_bunmapi`) blocks on an AG DLM acquire holding ILOCK + dirty transaction; the AG's local BAST-release drain needs that same inode flushed → circular wait → 212s stall → designed shutdown. Crucially, the anti-deadlock mechanism (`P12-READOPT` — local waiter adopts the cached hold) **exists and fired but failed to unblock the waiter** — the next session's target is the READOPT state machine, the smallest correct fix. The naive preacquire fix was analyzed and rejected (re-creates the cycle after roll 1); a prevention-shape (preacquire at `xfs_setattr_size` entry while clean) is documented as the follow-up.
+
+**Defect 2 — aged-state performance slope, freshly quantified live:** the third consecutive chain on one prep degraded every row 2-3× and the solo single-node op pace 4× (1805→453 ops/s, 0.55→2.21 ms/op) with zero concurrency — per-op cost grows with accumulated state (MHT publish gating, eviction-ring, table chains, and AIL depth are the ranked suspects). The degraded cluster is preserved as a live artifact with ftrace as the designated next probe; the wedge-hunt loop's harvest was still collecting at save.
+
+Everything else stands green at v0.11.114: the full tcp column, CAW family + physical rig, the TCP false-death fix storm-validated, the matrix otherwise clean. All of it is banked in state.md and five sess12 ccmemory dossiers; the reproducer and stall-capture tooling are in the tree. The relay continues from a diagnosis frontier, not a cold start.
+Continuing — the degraded cluster is still live. Profiling exactly where the extra 1.66ms/op goes using the kernel function profiler on test1:
+Relay boundary — wrapping up. **Criteria answer: NO — not production ready**, with the remaining work now precisely scoped.
+
+**Session 12 delivered:**
+
+1. **TCP false-death defect FIXED AND VERIFIED (v0.11.114)** — the root of both 16/tcp collapses: outbound reconnects never cancelled the death timer, so live peers were declared dead, exiled via P164, and membership forked. Verified by deterministic flap repro and a 496-pair join storm (24/24 flaps healed, zero deaths).
+2. **Full tcp column green at .114** (1/2/4/16 complete boards + withdraw, 32-node spot tier + withdraw), all 14 stale matrix red cells cleared on trustworthy rigs, dlm_scaling harness corrected (fork overhead, assertions unchanged). The matrix briefly reached 548 cells / 0 non-PASS.
+3. **Two open defects root-chased deep:**
+   - **32/caw spurious-shutdown deadlock — root PROVEN** from the incident journal: truncate (`__xfs_bunmapi`) holds ILOCK + dirty trans while waiting on an AG whose local BAST-release drain needs that inode flushed → circular wait → designed shutdown. The existing anti-deadlock READOPT mechanism fired but failed to unblock the waiter — that state machine is the fix target; the naive preacquire alternative was analyzed and rejected (re-creates the cycle).
+   - **Aged-state performance slope — profiled to named functions**: 4× solo-op degradation (1805→453 ops/s) caused entirely by `mxfs_dlm_dir_inode_durable` + `mxfs_inode_cluster_durable` issuing ~11 synchronous device reads per op on the aged cluster (vs ~0 fresh), connecting to the standing `rerr=-11` watch item.
+
+**Next session starts at:** read the P12-READOPT state machine (why the adopted grant never woke the waiter) and the two durable-check functions (why per-op readback grows with age), fix, then verify with `tests/repro_32caw_wedge.sh` (30+ sequences) and re-green the 32/caw rows. The degraded cluster may still be live as an artifact; the wedge-loop harvest was mid-collection. Everything is banked in state.md and the five sess12 ccmemory dossiers.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

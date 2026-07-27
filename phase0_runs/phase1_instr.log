@@ -1,7 +1,0 @@
-fresh_cluster_mount: 3/4 mounted; failed: test3
-  --- test3.log ---
-    
-    
-    mount: /mnt/shared: mount(2) system call failed: Structure needs cleaning.
-           dmesg(1) may have more information after failed mount system call.
-RESULT: FAIL  criterion=cache_coherency  measured=n/a  threshold=mount-ok  reason=cluster mount failed before harness invoke

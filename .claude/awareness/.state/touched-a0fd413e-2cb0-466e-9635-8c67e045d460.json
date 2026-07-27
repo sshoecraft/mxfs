@@ -1,0 +1,11 @@
+{
+  "source": [
+    "xfs/xfs_trans_ail.c",
+    "pal/linux/xfs_buf.c",
+    "xfs/libxfs/xfs_dir2_sf.c",
+    "xfs/libxfs/xfs_inode_fork.c"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 2
+}

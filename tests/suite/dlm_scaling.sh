@@ -50,29 +50,56 @@ fi
 
 ck "ds barrier ready" coord_barrier "ds_ready"
 
+# ccloop c7ee71c6 sess12: the op loop forked `stat` + `rm` binaries PER OP.
+# On CPU-oversubscribed VMs (32×4 vcpu on 56 threads) fork+exec costs
+# ~15 ms each under storm load — at 32 nodes the harness's own forks more
+# than doubled per-op wall (47.6 ms/op measured vs 16.7 ms/op pure-FS via
+# a fork-free python probe), dragging the measured rate to 21/s against a
+# 30/s floor.  The SUT (create+stat+unlink through the DLM) was CLEARING
+# the floor at 60/s.  Run the identical op sequence in ONE python3
+# process (3 syscalls/op, zero forks) so the row measures the filesystem,
+# not the shell.  Assertions (OPS quota, WINDOW, floor, aggregate>max)
+# are unchanged; checkpoints and first-fail forensics preserved.
 t0=$(date +%s.%N)
-done_ops=0
 : > "/tmp/dsc_checkpoints_${R}.log"
-for i in $(seq 1 "$OPS"); do
-    f="$D/f${i}"
-    if [ $((i % 200)) -eq 0 ]; then
-        tN=$(date +%s.%N)
-        awk "BEGIN{printf \"i=%d t=%.3f\n\", $i, $tN-$t0}" >> "/tmp/dsc_checkpoints_${R}.log"
-    fi
-    { : > "$f" && stat "$f" >/dev/null 2>&1 && rm -f "$f"; } || {
-        # sess13 one-shot forensics at the FIRST failed op: is the own-subdir
-        # dirent still in the parent?  Dump the parent's dir blocks + DLM
-        # state (P10-DIRDUMP magic lookup) and snapshot dmesg to /root — the
-        # drc_blkdump_* glob in run.sh pulls it into the host artifact.
-        echo "ds node${R} FIRSTFAIL i=$i own_stat=$(stat -c %i "$D" 2>&1 | head -1) parent_ls=[$(ls "$MNT/.dlm_scaling" 2>/dev/null | tr '\n' ' ')]" >&2
-        pd="/root/drc_blkdump_dsc_node${R}"
-        mkdir -p "$pd" 2>/dev/null
-        [ -e "$MNT/.dlm_scaling/.mxfs_dirdump1" ] 2>/dev/null || true
-        dmesg | tail -n 4000 > "$pd/dmesg_at_fail.txt" 2>/dev/null || true
+py_out=$(python3 - "$D" "$OPS" "$R" <<'PYEOF'
+import os, sys, time
+d, ops, rank = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+t0 = time.time()
+done = 0
+fail_i = 0
+err = ""
+cp = open(f"/tmp/dsc_checkpoints_{rank}.log", "w", buffering=1)
+for i in range(1, ops + 1):
+    f = f"{d}/f{i}"
+    if i % 200 == 0:
+        cp.write("i=%d t=%.3f\n" % (i, time.time() - t0))
+    try:
+        fd = os.open(f, os.O_CREAT | os.O_WRONLY, 0o644)
+        os.close(fd)
+        os.stat(f)
+        os.unlink(f)
+    except OSError as e:
+        fail_i = i
+        err = str(e)
         break
-    }
-    done_ops=$i
-done
+    done = i
+print(f"done={done} fail_i={fail_i} err=[{err}]")
+PYEOF
+)
+done_ops=$(echo "$py_out" | sed -n 's/^done=\([0-9]*\).*/\1/p'); done_ops=${done_ops:-0}
+fail_i=$(echo "$py_out" | sed -n 's/.*fail_i=\([0-9]*\).*/\1/p'); fail_i=${fail_i:-0}
+if [ "$fail_i" != 0 ]; then
+    # sess13 one-shot forensics at the FIRST failed op: is the own-subdir
+    # dirent still in the parent?  Dump the parent's dir blocks + DLM
+    # state (P10-DIRDUMP magic lookup) and snapshot dmesg to /root — the
+    # drc_blkdump_* glob in run.sh pulls it into the host artifact.
+    echo "ds node${R} FIRSTFAIL i=$fail_i pyerr=$(echo "$py_out" | sed -n 's/.*err=\(.*\)/\1/p') own_stat=$(stat -c %i "$D" 2>&1 | head -1) parent_ls=[$(ls "$MNT/.dlm_scaling" 2>/dev/null | tr '\n' ' ')]" >&2
+    pd="/root/drc_blkdump_dsc_node${R}"
+    mkdir -p "$pd" 2>/dev/null
+    [ -e "$MNT/.dlm_scaling/.mxfs_dirdump1" ] 2>/dev/null || true
+    dmesg | tail -n 4000 > "$pd/dmesg_at_fail.txt" 2>/dev/null || true
+fi
 t1=$(date +%s.%N)
 elapsed=$(awk "BEGIN{e=$t1-$t0; print (e>0)?e:0.001}")
 rate=$(awk "BEGIN{printf \"%d\", $done_ops/$elapsed}")

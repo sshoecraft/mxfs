@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 2 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+all known issues resolved
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/4dd776bf-77c7-4a40-b22e-8d96ba4f5b18/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run 4dd776bf-77c7-4a40-b22e-8d96ba4f5b18, after session 1
+
+## Original task
+
+read continue_troubelshooting.md for prompt
+
+
+## Previous session
+
+- session-id: `4f16076f-ea39-4d2e-8982-299306a4383d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d.jsonl`
+- approx context at last assistant turn: 501391 tokens
+- tools used: Bash×130 Read×34 Edit×33 TaskCreate×4 mcp__ccmemory__memory_get×4 mcp__ccmemory__memory_write×3 ToolSearch×2 TaskUpdate×1 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/scripts/deadshell_repro.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_extent_busy.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    N1=test1 N2=test2 MXFS_PASS=/tmp/.mxfs_pass scripts/agi_wedge_repro.sh 180 24 2>&1 | tail -2
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); for n in 1 2; do echo "test$n: CORRUPT=$(grep -cE 'Corruption
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); echo "=== test2 shutdown ==="; N=$(grep -nE "Corruption detec
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); sed -n '73760,73810p' $LOGD/live_test1.log | grep -E "task|IN
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); grep -nE "BUG:|Oops|RIP:|WARNING:|soft lockup|watchdog" $LOGD
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); sed -n '69671,69720p' $LOGD/live_test1.log | grep -E "lockup|
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n dup extent frees (agbno see
+    grep -n "xfs_extent_busy_insert_list\|busyp->bno\|ASSERT\|WARN" xfs/xfs_extent_busy.c | head -14; sed -n "$(grep -n 'xfs_extent_busy_insert_list' xfs/xfs_extent
+    grep -n "xg_gno\|xg_group_no\|struct xfs_group {" xfs/libxfs/xfs_group.h 2>/dev/null | head -4; grep -rn "xfs_group_put" xfs/xfs_extent_busy.c | head -2
+    echo "0.11.46" > VERSION; make modules 2>&1 | grep -E " error|undefined" | head -5; modinfo mxfs.ko | grep srcversion
+    virsh -c qemu:///system destroy test1 2>&1; virsh -c qemu:///system destroy test2 2>&1; sleep 3; virsh -c qemu:///system start test1; virsh -c qemu:///system st
+    for i in $(seq 1 30); do ok=0; for ip in 192.168.120.186 192.168.120.182; do ping -c1 -W1 $ip >/dev/null 2>&1 && ok=$((ok+1)); done; [ $ok -eq 2 ] && break; sle
+    MXFS_FORCE_PREP=1 ./run.sh 2 tcp prep_cluster 2>&1 | tail -2; TS=$(date -u +%Y%m%d_%H%M%SZ); LOGD=/src/mxfs/tests/logs/vmrig_dialloc_$TS; mkdir -p $LOGD; echo $
+    N1=test1 N2=test2 MXFS_PASS=/tmp/.mxfs_pass scripts/agi_wedge_repro.sh 180 24 2>&1 | tail -2; LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-2993
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n first failure ==="; N=$(gre
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); grep -nE "xfs_ifree returned|difree|DIFREE|inobt record|xfs_i
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); for n in 1 2; do echo "=== test$n P150 agno=1 startino=128 of
+    grep -n "mxfs_ag_meta_invalidate_stale\|b_tenure_id =" pal/linux/xfs_buf.c xfs/xfs_mxfs_dlm.c | head -10
+    grep -rn "b_tenure_id = " xfs/ pal/ | head -8
+    LOGD=$(cat /tmp/claude-1000/-src-mxfs/4f16076f-ea39-4d2e-8982-299306a4383d/scratchpad/logdir.txt); for n in 1 2; do echo "test$n: inobt-WR=$(grep -c 'P144-WR in
+
+## Last text from previous session
+
+llers:
+Build clean. Bump version (fix landed), rebuild, deploy, and re-run the repro:
+Prep aborted but my pipeline swallowed it and the repro "no escalation" may be vacuous. Check actual cluster state:
+Both nodes mounted with fix build C61E575C and the churn ran with no escalation. Did the fix actually fire?
+Same pipeline-swallows-exit-status trap the memory warned about — my `ssh1` helper pipes through grep. Fix the check to be output-based:
+Another shutdown on test1 — but NOT the dead-shell path (all its probes 0). This is the other flavor. Extract the failure with the new P150 record history:
+Now fix 2 — reset4create generation converge:
+Now fix 3 — P116 gens in the print plus the +1-zombie arm:
+Now find the reload's dinode read to instrument provenance (was the buffer served from cache?):
+Build 1AA3BB0B clean. Deploy and run the churn round:
+Boot issue durably fixed. Now the churn round on v0.11.42 with fresh capture:
+**The dead-shell fix fired and rescued on test1** (DEFER=1, SANITIZE=1)! But test2 still hit the remove-path cancel. Examine both:
+Build E4AD55B8 (v0.11.44 with the unleak). Deploy and run:
+Now the reuse-point hygiene — reset4create reads the coherent gen and clears the intent flag:
+Round 2 clean; my batch exceeded the 10-min cap mid-round-3. Run rounds individually (per the foreground-chunks discipline):
+While round 3 runs in background, check live captures for any corruption so far:
+The liveness collapse recurred under clean load — real defect, now exposed since corruption no longer kills rounds first. Extract both nodes' evidence:
+test1 is hard-wedged (spinlock loop) — reset both VMs, redeploy, then checkpoint memory:
+Both VMs back clean (iSCSI fix held). Deploy v0.11.46 and start verification rounds:
+Relay boundary — let me save the final finding to memory before handoff:
+## Session summary
+
+**Criteria ("all known issues resolved") — NOT met yet; substantial progress made.** The pve physical nodes were down (no OOB), so I pivoted to the VM rig (test1/test2 + rebuilt LIO tcm_loop shared LUN), where the handoff's dialloc-corruption family reproduces in 45–180s of 2-node churn — every round, with full dmesg autopsies.
+
+**Six fixes landed (v0.11.40 → 0.11.46, all uncommitted per standing rules):**
+1. **Dead-shell CREATE fix** (the exact pve signature): defer the false "Corruption detected!" check for peer-freed IRECLAIMABLE shells + sanitize them from disk evidence in recycle. **Verified rescuing live** — the previously-fatal chain now completes the create (fired on both nodes, zero resulting corruption).
+2. **Recycle-gate ordering guard** — stop adopting older-generation disk images (proven mis-adopt on ino 1862).
+3. **P116 zombie arm** — a clean gen+1 disk-free image is a peer-freed zombie: adopt it so stale-map truncates no-op (kills the double extent-free feeder).
+4. **Own-free bypass** — an unpublished reused create's rightful freer no longer misclassifies its own life as peer-freed (this was leaking AGI bucket entries and inobt allocations; proven via ino 680).
+5. **AGI bucket unleak + intent-flag/generation hygiene** at every reuse point.
+6. **Busy-extent duplicate guard** — upstream's duplicate-insert path infinite-loops holding a spinlock (proven 2-CPU wedge that starved the peer's DLM into a 184s-timeout shutdown); now logs and bails.
+
+**Result:** first-ever clean churn rounds (2 consecutive) on v0.11.45. The one remaining corruption flavor is now precisely instrumented: P150 record-level traces prove the two nodes hold **divergent inobt record copies across AG handoffs** (restamp/keep-in-core family; cold re-reads nearly absent — bgen=0, ~1 read per 14 writes). The next session has a ranked root-candidate list and a one-shot discriminator (P144 WR/RD cross-node join) recorded in memory (`ccloop4dd7-sess1-C-inobt-divergence-root-lead`), plus open items: DLM timeout-escalation policy, dead-peer journal recovery, AGI Phase-B, pve2 flush_workqueue wedge, and final multi-round + full-suite verification.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

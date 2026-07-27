@@ -1,0 +1,131 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 15 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 14
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `67d5c440-ec72-41ec-b39b-2858376636ae`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/67d5c440-ec72-41ec-b39b-2858376636ae.jsonl`
+- approx context at last assistant turn: 495883 tokens
+- tools used: Bash×271 Edit×63 Read×29 mcp__ccmemory__memory_write×12 mcp__ask_gpt__query×3 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/d3_dirring.sh
+- /src/mxfs/tests/d3_ring_analyze.py
+- /src/mxfs/state.md
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_trans_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; for r in 1 2 3; do ./run.sh 32 caw prep_cluster >/dev/null 2>&1; out=$(./run.sh 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'); echo "$out
+    cd /src/mxfs; jq -r '.categories[].tests[]|select(.name=="cache_coherency")|.runs["32/caw"]|"\(.status) \(.measured)"' criteria.json; PF=$(tools/mxfs_secrets.sh
+    cd /src/mxfs; python3 - <<'PY' p='/src/mxfs/state.md' s=open(p).read() s=s.replace("""HIT-RATE at .132 (measured, prep->cc cycles): 1 FAIL in 8 cycles (PASS,PAS
+    cd /src/mxfs; ls .ccmemory/ | grep 'c7ee71c6-sess14' | sed 's/\.md$//'; echo "---"; cat .ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met 2>/dev/nu
+    cd /src/mxfs; grep -n 'i_mxfs_dead_incarn_gen = 0;	/\* sess14' xfs/xfs_mxfs_dlm.c | head -1
+    cd /src/mxfs; echo "0.11.133" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; ./run.sh 32 caw prep_cluster 2>&1 | tail -1; ./run.sh 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'
+    cd /src/mxfs; python3 - <<'PY' p='/src/mxfs/state.md' s=open(p).read() s=s.replace("Build **v0.11.132** srcver **93B9ED73A9ABF29BA8F0E92** deployed + prepped", 
+    cd /src/mxfs; grep -n 'P2G-LOGWHO' xfs/*.c | head -2
+    cd /src/mxfs; grep -rn 'P2G-LOGWHO' --include='*.c' . | head -2
+    cd /src/mxfs; sed -n '88,100p' xfs/libxfs/xfs_trans_inode.c
+    cd /src/mxfs; echo "0.11.134" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; grep -n 'p2_loop_wrote = true;' xfs/xfs_mxfs_dlm.c | head -2
+    cd /src/mxfs; echo "0.11.135" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    cd /src/mxfs; echo "0.11.136" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion; ./run.sh 32 caw prep_c
+    cd /src/mxfs; ./run.sh 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'; PF=$(tools/mxfs_secrets.sh passfile); t=0; for i in $(seq 1 6); do c=$(timeout 8 t
+    cd /src/mxfs; python3 - <<'PY' p='/src/mxfs/state.md' s=open(p).read() s=s.replace("Build **v0.11.133** srcver **550FF5CAC4CB75169DB65ED** deployed + prepped", 
+    cd /src/mxfs; sed -n '14174,14182p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; grep -n 'int mxfs_dir_stalegen_adopt = 1;' xfs/xfs_mxfs_dlm.c | head -1
+    cd /src/mxfs; echo "0.11.137" > VERSION; make modules 2>&1 | grep -E '^\s*(error|Error)|error:' | head -5; modinfo mxfs.ko 2>/dev/null | grep srcversion
+
+## Last text from previous session
+
+t that instrument, the next session could easily have "verified" a non-fix.
+
+**State at handoff — v0.11.136, built clean, deployed to all 32 nodes, cache_coherency passing:**
+
+Steps 1 and 2 of the four-step fix are implemented (pending-counter bump at the single commit chokepoint; durable-counter advance at the drain's synchronous write, with the known `xfs_iflush_cluster` rc==0 caveat documented as the first suspect if the obligation clears too eagerly). Step 3 is measured but deliberately not enforced — flipping that site from a print into "submit, and fail the handoff if it cannot land" is the next session's first action, with a warning that it will surface latency costs that were previously hidden by the unsafe release.
+
+**This session overall:** two root causes proven and fixed (D1's `cancel_work_sync` deadlock, D3's acquire-side stale-fork RMW), the residual data-loss rate cut from ~4-in-6 to ~1-in-15, four candidate fixes built and honestly refuted by measurement, and the true mechanism now identified, instrumented, and half-implemented rather than merely theorized. Eleven `sess14-A..K` memories, `state.md`, `pal.md`, three evidence sets, a reproducer with a measured hit-rate, and an explicit verification criterion are all in place for the relay.
+Criteria not met — implementing step 3 (enforcement). The existing re-log machinery below already does "submit instead of return success," so enforcement is routing the open obligation into it, behind an A/B param:
+That edit was structurally wrong — I left a stray `if (false) {`. Reading and repairing:
+Found it — my stray `if (false) {` is now wrapping (and disabling) the dead-incarnation guard. Restoring its real condition:
+Enforcement builds clean (v0.11.137, `48B8FEECB410A606F861CDD`). Wrapping at the relay boundary.
+
+**Criteria: NO — MXFS is not production ready.** The marker stays unwritten.
+
+**Where I'm leaving it:** v0.11.137 is built but **not yet deployed or tested** — that's the immediate next action. It contains the first three of four wiring steps for the real fix, with enforcement live behind `mxfs.pub_obligation_enforce` (default 1, `=0` for the legacy A/B).
+
+**The session's most important result** came in the last stretch. After four candidate fixes that I built and honestly refuted by measurement, I wired publication-obligation counters and instrumented the release drain's silent-success exit. `P176-OBLIGATION-OPEN` fired **116 times across 6 nodes in a single passing run** — proving the drain hands off the DLM grant with unlanded committed changes constantly, not rarely. That reframes the defect: it was never a rare race. It's a pervasive protocol violation whose *observable* is probabilistic, surfacing only when a peer reads the home location before some later opportunistic flush happens to land the change. The practical consequence is recorded prominently: green runs do not indicate absence of this defect, so the fix must be verified by driving **P176 to zero**, not by counting passes.
+
+**One caution I want flagged clearly for the next session:** while adding enforcement I introduced a structural error — a stray `if (false)` that silently disabled the dead-incarnation guard (`P146D`). I caught and repaired it, and the build is clean, but that region has now been edited repeatedly under low context and deserves a careful read before the next deploy.
+
+**Fixed and holding this session:** D1's `cancel_work_sync` deadlock (the multi-session spurious-shutdown mystery, stack-captured twice) and D3's acquire-side stale-fork RMW (`P174`). Residual data-loss rate went from ~4-in-6 to ~1-in-15 `prep → cache_coherency` cycles.
+
+**Still open:** the residual (now with a working reproducer, measured hit-rate, validated discriminator, and a half-implemented fix), the bnobt lost-update withdrawal, the directory-pace RULE-0 row, D2 and D5 with GPT designs ready, and D4's unlocated panic root.
+
+Everything is banked across eleven `sess14-A..K` memories, `state.md`, and `pal.md`.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
