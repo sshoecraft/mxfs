@@ -1,0 +1,142 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 29 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 28
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `03ab5fc0-0c11-4c2c-9c0f-7daaf6f7f35f`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/03ab5fc0-0c11-4c2c-9c0f-7daaf6f7f35f.jsonl`
+- approx context at last assistant turn: 498570 tokens
+- tools used: Bash×166 Edit×44 Read×37 mcp__ccmemory__memory_write×5 ToolSearch×4 TaskUpdate×3 mcp__ccmemory__memory_get×3 TaskCreate×2 TaskList×1 TaskStop×1 Write×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/tests/openunlink_matrix.sh
+- /src/mxfs/tests/clean_load_run.sh
+- /src/mxfs/xfs/libxfs/xfs_ialloc.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    tools/mxfs_sshpass.sh test2 "dmesg | awk '\$1+0>6380 && \$1+0<6410' | grep -E 'mxfs|XFS' | grep -vE 'P51-REL|P105|P2G' | tail -25" 2>/dev/null
+    tools/mxfs_sshpass.sh test2 "dmesg | sed -n '/6385\./,/6409.86/p' | grep -vE 'P51-REL|P105-REL|P2G-LOGWHO' | tail -30" 2>/dev/null
+    grep -nE "MXFS_MKFS|MKFS|mkfs_mxfs|FRESH" run.sh tests/setup/prep_node.sh tests/setup/prep_fs.sh 2>/dev/null | head -12
+    grep -n "prep_fs\|MXFS_FS_PREP\|fs_prep" run.sh | head -8
+    python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defects = d if isinstance(d,list) else d.get('defects') defects.append({
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 480 tests/openunlink_matrix.sh test1 test2 test3 2>&1 | grep -E "RESULT|SUM
+    python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defects = d if isinstance(d,list) else d.get('defects') for x in defects
+    timeout 420 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired 2>&1 | grep -cE "  PASS"; timeout 480 tests/open
+    timeout 75 ./run.sh 32 caw crash_consistency 2>&1 | grep -E "PASS|FAIL" | head -2; sleep 5; D=$(mktemp -d); for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh tes
+    grep -n "EFSCORRUPTED" xfs/libxfs/xfs_ialloc.c | head -12; grep -n "xfs_difree\b\|xfs_difree_inobt\|xfs_difree_finobt" xfs/libxfs/xfs_ialloc.c | head -8
+    sed -n '2661,2760p' xfs/libxfs/xfs_ialloc.c | grep -n "EFSCORRUPTED\|corrupt\|XFS_LOOKUP\|ir_free\|xfs_inobt_get_rec\|error =" | head -20
+    tools/mxfs_sshpass.sh test2 "dmesg | grep -E 'P-DIFREE|P71|DIFREE|agi|AGI' | head -10" 2>/dev/null
+    sed -n '2892,2990p' xfs/libxfs/xfs_ialloc.c | grep -n "EFSCORRUPTED\|P-DIFREE\|pr_warn" | head; echo === check_agi_freecount; grep -n -B3 -A8 "xfs_check_agi_fre
+    python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in (d if isinstance(d,list) else d.get('defects')):     if x.get('
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 300 ./run.sh 32 caw cache_coherency zero_silent_loss dirent_durability 2>&1
+    cat >> .claude/awareness/subsystems/xfs.md <<'EOF' - sess46 tail (0.11.373): NEW OPEN D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372 (ship config, fresh fs,   xfs_ifree
+    L=$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1); echo load=$L; if [ "$L" -lt 25 ]; then timeout 420 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership 
+    timeout 480 tests/openunlink_matrix.sh test1 test2 test3 2>&1 | grep -E "RESULT: FAIL|SUMMARY"; D=$(mktemp -d); for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh
+    for i in $(seq 1 32); do C=$(tools/mxfs_sshpass.sh test$i "dmesg | grep -cE 'error -117|P-DIFREE-CORRUPT'" 2>/dev/null); [ "${C:-0}" != "0" ] && echo "HIT test$
+    tools/mxfs_sshpass.sh test2 "dmesg > /root/ifree117_run2_$(date +%s).dmesg; ls -la /root/ifree117*; dmesg | grep -E 'error -117|P-DIFREE-CORRUPT|P-DIFREE-DBL|Me
+
+## Last text from previous session
+
+ish path:
+cache_coherency regressed: 31/32 nodes failing exactly 1 of 654 checks. Capturing the check name:
+Passes standalone (654/654). Re-running the exact failing sequence to check for an order-dependent interaction:
+Matrix 9/9 holds. Now cache_coherency repeats plus the full board:
+Load 63 — the game-server burst again; runs 2-3 didn't even start. Waiting out the burst, checking rig state:
+Load recovered (17) but 2 nodes lost their mounts during the burst event. Identifying them:
+Load still 50 — appending the awareness delta while waiting:
+dir_reuse's rank1 failure is a correctness signature: `leaf-hash lookup_fail got=103` — 103 lookups failed in round 2 (the dirent-visibility class). The census should be at the reason's tail:
+Shape changed: drc pace restored (13→51 checks) but all-32 now fail 1 check; crash still overruns at load 15. Getting both failure identities:
+Reverting the two widenings:
+17 rounds this time (6.4s/round — pace mostly back with tracking off) but still 1 failed check — a different one. Getting it:
+While the load-wait runs, persisting the pace recalibration:
+Ship-config dir_reuse FAILED — the regression check may have caught something real. Getting the check:
+While the clean-window runner waits for its slot, extending the changelog for 370-372:
+Lap 7: zero P217. Now the knob=0 matrix (per-inode path exercises the shared primitive changes):
+Those exits are already probed by a prior session — and my earlier greps would have MISSED a P-DIFREE line. Checking test2's trail for it:
+test2's dmesg was cleared by the re-preps — the full ring is lost (ledger excerpts survive). Completing the probe coverage so the next occurrence self-names its exit:
+373 live and sane. Final bookkeeping:
+**REPRODUCED** on the aged protocol with probes armed. Capturing the full ring BEFORE any recovery, per the standing rule:
+**Criteria: NO — 12 defects OPEN of 39 (5 critical). Not production ready.**
+
+Session 46 (relay 28) final scorecard, all evidence-backed:
+
+1. **D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY — GPT's ranked item 1 delivered.** The icluster/open_tracking mutual exclusion is lifted on 0.11.363-373: routed open-unlink protection implemented per the GPT C9-ordering ruling (publication-before-release choke point, admission gate with open-time cluster-coverage conversion, standalone durable SET with dup-merge-to-canonical, find_slot-based claim-less B6 probe, close-during-SETTING marker, retention-invariant fixes — including `caw_repair_slot` silently wiping `open_holders`, a live hole in the *shipped* per-inode tracking). openunlink_matrix **9/9 at knob=1 AND knob=0**. Five real kernel defects were rooted en route (P90 intent poisoning, sticky-vs-config gating, tombstone-serving opens → now -ESTALE, the per-inode/cluster split-brain at open, and a selfclear starvation my own widening caused — reverted with the hole closed at the admit instead). Remaining for closure: knob=1 clean-load board margins, GPT items 2-4, default-ON + PROTO_GEN bump.
+
+2. **New critical found, reproduced, and forensically banked: D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372.** Ship config, fresh filesystem: `xfs_ifree` returns -117 → metadata shutdown → withdrawal, twice on test2 under the aged lap→matrix protocol (2/5 cycles). The 16.8MB kmsg ring is saved on test2's root disk; crucially, 373's completed P-DIFREE probe coverage printed nothing — the failing exit is *outside* xfs_difree (P71/iunlink family). The ring names it; that's the next session's first move.
+
+3. rsync-rename lap protocol: 9 clean laps (7 armA + 2 armB), zero P217 firings — containment holding, producer still at large.
+
+Also shipped: `tests/clean_load_run.sh` (the host's game-server bursts hit load 88 repeatedly and poisoned five separate runs today), the drc "58 checks = 8 rounds = zero margin" recalibration, and full ledger/memory/changelog/awareness persistence. The rig hands off on 0.11.373 ship config with test2 down pending re-prep (ring already captured, safe to recover).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

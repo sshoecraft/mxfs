@@ -42,6 +42,7 @@
 #include "scrub/stats.h"
 #include "xfs_zone_alloc.h"
 #include "xfs_healthmon.h"
+#include "xfs_mxfs_dlm.h"
 
 static DEFINE_MUTEX(xfs_uuid_table_mutex);
 static int xfs_uuid_table_size;
@@ -1054,6 +1055,32 @@ xfs_mountfs(
 	if (error) {
 		xfs_warn(mp, "log mount failed");
 		goto out_inodegc_shrinker;
+	}
+
+	/*
+	 * MXFS sess57 (D-FOREIGN-REPLAY step 4a) — MOUNT RECOVERY BARRIER.
+	 *
+	 * Our log slice is recovered; nothing below has taken a cluster lock
+	 * yet.  This is the only window in which the previous incarnation's
+	 * retained authority bits can be released and the already-frozen
+	 * peers' slices replayed: xfs_log_mount_finish() (called much later
+	 * from here) replays intents and processes unlinked lists, and both
+	 * block on AG EX acquires that those very grants can hold off.
+	 * See mxfs_dlm_mount_recovery_barrier() for what it may and may not
+	 * do at this point in the mount.
+	 */
+	error = mxfs_dlm_mount_recovery_barrier(mp);
+	if (error) {
+		/*
+		 * The barrier only fails when proceeding would walk into a
+		 * blocking acquire we already know cannot be satisfied (an
+		 * unfenceable dead peer still owning resources).  Unwind via
+		 * out_free_metadir — m_metadirip is still NULL and rip is not
+		 * yet held, so it reduces to the inodegc flush + log cancel
+		 * that a post-xfs_log_mount failure needs.
+		 */
+		xfs_warn(mp, "MXFS mount recovery barrier failed");
+		goto out_free_metadir;
 	}
 
 	/*

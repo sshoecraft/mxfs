@@ -1016,6 +1016,116 @@ module_param_named(dir_read_crc_retry_us, mxfs_dir_read_crc_retry_us, int, 0644)
 MODULE_PARM_DESC(dir_read_crc_retry_us,
 	"microsecond backoff between multi-node dir metadata coherent re-read retries");
 
+/*
+ * ccloop c7ee71c6 sess29 — D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY detector.
+ *
+ * The physical write unit is the whole 16 KB inode CLUSTER; the coherency
+ * protocol locks at INODE granularity.  So a node writing one slot it does own
+ * republishes whatever its buffer holds for every neighbouring slot, including
+ * inodes a peer owns and has since modified or reallocated.
+ *
+ * `unlogged` is the DENOMINATOR — slots written that carry no committed change
+ * of ours this round.  On its own it is not a defect: those are ordinary
+ * preserved bytes, and ~20 of 21 slots qualify on every write, which is exactly
+ * why the naive predicate measures nothing.  The numerators are the two ways
+ * those bytes can be WRONG:
+ *   `pr`    we hold the slot only in PR — no write tenure for bytes we publish;
+ *   `genmm` the buffer image's di_gen is a different incarnation from the one we
+ *           hold in core, so the bytes provably predate a reallocation.
+ * `writes` is the number of cluster writes that carried any passenger at all.
+ *
+ * Read with `echo 1 > /sys/module/mxfs/parameters/cluster_authority_dump`.
+ */
+static atomic64_t mxfs_clpass_writes;
+static atomic64_t mxfs_clpass_unlogged;
+static atomic64_t mxfs_clpass_pr;
+static atomic64_t mxfs_clpass_genmm;
+static atomic64_t mxfs_clpass_nocore;
+static atomic64_t mxfs_clpass_skipped;        /* passenger slots dropped by the fix */
+static atomic64_t mxfs_clpass_skip_declined;  /* empty write BUT an obligation exists — protocol bug */
+static atomic64_t mxfs_clpass_refused;        /* empty write, nothing owed — write refused outright */
+
+/*
+ * ccloop c7ee71c6 sess30 — GPT RULE-5 review item 2 on
+ * D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY.  The sess29 fix guards only
+ * PASSENGER slots (un-logged bytes riding along in the cluster).  A slot we
+ * DID log this round is written unconditionally, on the reasoning that a
+ * committed change must never be lost — but "logged" proves a JOURNAL
+ * representation, not authority to publish to HOME.  The write site is
+ * xfsaild, arbitrarily later than the copy-in, and the tenure the bytes were
+ * staged under can be gone by then:
+ *
+ *   A logs X under EX -> A releases -> B takes EX and publishes its own image
+ *   -> A's staged buffer is finally submitted and overwrites B.
+ *
+ * That is D-RELEASE-BARRIER-OPEN observed at the exact site where the damage
+ * lands.  The DIRECTORY case has been guarded since sess14/19
+ * (P56-NL-LOGGED-DIR-SKIP); the non-dir case, and the dir-at-PR case, never
+ * were.  Counted here so the exposure has a number before any behaviour
+ * changes.  `written` is the denominator on every reading.
+ */
+static atomic64_t mxfs_logwr_written;       /* logged/bli-dirty slots actually written */
+static atomic64_t mxfs_logwr_noauth;        /* ...with no write tenure at SUBMIT time */
+static atomic64_t mxfs_logwr_noauth_dir;
+static atomic64_t mxfs_logwr_staged;        /* ...with an inode log item on THIS buffer (stale denominator) */
+static atomic64_t mxfs_logwr_stale_tenure;
+static atomic64_t mxfs_logwr_stale_nl;
+static atomic64_t mxfs_logwr_sskip_landed;	/* sess31: P222 skips, image already home */
+static atomic64_t mxfs_logwr_sskip_unlanded;	/* sess31: P222 skips, bytes never landed (LOUD) */
+static atomic64_t mxfs_logwr_stale_ex;		/* sess33: staged-stale slots at submit while holding EX */
+static atomic64_t mxfs_logwr_sskip_ex;		/* sess33: P235 EX-arm skips (restage under the live grant) */
+static atomic64_t mxfs_logwr_sskip_ex_unl;	/* sess33: ...unlanded subset (watermark rolled back) */
+extern int mxfs_stale_stage_skip_ex;	/* xfs_mxfs_dlm.c knob, sess33 EX-side epoch gate */
+extern int mxfs_stale_stage_skip;	/* xfs_mxfs_dlm.c knob, default 1 since 0.11.272 */	/* sess31: stale && submit at NL (class X) */  /* ...staged under a tenure since lost (epoch moved) */
+extern int mxfs_stale_stage_unlanded_shutdown;	/* sess32: unlanded arm fails closed (GPT cond-1) */
+static atomic64_t mxfs_logwr_nocore;        /* bli-dirty-only slot, no in-core inode to consult */
+
+/*
+ * sess29 FIX knob for D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY.  1 = drop
+ * PR-held slots we did not log from an inode-cluster write (we have no write
+ * tenure for those bytes); 0 = the pre-fix behaviour, for a same-build A/B.
+ */
+int mxfs_cluster_passenger_skip = 3;
+module_param_named(cluster_passenger_skip, mxfs_cluster_passenger_skip, int, 0644);
+MODULE_PARM_DESC(cluster_passenger_skip,
+	"drop un-logged slots we have no write authority for from an inode-cluster write: bit0(1)=PR-held, bit1(2)=no in-core inode, 3=both, 0=pre-fix negative control");
+
+static int
+mxfs_cluster_authority_dump_set(const char *val, const struct kernel_param *kp)
+{
+	(void)val; (void)kp;
+	pr_warn("mxfs: P218-CLUSTER-SKIP skipped=%lld refused=%lld declined=%lld knob=%d\n",
+		(long long)atomic64_read(&mxfs_clpass_skipped),
+		(long long)atomic64_read(&mxfs_clpass_refused),
+		(long long)atomic64_read(&mxfs_clpass_skip_declined),
+		mxfs_cluster_passenger_skip);
+	pr_warn("mxfs: P218-CLUSTER-AUTHORITY-TOTAL writes=%lld unlogged_written=%lld no_write_tenure=%lld gen_mismatch=%lld no_incore=%lld\n",
+		(long long)atomic64_read(&mxfs_clpass_writes),
+		(long long)atomic64_read(&mxfs_clpass_unlogged),
+		(long long)atomic64_read(&mxfs_clpass_pr),
+		(long long)atomic64_read(&mxfs_clpass_genmm),
+		(long long)atomic64_read(&mxfs_clpass_nocore));
+	pr_warn("mxfs: P219-LOGGED-AUTHORITY-TOTAL written=%lld staged=%lld noauth=%lld noauth_dir=%lld stale_tenure=%lld stale_nl=%lld stale_ex=%lld nocore=%lld sskip_landed=%lld sskip_unlanded=%lld sskip_ex=%lld sskip_ex_unl=%lld\n",
+		(long long)atomic64_read(&mxfs_logwr_written),
+		(long long)atomic64_read(&mxfs_logwr_staged),
+		(long long)atomic64_read(&mxfs_logwr_noauth),
+		(long long)atomic64_read(&mxfs_logwr_noauth_dir),
+		(long long)atomic64_read(&mxfs_logwr_stale_tenure),
+		(long long)atomic64_read(&mxfs_logwr_stale_nl),
+		(long long)atomic64_read(&mxfs_logwr_stale_ex),
+		(long long)atomic64_read(&mxfs_logwr_nocore),
+		(long long)atomic64_read(&mxfs_logwr_sskip_landed),
+		(long long)atomic64_read(&mxfs_logwr_sskip_unlanded),
+		(long long)atomic64_read(&mxfs_logwr_sskip_ex),
+		(long long)atomic64_read(&mxfs_logwr_sskip_ex_unl));
+	return 0;
+}
+static const struct kernel_param_ops mxfs_cluster_authority_dump_ops = {
+	.set = mxfs_cluster_authority_dump_set,
+};
+module_param_cb(cluster_authority_dump, &mxfs_cluster_authority_dump_ops,
+		NULL, 0644);
+
 static bool
 mxfs_buf_is_multinode_dir_meta(struct xfs_buf *bp)
 {
@@ -1105,6 +1215,44 @@ mxfs_buf_coherent_reread_verify(struct xfs_buf *bp)
 	 * fresh platter snapshot before installing it, so a CRC retry cannot
 	 * regress a slot this node's iflush owns.
 	 */
+	/*
+	 * sess47 GPT ruling (non-destructive gate; fossil di_next_unlinked
+	 * producer root, memory TAIL7): a raw shared-medium snapshot may
+	 * refresh clean bytes but must NEVER erase a locally committed,
+	 * not-yet-home byte.  An iunlink delta is a BUFFER-log change — after
+	 * checkpoint the bli detaches, and a reclaimed zombie's slot has no
+	 * attached inode item, so the merge below cannot preserve it; the
+	 * platter's pre-clear image would fossilize the chain (P53 pairs,
+	 * three ring captures, both prior arms probe-eliminated).  When this
+	 * buffer carries ANY local unhomed state the attached-item merge
+	 * cannot prove complete, refuse the install: re-verify the CURRENT
+	 * image (a dirty-unhomed image was previously verified plus our own
+	 * logged deltas — a cold read can't be dirty) and return its verdict,
+	 * leaving b_addr untouched either way.  The outer CRC-retry backoff
+	 * handles convergence for genuinely torn platter reads.
+	 */
+	if (bp->b_ops == &xfs_inode_buf_ops && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm) &&
+	    ((bp->b_flags & _XBF_DELWRI_Q) || xfs_buf_ispinned(bp) ||
+	     (bp->b_log_item &&
+	      test_bit(XFS_LI_DIRTY, &bp->b_log_item->bli_item.li_flags)) ||
+	     mxfs_buf_has_uncheckpointed_mods(bp))) {
+		kfree(mb);
+		bp->b_error = 0;
+		bp->b_ops->verify_read(bp);
+		pr_warn_ratelimited(
+		    "mxfs: P-INOCL-REREAD-REFUSED daddr=%lld delwri=%d pin=%d bli_dirty=%d uncp=%d curr_verify=%d — unhomed local state; keeping current image, snapshot not installed\n",
+			(long long)bp->b_maps[0].bm_bn,
+			!!(bp->b_flags & _XBF_DELWRI_Q),
+			xfs_buf_ispinned(bp) ? 1 : 0,
+			(bp->b_log_item && test_bit(XFS_LI_DIRTY,
+				&bp->b_log_item->bli_item.li_flags)) ? 1 : 0,
+			mxfs_buf_has_uncheckpointed_mods(bp) ? 1 : 0,
+			bp->b_error);
+		return bp->b_error;
+	}
+
 	if (bp->b_ops == &xfs_inode_buf_ops && bp->b_mount &&
 	    bp->b_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm) &&
@@ -1139,6 +1287,18 @@ mxfs_buf_coherent_reread_verify(struct xfs_buf *bp)
 					(unsigned long long)iip->ili_inode->i_ino);
 			}
 		}
+	}
+	/* sess47 A-prime overlay, install site 2 (coherent reread): applied to
+	 * the candidate BEFORE install, per the GPT ruling (verify the merged
+	 * candidate, never patch b_addr afterward). */
+	if (bp->b_ops == &xfs_inode_buf_ops && bp->b_mount &&
+	    bp->b_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm)) {
+		extern int mxfs_iunl_store_overlay(struct xfs_mount *,
+				xfs_daddr_t, int, void *, unsigned int);
+
+		mxfs_iunl_store_overlay(bp->b_mount, bp->b_maps[0].bm_bn,
+					bp->b_length, mb, len);
 	}
 	memcpy(bp->b_addr, mb, len);
 	kfree(mb);
@@ -1331,18 +1491,27 @@ xfs_buf_read_map(
 		 * no P-COUNTREGRESS at any submit).  Log + stack so the
 		 * guilty evict site can be identified and gated.
 		 */
-		if (unlikely(bp->b_log_item &&
-			     (test_bit(XFS_LI_DIRTY,
-				       &bp->b_log_item->bli_item.li_flags) ||
-			      xfs_buf_ispinned(bp)))) {
-			pr_warn("mxfs: P-PINNED-REREAD daddr=%lld ops=%s dirty=%d pin=%d in_ail=%d comm=%s — re-reading a buffer with committed-unCheckpointed content (delta will be LOST)\n",
+		if (unlikely((bp->b_log_item &&
+			      (test_bit(XFS_LI_DIRTY,
+					&bp->b_log_item->bli_item.li_flags) ||
+			       xfs_buf_ispinned(bp))) ||
+			     (bp->b_flags & _XBF_DELWRI_Q))) {
+			/* sess47: the _XBF_DELWRI_Q arm closes the tripwire's
+			 * blind spot proven by the fence falsifier — after
+			 * checkpoint completion the bli is CLEAN and unpinned
+			 * while the buffer still awaits writeback home; a
+			 * re-read in that window silently discards the
+			 * committed delta (fossil di_next_unlinked producer
+			 * candidate; P53 wave with fence=1, agno15). */
+			pr_warn("mxfs: P-PINNED-REREAD daddr=%lld ops=%s dirty=%d pin=%d in_ail=%d delwri=%d comm=%s — re-reading a buffer with committed-undestaged content (delta will be LOST)\n",
 				(long long)bp->b_maps[0].bm_bn,
 				ops && ops->name ? ops->name : "?",
-				test_bit(XFS_LI_DIRTY,
-					 &bp->b_log_item->bli_item.li_flags) ? 1 : 0,
+				bp->b_log_item ? (test_bit(XFS_LI_DIRTY,
+					 &bp->b_log_item->bli_item.li_flags) ? 1 : 0) : 0,
 				xfs_buf_ispinned(bp) ? 1 : 0,
-				test_bit(XFS_LI_IN_AIL,
-					 &bp->b_log_item->bli_item.li_flags) ? 1 : 0,
+				bp->b_log_item ? (test_bit(XFS_LI_IN_AIL,
+					 &bp->b_log_item->bli_item.li_flags) ? 1 : 0) : 0,
+				!!(bp->b_flags & _XBF_DELWRI_Q),
 				current->comm);
 			dump_stack();
 		}
@@ -1388,6 +1557,50 @@ xfs_buf_read_map(
 			}
 		}
 
+		/*
+		 * sess47 (rsync-rename producer, REPORT-ONLY): the same
+		 * cold-read-inside-unflushed-window hazard for INODE CLUSTER
+		 * buffers, which mxfs_agmeta_ops excludes.  Suspected arm of
+		 * the fossil di_next_unlinked (P53-IUNLINK-MISMATCH →
+		 * 0x8 shutdown): cluster write completes into the target
+		 * write cache, no flush advances the epoch, a cold FUA read
+		 * then time-travels to pre-write media.  No fence action yet
+		 * — this print correlated with a later P53 on the same AG is
+		 * the RULE-4 proof that flips it to a fence.
+		 */
+		{
+			extern const struct xfs_buf_ops xfs_inode_buf_ops;
+			extern unsigned int mxfs_inocl_fence;
+			extern void mxfs_release_coalesced_flush(struct xfs_mount *);
+
+			if (ops == &xfs_inode_buf_ops && target->bt_mount &&
+			    target->bt_mount->m_mxfs_dlm &&
+			    !mxfs_v5_dlm_is_single_node(target->bt_mount->m_mxfs_dlm)) {
+				struct xfs_mount *fmp = target->bt_mount;
+				struct xfs_perag *hpag = xfs_perag_get(fmp,
+					xfs_daddr_to_agno(fmp, bp->b_maps[0].bm_bn));
+
+				if (hpag) {
+					if (atomic64_read(&hpag->pag_mxfs_inocl_wr_epoch) >=
+					    atomic64_read(&fmp->m_mxfs_flush_epoch)) {
+						static atomic_t pincl_n = ATOMIC_INIT(0);
+
+						if (atomic_inc_return(&pincl_n) <= 120)
+							pr_warn("mxfs: P-INOCL-COLDREAD agno=%u daddr=%lld wr_epoch=%lld flush_epoch=%lld fence=%u comm=%s — cold inode-cluster read inside unflushed write window\n",
+								xfs_daddr_to_agno(fmp, bp->b_maps[0].bm_bn),
+								(long long)bp->b_maps[0].bm_bn,
+								(long long)atomic64_read(&hpag->pag_mxfs_inocl_wr_epoch),
+								(long long)atomic64_read(&fmp->m_mxfs_flush_epoch),
+								mxfs_inocl_fence,
+								current->comm);
+						if (mxfs_inocl_fence)
+							mxfs_release_coalesced_flush(fmp);
+					}
+					xfs_perag_put(hpag);
+				}
+			}
+		}
+
 		/* Initiate the buffer read and wait. */
 		XFS_STATS_INC(target->bt_mount, xb_get_read);
 		bp->b_ops = ops;
@@ -1398,9 +1611,48 @@ xfs_buf_read_map(
 		    !mxfs_v5_dlm_is_single_node(target->bt_mount->m_mxfs_dlm) &&
 		    mxfs_p144_ops(ops))
 			mxfs_p144_print(bp, "RD");
+		/* sess47 A-prime overlay, install site 1 (cold fill — the
+		 * probe-pinned fossil vector, memory TAIL10): a fresh
+		 * platter image may predate our committed-but-unhomed
+		 * iunlink writes; restore them from the mount store. */
+		{
+			extern const struct xfs_buf_ops xfs_inode_buf_ops;
+			extern int mxfs_iunl_store_overlay(struct xfs_mount *,
+					xfs_daddr_t, int, void *,
+					unsigned int);
+
+			if (!error && bp->b_addr &&
+			    ops == &xfs_inode_buf_ops &&
+			    target->bt_mount->m_mxfs_dlm &&
+			    !mxfs_v5_dlm_is_single_node(target->bt_mount->m_mxfs_dlm))
+				mxfs_iunl_store_overlay(target->bt_mount,
+					bp->b_maps[0].bm_bn, bp->b_length,
+					bp->b_addr, BBTOB(bp->b_length));
+		}
 	} else {
 		/* Buffer already read; all we need to do is check it. */
 		error = xfs_buf_reverify(bp, ops);
+
+		/* sess47 A-prime install site 3 (audit item 1, TAIL16): a
+		 * buffer filled by READAHEAD completes its bio with no ops
+		 * attached and reaches its first real reader through THIS
+		 * branch — bypassing the cold-fill overlay.  Overlay at the
+		 * ops-attach/first-verify point so a stale readahead image
+		 * cannot serve a fossil next_unlinked. */
+		{
+			extern const struct xfs_buf_ops xfs_inode_buf_ops;
+			extern int mxfs_iunl_store_overlay(struct xfs_mount *,
+					xfs_daddr_t, int, void *,
+					unsigned int);
+
+			if (!error && bp->b_addr &&
+			    ops == &xfs_inode_buf_ops &&
+			    target->bt_mount && target->bt_mount->m_mxfs_dlm &&
+			    !mxfs_v5_dlm_is_single_node(target->bt_mount->m_mxfs_dlm))
+				mxfs_iunl_store_overlay(target->bt_mount,
+					bp->b_maps[0].bm_bn, bp->b_length,
+					bp->b_addr, BBTOB(bp->b_length));
+		}
 
 		/* We do not want read in the flags */
 		bp->b_flags &= ~XBF_READ;
@@ -2181,6 +2433,45 @@ __xfs_buf_ioend(
 	}
 
 	/*
+	 * sess47 (rsync-rename producer): same stamp for INODE CLUSTER
+	 * writes — a completed cluster write only reached the target write
+	 * cache; a later cold FUA read (cache-bypassing) inside the same
+	 * flush epoch can time-travel to the pre-write media image,
+	 * fossilizing di_next_unlinked (P53-IUNLINK-MISMATCH old_ptr=
+	 * stale chain value, dip_gen current).  Read side reports via
+	 * P-INOCL-COLDREAD; no fence action until the arm is proven.
+	 */
+	{
+		extern const struct xfs_buf_ops xfs_inode_buf_ops;
+
+		if ((bp->b_flags & XBF_WRITE) && !bp->b_error && bp->b_mount &&
+		    bp->b_mount->m_mxfs_dlm &&
+		    bp->b_ops == &xfs_inode_buf_ops) {
+			extern void mxfs_iunl_store_retire_range(
+				struct xfs_mount *, xfs_daddr_t, int,
+				void *, unsigned int);
+			struct xfs_perag *hpag = xfs_perag_get(bp->b_mount,
+				xfs_daddr_to_agno(bp->b_mount,
+						  bp->b_maps[0].bm_bn));
+			if (hpag) {
+				atomic64_set(&hpag->pag_mxfs_inocl_wr_epoch,
+					atomic64_read(&bp->b_mount->m_mxfs_flush_epoch));
+				xfs_perag_put(hpag);
+			}
+			/* sess47 A-prime: this cluster's committed iunlink
+			 * values are home now — retire their records.
+			 * sess48 v4: pass the written image so retire can
+			 * verify the payload actually carried each value. */
+			mxfs_iunl_store_retire_range(bp->b_mount,
+						     bp->b_maps[0].bm_bn,
+						     bp->b_length,
+						     bp->b_map_count == 1 ?
+							bp->b_addr : NULL,
+						     BBTOB(bp->b_length));
+		}
+	}
+
+	/*
 	 * sess40 (ccloop, GPT-5.5 WRITEBACK-COMPLETION-BARRIER): a counted dir
 	 * metadata write bio has now PHYSICALLY completed — drop the per-mount
 	 * in-flight count so the dir EX release fence (which polls it) can hand
@@ -2924,6 +3215,12 @@ mxfs_submit_partial_inode_write(
 	unsigned int		inodelog, sectsize, inodesize, len, ni;
 	unsigned int		total_sects, spi, nslots = 0, nskip = 0;
 	u64			logged = 0, bli_dirty = 0, skip = 0, dirty = 0, all;
+	/* sess29 D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY fix: slots we hold
+	 * only in PR and did not log this round.  Kept SEPARATE from `skip` so
+	 * it can be dropped wholesale if applying it would empty the write —
+	 * see where it is applied. */
+	u64			pr_skip = 0;
+	unsigned int		n_pr_skip = 0;
 	uint64_t		base_512;
 	xfs_fsblock_t		fsb;
 	xfs_agblock_t		agbno;
@@ -2932,6 +3229,9 @@ mxfs_submit_partial_inode_write(
 	struct blk_plug		plug;
 	struct bio		*tail;
 	int			s, run_start, run_end, last_start = -1, runs = 0;
+	/* sess20 H4: re-arm a logged inode whose sector this write drops, so the
+	 * buffer-wide completion cannot declare unsubmitted bytes durable. */
+	extern int		mxfs_pub_skip_rearm;
 
 	{ extern int mxfs_partial_iwrite;
 	  if (!mxfs_partial_iwrite)
@@ -3072,6 +3372,11 @@ mxfs_submit_partial_inode_write(
 	}
 
 	{ unsigned int n_incore = 0, n_nl = 0, n_held = 0, n_nl_logged = 0;
+	/* sess29 D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY detector — see the
+	 * held-non-dir branch below for what each counts and why the obvious
+	 * predicate ("slots we lack EX for") measures nothing. */
+	unsigned int n_unlogged_wr = 0, n_unlogged_pr = 0, n_unlogged_genmm = 0;
+	unsigned int n_unlogged_nocore = 0;
 	mxfs_ici_lock(pag);
 	for (s = 0; s < (int)ni; s++) {
 		struct xfs_inode	*ip;
@@ -3172,14 +3477,118 @@ mxfs_submit_partial_inode_write(
 			 * revert them — the proven cv clobber (test5 mode=0
 			 * wrote 3 names over test27's 7, erasing 4 files).
 			 */
+			/*
+			 * ccloop c7ee71c6 sess19 — the exemption above is
+			 * MEASURED UNSOUND.  Its whole justification is that
+			 * MXFS_IF_DLM_RELFLUSH is set only across the release
+			 * drain, during which "the on-disk DLM grant is still
+			 * HELD ... so no successor image can exist".  Adding
+			 * the ACTUAL grant state to this probe and ordering
+			 * every node's publishes of one shortform parent by
+			 * wall-clock realns (tests/sf_storm_ledger.py) showed
+			 * the corrupting write in EVERY failing round to be:
+			 *
+			 *   mode=0 rf=1 held=0 comm=kworker  <== DROPPED 4 names
+			 *
+			 * i.e. the token is set, the grant is GONE, peers have
+			 * already published, and this write reverts them.  The
+			 * later held=1 mkdir publishes then carry the poisoned
+			 * base forward, which is why names sometimes reappear
+			 * while the parent's LINK COUNT never does — and why a
+			 * directory whose nlink under-counts its children later
+			 * underflows to nlink=1 (or wraps to 4294967295) and can
+			 * never be rmdir'd.
+			 *
+			 * So require the grant we claim to hold.  This keeps the
+			 * token's INTENT (land our image while we still own the
+			 * resource, which is what makes a fresh create's publish
+			 * safe — sess14 proved skipping THAT strands the dir into
+			 * cluster-wide invisibility) and drops only the window
+			 * where the intent is already false and the write can do
+			 * nothing but clobber.  The lookup is an in-memory mirror
+			 * consult and runs only on this narrow branch (NL + not
+			 * free + logged dir), not on every publish.
+			 */
 			{ extern int mxfs_dir_nl_logged_skip;
+			  extern int mxfs_dir_nl_require_grant;
+			  extern int mxfs_v5_dlm_inode_held_nb(
+					struct mxfs_v5_dlm *, uint64_t);
+			  /*
+			   * ccloop c7ee71c6 sess20 — MUST be the NON-BLOCKING
+			   * query.  We are inside spin_lock(&pag->pag_ici_lock)
+			   * and the blocking mxfs_v5_dlm_inode_held() bottoms
+			   * out in a SCSI read on CAW, so the sess19 form of
+			   * this guard slept under a spinlock: "BUG: scheduling
+			   * while atomic" on all 16 nodes of the 16/caw soak,
+			   * from xfsaild and the mxfs kworkers, via
+			   * mxfs_pal_scsi_read_fua_bdev -> blk_execute_rq ->
+			   * wait_for_completion_io_timeout -> schedule().
+			   *
+			   * -EWOULDBLOCK means "cannot tell without I/O" (CAW,
+			   * always).  Treat that as AUTHORIZED — i.e. fall back
+			   * to the RELFLUSH-token-only decision that predates
+			   * the guard.  Never treat unknown as "not held": that
+			   * would skip the drain's own legitimate publish and
+			   * strand a freshly created directory cluster-wide
+			   * (proven sess14, ino 33554569).  The guard therefore
+			   * only bites on TCP, where the mirror answers for
+			   * free — consistent with its measured value anyway
+			   * (paired A/B on CAW: 7 / 7 / 4, no effect).
+			   */
+			  int nl_held = (mxfs_dir_nl_require_grant && ip &&
+					 mp->m_mxfs_dlm)
+					? mxfs_v5_dlm_inode_held_nb(
+						mp->m_mxfs_dlm, ip->i_ino)
+					: -EWOULDBLOCK;
 			  bool authorized = ip &&
-				xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH);
+				xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) &&
+				(nl_held != 0);
 			if (is_nl && !is_free && !authorized &&
 			    (be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR &&
 			    mxfs_dir_nl_logged_skip) {
 				skip |= slotbits;
 				nskip++;
+				/*
+				 * ccloop c7ee71c6 sess19 — PROVEN HOLE in the
+				 * publication-obligation ledger.
+				 *
+				 * xfs_iflush already copied this inode's image
+				 * into the buffer and stamped i_mxfs_pub_flush_seq
+				 * = pending.  We are now dropping its sector from
+				 * the actual I/O — but the buffer still completes,
+				 * and xfs_buf_inode_iodone discharges
+				 * durable = flush_seq for EVERY inode attached to
+				 * it.  So the obligation is marked settled for
+				 * bytes that never left the host, and every guard
+				 * built on "pending != durable" goes blind:
+				 * P176 fires 0 times, P177 fires 0-3 times, and
+				 * P184 never fires, in runs where 11 of 15 storm
+				 * rounds lose a committed mkdir that NO node ever
+				 * published (mechanism tally: NEVER-PUBLISHED 32
+				 * of 45 failing rounds).
+				 *
+				 * Roll the watermark back to what is actually
+				 * durable, so the completion's discharge is a
+				 * no-op for this inode and the obligation stays
+				 * open until its bytes really land.
+				 */
+				if (ip) {
+					ip->i_mxfs_pub_flush_seq =
+						ip->i_mxfs_pub_durable_seq;
+					/*
+					 * sess20 H4: rolling the watermark back
+					 * keeps the LEDGER honest, but the item
+					 * itself is still about to be completed
+					 * and deleted from the AIL by the
+					 * buffer-wide iodone — i.e. the change is
+					 * dropped from every retry path there is.
+					 * Mark it so the completion re-arms it
+					 * instead (MXFS_IF_PUB_SKIPPED).
+					 */
+					if (mxfs_pub_skip_rearm)
+						xfs_iflags_set(ip,
+							MXFS_IF_PUB_SKIPPED);
+				}
 				pr_warn_ratelimited(
 					"mxfs: P56-NL-LOGGED-DIR-SKIP daddr=%lld slot=%d ino=%llu img_fmt=%u img_size=%llu valid_epoch=%u self_created=%d comm=%s — logged dir slot at NL without publication authority (no RELFLUSH token); refusing to publish prior-tenure image over the current owner\n",
 					(long long)bp->b_maps[0].bm_bn, s,
@@ -3192,6 +3601,89 @@ mxfs_submit_partial_inode_write(
 				continue;
 			}
 			}
+			/*
+			 * ccloop c7ee71c6 sess20 (P186) — DURABLE LINK-COUNT
+			 * REVERT DETECTOR, at the last instant before the bytes
+			 * leave this host.
+			 *
+			 * A directory's di_nlink only grows while children are
+			 * being created, so an image about to be published whose
+			 * di_nlink is BELOW a value this node already observed
+			 * durable for the same incarnation is a provable revert
+			 * of a peer's committed mkdir.  That is exactly the shape
+			 * that dominates sf_mkdir_storm: 137 of 455 failing
+			 * checks had the parent's link bump lost while the child
+			 * dirent survived, and ZERO had the opposite — which is
+			 * what a stale DINODE published over a newer one looks
+			 * like once the dir is in block format (dirents live in
+			 * separate blocks, di_nlink lives in the dinode).
+			 *
+			 * One 32-bit compare against an in-memory watermark
+			 * stamped at reload: no I/O, no lock, nothing added to
+			 * the release drain (whose latency this defect family is
+			 * measurably sensitive to — a 3-way merge there took the
+			 * loss rate from 7 to 21 failing rounds).
+			 */
+			if ((be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR &&
+			    ip && ip->i_mxfs_disk_nlink_gen &&
+			    ip->i_mxfs_disk_nlink_gen == be32_to_cpu(d->di_gen) &&
+			    be32_to_cpu(d->di_nlink) <
+					ip->i_mxfs_disk_nlink_seen) {
+				static atomic_t p186n = ATOMIC_INIT(0);
+				extern int mxfs_dir_nl_require_grant;
+
+				if (atomic_inc_return(&p186n) <= 4000)
+					pr_warn("mxfs: P186-NLINK-REVERT ino=%llu daddr=%lld out_nlink=%u seen_disk_nlink=%u incore_nlink=%u gen=%u chg=%llu fmt=%u logged=%d relflush=%d dlm_mode=%d held=%d comm=%s realns=%llu — publishing a dinode whose link count is BELOW one already durable on the platter\n",
+						(unsigned long long)be64_to_cpu(d->di_ino),
+						(long long)bp->b_maps[0].bm_bn,
+						be32_to_cpu(d->di_nlink),
+						ip->i_mxfs_disk_nlink_seen,
+						VFS_I(ip)->i_nlink,
+						be32_to_cpu(d->di_gen),
+						(unsigned long long)be64_to_cpu(d->di_changecount),
+						d->di_format,
+						(int)!!(logged & slotbits),
+						xfs_iflags_test(ip,
+							MXFS_IF_DLM_RELFLUSH) ? 1 : 0,
+						ip->i_dlm_mode,
+						/* sess20: non-blocking only —
+						 * pag_ici_lock is held here. */
+						mp->m_mxfs_dlm ?
+							mxfs_v5_dlm_inode_held_nb(
+								mp->m_mxfs_dlm,
+								ip->i_ino) : -9,
+						current->comm,
+						(unsigned long long)ktime_get_real_ns());
+			}
+			/* Our own image is about to become the platter truth —
+			 * advance the watermark so a LATER stale flush of the
+			 * same inode is caught against it too. */
+			if ((be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR &&
+			    ip && be32_to_cpu(d->di_gen) ==
+					ip->i_mxfs_disk_nlink_gen &&
+			    be32_to_cpu(d->di_nlink) >
+					ip->i_mxfs_disk_nlink_seen)
+				ip->i_mxfs_disk_nlink_seen =
+					be32_to_cpu(d->di_nlink);
+
+			/* sess19 nlink LEDGER, publish end (see xfs_bumplink).
+			 * This is the exact image about to reach the platter, so
+			 * a link count here that is LOWER than a peer's earlier
+			 * publish of the same inode is the durable lost update. */
+			if (unlikely(mxfs_nlink_ledger) &&
+			    (be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR)
+				pr_warn("mxfs: P180-NLW ino=%llu nl=%u cc=%llu sz=%llu fmt=%u logged=%d relflush=%d dlm_mode=%d comm=%s realns=%llu\n",
+					(unsigned long long)be64_to_cpu(d->di_ino),
+					be32_to_cpu(d->di_nlink),
+					(unsigned long long)be64_to_cpu(d->di_changecount),
+					(unsigned long long)be64_to_cpu(d->di_size),
+					d->di_format,
+					(int)!!(logged & slotbits),
+					(ip && xfs_iflags_test(ip,
+						MXFS_IF_DLM_RELFLUSH)) ? 1 : 0,
+					ip ? ip->i_dlm_mode : -1,
+					current->comm,
+					(unsigned long long)ktime_get_real_ns());
 			/* sess56 write-side probe: dump the shortform names of a
 			 * LOGGED dir slot being written, so the resurrecting write
 			 * (one persisting a stale prior-tenure entry set) is caught
@@ -3204,7 +3696,14 @@ mxfs_submit_partial_inode_write(
 
 				mxfs_sf_disk_names(mp, d, wn, sizeof(wn));
 				pr_warn_ratelimited(
-					"mxfs: P56-DIRWRITE ino=%llu daddr=%lld incore=%d mode=%d logged=%d relflush=%d dgen=%u lgen=%u vep=%u sfc=%d comm=%s write=[%s]\n",
+					/* sess19: realns makes the publish order
+					 * comparable ACROSS nodes (all NTP-synced).
+					 * vep alone ties within a tenure, so a
+					 * vep-only sort mis-attributes which write
+					 * dropped which name — the ledger needs a
+					 * true total order.  tests/sf_storm_ledger.py
+					 * sorts on this. */
+					"mxfs: P56-DIRWRITE ino=%llu daddr=%lld incore=%d mode=%d logged=%d relflush=%d dgen=%u lgen=%u vep=%u sfc=%d nl=%u sz=%llu comm=%s realns=%llu write=[%s]\n",
 					(unsigned long long)(ip ? ip->i_ino : 0),
 					(long long)bp->b_maps[0].bm_bn,
 					ip ? 1 : 0, ip ? ip->i_dlm_mode : -1,
@@ -3219,7 +3718,11 @@ mxfs_submit_partial_inode_write(
 					ip ? ip->i_dlm_dir_loaded_gen : 0,
 					ip ? ip->i_dlm_dir_valid_epoch : 0,
 					(ip && ip->i_mxfs_self_created) ? 1 : 0,
-					current->comm, wn);
+					be32_to_cpu(d->di_nlink),
+					(unsigned long long)be64_to_cpu(d->di_size),
+					current->comm,
+					(unsigned long long)ktime_get_real_ns(),
+					wn);
 			} else if ((be16_to_cpu(d->di_mode) & S_IFMT) == S_IFDIR) {
 				/* sess3 (ccloop 46efd8b6): grown-dir dinode image
 				 * entering the platter via a logged partial write —
@@ -3239,6 +3742,297 @@ mxfs_submit_partial_inode_write(
 						(unsigned long long)be64_to_cpu(d->di_changecount),
 						ip ? ip->i_dlm_mode : -1,
 						current->comm);
+			}
+			/*
+			 * ccloop c7ee71c6 sess30 — GPT review item 2 DETECTOR.
+			 * Everything above this point has decided to WRITE this
+			 * logged slot.  Ask the question the logged branch never
+			 * asks: do we hold publication authority for these bytes
+			 * RIGHT NOW, at submit time?
+			 *
+			 *   noauth        we are not EX, hold no release token and
+			 *                 are not the active demoter — a background
+			 *                 flusher publishing a journal image to home
+			 *                 with no tenure.
+			 *   stale_tenure  STRONGER, and the one that cannot be
+			 *                 argued away: i_dlm_epoch has MOVED since
+			 *                 xfs_iflush staged these exact bytes, so we
+			 *                 provably lost the grant in between and a
+			 *                 peer may have published under its own EX.
+			 *                 One 64-bit compare — no DLM query, no I/O,
+			 *                 safe under pag_ici_lock (sess20: the
+			 *                 blocking held-query sleeps here).
+			 *
+			 * Detection only; behaviour unchanged.  A logged slot cannot
+			 * simply be dropped the way a passenger can — that loses a
+			 * committed change — so the fix shape has to be decided from
+			 * the numbers, not guessed.
+			 */
+			{
+				bool isdir = (be16_to_cpu(d->di_mode) & S_IFMT)
+						== S_IFDIR;
+				bool ex, rf, dem, stale, staged;
+
+				atomic64_inc(&mxfs_logwr_written);
+				if (!ip) {
+					/* bli_dirty-only sector (e.g. a logged
+					 * di_next_unlinked) with the inode not in
+					 * core: no tenure can even be consulted. */
+					atomic64_inc(&mxfs_logwr_nocore);
+					continue;
+				}
+				ex   = ip->i_dlm_mode == MXFS_LOCK_EX;
+				rf   = xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH);
+				dem  = ip->i_dlm_demoter != NULL;
+				/*
+				 * The staging stamp is only meaningful when an
+				 * inode log item for this slot is attached to
+				 * THIS buffer — that is exactly "xfs_iflush
+				 * staged this image here and the flush lock has
+				 * been held ever since".  It also makes the
+				 * comparison structurally immune to inode
+				 * RECYCLING: a flush-locked inode with an item on
+				 * a live buffer cannot be reclaimed, so `ip` is
+				 * the same object that stamped it.  A
+				 * bli_dirty-only sector had no xfs_iflush this
+				 * round, so its stamp belongs to an older flush
+				 * and says nothing about these bytes.
+				 */
+				staged = (logged & slotbits) != 0;
+				if (staged)
+					atomic64_inc(&mxfs_logwr_staged);
+				stale = staged &&
+					ip->i_mxfs_pub_stage_epoch != 0 &&
+					ip->i_mxfs_pub_stage_epoch != ip->i_dlm_epoch;
+
+				if (stale)
+					atomic64_inc(&mxfs_logwr_stale_tenure);
+				/* sess31: class X — the corruption-capable shape:
+				 * bytes last copied under a DEAD tenure going to
+				 * the wire while we hold NL (a peer may have
+				 * republished/reused since). */
+				if (stale && ip->i_dlm_mode == MXFS_LOCK_NL)
+					atomic64_inc(&mxfs_logwr_stale_nl);
+				/* sess33: the EX-side numerator — staged-stale
+				 * bytes about to publish while we hold EX NOW.
+				 * Holding EX is not authority for bytes staged
+				 * under a dead tenure: the reacquire reconciled
+				 * the IN-CORE inode, not this frozen pre-yield
+				 * image; if a peer committed between our
+				 * tenures, submitting it reverts them. */
+				if (stale && ex)
+					atomic64_inc(&mxfs_logwr_stale_ex);
+				if (!ex && !rf && !dem) {
+					atomic64_inc(&mxfs_logwr_noauth);
+					if (isdir)
+						atomic64_inc(&mxfs_logwr_noauth_dir);
+				}
+				if (stale || (!ex && !rf && !dem))
+					pr_warn_ratelimited(
+					    "mxfs: P219-LOGGED-NO-AUTHORITY daddr=%lld slot=%d ino=%llu isdir=%d staged=%d dlm_mode=%d stage_mode=%d relflush=%d demoter=%d stage_epoch=%lu now_epoch=%lu epsrc=%u stale=%d img_gen=%u img_cc=%llu img_mode=%o img_nl=%u stage_ns=%llu comm=%s realns=%llu bflags=0x%x — publishing a LOGGED image to home without the tenure it was staged under\n",
+					    (long long)bp->b_maps[0].bm_bn, s,
+					    (unsigned long long)be64_to_cpu(d->di_ino),
+					    isdir ? 1 : 0, staged ? 1 : 0,
+					    ip->i_dlm_mode,
+					    (int)ip->i_mxfs_pub_stage_mode,
+					    rf ? 1 : 0, dem ? 1 : 0,
+					    ip->i_mxfs_pub_stage_epoch,
+					    ip->i_dlm_epoch, (unsigned)ip->i_dlm_epoch_src,
+				    stale ? 1 : 0,
+					    be32_to_cpu(d->di_gen),
+					    (unsigned long long)(be64_to_cpu(d->di_changecount)
+								 % 100000ULL),
+					    be16_to_cpu(d->di_mode),
+					    be32_to_cpu(d->di_nlink),
+					    (unsigned long long)ip->i_mxfs_pub_stage_ns,
+					    current->comm,
+					    (unsigned long long)ktime_get_real_ns(),
+					    (unsigned int)bp->b_flags);
+				/*
+				 * sess31 CONTAINMENT (GPT-ruled, default OFF —
+				 * mxfs.stale_stage_skip): never publish a LOGGED
+				 * slot whose bytes were staged under a tenure
+				 * that has since died and which we have no
+				 * authority to publish now.
+				 *
+				 *  landed (durable==flush): the exact staged
+				 *   image already completed a home write under
+				 *   its own tenure — this late rewrite is byte-
+				 *   redundant at best and peer-reverting at
+				 *   worst (measured: orphan images written at
+				 *   NL after the grant-lost release).  Skipping
+				 *   is lossless: newer committed changes are
+				 *   not in these bytes, and a re-logged item
+				 *   stays attached (ili_fields non-empty) so the
+				 *   natural xfsaild re-flush retries them under
+				 *   whatever tenure then holds.
+				 *  unlanded (durable<flush): these bytes are the
+				 *   only non-journal copy — but writing them
+				 *   without authority is known cross-node
+				 *   corruption (GPT ruling: never trade AIL
+				 *   pressure for that).  Skip, roll the
+				 *   watermark back so the buffer-wide iodone
+				 *   cannot falsely discharge the obligation
+				 *   (P56's treatment), and re-arm only via the
+				 *   existing pub_skip_rearm lever (measured to
+				 *   livelock on its own — the real repair is
+				 *   the upstream release barrier).  Expected
+				 *   near-zero; counted loudly.
+				 */
+				if (mxfs_stale_stage_skip && ip &&
+				    stale && !ex && !rf && !dem) {
+					bool landed =
+						ip->i_mxfs_pub_durable_seq ==
+						ip->i_mxfs_pub_flush_seq;
+
+					skip |= slotbits;
+					nskip++;
+					if (landed) {
+						atomic64_inc(&mxfs_logwr_sskip_landed);
+					} else {
+						unsigned long p224_staged =
+							ip->i_mxfs_pub_flush_seq;
+
+						atomic64_inc(&mxfs_logwr_sskip_unlanded);
+						ip->i_mxfs_pub_flush_seq =
+							ip->i_mxfs_pub_durable_seq;
+						if (mxfs_pub_skip_rearm)
+							xfs_iflags_set(ip,
+								MXFS_IF_PUB_SKIPPED);
+						/*
+						 * sess32 (GPT condition-1
+						 * ruling): unlanded + dead
+						 * tenure + no authority means
+						 * the only non-journal copy of
+						 * a committed change has
+						 * escaped every live retry
+						 * path AFTER authority was
+						 * surrendered.  Writing it is
+						 * known cross-node corruption;
+						 * completing it silently is a
+						 * lost write; re-arming alone
+						 * is the measured AIL-tail
+						 * livelock.  This is an
+						 * INVARIANT ASSERTION (never
+						 * observed: sskip_unlanded=0
+						 * across every lap and board):
+						 * fail closed — shut down so
+						 * the cluster fences this node
+						 * and log recovery republishes
+						 * the journal copy under the
+						 * recovery protocol.  0 =
+						 * legacy count-and-skip, A/B
+						 * and fault-injection only.
+						 */
+						if (mxfs_stale_stage_unlanded_shutdown) {
+							static atomic_t p224_n = ATOMIC_INIT(0);
+							if (atomic_inc_return(&p224_n) <= 100)
+								pr_err("mxfs: P224-UNLANDED-STALE-FATAL ino=%llu daddr=%lld slot=%d pending=%llu durable=%llu staged=%llu stage_epoch=%lu now_epoch=%lu img_mode=%o img_nl=%u comm=%s — committed change unlanded at NL under a dead tenure; failing closed (shutdown->fence) instead of publishing or dropping it\n",
+									(unsigned long long)be64_to_cpu(d->di_ino),
+									(long long)bp->b_maps[0].bm_bn, s,
+									(unsigned long long)ip->i_mxfs_pub_pending_seq,
+									(unsigned long long)ip->i_mxfs_pub_durable_seq,
+									(unsigned long long)p224_staged,
+									ip->i_mxfs_pub_stage_epoch,
+									ip->i_dlm_epoch,
+									be16_to_cpu(d->di_mode),
+									be32_to_cpu(d->di_nlink),
+									current->comm);
+							xfs_force_shutdown(bp->b_mount,
+									   SHUTDOWN_CORRUPT_INCORE);
+						}
+					}
+					/*
+					 * sess32 root-fix forensics: ili_f
+					 * distinguishes the two candidate
+					 * shapes of a landed skip.  Nonzero =
+					 * the item was RE-LOGGED at precommit
+					 * after its staging landed (the slot
+					 * rides a co-resident cluster write
+					 * carrying old-but-landed bytes; the
+					 * re-logged change restages naturally
+					 * under whatever tenure then holds).
+					 * Zero = a clean leftover attach — a
+					 * different producer.  stage_mode and
+					 * the pub seqs order the timeline.
+					 */
+					pr_warn_ratelimited(
+					    "mxfs: P222-STALE-STAGE-SKIP daddr=%lld slot=%d ino=%llu landed=%d stage_epoch=%lu now_epoch=%lu stage_mode=%u ili_f=0x%x ili_lf=0x%x pend=%llu dur=%llu img_nl=%u comm=%s — masking a dead-tenure staged image out of the home write\n",
+						(long long)bp->b_maps[0].bm_bn, s,
+						(unsigned long long)be64_to_cpu(d->di_ino),
+						landed ? 1 : 0,
+						ip->i_mxfs_pub_stage_epoch,
+						ip->i_dlm_epoch,
+						(unsigned)ip->i_mxfs_pub_stage_mode,
+						ip->i_itemp ? ip->i_itemp->ili_fields : 0,
+						ip->i_itemp ? ip->i_itemp->ili_last_fields : 0,
+						(unsigned long long)ip->i_mxfs_pub_pending_seq,
+						(unsigned long long)ip->i_mxfs_pub_durable_seq,
+						be32_to_cpu(d->di_nlink),
+						current->comm);
+					continue;
+				}
+				/*
+				 * sess33 EX-SIDE EPOCH GATE (GPT condition 4,
+				 * knob mxfs.stale_stage_skip_ex): capability-
+				 * based, not mode-based — holding EX NOW is not
+				 * authority for bytes staged under a DEAD
+				 * tenure.  The reacquire reconciled the in-core
+				 * inode; THIS frozen image predates the yield,
+				 * so if a peer committed between our tenures,
+				 * publishing it reverts them; if none did, the
+				 * bytes equal current state and the restage is
+				 * a no-op rewrite.  Skip is therefore always
+				 * safe at EX and the retry SUCCEEDS here:
+				 * PUB_SKIPPED is set UNCONDITIONALLY (unlike
+				 * the NL arm) — the P187 iodone re-arm keeps
+				 * the item dirty+in-AIL and the next xfsaild
+				 * push re-copies CURRENT state under the LIVE
+				 * grant with a fresh stamp.  ISTALE/ifree
+				 * slots are EXCLUDED until they have an
+				 * explicit authority class (class-X analysis:
+				 * the freed-state write must keep publishing
+				 * under the live ifree tenure); rf/dem
+				 * (pipeline/demoter submit contexts) keep
+				 * their current behavior — counted in the
+				 * stale_ex numerator, never skipped here.
+				 * Unlanded skips roll the flush watermark
+				 * back (P56 treatment) so this buffer's
+				 * iodone cannot falsely discharge the
+				 * obligation; worst case the release barrier
+				 * restages at tenure end from in-core state.
+				 */
+				if (mxfs_stale_stage_skip_ex && ip &&
+				    stale && ex && !rf && !dem &&
+				    !xfs_iflags_test(ip, XFS_ISTALE)) {
+					bool ex_landed =
+						ip->i_mxfs_pub_durable_seq ==
+						ip->i_mxfs_pub_flush_seq;
+
+					skip |= slotbits;
+					nskip++;
+					atomic64_inc(&mxfs_logwr_sskip_ex);
+					if (!ex_landed) {
+						atomic64_inc(&mxfs_logwr_sskip_ex_unl);
+						ip->i_mxfs_pub_flush_seq =
+							ip->i_mxfs_pub_durable_seq;
+					}
+					xfs_iflags_set(ip, MXFS_IF_PUB_SKIPPED);
+					pr_warn_ratelimited(
+					    "mxfs: P235-EX-STALE-SKIP daddr=%lld slot=%d ino=%llu landed=%d stage_epoch=%lu now_epoch=%lu stage_mode=%u ili_f=0x%x pend=%llu dur=%llu img_nl=%u comm=%s — dead-tenure staged image masked from an EX-held home write; restaging under the live grant\n",
+						(long long)bp->b_maps[0].bm_bn, s,
+						(unsigned long long)be64_to_cpu(d->di_ino),
+						ex_landed ? 1 : 0,
+						ip->i_mxfs_pub_stage_epoch,
+						ip->i_dlm_epoch,
+						(unsigned)ip->i_mxfs_pub_stage_mode,
+						ip->i_itemp ? ip->i_itemp->ili_fields : 0,
+						(unsigned long long)ip->i_mxfs_pub_pending_seq,
+						(unsigned long long)ip->i_mxfs_pub_durable_seq,
+						be32_to_cpu(d->di_nlink),
+						current->comm);
+					continue;
+				}
 			}
 			continue;
 		}
@@ -3296,13 +4090,221 @@ mxfs_submit_partial_inode_write(
 				(unsigned long long)ktime_get_real_ns());
 			continue;
 		}
-		if (!is_free && !is_nl)
+		if (!is_free && !is_nl) {
+			/*
+			 * ccloop c7ee71c6 sess29 — DETECTOR for
+			 * D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY.
+			 *
+			 * This `continue` is the gap.  Every OTHER class of slot
+			 * in this cluster is now guarded: FREE and NL slots are
+			 * skipped below, and a DIRECTORY slot is never written
+			 * unless it was logged this round (P56-CORESIDENT-DIR-
+			 * SKIP).  A HELD NON-DIR slot is written unconditionally,
+			 * from whatever bytes our cluster buffer happens to hold
+			 * — and the physical write unit is the whole 16 KB
+			 * cluster while the coherency protocol locks per inode.
+			 *
+			 * THE COUNTING TRAP (sess27, recorded in the ledger):
+			 * do NOT count "slots we lack EX for".  ~20 of the 21
+			 * slots in every cluster write are bytes preserved from
+			 * whenever the buffer was last read, so that predicate
+			 * fires on essentially every write and measures nothing.
+			 * Count only slots whose bytes can be STALE, and always
+			 * publish the denominator alongside:
+			 *
+			 *   unlogged   this slot is written but carries NO
+			 *              committed change of ours this round —
+			 *              pure passenger bytes.  Denominator.
+			 *   pr         ...and we hold it only in PR, i.e. we have
+			 *              NO WRITE TENURE for the very bytes we are
+			 *              about to publish.  This is the defect
+			 *              statement verbatim.
+			 *   genmm      ...and the buffer image's di_gen disagrees
+			 *              with our in-core i_generation: the bytes
+			 *              are a DIFFERENT INCARNATION from the one
+			 *              we have in core.  Definitely stale.
+			 *
+			 * Detection only — behaviour is unchanged.  Masking a
+			 * held non-dir slot out of the write is what the
+			 * blocking_fix has to decide, and the note at the dir
+			 * skip warns that an all-skip degenerate case can strand
+			 * a buffer with no logged inode item.
+			 */
+			if (!((logged | bli_dirty) & slotbits)) {
+				u32 img_gen = be32_to_cpu(d->di_gen);
+				bool pr, genmm, nocore;
+
+				/*
+				 * ip CAN BE NULL HERE.  is_nl is
+				 * (ip && mode == NL), so `!is_free && !is_nl`
+				 * admits ip == NULL — the branch comment
+				 * ("held non-dir inode") describes the intent,
+				 * not the condition.  Dereferencing ip here is
+				 * a NULL deref in the writeback path; it killed
+				 * one node per run on three consecutive runs
+				 * before the probe ever printed a line.
+				 *
+				 * And the ip == NULL case is not a nuisance to
+				 * skip — it is the WORST case, and P56's dir
+				 * rationale says why: the flushing node often
+				 * holds this cluster cached for a churned child
+				 * inode while the slot's own inode is not in
+				 * core here at all, so the bytes are a stale
+				 * prior-tenure image and we cannot even consult
+				 * a tenure for them.  Count it as its own
+				 * bucket.
+				 */
+				bool skipped;
+
+				nocore = (ip == NULL);
+				pr = (!nocore &&
+				      ip->i_dlm_mode == MXFS_LOCK_PR);
+				genmm = (!nocore &&
+					 img_gen != VFS_I(ip)->i_generation);
+
+				n_unlogged_wr++;
+				if (nocore)
+					n_unlogged_nocore++;
+				if (pr) {
+					n_unlogged_pr++;
+					/*
+					 * THE FIX.  We hold this inode in PR —
+					 * a READ tenure — and did not log it
+					 * this round, yet the cluster write is
+					 * about to publish our cached bytes for
+					 * it.  We have no authority for those
+					 * bytes and they can only be as fresh
+					 * as our last read.
+					 *
+					 * PROVEN to diverge, not merely to be
+					 * unauthorised: the cross-node merge
+					 * (tests/cluster_authority_merge.sh)
+					 * caught this exact population putting
+					 * a pre-free mode=100644 image back
+					 * over inodes a peer had published as
+					 * mode=0 (freed) 3.9-4.1 SECONDS
+					 * earlier — silently, on a run where
+					 * dir_reuse_coherency and
+					 * dirent_durability both passed 32/32.
+					 * Those slots logged pr=1 nocore=0
+					 * dlm_mode=3.
+					 *
+					 * This is exactly the treatment
+					 * P56-CORESIDENT-DIR-SKIP already gives
+					 * an unlogged DIRECTORY slot; the
+					 * non-dir case was simply never
+					 * guarded.  Per-inode v5 CRCs make
+					 * writing only the modified inode-sized
+					 * runs valid.
+					 */
+					if (mxfs_cluster_passenger_skip & 1) {
+						pr_skip |= slotbits;
+						n_pr_skip++;
+					}
+				}
+				/*
+				 * bit1 — NO IN-CORE INODE AT ALL.  We cannot
+				 * even consult a tenure for this slot, and its
+				 * bytes are whatever the buffer held whenever
+				 * it was last read.  This is 93% of the
+				 * exposure and P56's directory rationale
+				 * already names it the worst class: the
+				 * flushing node holds this cluster cached for a
+				 * churned CHILD inode while the slot's own
+				 * inode is not in core here, so the image is
+				 * stale prior-tenure content.
+				 *
+				 * MEASURED to be necessary: with bit0 alone the
+				 * PR-class divergences went away (2969 slots
+				 * skipped) but the merge still caught one
+				 * revert — ino=150, gap 0.196 s, putting a
+				 * pre-free mode=100644 image back over a slot
+				 * test2 had just published as mode=0 — and its
+				 * probe line read pr=0 nocore=1.
+				 */
+				if (nocore && (mxfs_cluster_passenger_skip & 2)) {
+					pr_skip |= slotbits;
+					n_pr_skip++;
+				}
+				if (genmm)
+					n_unlogged_genmm++;
+				/*
+				 * sess29: the probe MUST say whether the slot
+				 * was actually WRITTEN.  It fires while the
+				 * slot is being CONSIDERED, before the mask is
+				 * applied, so once the fix started dropping
+				 * slots the cross-node merge kept counting
+				 * dropped ones as publications and reported
+				 * divergences for writes that never happened.
+				 * (The residual `declined` fallback below can
+				 * still put a skipped slot back into the I/O;
+				 * it has measured 0 so far and is counted
+				 * separately, so a nonzero declined count is
+				 * the one case where this field can be wrong.)
+				 */
+				skipped = (pr_skip & slotbits) != 0;
+				if (pr || genmm || nocore)
+					pr_warn_ratelimited(
+					    "mxfs: P218-CLUSTER-PASSENGER daddr=%lld slot=%d ino=%llu img_gen=%u img_cc=%llu incore_gen=%u img_mode=%o dlm_mode=%d pr=%d genmm=%d nocore=%d skipped=%d comm=%s realns=%llu — un-logged slot in this cluster write\n",
+					    (long long)bp->b_maps[0].bm_bn, s,
+					    (unsigned long long)be64_to_cpu(d->di_ino),
+					    img_gen,
+					    /* sess29: the changecount tail is
+					     * what lets the cross-node merge see
+					     * a revert WITHIN one incarnation,
+					     * which mode+gen cannot. */
+					    (unsigned long long)(be64_to_cpu(d->di_changecount)
+								 % 100000ULL),
+					    nocore ? 0u :
+						(unsigned)VFS_I(ip)->i_generation,
+					    be16_to_cpu(d->di_mode),
+					    nocore ? -1 : ip->i_dlm_mode,
+					    pr ? 1 : 0, genmm ? 1 : 0,
+					    nocore ? 1 : 0, skipped ? 1 : 0,
+					    current->comm,
+					    (unsigned long long)ktime_get_real_ns());
+			}
 			continue;		/* held non-dir inode -> write it */
+		}
 		/* FREE / NL (peer-owned), not logged -> skip (BUG1/BUG2). */
 		skip |= slotbits;
 		nskip++;
+		/* Same ledger hole as the logged-dir skip above: if this slot
+		 * WAS logged this round its image was copied in and stamped,
+		 * so dropping it from the I/O must not discharge it. */
+		if (ip && (logged & slotbits)) {
+			ip->i_mxfs_pub_flush_seq = ip->i_mxfs_pub_durable_seq;
+			if (mxfs_pub_skip_rearm)
+				xfs_iflags_set(ip, MXFS_IF_PUB_SKIPPED);
+		}
 	}
 	spin_unlock(&pag->pag_ici_lock);
+
+	/*
+	 * sess29: one always-on line per cluster write that carries at least one
+	 * unauthorised passenger slot, with the DENOMINATOR (nslots/written) on
+	 * the same line so a numerator can never be read without it.  Counters
+	 * are global so a run has a single number to assert on, and they are
+	 * knob-independent — there is no knob here at all yet, this is detection
+	 * only.
+	 */
+	if (n_unlogged_pr || n_unlogged_genmm || n_unlogged_nocore) {
+		atomic64_add(n_unlogged_wr, &mxfs_clpass_unlogged);
+		atomic64_add(n_unlogged_pr, &mxfs_clpass_pr);
+		atomic64_add(n_unlogged_genmm, &mxfs_clpass_genmm);
+		atomic64_add(n_unlogged_nocore, &mxfs_clpass_nocore);
+		atomic64_inc(&mxfs_clpass_writes);
+		pr_warn_ratelimited(
+			"mxfs: P218-CLUSTER-AUTHORITY daddr=%lld nslots=%u incore=%u held=%u nl=%u unlogged_written=%u no_write_tenure=%u gen_mismatch=%u no_incore=%u nskip=%u -> %s\n",
+			(long long)bp->b_maps[0].bm_bn, ni, n_incore, n_held,
+			n_nl, n_unlogged_wr, n_unlogged_pr, n_unlogged_genmm,
+			n_unlogged_nocore,
+			nskip, nskip ? "PARTIAL" : "WHOLE");
+	} else if (n_unlogged_wr) {
+		/* Passengers, but none provably stale — still the denominator. */
+		atomic64_add(n_unlogged_wr, &mxfs_clpass_unlogged);
+		atomic64_inc(&mxfs_clpass_writes);
+	}
 
 	{ extern int mxfs_iwr_enabled;
 	  if (unlikely(mxfs_iwr_enabled)) {
@@ -3343,7 +4345,37 @@ mxfs_submit_partial_inode_write(
 	}
 
 	all = (total_sects >= 64) ? ~0ULL : ((1ULL << total_sects) - 1);
-	dirty = all & ~skip;
+	/*
+	 * sess29: apply the PR-passenger skip only if something survives it.
+	 * P56's own comment records why that guard is required — the held
+	 * non-dir branch was deliberately left as the safety valve so an
+	 * all-skip degenerate case cannot strand a buffer with no logged inode
+	 * item.  If dropping these slots would empty the write, keep the old
+	 * behaviour for this buffer and say so, rather than silently emitting
+	 * an empty I/O.
+	 */
+	if (pr_skip) {
+		/*
+		 * sess29, after a GPT review (RULE 5): ALWAYS apply the
+		 * authority mask.  The previous spelling silently reinstated
+		 * the unauthorised slots whenever the mask would empty the
+		 * write — "there was nothing legal to write, so write the
+		 * illegal bytes anyway", which is exactly the corruption
+		 * invariant this fix exists to remove.  A measured
+		 * declined-count of 0 does not make that behaviour safe.
+		 * An empty result is now left empty and resolved below, where
+		 * the obligation state is known.
+		 */
+		dirty = all & ~(skip | pr_skip);
+		if (dirty) {
+			atomic64_add(n_pr_skip, &mxfs_clpass_skipped);
+			pr_warn_ratelimited(
+				"mxfs: P218-PASSENGER-SKIP daddr=%lld slots=%u — dropped un-logged slots we have no write tenure for\n",
+				(long long)bp->b_maps[0].bm_bn, n_pr_skip);
+		}
+	} else {
+		dirty = all & ~skip;
+	}
 
 	/*
 	 * sess3 (ccloop a16ec5f2) watch: record the partial-writer's DECISION
@@ -3372,10 +4404,88 @@ mxfs_submit_partial_inode_write(
 		}
 	}
 
-	if (nskip == 0)
+	/*
+	 * ccloop c7ee71c6 sess29 BUG IN MY OWN FIX, caught by a GPT design
+	 * review (RULE 5) rather than by the A/B that "passed".
+	 *
+	 * `nskip` counts only the OLD skip rules (free / NL / un-logged dir).
+	 * The sess29 authority skip keeps its slots in a separate mask and
+	 * counted them in n_pr_skip, so a buffer whose ONLY skips were
+	 * authority skips still hit `nskip == 0` here and returned false —
+	 * which tells the caller "not a partial write" and sends the WHOLE
+	 * BUFFER, every unauthorised passenger slot included.  The mask was
+	 * computed and then thrown away.
+	 *
+	 * The per-slot probe recorded `skipped=1` from the mask at the time the
+	 * slot was considered, so it reported intent, not outcome: the A/B's
+	 * "2241 slots dropped" was an overstatement on any buffer that took
+	 * this path.  (Divergence still went 3->0 and 10->0 because nskip is
+	 * usually nonzero — free/NL slots are common — but that is luck, not
+	 * design.)
+	 */
+	if (nskip == 0 && n_pr_skip == 0)
 		return false;		/* nothing to skip -> whole-buffer write */
-	if (dirty == 0)
+	if (dirty == 0) {
+		/*
+		 * sess29 (GPT RULE-5 review): split the empty case by whether
+		 * anything is OWED, instead of falling back to a whole-buffer
+		 * write that could publish only unauthorised bytes.
+		 *
+		 *   empty + no obligation  -> a legal no-op.  `logged` is every
+		 *       inode log item attached to THIS buffer and `bli_dirty`
+		 *       every buffer-logged range, so both being zero PROVES the
+		 *       buffer's completion cannot satisfy an unsent item.
+		 *       Refuse the write and complete the buffer with no I/O.
+		 *   empty + an obligation  -> a protocol bug: we owe a home
+		 *       write but hold authority for none of it.  Keep the old
+		 *       whole-write so a committed change is not lost, and say
+		 *       so loudly — losing a logged change would be worse than
+		 *       the clobber, and this must not be silent.
+		 */
+		/*
+		 * sess29 refinement, after reading the sess19/sess20 chain at
+		 * P56-NL-LOGGED-DIR-SKIP: the test is "nothing we both OWE and
+		 * were going to WRITE", i.e. `& ~skip`, not "nothing owed at
+		 * all".  A logged slot already inside `skip` was never going to
+		 * be written, so it is not a reason to fall back.
+		 *
+		 * That case is not hypothetical and the fallback was actively
+		 * WRONG for it: P56 refuses to publish a logged DIRECTORY slot
+		 * sitting at NL ("prior-tenure image over the current owner")
+		 * and rolls i_mxfs_pub_flush_seq back so the completion's
+		 * discharge is a no-op, re-arming via MXFS_IF_PUB_SKIPPED —
+		 * then the old whole-buffer fallback published that very slot
+		 * anyway, with the ledger already saying it had not been.
+		 * Caught live by P218-SKIP-DECLINED on its first run
+		 * (daddr=4064 slots=14 logged=0x4000).
+		 *
+		 * Discharging a skipped logged item without its bytes landing
+		 * is the EXISTING, shipped contract for this buffer — see the
+		 * sess19 block above — so refusing adds no new hazard.
+		 *
+		 * Note this now covers every dirty==0 case: an owed sector
+		 * outside `skip` would have to be in `pr_skip`, and pr_skip
+		 * never takes a logged or buf-logged slot.  The declined branch
+		 * below is therefore a should-never-happen assertion.
+		 */
+		if (n_pr_skip && mxfs_cluster_passenger_skip &&
+		    ((logged | bli_dirty) & ~skip) == 0) {
+			atomic64_add(n_pr_skip, &mxfs_clpass_refused);
+			pr_warn_ratelimited(
+				"mxfs: P218-WRITE-REFUSED daddr=%lld slots=%u — every slot in this cluster write is un-logged and un-owned; refusing to publish rather than clobbering peers\n",
+				(long long)bp->b_maps[0].bm_bn, n_pr_skip);
+			xfs_buf_ioend(bp);
+			return true;	/* we own completion; no I/O issued */
+		}
+		if (n_pr_skip) {
+			atomic64_add(n_pr_skip, &mxfs_clpass_skip_declined);
+			pr_warn_ratelimited(
+				"mxfs: P218-SKIP-DECLINED daddr=%lld slots=%u logged=0x%llx bli_dirty=0x%llx skip=0x%llx — SHOULD NOT HAPPEN: an owed sector survives outside `skip` yet the write is empty; writing whole buffer so no committed change is lost\n",
+				(long long)bp->b_maps[0].bm_bn, n_pr_skip,
+				logged, bli_dirty, skip);
+		}
 		return false;		/* would write nothing -> whole write */
+	}
 
 	base_512 = bp->b_maps[0].bm_bn + bp->b_target->bt_sector_offset;
 	vmalloc = is_vmalloc_addr(bp->b_addr);
@@ -6965,6 +8075,46 @@ xfs_buf_submit_ex(
 	if (bp->b_flags & XBF_WRITE)
 		mxfs_dir3_data_writemerge(bp);
 
+	/*
+	 * sess48 A-prime v4, install site 4 (WRITE side): the 388
+	 * P-IUNL-DISCRIM decode proved the fossil's home write COMPLETES
+	 * carrying the stale slot (wr_epoch stamped, value nowhere in the
+	 * target) — the in-core image lost the committed di_next_unlinked
+	 * before submission.  Overlay live committed values onto the
+	 * OUTGOING payload before the verifier stamps CRCs, so a home write
+	 * can never destage a fossil slot (and retire-at-completion becomes
+	 * sound).  The state snapshot names the pipeline that produced the
+	 * in-core fossil for the root-cause loop.
+	 */
+	{
+		extern const struct xfs_buf_ops xfs_inode_buf_ops;
+		extern int mxfs_iunl_store_overlay(struct xfs_mount *,
+				xfs_daddr_t, int, void *, unsigned int);
+
+		if ((bp->b_flags & XBF_WRITE) &&
+		    bp->b_ops == &xfs_inode_buf_ops && bp->b_addr &&
+		    bp->b_map_count == 1 && bp->b_mount &&
+		    bp->b_mount->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(bp->b_mount->m_mxfs_dlm)) {
+			int wh = mxfs_iunl_store_overlay(bp->b_mount,
+					bp->b_maps[0].bm_bn, bp->b_length,
+					bp->b_addr, BBTOB(bp->b_length));
+			if (wh)
+				pr_warn("mxfs: P-IUNLSTORE-WRSITE daddr=%lld hits=%d pin=%d delwri=%d bli=%d bli_dirty=%d in_ail=%d lseq=%u wseq=%u comm=%s — outgoing cluster write carried fossil slot(s); corrected pre-CRC\n",
+					(long long)bp->b_maps[0].bm_bn, wh,
+					atomic_read(&bp->b_pin_count),
+					!!(bp->b_flags & _XBF_DELWRI_Q),
+					bp->b_log_item ? 1 : 0,
+					(bp->b_log_item && test_bit(XFS_LI_DIRTY,
+					    &bp->b_log_item->bli_item.li_flags)) ? 1 : 0,
+					(bp->b_log_item && test_bit(XFS_LI_IN_AIL,
+					    &bp->b_log_item->bli_item.li_flags)) ? 1 : 0,
+					bp->b_mxfs_logged_seq,
+					bp->b_mxfs_written_seq,
+					current->comm);
+		}
+	}
+
 	if ((bp->b_flags & XBF_WRITE) && !xfs_buf_verify_write(bp)) {
 		/*
 		 * sess56 (ccloop 14d31183) P56-INCORE-DIFF — the write verifier
@@ -7238,6 +8388,26 @@ xfs_buf_submit_ex(
 		struct xfs_perag *pa = bp->b_pag;
 		bool held = pa->pag_dlm_cached || pa->pag_dlm_holders > 0 ||
 			    pa->pag_dlm_demoting || pa->pag_dlm_release_pending;
+		/*
+		 * sess36: the gate is racy-by-design; re-read once before
+		 * emitting.  A 4/caw soak FAIL traced to exactly this: the
+		 * gate sampled !held mid-transition of an AG re-acquire, and
+		 * the print's own payload then showed cached=1 — a
+		 * self-refuting transient — while the once-per-boot
+		 * dump_stack's "Call Trace:" line tripped soak's kernel-log
+		 * scan.  A REAL no-authority write is persistently !held;
+		 * only that arm deserves the crash-shaped artifact.
+		 */
+		if (!held) {
+			held = pa->pag_dlm_cached || pa->pag_dlm_holders > 0 ||
+			       pa->pag_dlm_demoting ||
+			       pa->pag_dlm_release_pending;
+			if (held)
+				pr_warn_ratelimited("mxfs: PROBE-A-TRANSIENT agno=%u daddr=%lld comm=%s — gate sampled !held mid-transition; authority present at re-read (no dump)\n",
+					pag_agno(pa),
+					(long long)bp->b_maps[0].bm_bn,
+					current->comm);
+		}
 		if (!held) {
 			static atomic_t pa_dumped = ATOMIC_INIT(0);
 			pr_warn_ratelimited("mxfs: PROBE-A AG-META-WRITE-NOT-HELD agno=%u daddr=%lld ops=%s comm=%s pid=%d cached=%d holders=%d demoting=%d relpend=%d bflags=0x%x\n",
@@ -8019,7 +9189,11 @@ xfs_buf_submit_ex(
 		int clwr_c = atomic_inc_return(&clwr_n);
 
 		if (clwr_c <= 800 || unlikely(mxfs_instr_enabled)) {
-			char clwr_s[420];
+			/* sess29: widened from 420 for the 4th field below —
+			 * ~21 slots x ~28 chars needs room, and a truncated
+			 * slot list silently drops the very publish a merge is
+			 * looking for. */
+			char clwr_s[800];
 			int clwr_sp = 0, clwr_i;
 			int clwr_isz = bp->b_mount->m_sb.sb_inodesize;
 			int clwr_ns = clwr_isz ?
@@ -8028,7 +9202,7 @@ xfs_buf_submit_ex(
 			if (clwr_ns > 32)
 				clwr_ns = 32;
 			for (clwr_i = 0; clwr_i < clwr_ns &&
-			     clwr_sp < (int)sizeof(clwr_s) - 32; clwr_i++) {
+			     clwr_sp < (int)sizeof(clwr_s) - 44; clwr_i++) {
 				struct xfs_dinode *clwr_d =
 					(struct xfs_dinode *)((char *)bp->b_addr +
 						clwr_i * clwr_isz);
@@ -8039,11 +9213,25 @@ xfs_buf_submit_ex(
 						sizeof(clwr_s) - clwr_sp, "x,");
 					continue;
 				}
+				/*
+				 * sess29: 4th field = di_changecount tail.
+				 * mode+gen only distinguish INCARNATIONS, so a
+				 * cross-node merge built on them can prove a
+				 * passenger write reverted an inode to an older
+				 * incarnation but is BLIND to a revert WITHIN
+				 * one incarnation (same gen, older content) —
+				 * which is the common case.  di_changecount is
+				 * monotone per incarnation, so peer_cc > our_cc
+				 * at a later timestamp is a content regression
+				 * with no I/O and no extra log lines.
+				 */
 				clwr_sp += scnprintf(clwr_s + clwr_sp,
-					sizeof(clwr_s) - clwr_sp, "%llu:%o:%u,",
+					sizeof(clwr_s) - clwr_sp, "%llu:%o:%u:%llu,",
 					(unsigned long long)be64_to_cpu(clwr_d->di_ino),
 					be16_to_cpu(clwr_d->di_mode),
-					be32_to_cpu(clwr_d->di_gen) % 10000);
+					be32_to_cpu(clwr_d->di_gen) % 10000,
+					(unsigned long long)(be64_to_cpu(clwr_d->di_changecount)
+							     % 100000ULL));
 			}
 			pr_warn("mxfs: P170-CLWR daddr=%lld len=%u comm=%s flags=0x%x delwri=%d [%s] realns=%llu\n",
 				(long long)xfs_buf_daddr(bp),

@@ -1,0 +1,17 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_inode_util.c",
+    "xfs/xfs_inode.c",
+    "xfs/libxfs/xfs_ag.h",
+    "pal/linux/xfs_buf.c",
+    "pal/linux/xfs_super.c",
+    "xfs/xfs_mount.h",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_iunlink_item.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

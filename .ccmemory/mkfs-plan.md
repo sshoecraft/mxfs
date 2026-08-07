@@ -1,3 +1,10 @@
+---
+name: mkfs-plan
+description: mkfs.mxfs implementation details (COMPLETED) — superseded by the shipped tool.
+metadata:
+  type: project
+---
+
 # mkfs.mxfs — Implementation Details (COMPLETED)
 
 ## Status: DONE (Session 13, 2026-03-06)

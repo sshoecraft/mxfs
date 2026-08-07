@@ -494,6 +494,20 @@ void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw)
         pthread_rwlock_rdlock(&rw->rwl);
 }
 
+/* ccloop c7ee71c6 sess21 — user mode can always sleep (see pal.h). */
+int mxfs_pal_may_sleep(void)
+{
+    return 1;
+}
+
+/* ccloop c7ee71c6 sess21 — non-sleeping read acquire (see pal.h). */
+int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw)
+{
+    if (!rw)
+        return 0;
+    return pthread_rwlock_tryrdlock(&rw->rwl) == 0 ? 1 : 0;
+}
+
 void mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw)
 {
     if (rw)
@@ -1023,6 +1037,74 @@ void mxfs_pal_log(int level, const char *fmt, ...)
     fflush(out);
 }
 
+/* ─── Fail-stop ─── */
+
+/*
+ * sess133: the user-build half of the fail-stop contract (see pal.h).  A tool
+ * has no shared-storage state to protect the way a mounted node does, but it
+ * must not continue past an invariant it just proved it cannot uphold either —
+ * so it aborts, which also leaves a core for the operator.
+ */
+void mxfs_pal_failstop_fn(const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(stderr, "mxfs FAIL-STOP: ");
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+    abort();
+}
+
+/* ─── Deferred one-shot call ─── */
+
+struct mxfs_defer_arg {
+    void (*fn)(void *);
+    void *arg;
+};
+
+static void *mxfs_defer_thread(void *p)
+{
+    struct mxfs_defer_arg *d = p;
+    void (*fn)(void *) = d->fn;
+    void *arg = d->arg;
+
+    free(d);
+    fn(arg);
+    return NULL;
+}
+
+int mxfs_pal_defer(void (*fn)(void *), void *arg)
+{
+    struct mxfs_defer_arg *d;
+    pthread_attr_t attr;
+    pthread_t tid;
+    int ret;
+
+    if (!fn)
+        return -EINVAL;
+
+    d = calloc(1, sizeof(*d));
+    if (!d)
+        return -ENOMEM;
+    d->fn = fn;
+    d->arg = arg;
+
+    /* Detached: nothing joins this, and the caller is told only whether the
+     * call was queued — exactly the kernel workqueue semantics. */
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    ret = pthread_create(&tid, &attr, mxfs_defer_thread, d);
+    pthread_attr_destroy(&attr);
+    if (ret != 0) {
+        free(d);
+        return -ret;
+    }
+    return 0;
+}
+
 /* ─── Sorting ─── */
 
 void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
@@ -1054,8 +1136,10 @@ void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
 #define PR_SA_REGISTER   0x00
 #define PR_SA_RESERVE    0x01
 #define PR_SA_PREEMPT    0x04
+#define PR_SA_PREEMPT_ABORT 0x05
 #define PR_SA_REG_IGNORE 0x06
 #define PR_SA_READ_KEYS  0x00
+#define PR_SA_READ_RESV  0x01
 #define PR_TYPE_WR_EX_RO 0x05
 
 static int scsi_pr_out(int fd, uint8_t sa, uint64_t key,
@@ -1121,7 +1205,7 @@ static int scsi_pr_out(int fd, uint8_t sa, uint64_t key,
 }
 
 static int scsi_pr_in_read_keys(int fd, uint64_t *keys, int max_keys,
-                                int *count)
+                                int *count, uint32_t *generation, int *total)
 {
     uint8_t cdb[10];
     uint8_t *resp;
@@ -1167,8 +1251,18 @@ static int scsi_pr_in_read_keys(int fd, uint64_t *keys, int max_keys,
     }
 
     /* Parse response: 4-byte generation, 4-byte additional length, then keys */
+    if (generation)
+        *generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
+                      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+
     addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
                ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+
+    /* ADDITIONAL LENGTH counts every descriptor the TARGET holds, not the
+     * number that fit in our allocation.  Report it so the caller can tell
+     * a complete view from a truncated one — see the contract in pal.h. */
+    if (total)
+        *total = (int)(addl_len / 8);
 
     nkeys = (int)(addl_len / 8);
     if (nkeys > max_keys)
@@ -1217,25 +1311,18 @@ int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key)
 }
 
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
-                             uint64_t victim_key)
+                             uint64_t victim_key, bool abort)
 {
-    int ret;
-
     if (!dev)
         return -EINVAL;
 
-    ret = scsi_pr_out(dev->fd, PR_SA_PREEMPT, my_key, victim_key,
-                      PR_TYPE_WR_EX_RO);
-
     /*
-     * RESERVATION CONFLICT (-EBUSY): the victim key is already
-     * gone from the registration table — another node preempted
-     * it first.  Fencing succeeded either way.
+     * RESERVATION CONFLICT comes back as -EBUSY and is returned VERBATIM:
+     * our command performed nothing, so it is not a fence.  See the
+     * contract in pal.h — collapsing it to 0 was the sess71 defect.
      */
-    if (ret == -EBUSY)
-        return 0;
-
-    return ret;
+    return scsi_pr_out(dev->fd, abort ? PR_SA_PREEMPT_ABORT : PR_SA_PREEMPT,
+                       my_key, victim_key, PR_TYPE_WR_EX_RO);
 }
 
 int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
@@ -1257,11 +1344,82 @@ int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
 }
 
 int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
-                               int max_keys, int *count)
+                               int max_keys, int *count, uint32_t *generation,
+                               int *total)
 {
     if (!dev || !keys || !count)
         return -EINVAL;
-    return scsi_pr_in_read_keys(dev->fd, keys, max_keys, count);
+    return scsi_pr_in_read_keys(dev->fd, keys, max_keys, count, generation,
+                                total);
+}
+
+/*
+ * PERSISTENT RESERVE IN / READ RESERVATION (service action 0x01).
+ *
+ * Response: 4-byte PR GENERATION, 4-byte ADDITIONAL LENGTH, then — only
+ * when a reservation is held — a 16-byte descriptor whose bytes 0..7 are
+ * the holder key and whose byte 13 low nibble is the SCSI TYPE.  An
+ * ADDITIONAL LENGTH of 0 means the LUN is NOT reserved, which is a
+ * successful read reporting "none held", not an error.
+ */
+int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
+                                      struct mxfs_pal_pr_reservation *out)
+{
+    uint8_t cdb[10];
+    uint8_t resp[24];
+    struct sg_io_hdr io;
+    uint8_t sense[32];
+    uint32_t addl_len;
+    int ret;
+
+    if (!dev || !out)
+        return -EINVAL;
+
+    memset(out, 0, sizeof(*out));
+    memset(resp, 0, sizeof(resp));
+
+    memset(cdb, 0, sizeof(cdb));
+    cdb[0] = PR_IN_CMD;
+    cdb[1] = PR_SA_READ_RESV;
+    cdb[7] = (uint8_t)((sizeof(resp) >> 8) & 0xFF);
+    cdb[8] = (uint8_t)(sizeof(resp) & 0xFF);
+
+    memset(&io, 0, sizeof(io));
+    io.interface_id = 'S';
+    io.dxfer_direction = SG_DXFER_FROM_DEV;
+    io.cmd_len = sizeof(cdb);
+    io.cmdp = cdb;
+    io.dxfer_len = sizeof(resp);
+    io.dxferp = resp;
+    io.sbp = sense;
+    io.mx_sb_len = sizeof(sense);
+    io.timeout = 30000;
+
+    ret = ioctl(dev->fd, SG_IO, &io);
+    if (ret < 0)
+        return -errno;
+    if (io.status != 0)
+        return -EIO;
+
+    out->generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
+                      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+
+    addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
+               ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+    if (addl_len < 16)
+        return 0;                       /* no reservation held */
+
+    out->key = ((uint64_t)resp[8] << 56) | ((uint64_t)resp[9] << 48) |
+               ((uint64_t)resp[10] << 40) | ((uint64_t)resp[11] << 32) |
+               ((uint64_t)resp[12] << 24) | ((uint64_t)resp[13] << 16) |
+               ((uint64_t)resp[14] << 8) | (uint64_t)resp[15];
+    /* Response byte 21 low nibble is TYPE — already the SCSI WIRE value,
+     * which is the space the PAL contract exposes.  (The kernel backend
+     * has to translate; this one does not.) */
+    out->type = (uint32_t)(resp[21] & 0x0F);
+    out->held = true;
+
+    return 0;
 }
 
 /* ─── SCSI COMPARE AND WRITE ───

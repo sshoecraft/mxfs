@@ -3798,8 +3798,13 @@ xfs_da_read_buf(
 			 * else tenure_stale would re-fire every read (b_epoch stuck
 			 * below master) and thrash.  Monotonic; master can't advance
 			 * mid continuous-hold so a same-tenure block is not flagged. */
-			if (mxfs_dir_tenure_evict && cur_ep > dp->i_dlm_dir_valid_epoch)
+			/* sess45: braces — the incarn stamp ran UNCONDITIONALLY
+			 * (indentation lied), flipping "no baseline" into "live
+			 * baseline of 0" on every pass here (P195 feed). */
+			if (mxfs_dir_tenure_evict && cur_ep > dp->i_dlm_dir_valid_epoch) {
 				dp->i_dlm_dir_valid_epoch = cur_ep;
+				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+			}
 			bool epoch_stale =
 				(mxfs_dir_evict_prior_tenure &&
 				 cur_ep != 0 &&

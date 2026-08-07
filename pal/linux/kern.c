@@ -1865,6 +1865,31 @@ void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw)
 		down_read(&rw->sem);
 }
 
+/*
+ * ccloop c7ee71c6 sess21 — NON-SLEEPING read acquire.
+ *
+ * down_read_trylock() never schedules: it either takes the reader count
+ * atomically or fails.  That makes it the ONLY rwlock acquire legal with a
+ * spinlock held.  Its counterpart mxfs_pal_rwlock_unlock() drops a read
+ * reference (write_held is false on this path), and up_read() likewise
+ * never sleeps, so the whole take/walk/drop sequence is atomic-context
+ * safe.
+ */
+int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw)
+{
+	if (!rw)
+		return 0;
+	return down_read_trylock(&rw->sem) ? 1 : 0;
+}
+
+/* ccloop c7ee71c6 sess21 — see pal.h.  in_atomic() covers a held spinlock
+ * and preempt_disable(); irqs_disabled() covers the hardirq/spin_lock_irq
+ * cases in_atomic() does not. */
+int mxfs_pal_may_sleep(void)
+{
+	return (!in_atomic() && !irqs_disabled()) ? 1 : 0;
+}
+
 void mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw)
 {
 	if (rw) {
@@ -2613,6 +2638,83 @@ void mxfs_pal_dump_stack(void)
 	dump_stack();
 }
 
+/*
+ * sess133: non-returning local fail-stop.  See the contract in pal.h — this is
+ * reached only when a node can neither prove it released its shared-storage
+ * state nor safely return to the caller, and both alternatives (hang forever /
+ * return with live threads holding a mount the VFS is about to free) were
+ * rejected as, respectively, a permanent kernel lifecycle hang and a
+ * use-after-free.
+ *
+ * The message is formatted first and logged at ERR before the panic, so it
+ * reaches a remote syslog even when the panic's own output does not survive.
+ */
+void mxfs_pal_failstop_fn(const char *fmt, ...)
+{
+	char buf[512];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+
+	pr_emerg("mxfs: FAIL-STOP: %s\n", buf);
+	panic("mxfs: %s", buf);
+}
+
+/*
+ * sess133: one-shot deferred call.
+ *
+ * system_unbound_wq rather than system_wq: the handler this carries runs an
+ * upper-layer escalation that may itself block, and an unbound workqueue will
+ * not let one blocked item starve the others.  The item frees itself, so a
+ * caller that never learns whether it ran leaks nothing.
+ */
+struct mxfs_defer_work {
+	struct work_struct work;
+	void (*fn)(void *);
+	void *arg;
+};
+
+static void mxfs_defer_work_fn(struct work_struct *w)
+{
+	struct mxfs_defer_work *d = container_of(w, struct mxfs_defer_work,
+						 work);
+	void (*fn)(void *) = d->fn;
+	void *arg = d->arg;
+
+	kfree(d);
+	fn(arg);
+}
+
+int mxfs_pal_defer(void (*fn)(void *), void *arg)
+{
+	struct mxfs_defer_work *d;
+
+	if (!fn)
+		return -EINVAL;
+
+	/*
+	 * GFP_ATOMIC: callers reach this from teardown paths that already hold
+	 * their own locks, and a deferred escalation that sleeps for memory
+	 * inside a stuck unmount would defeat the reason it is deferred.
+	 */
+	d = kmalloc(sizeof(*d), GFP_ATOMIC);
+	if (!d)
+		return -ENOMEM;
+
+	d->fn = fn;
+	d->arg = arg;
+	INIT_WORK(&d->work, mxfs_defer_work_fn);
+	if (!queue_work(system_unbound_wq, &d->work)) {
+		/* Already queued is impossible for a fresh item; treat any
+		 * refusal as undelivered rather than assuming it ran. */
+		kfree(d);
+		return -EBUSY;
+	}
+	return 0;
+}
+
 /* ccloop-4dd7 sess4: dump another task's kernel stack by pid (holder
  * forensics — the b58r1 184s cross-node stall's EX-admission holders were
  * blocked at a wait site no probe could see; this lets the demote-refusal
@@ -2794,7 +2896,7 @@ int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key)
 }
 
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
-			     uint64_t victim_key)
+			     uint64_t victim_key, bool abort)
 {
 	const struct pr_ops *ops;
 	int ret;
@@ -2812,9 +2914,15 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 		int ua_try;
 
 		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+			/*
+			 * `abort` is the SPC service action selector, not a
+			 * hint: sd_pr_preempt() issues `abort ? 0x05 : 0x04`.
+			 * false here is PREEMPT, which does not touch the
+			 * victim's in-flight task set (sess71).
+			 */
 			ret = ops->pr_preempt(dev->bdev, my_key, victim_key,
 					      PR_WRITE_EXCLUSIVE_REG_ONLY,
-					      false);
+					      abort);
 			if (ret != SAM_STAT_CHECK_CONDITION)
 				break;
 			msleep(2 << ua_try);
@@ -2822,16 +2930,109 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 	}
 
 	/*
-	 * RESERVATION CONFLICT (0x18 / 24): the victim key no longer
-	 * exists in the registration table — another node already
-	 * preempted it.  The victim is fenced either way, so treat
-	 * this as success.  At 32 nodes, up to 31 nodes race to
-	 * preempt the same dead node; only the first wins.
+	 * RESERVATION CONFLICT (0x18 / 24): the SARK was not a registered
+	 * key, so THIS command did nothing — no registration removed, and
+	 * under 0x05 no task set aborted.
+	 *
+	 * Until sess71 this returned 0 ("the victim is fenced either way").
+	 * That is false and it was the load-bearing lie in the fence path:
+	 * at 32 nodes up to 31 survivors race to preempt one victim, so the
+	 * conflict path is the COMMON path, and every loser was reporting a
+	 * guarantee it had not obtained — including the abort, which under
+	 * 0x04 no winner had obtained either.  Report the conflict; only the
+	 * caller has the context to decide whether someone else's completed
+	 * fence covers it.
 	 */
 	if (ret == 0x18 || ret == -EBUSY)
-		return 0;
+		return -EBUSY;
 
 	return ret;
+}
+
+/*
+ * READ RESERVATION.  Needed because "the victim's key is absent" only
+ * bounds the victim's write capability while a WE-RO reservation is
+ * actually held — with no reservation, an unregistered initiator writes
+ * freely and key absence proves nothing (sess71 GPT ruling, item 1.3).
+ */
+int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
+				      struct mxfs_pal_pr_reservation *out)
+{
+	const struct pr_ops *ops;
+	struct pr_held_reservation rsv;
+	int ret;
+
+	if (!dev || !out)
+		return -EINVAL;
+
+	memset(out, 0, sizeof(*out));
+
+	ops = get_pr_ops(dev);
+	if (!ops || !ops->pr_read_reservation)
+		return -EOPNOTSUPP;
+
+	memset(&rsv, 0, sizeof(rsv));
+
+	{
+		int ua_try;
+
+		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+			ret = ops->pr_read_reservation(dev->bdev, &rsv);
+			if (ret != SAM_STAT_CHECK_CONDITION)
+				break;
+			msleep(2 << ua_try);
+		}
+	}
+	if (ret)
+		return ret;
+
+	/*
+	 * The block layer reports "no reservation held" as a zeroed
+	 * descriptor (sd_pr_read_reservation leaves rsv untouched when the
+	 * ADDITIONAL LENGTH field says the LUN is unreserved).  A held
+	 * reservation always carries a non-zero holder key here because MXFS
+	 * never registers key 0.
+	 */
+	out->generation = rsv.generation;
+	out->key = rsv.key;
+	out->held = (rsv.key != 0);
+
+	/*
+	 * NUMBER-SPACE TRAP: sd_pr_read_reservation() stores
+	 * scsi_pr_type_to_block(...), i.e. the Linux `enum pr_type`, where
+	 * WE-RO is PR_WRITE_EXCLUSIVE_REG_ONLY == 3.  The SCSI wire value —
+	 * what `sg_persist -i -r` prints and what the user-mode PAL backend
+	 * parses straight off the response — is 5.  Comparing the block-layer
+	 * value against the wire constant silently never matches, so the
+	 * reservation check would always say "not WE-RO" and fail closed on
+	 * every fence.  Normalise to the WIRE space here; that is the single
+	 * space the PAL contract exposes (MXFS_PAL_PR_TYPE_*).
+	 */
+	switch (rsv.type) {
+	case PR_WRITE_EXCLUSIVE_REG_ONLY:
+		out->type = MXFS_PAL_PR_TYPE_WR_EX_RO;
+		break;
+	case PR_WRITE_EXCLUSIVE:
+		out->type = 0x01;
+		break;
+	case PR_EXCLUSIVE_ACCESS:
+		out->type = 0x03;
+		break;
+	case PR_EXCLUSIVE_ACCESS_REG_ONLY:
+		out->type = 0x06;
+		break;
+	case PR_WRITE_EXCLUSIVE_ALL_REGS:
+		out->type = 0x07;
+		break;
+	case PR_EXCLUSIVE_ACCESS_ALL_REGS:
+		out->type = 0x08;
+		break;
+	default:
+		out->type = 0;
+		break;
+	}
+
+	return 0;
 }
 
 /*
@@ -2917,7 +3118,8 @@ int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
 }
 
 int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
-			       int max_keys, int *count)
+			       int max_keys, int *count, uint32_t *generation,
+			       int *total)
 {
 #if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
 	const struct pr_ops *ops;
@@ -2927,6 +3129,11 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 
 	if (!dev || !keys || !count)
 		return -EINVAL;
+
+	if (generation)
+		*generation = 0;
+	if (total)
+		*total = 0;
 
 	ops = get_pr_ops(dev);
 	if (!ops || !ops->pr_read_keys)
@@ -2955,9 +3162,20 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 		return ret;
 	}
 
+	/*
+	 * On return sd_pr_read_keys() has overwritten ->num_keys with the
+	 * count the TARGET reports (ADDITIONAL LENGTH / 8), which may be
+	 * larger than the capacity we asked for; only min(capacity, total)
+	 * descriptors were copied.  Report both so the caller can tell a
+	 * complete view from a truncated one — see the contract in pal.h.
+	 */
+	if (total)
+		*total = (int)pr_keys_buf->num_keys;
 	*count = min_t(int, (int)pr_keys_buf->num_keys, max_keys);
 	for (i = 0; i < *count; i++)
 		keys[i] = pr_keys_buf->keys[i];
+	if (generation)
+		*generation = pr_keys_buf->generation;
 
 	kfree(pr_keys_buf);
 	return 0;
@@ -2966,8 +3184,11 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 	(void)dev;
 	(void)keys;
 	(void)max_keys;
+	(void)generation;
 	if (count)
 		*count = 0;
+	if (total)
+		*total = 0;
 	return -EOPNOTSUPP;
 #endif
 }
@@ -3532,6 +3753,8 @@ EXPORT_SYMBOL_GPL(mxfs_pal_spinlock_unlock);
 EXPORT_SYMBOL_GPL(mxfs_pal_rwlock_create);
 EXPORT_SYMBOL_GPL(mxfs_pal_rwlock_destroy);
 EXPORT_SYMBOL_GPL(mxfs_pal_rwlock_rdlock);
+EXPORT_SYMBOL_GPL(mxfs_pal_rwlock_tryrdlock);
+EXPORT_SYMBOL_GPL(mxfs_pal_may_sleep);
 EXPORT_SYMBOL_GPL(mxfs_pal_rwlock_wrlock);
 EXPORT_SYMBOL_GPL(mxfs_pal_rwlock_unlock);
 EXPORT_SYMBOL_GPL(mxfs_pal_cond_create);
@@ -3563,12 +3786,15 @@ EXPORT_SYMBOL_GPL(mxfs_pal_cond_resched);
 EXPORT_SYMBOL_GPL(mxfs_pal_log);
 EXPORT_SYMBOL_GPL(mxfs_pal_dump_stack);
 EXPORT_SYMBOL_GPL(mxfs_pal_dump_task_stack);
+EXPORT_SYMBOL_GPL(mxfs_pal_failstop_fn);
+EXPORT_SYMBOL_GPL(mxfs_pal_defer);
 EXPORT_SYMBOL_GPL(mxfs_pal_sort);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_register);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_reserve);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_preempt);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_unregister);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_keys);
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_reservation);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_compare_and_write);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_get_bdev);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_get_base_offset);

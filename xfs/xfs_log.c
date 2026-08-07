@@ -26,6 +26,7 @@
 
 /* mxfs log-wedge diagnostic gate (module param mxfs.instr, defined in xfs_mxfs_dlm.c) */
 extern int mxfs_instr_enabled;
+extern int mxfs_adopted_slice_full_replay;	/* sess32: xfs_mxfs_dlm.c */
 
 /* mxfs grant-balance diagnostic counters (reserve_head only) */
 static atomic64_t mxfs_dbg_grant_added = ATOMIC64_INIT(0);
@@ -611,6 +612,37 @@ xfs_log_mount(
 	mp->m_log = log;
 
 	/*
+	 * sess32 (D-FOREIGN-REPLAY-UNGATED-IMAGES): a PASS-2 (fresh) disklock
+	 * claim means this node's previous-incarnation stamp was absent or
+	 * zeroed — so any dirty records in the inherited log slice belong to
+	 * an incarnation whose recovery already completed (the elected
+	 * survivor replayed the slice and zeroed the HB slot) or to a foreign
+	 * pre-format ghost.  Re-applying their buf/dquot/icreate images here
+	 * would go through the upstream on-disk-LSN gate, which is
+	 * meaningless across per-node slices, and can revert state survivors
+	 * have written SINCE that recovery.  A PASS-1 reclaim (our own ACTIVE
+	 * stamp survived — nobody replayed us) keeps full recovery: it is the
+	 * required own-crash recovery path and is safe because our unreplayed
+	 * death left our grants quarantined.
+	 */
+	if (mp->m_mxfs_slice_adopted && !mxfs_adopted_slice_full_replay) {
+		set_bit(XLOG_MXFS_ADOPTED_SLICE, &log->l_opstate);
+		/*
+		 * sess165: the "victim" whose records the shadow authority
+		 * evaluator judges here is the PRIOR incarnation of the slot
+		 * we just claimed — same slot number, dead incarnation.  Its
+		 * CAW authority was purged when its recovery completed (a
+		 * pass-2 claim requires a CONSUMABLE sector, which only the
+		 * completed recovery produces), so the expected verdict for
+		 * every record is would-skip/not-held; a would-apply here is
+		 * evidence of an unpurged manifest, not of applicability.
+		 */
+		log->l_mxfs_victim_slot = mp->m_mxfs_node_slot;
+		xfs_notice(mp,
+	"MXFS: adopted log slice (fresh disklock claim) — image records in prior dirty content will not be re-applied");
+	}
+
+	/*
 	 * Now that we have set up the log and it's internal geometry
 	 * parameters, we can validate the given log space and drop a critical
 	 * message via syslog if the log size is too small. A log that is too
@@ -770,6 +802,8 @@ mxfs_xlog_recover_foreign_slice(
 		return PTR_ERR(shadow);
 	}
 	set_bit(XLOG_MXFS_FOREIGN_REPLAY, &shadow->l_opstate);
+	/* sess165: bind the shadow authority evaluator to the dead node */
+	shadow->l_mxfs_victim_slot = dead_slot;
 	ailp->ail_log = shadow;
 	shadow->l_ailp = ailp;
 
@@ -777,6 +811,7 @@ mxfs_xlog_recover_foreign_slice(
 	if (error)
 		xlog_recover_cancel(shadow);
 
+	mxfs_shadow_eval_finish(shadow);
 	xlog_dealloc_log(shadow);
 	kfree(ailp);
 
@@ -858,6 +893,11 @@ xfs_log_mount_finish(
 		xfs_info(mp, "Ending clean mount");
 	}
 	xfs_buftarg_drain(mp->m_ddev_targp);
+
+	/* sess165: an ADOPTED_SLICE mount log accumulated shadow authority
+	 * verdicts during pass 2 — recovery is over, emit and free them.
+	 * No-op on every other mount (state never allocated). */
+	mxfs_shadow_eval_finish(log);
 
 	clear_bit(XLOG_RECOVERY_NEEDED, &log->l_opstate);
 
@@ -1525,6 +1565,14 @@ xlog_alloc_log(
 	xlog_assign_atomic_lsn(&log->l_tail_lsn, 1, 0);
 	log->l_curr_cycle  = 1;	    /* 0 is bad since this is initial value */
 
+	/* sess165: slot 0 is valid, so the no-victim state needs a sentinel —
+	 * kzalloc's 0 would silently mean "evaluate against slot 0".
+	 * sess166: eval state/missed-count explicitly initialized (RULE-5
+	 * review) rather than riding the allocator's zeroing. */
+	log->l_mxfs_victim_slot = MXFS_XLOG_VICTIM_NONE;
+	log->l_mxfs_shadow_eval = NULL;
+	log->l_mxfs_shadow_missed = 0;
+
 	if (xfs_has_logv2(mp) && mp->m_sb.sb_logsunit > 1)
 		log->l_iclog_roundoff = mp->m_sb.sb_logsunit;
 	else
@@ -1964,6 +2012,11 @@ xlog_dealloc_log(
 		kfree(iclog);
 		iclog = next_iclog;
 	}
+
+	/* sess165 backstop: a recovery that errored out (or a mount-cancel
+	 * path) can reach teardown without passing a finish site; emit
+	 * whatever was counted rather than leaking it silently. */
+	mxfs_shadow_eval_finish(log);
 
 	/*
 	 * MXFS: a foreign-replay shadow xlog shares l_mp with the live

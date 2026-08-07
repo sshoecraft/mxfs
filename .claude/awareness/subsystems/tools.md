@@ -1,7 +1,7 @@
 # tools (User-space utilities)
 
 **Owner files**: `tools/` (12 files, ~6.4K LOC)
-**Last updated**: 2026-06-12; 2026-07-16 (mkfs Step 3b: transport self-test scratch sector reservation)
+**Last updated**: 2026-06-12; 2026-07-16 (mkfs Step 3b: transport self-test scratch sector reservation); 2026-08-01 (chk_mxfs C7 `-U` upgrade + orphan inode audit)
 
 ## Purpose
 
@@ -24,7 +24,8 @@ These are CLI binaries; no library API.
 
 ```bash
 mkfs_mxfs [-f] [-n COUNT] [-v] [-V] /dev/sda   # -n = per-node XFS log slices (1-64, default 4); -V prints version
-chk_mxfs /dev/sda
+chk_mxfs [-v] [-a|-p|-y|-n] /dev/sda           # check (+repair with -a/-y); exit 0 clean, 1 corrected, 4 errors
+chk_mxfs -U /dev/sda                           # --upgrade-protogate: offline C7 format upgrade (O_EXCL + HB-liveness proof)
 resize_mxfs /dev/sda
 fua_verify {write|read} /dev/sda LBA HEX_PATTERN
 caw_verify [--retry-ua] {write|read} <dev> LBA HEX_PATTERN   # dev may be /dev/sda OR /dev/mapper/mpathX
@@ -92,6 +93,38 @@ mkfs_mxfs writes super, zeros journal+disklock regions, then runs `format_xfs_na
   splits `--filename` on `:` (multi-file syntax). Passing an iSCSI by-path device name
   unescaped makes fio CREATE regular files (one in guest devtmpfs = RAM) and benchmarks
   memory. Escape colons (`\:`) or use the plain `/dev/sdX` node.
+
+## 2026-08-01: chk_mxfs C7 upgrade mode + orphan inode audit
+
+- **`-U` / `--upgrade-protogate`**: offline C7 version-gate format upgrade (envelope
+  `MXFS_FORMAT_F_PROTOGATE` + `cluster_proto_gen`, then XFS sb incompat bit 30 with the
+  primary sb written LAST). Requires O_EXCL open (local offline proof) + a disklock HB
+  liveness scan (remote offline proof: 2 samples across a lease window; any live record
+  aborts). Idempotent; crash-ordered so a torn upgrade re-runs cleanly.
+- **Orphan inode audit** (`check_orphan_inodes`, step 7b of the normal check flow, exit
+  code integrated): per AG, cross-references inobt-allocated inodes having `di_mode!=0 &&
+  di_nlink==0` (candidates; full-chunk 64-inode reads, holemask/free-mask aware) against
+  membership of ALL 64 AGI unlinked-bucket chains (walk via `di_next_unlinked` @0x60,
+  bounded 1M steps, magic-checked).
+  - candidate ON a bucket   → "bucketed zombie": legal crash residue, informational only.
+  - candidate on NO bucket  → **orphan (D-DESTAGE-TEAR-BUCKETLESS-ORPHAN residue)**: error;
+    repair (`-a`/`-y`) pushes it onto bucket `agino%64` — inode's `di_next_unlinked`
+    written FIRST (dangling pointer is harmless), AGI head second (single-sector commit),
+    so a torn repair just re-repairs. Kernel does the authoritative free at next recovery
+    (GPT-ruled: no offline free — blast radius).
+  - `check_one_inode`'s old unconditional `nlink==0` error is now limited to metadata
+    inodes (rootdir/rbmino/rsumino); sampled inodes defer to the audit's bucket-aware
+    classification.
+  - Verified by `tests/orphan_audit_arm.sh`: NEG (clean device → OK) + POS against REAL
+    torn state (A holds open, B rm+dies mid-destage, A killed pre-sweep → detect exit 4,
+    repair exit 1, recheck exit 0).
+  - **Convergence caveat**: a chk-repaired zombie lands on a bucket that may belong to an
+    UNCLAIMED slot — nothing reaps it until the kernel's unclaimed-bucket pass (0.11.353+)
+    runs; see xfs.md D-DESTAGE-TEAR notes.
+- Dinode offsets used by chk (verified against `xfs/libxfs/xfs_format.h`): magic 0x00,
+  mode 0x02, nlink 0x10, gen 0x5C, **next_unlinked 0x60**, crc 0x64 (v3), ino 0x98.
+  AGI: root 0x14, level 0x18, **unlinked[64] @ 0x28**, uuid 0x128, crc 0x138. AGI sector
+  = ag_base + 1024.
 
 ## Historical Bugs
 

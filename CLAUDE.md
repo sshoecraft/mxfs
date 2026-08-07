@@ -86,6 +86,69 @@ fine — the prohibition is the host only.
 
 ---
 
+### RULE 2b — NEVER RUN A COMMAND THAT CAN TRIGGER A PERMISSION PROMPT
+
+These sessions run UNATTENDED under ccloop. A permission prompt stalls the
+entire loop until a human happens to look at it. Treat any avoidable prompt as
+a hard failure, not an inconvenience.
+
+**The #1 offender — `rm` with a variable or glob path. NEVER WRITE THIS:**
+
+    rm -f $D/*            rm -rf "$DIR"/*            rm -f ${TMP}/foo*
+
+Claude Code has a separate shape-based safety check for "dangerous rm operation
+on possibly-empty variable path". It fires **regardless of the allowlist** —
+`Bash(rm:*)` in settings.json does NOT suppress it.
+
+**Instead of cleaning a directory, make a new one:**
+
+    D=$(mktemp -d)        # fresh, empty, unique — nothing to delete
+
+That removes the reason for the `rm` entirely, and is better anyway: parallel
+runs cannot collide and stale files cannot be mistaken for current results.
+If a file truly must be removed, name it in full with no variable and no glob.
+
+The allowlist lives in `.claude/settings.json`. If a command you need is not
+covered, ADD IT THERE FIRST, then run it. Prefer the dedicated Read/Edit/Write/
+Grep/Glob tools over shelling out — they never prompt. Per RULE 3, putting a
+repeated procedure into `tests/*.sh` turns many ad-hoc pipelines into one
+allowlisted invocation.
+
+---
+
+### RULE 2c — NEVER RUN A COMMAND THAT CAN WEDGE CLYDE UNKILLABLY
+
+(2026-08-07: the MXFS test harness took clyde to loadavg 583 with ~580
+unkillable tasks and forced a manual host reset.)
+
+A task blocked in uninterruptible (D) sleep cannot be killed — not by
+SIGKILL, not by `timeout`. Each one adds 1 to loadavg permanently. Two
+commands in this project reliably create them:
+
+1. **`pgrep -f` / `ps -e` / `ps aux` host-locally.** They read
+   `/proc/<pid>/cmdline` for EVERY process, which takes that process's
+   `mmap_lock`. One task wedged holding its own `mmap_lock` makes all of
+   them hang forever. Use `tools/mxfs_pgrep.sh` (skips D-state tasks
+   first) or a pidfile. `pgrep -x` matches `comm` only and is safe.
+   Diagnosing a wedged host: `/proc/*/comm`, `/proc/*/stat` and
+   `/proc/<pid>/stack` are safe; `cmdline` and `maps` are not.
+
+2. **`dmsetup suspend/resume/reload/remove` and `umount`, unbounded.**
+   Always wrap in `timeout`. If one hangs: **STOP. Do not retry, and do
+   NOT attempt a `dmsetup wipe_table`/error-target swap.** The swap needs
+   the same `md->suspend_lock` the hung call holds, so it only adds
+   another stuck task — the attempt CONSUMES the escape hatch and
+   guarantees the reset it was meant to avoid.
+
+When clyde wedges anyway: document it (blocked stacks, dmesg, hung
+commands) and report that a manual reset is needed. Per RULE 2, host
+recovery is the user's call — never a session's.
+
+Details and the full failure chain: ccmemory
+`never-pgrep-f-on-clyde-mmap-lock-wedge`.
+
+---
+
 ### RULE 3 — PERSISTENT SCRIPTS LIVE IN THE SOURCE TREE, NOT /tmp
 
 This rule OVERRIDES the global `~/.claude/CLAUDE.md` guideline that
@@ -196,8 +259,94 @@ untested workload cannot reveal a new defect.  That limit on claims is
 an integrity requirement, not permission to accept, defer, close, ship,
 or recommend promotion with an unresolved defect.
 
+THE LEDGER: `tests/criteria/OPEN_DEFECTS.json` — the list of defects and
+their status, maintained by hand.  Read it with `./defects.sh` (the open
+queue in severity order, one line each; `-d` adds each entry's summary
+and next step; `./defects.sh <ID>` prints one full entry).  **NEVER read
+the whole file**: it is ~559KB / ~139k tokens across 70 records and still
+growing — it does not fit in a session's context at any cutoff, and it
+has no reason to be there.  (Do not trust a size quoted here; it has
+outgrown two of them.  `wc -c` it if you need the number.)
+See `docs/ledger-split.md` for the structural fix.  The `open_defects`
+board criterion
+(`tests/suite/open_defects.sh`) FAILS while any entry is unresolved, so
+the board can never read all-green with a known defect open.
+
 (Numbered 6 because RULE 5 — ESCALATE TO GPT — already exists lower in
 this file; this rule lives in the prohibitions block for its force.)
+
+---
+
+### RULE 7 — READ SOURCE WITH THE Read TOOL, NOT `sed`/`cat`
+
+(Measured 2026-08-07 across 22 sessions: 429 of 483 file reads went
+through Bash — `sed -n`, `cat`, `head`. Only **11%** used the Read tool.)
+
+Reading a project file with the Read tool fires ccmemory's PreToolUse
+hook, which searches memory by that path and injects prior lessons about
+it — free, no tool call, no query needed. `sed -n '100,200p'
+dlm/dlm_caw.c` fires nothing.
+
+That injection is how sess141's leaked-`i_dio_count` root cause and the
+sess142 quarantine design reached the session that fixed the fence
+harness. It is also why the other 89% of reads got nothing:
+`dlm/dlm_caw.c` alone was read **140 times across 22 sessions**, almost
+all through Bash. Every one was a missed injection.
+
+Use Read for any project file you intend to *understand*. Bash text tools
+remain correct for what they are good at — counting, grep sweeps across
+many files, extracting one field, filtering. This rule is about reading
+source to build understanding, not about banning `grep`.
+
+---
+
+### RULE 8 — MAINTAIN `handoff.md` AS YOU WORK, NEVER AT THE CUTOFF
+
+ccloop starts a fresh session every time context fills, and the next
+session's entire starting picture is the run's handoff file. A session
+that dies abruptly writes nothing at the end: run c7ee71c6 session 173
+produced 4 user messages and **zero assistant turns**, so session 174
+started blind.
+
+Therefore the handoff is maintained CONTINUOUSLY. Update
+**`/src/mxfs/.ccloop/handoff.md`** whenever a hypothesis resolves, a test
+run finishes, or a fix lands — not when context runs out. (One file per
+PROJECT, beside `state.sh` — not per run, not under `runs/`. ccloop tells
+you the absolute path in the prompt; use that if it differs.)
+
+ccloop stamps it FRESH only if its mtime is at or after this session's
+start (30s slack). So:
+
+- **Touched this session** → it supersedes the scraped `last_text`, and
+  the prompt drops that scrape. Measured: 2,074 → 396 tokens.
+- **Not touched** → rendered under an explicit STALE marker naming its
+  age, and the scraper stays. You cost the next session ~900 tokens and
+  hand it a document it has to distrust.
+
+Updating it is therefore not housekeeping — it is the thing that makes it
+count. A handoff inherited unmodified from a previous session is stale by
+construction.
+
+Hard cap 6000 bytes (`CCLOOP_HANDOFF_MAX_BYTES`); past that ccloop
+truncates visibly. Aim well under it — these sections, ~1k tokens:
+
+    ## Active defect       <ID + one line>
+    ## Where the code is   <subsystem; the 2-3 files that matter; which
+                            .claude/awareness/subsystems/*.md covers them>
+    ## Current hypothesis  <claim + RULE 4 state: open / disproven / proven>
+    ## Ruled out           <one line each, with the evidence that killed it>
+    ## Next command        <literal invocation, its RULE 0 budget, and what
+                            a pass looks like>
+
+**Orientation is the point, not history.** Measured: sessions spend a
+median of **16 tool calls** before their first productive action, and
+re-read the same few files every time — but they do NOT repeat each
+other's experiments (**1%** command overlap). So history is cheap to
+omit; orientation is what earns the space.
+
+Do NOT scrape the transcript into it. Bash-command history and
+last-message snapshots measured as the two lowest-value sections of the
+old resume.md, at ~1.6k tokens combined.
 
 ---
 
@@ -245,7 +394,7 @@ This project uses the three-layer awareness system (see
 
 - **Last bootstrapped**: 2026-05-08
 - **Subsystems documented**: 5 of 5 (xfs, dlm, pal, tools, tests)
-- **Structural map**: 2026-07-26, ~59370 tokens
+- **Structural map**: 2026-08-07, ~66393 tokens
 - **Bootstrap version**: 1.0
 
 ## ⚠️ USE MXFS TOOLS, NOT XFS TOOLS
@@ -299,27 +448,44 @@ These rules MUST NEVER be violated. They live above the project-level rules abov
 5. **Persistent scripts live in source tree (RULE 3 above).** Test cluster reboots
    wipe /tmp; harnesses go in `tests/`, `scripts/`, `bench/`.
 
-## RULE 5 — ESCALATE TO GPT WHEN TROUBLESHOOTING STALLS
+## RULE 5 — CONSULT GPT EARLY AND OFTEN, NOT AS A LAST RESORT
 
-**When the RULE 4 loop stops showing a clear path forward, escalate to
-GPT (`mcp__ask_gpt__query`) — and do not wait long to do it.** Never
-grind on one issue for multiple sessions: even 2 sessions without a
-proven diagnosis is too many. Escalate when ANY of these hold:
+(User directive, sess29, after watching a session grind through many
+build/deploy/measure cycles before its first consult: *"please start
+calling GPT more often, stop spinning your wheels."* The old wording
+made the consult a stall-breaker; that was too conservative and cost
+real cycles. It is now a routine part of the loop.)
 
-- Several RULE 4 iterations (hypothesis → instrument → measure) have
-  run and the measurements are not converging on a cause;
-- Fixes keep getting refuted and you have no genuinely distinct (not
-  same-class) hypothesis left;
-- The issue is about to roll into a second session without a proven
-  diagnosis — escalate before the handoff.
+**Default to consulting GPT (`mcp__ask_gpt__query`). Cheap relative to
+one build+deploy+32-node measurement cycle, which is the real currency
+here.** A consult that returns nothing new costs minutes; a wrong
+hypothesis costs an hour of rig time.
 
-Self-reliant debugging comes first — instrument (RULE 4), read the
-reference sources (~/src/linux, GFS2/OCFS2 trees — see memory
-`reference-clustered-fs-sources`) — but once the path forward is
-unclear, escalate instead of grinding. Bring evidence: what you
-instrumented, what the measurements showed, what has been ruled out.
-This rule OVERRIDES the global `~/.claude/CLAUDE.md` "ASK TOOL USE"
-guideline for this project.
+**Consult BEFORE, not only when stuck. Escalate when ANY of these hold
+— and treat a single one as sufficient:**
+
+- **Before implementing any non-trivial fix**, once a root is proven:
+  have GPT review the design for hazards and completeness. sess29's
+  demoter fix passed its own A/B and GPT still found two real defects
+  in it (a bit cannot represent a nesting count; an age-based foreign
+  clear cannot prove abandonment because `xfs_iunlock` does `up_write`
+  before `mxfs_dlm_ilock_end`). Neither was catchable by that A/B.
+- **Before a second build/deploy cycle on the same hypothesis.** Two
+  cycles without convergence is already too many.
+- When choosing which defect to attack next, or when a design has more
+  than one plausible shape.
+- When a measurement contradicts a previous conclusion — a consult is
+  faster than re-deriving which one was wrong.
+- Any RULE 4 iteration that did not converge; any refuted fix; any
+  issue about to roll into another session undiagnosed.
+
+Self-reliant work still comes first for the things you can settle
+directly: read the code, read the reference sources (~/src/linux,
+GFS2/OCFS2 — memory `reference-clustered-fs-sources`), instrument and
+measure (RULE 4). GPT cannot see the rig; measurements beat opinions,
+including GPT's. But do not spend cycles *deciding* what to measure
+when a consult would tell you. Bring evidence: what you instrumented,
+what it showed, what is ruled out.
 
 The consult is GPT ONLY. `mcp__ask_fable__query` is not in the chain
 (Claude Code runs on Fable — consulting it is asking yourself); do not

@@ -3046,6 +3046,66 @@ bool mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx)
  * mutual-exclusion violation (concurrent divergent-base RMW -> durable
  * dir lost-update).  Read-only walk under table_rwlock(read); cheap, no I/O.
  */
+/*
+ * ccloop c7ee71c6 sess21 — ATOMIC-CONTEXT-SAFE variant of
+ * mxfs_dlm_held_mode.
+ *
+ * ROOT (proven byte-exact, 32/tcp rsync_paired, test31 + 7 more nodes):
+ * mxfs_dlm_held_mode takes ctx->table_rwlock with mxfs_pal_rwlock_rdlock,
+ * and in the kernel PAL that is a struct rw_semaphore.  Under contention
+ * down_read() enters rwsem_down_read_slowpath -> schedule().  The sess20
+ * "non-blocking" helper mxfs_v5_dlm_inode_held_nb called straight into
+ * here on the TCP arm, from inside spin_lock(&pag->pag_ici_lock):
+ *
+ *   mxfs_pal_rwlock_rdlock <- down_read <- rwsem_down_read_slowpath <- schedule()
+ *   mxfs_dlm_held_mode
+ *   mxfs_v5_dlm_inode_held_nb
+ *   mxfs_submit_partial_inode_write     (preempt_count 0x2)
+ *   xfs_buf_submit_bio ... xfsaild
+ *
+ * -> "BUG: scheduling while atomic", which leaves pag_ici_lock held across
+ * the schedule and corrupts preempt_count (the immediately following BUG
+ * reports 0x00000000).  A peer CPU then spins on that spinlock forever:
+ * test31 logged "soft lockup - CPU#2 stuck for 522s! [rsync]" with zero
+ * context switches, stopped answering sshd, and never released its AG
+ * grants -- so all 31 peers starved (9210 P-LKTIMEOUT-REMOTE, 8590
+ * P36-RETRY) and rsync_paired never terminated.
+ *
+ * Fix: acquire with the trylock, which never schedules.  Returns 0 and
+ * stores the held mode on success, -EWOULDBLOCK if the table was busy.
+ * Callers must treat -EWOULDBLOCK as "cannot tell", never as "not held".
+ */
+int mxfs_dlm_held_mode_nb(struct mxfs_dlm_ctx *ctx,
+                          const struct mxfs_resource_id *resource,
+                          uint8_t *out_mode)
+{
+    uint32_t bucket;
+    struct mxfs_lock *lk;
+    uint8_t best = MXFS_LOCK_NL;
+
+    if (!ctx || !resource || !ctx->buckets || !out_mode)
+        return -EWOULDBLOCK;
+
+    if (!mxfs_pal_rwlock_tryrdlock(ctx->table_rwlock))
+        return -EWOULDBLOCK;
+
+    bucket = resource_hash(resource, ctx->bucket_count);
+    for (lk = ctx->buckets[bucket]; lk; lk = lk->next) {
+        if (lk->owner != ctx->local_node)
+            continue;
+        if (lk->state != MXFS_LSTATE_GRANTED &&
+            lk->state != MXFS_LSTATE_CONVERTING)
+            continue;
+        if (!resource_equal(&lk->resource, resource))
+            continue;
+        if (lk->mode > best)
+            best = lk->mode;
+    }
+    mxfs_pal_rwlock_unlock(ctx->table_rwlock);
+    *out_mode = best;
+    return 0;
+}
+
 uint8_t mxfs_dlm_held_mode(struct mxfs_dlm_ctx *ctx,
                            const struct mxfs_resource_id *resource)
 {
@@ -3055,6 +3115,26 @@ uint8_t mxfs_dlm_held_mode(struct mxfs_dlm_ctx *ctx,
 
     if (!ctx || !resource || !ctx->buckets)
         return MXFS_LOCK_NL;
+
+    /*
+     * ccloop c7ee71c6 sess21 — P191: SLEEP-IN-ATOMIC TRIPWIRE.
+     *
+     * table_rwlock is a sleeping lock, so reaching here with a spinlock
+     * held corrupts preempt state and soft-locks whichever peer CPU is
+     * spinning on that spinlock (proven: 32/tcp rsync_paired, test31
+     * rsync stuck 522 s, whole cluster starved).  That defect reached the
+     * tree twice — sess19 through a blocking SCSI read, sess20 through
+     * this rwsem — because nothing checked.  Name the caller loudly
+     * instead of wedging 500 s later somewhere unrelated.  Callers in
+     * atomic context must use mxfs_dlm_held_mode_nb.
+     */
+    if (unlikely(!mxfs_pal_may_sleep())) {
+        pr_warn_ratelimited(
+            "mxfs: P191-SLEEP-IN-ATOMIC fn=mxfs_dlm_held_mode type=%u ino=%llu ag=%u comm=%s — BLOCKING DLM query from atomic context; use mxfs_dlm_held_mode_nb\n",
+            resource->type, (unsigned long long)resource->ino,
+            resource->ag_number, dlm_cur_comm());
+        return MXFS_LOCK_NL;
+    }
 
     mxfs_pal_rwlock_rdlock(ctx->table_rwlock);
     bucket = resource_hash(resource, ctx->bucket_count);

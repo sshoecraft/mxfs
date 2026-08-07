@@ -535,6 +535,17 @@ xfs_trans_dirty_buf(
 
 	tp->t_flags |= XFS_TRANS_DIRTY;
 	set_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags);
+
+	/*
+	 * sess103 step 5.3 (sess102 RULE-5 ruling, P0/P1): capture the
+	 * authority proof for this image HERE — the single seam every buffer
+	 * passes through to become dirty in a transaction, and the earliest
+	 * point at which the mutation is attributable to a tenure the
+	 * transaction still holds.  The formatter used to look the authority
+	 * up at CIL time, which can only report whichever grant happens to be
+	 * installed then; see struct mxfs_bli_auth.
+	 */
+	mxfs_bli_auth_capture(tp, bp);
 }
 
 /*

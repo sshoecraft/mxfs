@@ -223,7 +223,7 @@ xfs_fs_get_parent(
 	int			error;
 	struct xfs_inode	*cip;
 
-	error = xfs_lookup(XFS_I(d_inode(child)), &xfs_name_dotdot, &cip, NULL);
+	error = xfs_lookup(XFS_I(d_inode(child)), &xfs_name_dotdot, &cip, NULL, false);
 	if (unlikely(error))
 		return ERR_PTR(error);
 

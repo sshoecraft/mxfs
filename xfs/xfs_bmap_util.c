@@ -559,11 +559,22 @@ xfs_can_free_eofblocks(
 	 * reservations or CoW extents of any kind), we need to free them so
 	 * that inactivation doesn't fail to erase them.
 	 */
-	xfs_ilock(ip, XFS_ILOCK_SHARED);
+	/*
+	 * sess37 (RULE-4 stack capture, 32/caw dir_reuse): this peek reads
+	 * ONLY in-core state (i_delayed_blks + the loaded extent tree) — its
+	 * answer needs no cluster coherency.  Routing it through xfs_ilock
+	 * costs a full DLM wire acquire on an in-core-NL inode, and the
+	 * reclaim path calls it for EVERY evicted inode
+	 * (xfs_inode_mark_reclaimable -> xfs_inode_needs_inactive -> here):
+	 * 32 nodes' barrier-aligned drop_caches turned that into a 5-9s
+	 * CAS/read herd on the hot slots.  Take the local rwsem directly —
+	 * no mxfs_dlm_ilock_begin/end, symmetric skip of both hooks.
+	 */
+	down_read_nested(&ip->i_lock, XFS_ILOCK_DEP(XFS_ILOCK_SHARED));
 	if (ip->i_delayed_blks ||
 	    xfs_iext_lookup_extent(ip, &ip->i_df, end_fsb, &icur, &imap))
 		found_blocks = true;
-	xfs_iunlock(ip, XFS_ILOCK_SHARED);
+	up_read(&ip->i_lock);
 	return found_blocks;
 }
 

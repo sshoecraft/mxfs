@@ -15,7 +15,14 @@
 #   mxfs_secrets.sh get <key> [field]     # print a field (default: password)
 #   mxfs_secrets.sh passfile [path]       # write node password to <path>
 #                                         # (default /tmp/.mxfs_pass), print the path
-set -u
+#   . tools/mxfs_secrets.sh               # SOURCE it to just get the functions
+#
+# Sourcing must be side-effect free.  A sourced script sees the CALLER's positional
+# parameters, so `tests/pr_fence_evidence.sh 17 90` sourcing this file made the
+# dispatch below read $1="17", fall to the usage branch, and `exit 2` — which in a
+# sourced context terminates the CALLER.  With the caller's stderr redirected that
+# is a silent death before its first line of output (cost sess72 a whole rig run).
+# So: define functions always, dispatch only when executed as a program.
 MXFS_SECRETS="${MXFS_SECRETS:-$HOME/.config/mxfslab/secrets}"
 
 secrets_get() {  # <key> <field>
@@ -49,8 +56,17 @@ secrets_passfile() {  # [path]
     printf '%s\n' "$path"
 }
 
-case "${1:-passfile}" in
-    get)      secrets_get "${2:?key}" "${3:-password}" ;;
-    passfile) secrets_passfile "${2:-}" ;;
-    *)        echo "usage: mxfs_secrets.sh {get <key> [field]|passfile [path]}" >&2; exit 2 ;;
-esac
+mxfs_secrets_dispatch() {
+    case "${1:-passfile}" in
+        get)      secrets_get "${2:?key}" "${3:-password}" ;;
+        passfile) secrets_passfile "${2:-}" ;;
+        *)        echo "usage: mxfs_secrets.sh {get <key> [field]|passfile [path]}" >&2; return 2 ;;
+    esac
+}
+
+# Executed as a program -> run the CLI.  Sourced -> stop here, functions only.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    set -u
+    mxfs_secrets_dispatch "$@"
+    exit $?
+fi

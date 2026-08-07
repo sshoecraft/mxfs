@@ -1,0 +1,12 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_ag.h",
+    "pal/linux/xfs_buf_item.c",
+    "xfs/xfs_log_recover.c",
+    "xfs/libxfs/xfs_log_format.h"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

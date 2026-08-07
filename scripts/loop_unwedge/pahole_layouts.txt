@@ -1,0 +1,408 @@
+==== worker_pool ====
+struct worker_pool {
+	raw_spinlock_t             lock;                 /*     0     4 */
+	int                        cpu;                  /*     4     4 */
+	int                        node;                 /*     8     4 */
+	int                        id;                   /*    12     4 */
+	unsigned int               flags;                /*    16     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	long unsigned int          watchdog_ts;          /*    24     8 */
+	bool                       cpu_stall;            /*    32     1 */
+
+	/* XXX 3 bytes hole, try to pack */
+
+	int                        nr_running;           /*    36     4 */
+	struct list_head           worklist;             /*    40    16 */
+	int                        nr_workers;           /*    56     4 */
+	int                        nr_idle;              /*    60     4 */
+	/* --- cacheline 1 boundary (64 bytes) --- */
+	struct list_head           idle_list;            /*    64    16 */
+	struct timer_list          idle_timer;           /*    80    40 */
+
+	/* XXX last struct has 4 bytes of padding */
+
+	struct work_struct         idle_cull_work;       /*   120    32 */
+	/* --- cacheline 2 boundary (128 bytes) was 24 bytes ago --- */
+	struct timer_list          mayday_timer;         /*   152    40 */
+
+	/* XXX last struct has 4 bytes of padding */
+
+	/* --- cacheline 3 boundary (192 bytes) --- */
+	struct hlist_head          busy_hash[64];        /*   192   512 */
+	/* --- cacheline 11 boundary (704 bytes) --- */
+	struct worker *            manager;              /*   704     8 */
+	struct list_head           workers;              /*   712    16 */
+	struct list_head           dying_workers;        /*   728    16 */
+	struct completion *        detach_completion;    /*   744     8 */
+	struct ida                 worker_ida;           /*   752    16 */
+	/* --- cacheline 12 boundary (768 bytes) --- */
+	struct workqueue_attrs *   attrs;                /*   768     8 */
+	struct hlist_node          hash_node;            /*   776    16 */
+	int                        refcnt;               /*   792     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct callback_head       rcu;                  /*   800    16 */
+
+	/* size: 816, cachelines: 13, members: 25 */
+	/* sum members: 805, holes: 3, sum holes: 11 */
+	/* paddings: 2, sum paddings: 8 */
+	/* last cacheline: 48 bytes */
+};
+
+==== loop_device ====
+struct loop_device {
+	int                        lo_number;            /*     0     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	loff_t                     lo_offset;            /*     8     8 */
+	loff_t                     lo_sizelimit;         /*    16     8 */
+	int                        lo_flags;             /*    24     4 */
+	char                       lo_file_name[64];     /*    28    64 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	/* --- cacheline 1 boundary (64 bytes) was 32 bytes ago --- */
+	struct file *              lo_backing_file;      /*    96     8 */
+	struct block_device *      lo_device;            /*   104     8 */
+	gfp_t                      old_gfp_mask;         /*   112     4 */
+	spinlock_t                 lo_lock;              /*   116     4 */
+	int                        lo_state;             /*   120     4 */
+	spinlock_t                 lo_work_lock;         /*   124     4 */
+	/* --- cacheline 2 boundary (128 bytes) --- */
+	struct workqueue_struct *  workqueue;            /*   128     8 */
+	struct work_struct         rootcg_work;          /*   136    32 */
+	struct list_head           rootcg_cmd_list;      /*   168    16 */
+	struct list_head           idle_worker_list;     /*   184    16 */
+	/* --- cacheline 3 boundary (192 bytes) was 8 bytes ago --- */
+	struct rb_root             worker_tree;          /*   200     8 */
+	struct timer_list          timer;                /*   208    40 */
+
+	/* XXX last struct has 4 bytes of padding */
+
+	bool                       use_dio;              /*   248     1 */
+	bool                       sysfs_inited;         /*   249     1 */
+
+	/* XXX 6 bytes hole, try to pack */
+
+	/* --- cacheline 4 boundary (256 bytes) --- */
+	struct request_queue *     lo_queue;             /*   256     8 */
+	struct blk_mq_tag_set      tag_set;              /*   264   168 */
+	/* --- cacheline 6 boundary (384 bytes) was 48 bytes ago --- */
+	struct gendisk *           lo_disk;              /*   432     8 */
+	struct mutex               lo_mutex;             /*   440    32 */
+	/* --- cacheline 7 boundary (448 bytes) was 24 bytes ago --- */
+	bool                       idr_visible;          /*   472     1 */
+
+	/* size: 480, cachelines: 8, members: 24 */
+	/* sum members: 459, holes: 3, sum holes: 14 */
+	/* padding: 7 */
+	/* paddings: 1, sum paddings: 4 */
+	/* last cacheline: 32 bytes */
+};
+
+==== loop_worker ====
+struct loop_worker {
+	struct rb_node             rb_node;              /*     0    24 */
+	struct work_struct         work;                 /*    24    32 */
+	struct list_head           cmd_list;             /*    56    16 */
+	/* --- cacheline 1 boundary (64 bytes) was 8 bytes ago --- */
+	struct list_head           idle_list;            /*    72    16 */
+	struct loop_device *       lo;                   /*    88     8 */
+	struct cgroup_subsys_state * blkcg_css;          /*    96     8 */
+	long unsigned int          last_ran_at;          /*   104     8 */
+
+	/* size: 112, cachelines: 2, members: 7 */
+	/* last cacheline: 48 bytes */
+};
+
+==== loop_cmd ====
+struct loop_cmd {
+	struct list_head           list_entry;           /*     0    16 */
+	bool                       use_aio;              /*    16     1 */
+
+	/* XXX 3 bytes hole, try to pack */
+
+	atomic_t                   ref;                  /*    20     4 */
+	long int                   ret;                  /*    24     8 */
+	struct kiocb               iocb;                 /*    32    48 */
+	/* --- cacheline 1 boundary (64 bytes) was 16 bytes ago --- */
+	struct bio_vec *           bvec;                 /*    80     8 */
+	struct cgroup_subsys_state * blkcg_css;          /*    88     8 */
+	struct cgroup_subsys_state * memcg_css;          /*    96     8 */
+
+	/* size: 104, cachelines: 2, members: 8 */
+	/* sum members: 101, holes: 1, sum holes: 3 */
+	/* last cacheline: 40 bytes */
+};
+
+==== work_struct ====
+struct work_struct {
+	atomic_long_t              data;                 /*     0     8 */
+	struct list_head           entry;                /*     8    16 */
+	work_func_t                func;                 /*    24     8 */
+
+	/* size: 32, cachelines: 1, members: 3 */
+	/* last cacheline: 32 bytes */
+};
+
+==== workqueue_struct ====
+struct workqueue_struct {
+	struct list_head           pwqs;                 /*     0    16 */
+	struct list_head           list;                 /*    16    16 */
+	struct mutex               mutex;                /*    32    32 */
+	/* --- cacheline 1 boundary (64 bytes) --- */
+	int                        work_color;           /*    64     4 */
+	int                        flush_color;          /*    68     4 */
+	atomic_t                   nr_pwqs_to_flush;     /*    72     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct wq_flusher *        first_flusher;        /*    80     8 */
+	struct list_head           flusher_queue;        /*    88    16 */
+	struct list_head           flusher_overflow;     /*   104    16 */
+	struct list_head           maydays;              /*   120    16 */
+	/* --- cacheline 2 boundary (128 bytes) was 8 bytes ago --- */
+	struct worker *            rescuer;              /*   136     8 */
+	int                        nr_drainers;          /*   144     4 */
+	int                        saved_max_active;     /*   148     4 */
+	struct workqueue_attrs *   unbound_attrs;        /*   152     8 */
+	struct pool_workqueue *    dfl_pwq;              /*   160     8 */
+	struct wq_device *         wq_dev;               /*   168     8 */
+	char                       name[24];             /*   176    24 */
+	/* --- cacheline 3 boundary (192 bytes) was 8 bytes ago --- */
+	struct callback_head       rcu;                  /*   200    16 */
+
+	/* XXX 40 bytes hole, try to pack */
+
+	/* --- cacheline 4 boundary (256 bytes) --- */
+	unsigned int               flags __attribute__((__aligned__(64))); /*   256     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct pool_workqueue * *  cpu_pwq;              /*   264     8 */
+
+	/* size: 320, cachelines: 5, members: 20 */
+	/* sum members: 224, holes: 3, sum holes: 48 */
+	/* padding: 48 */
+	/* forced alignments: 1, forced holes: 1, sum forced holes: 40 */
+} __attribute__((__aligned__(64)));
+
+==== pool_workqueue ====
+struct pool_workqueue {
+	struct worker_pool *       pool;                 /*     0     8 */
+	struct workqueue_struct *  wq;                   /*     8     8 */
+	int                        work_color;           /*    16     4 */
+	int                        flush_color;          /*    20     4 */
+	int                        refcnt;               /*    24     4 */
+	int                        nr_in_flight[16];     /*    28    64 */
+	/* --- cacheline 1 boundary (64 bytes) was 28 bytes ago --- */
+	int                        nr_active;            /*    92     4 */
+	int                        max_active;           /*    96     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct list_head           inactive_works;       /*   104    16 */
+	struct list_head           pwqs_node;            /*   120    16 */
+	/* --- cacheline 2 boundary (128 bytes) was 8 bytes ago --- */
+	struct list_head           mayday_node;          /*   136    16 */
+	u64                        stats[8];             /*   152    64 */
+	/* --- cacheline 3 boundary (192 bytes) was 24 bytes ago --- */
+	struct kthread_work        release_work;         /*   216    40 */
+
+	/* XXX last struct has 4 bytes of padding */
+
+	/* --- cacheline 4 boundary (256 bytes) --- */
+	struct callback_head       rcu;                  /*   256    16 */
+
+	/* size: 512, cachelines: 8, members: 14 */
+	/* sum members: 268, holes: 1, sum holes: 4 */
+	/* padding: 240 */
+	/* paddings: 1, sum paddings: 4 */
+} __attribute__((__aligned__(256)));
+
+==== blk_mq_hw_ctx ====
+struct blk_mq_hw_ctx {
+	struct {
+		spinlock_t         lock;                 /*     0     4 */
+
+		/* XXX 4 bytes hole, try to pack */
+
+		struct list_head   dispatch;             /*     8    16 */
+		long unsigned int  state;                /*    24     8 */
+	} __attribute__((__aligned__(64)));                                               /*     0    64 */
+
+	/* XXX last struct has 32 bytes of padding */
+
+	/* --- cacheline 1 boundary (64 bytes) --- */
+	struct delayed_work        run_work;             /*    64    88 */
+
+	/* XXX last struct has 4 bytes of padding */
+
+	/* --- cacheline 2 boundary (128 bytes) was 24 bytes ago --- */
+	cpumask_var_t              cpumask;              /*   152     8 */
+	int                        next_cpu;             /*   160     4 */
+	int                        next_cpu_batch;       /*   164     4 */
+	long unsigned int          flags;                /*   168     8 */
+	void *                     sched_data;           /*   176     8 */
+	struct request_queue *     queue;                /*   184     8 */
+	/* --- cacheline 3 boundary (192 bytes) --- */
+	struct blk_flush_queue *   fq;                   /*   192     8 */
+	void *                     driver_data;          /*   200     8 */
+	struct sbitmap             ctx_map;              /*   208    32 */
+	struct blk_mq_ctx *        dispatch_from;        /*   240     8 */
+	unsigned int               dispatch_busy;        /*   248     4 */
+	short unsigned int         type;                 /*   252     2 */
+	short unsigned int         nr_ctx;               /*   254     2 */
+	/* --- cacheline 4 boundary (256 bytes) --- */
+	struct blk_mq_ctx * *      ctxs;                 /*   256     8 */
+	spinlock_t                 dispatch_wait_lock;   /*   264     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	wait_queue_entry_t         dispatch_wait;        /*   272    40 */
+	atomic_t                   wait_index;           /*   312     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	/* --- cacheline 5 boundary (320 bytes) --- */
+	struct blk_mq_tags *       tags;                 /*   320     8 */
+	struct blk_mq_tags *       sched_tags;           /*   328     8 */
+	unsigned int               numa_node;            /*   336     4 */
+	unsigned int               queue_num;            /*   340     4 */
+	atomic_t                   nr_active;            /*   344     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct hlist_node          cpuhp_online;         /*   352    16 */
+	struct hlist_node          cpuhp_dead;           /*   368    16 */
+	/* --- cacheline 6 boundary (384 bytes) --- */
+	struct kobject             kobj;                 /*   384    64 */
+	/* --- cacheline 7 boundary (448 bytes) --- */
+	struct dentry *            debugfs_dir;          /*   448     8 */
+	struct dentry *            sched_debugfs_dir;    /*   456     8 */
+	struct list_head           hctx_list;            /*   464    16 */
+
+	/* size: 512, cachelines: 8, members: 30 */
+	/* sum members: 468, holes: 3, sum holes: 12 */
+	/* padding: 32 */
+	/* paddings: 2, sum paddings: 36 */
+} __attribute__((__aligned__(64)));
+
+==== blk_flush_queue ====
+struct blk_flush_queue {
+	spinlock_t                 mq_flush_lock;        /*     0     4 */
+	unsigned int               flush_pending_idx:1;  /*     4: 0  4 */
+	unsigned int               flush_running_idx:1;  /*     4: 1  4 */
+
+	/* XXX 6 bits hole, try to pack */
+	/* Bitfield combined with next fields */
+
+	blk_status_t               rq_status;            /*     5     1 */
+
+	/* XXX 2 bytes hole, try to pack */
+
+	long unsigned int          flush_pending_since;  /*     8     8 */
+	struct list_head           flush_queue[2];       /*    16    32 */
+	long unsigned int          flush_data_in_flight; /*    48     8 */
+	struct request *           flush_rq;             /*    56     8 */
+
+	/* size: 64, cachelines: 1, members: 8 */
+	/* sum members: 61, holes: 1, sum holes: 2 */
+	/* sum bitfield members: 2 bits, bit holes: 1, sum bit holes: 6 bits */
+};
+
+==== gendisk ====
+struct gendisk {
+	int                        major;                /*     0     4 */
+	int                        first_minor;          /*     4     4 */
+	int                        minors;               /*     8     4 */
+	char                       disk_name[32];        /*    12    32 */
+	short unsigned int         events;               /*    44     2 */
+	short unsigned int         event_flags;          /*    46     2 */
+	struct xarray              part_tbl;             /*    48    16 */
+	/* --- cacheline 1 boundary (64 bytes) --- */
+	struct block_device *      part0;                /*    64     8 */
+	const struct block_device_operations  * fops;    /*    72     8 */
+	struct request_queue *     queue;                /*    80     8 */
+	void *                     private_data;         /*    88     8 */
+	struct bio_set             bio_split;            /*    96   392 */
+	/* --- cacheline 7 boundary (448 bytes) was 40 bytes ago --- */
+	int                        flags;                /*   488     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	long unsigned int          state;                /*   496     8 */
+	struct mutex               open_mutex;           /*   504    32 */
+	/* --- cacheline 8 boundary (512 bytes) was 24 bytes ago --- */
+	unsigned int               open_partitions;      /*   536     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct backing_dev_info *  bdi;                  /*   544     8 */
+	struct kobject             queue_kobj;           /*   552    64 */
+	/* --- cacheline 9 boundary (576 bytes) was 40 bytes ago --- */
+	struct kobject *           slave_dir;            /*   616     8 */
+	struct list_head           slave_bdevs;          /*   624    16 */
+	/* --- cacheline 10 boundary (640 bytes) --- */
+	struct timer_rand_state *  random;               /*   640     8 */
+	atomic_t                   sync_io;              /*   648     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct disk_events *       ev;                   /*   656     8 */
+	unsigned int               nr_zones;             /*   664     4 */
+	unsigned int               max_open_zones;       /*   668     4 */
+	unsigned int               max_active_zones;     /*   672     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	long unsigned int *        conv_zones_bitmap;    /*   680     8 */
+	long unsigned int *        seq_zones_wlock;      /*   688     8 */
+	struct cdrom_device_info * cdi;                  /*   696     8 */
+	/* --- cacheline 11 boundary (704 bytes) --- */
+	int                        node_id;              /*   704     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct badblocks *         bb;                   /*   712     8 */
+	struct lockdep_map         lockdep_map;          /*   720     0 */
+	u64                        diskseq;              /*   720     8 */
+	blk_mode_t                 open_mode;            /*   728     4 */
+
+	/* XXX 4 bytes hole, try to pack */
+
+	struct blk_independent_access_ranges * ia_ranges; /*   736     8 */
+
+	/* size: 744, cachelines: 12, members: 35 */
+	/* sum members: 720, holes: 6, sum holes: 24 */
+	/* last cacheline: 40 bytes */
+};
+
+==== request (sel) ====
+	struct blk_mq_hw_ctx *     mq_hctx;              /*    16     8 */
+	blk_opf_t                  cmd_flags;            /*    24     4 */
+	req_flags_t                rq_flags;             /*    28     4 */
+	int                        tag;                  /*    32     4 */
+	int                        internal_tag;         /*    36     4 */
+		struct list_head   queuelist;            /*    72    16 */
+	enum mq_rq_state           state;                /*   148     4 */
+	atomic_t                   ref;                  /*   152     4 */
+		rq_end_io_fn *     saved_end_io;         /*   240     8 */
+	} flush;                                         /*   232    16 */
+	rq_end_io_fn *             end_io;               /*   256     8 */
+	void *                     end_io_data;          /*   264     8 */
+	/* size: 272, cachelines: 5, members: 34 */
+==== request_queue (sel) ====
+	unsigned int               nr_hw_queues;         /*    52     4 */
+	struct xarray              hctx_table;           /*    56    16 */
+	struct gendisk *           disk;                 /*   104     8 */
+==== task_struct (sel) ====
+	unsigned int               __state;              /*    24     4 */
+	unsigned int               flags;                /*    44     4 */
+	int                        exit_state;           /*  2384     4 */
+	pid_t                      pid;                  /*  2488     4 */
+	char                       comm[16];             /*  3032    16 */

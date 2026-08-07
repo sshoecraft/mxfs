@@ -42,6 +42,51 @@ struct xfs_mount;
 	{ XFS_BLI_MXFS_AGMETA_TRACKED, "MXFS_AGMETA" }
 
 /*
+ * ─── MXFS AUTHORITY PROOF SIDECAR (sess103, step 5.3, ruling P0/P1) ───
+ *
+ * D-FOREIGN-REPLAY-UNGATED-IMAGES needs every logged metadata image to carry
+ * proof of the grant that authorized the MUTATION.  Until 0.11.435 that proof
+ * was looked up in xfs_buf_item_format_segment, at CIL format time, and the
+ * sess102 RULE-5 ruling declared that UNSOUND (release blocker P0):
+ *
+ *     modify under epoch E1 -> release E1 -> reacquire under E2
+ *                           -> the formatter stamps E2
+ *
+ * The emitted token would then name a tenure that did not authorize the
+ * change, which is a false APPLY waiting for the gate to trust it.  The
+ * symmetric error is just as bad: authority released AFTER a perfectly
+ * authorized mutation reads as "no authority" at format time.  Format-time
+ * state can classify NEITHER case, so it may not be the source.
+ *
+ * The proof is therefore captured at the FIRST PROTECTED DIRTYING of the
+ * buffer in a transaction (xfs_trans_dirty_buf — the single seam every
+ * buffer passes through to become dirty, where the transaction necessarily
+ * still holds the authorizing tenure), stored here, and merely SERIALIZED by
+ * the formatter.  Ruling invariants this structure exists to enforce:
+ *
+ *  - the proof is IMMUTABLE after the first protected dirtying;
+ *  - re-logging the same buffer inside one transaction must resolve to the
+ *    same authority object AND epoch — a difference is recorded, never
+ *    silently overwritten, and downgrades the image to MIXED;
+ *  - authority cannot be released before the transaction captured the proof;
+ *  - one buffer carrying changes authorized by DIFFERENT objects cannot be
+ *    represented by a single whole-buffer token.
+ */
+struct mxfs_bli_auth {
+	uint64_t	mba_capseq;	/* window key (t_mxfs_capseq); 0 = none */
+	uint64_t	mba_owner_ino;	/* derived owning inode, 0 if not inode-owned */
+	uint64_t	mba_resource;	/* class-dependent resource id */
+	uint64_t	mba_epoch;	/* durable grant epoch that authorized it */
+	uint64_t	mba_auth_gen;	/* i_mxfs_auth_gen at capture (inode arm) */
+	uint16_t	mba_class;	/* MXFS_AUTH_CLASS_* */
+	uint16_t	mba_blft;	/* BLFT seen at capture (format re-checks) */
+	uint8_t		mba_status;	/* MXFS_AUTH_ST_* */
+	uint8_t		mba_outcome;	/* MXFS_OWNAUTH_* diagnostic bucket */
+	uint8_t		mba_dlm_mode;	/* i_dlm_mode at capture (inode arm) */
+	uint8_t		mba_pad;
+};
+
+/*
  * This is the in core log item structure used to track information
  * needed to log buffers.  It tracks how many times the lock has been
  * locked, and which 128 byte chunks of the buffer are dirty.
@@ -54,8 +99,16 @@ struct xfs_buf_log_item {
 	atomic_t		bli_refcount;	/* cnt of tp refs */
 	int			bli_format_count;	/* count of headers */
 	struct xfs_buf_log_format *bli_formats;	/* array of in-log header ptrs */
+	struct mxfs_bli_auth	bli_mxfs_auth;	/* captured at first dirty */
 	struct xfs_buf_log_format __bli_format;	/* embedded in-log header */
 };
+
+/*
+ * Capture the authority proof for this buffer in this transaction's window.
+ * Idempotent within a window; called from xfs_trans_dirty_buf only.
+ */
+struct xfs_trans;
+void	mxfs_bli_auth_capture(struct xfs_trans *tp, struct xfs_buf *bp);
 
 int	xfs_buf_item_init(struct xfs_buf *, struct xfs_mount *);
 void	xfs_buf_item_done(struct xfs_buf *bp);

@@ -1,14 +1,27 @@
-# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 16
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 173
 
 ## Original task
 
-read state.md
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
 
 
 ## Previous session
 
-- session-id: `c846e205-7713-4e45-b4a4-40a06a120810`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/c846e205-7713-4e45-b4a4-40a06a120810.jsonl`
+- session-id: `6eba4600-0b1f-488a-ac2a-3509564db1f1`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6eba4600-0b1f-488a-ac2a-3509564db1f1.jsonl`
 - approx context at last assistant turn: unknown tokens
 - tools used: none
 

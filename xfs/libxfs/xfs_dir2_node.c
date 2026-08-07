@@ -2086,8 +2086,12 @@ restart:
 				}
 			}
 
-			if (mep != 0 && mep > dp->i_dlm_dir_valid_epoch)
+			/* sess45: braces — unconditional incarn stamp (see the
+			 * xfs_da_btree.c sibling fix). */
+			if (mep != 0 && mep > dp->i_dlm_dir_valid_epoch) {
 				dp->i_dlm_dir_valid_epoch = mep;
+				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+			}
 			{
 				struct xfs_buf_log_item *bip = dbp->b_log_item;
 				bool dirty = bip && test_bit(XFS_LI_DIRTY,

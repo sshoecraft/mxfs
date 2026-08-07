@@ -407,7 +407,7 @@ xlog_recover_inode_commit_pass2(
 		 * >= the logged one, the on-disk image is same-or-newer and we
 		 * must NOT revert it with the dead node's stale record.
 		 */
-		if (xlog_is_mxfs_foreign_replay(log)) {
+		if (xlog_is_mxfs_untrusted_replay(log)) {
 			uint64_t	disk_cc = be64_to_cpu(dip->di_changecount);
 			uint64_t	log_cc  = ldip->di_changecount;
 

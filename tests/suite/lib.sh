@@ -133,3 +133,95 @@ run_bounded() {
     fi
     return 0
 }
+
+# ─── dirent window scoping (ccloop c7ee71c6 sess24) ────────────────────────
+#
+# dirent_durability stamps MXFS_DIRENT_WINDOW to /dev/kmsg at the start of its
+# workload, and the P8 scanners (dirent_publish_integrity, dirent_type_integrity)
+# scope their ring scan to everything after it.  Scoping is load-bearing: dmesg
+# survives a module reload and prep_cluster does not clear it, so an unscoped
+# scan re-reports an hour-old hit forever and the cell can never go green again.
+#
+# But the marker alone is not durable evidence, because dmesg is a RING whose
+# retention varies wildly across nodes of one cluster.  Measured right after
+# dirent_durability PASSED 32/32 (118s wall):
+#
+#     test19   1964 lines /  109s of ring   <- window start already rotated out
+#     test1  123109 lines /  709s
+#     test25 136966 lines / 1107s
+#
+# On the short-ring nodes the marker was gone, and both scanners then reported
+# FAIL with the reason "the workload has not run in this boot" -- false: it had
+# just passed on that node.  That is an evidence-retention failure being
+# published as a correctness defect (5 of 32 nodes red), the same class of board
+# lie as the sess23 reconvergence-beacon ring bug.
+#
+# dirent_window_scope sets, on stdout, the scoped window text; and in globals:
+# CALL IT AS  dirent_window_scope <outfile>  -- NOT as $(dirent_window_scope).
+# Command substitution runs the function in a SUBSHELL, so globals set inside it
+# are lost; the first cut of this helper did exactly that, which left DW_HAVE
+# EMPTY.  `[ "$have_window" = 0 ]` is then false for an empty string, so both
+# scanners skipped their no-evidence FAIL branch and reported PASS with every
+# count at zero -- a VACUOUS GREEN, strictly worse than the false red it
+# replaced.  Hence: window text goes to a FILE, metadata goes to globals.
+#
+# Sets:
+#   DW_HAVE      1 if a window could be established at all, else 0
+#   DW_SOURCE    marker | timestamp | none
+#   DW_TRUNC     1 if the ring no longer reaches back to the window start
+#                (evidence is incomplete -- the count is a LOWER BOUND)
+#
+# Order of preference:
+#   1. the marker line is still in the ring        -> exact scope (unchanged)
+#   2. the durable start timestamp file exists     -> scope the ring by the
+#      kernel timestamp prefix, which still works after the marker rotated out
+#   3. neither                                     -> genuinely never ran
+dirent_window_scope() {
+    local out="$1" start ring_oldest raw
+    DW_HAVE=0; DW_SOURCE=none; DW_TRUNC=0
+    : > "$out"
+    raw=$(mktemp) || return 1
+    dmesg > "$raw" 2>/dev/null
+
+    # ccloop c7ee71c6 sess27 BUGFIX: scope from the LAST marker, not the first.
+    # The old body was `awk '/MXFS_DIRENT_WINDOW/{seen=1;next} seen{print}'`,
+    # which latches on the OLDEST marker still in the ring and then prints every
+    # later line -- so with two runs since boot the window spans BOTH and every
+    # criterion using it re-counts the previous run's hits forever.  That is the
+    # precise failure the marker exists to prevent (see the header of
+    # dirent_type_integrity.sh), and it was live: on a 107k-line ring holding two
+    # markers (20020.8 and 20656.9), dirent_type_integrity reported test1
+    # unresolved=6 win_src=marker win_trunc=0 while the current run's window
+    # (after 20656.9) contained ZERO P95B/P201 lines -- all six belonged to the
+    # previous run and to the prep between them.  A criterion that cannot be
+    # driven green by fixing the defect is not a measurement.
+    local mln
+    mln=$(grep -n 'MXFS_DIRENT_WINDOW' "$raw" | tail -1 | cut -d: -f1)
+    if [ -n "$mln" ]; then
+        DW_HAVE=1; DW_SOURCE=marker
+        tail -n +$((mln + 1)) "$raw" > "$out"
+        rm -f "$raw"
+        return 0
+    fi
+
+    start=$(cat /run/mxfs_dirent_window_start 2>/dev/null || \
+            cat /tmp/mxfs_dirent_window_start 2>/dev/null)
+    case "$start" in
+        ''|*[!0-9.]*) rm -f "$raw"; return 0 ;;   # no durable record either
+    esac
+    DW_HAVE=1; DW_SOURCE=timestamp
+    # dmesg's "[   1234.567890]" prefix is the same clock as /proc/uptime.
+    ring_oldest=$(grep -oE '^\[[[:space:]]*[0-9]+\.[0-9]+\]' "$raw" \
+                  | head -1 | tr -d '[] ')
+    if [ -n "$ring_oldest" ] && \
+       awk -v a="$ring_oldest" -v b="$start" 'BEGIN{exit !(a > b)}'; then
+        DW_TRUNC=1
+    fi
+    awk -v s="$start" '
+        match($0, /^\[[ ]*[0-9]+\.[0-9]+\]/) {
+            t = substr($0, RSTART + 1, RLENGTH - 2) + 0
+            if (t >= s) print
+        }' "$raw" > "$out"
+    rm -f "$raw"
+    return 0
+}

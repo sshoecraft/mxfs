@@ -1,0 +1,12 @@
+{
+  "source": [
+    "pal/pal.h",
+    "pal/linux/kern.c",
+    "pal/linux/user.c",
+    "dlm/scsipr.h",
+    "dlm/scsipr.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 19 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 18
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `be0752e9-e790-4491-8d8e-141b6f133142`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/be0752e9-e790-4491-8d8e-141b6f133142.jsonl`
+- approx context at last assistant turn: 502600 tokens
+- tools used: Bash×215 Edit×25 Read×24 mcp__ccmemory__memory_write×6 mcp__ask_gpt__query×5 Write×4 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_file.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/tests/census_p.sh
+- /src/mxfs/tests/refleak_trace.sh
+- /src/mxfs/tests/refleak_analyze.py
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/tests/teardown_leak_repro.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 590 ./run.sh 32 caw crash_consistency dir_reuse_coherency fence_during_write fault_netpartition soak 2>&1 | grep -E "  PASS|  FAIL" | head -6
+    timeout 300 ./run.sh 32 caw sustained_load 2>&1 | grep -E "  PASS|  FAIL" | head -2; timeout 300 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "  PASS|  FAIL
+    sleep 150; timeout 300 ./run.sh 32 caw sustained_load 2>&1 | grep -E "  PASS|  FAIL" | head -2
+    tests/census_p.sh 32 "echo \$(dmesg | grep -c 'P128-INACT-DEFER') \$(dmesg | grep -c 'P1-AGWAIT') \$(dmesg | grep -c 'P34J') \$(dmesg | grep -c 'P36-MHT-REARM')
+    timeout 300 ./run.sh 32 caw sustained_load 2>&1 | grep -E "  PASS|  FAIL" | head -2
+    timeout 300 ./run.sh 32 caw ag_strand_repair 2>&1 | grep -E "  PASS|  FAIL" | head -2; timeout 300 ./run.sh 32 caw sustained_load 2>&1 | grep -E "  PASS|  FAIL"
+    grep -nE "rmrf|rm -rf|SLDIR|WORK" tests/suite/sustained_load.sh | head -12
+    timeout 300 ./run.sh 32 caw sustained_load 2>&1 | grep -E "  PASS|  FAIL" | head -2
+    MXFS_FORCE_PREP=1 timeout 580 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && for i in 1 2 3; do timeout 300 ./run.sh 32 caw sustained_load 2>&1 | grep -E "  PAS
+    timeout 20 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) lst = d if isinstance(d, list) else d.get('defects'
+    head -40 .claude/awareness/subsystems/pal.md; echo ...; grep -n "^## " .claude/awareness/subsystems/pal.md | tail -8; wc -l .claude/awareness/subsystems/pal.md
+    tail -5 .claude/awareness/subsystems/pal.md
+    cat >> .claude/awareness/subsystems/pal.md <<'EOF'  ## sess36 (ccloop c7ee71c6, 2026-07-31, 0.11.305-309) delta  ### xfs_buf.c — PROBE-A transient guard (309) P
+    grep -n "m_mxfs_inode_bast_wq" pal/linux/xfs_super.c xfs/xfs_mxfs_dlm.c xfs/xfs_mount.c 2>/dev/null | grep -viE "queue_|mod_del" | head -10; grep -n "flush_work
+    grep -n "xfs_is_unmounting\|OPSTATE_UNMOUNTING" xfs/xfs_mount.h xfs/xfs_mount.c | head -4; timeout 20 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/
+    grep -n "__XFS_IS_OPSTATE(unmounting" xfs/xfs_mount.h; grep -n "P6G-REL-STALE" xfs/xfs_mxfs_dlm.c
+    grep -n "XFS_OPSTATE_UNMOUNTING\|xfs_set_unmounting" xfs/xfs_mount.c | head -3; grep -n "xfs_free_perag" xfs/xfs_mount.c | head -3
+    printf '0.11.310\n' > VERSION; timeout 500 make modules 2>&1 | grep -E ": error|Error:" | head -4; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    timeout 10 tools/mxfs_sshpass.sh test1 "which xfs_io; ls /sys/module/mxfs/parameters/ | grep -i shut" 2>/dev/null
+    grep -n "extern int mxfs_teardown_arm_gate" xfs/xfs_mxfs_dlm.c || sed -i 's/^extern int mxfs_bast_qfalse_inject;.*$/extern int mxfs_bast_qfalse_inject;\t\/* ses
+
+## Last text from previous session
+
+e.
+3. **D-CAW-YIELD-STARVATION-SHUTDOWN** — fix engaged live (P221 yield-bound fired, no exhaustion); the impossible control-arm A/B was ruled non-gating.
+4. **D-UNMOUNT-BUSY-INODES** — ended a five-session hunt. Built a tracefs kprobe ref-tracer (igrab/ihold/__iget/iput with BTF offsets), caught the leak live, and pinned it: `mxfs_dlm_bast_notify`'s four dispatch sites kept their iget ref when `queue_work` returned false. Fixed in 307; proven with a deterministic collision injector (126 forced collisions, zero leaks) plus 8 clean reproducer cycles.
+5. **D-MOUNT-DEGRADES-WITH-USE** — the blocking "~100x rmrf residual" turned out to be a detector artifact: the phase deletes the *previous run's* tree, so first runs measure nothing. A matched-tree control (fresh mount with tree: 1354/1414ms, inside the aged band) severed mount age entirely. The real delete cost moved to the shared-dir pace entry.
+
+**Also:** the dstale-exemption removal (306) closed the release-barrier terminal leak (P241=0 across everything since); boards 306 and 308 both 20/21; the caw matrix column is fully green at 1/2/4/8/16 nodes on current builds; two honest splits opened (one-node dir-view non-convergence; dwork teardown last-ref leak); PROBE-A no longer emits crash-shaped noise on self-refuting transients (309).
+
+**Criteria: NO — not production ready.** 9 OPEN defects remain against the RULE 6 zero-defect bar: three pace-family (shared-dir protocol IO, needs the reader-state/writer-gate redesign — includes the only board FAIL), three authority-family (per-slot authority tokens, foreign replay), the rig-blocked matrix columns, and two narrow items. The relay carries the program forward.
+Criteria not met (9 OPEN) — continuing. First the required awareness-doc update for pal:
+Appending the sess36 delta section and updating the header:
+Relay boundary — completing the knob wiring and build so the tree lands consistent:
+Build 310 complete (A664F66C). Final records:
+Session 36 complete at the relay boundary. Final state:
+
+**Ledger: 12 → 9 OPEN — five defects FIXED AND VERIFIED this session** (all GPT-ruled dispositions):
+1. **COLDREAD-STALE-SPLIT** — blind-close chain patched at three links; 6 aged-mount laps + 3 boards clean, zero blind discharges since the terminal gate.
+2. **SILENT-MKDIR-LOSS** — cross-incarnation epoch fix verified at all capture scales; precursor counters structurally zero.
+3. **CAW-YIELD-STARVATION-SHUTDOWN** — mechanism-engagement observed (yield-bound fired, no exhaustion); impossible A/B ruled non-gating.
+4. **UNMOUNT-BUSY-INODES** — five-session hunt ended by a kernel-side kprobe ref-tracer: `bast_notify`'s four dispatch sites leaked their iget ref on `queue_work` collisions. Fixed (307), proven with 126 deterministic forced collisions and 8 clean reproducer cycles.
+5. **MOUNT-DEGRADES-WITH-USE** — the blocking "100x residual" was the detector deleting the previous run's tree; a matched-tree control (fresh-with-tree 1354/1414ms inside the aged 701–1583ms band) severed mount age entirely.
+
+**Other results:** the dstale-exemption removal (306) closed the release-barrier terminal leak (P241=0 everywhere since); boards 306 and 308 both 20/21; the caw matrix column is fully green at 1/2/4/8/16 nodes with 32 at 20/21; two honestly-split new entries (one-node dir-view non-convergence; the dwork teardown last-ref leak); PROBE-A no longer emits crash-shaped noise on self-refuting transients.
+
+**In flight at the boundary:** 0.11.310 is **built but not deployed** — it gates the stranded-release dwork arm during unmount/shutdown (the teardown-leak fix, with an A/B knob) and ships `tests/teardown_leak_repro.sh`. Next session: run the gate=0/gate=1 A/B, board 310, then the two big remaining fronts — the shared-dir pace redesign (three entries, including the only board FAIL) and the per-slot authority protocol (three entries).
+
+**Criteria: NO — not production ready.** 9 OPEN defects against the RULE 6 zero-defect bar. The relay continues the program.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

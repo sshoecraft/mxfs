@@ -17,7 +17,8 @@ log(){ echo "[$(date -u +%H:%M:%SZ)] $*" >> "$OUT"; }
 log "autocapture start (N=$N)"
 # wait for prep OK / abort
 while :; do
-  pgrep -f "run[.]sh $N caw" >/dev/null 2>&1 || { log "run gone before prep-ok: $(grep -E 'PREP FAIL|ABORT|bad nodes' "$RUNLOG"|tail -1)"; exit 0; }
+  # NEVER `pgrep -f` (see tools/mxfs_pgrep.sh header — clyde 2026-08-04 wedge).
+  "$REPO/tools/mxfs_pgrep.sh" "run[.]sh $N caw" >/dev/null 2>&1 || { log "run gone before prep-ok: $(grep -E 'PREP FAIL|ABORT|bad nodes' "$RUNLOG"|tail -1)"; exit 0; }
   grep -q "prep OK:" "$RUNLOG" 2>/dev/null && { log "prep OK"; break; }
   bad=$(grep -oE "bad nodes: test[0-9]+" "$RUNLOG" 2>/dev/null | tail -1)
   [ -n "$bad" ] && { n="${bad#bad nodes: }"; log "PREP-HANG $n -> inject-nmi"; virsh -c qemu:///system inject-nmi "$n" >/dev/null 2>&1; sleep 8; log "serial($n):"; tail -c 6000 "/var/log/libvirt/qemu/${n}-serial.log" 2>/dev/null | tr -d '\r' | grep -aE "panic|NMI|RIP|Call Trace|mxfs|xfs_|dlm_|caw_|spin|rcu|CPU:|<TASK>|lock" >> "$OUT"; exit 0; }
@@ -26,7 +27,8 @@ done
 
 lastr=""; stall=0
 while :; do
-  pgrep -f "run[.]sh $N caw" >/dev/null 2>&1 || { log "TERMINAL: $(grep -E 'nodes_pass|  (PASS|FAIL)|dir_reuse' "$RUNLOG"|tail -2|tr '\n' '|')"; exit 0; }
+  # NEVER `pgrep -f` (see tools/mxfs_pgrep.sh header — clyde 2026-08-04 wedge).
+  "$REPO/tools/mxfs_pgrep.sh" "run[.]sh $N caw" >/dev/null 2>&1 || { log "TERMINAL: $(grep -E 'nodes_pass|  (PASS|FAIL)|dir_reuse' "$RUNLOG"|tail -2|tr '\n' '|')"; exit 0; }
   # hard-hang sweep across a spread sample
   for i in 1 4 8 12 16 20 24 28 32; do
     n="test$i"

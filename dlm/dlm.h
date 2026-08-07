@@ -263,6 +263,14 @@ bool mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx);
  * Used to detect a phantom-EX on the TCP transport. */
 uint8_t mxfs_dlm_held_mode(struct mxfs_dlm_ctx *ctx,
                            const struct mxfs_resource_id *resource);
+/* ccloop c7ee71c6 sess21: atomic-context-safe form of the above.  The
+ * table_rwlock is a SLEEPING lock (struct rw_semaphore) in the kernel PAL,
+ * so mxfs_dlm_held_mode MUST NOT be called with a spinlock held.  This
+ * variant uses the trylock and reports -EWOULDBLOCK instead of scheduling.
+ * Callers must treat -EWOULDBLOCK as "cannot tell", never as "not held". */
+int mxfs_dlm_held_mode_nb(struct mxfs_dlm_ctx *ctx,
+                          const struct mxfs_resource_id *resource,
+                          uint8_t *out_mode);
 /* sess61: per-grant generation token THIS node holds for `resource` (highest-mode
  * GRANTED/CONVERTING entry owned by local_node), 0 if none.  Reliable
  * lock-changed-hands signal for the dir-EX fast-path staleness check. */

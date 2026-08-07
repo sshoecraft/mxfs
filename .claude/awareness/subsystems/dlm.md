@@ -1,7 +1,7 @@
 # dlm (Distributed Lock Manager)
 
 **Owner files**: `dlm/` (21 files, ~20K LOC), `include/` (4 headers), `compat/` (1 file)
-**Last updated**: 2026-07-25 (sess6: v0.11.92 orphan-grant NAK — see dated section at end)
+**Last updated**: 2026-07-25 (sess6: v0.11.92 orphan-grant NAK); 2026-08-02 (sess43: recovery GUARD slot flag + lease-timeout semantics — see final section)
 
 ## Purpose
 
@@ -395,3 +395,296 @@ any production verdict.  P5N/P5U counters are the standing harvest.
 - ctx->peer / suspect table / death worker exist ONLY under
   `MXFS_V5_TRANSPORT_TCP` (v5_mount.c:1339) — CAW transports have no TCP mesh, so
   peer.c changes cannot regress CAW conditions.
+
+## sess32 (session 14) — slot-claim provenance
+- Both disklock claim variants (CAW + non-CAW) record `ctx->slice_adopted`:
+  pass-1 own-stamp reclaim = false (full mount recovery required/safe),
+  pass-2 fresh claim = true (inherited slice may be an already-recovered
+  incarnation's; mount recovery suppresses its images). Exposed via
+  `mxfs_disklock_slice_adopted()` → `mxfs_v5_dlm_slice_adopted()` →
+  `mp->m_mxfs_slice_adopted`. Claim log prints which pass won.
+
+## sess37 (ccloop c7ee71c6, 2026-08-01, 0.11.314-315) delta — DIRECT GRANT HANDOFF
+
+### dlm_caw.c — release-CAS ownership transfer (knob mxfs.caw_direct_handoff=1)
+- `mxfs_dlm_caw_unlock_gen` yield block: when releaser is LAST holder and fair-handoff
+  picks EX waiter W → same CAS sets holders_ex|=W, clears W's waiter bits, yield_to=0,
+  dir_epoch++ if last_ex_slot!=W, last_ex_slot=W, streak_note(EX). P6H-HANDOFF.
+  Streak-yield arm batch-grants the whole PR class (holders_pr|=pr_w, streak reset
+  in-CAS). P6H-PRBATCH. Nudge (`caw_send_grant_mcast`) targets ONLY the handed-off
+  bits (p6h_handoff_bit) — an EX grant makes nobody else grantable.
+- `caw_wait_for_grant` gained `reg_gen` param (generation the caller's registration
+  CAS wrote — threaded from both call sites) + ADOPT branch before the self-stale
+  check: adopt iff gen>reg_gen && own waiter bit CLEARED && holder bit set in the
+  REQUESTED mode. ad_handoff := (cached grant_meta dir_epoch != slot dir_epoch)
+  via new `caw_grant_meta_get_epoch`; no cache ⇒ true (safe). Also heals
+  ambiguous own CAW (landed but reported -EAGAIN) — the sess34 untracked-wire-grant
+  class. P6H-ADOPT.
+- `caw_drop_own_waiter(ctx, slot_idx, giveup_mode)`: abort reconcile — the cleanup
+  CAS also clears own holder bit of the ABANDONED mode (covers handoff-landed-mid-
+  abort; P6H-ABORT-RECONCILE). Callers pass mode/new_mode. Upgraders keeping their
+  old mode are untouched (only the abandoned mode's bit).
+- Ownership-incarnation rules (GPT consult): stale pre-registration self-bits can't
+  satisfy adopt (waiter bit still set → routes to P-SELF-STALE-EDEADLK as before);
+  free boundary = EX exclusion; dead node = lease purge.
+- A/B (same build, 32/caw, caw_grant_wait_anatomy 8 32): ON 11.1s total wait/max
+  255ms vs OFF 95.8s/max 2657ms. Creates mean 109 vs 235ms.
+
+## sess38 (0.11.321-322) — tail census + PR batch-claim
+- P139-TAILCENSUS (in `caw_wait_for_grant`, unconditional >800ms, INODE only):
+  per-wait counters bit_lost/chosen/foreign_yt/free_defer/doze250 + caw stats.
+  P139-LOCKTOTAL (in `mxfs_dlm_caw_lock` at out:, >800ms): whole-acquire clock +
+  per-CAS-site ea_* census — catches multi-retry and ADOPT-exit waits the
+  per-wait census misses (adoption bypasses the promote-site emission).
+- BATCH-COMPLETION-ON-CLAIM (promote CAS in caw_wait_for_grant): a PR claimer
+  named by yield_to admits ALL still-registered shared-class ticket siblings in
+  the same CAS (holders_pr|=sibs, waiters&=~sibs, yield_to=0). P6H-PRCLAIMBATCH.
+  Kills the measured 9-node ~900ms one-CAS-at-a-time admission storms.
+- Release-side P6H-PRBATCH guard relaxed: !slot_has_holders → no EXCLUSIVE-class
+  holders (holders_ex|pw|cw); batch fires while sibling PR/CR holders remain.
+- Turn economy at 32/caw dir_reuse (measured): inter-handoff p50=58ms p90=140ms;
+  discovery (HANDOFF→ADOPT realms join) p50=2ms p99=40ms; grace idle tail 40ms
+  (knob dir_ex_batch_grace_ms); remainder = holder work + Invariant-1 release
+  drain (log_force SYNC + targeted AG drain, xfs_mxfs_dlm.c ~13600) — dominant.
+  xfs_log_force_seq targeting was tried v0.3.38 and REVERTED (no effect + grant
+  timeouts) — do not retry that shape.
+- grace=10 A/B: cc 41→25s crash 79→21s BUT exposes
+  D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN (see ledger; default stays 40).
+
+## sess38 late (0.11.324) — heartbeat outage anatomy
+- disklock_hb_fn (dlm/disklock.c): per-cycle clocks — P-HB-SLOW (write_ms,
+  lockwait_ms, age_since_last_ok_ms, prev monitor_ms; fires when write >2s or
+  last-ok age >2 intervals) + P-HB-MONSLOW (monitor pass >2 intervals).  The
+  hb write and the 32-peer monitor reads share ctx->lock through the one LUN;
+  a saturated queue can stall the write past the 62s default lease
+  (lease_timeout_ms=0 deployed) = the test21 self-fence
+  (D-RELABORT-ORPHAN-LOOP-HEARTBEAT-SELFFENCE).  Probes unconditional,
+  healthy-path silent.  hb failure log now carries age_since_last_ok_ms.
+- sess38 FIX (0.11.325): the three disklock read loops (read_all;
+  get_stale_slot_mask snapshot + poll) now take ctx->lock PER SLOT READ, not
+  across the scan — the whole-scan hold starved the hb writer 26.7s live
+  (P-HB-SLOW lockwait_ms=26726) and was the self-fence root.  INVARIANT: never
+  hold ctx->lock across a multi-slot I/O loop; slot reads are 512B
+  device-atomic.  D-RELABORT-...-SELFFENCE FIXED AND VERIFIED (ledger).
+
+
+## sess43 (2026-08-02, v0.11.353) — recovery GUARD + lease-timeout semantics
+
+### New HB record flag: `MXFS_DISKLOCK_FLAG_RECOVERY_GUARD` (=3)
+An UNCLAIMED slot's AGI unlinked bucket can hold durable zombies with no owner
+to reap them (an offline `chk_mxfs -y` repair lands on bucket `agino%64`; a
+survivor can die after its sweep retired the dead slot; a shrinking cluster
+never re-claims old slots).  The node sweeping such a bucket must hold a
+CLUSTER-VISIBLE exclusion against a joiner claiming that slot mid-sweep —
+inode-EX alone is not an ownership proof (GPT ruling: bucket removal also
+mutates the AGI head / predecessor inode, and competing recovery authorities
+could duplicate deferred-reap work).
+
+- `mxfs_disklock_guard_slot/guard_refresh/unguard/slot_unclaimed` (disklock.c),
+  exposed to the FS layer as `mxfs_v5_dlm_guard_*` / `_slot_unclaimed` /
+  `_local_slot`.  All transitions are CAS from the exact stored image, with a
+  write+settle+FUA-readback fallback on non-CAW targets.
+- Both `claim_slot` pass-2 scans (CAW and non-CAW) SKIP a fresh same-generation
+  guard; a STALE guard (holder died; older than
+  `MXFS_DISKLOCK_GUARD_STALE_MS` = dead_threshold × hb_interval) is claimable
+  again, and the new claimant's own-bucket rescan re-drives the bucket, so
+  takeover needs no monitor or fencing involvement.
+- The monitor, join gate, vergate and membership all key on
+  `flags == ACTIVE`, so GUARD records are invisible to them: no member-count
+  change and no fence risk for the live holder.
+- The CAS is also the ELECTION between concurrent scanners — no separate
+  singleton protocol.
+
+### Lease timeout is TEN MINUTES, and that is load-bearing
+`MXFS_LEASE_TIMEOUT_DEFAULT_MS = 600000` with `MXFS_LEASE_SUSPECT_MISSES = 150`
+(lease.h).  A node that dies and rejoins takes a NEW node_id, so peers keep the
+dead identity ACTIVE in their lease table — and therefore in the
+`MXFS-MEMBERSHIP active_count` beacon — for up to ten minutes after every
+fault-injecting event.  This is correct, self-healing behaviour, NOT a ghost
+member: measured at 32/caw after crash_consistency, the beacon read 33 while
+the on-disk heartbeat table held exactly 32 correct live writers (their
+node_ids diffed 1:1 against all 32 nodes), and the beacon returned to 32 on
+schedule.
+
+**Consequence for any consumer of `active_count`:** never gate on
+`active_count == N` over a window shorter than the lease timeout.  The
+authoritative membership is the on-disk HB table (see
+`tests/hb_live_count.sh`); `run.sh`'s reconvergence gate was fixed in sess43 to
+consult it whenever a beacon over-counts.  Note `mxfs_lease_get_active_nodes`
+counts ACTIVE **and** JOINING, and the expiry scan skips any entry whose
+`last_renewal == 0` (lease.c:225) — an entry inserted without a renewal stamp
+would never age out; every current insertion path does stamp it.
+
+
+## sess44 (2026-08-02) — guard fencing facts (cite, don't re-derive)
+
+- guard refresh (mxfs_disklock_guard_refresh) and unguard are FULL-512B
+  owner-image CAS: any concurrent change fails them.  Refresh failure logs
+  P99-GUARD-LOST, sets guard_slot=-1, returns -ESTALE — the UBSWEEP loop then
+  sweeps nothing (per-AG refresh gate).  Unguard CAS failure logs
+  P99-UNGUARD-RACED and leaves the successor's guard untouched.
+- Refresh timestamps are FORCED monotonic (+1 floor) so identical successive
+  stamps are impossible; ABA excluded by full-image compare + epoch/fs_gen +
+  in-memory-only guard_slot (a rebooted holder cannot resume a guard).
+- Refresh runs IN the sweeping thread between AGs — no independent timer — so
+  a wedged sweeper's guard FREEZES and peers take it over (hb_guard_abandoned
+  change-detection probe, 3x1000ms).  Verified live by guard_race_arms
+  stale_resume/abandoned.
+- mxfs_survivor_sweep_bucket_ag is READ-AND-ENQUEUE only; every destructive
+  step revalidates on fresh iget under EX + AG-DLM (P19 B1-B5 gates), so
+  concurrent double-drive of a bucket is safe by construction.
+- C7 join gate: P-VERGATE-JOIN (disklock.c ~1440) — a joiner that finds a
+  LIVE protocol-incompatible incumbent (feature-state + timestamp/epoch
+  movement) refuses and withdraws.  Old-binary-refuses-new-fs still needs a
+  superblock INCOMPAT bit (GPT sess44).
+
+## sess93 (2026-08-04, 0.11.422-424) — THE FENCE-EVIDENCE CHANNEL IS WIRED
+
+Until 0.11.422 the entire fence-certificate subsystem built in sess74/75/76 had
+**zero callers** (proven by exhaustive grep, sess91). It had an on-disk wire
+format, a `MXFS_PROTO_GEN` bump, and seven entry points, and none of them ever
+ran. This is the change that connected it.
+
+### The shape of the protocol (read this before touching recovery)
+
+```
+peer death (every survivor, heartbeat-monitor thread)
+  v5_pr_fence_prove(node, slot, epoch)            dlm/v5_mount.c
+      fence_intent()        durable BEFORE the P&A     -> stage FENCING
+      mxfs_scsipr_fence_node()  PREEMPT AND ABORT
+      fence_certify()       -> stage FENCED, UNOWNED, certificate written
+  v5_start_slice_recovery -> elect -> XFS replay hook
+
+elected replayer (foreign-replay workqueue / mount thread — NEVER the HB thread)
+  mxfs_v5_dlm_recovery_acquire(slot)              dlm/v5_mount.c
+      recovery_claim()      certified + unowned -> execution lease, auth parked
+                            in ctx->recov_auth[slot] and HELD across the replay
+      -EBUSY + owner proved dead  -> recovery_takeover()      (resume from stage)
+      -EPERM + prover proved dead -> recovery_fence_takeover() + re-prove
+      v5_exclusion_recheck()  the exclusion must STILL hold
+  replay
+  mxfs_v5_dlm_recovery_complete()  gate again -> advance -> purge -> zero
+```
+
+### Rules that are not negotiable
+
+1. **ONE durable intent, ONE issuing prover, ONE command result, ONE possible
+   certificate.** A node that does not win the intent CAS issues NO PREEMPT AND
+   ABORT. Letting all 31 survivors fence (which is what shipped before) is
+   unsound, not merely wasteful: a loser can remove the key before the intent
+   owner issues its command, the owner then observes `KEY_ABSENT_UNPROVEN`, and
+   the loser that actually got `PREEMPT_ABORT_DONE` is forbidden to certify.
+   That converts a provable fence into an unrecoverable one.
+2. **`mxfs_disklock_recovery_begin()` is RETIRED** — it refuses at entry with
+   `P238-RECOV-BEGIN-RETIRED` / `-EPROTO`. It minted `FENCED` with
+   `fence_kind = NONE`, i.e. the uncertified descriptor every gate must refuse.
+   Do not resurrect it as a fallback.
+3. **The gate sits below the dispatcher.** Both replay dispatch sites
+   (`mxfs_dlm_foreign_replay_work_fn` and the mount barrier's inline round) and
+   the completion path all ask. A dispatcher-only check lets a future caller
+   recreate the defect.
+4. **Claim ONCE and hold the auth** across replay and completion. Re-claiming
+   per step makes ownership ambiguous and hides a takeover that happened while
+   you worked.
+5. **`-EPERM` from `recovery_acquire` is a WAIT state, not a failure.** There is
+   deliberately NO timeout after which an unproven slice becomes replayable.
+6. **A detector with `victim_epoch == 0` is not a fencing authority.** The
+   lease-only path fences nothing and marks nothing pending — an epoch-0 pending
+   marker would make `v5_start_slice_recovery`'s is-pending guard swallow the
+   heartbeat monitor's later REAL detection, and only that one can certify.
+7. **`recovery_takeover` and `recovery_fence_takeover` sleep
+   `MXFS_RECOV_ABANDON_MS`.** Never call `mxfs_v5_dlm_recovery_acquire` from the
+   heartbeat-monitor thread.
+
+### What a certificate does and does NOT prove — MEASURED
+
+`tests/pr_reregister_probe.sh` measured, at the SCSI layer: a
+PREEMPT-AND-ABORTed node's write is REFUSED (exclusion is real at that instant),
+and then the same node `REGISTER_AND_IGNORE`s a fresh key and writes
+SUCCESSFULLY. So the certificate is **evidence of a completed eviction event,
+not evidence that the host remains fenced**. For the ~8 s of in-place replay it
+authorises, the only thing keeping a fenced-but-running victim off the LUN is
+that victim's own cooperative self-fence.
+
+`mxfs_scsipr_exclusion_holds()` (0.11.424) re-checks reservation health and key
+absence at four points and stops the recovery when it has lapsed
+(`P239-EXCL-RETURNED` / `P239-EXCL-LAPSED`). It is a **detector**: it cannot
+prevent a write that races it. The enforcement gap is tracked as
+`D-FENCED-VICTIM-MAY-REREGISTER`; the ruled options are a temporary
+single-holder WRITE EXCLUSIVE gate (needs a cluster-wide freeze/drain protocol
+MXFS does not have) or target/fabric revocation (outside a kernel module).
+
+### New symbols
+
+| symbol | file | what |
+|---|---|---|
+| `v5_pr_fence_prove` | v5_mount.c | the PROVER: intent -> P&A -> certify. 0 = a certificate exists, >0 = none (routes to settle residue), <0 = hard stop |
+| `mxfs_v5_dlm_recovery_acquire` / `_release` | v5_mount.c | the gate + execution lease |
+| `v5_exclusion_recheck` | v5_mount.c | is the exclusion still true? |
+| `mxfs_scsipr_exclusion_holds` | scsipr.c | READ RESERVATION + READ KEYS re-check |
+| `mxfs_disklock_recovery_slot_status` | disklock.c | read-only classifier: CONSUMABLE / SUPERSEDED / UNFENCED / FOREIGN / DESCRIPTOR / UNREADABLE. `recovery_claim` collapses these into `-ENOENT` and the correct response differs completely between them |
+
+### Probes (all in `tests/`, all re-usable)
+
+`fence_evidence_probe.sh` (one prover / one certificate / consumed by a
+different node), `recov_takeover_doublefault_probe.sh` (kill the victim, catch
+the owner claiming, kill the owner), `pr_reregister_probe.sh` (does a fenced
+victim get back in?), `excl_lapse_probe.sh` (does a returned victim stop the
+recovery?).
+
+**Rig technique worth reusing:** the SCST backing store `/home/steve/disk.img`
+can be read from clyde with `O_DIRECT` and is COHERENT with the live cluster
+(verified: a live node's heartbeat sector changes across a 1.5 s host-side
+reread). Superblock at 0, disklock table offset at `sb+64`, slot record =
+`dloff + slot*512`; in the record `magic(0) flags(4) node_id(8)`, descriptor at
+40, so `desc.stage` at 46 and `desc.owner_node` at 84. `RECOVERY_GUARD` = 3,
+`FENCED` = 2. This gives a sub-millisecond vantage point for anything
+timing-critical — the takeover probe needs `virsh destroy` in the SAME PROCESS
+as the detection, because the window is ~8 s and an ssh round trip loses it.
+
+**Do NOT identify a node from the `claimed heartbeat slot` dmesg line alone.**
+It is a boot-time line and dmesg retention varies ~60x across nodes; the
+longest-lived node (usually slot 0) has rotated it out. Close the map from the
+platter instead — every ACTIVE heartbeat record carries its owner's node id.
+
+### 0.11.425 — `RECOVERY_BLOCKED_FENCE`, the observable state
+
+`/sys/kernel/debug/mxfs/<dev>/recovery_blocked`. Empty means nothing is
+blocked. Populated, it names the victim (node / incarnation / key / slot), the
+last fence kind + reservation type + PR generation, who holds the fencing
+attempt and who holds the execution lease, how long the slice has been
+unrecoverable, how many attempts, and an ACTION line per reason.
+
+Ten reasons: `NO_PR`, `FENCE_UNPROVEN`, `CERT_UNRECORDED`, `NO_INTENT`,
+`NO_CERTIFICATE`, `OWNED_ELSEWHERE`, `EXCL_LAPSED`, `SELF_FENCED`,
+`NO_INCARNATION`.
+
+**Layering:** the record and its accessor (`mxfs_v5_dlm_blocked_iter`, filling a
+caller-provided `struct mxfs_recov_blocked`) live in `dlm/`; the debugfs file
+lives in `xfs/xfs_mxfs_dlm.c`. That split is architectural invariant 4 — `dlm/`
+must still build user-mode, so no `linux/debugfs.h` may appear there.
+
+`first_ms` is stamped ONCE and kept. How long a slice has been unrecoverable is
+the number an operator acts on; restamping it on every retry would hide exactly
+that. `attempts` counts retries and is what separates a transient from a wedge.
+
+### 0.11.426 — `dead_timeout_ms`, and zero-incarnation descriptors forbidden
+
+**The module parameter `lease_timeout_ms` never configured the lease.** It fed
+`mxfs_disklock_set_dead_timeout_ms()` and nothing else; the lease's own timeout
+is `MXFS_LEASE_TIMEOUT_DEFAULT_MS` (600000, lease.h) and nothing ever writes it.
+Canonical name is now `dead_timeout_ms`; `lease_timeout_ms` still works as a
+deprecated alias (`dead_timeout_ms` wins if both are set) and logs the
+correction at load. **The lease deliberately does not track it** — see the
+sess43 section above on why ten minutes is load-bearing.
+
+**`fence_intent()` refuses `!inc_valid(cur->epoch)`** (`P238-FENCE-ZEROINC`).
+With `recovery_begin` retired, those are the only two writers of
+`desc.victim_epoch` in the tree, so a zero-incarnation descriptor is now
+unconstructible rather than merely unlikely — the sess91 ruling's "forbid them
+at CREATION" option.
+
+Note for anyone injecting an epoch into a heartbeat record: `hb_feature_crc()`
+covers `fs_gen`, `node_id` AND `epoch`, so a naive epoch rewrite makes
+`hb_feature_state()` read !OK and a *different* refusal arm fires. Reseal the
+feature block or you measure the wrong thing.

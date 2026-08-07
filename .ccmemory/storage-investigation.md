@@ -1,3 +1,10 @@
+---
+name: storage-investigation
+description: Storage investigation: iSCSI + shared-disk performance characterisation of the lab rig.
+metadata:
+  type: project
+---
+
 # Storage Investigation — iSCSI & Shared Disk Performance
 
 ## Current State (as of 2026-02-22)

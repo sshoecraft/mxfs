@@ -1,0 +1,9 @@
+{
+  "source": [
+    "xfs/libxfs/xfs_log_format.h",
+    "xfs/xfs_log_recover.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

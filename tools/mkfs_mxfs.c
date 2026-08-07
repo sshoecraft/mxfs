@@ -110,7 +110,11 @@
 #define XFS_SB_VERSIONNUM      0xB4A5
 #define XFS_SB_FEATURES2       0x018A  /* LAZYSBCOUNT|ATTR2|PROJID32|CRC */
 #define XFS_SB_FEAT_RO_COMPAT_FINOBT  (1 << 0)  /* free inode btree */
-#define XFS_SB_FEAT_INCOMPAT   0x03    /* FTYPE|SPINODES */
+/* sess42 C7: FTYPE|SPINODES + MXFS_PROTOGATE (bit 30).  The PROTOGATE
+ * incompat bit makes every pre-gate mxfs kernel REFUSE the mount outright
+ * (inherited upstream unknown-incompat check) — the preventative half of
+ * the C7 version gate; see include/mxfs/mxfs_super.h. */
+#define XFS_SB_FEAT_INCOMPAT   (0x03 | (1u << 30))
 
 /* Null filesystem inode */
 #define NULLFSINO              0xFFFFFFFFFFFFFFFFULL
@@ -559,7 +563,10 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
     memset(&sup, 0, sizeof(sup));
     sup.magic = MXFS_FORMAT_MAGIC;
     sup.version = MXFS_FORMAT_VERSION;
-    sup.flags = 0;
+    /* sess42 C7 version gate: every new format is protocol-gated — members
+     * must run code speaking exactly cluster_proto_gen (see mxfs_super.h). */
+    sup.flags = MXFS_FORMAT_F_PROTOGATE;
+    sup.cluster_proto_gen = MXFS_PROTO_GEN;
     memcpy(sup.fs_uuid, uuid, 16);
     sup.device_size = device_size;
     sup.xfs_data_size = xfs_data_size;

@@ -1353,7 +1353,7 @@ mxfs_dialloc_reserve_ino(
 		return 0;
 
 	rc = mxfs_v5_dlm_inode_lock_retries(mp->m_mxfs_dlm, ino,
-					    MXFS_LOCK_EX, 1);
+					    MXFS_LOCK_EX, 1, NULL);
 	if (rc == 0)
 		return 0;
 
@@ -2944,6 +2944,12 @@ xfs_difree_finobt(
 	if (error)
 		goto error;
 	if (XFS_IS_CORRUPT(mp, i != 1)) {
+		/* sess46 (D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372): the last
+		 * un-probed -EFSCORRUPTED exit under xfs_difree — the one
+		 * -117 shutdown observed printed NO P-DIFREE line, so every
+		 * exit must self-name for the next occurrence. */
+		pr_warn_ratelimited("mxfs: P-DIFREE-CORRUPT site=finobt-getrec agno=%u agino=%u i=%d\n",
+			(unsigned)pag_agno(pag), (unsigned)agino, i);
 		xfs_btree_mark_sick(cur);
 		error = -EFSCORRUPTED;
 		goto error;

@@ -56,35 +56,78 @@ read state.md
 
 ## Previous session
 
-- session-id: `22e1be04-b1a5-4f22-afd1-89f9b13ddbd8`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/22e1be04-b1a5-4f22-afd1-89f9b13ddbd8.jsonl`
-- approx context at last assistant turn: 125177 tokens
-- tools used: Bash×12 Read×5 TaskCreate×4 ToolSearch×2 mcp__ccmemory__memory_get×2 TaskUpdate×1 mcp__ccmemory__memory_list×1
+- session-id: `19e01171-67b2-4d9e-a64f-a15b233d1c6e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/19e01171-67b2-4d9e-a64f-a15b233d1c6e.jsonl`
+- approx context at last assistant turn: 499039 tokens
+- tools used: Bash×266 Edit×48 Read×14 mcp__ccmemory__memory_write×12 Write×5 ToolSearch×3 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-_(none)_
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/demoter_claim_census.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/state.md
+- /src/mxfs/tests/dd_loss_differential.sh
+- /src/mxfs/tests/rank1_straggler_probe.sh
+- /src/mxfs/tests/rank1_stall_stacks.sh
+- /src/mxfs/tests/mxfs_stallsample.sh
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    cat VERSION && modinfo mxfs.ko 2>/dev/null | grep srcversion; for n in 1 6 16; do echo -n "test$n: "; ./tools/mxfs_sshpass.sh test$n x 'mount | grep -c " type m
-    ls /src/mxfs/tests/criteria/ | head -40; echo ---; grep -rn 'lookup_fail' /src/mxfs/tests/criteria/dir_reuse_coherency* 2>/dev/null | head -20
-    grep -rln 'dir_reuse_coherency' /src/mxfs/tests/ /src/mxfs/run.sh 2>/dev/null | head; echo ---; find /src/mxfs/tests -name '*dir_reuse*' | head
-    tot60=0; tot48=0; for n in $(seq 1 16); do o=$(./tools/mxfs_sshpass.sh test$n x 'echo "$(dmesg | grep -c P60-RDVGG) $(dmesg | grep -c P48-RDRELOAD-RETRY)"' 2>/d
-    grep -n 'xfs_dir_lookup' /src/mxfs/xfs/xfs_inode.c /src/mxfs/xfs/libxfs/xfs_dir2.c /src/mxfs/xfs/libxfs/xfs_dir2.h | head -20; echo ===; grep -n 'P10-DIRDUMP-BL
-    grep -n 'datascan\|P26-\|P21-\|leaf_lookup_int' /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c | head -30; echo ===; grep -n 'xfs_dir2_leaf_lookup\b\|xfs_dir2_leaf_lookup
-    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; ls $D 2>/dev/null | head -5; grep -h 'P26-LKFMT\|P26-DSCAN\|P22-DATASCAN\|P26-LKERR' $D/kernlog_test* 2>/dev/nu
-    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== counts:"; grep -h 'P26-DSCAN\|P22-DATASCAN' $D/kernlog_test* 2>/dev/null | grep -oE 'P26-DSCAN-MISS|P2
-    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== DSCAN-MISS detail:"; grep -h 'P26-DSCAN-MISS' $D/kernlog_test2 2>/dev/null | head -4; echo "== P127-DI
-    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== node6_f1/f2/f3 events across all nodes:"; grep -h 'node6_f[123]"' $D/kernlog_test* 2>/dev/null | grep 
-    D=/tmp/run_dir_reuse_coherency_20260725T203759Z; echo "== IGET-FAIL all nodes/all time:"; grep -h 'P26-IGET-FAIL' $D/kernlog_test* 2>/dev/null | awk '{print $6,
-    grep -rn 'P26-IGET-FAIL' /src/mxfs/xfs/*.c | head -3; grep -rn 'mxfs_icluster_dlm' /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c 2>/dev/null | head -10
+    grep -n "^struct dentry \*d_splice_alias" -A 18 ~/src/linux/fs/dcache.c | head -26
+    ls -d ~/src/linux 2>/dev/null; find ~/src/linux -maxdepth 2 -name dcache.c 2>/dev/null | head; ls ~/src/ 2>/dev/null | head
+    ls /usr/src/ 2>/dev/null | head; echo "--- dcache in headers? ---"; find / -maxdepth 4 -name "dcache.c" -path "*fs*" 2>/dev/null | head -3; echo "--- d_splice_a
+    grep -n "^struct dentry \*d_splice_alias" -A 22 /src/linux/fs/dcache.c | head -30
+    sed -n '3143,3203p' /src/linux/fs/dcache.c
+    S=$(grep -n "^mxfs_dlm_bast_work_fn(" xfs/xfs_mxfs_dlm.c | cut -d: -f1); echo "bast_work_fn at $S"; awk -v s="$S" 'NR>s && NR<s+140 {print NR": "$0}' xfs/xfs_mx
+    sed -n '16287,16308p' xfs/xfs_mxfs_dlm.c
+    grep -rn "P142-[A-Z]*-LASTREF" xfs/*.c | sed 's/^\(.\{120\}\).*/\1/'; echo "=== on the leaking node (test1) ==="; timeout 60 tools/mxfs_sshpass.sh test1 "for p 
+    grep -n "i_dlm_bastq_src = " xfs/xfs_mxfs_dlm.c | sed 's/^\(.\{75\}\).*/\1/'
+    sed -n '32310,32345p' xfs/xfs_mxfs_dlm.c
+    grep -n "P204-CANCEL-ARMED-REF" -B 12 xfs/*.c | grep -E "P204|cancel_ref_release|if |cancel_delayed|cancel_work" | head -14
+    sed -n '28500,28530p' xfs/xfs_mxfs_dlm.c
+    MXFS_FORCE_PREP=1 timeout 420 ./run.sh 32 caw prep_cluster 2>&1 | tail -2; timeout 500 ./run.sh 32 caw precond_readiness cache_coherency strong_consistency posi
+    timeout 500 ./run.sh 32 caw dlm_fairness dlm_membership crash_consistency dir_reuse_coherency node_responsive kernel_health 2>&1 | tail -9; echo; echo "=== rig 
+    ps -eo pid,etimes,cmd --no-headers | awk '$0 ~ /\.\/run\.sh/ {print $1, $2, $3, $4, $5, $6}' | head -4; pgrep -f '^/bin/bash \./run\.sh' | while read p; do kill
+    cat > /tmp/claude-1000/-src-mxfs/19e01171-67b2-4d9e-a64f-a15b233d1c6e/scratchpad/state5.py <<'ENDP' p='state.md' s=open(p).read() add = """### 8. D-UNMOUNT-BUSY
+    for l in 16613 16866; do echo "=== src=9 at $l ==="; sed -n "$((l-14)),$((l+14))p" xfs/xfs_mxfs_dlm.c | grep -nE "igrab|ihold|queue_work|queue_delayed|xfs_irele
+    sed -n '16596,16640p' xfs/xfs_mxfs_dlm.c
+    for l in 13867 17816; do echo "=== src=14 at $l ==="; sed -n "$((l-16)),$((l+18))p" xfs/xfs_mxfs_dlm.c | grep -nE "igrab|ihold|queue_work|queue_delayed|xfs_irel
+    cat > /tmp/claude-1000/-src-mxfs/19e01171-67b2-4d9e-a64f-a15b233d1c6e/scratchpad/ledger9.py <<'ENDP' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.loa
 
 ## Last text from previous session
 
-Cluster is live on the current build (0.11.101). The dir_reuse test lives elsewhere — locating it and the lookup_fail logic:
-There's already a P127-DIRMISS shortform dump on ENOENT. Now the dispatcher and walk internals:
-There's an existing "datascan-heal" in the leaf lookup path. Checking what it does and what it prints — it may already be half of the P61 instrumentation:
+ are also two generic arm helpers (32327, 32407) that would be a shared path. Auditing those first:
+The shared helper pairs correctly. But `queue_delayed_work` returning true means the **dwork** owns the ref — and if it's later cancelled without running, that ref leaks. There's a knob for exactly this whose own description says the default reproduces the defect. Checking what `P204` actually counts:
+Confirmed: `P204` fires on the cancellation event itself, independent of the knob — so `P204=0` genuinely rules that path out (and consistently so: the leaked inode never reached evict at all). Consolidating the elimination list:
+Board fully green on the final build. Cleaning up and recording the unmount-leak work in state.md:
+Continuing with the specified audit — src=9 and src=14 arm sites:
+Line 16613's block has **two** returns around `queue_delayed_work` — and unlike the correct site at 16866, the failure branch may not release. Reading it in full:
+src=9 is correct (guarded release via `mxfs_dlm_dwork_safe_irele`, whose refusal probe `P124` measured 0). Checking src=14:
+Both src=14 sites are also correct (`igrab` paired with queue; `xfs_irele` on queue failure). Recording the audit state and wrapping up at the relay boundary:
+**Criteria NOT met. Not writing the marker. 8 open defects, 4 critical.**
+
+## This session
+
+**Fixed a guaranteed kernel crash in the build I inherited** — `mxfs_is_demoter()` called itself with no base case; `objdump` showed a real `call` to its own entry from 16 hot-path sites. That build was undeployable.
+
+**Closed D-BAST-IRELE-INACTIVE-SELF-WEDGE** (4th resolved) with measured exposure rather than absence-of-symptom: 152 second-drain admissions on all 32 nodes, `contest=0`, `foreign_clear=0`, plus a same-build negative control showing 30 live-claim steals pre-fix.
+
+**Found and fixed the mechanism behind D-SILENT-MKDIR-LOSS.** Since every documented marker read zero in a losing window, I built a probe-frequency differential instead of guessing marker #12; it nominated `P6-MIDTENURE-RELOAD-SKIP` (661 vs peer median 37). The skip destroys peer directory-publication notifications — at `src=8` the `MXFS_IF_DIR_RELOAD` flag is already cleared before the reload is attempted, so skipping loses it on both channels, repeatedly (streaks up to 29). Fix `mxfs.p6_honor_src_mask=0x1A4`: swallowed notifications ~42/node/run → 0, streaks → 0, **zero pace cost** (the naive "always reload" costs a 240s timeout). Kept OPEN — the causal link to the observed losses is correlational, and 0 losses in 16 post-fix runs vs 2 in 12 is only p≈0.05.
+
+**Advanced D-UNMOUNT-BUSY-INODES**: reproduced 3× in 5 cycles, **refuted the ledger's demoter linkage** (the clobber is now impossible and the leak persists), and eliminated the whole known-path family by measurement — including catching that the ledger had checked only one of *two* `P142` probe variants.
+
+## Six measurement errors caught, four of them mine
+
+- `journalctl`-only harvesting — wrong; retention varies ~60× *across* nodes and the two sources are opposite (one node's dmesg has the window marker, the other's has none).
+- The differential is invalid when the loser is rank1 — its coordinator role alone gives x20–x158 departures on a *passing* run.
+- Probe counters are per-module-load and **capped**, so cross-run comparisons measure cap exhaustion (`P170-CLWR` 800→0, cap = exactly 800).
+- A global refcount balance **cannot work** — VFS-side iputs aren't hookable (`net=78` vs `icount=1`).
+- `P203-LEVEL` is only sound under LIFO release, so its `xfs_lookup` attribution is likely misattribution — `d_splice_alias` provably always consumes that ref.
+- `P203-GRABSTACK` doesn't exist in the module, yet a harness grepped for it.
+
+Board fully green at 32/caw on v0.11.230 (`C142E3233C22F5FC1A73471`); `open_defects` correctly red. Rig clean, lock free, 32 VMs up. Ledger, state.md, awareness docs and eight memories updated, with the next audit step specified (remaining `bastq_src` arm sites).
 
 ## Continue
 

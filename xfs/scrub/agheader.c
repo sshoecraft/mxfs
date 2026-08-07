@@ -9,6 +9,7 @@
 #include "xfs_format.h"
 #include "xfs_trans_resv.h"
 #include "xfs_mount.h"
+#include "../../dlm/v5_mount.h"	/* sess40: is_single_node (iunlink scrub scoping) */
 #include "xfs_btree.h"
 #include "xfs_sb.h"
 #include "xfs_alloc.h"
@@ -946,9 +947,21 @@ xchk_iunlink(
 
 	for (i = 0; i < XFS_AGI_UNLINKED_BUCKETS; i++) {
 		xfs_agino_t	agino = be32_to_cpu(agi->agi_unlinked[i]);
+		bool		mxfs_multi = sc->mp->m_mxfs_dlm &&
+			!mxfs_v5_dlm_is_single_node(sc->mp->m_mxfs_dlm);
+
+		/* mxfs sess40 (F1): in multi-node mode a bucket other than our
+		 * slot's belongs to a peer — its members are in the PEER's
+		 * icache, not ours, and bucket choice is by inserter slot, so
+		 * neither the hash-membership nor the in-cache assertion below
+		 * can be evaluated here.  Scrub only our own bucket. */
+		if (mxfs_multi &&
+		    i != (sc->mp->m_mxfs_node_slot % XFS_AGI_UNLINKED_BUCKETS))
+			continue;
 
 		while (agino != NULLAGINO) {
-			if (agino % XFS_AGI_UNLINKED_BUCKETS != i) {
+			if (!mxfs_multi &&
+			    agino % XFS_AGI_UNLINKED_BUCKETS != i) {
 				xchk_block_set_corrupt(sc, sc->sa.agi_bp);
 				return;
 			}

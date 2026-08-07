@@ -509,6 +509,243 @@ struct xfs_log_dinode {
 #define	XFS_BLF_GDQUOT_BUF	(1<<4)
 
 /*
+ * sess48 (MXFS foreign-replay authority token, step 3): this buffer log
+ * format region carries a trailing struct mxfs_blf_authority immediately
+ * after the dirty bitmap (offset = the base_size recomputed from
+ * blf_map_size — never a stored offset).  Un-aware readers ignore the
+ * trailing bytes (recovery min-copies the format struct); the foreign-
+ * replay gate uses it to decide apply-vs-skip by exact match against the
+ * fenced node's held-at-death slot state.  Bits 5-10 are otherwise free;
+ * 11-15 are the BLFT type field.
+ */
+#define	XFS_BLF_MXFS_AUTHORITY	(1<<5)
+
+/*
+ * Authority classes for mxfs_blf_authority.mba_class.
+ *
+ * sess95 RULE-5 ruling, release blocker 1 (the epoch NAMESPACE problem): an
+ * inode's grant may be backed by EITHER the per-inode CAW slot
+ * (MXFS_LTYPE_INODE) or the inode-CLUSTER slot (MXFS_LTYPE_ICLUSTER), chosen
+ * at acquire time and recorded in ip->i_dlm_routed_iclus.  A durable epoch
+ * read from one of those slots is NOT comparable to one read from the other,
+ * so `class = INODE, resource = ino, grant_epoch = whichever slot backed it`
+ * is not self-describing and recovery could compare an epoch against the wrong
+ * namespace.  The fix is on the wire, not in a convention: the CLASS names the
+ * resource TYPE and mba_resource carries that type's EXACT resource id, so the
+ * pair reconstructs the CAW resource with no inference.
+ *
+ *   INODE  -> MXFS_LTYPE_INODE,    mba_resource = the inode number
+ *   ICLUS  -> MXFS_LTYPE_ICLUSTER, mba_resource = the CLUSTER BASE inode
+ *
+ * The logical owner is not lost by the ICLUS encoding: the replayed image
+ * carries its owner in its own v5 block header, which recovery must validate
+ * against the token anyway (ruling item 9).
+ */
+#define MXFS_AUTH_CLASS_NONE	0	/* no authority known — fail closed */
+#define MXFS_AUTH_CLASS_AG	1	/* mba_resource = agno */
+#define MXFS_AUTH_CLASS_SB	2	/* superblock / global metadata */
+#define MXFS_AUTH_CLASS_INODE	3	/* mba_resource = inode number */
+#define MXFS_AUTH_CLASS_ICLUS	4	/* mba_resource = cluster base inode */
+#define MXFS_AUTH_CLASS_MAX	5	/* wire values >= this are MALFORMED */
+
+/*
+ * sess94 step 5.2, RULE-5 ruling item (a): the explicit token STATUS.
+ *
+ * v1 had no status field, so class == NONE overloaded six distinct
+ * conditions into one value — "no authority is required", "the capture
+ * failed", "we could not prove the grant", "the grant we hold is not this
+ * buffer's authority", "two provenances merged" and "malformed".  A gate
+ * cannot fail closed intelligently on an overloaded value, and report-only
+ * mode cannot measure the population it needs to.  v2 carries the reason.
+ *
+ * Emitted by THIS build: VALID, UNPROVEN, MISLABELLED, INCOMPLETE.
+ * Reserved for later steps, defined here so the wire contract is fixed:
+ *   NOT_REQUIRED  — no producer emits it (an image that needs no authority
+ *                   carries no token at all today);
+ *   MIXED         — needs the merge semantics of ruling item (c) (step 5.3);
+ *   WRITE_AUTH    — needs the write-tenure provenance kind;
+ *   UNSUPPORTED   — a producer that knows it cannot classify this image.
+ * MALFORMED is a PARSER verdict and is never emitted on the wire.
+ */
+#define MXFS_AUTH_ST_UNSET	0	/* v1, or a producer that never set it */
+#define MXFS_AUTH_ST_VALID	1	/* complete, single-sourced provenance */
+#define MXFS_AUTH_ST_NOT_REQUIRED 2	/* no authority needed for this image */
+#define MXFS_AUTH_ST_UNPROVEN	3	/* authority applies, grant unproven */
+#define MXFS_AUTH_ST_MISLABELLED 4	/* held a grant, not this buf's authority */
+#define MXFS_AUTH_ST_MIXED	5	/* >= 2 differing provenances merged */
+#define MXFS_AUTH_ST_INCOMPLETE	6	/* a capture attempt failed */
+#define MXFS_AUTH_ST_WRITE_AUTH	7	/* write-tenure authority, not a grant */
+#define MXFS_AUTH_ST_UNSUPPORTED 8	/* producer cannot classify this image */
+/*
+ * sess95 step 5.3, RULE-5 ruling Q5.  The v2 set cannot express the five ways
+ * an INODE-authority capture can fail to prove anything, and the ruling is
+ * explicit that they must not be collapsed: recovery has to fail closed
+ * DIFFERENTLY per reason, and report-only mode has to size each population
+ * before enforcement can be designed.  In particular UNSUPPORTED must not
+ * become the generic failure bucket — it means "a recognized format this wire
+ * version cannot represent", never "a supposedly supported header was bad".
+ *
+ * Do NOT read `EX is cached && no epoch` as "we probably hold EX".  It is a
+ * publication transition, a release transition, a missing acquire site, a
+ * memory-ordering bug, or a violated invariant — EPOCH_UNAVAILABLE says so and
+ * proves nothing.
+ */
+#define MXFS_AUTH_ST_OWNER_UNKNOWN 9	/* owner could not be derived/validated */
+#define MXFS_AUTH_ST_AUTH_NOT_CACHED 10	/* owner known, no in-core authority */
+#define MXFS_AUTH_ST_AUTH_NOT_HELD 11	/* authority exists, EX not active */
+#define MXFS_AUTH_ST_EPOCH_UNAVAIL 12	/* EX active, no durable epoch published */
+#define MXFS_AUTH_ST_AUTH_RACED	13	/* authority changed during capture */
+#define MXFS_AUTH_ST_MAX	14	/* wire values >= this are MALFORMED */
+#define MXFS_AUTH_ST_MALFORMED	255	/* parser verdict only — never on wire */
+
+/*
+ * The ONLY status that asserts provenance.  Every other value — including any
+ * future one an older node has never heard of — must fail closed.  A gate that
+ * tests "not one of the bad ones" is wrong by construction; test this.
+ */
+#define mxfs_auth_st_proves(st)	((st) == MXFS_AUTH_ST_VALID)
+
+/*
+ * mba_flags layout.  Bits 0-7 are the status above; bits 8-31 are RESERVED
+ * AND MUST BE ZERO.  A parser that finds a nonzero reserved field must treat
+ * the token as MALFORMED — that is what lets a later wire addition be
+ * rejected by an older enforcing node instead of silently misread.
+ */
+#define MXFS_AUTH_FLAG_STATUS_MASK	0x000000ffU
+#define MXFS_AUTH_FLAG_RESERVED_MASK	0xffffff00U
+
+/*
+ * Fixed 24-byte, big-endian, packed trailer.  mba_grant_epoch is the
+ * durable exclusive-grant epoch of the AG tenure that authorized this
+ * image (the CAW slot's ex_grant_epoch, mirrored in
+ * pag_mxfs_grant_epoch); mba_owner_slot/boot bind it to the emitting
+ * node instance.  Captured at CIL format time (iop_format) — see the
+ * sess48 step-2b ruling: the release path's log_force(SYNC) barrier
+ * guarantees no item formats after its authorizing grant is gone.
+ */
+struct mxfs_blf_authority {
+	__be16	mba_version;
+	__be16	mba_class;
+	__be32	mba_resource;
+	__be64	mba_grant_epoch;
+	__be32	mba_owner_slot;
+	__be32	mba_owner_boot;
+};
+/*
+ * VERSION 1 IS REPORT-ONLY AND MUST NEVER GATE AN APPLY/SKIP DECISION.
+ * (sess82 step 5.0, from a RULE-5 ruling.)  Three defects are inherent to
+ * the v1 shape, so no producer-side improvement can promote it:
+ *   - mba_resource is a __be32 agno: it cannot name an inode, so a record
+ *     whose real authority is an inode EX grant can only be labelled by its
+ *     containing AG or not at all;
+ *   - mba_owner_boot is memset 0 and never filled, so a record cannot be
+ *     bound to a specific victim incarnation;
+ *   - a 32-bit resource cannot be widened without a wire change anyway.
+ * An exact {class, resource, epoch} gate requires a v2 token (be64 resource,
+ * victim slot + incarnation binding) and a proto-gen bump.
+ */
+#define MXFS_BLF_AUTHORITY_V1	1
+
+/*
+ * sess94 step 5.2 — VERSION 2.  40 bytes, big-endian, naturally aligned
+ * (2+2+4 | 8 | 8 | 8 | 4+4), so sizeof() is 40 on every ABI; the
+ * _Static_assert below is the guarantee, not a hope.
+ *
+ *   mba_resource     be64 — wide enough to name an inode, not just an agno.
+ *   mba_grant_epoch  be64 — the durable exclusive-grant epoch that authorized
+ *                    this image (the CAW slot's ex_grant_epoch, mirrored in
+ *                    pag_mxfs_grant_epoch).
+ *   mba_owner_epoch  be64 — the EMITTING MOUNT'S INCARNATION.  This is the
+ *                    field v1 could not have: until D-MOUNT-INCARNATION-
+ *                    CONSTANT-ZERO was closed (sess91) the incarnation was a
+ *                    measured constant 0, so no record could be bound to a
+ *                    specific victim instance.  It is now a random nonzero
+ *                    64-bit value redrawn per mount.
+ *   mba_owner_slot   be32 — the emitter's disklock heartbeat slot.
+ *   mba_owner_node   be32 — the emitter's node_id, kept as an INDEPENDENT
+ *                    slot<->node consistency check (sess89 measured that
+ *                    nodes migrate slots across mounts; a token whose slot
+ *                    and node disagree with the victim's heartbeat record is
+ *                    evidence of a stale or forged image).
+ *
+ * fs_gen is deliberately OMITTED: the image is already bound to a filesystem
+ * generation by the enclosing log, journal slice, recovery descriptor and
+ * heartbeat record.  Adding a fourth copy buys nothing and costs 8 bytes on
+ * every buffer image.
+ *
+ * VERSION 2 IS STILL REPORT-ONLY IN THIS BUILD.  It changes what is
+ * RECORDED, not what is DECIDED; the ATOMIC-SKIP taint scan and the P223
+ * gate are byte-identical so the foreign_replay_ab.sh arms stay comparable.
+ * Enforcement is step 5.4.
+ */
+struct mxfs_blf_authority_v2 {
+	__be16	mba_version;
+	__be16	mba_class;
+	__be32	mba_flags;	/* bits 0-7 status; 8-31 reserved, MBZ */
+	__be64	mba_resource;
+	__be64	mba_grant_epoch;
+	__be64	mba_owner_epoch;
+	__be32	mba_owner_slot;
+	__be32	mba_owner_node;
+};
+#define MXFS_BLF_AUTHORITY_V2	2
+
+_Static_assert(sizeof(struct mxfs_blf_authority) == 24,
+	       "mxfs_blf_authority v1 is 24 bytes on the wire");
+_Static_assert(sizeof(struct mxfs_blf_authority_v2) == 40,
+	       "mxfs_blf_authority_v2 is 40 bytes on the wire");
+
+/*
+ * THE SIZE-MACRO TRAP.  Trailer presence must be size-stable or the CIL
+ * shadow buffer overruns (silent corruption class — see the comment at
+ * xfs_buf_item_format_segment).  That is guaranteed by this ONE macro being
+ * used on BOTH sides: the size estimate (xfs_buf_item_size_segment) and the
+ * emission (xfs_buf_item_format_segment).  It names the version this build
+ * EMITS.  Never add a second emit-size macro, and never use this macro to
+ * size a PARSE — the parser meets both versions and must size from the
+ * version field it read (mxfs_blf_authority_size()).
+ */
+#define MXFS_BLF_AUTHORITY_SIZE	sizeof(struct mxfs_blf_authority_v2)
+
+static inline size_t mxfs_blf_authority_size(unsigned int version)
+{
+	switch (version) {
+	case MXFS_BLF_AUTHORITY_V1:
+		return sizeof(struct mxfs_blf_authority);
+	case MXFS_BLF_AUTHORITY_V2:
+		return sizeof(struct mxfs_blf_authority_v2);
+	default:
+		return 0;	/* unknown version — fail closed */
+	}
+}
+
+/*
+ * The parser's normalized view.  Both wire versions decode into this so no
+ * consumer has to branch on version to read a field; consumers that MUST
+ * discriminate (every future gate) test av_version explicitly, and an
+ * enforcement gate must never accept av_version == 1 as evidence, however
+ * good the v1 producer becomes.
+ */
+struct mxfs_auth_view {
+	uint16_t	av_version;
+	uint16_t	av_class;
+	uint8_t		av_status;
+	uint64_t	av_resource;
+	uint64_t	av_grant_epoch;
+	uint64_t	av_owner_epoch;
+	uint32_t	av_owner_slot;
+	uint32_t	av_owner_node;
+};
+
+/* Result of mxfs_blf_parse_authority(): four outcomes, never conflated. */
+enum mxfs_auth_parse {
+	MXFS_AUTH_PARSE_NOT_BUF = 0,	/* not a buffer log item at all */
+	MXFS_AUTH_PARSE_UNTAGGED,	/* buffer item, no authority trailer */
+	MXFS_AUTH_PARSE_MALFORMED,	/* flagged, but the trailer is unusable */
+	MXFS_AUTH_PARSE_OK,		/* view filled */
+};
+
+/*
  * This is the structure used to lay out a buf log item in the log.  The data
  * map describes which 128 byte chunks of the buffer have been logged.
  *

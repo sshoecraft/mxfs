@@ -1704,7 +1704,12 @@ xfs_dir2_data_log_entry(
 					int sdelwri = !!(bp->b_flags & _XBF_DELWRI_Q);
 					int sdone = !!(bp->b_flags & XBF_DONE);
 					pr_warn_ratelimited(
-					    "mxfs: P49-STALEBASE ino=%llu daddr=%lld adding=[%.*s] missing=%d firstmiss=[%s] dirty=%d inail=%d pin=%d delwri=%d done=%d buf_epoch=%llu valid_epoch=%llu prior_tenure=%d dirgen=%llu — in-core base missing %d durable peer dirent(s); whole-block writeback will clobber them\n",
+					    /* sess79: the trailing prose used to repeat the count
+					     * with a %d that had NO argument — 16 specifiers, 15
+					     * args.  vsnprintf then read an uninitialised va_arg,
+					     * so this probe's own summary line printed garbage.
+					     * missing= above already carries the count. */
+					    "mxfs: P49-STALEBASE ino=%llu daddr=%lld adding=[%.*s] missing=%d firstmiss=[%s] dirty=%d inail=%d pin=%d delwri=%d done=%d buf_epoch=%llu valid_epoch=%llu prior_tenure=%d dirgen=%llu — in-core base missing the durable peer dirent(s) listed above; whole-block writeback will clobber them\n",
 					    (unsigned long long)args->dp->i_ino,
 					    (long long)bp->b_maps[0].bm_bn,
 					    (int)dep->namelen, dep->name,
@@ -2235,8 +2240,12 @@ mxfs_dir_addname_coherent_refresh(
 							    uint64_t);
 		uint32_t master_ep = mxfs_v5_dlm_inode_dir_epoch(mp->m_mxfs_dlm,
 								 dp->i_ino);
-		if (master_ep > dp->i_dlm_dir_valid_epoch)
+		/* sess45: braces — unconditional incarn stamp (see the
+		 * xfs_da_btree.c sibling fix). */
+		if (master_ep > dp->i_dlm_dir_valid_epoch) {
 			dp->i_dlm_dir_valid_epoch = master_ep;
+			dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+		}
 		if (master_ep != 0 && dbp->b_mxfs_dir_epoch != 0 &&
 		    dbp->b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch) {
 			dbp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);

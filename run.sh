@@ -194,6 +194,11 @@ command -v jq >/dev/null || { echo "ERROR: jq required"; exit 1; }
 # instances must NEVER overlap: fail fast and name the holder so the operator
 # kills it (see memory infra-ccloop-leaves-stale-sessions-alive-KILL-AT-START).
 RUNLOCK=/tmp/mxfs_run.lock
+# sess41: run.sh leaks ~5GB of /tmp/run_* artifacts per criterion invocation;
+# two days of boards filled the 1.8T root fs to 100% (ENOSPC mid-board,
+# session 23).  Prune anything older than 6h before taking the lock.
+[ -x "$(dirname "$0")/tests/host_tmp_clean.sh" ] && \
+    "$(dirname "$0")/tests/host_tmp_clean.sh" 6 >/dev/null 2>&1 || true
 exec 9>"$RUNLOCK"
 if ! flock -n 9; then
     # Holder triage.  A LIVE competing run.sh => hard fail, never stomp a run
@@ -285,12 +290,135 @@ record() {  # name status measured reason [elapsed] [budget]
         status=FAIL
         reason="RULE-0 budget exceeded: elapsed=${elapsed}s > budget=${budget}s (functional checks passed)${reason:+; }$reason"
     fi
+    # sess23 (ccloop c7ee71c6) — KEEP A FLAKE HISTORY.
+    #
+    # A cell used to hold ONLY its latest result, so an intermittent criterion
+    # went green the moment a run got lucky and the previous failure vanished.
+    # Measured this session: `dirent_durability` FAILED once with
+    # durable_loss=3 and then PASSed 18 consecutive times — and the board
+    # showed nothing but the last PASS. For the critical defects that reproduce
+    # ~1 run in 10, that makes a green cell meaningless and an A/B arm
+    # worthless.
+    #
+    # So each write PUSHES the outgoing verdict onto a bounded per-cell history
+    # (last 10, newest first). showstat annotates any green cell whose history
+    # contains a recent FAIL, so "PASS, but 1 of the last 12 runs FAILED" is
+    # visible instead of hidden. This is recorded for EVERY criterion, not just
+    # the known-flaky ones — the point is to discover which ones are flaky.
+    #
+    # sess43: the history entry MUST carry `reason` too.  The node-side
+    # finish() names every failing check in reason= (FAILED[] descriptions),
+    # and the aggregator records it on the live cell — but the history push
+    # dropped it, so the moment the next run overwrote the cell the evidence
+    # was gone.  That single omission is why D-DIR-REUSE-COHERENCY sat
+    # "UNROOTED: which check failed is not yet captured" and why the Aug-1
+    # 23:32 cache_coherency/zsl failures could not be attributed from the
+    # record: the answer had been written down and then discarded.
     local cond="${N}/${DLM}" tmp; tmp=$(mktemp)
     jq --arg k "$name" --arg c "$cond" --arg s "$status" \
        --arg m "$measured" --arg r "$reason" --arg t "$(date -u +%FT%TZ)" \
        --argjson e "${elapsed:-null}" --argjson b "${budget:-null}" \
-       '.categories[].tests |= map(if .name==$k then (.runs[$c]={status:$s,measured:$m,reason:$r,iso:$t,elapsed_s:$e,budget_s:$b}) else . end)' \
+       '.categories[].tests |= map(if .name==$k then
+           ( ( (.runs[$c].history // []) as $h
+             | (if ((.runs[$c].status // "") | . == "" or . == "PENDING") then $h
+                else ([{status:.runs[$c].status, iso:.runs[$c].iso,
+                        measured:.runs[$c].measured,
+                        reason:((.runs[$c].reason // "")[0:400])}] + $h)[0:10] end) ) as $nh
+           | .runs[$c]={status:$s,measured:$m,reason:$r,iso:$t,
+                        elapsed_s:$e,budget_s:$b,history:$nh} )
+         else . end)' \
        "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
+}
+
+
+# ---------------------------------------------------------------------------
+# sess23 (ccloop c7ee71c6) — RECONVERGENCE GATE BETWEEN CRITERIA.
+#
+# `crash_consistency` deliberately `virsh destroy`s a node.  It used to RETURN
+# as soon as its own checks passed, while the killed node was still rejoining.
+# Two separate falsehoods followed:
+#   1. its own verdict read FAIL nodes_pass=9/16 with checks=354 passed=354
+#      failed=0 — i.e. every check it ran passed, but peers that had not
+#      rejoined yet were scored as failing nodes; and
+#   2. every criterion ordered after it inherited the same half-formed cluster
+#      (kernel_health FAIL 15/16 with hits=0 kinds=[] — it detected nothing,
+#      one node just never reported).
+# Three untrustworthy cells per sweep, none of them a real fault.
+#
+# Per GPT (RULE 5 consult): the destructive criterion OWNS its postcondition —
+# it may not be recorded PASS until the cluster has reconverged — and the
+# driver ALSO gates the next criterion, as defence against any test leaving
+# the cluster unhealthy.  Waiting cannot mask a genuine failure to rejoin,
+# because failing to reconverge inside the deadline IS the red assertion: we
+# overwrite the destructive test's own result with FAIL, and mark everything
+# after it BLOCKED rather than running it against a broken cluster.
+DESTRUCTIVE_TESTS=" crash_consistency fence_during_write fault_netpartition "
+
+wait_converged() {   # <deadline_seconds> -> 0 converged, 1 did not
+    local dl=$(( SECONDS + ${1:-120} )) stable=0 cgd n all
+    [ "$N" -gt 1 ] || return 0
+    while [ "$SECONDS" -lt "$dl" ]; do
+        cgd=$(mktemp -d)
+        for n in "${NODES[@]}"; do
+            # LIVENESS first, beacon second.  The membership beacon is a dmesg
+            # line and dmesg is a RING: on a node that has been up a while it
+            # scrolls out, and then "no beacon" is indistinguishable from "not
+            # converged".  That is exactly the trap this project has been
+            # burned by before (never judge a condition by a bare dmesg grep) —
+            # it made a perfectly healthy 16/16-mounted, writable cluster read
+            # as RECONVERGENCE FAILED because ONE node's beacon had aged out.
+            # So: a node counts as converged when it is mounted AND its
+            # filesystem answers, and — only if a beacon is still in the ring —
+            # that beacon agrees the cluster is N.  A beacon that DISAGREES is
+            # still a hard fail (real split-brain), which is the case that
+            # matters; an absent beacon is simply no evidence either way.
+            ( ssh_node "$n" "mountpoint -q '$MNT' && ls '$MNT' >/dev/null 2>&1 && { ac=\$(dmesg | awk '/DLM initialized/{m=\"\"} /MXFS-MEMBERSHIP/{m=\$0} END{print m}' | grep -oE 'active_count=[0-9]+' | cut -d= -f2); echo \"ALIVE:\${ac:-none}\"; }" 2>/dev/null | tr -d '\r\n ' > "$cgd/$n" ) &
+        done
+        wait
+        all=1
+        local over=0
+        for n in "${NODES[@]}"; do
+            case "$(cat "$cgd/$n" 2>/dev/null)" in
+                "ALIVE:$N"|"ALIVE:none") ;;      # healthy, or no beacon left in the ring
+                ALIVE:*)
+                    # sess43: a beacon ABOVE N is the normal aftermath of any
+                    # fault-injecting test.  A node that dies and rejoins takes
+                    # a NEW node_id, and the lease keeps the dead identity for
+                    # MXFS_LEASE_TIMEOUT_DEFAULT_MS = 600000 ms (TEN MINUTES,
+                    # lease.h:58) — far longer than this gate's window.  The
+                    # old code read that as disagreement and BLOCKED every
+                    # remaining criterion in the chunk on a fully healthy
+                    # cluster (measured at 32/caw after crash_consistency:
+                    # beacon 33, disk table exactly 32 correct members, beacon
+                    # back to 32 on schedule).  Defer the verdict to the
+                    # authoritative on-disk heartbeat table below; a count
+                    # BELOW N is still an immediate fail.
+                    local ac; ac=$(cat "$cgd/$n" 2>/dev/null | cut -d: -f2)
+                    if [ "${ac:-0}" -gt "$N" ] 2>/dev/null; then over=1; else all=0; fi ;;
+                *) all=0 ;;                      # unmounted/unresponsive
+            esac
+        done
+        rm -rf "$cgd"
+        # Only when some beacon over-counts: ask the disk.  Exactly N live
+        # heartbeat writers = healthy (the excess is a lease-aging identity);
+        # more than N = genuine split-brain and still a hard fail.
+        if [ "$all" = 1 ] && [ "$over" = 1 ]; then
+            local hbl; hbl=$(bash "$REPO/tests/hb_live_count.sh" "${NODES[0]}" "$DEV" 4 2>/dev/null)
+            if [ "$hbl" = "$N" ]; then
+                echo "    (beacon over-counts — disk heartbeat table shows exactly $N live members; lease is aging a dead identity, not split-brain)"
+            else
+                all=0
+            fi
+        fi
+        if [ "$all" = 1 ]; then
+            stable=$((stable+1))
+            [ "$stable" -ge 3 ] && return 0
+        else
+            stable=0
+        fi
+        sleep 2
+    done
+    return 1
 }
 
 # Parse one RESULT line's "key=value | key=value" field.
@@ -822,7 +950,42 @@ run_coord() {  # name cat budget scale
     # cache_coherency rerun).  Require a live readdir of the mount root:
     # a shutdown FS fences it (P-SHUTDOWN-FENCE → EIO) while a healthy
     # node's converge is bounded (P95B/C ≈2s worst case).
-    local pa_bad="" pa_pids=() pa_n
+    # ccloop c7ee71c6 sess24 — NODE-FAULT PRE-ASSERT.
+    #
+    # The mount/readdir check below is necessary but NOT sufficient: a node that
+    # is permanently DEADLOCKED passes it.  D-BAST-WRITEBACK-ABBA-DEADLOCK was
+    # captured live on test27 with mxfs mounted, `ls` answering, mkdir/write/
+    # fsync/unlink all working, no BUG/WARNING and no filesystem shutdown -- yet
+    # `sync` could never complete (mxfs_dlm_bast_process held the inode lock
+    # waiting on a folio lock; writeback held that folio lock waiting on the
+    # inode lock).  loadavg 20.4, 21 tasks in D state, unchanged PIDs over many
+    # minutes.
+    #
+    # Barrier criteria need EVERY rank, so one such node makes the board read
+    # `FAIL nodes_pass=0/N states:NO_TERMINAL_RECORD=N`.  That happened to SEVEN
+    # criteria at once (cache_coherency, strong_consistency, posix_multi,
+    # mmap_coherency, zero_silent_loss, dlm_fairness, dlm_membership) while 31 of
+    # 32 nodes were healthy -- a board indistinguishable from total filesystem
+    # collapse, produced by one wedged node.  dir_reuse_coherency passed
+    # throughout, which is what proved the filesystem itself was fine.
+    #
+    # So the pre-assert now also requires, per node, a `sync` that COMPLETES in
+    # bounded time -- the exact operation the deadlock makes impossible, and one a
+    # healthy node finishes in milliseconds.  A node failing it is reported as a
+    # NODE FAULT, never as a correctness failure of the filesystem.
+    #
+    # THE PREDICATE IS THE SYNC, NOT THE D-STATE SCAN.  The first cut of this gate
+    # also convicted any D-state mxfs/writeback task, and immediately produced a
+    # FALSE BLOCK: test26 was blocked for `mxfs-worker[mxfs_pal_cond_timedwait]`,
+    # which is simply a worker sitting in the normal, bounded CAW acquire poll.
+    # Blocking a healthy cluster is as damaging as the red it was meant to
+    # prevent, so D-state details are now collected ONLY as attribution for a node
+    # that has already failed the sync bound.
+    #
+    # Deliberately NOT keyed on loadavg either: high load has many innocent causes
+    # and would fail healthy nodes under legitimate work.
+    local pa_bad="" pa_pids=() pa_n pa_faults=""
+    local pa_d="/tmp/.mxfs_paf.$$"; mkdir -p "$pa_d"
     for pa_n in "${NODES[@]}"; do
         ( timeout 15 "$SSH" "$pa_n" "$PASS" \
             "mountpoint -q '$MNT' && mount | grep -q ' on $MNT type $fstype ' && timeout 10 ls '$MNT'/. >/dev/null 2>&1" \
@@ -834,6 +997,52 @@ run_coord() {  # name cat budget scale
         wait "${pa_pids[$i]}" || pa_bad="$pa_bad $pa_n"
         i=$((i+1))
     done
+    # SYNC-LIVENESS PASS (separate from the mount pre-assert on purpose).
+    #
+    # It cannot be folded into the probe above: a wedged `sync` sits in
+    # UNINTERRUPTIBLE sleep, so `timeout 12 sync` never returns, the outer ssh is
+    # killed, and the node then lands in the mount/readdir bucket with the
+    # misleading reason "mxfs not mounted/readable" -- which is exactly what the
+    # first attempt at this gate reported for test27.  Run it as its own pass and
+    # treat "no verdict came back" as the wedge, because for this probe silence IS
+    # the positive result.
+    #
+    # Each node writes SYNCOK only if sync completed.  Anything else -- partial
+    # output, killed ssh, nothing at all -- means it did not.
+    local pa_sp=() pa_sn
+    for pa_sn in "${NODES[@]}"; do
+        ( timeout 20 "$SSH" "$pa_sn" "$PASS" \
+            "timeout 12 sync && echo SYNCOK" > "$pa_d/$pa_sn" 2>/dev/null ) &
+        pa_sp+=($!)
+    done
+    for pa_sn in "${NODES[@]}"; do wait; done 2>/dev/null
+    for pa_sn in "${NODES[@]}"; do
+        grep -q SYNCOK "$pa_d/$pa_sn" 2>/dev/null && continue
+        # Attribution for the wedge, best-effort and non-blocking: read the
+        # D-state MXFS/writeback tasks. Collected only for a node ALREADY
+        # convicted by the sync bound -- a D-state mxfs worker on its own is
+        # normal (mxfs_pal_cond_timedwait is just the bounded CAW acquire poll),
+        # and convicting on it FALSE-BLOCKED healthy test26 on the first attempt.
+        local pa_diag
+        pa_diag=$(timeout 20 "$SSH" "$pa_sn" "$PASS" \
+            "for dp in \$(ps -eo stat,pid --no-headers 2>/dev/null | awk '\$1 ~ /^D/ {print \$2}'); do
+                 dc=\$(cat /proc/\$dp/comm 2>/dev/null)
+                 case \"\$dc\" in
+                     *mxfs*|flush-*|sync|*xfsaild*)
+                         echo \$dc[\$(cat /proc/\$dp/wchan 2>/dev/null)] ;;
+                 esac
+             done" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
+        pa_faults="$pa_faults ${pa_sn}:sync-wedged[${pa_diag:-no-diag}]"
+    done
+    rm -rf "$pa_d"
+    if [ -n "$pa_faults" ]; then
+        record "$name" BLOCKED "node-fault" \
+            "NODE FAULT (not a filesystem verdict):$pa_faults — a node cannot complete sync and/or has an MXFS/writeback task wedged in D state. See D-BAST-WRITEBACK-ABBA-DEADLOCK. Every barrier criterion would report NO_TERMINAL_RECORD on ALL nodes because one rank can never reach a barrier; BLOCKED so that is not recorded as a correctness failure. Recover the node (virsh destroy+start) and re-run." \
+            0 "$real_budget"
+        echo "  BLOCK $name  (node fault:$pa_faults)"
+        rm -rf "$tmpd"
+        return 1
+    fi
     if [ -n "$pa_bad" ]; then
         record "$name" FAIL "pre-assert" \
             "PRE-ASSERT: $fstype not mounted/readable on$pa_bad — a prior test broke cluster formation state (unmounted or shutdown zombie); reform required" \
@@ -874,7 +1083,16 @@ run_coord() {  # name cat budget scale
     # must not read the same as N independent correctness failures (GPT
     # consult 2026-07-11; see ccmemory
     # gpt-consult-dir_reuse32-architectural-review).
-    local npass=0 fail_reason="" saw_noresult=0 n line status rank1_measured=""
+    local npass=0 fail_reason="" saw_noresult=0 n line status rank1_measured="" faildist=""
+    # sess23: also keep the FIRST FAILING node's measured= values.  The cell
+    # used to show rank 1's numbers regardless of verdict, so a FAIL displayed a
+    # PASSING node's counts (state.md: "nodes_pass=31/32 states:FAIL=1 next to
+    # measured= values taken from a passing node").  Live cost: a real
+    # dir_reuse_coherency failure reported checks=51 passed=50 failed=1 with NO
+    # indication of WHICH check failed, even though the node-side finish() had
+    # named it in its reason — the aggregate simply threw the failing node's
+    # numbers away.
+    local fail_measured=""
     local -A state_count
     for n in "${NODES[@]}"; do
         line=$(grep -E '^RESULT:' "$tmpd/$n" | tail -1)
@@ -893,6 +1111,22 @@ run_coord() {  # name cat budget scale
             # that the generic nodes_pass=N/N summary below would otherwise
             # discard entirely.
             [ "$n" = "${NODES[0]}" ] && rank1_measured=$(echo "$line" | field measured)
+            if [ "$status" != PASS ] && [ -z "$fail_measured" ]; then
+                fail_measured="$n:$(echo "$line" | field measured)"
+            fi
+            # sess43: the per-node FAILED-CHECK COUNT distribution.  Showing
+            # only first_fail + rank1 hid whether a failure was uniform
+            # ("every node failed the same 1 check" = a shared/coordinated
+            # object) or concentrated ("one node failed 16" = that node's
+            # own artifacts).  Those two shapes need opposite
+            # investigations, and the Aug-1 23:32 cache_coherency incident
+            # could not be told apart afterwards because only test1's
+            # numbers survived.  Recorded as a compact histogram.
+            if [ "$status" != PASS ]; then
+                local nf
+                nf=$(echo "$line" | field measured | sed -n 's/.*failed=\([0-9]*\).*/\1/p')
+                [ -n "$nf" ] && faildist="$faildist $nf"
+            fi
         fi
         state_count["$status"]=$(( ${state_count["$status"]:-0} + 1 ))
     done
@@ -911,13 +1145,39 @@ run_coord() {  # name cat budget scale
             # acquire rc=-110 -> error-path shutdown -> poisoned fence/
             # fault/tds).  Between suite tests nothing legitimate holds
             # files under $MNT, so the -m kill is safe.
-            ( ssh_node "$kn" "pkill -f '$script' 2>/dev/null; sleep 1; fuser -k -m $MNT >/dev/null 2>&1; true" >/dev/null 2>&1 ) &
+            #
+            # sess45 (D-CRASH-CONSISTENCY-32-NOTERMINAL-354): ALSO capture the
+            # node's LAST kmsg phase marker at kill time.  A NO_TERMINAL node's
+            # captured stdout tail is unreliable (ssh block-buffering loses
+            # unflushed output when the kill lands — both recorded all-32
+            # NOTERMINAL events show tail:<empty> on every node), but the
+            # suite's `mxfs-CCph rank=N PHASE=x` /dev/kmsg markers are flushed
+            # instantly.  The last marker names the phase each node was IN
+            # when the budget fired — the difference between "stuck at launch",
+            # "slow in datawrite" and "slow in cold verify", which need three
+            # different investigations.
+            ( ssh_node "$kn" "pkill -f '$script' 2>/dev/null; dmesg | grep -o 'mxfs-CCph rank=[0-9]* PHASE=[a-z0-9-]*' | tail -1 > /tmp/ccph_last 2>/dev/null; sleep 1; fuser -k -m $MNT >/dev/null 2>&1; cat /tmp/ccph_last 2>/dev/null; true" 2>/dev/null | tail -1 > "$tmpd/$kn.ccph" ) &
         done
         wait
         echo "    (killed leftover $name processes on all nodes after timeout)"
+        # Compact last-phase census across nodes -> appended to the reason so
+        # the criteria history self-diagnoses the stuck phase distribution.
+        local pc_phase pc_summary=""
+        local -A pc_count
+        for kn in "${NODES[@]}"; do
+            pc_phase=$(sed -n 's/.*PHASE=//p' "$tmpd/$kn.ccph" 2>/dev/null | head -1)
+            [ -z "$pc_phase" ] && pc_phase="none"
+            pc_count["$pc_phase"]=$(( ${pc_count["$pc_phase"]:-0} + 1 ))
+        done
+        for pc_phase in "${!pc_count[@]}"; do
+            pc_summary="$pc_summary${pc_summary:+,}${pc_phase}=${pc_count[$pc_phase]}"
+        done
+        [ -n "$pc_summary" ] && fail_reason="$fail_reason last_phase_census[$pc_summary]"
     fi
-    # Clean up retained state.
-    timeout 5 mosquitto_sub -h "$BROKER" -t "$prefix/#" --remove-retained -W 2 >/dev/null 2>&1
+    # Clean up retained state.  sess24: also sweep this test's own subtree with a
+    # real idle window -- the old `-W 2` frequently returned before the broker had
+    # delivered everything, which is how 120k messages accumulated.
+    timeout 20 mosquitto_sub -h "$BROKER" -t "$prefix/#" --remove-retained -W 6 >/dev/null 2>&1
 
     local agg measured statebrk="" st
     for st in "${!state_count[@]}"; do
@@ -926,7 +1186,32 @@ run_coord() {  # name cat budget scale
     done
     measured="nodes_pass=$npass/$N"
     [ -n "$statebrk" ] && measured="$measured states:$statebrk"
-    [ -n "$rank1_measured" ] && measured="$measured $rank1_measured"
+    # sess43: stamp the HOST load with every result.  These 32 guests share
+    # one hypervisor, and pace-sensitive criteria are modulated by it:
+    # dir_reuse_coherency measured 8-10 rounds/100s at host load 11-17 and
+    # 5-7 rounds on the SAME build hours later at load 28-30 (guest load
+    # stayed <1 but steal climbed) — enough to cross its 8-round floor by
+    # itself.  Without this stamp a pace result cannot be compared against
+    # another, and A/B arms run under drifting load are worthless.
+    local hload
+    hload=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)
+    [ -n "$hload" ] && measured="$measured hostload=$hload"
+    # Prefer the FAILING node's numbers when the aggregate is a failure — those
+    # are the ones a human needs; rank 1's are only meaningful on a clean run.
+    if [ "$npass" -ne "$N" ] && [ -n "$fail_measured" ]; then
+        measured="$measured first_fail[$fail_measured]"
+        [ -n "$rank1_measured" ] && measured="$measured rank1[$rank1_measured]"
+        # failed-check histogram across the failing nodes: "1x31,16x1" reads
+        # as "31 nodes failed 1 check, one node failed 16".
+        if [ -n "$faildist" ]; then
+            local hist
+            hist=$(printf '%s\n' $faildist | sort -n | uniq -c \
+                   | awk '{printf "%s%sx%s", (NR>1?",":""), $2, $1}')
+            [ -n "$hist" ] && measured="$measured faildist[$hist]"
+        fi
+    elif [ -n "$rank1_measured" ]; then
+        measured="$measured $rank1_measured"
+    fi
     if [ "$npass" -eq "$N" ]; then
         agg=PASS
     else
@@ -1017,9 +1302,13 @@ fail_stale_pending() {
     local tmp; tmp=$(mktemp)
     jq --arg t "$(date -u +%FT%TZ)" \
        '.categories[].tests |= map(.runs |= with_entries(
-            if (.value.status=="PENDING" and ((.value.reason//"")|startswith("running "))) then
-                .value = {status:"FAIL", measured:"aborted",
-                          reason:("run died before recording a result (marker: "+.value.reason+")"),
+            if (.value.status=="PENDING" and ((.value.reason//"")|startswith("executing "))) then
+                .value = {status:"ABORTED", measured:"",
+                          reason:("run was killed while this test was executing (marker: "+.value.reason+")"),
+                          iso:$t}
+            elif (.value.status=="PENDING" and ((.value.reason//"")|startswith("running "))) then
+                .value = {status:"NOT_RUN", measured:"",
+                          reason:("run was killed before reaching this test (marker: "+.value.reason+")"),
                           iso:$t}
             else . end))' \
        "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
@@ -1033,18 +1322,63 @@ reset_pending() {
     [ "${#names[@]}" -gt 0 ] || return 0
     local jlist; jlist=$(printf '%s\n' "${names[@]}" | jq -R . | jq -s .)
     tmp=$(mktemp)
+    # sess23: PRESERVE the flake history across the PENDING overwrite.  This is
+    # where the previous REAL verdict is lost — reset_pending replaces the whole
+    # cell — so push it onto history HERE, and carry the array forward into the
+    # marker.  Without this the history only ever recorded "PENDING" and the
+    # FLAKY annotation could never fire (measured: dir_reuse_coherency FAILED
+    # 1 check on all 32 nodes then PASSed, and the board still read plain green).
     jq --arg c "$cond" --argjson ns "$jlist" --arg id "$RUN_ID" --arg t "$(date -u +%FT%TZ)" \
-       '.categories[].tests |= map(if (.name as $n | $ns | index($n)) then (.runs[$c]={status:"PENDING",measured:"",reason:("running "+$id),iso:$t}) else . end)' \
+       '.categories[].tests |= map(if (.name as $n | $ns | index($n)) then
+           ( ( (.runs[$c].history // []) as $h
+             | (if ((.runs[$c].status // "") | . == "" or . == "PENDING") then $h
+                else ([{status:.runs[$c].status, iso:.runs[$c].iso,
+                        measured:.runs[$c].measured,
+                        reason:((.runs[$c].reason // "")[0:400])}] + $h)[0:10] end) ) as $nh
+           | .runs[$c]={status:"PENDING",measured:"",reason:("running "+$id),
+                        iso:$t,history:$nh} )
+         else . end)' \
        "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
     echo "--- marked ${#names[@]} test(s) PENDING for ${cond}: ${names[*]} ---"
+}
+# sess23 (ccloop c7ee71c6) — DO NOT SCORE UNRUN WORK AS A PRODUCT FAILURE.
+#
+# The old lifecycle converted EVERY still-PENDING marker of a dying run to
+# FAIL "aborted".  That conflates two completely different facts:
+#   * a test that was EXECUTING when the run died — genuinely suspicious, it
+#     may have wedged the node, so it must not read as green; and
+#   * a test the run never reached at all — which says nothing whatever about
+#     the filesystem.
+# A truncated sweep therefore painted the board red and was indistinguishable
+# at a glance from a broken filesystem (live example: a 16/caw board showed 5
+# reds, of which THREE were "aborted" tests that never executed and two had
+# `checks=354 passed=354 failed=0` / `hits=0 kinds=[]`, i.e. zero failing
+# checks).  That destroys the board's only job — being believable.
+#
+# So the marker now distinguishes the two, and mark_executing() stamps the one
+# test actually in flight:
+#   reason "running <id>"   -> never reached      -> NOT_RUN
+#   reason "executing <id>" -> in flight when we died -> ABORTED
+# Neither is PASS, so neither can make the board green (showstat only greens a
+# cell on a real PASS, and reports NOT_RUN/ABORTED in their own columns).
+mark_executing() {  # <test-name>
+    local cond="${N}/${DLM}" tmp; tmp=$(mktemp)
+    jq --arg k "$1" --arg c "$cond" --arg id "$RUN_ID" \
+       '.categories[].tests |= map(if .name==$k and (.runs[$c].status=="PENDING")
+            then (.runs[$c].reason = ("executing "+$id)) else . end)' \
+       "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
 }
 finalize_pending() {
     local tmp; tmp=$(mktemp)
     jq --arg id "$RUN_ID" --arg t "$(date -u +%FT%TZ)" \
        '.categories[].tests |= map(.runs |= with_entries(
-            if (.value.status=="PENDING" and .value.reason==("running "+$id)) then
-                .value = {status:"FAIL", measured:"aborted",
-                          reason:"run aborted before this test recorded (wedge/timeout/kill)",
+            if (.value.status=="PENDING" and .value.reason==("executing "+$id)) then
+                .value = {status:"ABORTED", measured:"",
+                          reason:"run died while this test was executing — result unknown, re-run it",
+                          iso:$t}
+            elif (.value.status=="PENDING" and .value.reason==("running "+$id)) then
+                .value = {status:"NOT_RUN", measured:"",
+                          reason:"sweep ended before reaching this test — not a result",
                           iso:$t}
             else . end))' \
        "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
@@ -1104,6 +1438,72 @@ else
     record "prep_cluster" PASS "elapsed=${elapsed}s (fresh prep)" "" "$elapsed" "$pc_budget"
 fi
 
+# ---------------------------------------------------------------------------
+# COORD BROKER HYGIENE (ccloop c7ee71c6 sess24)
+#
+# WHY THIS EXISTS -- it caused a whole-suite FALSE RED cascade.
+#
+# Every barrier-coordinated criterion publishes RETAINED MQTT messages under
+# mxfs/coord/<RUN_ID>/<test>/... .  The per-test cleanup below only ever removed
+# the CURRENT run's own prefix, so every prior RUN_ID's retained state stayed on
+# the broker forever.  Measured this session: 120,447 retained messages under
+# mxfs/coord.  coord_barrier subscribes with a wildcard, so once the backlog is
+# that large every barrier crawls, no node reaches finish(), and the board fills
+# with `FAIL nodes_pass=0/N states:NO_TERMINAL_RECORD=N` at exactly the budget.
+#
+# That is indistinguishable, on the board, from a filesystem that has stopped
+# working: cache_coherency, strong_consistency, posix_multi, mmap_coherency,
+# zero_silent_loss, dlm_fairness and dlm_membership all went red together on a
+# cluster that was provably healthy (32/32 mounted, ls answering, no BUG/WARN,
+# and the node scripts ran correctly by hand).
+#
+# So two things, both required:
+#   1. GC THE WHOLE NAMESPACE, not just our own prefix.  The flock above
+#      serialises runs, so no concurrent run's live state can be destroyed.
+#   2. ASSERT the backlog is gone afterwards.  Infrastructure degradation must
+#      never be able to present as a filesystem defect -- if the broker cannot
+#      be brought to a clean state, the run ABORTS here rather than manufacturing
+#      reds. Same principle as the destructive-test reconvergence gate.
+coord_broker_hygiene() {
+    local left
+    if ! command -v mosquitto_sub >/dev/null 2>&1; then
+        echo "ERROR: mosquitto_sub missing — barrier criteria cannot be coordinated"
+        exit 1
+    fi
+    # Liveness first: a broker we cannot reach at all is an infrastructure fault,
+    # not a filesystem verdict.
+    if ! timeout 10 mosquitto_pub -h "$BROKER" -t "mxfs/coord/.hygiene/$RUN_ID"             -m 1 -q 1 >/dev/null 2>&1; then
+        echo "ERROR: coord broker $BROKER unreachable (mqtt 1883) — every barrier"
+        echo "       criterion would report NO_TERMINAL_RECORD. Fix the broker, do"
+        echo "       NOT read those as filesystem failures."
+        exit 1
+    fi
+    # Sweep every run's leftovers.  NOTE: mosquitto_sub -W is an ABSOLUTE exit
+    # timer, not an idle window -- a single `-W 300` sweep would add 300s to every
+    # run even on a clean broker (it did; that is why this loops instead).  Probe
+    # cheaply, and only keep sweeping while there is actually something to remove.
+    local round
+    for round in 1 2 3 4 5 6 7 8 9 10; do
+        left=$(timeout 12 mosquitto_sub -h "$BROKER" -t 'mxfs/coord/#' -v -W 4 \
+               2>/dev/null | grep -c . || true)
+        left=${left:-0}
+        [ "$left" -le 200 ] && break
+        echo "--- coord broker: sweeping $left retained mxfs/coord message(s) (round $round) ---"
+        timeout 70 mosquitto_sub -h "$BROKER" -t 'mxfs/coord/#' \
+            --remove-retained -W 60 >/dev/null 2>&1
+    done
+    if [ "$left" -gt 200 ]; then
+        echo "ERROR: coord broker still holds $left retained mxfs/coord messages"
+        echo "       after a full sweep. Barriers will crawl and every barrier"
+        echo "       criterion will read NO_TERMINAL_RECORD. Aborting rather than"
+        echo "       recording infrastructure failure as filesystem defects."
+        echo "       Manual: mosquitto_sub -h $BROKER -t 'mxfs/coord/#' --remove-retained -W 300"
+        exit 1
+    fi
+    [ "$left" = 0 ] || echo "--- coord broker: $left retained message(s) left after sweep (under threshold) ---"
+}
+coord_broker_hygiene
+
 fail_stale_pending
 reset_pending
 trap finalize_pending EXIT
@@ -1144,9 +1544,28 @@ for row in "${ROWS[@]}"; do
     # budget can never be right for both, so compute it from the SAME env var
     # the test itself reads, instead of a fixed guess.
     if [ "$name" = soak ]; then budget=$(( ${SOAK_SECONDS:-30} + 30 )); fi
+    # sess23: a criterion after a destructive one must not run on a cluster
+    # that has not reconverged — see the wait_converged comment above.
+    if [ "${BLOCK_REST:-0}" = 1 ]; then
+        record "$name" BLOCKED "" "not run: the cluster did not reconverge after a destructive criterion"
+        printf "  BLOCK %s (cluster unhealthy — see the destructive test above)\n" "$name"
+        continue
+    fi
+    mark_executing "$name"
     case "$coord" in
         none) run_none "$name" "$cat" "$budget" ;;
         *)    run_coord "$name" "$cat" "$budget" "$scale" ;;
+    esac
+    case "$DESTRUCTIVE_TESTS" in
+        *" $name "*)
+            if wait_converged $(( 120 + 5 * N )); then
+                echo "    (reconverged: all $N nodes report active_count=$N)"
+            else
+                echo "    RECONVERGENCE FAILED after $name — cluster did not return to $N members"
+                record "$name" FAIL "recovery_postcondition=FAILED" \
+                       "the cluster did not reconverge to $N members within $(( 120 + 5 * N ))s after this destructive test; every later criterion is BLOCKED rather than measured on a half-formed cluster"
+                BLOCK_REST=1
+            fi ;;
     esac
     ran=$((ran+1))
     # sess2(ccloop 26c41354): optional inter-test SETTLE — RULE-4 diagnostic for

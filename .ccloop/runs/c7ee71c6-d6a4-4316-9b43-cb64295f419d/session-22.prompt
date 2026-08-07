@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 22 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 21
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `92b84bce-37cf-46c8-ad43-bd3d6fe0bdb9`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/92b84bce-37cf-46c8-ad43-bd3d6fe0bdb9.jsonl`
+- approx context at last assistant turn: 497825 tokens
+- tools used: Bash×322 Edit×23 mcp__ccmemory__memory_write×6 Write×4 Read×2 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/drc_lap_probe.sh
+- /src/mxfs/tests/drc_lap_analyze.py
+- /src/mxfs/tests/drc_lap_run.sh
+- /src/mxfs/tests/host_write_sampler.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_super.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    tools/mxfs_sshpass.sh test12 "ls /sys/module/mxfs/parameters/ | grep -xE 'instr|idbg'; echo 1 > /sys/module/mxfs/parameters/instr 2>/dev/null && echo instr-on; 
+    grep -rn "MXFS_LOCK_NL" pal/linux/*.c | grep "=" | head -6; grep -n "destroy_inode\|xfs_fs_destroy" pal/linux/xfs_super.c | head -4
+    sed -n '460,500p' pal/linux/xfs_aops.c
+    grep -n "mxfs_pub_defer_claim" xfs/xfs_mxfs_dlm.c | head -5; grep -n "publish batch\|pub_batch\|unpub_list" xfs/xfs_mxfs_dlm.c | head -8
+    sed -n '29610,29680p' xfs/xfs_mxfs_dlm.c
+    for i in $(seq 1 32); do tools/mxfs_sshpass.sh test$i "echo 0 > /sys/module/mxfs/parameters/lru_sweep" 2>/dev/null; done; echo "sweep disabled cluster-wide"; ti
+    tools/mxfs_sshpass.sh test12 "echo 14680395 > /sys/module/mxfs/parameters/watch_ino; echo z3 > /mnt/shared/.s39e/zprobe3; I=\$(stat -c '%i' /mnt/shared/.s39e/zp
+    sed -n '30300,30350p' xfs/xfs_mxfs_dlm.c
+    timeout 30 python3 -c " open('VERSION','w').write('0.11.330\n') p='CHANGELOG.md'; s=open(p).read() add='''## 0.11.330 (sess39) — 2026-08-01  - D-INODE-WIRE-EX-O
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 32 caw prep_cluster 2>&1 | tail -1; tools/mxfs_sshpass.sh test12 "mkdir -p /mnt/shared/.s39f && echo z > /mnt/shared/.s39
+    timeout 60 python3 - <<'EOF' import os, struct fd=os.open('/home/steve/disk.img', os.O_RDONLY|os.O_DIRECT) data=bytearray() for o in range(0, 65536*512, 4194304
+    tools/mxfs_sshpass.sh test12 "for i in \$(seq 1 200); do echo d\$i > /mnt/shared/.s39f/b\$i; done; sync; stat -c '%i' /mnt/shared/.s39f/b1 /mnt/shared/.s39f/b20
+    timeout 60 python3 - <<'EOF' import os, struct fd=os.open('/home/steve/disk.img', os.O_RDONLY|os.O_DIRECT) data=bytearray() for o in range(0, 65536*512, 4194304
+    timeout 540 ./run.sh 32 caw precond_readiness fio_perf cache_coherency zero_silent_loss strong_consistency scaling_curve 2>&1 | grep -E "^  (PASS|FAIL)" | head 
+    timeout 540 ./run.sh 32 caw posix_multi mmap_coherency dlm_fairness dlm_membership dlm_scaling dirent_publish_integrity dirent_durability 2>&1 | grep -E "^  (PA
+    timeout 540 ./run.sh 32 caw crash_consistency fence_during_write fault_netpartition soak dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)" | head -6
+    timeout 540 ./run.sh 32 caw node_responsive kernel_health ag_strand_repair sustained_load dlm_lock_correctness dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL
+    timeout 30 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for e in d['defects']:     if e['id']=='D-INODE-WIRE-EX-ORPHA
+    timeout 30 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for e in d['defects']:     if e['id']=='D-STATFS-IFREE-NEGATI
+    timeout 30 python3 -c " p='CHANGELOG.md'; s=open(p).read() add='''### 0.11.330 board (sess39 close) — FIFTH ALL-GREEN BOARD @32/caw, 7 OPEN  - Full 22-test boar
+
+## Last text from previous session
+
+= mode` (the requested mode). If the already-held fast path grants a PR request against a wire-EX holding and records PR, the divergence is created there. Reading both sites:
+Trace ring is gated off. The remaining unknown is only WHERE memory demoted EX→PR — checking the MHT dwork's release path (wire demote vs memory-only):
+All assignment sites are upgrade-only. Stop guessing — the dlmtr transition ring records every mode change with line numbers; finding its gate to enable it on n12 (no build needed):
+Ring dumped (holds older watch history too). Filtering for the watched ino:
+Now version bump, changelog, build:
+Still 200 live at t+60 — but did eviction even run? Checking n12's state:
+n1: 6721 unlocks, **zero obligations/deferrals** across the whole board. Checking all 32 nodes for the cluster-wide census the ledger's own next_step prescribed:
+cc PASS at 29s — faster than at grace=40 (38s), old concern dead. Continuing:
+Pin reproduced (slab=276) with **824 MHT-REARM events** — the rearm loop is live. Sampling the prints and reading the rearm condition:
+Implementing 328. First the s_inodes walk idiom from the existing put_super sweep:
+Helpers exist. Adding the debug-mount global and header declarations:
+Comment bug — `pagf_*/pagi_*` contains `*/` which closed the comment early. Fixing:
+All nodes agree at mount. Driving cross-node churn (the workloads that previously produced the drift), then re-checking:
+One-file repro: reclaim fired, slot untouched. The existing P-H22-CALL probe at the evict-unlock branch is instr-gated — enabling instr on n12 only and re-running:
+One more cheap shot at naming the clear site — the proven watch_ino+dlmtr technique on a fresh create through eviction:
+**TOMB gen=2 — the leak is fixed at the root.** Bulk verification:
+**Criteria: NO — not production ready. 7 OPEN defects against the RULE-6 zero-defect bar.**
+
+Session 21 (sess39) closed 5 defects and found 3, net 9 → 7 OPEN, across builds 0.11.326→330 with **five consecutive all-green 22-test boards** (322, 325, 326, 327, 330):
+
+**Fixed and verified (4):**
+- **Wire-EX slot leak, both mechanisms.** The 13.4K orphaned lock slots were traced to two evict-time holes: the sess37 retention branch trusting in-memory mode while the wire held EX (326 fix: wire-confirmed-PR retention), and — the dominant one, dlmtr-traced to the exact line — the deferred-publish evict skip assuming "unpublished ⇒ no on-disk slot" while every created file's slot actually exists (330 fix: wire-truth read at the skip). Bulk verification went from 190-200 leaked slots per batch to 0.
+- **Release barrier**: cluster-wide census after a full board showed ~130K wire unlocks with zero open obligations on all 32 nodes; disposed per its own ledgered test.
+- **statfs drift** (n1 reporting −10851 inodes used): architectural — percpu counters only see local deltas; fixed per GPT-reviewed design with cluster-coherent per-AG sums plus mount-time AG init. Cross-node agreement verified; admission counters deliberately untouched (the near-ENOSPC overcommit question is recorded as a follow-up thread).
+
+**Disproved (2):** the dir_reuse "bimodality" is deterministic run-over-run degradation caused by the host rig's storage path (pure-host fsync probe degrades p90 26→95ms during plateau runs, below the entire mxfs stack; recovers with ~25min idle — rig rule recorded); the "pinned inode" defect was upstream page-cache LRU design plus a slab-only drop_caches repro artifact.
+
+**Also landed:** `dir_ex_batch_grace_ms` default 40→10 (turn p50 81→50ms, first-ever consecutive 9-round dir_reuse), and the misguided 329 sweep neutralized to opt-in.
+
+Remaining OPEN: the authority family (3, AGI canary quiet through five boards' crash cycles), two pace defects awaiting re-baseline under the fresh-storage rig rule, the dirview non-convergence, and the rig-blocked matrix columns. All state is in the ledger, CHANGELOG, and four ccmemory entries; the relay continues from the authority family and pace re-baseline.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -30,6 +30,7 @@
 #include "xfs_error.h"
 #include "xfs_errortag.h"
 #include "xfs_mxfs_dlm.h"
+#include "../../dlm/v5_mount.h"	/* sess40: open-tracking publish at open() */
 #include <mxfs/mxfs_dlm.h>
 
 #include <linux/dax.h>
@@ -1678,7 +1679,44 @@ xfs_file_open(
 	file->f_mode |= FMODE_CAN_ODIRECT;
 	if (xfs_get_atomic_write_min(XFS_I(inode)) > 0)
 		file->f_mode |= FMODE_CAN_ATOMIC_WRITE;
-	return generic_file_open(inode, file);
+	{
+		int mxfs_rc = generic_file_open(inode, file);
+
+		/*
+		 * sess40 (D-CROSSNODE-OPEN-UNLINK): track open file
+		 * descriptions per inode.  MEASURED WHY THIS IS A COUNTER
+		 * AND NOT A SLOT CAS HERE (0.11.334): publishing the cluster
+		 * open bit at every open() put one generation-bumping CAS on
+		 * the shared slot per open — zero_silent_loss issues ~20k
+		 * opens per node and 32 nodes' CASes invalidated each other's
+		 * in-flight compares, starving real acquires (ea_claim=100 ->
+		 * rc=-110 -> SHUTDOWN_CORRUPT_INCORE, 234/644 zsl checks
+		 * lost).  The bit is instead published on the BAST release
+		 * CAS that already happens — which is exactly (and only) the
+		 * moment a peer can be about to run destructive
+		 * inactivation, since it must BAST us off the grant first.
+		 */
+		if (!mxfs_rc)
+			atomic_inc(&XFS_I(inode)->i_mxfs_open_n);
+		/*
+		 * sess41 (GPT audit C3): a dcache-served open can complete
+		 * with the inode at NL (grant idle-released/close-demoted) —
+		 * no grant means no BAST, no P90 publish, and a peer's
+		 * unlink frees the file under this live fd.  Ensure a grant
+		 * (or fail the open) BEFORE the fd becomes usable.  Counter
+		 * increment above must precede this call.
+		 */
+		if (!mxfs_rc) {
+			int mxfs_prc = mxfs_dlm_open_protect(XFS_I(inode));
+
+			if (mxfs_prc) {
+				if (atomic_read(&XFS_I(inode)->i_mxfs_open_n) > 0)
+					atomic_dec(&XFS_I(inode)->i_mxfs_open_n);
+				return mxfs_prc;
+			}
+		}
+		return mxfs_rc;
+	}
 }
 
 STATIC int
@@ -1739,6 +1777,12 @@ xfs_file_release(
 	struct xfs_inode	*ip = XFS_I(inode);
 	struct xfs_mount	*mp = ip->i_mount;
 
+	/* sess40: this open file description is going away (see
+	 * i_mxfs_open_n).  Before any early-return so the count cannot drift
+	 * upward on a read-only/shutdown mount and pin a peer's reap. */
+	if (atomic_read(&ip->i_mxfs_open_n) > 0)
+		atomic_dec(&ip->i_mxfs_open_n);
+
 	/*
 	 * If this is a read-only mount or the file system has been shut down,
 	 * don't generate I/O.
@@ -1760,6 +1804,10 @@ xfs_file_release(
 	 * pinning their creator's EX and cross-node first readers claim a
 	 * free slot (~1ms) instead of paying a 6ms on-demand handoff. */
 	mxfs_dlm_close_release(ip);
+	/* sess41 (GPT audit C4): last close with a published open bit —
+	 * clear it now instead of at evict, so a peer's deferred reap of a
+	 * file we no longer hold open converges in seconds, not hours. */
+	mxfs_dlm_open_last_close(ip);
 
 	/*
 	 * If we previously truncated this file and removed old data in the
@@ -1892,7 +1940,7 @@ xfs_file_readdir(
 			mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN, false);
 			if (!ip->i_dlm_stale)
 				break;
-			ip->i_dlm_stale = true;	/* keep armed across bails */
+			ip->i_dlm_stale = true; ip->i_dlm_stale_src = 27;	/* keep armed across bails */
 			msleep(10);
 		}
 		pr_warn_ratelimited(

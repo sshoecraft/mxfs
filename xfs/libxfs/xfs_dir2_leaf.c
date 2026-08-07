@@ -1196,8 +1196,12 @@ xfs_dir2_leaf_addname(
 					&lbip->bli_item.li_flags);
 			uint32_t master_ep = mxfs_v5_dlm_inode_dir_epoch(
 					lmp->m_mxfs_dlm, dp->i_ino);
-			if (master_ep > dp->i_dlm_dir_valid_epoch)
+			/* sess45: braces — unconditional incarn stamp (see the
+			 * xfs_da_btree.c sibling fix). */
+			if (master_ep > dp->i_dlm_dir_valid_epoch) {
 				dp->i_dlm_dir_valid_epoch = master_ep;
+				dp->i_dlm_dir_valid_incarn = VFS_I(dp)->i_generation;	/* sess28: the baseline belongs to THIS incarnation */
+			}
 			if (master_ep != 0 && lbp->b_mxfs_dir_epoch != 0 &&
 			    lbp->b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch &&
 			    !l_dirty && !xfs_buf_ispinned(lbp) &&

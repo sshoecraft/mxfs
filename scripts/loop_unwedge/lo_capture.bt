@@ -1,0 +1,11 @@
+// lo_capture.bt — capture struct loop_device * for loop0 from a harmless
+// LOOP_GET_STATUS64 ioctl. Read-only. Exits on first hit.
+kprobe:lo_ioctl
+{
+    $bd = (struct block_device *)arg0;
+    $disk = $bd->bd_disk;
+    if ($disk->disk_name == "loop0") {
+        printf("LO %lx DISK %lx Q %lx\n", (uint64)$disk->private_data, (uint64)$disk, (uint64)$disk->queue);
+        exit();
+    }
+}

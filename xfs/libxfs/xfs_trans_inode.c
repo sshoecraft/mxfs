@@ -14,6 +14,8 @@
 #include "xfs_trans.h"
 #include "xfs_trans_priv.h"
 #include "xfs_inode_item.h"
+#include "xfs_mxfs_dlm.h"	/* sess19: mxfs_note_fork_tear tripwire */
+#include "../../dlm/v5_mount.h"	/* sess33: P234 single-node gate */
 
 #include <linux/iversion.h>
 
@@ -113,6 +115,91 @@ xfs_trans_log_inode(
 	 */
 	ip->i_mxfs_pub_pending_seq++;
 
+	/*
+	 * sess32 P230: this mutation is being logged under an ILOCK that was
+	 * acquired through ilock_try's atomic-context DLM BYPASS — no tenure,
+	 * no DEMOTING gate, invisible to the release pipeline.  If this ever
+	 * fires, the bypass arm must refuse EX (see P229 in xfs_mxfs_dlm.c).
+	 */
+	if (unlikely(READ_ONCE(ip->i_mxfs_atomic_bypass_ns))) {
+		static atomic_t p230_n = ATOMIC_INIT(0);
+		int p230 = atomic_inc_return(&p230_n);
+
+		if (p230 <= 200)
+			pr_warn("mxfs: P230-LOG-UNDER-ATOMIC-BYPASS ino=%llu pend=%llu age_us=%llu comm=%s n=%d — inode logged under a DLM-bypassed atomic trylock grant\n",
+				(unsigned long long)ip->i_ino,
+				(unsigned long long)ip->i_mxfs_pub_pending_seq,
+				(unsigned long long)((ktime_get_ns() -
+					ip->i_mxfs_atomic_bypass_ns) / 1000),
+				current->comm, p230);
+		WRITE_ONCE(ip->i_mxfs_atomic_bypass_ns, 0);
+	}
+
+	/*
+	 * sess33 P234 — SOURCE counter for GPT's D-RELEASE-BARRIER closure
+	 * criterion 3 ("inodegc dirty-at-NL" generalized): a publication
+	 * obligation is being created RIGHT NOW; under what cluster authority?
+	 * Every correct multinode mutator holds this inode's DLM grant at EX
+	 * (xfs_ilock admission).  A stamp at NL means a mutation is being
+	 * committed with NO tenure — the release pipeline will never see or
+	 * land it (the orphan/inodegc hazard class, also any future
+	 * authority-bypass regression).  A stamp at PR/CR means publishing
+	 * under a shared grant.  Legit-looking firers to attribute before
+	 * judging: the release drain's own clean-but-unlanded re-log (P146V,
+	 * comm=kworker) and never-DLM-covered internal inodes (ino names
+	 * them).  Counters ride the P220 release-barrier dump.
+	 */
+	if (ip->i_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(ip->i_mount->m_mxfs_dlm)) {
+		uint8_t p234_m = READ_ONCE(ip->i_dlm_mode);
+
+		/*
+		 * sess33 refinement (RULE 4, attributed on the 289 board):
+		 * i_dlm_mode alone is the WRONG authority sensor during a
+		 * BAST drain — drain site 2 clears it to NL while the
+		 * on-disk mirror grant is still ours, and the FIX-25/26/27
+		 * nested admissions (ioend conversion, writeback submitter)
+		 * legitimately mutate in that window.  Every such admit is
+		 * counted in i_dlm_ex_holders, and ANY local EX holder pins
+		 * the wire grant (the P15 holders-recheck aborts + re-arms
+		 * the release, whose re-drain lands these commits before any
+		 * handoff).  Authorized therefore = mode EX, or a live local
+		 * EX holder census, or the pipeline's own gated re-log.  The
+		 * true bypasses (atomic ilock_try, ILOCK-nowait) inc neither
+		 * and stay caught.
+		 */
+		if (unlikely(p234_m != MXFS_LOCK_EX &&
+			     READ_ONCE(ip->i_dlm_ex_holders) == 0 &&
+			     !READ_ONCE(ip->i_mxfs_pipe_relog))) {
+			extern atomic64_t mxfs_lognoex_nl, mxfs_lognoex_pr;
+			static atomic_t p234_n = ATOMIC_INIT(0);
+			int p234;
+
+			if (p234_m == MXFS_LOCK_NL)
+				atomic64_inc(&mxfs_lognoex_nl);
+			else
+				atomic64_inc(&mxfs_lognoex_pr);
+			p234 = atomic_inc_return(&p234_n);
+			if (p234 <= 200)
+				pr_warn("mxfs: P234-LOG-NOEX ino=%llu mode=%u flags=0x%x pend=%llu nlink=%u isdir=%d comm=%s caller=%pS n=%d\n",
+					(unsigned long long)ip->i_ino,
+					p234_m, flags,
+					(unsigned long long)ip->i_mxfs_pub_pending_seq,
+					VFS_I(ip)->i_nlink,
+					S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
+					current->comm,
+					__builtin_return_address(0), p234);
+		}
+	}
+
+	/*
+	 * sess19 TORN-FORK TRIPWIRE (dossier at mxfs_note_fork_tear).  This is
+	 * the step that turns a half-rebuilt LOCAL fork into a dirty log item
+	 * the AIL will try to flush forever, so it is the right place to name
+	 * the producer with a stack.
+	 */
+	mxfs_note_fork_tear(ip, "trans_log_inode");
+
 	/* sess2 (a9a03929) P2G-LOGWHO: name whoever logs a REGULAR file's
 	 * core during the rm-phase window (P2D-DRAINWHY shows every rm-target
 	 * inode dirty-in-AIL with fields=0x1 at its own release, re-appearing
@@ -139,6 +226,10 @@ xfs_trans_log_inode(
 	 * Memory-only, under ILOCK_EXCL.
 	 */
 	ip->i_mxfs_dirty_seq = ip->i_mxfs_ex_grant_seq;
+	/* sess22 P197: wall clock of this dirtying, so a probe can test P6's
+	 * "modified under the CURRENT tenure" claim against the tenure's own
+	 * acquire timestamp.  See xfs_inode.h i_mxfs_dirty_ns. */
+	ip->i_mxfs_dirty_ns = ktime_get_ns();
 
 	/*
 	 * First time we log the inode in a transaction, bump the inode change

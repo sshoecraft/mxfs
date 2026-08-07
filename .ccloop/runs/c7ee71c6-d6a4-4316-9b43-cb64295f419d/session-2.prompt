@@ -56,82 +56,86 @@ read state.md
 
 ## Previous session
 
-- session-id: `21ec103c-2baf-45d4-a73d-f01af9bfcfb1`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/21ec103c-2baf-45d4-a73d-f01af9bfcfb1.jsonl`
-- approx context at last assistant turn: 503037 tokens
-- tools used: Bash×258 Edit×55 TaskUpdate×17 TaskCreate×10 mcp__ccmemory__memory_write×5 ToolSearch×2 mcp__ccmemory__memory_get×2 Read×1 TaskList×1 mcp__ccmemory__memory_list×1
+- session-id: `3ac98621-524f-4274-955a-4d37394570c5`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/3ac98621-524f-4274-955a-4d37394570c5.jsonl`
+- approx context at last assistant turn: 498804 tokens
+- tools used: Bash×174 Edit×41 Read×34 Write×5 ToolSearch×3 mcp__ccmemory__memory_write×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/run.sh
-- /src/mxfs/pal/linux/xfs_super.c
-- /src/mxfs/dlm/dlm.c
-- /src/mxfs/dlm/dlm.h
-- /src/mxfs/dlm/lease.h
-- /src/mxfs/dlm/lease.c
-- /src/mxfs/dlm/v5_mount.c
-- /src/mxfs/dlm/scsipr.h
-- /src/mxfs/dlm/scsipr.c
 - /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/sf_mkdir_storm.sh
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/tests/sf_storm_ledger.py
+- /src/mxfs/xfs/libxfs/xfs_trans_inode.c
+- /src/mxfs/tests/sf_storm_ab.sh
+- /src/mxfs/state.md
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    S=/src/mxfs/tools/mxfs_sshpass.sh # Racy join: umount both, then mount BOTH SIMULTANEOUSLY (background both, wait) timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 15 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg -C" 2>/dev/null; virsh -c qemu:///system destroy test2 2>&1 | head -1; d
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 15 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg | grep -iE 'disklock|slot' | head -5" 2>/dev/null; /src/mxfs/tools/chk_m
-    sudo -n /src/mxfs/tools/chk_mxfs -v /dev/disk/by-path/ip-127.0.0.1:3260-iscsi-iqn.2026-05.local.mxfs:node1-lun-0 2>&1 | head -25
-    grep -n 'MXLK\|struct.*hb\|flags\|ACTIVE' /src/mxfs/dlm/disklock.h | head -15; grep -n 'MXFS_DISKLOCK_F_ACTIVE\|hb_rec\|le32\|le64' /src/mxfs/dlm/disklock.c | h
-    sed -n 40,70p /src/mxfs/dlm/disklock.h
-    grep -n 'HB_SIZE\|hb_record\|struct mxfs_disklock_hb' /src/mxfs/dlm/disklock.h | head -5; sed -n "$(grep -n 'struct mxfs_disklock_hb' /src/mxfs/dlm/disklock.h |
-    grep -n 'heartbeat' /src/mxfs/dlm/disklock.c | grep -iE 'write|record|struct|pack' | head -5; grep -n 'fs_gen\|ts_ms\|node_id' /src/mxfs/dlm/disklock.c | head -
-    grep -n 'struct mxfs_disklock_heartbeat {' -A12 /src/mxfs/dlm/*.h /src/mxfs/include/mxfs/*.h 2>/dev/null | head -16; grep -rn 'fs_gen =' /src/mxfs/dlm/disklock.
-    DEV=/dev/disk/by-path/ip-127.0.0.1:3260-iscsi-iqn.2026-05.local.mxfs:node1-lun-0 sudo -n dd if=$DEV bs=512 skip=$((67117056/512 + 1)) count=1 2>/dev/null | xxd 
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "umount /mnt/shared && echo T1_UMOUNTED; dmesg -C" 2>/dev/null python3 - <<'EOF
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 90 $S 192.168.120.186 /tmp/.mxfs_pass " t0=\$(date +%s%3N); mount -t mxfs /dev/sda /mnt/shared; rc=\$?; t1=\$(date +%
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 20 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg | tail -20" 2>/dev/null | grep -vE 'RELOAD|TYPEFLIP'
-    virsh -c qemu:///system start test2 2>&1 | head -1; S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "umount /mnt/shared 2>/dev/
-    S=/src/mxfs/tools/mxfs_sshpass.sh # Read both keys, then from test2 preempt test1's key (t2's key as RK). K=$(timeout 20 $S 192.168.120.182 /tmp/.mxfs_pass "sg_
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "dmesg -C" 2>/dev/null # test2 preempts test1's key (0x1ac28b6c) using its own 
-    S=/src/mxfs/tools/mxfs_sshpass.sh; timeout 30 $S 192.168.120.186 /tmp/.mxfs_pass "umount /mnt/shared 2>&1; rmmod mxfs 2>&1; echo CLEANED" 2>/dev/null; head -50 
-    head -80 /src/mxfs/scripts/ladder_rung.sh
-    sed -n 80,140p /src/mxfs/scripts/ladder_rung.sh
-    python3 - <<'EOF' import json d=json.load(open('/src/mxfs/criteria.json')) for cell in ('32/cawp','32/tcp','16/cawp','8/cawp'):     tot=0; rows=[]     for c in 
+    python3 - <<'PYEOF' p='xfs/xfs_mxfs_dlm.c' s=open(p).read()  # ---- snapshot gate: admit "we are ahead because we owe a publication" ------ old_gate = """	if (m
+    python3 - <<'EOF' p='xfs/xfs_mxfs_dlm.h' s=open(p).read() a='extern int mxfs_nlink_ledger;' assert a in s s=s.replace(a,'extern int mxfs_reload_oblig_merge;\t/*
+    MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster 2>&1 | tail -2 && timeout 1500 tests/sf_storm_ab.sh reload_oblig_merge 1 0 2 30 32 2>&1 | grep -vE "D
+    grep -vE "Done  |sshpass" /tmp/claude-1000/-src-mxfs/3ac98621-524f-4274-955a-4d37394570c5/tasks/bxnzf579y.output | tail -12
+    python3 - <<'PYEOF' p='tests/sf_storm_ledger.py' s=open(p).read()  helpers = ''' def collect(run, pino, rnd, start, slot):     """Every captured publish of `pin
+    d=tests/logs/sfstorm_20260728_142435; for m in P183-RELMERGE-NLINK P177-OBLIGATION-DROPPED P56-RELOAD-MERGE P178-REBASE-OLDER-DISK; do tot=0; for f in "$d"/dmes
+    python3 - <<'PYEOF' p='xfs/xfs_mxfs_dlm.c' s=open(p).read()  old = """	/* Destroy existing fork data before repopulating */ 	if (!reload_identical) {""" new = "
+    MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster 2>&1 | tail -2 && timeout 180 tests/sf_mkdir_storm.sh 15 32 2 1 2>&1 | grep -E "FAILING|storm (PASS|F
+    d=tests/logs/sfstorm_20260728_143014; for m in P184-RELOAD-KEEP-OBLIGATION P177-OBLIGATION-DROPPED; do tot=0; for f in "$d"/dmesg_test*.log; do c=$(grep -c -- "
+    grep -n "skip |= slotbits" pal/linux/xfs_buf.c | head -20; echo "--- count ---"; grep -c "skip |= slotbits" pal/linux/xfs_buf.c
+    for l in 3210 3344 3360; do echo "=== around $l ==="; sed -n "${l},$((l+16))p" pal/linux/xfs_buf.c | cut -c1-150; done
+    python3 - <<'PYEOF' p='pal/linux/xfs_buf.c' s=open(p).read()  old1 = """			if (is_nl && !is_free && !authorized && 			    (be16_to_cpu(d->di_mode) & S_IFMT) == 
+    MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster 2>&1 | tail -2 && timeout 200 tests/sf_mkdir_storm.sh 15 32 2 1 2>&1 | grep -E "FAILING|storm (PASS|F
+    d=tests/logs/sfstorm_20260728_143422; for m in P184-RELOAD-KEEP-OBLIGATION P177-OBLIGATION-DROPPED P176-OBLIGATION-OPEN P56-NL-LOGGED-DIR-SKIP; do tot=0; for f 
+    timeout 290 tests/sf_mkdir_storm.sh 30 32 2 1 2>&1 | grep -E "FAILING|storm (PASS|FAIL|INFRA)" ; echo "=== second (settled) run ==="; timeout 290 tests/sf_mkdir
+    python3 - <<'EOF' import json,datetime d=json.load(open('criteria.json')) def walk(o,path=""):     if isinstance(o,dict):         if 'status' in o and ('ts' in 
+    python3 - <<'EOF' import json d=json.load(open('criteria.json')) print("top keys:", list(d.keys())[:8]) def find(o,depth=0,path=""):     if depth>4: return     
+    python3 - <<'EOF' import json d=json.load(open('criteria.json')) cats=d['categories'] print("categories:", list(cats)[:10]) # find one test entry for cname,c in
+    echo "=== does ANY suite test assert the nlink/subdir invariant? ==="; grep -ln "nlink\|%h" tests/suite/*.sh 2>/dev/null; echo "(empty above = none)"; echo; ech
+    grep -n "nlink\|%h" tests/suite/dir_reuse_coherency.sh tests/suite/cache_coherency.sh 2>/dev/null | head -8
 
 ## Last text from previous session
 
-ith the self-fence escalation:
-Building and checking the include:
-Build clean. Bumping to 0.11.80 and running verification leg 1: hard-kill fence.
-Now update the v5 helper to compute and pass live_members:
-Wiring into v5_mount.c — finding both register sites:
-Now the periodic self-check in the TCP death worker:
-Patterns don't match pr_warn lines — safe. Deploying and verifying D8:
-Code is correct as-built. Getting direct evidence — thread liveness and any oops:
-Updating the awareness docs with the new protocol surfaces:
-The stamp names the last 0→1 holder. Extending P125 to print it, then re-running the deterministic repro:
-Reading the begin/end entry gates — the leak likely lives in an asymmetric early-return:
-Batch-instrumenting the mutation sites via pattern replace:
-The predicted if/else brace break at one site. Fixing:
-Prep reloaded the module — re-arm watch_ino post-prep, then repro:
-Run 1 clean (P125=0, no underflow noise). Confirming with a second run plus the regression subset:
-Relay boundary reached — wrapping up. Marking #2 complete and recording the CAW results:
-**Session 1 summary — criteria "is it production ready?": NOT YET. Six defects were found and fixed this session (each RULE-4 proven); the full-matrix and QNAP acceptance legs remain.**
+led for bytes that never left.
+The logged-dir skip (site 1) is the dangerous one: `xfs_iflush` stamped `flush_seq`, the write is skipped, and completion still discharges it. Fixing.
+The ledger is now honest — P184/P177 fire 13× where they were blind before. Let me get a measurement past the prep-age effect.
+Good catch — that's exactly the right question, and the answer is a real gap, not a mystery.
+You're right to push on that — the board is not telling the truth, and I can show exactly why.
 
-## Fixed and verified this session (v0.11.76 → v0.11.81, all uncommitted per no-git rule)
+**1. `showstat` replays a cache, not a measurement.** It reads `criteria.json`, where each cell keeps the *last recorded* result plus an `iso` timestamp. Ages right now:
 
-1. **D9 (v0.11.77)** — "abort mount" didn't abort: DLM-init failure fell back to "continuing single-node," which mounted **both** nodes uncoordinated on one shared LUN. Now fail-closed (`-ENOTCONN`); verified via injection knob.
-2. **D7 (v0.11.78)** — the 4.7–20s joiner stall was the 20s wall-clock membership-settle gate freezing every node's EX after any membership change. Fixed with a lease-beacon view-hash convergence proof: join wall 20.1s → **0.66s**, probe shows `waited=300ms confirmed=1`.
-3. **D6 (v0.11.79)** — clean umount now broadcasts NODE_LEAVE: survivor's post-departure EX work went **38s → 10ms**, zero retry spam; real-death grace intact (fence/netpartition/membership green).
-4. **D4 (v0.11.80)** — kernel v5 never PR-preempted dead peers at all. Added READ-KEYS-classified fencing before purge/remaster in both death paths, with a topology guard (the tcm_loop VM rig shares ONE I_T nexus across all VMs — per-node PR is impossible there and the unguarded version false-self-fenced the survivor). Double-unregister eliminated.
-5. **D8 (v0.11.80)** — mount-time PR conformance probe + 30s periodic self-check; advisory latch verified on the shared-nexus rig, and on the cawp rig (real per-node nexuses): positive preempt verified (`P-PR-FENCE preempted`, victim key removed) plus the full fence resolution — preempted node's heartbeat bounced **EBADE within ~2s → withdraw shutdown, no re-register**.
-6. **P125 holder leak (v0.11.81)** — ring-traced a leaked EX/PR holder to `ilock_end`'s single-node/`!dlm` early-returns skipping the decrement for multi-node-era begins; this class feeds the historic busy-inodes/teardown-corruption family. Deterministic repro went 2/2-failing → 2/2-clean.
+```
+recorded 2026-07-19:   4 cells      recorded 2026-07-25: 235 cells
+recorded 2026-07-20:  23 cells      recorded 2026-07-26: 283 cells
+recorded 2026-07-28:   3 cells   <-- everything I actually ran today
+```
 
-Also fixed: run.sh's cluster marker (was recording PASSes against a stale build/wrong rig — now rig-aware + live-verified) and clyde's LIO `/etc/target/pr` (missing dir made every PR OUT fail-with-side-effects). Both VM boards (1/tcp, 2/tcp) re-validated green; CAW settle gate, racy join, and ghost-slot rescan all executed and verified on cawp. Awareness docs and 5 ccmemory entries updated.
+545 of 548 green cells were recorded 2–9 days ago on **older builds**. A cell is green because it passed then, and nothing has re-run it since. `run.sh` only rewrites the cells it runs.
 
-## Remaining before the criteria can be answered YES
-- **#9**: full 25-cell matrix (tcp/caw/cawd/cawp × 1–32 nodes) on final build v0.11.81 — ladder chunk lists and recorded cell walls are in memory `cawp-gate-pr-fence-full-verification`; next command is `scripts/rig.sh pass 32` then cawp rungs 32→1.
-- **#10**: QNAP phys-rig re-validation (the PR program changes behavior there) + phys fio baseline + missing board rows.
-- **#7**: quiet-window fio re-baseline (bar met but margin collapsed under loadavg-30 host noise).
+**2. No test in the suite asserts the invariant that is broken.** I grepped `tests/suite/*.sh` for link-count checks — the only hits are the word "unlink" inside comments. Nothing checks `parent nlink == 2 + subdirectories`. So even a full re-run of every cell would not catch this class; the suite simply doesn't look.
+
+**3. The one row that does brush against it is red** — `fence_during_write` @32/caw. That is the tip, not the extent.
+
+Meanwhile the reproducer I built today (`tests/sf_mkdir_storm.sh`, 32 nodes creating into one shared directory) corrupts **~30% of rounds** on a build whose board is 478/480 green, and leaves directories at `nlink=1` and `nlink=4294967295` that are empty yet permanently un-`rmdir`-able.
+
+## Session summary
+
+Answer to the criteria — **is it production ready? NO**, with evidence, not opinion.
+
+Rooted byte-exactly, all on 32/caw:
+- **`fence_during_write` dirent loss** — parent `nlink=35` (33 children) with only 30 names on all 32 nodes. Cross-node publish ledger named the corruptor: the reload correctly refused an older platter image (`P3 disk_chg=8 < incore_chg=10`) and the shortform *rebase* then adopted that very image 4 ms later. Fix `P178` / `mxfs.dir_rebase_verguard`.
+- **The corrupting release-drain publish holds no grant** — `mode=0 rf=1 held=0` in every failing round, refuting the invariant the NL-skip exemption is built on. Fix `mxfs.dir_nl_require_grant` (kept; paired A/B says it is *not* the cure).
+- **The obligation ledger was lying.** `xfs_buf_inode_iodone` discharged `durable = flush_seq` for inodes whose sector `mxfs_submit_partial_inode_write` had *skipped* — bytes that never left the host. Every guard built on "pending != durable" was blind: P176 = 0, P184 = 0. After the fix, P184/P177 fire 13× where they were 0. That is a prerequisite for any real fix here.
+
+Refuted with measurements (recorded so they aren't retried): `pub_obligation_enforce` (11 vs 11 paired), `dir_release_premerge` (latency, not content), `P179` core-tear (0 fires).
+
+Also caught the old D4 mount-killer: 34,711 `P171-SFNULL` + `xfs_dir2_sf_verify` corruption on test6 → permanent EIO, from a committed-persistent torn LOCAL fork (`if_data=NULL, if_bytes=148`). Trap `P181-FORK-TORN` is now armed at `xfs_trans_log_inode` with a stack dump; it has not re-fired yet.
+
+Methodology finding worth as much as the fixes: the storm's failure rate decays with time since prep (**21 → 7 → 7 → 4**), so every single-run A/B is confounded. `tests/sf_storm_ab.sh` now does paired runs on one cluster state; earlier conclusions drawn the naive way were wrong and have been redone or voided.
+
+Not finished: my last two settled-state storm runs hit my own 290 s timeout and were killed, so I do not have a post-ledger-fix rate on a settled cluster. Tree is at 0.11.150, srcver `2EBC530A20E75F41F207705`, uncommitted; `state.md` and two ccmemory dossiers carry the full detail for the next session.
 
 ## Continue
 

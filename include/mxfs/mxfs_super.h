@@ -30,6 +30,66 @@
 #define MXFS_SUPER_SIZE         4096
 
 /*
+ * sess42 C7 version gate (GPT-designed, ledger D-CROSSNODE-OPEN-UNLINK /
+ * D-AGI-UNLINKED "C7").  The cluster protocol generation is the single
+ * monotonically-bumped number for INCOMPATIBLE coordination-protocol
+ * changes; every member must run code with an EQUAL generation.
+ * Generation 1 = the open-tracking era (open_holders bitmap in lock
+ * slots, publish-on-release-CAS, B6 defer, survivor sweep, fence purge).
+ *
+ * Enforcement layers (defense in depth, all required):
+ *  1. XFS sb_features_incompat bit (xfs_format.h
+ *     XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE): every pre-gate mxfs kernel
+ *     inherits upstream's strict unknown-incompat refusal, so old code
+ *     cannot mount a gated filesystem AT ALL.  This is the preventative
+ *     gate; the layers below are live defense among gate-aware kernels.
+ *  2. Envelope: MXFS_FORMAT_F_PROTOGATE flag + cluster_proto_gen field
+ *     below.  Gate-aware kernels refuse unknown envelope flag bits and
+ *     require cluster_proto_gen == MXFS_PROTO_GEN.
+ *  3. Disklock heartbeat feature block (disklock.h): every member
+ *     publishes {proto_gen} in its HB record; joiners quarantine until
+ *     all live peers validate; the monitor fences any live record that
+ *     lacks a valid block or carries a different generation.
+ */
+#define MXFS_FORMAT_F_PROTOGATE 0x00000001u
+#define MXFS_FORMAT_F_KNOWN     (MXFS_FORMAT_F_PROTOGATE)
+/*
+ * sess75: 1 -> 2 for the recovery-descriptor v2 fence certificate.
+ *
+ * This bump is a HARD PREREQUISITE of MXFS_RECOV_DESC_VERSION 2, not
+ * bookkeeping.  The sess74 RULE-5 ruling REFUTED the claim that a per-slot
+ * version mismatch is fail-closed on its own: a v1 replayer REPLAYS THE
+ * FOREIGN SLICE FIRST and only consults the descriptor at completion, so it
+ * would replay a v2-fenced slice on the old ungated path and only afterwards
+ * notice the descriptor it cannot read.  Per-slot fail-closed is no
+ * substitute for cluster-wide protocol compatibility, so v1 recovery code is
+ * excluded from the cluster outright by layers 1-3 above.
+ *
+ * Bumping this REQUIRES a re-mkfs or `chk_mxfs --upgrade-protogate` (offline,
+ * all nodes unmounted) — a v1-formatted volume will refuse to mount.
+ *
+ * sess86: 2 -> 3 for the NONZERO MOUNT INCARNATION
+ * (D-MOUNT-INCARNATION-CONSTANT-ZERO).
+ *
+ * Until now every heartbeat record carried epoch = 0, measured on the live LUN
+ * across all 31 members (sess83).  Nodes now draw a random nonzero 64-bit
+ * incarnation, and this bump is a HARD PREREQUISITE of that — not bookkeeping.
+ *
+ * The mixed-version hazard runs OLD-watching-NEW, which no per-record check on
+ * the new side can prevent.  Under gen 2 both peers wrote 0, so the monitor's
+ * epoch-change arm could never fire; a gen-2 node watching a gen-3 node reboot
+ * sees a genuine incarnation change and fires its death path — the pre-sess86
+ * one, which rebases node_track onto the SUCCESSOR before declaring the
+ * predecessor dead and whose first act is a per-NODE SCSI-PR fence.  The
+ * victim of that fence is the healthy node that just rejoined.
+ *
+ * Per-record fail-closed is no defence here (the sess74 ruling, again): the
+ * gen-2 code does not know there is anything to fail closed about.  Only
+ * cluster-wide exclusion works, so gen-2 code is kept out by layers 1-3 above.
+ */
+#define MXFS_PROTO_GEN          3u
+
+/*
  * On-disk MXFS superblock — first 4KB of the block device.
  *
  * Layout on device:
@@ -55,7 +115,11 @@ struct mxfs_ondisk_super {
     uint64_t    xfs_data_offset;    /* byte offset where XFS data starts */
     uint32_t    xfs_log_node_count; /* per-node XFS log slices (0=legacy) */
     uint32_t    xfs_log_slice_bblks;/* basic blocks (512B) per log slice */
-    uint8_t     reserved[3992];     /* pad to 4096 bytes */
+    uint32_t    cluster_proto_gen;  /* sess42 C7: valid iff flags has
+                                     * MXFS_FORMAT_F_PROTOGATE; members
+                                     * must run code with an EQUAL
+                                     * MXFS_PROTO_GEN */
+    uint8_t     reserved[3988];     /* pad to 4096 bytes */
 };
 
 /* Compile-time size check */

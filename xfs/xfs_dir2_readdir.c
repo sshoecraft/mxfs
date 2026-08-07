@@ -1002,15 +1002,79 @@ xfs_readdir(
 			 * order so waiting is safe).  On exhaustion the old
 			 * consistent-stale behavior remains.
 			 */
-			for (p48_try = 0;
-			     p48_try < 200 && dp->i_dlm_stale &&
-			     !xfs_is_shutdown(dp->i_mount);
-			     p48_try++) {
-				msleep(1);
-				dp->i_dlm_stale = true;
-				dp->i_dlm_stale_src = 1;
-				mxfs_dlm_reload_inode(dp, XFS_DIR3_FT_UNKNOWN,
-						      true);
+			/*
+			 * ccloop c7ee71c6 sess28 — THIS LOOP CANNOT SUCCEED
+			 * WHEN THE CALLER IS THE READDIR ITSELF, AND IT COSTS
+			 * 1.2 s EVERY TIME.  Root of D-READDIR-PEER-CACHED-DIR-PACE.
+			 *
+			 * MEASURED (32/caw and 8/caw, empty SHORTFORM dirs
+			 * created by peers, timed per syscall from python so
+			 * nothing is confounded):
+			 *
+			 *   stat=4ms  open=0ms  getdents=1202ms  close=0ms
+			 *
+			 * and 1201-1211 ms on every single one — the tell-tale
+			 * stability of a loop that always runs its full bound.
+			 * 200 iterations of msleep(1) is ~1.2 s at this kernel's
+			 * timer granularity, and `mxfs_dlm_reload_inode` itself
+			 * measures tot_ms=0 (phase-split probe on P62), so the
+			 * entire cost is the sleeping, not the reload.
+			 *
+			 * WHY IT CAN NEVER SUCCEED HERE: xfs_readdir holds
+			 * ILOCK_SHARED across iteration, so the reload's write
+			 * acquire is taken by THIS task — sess14 proved that and
+			 * made mxfs_dlm_reload_inode bail immediately with
+			 * P173-RELOAD-SELFREAD rather than spin.  It returns with
+			 * i_dlm_stale still set, and the loop body even re-arms
+			 * the flag before each attempt.  So all 200 rounds bail,
+			 * every time.  (P173 was the top probe in the capture:
+			 * 110 lines over 32 directories, and that is the
+			 * ratelimited count of what would be 200 per directory.)
+			 *
+			 * The comment above — "ILOCK holds here are sub-ms, so
+			 * waiting is safe" — is about OTHER holders.  It does not
+			 * cover the caller being the blocker, which is the case
+			 * that actually happens on the readdir path.
+			 *
+			 * So: skip the retry when the reload is structurally
+			 * impossible.  Nothing is lost — the loop's documented
+			 * behaviour "on exhaustion the old consistent-stale
+			 * behavior remains" is exactly what we get, 1.2 s sooner,
+			 * with i_dlm_stale left set and MXFS_IF_DIR_RELOAD armed
+			 * below so the next access from a context that does NOT
+			 * hold the read lock performs the reload.
+			 *
+			 * mxfs.readdir_reload_retry_selfread=1 restores the
+			 * unconditional retry as the negative control.
+			 */
+			{
+				extern int mxfs_readdir_reload_retry_selfread;
+				bool selfread =
+					atomic_read(&dp->i_mxfs_ilk_rd_held) > 0 &&
+					dp->i_mxfs_ilk_rd_pid == current->pid;
+
+				if (selfread &&
+				    !mxfs_readdir_reload_retry_selfread) {
+					static atomic_t p212n = ATOMIC_INIT(0);
+
+					if (atomic_inc_return(&p212n) <= 400)
+						pr_warn("mxfs: P212-RDRETRY-SKIP ino=%llu fmt=%d — caller holds ILOCK_SHARED, so the reload retry can never land; skipping 200x msleep(1) (~1.2 s) and serving consistent-stale as the loop's own exhaustion path would\n",
+							(unsigned long long)dp->i_ino,
+							dp->i_df.if_format);
+					p48_try = 0;
+				} else {
+					for (p48_try = 0;
+					     p48_try < 200 && dp->i_dlm_stale &&
+					     !xfs_is_shutdown(dp->i_mount);
+					     p48_try++) {
+						msleep(1);
+						dp->i_dlm_stale = true;
+						dp->i_dlm_stale_src = 1;
+						mxfs_dlm_reload_inode(dp,
+							XFS_DIR3_FT_UNKNOWN,
+							true);
+					}
+				}
 			}
 			if (unlikely(p48_try) && !dp->i_dlm_stale)
 				pr_warn_ratelimited(

@@ -56,80 +56,79 @@ read state.md
 
 ## Previous session
 
-- session-id: `029f8075-9461-4fb5-8e94-9dd671dc00cc`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/029f8075-9461-4fb5-8e94-9dd671dc00cc.jsonl`
-- approx context at last assistant turn: 503424 tokens
-- tools used: Bash×162 Edit×23 Read×16 TaskCreate×5 ToolSearch×3 Write×3 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×2 TaskUpdate×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+- session-id: `079dd7ae-2eb8-477e-a0b1-375e2055d604`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/079dd7ae-2eb8-477e-a0b1-375e2055d604.jsonl`
+- approx context at last assistant turn: 502078 tokens
+- tools used: Bash×177 Edit×43 Read×39 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_write×2 Write×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/scripts/tcp16_dircrc_repro.sh
-- /src/mxfs/xfs/xfs_inode.c
 - /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
 - /src/mxfs/xfs/xfs_mxfs_dlm.h
-- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
-- /src/mxfs/xfs/xfs_mount.h
-- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_block.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_inode_item.c
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
 - /src/mxfs/state.md
+- /src/mxfs/tests/sf_mkdir_storm.sh
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    grep -n 'm_mxfs_publish_work;' /src/mxfs/xfs/xfs_mount.h; sed -n '680,692p' /src/mxfs/pal/linux/xfs_super.c; sed -n '1440,1460p' /src/mxfs/pal/linux/xfs_super.c
-    sed -n '2470,2478p' /src/mxfs/xfs/xfs_inode.c
-    make modules 2>&1 | grep -E 'error|LD.*mxfs.ko' | head -5; modinfo mxfs.ko | grep srcversion
-    cd /src/mxfs; unset RULE0_CALIBRATE; MXFS_FORCE_PREP=1 ./run.sh 8 tcp prep_cluster 2>&1 | tail -1 for r in 1 2; do ./run.sh 8 tcp cache_coherency dlm_scaling di
-    D=$(ls -dt /tmp/run_dlm_scaling_* | head -1); grep -h 'RESULT' $D/test* 2>/dev/null | grep FAIL | head -3; for i in $(seq 1 8); do tail -2 /tmp/dsc_probe 2>/dev
-    make modules 2>&1 | grep -E 'error|LD.*mxfs.ko' | head -3; modinfo mxfs.ko | grep srcversion; unset RULE0_CALIBRATE; MXFS_FORCE_PREP=1 ./run.sh 8 tcp prep_clust
-    cd /src/mxfs; unset RULE0_CALIBRATE; for r in 1 2 3; do ./run.sh 8 tcp cache_coherency dlm_scaling dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done
-    cd /src/mxfs; unset RULE0_CALIBRATE; for r in 1 2 3; do ./run.sh 8 tcp cache_coherency dlm_scaling dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done
-    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); grep -h 'RESULT' $D/test* 2>/dev/null | head -3; for i in 1 2 3 4 5 6 7 8; do echo -n "test$i last: "; tai
-    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); grep -h 'ino=131[^0-9]' $D/kernlog_test2 2>/dev/null | tail -12
-    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); ls -la $D | head -3; grep -h 'P74-GRANT' $D/kernlog_test2 2>/dev/null | grep 'mode=EX' | tail -5; echo ===
-    ls -dlt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -6; date
-    D=/tmp/run_dir_reuse_coherency_20260725T140939Z; for i in 2 3 4; do echo -n "test$i P34G: "; grep -c 'P34G' $D/kernlog_test$i 2>/dev/null; done; grep -h 'P34G' 
-    grep -n 'P-EVICT-RESULT' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2; grep -n 'd_invalidate\|d_drop\|make_bad_inode' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -8
-    grep -rn 'P-EVICT-RESULT' /src/mxfs/xfs/*.c /src/mxfs/pal/linux/*.c 2>/dev/null | head -2; grep -rln 'd_invalidate' /src/mxfs/xfs/ /src/mxfs/pal/ 2>/dev/null | 
-    grep -n 'd_revalidate\|dentry_operations' /src/mxfs/pal/linux/xfs_iops.c | head -6
-    sed -n '215,300p' /src/mxfs/pal/linux/xfs_iops.c
-    D=/tmp/run_dir_reuse_coherency_20260725T140939Z; grep -hE 'ino=131[^0-9]|ino=8388739|startino=131|dir_reuse' $D/kernlog_test1 2>/dev/null | grep -vE 'P-D8-TICK'
-    grep -n 'int mxfs_dlm_ilock_begin\|void mxfs_dlm_ilock_begin' /src/mxfs/xfs/xfs_mxfs_dlm.c /src/mxfs/xfs/xfs_mxfs_dlm.h | head -3; grep -n 'MXFS_IF_DIR_RELOAD\|
-    grep -n 'MXFS_IF_\|(1U << 2[0-9])' /src/mxfs/xfs/xfs_inode.h | grep define | head -10
+    for i in $(seq 1 16); do ( timeout 20 tools/mxfs_sshpass.sh test$i "dmesg -C" >/dev/null 2>&1 ) & done; wait; echo "rings cleared"; timeout 300 ./run.sh 16 caw 
+    MXFS_FORCE_PREP=1 timeout 420 ./run.sh 32 caw prep_cluster 2>&1 | tail -1; for i in $(seq 1 32); do ( timeout 20 tools/mxfs_sshpass.sh test$i "dmesg -C" >/dev/n
+    time timeout 560 ./run.sh 32 caw precond_readiness fio_perf fio_perf_vs_xfs cache_coherency strong_consistency posix_multi mmap_coherency zero_silent_loss dlm_f
+    time timeout 560 ./run.sh 32 caw 2>&1 | grep -E "PASS|FAIL|done:"
+    time timeout 560 ./run.sh 8 caw 2>&1 | grep -E "PASS|FAIL|done:"
+    time timeout 560 ./run.sh 4 caw 2>&1 | grep -E "PASS|FAIL|done:"
+    time timeout 560 ./run.sh 2 caw 2>&1 | grep -E "PASS|FAIL|done:"
+    time timeout 560 ./run.sh 1 caw 2>&1 | grep -E "PASS|FAIL|SKIP|done:"
+    ./showstat.sh 1 caw 2>/dev/null | tail -12
+    time timeout 560 ./run.sh 1 caw fio_vs_xfs_baseline cluster_ops_timing fault_io_error dlm_lock_correctness 2>&1 | grep -E "PASS|FAIL|done:"
+    python3 - <<'PYEOF' p='state.md'; s=open(p).read() s=s.replace("VERSION 0.11.161, srcver `AD275221D1FCB9F73C1A8F2`.",             "VERSION 0.11.162, srcver `E30
+    time timeout 560 ./run.sh 32 tcp 2>&1 | grep -E "prep OK|PASS|FAIL|done:"
+    ls tests/setup/ 2>/dev/null; echo "--- tcp setup device ---"; grep -rn "sda\|mpatha\|DEV=" tests/setup/*tcp* 2>/dev/null | head -10
+    grep -n "sda\|mpatha\|DEV\b\|dev=" tests/setup/prep_fs.sh 2>/dev/null | head -20; echo "=== how run.sh picks the device ==="; grep -n "sda\|mpatha\|MXFS_DEV\|DE
+    timeout 40 tools/mxfs_sshpass.sh test1 "lsblk -o NAME,SIZE,TYPE 2>/dev/null | head -12; echo '--- sda? ---'; ls -l /dev/sda 2>&1 | head -2; echo '--- mpath ---'
+    time timeout 560 env MXFS_DEV=/dev/mapper/mpatha ./run.sh 32 tcp 2>&1 | grep -E "prep OK|PREP FAIL|PASS|FAIL|done:" | head -25
+    ./showstat.sh 32 tcp 2>/dev/null | tail -24
+    time timeout 400 env MXFS_DEV=/dev/mapper/mpatha ./run.sh 32 tcp rsync_paired 2>&1 | grep -E "PASS|FAIL|done:"
+    for i in 1 2 8 16 32; do echo "=== test$i ==="; timeout 45 tools/mxfs_sshpass.sh test$i "ps -eo stat,pid,comm,wchan:38 | awk '\$1 ~ /^D/' | head -6; echo '--- d
+    python3 - <<'PYEOF' p='state.md'; s=open(p).read() anchor = "## OPEN — why the answer is still NO" add = '''## NEW OPEN DEFECT — 32/tcp AG-DLM starvation under 
 
 ## Last text from previous session
 
-tive` directly — MXFS changed it to synchronous. Finding that change and its rationale:
-Phase-2 has the force and inode-buffer drain. Implementing Fix-2: gate the eager per-ifree durability chain behind a param (default off — handoff-time Phase-2 covers cross-node visibility):
-dlm_scaling holds (35s) and coherency is green, but dir_reuse still DNFs. Checking whether the signature changed:
-P34G never fired in the passing run — need to know whether the pass is guard-protected or timing luck, and what those 31 P127 hits are:
-Verifying both defects against the delete-safe rebuild — looped trials:
-Trial 3 hung (NO_TERMINAL_RECORD ×8 — different mode again). Where did it stall:
-Implementing the destage kick — mount field, worker, init/teardown, and kick sites at ifree and create:
-Now the worker and kick helper:
-Now the kick call sites — after ifree and after create:
-Build F5BD8552. Running the verification battery — 4 rounds of the sensitive triad:
-dlm_scaling now 7/8 — one node missing one check, twice. Which node and check:
-State checkpoint written. Adding a compact ccmemory addendum for the post-memory fixes (both files live on disk and survive a power cut), then resuming:
-dlm_scaling green (kick tax resolved) but dir_reuse failed early on one node. The reason:
-Stale dir again — listing all run dirs by actual time:
-Relay boundary — capturing the GPT design into state.md so the implementation plan survives both the relay and any power loss:
-**Session 2 summary — criteria "is it production ready?": NOT YET.** This session root-caused and fixed the tcp dlm_scaling collapse, then uncovered a deeper reuse-coherence defect class, got an architectural ruling on it (RULE 5), and checkpointed everything against power loss.
+to force re-runs of specific stale cells, then kept doing it out of habit. The bare form re-runs everything applicable (the 16/caw bare runs did all 19), and it can't miss a cell I forgot to list. The only real constraint is the 10-minute foreground cap, and a full condition measures ~7 min, which fits. Switching to bare:
+32/caw: **19/19 PASS** on the fixed build. Continuing down the matrix:
+4 tests were killed by my own timeout and correctly recorded as aborted-FAIL. Re-running just those:
+1/caw: **30/30 PASS**. The caw column is complete — let me record the state, including the atomic-context defect, then continue with tcp:
+`/dev/sda` is claimed by multipath, so the raw-path device is busy. TCP only needs a shared block device — pointing it at the multipath device:
+32/tcp got 13 PASS then `rsync_paired` genuinely FAILED (`nodes_pass=0/32 NO_TERMINAL_RECORD`, hit its 60s budget) — it passes at 32/caw in 14s. Confirming, then finishing the aborted tests:
+`rsync_paired` at 32/tcp wedges well past its 60s budget — a real defect. Investigating the wedge:
+Hit the relay boundary — capturing this last finding before wrapping up:
+Wrapping up at the relay boundary.
 
-## Fixed and verified this session (v0.11.81 → v0.11.82, uncommitted)
+## Answer to the criteria: **production ready? NO** — but the picture changed substantially
 
-1. **tcp dlm_scaling collapse (8/16/32, deterministic)** — RULE-4 chain: DLM exonerated (dlm_us=0.25ms); the cost was the per-unlink synchronous eager ifree chain (log_force+drain+flush, 17-33ms) plus per-modify target flushes, amplified by the LIO-on-ext4 rig honoring flushes (SCST rigs no-op them — why caw* passed). Fixes: `flush_epoch` ticks without the device flush under `fua_disable` (the flush was the **epoch clock** — proven when skipping the call froze P68-EVDECIDE into an undurable-skip stale-base storm), `ifree_eager_durable=0`, and a coalesced background **destage kick** (10ms debounce, async force+AIL push). 8/tcp: 90s DNF → 34-37s PASS.
-2. **Leaf-hash holes** (lookup ENOENT with readdir OK) — `dir_leaf_rebuild=1` default; and the rebuild's disk-snapshot union made **in-core-only** (union was delete-unsafe: resurrected renamed-away dirents, proven via P26-REBUILD-OK `comm=mv`).
-3. **Cross-incarnation reload adopt** guard (P34G) — later ruled wrong-sided by the consult; scheduled for replacement.
+**On your GPT question:** I hadn't consulted it when you asked; I have now. The first call was rejected by OpenAI's cyber-policy filter (SCSI/LUN vocabulary), the reworded one came back substantive. It earned its keep twice: it predicted that my "keep a skipped inode dirty and in the AIL" fix would livelock — I built it anyway, measured the livelock exactly as described, and reverted the default. And it named in-flight write ordering across lock handoff as the class I wasn't considering, which explains why last session's `dir_nl_require_grant` guard measured zero effect.
 
-## The open front (Phase A ready to implement)
+**Four roots proven byte-exact; three fixed and validated:**
 
-The eager chain was secretly the linchpin of reuse convergence: with it gone, peers created 112 files inside a directory **freed 9 minutes earlier** (cached shells + positive dentries bypassed every validation layer; parallel universes on one name). GPT consult (RULE 5) produced a complete design: first-protective-tenure incarnation certification with poison/ESTALE semantics + parent-tenure-epoch d_revalidate. The full decision matrix, implementation plan (flag bit 24, reload-poison, op-entry checks, shell retirement), and verification recipe are in `state.md`, which also carries the power-loss recovery procedure. This family likely also explains task #1 (tcp/16 payload-in-dirblock) and the rv rename-visibility flake.
+1. **Torn LOCAL fork → FS shutdown.** `xfs_idestroy_fork` ran ~150 lines before the `xfs_inode_from_disk` meant to repopulate it, and the one `return` in that window left `if_format=LOCAL, if_bytes=100, if_data=NULL`. Captured at 514 µs: bail → tear → 11,506 `P171-SFNULL` → 4 FS shutdowns. Fixed by making destroy adjacent to repopulate. **48 bails → 0 tears since.**
 
-## Remaining before the criteria can be answered
-- Implement+verify Phase A, then Phase B (d_revalidate), at 8/tcp
-- Full 25-cell matrix re-run on the final build (all four conditions; current cells are on intermediate builds)
-- Task #1 disposition at 16/tcp, QNAP phys-rig re-validation, deferred 32-node cells
+2. **P184 — a guard added last session — was the dominant corruption.** It vetoed adopting the platter whenever an obligation was open, with no test that we were actually ahead. Captured in 11 ms: it protected one unlanded mkdir and destroyed 29 links and 29 names. **P186 nlink-reverts 15 → 0; P184 fires 25 → 0 (it was 100% harmful).**
 
-The criteria marker was **not** written — defects remain open per RULE 6.
+3. **Blocking SCSI read under a spinlock** — `BUG: scheduling while atomic`, 112-126× on every one of 16 nodes. Found only because I re-ran a *stale green cell*. Fixed with a non-blocking ownership query; 0 hits after.
+
+4. **Stranded CAW AG grant** — proven (`disk_held=1` ×120; it caused a 21-of-32-node shutdown cascade). Fix in, **not yet validated** — it hasn't re-fired.
+
+**The correction that matters most:** my own reproducer was over-reporting. It couldn't tell "not visible yet" from "gone." A no-teardown run flagged 70 checks; the settled census found **0** still wrong. Every prior session's storm numbers were dominated by that artifact. The harness now convicts only on `DURABLE-FAIL`, and the storm **passes**.
+
+**Board:** the entire CAW column re-measured on this build — 1/2/4/8/16/32 all green, including both cells that were red last session. Everything else on the board is still a 3-day-old cache.
+
+**Still open (why the answer is NO):** the stranded-AG repair is unvalidated; the release barrier still hands off grants with unlanded changes (`P188`, 1-4/run); a partial write still declares unsubmitted bytes durable; in-flight ordering across handoff is unaccounted; and I've just found a **new** defect — `rsync_paired` at 32/tcp wedges with AG BASTs pending 448-781 s while `readopt` climbs to 49, i.e. AG-level ping-pong starvation. That one is unrooted.
 
 ## Continue
 

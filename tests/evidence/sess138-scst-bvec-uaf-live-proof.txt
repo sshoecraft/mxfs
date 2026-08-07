@@ -1,0 +1,38 @@
+[113836.272945] loop_unwedge: /dev/loop0 disk=loop0 queue=000000006a137914 tag_set=000000009606a737 nr_hw_queues=1 queue_depth=128 act=0 expect=-1
+[113836.272962] loop_unwedge: rq[0]=0000000099cbcda7 tag=7 op=0 bytes=24576 segs=6 sector=67968
+[113836.272968] loop_unwedge:   rq[0].bio[0]=00000000461e63a9 bdev=loop0 vcnt=0 idx=0 bvec_done=0 size=24576 io_vec=00000000749b6fe0 cloned=1 end_io=clone_endio
+[113836.272981] loop_unwedge:     bv[0] page=0000000095a13efd pfn=0x2d0262 len=4096 off=0
+[113836.272987] loop_unwedge:     bv[1] page=00000000fb4049c9 pfn=0x5100a1 len=4096 off=0
+[113836.272992] loop_unwedge:     bv[2] page=00000000e65139c6 pfn=0x3e2e8e len=4096 off=0
+[113836.272996] loop_unwedge:     bv[3] page=0000000063d13d3a pfn=0xff6e4207cea1c8c4 <<BAD PFN>> len=4096 off=0
+[113836.273002] loop_unwedge:     bv[4] page=0000000093fb8914 pfn=0x186b40 len=4096 off=0
+[113836.273006] loop_unwedge:     bv[5] page=000000005c498312 pfn=0x19b810 len=4096 off=0
+[113836.273011] loop_unwedge:     bio 00000000461e63a9 FAILED validation (1 problems) — its bvec array has been freed and reused
+[113836.273016] loop_unwedge: rq[1]=000000002850ee3d tag=8 op=0 bytes=61440 segs=15 sector=68032
+[113836.273021] loop_unwedge:   rq[1].bio[0]=00000000862483f6 bdev=loop0 vcnt=0 idx=0 bvec_done=0 size=61440 io_vec=00000000be093052 cloned=1 end_io=clone_endio
+[113836.273030] loop_unwedge:     bv[0] page=0000000010ec23b4 pfn=0x391e9b len=4096 off=0
+[113836.273034] loop_unwedge:     bv[1] page=00000000a30e64e0 pfn=0x16e7eb len=4096 off=0
+[113836.273038] loop_unwedge:     bv[2] page=00000000aed8267f pfn=0x1fc6bb len=4096 off=0
+[113836.273042] loop_unwedge:     bv[3] page=00000000256700e8 pfn=0x33fc1e len=4096 off=0
+[113836.273047] loop_unwedge:     bv[4] page=000000004da00f1c pfn=0x159900 len=4096 off=0
+[113836.273051] loop_unwedge:     bv[5] page=0000000047f7af6d pfn=0x158297 len=4096 off=0
+[113836.273055] loop_unwedge:     bv[6] page=000000002b3339bd pfn=0x24fa11 len=4096 off=0
+[113836.273059] loop_unwedge:     bv[7] page=00000000fd4e8216 pfn=0x522af9 len=4096 off=0
+[113836.273063] loop_unwedge:     bv[8] page=00000000ee9f87f6 pfn=0xfe51e93acd313877 <<BAD PFN>> len=4096 off=0
+[113836.273068] loop_unwedge:     bv[9] page=00000000b463ee3d pfn=0x133136 len=4096 off=0
+[113836.273072] loop_unwedge:     bv[10] page=000000008fcfc80e pfn=0x510067 len=4096 off=0
+[113836.273077] loop_unwedge:     bv[11] page=00000000e83638fe pfn=0x2571f5 len=4096 off=0
+[113836.273081] loop_unwedge:     bv[12] page=00000000942947ce pfn=0x4c3237 len=4096 off=0
+[113836.273085] loop_unwedge:     bv[13] page=00000000d79dadb9 pfn=0x196152 len=4096 off=0
+[113836.273089] loop_unwedge:     bv[14] page=0000000033e42aca pfn=0x7a865a len=4096 off=0
+[113836.273093] loop_unwedge:     bio 00000000862483f6 FAILED validation (1 problems) — its bvec array has been freed and reused
+[113836.273098] loop_unwedge: rq[2]=00000000eed71299 tag=9 op=0 bytes=126976 segs=31 sector=68160
+[113836.273103] loop_unwedge:   rq[2].bio[0]=00000000d7d44578 bdev=loop0 vcnt=0 idx=0 bvec_done=0 size=126976 io_vec=0000000057ec612f cloned=1 end_io=clone_endio
+[113836.273111] loop_unwedge:     bv[0] page=0000000013cd0dba pfn=0x2500000000 <<BAD PFN>> len=3625077377 <<BAD LEN>> off=446471261
+[113836.273117] loop_unwedge:     BAD: covered 0 bytes, bi_size+bvec_done=126976 — bvec chain does not describe this bio
+[113836.273142] loop_unwedge:     bio 00000000d7d44578 FAILED validation (3 problems) — its bvec array has been freed and reused
+[113836.273149] loop_unwedge: rq[3]=000000007be0278e tag=60 op=0 bytes=4096 segs=1 sector=67896
+[113836.273154] loop_unwedge:   rq[3].bio[0]=000000003143f81a bdev=loop0 vcnt=0 idx=0 bvec_done=0 size=4096 io_vec=00000000a082db4f cloned=1 end_io=clone_endio
+[113836.273162] loop_unwedge:     bv[0] page=00000000cca782ff pfn=0x14ff7d len=4096 off=0
+[113836.273167] loop_unwedge: survey: 4 in-flight request(s), 4 bio(s), 3 request(s) with a freed/reused bvec chain
+[113836.273171] loop_unwedge: act=0 — inspection only, nothing was completed

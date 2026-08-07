@@ -56,72 +56,78 @@ read state.md
 
 ## Previous session
 
-- session-id: `67d5c440-ec72-41ec-b39b-2858376636ae`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/67d5c440-ec72-41ec-b39b-2858376636ae.jsonl`
-- approx context at last assistant turn: 495883 tokens
-- tools used: Bash×271 Edit×63 Read×29 mcp__ccmemory__memory_write×12 mcp__ask_gpt__query×3 ToolSearch×2 Write×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+- session-id: `8e42a341-b25d-4061-8352-a67c53c7396e`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/8e42a341-b25d-4061-8352-a67c53c7396e.jsonl`
+- approx context at last assistant turn: 498446 tokens
+- tools used: Bash×219 Edit×68 mcp__ccmemory__memory_write×11 Read×7 mcp__ccmemory__memory_get×5 TaskCreate×4 TaskUpdate×4 Write×4 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/pal/linux/xfs_buf.c
 - /src/mxfs/xfs/xfs_mxfs_dlm.c
-- /src/mxfs/xfs/xfs_inode.c
-- /src/mxfs/tests/d3_dirring.sh
-- /src/mxfs/tests/d3_ring_analyze.py
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/xfs/xfs_log_recover.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/tests/foreign_replay_ab.sh
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_log_priv.h
+- /src/mxfs/xfs/xfs_log.c
+- /src/mxfs/xfs/xfs_inode_item_recover.c
 - /src/mxfs/state.md
+- /src/mxfs/.claude/awareness/subsystems/pal.md
 - /src/mxfs/xfs/xfs_inode.h
 - /src/mxfs/xfs/libxfs/xfs_trans_inode.c
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    cd /src/mxfs; for r in 1 2 3; do ./run.sh 32 caw prep_cluster >/dev/null 2>&1; out=$(./run.sh 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'); echo "$out
-    cd /src/mxfs; jq -r '.categories[].tests[]|select(.name=="cache_coherency")|.runs["32/caw"]|"\(.status) \(.measured)"' criteria.json; PF=$(tools/mxfs_secrets.sh
-    cd /src/mxfs; python3 - <<'PY' p='/src/mxfs/state.md' s=open(p).read() s=s.replace("""HIT-RATE at .132 (measured, prep->cc cycles): 1 FAIL in 8 cycles (PASS,PAS
-    cd /src/mxfs; ls .ccmemory/ | grep 'c7ee71c6-sess14' | sed 's/\.md$//'; echo "---"; cat .ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met 2>/dev/nu
-    cd /src/mxfs; grep -n 'i_mxfs_dead_incarn_gen = 0;	/\* sess14' xfs/xfs_mxfs_dlm.c | head -1
-    cd /src/mxfs; echo "0.11.133" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion
-    cd /src/mxfs; ./run.sh 32 caw prep_cluster 2>&1 | tail -1; ./run.sh 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'
-    cd /src/mxfs; python3 - <<'PY' p='/src/mxfs/state.md' s=open(p).read() s=s.replace("Build **v0.11.132** srcver **93B9ED73A9ABF29BA8F0E92** deployed + prepped", 
-    cd /src/mxfs; grep -n 'P2G-LOGWHO' xfs/*.c | head -2
-    cd /src/mxfs; grep -rn 'P2G-LOGWHO' --include='*.c' . | head -2
-    cd /src/mxfs; sed -n '88,100p' xfs/libxfs/xfs_trans_inode.c
-    cd /src/mxfs; echo "0.11.134" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion
-    cd /src/mxfs; grep -n 'p2_loop_wrote = true;' xfs/xfs_mxfs_dlm.c | head -2
-    cd /src/mxfs; echo "0.11.135" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion
-    cd /src/mxfs; echo "0.11.136" > VERSION; make modules 2>&1 | grep -cE '^\s*(error|Error)'; modinfo mxfs.ko 2>/dev/null | grep srcversion; ./run.sh 32 caw prep_c
-    cd /src/mxfs; ./run.sh 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'; PF=$(tools/mxfs_secrets.sh passfile); t=0; for i in $(seq 1 6); do c=$(timeout 8 t
-    cd /src/mxfs; python3 - <<'PY' p='/src/mxfs/state.md' s=open(p).read() s=s.replace("Build **v0.11.133** srcver **550FF5CAC4CB75169DB65ED** deployed + prepped", 
-    cd /src/mxfs; sed -n '14174,14182p' xfs/xfs_mxfs_dlm.c
-    cd /src/mxfs; grep -n 'int mxfs_dir_stalegen_adopt = 1;' xfs/xfs_mxfs_dlm.c | head -1
-    cd /src/mxfs; echo "0.11.137" > VERSION; make modules 2>&1 | grep -E '^\s*(error|Error)|error:' | head -5; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    timeout 20 sed -n '28267,28310p' xfs/xfs_mxfs_dlm.c
+    timeout 20 grep -n "i_mxfs_pub_stage_ns" xfs/xfs_inode.h | head -2
+    timeout 15 sed -n '468,474p' xfs/xfs_inode.h
+    timeout 20 grep -n "ktime_get_ns\|#include" xfs/libxfs/xfs_trans_inode.c | head -8; echo ===; timeout 20 sed -n '29920,29950p' xfs/xfs_mxfs_dlm.c | grep -n "= 0
+    timeout 20 grep -n "i_mxfs_pub_stage_epoch = 0" xfs/xfs_mxfs_dlm.c; timeout 15 sed -n '/i_mxfs_pub_stage_epoch = 0/,+4p' xfs/xfs_mxfs_dlm.c | head -6; echo ===;
+    timeout 20 sed -n '27891,27915p' xfs/xfs_mxfs_dlm.c
+    timeout 25 awk 'NR>=28267 && NR<=28460 && (/ex_holders/ || /pr_holders/ || /return true/ || /return false/)' xfs/xfs_mxfs_dlm.c | head -20
+    timeout 30 python3 -c " p='VERSION'; v=open(p).read().strip(); a,b,c=v.split('.'); nv='%s.%s.%d'%(a,b,int(c)+1); open(p,'w').write(nv+'\n'); print(v,'->',nv)" &
+    MXFS_FORCE_PREP=1 timeout 280 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 400 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -1
+    d=$(mktemp -d); for i in 1 8 16 24 32; do ( timeout 12 tools/mxfs_sshpass.sh test$i "dmesg | grep -c P229-ILOCK-TRY-ATOMIC-BYPASS; dmesg | grep -c P230-LOG-UNDE
+    cat /proc/loadavg; timeout 400 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -1
+    timeout 30 python3 -c " p='VERSION'; v=open(p).read().strip(); a,b,c=v.split('.'); nv='%s.%s.%d'%(a,b,int(c)+1); open(p,'w').write(nv+'\n'); print(v,'->',nv)" &
+    cat /proc/loadavg; d=$(mktemp -d); for i in 1 4 9 17 25; do ( timeout 12 tools/mxfs_sshpass.sh test$i "dmesg | grep -c P229; dmesg | tail -3 | head -1; timeout 
+    sleep 60; cat /proc/loadavg; timeout 400 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -1
+    cat /proc/loadavg; timeout 400 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -1
+    ps -eo pid,pcpu,pmem,comm --sort=-pcpu | head -12; timeout 15 grep -E "PASS|FAIL|BLOCK" $(ls -td /tmp/run_dirent_durability_* 2>/dev/null | head -1)/summary* 2>
+    ls -td /tmp/run_dirent_durability_* | head -1; timeout 15 grep -rE "PASS|FAIL|BLOCK" $(ls -td /tmp/run_dirent_durability_* | head -1) 2>/dev/null | tail -2; cat
+    timeout 2400 bash -c 'until awk "{exit !(\$1 < 8)}" /proc/loadavg; do sleep 30; done; echo "LOAD_SETTLED $(cat /proc/loadavg)"; timeout 400 ./run.sh 32 caw dire
+    timeout 20 grep -n "mxfs_dir_flush_data_blocks" xfs/xfs_mxfs_dlm.c | head -3; timeout 20 grep -n "b_mxfs_wr_flush_epoch\|xfs_buf_ioend\|__xfs_buf_ioend" pal/lin
+    cat /proc/loadavg; cat /tmp/claude-1000/-src-mxfs/8e42a341-b25d-4061-8352-a67c53c7396e/tasks/b5xpt8lqi.output 2>/dev/null | tail -2; echo "(empty = still load-g
 
 ## Last text from previous session
 
-t that instrument, the next session could easily have "verified" a non-fix.
+83 deployed on all 32 nodes with a 14-criterion green board at healthy walls** — strong_consistency 4s, posix_multi 8s, mmap_coherency 5s, zero_silent_loss 29s, crash_consistency 66s, cache_coherency 20s, dirent_durability 65s, dir_reuse_coherency 108s, dlm_fairness 15s, dlm_membership 5s, fence_during_write 20s, plus the earlier guard batches.
 
-**State at handoff — v0.11.136, built clean, deployed to all 32 nodes, cache_coherency passing:**
+The session's seven shipped builds (0.11.272→283, each A/B'd same-build on the rig):
+- **Stale-stage mask default-ON** after the clean divergence verdict.
+- **Foreign-replay containment on both arms** (live election + mount-time rejoin) for the new critical defect `D-FOREIGN-REPLAY-UNGATED-IMAGES`, proven with a new real-kill harness that also revealed the board had never exercised live recovery.
+- **P222 unlanded arm fails closed** (shutdown→fence, never publish/drop/livelock).
+- **Release-barrier enforcement default-ON on both wire-unlock arms**: the new pending≠durable ledger exposed 10-41 open-obligation tenure-ends per lap that the old IFLUSHING probe (reading 0) was proven blind to; across 227k unlocks since, **no grant has ever been handed away with an open obligation** (obligation=0 throughout), with 119 bounded deferrals on hot shared dirs and zero pace cost.
+- Two honest negative results baked in: the unconditional i_lock barrier convoyed readdir (240s wall → reverted to a bounded trylock; lesson: writer-only quiescence, never a reader-blocking write wait), and one unreproduced aged-mount incident (dir_reuse 0/32 + cache_coherency's first-ever check failure, 1-in-4 rate, enforcement counters quiet) is ledgered OPEN with capture instructions for the next occurrence.
 
-Steps 1 and 2 of the four-step fix are implemented (pending-counter bump at the single commit chokepoint; durable-counter advance at the drain's synchronous write, with the known `xfs_iflush_cluster` rc==0 caveat documented as the first suspect if the obligation clears too eagerly). Step 3 is measured but deliberately not enforced — flipping that site from a print into "submit, and fail the handoff if it cannot land" is the next session's first action, with a warning that it will surface latency costs that were previously hidden by the unsafe release.
+Session 15 resumes at the admission interlock (design + verified hazards in `ccloop-c7ee71c6-sess32-admission-interlock-design-ilock-barrier`), then the dir-DATA certificate, the inodegc orphan class, the EX-side gate, and the authority-token replay protocol — all ordered in `state.md` with evidence across the eight sess32 ccmemory notes.
+Relay boundary. One last check on the gated validation, then wrapping up.
+Relay boundary reached — wrapping up.
 
-**This session overall:** two root causes proven and fixed (D1's `cancel_work_sync` deadlock, D3's acquire-side stale-fork RMW), the residual data-loss rate cut from ~4-in-6 to ~1-in-15, four candidate fixes built and honestly refuted by measurement, and the true mechanism now identified, instrumented, and half-implemented rather than merely theorized. Eleven `sess14-A..K` memories, `state.md`, `pal.md`, three evidence sets, a reproducer with a measured hit-rate, and an explicit verification criterion are all in place for the relay.
-Criteria not met — implementing step 3 (enforcement). The existing re-log machinery below already does "submit instead of return success," so enforcement is routing the open obligation into it, behind an A/B param:
-That edit was structurally wrong — I left a stray `if (false) {`. Reading and repairing:
-Found it — my stray `if (false) {` is now wrapping (and disabling) the dead-incarnation guard. Restoring its real condition:
-Enforcement builds clean (v0.11.137, `48B8FEECB410A606F861CDD`). Wrapping at the relay boundary.
+**Criteria: NO — not production ready.** 11 OPEN defects (6 critical, 4 major, 1 minor) against RULE 6's zero-defect bar. The marker stays unwritten; the wrapper relays.
 
-**Criteria: NO — MXFS is not production ready.** The marker stays unwritten.
+**Session 14 (sess32) final state:**
 
-**Where I'm leaving it:** v0.11.137 is built but **not yet deployed or tested** — that's the immediate next action. It contains the first three of four wiring steps for the real fix, with enforcement live behind `mxfs.pub_obligation_enforce` (default 1, `=0` for the legacy A/B).
-
-**The session's most important result** came in the last stretch. After four candidate fixes that I built and honestly refuted by measurement, I wired publication-obligation counters and instrumented the release drain's silent-success exit. `P176-OBLIGATION-OPEN` fired **116 times across 6 nodes in a single passing run** — proving the drain hands off the DLM grant with unlanded committed changes constantly, not rarely. That reframes the defect: it was never a rare race. It's a pervasive protocol violation whose *observable* is probabilistic, surfacing only when a peer reads the home location before some later opportunistic flush happens to land the change. The practical consequence is recorded prominently: green runs do not indicate absence of this defect, so the fix must be verified by driving **P176 to zero**, not by counting passes.
-
-**One caution I want flagged clearly for the next session:** while adding enforcement I introduced a structural error — a stray `if (false)` that silently disabled the dead-incarnation guard (`P146D`). I caught and repaired it, and the build is clean, but that region has now been edited repeatedly under low context and deserves a careful read before the next deploy.
-
-**Fixed and holding this session:** D1's `cancel_work_sync` deadlock (the multi-session spurious-shutdown mystery, stack-captured twice) and D3's acquire-side stale-fork RMW (`P174`). Residual data-loss rate went from ~4-in-6 to ~1-in-15 `prep → cache_coherency` cycles.
-
-**Still open:** the residual (now with a working reproducer, measured hit-rate, validated discriminator, and a half-implemented fix), the bnobt lost-update withdrawal, the directory-pace RULE-0 row, D2 and D5 with GPT designs ready, and D4's unlocated panic root.
-
-Everything is banked across eleven `sess14-A..K` memories, `state.md`, and `pal.md`.
+- **Tree and fleet at 0.11.285**, deployed on all 32 nodes. Fourteen shipped builds this session, every behavioral change knobbed and A/B'd: stale-stage mask default-ON (272), foreign-replay containment on both the live-election and mount-time/rejoin arms for the newly found critical `D-FOREIGN-REPLAY-UNGATED-IMAGES` (273-274), the unlanded arm fail-closed (273), and release-barrier enforcement default-ON on both wire-unlock arms (276-283) — across 227k unlocks, no grant was ever handed away with an open publication obligation.
+- **The P229 investigation closed cleanly**: the `ilock_try` atomic-context DLM bypass measured zero firings; 285 refuses EX there anyway, closing a source-proven latent hole (unpaired holder decrement) with zero behavioral cost.
+- **285's validation is the one pending item**: its first lap failed only because an external game server (Wow.exe at 348% CPU + worldserver) loaded the host — P229=0 on that board proves the change never executed, cache_coherency passed in the same window, and dd's wall-clock slot design makes it the load canary. A load-gated re-run is still waiting (loadavg ~14); session 15's first move is written in `state.md`: re-run dd on a quiet host, expect ~65s PASS, revert the EX-refusal only if it fails quiet.
+- Everything is durably recorded: fresh `state.md` with the ordered program (admission interlock → dir-DATA certificate, scoped this session to just the committed-but-never-submitted class → inodegc orphan class → EX gate → token protocol), the ledger with two updated entries plus the new defect and the unattributed aged-mount incident, CHANGELOG through 285, eleven sess32 ccmemory notes, and current awareness docs.
 
 ## Continue
 

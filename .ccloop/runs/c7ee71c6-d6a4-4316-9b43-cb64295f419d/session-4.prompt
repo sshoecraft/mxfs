@@ -56,65 +56,96 @@ read state.md
 
 ## Previous session
 
-- session-id: `931c117f-2e77-4914-abf7-432940f3d98c`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c.jsonl`
-- approx context at last assistant turn: 484086 tokens
-- tools used: Bash×104 Read×45 Edit×27 TaskCreate×2 ToolSearch×2 TaskUpdate×1 Write×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+- session-id: `95fc2088-1e31-43d3-a499-512d05dc9232`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/95fc2088-1e31-43d3-a499-512d05dc9232.jsonl`
+- approx context at last assistant turn: 498051 tokens
+- tools used: Bash×278 Edit×26 Write×11 mcp__ccmemory__memory_write×7 Read×2 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/xfs/xfs_mxfs_dlm.c
-- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/pal.h
+- /src/mxfs/pal/linux/kern.c
+- /src/mxfs/pal/linux/user.c
+- /src/mxfs/dlm/dlm.c
+- /src/mxfs/dlm/dlm.h
+- /src/mxfs/dlm/v5_mount.c
 - /src/mxfs/xfs/xfs_inode.c
-- /src/mxfs/xfs/xfs_inode.h
-- /src/mxfs/xfs/xfs_dir2_readdir.c
-- /src/mxfs/state.md
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/tests/criteria/kernel_health.sh
+- /src/mxfs/tests/criteria/dirent_durability.sh
+- /src/mxfs/tests/criteria/sustained_load.sh
+- /src/mxfs/tests/criteria/node_responsive.sh
+- /src/mxfs/tests/suite/kernel_health.sh
+- /src/mxfs/tests/suite/node_responsive.sh
+- /src/mxfs/tests/suite/dirent_durability.sh
+- /src/mxfs/tests/suite/sustained_load.sh
+- /src/mxfs/tests/suite/dirent_publish_integrity.sh
+- /src/mxfs/tests/criteria/OPEN_DEFECTS.json
+- /src/mxfs/tests/suite/open_defects.sh
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    grep -n 'flush_out:' /src/mxfs/xfs/xfs_inode.c | head -2; sed -n '6180,6215p' /src/mxfs/xfs/xfs_inode.c
-    D=/tmp/run_dir_reuse_coherency_20260725T153014Z; grep -h 'P-CLMERGE-DEADINCARN' $D/kernlog_test1 | tail -5; echo ==COUNT-ALL-NODES; grep -hc 'P-CLMERGE-DEADINCA
-    grep -rn 'i_mxfs_dirty_seq =' /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c 2>/dev/null | head -6
-    echo 0.11.86 > VERSION && make modules 2>&1 | grep -E ' error|Error' | head; modinfo mxfs.ko | grep srcversion && unset RULE0_CALIBRATE && MXFS_FORCE_PREP=1 ./r
-    unset RULE0_CALIBRATE; for r in 1 2 3; do ./run.sh 8 tcp dir_reuse_coherency 2>&1 | grep -E '^  (PASS|FAIL)'; done
-    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo $D; tail -3 $D/test1 2>/dev/null | cut -c1-160; ./tools/mxfs_sshpass.sh 192.168.120.186 x 'ps -eo pid
-    ./tools/mxfs_sshpass.sh 192.168.120.186 x 'cat /proc/8619/stack 2>/dev/null; echo ===; cat /proc/8619/comm' 2>/dev/null | tail -15
-    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; ls $D | head -6; for i in 1 2 3; do echo "== t$i last-phase:"; grep -h 'DRCph' $D/kernlog_test$i 2>/dev/null | 
-    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; for m in P34J-RELOAD-DEMOTE-BAIL P34J-RELOAD-RACE-BAIL P34H-INCARN-POISON P34H-POISON-EVICT P-CLMERGE-AUTH-KEEP
-    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; grep -h '15:4[5-7]:' $D/kernlog_test1 | grep -vE 'P-D8-TICK|DRCph|P12-DLMTR' | awk '{print $6}' | sort | uniq -
-    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; grep -h '15:45:1[5-9]\|15:45:[2-5]' $D/kernlog_test1 | grep -vE 'P-D8-TICK|DRCph|P12-DLMTR' | grep -E 'XFS|Corr
-    for D in /tmp/run_dir_reuse_coherency_20260725T153014Z /tmp/run_dir_reuse_coherency_20260725T152115Z /tmp/run_dir_reuse_coherency_20260725T150937Z; do echo -n "
-    for D in $(ls -dt /tmp/run_dir_reuse_coherency_* | head -3); do echo "== $D"; grep -h 'RESULT' $D/test1 2>/dev/null | head -1 | cut -c1-150; done
-    D=/tmp/run_dir_reuse_coherency_20260725T154507Z; grep -h 'P21H-LEAFHOLE' $D/kernlog_test1 | awk '$4 ~ /15:4[5-7]/' | head -4; grep -h 'HOLE_OK' $D/kernlog_test1
-    unset RULE0_CALIBRATE && S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad && (./run.sh 8 tcp dir_reuse_coherency > $S/drc_probe.out 
-    D=$(ls -dt /tmp/run_dir_reuse_coherency_* | head -1); echo $D; for m in P34H-INCARN-POISON P34H-POISON-EVICT; do echo -n "$m: "; grep -h "$m" $D/kernlog_test* 2
-    unset RULE0_CALIBRATE && S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad && rm -f $S/probe_*.txt && (./run.sh 8 tcp dir_reuse_coher
-    S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad; grep -l 'mxfs\|xfs_' $S/probe_*.txt 2>/dev/null; for f in $S/probe_*.txt; do n=$(g
-    grep -rn 'coord_get()\|coord_put()\|coord_signal_abort()\|drc_barrier()' /src/mxfs/tests/suite/*.sh /src/mxfs/tests/lib/*.sh 2>/dev/null | head -6; grep -rln 'c
-    unset RULE0_CALIBRATE && S=/tmp/claude-1000/-src-mxfs/931c117f-2e77-4914-abf7-432940f3d98c/scratchpad && rm -f $S/p3_*.txt && (./run.sh 8 tcp dir_reuse_coherenc
+    grep -n "uint32_t mxfs_v5_dlm_inode_grant_gen\|mxfs_v5_dlm_inode_grant_handoff" dlm/v5_mount.h | head -4; grep -n "i_dlm_cached_grant_gen" xfs/xfs_inode.h | hea
+    python3 - <<'PY' p='xfs/libxfs/xfs_dir2.c'; s=open(p).read() s=s.replace('''				if (atomic_inc_return(&p195_n) <= 2000) 					pr_warn("mxfs: P195-STALE-BASE-ALRE
+    MXFS_FORCE_PREP=1 timeout 500 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 timeout 400 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" echo "=== P19
+    python3 - <<'PY' # 1) dirent_durability stamps a window marker on every node at its start. p='tests/suite/dirent_durability.sh'; s=open(p).read() s=s.replace(''
+    for i in $(seq 1 32); do timeout 15 tools/mxfs_sshpass.sh test$i "dmesg | awk '/MXFS_DIRENT_WINDOW/{s=1;b=\"\";next} s{b=b \$0 \"\n\"} END{printf \"%s\",b}' | g
+    sed -n '26337,26375p' xfs/xfs_mxfs_dlm.c | grep -nE "cached_grant_gen|valid_epoch|dir_gen|return|^}" | head -8; echo "=== function name ==="; awk 'NR<26330 && /
+    sed -n '26326,26360p' xfs/xfs_mxfs_dlm.c
+    grep -n "i_dlm_cached_grant_gen" xfs/xfs_mxfs_dlm.c | head -12
+    sed -n '6885,6910p' xfs/xfs_mxfs_dlm.c
+    python3 - <<'PY' p='xfs/xfs_mxfs_dlm.c'; s=open(p).read() if 'mxfs_create_baseline_trackers' not in s.split('module_param_named(create_baseline_trackers')[0].sp
+    for v in 1 0; do   MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster >/dev/null 2>&1   for i in $(seq 1 32); do ( timeout 20 tools/mxfs_sshpass.sh test
+    python3 - <<'PY' import json d=json.load(open('criteria.json')) for c in d["categories"]:     for t in c.get("tests",[]):         if t["name"] in ("dirent_durab
+    python3 - <<'PY' p='tests/suite/dirent_durability.sh'; s=open(p).read() s=s.replace('''for ent in $pending; do     PJ="${ent%%:*}"     # A round the teardown ha
+    for v in 0 1; do   MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster >/dev/null 2>&1   for i in $(seq 1 32); do ( timeout 20 tools/mxfs_sshpass.sh test
+    python3 - <<'PY' p='state.md'; s=open(p).read() s=s.replace("VERSION 0.11.169, srcver `2B4436FEBABB2497840D3B4` — matches what the 32 nodes are running.",      
+    chmod +x tests/suite/open_defects.sh && bash -n tests/suite/open_defects.sh && echo "syntax OK" python3 - <<'PY' import json p='criteria.json'; d=json.load(open
+    ./showstat.sh 32 caw 2>/dev/null | tail -9; echo; python3 -c " import json d=json.load(open('criteria.json')) for c in d['categories']:     for t in c.get('test
+    python3 - <<'PY' p='state.md'; s=open(p).read() anchor = "## OPEN — why the answer is still NO" add = '''## THE READINESS GATE — `open_defects` (RULE 6 made vis
+    time timeout 560 ./run.sh 16 caw 2>&1 | grep -E "PASS|FAIL|done:|prep OK" | tail -24
+    python3 - <<'PY' p='state.md'; s=open(p).read() anchor = "## THE READINESS GATE" add = '''## BOARD — 16/caw re-measured on 0.11.171 (new criteria included)  **2
 
 ## Last text from previous session
 
-Starting session 3. First: load ccmemory tools and read `state.md` (the original task, and it carries the Phase A design from the previous session).
-The release drain covers the dinode cluster; dir data blocks are handled by `mxfs_dir_flush_data_blocks` at the release "sd stage". The hole must be in that path — finding it and how it enumerates blocks:
-Now the INACT-EXREL deferral in xfs_inode.c:
-Adding the poison flag (bit 24) with recycle-reset semantics:
-Now the three reload-site poison edits. Site 1 — the non-FUA P52-RELOAD branch (split clean/dirty):
-Now the reload-entry early-exit for poisoned shells — locating the function start:
-Now the op-entry ESTALE checks (plan item c). Viewing the iget evict block and the op entry points:
-Now the readdir entry check:
-Phase A core is in. Bumping version and building:
-Deployed in 72s. Running the sensitive triad — round 1:
-The PASS line (7/7 checks, 16s) conflicts with the FAIL line I grepped — likely I read a stale run dir. Verifying:
-Guards fire but reverts persist — need this run's precise interleave. Pulling the full marker timeline for the affected ino on test1:
-A watch-gated PW-IABORT probe already exists in `xfs_iflush_abort`. Checking the failing runs for it:
-Verifying the dirty_seq stamp site so the release-path re-log actually earns the authority bit:
-`xfs_trans_log_inode` stamps the equality, so the release-path re-log earns authority. Building v0.11.86 and re-verifying:
-Regression — runs now hang (NO_TERMINAL_RECORD at the 120s box). Diagnosing the wedge before touching anything else:
-That's the death worker's normal poll sleep — false lead. Checking what phase each node stalled in:
-All nodes stalled in round-1 **verify** (post drop_caches). Checking whether my P34J bails are storming there:
-State checkpointed. Writing the compact memory entry, then catching the wedge **live** with an in-run prober:
-The prober had a quoting bug (remote awk silently broken) — D-state absence is unproven. Rerunning with a robust prober that dumps stack+wchan of every drc-related process regardless of state:
+not* a defect: test28 reported "30 of 32 entries missing" in rounds 15/16, caused by the concurrent teardown. Guarding with `[ -d round_dir ]` isn't enough — a partially-completed `rm -rf` leaves the directory present with children already gone. sess20 hit the identical artifact and I reproduced it. Fixed by excluding any round teardown has been asked to remove. I verified the red before believing it, which is why it didn't end up in the ledger as a phantom defect.
+
+**The `create_baseline_trackers` fix is in but unvalidated, and I've recorded it that way.** The finding behind it is real — `cached_gen=0, grant_gen=2019` proves a self-created directory keeps its staleness baselines at the "never set" sentinel forever, so detectors gated on `cached_grant_gen != 0` are permanently inert for it. But the A/B was counter-directional (P195: 0 with the fix off, 1 with it on, n=1 per arm). That's noise, not a refutation, and certainly not evidence of a fix. It stays at default-on as principled and harmless; the defect stays OPEN.
+
+## Answer: **production ready? NO** — and the board now says so
+
+Five unresolved defects, two critical. I did not write to the marker.
+Criteria not met — continuing. The tractable ledger entry is **D-MATRIX-UNMEASURED**: only the 32-node columns are current, everything else is a stale cache. Closing that legitimately, starting with 16/caw on the current build.
+Hit the relay boundary — wrapping up. Recording the 16/caw result first, since it's a meaningful new data point.
+## Session summary
+
+**Answer to the criteria: production ready? NO** — and `showstat` now says so deterministically instead of misleading you with all-green.
+
+### Two defects fixed and validated
+
+1. **32/tcp wedge** — root was a sleeping rw_semaphore taken under `pag_ici_lock`. sess20 had fixed only the CAW arm; the TCP arm still slept in atomic context. That corrupted preempt state and left a peer CPU spinning in `mxfs_ici_lock`'s unbounded `spin_trylock` loop — test31 soft-locked for **522 s**, stopped answering SSH, and starved all 31 peers. Paired result: `scheduling while atomic` 14→**0**, soft lockup 522 s→**0**, lock timeouts 9210→**8**, `rsync_paired` wedged >300 s→**PASS 8 s**.
+
+2. **ILOCK/extent-map TOCTOU** — `xfs_ilock_data_map_shared` tests the predicate *before* `xfs_ilock()`, but in MXFS the acquire itself reloads the inode. `P192` fired 34× (CAW) / 16× (TCP); `xfs_assert_ilocked` went from 3-of-4 nodes to **0**.
+
+### The criteria rework you asked for
+
+Every defect I found this session was found *outside* the board. Six criteria added — `kernel_health`, `node_responsive`, `dirent_durability`, `dirent_publish_integrity`, `sustained_load`, and `open_defects` — the last being a RULE 6 ledger that fails while any defect is unresolved. Behavioural criteria alone couldn't gate this, because the intermittent ones go green on lucky runs.
+
+Board: **32/caw 25 PASS / 1 FAIL**, **16/caw 24 PASS / 2 FAIL**.
+
+### Notable from the last run
+
+`dirent_publish_integrity` failed on **3 of 16 nodes** — the deterministic precursor fires at 16 nodes too, so the silent-loss defect is **not** specific to the 32-node condition. That's new information.
+
+### Honest status of what's unfixed
+
+The silent `mkdir` loss remains open. Three attempts are recorded as refuted *with their measurements*, so they're not re-walked: the epoch-override at the conversion gate (A/B showed no effect), the lookup-time freshness gate (measured to never engage — `dirty_here=1` in 100% of hits), and `create_baseline_trackers` (counter-directional A/B, n=1). The RULE-5 GPT consult corrected a real error in my analysis and pointed the fix at EX acquire rather than the conversion gate.
+
+Also worth carrying forward: a false red cost me a run too — `dirent_durability`'s first failure was the concurrent teardown, not a defect. I verified it before believing it, which is why it didn't enter the ledger as a phantom.
+
+Five defects remain open, two critical. I did not write to the marker.
 
 ## Continue
 

@@ -23,6 +23,7 @@ struct xfs_mount;
 struct xfs_perag;
 struct xfs_buf;
 struct work_struct;
+struct mxfs_grant_result;
 
 /*
  * sess36: gate for the sess20-35 diagnostic prints (P-, MX-INSTR, H tags).
@@ -225,6 +226,12 @@ void mxfs_dlm_publish_unpublished(struct xfs_mount *mp, xfs_ino_t parent_ino,
 				  xfs_agnumber_t agno);
 void mxfs_dlm_publish_dirs_work(struct work_struct *work);
 bool mxfs_dlm_unpublish_drop(struct xfs_inode *ip);
+/* ccloop c7ee71c6 sess28: THE dir-epoch staleness predicate.  Both consumers
+ * (the P32E flush fence in xfs_inode.c and the P194/P195 operation gate in
+ * libxfs/xfs_dir2.c) must go through this — a raw `cur_ep > i_dlm_dir_valid_epoch`
+ * compares a dead incarnation's handoff lineage against a live incarnation's
+ * baseline.  May re-base the baseline; see the definition's block comment. */
+bool mxfs_dir_epoch_superseded(struct xfs_inode *ip, uint32_t cur_ep);
 
 /*
  * v0.10.36 read-once demote: queue the release worker for a PR-held clean
@@ -233,6 +240,27 @@ bool mxfs_dlm_unpublish_drop(struct xfs_inode *ip);
  * (mxfs.close_release, default on).  Called from xfs_file_release.
  */
 void mxfs_dlm_close_release(struct xfs_inode *ip);
+/* sess41 C8: elected-survivor adoption sweep of a dead slot's AGI unlinked
+ * bucket (all AGs).  0 = clean pass; error leaves the slot pending for the
+ * reap worker's retry. */
+int  mxfs_survivor_sweep_slot(struct xfs_mount *mp, unsigned int dead_slot);
+int  mxfs_own_bucket_rescan(struct xfs_mount *mp);
+int  mxfs_unclaimed_bucket_scan(struct xfs_mount *mp);
+/* sess42: bucketless-orphan adoption scan (D-DESTAGE-TEAR-BUCKETLESS-ORPHAN
+ * fix d) — runs after every dead-slot sweep; adopt-then-reap. */
+int  mxfs_orphan_scan(struct xfs_mount *mp);
+/* sess41 (GPT audit): C3 — called from xfs_file_open AFTER i_mxfs_open_n++.
+ * Ensures a cached DLM grant exists before the open returns, closing the
+ * OPEN-AT-NL hole (dcache open of an idle-released inode carried no grant
+ * and no published bit, so a peer's unlink freed it under the live fd).
+ * Returns 0 when protected; -EIO when no grant could be established (the
+ * open must FAIL — fail closed, never an unprotected fd). */
+int  mxfs_dlm_open_protect(struct xfs_inode *ip);
+/* sess41 (GPT audit): C4 — called from xfs_file_release after the
+ * i_mxfs_open_n decrement.  Eagerly clears this node's published open bit
+ * at the last close (no fds, no mappings), so a peer's deferred reap
+ * converges in seconds instead of waiting for our evict (hours). */
+void mxfs_dlm_open_last_close(struct xfs_inode *ip);
 
 /*
  * v0.10.38 dir-EX-BAST idle-PR sweep worker (mxfs.dir_ex_bast_sweep).
@@ -266,10 +294,78 @@ void mxfs_dlm_publish_inode(struct xfs_inode *ip);
 void mxfs_dlm_cache_init(struct xfs_mount *mp);
 
 /*
+ * sess54: close the two-phase mount reclaim.  Makes our own log recovery
+ * durable, then releases the previous incarnation's un-adopted authority
+ * bits, shuts the adopt window, and hands the crashed peers deferred at
+ * mount step 6.5 to the settle worker for fence + slice recovery.
+ * Called from xfs_fs_fill_super after mxfs_dlm_cache_init (which registers
+ * the slice-replay hook the settle needs) and before the perag baseline.
+ *
+ * sess57: reduced to the RESIDUE half — the own-slot reclaim and the
+ * cohort replay moved ahead of xfs_mountfs into
+ * mxfs_dlm_mount_recovery_barrier() below.
+ */
+void mxfs_dlm_mount_recovery_settle(struct xfs_mount *mp);
+
+/*
+ * sess57 (D-FOREIGN-REPLAY step 4a — MOUNT ORDERING FIX): the mount-path
+ * recovery barrier.
+ *
+ * Called from xfs_mountfs() immediately after xfs_log_mount() returns —
+ * i.e. after OUR log slice has been recovered, but before anything in the
+ * mount path can take a blocking cluster lock (xfs_log_mount_finish's
+ * intent replay and unlinked processing are the first, and they run much
+ * later, from xfs_mountfs).  Makes our replayed images durable, then
+ * confirms/fences/replays every cross-instance peer slice deferred at
+ * mount step 6.5, and finally reclaims our own previous incarnation's
+ * un-adopted authority bits and closes the adopt window.
+ *
+ * Doing this after xfs_mountfs (as sess54 did) is a bootstrap deadlock:
+ * the grants that would block our own mount recovery are released only by
+ * a settle whose only trigger is that recovery completing.
+ */
+/* sess58: returns -EIO when an unfenceable dead peer still owns resources
+ * that log recovery below would block on — the caller MUST fail the mount. */
+int mxfs_dlm_mount_recovery_barrier(struct xfs_mount *mp);
+
+/*
+ * sess59 (GPT item 1): unconditional SYNCHRONIZE CACHE of the shared
+ * device + epoch advance, for callers that need DURABILITY rather than
+ * peer-visibility.  Unlike the internal per-modify flush this is never
+ * skipped under mxfs_fua_disable, and it returns the failure.  Use it
+ * before any irreversible publication of recovered state.
+ */
+int mxfs_blkdev_flush_durable(struct xfs_mount *mp);
+
+/*
+ * sess57: drop every CACHED cross-node view (AG-meta bufs, cached AG-DLM
+ * grants, cached per-inode DLM modes) so the next access round-trips to
+ * disk.  Forces nothing and pushes nothing — safe to call before log
+ * recovery has finished, unlike the peer-joined flush that wraps it.
+ *
+ * sess60 (GPT step-4a review item 2/5): returns 0 only when every cached
+ * view really was dropped.  -EBUSY means at least one buffer had to be left
+ * cached because it still carries this node's un-destaged committed content;
+ * the AG(s) concerned keep their lineage open, and the caller MUST NOT treat
+ * the filesystem as having no cached cross-node state (the retained buffer
+ * will be written back later and would overwrite whatever a peer, or a
+ * foreign-slice replay, put in that block in the meantime).
+ */
+int mxfs_dlm_invalidate_cached_views(struct xfs_mount *mp);
+
+/*
  * Initialize per-inode DLM fields.
  * Called from xfs_inode_alloc when a new xfs_inode is created.
  */
 void mxfs_dlm_inode_init(struct xfs_inode *ip);
+/*
+ * sess29: called at the last instant before the xfs_inode returns to the slab.
+ * The slab object is NOT zeroed on the next allocation, so any demoter claim
+ * still set here is inherited by the next inode that lands on this memory and
+ * makes mxfs_foreign_demoter() true for it from birth.  See the design block in
+ * mxfs_dlm_inode_init.
+ */
+void mxfs_dlm_inode_final_release(struct xfs_inode *ip);
 
 /*
  * Reload an inode's in-memory state from disk.  Used by xfs_iget_cache_hit
@@ -368,6 +464,12 @@ void mxfs_dir_merge_peer_blocks(struct xfs_inode *dp);
  * the create RMWs a union base.  Gated by mxfs.dir_merge. */
 void mxfs_dir_merge_peer_into_tp(struct xfs_trans *tp, struct xfs_inode *dp,
 				 int max_ents);
+/* sess27: rewrite a rename/link dirent ftype from the post-ILOCK mode
+ * (module_param rename_ftype_revalidate, default 0 = probe only). */
+extern int mxfs_rename_ftype_revalidate;
+/* sess27 ROOT FIX: RELOAD-TYPEFLIP-STALE-SKIP requires the same
+ * incarnation (module_param typeflip_skip_same_incarn, default 1). */
+extern int mxfs_typeflip_skip_same_incarn;
 extern int mxfs_dir_merge_enabled;	/* module_param dir_merge (default 0) */
 
 /* sess31: cheap per-block reconcile of kept-stale in-AIL dir DATA blocks, folded
@@ -468,6 +570,9 @@ uint32_t mxfs_agi_disk_bucket_head(struct xfs_buf *agibp, int bucket);
  * (cross-node double-inactivation), nonzero=allocated, <0 error. */
 struct xfs_inode;
 int mxfs_inode_disk_mode(struct xfs_inode *ip, uint32_t *nlink_out);
+/* sess38 D-AGI-UNLINKED instrument: also return on-disk di_next_unlinked. */
+int mxfs_inode_disk_unlinked(struct xfs_inode *ip, uint32_t *nlink_out,
+			     uint32_t *next_out);
 
 /*
  * Reset a cached inode's in-memory state to "free" without reading disk.
@@ -650,6 +755,12 @@ void mxfs_ag_meta_track(struct xfs_buf *bp);
 void mxfs_dlm_ag_meta_iodone(struct xfs_buf *bp);
 void mxfs_ag_meta_reclaim_abort(struct xfs_buf *bp);
 extern int mxfs_dbg_dialloc_shutdown;	/* DEBUG one-shot AGI umount-wedge test */
+extern int mxfs_reload_oblig_keep;	/* sess19: never adopt over an unlanded committed change */
+extern int mxfs_reload_oblig_merge;	/* sess19: obligation-aware reload merge */
+extern int mxfs_nlink_ledger;		/* sess19 directory link-count ledger (P180-NLB/NLR/NLW) */
+void mxfs_note_fork_tear(struct xfs_inode *ip, const char *site);	/* sess19 torn-LOCAL-fork tripwire (P181) */
+void mxfs_sfconv_disk_check(struct xfs_inode *ip);	/* sess20 sf->block conversion audit (P185) */
+void mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip);	/* sess19: reconcile a shortform dir with the platter before the release drain publishes it */
 
 /*
  * v0.3.70: returns true while the FUA-read window is open for the AG that
@@ -720,17 +831,54 @@ struct xfs_mount;
 uint16_t mxfs_dbg_disk_di_mode(struct xfs_mount *mp, uint64_t ino,
 			       uint32_t *genp);
 
+/* sess25: owned/nestable demoter claim — never assign i_dlm_demoter directly. */
+void mxfs_dlm_claim_demoter(struct xfs_inode *ip);
+void mxfs_dlm_release_demoter(struct xfs_inode *ip);
+
+/* sess39 D-STATFS fix: cluster-coherent statfs sums from perag summaries
+ * (returns false single-node → caller keeps the upstream percpu path), and
+ * the mount-time all-AG header init that makes the sums complete.  See the
+ * implementation comment for the drift mechanism and design constraints. */
+bool mxfs_statfs_perag_sums(struct xfs_mount *mp, uint64_t *icount,
+			    uint64_t *ifree, uint64_t *fdblocks);
+void mxfs_init_all_perag_data(struct xfs_mount *mp);
+extern struct xfs_mount *mxfs_dbg_mp;
+
+/* sess39 D-CLEAN-UNREF-INODE-LRU-STRAND: periodic repatriation of clean
+ * unused inodes stranded off the sb LRU (module init/exit lifecycle). */
+void mxfs_lru_sweep_start(void);
+void mxfs_lru_sweep_stop(void);
+
+
+/* sess40 deferred reap (open-unlinked zombies with peer open bits) */
+/* sess41: reap-entry kinds — see MXFS_REAP_* in xfs_mxfs_dlm.c: OWN (B6
+ * defer by the unlinker), RETIRE (opener-side alias retirement, no freer
+ * authority), ADOPTED (survivor-sweep freer; own flag so P2L-OWNFREE stays
+ * strictly OWN). */
+void mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino,
+                              uint32_t gen, int16_t bucket, uint8_t kind);
+void mxfs_defer_reap_add(struct xfs_mount *mp, uint64_t ino, uint32_t gen,
+			 int16_t bucket);
+void mxfs_defer_reap_done(struct xfs_mount *mp, uint64_t ino);
+void mxfs_defer_reap_init(struct xfs_mount *mp);
+void mxfs_defer_reap_destroy(struct xfs_mount *mp);
+
 #endif /* XFS_MXFS_DLM_H */
 
 /* ICLUSTER mediating layer (ccloop 72513a13 sess3 — DLM_PLAN.md "ICLUSTER
  * PLAN").  Phase-1 core is landed and inert; mxfs.icluster_dlm stays 0
  * until the BAST fan-out + call-site routing land (state.md). */
 extern int mxfs_icluster_dlm;
-int mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode);
+/* sess99 step 5.3(d): `gres` (optional) returns the durable-authority
+ * provenance of the CLUSTER tenure covering ino on success — see
+ * struct mxfs_grant_result.  Non-proving on every failure path. */
+int mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
+		    struct mxfs_grant_result *gres);
 int mxfs_iclus_unlock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 		      bool is_free);
 void mxfs_iclus_bast_notify(void *data, uint64_t base_ino, uint8_t req_mode);
 bool mxfs_iclus_try_admit(struct xfs_mount *mp, uint64_t ino, uint8_t mode);
+bool mxfs_iclus_open_admit(struct xfs_mount *mp, uint64_t ino);
 bool mxfs_dlm_iclus_covered(struct xfs_inode *ip);
 uint8_t mxfs_iclus_granted_mode(struct xfs_mount *mp, uint64_t ino);
 uint64_t mxfs_iclus_grant_seq(struct xfs_mount *mp, uint64_t ino);

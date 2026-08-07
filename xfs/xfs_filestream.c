@@ -21,6 +21,10 @@
 #include "xfs_trans.h"
 #include "xfs_filestream.h"
 
+/* sess23: igrab() call-site attribution — see mxfs_igrab_tracked(). */
+#define igrab(vi) mxfs_igrab_tracked((vi), __LINE__, 4)
+#define iput(vi) mxfs_iput_tracked((vi), __LINE__, 4)
+
 struct xfs_fstrm_item {
 	struct xfs_mru_cache_elem	mru;
 	struct xfs_perag		*pag; /* AG in use for this directory */

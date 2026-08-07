@@ -1,3 +1,10 @@
+---
+name: bugfix-history
+description: MXFS bug-fix history ledger (pre-v5 era) — chronological record of numbered bugs and their fixes.
+metadata:
+  type: project
+---
+
 # MXFS Bug Fix History
 
 ## Bugs 1-28 (chronological)

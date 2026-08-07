@@ -171,4 +171,33 @@ P6  fault_netpartition    fault     2   60
 # 30s for a smoke run; set SOAK_SECONDS=14400 for a real 4h ship-gate soak and
 # the budget scales with it). This 60 is just the smoke-run fallback shown
 # here for documentation / any code path that reads the manifest directly.
+P6  dirent_durability     barrier   2   240
 P7  soak                  none      1   60
+P8  node_responsive       barrier   1   90
+P8  kernel_health         barrier   1   120
+P8  dirent_publish_integrity barrier 2   60
+# ccloop c7ee71c6 sess27: these two lines were MISSING from this file while both
+# criteria had a script AND a criteria.json cell.  Columns here match the values
+# criteria.json already carried for both (P8/barrier/min_nodes=2, 60s and 240s).
+#
+# IMPORTANT CORRECTION to the first version of this note: run.sh does NOT read
+# this manifest to decide what to run.  It builds its matrix from criteria.json
+# (`mapfile -t ROWS < <(jq '.categories[]...' "$CRIT")`, run.sh ~1160), and
+# applicable() additionally requires tests/<cat>/<name>.sh to exist.  So both
+# criteria were dispatchable the whole time and their cells were refreshable.
+# The defect this fixes is a DOCUMENTATION divergence: this file calls itself
+# "THE INDEX", so a manifest that omits a live criterion misleads anyone reading
+# it -- it misled this session into concluding a stale FAIL cell was unfixable.
+# Keep the two sources in agreement.
+#
+# Also note max_nodes: posix_single/fsx/fio_verify/integrity_filetypes/
+# fault_enospc carry max_nodes=1 in criteria.json and are therefore
+# single-node-only; they do not appear at N>1 and that is intentional.
+#
+# dirent_type_integrity MUST stay after dirent_durability (P6), which stamps the
+# MXFS_DIRENT_WINDOW it scopes to; with no marker it FAILs rather than judging
+# stale evidence.
+P8  dirent_type_integrity barrier   2   60
+P8  ag_strand_repair      barrier   2   240
+P8  sustained_load        barrier   1   180
+P9  open_defects          none      1   30

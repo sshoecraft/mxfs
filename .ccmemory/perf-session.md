@@ -1,3 +1,10 @@
+---
+name: perf-session
+description: Performance optimisation session, 2026-02-19.
+metadata:
+  type: project
+---
+
 # Performance Optimization Session (2026-02-19)
 
 ## Summary

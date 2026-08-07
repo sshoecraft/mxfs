@@ -1,7 +1,7 @@
 # tests (Test harnesses, benches, scripts, packaging)
 
 **Owner files**: `tests/` (37 files, 3.4K LOC), `bench/` (1 file), `scripts/` (3 files), `packaging/` (5 files)
-**Last updated**: 2026-05-08 (2-node bench/stress material below); 2026-07-11 (multi-node harness failure-state section added near the end); 2026-07-16 (dlm_lock_correctness unmount bug = the real "idle-trigger dir_reuse" cause + run_coord mount pre-assert — see final section)
+**Last updated**: 2026-05-08 (2-node bench/stress material below); 2026-07-11 (multi-node harness failure-state section added near the end); 2026-07-16 (dlm_lock_correctness unmount bug = the real "idle-trigger dir_reuse" cause + run_coord mount pre-assert); 2026-08-02 (sess43: BOARD TRUTHFULNESS — three harness bugs that manufactured/hid flakes, FLAKY semantics, new HB diagnostics — see final section)
 
 ## Purpose
 
@@ -230,3 +230,110 @@ dir; PROUTs execute-but-fail NOT READY without it, with side effects).
   module images are real (srcver can match while code is stale). Never revert.
 - tests/withdraw_recovery_test.sh args: N [victim] [creator] — "16 tcp" sshs to host "tcp".
 - 32-node chunked boards saturate clyde (load 40-64): run budget-tight rows standalone.
+
+## sess43 (ccloop c7ee71c6, 2026-08-02, v0.11.353) — BOARD TRUTHFULNESS
+
+Three harness bugs that were manufacturing or hiding flakes.  All fixed; read
+this before trusting or "fixing" any board verdict.
+
+1. **`reason` was dropped from cell history** (run.sh, both push sites).  The
+   node-side `finish()` names every failing check in `reason=` and the live
+   cell kept it — but the history push saved only status/iso/measured, so the
+   next run erased the only record of WHICH check failed.  That single omission
+   is why `D-DIR-REUSE-COHERENCY` sat "UNROOTED: which check failed is not yet
+   captured" and why the Aug-1 23:32 cache_coherency/zsl failures could not be
+   attributed afterwards.  History entries now carry `reason[0:400]`.
+2. **Reconvergence gate vs the 10-minute lease.**  The gate required the
+   MXFS-MEMBERSHIP beacon to equal N.  `MXFS_LEASE_TIMEOUT_DEFAULT_MS` is
+   **600000 ms = 10 MINUTES** (dlm/lease.h:58) and a node that dies and rejoins
+   takes a NEW node_id, so after EVERY fault-injecting test the lease reads N+1
+   for up to ten minutes on a perfectly healthy cluster.  The gate called that
+   split-brain and set `BLOCK_REST`, blocking every later criterion in the
+   chunk — a systematic generator of the pre-assert/NOT_RUN cascades in the
+   board history.  The gate now defers an OVER-count to the authoritative
+   on-disk heartbeat table (`tests/hb_live_count.sh`): exactly N live writers =
+   healthy; more than N = genuine split-brain and still a hard fail.  An
+   UNDER-count fails immediately as before.
+3. **No per-node failed-check distribution.**  Only `first_fail` + rank1 were
+   recorded, so "all 32 nodes failed the same 1 check" (a shared/coordinated
+   object) and "one node failed 16" (that node's own artifacts) — which need
+   opposite investigations — were indistinguishable.  Now `faildist[1x31,16x1]`.
+
+**showstat.sh FLAKY semantics** (user directive): the status column is the
+current run's verdict, and a cell whose history holds a GENUINE test-detected
+failure stays ⚠ FLAKY until root-caused — it is never laundered to PASS.
+Excluded from "genuine" because they are rig, not filesystem: `pre-assert`,
+`NO_TERMINAL_RECORD`, `run was killed`, `prep fail`; the `prep_cluster` and
+`open_defects` rows entirely; and reconvergence verdicts before
+2026-08-02T04:00Z (bug 2 above — a broken gate cannot produce FS evidence).
+
+### New diagnostics (tests/)
+- `hb_slots.sh` — decode all 64 disklock HB records (flags: 0 empty, 1 ACTIVE,
+  2 WITHDRAWN, 3 RECOVERY_GUARD).
+- `hb_live_count.sh` — authoritative live-member count.  **Two traps it
+  encodes**: HB timestamps are the WRITER's MONOTONIC clock (uptime), so they
+  can never be compared against local wall time — sample twice and count slots
+  whose timestamp CHANGED; and the samples MUST be O_DIRECT, because a buffered
+  re-read of peer-written sectors returns this node's cached copy (the first
+  version reported live=0 on a healthy 32-node cluster).
+- `vergate_collapse_repro.sh` — 3 arms for the version-gate/board-collapse
+  question.  Detector traps found the hard way: a case-insensitive `shutdown`
+  grep also matches "generic_shutdown_super" inside P199 unmount diagnostics
+  (false 18-shutdown verdict), and bare `sd N:0:0:0: reservation conflict`
+  notices are the normal PR-probe artifact at EVERY mount on every node — the
+  real failed-I/O discriminator is `reservation conflict error, dev ...`.
+- `degraded_member_cascade.sh` — freeze arm conclusive (a frozen member yields
+  NO_TERMINAL_RECORD, not counted failures).  fsdown arm NOT yet conclusive:
+  cache_coherency's filesystem body is only seconds long, so the degradation
+  window is hard to hit; use a longer test or add a test-side pause hook.
+- `orphan_audit_arm.sh` — chk_mxfs orphan audit NEG+POS arms against real torn
+  state.
+
+### Rule learned: a harness that degrades a node must kill its remote agents
+before restoring.  A watcher left running on the victim fired `umount -l` AFTER
+the cleanup trap had remounted it, leaving test32 unmounted and pre-asserting
+the next two board tests — the same shape as the Aug-1 test32 breakage (a test
+script's side effect, not a filesystem defect).
+
+
+## sess44 (2026-08-02) — guard race arms + prep device-claim guard
+
+- **tests/guard_race_arms.sh** — four arms against the recovery GUARD
+  (D-DESTAGE-TEAR closure evidence, all PASS on 0.11.357/358):
+  `joiner` (rejoin lands inside a stretched hold; claim must skip the guarded
+  slot; in-hold certified by hold/done count deltas), `abandoned` (holder
+  virsh-destroyed; peer must reclaim by change-detection), `stale_resume`
+  (holder stalls without refreshing via mxfs.ubsweep_stall_ms, peer reclaims,
+  resumed holder must P99-GUARD-LOST + rc=-116 + zero sweeps), `inherit`
+  (dense rig REQUIRED — full prep first; rejoiner re-claims its old slot and
+  inherits the deferred bucket; ordinary last close must free with zero
+  P163 recovery events).  Debug knobs: mxfs.ubsweep_hold_ms (hold+refresh),
+  mxfs.ubsweep_stall_ms (freeze after hold).  Arms clean up (knobs 0, victims
+  rejoined) via trap, but a killed arm leaves knobs set on survivors.
+- **HARNESS LESSONS burned in these arms**: dmesg persists across runs so
+  every detection MUST be per-node count-growth vs a snapshot ("line exists"
+  matched a previous run's line and produced a false verdict); inode numbers
+  are REUSED so reap/convergence checks need count baselines too; an fd
+  holder written as `bash -c 'exec 9<f; sleep 900'` TAIL-EXECS into sleep and
+  loses the cmdline marker — write `sleep 900 9<&-; :` so bash stays resident
+  (and the child doesn't inherit fd9), then pkill -f RUNID works.
+- **tests/setup/prep_fs.sh** now refuses to mkfs a device with /sys/block
+  holders (a claimed device = the condition's rig is not wired).  On this
+  fleet /dev/sda is a PATH MEMBER of the caw mpath map; the legacy tcp/cawp
+  default would have mkfs'd into a live path of the shared LUN but for
+  multipathd's EBUSY.  tcp condition is UNRUNNABLE until the rig is rewired
+  (no XML-wired disk, no /dev/mxfs-shared on host).
+
+## sess48 — iunl_soak_sweep.sh (P53/iunlink-store soak sweeper)
+
+`tests/iunl_soak_sweep.sh <mark> [nnodes]` — per-cycle fleet sweep for the
+fossil-nu campaign.  Counts dmesg lines AFTER an `MXFS-SOAK-MARK <mark>`
+stamped per node via /dev/kmsg (dmesg persists across preps; the kmsg
+ring rotates marks out within hours — stamp fresh marks per cycle and
+sweep promptly).  One `dmesg | tail -n 200000 | awk` pass per node, 25s
+per-node timeout.  FAIL (exit 1) on any shutdown / P53 / same-gen
+FOSSILWR / unreachable / missing mark; info-prints OVERLAY/WRSITE/
+DISCRIM/RELLEAK/AGPURGE/LIVESKEW counts.  Companion facts: run.sh outer
+timeout must be ≥580s (sequential 32×15s mount preflight before any
+output); after killing run.sh externally, clean leftovers per node
+(`pkill -f <test>; fuser -k -m /mnt/shared`) or the next lap wedges.

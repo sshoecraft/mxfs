@@ -1,3 +1,10 @@
+---
+name: xfs_native_format_plan
+description: Native XFS on-disk format plan for mkfs.mxfs — the design that produced the current envelope layout.
+metadata:
+  type: project
+---
+
 # Native XFS Format Plan for mkfs.mxfs
 
 ## Goal

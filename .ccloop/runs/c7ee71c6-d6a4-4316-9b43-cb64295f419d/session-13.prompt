@@ -56,66 +56,66 @@ read state.md
 
 ## Previous session
 
-- session-id: `995444b7-35e8-4d17-b415-2edc0560ecb0`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0.jsonl`
-- approx context at last assistant turn: 497700 tokens
-- tools used: Bash×256 Edit×6 Read×5 mcp__ccmemory__memory_write×5 Write×3 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+- session-id: `7f1b4307-5ae7-4a2a-a2bb-63f7d5d044a7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7f1b4307-5ae7-4a2a-a2bb-63f7d5d044a7.jsonl`
+- approx context at last assistant turn: 275707 tokens
+- tools used: Bash×119 Read×14 Edit×11 ToolSearch×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1 mcp__ccmemory__memory_write×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/dlm/peer.c
-- /src/mxfs/dlm/v5_mount.c
-- /src/mxfs/state.md
-- /src/mxfs/tests/suite/dlm_scaling.sh
-- /src/mxfs/tests/stallcap_watch.sh
-- /src/mxfs/tests/repro_32caw_wedge.sh
-- /src/mxfs/run.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 25 tools/mxfs_sshpass.sh test14 "$PF" 'journalctl -k -b -2 -o short-monotonic --no-pager 2>/dev/null
-    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""P95D BAIL storm on ino=128 observed mid-readdir. READ ccmemory **sess12-D FIRST**""
-    cd /src/mxfs; grep -rn 'mxfs_trans_preacquire_inode_ags' xfs/ pal/ | grep -v '\.o' | head -8
-    cd /src/mxfs; sed -n '31180,31260p' xfs/xfs_mxfs_dlm.c
-    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""Fix shape: preacquire extent AGs pre-dirty (extend mxfs_trans_preacquire_inode_ags 
-    cd /src/mxfs; grep -n 'xfs_itruncate_extents_flags\|xfs_itruncate_extents' xfs/xfs_inode.c xfs/xfs_inode.h | head -5
-    cd /src/mxfs; sed -n '2940,3080p' xfs/xfs_inode.c
-    cd /src/mxfs; grep -n 'xfs_bunmapi_range' xfs/libxfs/xfs_bmap.c | head -3; sed -n "$(grep -n '^xfs_bunmapi_range' xfs/libxfs/xfs_bmap.c | cut -d: -f1),+45p" xfs
-    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""Fix shape REFINED (sess12 close): mxfs_trans_preacquire_inode_ags (xfs_mxfs_dlm.c:3
-    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""   Recommend: A for prevention + B as the structural backstop; implement B    first
-    cd /src/mxfs; for t in 1 2 3 4 5 6; do pgrep -f repro_32caw >/dev/null || break; sleep 5; done 2>/dev/null; tail -12 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d
-    grep -A40 'harvesting' /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratchpad/wedge_loop2.log | tail -12; cd /src/mxfs; PF=$(tools/mxfs_secr
-    tail -6 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratchpad/wedge_loop2.log; pgrep -f repro_32caw >/dev/null && echo LOOP-RUNNING || echo
-    for t in $(seq 1 40); do pgrep -f repro_32caw >/dev/null || break; sleep 5; done; tail -8 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratc
-    tail -12 /tmp/claude-1000/-src-mxfs/995444b7-35e8-4d17-b415-2edc0560ecb0/scratchpad/wedge_loop2.log; pgrep -f repro_32caw >/dev/null && echo LOOP-RUNNING || ech
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'python3 -c " import os, time d=\"/mnt/shared/.pyprobe_aged/n1\
-    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""   Verify: repro chain 30+ sequences; readopt must grant within ms    (P1-AGWAIT → 
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'cd /sys/kernel/debug/tracing && echo 0 > function_profile_enab
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 60 tools/mxfs_sshpass.sh test1 "$PF" 'cd /sys/kernel/debug/tracing/trace_stat && awk "FNR>2 {hit[\$1
-    cd /src/mxfs; python3 - <<'EOF' s = open('state.md').read() s = s.replace("""Next: ftrace    the solo op on the degraded cluster (function_graph on mxfs_dlm_ilo
+    timeout 30 tools/mxfs_sshpass.sh test1 "for p in \$(ps -eo pid,stat,comm | awk '\$2 ~ /^D/ {print \$1}'); do echo \"== \$(cat /proc/\$p/comm) ==\"; cat /proc/\$
+    timeout 35 tools/mxfs_sshpass.sh test1 'for p in $(ps -eo pid,stat,comm | awk "\$2 ~ /^D/ {print \$1}"); do echo "== $p $(cat /proc/$p/comm 2>/dev/null) =="; ca
+    d=$(mktemp -d); for i in $(seq 1 32); do ( timeout 18 tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/release_barrier_dump 2>/dev/null; echo 
+    timeout 20 cat /proc/loadavg; MXFS_FORCE_PREP=1 timeout 240 ./run.sh 32 caw prep_cluster 2>&1 | grep -E "prep OK|OK @" | tail -2
+    timeout 320 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -2
+    d=$(mktemp -d); for i in $(seq 1 32); do ( timeout 18 tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/release_barrier_dump 2>/dev/null; echo 
+    timeout 25 ls tests/suite/ | grep -i dirent; timeout 25 grep -n "durable_loss\|late_ok" tests/suite/dirent_durability.sh 2>/dev/null | head -20
+    timeout 25 sed -n '100,145p;205,250p' tests/suite/dirent_durability.sh
+    timeout 40 python3 - <<'PY' p='/src/mxfs/xfs/xfs_mxfs_dlm.c' s=open(p).read()  helper = ''' /*  * sess30 — the same obligation predicate, evaluated at EVERY sit
+    timeout 30 python3 -c " p='VERSION'; v=open(p).read().strip(); a,b,c=v.split('.'); nv='%s.%s.%d'%(a,b,int(c)+1); open(p,'w').write(nv+'\n'); print(v,'->',nv)"; 
+    timeout 20 cat /proc/loadavg; MXFS_FORCE_PREP=1 timeout 240 ./run.sh 32 caw prep_cluster 2>&1 | grep -E "prep OK|OK @" | tail -2
+    timeout 500 ./run.sh 32 caw cache_coherency dir_reuse_coherency dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -4
+    d=$(mktemp -d); for i in $(seq 1 32); do ( timeout 18 tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/release_barrier_dump 2>/dev/null; sleep
+    timeout 30 grep -rn "XFS_IFLUSHING" xfs/xfs_inode.h | head -5; echo "=== set/clear sites ==="; timeout 30 grep -rn "xfs_iflags_set(ip, XFS_IFLUSHING)\|iflags_cl
+    timeout 30 awk 'NR>=3060 && NR<=3145 {print NR": "$0}' pal/linux/xfs_buf.c | grep -nE "logged|b_li_list|list_for_each|iip|ili_" | head -20
+    d=$(mktemp -d); for i in $(seq 1 32); do ( timeout 18 tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/cluster_authority_dump 2>/dev/null; sle
+    timeout 60 python3 - <<'PY' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']=='D-INODE-CLUS
+    timeout 20 cat /proc/loadavg; timeout 20 ps -eo pcpu,comm --sort=-pcpu | head -5
+    MXFS_FORCE_PREP=1 timeout 240 ./run.sh 8 caw prep_cluster 2>&1 | grep -E "prep OK|OK @|FAIL" | tail -2
+    timeout 90 tests/cluster_authority_merge.sh mark 8 2>&1 | tail -1; timeout 500 ./run.sh 8 caw cache_coherency dir_reuse_coherency dirent_durability 2>&1 | grep 
 
 ## Last text from previous session
 
-cate rolls inside `xfs_bunmapi_range` — reading it to find the per-batch loop and clean-trans point:
-Working state at this boundary — **criteria: NO** — with two precisely-scoped open defects, both root-chased deep into the code this burst:
-
-**Defect 1 — 32/caw spurious shutdown (deadlock), root PROVEN:** the truncate path (`xfs_setattr_size → __xfs_bunmapi`) blocks on an AG DLM acquire holding ILOCK + dirty transaction; the AG's local BAST-release drain needs that same inode flushed → circular wait → 212s stall → designed shutdown. Crucially, the anti-deadlock mechanism (`P12-READOPT` — local waiter adopts the cached hold) **exists and fired but failed to unblock the waiter** — the next session's target is the READOPT state machine, the smallest correct fix. The naive preacquire fix was analyzed and rejected (re-creates the cycle after roll 1); a prevention-shape (preacquire at `xfs_setattr_size` entry while clean) is documented as the follow-up.
-
-**Defect 2 — aged-state performance slope, freshly quantified live:** the third consecutive chain on one prep degraded every row 2-3× and the solo single-node op pace 4× (1805→453 ops/s, 0.55→2.21 ms/op) with zero concurrency — per-op cost grows with accumulated state (MHT publish gating, eviction-ring, table chains, and AIL depth are the ranked suspects). The degraded cluster is preserved as a live artifact with ftrace as the designated next probe; the wedge-hunt loop's harvest was still collecting at save.
-
-Everything else stands green at v0.11.114: the full tcp column, CAW family + physical rig, the TCP false-death fix storm-validated, the matrix otherwise clean. All of it is banked in state.md and five sess12 ccmemory dossiers; the reproducer and stall-capture tooling are in the tree. The relay continues from a diagnosis frontier, not a cold start.
-Continuing — the degraded cluster is still live. Profiling exactly where the extra 1.66ms/op goes using the kernel function profiler on test1:
-Relay boundary — wrapping up. **Criteria answer: NO — not production ready**, with the remaining work now precisely scoped.
-
-**Session 12 delivered:**
-
-1. **TCP false-death defect FIXED AND VERIFIED (v0.11.114)** — the root of both 16/tcp collapses: outbound reconnects never cancelled the death timer, so live peers were declared dead, exiled via P164, and membership forked. Verified by deterministic flap repro and a 496-pair join storm (24/24 flaps healed, zero deaths).
-2. **Full tcp column green at .114** (1/2/4/16 complete boards + withdraw, 32-node spot tier + withdraw), all 14 stale matrix red cells cleared on trustworthy rigs, dlm_scaling harness corrected (fork overhead, assertions unchanged). The matrix briefly reached 548 cells / 0 non-PASS.
-3. **Two open defects root-chased deep:**
-   - **32/caw spurious-shutdown deadlock — root PROVEN** from the incident journal: truncate (`__xfs_bunmapi`) holds ILOCK + dirty trans while waiting on an AG whose local BAST-release drain needs that inode flushed → circular wait → designed shutdown. The existing anti-deadlock READOPT mechanism fired but failed to unblock the waiter — that state machine is the fix target; the naive preacquire alternative was analyzed and rejected (re-creates the cycle).
-   - **Aged-state performance slope — profiled to named functions**: 4× solo-op degradation (1805→453 ops/s) caused entirely by `mxfs_dlm_dir_inode_durable` + `mxfs_inode_cluster_durable` issuing ~11 synchronous device reads per op on the aged cluster (vs ~0 fresh), connecting to the standing `rerr=-11` watch item.
-
-**Next session starts at:** read the P12-READOPT state machine (why the adopted grant never woke the waiter) and the two durable-check functions (why per-op readback grows with age), fix, then verify with `tests/repro_32caw_wedge.sh` (30+ sequences) and re-green the 32/caw rows. The degraded cluster may still be live as an artifact; the wedge-loop harvest was mid-collection. Everything is banked in state.md and the five sess12 ccmemory dossiers.
+runs (0.11.261-263) ran `dirent_durability` **third** in a 3-criterion sequence; I've since been running it solo. Testing the exact prior configuration:
+Nodes are now dying repeatedly — that's a real regression. I need the panic, which reboots lose. Checking for a serial console log:
+No panic — the nodes hang on I/O and the harness power-cycles them. Checking the shared storage target before blaming my build:
+Clyde's target is healthy (64 sessions, no D-state). I need a **fast** reproducer before bisecting. `cache_coherency` is the cheapest criterion (60s budget, 25s measured):
+`cache_coherency` PASSES on 0.11.265. Continuing the exact prior sequence:
+Only one node down. Note the prep times this session: 72s → 73s → 77s → 81s → 104s → 160s on **identical** code. That's rig degradation, not a build delta. Checking the backing store:
+That's the answer. Clyde is running **unrelated heavy workloads** — `Wow.exe` at 333% CPU, `tesseract` 122%, `worldserver` 90%, a vLLM worker, python3 166% — on 8 cores with 1GB free RAM. The test VMs are starved, hang on I/O, and the harness power-cycles them. Not a build regression:
+Rig-independent work now. Locating the exact unlock site to place the barrier:
+Adding the obligation detector **at the wire unlock** — the thing the ledger says has never existed for `D-RELEASE-BARRIER-OPEN`:
+Now wiring it into both release tails, immediately before the wire unlock:
+Both land immediately before the wire unlock. Building (budget: 400s — the recorded full-tree build is 267s; this is incremental, plus contention margin):
+Load halved (18→9), though `Wow.exe` still holds 335%. Deploying and measuring:
+Killed at 90s — my 30s fan-out allowance was a guess. Measuring the harness overhead directly so the budget is derived, not guessed:
+Correcting my own error: `run.sh` **already** enforces the RULE 0 budget internally (it prints `[wall/budget]` and FAILs on overrun). My tighter tool timeout was a *competing* assertion that killed the harness mid-criterion and damaged three nodes. The tool timeout must be a backstop above the harness's own enforcement:
+D-state cleared on its own — transient I/O starvation, confirming contention. The P220 counters accumulate regardless of pace, so let me harvest what that run produced:
+`flushing=0, in_ail=0, pinned=0` across **9975 unlocks** — the two release tails in `bast_process` are clean; the existing drain does its job there. So the P219 stale-tenure events come from a *different* epoch-bump site. That's what the `epsrc` stamp was built to name. I need a run with `dirent_durability` (the producer):
+`durable_loss=8` — committed mkdirs not visible. That's a correctness signal, not a pace one. Harvesting the counters from this run and checking whether `durable_loss` can be a contention artifact:
+`durable_loss` is decided after a fixed `SETTLE_MS`, so under this contention it isn't trustworthy as corruption evidence — that run measured the host. But the `flushing=0` result across 15,199 unlocks **is** solid and rules out both `bast_process` tails. Extending the detector to all nine epoch-bump sites so the next clean run names the leaking path:
+`epoch_flushing=0` across **11,204 tenure-ends** — that refutes my hypothesis outright. No tenure ends while `XFS_IFLUSHING` is set. So either the flag isn't what I think, or the window is elsewhere. Checking the flag:
+`XFS_IFLUSHING` is `1<<7` in `i_flags` — my read is correct. So the contradiction is in P219 itself. Checking how `logged` is actually built:
+I jumped ahead — those `epoch_flushing=0` runs also had `stale_tenure=0`, so they never exercised the hypothesis. Confirming both counters from the same run:
+Confirmed consistent — `stale_tenure=0` **and** `epoch_flushing=0` in the same run, so the hypothesis is untested, not refuted. Recording the session's results before continuing to chase a quiet measurement window:
+Still contended. Trying **8 nodes** — a quarter of the VM load, and sess29 proved this defect class reproduces at 8:
 
 ## Continue
 

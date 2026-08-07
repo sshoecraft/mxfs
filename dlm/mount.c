@@ -1024,10 +1024,21 @@ static void discovery_peer_cb(void *data,
  * Medium-speed path: faster than lease (10 min) but slower than TCP disconnect (seconds).
  * Uses per-peer cooldown to avoid double-processing with peer_disconnect_cb.
  */
-static void disklock_expire_cb(void *data, mxfs_node_id_t dead_node)
+static void disklock_expire_cb(void *data, mxfs_node_id_t dead_node,
+                               int dead_slot, mxfs_epoch_t dead_epoch)
 {
     struct mxfs_mount *mnt = (struct mxfs_mount *)data;
     uint64_t now;
+
+    /*
+     * sess86: this TCP-transport path is entirely node-scoped — it purges DLM
+     * grants and journal state by node id and never marks a recovery pending,
+     * so it has no incarnation-bearing state to keep straight.  The victim
+     * identity is logged for correlation with the v5 path and otherwise
+     * unused; it must NOT be silently narrowed to a slot here.
+     */
+    (void)dead_slot;
+    (void)dead_epoch;
 
     if (!mnt->mounted)
         return;
@@ -1046,9 +1057,9 @@ static void disklock_expire_cb(void *data, mxfs_node_id_t dead_node)
     mnt->last_peer_disconnect[dead_node % MXFS_MAX_NODES] = now;
 
     mxfs_pal_log(MXFS_LOG_WARN,
-        "mxfs: node %u is no longer responding (no heartbeat for >%d seconds), "
-        "initiating failover",
-        dead_node,
+        "mxfs: node %u (slot %d epoch %llu) is no longer responding "
+        "(no heartbeat for >%d seconds), initiating failover",
+        dead_node, dead_slot, (unsigned long long)dead_epoch,
         (MXFS_DISKLOCK_DEAD_THRESHOLD * MXFS_DISKLOCK_HB_INTERVAL_MS) / 1000);
 
     purge_node_dlm(mnt, dead_node);
@@ -1451,7 +1462,7 @@ static int dlm_lock_caw_wrapper(void *ctx,
                                  uint8_t *granted_mode)
 {
     return mxfs_dlm_caw_lock((struct mxfs_dlm_caw_ctx *)ctx,
-                              resource, mode, flags, granted_mode);
+                              resource, mode, flags, granted_mode, NULL);
 }
 
 static int dlm_unlock_caw_wrapper(void *ctx,
@@ -1465,7 +1476,7 @@ static int dlm_convert_caw_wrapper(void *ctx,
                                     uint8_t new_mode)
 {
     return mxfs_dlm_caw_convert((struct mxfs_dlm_caw_ctx *)ctx,
-                                 resource, new_mode);
+                                 resource, new_mode, NULL);
 }
 
 /*
@@ -2494,6 +2505,13 @@ err_dlm:
     if (mnt->dlm)
         mxfs_dlm_destroy(mnt->dlm);
     if (mnt->dlm_caw) {
+        /* sess134: a FAILED mount is not a withdrawn one.  It has no frozen
+         * journal slice to protect and it is leaving for good, so it must
+         * release whatever bits it took — without this it stopped with
+         * release_on_stop still at its fail-closed default and left them on
+         * the disk for a peer to trip over.  (The normal teardown below
+         * already asks for the release; only this path did not.) */
+        mxfs_dlm_caw_set_release_on_stop(mnt->dlm_caw, true);
         mxfs_dlm_caw_stop(mnt->dlm_caw);
         mxfs_dlm_caw_destroy(mnt->dlm_caw);
     }
@@ -2764,6 +2782,12 @@ void mxfs_unmount(struct mxfs_mount *mnt)
         mnt->dlm = NULL;
     }
     if (mnt->dlm_caw) {
+        /* sess131: the release moved out of mxfs_dlm_caw_destroy and into
+         * stop(), where it can run exclusively between quiescence and the
+         * drain.  It is opt-in and defaults OFF (fail-closed for the
+         * withdrawn case this path has no concept of), so this normal
+         * teardown must ask for it or it would silently stop releasing. */
+        mxfs_dlm_caw_set_release_on_stop(mnt->dlm_caw, true);
         mxfs_dlm_caw_stop(mnt->dlm_caw);
         mxfs_dlm_caw_destroy(mnt->dlm_caw);
         mnt->dlm_caw = NULL;

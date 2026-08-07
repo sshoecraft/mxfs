@@ -1,0 +1,142 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 26 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 25
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `2137269c-3603-47df-ad7b-fa0d8c0a6acf`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/2137269c-3603-47df-ad7b-fa0d8c0a6acf.jsonl`
+- approx context at last assistant turn: 503311 tokens
+- tools used: Bash×242 Edit×66 Read×27 Write×12 mcp__ccmemory__memory_write×5 ToolSearch×3 WebFetch×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/VERSION
+- /src/mxfs/tools/chk_mxfs.c
+- /src/mxfs/tests/orphan_audit_arm.sh
+- /src/mxfs/.claude/awareness/subsystems/tools.md
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/showstat.sh
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/tests/vergate_collapse_repro.sh
+- /src/mxfs/run.sh
+- /src/mxfs/tests/degraded_member_cascade.sh
+- /src/mxfs/tests/hb_slots.sh
+- /src/mxfs/tests/hb_live_count.sh
+- /src/mxfs/tests/drc_phase_census.py
+- /src/mxfs/tests/suite/open_defects.sh
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/unmount_flush_clean.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for n in test1 test7 test19; do echo "== $n"; tools/mxfs_sshpass.sh $n "dmesg | grep -iE 'hung task|blocked for more|P15-REL-ABORT|soft lockup|rcu_sched|call tr
+    for n in test1 test19; do printf "%-7s orph1_bursts_on_61352960=" $n; tools/mxfs_sshpass.sh $n "dmesg | grep -c 'P15-REL-ABORT ino=61352960 .*orph=1'" 2>/dev/nu
+    grep -n "P15-REL-ABORT" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3
+    grep -n -B12 "P15-REL-ABORT ino=%llu held_mode" /src/mxfs/xfs/xfs_mxfs_dlm.c | grep -nE "age_orph|age_starve|pr_warn|rs_orphan|orphan_since|starve_since" | head
+    for n in test1 test19 test7; do printf "%-7s " $n; tools/mxfs_sshpass.sh $n "P=\$(dmesg | grep -c 'P15-REL-ABORT'); O=\$(dmesg | grep -c 'P15-ORPH-PROCEED'); S=
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)); defs=d['defects'] if isinstance(d,dict) and 'defec
+    timeout 590 ./run.sh 32 caw fence_during_write fault_netpartition soak dirent_durability node_responsive kernel_health 2>&1 | grep -E "PASS|FAIL|reconverg" | ta
+    uptime | sed 's/.*load/load/'; timeout 590 ./run.sh 32 caw crash_consistency dir_reuse_coherency ag_strand_repair sustained_load 2>&1 | grep -E "PASS|FAIL|recon
+    timeout 590 ./run.sh 32 caw dirent_publish_integrity dirent_type_integrity dlm_lock_correctness open_defects 2>&1 | grep -E "PASS|FAIL" | tail -5; echo "=== BOA
+    timeout 30 python3 - <<'EOF' import json,re p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)); defs=d['defects'] if isinstance(d,dict) and 'de
+    grep -n "Last updated" /src/mxfs/.claude/awareness/subsystems/pal.md; tail -12 /src/mxfs/.claude/awareness/subsystems/pal.md
+    sed -n '9,13p' /src/mxfs/.claude/awareness/subsystems/pal.md
+    python3 - <<'PYEOF' p='/src/mxfs/.claude/awareness/subsystems/pal.md' s=open(p).read() old="**Last updated**: 2026-08-01 (sess37, 0.11.313-317: put_super bast-a
+    for i in 1 2; do   R=$(timeout 350 tests/openunlink_deaths.sh unlinker_death test1 test2 2>&1 | grep -E "^RESULT")   INO=$(sed -n 's/.*ino=\([0-9]*\).*/\1/p' <<
+    tools/mxfs_sshpass.sh test1 "dmesg | grep -E 'P98-ORPHAN-ADOPT ino=537709|P89-REAP-DONE ino=537709'" 2>/dev/null for i in 3 4; do   R=$(timeout 350 tests/openun
+    grep -n -A10 "static bool hb_guard_stale" /src/mxfs/dlm/disklock.c; echo "=== what does pal_time_ms return:"; grep -rn -A8 "mxfs_pal_time_ms(void)" /src/mxfs/pa
+    grep -n "hb_guard_stale" /src/mxfs/dlm/disklock.c
+    python3 - <<'PYEOF' import re p='dlm/disklock.c' s=open(p).read()  # forward decl s = s.replace("static bool hb_guard_stale(const struct mxfs_disklock_heartbeat
+    echo "0.11.355" > VERSION && make modules 2>&1 | grep -E "error|undefined" | head -5; echo "BUILD_RC=$?"; modinfo mxfs.ko | grep srcversion
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)); defs=d['defects'] if isinstance(d,dict) and 'defec
+
+## Last text from previous session
+
+ load 19.7 gives 9 rounds and passes; load 24.2 gives 6 and fails. The margin over the floor is about one round while hypervisor contention moves it three to four.
+
+Board is green on 0.11.354 at both 32 and 8 nodes: 22 pass, 5 flaky-but-currently-passing, 0 failures, and the policy row correctly red at 11 open.
+pal.md updated. Criteria still NO — 11 OPEN. Next: pushing D-DESTAGE-TEAR toward closure, which needs repeated runs that actually produce the *torn* shape and converge. Running iterations on 354 and classifying each outcome:
+Iteration 2 produced the **torn shape** — the exact defect condition — and converged. Verifying the adopt actually reached a free, and gathering more torn samples:
+Iterations 3 and 4 both produced the torn shape and converged (adopt→free), and I confirmed the full chain on 537709. But before claiming that defect closed, I re-examined my own guard code against the clock lesson I documented earlier this session — and found a real bug I introduced:
+**Confirmed a real bug in code I shipped this session.** `mxfs_pal_time_ms()` is `ktime_get_boottime_ns()` — per-node uptime — so my `hb_guard_stale()` compares the *reader's* uptime against the *writer's*. With different uptimes (the normal case) a fresh guard reads as stale, which defeats the entire exclusion the guard exists to provide. This is the exact trap I documented for `hb_live_count.sh` and then failed to apply to my own kernel code. Fixing it with change-detection instead of clock arithmetic:
+Now updating the three call sites — the claim paths must never judge a guard, only skip it:
+Wrapping up this sub-step cleanly — finishing the remaining call site, wiring guard refresh, and confirming it builds:
+The guard holder must now re-stamp while sweeping, so abandonment is detectable. Wiring that into the sweep loop and building:
+**Criteria: NO — not production ready. 11 defects OPEN** in the RULE-6 ledger.
+
+Where things stand at this relay boundary:
+
+**Closed one defect properly.** 0.11.354 fixes the failed unmount flush — `xfs_shutdown_devices()` issues an unconditional cache flush that was running *after* the SCSI-PR unregister, so every clean unmount of a PR-protected LUN ended in a rejected command. Moving the unregister after it verified clean: 24 unmount cycles, zero failed I/Os. Board is green on 354 at both 32 and 8 nodes.
+
+**Fixed the gate that measures readiness.** `open_defects` counted anything not literally `RESOLVED` as unresolved, so it reported 26 open when 11 were. Corrected in both code paths, with unrecognized statuses still counting as OPEN so nothing closes by typo.
+
+**Caught a real bug in my own fix before claiming it worked.** The recovery guard I added earlier this session judged staleness by subtracting a record's timestamp from `mxfs_pal_time_ms()` — which is per-node *uptime*, not wall clock. Across nodes with different uptimes a perfectly fresh guard reads as hours stale, meaning the cluster-visible exclusion was never actually in force on 353/354. It's the same trap I had documented for the heartbeat probe hours earlier and then failed to apply to my own kernel code. 0.11.355 replaces the clock arithmetic with change-detection, makes the claim paths skip guards outright rather than judge them, and refreshes the guard per-AG so a live sweeper is visibly distinguishable from a dead one. **It builds but is not deployed or verified** — that's the first task for the next session, and I've said so in the ledger rather than counting it as done.
+
+**Progress on the orphan defect, not closure.** On 354 at 32 nodes, four death iterations produced three genuinely torn shapes and all three converged adopt→free, with the chain confirmed end-to-end on one inode; plus 4/4 on the earlier build. Zero leaks. But closure stays blocked on verifying 355 and on building the joiner-vs-guard race arm, both recorded explicitly.
+
+The rig is on 354 with all 32 nodes mounted; the tree is at 355, so the next session must deploy before running anything.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1404,6 +1404,13 @@ xfs_dir2_sf_to_block(
 		}
 	}
 
+	/* ccloop c7ee71c6 sess20 (P185): the conversion is irreversible — audit
+	 * the in-core shortform base against the platter image RIGHT HERE, so a
+	 * peer name that is durable on disk but absent from the set we are about
+	 * to freeze is named at the instant it is lost.  One sector read per
+	 * LOCAL->BLOCK transition; see mxfs_sfconv_disk_check. */
+	mxfs_sfconv_disk_check(dp);
+
 	ASSERT(ifp->if_format == XFS_DINODE_FMT_LOCAL);
 	ASSERT(dp->i_disk_size >= offsetof(struct xfs_dir2_sf_hdr, parent));
 

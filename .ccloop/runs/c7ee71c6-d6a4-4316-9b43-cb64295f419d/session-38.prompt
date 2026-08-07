@@ -1,0 +1,216 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 38 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 37
+
+## Original task
+
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
+
+
+## Previous session
+
+- session-id: `94122397-ec06-4836-88bf-58f57e768189`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/94122397-ec06-4836-88bf-58f57e768189.jsonl`
+- approx context at last assistant turn: 146614 tokens
+- tools used: Bash×38 Read×6 mcp__ccmemory__memory_get×3 Edit×2 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_log_recover.c
+- /src/mxfs/tests/foreign_replay_ab.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sudo journalctl -k --since "2026-08-03 10:59:50" --until "2026-08-03 11:00:06" --no-pager 2>&1 | grep -iE "scst|error|fail|iscsi|vdisk" | head -60
+    sudo journalctl -k --since "2026-08-03 11:00:03" --until "2026-08-03 11:00:08" --no-pager 2>&1 | grep -viE "cmd_thread|scstd[0-9]+" | head -40
+    sudo journalctl -k --since "2026-08-03 11:00:04" --until "2026-08-03 11:00:07" --no-pager 2>&1 | grep -viE "cmd_thread|scstd[0-9]+ (started|finished)" | grep -i
+    echo "=== scst.conf devices ==="; sudo grep -nE "filename|DEVICE |^\s*device |HANDLER" /etc/scst.conf 2>&1 | head -40; echo; echo "=== backing files ==="; ls -l
+    sudo cat /etc/scst.conf 2>&1 | head -80; echo "=== conf size ==="; sudo wc -l /etc/scst.conf
+    grep -rln "disk-1.img" scripts/ tools/ tests/ *.sh docs/ 2>/dev/null | head -20; echo "=== hits ==="; grep -rn "disk-1.img" scripts/ tools/ *.sh docs/ 2>/dev/nu
+    ls -la /home/steve/ 2>&1 | head -40; echo "=== large files under /home/steve ==="; sudo du -h --max-depth=1 /home/steve 2>/dev/null | sort -h | tail -12
+    grep -nE "disk-1|disk\.img|scst|truncate|fallocate|dd if" /home/steve/.bash_history 2>/dev/null | tail -40
+    tail -30 /home/steve/.bash_history 2>/dev/null; echo "=== disk.img header ==="; sudo head -c 4096 /home/steve/disk.img | xxd | head -8; echo "=== is it all zero
+    sed -n '1,70p' scripts/scst_setup.sh
+    timeout 180 sudo bash scripts/scst_setup.sh setup 2>&1 | tail -30
+    MXFS_FORCE_PREP=1 timeout 480 ./run.sh 32 caw prep_cluster 2>&1 | tail -25
+    sed -n '1,60p' scripts/mpath_up.sh 2>/dev/null; echo "=== rig.sh head ==="; sed -n '1,50p' scripts/rig.sh
+    ls -la /tmp/.mxfs_pass ~/.config/mxfslab/secrets 2>&1; echo "=== sshpass helper resolve ==="; timeout 20 tools/mxfs_sshpass.sh test1 "hostname; ls -l /dev/mappe
+    timeout 570 sudo -E bash scripts/mpath_up.sh up 32 2>&1 | tail -40
+    MXFS_FORCE_PREP=1 timeout 420 ./run.sh 32 caw prep_cluster 2>&1 | tail -20
+    timeout 480 tests/foreign_replay_ab.sh 32 9 0 2>&1 | tail -40
+    grep -E "P227-TOKEN|P227-FR-ATOMIC|foreign replay" /tmp/tmp.gAUXo26ONX/replayer.log 2>&1 | head -20
+    timeout 20 tools/mxfs_sshpass.sh test1 "dmesg | grep -iE 'agcount|allocation group' | head -3; echo ---; cat /sys/fs/xfs/*/stats/stats 2>/dev/null | head -0; gr
+    timeout 90 tools/chk_mxfs -v /home/steve/disk.img 2>&1 | grep -iE "agcount|agblocks|blocksize|isize|dblocks" | head -10
+
+## Last text from previous session
+
+the required memory listing.
+Step 3a is in the tree and verified. Resuming at **step 3b** — the report-only authority parser in recovery. Let me implement it.
+SCST is down — `/etc/scst.conf` (the systemd unit's config) points at a deleted backing file `/home/steve/disk-1.img`, but the 32-node rig uses `scripts/scst_setup.sh` with `/home/steve/disk.img` (present, MXFS envelope intact). Bringing the target up the rig's way.
+Rig restored (host reboot had left SCST down). Now deploying 0.11.398.
+Fleet on `75912159E01100C0AAF4769` (0.11.398). Now the step-3b verification — live foreign replay with a real node kill.
+Tokens round-trip correctly. Let me verify the resource field is a sane AG number.
+Step 3b verified. The three tokened images are AG 18's AGF + bnobt + cntbt roots (daddr 37678033/40/48 → fsblocks 4709754+0/1/2; agcount=50, agblocks=261653 → AG 18 exactly), `owner_slot=18` matching the replay banner's "dead slot 18" independently. Let me record it and examine the step-4 ordering hazard.
+Reached the relay boundary — wrapping up here.
+
+## What this session did
+
+**Resumed the D-FOREIGN-REPLAY-UNGATED-IMAGES authority-token campaign at step 3b and shipped it — 0.11.398, build `75912159E01100C0AAF4769`.**
+
+### Rig recovery (unplanned, cost 3 attempts)
+clyde had rebooted; `prep_cluster` mass-power-cycled all 32 nodes and failed with `/dev/mapper/mpatha never appeared`. Root cause was host-side, not MXFS: `scst.service` failed at boot because `/etc/scst.conf` still names the long-deleted `/home/steve/disk-1.img` (`vdisk_get_file_size: opening ... failed: -2`). The 32-node CAW rig doesn't use that unit — `scripts/scst_setup.sh` + `scripts/mpath_up.sh up 32` restored it (32/32 two-path mpatha, prep 76s). Recorded as `rig-recovery-after-clyde-reboot-scst-mpath` so the next session doesn't re-derive it.
+
+### Step 3b — recovery-side authority parser (report-only)
+`xfs/xfs_log_recover.c`: added `mxfs_blf_parse_authority()` (recomputes the trailer offset from `blf_map_size` — never a stored offset; NULL = fail closed) and `mxfs_report_replay_authority()`, called at the top of `xlog_recover_items_pass2` under untrusted replay, **independent of the apply knob** so both A/B arms report. It decides nothing — the ATOMIC-SKIP and P223 gates are byte-identical. `tests/foreign_replay_ab.sh` now harvests the new counters.
+
+### Verified live, not just built
+`tests/foreign_replay_ab.sh 32 9 0` — real `virsh destroy` of test9, foreign replay elected on test1 at t+77s:
+
+```
+P227-TOKEN blkno=37678033 len=1 class=1 res=18 epoch=1 slot=18 boot=0
+P227-TOKEN blkno=37678048 len=8 class=1 res=18 epoch=1 slot=18 boot=0
+P227-TOKEN blkno=37678040 len=8 class=1 res=18 epoch=1 slot=18 boot=0
+P227-TOKENSUM buf_items=3 tokened=3 ag=3 sb=0 classless=0 untagged=0
+```
+
+Two independent corroborations, not self-consistency: the agno is arithmetically correct (agcount=50, agblocks=261653 → AG 18 starts at daddr 37678032; the three images are its AGF, bnobt root, cntbt root), and `owner_slot=18` matches the "dead slot 18" the replay banner reports separately. `untagged=0` — no emission coverage hole on this path.
+
+That transaction was ATOMIC-SKIPped **despite all three of its buffer images being authorized** (43 items; the taint scan trips on item *type*). That is exactly the case step 5 converts to APPLY.
+
+## Criteria: NO
+
+11 open defects of 39, 4 critical. `D-FOREIGN-REPLAY-UNGATED-IMAGES` remains OPEN — step 3b is diagnostic plumbing, it changes no apply/skip decision. Next is **step 4** (recovery descriptor + `IMAGE_REPLAY_DONE` + victim-slot freeze; `mxfs_dlm_caw_purge_node` at `dlm/v5_mount.c:1197/1274` must not clear victim EX bits before DONE), then step 5's gate swap. One caveat recorded for that work: this workload left only **one** dirty foreign transaction with buffer items, so step 5's A/B needs a victim killed mid-flight without syncfs, or the gate will look verified on a single sample. RULE 5 consult on the step-4 ordering is the recommended first move.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
+
+---
+
+## Current project state
+
+Generated at the start of THIS session by the project's state hook:
+`/src/mxfs/.ccloop/state.sh`
+
+Everything above describes what PREVIOUS sessions did. This section
+describes the project as it is RIGHT NOW, and supersedes anything above
+that conflicts with it.
+
+### Build
+tree VERSION **0.11.398**  |  mxfs.ko srcversion `75912159E01100C0AAF4769`  |  last rig run: 32 nodes / caw @ 2026-08-03T12:47:05Z
+
+The srcversion above is what THIS TREE builds, not necessarily what the
+fleet is running. Confirm deployment before trusting a measurement.
+
+### Board — last conditions (32/caw)
+26 PASS, 2 not-passing, 28 applicable
+not passing:
+  - dir_reuse_coherency [FAIL] nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=32.60
+  - open_defects [FAIL] open=12 of=37 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CR
+
+`open_defects` is a POLICY cell: red BY DESIGN under RULE 6 while the
+ledger below is non-empty. It is not a regression and not a test fault.
+`NO_TERMINAL_RECORD` means the harness captured no verdict — that is a
+capture failure, NOT a filesystem fault. Do not diagnose the FS from it.
+
+### RULE 6 ledger — open defects, severity order
+11 open of 39 ledgered — 4 critical. Work these in order unless you state why not.
+
+1. [critical] D-FOREIGN-REPLAY-UNGATED-IMAGES
+   next: Design ATOMIC foreign replay: a transaction whose buffer images cannot be safely applied must not apply ANY of its items (or all images must carry the cross-slice authority tag at commit tim
+2. [critical] D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY
+   next: 1) 369 knob=1 full board + knob=0 regression board. 2) Soak knob=1 (rsync laps + boards). 3) Slot-occupancy telemetry (bit-only slots unreclaimable — GPT liveness note). 4) GPT items 2-4. 5)
+3. [critical] D-CROSSNODE-OPEN-UNLINK-DATA-LOSS
+4. [critical] D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361
+   next: 1) Ship containment+telemetry build: full-target pre-dirty revalidate (-ESTALE restart / src -ENOENT), P217-RENAME-DIRTYCANCEL helper-failure probe at out_trans_cancel (error, XFS_TRANS_DIRT
+5. [high] D-DIRVIEW-NONCONVERGE-SESS25
+   next: Reproduce pressure: aged-mount dirent_durability laps at 32/caw while one node is denied the dir EX handoffs (readdir-only role). If a next occurrence fires: capture the stale node's i_dlm_d
+6. [major] D-32NODE-SHARED-DIR-CREATE-PACE
+   next: (1) Re-run the pace baseline on a QUIESCED host (no game server) to get the true build capability; every pace measurement must now carry its hostload= stamp. (2) The FS-side target is turns-
+7. [major] D-READDIR-PEER-CACHED-DIR-PACE
+8. [major] D-CRASH-CONSISTENCY-32-NOTERMINAL-354
+   next: Instrument for the next occurrence rather than hunt blind: (1) crash_consistency should emit per-phase kmsg markers like dir_reuse's DRCph so a NO_TERMINAL_RECORD says WHERE all 32 nodes wer
+9. [minor] D-MATRIX-UNMEASURED
+10. [minor] D-RELOAD-FREED-ADOPT-BOGUS-IMODE
+   next: 0.11.357 guards the rewire with i_mode != 0 (freed-shell adopt keeps prior self-consistent ops; a later resurrecting reload still rewires since old_ifmt is captured per-reload). Verify: reru
+11. [unset] D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+   next: Reproduce with AGED fs: at grace=10, run board-chunk (dir_reuse x2 + cache_coherency + crash_consistency + rsync_paired) THEN dirent_durability loops, instr ON only from the dirent phase (av
+
+RULE 6: an entry closes ONLY as DISPROVED or FIXED AND VERIFIED. 'Cannot reproduce', a clean run, or a workaround are NOT dispositions. Full evidence per defect: tests/criteria/OPEN_DEFECTS.json (325KB — read the ONE entry you are working, never the whole file).
+
+### Most recently shipped
+- 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log
+- 0.11.396 (sess48) — 2026-08-03 — token campaign step 2a: grantee epoch plumbing
+- 0.11.395 (sess48) — 2026-08-03 — foreign-replay token campaign step 1: ex_grant_epoch
+
+### Before you measure anything
+- RULE 0 budgets (a timeout IS a failure): `tests/criteria/TIMEOUT_BUDGETS.md`
+- Deploy the fleet: `MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster` (72-137s).
+  A module reload RESETS runtime knobs.
+- Board a criterion: `./run.sh <nodes> <dlm> <test>`; read it with `./showstat.sh`.
+- Phase walls: `dmesg | grep mxfs-CCph` (crash) / `mxfs-DRCph` (dir_reuse).
+- Use MXFS tools on MXFS devices (`tools/chk_mxfs -v`), never xfs_db/xfs_info —
+  the on-disk envelope offsets them and they return garbage.

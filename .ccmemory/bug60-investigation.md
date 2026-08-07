@@ -1,3 +1,10 @@
+---
+name: bug60-investigation
+description: Bug 60/61 investigation: 4-node concurrent metadata fixes.
+metadata:
+  type: project
+---
+
 # Bug 60/61 Investigation: 4-Node Concurrent Metadata Fixes
 
 ## Status: FIXED

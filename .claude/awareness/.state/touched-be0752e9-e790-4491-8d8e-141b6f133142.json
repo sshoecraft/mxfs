@@ -1,0 +1,15 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_file.c",
+    "xfs/xfs_inode.h",
+    "tests/refleak_analyze.py",
+    "pal/linux/xfs_aops.c",
+    "pal/linux/xfs_buf.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

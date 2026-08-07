@@ -1,0 +1,103 @@
+// offsets.bt — dump 6.8 struct offsets from vmlinux BTF for the kcore walker.
+// Read-only; prints and exits. Run: sudo bpftrace offsets.bt
+BEGIN
+{
+    printf("SZ request %d\n", (int32)sizeof(struct request));
+    printf("SZ loop_cmd %d\n", (int32)sizeof(struct loop_cmd));
+    printf("SZ worker %d\n", (int32)sizeof(struct worker));
+    printf("SZ worker_pool %d\n", (int32)sizeof(struct worker_pool));
+
+    printf("OFF loop_device lo_state %d\n", (int32)offsetof(struct loop_device, lo_state));
+    printf("OFF loop_device lo_backing_file %d\n", (int32)offsetof(struct loop_device, lo_backing_file));
+    printf("OFF loop_device workqueue %d\n", (int32)offsetof(struct loop_device, workqueue));
+    printf("OFF loop_device rootcg_work %d\n", (int32)offsetof(struct loop_device, rootcg_work));
+    printf("OFF loop_device rootcg_cmd_list %d\n", (int32)offsetof(struct loop_device, rootcg_cmd_list));
+    printf("OFF loop_device idle_worker_list %d\n", (int32)offsetof(struct loop_device, idle_worker_list));
+    printf("OFF loop_device worker_tree %d\n", (int32)offsetof(struct loop_device, worker_tree));
+    printf("OFF loop_device lo_work_lock %d\n", (int32)offsetof(struct loop_device, lo_work_lock));
+    printf("OFF loop_device lo_queue %d\n", (int32)offsetof(struct loop_device, lo_queue));
+
+    printf("OFF loop_worker rb_node %d\n", (int32)offsetof(struct loop_worker, rb_node));
+    printf("OFF loop_worker work %d\n", (int32)offsetof(struct loop_worker, work));
+    printf("OFF loop_worker cmd_list %d\n", (int32)offsetof(struct loop_worker, cmd_list));
+    printf("OFF loop_worker blkcg_css %d\n", (int32)offsetof(struct loop_worker, blkcg_css));
+    printf("OFF loop_worker last_ran_at %d\n", (int32)offsetof(struct loop_worker, last_ran_at));
+
+    printf("OFF loop_cmd list_entry %d\n", (int32)offsetof(struct loop_cmd, list_entry));
+    printf("OFF loop_cmd blkcg_css %d\n", (int32)offsetof(struct loop_cmd, blkcg_css));
+    printf("OFF loop_cmd use_aio %d\n", (int32)offsetof(struct loop_cmd, use_aio));
+    printf("OFF loop_cmd ret %d\n", (int32)offsetof(struct loop_cmd, ret));
+
+    printf("OFF work_struct data %d\n", (int32)offsetof(struct work_struct, data));
+    printf("OFF work_struct entry %d\n", (int32)offsetof(struct work_struct, entry));
+    printf("OFF work_struct func %d\n", (int32)offsetof(struct work_struct, func));
+
+    printf("OFF workqueue_struct pwqs %d\n", (int32)offsetof(struct workqueue_struct, pwqs));
+    printf("OFF workqueue_struct name %d\n", (int32)offsetof(struct workqueue_struct, name));
+    printf("OFF workqueue_struct flags %d\n", (int32)offsetof(struct workqueue_struct, flags));
+
+    printf("OFF pool_workqueue pool %d\n", (int32)offsetof(struct pool_workqueue, pool));
+    printf("OFF pool_workqueue wq %d\n", (int32)offsetof(struct pool_workqueue, wq));
+    printf("OFF pool_workqueue pwqs_node %d\n", (int32)offsetof(struct pool_workqueue, pwqs_node));
+    printf("OFF pool_workqueue inactive_works %d\n", (int32)offsetof(struct pool_workqueue, inactive_works));
+
+    printf("OFF worker_pool lock %d\n", (int32)offsetof(struct worker_pool, lock));
+    printf("OFF worker_pool cpu %d\n", (int32)offsetof(struct worker_pool, cpu));
+    printf("OFF worker_pool node %d\n", (int32)offsetof(struct worker_pool, node));
+    printf("OFF worker_pool id %d\n", (int32)offsetof(struct worker_pool, id));
+    printf("OFF worker_pool worklist %d\n", (int32)offsetof(struct worker_pool, worklist));
+    printf("OFF worker_pool nr_workers %d\n", (int32)offsetof(struct worker_pool, nr_workers));
+    printf("OFF worker_pool nr_idle %d\n", (int32)offsetof(struct worker_pool, nr_idle));
+    printf("OFF worker_pool idle_list %d\n", (int32)offsetof(struct worker_pool, idle_list));
+    printf("OFF worker_pool busy_hash %d\n", (int32)offsetof(struct worker_pool, busy_hash));
+    printf("OFF worker_pool nr_running %d\n", (int32)offsetof(struct worker_pool, nr_running));
+    printf("OFF worker_pool workers %d\n", (int32)offsetof(struct worker_pool, workers));
+
+    printf("OFF worker entry %d\n", (int32)offsetof(struct worker, entry));
+    printf("OFF worker hentry %d\n", (int32)offsetof(struct worker, hentry));
+    printf("OFF worker current_work %d\n", (int32)offsetof(struct worker, current_work));
+    printf("OFF worker current_func %d\n", (int32)offsetof(struct worker, current_func));
+    printf("OFF worker current_pwq %d\n", (int32)offsetof(struct worker, current_pwq));
+    printf("OFF worker scheduled %d\n", (int32)offsetof(struct worker, scheduled));
+    printf("OFF worker task %d\n", (int32)offsetof(struct worker, task));
+    printf("OFF worker pool %d\n", (int32)offsetof(struct worker, pool));
+    printf("OFF worker node %d\n", (int32)offsetof(struct worker, node));
+    printf("OFF worker id %d\n", (int32)offsetof(struct worker, id));
+    printf("OFF worker flags %d\n", (int32)offsetof(struct worker, flags));
+
+    printf("OFF request tag %d\n", (int32)offsetof(struct request, tag));
+    printf("OFF request state %d\n", (int32)offsetof(struct request, state));
+    printf("OFF request cmd_flags %d\n", (int32)offsetof(struct request, cmd_flags));
+    printf("OFF request rq_flags %d\n", (int32)offsetof(struct request, rq_flags));
+    printf("OFF request queuelist %d\n", (int32)offsetof(struct request, queuelist));
+    printf("OFF request end_io %d\n", (int32)offsetof(struct request, end_io));
+    printf("OFF request flush %d\n", (int32)offsetof(struct request, flush));
+    printf("OFF request bio %d\n", (int32)offsetof(struct request, bio));
+    printf("OFF request q %d\n", (int32)offsetof(struct request, q));
+    printf("OFF request mq_hctx %d\n", (int32)offsetof(struct request, mq_hctx));
+    printf("OFF request ref %d\n", (int32)offsetof(struct request, ref));
+
+    printf("OFF blk_mq_hw_ctx fq %d\n", (int32)offsetof(struct blk_mq_hw_ctx, fq));
+    printf("OFF blk_mq_hw_ctx queue %d\n", (int32)offsetof(struct blk_mq_hw_ctx, queue));
+    printf("OFF blk_mq_hw_ctx queue_num %d\n", (int32)offsetof(struct blk_mq_hw_ctx, queue_num));
+
+    printf("OFF blk_flush_queue rq_status %d\n", (int32)offsetof(struct blk_flush_queue, rq_status));
+    printf("OFF blk_flush_queue flush_pending_since %d\n", (int32)offsetof(struct blk_flush_queue, flush_pending_since));
+    printf("OFF blk_flush_queue flush_queue %d\n", (int32)offsetof(struct blk_flush_queue, flush_queue));
+    printf("OFF blk_flush_queue flush_data_in_flight %d\n", (int32)offsetof(struct blk_flush_queue, flush_data_in_flight));
+    printf("OFF blk_flush_queue flush_rq %d\n", (int32)offsetof(struct blk_flush_queue, flush_rq));
+
+    printf("OFF request_queue hctx_table %d\n", (int32)offsetof(struct request_queue, hctx_table));
+    printf("OFF request_queue disk %d\n", (int32)offsetof(struct request_queue, disk));
+    printf("OFF gendisk private_data %d\n", (int32)offsetof(struct gendisk, private_data));
+    printf("OFF gendisk disk_name %d\n", (int32)offsetof(struct gendisk, disk_name));
+    printf("OFF gendisk queue %d\n", (int32)offsetof(struct gendisk, queue));
+
+    printf("OFF task_struct comm %d\n", (int32)offsetof(struct task_struct, comm));
+    printf("OFF task_struct pid %d\n", (int32)offsetof(struct task_struct, pid));
+    printf("OFF task_struct __state %d\n", (int32)offsetof(struct task_struct, __state));
+    printf("OFF task_struct exit_state %d\n", (int32)offsetof(struct task_struct, exit_state));
+    printf("OFF task_struct flags %d\n", (int32)offsetof(struct task_struct, flags));
+
+    exit();
+}

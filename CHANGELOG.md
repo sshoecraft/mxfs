@@ -1,3 +1,1741 @@
+## 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log
+
+- `XFS_BLF_MXFS_AUTHORITY (1<<5)` + 24-byte big-endian `struct
+  mxfs_blf_authority` {version, class, resource, grant_epoch, owner_slot,
+  owner_boot} in xfs_log_format.h (classes NONE/AG/SB; bits 5-10 were
+  free, 11-15 are BLFT).
+- Writer in pal/linux/xfs_buf_item.c: every multi-node, non-stale buf
+  format region emits the trailer in the SAME region after the dirty map
+  (local blf+token buffer → one xlog_format_copy of base_size+24; the
+  returned-pointer blf_size mutations preserved).  Size side reserves the
+  identical 24 bytes via the shared pure predicate
+  mxfs_buf_item_wants_authority — the estimate and emission can never
+  disagree (CIL shadow-buffer overrun class).  Content captured at CIL
+  format time per the step-2b ruling: daddr→agno→pag_mxfs_grant_epoch
+  (class AG), xfs_sb_buf_ops → class SB, epoch 0/unclassifiable → class
+  NONE (fail closed at the future gate).  Stale/cancel segments stay
+  untokenized.
+- Passive: recovery's only format-region check (xfs_buf_log_check_iovec)
+  is bitmap-bounds, so the trailer is invisible until the step-3b parser.
+  Verified live: guards + matrix 9/9 + rsync lap + **crash_consistency
+  204/204** (real dirty-log replay of tokened records) all clean on the
+  32-node fleet.
+
+## 0.11.396 (sess48) — 2026-08-03 — token campaign step 2a: grantee epoch plumbing
+
+- `mxfs_dlm_caw_read_ex_grant_epoch` (dlm_caw.c, clone of the sess19
+  read_generation idiom) + v5 wrapper `mxfs_v5_dlm_ag_grant_epoch`
+  (CAW only; TCP -ENODEV = fail closed).  The fresh AG EX acquire path in
+  xfs_mxfs_dlm.c (the sess19b post-grant slot-read block, slot-stable /
+  pre-pag_dlm_lock window) reads the epoch its granting CAS stamped into
+  the new `pag->pag_mxfs_grant_epoch` (xfs_ag.h — the durable counterpart
+  of the in-memory ag_dlm_tenure_id; 0 = no authority, token writers must
+  fail closed).  Deployed fleet-wide; guards + matrix + soak cycle clean.
+
+## 0.11.395 (sess48) — 2026-08-03 — foreign-replay token campaign step 1: ex_grant_epoch
+
+- New on-disk field `ex_grant_epoch` in `struct mxfs_caw_lock_slot` (8 of
+  the 352 reserved bytes; 512-byte layout + _Static_assert intact): the
+  generation of the CAS that granted the current exclusive-class (EX/PW)
+  holder.  Stamped inside `caw_grant_epoch_update` — the single helper
+  every grant path already calls after its generation bump (initial
+  acquire, waiter promote, convert-upgrade, batch, claim-recycle) — so it
+  is durable before the grantee can touch covered metadata and unique per
+  acquisition (unlike dir_epoch, which moves only on cross-node handoff).
+  0 = no-authority sentinel (fresh slots pre-grant, tombstones, repaired
+  slots — repair deliberately does NOT carry it forward: unknown EX
+  history must fail closed at replay).  At fencing, the frozen slot (dead
+  node's EX bit + this epoch) becomes the held-at-death authority
+  manifest for the foreign-replay token gate (GPT-ruled design; see
+  ccmemory sess48-GPT-ruling-foreign-replay-token-design).  Passive until
+  the replay gate lands — no behavior change; deployed fleet-wide, guards
+  clean (matrix 9/9, reap CLEAN), first soak cycle clean.
+
+## 0.11.387-394 (sess48) — 2026-08-03 — P53 fossil family: media-vs-transit decided, two roots proven and fixed
+
+- 387-388 (instrumentation): in-kernel media-vs-transit discriminator
+  P-IUNL-DISCRIM at every store-overlay mismatch — after the store lock
+  drops, A/B-read the cluster sectors PLAIN (target-cache-coherent view)
+  and SCSI-FUA (media view), decode the same slot, print img/committed/
+  plain/fua + wr_epoch.  All specimens: WRITE-NOWHERE-IN-TARGET with
+  wr_epoch STAMPED — the covering cluster write completed but CARRIED THE
+  FOSSIL; the LIO transit/FUA-read-path theory is dead (candidate fix F
+  plain-bio-in-window would have done nothing).
+- 389-390 (A-prime v4): install site 4 = WRITE side — overlay committed
+  iunlink values onto the outgoing inode-cluster payload in xfs_buf_submit
+  before xfs_buf_verify_write (P-IUNLSTORE-WRSITE names the dirty
+  pipeline); retire is now payload-verified (stamp wr_epoch only when the
+  completed write actually carried the record's value; same-gen value
+  mismatch = P-IUNLSTORE-FOSSILWR alarm; different-gen slot also retires).
+- 391 (ROOT #1 FIXED): the in-core fossil reverter = the
+  mxfs_iflush_cluster_merge_dirs bli_dirty save/restore of
+  di_next_unlinked — buffer-level flag skips exactly when the iunlink
+  write was checkpointed (BLI detached), installing the platter's
+  pre-write chain value in-core; xfsaild then destaged the fossil (the
+  390-c1 WRSITE bli=0 comm=xfsaild specimens).  It also restored without
+  a CRC recompute (nu IS inside the di_crc region) and could revert a
+  FOREIGN slot's fresher disk value.  Both memcpy arms fixed: restore
+  removed, replaced by install site 5 = one store overlay after the merge
+  loop.  Discrim FUA leg gated off under mxfs_fua_disable (sess113
+  forced-FUA-under-buffer-lock wedge vector; plain-only verdicts).
+- 392 (A-prime v5, GPT-ruled): records are AG-TENURE-SCOPED — (ino,gen)
+  is unsound cross-tenure (nu carries no ordering; a stale record can
+  graft an abandoned past over a peer's newer same-gen chain value — the
+  391-c3 inverted-P53 autopsy).  mxfs_iunl_store_purge_ag before all four
+  mxfs_v5_dlm_ag_unlock sites (RELLEAK = unhomed record at a post-drain
+  release = drain-gap alarm); overlay refuses to graft against a LIVE
+  in-core inode whose i_next_unlinked disagrees (P-IUNLSTORE-LIVESKEW;
+  icache peek is coherent — all nu writers and overlay sites hold the
+  cluster buffer lock).
+- 393 (diagnostics): P-IUNLSTORE-QUERY store dump at every P53;
+  AGPURGE-ALIVE proof-of-life; tests/iunl_soak_sweep.sh marked per-cycle
+  fleet sweep (dmesg persists across preps — raw greps count prior
+  builds).
+- 394 (ROOT #2 FIXED): the fossil nu SURVIVES INODE REUSE — a lost
+  remove leaves the dead chain value on the platter; reuse-create stamps
+  a NEW di_gen around it at iflush (which never writes nu), blinding
+  every gen-keyed defense (GENSKEW keep-and-skip, gen-scoped records);
+  the next unlink of the reused ino trips P53 → EFSCORRUPTED shutdown
+  (392-c2 and 393-c3 fatals, both decoded via QUERY=NO-RECORD +
+  the RELLEAK record naming the exact fossil value).  Fix: P-CREATE-NUFIX
+  in xfs_inode_init — a just-allocated ino provably cannot be on any
+  unlinked list, so a non-NULLAGINO dinode nu is a fossil by proof;
+  cleared + CRC + 4-byte buffer log inside the create transaction.
+  First soak cycle: 61 fossils healed on the hot node, fleet clean.
+- Soak state at close: 394 c1-c2 clean (laps 32/32, matrix 9/9, reap
+  guard clean, relleak=0 mid-run, liveskew=0, wrsite=0, fossilwr=0);
+  c3 interrupted by host-side co-tenant load waves (80-190), not an
+  mxfs defect; multi-cycle P53-zero soak continues.
+- Rig note: 393-c1 saw 5 nodes hard-hang then receive external NMI
+  injections (unattributed; concurrent claude sessions on the host are
+  the suspect) → panic/reboot → heartbeat fencing cascade; wedge stacks
+  lost to the reboots.  All 32 nodes re-armed with kernel.sysrq=1 for
+  next-time stack capture.
+
+## 0.11.373 (sess46) — 2026-08-02 — NEW OPEN D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372 + probe completion
+
+- NEW CRITICAL (OPEN): during an openunlink_matrix at SHIP config (knob=0,
+  fresh mkfs, 0.11.372) test2's inactivation hit xfs_ifree rc=-117
+  (EFSCORRUPTED) → 0x1 shutdown → withdrawal; later cases' rm EIO'd as
+  fallout (multi_opener/mmap_only rows).  One occurrence; three targeted
+  repro attempts clean (fresh-prep matrix; aged rsync-lap→matrix;
+  crash-killed-mid-flight→matrix).  Full evidence + protocol in the
+  ledger.  test2's dmesg ring was lost to re-preps before a full pull —
+  standing rule: full dmesg capture on the shutdown node BEFORE recovery.
+- Probe completion: the observed -117 printed NO P-DIFREE line, so the
+  last un-probed -EFSCORRUPTED exit under xfs_difree (finobt-getrec
+  i!=1) now prints P-DIFREE-CORRUPT site=finobt-getrec — every exit in
+  the difree family self-names on the next occurrence.
+- Ship-config verification on 372/373: matrix 9/9 (fresh prep), cache
+  654/654, zsl 644/644, dirent_durability 30r/0 loss, posix, mmap, fence,
+  drc 8-rounds PASS at load 23; rsync 6-test lap ×2 clean (P217=0 ×8 laps
+  total).
+
+## 0.11.370-372 (sess46) — 2026-08-02 — routed open-unlink: pace repair + admit hardening
+
+- 370→371: the B6 probe's bespoke per-slot fresh-read chain walk (paying
+  chain-length SERIAL sector reads per routed ifree, for bit-carrying
+  tombstones that provably cannot exist — every tombstone site gates on
+  open_holders==0, dedup merges before tombstoning, repair/claim now
+  preserve) collapsed dir_reuse round pace at knob=1 into iget-miss lookup
+  storms (creators' destages starved behind rm-rf ifree waves;
+  lookup_fail=103).  Probe rewritten find_slot-based (hint + span,
+  claim-identical rules; -ENOENT = authoritative absence).  open_clear's
+  chain-walk variant reverted to single-record find_slot for the same
+  reason (dup residual: crash mid-dedup strands a loser bit until fencing
+  — safe direction).  Dedup's loser-tombstone CAS now bumps generation.
+- 372: open-admit hardened — the fast path additionally requires the
+  INODE's grant to be cluster-backed (i_dlm_routed_iclus), closing the
+  neighbor's-cluster-grant hole (the cwr .md5 open fast-pathed on the
+  data file's live cluster grant while its own grant stayed local and its
+  dirty 33 bytes stayed outside the handoff drain).  Every open now
+  converts; local grants shrink to never-opened metadata-only inodes,
+  whose dinode bytes ride the cluster buffers make_durable drains — so the
+  368 covered_active/fan_out widenings (measured: handoff serialization,
+  no pace gain from reverting alone, but the selfclear starvation risk)
+  are REVERTED to sticky-keyed; the selfclear skip-ino fix stays.
+- Pace recalibration (ledger + memory): knob=1 dir_reuse has ZERO margin
+  against its 8-round floor even on 362 (58 checks = 8 rounds — 3/round +
+  fixed checks, NOT 58/3); crash-after-unlink-heavy-workload overruns come
+  from a ~100s post-workload interaction at knob=1, not a device backlog
+  (idle LUN baseline measured at ~30 iops/node = bast_poll + heartbeat).
+  Both are default-ON checklist items for the candidate config; ship
+  config (knob=0) code paths from sess46 all short-circuit on
+  mxfs_icluster_dlm==0.
+- tests/clean_load_run.sh: clean-host-load-window criteria runner (the
+  external game-server bursts cycle load 17→88; a one-shot pre-run load
+  gate races the next burst — rows must be judged only on runs whose
+  recorded hostload stamps stayed clean; a clean-window FAIL is real and
+  never retried away).
+
+## 0.11.364-369 (sess46) — 2026-08-02 — routed open-unlink: five defects burned down to matrix 9/9
+
+The 363 implementation failed openunlink_matrix 7/9 on the routed config;
+each failure was RULE-4 instrumented, rooted, and fixed one build at a time.
+All are icluster-config (knob=1) defects; knob=0 ship config untouched
+except where noted.
+
+- 364: P90 INTENT POISONING — the per-inode bast-release publish set
+  i_mxfs_open_pub=true for ROUTED inodes whose unlock rides iclus (which
+  ignores p_open_op); the release sweep then believed the bit durable and
+  skipped its SET; the cluster released with nothing on disk (basic DATA
+  LOST, defer=0, P90 fired + zero P-ICLUS-OPENSET).  P90 now excluded for
+  routed inodes.
+- 365: gate rekeyed from the sticky bit to the CONFIG predicate
+  (mxfs_dlm_iclus_covered) — a fresh create's first grant is a mode-0-era
+  per-inode grant (sticky lands on the NEXT acquire), so the sticky-bit
+  gate left exactly the just-created-then-rm'd files poisoned.
+- 366: P95-OPEN-STALE-INCARNATION — an open whose ilock-ride acquire
+  adopted a peer-freed image (P116-ZOMBIE-ADOPT, in-core mode 0) completed
+  and served the tombstone (reads returned '').  Now -ESTALE → VFS re-walk
+  → clean ENOENT.  Applies to all configs (P116 exists at knob=0 too).
+  openunlink_matrix hold_fd: pidfile-wait replaces sleep-1 so the matrix
+  deterministically tests its intended fd-held-BEFORE-rm ordering.
+- 367: SPLIT-BRAIN CLOSURE — a covered inode on a mode-0-era per-inode
+  LOCAL grant (no disk slot) satisfied C3's mode check while a peer's
+  routed rm acquired the CLUSTER resource nobody held: free with no BAST,
+  no sweep, no bit (P19-B3DEC will_skip=0 with zero opener-side
+  interaction).  mxfs_iclus_open_admit now refuses the fast path without a
+  live cluster grant (!ic ⇒ false), and the open_protect slow path forces
+  the conversion (P95-OPEN-CLUSTER-CONVERT: same-mode routed acquire =
+  iclus claim + sticky + conv_pi).  MATRIX 9/9 from this build on.
+- 368: local grants made first-class in the cluster protocol —
+  covered_active counts and fan_out arms covered REG inodes still on
+  LOCAL grants (config predicate; dirs stay excluded).  Root: cc `cwr`
+  1-of-654 flake — node11's fresh 33-byte .md5 (local-grant, dirty) was
+  invisible to the whole iclus release, so the cluster handed off before
+  its drain and 31 readers cold-read empty exp while agreeing on the data
+  file.  Structural, pre-existing at knob=1 since Phase A.
+- 369: 368's widening starved the -EDEADLK SELFCLEAR escape — the spinning
+  acquirer's OWN local grant (undemotable while it holds the ILOCK) kept
+  covered_active true; under a host load-63 burst two nodes exhausted
+  into 0x8 shutdowns.  The selfclear's covered_active now skips the
+  acquiring ino (its grant is what the acquire converts).  Verified: 369
+  rode out a load-79 burst with 32/32 mounted, zero shutdowns; matrix 9/9.
+
+## 0.11.363 (sess46) — 2026-08-02 — routed open-unlink protection (iclus + open_tracking coexist)
+
+- D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY campaign (GPT closure item 1 —
+  write-unit authority via ICLUSTER): the icluster_dlm=1 / open_tracking
+  mutual exclusion is LIFTED.  Routed files' open-holder bits are now
+  published per the GPT C9-ordering ruling (publication-before-release
+  replaces the per-inode release-CAS fold):
+  - mxfs_dlm_caw_open_set: durable standalone SET; allocates a live
+    bit-only slot when the routed resource has no record (claim discipline
+    verbatim from the lock claim: fresh compare read, live-magic → lost
+    race re-probe, same-resource tombstone inherit); concurrent fresh-claim
+    dups resolved by merge-to-canonical + tombstone-loser
+    (caw_open_set_dedup) so a knob=0 reboot can't inherit the sess47
+    two-EX-holders state.
+  - mxfs_iclus_disk_release: single choke point for the on-disk cluster
+    release (normal last-ref, BAST-notify immediate, -EDEADLK selfclear);
+    gates on mxfs_iclus_publish_open_bits — any covered routed inode with
+    protected activity gets a durable SET first; failure retains the grant
+    via the existing CAS-failure retry arm (fail closed).
+  - Admission gate (GPT soundness fix): mxfs_iclus_open_admit refuses the
+    C3 open-protect fast path while the cluster is mid-transition
+    (ic->busy) or disk grant gone; the slow path re-acquires through
+    mxfs_iclus_lock.  Closes the open-admitted-after-sweep race.
+  - close-during-SETTING race (GPT): i_mxfs_open_setting marker; C4's
+    last-close clear defers to the sweep's post-SET recheck, which clears
+    if activity died mid-SET (no permanent stale bit).
+  - Routed B6: mxfs_dlm_caw_open_probe — claim-less chain walk returning
+    GPT result classes (bits found across live/tombstone/dup records;
+    provable absence only on a clean walk to the zero terminator; garbage
+    or cap-hit → defer).  xfs_inactive's B6 guard routes covered inodes
+    through it; per-inode files keep the fail-closed slot read.
+  - Retention invariant (GPT (iii)): caw_repair_slot now preserves
+    open_holders (was memset-wiped — a live hole in shipped per-inode
+    tracking); caw_claim_inherit_epoch inherits tombstone-carried bits
+    (sess40 contract was half-implemented: saved, never restored);
+    bit-carrying foreign tombstone at a chosen claim insertion point is
+    resurrected live instead of wiped (P-OPENBITS-TOMB-RESURRECT), same in
+    open_set.
+  - open_clear: chain walk clearing this node's bit from EVERY
+    same-resource record (live, tombstone-carried, dup) — first-match-only
+    left dup/idle-gap bits deferring peers' reaps until fencing.
+  - Flipping icluster_dlm's DEFAULT remains a cluster protocol change that
+    must bump MXFS_PROTO_GEN (C7 heartbeat gate excludes mixed clusters);
+    knob=1 experiments are same-build by prep construction.
+
+## 0.11.362 (sess45) — 2026-08-02 — rsync rename mass-shutdown: containment + attribution kit
+
+- NEW CRITICAL D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361: 17/32 nodes
+  independently hit xfs_trans_cancel(DIRTY) Caller xfs_rename (0x8 shutdown +
+  withdrawal) inside rsync_paired; known stale-base dirent-erasure family; the
+  shipped pre-dirty revalidate guarded src always but target only for
+  RENAME_EXCHANGE — rsync's temp→existing-final rename was unguarded.
+- CONTAINMENT (GPT-ruled): full target-expectation preflight for non-exchange
+  renames, both polarities (known target vanished/retargeted; absent target
+  materialized), strictly pre-dirty (WARN_ON_ONCE + clean abort), returning
+  -ESTALE so do_renameat2's retry_estale re-walks both names and retries —
+  a vanished target degrades to a successful plain rename after restart, not
+  a shutdown and not user-ENOENT (P217-RENAME-TGT-PREFLIGHT).
+- ATTRIBUTION KIT: P217-RENAME-DIRTYCANCEL probe at the cancel label (errno,
+  dirty bit, names, pre/post src-dir image cookie iv/bytes/fmt/dgen/ve —
+  separates below-locks image swap from helper-order failures);
+  mxfs.reload_stamp_at_commit micro-revert lever restoring the pre-sess45
+  reload stamp TIMING (same values, commit point) for lap A/Bs of the
+  amplifier hypothesis without a binary rollback.
+
+## 0.11.361 (sess45) — 2026-08-02 — P195 Option B: adopt at EX acquire (GPT contract)
+
+- D-DIRENT-PUBLISH-STALE-BASE-P195-360 fix, per the gpt_ruling_sess44 contract:
+  new explicit `i_dlm_base_valid` bit for the dir-base coherence baseline pair
+  (valid_epoch, cached_grant_gen), knob `mxfs.dir_adopt_at_acquire` (default 1).
+  Gate at the dir-EX authorization boundary (fast-path cached serve): armed on
+  sentinel (bit unset) or epoch != (both directions; epoch query paid only on
+  the no-token leg), arming the SAME proven reload pipeline (P63/gg_refresh) at
+  post_release=true; gen movement is counted, not armed (sess63: gen-only
+  refresh resurrected deletes — release-time invalidation makes the gen leg
+  redundant per the contract's UNLESS clause).
+- Stamp discipline: the baseline is published ONLY at the reload's
+  install-complete point (after from_disk + type re-wiring + sf union-merge)
+  via mxfs_dir_base_stamp (WRITE_ONCE pair, smp_store_release valid), using the
+  PRE-read (epoch, gen) so mid-reload movement leaves the stamp behind and the
+  next authorization re-adopts.  Invalidation: release drain (bast_process, pre
+  wire-unlock — a same-epoch re-grant can never skip a needed adopt), reload
+  commit-to-adopt (aborted install stays invalid), phantom-EX bail, inode
+  init + BOTH create-reuse funnels (reset_inode_for_create/rearm_unpublished —
+  the reuse paths never reset the sess28 baseline quadruple; now they do,
+  knob-gated for A/B purity).
+- Creator publish stamp SUBORDINATED (contract item 6): with the knob on, a
+  self-created dir's first real EX grant always stamps through the helper
+  (closes the fresh-create window where the sentinel leg could adopt a
+  not-yet-destaged disk image over the live create); creator_baseline_stamp
+  stays as the gate-off A/B lever.
+- Fail-closed: a tenure that already mutated is never adopted over
+  (P216-B-DIRTY-SKIP + counter); P34J demote-wait bails leave the gate armed
+  (level-held retry, counted).  Per-reason counters in P6-DIRPATH stats dump
+  (P216-B-STATS).  P195 probe now prints bvalid.
+- Fixed three missing-braces bugs (indentation lied): the evict-path epoch
+  syncs (newtenure/tenure_evict) and the reload commit-point stamp all stamped
+  i_dlm_dir_valid_incarn UNCONDITIONALLY — converting "no baseline" into "live
+  baseline of 0" (permanently stale), the exact raw-compare feed of the
+  captured P195 hit.
+
+## harness (sess44) — 2026-08-02 — prep_fs refuses claimed devices; tcp rig unwired
+
+- tests/setup/prep_fs.sh now REFUSES to mkfs a device with /sys/block holders —
+  on the current rig the legacy tcp/cawp default /dev/sda enumerates as a PATH
+  MEMBER of the caw multipath map, and only multipathd's exclusive claim turned a
+  prep of the tcp condition into a lucky EBUSY instead of writing into a live
+  path of the shared caw LUN. Verified: 2/tcp prep now fails with the diagnosis.
+- Rig fact recorded in the ledger (D-MATRIX-UNMEASURED): the tcp condition has NO
+  wired disk on this fleet (no mxfs-shared in VM XML, no host device) — the tcp
+  matrix column is unrunnable until the rig is re-wired.
+
+## 0.11.360 (sess44) — 2026-08-02 — ifree revalidate: find the real bucket (strand root)
+
+- D-OUTAGE-REMOUNT-MUTUAL-IFREE-SKIP-STRAND root PROVEN + fixed: the revalidate's
+  bucket fallback agino%64 is an upstream-ism (MXFS parks unlink entries on the
+  UNLINKER'S SLOT bucket), so an adopted mirror (i_unlinked_bucket unset — the
+  post-outage reload shape) computed the wrong bucket, read it empty, and every
+  node skipped the free forever ("bucket-empty-peer-freeing" mutual skip). Now an
+  empty computed bucket triggers a 64-head scan for our agino: found => proceed on
+  the real bucket (P-IFR-BUCKET-MISMATCH logs the proof), not found => skip as
+  before. Proof run: computed=4 actual_head_at=1 then P82-REM bucket=1 rc=0, 30s
+  convergence; 3/3 outage-arm PASS. Board rerun on 360 pending for closure.
+
+## 0.11.359 (sess44) — 2026-08-02 — reap-work UAF fix shape — FIXED AND VERIFIED
+- CLOSED same session: deployed, mechanism proven live (the gate caught a recovery
+  batch re-arming the destroyed reap work during teardown: P89-REAP-SCHED-AFTER-
+  DESTROY (batch-complete)), then ~10 prep churn cycles + full 32/caw and 8/caw
+  boards (27/27 both) with ZERO new panic signatures fleet-wide (~8 expected at
+  the historical rate).
+
+- D-REAP-WORK-UAF-PANIC-AFTER-UNMOUNT (critical, NEW): 5 kernel GP-fault panics
+  captured on host serial logs ("Workqueue: events 0x<garbage>" — a work_struct
+  executed from freed mount memory), all within minutes of prep unmount/remount
+  churn, all silently self-healed by panic-reboot — the hidden cause behind the
+  frozen-HB-slot "departure wave", the "did not release mxfs" power-cycles, and
+  the mystery reboots. Mechanism (hypothesis with strong code+timing evidence):
+  m_mxfs_reap_work re-armed AFTER mxfs_defer_reap_destroy's cancel by late
+  reap-adds (unmount-time eviction of a deferred zombie) or a recovery batch
+  finishing mid-teardown; the 30s timer then fires into freed memory.
+- Fix shape == instrumentation: all six arm sites now go through
+  mxfs_reap_sched(), gated on m_mxfs_reap_dead (set at destroy entry, cleared
+  at init); a post-destroy arm becomes a loud no-op logging
+  P89-REAP-SCHED-AFTER-DESTROY. Durable bucket state carries the skipped duty.
+- VERIFICATION PENDING: deploy, hammer preps (reproducer = prep churn: 5 panics
+  in ~8 preps on .355-.358), sweep serial logs for zero recurrence and for the
+  new warn line proving the mechanism.
+
+## 0.11.358 (sess44) — 2026-08-02 — D-DESTAGE-TEAR CLOSED: guard race arms + stall knob; boards green
+
+- D-DESTAGE-TEAR-BUCKETLESS-ORPHAN -> FIXED AND VERIFIED (see OPEN_DEFECTS.json for the
+  full dossier). GPT gap-review drove four purpose-built race arms
+  (tests/guard_race_arms.sh joiner|abandoned|stale_resume|inherit), all passing live:
+  joiner exclusion (claim skips a held guard, 2/2), abandoned-guard change-detection
+  takeover (peer with different uptime reclaims a corpse guard in 105s and frees the
+  orphan), stale-holder fencing (paused holder resumes after takeover: refresh CAS
+  fails, P99-GUARD-LOST, rc=-116, ZERO post-takeover sweeps), and joiner-inherits-
+  deferred-bucket (rejoiner re-claims its slot; ordinary last close frees in 10s with
+  zero recovery events).
+- mxfs.ubsweep_stall_ms (debug, default 0): after the hold, stall WITHOUT refreshing,
+  then resume — makes the pause-takeover-resume race directly testable.
+- Boards on this build: 32/caw 27/27 PASS and 8/caw 27/27 PASS (policy row red at the
+  open-defect count, as designed).
+- NEW ledger entries (RULE 6): D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE (major — still-
+  mounted tail nodes saw cleanly-departed peers as 62s-frozen slots during a 32-node
+  mass teardown, fencing wave wedged 4 umounts, harness power-cycled them) and
+  D-RELOAD-FREED-ADOPT-BOGUS-IMODE (minor, fix shipped in .357, verification pending).
+
+## 0.11.357 (sess44) — 2026-08-02 — freed-shell adopt: skip iops rewire (bogus i_mode)
+
+- Adopting a peer-freed incarnation (P103/P116 reload, mode=0) ran the S_IFMT-change
+  vtable rewire; xfs_setup_iops on a mode-0 shell routes through init_special_inode(0)
+  and logs 'bogus i_mode'. Rewire now skipped for mode==0 (freed shell has no namespace
+  entry and cluster opens==0, so its vtables are never dereferenced; a later
+  resurrecting reload still rewires — old_ifmt is captured per-reload). Ledgered minor;
+  verification = next observed P116 adopt with zero bogus lines.
+
+## 0.11.356 (sess44) — 2026-08-02 — ubsweep_hold_ms debug knob (guard race widener)
+
+- mxfs.ubsweep_hold_ms (debug, default 0): hold the recovery guard N ms (refreshing
+  every 500ms) between P99-UBSWEEP-START and the sweep, so joiner/abandonment races
+  against the guarded unclaimed-bucket pass become testable windows instead of ~100ms.
+
+## 0.11.349 (sess41) — 2026-08-01 — transaction-atomic untrusted replay (tear containment)
+
+- Foreign/adopted replay: if a recovered transaction contains ANY untagged image
+  (buf/dquot/quotaoff/icreate), skip the WHOLE transaction including its inode items
+  (P227-FR-ATOMIC-SKIP). Kills the proven half-applied-unlink tear (dirent present ->
+  nlink=0 inode on no bucket). GPT-approved as containment; KNOWN LIMITS ledgered:
+  multi-transaction ops can still tear at op granularity; landed home writes are not
+  rolled back; the authority protocol remains the real fix (defect stays OPEN).
+- tests/openunlink_deaths.sh unlinker_death now accepts the two legal outcomes
+  (α zombie swept+freed; β unlink evaporated atomically) and fails on any torn state.
+
+## 0.11.348 (sess41) — 2026-08-01 — dead-opener bits never stripped (opener_death root)
+
+- PROVEN (opener_death case, ino=291): mxfs_dlm_caw_purge_node's candidacy predicates
+  (batch fast-skip, per-slot fallback, CAS-loop break) tested the five holder classes and
+  waiters but NOT open_holders. A dead node whose only footprint is an open bit — the
+  NORMAL publish-then-release open-unlink shape — was skipped, the 6027 strip never ran,
+  and every peer's B6 deferred forever against a dead opener (reap retried at 30s for
+  7+ minutes, open_holders=0x1 unchanged after 'shared purges done').
+- All three predicates now include open_holders & dead_mask.
+- Also observed: slot-0 death recovery (lowest-slot member) elects the new lowest (slot 1)
+  correctly; recovery completion latency ~5min is lease-expiry-bound (separate topic).
+
+## 0.11.347 (sess41) — 2026-08-01 — sweep/worker must not trust cached nlink (leak root #3)
+
+- PROVEN (unlinker_death run 2): sweep read stale-high cached nlink=1 (survivor==opener never
+  observed dead peer's droplink) -> skipped the ADOPTED enqueue -> close-time RETIRE entry had
+  no authority -> B4 leak. Sweep now enqueues EVERY bucket-chained inode (chain membership is
+  the on-disk truth); the reap worker takes a coherence ilock (acquire-side reload when
+  stale/NL) BEFORE its gen/nlink checks and BEFORE the authority-flag restore.
+
+## 0.11.346 (sess41) — 2026-08-01 — adopted freer authority (sweep leak root #2)
+
+- PROVEN (unlinker_death rerun, ino=132): the sweep's in-core LOCAL_UNLINK restore was
+  stripped by the fd-read's reload (sess19 clear-on-reload) before the retirement
+  inactivation ran -> B4 skip (local_unlink=0) -> permanent leak. Authority must be
+  re-derived per attempt, not parked on in-core flags.
+- Sweep now enqueues MXFS_REAP_ADOPTED entries; the reap worker restores authority on a
+  fresh iget under its gen check EVERY retry. Reap entries carry kind OWN/RETIRE/ADOPTED.
+- New MXFS_IF_ADOPTED_UNLINK: grants B3/B4 freer authority but NEVER the P2L-OWNFREE
+  disk-free bypass (only sound for a node's OWN unpublished life; an adopted freer can race
+  a new slot-claimant's scoped recovery -> double-free). Cleared with LOCAL_UNLINK at all
+  5 sites + XFS_IRECLAIM_RESET_FLAGS.
+
+## 0.11.345 (sess41) — 2026-08-01 — opener-side zombie retirement (dentry-pin leak)
+
+- PROVEN leak (death case, ino=132 never re-issued over 400 creates): after last close of a
+  peer-unlinked file, the opener's dentry alias pins the zombie — cross-node unlink never
+  d_deletes the opener's dentry and nothing re-looks the path up, so evict/inactivation waits
+  for memory pressure. Unbounded liveness (GPT invariant 8 language).
+- Fix: retire-only reap entries (mxfs_defer_reap_add_mode): last close with nlink==0 queues
+  one; the worker d_prune_aliases + irele (P92-REAP-RETIRE) — WITHOUT restoring LOCAL_UNLINK
+  (false freer authority would arm the P2L-OWNFREE disk-free bypass on a non-unlinker).
+  Freer-authority entries also prune before their irele (same pin can block the freer).
+- tests/openunlink_deaths.sh: rejoin via prep_node.sh (nodes do not auto-mount); retirement
+  asserted by STATE (ino re-issue probe), not capped prints.
+
+## 0.11.344 (sess41) — 2026-08-01 — C8 survivor sweep (GPT invariant 8)
+
+- mxfs_survivor_sweep_slot: after the elected survivor's foreign-slice replay of dead slot S
+  completes (recovery_complete), walk bucket S in every AG; iget each chained zombie, restore
+  ADOPTED authority (MXFS_IF_LOCAL_UNLINK + i_unlinked_bucket) so B4 does not block, irele into
+  normal inactivation (B1-B6 decide free/defer/skip). P97-SWEEP-START/AG/DONE.
+- Retry: m_mxfs_sweep_pending_slots bitmap; failed pass stays pending; reap worker retries at
+  its 30s cadence and reschedules while sweeps remain. Bucket itself is the durable record.
+- Closes the runtime-fence zombie leak: a dead unlinker's deferred open-unlink zombies were
+  unreachable until some future mount claimed the slot.
+
+## 0.11.343 (sess41) — 2026-08-01 — D-PEER-TRUNCATE-INVISIBLE fix
+
+- RELOAD-SIZE-DROP-SKIP now fires ONLY on mid-tenure reloads (!post_release). Its sess45
+  premise ("a peer never truncates our file to 0") is workload lore, not POSIX: a peer
+  truncate under clean EX handoff left the prior holder serving stale size AND re-reading
+  the FREED extent through its kept extent map forever (proven ino=132/8388737; cross-file
+  leak class if the block is reused). A post_release reload runs under a fresh tenure after
+  our invariant-1 release drain, so a same-gen disk size-drop is a peer shrink: adopt
+  (P96-RELOAD-PEER-SHRINK-ADOPT). Mid-tenure torn-own-image protection (P97 family) kept.
+- tests/openunlink_matrix.sh: trunc_legal now asserts opener coherency (stat/read/fd-read);
+  new trunc_partial case (peer shrink 30->10).
+
+## 0.11.342 (sess41) — 2026-08-01 — open-tracking safety closure (GPT audit C1-C5,C10)
+
+- C1: open-holder bit publication now RIDES THE RELEASE CAS (open_op param through
+  mxfs_dlm_caw_unlock_gen / mxfs_v5_dlm_inode_unlock_open). The two-CAS shape (best-effort
+  open_set then unlock) had a silent-failure window that released an open file unprotected.
+  open_set removed (dead). Failed unlock retains grant AND bit state — consistent both ways.
+- C3: OPEN-AT-NL hole closed — xfs_file_open ensures a cached DLM grant (mxfs_dlm_open_protect)
+  after i_mxfs_open_n++; a dcache reopen of an idle-released/close-demoted inode previously
+  carried no grant and no bit, so a peer unlink freed it under the live fd (default-config
+  data loss; close_release made it common). Fail-closed: no grant => open fails -EIO (P95).
+- C4: eager lazy-CLEAR at last close (mxfs_dlm_open_last_close, P91) — published bits no
+  longer linger to evict (hours), so a peer deferred reap converges in seconds.
+- C5: B6 defer guard fails CLOSED — open_holders query returns rc (+bitmap out-param);
+  unreadable bitmap under EX => defer (P87-OPEN-DEFER-ERR), never read as empty.
+  -EOPNOTSUPP (TCP, no tracking yet) proceeds; that exposure stays ledgered.
+- C2: B5 log-recovery exemption REMOVED — a failed EX acquire during recovery-driven
+  inactivation now skips the destructive free (mutual exclusion is not optional in recovery;
+  survivor orphan frees acquire EX cleanly anyway).
+- C10: envelope mount with icluster_dlm=1 + open_tracking REFUSED (iclus has no per-inode
+  slot to carry open bits; open_set no-oped silently — verified). open_tracking=0 is the
+  explicit experimental opt-out.
+- Per GPT audit (memory ccloop-c7ee71c6-sess41-gpt-openunlink-audit-ruling). Remaining:
+  C7 version gate, C8 survivor sweep, C9 TCP open tracking, 9-case matrix.
+
+## 0.11.341 (sess40) — 2026-08-01 — TRUE ROOT: on-disk slot struct grew past 512
+
+- **The claim-exhaustion cluster shutdowns were a SELF-INFLICTED REGRESSION
+  from 0.11.333, and the earlier knob A/B that appeared to exonerate this
+  work was INVALID** - mxfs.open_tracking gates behaviour, not struct
+  layout, so both arms carried the broken layout.
+  ROOT: the new uint64 open_holders added in 333 follows a uint32 field, so
+  the compiler inserted 4 bytes of padding and struct mxfs_caw_lock_slot grew
+  past its 512-byte on-disk size.  find_slot indexes its multi-slot probe
+  read as an ARRAY OF THAT STRUCT, so every slot past the first in a window
+  decoded from the wrong byte offset.  P94-SPAN-DISAGREE's byte dump named it
+  outright: span16=d4ec3a45acfcd7e69407a00200000000 vs
+  fresh16=4c44584d02000000d4ec3a45acfcd7e6 - the span image is the true slot
+  SHIFTED BY EXACTLY 8 BYTES.  The probe then classified the shifted image as
+  "truly empty" (terminating the chain, hiding live slots) and handed it to
+  the claim CAS as the compare (which can never match) -> retry exhaustion ->
+  -110 -> SHUTDOWN_CORRUPT_INCORE -> 10-32 nodes cascade.
+- FIX: explicit pad4 before open_holders, reserved[352]; layout is 512 bytes
+  again with the same field offsets as before 333.
+- FIX: the size check is now an UNCONDITIONAL _Static_assert.  The kernel arm
+  was a macro (MXFS_BUILD_CHECK_CAW_SLOT) that NOTHING EVER INVOKED - grep
+  proved zero call sites - so kernel builds had no size assertion at all.
+  That absent check is why the regression shipped silently.
+- VERIFIED on 341: crash_consistency PASS 73s/90s (was a 32-node
+  NO_TERMINAL_RECORD cascade), zero P94-SPAN-DISAGREE and zero
+  P93-SLOT-GARBAGE events fleet-wide.
+
+## 0.11.340 (sess40) — 2026-08-01
+
+- caw_probe_span_enable default restored to 1 (measured: OFF costs
+  dir_reuse_coherency a round — 7 vs the >=8 bar — while the 337 re-read
+  guard already contains the observed harm and the full 32-node board is
+  green with spanning ON; 0 remains the control arm and the safe fallback).
+- P94-SPAN-DISAGREE now dumps the first 16 bytes of BOTH the span image and
+  the fresh read.  mxfs_pal_alloc uses kzalloc at this size, so the
+  disagreeing bytes are real device content (identical on all 32 nodes), not
+  uninitialised memory: if the span bytes are a SHIFTED view of a valid slot
+  the transfer is misaligned for the window tail, which names the mechanism
+  outright.
+
+## 0.11.339 (sess40) — 2026-08-01
+
+- **D-CAW-SPAN-READ-SHORT**: the 16-slot probe read is proven to return data
+  that disagrees with a per-slot read of the same LBA microseconds later —
+  P94-SPAN-DISAGREE fired 41-91x per node per 32-way run, ALWAYS at
+  span_base+1 and ALWAYS with the identical value 0x6fa01f04 on every one of
+  32 independent machines, while read_slot at that index returned a valid
+  LIVE/TOMBSTONE slot.  A constant across independent machines is not media
+  content: the multi-sector read is not filling past its first sector.
+  This is the layer UNDER the 337 claim-exhaustion fix.  337 stopped the
+  cascading shutdowns by re-reading any unrecognised image, but that guard
+  cannot fire for bad bytes that happen to decode as a valid magic.
+  So the span optimisation now defaults OFF (mxfs.caw_probe_span_enable=0):
+  probes issue per-slot reads, as every other slot consumer already does and
+  as the code did before the span existed.  =1 retained as the A/B control.
+
+## 0.11.338 (sess40) — 2026-08-01
+
+- P94-SPAN-DISAGREE: names the layer under the 337 fix.  A slot image served
+  from find_slot probe SPAN buffer whose magic is unrecognised, while a
+  per-slot read of the SAME LBA returns a valid slot, is a disagreement
+  between the multi-slot and single-sector read paths — measured 55-100
+  times per node per 32-way run.  337 made classify/CAS robust to it; this
+  probe tracks the disagreement itself so its own root can be pursued.
+
+## 0.11.337 (sess40) — 2026-08-01
+
+- **D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN ROOT PROVEN AND FIXED** (RULE 4
+  step 2b).  P92-CLAIMCAS caught it on three nodes independently:
+  `cmp[magic=b4bc1b3d gen=4045629598] disk[magic=4d584357 gen=1]
+  first_diff=0 fresh_read_skipped=1` — the CAS compare buffer held GARBAGE
+  while the medium held a valid live slot.
+  CHAIN: find_slot's probe may serve a slot image out of its SPAN buffer;
+  `slot_appears_corrupt()` returns false for ANY non-LIVE magic, so an
+  unrecognised image is never re-read; find_slot then classifies it as
+  "truly empty", which (1) TERMINATES THE PROBE — making a resource whose
+  live slot sits further down the chain invisible, so acquires see -ENOENT
+  while a peer holds the lock — and (2) becomes the claim's CAS COMPARE
+  image via the `last_read_idx != empty_idx` skip.  A compare that can never
+  match spins the claim until the acquire gives up; mxfs_dlm_ilock_begin
+  escalates that to SHUTDOWN_CORRUPT_INCORE and 10-32 nodes cascade.
+  FIX A: the claim target is ALWAYS read fresh before the CAS (one extra
+  sector read on the claim path; also feeds the daf50d34 live-magic
+  re-probe guard with truth instead of a span artifact).
+  FIX B: only a ZERO magic terminates the probe.  Any other unrecognised
+  magic is re-read per-slot; if it resolves to a live entry for our resource
+  the probe returns it (found), if it resolves to another resource the probe
+  continues, and if it is still unrecognised it is recyclable but NEVER a
+  chain terminator (P93-SLOT-GARBAGE).
+  Retained from 336: the claim-race wall-clock deadline and the bounded
+  P91-CLAIMEXH capture.
+
+## 0.11.336 (sess40) — 2026-08-01
+
+- D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN increment 1 (RULE-4 measured, not
+  guessed).  New P91-CLAIMEXH prints, at the moment the acquire gives up, the
+  resource hash base, the insertion point we kept CASing, that slot's actual
+  content, and a bounded re-probe for the resource.  Two captures at 32/caw:
+  test5 empty_idx=50701 with the resource's LIVE slot AT 50701 (a peer won the
+  claim for the SAME resource), test1 insertion point = a tombstone of our own
+  resource with no live slot (same-resource recycle contention).  Both mean
+  progress is possible and we are simply the losing racer — yet the bare
+  MXFS_CAW_MAX_RETRIES=100 count returned -ETIMEDOUT and
+  mxfs_dlm_ilock_begin escalated it to SHUTDOWN_CORRUPT_INCORE, cascading
+  10-32 nodes.
+  FIX: a claim-race-dominated inode acquire now retries to a wall-clock
+  deadline (MXFS_CAW_UNLOCK_DEADLINE_MS) instead of a bare count — the exact
+  pattern the unlock path already ships for the same reason (giving up is
+  worse than retrying; we hold nothing that could double-grant).  The deadline
+  arms only when a claim race is actually LOST, so a genuine dead-holder wait
+  still exits on the count and keeps its own liveness extension.  The
+  jittered per-node backoff (caw_inode_backoff) already applies between
+  attempts.  P91's re-probe is bounded to 4096 slots — a full 65536-slot walk
+  was ~20s of shared-LUN I/O on an already-fatal path.
+
+## 0.11.335 (sess40) — 2026-08-01
+
+- open-tracking hardening + A/B knob (mxfs.open_tracking, default 1):
+  * PUBLISHED-FLAG GATE (i_mxfs_open_pub): the clear paths (evict,
+    unlinked-inode inactivation exit) previously ran a full slot probe for
+    EVERY inode, adding SCSI reads on the shared LUN proportional to
+    eviction volume.  MEASURED: zero_silent_loss 440/644 -> 644/644 once
+    only published inodes pay the clear.  Only what we set gets cleared.
+  * open bit is published on the BAST-RELEASE CAS (the only moment a peer's
+    destructive path can be imminent — it must BAST every holder off to take
+    EX), not per open().  Per-open CASes were measured to starve real
+    acquires at 32 nodes (ea_claim=100 -> -110 -> shutdown).
+  * i_mxfs_open_n counts open file descriptions (xfs_file_open /
+    xfs_file_release); protected activity = that count or mapping_mapped().
+  * mxfs.open_tracking=0 restores pre-sess40 behaviour as a same-build
+    control.  Used it to exonerate this work from
+    D-CAW-CLAIM-RETRY-EXHAUSTION-SHUTDOWN (control arm reproduces).
+  32/caw on this build: fio_perf, cache_coherency, strong_consistency,
+  zero_silent_loss 644/644, scaling_curve, posix_multi, mmap_coherency,
+  dlm_fairness, dlm_membership, dlm_scaling, dirent_durability (30r, loss=0),
+  dirent_publish_integrity, fence_during_write, fault_netpartition, soak all
+  PASS; openunlink_probe PASS.
+
+## 0.11.334 (sess40) — 2026-08-01
+
+- Open-tracking completion (increment 3 verified end to end):
+  * open bit SET added to the two fresh-CLAIM constructions (single and
+    batch) — the grant-CAS arm alone missed the first-touch claim, which is
+    exactly the path a create+open takes, so the first probe still lost data.
+  * lazy CLEAR moved from evict to the INACTIVATION EXIT for nlink==0 (past
+    the last iput, pages truncated: no protected activity can remain).
+    Waiting for reclaim left a peer's reap blocked behind a stale bit for
+    minutes while the closer's zombie sat RECLAIMABLE.
+  * deferred-reap entries carry the defer-time AUTHORITY SNAPSHOT
+    (LOCAL_UNLINK intent + recorded bucket) and restore it after the
+    generation match: a fresh iget in the worker has neither, so the B4
+    no-authority guard was blocking the responsible freer's own reap forever.
+  VERIFIED: tests/openunlink_probe.sh PASS (data intact through the held fd,
+  peer_frees=0), then P87-OPEN-DEFER → P88-REAP-RETRY (open_holders 0x3→0x1
+  as the closer's bit clears) → P145-FREE + P89-REAP-DONE within one 30s
+  cycle of the last close.  Pre-fix arm: FAIL, 20 bytes of zeros.
+
+## 0.11.333 (sess40) — 2026-08-01
+
+- D-CROSSNODE-OPEN-UNLINK-DATA-LOSS increment 3 (GPT-reviewed design):
+  distributed open tracking + deferred reap.  New slot field open_holders
+  (bitmap; reserved-bytes area, slot stays 512B): SET inside every inode
+  grant/claim CAS (zero added I/O); LAZY CLEAR at evict (one small CAS when
+  the node truly has no protected activity — eviction is the VFS guarantee),
+  at unlock_free (freer zeroes the field), at unmount release-all, and at
+  fencing (dead nodes' bits stripped with holder bits).  Slots carrying open
+  bits never tombstone (tombstones are recyclable by different resources —
+  that would destroy a live opener's protection); the clear CAS tombstones
+  when it empties the last state; same-resource tombstone claims inherit the
+  field.  New B6 OPEN-DEFER guard at the head of destructive inactivation
+  (before truncate!): peer bits ⇒ defer whole truncate+ifree, zombie stays
+  durable on our bucket, per-mount deferred-reap list + 30s worker
+  (iget+irele re-drives the guard; EX acquire BASTs cache-only holders into
+  bit-clearing evictions — converges without any new message type).
+  Probes: P87-OPEN-DEFER, P88-REAP-RETRY, P89-REAP-DONE/UNMOUNT-PENDING.
+  P82-ADD now prints the real (recorded) bucket.
+
+## 0.11.332 (sess40) — 2026-08-01
+
+- D-AGI-UNLINKED F1 increment 2a: PER-SLOT AGI UNLINKED BUCKETS
+  (mxfs.iunlink_slot_buckets, default 1, cluster-uniform only).  Multi-node
+  inserts go to bucket[node_slot] instead of agino%64, so every bucket member
+  is its inserter's own zombie: cross-node chain adjacency, peer-zombie
+  reloads (P83-UNL-RELOAD), cross-node backref stitching, and the stale
+  in-core self-view that produced the deterministic -117 shutdown
+  (tests/agi_bucket_repro.sh) become structurally unreachable at runtime.
+  Membership is recorded per-inode (i_unlinked_bucket, stamped at insert and
+  by every recovery/reload walk); the remove path USES the record, never
+  recomputes, so removals stay correct across a knob flip or foreign
+  adoption (GPT sess40 review).  Mount-time xlog_recover_process_iunlinks is
+  SCOPED in multi-node mode to this node's own bucket (P86 skip probe) —
+  walking peers' buckets was the mount-time arm of the same defect; a
+  single-node/first mount still sweeps all 64 (legacy drain).  Foreign cached
+  zombies are excluded from quotacheck/bulkstat bucket reloads
+  (P85-UNL-FOREIGN-RELOAD-SKIP).  Scrub's hash-membership assert scoped
+  (compiled out in this config).  New probes: P84-UNL-BUCKET-UNSET.
+
+## 0.11.331 (sess40) — 2026-08-01
+
+- D-AGI-UNLINKED tombstone-semantics increment 1: "genuinely freed" at the two
+  free-aware DLM release sites (xfs_inactive exit, mxfs_dlm_evict) is now
+  MXFS_IF_FREE_COMMITTED — set only when THIS node's xfs_inactive_ifree
+  commits — instead of VFS nlink==0, which is equally true for a cached or
+  reloaded copy of a PEER's live open-unlinked inode.  Guard-skipped
+  inactivations (INACT-SKIP-STALE / B2-B5 / IFREE-REVALIDATE-SKIP) now release
+  plainly: no is_free epoch/last_ex_slot clear (P144) against a live peer's
+  slot.  Deterministic evidence: tests/agi_bucket_repro.sh (2-node, ~40s).
+  P128-INACT-EXREL now prints freed=.  GPT sess40: "inactivation skipped !=
+  inode freed".
+
+## 0.11.330 (sess39) — 2026-08-01
+
+- D-INODE-WIRE-EX-ORPHAN-ON-EVICT fix (dlmtr-traced to the line): the sess44
+  deferred-publish evict skip assumed unpublished => no on-disk slot, but every
+  created file's type-1 wire slot EXISTS (gen=1 EX) while the inode still rides
+  the unpublished list — the skip orphaned one wire-EX slot per created-then-
+  evicted file (the 13.4K board population; the true mechanism behind the slots
+  the 326 A/B could not exercise).  Fix mirrors 326: trust the WIRE — one
+  hint-read at the skip; a live grant falls through to the real release
+  (P-UNPUB-WIRE-DESYNC), a genuinely slotless inode keeps the cheap skip.
+- lru_sweep default 0: the 329 sweep was built against a misdiagnosis
+  (page-cache-held inodes are off-LRU by upstream design; drop_caches=3 evicts
+  them normally).  Opt-in diagnostic only.  D-DWORK-RUNTIME-PIN: DISPROVED.
+
+### 0.11.330 board (sess39 close) — FIFTH ALL-GREEN BOARD @32/caw, 7 OPEN
+
+- Full 22-test board green on 330 (dir_reuse twice in-board, 8 rounds each).
+- Session sess39 net: 9 -> 7 OPEN.  FIXED AND VERIFIED: evict-retention wire-EX
+  (326), release-barrier (census), statfs drift (328 perag sums), wire-EX orphan
+  on evict (330, the true mechanism behind the slot leak).  DISPROVED: dir_reuse
+  run-over-run decay (host rig storage), dwork-runtime pin (upstream page-cache
+  LRU design).  grace=10 default landed (327).
+- Remaining OPEN: authority family x3 (AGI canary quiet all session), pace x2
+  (re-baseline under the >=25min-idle rig rule), dirview non-convergence,
+  matrix rig-blocked columns.
+
+## 0.11.329 (sess39) — 2026-08-01
+
+- D-CLEAN-UNREF-INODE-LRU-STRAND fix (was D-DWORK-RUNTIME-PIN; pin_census-proven:
+  stranded inodes show i_count=0, clean, on_lru=0).  An inode dirty at its final
+  iput skips the LRU add; when mxfs later cleans it outside fs-writeback
+  (drain/AIL paths), inode_sync_complete's clean-and-unused LRU re-add never
+  runs, and no VFS path revisits an already-clean inode — invisible to
+  drop_caches forever, holding its cached wire-EX slot (200/200 per bulk-create
+  batch measured).  Fix: 30s repatriation sweep walks s_inodes, __iget/iput on
+  clean+unused+off-LRU inodes so iput_final performs the LRU add.  lru_sweep=0
+  disables.
+
+## 0.11.328 (sess39) — 2026-08-01
+
+- D-STATFS-IFREE-NEGATIVE-RANK1 fix (GPT-reviewed design): statfs on multi-node
+  mounts reports cluster-coherent per-AG sums (icount/ifree from pagi_*,
+  physical fdblocks from pagf_freeblks) instead of the percpu lazy counters,
+  which receive only local transaction deltas and drift monotonically under
+  cross-node create/free asymmetry (rank1 measured used=-10851 inodes, +38MB
+  phantom free).  Mount-time init of all AGF/AGI baselines the sums.  The
+  percpu ADMISSION counters are untouched (no safe external adjustment;
+  cross-node delalloc overcommit is a separate ledgered thread).
+- pin_census diagnostic param: walks s_inodes printing refcount/DLM/work state
+  of every cached mxfs inode — names the D-DWORK-RUNTIME-PIN holder.
+
+## 0.11.327 (sess39) — 2026-08-01
+
+- dir_ex_batch_grace_ms default 40 -> 10.  Three same-day 32/caw A/Bs: turn p50
+  81 -> 50ms, dir_reuse 9 rounds fresh (vs 8 at 40); bash inter-op gap 1.2-1.3ms
+  so 10ms still batches consecutive local ops into one tenure.  sess38 proved
+  the same via sysfs and the setting silently reverted at the 325 module reload
+  - defaults are the only durable knob state.
+
+### 0.11.327 board (sess39) — FOURTH ALL-GREEN BOARD @32/caw
+
+- All 22 functional tests green on grace=10 default; dir_reuse passed TWICE in-board
+  (8 rounds then 9 rounds — first consecutive-run 9-rounder ever); cache_coherency
+  29s (vs 38s at grace=40; the sess7 concern is dead on current machinery);
+  sustained_load per_op 279 -> 168ms.
+- D-DWORK-RUNTIME-PIN narrowed: pin breaks on unlink, survives peer dir BAST,
+  no dwork/rearm activity for pinned inos -> silent i_count holder; next = s_inodes
+  ref-census probe.
+
+## 0.11.326 (sess39) — 2026-08-01
+
+- EVICT-RETENTION WIRE-EX LEAK FIX (D-EVICT-RETENTION-WIRE-EX-LEAK, live-proven):
+  the sess37 clean-PR evict retention decided on the IN-MEMORY mode; the wire
+  can hold EX while memory says PR (bulk-create repro: P6R-RETAIN fired for
+  inos whose on-disk CAW slot held granted EX gen=1; 13.4K orphan-EX slots
+  (~435/node) accumulated from one board's rsync_paired files, evenly across
+  all 32 nodes; every orphan blocks all other nodes on that ino until a
+  demand-noino unlock that never comes for never-reaccessed files).
+  Retention now requires wire-confirmed PR via mxfs_v5_dlm_inode_granted_mode
+  (one hint-path sector read, paid only when all cheaper conditions already
+  voted retain).  EX/PW or phantom (NL/no-slot, also live-observed) fall
+  through to the normal unlock.
+
+### 0.11.326 verification (sess39) — TWO DEFECTS CLOSED + one DISPROVED (12 -> 9 OPEN net)
+
+- FULL BOARD ALL GREEN @32/caw on 326 (third all-green: 322, 325, 326), dir_reuse in-board 8 rounds.
+- D-EVICT-RETENTION-WIRE-EX-LEAK: FIXED AND VERIFIED (bulk repro 190 orphans -> 0; board green).
+- D-RELEASE-BARRIER-OPEN: FIXED AND VERIFIED (cluster census: ~130K unlocks, obligation=0 on all
+  32 nodes across the full board; defer backstop engaged 2x and correctly withheld).
+- D-DIR-REUSE-COHERENCY-32-FLAKY: DISPROVED as an MXFS defect — the run-over-run degradation
+  (fresh 8-9 rounds PASS, consecutive-run plateau 7, ~25min idle recovery, reproduced 3 laps on
+  schedule) is host-rig storage-path latency: pure-host 4K O_DSYNC probe degrades p90 26->95ms
+  max 164->1806ms during plateau runs; nvme0n1 write await grows p50 1.19->4.29ms below the
+  entire mxfs/SCST stack; CAW table byte-identical across fast/slow runs; guest CPU + all log/AIL
+  counters flat. Rig: Samsung 990 EVO Plus 93% full + ambient user writers (myse 1.19TB/9h).
+  RIG CONSTRAINT: pace results comparable only from fresh (>=25min idle) storage state.
+- NEW D-DWORK-RUNTIME-PIN (found by the 326 A/B): bulk-created inodes pinned in memory across
+  drop_caches (armed dwork igrab suspect); demand-release verified working; runtime sibling of
+  the sess36-37 unmount dwork family.
+- NEW D-STATFS-IFREE-NEGATIVE-RANK1: n1 in-memory ifree > icount by 10851 (df -i used=-10851);
+  n16/n32 sane; platter consistent.
+
+## 0.11.325 (sess38) — 2026-08-01
+
+- Heartbeat-starvation mutex fix (D-RELABORT-ORPHAN-LOOP-HEARTBEAT-SELFFENCE
+  RULE-4 step 2b — root CONFIRMED live by the 324 probes within an hour of
+  deployment: test1 P-HB-SLOW lockwait_ms=26726 write_ms=0; peers
+  P-HB-MONSLOW 5.4-6.5s).  Three disklock read loops held ctx->lock
+  CONTINUOUSLY across full slot scans, starving the heartbeat writer that
+  shares the mutex: mxfs_disklock_read_all (64 reads under one hold),
+  mxfs_disklock_get_stale_slot_mask snapshot pass (63) and its repeated
+  poll pass (63 x threshold/poll iterations) — the latter two run from
+  RUNTIME v5_mount acquire/join paths.  At storm-saturated ~400ms/read one
+  scan = ~25s continuous hold; at the 62s default lease a bad episode =
+  the test21 self-fence.  Fix: per-slot lock/unlock (the hb monitor pass's
+  own precedent) — hb-writer wait now bounded by ONE read.  Slot reads are
+  512B device-atomic; no cross-slot mutual exclusion was ever needed.
+
+### 0.11.325 full board @ 32/caw (sess38 true close)
+ALL FUNCTIONAL TESTS GREEN (2nd all-green board; 1st was 322) — including
+dir_reuse in-board (58/58, 110s).  dir_reuse x3 post-fix: PASS-8/FAIL-7/FAIL-6
+rounds — bimodal pace unchanged (its tail = EX-rotation x release-drain
+economics, distinct from the fixed hb starvation).  9 OPEN.
+
+### 0.11.325 verification (sess38) — DEFECT CLOSED (10 -> 9 OPEN)
+Same-saturation A/B: every post-fix hb event lockwait_ms=0 (was 26726);
+residual write_ms<=2.5s = raw single-I/O bound, 25x margin vs the 62s lease.
+10/10 verification tests PASS including crash_consistency (77s, clean
+terminal records — its NO_TERMINAL_RECORD x32 pattern rode the same
+starvation) and fence_during_write (32/32; failed 2 nodes on the incident
+board).  D-RELABORT-ORPHAN-LOOP-HEARTBEAT-SELFFENCE = FIXED AND VERIFIED.
+
+## 0.11.324 (sess38) — 2026-08-01
+
+- P-HB-SLOW / P-HB-MONSLOW (D-RELABORT-ORPHAN-LOOP-HEARTBEAT-SELFFENCE
+  RULE-4 step 1): unconditional disklock heartbeat cycle clocks — per-cycle
+  write_ms + lockwait_ms (ctx->lock is shared with the 32-peer monitor scan)
+  + age_since_last_ok_ms + monitor-pass duration; logs ONLY when a write is
+  slow (>2s), the last-ok age exceeds 2 intervals, or the monitor pass
+  exceeds 2 intervals.  A future self-fence names its own outage anatomy
+  (device-queue stall vs mutex hold vs hard failure) instead of rotating out
+  of the ring.  hb write failure log now carries age_since_last_ok_ms.
+
+## 0.11.323 (sess38) — 2026-08-01
+
+- D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN instrumentation (RULE 4 step 2):
+  - mxfs_inode_disk_unlinked() (xfs_mxfs_dlm.c): FUA dinode read returning
+    on-disk di_next_unlinked (+nlink/mode).
+  - P83-UNL-REMCHK (xfs_iunlink_remove_inode, instr-gated): in-core vs
+    ON-DISK next_unlinked comparison at stitch time; STALE=1 = a peer
+    rewired our cached unlinked inode's disk pointer and we are about to
+    stitch the shared bucket with the stale in-core value.
+  - P83-UNL-RELOAD (xfs_iunlink_reload_next, unconditional multi-node):
+    stitch params + AG tenure gen + node slot at the rare reload canary.
+  Repro vector: dir_ex_batch_grace_ms=10 + dirent_durability @32/caw
+  (2/2 at sess38: mkdir_err=4 then droplink rc=-117 shutdown).
+
+### 0.11.323 board @ 32/caw (sess38 close)
+26/27 functional: all green EXCEPT dir_reuse_coherency (5-round lap this time —
+the OPEN bimodal pace defect; it was green on the 322 board).  Two mid-board
+incidents, both diagnosed:
+- rsync_paired FAIL -> test21 SELF-FENCE: P15-REL-ABORT orph=1 livelock starved
+  its disklock heartbeat past the lease; peers fenced correctly, slice replayed,
+  31/32 unaffected; re-run after prep = PASS 20s.  NEW LEDGER ENTRY
+  D-RELABORT-ORPHAN-LOOP-HEARTBEAT-SELFFENCE (10 OPEN now).  Evidence:
+  tests/logs/sess38_t21_selffence/.
+- crash_consistency NO_TERMINAL_RECORD x32 at its 90s box once (all nodes
+  barrier-stuck at kill), re-run PASS 21s — transient, coord-timeout family.
+seqW on aged fs measured 1071MiB/s vs 7721 fresh (fio_perf still PASS) — fs
+aging effect on sequential allocation, worth a future look.
+
+## sess38 addendum — grace A/B outcome + NEW DEFECT (no version; knob default unchanged)
+
+- dir_ex_batch_grace_ms=10 A/B at 32/caw: cache_coherency 41->25s, crash 79->21s
+  (big wait waste removed) BUT dirent_durability FAIL (mkdir_err=4) and on repro
+  a FORCED SHUTDOWN on test1: runtime AGI unlinked-list reload
+  (xfs_iunlink_reload_next, upstream lazy-unlinked design) fired mid-churn on a
+  peer's in-flight unlinked inode; xfs_droplink rc=-117 (dir nlink already 0)
+  inside vfs_rmdir -> dirty xfs_trans_cancel -> corruption(0x8) shutdown +
+  voluntary withdrawal.  Default STAYS 40 (masks the race); ledgered as
+  D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN (9 OPEN).  Evidence preserved:
+  tests/logs/sess38_shutdown_g10/.  Mechanism hypothesis for next loop: shared
+  AGI bucket's IN-CORE linkage (i_prev_unlinked/i_next_unlinked, cached list
+  views) survives across AG-DLM handoffs — a node stitches the bucket with
+  stale views after a peer reshaped it.
+
+## 0.11.322 (sess38) — 2026-08-01
+
+- PR-batch admission storm fix (P139 census root, RULE 4 + GPT RULE-5).
+  Census on 321: the round wall's tail = SIMULTANEOUS ~900ms PR admission
+  storms — a streak-yield ticket names N readers (chosen on ~85% of loop
+  reads) but each self-claims ONE CAS at a time (9 nodes x ~22 tries, each
+  success invalidating the other 8's compare base; caw_miss=try-1), because
+  the release-side P6H-PRBATCH arm requires the releaser to be the LAST
+  holder of ANY class.  Plus 364 LOCKTOTAL >800ms whole-acquire events
+  (retries=0, ea_*=0) = raw CAW/read service inflation under the same
+  storm.  Two fixes:
+  - BATCH-COMPLETION-ON-CLAIM (P6H-PRCLAIMBATCH): the first ticket member
+    whose claim CAS wins admits EVERY still-registered shared-class sibling
+    in the same write; grant mcast wakes them; adopt path is author-
+    agnostic; per-reader recovery unchanged (abort-reconcile/lease purge).
+  - Release-side batch guard relaxed from !slot_has_holders to no
+    EXCLUSIVE-class holders (PR coexists with PR/CR) — the batch now fires
+    while sibling shared holders remain.
+
+### 0.11.322 board @ 32/caw (sess38, defaults: grace=40, create_intent_ex=0)
+FIRST ALL-GREEN FUNCTIONAL BOARD: 27/27 tests PASS (open_defects gate red by
+design, 8 OPEN).  dir_reuse_coherency PASSED IN-BOARD (58/58, 111s) — its 2nd
+PASS ever at 32 and first on the batch-claim build; stability laps: PASS 106s,
+FAIL 6-rounds/104s => 2/3, defect stays OPEN (zero margin, bimodal pace).
+fio 32/32 seqW=7721MiB/s seqR=6487 randW=194k randR=314k iops.  Standalone
+probe: idle sync=14-33ms => the 2.5s presync p50 is 32-way concurrent
+log-force/flush congestion at the shared target, not a per-op bug.
+
+## 0.11.321 (sess38) — 2026-08-01
+
+- P139 tail census (RULE 4 discriminator for the dir_reuse round-wall root:
+  ONE rotating multi-second grant-wait outlier per round — measured 4.70s
+  create-EX wait on test28 r=6 while its lookup PR granted in 0.5ms and both
+  files created in 10ms each).  Unconditional on ALL nodes, >800ms waits
+  only: P139-TAILCENSUS (per wait_for_grant: bit_lost / chosen / foreign_yt
+  / free_defer / doze250 / ytd / caw stats) + P139-LOCKTOTAL (whole-acquire
+  clock across outer retries: retries + per-CAS-site -EAGAIN census) —
+  discriminates queue-position-consumed-by-churn vs claim/adopt latency vs
+  bounded-bypass violation vs lost-nudge 250ms dozing vs multi-retry
+  re-registration.  GPT RULE-5 consult (full design in sess38 memory)
+  prescribes persistent-enrollment + RR-cursor grant discipline; this census
+  picks WHICH hole to close first.
+
+## 0.11.320 (sess38) — 2026-08-01
+
+- create_intent_ex default 1 -> 0 (RULE 4 same-build A/B, 32/caw dir_reuse on
+  0.11.319: knob-on 6 rounds vs knob-off 7 in the 120s box).  With the sess38
+  tag-survival fixes the mechanism is CORRECT (instrumented nodes: rc=-35
+  create-path count 0, P-CI-A engaged 52/52, arm-entry cached grant 0/PR/EX =
+  24/2/26) but NET-NEGATIVE at 32-node contention: it moves consumer-refresh
+  evict + FUA re-read + dir_lookup inside the serialized dir-EX critical
+  section (~19ms/create cluster-serialized vs ~15ms legacy), while the
+  EDEADLK self-demote it kills is already drain-free (dir_pr_release_fast=1)
+  and burst batching comes from dir_ex_tenure_floor + 40ms sliding grace
+  either way (P12-DLMTR: burst rides one tenure, release 41.3ms after last
+  op = grace expiry, correct).  Residual rc=-35 attribution (test1): root-dir
+  mkdir pre-arm walk-PR poison + rm-rf readdir-PR->unlink-EX — rank1-only,
+  once-per-round class, not the pace driver.
+- tests/drc_straggler_report.sh: per-round per-node phase-span harvest from
+  the unconditional DRCph ring markers; names the straggler node + phase
+  behind every wrbar/barrier tail (wrbar = straggler wait: local sync
+  measured 0.04-0.06s while wrbar ran 2.5-8.3s).
+
+## 0.11.319 (sess38) — 2026-08-01
+
+- CREATEINT tag-survival fix (RULE 4 + RULE 5 GPT design review). 0.11.318's
+  instrumented lap showed partial engagement: waves batch, but ~one
+  "EX denied EDEADLK rc=-35 -> drop -> drain -> fresh EX" survived per dir
+  visit (test1 lap window: 8x ino=128 root + 7x ino=131 drc, all mode=5).
+  Three in-window wire-PR leaks poisoned the armed EX, all the same species
+  (the CREATEINT bit did not survive every lock_mode computation):
+  - A: mxfs_dlm_dir_consumer_refresh's direct xfs_ilock(SHARED) (with
+    dir_force_evict=1, on EVERY armed lookup) never consulted the registry.
+    Now takes SHARED|CREATEINT when armed; one mode variable feeds both
+    lock and unlock so begin/end holder counts mirror.
+  - B: xfs_ilock_data_map_shared's need_iread branch overwrote lock_mode
+    (SHARED|CREATEINT -> EXCL|PRIREAD), regressing every fresh-adopt
+    create-intent lookup to wire PR.  Consult once, tag AFTER base mode.
+  - C: mxfs_ilock_map_recheck rebuilt new_mode preserving only PRIREAD,
+    dropping CREATEINT across its unlock/relock.  Preserves both bits.
+  New exported gate mxfs_createint_dir_armed() is the single consult used
+  by every in-window site.  Probes (instr=1): P-CI-A/B/C per-leak lines +
+  P-CI-ARM cached_dlm_mode at arm entry (GPT discriminator: in-window PR
+  vs pre-arm cached PR from plain path-walk lookups — the latter is NOT
+  fixed by this patch and is the next candidate if rc=-35 persists).
+
+## 0.11.318 (sess37) — 2026-08-01 [BUILT, NOT DEPLOYED, NOT TESTED]
+
+- **CREATE-INTENT EX** (knob mxfs.create_intent_ex=1): when the VFS
+  lookup carries create intent (LOOKUP_CREATE|LOOKUP_EXCL), the dir
+  ILOCK inside xfs_dir_lookup is tagged XFS_ILOCK_MXFS_CREATEINT
+  (bit 7, PRIREAD's mirror — upgrades the CLUSTER mode to EX while
+  the local lock stays shared; wins over PRIREAD by ordering in both
+  xfs_ilock and xfs_iunlock).  Carried by a FIX-26-style task
+  registry in xfs_inode.c: xfs_lookup(+create_intent param) arms it
+  around consumer_refresh + xfs_dir_lookup only;
+  xfs_ilock_data_map_shared consults it once per dir lookup.
+  Callers: xfs_vn_lookup/xfs_vn_ci_lookup pass the intent;
+  xfs_export dotdot passes false.  Target: the proven per-create
+  cycle (lookup-PR CAS storm -> reload -> EX upgrade -EDEADLK ->
+  PR drop + drain -> fresh EX).  VERIFICATION PENDING (next
+  session): instr window on the dir (expect rc=-35 count -> 0 in
+  create windows, PR,PR,PR->EX per wave -> single EX), dir_reuse ×3
+  (target >=9 rounds), then full 32-board.
+
+## 0.11.317 (sess37) — 2026-08-01
+
+- **xfs_can_free_eofblocks: local peek, no DLM** — the tail
+  ILOCK_SHARED protects an in-core-only read (i_delayed_blks + loaded
+  extent tree), but routed through xfs_ilock it paid a FULL DLM wire
+  acquire per call — and the reclaim path calls it for EVERY evicted
+  inode (mark_reclaimable -> needs_inactive -> here; RULE-4 stack
+  capture).  Now takes the raw i_lock rwsem directly (both mxfs hooks
+  skipped symmetrically).
+- With 314-317 combined, dir_reuse's drop_caches phase (new
+  dc-real-done marker): **6.3-8.8s -> 0.10-0.15s**.  Round wall now
+  dominated by the create-rotation barrier tail (8-9s; 214 dir-EX
+  transitions/round — batch grace not bridging create-loop gaps at
+  32-node load), sync (2-3s), rm (3.4s).  dir_reuse still FAIL (7
+  rounds vs floor 8) — next levers identified.
+- **32-board on 317: 20/21** (dir_reuse the only FAIL — same as
+  306/308/313).  cache_coherency 654/654, zero_silent_loss 644/644,
+  crash_consistency 204/204, dirent_durability 30r/0 loss.  fio_perf
+  improved: seqW 2152->5341 MiB/s, randW 167k->248k iops.
+
+## 0.11.316 (sess37) — 2026-08-01
+
+- **EVICT-RETAIN-PR** (knob mxfs.evict_retain_pr=1): a clean PR DLM
+  grant is retained across inode eviction instead of CAS-cleared.
+  RULE-4 stack capture (new DCSTK sampler in dir_reuse's dc wait
+  loop): barrier-aligned drop_caches had all 32 nodes inside
+  caw_slot <- unlock_gen <- v5_dlm_inode_unlock <- mxfs_dlm_evict
+  simultaneously clearing PR bits on the SAME hot slots, each unlock
+  walking retry backoff toward its 5s deadline — pure waste (verify
+  re-acquires the same PR ~100ms later).  Demand-release via the
+  proven no-inode BAST path (data durable by definition of clean);
+  free boundary safe structurally (free requires EX, which excluded
+  foreign PR bits first); unmount handled by release_all sweep; EX/PW
+  never retained (orphan-EX class).  P6R-RETAIN print.
+
+## 0.11.315 (sess37) — 2026-08-01
+
+- **PR-CLASS BATCH GRANT** on the streak-yield arm (same
+  caw_direct_handoff knob): the release CAS grants the entire PR
+  class (holders_pr |= pr_w, waiters cleared, streak reset in-CAS)
+  instead of ticketing it for one-by-one claims.  Measured need on
+  314: 823 streak yields vs 310 EX handoffs; the class claimed its
+  ticket serially (1639 miscompares).  P6H-PRBATCH print.
+- **Same-build A/B, 32/caw grant-wait anatomy (8 files/node)**:
+  handoff+batch ON = 75 contended grants, 11.1s total wait, max
+  255ms; OFF (legacy ticket) = 171 grants, 95.8s, max 2657ms —
+  **8.6x, no overlap between arms**.  Creates mean 109ms vs 235ms;
+  the 1.4-2.2s PR-behind-unclaimed-ticket shelf is gone.
+
+## 0.11.314 (sess37) — 2026-08-01
+
+- **DIRECT GRANT HANDOFF** (knob mxfs.caw_direct_handoff=1,
+  GPT-reviewed ownership-incarnation design): when the releaser is
+  the last holder and fair-handoff picks EX waiter W, the release
+  CAS itself transfers ownership — holders_ex |= W, W's waiter bits
+  cleared, yield_to zeroed, dir_epoch/last_ex_slot/streak updated
+  FOR W.  W's poll ADOPTS on sight (new adopt branch in
+  caw_wait_for_grant: requires the registration generation floor
+  reg_gen, waiter bit cleared, holder bit present; ad_handoff
+  derived from slot dir_epoch vs cached grant-meta epoch).  Kills
+  both measured costs: the ticket-guard window (86.6% of 81.9s
+  total wait was grantable-but-unclaimed) and the winner's claim
+  CAW storm (miscompares p95 27 -> 0 for handed-off grants).
+  Nudge targets only the winner.
+- **Abort reconcile** (caw_drop_own_waiter + giveup_mode): a
+  give-up now also clears a grant that LANDED for the abandoned
+  acquire (handoff raced the abort, or an ambiguous CAW reported
+  miscompare but landed) in the same cleanup CAS — closes the
+  sess34 SIGKILL orphan-wire-EX class (P6H-ABORT-RECONCILE).
+
+## 0.11.313 (sess37) — 2026-08-01
+
+- D-DWORK-TEARDOWN-LASTREF-LEAK **class fix** (FIXED AND VERIFIED; the
+  310 P6G gate covered 1 of 25 per-inode arm sites).  New bast-arm
+  gate: `m_mxfs_arm_lock` + `m_mxfs_arms_off` (xfs_mount.h); ALL 14
+  dwork + 11 work per-inode arm sites now route through static
+  wrappers `mxfs_bast_arm_queue{,_delayed}()` (xfs_mxfs_dlm.c) whose
+  queued-false return means the caller drops the arm's igrab ref —
+  the contract every site already implemented for queue collisions.
+  put_super: close gate -> pr_sweep cancel + wq flush -> **s_inodes
+  sweep**: igrab pin, cancel_work_sync + cancel_delayed_work_sync
+  outside all spinlocks, xfs_irele per canceled arm (P204-style
+  BADREF guard), iput pin, restart scan (terminates: closed gate
+  means pending cannot return).  Breaks the last-ref circular the
+  entry flush cannot see (timer-pending dwork -> ref is inode's last
+  ref -> evict/P204-cancel unreachable -> timer outlives
+  xfs_free_perag -> P142 leak).  Prints P6S-ARMSWEEP / P6S-ARM-
+  REFUSED / P6S-SWEEP-BADREF.  Verified: teardown_leak_repro 2
+  cycles @8 with real shutdowns — sweep engaged on every surviving
+  node's umount (cancels=1 refs=1 ×7), zero P142-LASTREF/P202/BADREF;
+  32-board 20/21 (only the pre-existing dir_reuse pace FAIL).
+- GPT design review incorporated (mount-level gate lock over
+  per-inode latch ordering; sync cancels outside locks; pinned
+  traversal; sweep before DLM teardown).
+
+## 0.11.312 (sess37) — 2026-08-01
+
+- **xfs_io -x shutdown was a silent no-op on mxfs** — the whole xfs
+  ioctl surface is stubbed (xfs_stubs.c returns ENOTTY), so xfs_io's
+  FSGEOMETRY probe fails before it ever sends the shutdown.  Every
+  prior scripted "shutdown -f" against mxfs (incl. the sess36
+  teardown repro cycles) did nothing.  XFS_IOC_GOINGDOWN is now
+  implemented in the xfs_file_ioctl stub (capable + get_user +
+  xfs_fs_goingdown; everything else stays ENOTTY by design — MXFS
+  ships its own tools).  NEW tests/mxfs_shutdown.sh issues the raw
+  ioctl (0x8004587d, flags 2 = -f); teardown_leak_repro.sh switched
+  to it.
+- Verified live: GOINGDOWN -> "User initiated shutdown received" ->
+  P-WITHDRAW voluntary death (peers fence, replay, purge).  Note:
+  post-withdraw the device is fenced, so post-shutdown bast drains
+  fail imapf/EIO and abort before the release eval — the natural
+  P6G teardown strand is a narrow race (shutdown set, unmounting not
+  yet, withdraw incomplete), consistent with the single sess36
+  capture.
+
+## 0.11.311 (sess37) — 2026-08-01
+
+- TEST-ONLY knob mxfs.rel_stale_inject (default 0): forces the
+  stranded (-ESTALE) verdict on inode DLM releases while
+  shutdown/unmounting is set, to drive the P6G teardown-era arm
+  decision on demand.  (In practice the drain-abort precedes the
+  release eval on a fenced device — kept for future strand-path
+  work.)
+
+## 0.11.310 (sess36) — 2026-07-31 [boarded via 313's 20/21]
+
+- D-DWORK-TEARDOWN-LASTREF-LEAK fix (knob mxfs.teardown_arm_gate=1,
+  0=legacy for A/B): the P6G-REL-STALE stranded-release deferral no
+  longer arms the bast dwork when the fs is unmounting, shut down, or
+  the DLM ctx is gone (P6G-REL-STALE-TEARDOWN print, no igrab) — the
+  arm's ref used to become the inode's LAST ref, so eviction never
+  ran, the P204 cancel never engaged, the 4ms timer outlived
+  xfs_free_perag and the P142 last-ref guard leaked the inode at
+  unload (sess36 live capture, ino 31457413).  put_super's entry
+  flush cannot see a timer-pending delayed work; the arm itself must
+  not happen in that window.  v5_shutdown's release_all sweep owns
+  the on-disk slot regardless.
+- NEW tests/teardown_leak_repro.sh: churn + mid-churn xfs_io
+  shutdown on half the nodes + teardown + P142/P202/P6G census.
+  VERIFICATION PENDING (next session): cycles with gate=0 seeking the
+  captured signature, then gate=1 showing TEARDOWN lines and zero
+  leaks; then a 32-board regression on 310.
+
+## 0.11.309 (sess36) — 2026-07-31
+
+- PROBE-A transient guard: the AG-META-WRITE-NOT-HELD gate is racy by
+  design; a 4/caw soak FAIL traced to the once-per-boot dump_stack
+  firing on a SELF-REFUTING sample (gate saw !held mid-transition of
+  an AG re-acquire; the print's own payload showed cached=1).  The
+  probe now re-reads authority immediately before emitting: a
+  transient logs P-A-TRANSIENT (no stack); only a persistently
+  unauthorized write earns the crash-shaped artifact.  Soak's kernel
+  -log scan is untouched (RULE 6: fix the noise source, not the test).
+- MATRIX: caw column fully re-measured this session on 308/309 —
+  1/2/4/8/16 all green (16/caw was 1-FAIL on the sess27 0.11.237
+  baseline), 32 = 20/21 (dir_reuse pace only).
+  dirent_publish_integrity, RED at every multi-node count on 237, is
+  GREEN at every count now.
+
+## 0.11.308 (sess36) — 2026-07-31
+
+- TEST-ONLY injector mxfs.bast_qfalse_inject: bast_work_fn self-requeues
+  at entry with its own donated ref, holding WORK_STRUCT_PENDING so
+  every bast_notify dispatch hits its queue_work-false branch
+  deterministically — the GPT-required branch-coverage proof for the
+  307 fix.  Measured: 126 forced collisions through the fixed branch
+  in one storm, ZERO queue-false leaks (the single residual leak that
+  cycle was the distinct P142-DWORK-STALE teardown arm on an
+  infra-aborted cycle — split to its own ledger entry).  NEVER ship on.
+
+## 0.11.307 (sess36) — 2026-07-31
+
+- D-UNMOUNT-BUSY-INODES ROOT FIX (kernel-side kprobe ref-trace proven):
+  mxfs_dlm_bast_notify's FOUR dispatch sites (immediate,
+  none-held-idle, orphan-release, phantom-reconcile) returned WITHOUT
+  xfs_irele when queue_work() came back false — but the already-
+  pending instance owns only the FIRST donor's ref and ireles once, so
+  every collision leaked exactly one inode ref.  Captured live
+  (ino 8391890, test10): failed EX acquire (rc=-EDEADLK) honored a
+  deferred BAST synchronously -> bast_notify iget -> queue_work
+  collided with the already-queued work (P70-BP starts 10us later on a
+  kworker) -> P76-QW-FALSE site=immediate -> ref stranded; survives
+  unmount with icount=1, dentry_count=0, nothing pending — the exact
+  historical signature (varying bastq_src/stale_src across captures
+  was last-writer noise; the arms audits were clean because the arms
+  ARE clean).  Fix: xfs_irele on the queue-false branch at all four
+  sites, mirroring the ilock-end arm's correct pattern; the P76 prints
+  now read "extra ref dropped (P226)".  GPT design review passed.
+  Tools built for this hunt (RULE 3): tests/refleak_trace.sh (tracefs
+  kprobes on igrab/ihold/__iget/iput with BTF offsets, per-node
+  streaming), tests/refleak_analyze.py (per-inode running-count
+  reconstruction + per-task net balance), tests/census_p.sh.
+
+## 0.11.306 (sess36) — 2026-07-31
+
+- D-RELEASE-BARRIER-OPEN — FIX-A completed: removed the i_dlm_stale
+  exemption from the terminal obligation gate (GPT-reviewed; verdict:
+  "no legitimate class where the handoff is correct merely because
+  dstale is set; safe default for an unexplained open obligation is
+  retain-the-grant").  The 305 dss census proved the exemption was
+  self-defeating: 459/459 leaked tenure-ends were dss=5 — the release
+  pipeline's OWN next-tenure cache-invalidate mark (bast_process,
+  xfs_mxfs_dlm.c:14275) — so the gate never fired (P244=0 from birth).
+  True nothing-to-land classes remain exempt (ISTALE, dead_incarn_gen,
+  dirs, shutdown).  Safety valves verified: defer-retry reload cannot
+  consume stale disk state over an open obligation (P184
+  reload_oblig_keep guard); strikeout downshifts to 1s and HOLDS the
+  tenure — never force-releases past the gate.
+- VERIFIED on dir_reuse+crash_consistency @32/caw: P244 defers = 306,
+  P241 blind discharges = 0, P220 terminal-store crossings = 0 (all
+  realns-window-filtered to the 306 run; the residual counts in raw
+  dmesg are 303-305 stale-ring events).  crash_consistency 32/32 PASS
+  82s/90s — the added defer latency did not damage the budget.
+  dir_reuse_coherency remains pace-FAIL only (D-DIR-REUSE-32-FLAKY).
+
+## 0.11.305 (sess36) — 2026-07-31
+
+- P220 dss= field (i_dlm_stale_src at the ledger-open print) + codes
+  for the two unlabeled stale setters (26=reload_identical_keepfork
+  xfs_mxfs_dlm.c, 27=file_rw_bail pal/linux/xfs_file.c) + header
+  decode for 24/25.  Census result: 459/459 dir_reuse leak events at
+  the terminal store carried dss=5 (bast_process_rel) — see 306.
+
+## 0.11.304 (sess35) — 2026-07-31
+
+- P220-EPOCH-LEDGER-OPEN diagnosis fields: dstale= (i_dlm_stale) and
+  dinc= (i_mxfs_dead_incarn_gen != 0) — the FIX-A exemption classes.
+  First census (dir_reuse 32/caw): EVERY leaked tenure-end at the
+  terminal store (epsrc=14925) carries dstale=1 dinc=0 istale=0
+  nlink=1 pend>dur (e.g. ino=39846017..19, pend=9/10 dur=2/6/5,
+  comm=kworker) — the i_dlm_stale exemption in the FIX-A gate is the
+  remaining leak; "dlm_stale has nothing of ours to land" is
+  contradicted for at least one stale class.  Next: stale_src census.
+
+## 0.11.303 (sess35) — 2026-07-31
+
+- FIX-A shipped (D-RELEASE-BARRIER-OPEN TOCTOU, Gemini priority-2):
+  P244-REL-TERMINAL-DEFER — a LAST obligation gate at the release
+  path's terminal store (immediately before i_dlm_mode=NL).  If
+  pend != dur there: keep the tenure, set CACHED+bast_pending, re-arm
+  the 25ms dwork, wake waiters, return — identical discipline to the
+  P236 obligation arm.  Exemptions: dirs (post-NL fence tails),
+  ISTALE, dead-incarnation, i_dlm_stale, shutdown.
+- Board chunk on 303: cache_coherency, zero_silent_loss,
+  crash_consistency (88s/90s) all 32/32 PASS; dir_reuse_coherency
+  FAIL (pace only, 7 rounds vs >=8).  P244 fired 0 times while P220
+  fired 695x — the leak is NOT the non-dir terminal-store race FIX-A
+  covers; epsrc census pinned the bumps at the terminal store with
+  the dstale exemption taken (see 304).
+
+## 0.11.302 (sess35) — 2026-07-31
+
+- P138-BAST su split: sw= (drain-end -> unlock entry) and sx= (the wire
+  unlock call proper).  First measurement: sx = 12.7-54ms on CLEAN file
+  releases during the dir_reuse rm storm — the ENTIRE su tail is inside
+  mxfs_v5_dlm_inode_unlock_gen, i.e. shared-target queue time for the
+  unlock's read+CAW under aggregate load (TRAP-1 ceiling, documented at
+  mxfs_dlm_caw_unlock_gen), not drain work.  Per-handoff floor under
+  storm ≈ one release+grant disk round-trip pair at queue depth; the
+  remaining reduction is protocol-IO count (ledger next_step:
+  reader-state/writer-gate redesign).
+
+## 0.11.301 (sess35) — 2026-07-31
+
+- NUDGE v2 companion — HOPELESS-DEFER (MXFS_CAW_DEFER_POLL_MS=250): a
+  waiter whose slot read proves no grant can land until another node's
+  release (fair-handoff ticket naming another node, or a foreign EX
+  holder) now sleeps 250ms between verification reads instead of the
+  2/1..25ms cadence, relying on the targeted v2 nudge for its instant
+  wake.  The 2ms-fastpoll/25ms-backoff herd was measured as >1100
+  serialized FUA reads/s at the single SCSI target from ~28 excluded
+  waiters — the reads THEMSELVES were the 21.6ms/handoff cost.  Stale
+  -ticket (5s) and PR-patience clocks tick at the new cadence; a lost
+  UDP nudge costs at most 250ms on one handoff.
+- RESULT: crash_consistency 32/32 PASS at 71s (budget 90s) after two
+  consecutive 90s-budget FAILs; dw+md5 create phases 63-70s -> 47-53s.
+  dir_reuse_coherency improved 6 -> 7 rounds vs the >=8 bar (still
+  FAIL; residual is the per-release wire-unlock cost, see 302).
+
+## 0.11.300 (sess35) — 2026-07-31
+
+- GRANT NUDGE v2 (Gemini-reviewed design): the UDP nudge now carries
+  wake_mask — the node bits that can act on the slot change (fair-
+  handoff ticket / PR class / all waiters).  Receivers record the last
+  32 nudges in a per-ctx ring (nudge_lock); a blocked acquirer scans
+  the ring on wake and skips its FUA slot re-read when every new nudge
+  is for another resource or targets other nodes.  Sequence-continuity
+  fallback (fell off the ring -> conservative read), v1-sender
+  compat (version<2 -> wake-all), EX-promote nudges suppressed
+  entirely (nobody grantable), PR-promote nudges target the PR class.
+  Poll backstop unchanged (lossless).  On its own this did NOT move
+  the convoy (the herd was poll-cadence-driven, not wake-driven) —
+  it is the enabler for 301's hopeless-defer.
+
+## 0.11.299 (sess35) — 2026-07-31
+
+- D-CRASH-COLDREAD-STALE-SPLIT / D-INODE-CLUSTER-PUBLISH family —
+  FIX-B3 + FIX-C shipped together (Gemini priority-1 verdict):
+  - FIX-B3 (merge-mask staging-tenure protection): the cluster merge
+    now protects a slot whose LIVE staged image was produced under the
+    CURRENT EX tenure (i_mxfs_pub_stage_epoch == i_dlm_epoch, stage
+    mode EX, flush != durable) even when the item's dirty_seq predates
+    the tenure — verified per-slot against the coherent disk read
+    (same di_gen AND platter changecount <= staged changecount).
+    P243-CURSTAGE-KEEP traces each engagement.
+  - FIX-C (honest ledger on condemnation): the P238 rollback now ALSO
+    engages outside RELFLUSH for a same-incarnation condemnation of our
+    own strictly-newer state (mode EX, gen == platter gen, iversion >
+    platter changecount, not ISTALE) — cls=samegen-own.  Blind
+    discharge of that class (P241 CLEAN DETACH capture, ino 58729920)
+    left in-core state as the sole copy of acknowledged data.
+    Livelock-safe vs the 293 engine: the 293 class had revoked
+    authority (gen mismatch) — excluded; and B3 protects the re-staged
+    image next push so condemn/rollback cannot recur on the same state.
+  - Verification status: 1 board lap zero P239/P241/P238 events (no
+    condemnable overlap arose); engagement proof still requires the
+    fix26/27 injection laps per the Gemini A/B plan.
+
+## 0.11.298 (sess35) — 2026-07-31
+
+- Classifier round 2 instrumentation (RULE 4) for the P239 population:
+  - P239 grew gen=/pgen= (in-core vs platter incarnation — the
+    dead-shell discriminator), ds=/gs= (dirty_seq vs ex_grant_seq at
+    condemnation), fields= (re-log state deciding self-heal vs
+    exposure).
+  - P241-BLIND-DISCHARGE: MXFS_IF_CLMERGE_HIT armed at every overlay
+    of a slot with an in-flight claim; the buffer-wide iodone
+    discharge over a merged-away image now traces, labeled re-logged
+    (self-healing) vs CLEAN DETACH (in-core state sole copy).
+  - P242-EPOCH-CHURN at all six ex_grant_seq bump sites: fires when a
+    bump strands open obligations (flush != durable or dirty item).
+- DECISIVE capture, first lap (test21 ino 58729920, 74ms):
+  P242 (upgrade site, ds=gs=311, pend=9 > flush=7 — TWO transactions
+  committed while NOT holding EX, i.e. post-release ioend conversions
+  via the FIX-25 admit) -> P239 (ds=311 gs=312, gen==pgen — same
+  incarnation, mask condemned the freshly-staged flush 7->9 image) ->
+  P241 blind discharge dur 7->9, CLEAN DETACH.  Companion P220 capture
+  same lap: pend=9 dur=5 AT the terminal store 0.4ms after
+  iomap_write_unwritten commits under dlm_state=BAST — the P236 gate
+  evaluates before the drain-generated conversions land and nothing
+  re-checks at the store: the release-pipeline TOCTOU is the leak
+  source (FIX-A, Gemini priority-2, queued: in-flight-ioend counter +
+  terminal re-check).  This lap self-healed (workload kept writing;
+  release drain landed cc=4) — the archived COLDREAD incident is the
+  quiescent variant of the same chain.
+
+## 0.11.294 (sess34) — 2026-07-31
+
+- FIX-1 REFINEMENT (RULE 4 — 293's unconditional form was a proven
+  livelock engine, caught on its first board): the P238 cluster-merge
+  ledger rollback + PUB_SKIPPED re-arm now engages ONLY inside the
+  sanctioned-release window (MXFS_IF_DLM_RELFLUSH).  293's first cut
+  fired for copy-in-gate/merge-mask authority-gap slots (copy-in allowed,
+  mask condemns — revoked provenance/pipe-relog forms), where the overlay
+  is the DESIGNED correction: test32 ino 62914705 looped copy-in(6->7) ->
+  overlay -> rollback(7->6) -> re-arm -> re-push (50 capped P238, 1926
+  P187 in minutes), the immortal dirty item wedged the no-inode release
+  fence (P-NOINO-RELFENCE-WEDGE ino=8388746) -> node shutdown -> chunk-6
+  cascade (dir_reuse 0/32, integrity pre-asserts, ag_strand 5-node FAIL).
+  Void-change slots keep the pre-existing complete-clean resolution.
+- 294 full 32/caw knob=0 board green at healthy walls (crash 71s,
+  dir_reuse 105s, cache 29s, zsl 31s, dd 65s, fio seqW 10.8GB/s) EXCEPT
+  ag_strand_repair 27/32 — ROOTED SAME SESSION as RIG DRIFT, not a
+  filesystem defect: test19-23 booted without log_buf_len=16M (256KB
+  ring wraps in ~40s → the test's window marker ejected → empty scan →
+  strands=0 honest FAIL; same cause as the 292-era 3-of-5 history).
+  Grub-fixed + rebooted the 5 nodes; ag_strand_repair now 32/32 PASS
+  (strands=1 repaired=1 on the ex-failing nodes) → **294 board FULLY
+  GREEN**.  Also: ag_strand rounds now scale with node count (16→T at
+  T>16).  Ring-drift blast radius (any dmesg-window scan on 19-23
+  silently under-reported; atomic counters unaffected) recorded in
+  ccmemory rig-test19-23-log-ring-drift-fixed.
+
+## 0.11.297 (sess34) — 2026-07-31
+
+- P239 classifier fields pcc= (platter slot changecount, from the
+  merge's own coherent read) + icc= (in-core iversion): decides per
+  event whether an overlay-condemnation protected a peer's newer image
+  (true staleness) or reverted our own newer state with no peer writer
+  (provenance false-positive from in-core epoch churn — the wire grant
+  never left).  Gemini consult #3 ruling: post-P236-gate, mid-tenure
+  provenance mismatch should be IMPOSSIBLE absent bugs → the endgame is
+  a fatal tripwire, NOT fail-closed copy-in (which would pin the log
+  tail); classification must precede enforcement because live authority-
+  gap P239s exist (6 on 296-era logs) and a fatal tripwire on a false-
+  positive class would shut down healthy nodes.
+- Full 32/caw board 24/24 green.  dir_reuse pace-FAIL (7/8 rounds,
+  content clean) + dlm_fairness budget-FAIL both PROVEN external host
+  load (Wow.exe+worldserver ~7.7 cores); clean PASSes at load <20.
+  Injected laps (fix27=25) 2/3 PASS + 1 budget overrun, non-binding;
+  no orphan signatures.
+
+## 0.11.296 (sess34) — 2026-07-31
+
+- `mxfs.pub_obligation_enforce` DEFAULT 1 (Gemini consult #2 ruling 2b):
+  the release drain's P146V re-log-under-current-tenure arm is the
+  principled convergence mechanism for committed changes whose copy-in
+  the merge mask condemned — provenance re-stamped through the journal,
+  crash-consistent; partners the P236 pre-NL gate (defer) so deferred
+  releases land.  Full 32/caw board green (24 criteria, crash 80s,
+  dir_reuse 110s).  P176 engagement 0 so far (rare interleave; armed).
+
+## 0.11.295 (sess34) — 2026-07-31
+
+- Instrumentation build (no behavior change; Gemini RULE-5 consult #2
+  drove the design):
+  P239-OVERLAY-ID: unconditional identity trace at every cluster-merge
+    overlay of a slot with an in-flight copy-in claim (flush!=durable) —
+    bp pointer, RELFLUSH, dlm_mode, ledger seqs.
+  P240-COPYIN-ID: RELFLUSH-gated copy-in identity (ino, bp, seqs) — the
+    chain-of-custody pair for P239.
+  P-ACQ-STUCK grew myslot= (our claimed disklock slot — slots are
+    claimed, not rank-ordered; the sess34 orphan capture could not name
+    slot 16's owner).  New P-ACQ-SELF-ORPHAN detector: sole wire holder
+    is this node while our own waiter starves (grant with no in-core
+    consumer).
+- Full 32/caw board green (dlm_fairness 2 budget-FAILs PROVEN external
+  host load — Wow.exe+worldserver ~7 cores; PASS 15s/30s at load 17).
+- Amplified crash laps (fix27_delay_ms=25, non-binding): 2/2 PASS;
+  FIRST P239 capture: ino 8390564 overlay-condemned at flush=7 dur=5
+  while EX-held relflush=0 (the authority-gap class), and P240 shows
+  THREE different buffer instances for one inode's cluster in 40s —
+  instance replacement is routine; the merge/ledger design must not
+  assume buffer identity stability.  Gemini ruling for the next
+  behavioral increment: fail-closed copy-in (one authority predicate,
+  the mask's) + pub_obligation_enforce=1 (re-log under current tenure)
+  as the convergence mechanism.
+
+## 0.11.293 (sess34) — 2026-07-31
+
+- D-CRASH-COLDREAD-STALE-SPLIT root chain REVISED from the archived
+  incident (P170 slot-cc progression + ledger prints): the overlap/
+  out-of-order-landing hypothesis is REFUTED (39 submissions, cc=6 image
+  NEVER submitted; zero sema-poisoning hits).  Proven chain: dd's O_SYNC
+  append committed via the sub-EX writeback path during the release
+  abort/re-entry window (P26PRE, holders census blind to it); the re-
+  entered pipeline's durable pass copy-in staged cc=6 (flush 6->11), the
+  cluster-merge overlay RESTORED the platter's cc=4 over the staged slot
+  (P-CLMERGE restored) withOUT rolling the flush watermark back; the
+  next completion discharged durable=flush=11 — ledger BLIND-CLOSED for
+  bytes never on the wire; close_or_defer read pend==dur and the wire
+  unlock proceeded; 50s later a reload adopted the stale platter (P177
+  silent — ledger read closed) destroying the only cc=6 copy.
+- Three-part fix (Gemini RULE-5 review: flush-before-demote must be
+  structural; dirty-at-NL unrepresentable; evict of an obligated fork is
+  the loss finalizer):
+  FIX-1 P238-CLMERGE-LEDGER-ROLLBACK: merge overlay of a staged slot
+    rolls i_mxfs_pub_flush_seq back + re-arms (P187) so a completion
+    cannot discharge merged-away bytes.  (Narrowed in 294.)
+  FIX-2 P236-REL-OBLIGATION-DEFER (mxfs.rel_obligation_gate=1): pre-NL
+    obligation gate at the bast_process commit point — a non-dir inode
+    with pend!=durable defers the release via the existing abort
+    machinery (CACHED+bast_pending+25ms dwork re-arm, bastq_src=21),
+    keeping tenure/authority for the re-fired drain.  Exempt: dirs
+    (their post-NL fence + tails), ISTALE, dead-incarnation, dlm_stale,
+    shutdown, entry-NL cleanup flavors.  gate_defer counter in P220
+    dump.
+  FIX-3 P237-EVICT-OBLIGATION (mxfs.evict_obligation_shutdown=1):
+    evict-side tripwire — open ledger at eviction attempts a last-chance
+    publish if still EX, else pr_err + force_shutdown rather than silent
+    cluster-wide loss of acknowledged data.
+- sess34 capture: dir_reuse 0/32 NO_TERMINAL_RECORD wedge = ORPHANED
+  WIRE EX (test17 slot 16, ino 34081568, 350s+): the budget SIGKILL
+  killed mkdir between winning the wire EX CAS and in-core consume;
+  nothing in-core references the grant so no reaper arms (P36-MHT only
+  covers in-core state; the abandoned-grant reap P15-TCP-ORPH-PROCEED
+  is TCP-only).  Heartbeat keeps stamping the slot (gen climbs, yt/ysm
+  frozen) => permanent starvation; local nudge impossible (any access
+  queues behind it).  Evidence: tests/logs/sess34_dirreuse_orphan_ex_*.
+  This is the sharp mechanism for (at least part of) the dir_reuse-32
+  flake / conv-wedge family — CAW needs the abandoned-grant reap.
+
+## 0.11.292 (sess33) — 2026-07-31
+
+- D-CAW-YIELD-STARVATION idle-holder root PROVEN by live intervention and
+  FIXED: P36-STRIKEOUT stopped re-arming with bast_pending set, but an
+  IDLE holder has no local refire and CAW cannot push a BAST — 4 idle PR
+  holders (all post-strikeout, parked 20s+ busy by collision injection)
+  starved an EX waiter 23.7 minutes (P-WAIT-EXTEND "holders alive"
+  forever); a manual `ls` on one holder granted it in seconds
+  (P34-ACQ-SLOW dur_ms=1420998 rc=0). Fix: strikeout DOWNSHIFTS to a 1s
+  keep-alive (2500..~4300 strikes ≈ 30min hard cap, P36-STRIKEOUT-SLOW;
+  evict still cancels both arms). Same-provocation A/B on 292: 16
+  downshifts engaged, contention episodes progressed (gen 141→223), full
+  self-recovery after disarm with no manual touch.
+- Injection triage: the readdir undercount (117/128 with lookups OK,
+  every node) is ICLUSTER-knob=1-ONLY (2/2 vs 0/2 at knob=0 under
+  identical injection) — Phase-B campaign blocker, not shipped-product.
+- NEW OPEN CRITICAL D-CRASH-COLDREAD-STALE-SPLIT: one crash_consistency
+  lap (knob=0, load 35) had observers rank2-6 read IDENTICAL stale
+  content for two peer-written files while 27 ranks read fresh; fresh
+  mkfs excludes prior-lap content; primary candidate cold-iget of a
+  lagging home dinode. 3 immediate repro laps PASS incl. at load 31-36.
+  Evidence preserved (tests/logs/sess33_crash_md5_mismatch). Ledgered
+  with capture protocol; every future crash lap is a repro attempt.
+- 292 knob=0 shipped-config board otherwise green at healthy walls
+  (strong 4s, posix 7s, mmap 6s, membership 5s, fairness 15s, fence 20s,
+  zsl 21s, cache 27s, dd 66s, dir_reuse 101-112s ×2, crash 27-29s ×3
+  after the incident lap).
+
+## 0.11.291 (sess33) — 2026-07-31
+
+- ICLUSTER Phase A (campaign for the D-INODE-CLUSTER-PUBLISH write-unit
+  ownership repair, per GPT closure ruling): first knob=1 boards in 274
+  builds. GREEN: fairness (ghost-dirent residual GONE), strong, posix,
+  cache, mmap, membership, zsl, fence, crash, dir_reuse 106s, dd 65s.
+  ONE wedge on 290-knob1 (conv worker + bast worker D in
+  folio_wait_writeback inside bast_process; call chain not captured) →
+  291 extends the P152 trans-free punt to ioend/writepages contexts
+  (why=ioend-ctx, bastq_src=17) — armed, ZERO engagements since, so the
+  wedge root is NOT yet attributed; full-stack capture protocol recorded
+  for recurrence. One dd 240s-at-box outlier under load 15-19 with zero
+  hung-task warns (distributed slowness, watching). icluster_dlm remains
+  default 0; campaign continues.
+
+## 0.11.287-290 (sess33) — 2026-07-31
+
+- P234-LOG-NOEX source counter (GPT closure criterion 3, "dirty-at-NL"
+  generalized): at the pend++ stamp in xfs_trans_log_inode, count every
+  publication obligation created without cluster authority; buckets
+  lognoex_nl / lognoex_pr in the P220 dump. .287 first data: pr=0, nl only
+  from the pipeline's own P146V/P182 re-log arms → .288 gates those via
+  i_mxfs_pipe_relog → STRICT ZERO on dd+zsl. .289's full board then fired
+  it 2-24/node — attributed (RULE 4) to the FIX-25/26/27 nested ioend/
+  writeback admissions, which legitimately mutate while drain site 2 has
+  already cleared i_dlm_mode to NL but the on-disk mirror grant is still
+  ours (their ex_holders census pins the wire grant; P15 aborts + re-arms
+  the release, so every such commit drains before handoff). .290 fixes the
+  SENSOR: authorized = mode EX || i_dlm_ex_holders>0 || pipe_relog —
+  STRICT ZERO across posix+mmap+strong+zsl+crash+dd. True bypasses
+  (atomic ilock_try, ILOCK-nowait) inc neither and stay caught.
+- INODEGC/ORPHAN AUTHORITY CLASS: VERIFIED covered, no new machinery
+  needed. Audit: multinode inactivation is SYNCHRONOUS at final iput (P25
+  path, adopted v0.3.59 for the AGI-recycle race) → xfs_inactive →
+  xfs_ilock(EXCL) → full DLM admission = GPT's reacquire-before-dirty,
+  structurally; the deferred worker survives only the nested-AGI case and
+  re-admits identically; ISTALE inodes cannot create core obligations
+  (asserted in trans_log_inode). Measurement: the P234 tripwire above.
+- EX-SIDE EPOCH GATE (.289, GPT condition 4, knob mxfs.stale_stage_skip_ex
+  DEFAULT ON): holding EX now is not authority for bytes staged under a
+  dead tenure — the reacquire reconciled the in-core inode, not the frozen
+  pre-yield cluster-buffer image; publishing it can revert a peer's
+  inter-tenure commit, and skipping is always safe at EX (equal bytes →
+  no-op restage; differing → corruption prevented). PUB_SKIPPED set
+  UNCONDITIONALLY (the P187 iodone re-arm restages current state under the
+  live grant — retry succeeds at EX, unlike NL); ISTALE/ifree slots
+  EXCLUDED (class-X: the freed-state write keeps publishing under the live
+  ifree tenure); rf/dem submit contexts counted (stale_ex) never skipped;
+  unlanded skips roll the flush watermark back (P56 treatment). New
+  counters stale_ex / sskip_ex / sskip_ex_unl in the P219 dump. Validated:
+  full 11-criterion board green at unchanged walls (dd 65-66s, dir_reuse
+  112s, cache 28s, crash 72-73s); numerator ~1/node/board, skips fired
+  exactly where eligible, sskip_ex_unl=0 (all skips were landed
+  byte-redundant images). Pre-289 builds are the de-facto publish control.
+
+## 0.11.286 (sess33) — 2026-07-31
+
+- WRITER-QUIESCENCE admission barrier (the convergent close the .282/.283
+  attempts aimed at): new atomic_t i_mxfs_ilk_wr_held census of outstanding
+  ILOCK_EXCL holds — inc open-coded post-acquisition in xfs_ilock +
+  xfs_ilock_nowait ONLY (the raw forensic note_lock callers stay uncounted:
+  their releases bypass note_unlock, counting them would leak the census up
+  and permanently disable the barrier), dec in mxfs_ilk_note_unlock (both
+  callers release xfs_ilock-taken locks), demote adjusts, WARN_ON_ONCE on
+  underflow/double-hold. mxfs_relbar_close_or_defer waits (one shared ~40ms
+  budget, conditional before EACH durable pass — GPT-reviewed design) for
+  census 0 instead of trylocking the rwsem: readers never waited on, never
+  blocked (no .282 convoy possible by construction); pend++ is stamped under
+  local ILOCK_EXCL and CIL insert completes before the holder's fully-ordered
+  dec, so census 0 = everything finished is log_force-capturable — including
+  the DLM-uncounted mutator classes the P15 ex_holders gate cannot see.
+  Census 0 is an observation, not a stable state (down_write-queued writers
+  have not inc'd); defer/requeue stays the safety backstop. Knob
+  mxfs.relbar_wrq (1=census wait default, 0=legacy .283 trylock arm).
+- Validated: full 11-criterion board + 2 extra aged-mount hot-dir rotations,
+  all PASS at healthy walls (dd 64-66s, dir_reuse 110-112s, cache 22-28s,
+  crash 71s, zsl 30s); WARN=0 on 8 sampled nodes; obligation=0 at all ~232k
+  fleet unlocks; deferred=0 the whole batch (vs 6-119 on .276-283 batches)
+  while epoch_obligation grew 30→93-115/node — mid-tenure opens keep
+  happening and now all close by unlock time. Enforce engaged once:
+  wrq_ok=1, closed in place, wrq_tmo=0. Exposure caveat recorded: the
+  unlock-time-open regime (10-41/lap, intermittent) did not recur in 6 laps,
+  so the convergence win is 1/1 not N/N; a legacy-arm control lap under zero
+  engagement is byte-identical by construction and was skipped. .285's
+  pending dd validation also cleared this session (PASS 65s quiet-host).
+
+## 0.11.284-285 (sess32) — 2026-07-31
+
+- P229/P230 probes: mxfs_dlm_ilock_try's preempt_count()>0 arm bypasses the
+  DLM entirely (no DEMOTING gate, no holder count — and ilock_end's
+  unconditional decrement would eat a concurrent holder's count for an EX
+  bypass). MEASURED ZERO firings on the 32-node producer. .285 refuses EX in
+  that arm anyway (nowait callers fall back to blocking xfs_ilock = full DLM
+  path); PR keeps the bypass + a log-under-bypass tripwire
+  (i_mxfs_atomic_bypass_ns, cleared at ilock_end).
+- .285 dd validation pending: first lap failed 5/32 NO_TERMINAL_RECORD=27
+  under external host load (game server at 350%+ CPU on clyde; P229=0 on
+  that board proves the change never ran; cache_coherency passed 27s in the
+  same window). Re-validate on a quiet host.
+
+## 0.11.282-283 (sess32) — 2026-07-31
+
+- Admission barrier in mxfs_relbar_close_or_defer: .282's unconditional
+  down_write(&i_lock) CONVOYED behind readdir's long ILOCK_SHARED holds
+  (dirent_durability 240s/240s, 4x wall — RULE 0 fail) and was replaced in
+  .283 by a <=40ms down_write_trylock loop (timeout = safe pre-barrier defer
+  behavior). Measured: the trylock rarely wins on a hot dir (closed=7 vs
+  deferred=119 over 227k unlocks) — defers stay safe/bounded at healthy
+  walls, but the convergent close still needs the full admission interlock
+  (ilock_begin-side gate), queued.
+- INCIDENT (recorded in ledger, unattributed): one aged-mount batch on .283
+  failed dir_reuse 0/32 + cache_coherency 652/654 (its first check failure);
+  3 identical aging sequences + fresh pair all green after. 1/4 rate.
+
+## 0.11.281 (sess32) — 2026-07-31
+
+- relbar enforcement extended to BOTH wire-unlock arms: the inline anchored
+  block refactored into mxfs_relbar_close_or_defer(ip, arm) and wired into
+  the noanchor unconditional-unlock path too (defers via its existing
+  stranded re-arm). P228 print now carries arm=.
+
+## 0.11.280 (sess32) — 2026-07-31
+
+- mxfs.relbar_enforce DEFAULT ON. Same-build A/B: enforce=0 leaked 10-12
+  open-ledger wire unlocks per lap (typed: shared parent dirs re-committed
+  in the durable-flush->unlock window); enforce=1 leaked ZERO across 3
+  dirent_durability laps + the guard board (cache 28s, crash 69s, dir_reuse
+  101s, dd 64-66s — no pace cost), with 6/26551 (0.02%) bounded deferrals
+  (P228, all in-window recommits of two base dirs; requeue landed them).
+  First enforcement increment of released=>landed; anchored arm only.
+
+## 0.11.275-279 (sess32) — 2026-07-31
+
+- D-RELEASE-BARRIER-OPEN: the LEDGER predicate (pending!=durable) added to
+  both release-tail checks and every tenure-end site — fires 10-41/lap where
+  the old IFLUSHING predicate reads 0 (blindness proven). Typed via new
+  identity fields: epoch-site events are transient child dirs (closed by the
+  later pipeline flush); the WIRE-UNLOCK events (10-12/8234 unlocks) are
+  shared parent dirs whose durable flush RAN and that were re-committed in
+  the flush->unlock window (the admission-not-closed case). P176 fired 0
+  (bypassed); P56/P187 rollbacks uncorrelated (refuted); restamp-at-attach
+  refuted by source (ifree binvals the buffer; stamps are honest).
+- NEW ENFORCEMENT (mxfs.relbar_enforce, default 0 pending A/B): at the
+  anchored wire unlock, an open ledger triggers up to 2 in-place durable
+  passes (dir/non-dir variants); if it still will not close the wire unlock
+  is DEFERRED via the proven -ESTALE requeue (P228-RELBAR-DEFER) instead of
+  handing the grant away with the obligation open. Counters closed/deferred
+  in P220-RELEASE-BARRIER-TOTAL.
+- P222 print now carries stage_mode/ili fields/pending/durable (root-fix
+  forensics); P224 unlanded fail-closed shipped in .273.
+
+## 0.11.274 (sess32) — 2026-07-31
+
+- Mount-time arm of D-FOREIGN-REPLAY-UNGATED-IMAGES: a PASS-2 (fresh)
+  disklock claim now marks the inherited log slice ADOPTED
+  (disklock ctx -> v5 -> mp -> XLOG_MXFS_ADOPTED_SLICE), and mount recovery
+  suppresses untagged buf/dquot/quotaoff/icreate images AND the dead
+  incarnation's intents (P223 with src=adopted, P226-UNTRUSTED-INTENT-SKIP)
+  while inode records use the di_changecount gate
+  (xlog_is_mxfs_untrusted_replay). PASS-1 own-stamp reclaim keeps full
+  recovery (own-crash path: grants still quarantined, replay required).
+  Knob mxfs.adopted_slice_full_replay=1 restores legacy full replay for A/B.
+  Closes the rejoin/claim hole where a returning or joining node re-applied
+  an already-recovered slice's images against survivor-updated blocks via
+  the meaningless cross-slice LSN compare.
+
+## 0.11.273 (sess32) — 2026-07-31
+
+- NEW CRITICAL DEFECT RECORDED + CONTAINED: D-FOREIGN-REPLAY-UNGATED-IMAGES.
+  Foreign/adopted slice replay applied buf/dquot/quotaoff/icreate image
+  records gated only by cross-slice XFS_LSN_CMP, which is meaningless
+  (per-node slices number LSNs independently — the sb-LSN check already
+  admits this). Containment (GPT-ruled stop-ship): live foreign replay now
+  SKIPS untagged non-inode image records (P223-FR-UNTAGGED-SKIP, counted);
+  inode records keep their node-independent di_changecount gate. Knob
+  mxfs.foreign_replay_untagged_apply=1 restores legacy apply for A/B only.
+  Full fix (authority tokens + durable held-set manifest + IMAGE_REPLAY_DONE
+  marker) queued; mount-time adopted-slice suppression next.
+- P222 unlanded arm now FAILS CLOSED (GPT condition-1): a committed change
+  unlanded under a dead tenure at NL triggers P224-UNLANDED-STALE-FATAL +
+  xfs_force_shutdown (-> lease loss -> peer fence -> journal recovery), never
+  a silent publish/drop/livelock. Never observed (sskip_unlanded=0 ever).
+  mxfs.stale_stage_unlanded_shutdown=0 restores count-and-skip for A/B.
+
+## 0.11.272 (sess32) — 2026-07-31
+
+- mxfs.stale_stage_skip DEFAULT ON. Paired laps on one 0.11.271 module load:
+  skip=0 baseline put 2 dead-tenure NL images on the wire; every skip=1 lap
+  masked 100% of detections (cumulative sskip_landed=36, sskip_unlanded=0,
+  wire writes of the class = 0) with the guard board green at healthy walls
+  (cache_coherency 26s, dir_reuse 110s, crash_consistency 24s,
+  dirent_publish_integrity PASS unlanded_at_unlock=0, dirent_durability
+  64-66s x4). Authority-merge check: 0 passenger writes, 0 in-window P219,
+  582 passenger slots dropped by the shipped sess29 fix. 0=pre-fix control.
+
+## 0.11.271 (sess31) — 2026-07-31
+
+- D-RELEASE-BARRIER-OPEN containment (DEFAULT OFF, mxfs.stale_stage_skip):
+  P222-STALE-STAGE-SKIP masks dead-tenure staged inode images out of home
+  writes in the cluster masking loop (P56-mirroring bookkeeping: landed
+  images skip losslessly; unlanded roll the watermark back and count LOUDLY,
+  re-arm only via the existing pub_skip_rearm lever). First cut of the
+  GPT-ruled program; A/B pending next session (deploy + skip=0/1 laps,
+  acceptance stale_nl-writes -> 0 with green board + authority-merge
+  divergence=0).
+
+## 0.11.270 (sess31) — 2026-07-31
+
+- P219 sharpening: torn-stamp fix (epoch double-read around the mode read in
+  xfs_iflush), stale_nl counter (stale && submit-at-NL = the corruption-capable
+  class), bflags= in the P219 print. Findings: class X = ORPHAN inode images
+  really written at NL (no XBF_STALE); class Z = shared-parent dir submitted
+  mid-EX with multi-epoch-old bytes (drain-covered for now). Fix design queued.
+
+## 0.11.268-269 (sess31, ccloop c7ee71c6) — 2026-07-31
+
+- D-CAW-YIELD-STARVATION-SHUTDOWN (NEW critical, ROOT PROVEN, FIX SHIPPED):
+  compatible-yield fresh INODE acquires never registered in slot->waiters, so
+  release tickets (yield_to = waiters) never named them; under sustained
+  shared-dir handoff they burned all 100 CAW retries (P-CAWEXH yield_bo=100),
+  got -ETIMEDOUT, and mxfs_dlm_ilock_begin force-shut-down the FS — 10 of 32
+  nodes died within 1.8s in dirent_durability@ 32/caw. Fix (GPT-reviewed):
+  mxfs.caw_fresh_register=1 (register-on-first-deferral; claim CAS clears
+  waiter bits + recomputes waiter_mode atomically, also draining ghost bits)
+  + mxfs.caw_fresh_yield_bound=16 (bounded courtesy, P221-YIELD-BOUND).
+  P-CAWEXH now prints yreg=/ybypass= (doubles as a 269+ line marker).
+- P219-LOGGED-NO-AUTHORITY print: fixed %s-vs-integer format bug (missing
+  stage_ns=%llu) that made EVERY fire dereference a timestamp as char* and
+  PANIC the node from xfsaild context — the mechanism behind several
+  "no visible error" node deaths (serial logs are root-only; sudo required).
+  First 13 surviving captures recorded: all stale=1 epsrc=14516, including
+  freed-inode images written at NL (see OPEN_DEFECTS D-RELEASE-BARRIER-OPEN).
+- New harnesses: tests/ysr_dd_ab.sh (per-arm dirent_durability lap with scoped
+  exhaustion harvest), tests/yield_starvation_repro.sh (synthetic PR/EX storm).
+
 # Changelog
 
 All notable changes to MXFS, newest first.
@@ -868,3 +2606,25 @@ Repository normalization and first public release. No functional code changes.
 ### scsipr — SCSI PR fencing
 
 - 2026-02-15: Ported from kernel to portable C using PAL
+
+## 0.11.374-376 (sess47, 2026-08-02)
+- 374: RULE-4 probes naming every exit of xfs_iunlink_remove_inode
+  (P-UNLREM-INCOMPLETE/-NOPREV/-LOGSELF/-BACKREF); deterministic repro
+  tests/reap_midlist_repro.sh REPRODUCED D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372
+  first run (40s): reap-after-reclaim mid-list remove with prev=0 ->
+  silent -EFSCORRUPTED -> ifree -117 -> shutdown.
+- 375: FIX (GPT-hardened design): mxfs_ifree_unlinked_preflight — pre-ifree
+  slot-bucket walk rebuilding chain state + NONBLOCKING predecessor pin
+  (igrab live / iget-recycle reclaimable / -EAGAIN mid-evict = clean skip,
+  zombie durable, reap retries).  Pin released after AG DLM drop.  Verified:
+  repro 374=REPRODUCED -> 375=CLEAN both scenarios (fresh-iget + igrab pin
+  arms), openunlink_matrix 9/9 x2, 2 clean aged lap->matrix cycles.
+  D-REAP-IFREE-...-372 FIXED AND VERIFIED.
+- 376: rsync-rename producer NEW SIGNATURE decoded (aged cycle 3): fossil
+  di_next_unlinked (P53-IUNLINK-MISMATCH old_ptr=chain fossil, dip_gen
+  current) -> 0x8 shutdown at iunlink precommit; 2 sibling events absorbed
+  by P53-IDEMPOTENT (sess53 masking warning confirmed).  P143 agmeta
+  time-travel fence gap: xfs_inode_buf_ops unfenced.  Report-only probes:
+  pag_mxfs_inocl_wr_epoch stamp + P-INOCL-COLDREAD (cold cluster read
+  inside unflushed write window).  Ring banked:
+  test2:/root/transcommit_incore_1785706689.dmesg.

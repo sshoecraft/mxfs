@@ -1,0 +1,23 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_log_recover.c",
+    "pal/linux/xfs_buf.c",
+    "dlm/disklock.h",
+    "dlm/disklock.c",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "xfs/xfs_mount.h",
+    "pal/linux/xfs_super.c",
+    "xfs/xfs_log_priv.h",
+    "xfs/xfs_log.c",
+    "xfs/xfs_inode_item_recover.c",
+    "xfs/xfs_inode.h",
+    "xfs/libxfs/xfs_trans_inode.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/pal.md"
+  ],
+  "regen_done": true,
+  "nudges": 3
+}

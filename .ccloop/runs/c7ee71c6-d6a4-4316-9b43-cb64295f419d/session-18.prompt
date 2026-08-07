@@ -47,7 +47,7 @@ Then return to the criteria.
 
 ---
 
-# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 16
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 17
 
 ## Original task
 
@@ -56,22 +56,76 @@ read state.md
 
 ## Previous session
 
-- session-id: `c846e205-7713-4e45-b4a4-40a06a120810`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/c846e205-7713-4e45-b4a4-40a06a120810.jsonl`
-- approx context at last assistant turn: unknown tokens
-- tools used: none
+- session-id: `7884b30f-d8e0-4ef2-be89-ec55572e2580`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7884b30f-d8e0-4ef2-be89-ec55572e2580.jsonl`
+- approx context at last assistant turn: 388307 tokens
+- tools used: Bash×110 Edit×39 Read×34 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ask_gemini__query×2 Write×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-_(none)_
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode_item.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/state.md
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-_(none)_
+    head -30 CHANGELOG.md
+    timeout 15 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) lst = d if isinstance(d, list) else d.get('defects'
+    timeout 20 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) lst = d if isinstance(d, list) else d.get('defects'
+    echo "load=$(cut -d' ' -f1-3 /proc/loadavg)"; timeout 590 ./run.sh 32 caw crash_consistency dir_reuse_coherency cache_coherency zero_silent_loss 2>&1 | grep -E 
+    timeout 590 ./run.sh 32 caw rsync_paired fence_during_write fault_netpartition soak dirent_durability 2>&1 | grep -E "  PASS|  FAIL" | head -7
+    timeout 590 ./run.sh 32 caw strong_consistency posix_multi mmap_coherency dlm_fairness dlm_membership dlm_lock_correctness 2>&1 | grep -E "  PASS|  FAIL" | head
+    timeout 590 ./run.sh 32 caw node_responsive kernel_health ag_strand_repair sustained_load dirent_publish_integrity dirent_type_integrity 2>&1 | grep -E "  PASS|
+    echo "load=$(cut -d' ' -f1-3 /proc/loadavg)"; timeout 590 ./run.sh 32 caw node_responsive kernel_health ag_strand_repair sustained_load dirent_publish_integrity
+    timeout 20 ./showstat.sh 2>/dev/null | head -50
+    p243=0; p238=0; p241=0; p242=0; p239n=0; for n in $(seq 1 32); do v=$(timeout 8 tools/mxfs_sshpass.sh test$n "dmesg | grep -c 'P243-CURSTAGE-KEEP'; dmesg | grep
+    for n in $(seq 1 32); do timeout 8 tools/mxfs_sshpass.sh test$n "dmesg | grep 'P239-OVERLAY' | grep 'gen=' | tail -2; dmesg | grep 'P241-BLIND' | tail -2" 2>/de
+    timeout 10 tools/mxfs_sshpass.sh test6 "dmesg | grep '16790991' | grep -E 'P220|P236|P242' | tail -6" 2>/dev/null | cut -c1-230
+    printf '0.11.303\n' > VERSION; timeout 500 make modules 2>&1 | grep -E " error|Error:" | head -6; modinfo mxfs.ko 2>/dev/null | grep srcversion
+    echo "load=$(cut -d' ' -f1-3 /proc/loadavg)"; MXFS_FORCE_PREP=1 timeout 420 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 590 ./run.sh 32 caw crash_con
+    p244=0; p220=0; p241=0; p243=0; p238=0; for n in $(seq 1 32); do v=$(timeout 8 tools/mxfs_sshpass.sh test$n "dmesg | grep -c 'P244-REL-TERMINAL-DEFER'; dmesg | 
+    timeout 8 tools/mxfs_sshpass.sh test6 "dmesg | grep 'P220-EPOCH' | grep -oE 'epsrc=[0-9]+' | sort | uniq -c | sort -rn | head -8" 2>/dev/null; grep -n "i_dlm_ep
+    sed -n "$(grep -n 'mxfs_relbar_epoch_check' xfs/xfs_mxfs_dlm.c | grep -v 'epoch++' | head -1 | cut -d: -f1),+40p" xfs/xfs_mxfs_dlm.c; timeout 8 tools/mxfs_sshpa
+    timeout 8 tools/mxfs_sshpass.sh test6 "cat /sys/module/mxfs/srcversion" 2>/dev/null; sed -n '14852,14875p' xfs/xfs_mxfs_dlm.c; echo ...; sed -n '14908,14922p' x
+    printf '0.11.304\n' > VERSION; timeout 500 make modules 2>&1 | grep -E " error|Error:" | head -4; modinfo mxfs.ko | grep srcversion; MXFS_FORCE_PREP=1 timeout 4
+    timeout 200 ./run.sh 32 caw dir_reuse_coherency 2>&1 | grep -E "  PASS|  FAIL" | head -2; c=0; for n in $(seq 1 32); do v=$(timeout 8 tools/mxfs_sshpass.sh test
 
 ## Last text from previous session
 
-_(no text turn — session may have crashed mid-tool)_
+Session 17 start. First actions: load ccmemory tools and read state.md to resume the program.
+All 17 events came from the **restore** arm. The dead-incarnation discriminator (gen compare) is still needed there — the deadincarn arm only covers flushing-mask slots. Now the discharge site:
+Copy-in stamp at `xfs_inode.c:7320`. Implementing all pieces now — header flag first:
+Now the two callers get the platter gen, and the copy-in clears the flag:
+Now the six call sites. Sites 2/3/4 share identical text — one `replace_all` covers them; sites 1/5/6 are unique:
+Running board chunk A (the P239-generating + watch-bearing rows):
+Building 299 with both fixes:
+Load down to 10.9 — deploying 299 and re-running chunk A (retests the load-suspect FAILs and exercises B3+C):
+Nodes healthy, mounted, zero C-arm storms, no hung tasks — and uptimes show the lap never even reached its power-cycle phase. Reading the test to understand its phases and budget:
+Wire struct is 64 bytes; V2 appends `yield_to`. Checking the two sender sites for slot context:
+Now the sender, receiver, and the filtered wait in dlm_caw.c:
+Now the receiver records into the ring, and the two send sites compute wake masks:
+Now the two send sites with their wake masks:
+`slot_reads` is already counted per-grant in P138-WAIT — a built-in census for the A/B. Implementing the hopeless-defer long interval:
+Flat at grace=80 (7 rounds, ~15.7s/round). Batching isn't the lever here — need the round's phase anatomy. Reading the test:
+Even CLEAN releases spend 12–20ms in `su` — the wire-unlock phase, though CAW service is only ~0.65ms. Finding what `su` spans:
+Adding the su decomposition stamps:
+Now the defect ledger updates — appending session evidence to the three affected entries:
+Records durable. Boarding 302 — chunk A:
+Stopped.
+
+Where things stand at this instant, so nothing is lost:
+
+- **Builds 298–302 are shipped and deployed on all 32 nodes** (tree at 0.11.302, srcversion `654B6D...`). All state is durably recorded: CHANGELOG through 302, three ledger entries updated, two ccmemory notes, and `state.md` carries the full resume program.
+- **Session wins**: the COLDREAD false-positive churn chain was captured live and fixed (B3 merge-mask staging-tenure protection + C honest-ledger rollback, Gemini-reviewed); the P236 release-gate TOCTOU was proven with the P220/P242 captures (FIX-A designed, not yet implemented); the CAW create-convoy herd was rooted to waiter poll cadence and halved (nudge v2 + hopeless-defer) — crash_consistency went from repeated 90s-budget FAILs to 32/32 PASS at 71–83s.
+- **Board 302 was mid-run**: chunks A–C done — 15 PASS, 1 FAIL (dir_reuse_coherency pace check, 7 rounds vs the ≥8 bar; that gap is ledger'd with next steps). Chunk D (node_responsive, kernel_health, ag_strand_repair, sustained_load, dirent_publish/type_integrity) had not started when you stopped me.
+
+Criteria remain **NO — not production ready** (12 OPEN defects against the RULE 6 zero-defect bar). Nothing else is running; the cluster is idle at build 302. Waiting on you.
+I've been using it as both — a relay-boundary handoff document (resume program + build state) that every session rewrites. You're right that it's redundant now: ccloop generates the resume from the transcript automatically, ccmemory is the durable memory, CHANGELOG.md is the build history, and OPEN_DEFECTS.json is the defect state. state.md duplicates all four. I'll stop maintaining it — recording that directive in ccmemory so future sessions don't resurrect the habit (the run's original prompt literally says "read state.md", so without a memory note every fresh session will go back to it):
 
 ## Continue
 

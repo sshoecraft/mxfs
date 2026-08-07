@@ -12,6 +12,7 @@ struct xfs_buf;
 struct xlog;
 struct xlog_ticket;
 struct xfs_mount;
+struct mxfs_shadow_eval;	/* sess165: shadow authority evaluator state */
 
 struct xfs_log_iovec {
 	void			*i_addr;/* beginning address of region */
@@ -462,7 +463,28 @@ struct xlog {
 	xfs_lsn_t		l_recovery_lsn;
 
 	uint32_t		l_iclog_roundoff;/* padding roundoff */
+
+	/*
+	 * sess165 (foreign-replay step 5): the heartbeat slot of the VICTIM
+	 * whose records this xlog replays — the dead peer for a FOREIGN_REPLAY
+	 * shadow xlog, our own slot's prior incarnation for an ADOPTED_SLICE
+	 * mount log.  MXFS_XLOG_VICTIM_NONE on every other xlog.  Consumed by
+	 * the shadow authority evaluator in xfs_log_recover.c, which lazily
+	 * hangs its state on l_mxfs_shadow_eval (freed by
+	 * mxfs_shadow_eval_finish / xlog_dealloc_log backstop).
+	 */
+	uint32_t		l_mxfs_victim_slot;
+	struct mxfs_shadow_eval	*l_mxfs_shadow_eval;
+	/*
+	 * sess166: untrusted-replay transactions the report pass saw while no
+	 * evaluator state existed (allocation failed / dlm ctx absent) — lets
+	 * the P273-SHADOW-EVAL summary declare itself INCOMPLETE instead of
+	 * a partial count reading as a full one (RULE-5 sess166 review).
+	 */
+	uint32_t		l_mxfs_shadow_missed;
 };
+
+#define MXFS_XLOG_VICTIM_NONE	((uint32_t)-1)
 
 /*
  * Bits for operational state
@@ -479,6 +501,15 @@ struct xlog {
 					   (live-AIL tail/head updates, in-core
 					   sb re-init, intent AIL insertion)
 					   must be skipped. */
+#define XLOG_MXFS_ADOPTED_SLICE	6	/* mxfs sess32: mount-time recovery of a
+					   slice inherited via a PASS-2 (fresh)
+					   disklock claim — any dirty records
+					   belong to an already-recovered or
+					   foreign incarnation; their images
+					   must not be re-applied (cross-slice
+					   LSNs incomparable).  Mount side
+					   effects still run (it IS the real
+					   mount log), unlike FOREIGN_REPLAY. */
 
 static inline bool
 xlog_recovery_needed(struct xlog *log)
@@ -504,6 +535,23 @@ xlog_is_mxfs_foreign_replay(struct xlog *log)
 	return test_bit(XLOG_MXFS_FOREIGN_REPLAY, &log->l_opstate);
 }
 
+static inline bool
+xlog_is_mxfs_adopted_slice(struct xlog *log)
+{
+	return test_bit(XLOG_MXFS_ADOPTED_SLICE, &log->l_opstate);
+}
+
+/* sess32: replay of records whose authority cannot be validated — either a
+ * dead peer's slice (live foreign replay) or an inherited dirty slice at
+ * mount.  Image records without a node-independent gate must not be applied
+ * from an untrusted source; inode records use the di_changecount gate. */
+static inline bool
+xlog_is_mxfs_untrusted_replay(struct xlog *log)
+{
+	return xlog_is_mxfs_foreign_replay(log) ||
+	       xlog_is_mxfs_adopted_slice(log);
+}
+
 /*
  * Wait until the xlog_force_shutdown() has marked the log as shut down
  * so xlog_is_shutdown() will always return true.
@@ -524,6 +572,9 @@ xlog_recover_finish(
 	struct xlog		*log);
 extern void
 xlog_recover_cancel(struct xlog *);
+/* sess165: emit the shadow authority evaluator's summary (P273-SHADOW-EVAL)
+ * and free its state; no-op when no evaluation ran on this xlog. */
+void	mxfs_shadow_eval_finish(struct xlog *log);
 
 __le32	 xlog_cksum(struct xlog *log, struct xlog_rec_header *rhead,
 		char *dp, unsigned int hdrsize, unsigned int size);

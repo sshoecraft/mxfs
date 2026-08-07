@@ -1,3 +1,10 @@
+---
+name: bug59-investigation
+description: Bug 59/60 investigation: 4-node happy-path duplicate directory entries.
+metadata:
+  type: project
+---
+
 # Bug 59/60 Investigation: 4-Node Happy-Path Duplicate Dir Entries
 
 ## Status: PARTIALLY MITIGATED — dedup-on-load prevents corruption, root cause narrowing

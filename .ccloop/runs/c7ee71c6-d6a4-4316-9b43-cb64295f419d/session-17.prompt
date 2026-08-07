@@ -56,22 +56,73 @@ read state.md
 
 ## Previous session
 
-- session-id: `c846e205-7713-4e45-b4a4-40a06a120810`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/c846e205-7713-4e45-b4a4-40a06a120810.jsonl`
-- approx context at last assistant turn: unknown tokens
-- tools used: none
+- session-id: `263d361b-585f-4025-8d7d-e3c0134b1e71`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/263d361b-585f-4025-8d7d-e3c0134b1e71.jsonl`
+- approx context at last assistant turn: 500166 tokens
+- tools used: Bash×165 Edit×38 Read×16 ToolSearch×3 Write×3 mcp__ask_gemini__query×3 mcp__ccmemory__memory_write×3 TaskUpdate×2 mcp__ccusage__get_context_usage×2 TaskCreate×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-_(none)_
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/VERSION
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/state.md
+- /src/mxfs/tests/suite/ag_strand_repair.sh
+- /src/mxfs/dlm/dlm_caw.c
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-_(none)_
+    printf '0.11.297\n' > /src/mxfs/VERSION; timeout 400 make modules 2>&1 | grep -E " error|iversion" | head -4; modinfo mxfs.ko | grep srcversion
+    MXFS_FORCE_PREP=1 timeout 420 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && for n in $(seq 1 32); do timeout 8 tools/mxfs_sshpass.sh test$n "echo 25 > /sys/mod
+    tot239=0; for n in $(seq 1 32); do v=$(timeout 8 tools/mxfs_sshpass.sh test$n "dmesg | grep -c 'P239-OVERLAY-ID'" 2>/dev/null); tot239=$((tot239+${v:-0})); done
+    timeout 12 tools/mxfs_sshpass.sh test6 "modinfo /lib/modules/\$(uname -r)/extra/mxfs.ko 2>/dev/null | grep srcversion; cat /sys/module/mxfs/srcversion 2>/dev/nu
+    for n in test8 test21 test11; do timeout 10 tools/mxfs_sshpass.sh $n "cat /sys/module/mxfs/srcversion; dmesg | grep 'P239-OVERLAY-ID' | grep -c 'pcc='" 2>/dev/n
+    date -u +%s; date -u
+    strings /src/mxfs/mxfs.ko | grep "P239-OVERLAY-ID" | cut -c1-140; timeout 10 tools/mxfs_sshpass.sh test8 "strings /lib/modules/\$(uname -r)/extra/mxfs.ko 2>/dev
+    c=0; for n in $(seq 1 32); do v=$(timeout 8 tools/mxfs_sshpass.sh test$n "dmesg | grep -c 'P-ACQ-SELF-ORPHAN'" 2>/dev/null); c=$((c+${v:-0})); done; echo "SELF-
+    timeout 590 ./run.sh 32 caw crash_consistency dir_reuse_coherency cache_coherency zero_silent_loss 2>&1 | grep -cE "  PASS"; timeout 590 ./run.sh 32 caw strong_
+    timeout 20 ./showstat.sh 2>/dev/null | grep -E "crash_consistency|dir_reuse|cache_coh|zero_silent" | cut -c1-140
+    timeout 15 python3 - <<'EOF' import json d=json.load(open('criteria.json'))['categories'] for cat in d:     for t in (cat.get('tests',[]) if isinstance(cat,dict
+    r=$(ls -dt /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); echo $r; timeout 15 grep -rh "RESULT" $r 2>/dev/null | head -3 | cut -c1-260; timeout 10 grep 
+    r=/tmp/run_dir_reuse_coherency_20260731T165334Z; ls $r | grep -v kernlog | head -6; f=$(ls $r | grep -v kernlog | head -1); timeout 10 grep -E "RESULT|FAIL" $r/
+    echo "load=$(cut -d' ' -f1-3 /proc/loadavg)"; ps -eo pcpu,comm --sort=-pcpu | head -5
+    for i in $(seq 1 21); do l=$(cut -d' ' -f1 /proc/loadavg); ok=$(python3 -c "print(1 if $l<20 else 0)"); [ "$ok" = 1 ] && break; sleep 20; done; echo "load-now=$
+    timeout 590 ./run.sh 32 caw rsync_paired fence_during_write fault_netpartition soak dirent_durability 2>&1 | grep -cE "  PASS"; timeout 590 ./run.sh 32 caw node
+    timeout 15 python3 - <<'EOF' import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) lst = d if isinstance(d, list) else d.get('defects', d) for x in 
+    timeout 15 python3 - <<'EOF' import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) lst = d if isinstance(d, list) else d.get('defects', d) for x in 
+    timeout 20 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) lst = d if isinstance(d, list) else d.get('defects', d) for x
+    timeout 15 python3 - <<'EOF' import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) lst = d if isinstance(d, list) else d.get('defects', d) for x in 
 
 ## Last text from previous session
 
-_(no text turn — session may have crashed mid-tool)_
+same uptime both nodes. Checking what timespan the thin kernlog actually covers:
+Rebooted with the 16M ring. Re-prepping and re-running the criterion:
+**ag_strand_repair PASS 32/32** — the 294 board is now fully green. Recording the infra fix, then the combined design consult:
+Now the combined design consult for the two remaining mechanisms:
+580k remaining — continuing with build 295. First the decisive code question: how does a fatal signal actually exit the CAW acquire after a won CAS — that unwind is where the leak lives:
+Adding the instrumentation set. First the copy-in stamp site:
+`xfs_iflush` has the bp. Implementing the three instrumentation pieces:
+Now the CAW-side stuck-print upgrades:
+`__ffs64` may not exist in the user-mode dlm build (Invariant #4) — replacing with a portable computation:
+External game-server load (Wow.exe 362% + worldserver 214%) is crushing the host — the documented false-FAIL band. Waiting for the burst to pass, then re-running:
+One P239 overlay event captured under injection — pulling it with its P240 pair to compare buffer identities:
+State current. Consulting on the fail-closed copy-in's log-tail hazard before implementing:
+Lap 1 overran under injection (non-binding), then self-recovered. Harvesting the classifier data and disarming:
+External game load again (~7.7 cores). Waiting it out, then re-running:
+Relay boundary — final state.md touch, then summary:
+Relay boundary — wrapping up.
+
+**Criteria: NO — not production ready.** The ledger still holds **12 OPEN defects (7 critical, 4 major, 1 minor)** against RULE 6's zero-defect bar; the marker stays unwritten.
+
+**Session 16 (sess34) delivered five shipped builds (0.11.293→297), every one boarded, and closed the loop on the session's headline defect root:**
+
+- **D-CRASH-COLDREAD-STALE-SPLIT root chain PROVEN-REVISED** from the archived incident: the overlap/out-of-order-landing hypothesis was refuted outright (39 P170 submissions, the cc=6 image never submitted; zero sema-poisoning). The real chain: dd's O_SYNC append committed via the sub-EX writeback path during a release abort/re-entry window, the durable pass staged it, the **cluster-merge overlay condemned the staged slot without rolling the ledger back → blind close** → `close_or_defer` saw a closed ledger → wire unlock → a later reload silently destroyed the only copy of acknowledged data.
+- **The fix triad (293)**, Gemini-reviewed: P238 merge ledger-rollback, **P236 pre-NL obligation gate** (defer release while `pend != durable`, tenure retained — exactly the remedy the D-RELEASE-BARRIER ledger entry had prescribed), P237 evict tripwire. **294** caught and repaired my own 293 regression same-session (unconditional rollback livelocked authority-gap slots → node shutdown; narrowed to the RELFLUSH window). **296** armed the re-log convergence knob; **297** added the pcc/icc classifier that gates the future fatal-tripwire decision (consult #3 verdict: no fail-closed copy-in — log-tail pinning).
+- **Rig truths found and fixed**: test19–23 booted without `log_buf_len=16M` — a 256KB ring wrapping in ~40s silently poisoned every dmesg-window criterion (the entire ag_strand_repair failure history). Grub-fixed, rebooted, 32/32 PASS. Two dir_reuse/dlm_fairness board FAILs were proven external game-server load (~7.7 cores), passing clean at load <20.
+- **New capture**: the dir_reuse 0/32 wedge = an **orphaned wire EX grant** (heartbeat keeps stamping, no in-core consumer, no CAW reaper — the TCP reap is explicitly `!caw`-gated). Reap design agreed with Gemini (RELEASE-not-adopt, seq-abort-guarded); implementation waits on the next capture, which the new `myslot=`/`P-ACQ-SELF-ORPHAN` instrumentation will name.
+
+Everything is durably recorded: CHANGELOG through 297, three ledger entries updated (COLDREAD, DIR-REUSE, RELEASE-BARRIER), three ccmemory notes, and state.md carries the ordered resume program (next: P239 classification → tripwire decision; CAW reap on next capture; then the ledger backlog).
 
 ## Continue
 

@@ -1,0 +1,10 @@
+{
+  "source": [
+    "scripts/ccloop_token_audit.py"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

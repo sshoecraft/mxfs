@@ -123,6 +123,8 @@
 
 /* Null AG block */
 #define XFS_NULLAGBLOCK  0xFFFFFFFFU
+#define XFS_NULLAGINO    0xFFFFFFFFU
+#define XFS_AGI_UNLINKED_BUCKETS 64
 
 /* Max reasonable btree depth */
 #define MAX_BTREE_DEPTH  16
@@ -1981,10 +1983,15 @@ static int check_one_inode(int fd, const struct xfs_geo *geo,
             (unsigned long long)ino, label, mode);
     }
 
-    /* Check nlink > 0 for allocated inodes */
+    /* Metadata inodes must be linked.  For sampled inodes nlink==0 is NOT
+     * classified here: an unlinked-open zombie on an AGI bucket is legal —
+     * the orphan audit (check_orphan_inodes) does the bucket-aware
+     * classification for every allocated inode. */
     uint32_t nlink = get_be32(ibuf + 0x10);
-    if (nlink == 0) {
-        err("inode %llu (%s): nlink=0 for allocated inode",
+    if (nlink == 0 &&
+        (strcmp(label, "rootdir") == 0 || strcmp(label, "rbmino") == 0 ||
+         strcmp(label, "rsumino") == 0)) {
+        err("inode %llu (%s): nlink=0 for metadata inode",
             (unsigned long long)ino, label, nlink);
     }
 
@@ -2093,6 +2100,325 @@ static void check_inode_spotcheck(int fd, const struct xfs_geo *geo)
     printf("%s  (%d/%d inodes passed)\n",
            spot_errors == 0 ? "OK" : "ERRORS",
            passed, checked);
+}
+
+/* ─── Check: Orphan inode audit ─── */
+
+/*
+ * D-DESTAGE-TEAR-BUCKETLESS-ORPHAN: a dying node's partial destage can land
+ * the dirent removal + nlink=0 inode while losing the same-transaction AGI
+ * unlinked-bucket insert.  Nothing on disk then references the inode — no
+ * dirent, no bucket — so no recovery pass will ever free it: a permanent
+ * space leak invisible to every other check here.
+ *
+ * The audit cross-references disk truth per AG:
+ *   members    = every inode reachable from the AGI's 64 unlinked buckets
+ *   candidates = every inobt-allocated inode with di_mode!=0, di_nlink==0
+ * candidate on a bucket   -> legal crash residue (recovery/reap will free);
+ *                            reported informationally, not an error.
+ * candidate on NO bucket  -> orphan (the defect).  Repair pushes it onto
+ *                            bucket agino%64: inode's di_next_unlinked is
+ *                            written FIRST (harmless dangling pointer if we
+ *                            crash), the AGI head second (single-sector
+ *                            commit point) — a torn repair rerepairs cleanly.
+ */
+
+struct orphan_list {
+    uint64_t   *v;
+    uint32_t    n, cap;
+    bool        oom;
+};
+
+static void orphan_push(struct orphan_list *l, uint64_t val)
+{
+    if (l->n == l->cap) {
+        uint32_t ncap = l->cap ? l->cap * 2 : 64;
+        uint64_t *nv = realloc(l->v, ncap * sizeof(uint64_t));
+        if (!nv) {
+            l->oom = true;
+            return;
+        }
+        l->v = nv;
+        l->cap = ncap;
+    }
+    l->v[l->n++] = val;
+}
+
+static int orphan_cmp_u64(const void *a, const void *b)
+{
+    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
+static uint64_t inode_disk_offset(const struct xfs_geo *geo,
+                                  uint32_t agno, uint32_t agino)
+{
+    uint32_t agbno = agino >> geo->inopblog;
+    uint32_t off_in_blk = (agino & ((1U << geo->inopblog) - 1)) * geo->inodesize;
+
+    return geo->xfs_off +
+           (uint64_t)agno * geo->agblocks * geo->blocksize +
+           (uint64_t)agbno * geo->blocksize + off_in_blk;
+}
+
+/* Phase A: walk one AGI unlinked chain, recording members. */
+static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
+                              uint32_t agno, int bucket, uint32_t head,
+                              struct orphan_list *members)
+{
+    uint32_t agino = head;
+    uint32_t steps = 0;
+    uint8_t *ibuf = malloc(geo->inodesize);
+
+    if (!ibuf) {
+        members->oom = true;
+        return;
+    }
+    while (agino != XFS_NULLAGINO) {
+        if ((agino >> geo->inopblog) >= geo->agblocks) {
+            err("AG %u unlinked bucket %d: agino %u beyond AG bounds",
+                agno, bucket, agino);
+            break;
+        }
+        if (steps++ > 1000000) {
+            err("AG %u unlinked bucket %d: chain exceeds 1M entries (cycle?)",
+                agno, bucket);
+            break;
+        }
+        if (read_at(fd, ibuf, geo->inodesize,
+                    inode_disk_offset(geo, agno, agino)) < 0) {
+            err("AG %u unlinked bucket %d: read of agino %u failed",
+                agno, bucket, agino);
+            break;
+        }
+        if (get_be16(ibuf + 0x00) != XFS_DINODE_MAGIC) {
+            err("AG %u unlinked bucket %d: agino %u has bad inode magic 0x%04X",
+                agno, bucket, agino, get_be16(ibuf + 0x00));
+            break;
+        }
+        orphan_push(members, ((uint64_t)agno << (geo->agblklog + geo->inopblog))
+                             | agino);
+        agino = get_be32(ibuf + 0x60);   /* di_next_unlinked */
+    }
+    free(ibuf);
+}
+
+/* Phase B leaf: read each chunk's inodes; allocated + mode!=0 + nlink==0
+ * become candidates. */
+static void orphan_collect_leaf(int fd, const struct xfs_geo *geo,
+                                uint32_t agno, const uint8_t *blk,
+                                uint16_t numrecs, struct orphan_list *cand,
+                                uint64_t *scanned)
+{
+    size_t chunk_bytes = 64 * (size_t)geo->inodesize;
+    uint8_t *chunk = malloc(chunk_bytes);
+
+    if (!chunk) {
+        cand->oom = true;
+        return;
+    }
+    for (uint16_t r = 0; r < numrecs; r++) {
+        const uint8_t *rec = blk + BTREE_REC_OFF + r * 16;
+        uint32_t startino  = get_be32(rec + 0);
+        uint16_t holemask  = get_be16(rec + 4);
+        uint64_t free_mask = get_be64(rec + 8);
+
+        if ((startino >> geo->inopblog) >= geo->agblocks)
+            continue;       /* already reported by the inobt validation */
+        if (read_at(fd, chunk, chunk_bytes,
+                    inode_disk_offset(geo, agno, startino)) < 0) {
+            err("AG %u orphan audit: chunk read at agino %u failed",
+                agno, startino);
+            continue;
+        }
+        for (int i = 0; i < 64; i++) {
+            const uint8_t *dip = chunk + (size_t)i * geo->inodesize;
+
+            if (holemask & (1U << (i / 4)))
+                continue;                       /* sparse hole */
+            if (free_mask & (1ULL << i))
+                continue;                       /* free */
+            (*scanned)++;
+            if (get_be16(dip + 0x00) != XFS_DINODE_MAGIC) {
+                err("AG %u orphan audit: allocated agino %u bad magic 0x%04X",
+                    agno, startino + i, get_be16(dip + 0x00));
+                continue;
+            }
+            if (get_be16(dip + 0x02) != 0 &&    /* di_mode */
+                get_be32(dip + 0x10) == 0)      /* di_nlink */
+                orphan_push(cand,
+                    ((uint64_t)agno << (geo->agblklog + geo->inopblog))
+                    | (startino + i));
+        }
+    }
+    free(chunk);
+}
+
+/* Phase B: quiet recursive inobt walk (structure already validated in the
+ * inobt check; failures here only bound the audit, not re-report). */
+static void orphan_walk_inobt(int fd, const struct xfs_geo *geo,
+                              uint32_t agno, uint32_t agbno, int depth,
+                              struct orphan_list *cand, uint64_t *scanned)
+{
+    uint8_t *blk;
+
+    if (depth > MAX_BTREE_DEPTH)
+        return;
+    blk = malloc(geo->blocksize);
+    if (!blk) {
+        cand->oom = true;
+        return;
+    }
+    if (read_ag_block(fd, geo, agno, agbno, blk) < 0 ||
+        get_be32(blk + 0x00) != XFS_IBT_CRC_MAGIC) {
+        free(blk);
+        return;
+    }
+    {
+        uint16_t level   = get_be16(blk + 0x04);
+        uint16_t numrecs = get_be16(blk + 0x06);
+
+        if (level == 0) {
+            orphan_collect_leaf(fd, geo, agno, blk, numrecs, cand, scanned);
+        } else {
+            uint32_t ptr_off = BTREE_REC_OFF + numrecs * 4;
+
+            for (uint16_t i = 0; i < numrecs; i++) {
+                uint32_t child = get_be32(blk + ptr_off + i * 4);
+
+                if (child == XFS_NULLAGBLOCK || child >= geo->agblocks)
+                    continue;
+                orphan_walk_inobt(fd, geo, agno, child, depth + 1,
+                                  cand, scanned);
+            }
+        }
+    }
+    free(blk);
+}
+
+/* Repair: push-front onto bucket agino%64.  heads[] tracks in-memory state
+ * so multiple orphans in one AG chain correctly. */
+static int orphan_repair_insert(int fd, const struct xfs_geo *geo,
+                                uint32_t agno, uint32_t agino,
+                                uint32_t heads[XFS_AGI_UNLINKED_BUCKETS])
+{
+    int bucket = agino % XFS_AGI_UNLINKED_BUCKETS;
+    uint64_t ino_off = inode_disk_offset(geo, agno, agino);
+    uint64_t agi_off = geo->xfs_off +
+                       (uint64_t)agno * geo->agblocks * geo->blocksize + 1024;
+    uint8_t agi_buf[512];
+    uint8_t *ibuf = malloc(geo->inodesize);
+    int ret = -1;
+
+    if (!ibuf)
+        return -1;
+    if (read_at(fd, ibuf, geo->inodesize, ino_off) < 0)
+        goto out;
+    put_be32(ibuf + 0x60, heads[bucket]);       /* di_next_unlinked */
+    if (xfs_fix_crc_and_write(fd, ibuf, geo->inodesize, 0x64, ino_off) < 0)
+        goto out;
+    if (read_at(fd, agi_buf, 512, agi_off) < 0)
+        goto out;
+    put_be32(agi_buf + 0x28 + 4 * bucket, agino);
+    if (xfs_fix_crc_and_write(fd, agi_buf, 512, 0x138, agi_off) < 0)
+        goto out;
+    heads[bucket] = agino;
+    ret = 0;
+out:
+    free(ibuf);
+    return ret;
+}
+
+static void check_orphan_inodes(int fd, const struct xfs_geo *geo)
+{
+    int pre_errors = errors;
+    uint64_t scanned = 0, zombies = 0, orphans = 0, fixed = 0;
+    bool incomplete = false;
+
+    printf("Orphan inode audit ...... ");
+    fflush(stdout);
+
+    for (uint32_t agno = 0; agno < geo->agcount; agno++) {
+        uint8_t agi_buf[512];
+        uint64_t agi_off = geo->xfs_off +
+                           (uint64_t)agno * geo->agblocks * geo->blocksize +
+                           1024;
+        uint32_t heads[XFS_AGI_UNLINKED_BUCKETS];
+        uint32_t ino_root, ino_level;
+        struct orphan_list members = { 0 }, cand = { 0 };
+
+        if (read_at(fd, agi_buf, 512, agi_off) < 0 ||
+            get_be32(agi_buf + 0x00) != XFS_AGI_MAGIC) {
+            incomplete = true;
+            continue;           /* AGI errors already reported upstream */
+        }
+        for (int b = 0; b < XFS_AGI_UNLINKED_BUCKETS; b++)
+            heads[b] = get_be32(agi_buf + 0x28 + 4 * b);
+        ino_root  = get_be32(agi_buf + 0x14);
+        ino_level = get_be32(agi_buf + 0x18);
+
+        for (int b = 0; b < XFS_AGI_UNLINKED_BUCKETS; b++)
+            if (heads[b] != XFS_NULLAGINO)
+                orphan_walk_chain(fd, geo, agno, b, heads[b], &members);
+
+        if (ino_level >= 1 && ino_root < geo->agblocks)
+            orphan_walk_inobt(fd, geo, agno, ino_root, 0, &cand, &scanned);
+
+        if (members.oom || cand.oom) {
+            err("AG %u orphan audit: out of memory, audit incomplete", agno);
+            incomplete = true;
+            goto next_ag;
+        }
+
+        if (members.n)
+            qsort(members.v, members.n, sizeof(uint64_t), orphan_cmp_u64);
+        for (uint32_t i = 0; i < cand.n; i++) {
+            uint64_t ino = cand.v[i];
+
+            if (members.n &&
+                bsearch(&ino, members.v, members.n, sizeof(uint64_t),
+                        orphan_cmp_u64)) {
+                zombies++;
+                continue;
+            }
+            orphans++;
+            err("inode %llu: allocated, nlink=0, on NO AGI unlinked bucket "
+                "— orphaned (space leaked, nothing will reap it)",
+                (unsigned long long)ino);
+            if (can_repair()) {
+                uint32_t agino = (uint32_t)(ino &
+                        ((1ULL << (geo->agblklog + geo->inopblog)) - 1));
+
+                if (orphan_repair_insert(fd, geo, agno, agino, heads) == 0) {
+                    printf("  REPAIRED: inode %llu linked onto AG %u unlinked "
+                           "bucket %u (reaped at next recovery)\n",
+                           (unsigned long long)ino, agno,
+                           agino % XFS_AGI_UNLINKED_BUCKETS);
+                    repaired++;
+                    fixed++;
+                } else {
+                    err("inode %llu: orphan repair FAILED",
+                        (unsigned long long)ino);
+                }
+            }
+        }
+next_ag:
+        free(members.v);
+        free(cand.v);
+    }
+
+    if (errors == pre_errors)
+        printf("OK  (%llu allocated inodes, %llu on unlinked buckets%s)\n",
+               (unsigned long long)scanned, (unsigned long long)zombies,
+               incomplete ? "; INCOMPLETE" : "");
+    else
+        printf("ERRORS  (%llu allocated, %llu bucketed zombies, "
+               "%llu orphans, %llu repaired)\n",
+               (unsigned long long)scanned, (unsigned long long)zombies,
+               (unsigned long long)orphans, (unsigned long long)fixed);
+    if (zombies)
+        info("note: %llu unlinked-but-bucketed inode(s) are legal crash "
+             "residue; mount recovery reaps them", (unsigned long long)zombies);
 }
 
 /* ─── Summary Report ─── */
@@ -2215,14 +2541,157 @@ static void print_summary(int fd, const struct xfs_geo *geo,
 
 /* ─── Usage ─── */
 
+/*
+ * sess42 C7 version gate — offline format upgrade (-U / --upgrade-protogate).
+ *
+ * Stamps a legacy MXFS format with the protocol gate so pre-gate kernels can
+ * no longer mount it and gate-aware kernels admit it RW:
+ *   1. proves the cluster is offline: the device is opened O_EXCL (fails if
+ *      locally mounted) and every ACTIVE disklock heartbeat record must NOT
+ *      advance across a 3 s recheck (a live remote mount ⇒ refuse);
+ *   2. writes the envelope gate (MXFS_FORMAT_F_PROTOGATE +
+ *      cluster_proto_gen) FIRST — an interrupted upgrade then reads as the
+ *      explicit "half-upgraded, run chk_mxfs -U" state on gate-aware
+ *      kernels, never a silently lost gate;
+ *   3. sets XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE (bit 30) in every SECONDARY
+ *      superblock, then the PRIMARY last — the single-sector primary write
+ *      is the atomic moment old kernels get locked out.
+ * Idempotent: rerunning completes/repairs any interrupted state.
+ */
+#define CHK_SB_INCOMPAT_MXFS_PROTOGATE  (1u << 30)
+
+static int do_upgrade_protogate(int fd)
+{
+    struct mxfs_ondisk_super sup;
+    uint8_t buf[MXFS_SUPER_SIZE];
+    uint8_t sec[512];
+    uint64_t hb_ts[64];
+    uint64_t hb_epoch[64];
+    bool hb_active[64];
+    uint32_t agcount, agblocks, blocksize;
+    uint64_t xfs_off;
+    uint32_t agno, slot, nlive = 0;
+
+    /* ── envelope ── */
+    if (read_at(fd, buf, MXFS_SUPER_SIZE, 0) < 0)
+        return 4;
+    memcpy(&sup, buf, sizeof(sup));
+    if (sup.magic != MXFS_FORMAT_MAGIC) {
+        fprintf(stderr, "upgrade: no MXFS envelope on this device\n");
+        return 4;
+    }
+
+    /* ── offline proof: no ACTIVE heartbeat may advance across 3 s ── */
+    for (slot = 0; slot < 64; slot++) {
+        struct mxfs_disklock_heartbeat_hdr {
+            uint32_t magic, flags, node_id, fs_gen;
+            uint64_t timestamp_ms, epoch;
+        } __attribute__((packed)) *h = (void *)sec;
+
+        hb_active[slot] = false;
+        if (read_at(fd, sec, 512,
+                    sup.disklock_offset + (uint64_t)slot * 512) < 0)
+            return 4;
+        if (h->magic == 0x4D584C4B /* MXLK */ && h->flags == 1 /* ACTIVE */) {
+            hb_active[slot] = true;
+            hb_ts[slot] = h->timestamp_ms;
+            hb_epoch[slot] = h->epoch;
+        }
+    }
+    printf("upgrade: rechecking heartbeat liveness (3 s)...\n");
+    sleep(3);
+    for (slot = 0; slot < 64; slot++) {
+        struct mxfs_disklock_heartbeat_hdr {
+            uint32_t magic, flags, node_id, fs_gen;
+            uint64_t timestamp_ms, epoch;
+        } __attribute__((packed)) *h = (void *)sec;
+
+        if (!hb_active[slot])
+            continue;
+        if (read_at(fd, sec, 512,
+                    sup.disklock_offset + (uint64_t)slot * 512) < 0)
+            return 4;
+        if (h->magic == 0x4D584C4B && h->flags == 1 &&
+            (h->timestamp_ms != hb_ts[slot] || h->epoch != hb_epoch[slot])) {
+            fprintf(stderr,
+                    "upgrade: heartbeat slot %u is LIVE (node %u) — a node "
+                    "still has this filesystem mounted; unmount everywhere "
+                    "first\n", slot, h->node_id);
+            nlive++;
+        }
+    }
+    if (nlive)
+        return 4;
+
+    /* ── step 2: envelope gate first ── */
+    if ((sup.flags & MXFS_FORMAT_F_PROTOGATE) &&
+        sup.cluster_proto_gen == MXFS_PROTO_GEN) {
+        printf("upgrade: envelope already gated (proto_gen=%u)\n",
+               sup.cluster_proto_gen);
+    } else {
+        struct mxfs_ondisk_super *s = (void *)buf;
+
+        s->flags |= MXFS_FORMAT_F_PROTOGATE;
+        s->cluster_proto_gen = MXFS_PROTO_GEN;
+        if (mxfs_fix_crc_and_write(fd, buf, MXFS_SUPER_SIZE,
+                                   offsetof(struct mxfs_ondisk_super, crc),
+                                   0) < 0)
+            return 4;
+        printf("upgrade: envelope gated (proto_gen=%u)\n",
+               (unsigned)MXFS_PROTO_GEN);
+    }
+
+    /* ── step 3: XFS superblocks, secondaries first, primary LAST ── */
+    xfs_off = sup.xfs_data_offset;
+    if (read_at(fd, sec, 512, xfs_off) < 0)
+        return 4;
+    if (get_be32(sec + 0) != XFS_SB_MAGIC) {
+        fprintf(stderr, "upgrade: no XFS superblock at data offset\n");
+        return 4;
+    }
+    blocksize = get_be32(sec + 4);
+    agblocks  = get_be32(sec + 0x54);
+    agcount   = get_be32(sec + 0x58);
+    if (!blocksize || !agblocks || !agcount || agcount > 1u << 20) {
+        fprintf(stderr, "upgrade: implausible geometry\n");
+        return 4;
+    }
+    for (agno = agcount; agno-- > 0; ) {  /* agcount-1 .. 0: primary last */
+        uint64_t off = xfs_off +
+                       (uint64_t)agno * agblocks * blocksize;
+        uint32_t incompat;
+
+        if (read_at(fd, sec, 512, off) < 0)
+            return 4;
+        if (get_be32(sec + 0) != XFS_SB_MAGIC) {
+            fprintf(stderr, "upgrade: AG %u superblock bad magic — run a "
+                    "full check first\n", agno);
+            return 4;
+        }
+        incompat = get_be32(sec + 0xD8);
+        if (incompat & CHK_SB_INCOMPAT_MXFS_PROTOGATE)
+            continue;
+        put_be32(sec + 0xD8, incompat | CHK_SB_INCOMPAT_MXFS_PROTOGATE);
+        if (xfs_fix_crc_and_write(fd, sec, 512, 0xE0, off) < 0)
+            return 4;
+    }
+    printf("upgrade: XFS INCOMPAT_MXFS_PROTOGATE set on %u superblock "
+           "copies (primary last)\n", agcount);
+    printf("upgrade: COMPLETE — pre-gate kernels can no longer mount this "
+           "filesystem\n");
+    return 0;
+}
+
 static void usage(const char *prog)
 {
-    fprintf(stderr, "Usage: %s [-v] [-a|-p|-y|-n] /dev/sdX\n", prog);
+    fprintf(stderr, "Usage: %s [-v] [-a|-p|-y|-n|-U] /dev/sdX\n", prog);
     fprintf(stderr, "  -v   verbose: show detailed info for each check\n");
     fprintf(stderr, "  -n   check only, no modifications (default)\n");
     fprintf(stderr, "  -a   auto-repair safe fixes\n");
     fprintf(stderr, "  -p   preen: same as -a (for boot scripts)\n");
     fprintf(stderr, "  -y   repair all, answer yes to everything\n");
+    fprintf(stderr, "  -U   upgrade-protogate: stamp the C7 version gate "
+                    "(offline, all nodes unmounted)\n");
     fprintf(stderr, "\nExit codes:\n");
     fprintf(stderr, "  0  filesystem clean\n");
     fprintf(stderr, "  1  errors found and corrected\n");
@@ -2238,13 +2707,23 @@ int main(int argc, char **argv)
     int opt;
     const char *progname;
 
+    bool upgrade_protogate = false;
+    int ai;
+
     /* Detect if invoked as fsck.mxfs — default to auto-repair mode */
     progname = strrchr(argv[0], '/');
     progname = progname ? progname + 1 : argv[0];
     if (strcmp(progname, "fsck.mxfs") == 0)
         repair = REPAIR_AUTO;
 
-    while ((opt = getopt(argc, argv, "vapynh")) != -1) {
+    /* long-form alias used by the kernel's refusal message */
+    for (ai = 1; ai < argc; ai++)
+        if (strcmp(argv[ai], "--upgrade-protogate") == 0) {
+            argv[ai] = "-U";
+            break;
+        }
+
+    while ((opt = getopt(argc, argv, "vapynhU")) != -1) {
         switch (opt) {
         case 'v':
             verbose = true;
@@ -2259,6 +2738,9 @@ int main(int argc, char **argv)
         case 'n':
             repair = REPAIR_NONE;
             break;
+        case 'U':
+            upgrade_protogate = true;
+            break;
         case 'h':
         default:
             usage(argv[0]);
@@ -2269,6 +2751,23 @@ int main(int argc, char **argv)
         usage(argv[0]);
 
     device = argv[optind];
+
+    if (upgrade_protogate) {
+        /* O_EXCL on a block device fails while it is mounted locally —
+         * the local half of the offline proof (the HB scan is the remote
+         * half). */
+        int ufd = open(device, O_RDWR | O_EXCL);
+
+        if (ufd < 0) {
+            fprintf(stderr, "chk_mxfs: cannot open %s exclusively: %s "
+                    "(is it mounted?)\n", device, strerror(errno));
+            return 4;
+        }
+        int urc = do_upgrade_protogate(ufd);
+
+        close(ufd);
+        return urc;
+    }
 
     printf("chk_mxfs v%s -- checking %s", CHK_MXFS_VERSION, device);
     if (repair == REPAIR_AUTO)
@@ -2353,6 +2852,9 @@ int main(int argc, char **argv)
 
     /* 7. Inode spot-check */
     check_inode_spotcheck(fd, &geo);
+
+    /* 7b. Orphan inode audit (bucketless nlink=0 leak detection) */
+    check_orphan_inodes(fd, &geo);
 
     /* 8. Summary report */
     print_summary(fd, &geo, ag_summaries);

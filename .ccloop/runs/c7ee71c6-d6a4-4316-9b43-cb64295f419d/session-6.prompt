@@ -56,22 +56,81 @@ read state.md
 
 ## Previous session
 
-- session-id: `a10ee4c0-0367-40f4-b0e9-6e3590be6dea`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/a10ee4c0-0367-40f4-b0e9-6e3590be6dea.jsonl`
-- approx context at last assistant turn: unknown tokens
-- tools used: none
+- session-id: `7eb2da28-2b75-4fff-9ea4-382207f71400`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/7eb2da28-2b75-4fff-9ea4-382207f71400.jsonl`
+- approx context at last assistant turn: 498473 tokens
+- tools used: Bash×215 Read×18 Edit×7 mcp__ccmemory__memory_write×5 Write×4 ToolSearch×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-_(none)_
+- /src/mxfs/tests/inode_reuse_typeflip.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/unmount_leak_check.sh
+- /src/mxfs/scripts/rig_recover.sh
+- /src/mxfs/tests/dd_loss_capture.sh
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-_(none)_
+    cd /src/mxfs; timeout 580 tests/dd_loss_capture.sh 4 32 2>&1 | grep -vE "^\[[0-9]+\]" | tail -28
+    cd /src/mxfs; echo "=== aging with inode/AG reuse pressure ==="; timeout 300 tests/inode_reuse_typeflip.sh 12 32 2 8 2>&1 | grep -E "^=== RESULT"; echo "=== the
+    cd /src/mxfs; python3 - <<'PY' p='state.md' s=open(p).read() old='''### Reproducer status on 0.11.194 — the storm no longer reproduces''' new='''### NON-REPRODU
+    cd /src/mxfs; timeout 580 ./run.sh 32 caw precond_readiness fio_perf fio_perf_vs_xfs cache_coherency strong_consistency posix_multi mmap_coherency zero_silent_l
+    cd /src/mxfs; python3 - <<'PY' p='run.sh' s=open(p).read() old='''    local cond="${N}/${DLM}" tmp; tmp=$(mktemp)     jq --arg k "$name" --arg c "$cond" --arg s
+    cd /src/mxfs; python3 - <<'PY' p='showstat.sh' s=open(p).read() # emit history summary as an extra tsv column s=s.replace('''            (if $r and $r.budget_s 
+    cd /src/mxfs; timeout 580 ./run.sh 32 caw crash_consistency dir_reuse_coherency fence_during_write fault_netpartition soak 2>&1 | grep -E "PASS|FAIL|BLOCK|recon
+    cd /src/mxfs; L=/src/mxfs/tests/logs/drc32_$(date -u +%H%M%S).log; timeout 300 ./run.sh 32 caw dir_reuse_coherency > "$L" 2>&1; echo "rc=$?"; grep -E "FAIL|CHEC
+    cd /src/mxfs; ./showstat.sh 32 caw 2>&1 | grep -E "dir_reuse|crash_consistency|Total|VERDICT"
+    cd /src/mxfs; python3 -c " import json d=json.load(open('criteria.json')) for c in d['categories']:     for t in c['tests']:         if t['name'] in ('dir_reuse
+    cd /src/mxfs; python3 - <<'PY' p='run.sh' s=open(p).read()  # 1) reset_pending must push the OUTGOING REAL verdict into history and carry history forward old = 
+    cd /src/mxfs; python3 - <<'PY' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) have={x['id'] for x in d['defects']} new=[] if 'D-CRASH-CON
+    cd /src/mxfs; python3 - <<'PY' p='state.md' s=open(p).read() anchor='''## ⚠ THE BOARD CAN GO GREEN ON LUCK — read this before trusting a green cell''' new='''##
+    cd /src/mxfs; ls tests/suite/ | head -8; echo "--- shared helpers? ---"; grep -ln "^ck()\|^ckeq()" tests/suite/*.sh | head -5; echo "--- ck definition ---"; gre
+    cd /src/mxfs; grep -n "^ck()\|^ckeq()\|FAILED_CHECKS\|failed=\|^CHECKS\|^PASSED\|^FAILED" tests/suite/lib.sh | head -20; echo "=== ck body ==="; grep -n "^ck()"
+    cd /src/mxfs; sed -n '49,95p' tests/suite/lib.sh
+    cd /src/mxfs; grep -n "nodes_pass=\|states:" run.sh | head -12
+    cd /src/mxfs; sed -n '1000,1022p' run.sh
+    cd /src/mxfs; grep -n "rank1_measured\|fail_reason=" run.sh | head -10
+    cd /src/mxfs; python3 - <<'PY' p='run.sh' s=open(p).read() s=s.replace('''    local npass=0 fail_reason="" saw_noresult=0 n line status rank1_measured=""''', ''
 
 ## Last text from previous session
 
-_(no text turn — session may have crashed mid-tool)_
+FLAKY | 106/120s |
+     nodes_pass=32/32 checks=58 passed=58 failed=0  [1 of last 2 runs FAILED]
+```
+
+One subtlety made my first attempt useless: `reset_pending` replaces the whole cell with a PENDING marker at the start of every run, destroying the prior verdict before `record()` sees it — so history only ever captured `"PENDING"`. The push has to happen there too.
+
+## It immediately caught two real defects at 32/caw
+
+Both are new, both genuine, both now in the ledger:
+
+- **`dir_reuse_coherency`** — `checks=51 passed=50 failed=1` with **all 32 nodes agreeing on the wrong answer**. That's a coherent durable wrong result, not a per-node flake. Re-ran green (58/58), so without the history it would have been erased. Also: the failing run did **fewer** checks (51 vs 58) — that may be the clue.
+- **`crash_consistency`** — `NO_TERMINAL_RECORD` on all 32 nodes at exactly **90s/90s**. It passes at 16 nodes in 32s, and the reconvergence gate confirmed the cluster was healthy afterwards, so the *test* didn't finish. RULE 0 says don't widen the budget — instrument where it stalls.
+
+The open-defect count went **up, 6 → 8**. That's the honest direction: the board got better at seeing, so it saw more. Still not production ready; marker not written.
+Criteria not met — 8 open defects. Next: make `D-DIR-REUSE-COHERENCY-32-FLAKY` diagnosable. Its blocking fix is that the node script must **name** the failing check. Let me see if that can be fixed generically for all criteria.
+`finish()` already names the failing check in its `reason` — the loss happens in **`run.sh`'s aggregation**, which reports counts from a *passing* node and discards the failing node's reason. That's the same weakness state.md flagged. Let me fix it generically.
+At the relay boundary — let me land this one fix cleanly.
+Fix landed and verified (syntax clean, criterion still runs green so the change is inert on a passing run — it only engages on a failure). Stopping here at the relay boundary.
+
+## This session
+
+**Criteria not met — 8 open defects. Marker not written.**
+
+**Root-caused and fixed one thing I broke:** my `igrab`/`iput` macro wrapper dereferenced before the NULL check. `iput(NULL)` is legal and MXFS relies on it, so every node panicked at mount in `mxfs_dlm_pr_sweep_work_fn` (fault address `0x33c` = `XFS_I(NULL)` + field offset). The reboots cost `/src`, which made prep power-cycle, which cost `/src` again — a loop that presented as a failing rig, not a bad build. Fixed in 0.11.193; `scripts/rig_recover.sh` added to break that loop.
+
+**Two measurements that invalidate the previous model of the critical defect:**
+- P195 fires on *passing* runs (2 of 16 nodes) and was *absent* from a run that lost 3 entries. So it is neither necessary nor sufficient — `dirent_publish_integrity`'s justification as "the deterministic predicate" is measurably wrong.
+- `P32E-DIREPOCH-FENCE` is the **only** marker that is zero on every passing run measured, while appearing in every captured loss chain. That's the target, and 0.11.194 adds `racebail_age_ms` to it so one captured failure settles whether the untouched `P34J-RELOAD-RACE-BAIL` (105–108/run, the twin sess22 didn't fix) is the second producer.
+
+**Harness now tells the truth in four ways it didn't:** unrun work is `NOT_RUN`/`ABORTED` not FAIL; a destructive criterion owns its reconvergence postcondition and blocks rather than poisons what follows (`crash_consistency` went 9/16 → 16/16); `kernel_health` no longer fires on a firmware boot line; and cells carry flake history, so a green cell with a recent failure renders `⚠ FLAKY [N of last M runs FAILED]`.
+
+**The ledger went 6 → 8 open** — the board got better at seeing, so it saw two more real defects at 32/caw: `dir_reuse_coherency` failing one check with all 32 nodes agreeing on the wrong answer (caught only because of the new flake history), and `crash_consistency` blowing its 90s budget at 32 nodes having passed in 32s at 16.
+
+Rig is healthy and mounted at 32/caw on 0.11.194.
 
 ## Continue
 

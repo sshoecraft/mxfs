@@ -1,3 +1,10 @@
+---
+name: roadmap
+description: MXFS production-readiness roadmap from the 2026-03-10 session-34 audit (historical).
+metadata:
+  type: project
+---
+
 # MXFS Production Readiness Roadmap
 
 Created: 2026-03-10 (Session 34 audit)

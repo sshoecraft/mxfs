@@ -35,6 +35,20 @@ enum mxfs_lock_mode {
 	MXFS_LOCK_MODE_COUNT,
 };
 
+/*
+ * THE single test for "this mode authorizes a durable write image".
+ *
+ * sess105 RULE-5 ruling: one helper everywhere.  The tree previously mixed
+ * `>= MXFS_LOCK_PW` (ordering-based) with `== EX || == PW` (exact); they agree
+ * only because of the current enum order, which is NOT part of the contract.
+ * MXFS_LOCK_CW is deliberately excluded: concurrent-write is not a protected
+ * tenure and can never mint an ex_grant_epoch.
+ */
+static inline bool mxfs_mode_can_write(uint8_t mode)
+{
+	return mode == MXFS_LOCK_EX || mode == MXFS_LOCK_PW;
+}
+
 /* Lock resource types */
 enum mxfs_lock_type {
 	MXFS_LTYPE_INODE = 1,
@@ -48,6 +62,152 @@ enum mxfs_lock_type {
 	 * stay on MXFS_LTYPE_INODE.  Namespaced separately so a cluster
 	 * base ino can never collide with a directory's per-inode slot. */
 	MXFS_LTYPE_ICLUSTER,
+};
+
+/*
+ * sess97 step 5.3(b) — immutable provenance of ONE successful durable grant.
+ *
+ * The sess96 RULE-5 ruling rejected reading the grant epoch back out of a
+ * cache after the fact.  A cache can only establish "this epoch came from
+ * SOME grant on this resource"; what an authority certificate needs is "this
+ * epoch came from THIS acquire, whose authority is now being installed".  The
+ * refuting interleaving is a full EX->NL->EX cycle: acquire A grants epoch 10
+ * and stalls; the grant is released; acquire B grants 11 and stores it; A
+ * resumes, reads 11, wins i_dlm_lock, and installs EX at epoch 11 off its own
+ * stale completion.  A `mode > i_dlm_mode` guard does not catch that — it only
+ * catches the case where EX is ALREADY installed.
+ *
+ * So the epoch is threaded OUT of the granting CAS itself, captured from the
+ * exact slot image that was successfully CAS-ed to disk, before any later
+ * operation on that slot can be confused with it.  Every field below is filled
+ * from that one image.  `valid` is set only by a CAS that actually stamped
+ * ex_grant_epoch (EX/PW class), so a PR grant, a mode-preserving no-op, or a
+ * failed/retried CAS can never be read back as exclusive authority.
+ *
+ * Consumers must treat this as immutable: fill once at the granting CAS, copy
+ * by value, never mutate afterwards.
+ *
+ * sess105: `valid` was a BOOLEAN, and its false case conflated two opposite
+ * meanings — "not applicable" (we held a read grant; nothing was authorized
+ * and nothing is wrong) and "broken/incomplete authorization record" (we held
+ * a WRITING grant but the slot carried no epoch).  The sess104 measurement
+ * had 2863 refusals all landing in that one bucket, so it proved nothing.
+ * The classification now happens at SNAPSHOT CONSTRUCTION, where `held` and
+ * `ex_grant_epoch` are one coherent image, and is carried as a tagged status.
+ */
+enum mxfs_grant_auth_status {
+	/* Never filled: the result went unused, or a transport (TCP) that
+	 * mints no durable epoch produced it.  The init value. */
+	MXFS_GAUTH_UNSET = 0,
+	/* THE proving case: a writing mode with a nonzero grant epoch. */
+	MXFS_GAUTH_WRITE_EPOCH,
+	/* We hold a non-writing mode.  Correctly non-proving and BENIGN —
+	 * a read grant authorizes no write image.  Expected to dominate on
+	 * any read-heavy workload. */
+	MXFS_GAUTH_NONWRITE_MODE,
+	/* Writing mode but ex_grant_epoch == 0.  This is a REAL GAP: the
+	 * snapshot is incomplete.  Candidates (sess104 ruling): tombstone /
+	 * epoch-namespace restart; write mode published before the epoch;
+	 * the acquisition observed between publication steps; a snapshot
+	 * coherence bug.  Never silently merged with the benign case. */
+	MXFS_GAUTH_WRITE_ZERO_EPOCH,
+	/* No backing resource at all — nothing was acquired to describe. */
+	MXFS_GAUTH_NO_RESOURCE,
+	MXFS_GAUTH_STATUS_MAX
+};
+
+struct mxfs_grant_result {
+	uint64_t	resource;	/* exact resource id: ino, or cluster base ino */
+	uint64_t	grant_epoch;	/* ex_grant_epoch stamped by THIS CAS */
+	uint32_t	generation;	/* slot generation of the granting image */
+	uint8_t		kind;		/* enum mxfs_lock_type of the backing slot */
+	uint8_t		mode;		/* mode THIS NODE holds in that image */
+	uint8_t		status;		/* enum mxfs_grant_auth_status */
+	/*
+	 * 1 when the grant was not minted by this operation's CAS but OBSERVED
+	 * already held in the slot image this acquire read.  Still first-hand
+	 * evidence — the same image shows our holder bit and the epoch — but a
+	 * different provenance, kept distinguishable so a later ruling can
+	 * tighten the policy without losing the measurement.
+	 */
+	uint8_t		reaffirm;
+};
+
+static inline void mxfs_grant_result_init(struct mxfs_grant_result *g)
+{
+	if (g) {
+		g->resource = 0;
+		g->grant_epoch = 0;
+		g->generation = 0;
+		g->kind = 0;
+		g->mode = 0;
+		g->status = MXFS_GAUTH_UNSET;
+		g->reaffirm = 0;
+	}
+}
+
+/*
+ * The one predicate that says "this result proves exclusive write authority".
+ * Everything else is a classified refusal — see enum mxfs_grant_auth_status
+ * for why the refusal REASON must never be collapsed back into a boolean.
+ */
+static inline bool mxfs_grant_result_proving(const struct mxfs_grant_result *g)
+{
+	return g && g->status == MXFS_GAUTH_WRITE_EPOCH && g->grant_epoch != 0;
+}
+
+/*
+ * ─── sess121 (GPT sess118 ruling item 7) — the force-release precondition ───
+ *
+ * "mxfs_dlm_caw_force_release_self needs an EXPLICIT precondition — same defect
+ * across more slots if it can run while this mount still issues dependent I/O."
+ *
+ * The DLM cannot check that condition itself.  Dependent-use lifetime is known
+ * only to the layer that admitted the use (XFS holders, pins, writeback), so
+ * the requirement has to arrive from above.  Until sess121 it arrived as a
+ * SENTENCE IN A COMMENT, which is not a precondition: a second caller added
+ * later satisfies it by accident or not at all, and the failure is silent
+ * corruption across every slot on the resource's probe chain.
+ *
+ * So the caller now STATES what it established, in the same terms the ruling
+ * uses, and the DLM REFUSES the release when the statement is not a complete
+ * one.  That does not let the DLM verify the facts — nothing can, from here —
+ * but it converts "a future caller forgets" from silent corruption into an
+ * -EINVAL and a P252-FORCEREL-PRECOND probe naming the site.
+ *
+ * The evidence fields must be filled from VALUES THE CALLER ACTUALLY READ, not
+ * from literals.  A caller that hardcodes them has written a false statement,
+ * and the point of the struct is that the falsehood is then legible at the call
+ * site instead of hidden in a helper three layers down.
+ *
+ * It lives in this header rather than dlm_caw.h because it crosses the XFS/DLM
+ * boundary: the attesting caller is in the XFS layer, which reaches the DLM
+ * through the v5_mount facade and must not include the CAW header directly.
+ */
+enum mxfs_forcerel_basis {
+	MXFS_FORCEREL_BASIS_NONE     = 0,   /* never valid — refuses */
+	/*
+	 * Dependent activity on this resource has STOPPED and DRAINED, and new
+	 * dependent activity is blocked for the duration of the release.  All
+	 * four evidence fields below must be true.
+	 */
+	MXFS_FORCEREL_BASIS_QUIESCED = 1,
+	/*
+	 * The mount is terminally fenced or shutting down: it will issue no
+	 * further dependent I/O regardless of what is still admitted, so
+	 * quiescence is moot.  The ruling names this as the one exemption.
+	 */
+	MXFS_FORCEREL_BASIS_TERMINAL = 2,
+};
+
+struct mxfs_forcerel_attest {
+	uint32_t    basis;              /* enum mxfs_forcerel_basis */
+	const char *site;               /* caller identity, for the refusal probe */
+	/* Evidence — required (and checked) when basis == QUIESCED. */
+	bool        no_local_grant;     /* this mount believes it holds nothing */
+	bool        no_dependent_users; /* holder/pin counts are zero */
+	bool        new_users_blocked;  /* the local acquire path is held off */
+	bool        writeback_drained;  /* this tenure's dirty state is destaged */
 };
 
 /* Lock state machine */

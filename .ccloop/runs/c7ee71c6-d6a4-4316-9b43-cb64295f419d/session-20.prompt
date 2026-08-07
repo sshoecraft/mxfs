@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 20 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 19
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `a78a1bf7-77ba-4129-9c49-47e4cdf19c3c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a78a1bf7-77ba-4129-9c49-47e4cdf19c3c.jsonl`
+- approx context at last assistant turn: 505929 tokens
+- tools used: Bash×220 Edit×29 Read×7 mcp__ccmemory__memory_write×7 mcp__ask_gpt__query×3 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/mxfs_shutdown.sh
+- /src/mxfs/xfs/xfs_stubs.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/teardown_leak_repro.sh
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/tests/suite/dir_reuse_coherency.sh
+- /src/mxfs/xfs/xfs_bmap_util.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -rn "XFS_ILOCK_MXFS_PRIREAD" xfs/xfs_inode.h | head -3; grep -n "^xfs_lookup\|int.*xfs_lookup(" xfs/xfs_inode.c xfs/xfs_inode.h | head -4; grep -n "xfs_dir
+    sed -n '1455,1480p' xfs/xfs_inode.h; echo ====; sed -n '1097,1140p' xfs/xfs_inode.c
+    sed -n '695,730p' xfs/libxfs/xfs_dir2.c | grep -nE "ilock|lock_mode|xfs_ilock" ; grep -rn "xfs_lookup(" pal/linux/xfs_iops.c xfs/*.c 2>/dev/null | grep -v "^\S*
+    sed -n '253,300p' pal/linux/xfs_aops.c; grep -n "xfs_vn_ci_lookup\|xfs_lookup" pal/linux/xfs_iops.c | head -6
+    grep -n "xfs_lock_flags_assert\|PRIREAD" xfs/xfs_inode.c | head -8; sed -n "$(grep -n 'xfs_ilock_data_map_shared(' xfs/xfs_inode.c | head -1 | cut -d: -f1),+20p
+    grep -n "mxfs_dlm_ilock_end" xfs/xfs_inode.c | head -3; sed -n "$(grep -n 'mxfs_dlm_ilock_end' xfs/xfs_inode.c | head -1 | cut -d: -f1atan 2>/dev/null || grep -
+    sed -n '540,560p' xfs/xfs_inode.c
+    timeout 60 python3 - <<'PYEOF' import re # ---------- xfs_inode.h ---------- p='xfs/xfs_inode.h'; s=open(p).read() old="#define\tXFS_ILOCK_MXFS_PRIREAD\t(1u << 
+    timeout 90 python3 - <<'PYEOF' # ---------- xfs_inode.h signature ---------- p='xfs/xfs_inode.h'; s=open(p).read() old="""int\t\txfs_lookup(struct xfs_inode *dp
+    sed -n '1595,1600p' xfs/xfs_inode.h | cat -A | head -4
+    timeout 90 python3 - <<'PYEOF' p='xfs/xfs_inode.h'; s=open(p).read() old="""int\t\txfs_lookup(struct xfs_inode *dp, const struct xfs_name *name, \t\t\t   struct
+    timeout 90 python3 - <<'PYEOF' p='xfs/xfs_inode.c'; s=open(p).read()  # assert tolerance oldA="""	/* sess1 (ccloop 46efd8b6): XFS_ILOCK_MXFS_PRIREAD rides outsi
+    timeout 90 python3 - <<'PYEOF' p='xfs/xfs_inode.c'; s=open(p).read() old="""\tASSERT(!(lock_flags & XFS_ILOCK_MXFS_PRIREAD) || \t       (lock_flags & XFS_ILOCK_
+    timeout 90 python3 - <<'PYEOF' p='xfs/xfs_inode.c'; s=open(p).read()  # data_map_shared consult: tag lock_mode when registry hit + knob old="""xfs_ilock_data_ma
+    awk 'NR>=1210 && NR<=1420' xfs/xfs_inode.c | grep -nE "^\s*(return|goto|out|retry)|xfs_dir_lookup|consumer_refresh|^}" | head -20
+    timeout 90 python3 - <<'PYEOF' p='xfs/xfs_inode.c'; s=open(p).read() # 1. bracket: arm just before consumer_refresh, disarm at fn exit — find the # exact refres
+    timeout 90 python3 - <<'PYEOF' p='xfs/xfs_inode.c'; s=open(p).read() # extract the registry block start=s.index("/*\n * sess37 CREATE-INTENT registry") end=s.in
+    grep -n "#include <linux/" pal/linux/xfs_iops.c | head -3; timeout 30 python3 -c " p='pal/linux/xfs_iops.c'; s=open(p).read() a=s.index('#include') line_end=s.i
+    timeout 30 python3 -c " p='pal/linux/xfs_export.c'; s=open(p).read() import re m=re.search(r'xfs_lookup\(([^;]*?)\);', s) print(repr(m.group(0))) s=s.replace(m.
+    timeout 30 python3 - <<'EOF' p='CHANGELOG.md'; s=open(p).read() old="## 0.11.317 (sess37) — 2026-08-01" new="""## 0.11.318 (sess37) — 2026-08-01 [BUILT, NOT DEP
+
+## Last text from previous session
+
+echanism-level root for the next fix. Everything is persisted in the CHANGELOG, ledger, awareness docs, and five ccmemory entries. The relay continues from the create-cycle root.
+Criteria NO — starting fix direction A (create-intent EX-first): locating the exact plumbing sites so the implementation is ready to write:
+**Criteria: NO — not production ready.** 8 OPEN defects against the RULE 6 zero-defect bar.
+
+This final increment converted the create-cycle root capture into a ready-to-implement fix: the `CREATEINT` sketch is recorded with verified in-tree anchors — the existing `XFS_ILOCK_MXFS_PRIREAD` flag at xfs_inode.c:302-315 is the exact structural precedent (it downgrades wire mode independently of the local lock; CREATEINT mirrors it upward), the VFS create intent is already visible at `xfs_vn_lookup`, and the plumb-through to `xfs_dir_lookup`'s internal ILOCK is mapped. Expected effect: one durable EX tenure per create instead of the proven PR-storm → EDEADLK → drain → fresh-EX cycle, which finally gives the tenure-batching machinery something to batch.
+
+The tree is left consistent for the relay: 0.11.317 built, deployed, and boarded 20/21; dir_reuse at its first PASS in 11 runs (exactly at the floor — defect stays OPEN); one defect closed and verified this session (9→8); all state persisted across CHANGELOG 311-317, the defect ledger, three awareness docs, and six ccmemory entries ending with the implementation sketch. The next session starts by writing the CREATEINT patch.
+Criteria NO — implementing CREATEINT now. Finding the flag block and the lookup chain:
+Both mappings confirmed. Writing the full CREATEINT implementation:
+One call site; bracketing must survive the retry gotos and all returns. Reading the function's exit structure:
+Relay boundary hit mid-edit — finishing the three remaining small edits so the tree compiles before handoff:
+0.11.318 builds clean — CREATEINT is fully implemented. Recording the boundary state:
+Session 19 (sess37) ends at the relay boundary with a consistent tree and a complete record.
+
+## What this session delivered
+
+**Defect closed (9 → 8 OPEN):** D-DWORK-TEARDOWN-LASTREF-LEAK is FIXED AND VERIFIED — a bast-arm gate across all 25 per-inode arm sites plus a put_super s_inodes sweep that breaks the last-ref circular the workqueue flush can't see. Verified by live engagement (cancels=1, refs_dropped=1 on every teardown, ×7) with zero leak signature, and a clean board. En route: discovered `xfs_io shutdown` had been a silent no-op on mxfs forever; GOINGDOWN is now implemented (0.11.312) so shutdown fault-injection is real.
+
+**Pace-family campaign (four RULE-4, stack-proven protocol fixes, 314–317):** direct EX grant handoff + PR-class batch grant (8.6× total grant-wait reduction in a same-build A/B, 95.8s → 11.1s), clean-PR retention across eviction, and a DLM-free eofblocks peek — together they killed the drop_caches convoy (6–9s → 0.15s). Result: **dir_reuse_coherency passed for the first time in 11 runs** (58/58, exactly at the 8-round floor — still OPEN, zero margin), and the **full 32-node board on 0.11.317 is 20/21 with zero regressions**, with fio throughput up substantially.
+
+**Root of the remaining margin gap, proven live:** each create runs lookup-PR → EX upgrade → EDEADLK → drop+drain → fresh EX. The fix — CREATEINT (create-intent lookups take the dir at cluster-EX, mirroring the existing PRIREAD flag) — is **fully implemented and builds clean as 0.11.318** (srcversion 2E2DD3DB), but is **not deployed and not tested**; the exact verification sequence (instr-window rc=-35 count, dir_reuse ×3 targeting ≥9 rounds, full board, knob A/B fallback) is recorded.
+
+## Criteria: NO — not production ready
+
+8 OPEN defects remain: the three pace entries (now at the boundary rather than solidly red), the three untouched authority-family entries, the rig-blocked matrix columns, and the dir-view non-convergence split. The next session deploys and verifies 318, then turns to the authority family.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

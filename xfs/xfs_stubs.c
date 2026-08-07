@@ -17,6 +17,7 @@
 #include "xfs_buf.h"
 #include "xfs_btree.h"
 #include "xfs_log_recover.h"
+#include "xfs_fsops.h"
 
 /* ── RT btree stubs ── */
 const struct xfs_buf_ops xfs_rtrefcountbt_buf_ops = { };
@@ -62,7 +63,25 @@ int xfs_sysctl_register(void) { return 0; }
 void xfs_sysctl_unregister(void) { }
 
 /* ── Ioctl stubs ── */
-long xfs_file_ioctl(struct file *f, unsigned int cmd, unsigned long arg) { return -ENOTTY; }
+/* The xfs ioctl surface stays excluded (MXFS ships its own tools; the
+ * on-disk envelope makes xfs_db/xfs_io admin senseless against an mxfs
+ * device) — EXCEPT XFS_IOC_GOINGDOWN, which is load-bearing for fault
+ * testing: it is the only way to force-shutdown a live mount without
+ * yanking the device.  xfs_io cannot deliver it (its FSGEOMETRY probe
+ * fails first); tests/mxfs_shutdown.sh issues the raw ioctl. */
+long xfs_file_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
+{
+	if (cmd == XFS_IOC_GOINGDOWN) {
+		uint32_t in;
+
+		if (!capable(CAP_SYS_ADMIN))
+			return -EPERM;
+		if (get_user(in, (uint32_t __user *)arg))
+			return -EFAULT;
+		return xfs_fs_goingdown(XFS_I(file_inode(f))->i_mount, in);
+	}
+	return -ENOTTY;
+}
 long xfs_file_compat_ioctl(struct file *f, unsigned int cmd, unsigned long arg) { return -ENOTTY; }
 int xfs_fileattr_get(struct dentry *d, struct file_kattr *fa) { return -EOPNOTSUPP; }
 int xfs_fileattr_set(struct mnt_idmap *idmap, struct dentry *d, struct file_kattr *fa) { return -EOPNOTSUPP; }

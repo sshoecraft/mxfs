@@ -1,0 +1,235 @@
+=== loop_device @ 0xffff8a25803c3200 ===
+lo_number=0 lo_flags=0x10 lo_state=1 use_dio=1
+lo_backing_file=0xffff8a25e47bda00
+workqueue=0xffff8a2debc31a00 name='loop0' wq.flags=0x6
+lo_queue=0xffff8a258d6a9590
+
+=== rootcg_cmd_list @ 0xffff8a25803c32a8 ===
+ cmd@0xffff8a258df20d10 use_aio=1 ret=86016 css=0xffff8a258e1a1000
+   rq@0xffff8a258df20c00 tag=8 cmd_flags=0x80700 rq_flags=0x22000 state=0 ref=0 end_io=NULL
+   [list corrupt/loop at 0xdead000000000100]
+ -> 1 entries
+
+=== rootcg_work @ 0xffff8a25803c3288 ===
+data=0xffff8a25d93fea05 PENDING=1 INACTIVE=0 PWQ=1 LINKED=0
+func=loop_rootcg_workfn
+ queued on pwq@0xffff8a25d93fea00 pool@0xffff8a258021d400 pool_id=113 pwq.wq=0xffff8a2debc31a00
+entry.next=0xffff8a2584f89e40 entry.prev=0xffff8a2584f89e40 self=0xffff8a25803c3290 listed=True
+
+=== per-blkcg loop_workers (worker_tree @ 0xffff8a25803c32c8) ===
+ (tree empty)
+
+=== idle_worker_list @ 0xffff8a25803c32b8 ===
+
+=== workqueue pools (wq @ 0xffff8a2debc31a00) ===
+
+pwq@0xffff8a25d93fca00 refcnt=1 pool@0xffff8a258021a800
+  pool id=112 cpu=-1 node=-1 flags=0x4 nr_running=0 nr_workers=2 nr_idle=2
+  worklist: empty
+  busy_hash: all empty
+  workers-attached (0xffff8a258021aac8):
+   worker@0xffff8a25852c3bc0 id=1 flags=0x8c cur_work=0x0 task@0xffff8a269e4f0000 pid=1790134 comm='kworker/u112:1' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u112:1-ext4-rsv-conversion)
+   worker@0xffff8a3104814840 id=2 flags=0x8c cur_work=0x0 task@0xffff8a32ac1ed180 pid=2944363 comm='kworker/u112:2' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u112:2-ext4-rsv-conversion)
+   dying_workers: empty
+
+pwq@0xffff8a3106f3a400 refcnt=1 pool@0xffff8a3104458c00
+  pool id=114 cpu=-1 node=1 flags=0x4 nr_running=0 nr_workers=6 nr_idle=6
+  worklist: empty
+  busy_hash: all empty
+  workers-attached (0xffff8a3104458ec8):
+   worker@0xffff8a31048c2a80 id=3 flags=0x8c cur_work=0x0 task@0xffff8a379f810000 pid=3135753 comm='kworker/u114:3' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u114:3-flush-259:0)
+   worker@0xffff8a3103d47440 id=1 flags=0x8c cur_work=0x0 task@0xffff8a318e440000 pid=3156792 comm='kworker/u114:1' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u114:1-events_unbound)
+   worker@0xffff8a31046ea540 id=6 flags=0x8c cur_work=0x0 task@0xffff8a324b6228c0 pid=3171127 comm='kworker/u114:6' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u114:6-flush-259:0)
+   worker@0xffff8a3103abbd40 id=2 flags=0x8c cur_work=0x0 task@0xffff8a3138e60000 pid=3175006 comm='kworker/u114:2' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u114:2-flush-259:0)
+   worker@0xffff8a3164e2fa40 id=7 flags=0x8c cur_work=0x0 task@0xffff8a3240e40000 pid=3195599 comm='kworker/u114:7' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u114:7-flush-259:0)
+   worker@0xffff8a310479f680 id=0 flags=0x8c cur_work=0x0 task@0xffff8a313a960000 pid=3199767 comm='kworker/u114:0' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u114:0-flush-259:0)
+   dying_workers: empty
+
+pwq@0xffff8a3106f38000 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3b200 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3a800 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f39600 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3a600 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3ae00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38400 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f39a00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38600 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3be00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38800 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38c00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38e00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a25d93fee00 refcnt=1 pool@0xffff8a258021d400
+  pool id=113 cpu=-1 node=0 flags=0x4 nr_running=0 nr_workers=5 nr_idle=4
+  worklist: empty
+  BUSY[49] worker@0xffff8a2584f89e00 id=0 flags=0x80 cur_work=0xffff8a25803c3288 cur_func=loop_rootcg_workfn cur_pwq=0xffff8a25d93fea00  <=== executing lo->rootcg_work!
+     task@0xffff8a25bef2a8c0 pid=0 comm='' __state=0x0 exit_state=0x0 ?
+     scheduled: work@0xffff8a25803c3288 func=loop_rootcg_workfn  <=== lo->rootcg_work!
+  workers-attached (0xffff8a258021d6c8):
+   worker@0xffff8a2584f89e00 id=0 flags=0x80 cur_work=0xffff8a25803c3288 task@0xffff8a25bef2a8c0 pid=0 comm='' __state=0x0 exit_state=0x0 ?
+   worker@0xffff8a2584699080 id=15 flags=0x8c cur_work=0x0 task@0xffff8a267d3e28c0 pid=1758538 comm='kworker/u113:15' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u113:15-nfsiod)
+   worker@0xffff8a2585160e40 id=3 flags=0x8c cur_work=0x0 task@0xffff8a261f12a8c0 pid=3151114 comm='kworker/u113:3' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u113:3-writeback)
+   worker@0xffff8a2585338d80 id=5 flags=0x8c cur_work=0x0 task@0xffff8a25f7a0d180 pid=3184538 comm='kworker/u113:5' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u113:5-events_unbound)
+   worker@0xffff8a2584dee900 id=1 flags=0x8c cur_work=0x0 task@0xffff8a263e060000 pid=3203017 comm='kworker/u113:1' __state=0x402 exit_state=0x0 PROC_ALIVE(kworker/u113:1-flush-259:0)
+   dying_workers: empty
+
+pwq@0xffff8a25d93fc200 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fd600 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fde00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ffe00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fda00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ffc00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ff600 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fe000 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fe800 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fc000 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fe200 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ffa00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fcc00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a3106f3b000 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f39800 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38200 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f39200 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3a200 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3b400 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3ba00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3b800 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f39400 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3bc00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f38a00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3ac00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3aa00 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a3106f3a000 refcnt=1 pool@0xffff8a3104458c00
+  (pool already dumped)
+
+pwq@0xffff8a25d93fc400 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fdc00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fd000 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fd200 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fc800 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fce00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fec00 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fd400 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fea00 refcnt=3 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ff400 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fc600 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ff000 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93fd800 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+pwq@0xffff8a25d93ff800 refcnt=1 pool@0xffff8a258021d400
+  (pool already dumped)
+
+=== flush machinery (q @ 0xffff8a258d6a9590) ===
+nr_hw_queues=1 hctx_table.xa_head=0xffff8a258543b600
+hctx@0xffff8a258543b600 queue=0xffff8a258d6a9590 (match=True) queue_num=0
+fq@0xffff8a2586393e80 pending_idx=1 running_idx=0 rq_status=0 data_in_flight=0
+flush_pending_since=0x106f2882a
+ flush_queue[0]: rq@0xffff8a258df22e80 tag=31 cmd_flags=0x9801 rq_flags=0x22010 state=2 flush.seq=3 end_io=mq_flush_data_end_io
+ flush_queue[1]: empty
+flush_rq@0xffff8a2580207c00 tag=31 state=1 ref=1 cmd_flags=0x40002 rq_flags=0x20010 end_io=flush_end_io
+flush_rq pdu(loop_cmd)@0xffff8a2580207d10 list_entry.next=0xffff8a2580207d10 prev=0xffff8a2580207d10 self=0xffff8a2580207d10 on_list=False
+  pdu css=0x0 use_aio=0 ret=0
+
+DONE (read-only)

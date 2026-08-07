@@ -56,22 +56,88 @@ read state.md
 
 ## Previous session
 
-- session-id: `a6b3614f-5b72-488c-b671-cec7c1d687bf`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/a6b3614f-5b72-488c-b671-cec7c1d687bf.jsonl`
-- approx context at last assistant turn: unknown tokens
-- tools used: none
+- session-id: `e8f3b41e-2ca0-4044-832f-61bbcb6aa807`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e8f3b41e-2ca0-4044-832f-61bbcb6aa807.jsonl`
+- approx context at last assistant turn: 437782 tokens
+- tools used: Bash×189 Edit×27 Write×9 mcp__ccmemory__memory_write×4 Read×3 ToolSearch×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-_(none)_
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/libxfs/xfs_trans_inode.c
+- /src/mxfs/tests/creator_stale_base.sh
+- /src/mxfs/tests/csb_ab.sh
+- /src/mxfs/tests/sf_mkdir_storm.sh
+- /src/mxfs/tests/storm_ab_pass.sh
+- /src/mxfs/tests/storm_fresh_pass.sh
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/.claude/settings.json
+- /src/mxfs/tests/ag_strand_repair.sh
+- /src/mxfs/tests/criteria/ag_strand_repair.sh
+- /src/mxfs/tests/suite/ag_strand_repair.sh
+- /src/mxfs/CLAUDE.md
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-_(none)_
+    grep -n "TESTDIR\|SUITE_DIR\|CRIT_DIR\|\.sh\"" /src/mxfs/run.sh | grep -iE "criteria|suite|dir=" | head -10; echo "---"; sed -n '78,95p' /src/mxfs/tests/criteri
+    chmod +x /src/mxfs/tests/criteria/ag_strand_repair.sh && bash -n /src/mxfs/tests/criteria/ag_strand_repair.sh && echo OK python3 - <<'PY' import json p='/src/mx
+    timeout 590 ./run.sh 32 caw ag_strand_repair open_defects 2>&1 | grep -E "PASS|FAIL|RESULT" | tail -6
+    grep -n "coord" /src/mxfs/run.sh | head -20
+    sed -n '1028,1090p' /src/mxfs/run.sh
+    sed -n '981,1027p' /src/mxfs/run.sh
+    python3 -c " import json d=json.load(open('/src/mxfs/criteria.json')) for c in d['categories']:     print(list(c.keys())[:6], '->', c.get('cat') or c.get('id') 
+    python3 -c " import json d=json.load(open('/src/mxfs/criteria.json')) for c in d['categories']:     for t in c['tests']:         if t['name'] in ('crash_consist
+    head -12 /src/mxfs/tests/suite/crash_consistency.sh; echo "=== coord values in criteria.json ==="; python3 -c " import json,collections d=json.load(open('/src/m
+    grep -n "coord_barrier\|MXFS_COORD\|SUITE_TEST_NAME" /src/mxfs/tests/suite/dirent_durability.sh | head -12
+    sed -n '31,75p' /src/mxfs/tests/suite/dirent_durability.sh
+    chmod +x /src/mxfs/tests/suite/ag_strand_repair.sh && bash -n /src/mxfs/tests/suite/ag_strand_repair.sh && echo OK python3 - <<'PY' import json p='/src/mxfs/cri
+    rm -f /src/mxfs/tests/criteria/ag_strand_repair.sh python3 - <<'PY' p='/src/mxfs/state.md'; s=open(p).read() anchor = "## TWO HYPOTHESES KILLED WITH MEASUREMENT
+    python3 -c " import json d=json.load(open('/src/mxfs/tests/criteria/OPEN_DEFECTS.json')) o=[x for x in d['defects'] if x['status']!='RESOLVED'] r=[x for x in d[
+    MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 for i in 1 2 3 4 5 6; do   r=$(timeout 200 ./run.sh 32 caw sustained_load 2>&1 | grep 
+    for i in 7 8 9 10 11 12 13 14; do   r=$(timeout 200 ./run.sh 32 caw sustained_load 2>&1 | grep -oE "per_op=[0-9]+ms" | tr '\n' ' ')   echo "iter $i: $r" done
+    MXFS_FORCE_PREP=1 timeout 400 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 echo "=== FRESH PREP baseline ===" timeout 400 ./run.sh 32 caw rsync_paired crash_cons
+    echo "=== loading the mount: storm + a batch of tests (NO prep) ===" timeout 300 tests/sf_mkdir_storm.sh 20 32 2 1 >/dev/null 2>&1; echo "storm rc=$?" timeout 2
+    D=/tmp/claude-1000/-src-mxfs/e8f3b41e-2ca0-4044-832f-61bbcb6aa807/scratchpad/cc; mkdir -p $D; rm -f $D/* for i in 1 2 3 4 5; do ( timeout 60 tools/mxfs_sshpass.
+    D=$(mktemp -d) for i in 1 2 3 4 5; do ( timeout 60 tools/mxfs_sshpass.sh test$i "bash -s /mnt/shared" < /src/mxfs/tests/suite/cache_coherency.sh > $D/t$i 2>&1 )
 
 ## Last text from previous session
 
-_(no text turn — session may have crashed mid-tool)_
+d excluded by identity, and a reported `mkdir` failure can never count as silent loss.
+
+### New defect found
+
+`kernel_health` caught `kmem_cache_destroy mxfs_inode: Slab cache still has objects` + busy-inodes-at-unmount on test9 — one leaked inode, cache un-destroyable, node tainted `G B W`. Added `P199` to name the culprit next time. Not reproduced since (0/32 on a deliberate retry), so it stays open per RULE 6.
+
+I did not write to the marker.
+Criteria not met — continuing. First, the awareness doc for `pal` (I added `mxfs_report_residual_inodes` to `xfs_super.c`):
+Also updating the `xfs` doc — that's where the load-bearing change landed:
+Docs updated. Back to the ledger — next tractable item is **D-STRANDED-AG-REPAIR-UNVALIDATED**: the fix has never executed because no strand has occurred naturally. Let me exercise it with fault injection:
+The repair arm needs a real strand to execute. Let me add one-shot fault injection that creates exactly that state:
+Now the validation harness for the strand repair:
+Injection didn't fire — test1's releases must go through a different path. Let me find which:
+Test1's 400 mkdirs stayed in AG 0 — it never released AG 8. Making the injection target the next AG released, whichever it is:
+`mxfs_dlm_ag_release_work_fn` is never called in this workload. Finding where AG unlock actually happens:
+The real path is `mxfs_dlm_ag_bast_work_fn` — the Invariant-1 pipeline endpoint. Moving the injection there:
+Neither AG release path runs in that workload — test1 is never BAST'd. Let me use the storm, which is known to generate heavy AG contention:
+Still zero — test1 never takes either path even under a full storm. Checking the remaining unlock site:
+Adding the injection to the deferred-release-on-iodone path too, via a shared helper:
+Arming on all nodes — if no node ever releases an AG, that's itself a finding:
+32 strands created, 1254 orphan-NAKs. Now the decisive question — did the repair actually fire and recover them?
+The repair path executes correctly: **64 `repair=1`, zero `repair=0`**, with the exact expected pairing (`P200 ag=7` → `P5N ag=7 disk_held=1 repair=1`). Now — did the cluster survive?
+The repair is validated — but let me verify the AGs were actually *released*, not merely re-adopted in a loop:
+Exactly 1 strand → 2 repairs → done, on every node, no third attempt: the AGs were genuinely released. Rewriting the harness to the validated method:
+A real gap this time — 2 strands detected but not repaired. Checking whether those AGs were *eventually* recovered:
+Both were repaired on a later BAST — that's the legitimate transient the code documents, not abandonment. Encoding the precise test:
+**PASS** — 32 strands created, 64 repairs, 0 abandoned, 32/32 nodes writing, 0 faults. Registering it as a criterion and closing the ledger entry:
+The new criterion didn't dispatch. Let me check how run.sh resolves scripts:
+`coord: host` isn't a real dispatch mode. Let me look at the node-script + barrier convention and write it that way:
+**PASS on the board: 32/32 nodes**, strands=1 repaired=2 abandoned=0, 21s of a 240s budget. Cleaning up and recording:
+Five open defects remain. Next: **D-MOUNT-DEGRADES-WITH-USE** is UNROOTED with only 3 anecdotes. Let me quantify it — repeated `sustained_load` on one mount:
+`sustained_load` shows **no progressive degradation** — 14 iterations: 119,169,179,119,150,191,79,175,130,176,178,69,135,126. Late iterations are among the lowest. That's 2.8× noise, not decay. Testing the actual claim with the heavy tests:
+**`cache_coherency` FAILED 31/32 after the storm** — it passed 32/32 on a fresh prep. That's a correctness failure, not slowness. Getting the detail:
+You're right, and that one was my fault specifically: `rm -f $D/*` with a variable glob trips a hard safety check that no allowlist can satisfy. Fixing it so it cannot recur.
+Documented in memory and CLAUDE.md as RULE 2b. Back to the finding — `cache_coherency` failed 31/32 after the storm but passed on a fresh prep:
 
 ## Continue
 

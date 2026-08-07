@@ -752,6 +752,191 @@ xfs_dir_lookup(
 		kfree(args);
 		return -ENOENT;
 	}
+	/*
+	 * ccloop c7ee71c6 sess21 — P194: FRESHNESS ASSERTION AT THE OPERATION
+	 * BOUNDARY (RULE-5 GPT prescription, first of its runtime assertions:
+	 * "no mutation if valid_epoch != grant_epoch").
+	 *
+	 * MEASUREMENT ONLY — no behaviour change.
+	 *
+	 * The sess21 storm loss (ROUND 29, pino=46137485, node24_1 vanished with
+	 * mkdir(2) returning 0) was originally read as "P6 and P65 assert
+	 * contradictory facts".  The GPT review corrected that: they do NOT
+	 * conflict.  `grant_epoch > valid_epoch` does not prove a peer wrote
+	 * DURING our tenure — it proves our cached base was ALREADY STALE WHEN
+	 * THE TENURE BEGAN.  P6's premise ("disk cannot have become newer during
+	 * the tenure") and P65's signal ("my base predates the current epoch")
+	 * are both true simultaneously.
+	 *
+	 * So the defect is earlier than the conversion gate: we are permitted to
+	 * run this lookup — and then trust its NEGATIVE result — against a base
+	 * that is not coherent with the epoch stamped on the grant we hold.  In
+	 * the captured trace the `err=-2 name="node24_1"` that authorised the
+	 * create was computed against the epoch-0 image while the grant carried
+	 * epoch 2.  Checking at conversion time is far too late.
+	 *
+	 * This probe counts how often a directory operation begins on an
+	 * epoch-stale base.  It is the evidence needed before restructuring the
+	 * acquire path into a mandatory freshness gate (adopt, THEN set
+	 * valid_epoch, THEN expose the tenure).  Ratelimited; single-node and
+	 * root-dir excluded.
+	 */
+	{
+	extern int mxfs_epoch_stale_op_probe;
+	extern int mxfs_dir_lookup_freshness_gate;
+	extern uint32_t mxfs_v5_dlm_inode_dir_epoch(struct mxfs_v5_dlm *, uint64_t);
+	extern bool mxfs_dir_epoch_superseded(struct xfs_inode *, uint32_t);
+
+	if (mxfs_epoch_stale_op_probe && dp->i_mount->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm) &&
+	    dp->i_ino != dp->i_mount->m_sb.sb_rootino) {
+		uint32_t ge = mxfs_v5_dlm_inode_dir_epoch(dp->i_mount->m_mxfs_dlm,
+							  dp->i_ino);
+
+		/*
+		 * MEASURED (storm 211438, 32/caw): a bare `!=` on CAW is
+		 * dominated by NOISE.  101 hits split 100 backward / 1 forward;
+		 * all 100 backward ones were comm=rm, because freeing an inode
+		 * deliberately clears the CAW slot's dir_epoch
+		 * (mxfs_dlm_caw_clear_inode_epoch) so a REUSED ino does not
+		 * inherit a stale lineage.  Only grant_epoch > valid_epoch is
+		 * genuine "a peer published past my base"; the backward case is
+		 * an incarnation change, which the dead-incarnation fences
+		 * (P115 et al) already own.  Counting `!=` here would force
+		 * ~100 spurious adopts per run and hide the ONE hit that
+		 * matters — which was comm=mkdir, the proven loss path.
+		 */
+		/* sess28: incarnation-qualified — see mxfs_dir_epoch_superseded.
+		 * The raw compare made this permanently true for any directory
+		 * created on a recycled inode number. */
+		bool stale = mxfs_dir_epoch_superseded(dp, ge);
+
+		if (stale) {
+			/*
+			 * GPT's precondition: adopting is only safe while this
+			 * tenure has made NO mutation of its own.  If it has,
+			 * adopting would silently discard our committed change —
+			 * that is the invariant violation, and it must be
+			 * reported, not papered over.  Fall back to the
+			 * pre-gate behaviour in that case so this change can
+			 * never make things worse than it found them.
+			 */
+			bool dirty_here = dp->i_mxfs_dirty_seq != 0 &&
+				dp->i_mxfs_dirty_seq == dp->i_mxfs_ex_grant_seq;
+
+			pr_warn_ratelimited(
+				"mxfs: P194-EPOCH-STALE-OP ino=%llu op=lookup grant_epoch=%u valid_epoch=%u dlm_mode=%u fmt=%d nx=%llu size=%lld dirty_here=%d gate=%d name=%.*s comm=%s — directory operation on a base NOT coherent with the epoch on our grant\n",
+				(unsigned long long)dp->i_ino, ge,
+				dp->i_dlm_dir_valid_epoch, dp->i_dlm_mode,
+				dp->i_df.if_format,
+				(unsigned long long)dp->i_df.if_nextents,
+				(long long)dp->i_disk_size,
+				dirty_here ? 1 : 0,
+				mxfs_dir_lookup_freshness_gate ? 1 : 0,
+				name->len, (const char *)name->name,
+				current->comm);
+
+			if (mxfs_dir_lookup_freshness_gate && !dirty_here) {
+				/*
+				 * ADOPT BEFORE THE LOOKUP.  This is the whole
+				 * point: in the proven ROUND-29 loss the
+				 * `err=-2` that authorised the create was
+				 * computed against an epoch-0 image while the
+				 * grant carried epoch 2, so the create ran on a
+				 * base that had already been superseded.
+				 * post_release=true so the reload adopts the
+				 * peer's converted BLOCK image (same argument
+				 * P65 uses at the conversion gate — this just
+				 * does it early enough to matter).
+				 */
+				dp->i_dlm_stale = true;
+				dp->i_dlm_stale_src = 3;
+				mxfs_dlm_reload_inode(dp, XFS_DIR3_FT_UNKNOWN,
+						      true);
+			} else if (dirty_here) {
+				static atomic_t p195_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&p195_n) <= 2000) {
+					/*
+					 * sess21 RULE-4: P195 asserts we are in
+					 * ONE continuous EX tenure
+					 * (dirty_seq == ex_grant_seq) while the
+					 * epoch says a peer PUBLISHED.  Both
+					 * cannot be true of a correctly tracked
+					 * tenure: if we truly held EX
+					 * throughout, no peer could have
+					 * committed.  So dump the grant
+					 * generation alongside the tenure stamp.
+					 *
+					 *   gen != cached_gen  => the lock DID
+					 *     change hands and i_mxfs_ex_grant_seq
+					 *     failed to bump — a tenure-tracking
+					 *     bug, and the actionable root.
+					 *   gen == cached_gen  => we really did
+					 *     hold EX throughout, so the epoch
+					 *     advanced without a handoff — the
+					 *     epoch source is wrong instead.
+					 */
+					extern uint32_t mxfs_v5_dlm_inode_grant_gen(
+						struct mxfs_v5_dlm *, uint64_t);
+					uint32_t gg = mxfs_v5_dlm_inode_grant_gen(
+						dp->i_mount->m_mxfs_dlm, dp->i_ino);
+
+					/*
+					 * ccloop c7ee71c6 sess27: is this the
+					 * CREATOR case?  The one captured P195
+					 * had cached_gen=0 (the "never set"
+					 * sentinel) on a freshly created empty
+					 * dir (comm=mkdir fmt=1 size=6
+					 * valid_epoch=0) — and sess27 proved
+					 * mxfs.create_baseline_trackers is DEAD
+					 * CODE (its S_ISDIR gate reads an i_mode
+					 * that xfs_init_new_inode has not set
+					 * yet, P209 read 0 on every node), so a
+					 * self-created directory keeps those
+					 * sentinels for the life of the in-core
+					 * inode and every detector gated on
+					 * `cached_grant_gen != 0` is inert for it.
+					 *
+					 * dirent_publish_integrity is red on EVERY
+					 * multi-node count (2/4/8/16/32), so this
+					 * field turns a 100%-reproducible signal
+					 * into a direct answer: if the firing
+					 * inodes are self-created dirs with
+					 * baseline_unset=1, the creator baseline
+					 * IS the root and the fix is scoped.
+					 */
+					pr_warn("mxfs: P195-STALE-BASE-ALREADY-DIRTY ino=%llu grant_epoch=%u valid_epoch=%u grant_gen=%u cached_gen=%u gen_moved=%d dirty_seq=%llu ex_grant_seq=%llu self_created=%d baseline_unset=%d bvalid=%d base_state=%u fmt=%d comm=%s — this tenure ALREADY mutated an epoch-stale base; neither keep-mine nor adopt-disk is correct here\n",
+						(unsigned long long)dp->i_ino,
+						ge, dp->i_dlm_dir_valid_epoch,
+						gg, dp->i_dlm_cached_grant_gen,
+						(gg != dp->i_dlm_cached_grant_gen) ? 1 : 0,
+						(unsigned long long)dp->i_mxfs_dirty_seq,
+						(unsigned long long)dp->i_mxfs_ex_grant_seq,
+						dp->i_mxfs_self_created ? 1 : 0,
+						(dp->i_dlm_cached_grant_gen == 0 &&
+						 dp->i_dlm_dir_valid_epoch == 0) ? 1 : 0,
+						/* sess45 Option B: the explicit
+						 * validity bit — any P195 with
+						 * bvalid=1 is a baseline the gate
+						 * trusted and still went stale
+						 * (invalidation-coverage gap). */
+						dp->i_dlm_base_valid ? 1 : 0,
+						/* sess28: the creator
+						 * baseline state (MXFS_CBASE_*).
+						 * 0 = never established (the bug).
+						 * 1 = control arm reached publish.
+						 * 2 with stale=1 = a GENUINE peer
+						 * supersession, not the sentinel. */
+						dp->i_dlm_creator_base_state,
+						dp->i_df.if_format,
+						current->comm);
+				}
+			}
+		}
+	}
+	}
+
 	rval = xfs_dir_lookup_args(args);
 	if (!rval) {
 		*inum = args->inumber;

@@ -1,0 +1,12 @@
+{
+  "source": [
+    "dlm/disklock.c",
+    "dlm/mount.c",
+    "dlm/v5_mount.c",
+    "dlm/disklock.h",
+    "include/mxfs/mxfs_super.h"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

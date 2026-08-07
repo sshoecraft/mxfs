@@ -30,21 +30,26 @@ fi
 
 NFILES="${CC_NFILES:-50}"
 
+echo "mxfs-CCph rank=$R PHASE=start" > /dev/kmsg 2>/dev/null || true
 ck "cc barrier ready" coord_barrier "cc_ready"
 
+echo "mxfs-CCph rank=$R PHASE=barrier-ready-done" > /dev/kmsg 2>/dev/null || true
 # Durable writes (each file synced before recording its checksum).
 for i in $(seq 1 "$NFILES"); do
     f="$D/node${R}_f${i}"
     dd if=/dev/urandom of="$f" bs=4096 count=$(( (i % 8) + 1 )) oflag=sync 2>/dev/null
 done
 sync
+echo "mxfs-CCph rank=$R PHASE=datawrite-done" > /dev/kmsg 2>/dev/null || true
 for i in $(seq 1 "$NFILES"); do
     md5sum "$D/node${R}_f${i}" 2>/dev/null | awk '{print $1}' > "$D/node${R}_f${i}.md5"
 done
 sync
 
+echo "mxfs-CCph rank=$R PHASE=md5write-done" > /dev/kmsg 2>/dev/null || true
 ck "cc barrier written" coord_barrier "cc_written"
 
+echo "mxfs-CCph rank=$R PHASE=barrier-written-done" > /dev/kmsg 2>/dev/null || true
 # Cold reload: drop caches so the next reads come from the shared LUN.
 sync; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
 sleep 1
@@ -57,6 +62,7 @@ sleep 1
 # file is still cold-read by >=K distinct REMOTE readers, which is the
 # cross-node durability assertion; only the redundancy factor shrinks at
 # high N (32: own+3 peers; 16: own+6; 8: own+12; <=4: full mesh as before).
+echo "mxfs-CCph rank=$R PHASE=dropcaches-done" > /dev/kmsg 2>/dev/null || true
 FORENSIC="$D/.cc_forensic_r${R}"
 cc_k=$(( 96 / T )); [ "$cc_k" -lt 3 ] && cc_k=3
 [ "$cc_k" -gt $(( T - 1 )) ] && cc_k=$(( T - 1 ))
@@ -74,10 +80,24 @@ for n in $cc_targets; do
             {
               echo "FAIL node${n}_f${i} reader=r${R}"
               echo "  md5file ino=$(stat -c%i "$md5f" 2>/dev/null) size=$(stat -c%s "$md5f" 2>/dev/null) content=[$(cat "$md5f" 2>/dev/null)]"
-              echo "  datafile ino=$(stat -c%i "$dataf" 2>/dev/null) size=$(stat -c%s "$dataf" 2>/dev/null)"
+              echo "  datafile ino=$(stat -c%i "$dataf" 2>/dev/null) size=$(stat -c%s "$dataf" 2>/dev/null) blocks=$(stat -c%b "$dataf" 2>/dev/null)"
+              # sess33 (D-CRASH-COLDREAD-STALE-SPLIT): arm the kernel probe
+              # family on the DATA inode before the heal tests so the re-read
+              # path traces (FUA read, reload, adopt decisions) land in dmesg.
+              stat -c%i "$dataf" 2>/dev/null > /sys/module/mxfs/parameters/watch_ino 2>/dev/null || true
               # second read after another drop to test persistence of staleness
               echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; sleep 0.3
               echo "  md5file reread size=$(stat -c%s "$md5f" 2>/dev/null) content=[$(cat "$md5f" 2>/dev/null)]"
+              # sess33: the 20260731T131837Z incident rereread only the
+              # sidecar — the DATA file's heal behavior is the discriminator
+              # (stale extent map/dinode heals only via reload; a lagging
+              # PLATTER heals when the writer's flush finally lands).  Reread
+              # data now and again after 2s.
+              echo "  datafile reread1 size=$(stat -c%s "$dataf" 2>/dev/null) blocks=$(stat -c%b "$dataf" 2>/dev/null) md5=$(md5sum "$dataf" 2>/dev/null | awk '{print $1}')"
+              sleep 2; echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; sleep 0.3
+              echo "  datafile reread2 size=$(stat -c%s "$dataf" 2>/dev/null) blocks=$(stat -c%b "$dataf" 2>/dev/null) md5=$(md5sum "$dataf" 2>/dev/null | awk '{print $1}')"
+              echo "  dmesg-tail-for-ino:"
+              dmesg 2>/dev/null | grep "ino=$(stat -c%i "$dataf" 2>/dev/null)" | tail -6 | sed 's/^/    /'
             } >> "$FORENSIC" 2>/dev/null
             # kernel marker so it interleaves with mxfs P-traces
             echo "mxfs-cc-FAIL node${n}_f${i} md5ino=$(stat -c%i "$md5f" 2>/dev/null)" > /dev/kmsg 2>/dev/null
@@ -86,6 +106,7 @@ for n in $cc_targets; do
     done
 done
 
+echo "mxfs-CCph rank=$R PHASE=verify-done" > /dev/kmsg 2>/dev/null || true
 if [ "$R" = 1 ]; then
     total=$(ls "$D"/node*_f[0-9]* 2>/dev/null | grep -vc '\.md5$')
     ckeq "cc total durable file count" "$((T * NFILES))" "$total"
@@ -118,6 +139,8 @@ if [ "$FAIL_N" -gt 0 ]; then
     echo "mxfs-cc-DISCRIM reader=r${R} miss=$miss" > /dev/kmsg 2>/dev/null
 fi
 
+echo "mxfs-CCph rank=$R PHASE=count-done" > /dev/kmsg 2>/dev/null || true
 ck "cc barrier done" coord_barrier "cc_done"
+echo "mxfs-CCph rank=$R PHASE=barrier-done-done" > /dev/kmsg 2>/dev/null || true
 coord_done "$([ "$FAIL_N" -eq 0 ] && echo PASS || echo FAIL)"
 finish

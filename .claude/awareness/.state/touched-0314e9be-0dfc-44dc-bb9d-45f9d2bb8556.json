@@ -1,0 +1,10 @@
+{
+  "source": [
+    "dlm/dlm_caw.c"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": false,
+  "nudges": 0
+}

@@ -56,80 +56,86 @@ read state.md
 
 ## Previous session
 
-- session-id: `039ab21f-63c1-431b-88d3-cfd5418eac6d`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/039ab21f-63c1-431b-88d3-cfd5418eac6d.jsonl`
-- approx context at last assistant turn: 502741 tokens
-- tools used: Bash×134 Read×37 Edit×36 Write×5 mcp__ccmemory__memory_write×4 ToolSearch×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+- session-id: `cf1061d3-034e-412f-b1fe-85039c155c5a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/cf1061d3-034e-412f-b1fe-85039c155c5a.jsonl`
+- approx context at last assistant turn: 506062 tokens
+- tools used: Bash×172 Edit×14 Read×11 Write×9 ToolSearch×3 mcp__ccmemory__memory_write×3 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/xfs/xfs_aops.h
-- /src/mxfs/pal/linux/xfs_aops.c
-- /src/mxfs/xfs/xfs_mxfs_dlm.c
-- /src/mxfs/run.sh
-- /src/mxfs/tests/suite/dir_reuse_coherency.sh
-- /src/mxfs/scripts/fix26_wb_bast_exerciser.sh
-- /src/mxfs/dlm/dlm.c
-- /src/mxfs/dlm/dlm.h
-- /src/mxfs/dlm/v5_mount.h
-- /src/mxfs/dlm/v5_mount.c
-- /src/mxfs/state.md
-- /src/mxfs/.claude/awareness/subsystems/pal.md
-- /src/mxfs/pal/linux/xfs_buf.c
-- /src/mxfs/tests/suite/crash_consistency.sh
+- /src/mxfs/tests/drc_phase_profile.sh
+- /src/mxfs/tests/shared_dir_pace.sh
+- /src/mxfs/tests/create_scale_curve.sh
+- /src/mxfs/tests/create_stall_stacks.sh
+- /src/mxfs/tests/caw_grant_wait_anatomy.sh
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/tests/caw_pr_nodefer_ab.sh
+- /src/mxfs/tests/drc_pace_ab.sh
+- /src/mxfs/tests/suite/dirent_durability.sh
+- /src/mxfs/tests/suite/dirent_type_integrity.sh
+- /src/mxfs/tests/dev_path_slot_latency.sh
+- /src/mxfs/scripts/fix27_wb_shared_exerciser.sh
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    ./tools/mxfs_sshpass.sh test3 x 'dmesg | sed -n "113890,113916p"' 2>&1 | grep -v 'Warning\|Unauthorized\|disconnect'
-    D=/tmp/run_crash_consistency_20260725T181124Z; for n in 1 2 3 4 5 6 7 8; do c=$(grep -hc '11002400\|0xa7e220' $D/kernlog_test$n 2>/dev/null); echo -n "t$n=$c ";
-    grep -n 'P-DIRWR' /src/mxfs/xfs/*.c /src/mxfs/pal/linux/*.c 2>/dev/null | head -5
-    grep -n 'xfs_da3_node_buf_ops' /src/mxfs/pal/linux/xfs_buf.c | head -3; grep -n 'struct xfs_da3_blkinfo {' -A 8 /src/mxfs/xfs/libxfs/xfs_da_format.h | head -12;
-    grep -n 'struct xfs_da3_node_hdr' -A 5 /src/mxfs/xfs/libxfs/xfs_da_format.h | head -8; grep -n 'mxfs_v5_dlm_inode_granted_mode' /src/mxfs/dlm/v5_mount.h | head 
-    echo 0.11.94 > /src/mxfs/VERSION && make modules 2>&1 | grep -E ' error:' | head -5; modinfo mxfs.ko | grep srcversion
-    for n in 1 2 3 4 5 6 7 8; do r=$(./tools/mxfs_sshpass.sh test$n x 'pkill -9 -f "crash_consistency|dir_reuse|drc_" 2>/dev/null; umount -f /mnt/shared 2>&1; for i
-    for n in 1 2 3 4 5 6 7 8; do r=$(./tools/mxfs_sshpass.sh test$n x 'lsmod | grep -q "^mxfs" && echo LOADED || echo CLEAN; mount | grep -q mxfs && echo STILL_MOUN
-    for n in 1 2 3 4 5 6 7 8; do r=$(./tools/mxfs_sshpass.sh test$n x 'pkill -9 -f "crash_consistenc[y]" 2>/dev/null; pkill -9 -f "dir_reus[e]" 2>/dev/null; umount 
-    ./tools/mxfs_sshpass.sh test1 x 'insmod /mnt/mxfs-src/mxfs.ko 2>/dev/null || insmod /src/mxfs/mxfs.ko; echo y | /src/mxfs/tools/mkfs_mxfs -f /dev/sda 2>&1 | tai
-    MXFS_FORCE_PREP=1 ./run.sh 8 tcp prep_cluster 2>&1 | tail -3
-    unset RULE0_CALIBRATE; ./run.sh 8 tcp crash_consistency 2>&1 | grep -E '^  (PASS|FAIL)'
-    D=$(ls -dt /tmp/run_crash_consistency_* | head -1); echo $D; for n in 1 2 3 4 5 6 7 8; do r=$(grep -hcE 'CRC error|Corruption detected' $D/kernlog_test$n 2>/dev
-    D=/tmp/run_crash_consistency_20260725T182439Z; printf 'daddr dec: %d\n' 0x9fb620; echo ==distinct corrupted blocks:; grep -h 'CRC error' $D/kernlog_test* | grep
-    D=/tmp/run_crash_consistency_20260725T182439Z; echo "==gmode distribution for daddr 10466848:"; grep -h 'P-DIRWR' $D/kernlog_test* | grep 'daddr=10466848' | gre
-    awk 'NR<7729 && /^(static |STATIC |int |void |__)/ && /submit|ioapply/ {print NR": "$0}' /src/mxfs/pal/linux/xfs_buf.c | tail -3; grep -n '_XBF_LOGRECOVERY\|XBF
-    grep -n 'xfs_buf_submit_ex(struct xfs_buf \*bp, bool fresh)' /src/mxfs/pal/linux/xfs_buf.c; awk 'NR>=7600 && NR<=7700 && (/^xfs_buf_submit/ || /^static.*submit/
-    grep -n 'mxfs_suppress_stale_agwrite' /src/mxfs/pal/linux/xfs_buf.c
-    grep -n 'mxfs_release_coalesced_flush' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -3; awk '/^void$|^mxfs_release_coalesced_flush/,/^}/' /src/mxfs/xfs/xfs_mxfs_dlm.c | 
-    grep -n '^mxfs_dir_flush_data_blocks\|^mxfs_release_coalesced_flush\|^int mxfs_dir_flush_data_blocks\|^static.*mxfs_dir_flush_data_blocks' /src/mxfs/xfs/xfs_mxf
+    grep -n -A25 "^xfs_map_blocks(" xfs/xfs_aops.c 2>/dev/null | grep -nE "xfs_ilock|ILOCK_|xfs_iunlock|retry" | head -12; echo "=== which ILOCK modes reach mxfs_dl
+    sed -n '230,275p' pal/linux/xfs_aops.c; echo "=== xfs_map_blocks ilock in this tree ==="; grep -n "xfs_ilock\|ILOCK_SHARED\|ILOCK_EXCL" pal/linux/xfs_aops.c | h
+    python3 - <<'PY' p='xfs/xfs_mxfs_dlm.c' s=open(p).read() old='''	in_wb = xfs_task_in_writepages(); 	if (mode != MXFS_LOCK_EX || (!xfs_task_in_ioend() && !in_wb)
+    sed -n '23433,23441p' xfs/xfs_mxfs_dlm.c | cat -A | sed 's/\$$//'
+    python3 - <<'PY' p='xfs/xfs_mxfs_dlm.c' s=open(p).read() T='\t' old='''	in_wb = xfs_task_in_writepages(); 	if (mode != MXFS_LOCK_EX || (!xfs_task_in_ioend() && 
+    sed -n '385,410p' pal/linux/xfs_aops.c; echo "=== find test that uses fix26_delay_ms ==="; grep -rln "fix26_delay_ms" tests/ scripts/ 2>/dev/null | head
+    sed -n '515,540p' pal/linux/xfs_aops.c
+    python3 - <<'PY' p='pal/linux/xfs_aops.c' s=open(p).read()  # 1) params next to the existing fix26 knob old='''/* FIX-26 verification injection — see xfs_map_bl
+    python3 - <<'PY' p='xfs/xfs_mxfs_dlm.c' s=open(p).read() old='''	if (mode != MXFS_LOCK_EX && 	    !(in_wb && (mode == MXFS_LOCK_PR || mode == MXFS_LOCK_CR))) 		
+    sed -n '1,45p' scripts/fix26_wb_bast_exerciser.sh
+    chmod +x scripts/fix27_wb_shared_exerciser.sh && timeout 400 scripts/fix27_wb_shared_exerciser.sh test1 test2 45 150 1 2>&1 | grep -vE "^\[[0-9]+\]" | tail -22
+    timeout 400 scripts/fix27_wb_shared_exerciser.sh test1 test2 45 150 0 2>&1 | grep -vE "^\[[0-9]+\]" | tail -20
+    sed -n '25040,25100p' xfs/xfs_mxfs_dlm.c
+    python3 - <<'PY' p='pal/linux/xfs_aops.c' s=open(p).read() old='''		while (f27_left > 0) { 			if (ip->i_dlm_state != f27_st0) 				break;		/* a BAST landed — col
+    MXFS_FORCE_PREP=1 timeout 580 ./run.sh 32 caw prep_cluster 2>&1 | tail -2 && timeout 400 scripts/fix27_wb_shared_exerciser.sh test1 test2 45 200 0 2>&1 | grep -
+    for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh "test$i" "echo 0 > /sys/module/mxfs/parameters/fix27_shared_admit" >/dev/null 2>&1 ) & done; wait echo "=== arm
+    for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh "test$i" "echo 1 > /sys/module/mxfs/parameters/fix27_shared_admit" >/dev/null 2>&1 ) & done; wait M="MXFS_ARM1_
+    python3 - <<'PY' p='xfs/xfs_mxfs_dlm.c' s=open(p).read() old='''		static atomic_t p47fb = ATOMIC_INIT(0); 		if (atomic_inc_return(&p47fb) <= 4000) 			pr_warn("m
+    MXFS_FORCE_PREP=1 timeout 580 ./run.sh 32 caw prep_cluster 2>&1 | tail -2 M="MXFS_P47G2_$(date -u +%H%M%S)" for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh "te
+    python3 - <<'PY' import json, datetime p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) now=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%
 
 ## Last text from previous session
 
-hange lock-table purge (orphan-grant NAK heal, both at unlock-ENOENT and bast-RX). Plus the harness fixes that were hiding both: barrier timeout now fits inside the kill box (no more NO_TERMINAL_RECORD), and stale `/root` forensic captures are cleaned at test start.
-- **Current build v0.11.93** (srcver 84A5D634...) deployed on 8/tcp: dir_reuse_coherency green ×3, cache_coherency 558/558 in 8s, dlm_scaling 7/7 in 14s, and all health counters (P73, P132, P146V) at zero.
-- I was partway into the **full 8/tcp rung** (batch 1: precond_readiness passed; posix_single/integrity_filetypes/fault_enospc were queued when you interrupted).
+o FIX-27 targets a heavily-travelled path, not dead code. But 4061 have local mode NL, and the admit requires the mirror at EX/PR, so its reach is narrower than the raw count. With that many candidate firings, the real risk is the release pipeline constantly aborting and re-arming. Measuring that before trusting the default:
+**P25 admits = 0 even with the fix on**, despite 3613 shared blocks. So those blocks come from ordinary syscalls, not the writeback submitter — FIX-27 as written is **measured never to engage**, exactly like the two knobs earlier today. Also notable: 577 `P15-REL-ABORT` and both criteria got *faster* (22s/18s), so no churn harm.
 
-Holding here until you tell me how you'd like to proceed.
-Criteria not met — continuing. First the flagged awareness-doc update for pal (and the dlm/xfs docs I also touched, per project rules), then resuming the rung:
-pal.md done. Now the dlm.md entry for the orphan-grant NAK (dlm.c/v5_mount.c changed there too, per project doc rules):
-Docs updated (pal, dlm, xfs — the sed warnings are the known NFS root-squash quirk; edits verified). Resuming the full 8/tcp rung:
-Extending P-DIRWR with the danode arm + granted-mode, and watch-arming crash_consistency:
-The format string gained `gmode=%u` but the argument list needs `dwgmode` inserted. Fixing:
-Field names and declaration confirmed. Now the CC harness watch-arm:
-The pkill pattern matched its own ssh cmdline and killed the shell — the exact state.md lesson. Redoing with the bracket trick:
-**Reproduced on a fresh LUN** — the failure regenerates, and this time the danode write traces are armed. Harvesting:
-Now the RULE-5 consult with the evidence fresh:
-Implementing fence v1. First, the chokepoint's enclosing function and its early-return pattern, plus the log-recovery buffer flag:
-Prior art exists in this very function — `mxfs_suppress_stale_agwrite` implements suppress-and-complete-without-I/O for stale AG-meta writes. Finding the act-site to mirror its mechanics:
-Session 6 summary — criteria **not met** (not production ready; one critical defect open), handing off at the relay boundary.
+The captured flush worker *was* in writepages context, so either it requested EX (via inlined `xfs_convert_blocks`, which FIX-26 should have handled) or the `g2` check refused it. P47 doesn't print enough to tell. Making the next occurrence self-diagnosing:
+Census is decisive. Let me record it and wrap at the relay boundary.
+Stopping at the relay boundary. Not writing the marker — **10 open defects, 5 critical.**
 
-**Fixed and verified this session (v0.11.87→94):**
-- **FIX-26**: permanent writeback-vs-bast-drain deadlock (flusher holding a folio lock while parked in the demote-wait; bast drain blocked on that folio) — live-captured on test8, fixed by admitting writeback-submission tasks like ioend workers. The wedge had been silently poisoning every subsequent run via hung `sync`.
-- **Orphan-grant NAK**: membership-change table purges can leave a master holding a zombie AG grant the "holder" no longer knows about (captured: 500s of 1/s re-BASTs starving the whole cluster). Unlock-ENOENT and bast-RX now send a guarded unconditional release.
-- **Harness**: barrier timeout now fits inside the kill box (ends the NO_TERMINAL_RECORD blindness), stale forensic captures cleaned per run, crash_consistency now arms the dir-block write tracer.
-- Green on current build: dir_reuse ×6, cache_coherency, dlm_scaling, and 8 more rung tests re-run current.
+## The session's real finding
 
-**The open front — a critical, reproducible on-disk corruption (Defect A):** under an 8-node create storm, peer nodes write **stale cached dir-block images while holding only PR (19 captured) or after release (1, via xfsaild)**; interleaved with the real holder's leaf→node split write, they tear the block on the LUN → CRC failure → 5-of-8-node shutdown cascade. Root proven with per-write granted-mode tracing; reproduces on a fresh filesystem in ~30s. A GPT design review produced the fix blueprint (tenure-authorized write fence + exhaustive publish registry); the provably-safe v1 fence is specced with exact code sites in state.md and ccmemory for the next session. Defect B (dir format-decision TOCTOU, EUCLEAN-only) is the same family read-side.
+The `crash_consistency` FAIL you flagged, and the seven-criteria collapse after it, were **not filesystem defects**. One node (test27) was permanently deadlocked, and I captured both sides:
 
-Note for the next session: **the shared LUN is corrupted from the repro — mkfs before any runs.** All detail is in the four ccmemory entries and state.md (written now, at the handoff, per its intended use).
+- `mxfs-ino-bast` kworker holds the inode ILOCK inside `mxfs_dlm_bast_process`, blocked on a **folio lock**
+- `flush-252:1` writeback holds that folio lock, blocked on the **inode lock** via `xfs_map_blocks → xfs_ilock`
+
+The node passed every liveness check — mounted, `ls` answering, no BUG — but could never finish `sync`, so it never reached a barrier. After `virsh destroy+start` + re-prep, all seven criteria pass at original timings and **`crash_consistency` passes at 64s/90s** — exactly the 2×-per-doubling prediction, matching 32/cawd's 65s and 32/cawp's 66s.
+
+## Both board-lie causes are now gated
+
+- **Node-fault pre-assert**: a sync-wedged node is recorded **BLOCKED**, naming the node and its D-state stacks, never as a correctness FAIL. Verified live on test27.
+- **Coord-broker hygiene**: the 120,447 retained messages accumulated because run.sh only cleared its own RUN_ID prefix. Now sweeps the whole namespace and aborts if it can't reach a clean state.
+
+## Corrections I owe you
+
+test27 was wedged for hours, so **every pace measurement before the recovery included a sick node.** Two conclusions retracted in the ledger:
+
+- I said the 32-node cost was "global, not dirent serialization." Clean cluster says the opposite: private-dir creates scale **flat** (33→41 ms across 1→32 nodes), shared-dir go 33→**1722 ms**. A 42× penalty, entirely the shared directory.
+- dm-multipath and CAS contention are both refuted — CAW service time is 1.5% of grant wait with zero I/O errors.
+
+## FIX-27: written, shipped OFF, not verified
+
+I extended the writeback admit to shared-class requests, since `xfs_map_blocks` takes `ILOCK_SHARED` first and FIX-26 only admits EX. Then I measured it, and it **never engages**: across 4699 demote-wait blocks, **zero came from writeback or ioend context** — the blockers are `stat` (3879), `cat` (488), `md5sum` (309), which must keep waiting. So it ships default-off rather than as an unexercised path, matching this project's precedent.
+
+Notably 4435 of those blocks read `g2=3` — the granted-mode precondition *would* pass, so the admit machinery is healthy and correctly scoped. The deadlock is a rare race the workload doesn't produce.
+
+Four of my own attempted fixes this session were measured and refuted rather than kept: two CAW fairness knobs, the yield episode clock (pace-neutral but unvalidated), and FIX-27. `P47-FILEBLOCK` now prints `g2`/`in_wb`/`in_ioend` so the next occurrence names the failing precondition instead of needing another session of inference — and my exerciser's gap is documented: it collides the submitter with a drain but never makes the drain block on *that* submitter's folio, which is the missing half of the cycle.
 
 ## Continue
 

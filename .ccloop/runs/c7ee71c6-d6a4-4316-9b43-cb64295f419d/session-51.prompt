@@ -1,0 +1,205 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 51 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 50
+
+## Original task
+
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
+
+
+## Previous session
+
+- session-id: `007e2ebf-e35f-49cd-b4e5-84f7a6394cd8`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/007e2ebf-e35f-49cd-b4e5-84f7a6394cd8.jsonl`
+- approx context at last assistant turn: 166405 tokens
+- tools used: Bash×29 Edit×13 Read×6 mcp__ccmemory__memory_get×3 ToolSearch×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_log.h
+- /src/mxfs/xfs/xfs_mount.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; awk 'NR>=115 && NR<=160{print NR": "$0}' dlm/v5_mount.h
+    cd /src/mxfs; grep -n "todo = cohort;\|attempted |= todo;" xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; python3 - <<'EOF' p='xfs/xfs_mxfs_dlm.c' L=open(p).read().split('\n') # lines 42434..42511 inclusive (1-indexed) are the inner slot loop body incl
+    cd /src/mxfs; printf '0.11.406\n' > VERSION; make modules 2>&1 | grep -iE "error|warning" | head -30; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mxfs.ko 2>/d
+    cd /src/mxfs; touch dlm/v5_mount.c xfs/xfs_mxfs_dlm.c; make modules 2>&1 | grep -B3 -A12 "expects a matching" | head -60
+    cd /src/mxfs; awk 'NR>=42505 && NR<=42560{print NR": "$0}' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; python3 -c " import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) print(type(d), list(d.keys())[:10] if isinstance(d,dict) else len(d
+    cd /src/mxfs; python3 -c " import json,collections d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) print(d['_comment'][:800] if isinstance(d['_comment'],s
+    cd /src/mxfs; python3 - <<'PYEOF' import json, io p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) ids={e['id'] for e in d['defects']} assert 'D-MOUNT-
+    cd /src/mxfs; grep -rn "mxfs_xlog_recover_foreign_slice" --include=*.c --include=*.h | head; echo "=== def ==="; grep -n "mxfs_xlog_recover_foreign_slice" xfs/x
+    cd /src/mxfs; awk 'NR>=700 && NR<=880{print NR": "$0}' xfs/xfs_log.c
+    cd /src/mxfs; grep -rn "m_mxfs_log_node_count" --include=*.c --include=*.h | head -20; echo "=== live path 42055-42100 ==="; awk 'NR>=42050 && NR<=42105{print N
+    cd /src/mxfs; awk 'NR>=2680 && NR<=2700{print NR": "$0}' pal/linux/xfs_super.c; awk 'NR>=1030 && NR<=1052{print NR": "$0}' xfs/xfs_mount.c
+    cd /src/mxfs; grep -n "mxfs_has_log_slices" xfs/*.h xfs/*.c | head
+    cd /src/mxfs; printf '0.11.407\n' > VERSION; make modules 2>&1 | grep -iE "error:|undefined|mxfs_has_log_slices|implicit" | head -20; echo "=== EXIT ${PIPESTATU
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit|mxfs_has_log_slices" | head -20; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mxfs.ko | g
+    cd /src/mxfs; grep -n "m_mxfs_log_slice_bblks" xfs/xfs_mount.h; awk 'NR>=450 && NR<=462{print NR": "$0}' xfs/xfs_mount.h
+    cd /src/mxfs; grep -n "^static inline\|^}" xfs/xfs_mount.h | awk -F: '$1>560 && $1<640' | head -8; grep -n "^} xfs_mount_t;\|^};" xfs/xfs_mount.h | head -3
+    cd /src/mxfs; make modules 2>&1 | grep -iE "error:|undefined|implicit" | head -20; echo "=== EXIT ${PIPESTATUS[0]} ==="; modinfo mxfs.ko | grep srcversion; cat 
+    cd /src/mxfs; python3 - <<'PYEOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) ids={e['id'] for e in d['defects']} assert 'D-FOREIGN-RE
+
+## Last text from previous session
+
+I'll start with the required memory listing.
+Now the drain API and settle-side dispatch in `dlm/v5_mount.c`:
+Now the round-cap constant, placed with the barrier:
+Landing the item-6C fix — the foreign-replay return value is currently discarded at both call sites, so a **failed** replay gets published as recovered:
+Wrapping at the relay boundary. Build **0.11.407**, srcversion `C72F20487083A2CA52AC43C`, compiles clean.
+
+**Item 6B is now complete** (was half-landed at 0.11.405):
+- Drain API `mxfs_v5_dlm_mount_take_late_deaths` / `_defer_late_deaths` in `dlm/v5_mount.c` + `.h`, copying slot mask and node identity under `mphase_lock`.
+- Barrier step (c) restructured into 4 bounded rounds that fold each drain into the next round, so a peer that dies *during* the mount is replayed by this mount instead of leaving frozen grants for `xfs_log_mount_finish` to stall on. `mount_cohort_complete` stays a single call after all rounds (sess50 cross-slice evidence rule); anything not durably replayed is handed back.
+- `mxfs_v5_dlm_mount_settle` gained a phase 3a that dispatches the remainder via `v5_dispatch_slice_recovery` — the `_start_` wrapper's already-pending guard would have returned without electing a replayer.
+
+**Item 6C exposed a second shipped defect.** `mxfs_xlog_recover_foreign_slice()` returns an error and *both* callers discarded it, so a dead peer's slice whose replay **failed** was published exactly like a successful one — CAW manifest purged, heartbeat sector zeroed, peers told it was recovered. That destroys the only two pieces of evidence that would make anyone redo the replay. Both sites now check and refuse; new `mxfs_has_log_slices(mp)` isolates the one legitimate no-replay case (unsliced FS) by testing the configuration rather than aliasing an errno.
+
+Two RULE 6 ledger entries written (`D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE`, `D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED`), both critical/OPEN with verification plans — ledger is 41 entries, 13 open.
+
+Also settled by line-reading, so the next session need not re-derive it: foreign replay **skips intent items entirely**, `kfree`s its shadow AIL without ever running `xlog_recover_finish`, and leaves the slice dirty for whoever next claims the slot. That confirms GPT item 3 is a real hole — the barrier publishes a slot as consumable while the dead slice's EFI/RUI/CUI/BUI intents and AGI unlinked inodes are still unprocessed.
+
+**Criteria: NO.** Not production ready — 13 open defects, 5 critical; GPT items 3 and 4 outstanding; no rig cycle has been spent on anything since 0.11.401.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
+
+---
+
+## Current project state
+
+Generated at the start of THIS session by the project's state hook:
+`/src/mxfs/.ccloop/state.sh`
+
+Everything above describes what PREVIOUS sessions did. This section
+describes the project as it is RIGHT NOW, and supersedes anything above
+that conflicts with it.
+
+### Build
+tree VERSION **0.11.407**  |  mxfs.ko srcversion `C72F20487083A2CA52AC43C`  |  last rig run: 32 nodes / caw @ 2026-08-03T12:47:05Z
+
+The srcversion above is what THIS TREE builds, not necessarily what the
+fleet is running. Confirm deployment before trusting a measurement.
+
+### Board — last conditions (32/caw)
+26 PASS, 2 not-passing, 28 applicable
+not passing:
+  - dir_reuse_coherency [FAIL] nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=32.60
+  - open_defects [FAIL] open=12 of=37 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CR
+
+`open_defects` is a POLICY cell: red BY DESIGN under RULE 6 while the
+ledger below is non-empty. It is not a regression and not a test fault.
+`NO_TERMINAL_RECORD` means the harness captured no verdict — that is a
+capture failure, NOT a filesystem fault. Do not diagnose the FS from it.
+
+### RULE 6 ledger — open defects, severity order
+13 open of 41 ledgered — 6 critical. Work these in order unless you state why not.
+
+1. [critical] D-FOREIGN-REPLAY-UNGATED-IMAGES
+   next: Design ATOMIC foreign replay: a transaction whose buffer images cannot be safely applied must not apply ANY of its items (or all images must carry the cross-slice authority tag at commit tim
+2. [critical] D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY
+   next: 1) 369 knob=1 full board + knob=0 regression board. 2) Soak knob=1 (rsync laps + boards). 3) Slot-occupancy telemetry (bit-only slots unreclaimable — GPT liveness note). 4) GPT items 2-4. 5)
+3. [critical] D-CROSSNODE-OPEN-UNLINK-DATA-LOSS
+4. [critical] D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361
+   next: 1) Ship containment+telemetry build: full-target pre-dirty revalidate (-ESTALE restart / src -ENOENT), P217-RENAME-DIRTYCANCEL helper-failure probe at out_trans_cancel (error, XFS_TRANS_DIRT
+5. [critical] D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE
+   next: 1) Finish the sess57 GPT review set that shares this code (items 3, 4, 6C), then a single RULE-5 consult on the whole barrier before any rig cycle. 2) Verification run: 32/caw, mount node A 
+6. [critical] D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED
+   next: 1) Fault-inject: gate a forced failure of mxfs_xlog_recover_foreign_slice behind a module knob (default off), kill a node at 32/caw, and assert the survivor logs the new refusal, leaves the 
+7. [high] D-DIRVIEW-NONCONVERGE-SESS25
+   next: Reproduce pressure: aged-mount dirent_durability laps at 32/caw while one node is denied the dir EX handoffs (readdir-only role). If a next occurrence fires: capture the stale node's i_dlm_d
+8. [major] D-32NODE-SHARED-DIR-CREATE-PACE
+   next: (1) Re-run the pace baseline on a QUIESCED host (no game server) to get the true build capability; every pace measurement must now carry its hostload= stamp. (2) The FS-side target is turns-
+9. [major] D-READDIR-PEER-CACHED-DIR-PACE
+10. [major] D-CRASH-CONSISTENCY-32-NOTERMINAL-354
+   next: Instrument for the next occurrence rather than hunt blind: (1) crash_consistency should emit per-phase kmsg markers like dir_reuse's DRCph so a NO_TERMINAL_RECORD says WHERE all 32 nodes wer
+11. [minor] D-MATRIX-UNMEASURED
+12. [minor] D-RELOAD-FREED-ADOPT-BOGUS-IMODE
+   next: 0.11.357 guards the rewire with i_mode != 0 (freed-shell adopt keeps prior self-consistent ops; a later resurrecting reload still rewires since old_ifmt is captured per-reload). Verify: reru
+13. [unset] D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+   next: Reproduce with AGED fs: at grace=10, run board-chunk (dir_reuse x2 + cache_coherency + crash_consistency + rsync_paired) THEN dirent_durability loops, instr ON only from the dirent phase (av
+
+RULE 6: an entry closes ONLY as DISPROVED or FIXED AND VERIFIED. 'Cannot reproduce', a clean run, or a workaround are NOT dispositions. Full evidence per defect: tests/criteria/OPEN_DEFECTS.json (325KB — read the ONE entry you are working, never the whole file).
+
+### Most recently shipped
+- 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log
+- 0.11.396 (sess48) — 2026-08-03 — token campaign step 2a: grantee epoch plumbing
+- 0.11.395 (sess48) — 2026-08-03 — foreign-replay token campaign step 1: ex_grant_epoch
+
+### Before you measure anything
+- RULE 0 budgets (a timeout IS a failure): `tests/criteria/TIMEOUT_BUDGETS.md`
+- Deploy the fleet: `MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster` (72-137s).
+  A module reload RESETS runtime knobs.
+- Board a criterion: `./run.sh <nodes> <dlm> <test>`; read it with `./showstat.sh`.
+- Phase walls: `dmesg | grep mxfs-CCph` (crash) / `mxfs-DRCph` (dir_reuse).
+- Use MXFS tools on MXFS devices (`tools/chk_mxfs -v`), never xfs_db/xfs_info —
+  the on-disk envelope offsets them and they return garbage.

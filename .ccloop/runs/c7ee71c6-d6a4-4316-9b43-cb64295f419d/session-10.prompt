@@ -56,78 +56,78 @@ read state.md
 
 ## Previous session
 
-- session-id: `1faae63f-3788-410e-9c1e-191b2ce1fd0c`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/1faae63f-3788-410e-9c1e-191b2ce1fd0c.jsonl`
-- approx context at last assistant turn: 500153 tokens
-- tools used: Bash×118 Read×26 Edit×21 TaskCreate×5 TaskUpdate×4 Write×3 mcp__ccmemory__memory_write×3 ToolSearch×2 mcp__ccmemory__memory_get×2 TaskList×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
+- session-id: `28025f35-d28b-407d-8183-1c61cc3a0744`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/28025f35-d28b-407d-8183-1c61cc3a0744.jsonl`
+- approx context at last assistant turn: 498541 tokens
+- tools used: Bash×217 Read×27 Edit×25 mcp__ccmemory__memory_write×4 ToolSearch×3 Write×3 TaskOutput×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/pal/linux/xfs_buf.c
-- /src/mxfs/dlm/disklock.h
-- /src/mxfs/dlm/disklock.c
-- /src/mxfs/dlm/v5_mount.c
-- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/xfs_inode.c
 - /src/mxfs/xfs/xfs_mxfs_dlm.c
-- /src/mxfs/tests/withdraw_recovery_test.sh
-- /src/mxfs/tests/goingdown.py
-- /src/mxfs/state.md
+- /src/mxfs/tests/suite/manifest
+- /src/mxfs/tests/suite/lib.sh
+- /src/mxfs/tests/inode_cluster_clobber_capture.sh
+- /src/mxfs/tests/typeflip_ab.sh
+- /src/mxfs/tests/suite/dirent_publish_integrity.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/tests/suite/dirent_durability.sh
+- /src/mxfs/tests/racebail_loss_join.sh
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    for i in 7 8 9; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E 'PASS|FAIL'; done
-    for i in 10 11 12; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E 'PASS|FAIL'; done
-    for i in 13 14 15; do ./run.sh 16 tcp dir_reuse_coherency 2>&1 | grep -E 'PASS|FAIL'; done; echo "== counters (all 16 nodes, boot-total):"; for n in $(seq 1 16)
-    grep -E '^\| *(16|any)' /src/mxfs/tests/criteria/TIMEOUT_BUDGETS.md 2>/dev/null | head -30; echo ===; ./run.sh 16 tcp --list 2>/dev/null | head -30 || grep -n '
-    ./showstat.sh 16 tcp 2>/dev/null | head -40
-    ./run.sh 16 tcp cache_coherency strong_consistency posix_multi mmap_coherency dlm_fairness dlm_membership 2>&1 | grep -E 'PASS|FAIL'
-    D=$(ls -dt /tmp/run_cache_coherency_* 2>/dev/null | head -1); echo "$D"; grep -rh 'FAIL' $D/result* $D/*.txt 2>/dev/null | head -10; ls $D | head
-    D=/tmp/run_cache_coherency_20260725T231542Z; ls $D | grep -v kernlog; for f in $D/node_*.log $D/*result*; do [ -f "$f" ] && grep -l 'FAIL' "$f" 2>/dev/null; don
-    D=/tmp/run_cache_coherency_20260725T231542Z; echo "== events in run window (23:15:40-23:16:10) all nodes:"; grep -h '23:1[56]:' $D/kernlog_test13 $D/kernlog_tes
-    grep -n 'hello from node\|sees\|content of' /src/mxfs/tests/suite/cache_coherency.sh | head -12; echo ===; sed -n '1,50p' /src/mxfs/tests/suite/cache_coherency.
-    D=/tmp/run_cache_coherency_20260725T231542Z; for n in 3 4; do echo "== t$n 23:15:45-23:16:05:"; grep -h '23:15:4[5-9]\|23:15:5\|23:16:0' $D/kernlog_test$n 2>/de
-    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h '18874498' $D/kernlog_test3 2>/dev/null | grep '23:15:5' | head -25
-    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h '18874498' $D/kernlog_test13 2>/dev/null | grep '23:15:5' | grep -E 'P62-REL|P146|P63|P65|CONV|P11-DATALOG|
-    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h 'mxfs-CCph' $D/kernlog_test3 | tail -6; echo ===; grep -h 'CCph' $D/kernlog_test13 | tail -4; echo "=== t3 
-    D=/tmp/run_cache_coherency_20260725T231542Z; grep -h 'mxfs-CCph' $D/kernlog_test3 | head -8; echo ===; ls $D/test3/ 2>/dev/null | head; grep -rn 'node13' $D/tes
-    grep -rn 'mxfs_disklock_find_node_slot' /src/mxfs/dlm/*.c /src/mxfs/xfs/*.c 2>/dev/null | grep -v 'disklock.c' | head -8
-    for i in 1 2 3 4 5 6; do ./run.sh 16 tcp cache_coherency 2>&1 | grep -E '  (PASS|FAIL)'; done
-    D=$(ls -dt /tmp/run_cache_coherency_* | head -1); grep -rh 'RESULT: FAIL' $D 2>/dev/null | head -3
-    sed -n '3480,3560p' /src/mxfs/xfs/xfs_mxfs_dlm.c
-    sed -n '3656,3745p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    python3 - <<'PY' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']!='D-SILENT-MKDIR-LOSS': continue   
+    python3 - <<'PY' p='state.md' s=open(p).read() anchor = "## NEXT STEPS (in priority order)" new = """## SESS27 RESULT 7 — P195's ROOT PROVEN: the creator's base
+    python3 - <<'PY' p='state.md' s=open(p).read() old = "The tree is now **0.11.237** (`EF6935F7BE9995D4AAEB942`); everything after 0.11.234 is PROBE-ONLY with no 
+    timeout 60 grep -c "sess27" .claude/awareness/subsystems/pal.md; timeout 60 grep -n "sess27" .claude/awareness/subsystems/pal.md | head -5; echo "--- mtimes ---
+    timeout 60 sed -n '1,14p' .claude/awareness/subsystems/pal.md
+    python3 - <<'PY' import re p='.claude/awareness/subsystems/pal.md' s=open(p).read() m=re.search(r'\*\*Last updated\*\*: ', s) assert m # replace the whole "Last
+    python3 - <<'PY' p='.claude/awareness/subsystems/xfs.md' s=open(p).read() old = "**Last updated**: 2026-07-25 (ccloop c7ee71c6 sess6 — FIX-26 writepages admit +
+    timeout 60 grep -n "^mxfs_dlm_publish_inode\|^void.*mxfs_dlm_publish_inode\|mxfs_dlm_publish_unpublished" xfs/xfs_mxfs_dlm.c | head -5
+    timeout 60 grep -n "mxfs_dlm_publish_inode" xfs/*.c xfs/*.h | head -6; echo "=== def ==="; S=$(timeout 60 grep -n "mxfs_dlm_publish_inode(struct xfs_inode" xfs/
+    S=$(timeout 60 grep -n "^mxfs_dlm_publish_inode" xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); echo "def at $S"; timeout 60 awk -v s="$S" 'NR>=s-2 && NR<s+52 {pr
+    S=$(timeout 60 grep -n "^mxfs_dlm_publish_unpublished" xfs/xfs_mxfs_dlm.c | head -1 | cut -d: -f1); echo "def at $S"; timeout 60 awk -v s="$S" 'NR>=s && NR<s+70
+    timeout 60 awk 'NR>=28180 && NR<28300 {print NR": "$0}' xfs/xfs_mxfs_dlm.c | grep -nE "lock_routed|i_dlm_unpublished = false|PUBLISH-OK|PUBLISH-FAIL|mxfs_v5_dlm
+    timeout 60 awk 'NR>=28180 && NR<28432 {print NR": "$0}' xfs/xfs_mxfs_dlm.c | grep -nE "unpublished = false|lock_routed|PUBLISH|acquire" | head -12
+    python3 - <<'PY' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']!='D-SILENT-MKDIR-LOSS': continue   
+    python3 - <<'PY' p='state.md' s=open(p).read() old = """## NEXT STEPS (in priority order)  1. **`D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY`** — new critical. Bu
+    timeout 60 grep -rn "mxfs_v5_dlm_inode_grant_gen" dlm/*.c dlm/*.h 2>/dev/null | head -4; echo "=== body ==="; S=$(timeout 60 grep -n "^mxfs_v5_dlm_inode_grant_g
+    S=$(timeout 60 grep -rn "mxfs_dlm_caw_grant_seq32(struct" dlm/dlm_caw.c 2>/dev/null | head -1 | cut -d: -f1); echo "at $S"; [ -n "$S" ] && timeout 60 awk -v s="
+    timeout 60 awk 'NR>=1240 && NR<1272 {print NR": "$0}' dlm/dlm_caw.c
+    timeout 60 sed -n '1271,1300p' dlm/dlm_caw.c; echo "=== caw_grant_meta_seq body ==="; S=$(timeout 60 grep -n "^caw_grant_meta_seq\|static .*caw_grant_meta_seq" 
+    python3 - <<'PY' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']!='D-SILENT-MKDIR-LOSS': continue   
 
 ## Last text from previous session
 
-ster:
-Module failed to load cluster-wide. Checking the insmod error on one node:
-The reset pipes `prep_tcm_node_scst.sh` to each node and greps for PREP_OK — output was empty, so prep failed silently. Running one node's prep manually with full output:
-Node can't see the SCST LUN. Checking the SCST target state on clyde:
-The current rig's LUN source is the question — checking test1's VM XML for the shared-disk backing device:
-VMs get clyde's local `/dev/sda` (symlinked 06:54 today) passed through directly. What is sda right now:
-Infra is exactly canonical (O_DSYNC write-through + WCE advertised). Launching the first run on 0.11.102 — deploy + drc@16 sanity:
-SSH quoting mangled the inline python. Nodes mount /src/mxfs over NFS — writing the injector as a tree file per RULE 3:
-No output after the injector ran — checking whether test1 shut down and whether the withdraw chain fired (or wedged):
-Stamp + detection work (15/15 survivors saw it in seconds). The elected replay never completed. Hunting the election and replay-work logs:
-6/6 PASS. Continuing the gauntlet:
-The board shows 20/20 but rows are from mixed srcvers — only drc ran at .103. Re-running the full board at the single final srcver in budget-sized chunks:
-cache_coherency FAIL (588/590, 2 checks). Pulling the failing checks from the run artifacts:
-Only dead-node paths call it — no regression vector; the cc failure is the pre-existing Shape-1 family. Measuring its rate at .103 (cc is 14 s/run):
-Relay boundary — state is fully saved (state.md rewritten, three memory dossiers, task list current). Summary of this session:
+ove). But most directories publish via the lazy path instead. Locating that:
+Found both stamp points. But the async-worker one (line 28390) sits under `m_mxfs_unpub_lock`, and `mxfs_v5_dlm_inode_grant_gen` is used elsewhere only in sleepable context — stamping there needs either a non-blocking variant or a reference held across the unlock. Given prior sessions in this tree produced a sleep-in-atomic bug and a use-after-free from exactly that shape, I'm recording the design rather than writing locking-sensitive code I can't validate in the room I have left:
+Updating the handoff's next-steps with what the session actually established:
+Let me check whether the blocker is real — if `mxfs_v5_dlm_inode_grant_gen` doesn't actually sleep, SITE 2 becomes straightforward and the whole fix is implementable:
+**The blocker is proven, not just suspected.** `caw_grant_meta_seq()` takes `mxfs_pal_mutex_lock(ctx->grant_meta_lock)` — a sleeping mutex — and the comment immediately below it says the `orphan_clock` table exists as a *separate spinlock-backed* table precisely because "Sharing grant_meta's mutex would risk scheduling-while-atomic" for callers holding a spinlock. So SITE 2 would be a sleep-in-atomic bug, the same class as sess21's:
+Reached the relay boundary. Wrapping up.
 
-## Session 9 summary
+**Criteria not met — marker not written.** 8 defects open (4 critical).
 
-**Root-caused and closed drc Shape-2** (the round-13 persistent `lookup_fail=3`), reconstructing the complete chain from the preserved failed-run artifacts:
-1. xfsaild pushed t1's dirty AG1 bnobt → P126 staled it as "prior-tenure" → the rm's re-read refused DMA (P110) and completed from in-core → `verify_read` CRC-failed on the dirty image (CRCs are only stamped at write submit; the platter was actually valid) → **t1 force-shutdown mid-rm**.
-2. The shutdown-withdraw path **wire-released 155 grants immediately** — peers promoted straight into t1's torn, unreplayed state (ifree destaged, dirent-removes abandoned with the log) → dangling dirent→freed-inode, unrepairable online; t6's recreates failed ESTALE and its live in-core inodes got zombie-adopted.
+## Session result
 
-**Fixes landed (v0.11.102-103, deployed 16/tcp):**
-- **D1b**: P110's in-place read completion now sets `b_mxfs_inplace_read` (mirrors the existing P91 convention) — no more manufactured EFSBADCRC shutdowns.
-- **D2**: withdraw is now an *active death declaration* — WITHDRAWN heartbeat stamp (peer detection ~1.5 s vs 62-600 s), no grant release; the elected survivor replays the dead slice *first*, then purges and zeroes the dead slot as the cluster-wide done-signal; every peer defers its local purge until then. Withdrawn nodes also stop serving master duties, and unmount of a withdrawn node no longer leaks grants.
-- **Verification**: new `tests/withdraw_recovery_test.sh` (deterministic mid-rm dirty-cancel shutdown injection) — **PASS**: replay ~5 s, zero dangling dirents, zero timeout dominoes. Plus **16 consecutive drc@16 PASS** and 6 more board tests green at the single srcver.
+**One critical defect resolved with full RULE 6 verification.** `D-DIRENT-INODE-TYPE-MISMATCH` was rooted to `RELOAD-TYPEFLIP-STALE-SKIP` comparing `disk_gen <= incore_gen` — but XFS generations are `get_random_u32()`, so on genuine inode reuse that test is a coin flip. When it lost, the node kept a **dead incarnation and published the corpse** over a peer's live inode. Fixed by requiring the same incarnation; verified by a same-build A/B (control FAILs 2/2 with exposure nonzero, fix passes 4/4 while still entering the state 123–282×/run) plus a clean 32-node board.
 
-**New open front with a fast reproducer**: cache_coherency@16 fails ~2-in-7 (14 s/run) with the drc Shape-1 signature — first-view ENOENT/undercount around **dir format conversions** (sf→block/block→leaf) plus reused-ino adoption lag from unorderable random generations. Captured live with fork-level evidence; the RULE-4 instrumentation plan (P164-CONV + drain-coverage of conversion blocks) and the GPT phase-2 cookie design direction are queued as task 5.
+**Two "settled" conclusions overturned by measurement** — the ledger's verdict that the *dirent* was corrupt (it rested on reading disk through the buffer cache to judge the buffer cache), and my own reading of `gen_moved=1` as a tenure-tracking bug (invalid whenever `baseline_unset=1`).
 
-Production-ready: **no** — the Shape-1/conversion coherency family is open, the 16/tcp board rerun is mid-flight (cache_coherency failing), and the 8/tcp, 32-node, CAW-transport, and physical-rig matrix remain. Next session continues with the cc reproducer loop.
+**A second root proven.** `create_baseline_trackers` has never executed once — its `S_ISDIR` gate reads an `i_mode` that isn't set yet. That leaves self-created directories at the never-set sentinel forever, making every `cached_grant_gen != 0` detector inert, which is why P195 fires. Confirmed directly: `self_created=1 baseline_unset=1` on a `comm=mkdir` inode.
+
+**Three board cells were not evidence** — including `dirent_publish_integrity`, which never sourced `lib.sh` and had been reporting PASS having scanned **zero** kernel lines. It's now genuinely red at every multi-node count.
+
+**The whole `caw` column re-measured** (1–32 nodes). I declined to fill the `tcp`/`cawd`/`cawp` columns via `MXFS_DEV` on the wrong rig, since that would redefine a condition to make a cell measurable.
+
+## On your two corrections
+
+Both landed. The timeouts are now derived from recorded budgets plus measured overhead, and splitting the arm exposed that the honest sum exceeded the tool cap — which the blanket number had been hiding. The GPT consult I'd skipped produced the session's most important architectural finding (publication without write authority at inode-*cluster* granularity, now open as a critical defect) and the first genuinely new angle on the 3-session-stalled unmount leak.
+
+I stopped short of implementing the creator-baseline fix. The site that matters runs under a spinlock and the query it needs takes a sleeping mutex — I verified that rather than assuming it, and the tree documents the exact pattern that solves it. Writing locking-sensitive code with no room to validate is how this tree got its sleep-in-atomic and use-after-free bugs; the design, both stamp points, the proven constraint and the acceptance test are recorded instead.
 
 ## Continue
 

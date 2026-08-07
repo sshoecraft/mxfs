@@ -1,0 +1,20 @@
+Filesystem        Size  Used Avail Use% Mounted on
+/dev/nvme0n1p2    1.8T  1.7T     0 100% /
+/dev/nvme0n1p2    1.8T  1.7T     0 100% /
+192.168.1.4:/src   11T  8.9T  1.8T  84% /src
+---
+5.3G	/tmp/tmp.yA09R3HIMY
+5.1G	/tmp/run_dirent_publish_integrity_20260728T233247Z
+5.1G	/tmp/run_dirent_publish_integrity_20260728T232414Z
+5.0G	/tmp/run_dirent_durability_20260728T230754Z
+4.9G	/tmp/run_dirent_durability_20260728T230221Z
+4.9G	/tmp/run_dirent_durability_20260728T225614Z
+4.8G	/tmp/run_zero_silent_loss_20260729T221602Z
+4.8G	/tmp/run_strong_consistency_20260729T225318Z
+4.8G	/tmp/run_strong_consistency_20260729T224948Z
+4.8G	/tmp/run_strong_consistency_20260729T223948Z
+4.8G	/tmp/run_strong_consistency_20260729T223020Z
+4.8G	/tmp/run_strong_consistency_20260729T222402Z
+4.8G	/tmp/run_strong_consistency_20260729T221602Z
+4.8G	/tmp/run_posix_multi_20260729T223948Z
+4.8G	/tmp/run_posix_multi_20260729T221602Z

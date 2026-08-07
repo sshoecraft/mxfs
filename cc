@@ -6,7 +6,7 @@
 # ccloop and override the defaults below (last occurrence wins).
 #
 # The original run was started with:
-#   ccloop --model=fable --effort=max --cutoff=500 \
+#   ccloop --model=fable --effort=max --cutoff=145 \
 #          "all known issues resolved" "read continue_troubelshooting.md for prompt"
 
 . ~/.bashrc
@@ -27,5 +27,4 @@ run_id=$(basename "$latest")
 echo "cc: resuming ccloop run $run_id"
 [ -f "$runs_dir/$run_id/task.md" ] && echo "cc: task — $(head -n1 "$runs_dir/$run_id/task.md")"
 
-#exec ccloop --model=fable --effort=max --cutoff=500 --resume-run "$run_id" "$@"
-exec ccloop --model=opus --effort=max --cutoff=500 --resume-run "$run_id" "$@"
+exec ccloop --model=fable --effort=high --cutoff=145 --resume-run "$run_id" "$@"

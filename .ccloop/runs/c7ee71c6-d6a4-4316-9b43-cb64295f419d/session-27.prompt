@@ -1,0 +1,122 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 27 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 26
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `972dab8c-cd50-4e4f-aaf9-8ca41c1adb2c`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/972dab8c-cd50-4e4f-aaf9-8ca41c1adb2c.jsonl`
+- approx context at last assistant turn: 502223 tokens
+- tools used: Bash×196 Edit×24 Read×23 mcp__ccmemory__memory_write×10 Write×4 mcp__ask_gpt__query×3 ToolSearch×2 mcp__ccmemory__memory_get×2 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/tests/guard_race_arms.sh
+- /src/mxfs/tests/setup/prep_fs.sh
+- /src/mxfs/tests/openunlink_outage.sh
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 590 ./run.sh 8 caw fence_during_write fault_netpartition soak dirent_durability node_responsive kernel_health 2>&1 | tail -1 && timeout 590 ./run.sh 8 c
+    timeout 590 ./run.sh 8 caw dirent_publish_integrity dirent_type_integrity dlm_lock_correctness precond_readiness open_defects 2>&1 | tail -1; timeout 60 python3
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']=='D-OUTAGE-RE
+    timeout 590 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && for i in 1 2 3; do timeout 300 ./run.sh 32 caw dirent_publish_integrity 2>&1 | grep -E "PASS|FAIL" | 
+    timeout 590 ./run.sh 32 caw fio_perf fio_perf_vs_xfs cache_coherency strong_consistency posix_multi mmap_coherency 2>&1 | tail -1 && timeout 590 ./run.sh 32 caw
+    timeout 590 ./run.sh 32 caw fence_during_write fault_netpartition soak dirent_durability node_responsive kernel_health 2>&1 | tail -1 && timeout 590 ./run.sh 32
+    timeout 590 ./run.sh 32 caw dirent_publish_integrity dirent_type_integrity dlm_lock_correctness precond_readiness open_defects 2>&1 | tail -1; timeout 60 python
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']=='D-OUTAGE-RE
+    grep -n "P195-STALE-BASE-ALREADY-DIRTY" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2
+    grep -n "P195-STALE-BASE" /src/mxfs/xfs/*.c | grep -v "^\S*:12[23]" | head; grep -rn "STALE-BASE-ALREADY-DIRTY ino=%llu" /src/mxfs/xfs/ 2>/dev/null | head -2
+    grep -n "i_dlm_cached_grant_gen = \|i_dlm_cached_grant_gen=" /src/mxfs/xfs/*.c /src/mxfs/xfs/libxfs/*.c 2>/dev/null | grep -v "== \|!= \|==0\|!=0" | head -12; e
+    grep -n "int mxfs_creator_baseline_stamp\|int mxfs_dir_lookup_freshness_gate\|module_param_named(creator_baseline_stamp\|module_param_named(dir_lookup_freshness
+    timeout 30 python3 - <<'EOF' import json d=json.load(open('/src/mxfs/tests/criteria/OPEN_DEFECTS.json')) for x in d['defects']:     if x['id']=='D-SILENT-MKDIR-
+    tools/mxfs_sshpass.sh test3 "dmesg | grep -cE 'P32E-DIREPOCH-FENCE'; dmesg | grep -E 'P32E|P34J|P177|P196' | awk -v lo=4200 -v hi=4300 -F'[][ .]+' '{if (\$2>=lo
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']=='D-DIRENT-PU
+    for n in test1 test2 test5 test20; do printf "%-7s expired_count=" $n; tools/mxfs_sshpass.sh $n "dmesg | grep -c 'no longer responding (heartbeat expired'" 2>/d
+    D=$(mktemp -d); for i in $(seq 1 32); do ( C=$(tools/mxfs_sshpass.sh test$i "dmesg | grep -c 'release write failed'" 2>/dev/null | tr -d ' \r\n'); [ "${C:-0}" !
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']=='D-MASS-TEAR
+    timeout 30 python3 - <<'PYEOF' import re p='/src/mxfs/.ccmemory/ccloop-c7ee71c6-sess44-END-reap-uaf-panic-found-13-open.md' s=open(p).read() s=s.replace("## LED
+    timeout 30 python3 - <<'EOF' import json p='/src/mxfs/tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for x in d['defects']:     if x['id']=='D-DIRENT-PU
+
+## Last text from previous session
+
+ent adopt-at-EX-acquire so the state can never be reached). All of it, including the reproduction protocol and the do-not-re-derive history map, is in the ledger entry and session memory.
+
+Session totals stand at three defects closed with on-build verification (two criticals, one major), boards fully green on 0.11.360 at both scales, and a rig left clean at 32/caw with the marker current for the relay.
+Continuing — the teardown-wave disposition has a cheap decisive measurement: test1/test2 have watched several 30-node clean mass departures (the 32→2 preps) in their current boots on 360. If clean departures seeded false expiries, their dmesg would show it:
+**Criteria: NO — 12 defects OPEN of 37.** This stretch added a fourth disposition: **D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE → DISPROVED as an independent defect**, on direct measurement rather than correlation. Clean mass departures produce zero false heartbeat expiries (four watcher nodes spanning multiple 32↔2 prep cycles), the alternative frozen-record producer (failed HB zero-writes) has zero observed instances fleet-wide, and the UAF panic-reboots are confirmed present in the original wave windows — so the "wave" was the cluster correctly fencing real corpses created by the now-fixed panic bug, and it has not recurred across ~18 preps since.
+
+Session ledger arithmetic: **four defects dispositioned** — D-DESTAGE-TEAR (critical, fixed+verified via race arms), D-REAP-WORK-UAF (critical, found/fixed/mechanism-proven/verified), the mutual-ifree-skip strand (major, root-proven and verified through two green boards), and the teardown wave (major, disproved with cited measurements). Boards are fully green on 0.11.360 at both 32 and 8 nodes; the P195 precursor trail is mapped with its endgame options; and the remaining 12 open defects are queued by severity with reproduction protocols and the TCP open-tracking blueprint preserved. The rig is clean at 32/caw on 360 for the relay to continue.
+Continuing — firing the RULE-5 consult on the P195 endgame while reading the next critical's entry:
+**Criteria: NO — 12 defects OPEN of 37.** Relay boundary reached; ending this session with the P195 fix design ruled and persisted.
+
+Session 26 final scorecard — four defects dispositioned, all evidence-backed:
+
+1. **D-DESTAGE-TEAR-BUCKETLESS-ORPHAN (critical) — FIXED AND VERIFIED** on 0.11.358: four adversarial race arms against the recovery guard (joiner exclusion, corpse-guard takeover by change-detection, stale-holder resume fencing, deferred-bucket inheritance) plus green 32- and 8-node boards.
+2. **D-REAP-WORK-UAF-PANIC-AFTER-UNMOUNT (critical) — found, fixed, FIXED AND VERIFIED** on 0.11.359: five kernel panics discovered in host serial logs (freed work_struct on the system workqueue), gated fix whose own diagnostic caught the live mechanism, zero recurrence across ~15 prep-equivalents.
+3. **D-OUTAGE-REMOUNT-MUTUAL-IFREE-SKIP-STRAND (major) — FIXED AND VERIFIED** on 0.11.360: the adopted-mirror `agino%64` bucket fallback root-proven by its own mismatch log, 3/3 reproducer passes plus two fully green boards.
+4. **D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE (major) — DISPROVED** as independent: measured zero false expiries across clean mass departures, zero failed HB zero-writes fleet-wide, UAF corpses confirmed in the original windows.
+
+The board is green on 0.11.360 at both scales (27/27, policy row honestly red). The next session's first implementation task is fully specified: the P195 precursor closes via **adopt-at-EX-acquire** per the GPT-ruled contract just written into the ledger (validity-bit gating, release-ordered stamping, drain discipline, never adopt over dirty state, creator-stamp subordination, pace-impact measurement), followed by the remaining criticals — cache-coherency UV miss, dirview nonconvergence, inode-cluster publish authority, certified replay, the TCP open-tracking hybrid, and the pace pair. All state, protocols, and baselines are in the ledger and ccmemory for the relay.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

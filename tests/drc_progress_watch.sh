@@ -30,7 +30,10 @@ while :; do
   done
   echo "$line" >> "$OUT"
   # stop if run finished (lock gone AND no run.sh)
-  if ! pgrep -f "run.sh $N caw" >/dev/null 2>&1; then
+  # NEVER `pgrep -f` here: it reads every /proc/<pid>/cmdline, and one task
+  # wedged holding its own mmap_lock makes this block forever, unkillable
+  # (clyde 2026-08-04, loadavg 583).  mxfs_pgrep.sh skips D-state tasks first.
+  if ! "$REPO/tools/mxfs_pgrep.sh" "run\.sh $N caw" >/dev/null 2>&1; then
     echo "[$el s] run.sh gone — exiting watcher" >> "$OUT"; break
   fi
   sleep "$INT"

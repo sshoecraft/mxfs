@@ -234,6 +234,7 @@ for round in $(seq 1 "$ROUNDS"); do
     # create snapshot (holding the clobber) can be correlated after the fact.
     dmesg > "/root/drc_create_r${round}_rank${R}.dmesg" 2>/dev/null || true
     drc_barrier "drc_r${round}_wr"
+    echo "mxfs-DRCph r=${round} rank=${R} PHASE=wrbar-done" > /dev/kmsg 2>/dev/null || true
 
     # Cold reload so reads come coherently from the shared LUN (as a peer sees
     # them), then verify count AND per-entry lookup-ability.  drop_caches is
@@ -253,8 +254,9 @@ for round in $(seq 1 "$ROUNDS"); do
     # DROPCACHES-HUNG marker disqualifies the round from coherency claims,
     # but the cluster stays in lockstep instead of cascading timeouts.
     sync
+    echo "mxfs-DRCph r=${round} rank=${R} PHASE=presync-done" > /dev/kmsg 2>/dev/null || true
     rm -f "/tmp/.drc_dc_done.$$"
-    ( echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; : > "/tmp/.drc_dc_done.$$" ) &
+    ( echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; echo "mxfs-DRCph r=${round} rank=${R} PHASE=dc-real-done" > /dev/kmsg 2>/dev/null; : > "/tmp/.drc_dc_done.$$" ) &
     dc_pid=$!
     dc_ok=0
     # sess1 (ccloop 0220f43f) RULE-4: TRIED a 0.05s poll granularity here
@@ -267,6 +269,12 @@ for round in $(seq 1 "$ROUNDS"); do
     # proper measurement of what's actually dominating verify-phase time.
     for _dci in $(seq 1 120); do
         [ -e "/tmp/.drc_dc_done.$$" ] && { dc_ok=1; break; }
+        # sess37: while dc is in flight, sample the dc writer's kernel wait
+        # site — the 5-9s "dc" phase is the round-dominant cost and the
+        # blocking stack names the mechanism directly (bounded: <=8 lines/s).
+        while IFS= read -r dcln; do
+            echo "mxfs-drc-DCSTK r=${round} rank=${R} i=${_dci} $dcln" > /dev/kmsg 2>/dev/null
+        done < <(head -14 "/proc/$dc_pid/stack" 2>/dev/null)
         sleep 1
     done
     if [ "$dc_ok" != 1 ]; then
@@ -277,6 +285,7 @@ for round in $(seq 1 "$ROUNDS"); do
         dmesg > "/root/drc_dchang_r${round}_rank${R}.dmesg" 2>/dev/null || true
     fi
     rm -f "/tmp/.drc_dc_done.$$"
+    echo "mxfs-DRCph r=${round} rank=${R} PHASE=dc-done" > /dev/kmsg 2>/dev/null || true
 
     # sess63 DECISIVE (zero-kernel-build): log the dir INODE NUMBER this node
     # resolves "$D" to, every round.  If on a readdir-miss the failing peers'
@@ -291,6 +300,7 @@ for round in $(seq 1 "$ROUNDS"); do
     # victim names (run82: RDMISS printed missing=[] with count 764/800).
     ls "$D" 2>/dev/null | sort > "/tmp/drc_ls1.$$"
     readdir_cnt=$(grep -c . "/tmp/drc_ls1.$$")
+    echo "mxfs-DRCph r=${round} rank=${R} PHASE=ls-done" > /dev/kmsg 2>/dev/null || true
     lookup_fail=0
     missing=""
     while IFS= read -r name; do
@@ -300,6 +310,7 @@ for round in $(seq 1 "$ROUNDS"); do
             [ "${#missing}" -lt 200 ] && missing="$missing $name"
         fi
     done < "/tmp/drc_ls1.$$"
+    echo "mxfs-DRCph r=${round} rank=${R} PHASE=lookups-done" > /dev/kmsg 2>/dev/null || true
 
     # (a) every expected entry present in readdir
     ckeq "drc r${round} r${R} readdir count" "$EXP" "$readdir_cnt"

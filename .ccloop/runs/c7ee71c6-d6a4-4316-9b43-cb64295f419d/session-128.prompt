@@ -1,0 +1,250 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 128 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 127
+
+## Original task
+
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
+
+
+## Previous session
+
+- session-id: `f4e704ad-b962-4908-b6ff-345d27d21fbc`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f4e704ad-b962-4908-b6ff-345d27d21fbc.jsonl`
+- approx context at last assistant turn: 163752 tokens
+- tools used: Bash×37 Edit×6 Read×3 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/mxfs_stackprof.py
+- /src/mxfs/tests/cc_bastcensus.sh
+- /src/mxfs/tests/cc_stackprof.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; timeout 310 ./run.sh 32 caw prep_cluster 2>&1 | tail -25
+    cd /src/mxfs; timeout 180 tests/cc_bastcensus.sh mark 32 2>&1 | tail -2; timeout 180 tests/cc_stackprof.sh start 190 test1,test2,test3,test4,test5,test6,test7,t
+    cd /src/mxfs; timeout 200 ./run.sh 32 caw crash_consistency 2>&1 | tail -25
+    cd /src/mxfs; timeout 240 tests/cc_bastcensus.sh report 32 128 2>&1 | tail -70
+    cd /src/mxfs; timeout 300 tests/cc_stackprof.sh agg test1,test2,test3,test4,test5,test6,test7,test8 2>&1 | tail -60
+    cd /src/mxfs; sed -n '18255,18380p' xfs/xfs_mxfs_dlm.c
+    cd /src/mxfs; OUT=$(mktemp -d); for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh "test$i" "dmesg | awk '/mxfs-BCMARK begin/{f=1;next} f' | grep -a 'P36-MHT-REAR
+    cd /src/mxfs; sed -n '40,120p' tests/cc_stackprof.sh
+    cd /src/mxfs; timeout 200 tests/cc_stackprof.sh agg test1,test2,test3,test4,test5,test6,test7,test8 2>&1 | sed -n '1,12p;/## FOCUS/,$p' | head -40
+    cd /src/mxfs; sed -n '10640,10740p' dlm/dlm_caw.c
+    cd /src/mxfs; grep -rn "MXFS_CAW_BAST_PORT\|MXFS_CAW_NUDGE_RING\|BAST_RESEND\|bast_hint_ms\|MXFS_CAW_BAST_POLL_FAST_MS\|MXFS_CAW_BAST_POLL_RELAX_MS\|MXFS_CAW_BA
+    cd /src/mxfs; timeout 90 tools/mxfs_sshpass.sh test5 "echo '=== UDP errors ==='; grep -A1 '^Udp:' /proc/net/snmp; echo '=== socket queues ==='; ss -uanp 2>/dev/
+    cd /src/mxfs; echo "=== socket create / rcvbuf ==="; sed -n '11095,11135p' dlm/dlm_caw.c; echo "=== SO_RCVBUF anywhere? ==="; grep -rn "SO_RCVBUF\|rcvbuf\|sk_rc
+    cd /src/mxfs; sed -n '2395,2440p' pal/linux/kern.c; echo "=== which fn ==="; awk 'NR<=2440 && /^[a-zA-Z_].*\(|^mxfs_pal_udp/{l=NR": "$0} END{}' pal/linux/kern.c
+    cd /src/mxfs; echo "=== mxfs_dlm_caw_held ==="; grep -n "^mxfs_dlm_caw_held\|^int mxfs_dlm_caw_held\|mxfs_dlm_caw_held(" dlm/dlm_caw.c | head -5
+    cd /src/mxfs; echo "=== ctx->held struct ==="; grep -n "held\." dlm/dlm_caw.h | head -20; grep -n "struct {" -A 12 dlm/dlm_caw.h | grep -n "slots\|count\|lock" 
+    cd /src/mxfs; sed -n '8493,8545p' dlm/dlm_caw.c
+    cd /src/mxfs; python3 - <<'PYEOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) ds = d['defects'] if isinstance(d,dict) and 'defects' in
+    cd /src/mxfs; python3 - <<'PYEOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) ds = d['defects'] if isinstance(d,dict) and 'defects' in
+    cd /src/mxfs; timeout 180 tests/cc_stackprof.sh stop 32 2>&1 | tail -1
+
+## Last text from previous session
+
+* — a question about **our own bit** — by doing `find_slot()` → a **shared-LUN disk read**, then checking `node_held_mode(slot, ctx->node_bit)`. The node already keeps `ctx->held.slots[]` in memory. Capturing this.
+Now the ledger, so the next session starts at the fix rather than re-deriving.
+`evidence` is a list field — the write aborted before `json.dump`, so the file is intact. Re-running.
+Rig cleaned up. Wrapping at the relay boundary.
+
+## Answer to the criteria: **No — not production ready.** 29 defects open (17 critical). Marker not written.
+
+**To your question — why no defect has closed:** the honest answer for this session is that the previous 3 sessions were rooting the same defect at the wrong object, and I spent this one proving that and finding the right one. That's not a defense of the campaign's overall pace, but it is what happened here, and the result is not another hypothesis — it's a measured root with a device-level signature.
+
+**What I refuted.** sess126 handed me a fix to build: a read-side barrier on `i_lock` so `mxfs_drain_ilock_read` could converge. I measured it before building, per RULE 4:
+
+```
+P132-ILOCK-STUCK / -TIMEOUT           0 on all 32 nodes
+FOCUS (all bast/drain stacks, D-state) 1.18% of 30,231 ticks
+msleep < mxfs_drain_ilock_read < ...   4 samples of 724 (0.55%)
+```
+
+The ilock drain is not the blocker. Building that barrier would have burned a cycle and shipped a no-op. `P36-STRIKEOUT` is likewise a symptom — in 295 of 295 events `pr=0 ex=0 pin=0`, so the predicate that actually fires is the unprinted `acq_inflight`, and strikes cap at 10 (~80 ms).
+
+**The actual root.** Two new instruments (`tests/cc_bastcensus.sh`, plus a FOCUS section in the stack profiler that isolates the *release* side from the *requester* side) put 43% of all DLM release-side blocked wall here:
+
+```
+35.22%  blk_execute_rq < scsi_execute_cmd < mxfs_pal_scsi_read_fua_bdev
+          < read_slot < find_slot_skip < mxfs_dlm_caw_held
+          < mxfs_v5_dlm_inode_held < mxfs_dlm_bast_notify < v5_bast_cb < bast_recv_fn
+```
+
+`bast_recv_fn` is **one thread per node** and calls `ctx->bast_cb()` synchronously inside its `recvfrom` loop. That callback reaches `mxfs_dlm_caw_held()`, which answers *"do I hold this resource?"* — a question about **our own bit** — by `find_slot()` → a **read of the shared LUN**. The node already keeps `ctx->held.slots[]` in memory; `bast_poll_fn` iterates exactly that list.
+
+Arrival is ~19 waiters × 100 ms resend × 32 nodes. Drain is one thread × one device read per packet. The measured consequence:
+
+```
+test5 /proc/net/snmp Udp:  InErrors 8085   RcvbufErrors 8085
+```
+
+Every UDP error on the node is a receive-buffer overflow — **BAST hints are being silently dropped** — and the socket is not under-buffered (`sk_rcvbuf` is already 4 MB, locked, from sess8). Overflowing 4 MB means the thread stalls for seconds.
+
+That closes the loop on every number three sessions couldn't explain. The holders aren't refusing to release — **they have not been told.** sess126's `hpr` mask bit-identical for 3 s, `age_ms` climbing to 4980 before the 5 s valve, mean grant wait 3533 ms, and the 1.6 handoffs/s I measured today are all one mechanism.
+
+**And it has a precedent that was missed:** `dlm_caw.h:311-322` records sess35 fixing this *exact* thing for grant nudges — *"those ~28 serialized reads at the one SCSI target WERE the measured ~21.6 ms per-handoff latency"* — with a `wake_mask` so receivers skip the disk read. The BAST path never got the same treatment.
+
+**Run result** (0.11.452, virgin fs, hostload 12.68 — quiet rig): crash_consistency **FAIL 90 s/90 s**, 0/32. Deterministic, not a host-load artifact.
+
+Memory written; the three linked ledger entries (`D-32NODE-SHARED-DIR-CREATE-PACE`, `D-CRASH-CONSISTENCY-32-NOTERMINAL-354`, `D-READDIR-PEER-CACHED-DIR-PACE`) carry the evidence, the refutations, the four-part fix shape, and the PASS bar. Next session starts at the RULE-5 consult on that fix, not at re-derivation.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
+
+---
+
+## Current project state
+
+Generated at the start of THIS session by the project's state hook:
+`/src/mxfs/.ccloop/state.sh`
+
+Everything above describes what PREVIOUS sessions did. This section
+describes the project as it is RIGHT NOW, and supersedes anything above
+that conflicts with it.
+
+### Build
+tree VERSION **0.11.452**  |  mxfs.ko srcversion `A1C4A05CB6356F02B8625F6`  |  last rig run: 32 nodes / caw @ 2026-08-04T20:06:34Z
+
+The srcversion above is what THIS TREE builds, not necessarily what the
+fleet is running. Confirm deployment before trusting a measurement.
+
+### Board — last conditions (32/caw)
+26 PASS, 2 not-passing, 28 applicable
+not passing:
+  - crash_consistency [FAIL] nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=12.68
+  - open_defects [FAIL] open=23 of=56 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CR
+
+`open_defects` is a POLICY cell: red BY DESIGN under RULE 6 while the
+ledger below is non-empty. It is not a regression and not a test fault.
+`NO_TERMINAL_RECORD` means the harness captured no verdict — that is a
+capture failure, NOT a filesystem fault. Do not diagnose the FS from it.
+
+### RULE 6 ledger — open defects, severity order
+29 open of 68 ledgered — 17 critical. Work these in order unless you state why not.
+
+1. [critical] D-FOREIGN-REPLAY-UNGATED-IMAGES
+   next: STEP 5.3 IN PROGRESS -- producer half REDESIGNED by the sess96 RULE-5 ruling (ccmemory ccloop-c7ee71c6-sess96-GPT-ruling-step5.3-producer-REJECTS-cache; the architecture ruling is still cclo
+2. [critical] D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY
+   next: 1) 369 knob=1 full board + knob=0 regression board. 2) Soak knob=1 (rsync laps + boards). 3) Slot-occupancy telemetry (bit-only slots unreclaimable — GPT liveness note). 4) GPT items 2-4. 5)
+3. [critical] D-CROSSNODE-OPEN-UNLINK-DATA-LOSS
+4. [critical] D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361
+   next: 1) Ship containment+telemetry build: full-target pre-dirty revalidate (-ESTALE restart / src -ENOENT), P217-RENAME-DIRTYCANCEL helper-failure probe at out_trans_cancel (error, XFS_TRANS_DIRT
+5. [critical] D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE
+   next: 1) Finish the sess57 GPT review set that shares this code (items 3, 4, 6C), then a single RULE-5 consult on the whole barrier before any rig cycle. 2) Verification run: 32/caw, mount node A 
+6. [critical] D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED
+   next: 1) Fault-inject: gate a forced failure of mxfs_xlog_recover_foreign_slice behind a module knob (default off), kill a node at 32/caw, and assert the survivor logs the new refusal, leaves the 
+7. [critical] D-FOREIGN-SLICE-INTENTS-ABANDONED
+   next: 1) Land the versioned GUARD/recovery descriptor + victim-manifest freeze, with the split broadcast predicate and the recovery-lease-vs-member-claim distinction. 2) Make any unsupported or am
+8. [critical] D-PR-FENCE-PREEMPT-WITHOUT-ABORT
+   next: 1) DONE (sess71). 2) DONE (sess73, rig). 3) DONE (sess93): fence_during_write and crash_consistency were re-boarded on 0.11.422 with the certificate live and CONSUMED — both PASS 32/32 (fenc
+9. [critical] D-PURGE-NONATOMIC-PUBLICATION
+   next: 1) Build a test that forces two survivors to purge the SAME victim concurrently and asserts no live slot is zeroed — the CAS MISCOMPARE probes (P235-PURGE-CONTENDED / -HB) are the observable
+10. [critical] D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE
+   next: 1) RULE-5 consult: is a stable per-node identity the right fix (persisted node_uuid / identity derived from the slot+incarnation pair), or should pass-1 be deleted and the adopted-slice gate
+11. [critical] D-RECOV-ADVANCE-UNBOUNDED-RETRY
+   next: Per the sess91 RULE-5 ruling: (1) On each failure REREAD the descriptor and CLASSIFY. If owner/gen/term/recovery-id genuinely changed, stop immediately, discard the auth and let the new owne
+12. [critical] D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN
+   next: 1) THE CLOSURE STEP: a test that exercises the cause. Inject epoch 0 into a victim's ACTIVE heartbeat record on the backing store, kill it, and assert P238-FENCE-ZEROINC fires and NO descrip
+13. [critical] D-FENCED-VICTIM-MAY-REREGISTER
+   next: 1) DONE sess93 — the measurement that decides severity: CONFIRMED, see evidence. 2) DONE sess93 — the interim detector shipped and rig-verified (0.11.424, D-FENCE-RESERVATION-HEALTH-UNCHECKE
+14. [critical] D-MIXED-VERSION-UNGATED-REPLAY
+   next: 1) Choose the mechanism with a RULE-5 consult — the MXFS_PROTO_GEN feature block in the heartbeat record is the obvious carrier and already has a version gate (hb_feature_state). 2) Quaranti
+15. [critical] D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID
+   next: 1) Replace the epoch SOURCE with a durable per-resource 64-bit sequence minted in the granting CAS (`next = s->ex_grant_epoch + 1; if (next == 0) next = 1;`), which is serialized by the slot
+16. [critical] D-SAMENODE-WAITER-CANCEL-COLLISION
+   next: sess113 RULE-5 RULING: the sess112 landing (0.11.441) is STOP-SHIP -- 'no-go for the 32-node rig'. Sampling the registry's aggregate counters does NOT establish exclusive ownership of the ad
+17. [critical] D-RECONCILE-SLOT-IDENTITY-UNCHECKED
+   next: sess112 landed the resource memcmp at the remembered slot on 0.11.441 (the check was previously UNREPRESENTABLE -- the function took no resource argument). That direction is right but sess11
+18. [high] D-DIRVIEW-NONCONVERGE-SESS25
+   next: Reproduce pressure: aged-mount dirent_durability laps at 32/caw while one node is denied the dir EX handoffs (readdir-only role). If a next occurrence fires: capture the stale node's i_dlm_d
+19. [high] D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO
+   next: Per the sess91 RULE-5 ruling: (1) Guard the rebase with inc_valid(): a nonzero cached incarnation must be RETAINED when the sector reads 0, and the slot marked inconsistent/unknown rather th
+20. [high] D-FENCE-CAPABILITY-UNVALIDATED-AT-MOUNT
+   next: 1) Add the admission check to the mount path, before normal I/O is admitted: issue PERSISTENT RESERVE IN / REPORT CAPABILITIES (assert PTPL_A=1 and that the type mask offers WE-RO), READ RES
+21. [high] D-FENCE-CRASH-MATRIX-UNTESTED
+   next: 1) Build the crash-matrix harness: inject death/power loss before intent persistence, after intent before P&A, during P&A, after P&A before certify, during certify, after certificate before 
+22. [high] D-RECONCILE-EXHAUSTION-SILENT
+   next: sess112 landed -EBUSY + P245-RECONCILE-EXHAUST + requeue-as-owed on 0.11.441. sess113 RULE-5: THAT IS NOT ESCALATION and does not satisfy the requirement. 'A warning, counter and owed flag a
+23. [high] D-TRACK-PUBLISH-ORDERING
+   next: sess112 moved tenure publication into the same critical section that ends the acquiring attempt (0.11.441), closing the observe-to-track window for the publish side. sess113 RULE-5: necessar
+24. [major] D-32NODE-SHARED-DIR-CREATE-PACE
+   next: 1) RULE-5 CONSULT ON THE FIX -- MANDATORY, NOT YET DONE. 2) sess127 REFUTED sess126's hypothesis (a): the ilock read-side barrier is NOT the fix. P132-ILOCK-STUCK=0 on all 32 nodes; the new 
+25. [major] D-READDIR-PEER-CACHED-DIR-PACE
+   next: sess127: check this against the BAST-DELIVERY root (single-threaded bast_recv_fn doing a synchronous shared-LUN slot read per packet, hints dropped at RcvbufErrors=8085) before doing any ind
+26. [major] D-CRASH-CONSISTENCY-32-NOTERMINAL-354
+   next: Same root as D-32NODE-SHARED-DIR-CREATE-PACE, now RE-ROOTED by sess127 at the BAST RECEIVE path (single-threaded bast_recv_fn doing a synchronous shared-LUN slot read per packet; RcvbufError
+27. [minor] D-MATRIX-UNMEASURED
+28. [minor] D-RELOAD-FREED-ADOPT-BOGUS-IMODE
+   next: 0.11.357 guards the rewire with i_mode != 0 (freed-shell adopt keeps prior self-consistent ops; a later resurrecting reload still rewires since old_ifmt is captured per-reload). Verify: reru
+29. [unset] D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+   next: Reproduce with AGED fs: at grace=10, run board-chunk (dir_reuse x2 + cache_coherency + crash_consistency + rsync_paired) THEN dirent_durability loops, instr ON only from the dirent phase (av
+
+RULE 6: an entry closes ONLY as DISPROVED or FIXED AND VERIFIED. 'Cannot reproduce', a clean run, or a workaround are NOT dispositions. Full evidence per defect: tests/criteria/
+
+_(truncated at 8000 bytes — raise CCLOOP_STATE_HOOK_MAX_BYTES to see the rest)_

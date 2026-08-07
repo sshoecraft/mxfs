@@ -1,0 +1,139 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 28 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 27
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `881a0a58-86cf-4efc-bc48-9ca378d3bff7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/881a0a58-86cf-4efc-bc48-9ca378d3bff7.jsonl`
+- approx context at last assistant turn: 498471 tokens
+- tools used: Bash×156 Edit×42 Read×27 TaskUpdate×4 mcp__ccmemory__memory_write×4 TaskCreate×3 ToolSearch×3 Write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/libxfs/xfs_dir2.c
+- /src/mxfs/VERSION
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/xfs/libxfs/xfs_da_btree.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_data.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_node.c
+- /src/mxfs/xfs/libxfs/xfs_dir2_leaf.c
+- /src/mxfs/run.sh
+- /src/mxfs/xfs/xfs_inode.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    grep -n "wip\b" /src/mxfs/xfs/xfs_inode.c | awk -F: '$1>5930 && $1<6060' | head -5
+    make modules 2>&1 | grep -E ": error" | head -5; modinfo mxfs.ko | grep srcversion
+    timeout 240 ./run.sh 32 caw prep_cluster 2>&1 | tail -1
+    timeout 400 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired 2>&1 | grep -E "  FAIL|rsync" | tail -2; D=$(mkt
+    for lap in 2 3; do timeout 400 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired 2>&1 | grep -E "  FAIL|rsync_
+    ./run.sh 32 caw 2>/dev/null | grep -iE "pending" | head -2; D=$(mktemp -d); for i in $(seq 1 32); do ( M=$(tools/mxfs_sshpass.sh test$i "ls /mnt/shared >/dev/nu
+    ./showstat.sh 32 caw 2>/dev/null | head -8; pgrep -af "run.sh 32" | head -3
+    timeout 420 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired 2>&1 | grep -E "  FAIL|rsync_paired" | tail -1; 
+    ./showstat.sh 32 caw 2>/dev/null | grep -E "zero_silent|fairness|membership|scaling|rsync" | head -8; tools/mxfs_sshpass.sh test5 "pgrep -af 'suite/|coord' | he
+    uptime; ps aux --sort=-%cpu | head -8 | awk '{printf "%s %s %s %.60s\n", $2, $3, $4, $11" "$12" "$13}'
+    grep -n "## Recent\|## Change\|sess4[0-9]\|0\.11\.3" .claude/awareness/subsystems/xfs.md | tail -6; wc -l .claude/awareness/subsystems/xfs.md
+    tail -6 .claude/awareness/subsystems/xfs.md
+    cat >> .claude/awareness/subsystems/xfs.md <<'EOF'  ## sess45 (ccloop c7ee71c6, 2026-08-02, 0.11.361-362) delta  - **P195 Option B — adopt at EX acquire (0.11.3
+    timeout 420 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired 2>&1 | grep -E "  PASS|  FAIL" | tail -6
+    D=$(mktemp -d); for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/reload_stamp_at_commit && cat /sys/module/mxfs/par
+    uptime | awk -F'load average: ' '{print $2}'; timeout 420 ./run.sh 32 caw zero_silent_loss dlm_fairness dlm_membership scaling_curve dlm_scaling rsync_paired 2>
+    D=$(mktemp -d); for i in $(seq 1 32); do ( tools/mxfs_sshpass.sh test$i "echo 0 > /sys/module/mxfs/parameters/reload_stamp_at_commit" 2>/dev/null; echo done > $
+    L=$(uptime | awk -F'load average: ' '{print $2}' | cut -d, -f1 | cut -d. -f1); echo "load1m=$L"; if [ "$L" -lt 30 ]; then timeout 420 ./run.sh 32 caw zero_silen
+    L=$(uptime | awk -F'load average: ' '{print $2}' | cut -d, -f1 | cut -d. -f1); echo "load1m=$L"; if [ "$L" -lt 30 ]; then timeout 420 ./run.sh 32 caw zero_silen
+    sleep 240; uptime | awk -F'load average: ' '{print $2}'
+
+## Last text from previous session
+
+P195 probe in xfs_dir2.c — add the validity bit to the output:
+Version bump and build:
+All four confirmed — same bug. Fixing with braces:
+Deploying 0.11.361 to the 32-node rig (budget 240s per TIMEOUT_BUDGETS):
+3/3 PASS at 4s (healthy wall — no fresh-path pace change). Checking gate arm rates aren't stormy before the aged protocol:
+No post-deploy P210s at all — determining whether the publish path even ran in those tests:
+**10 OPEN of 37.** Next critical: D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY:
+**Reproduced on lap 1** with the census armed. Reading the phase census:
+Ordering confirmed (whiteout pre-trans; ijoin non-dirtying). Implementing the extended preflight:
+Now the dirty-cancel probe + state cookie:
+Version bump to 0.11.362, changelog, build:
+Clean build `41070DFD73787A93E05F8CF` (0.11.362). Deploying over the zombie fleet and starting attribution laps:
+Lap 2 clean. Persisting session state before continuing (a lot of unrecorded state since the last write), then resuming single laps per call:
+No leftovers. Lap 3, arm A:
+Board rows restored, arm-A at 3 clean laps. Flipping to arm B (pre-sess45 stamp timing) fleet-wide and lapping:
+Relay boundary — wrapping up. State is fully persisted (ledger, three session memories, task #3 protocol, awareness doc), so the next session picks up cleanly.
+
+**Criteria: NO — 11 defects OPEN of 38. Not production ready yet.**
+
+Session 27 final scorecard, all evidence-backed:
+
+1. **D-DIRENT-PUBLISH-STALE-BASE-P195-360 (major) — FIXED AND VERIFIED** on 0.11.361. Implemented the full GPT-ruled Option-B contract (explicit validity bit, adopt-at-EX-acquire gate, stamp-after-install, release-time invalidation, creator-stamp subordination, per-reason counters), plus six missing-braces bugs the compiler confirmed across five files. Verified by the defect's own protocol: boards green at 32 and 8 nodes, 24 board-aged dirent_publish loops (historical rate predicted ~3 hits, observed 0), 60-round mkdir storm clean, exactly one gate arm all day — a backward-epoch slot-reclamation reset, the precise case the ruled `!=` compare exists for — and no pace regression.
+
+2. **D-CACHE-COHERENCY-UV-COUNT-MISS-2332 (critical) — DISPROVED.** A degraded member (mount detached after pre-assert, before the body) reproduces rank1's incident signature exactly — `uv exp=128 got=124`, the missing 4 files being the sick member's own never-durable creates — while 23 cache_coherency and 11 zero_silent_loss runs on a healthy fleet were all green the same day. The Aug-1 incident had a documented sick member (test32, root disk full).
+
+3. **New critical found, contained, and on the books: D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361.** Seventeen of 32 nodes independently hit a dirty `xfs_trans_cancel` in `xfs_rename` under rsync_paired — the known stale-base dirent-erasure family escaping through the pre-dirty revalidate's non-exchange-target gap. GPT-ruled containment shipped as 0.11.362: full target-expectation preflight returning -ESTALE (the kernel's own `retry_estale` re-walks and retries, so a vanished target degrades to a successful rename, not a shutdown), a dirty-cancel forensic probe with image cookies, and a stamp-timing micro-revert lever for the amplifier A/B. Five clean laps since, zero probe firings; the defect stays open for the producer hunt, and any recurrence now self-diagnoses.
+
+Also hardened: run.sh now captures a kill-time kmsg phase census on any NO_TERMINAL failure (node stdout tails are lost to ssh buffering — that's why both prior events looked "silent"), and the hostload confounder (external game-server bursts to load 55) cost one excluded lap and is re-documented.
+
+The rig is clean: 32/caw on 0.11.362, all mounted, marker current, ship-config knobs. Next in queue for the relay: continue rsync laps opportunistically at hostload <30, then the remaining criticals — write-unit authority via ICLUSTER (GPT's ranked item 1), certified foreign replay, and the TCP rig wiring that unblocks the open-unlink fix.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

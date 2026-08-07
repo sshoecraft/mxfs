@@ -357,6 +357,51 @@ xfs_inode_init(
 		}
 	}
 
+	/*
+	 * sess48 (393-c3 fatal root, RULE 4): a just-allocated inode CANNOT
+	 * be on any unlinked list — xfs_dialloc returned it free, and a free
+	 * ino's remove already committed di_next_unlinked = NULLAGINO.  In
+	 * multi-node operation that remove's home write can be lost (the
+	 * fossil family): the platter slot keeps the DEAD chain value, the
+	 * reuse-create stamps a NEW di_gen around it at iflush (which never
+	 * touches nu), and every gen-keyed defense goes blind (GENSKEW
+	 * keep-and-skip; the store's record retired when the new-gen image
+	 * destaged).  The next unlink of the reused ino then trips
+	 * P53 (expected NULLAGINO, found fossil) → EFSCORRUPTED shutdown.
+	 * Enforce the invariant at the one point it is PROVABLE: clear a
+	 * non-NULLAGINO dinode nu in the create transaction (the exact
+	 * iunlink-item write idiom: value + CRC + 4-byte buffer log).
+	 */
+	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+		struct xfs_buf		*nubp;
+		struct xfs_dinode	*nudip;
+
+		if (!xfs_imap_to_bp(mp, tp, &ip->i_imap, &nubp)) {
+			nudip = xfs_buf_offset(nubp, ip->i_imap.im_boffset);
+			if (!(nubp->b_flags & XBF_STALE) &&
+			    be16_to_cpu(nudip->di_magic) == XFS_DINODE_MAGIC &&
+			    nudip->di_next_unlinked !=
+						cpu_to_be32(NULLAGINO)) {
+				int nuoff = ip->i_imap.im_boffset +
+					offsetof(struct xfs_dinode,
+						 di_next_unlinked);
+
+				pr_warn("mxfs: P-CREATE-NUFIX ino=0x%llx fossil_next=0x%x disk_gen=%u — freshly allocated ino carried a dead chain value; cleared to NULLAGINO in the create transaction\n",
+					(unsigned long long)ip->i_ino,
+					be32_to_cpu(nudip->di_next_unlinked),
+					be32_to_cpu(nudip->di_gen));
+				nudip->di_next_unlinked =
+						cpu_to_be32(NULLAGINO);
+				xfs_dinode_calc_crc(mp, nudip);
+				xfs_trans_inode_buf(tp, nubp);
+				xfs_trans_log_buf(tp, nubp, nuoff,
+					nuoff + sizeof(xfs_agino_t) - 1);
+			} else {
+				xfs_trans_brelse(tp, nubp);
+			}
+		}
+	}
+
 	xfs_trans_log_inode(tp, ip, flags);
 }
 
@@ -392,6 +437,63 @@ xfs_inode_init(
  * Keeping the list up to date does not require memory allocation, just finding
  * the XFS inode and updating the next/prev unlinked list aginos.
  */
+
+/*
+ * mxfs sess40 — D-AGI-UNLINKED F1: per-slot AGI unlinked buckets.
+ *
+ * Upstream hashes agino % 64, which makes bucket membership CROSS-NODE under
+ * a shared LUN: nodes' zombies interleave in one chain, every adjacent-member
+ * stitch touches state whose authoritative copy lives in a peer's icache
+ * (i_prev_unlinked has no on-disk form), and xfs_iunlink_reload_next faults a
+ * peer's LIVE open-unlinked inode in as an "unrecovered orphan".  Proven
+ * deterministic corruption: tests/agi_bucket_repro.sh (B's insert invalidates
+ * A's in-core self-view; A's remove then fails the head-mismatch lookup ->
+ * -EFSCORRUPTED -> shutdown -> withdrawal).
+ *
+ * In multi-node mode each node therefore inserts into ITS OWN slot's bucket
+ * (disklock slots are 0..63, unique per live node — architectural invariant
+ * 3 — and XFS_AGI_UNLINKED_BUCKETS is 64).  All members of a node's bucket
+ * are its own zombies, restoring upstream's per-node existence guarantee and
+ * making cross-node adjacency, cross-node reloads, and cross-node stitching
+ * structurally unreachable at runtime.  Recovery walks are scoped to owned
+ * buckets (see xlog_recover_iunlink_ag) and every membership-establishing
+ * path stamps ip->i_unlinked_bucket, which the remove path USES — never
+ * recomputes — so removals stay correct across a runtime knob flip and
+ * during foreign adoption.
+ *
+ * Knob (cluster-uniform ONLY — mixed settings recreate the shared-bucket
+ * hazard for new inserts): mxfs.iunlink_slot_buckets, default 1; 0 = legacy
+ * hashing as the same-build A/B control.  Registered in pal/linux (kernel
+ * builds); plain variable here so user-mode libxfs links.
+ */
+unsigned int mxfs_iunlink_slot_buckets = 1;
+
+static inline short
+xfs_iunlink_pick_bucket(
+	struct xfs_mount	*mp,
+	xfs_agino_t		agino)
+{
+	if (mxfs_iunlink_slot_buckets && mp->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+		return (short)(mp->m_mxfs_node_slot %
+			       XFS_AGI_UNLINKED_BUCKETS);
+	return (short)(agino % XFS_AGI_UNLINKED_BUCKETS);
+}
+
+/*
+ * The bucket an inode's existing list entry lives in.  Trusts the stamp when
+ * present; falls back to legacy hashing for an entry established before the
+ * stamp existed (or with the knob off since insert).
+ */
+static inline short
+xfs_iunlink_member_bucket(
+	struct xfs_inode	*ip,
+	xfs_agino_t		agino)
+{
+	if (ip->i_unlinked_bucket >= 0)
+		return (short)ip->i_unlinked_bucket;
+	return (short)(agino % XFS_AGI_UNLINKED_BUCKETS);
+}
 
 /*
  * Update the prev pointer of the next agino.  Returns -ENOLINK if the inode
@@ -468,7 +570,7 @@ xfs_iunlink_insert_inode(
 	struct xfs_agi		*agi = agibp->b_addr;
 	xfs_agino_t		next_agino;
 	xfs_agino_t		agino = XFS_INO_TO_AGINO(mp, ip->i_ino);
-	short			bucket_index = agino % XFS_AGI_UNLINKED_BUCKETS;
+	short			bucket_index = xfs_iunlink_pick_bucket(mp, agino);
 	int			error;
 
 	/*
@@ -508,6 +610,7 @@ xfs_iunlink_insert_inode(
 				(int)bucket_index);
 			ip->i_next_unlinked = NULLAGINO;
 			ip->i_prev_unlinked = NULLAGINO;
+			ip->i_unlinked_bucket = bucket_index;
 			return 0;
 		}
 		xfs_buf_mark_corrupt(agibp);
@@ -521,7 +624,8 @@ xfs_iunlink_insert_inode(
 	 */
 	error = xfs_iunlink_update_backref(pag, agino, next_agino);
 	if (error == -ENOLINK)
-		error = xfs_iunlink_reload_next(tp, agibp, agino, next_agino);
+		error = xfs_iunlink_reload_next(tp, agibp, agino, next_agino,
+				bucket_index);
 	if (error == -ENOENT && next_agino != NULLAGINO) {
 		/*
 		 * mxfs (sess53 ccloop): the in-core AGI bucket head (next_agino)
@@ -553,7 +657,8 @@ xfs_iunlink_insert_inode(
 						next_agino);
 				if (error == -ENOLINK)
 					error = xfs_iunlink_reload_next(tp,
-						agibp, agino, next_agino);
+						agibp, agino, next_agino,
+						bucket_index);
 				if (error) {
 					/* Fresh head also unrecoverable: heal. */
 					next_agino = NULLAGINO;
@@ -590,6 +695,7 @@ xfs_iunlink_insert_inode(
 
 	/* Point the head of the list to point to this inode. */
 	ip->i_prev_unlinked = NULLAGINO;
+	ip->i_unlinked_bucket = bucket_index;
 	return xfs_iunlink_update_bucket(tp, pag, agibp, bucket_index, agino);
 }
 
@@ -661,7 +767,7 @@ xfs_iunlink(
 			pr_warn("mxfs: P82-ADD ino=%llu agno=%u agino=0x%x bucket=%d vfs_nlink=%u rc=%d realns=%llu\n",
 				(unsigned long long)ip->i_ino, pag_agno(pag),
 				XFS_INO_TO_AGINO(mp, ip->i_ino),
-				(int)(XFS_INO_TO_AGINO(mp, ip->i_ino) % XFS_AGI_UNLINKED_BUCKETS),
+				(int)ip->i_unlinked_bucket,
 				VFS_I(ip)->i_nlink, error,
 				(unsigned long long)ktime_get_real_ns());
 	}
@@ -687,10 +793,38 @@ xfs_iunlink_remove_inode(
 	struct xfs_agi		*agi = agibp->b_addr;
 	xfs_agino_t		agino = XFS_INO_TO_AGINO(mp, ip->i_ino);
 	xfs_agino_t		head_agino;
-	short			bucket_index = agino % XFS_AGI_UNLINKED_BUCKETS;
+	short			bucket_index = xfs_iunlink_member_bucket(ip, agino);
 	int			error;
 
 	trace_xfs_iunlink_remove(ip);
+
+	/* sess47 (D-REAP-IFREE-EFSCORRUPTED-SHUTDOWN-372): entering the remove
+	 * with NO in-core chain state (i_prev_unlinked==0 means "not on any
+	 * in-core list") is the precondition of the silent mid-list failure —
+	 * a reaped zombie whose shell was reclaimed between the open-defer and
+	 * the retry lost prev/next, and only the bucket+authority snapshot was
+	 * restored.  Loud: this must never be reached without a prior bucket
+	 * reload. */
+	if (!ip->i_prev_unlinked)
+		pr_warn("mxfs: P-UNLREM-INCOMPLETE ino=%llu agino=0x%x bucket=%d ub=%d prev=0 next=0x%x lu=%d au=%d comm=%s\n",
+			(unsigned long long)ip->i_ino, agino, (int)bucket_index,
+			(int)ip->i_unlinked_bucket, ip->i_next_unlinked,
+			xfs_iflags_test(ip, MXFS_IF_LOCAL_UNLINK) ? 1 : 0,
+			xfs_iflags_test(ip, MXFS_IF_ADOPTED_UNLINK) ? 1 : 0,
+			current->comm);
+
+	/* mxfs sess40: an unstamped membership in multi-node mode means this
+	 * entry predates the stamp (legacy insert) — legal during a knob
+	 * transition, but loud so an unexpected population is visible. */
+	if (mxfs_iunlink_slot_buckets && ip->i_unlinked_bucket < 0 &&
+	    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+		static atomic_t p84_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p84_n) <= 100)
+			pr_warn("mxfs: P84-UNL-BUCKET-UNSET ino=%llu agino=0x%x fallback_bucket=%d comm=%s\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index, current->comm);
+	}
 
 	/*
 	 * Get the index into the agi hash table for the list this inode will
@@ -723,13 +857,45 @@ xfs_iunlink_remove_inode(
 	}
 
 	/*
+	 * sess38 P83-UNL-REMCHK (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+	 * RULE-4 discriminator, instr-gated: one FUA dinode read per remove):
+	 * compare the ON-DISK di_next_unlinked with the in-core value we are
+	 * about to stitch the shared bucket with.  A peer's mid-bucket remove
+	 * legally rewires OUR unlinked inode's disk next pointer; nothing
+	 * refreshes the in-core copy across AG-DLM handoffs.  STALE=1 here,
+	 * correlated with the later droplink rc=-117 shutdown, proves the
+	 * stale-stitch mechanism (and names the wrong agino we wrote).
+	 */
+	if (unlikely(mxfs_instr_enabled)) {
+		uint32_t p83_dnl = 0, p83_dnext = 0;
+		int p83_dmode = mxfs_inode_disk_unlinked(ip, &p83_dnl,
+							 &p83_dnext);
+		int p83_stale = (p83_dmode >= 0 &&
+				 p83_dnext != ip->i_next_unlinked);
+
+		if (p83_stale || ip->i_next_unlinked != NULLAGINO)
+			pr_warn("mxfs: P83-UNL-REMCHK ino=%llu agno=%u agino=0x%x bucket=%d incore_next=0x%x disk_next=0x%x STALE=%d incore_prev=0x%x head=0x%x disk_nlink=%u dmode=0%o agi_gen=%llu realns=%llu\n",
+				(unsigned long long)ip->i_ino, pag_agno(pag),
+				agino, (int)bucket_index,
+				ip->i_next_unlinked, p83_dnext, p83_stale,
+				ip->i_prev_unlinked, head_agino,
+				p83_dnl, p83_dmode < 0 ? 0 : p83_dmode,
+				(unsigned long long)agibp->b_mxfs_ag_gen,
+				(unsigned long long)ktime_get_real_ns());
+	}
+
+	/*
 	 * Set our inode's next_unlinked pointer to NULL and then return
 	 * the old pointer value so that we can update whatever was previous
 	 * to us in the list to point to whatever was next in the list.
 	 */
 	error = xfs_iunlink_log_inode(tp, ip, pag, NULLAGINO);
-	if (error)
+	if (error) {
+		pr_warn("mxfs: P-UNLREM-LOGSELF ino=%llu agino=0x%x bucket=%d rc=%d\n",
+			(unsigned long long)ip->i_ino, agino,
+			(int)bucket_index, error);
 		return error;
+	}
 
 	/*
 	 * Update the prev pointer in the next inode to point back to previous
@@ -739,15 +905,30 @@ xfs_iunlink_remove_inode(
 			ip->i_next_unlinked);
 	if (error == -ENOLINK)
 		error = xfs_iunlink_reload_next(tp, agibp, ip->i_prev_unlinked,
-				ip->i_next_unlinked);
-	if (error)
+				ip->i_next_unlinked, bucket_index);
+	if (error) {
+		pr_warn("mxfs: P-UNLREM-BACKREF ino=%llu agino=0x%x bucket=%d prev=0x%x next=0x%x rc=%d\n",
+			(unsigned long long)ip->i_ino, agino,
+			(int)bucket_index, ip->i_prev_unlinked,
+			ip->i_next_unlinked, error);
 		return error;
+	}
 
 	if (head_agino != agino) {
 		struct xfs_inode	*prev_ip;
 
 		prev_ip = xfs_iunlink_lookup(pag, ip->i_prev_unlinked);
 		if (!prev_ip) {
+			/* sess47: the ONLY silent -EFSCORRUPTED exit in this
+			 * function — the run2 ring's -117 had no P71-INSTR, no
+			 * XFS_CORRUPTION_ERROR, no P82-REM.  Name it. */
+			pr_warn("mxfs: P-UNLREM-NOPREV ino=%llu agino=0x%x bucket=%d head=0x%x prev=0x%x next=0x%x lu=%d au=%d comm=%s — mid-list remove, prev not in-core\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index, head_agino,
+				ip->i_prev_unlinked, ip->i_next_unlinked,
+				xfs_iflags_test(ip, MXFS_IF_LOCAL_UNLINK) ? 1 : 0,
+				xfs_iflags_test(ip, MXFS_IF_ADOPTED_UNLINK) ? 1 : 0,
+				current->comm);
 			xfs_inode_mark_sick(ip, XFS_SICK_INO_CORE);
 			return -EFSCORRUPTED;
 		}
@@ -772,6 +953,7 @@ xfs_iunlink_remove_inode(
 		(unsigned long long)ktime_get_real_ns());
 	ip->i_next_unlinked = NULLAGINO;
 	ip->i_prev_unlinked = 0;
+	ip->i_unlinked_bucket = -1;
 	return error;
 }
 
@@ -820,6 +1002,20 @@ xfs_droplink(
 	if (inode->i_nlink != XFS_NLINK_PINNED)
 		mxfs_drop_nlink(ip);
 
+	/*
+	 * ccloop c7ee71c6 sess20: disarm the P186 link-count revert detector for
+	 * this inode.  That detector flags an outgoing dinode whose di_nlink is
+	 * below one this node already saw durable, which is only a valid
+	 * inference while the count is MONOTONIC.  A legitimate removal breaks
+	 * that: measured 812 of 984 P186 hits came from the storm's own
+	 * `rm -rf` teardown, where the count is correctly going down and the
+	 * high-water mark can never come back with it.  Clearing the mark here
+	 * is the conservative direction — it can only cost us detections on a
+	 * directory that is being torn down, never produce a false accusation.
+	 */
+	if (S_ISDIR(inode->i_mode))
+		ip->i_mxfs_disk_nlink_seen = 0;
+
 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 
 	if (inode->i_nlink)
@@ -860,6 +1056,26 @@ xfs_bumplink(
 				ip->i_ino);
 	if (inode->i_nlink != XFS_NLINK_PINNED)
 		mxfs_inc_nlink(ip);
+
+	/*
+	 * ccloop c7ee71c6 sess19 nlink LEDGER (RULE 4).  tests/sf_mkdir_storm.sh
+	 * reproduces a DURABLE lost update of a shared parent's link count under
+	 * concurrent cross-node mkdir (32 nodes, one shortform parent: nlink
+	 * settles at 29 with 32 visible subdirectories, still 29 minutes later on
+	 * every node), while the same mkdirs SERIALIZED propagate perfectly
+	 * (2->6 across 4 nodes).  So the count is lost in a race, not by a
+	 * missing propagation.  This is the BUMP end of the ledger: the other two
+	 * are the reload adopt (P180-NLR) and the platter publish (P180-NLW).
+	 * Ordering all three by realns across nodes shows exactly which node
+	 * bumped from a base that a peer had already advanced past.
+	 * Param-gated (mxfs.nlink_ledger, default 0) — inert in normal runs.
+	 */
+	if (unlikely(mxfs_nlink_ledger) && S_ISDIR(inode->i_mode))
+		pr_warn("mxfs: P180-NLB ino=%llu to=%u cc=%llu comm=%s realns=%llu\n",
+			(unsigned long long)ip->i_ino, inode->i_nlink,
+			(unsigned long long)inode_peek_iversion(inode),
+			current->comm,
+			(unsigned long long)ktime_get_real_ns());
 
 	xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 }

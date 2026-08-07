@@ -14,6 +14,7 @@
 #else
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #endif
 
 /* Version is injected by the build system from the VERSION file.
@@ -100,6 +101,73 @@ enum mxfs_node_state {
 	MXFS_NODE_DEAD,
 	MXFS_NODE_RECOVERING,    /* journal replay in progress */
 };
+
+/* ─── self-fence reasons ─────────────────────────────────────────────────
+ *
+ * A self-fence is the most severe event this node can emit: it force-shuts
+ * down a LIVE mount.  Four independent detectors can fire it, and until
+ * sess79 all four reported the SAME cause to the operator — the sess131 one,
+ * "device reformatted under live mount".  Three of the four were therefore
+ * lying: a node fenced by a peer told its admin the shared LUN had been
+ * re-mkfs'd, which is a data-loss panic response to what is actually normal
+ * cluster fencing.  The reason travels with the callback so every layer
+ * (disklock → v5_mount → XFS) names the detector that actually fired.
+ */
+enum mxfs_self_fence_reason {
+	/* disklock HB: on-disk MXFS super fs_uuid no longer matches our
+	 * volume — the device really was re-mkfs'd under this live mount. */
+	MXFS_SELF_FENCE_FS_IDENTITY = 0,
+	/* disklock HB: own-slot CAS miscompared against a foreign image — a
+	 * survivor laid a recovery guard/descriptor on our heartbeat slot and
+	 * is replaying our journal slice. */
+	MXFS_SELF_FENCE_SLOT_TAKEOVER,
+	/* SCSI PR: our own reservation key was gone when we tried to fence a
+	 * peer — somebody preempted us while we thought we were the fencer. */
+	MXFS_SELF_FENCE_PR_KEY_LOST_FENCING,
+	/* SCSI PR: periodic self-check found our key preempted. */
+	MXFS_SELF_FENCE_PR_KEY_PREEMPTED,
+};
+
+static inline const char *mxfs_self_fence_reason_name(int reason)
+{
+	switch (reason) {
+	case MXFS_SELF_FENCE_FS_IDENTITY:
+		return "FS_IDENTITY";
+	case MXFS_SELF_FENCE_SLOT_TAKEOVER:
+		return "SLOT_TAKEOVER";
+	case MXFS_SELF_FENCE_PR_KEY_LOST_FENCING:
+		return "PR_KEY_LOST_FENCING";
+	case MXFS_SELF_FENCE_PR_KEY_PREEMPTED:
+		return "PR_KEY_PREEMPTED";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+/* One-line operator-facing explanation of what actually happened.  Kept next
+ * to the enum so a new detector cannot be added without writing one. */
+static inline const char *mxfs_self_fence_reason_desc(int reason)
+{
+	switch (reason) {
+	case MXFS_SELF_FENCE_FS_IDENTITY:
+		return "device was reformatted under this live mount (MXFS "
+		       "super fs_uuid no longer matches the mounted volume)";
+	case MXFS_SELF_FENCE_SLOT_TAKEOVER:
+		return "a surviving peer declared this node dead and is "
+		       "replaying its journal slice — this mount has been "
+		       "fenced by the cluster, the device is intact";
+	case MXFS_SELF_FENCE_PR_KEY_LOST_FENCING:
+		return "this node's SCSI PR reservation key was already gone "
+		       "when it tried to fence a peer — it was preempted by "
+		       "the cluster, the device is intact";
+	case MXFS_SELF_FENCE_PR_KEY_PREEMPTED:
+		return "this node's SCSI PR reservation key was preempted by "
+		       "a peer — this mount has been fenced by the cluster, "
+		       "the device is intact";
+	default:
+		return "unknown self-fence detector";
+	}
+}
 
 /* ─── FNV-1a hash: UUID → volume_id ─── */
 

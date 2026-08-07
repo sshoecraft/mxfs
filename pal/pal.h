@@ -327,6 +327,30 @@ void mxfs_pal_rwlock_destroy(mxfs_rwlock_t *rw);
 void mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw);
 
 /*
+ * Try to acquire the read lock WITHOUT EVER SLEEPING.  Returns 1 if the
+ * lock was taken (caller must mxfs_pal_rwlock_unlock), 0 if it was not.
+ *
+ * ccloop c7ee71c6 sess21: this exists because mxfs_rwlock_t is a SLEEPING
+ * lock in the kernel PAL (struct rw_semaphore), so mxfs_pal_rwlock_rdlock
+ * is illegal in atomic context — see mxfs_dlm_held_mode_nb.  Only the
+ * trylock form is safe to call with a spinlock held.
+ */
+int mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw);
+
+/*
+ * Is the current context allowed to sleep?  1 = yes, 0 = atomic (spinlock
+ * held, preemption or IRQs disabled).  User-mode builds always return 1.
+ *
+ * ccloop c7ee71c6 sess21: exists so the DLM layer can ASSERT its sleeping
+ * entry points are not reached from atomic context, without importing a
+ * kernel API outside pal/ (architectural invariant 4).  Sleeping under
+ * pag_ici_lock corrupts preempt state and soft-locks a peer CPU forever,
+ * and that bug reached the tree TWICE (sess19 via a SCSI read, sess20 via
+ * an rwsem) because nothing checked.
+ */
+int mxfs_pal_may_sleep(void);
+
+/*
  * Acquire write lock (exclusive).
  */
 void mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw);
@@ -555,6 +579,91 @@ void mxfs_pal_log(int level, const char *fmt, ...);
 void mxfs_pal_dump_stack(void);
 void mxfs_pal_dump_task_stack(int pid);	/* dump another task's kernel stack by pid (0 = no-op) */
 
+/* ─── Fail-stop ─── */
+
+/*
+ * sess133 (GPT sess133 ruling B1): NON-RETURNING LOCAL FAIL-STOP.
+ *
+ * The clustered-filesystem answer to "this node can neither prove it released
+ * its shared-storage state nor safely continue".  It exists because the two
+ * alternatives were both rejected on evidence:
+ *
+ *   waiting forever   — blocks unmount and module unload permanently, and the
+ *                       uninterruptible LUN I/O that caused it never observes
+ *                       cancellation;
+ *   abandon and leak  — returning to put_super with the BAST threads still
+ *                       live is a USE-AFTER-FREE: those threads call back
+ *                       through closures that hold the XFS mount, and the VFS
+ *                       frees that mount regardless of anything the DLM
+ *                       decides.  Leaking the DLM contexts does not save it.
+ *
+ * So the node stops touching shared storage the only way it provably can.
+ * Peers detect the silence through the ordinary dead-node path and fence,
+ * replay and purge it — which is exactly what a departure that could not be
+ * proven clean requires of them anyway.
+ *
+ * It NEVER returns, and it must never be reachable in normal operation: every
+ * caller reaches it only after a deadline derived to exceed every deadline the
+ * DLM itself imposes has expired, plus a further bounded grace.
+ *
+ * Kernel: panic().  User builds: abort() (the tools have no shared-storage
+ * state to protect, but must not continue past a failed invariant either).
+ *
+ * ─── sess134: WHY THIS IS A MACRO OVER A NON-__noreturn FUNCTION ───
+ *
+ * objtool validates control flow per object file against a HARDCODED list of
+ * noreturn functions and cannot learn about one defined in another translation
+ * unit.  Marked __noreturn, GCC correctly emits no return instruction after a
+ * call, and objtool then reports every caller as falling through into whatever
+ * symbol the linker placed next — a warning on a build that must stay clean.
+ * `unreachable()` does not suppress it (the annotate_unreachable machinery it
+ * carried is gone), and neither does moving the call off the function tail: GCC
+ * sinks the cold branch back to the end anyway.
+ *
+ * So the attribute is dropped and the macro supplies its own terminator.  The
+ * spin is not decoration: it is what makes "never returns" true at the call
+ * site regardless of what the implementation does, and objtool accepts an
+ * unconditional self-branch as a valid end of flow.  A node that somehow
+ * returned from panic() spinning here is still a node that has stopped issuing
+ * I/O to the shared LUN, which is the entire guarantee this call exists to
+ * provide.
+ */
+#ifdef __KERNEL__
+__printf(1, 2)
+#else
+__attribute__((format(printf, 1, 2)))
+#endif
+void mxfs_pal_failstop_fn(const char *fmt, ...);
+
+#define mxfs_pal_failstop(fmt, ...)                            \
+	do {                                                   \
+		mxfs_pal_failstop_fn((fmt), ##__VA_ARGS__);    \
+		for (;;)                                       \
+			mxfs_pal_cond_resched();               \
+	} while (0)
+
+/* ─── Deferred one-shot call ─── */
+
+/*
+ * sess133 (GPT sess133 ruling B3): run fn(arg) SOON, in a context that is not
+ * the caller's, exactly once.
+ *
+ * The escalation notifier needs this.  Delivering an upcall from inside
+ * teardown's own quiesce loop makes the lower layer's liveness depend on the
+ * upper layer's handler: a handler that blocks, re-enters, or takes a lock the
+ * caller holds wedges the very loop that is trying to shut the mount down, and
+ * one that re-enters stop() would wait for the thread it is running on.
+ *
+ * Returns 0 when the call is queued, negative when it could not be (the caller
+ * must then treat the notification as undelivered — it is a channel, never a
+ * latch).  Kernel: a system unbound workqueue item, so a blocked handler
+ * cannot starve other work.  User: a detached thread.
+ *
+ * fn owns nothing: the caller must keep `arg` alive until fn has run, which is
+ * the caller's problem and not this primitive's.
+ */
+int mxfs_pal_defer(void (*fn)(void *), void *arg);
+
 /* ─── CRC32C ─── */
 
 /*
@@ -594,12 +703,32 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key);
 int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key);
 
 /*
- * Preempt a dead node's key — atomically removes victim and
- * transfers reservation to us.
- * Returns 0 on success, negative errno on failure.
+ * Preempt a dead node's key.
+ *
+ * abort=false issues SPC PREEMPT (service action 0x04): the victim's
+ * registration is removed, so commands the target has not yet BEGUN
+ * PROCESSING are rejected with RESERVATION CONFLICT — but the victim's
+ * already-started task set is NOT aborted and may still reach the platter.
+ * abort=true issues PREEMPT AND ABORT (0x05), which additionally aborts
+ * that task set and does not complete until it is aborted.
+ *
+ * For I/O fencing the caller MUST pass abort=true: MXFS kills victims
+ * mid-write, so the in-flight window is exactly the window that matters
+ * (sess71, D-PR-FENCE-PREEMPT-WITHOUT-ABORT).
+ *
+ * Return convention — a caller may NOT collapse these:
+ *   0        the service action was accepted and COMPLETED by the target.
+ *            With abort=true this is the only value that proves the
+ *            victim's task set was aborted.
+ *   -EBUSY   RESERVATION CONFLICT.  Our command performed NOTHING: the
+ *            SARK was not a registered key (another initiator preempted
+ *            it first, or it was never registered).  This is NOT success —
+ *            it proves only that the key is absent NOW, which says nothing
+ *            about whether anyone ever aborted the victim's task set.
+ *   <0 other transport/target failure; outcome unknown.
  */
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
-                             uint64_t victim_key);
+                             uint64_t victim_key, bool abort);
 
 /*
  * Unregister this node's key on clean shutdown.
@@ -611,9 +740,53 @@ int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key);
  * Read all currently registered keys.
  * Returns 0 on success, negative errno on failure.
  * *count is set to the number of keys written to keys[].
+ *
+ * generation (optional, may be NULL) receives the PR GENERATION counter
+ * the target reported with this read.  It increments on every PR OUT that
+ * changes the registrations, so it dates a key-set observation: evidence
+ * recorded against one generation is known stale once it differs.
+ *
+ * total (optional, may be NULL) receives the number of registration
+ * descriptors the TARGET reports holding, which may exceed max_keys.  This
+ * is the only way to tell a complete view from a truncated one, and the
+ * distinction is load-bearing: every MXFS consumer of this table decides
+ * from key ABSENCE ("our key is gone" ⇒ we were preempted ⇒ self-fence;
+ * "the victim's key is gone" ⇒ someone else fenced it), and truncation
+ * manufactures absence.  A caller that classifies without comparing
+ * *count against *total will eventually freeze a healthy node because its
+ * key fell off the end of the buffer.  Registrations are per-I_T nexus,
+ * NOT per node — a multipath node holds one descriptor per path — so a
+ * buffer sized by node count is not big enough.
  */
 int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
-                               int max_keys, int *count);
+                               int max_keys, int *count,
+                               uint32_t *generation, int *total);
+
+/* SPC persistent-reservation type codes MXFS cares about. */
+#define MXFS_PAL_PR_TYPE_WR_EX_RO   0x05    /* Write Exclusive - Registrants Only */
+
+/*
+ * A reservation as reported by PERSISTENT RESERVE IN / READ RESERVATION.
+ *
+ * `held` is the discriminator: when false the LUN has NO reservation and
+ * `key`/`type` are meaningless.  That distinction is load-bearing — with no
+ * reservation held, an unregistered initiator may write freely, so the
+ * absence of a victim's key proves nothing at all about exclusion.
+ */
+struct mxfs_pal_pr_reservation {
+    uint64_t    key;            /* reservation-holder's key */
+    uint32_t    generation;     /* PR GENERATION at the time of the read */
+    uint32_t    type;           /* SPC PR type (MXFS_PAL_PR_TYPE_*) */
+    bool        held;           /* a reservation is currently held */
+};
+
+/*
+ * Read the currently held reservation.
+ * Returns 0 on success (including "none held" — see ->held), negative
+ * errno on failure, -EOPNOTSUPP where the platform cannot report it.
+ */
+int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
+                                      struct mxfs_pal_pr_reservation *out);
 
 /* ─── SCSI COMPARE AND WRITE ───
  *

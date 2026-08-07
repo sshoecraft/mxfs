@@ -31,6 +31,10 @@
 #include "xfs_metafile.h"
 #include "xfs_mxfs_dlm.h"
 #include "../dlm/v5_mount.h"
+
+/* sess23: igrab() call-site attribution — see mxfs_igrab_tracked(). */
+#define igrab(vi) mxfs_igrab_tracked((vi), __LINE__, 2)
+#define iput(vi) mxfs_iput_tracked((vi), __LINE__, 2)
 #include <mxfs/mxfs_dlm.h>
 
 #include <linux/iversion.h>
@@ -130,6 +134,245 @@ static inline xa_mark_t ici_tag_to_mark(unsigned int tag)
 }
 
 /*
+ * ccloop c7ee71c6 sess23 — D-UNMOUNT-BUSY-INODES leak detector.
+ *
+ * Every allocated xfs_inode joins this list and leaves it in the RCU free
+ * callback (the last instant before kmem_cache_free), so the list is an exact
+ * mirror of the slab's live objects.  xfs_destroy_caches() consults it right
+ * before kmem_cache_destroy(xfs_inode_cache), which is precisely where the
+ * kernel reports "Slab cache still has objects" — so the survivor is named
+ * with its full state instead of being an anonymous slab object.
+ *
+ * Cost is one spin_lock/list_add on alloc and one on free.  The list is
+ * per-node (no cluster traffic) and inode alloc already takes several locks;
+ * measured to be off the critical path.  mxfs.live_inode_track=0 disables it.
+ */
+DEFINE_SPINLOCK(mxfs_live_inodes_lock);
+LIST_HEAD(mxfs_live_inodes);
+int mxfs_live_inode_track = 1;
+atomic64_t mxfs_live_inode_allocs = ATOMIC64_INIT(0);
+
+/*
+ * Report any xfs_inode still alive at module unload.  Called from
+ * xfs_destroy_caches() immediately before kmem_cache_destroy(xfs_inode_cache).
+ * By this point every superblock is gone, so anything here is a genuine leak:
+ * a reference that was taken and never dropped.
+ */
+void
+mxfs_report_leaked_inodes(void)
+{
+	struct xfs_inode	*ip;
+	unsigned long		flags;
+	int			n = 0;
+
+	spin_lock_irqsave(&mxfs_live_inodes_lock, flags);
+	list_for_each_entry(ip, &mxfs_live_inodes, i_mxfs_live_link) {
+		struct inode *vip = VFS_I(ip);
+
+		n++;
+		if (n > 16)
+			continue;
+		pr_warn("mxfs: P202-LEAKED-INODE-AT-UNLOAD ino=%llu ip=%px icount=%d i_state=0x%lx mode=0%o nlink=%u iflags=0x%lx pincount=%d dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d stale_src=%u bastq_src=%u itemp=%d in_ail=%d age_ms=%u GRAB=file%u:line%u dwork_pending=%d dwork_timer=%d bwork_pending=%d unpub_linked=%d demoter=%d dentries=%d lru_linked=%d sblist_linked=%d hashed=%d wcount=%d iget_caller=%pS — xfs_inode still allocated at module unload; this is why kmem_cache_destroy(mxfs_inode) reports objects in use\n",
+			(unsigned long long)ip->i_ino, ip,
+			atomic_read(&vip->i_count), vip->i_state,
+			vip->i_mode, vip->i_nlink, ip->i_flags,
+			atomic_read(&ip->i_pincount),
+			ip->i_dlm_mode, ip->i_dlm_state,
+			ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
+			ip->i_dlm_pin_count,
+			ip->i_dlm_bast_pending ? 1 : 0,
+			ip->i_dlm_unpublished ? 1 : 0,
+			ip->i_dlm_stale_src, ip->i_dlm_bastq_src,
+			ip->i_itemp ? 1 : 0,
+			(ip->i_itemp && test_bit(XFS_LI_IN_AIL,
+				&ip->i_itemp->ili_item.li_flags)) ? 1 : 0,
+			jiffies_to_msecs(jiffies - ip->i_mxfs_alloc_jiffies),
+			ip->i_mxfs_grab_file, ip->i_mxfs_grab_line,
+			delayed_work_pending(&ip->i_dlm_bast_dwork) ? 1 : 0,
+			timer_pending(&ip->i_dlm_bast_dwork.timer) ? 1 : 0,
+			work_pending(&ip->i_dlm_bast_work) ? 1 : 0,
+			list_empty(&ip->i_dlm_unpub_link) ? 0 : 1,
+			ip->i_dlm_demoter ? 1 : 0,
+			hlist_empty(&vip->i_dentry) ? 0 : 1,
+			list_empty(&vip->i_lru) ? 0 : 1,
+			list_empty(&vip->i_sb_list) ? 0 : 1,
+			hlist_unhashed(&vip->i_hash) ? 0 : 1,
+			atomic_read(&vip->i_writecount),
+			(void *)ip->i_mxfs_iget_ret);
+		/*
+		 * ccloop c7ee71c6 sess27 — P206-OWNERS, the OWNERSHIP question.
+		 *
+		 * Every pairing-based instrument has now failed here (global
+		 * grab/release balance, the refcount-level table, and the
+		 * final-tenure scoping added this session, which measured its
+		 * own failure at tenure_grabs=499).  Per the RULE-5 GPT consult
+		 * the right question is not "who incremented and never
+		 * decremented" but "WHICH OWNER OBJECT still contains this
+		 * inode".  drgn/crash/gdb and debug symbols are all absent from
+		 * the test nodes, so the reverse-search has to be done from
+		 * inside the module — which is fine for the VFS structures that
+		 * pin an inode INVISIBLY and that nothing has ruled out yet.
+		 *
+		 * Each of these holds (or implies something holds) a reference:
+		 *   fsnotify   an fsnotify mark connector pins the inode
+		 *   flctx      a file_lock_context implies open file state
+		 *   iprivate   fs/device private pointer (xfs uses it for RT
+		 *              zones on S_ISREG; a DIRECTORY with it set is
+		 *              anomalous)
+		 *   nrpages    page cache still attached
+		 *   readcount  files open read-only
+		 *   dentries   printed as a COUNT, not the boolean above — a
+		 *              hashed inode with one lingering alias reads as
+		 *              "0 dentries" in the boolean and is invisible
+		 */
+		{
+			int	nd = 0;
+			struct dentry *de;
+
+			hlist_for_each_entry(de, &vip->i_dentry, d_u.d_alias)
+				nd++;
+			pr_warn("mxfs: P206-OWNERS ino=%llu fsnotify=%d flctx=%d iprivate=%d nrpages=%lu readcount=%d dentry_count=%d i_state=0x%lx i_opflags=0x%x — which OWNER object still contains this inode\n",
+				(unsigned long long)ip->i_ino,
+				rcu_access_pointer(vip->i_fsnotify_marks) ? 1 : 0,
+				vip->i_flctx ? 1 : 0,
+				vip->i_private ? 1 : 0,
+				vip->i_data.nrpages,
+				atomic_read(&vip->i_readcount),
+				nd, vip->i_state, (unsigned)vip->i_opflags);
+		}
+		/*
+		 * sess26 P205-REFBAL — which HALF of the code holds the survivor.
+		 *
+		 * P203-LEVEL names the grab occupying each refcount level but is
+		 * sound only under LIFO release order, so it cannot prove who
+		 * leaked.  This does not depend on order at all:
+		 *   net == icount  -> the survivor came through mxfs_igrab_tracked,
+		 *                     i.e. an MXFS igrab site still holds it.
+		 *   net == 0       -> every tracked grab was matched; the survivor
+		 *                     is an UNTRACKED xfs_iget reference whose plain
+		 *                     iput never came, which points at the
+		 *                     lookup/VFS handoff rather than MXFS's own
+		 *                     igrab sites.
+		 * Anything in between means both, and the difference from icount is
+		 * how many untracked references survive.
+		 */
+		pr_warn("mxfs: P205-REFBAL ino=%llu icount=%d tgrabs=%u tputs=%u net=%d verdict=%s\n",
+			(unsigned long long)ip->i_ino,
+			atomic_read(&vip->i_count),
+			(unsigned int)ip->i_mxfs_tgrabs,
+			(unsigned int)ip->i_mxfs_tputs,
+			(int)ip->i_mxfs_tgrabs - (int)ip->i_mxfs_tputs,
+			((int)ip->i_mxfs_tgrabs - (int)ip->i_mxfs_tputs) ==
+				atomic_read(&vip->i_count) ? "BALANCED-XFS-SIDE (an XFS/MXFS grab is unreleased)" :
+			((int)ip->i_mxfs_tgrabs - (int)ip->i_mxfs_tputs) == 0 ?
+				"XFS-SIDE-BALANCED (survivor is a VFS-side ref: dentry/d_splice_alias path)" :
+				"UNEXPLAINED (VFS igrab/iput outside both chokepoints)");
+		/*
+		 * Replay the reference-event ring oldest-first.  The grab with
+		 * no matching release below it is the leak.  kind 1 = xfs_iget
+		 * handed a ref to this caller, 0 = xfs_irele from this caller,
+		 * 2/3 = igrab/iput inside a tagged MXFS file (printed as
+		 * file:line, since those sites are macro-tagged not IP-tagged).
+		 */
+		/*
+		 * sess25: the OUTSTANDING-GRAB STACK is the answer; the ring
+		 * below is only corroborating history.  Anything still on this
+		 * stack is a grab with no matching release — i.e. the leak
+		 * itself, named by site.  A nonzero under= means a release was
+		 * paired against a grab older than tracking, so the stack's
+		 * pairing assumption failed and its contents must not be
+		 * trusted for that inode.
+		 */
+		{
+			int	k;
+
+			/*
+			 * sess27: the table is now scoped to the FINAL busy
+			 * tenure (cleared at every i_count->0 in
+			 * xfs_fs_drop_inode), so the LIFO objection that made
+			 * the sess25/26 reading unsound no longer applies —
+			 * there is only one tenure's worth of grabs in it.
+			 *
+			 * tenure_grabs=0 is a RESULT, not a missing
+			 * measurement: no MXFS-tracked site opened the final
+			 * tenure, so the surviving reference came from a VFS
+			 * path (ihold/__iget) unhookable from a filesystem.
+			 * zero_seq=0 instead means this inode NEVER passed
+			 * through i_count==0 on our watch, which would
+			 * contradict lru_linked=1 and indicts the instrument.
+			 */
+			pr_warn("mxfs: P203-GRABLEVELS ino=%llu icount=%d over=%u zero_seq=%u tenure_grabs=%u tenure_age_ms=%u lru_linked=%d verdict=%s — slot N names the grab that took i_count to N WITHIN THE FINAL TENURE; with icount=1 slot 1 IS the outstanding reference\n",
+				(unsigned long long)ip->i_ino,
+				atomic_read(&vip->i_count),
+				ip->i_mxfs_grabst_over,
+				ip->i_mxfs_zero_seq,
+				ip->i_mxfs_tenure_grabs,
+				ip->i_mxfs_zero_seq ?
+				  jiffies_to_msecs(jiffies -
+					ip->i_mxfs_zero_jiffies) : 0,
+				list_empty(&vip->i_lru) ? 0 : 1,
+				ip->i_mxfs_zero_seq == 0 ?
+				  "NEVER-HIT-ZERO (instrument suspect: contradicts lru_linked)" :
+				ip->i_mxfs_tenure_grabs == 0 ?
+				  "VFS-SIDE (no MXFS-tracked grab opened the final tenure)" :
+				  "MXFS-SIDE (a tracked grab opened the final tenure — see LEVEL[1])");
+			for (k = 0; k < MXFS_GRABST_N; k++) {
+				unsigned long who = ip->i_mxfs_grabst[k];
+
+				if (!who)
+					continue;
+				/* kind 2 = igrab inside a tagged MXFS file
+				 * (packed file:line); kind 1 = xfs_iget handing
+				 * out a ref (a raw return address). */
+				if (ip->i_mxfs_grabst_kind[k] == 2)
+					pr_warn("mxfs:   P203-LEVEL[%d] site=file%lu:line%lu\n",
+						k + 1, who >> 32,
+						who & 0xffffffffUL);
+				else
+					pr_warn("mxfs:   P203-LEVEL[%d] %pS\n",
+						k + 1, (void *)who);
+			}
+		}
+		{
+			int	k;
+
+			for (k = 0; k < MXFS_REFEV_N; k++) {
+				int	idx = (ip->i_mxfs_refev_head + k) %
+						MXFS_REFEV_N;
+				unsigned long	who = ip->i_mxfs_refev_ip[idx];
+				unsigned char	kind = ip->i_mxfs_refev_kind[idx];
+
+				if (!who)
+					continue;
+				if (kind >= 2)
+					pr_warn("mxfs:   P202-REFEV[%d] %s site=file%lu:line%lu count_after=%u\n",
+						k, kind == 2 ? "GRAB" : "RELE",
+						who >> 32, who & 0xffffffffUL,
+						ip->i_mxfs_refev_cnt[idx]);
+				else
+					pr_warn("mxfs:   P202-REFEV[%d] %s %pS count_after=%u\n",
+						k, kind == 1 ? "IGET" : "IRELE",
+						(void *)who,
+						ip->i_mxfs_refev_cnt[idx]);
+			}
+		}
+	}
+	spin_unlock_irqrestore(&mxfs_live_inodes_lock, flags);
+
+	/*
+	 * ALWAYS print, including leaked=0.  A probe that is silent when clean
+	 * cannot be told apart from a probe that never ran (or from a registry
+	 * that was never populated), and this session has already been burned
+	 * twice by counting probes that were not measuring what they seemed to.
+	 * `tracked=` is the running total of allocations so a zero leak count
+	 * comes with proof that the registry was live.
+	 */
+	pr_warn("mxfs: P202-LEAKED-INODE-TOTAL leaked=%d tracked_allocs=%llu track_enabled=%d (printed at most 16)\n",
+		n, (unsigned long long)atomic64_read(&mxfs_live_inode_allocs),
+		mxfs_live_inode_track);
+}
+
+/*
  * Allocate and initialise an xfs_inode.
  */
 struct xfs_inode *
@@ -180,9 +423,25 @@ xfs_inode_alloc(
 	spin_lock_init(&ip->i_ioend_lock);
 	ip->i_next_unlinked = NULLAGINO;
 	ip->i_prev_unlinked = 0;
+	ip->i_unlinked_bucket = -1;
+	atomic_set(&ip->i_mxfs_open_n, 0);
+	ip->i_mxfs_open_pub = false;
+	ip->i_mxfs_open_setting = false;
 
 	/* MXFS DLM lock cache */
 	mxfs_dlm_inode_init(ip);
+
+	/* sess23: join the live registry (see mxfs_report_leaked_inodes). */
+	INIT_LIST_HEAD(&ip->i_mxfs_live_link);
+	ip->i_mxfs_alloc_jiffies = jiffies;
+	if (mxfs_live_inode_track) {
+		unsigned long	flags;
+
+		spin_lock_irqsave(&mxfs_live_inodes_lock, flags);
+		list_add(&ip->i_mxfs_live_link, &mxfs_live_inodes);
+		spin_unlock_irqrestore(&mxfs_live_inodes_lock, flags);
+		atomic64_inc(&mxfs_live_inode_allocs);
+	}
 
 	return ip;
 }
@@ -236,6 +495,29 @@ xfs_inode_free_callback(
 		xfs_inode_item_destroy(ip);
 		ip->i_itemp = NULL;
 	}
+
+	/*
+	 * sess23: leave the live registry.  This is the last instant before the
+	 * object returns to the slab, so the list stays an exact mirror of the
+	 * cache's live objects.  list_del_init() (not list_del) so a double
+	 * free would be visible rather than corrupting the list.
+	 */
+	if (!list_empty(&ip->i_mxfs_live_link)) {
+		unsigned long	flags;
+
+		spin_lock_irqsave(&mxfs_live_inodes_lock, flags);
+		list_del_init(&ip->i_mxfs_live_link);
+		spin_unlock_irqrestore(&mxfs_live_inodes_lock, flags);
+	}
+
+	/*
+	 * sess29: the slab does NOT zero this object on the next allocation, so
+	 * a demoter claim still set here is inherited by whatever inode lands on
+	 * this memory next and makes mxfs_foreign_demoter() true for it from
+	 * birth — a permanent strand nothing can own or clear.  Must be the last
+	 * thing before the free.
+	 */
+	mxfs_dlm_inode_final_release(ip);
 
 	kmem_cache_free(xfs_inode_cache, ip);
 }
@@ -850,7 +1132,7 @@ xfs_iget_recycle(
 					be32_to_cpu(dip->di_gen);
 				/* ccloop-4dd7: prior-life intent must not leak
 				 * into the new life (sess37 flag-leak). */
-				xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK);
+				xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK | MXFS_IF_ADOPTED_UNLINK);
 				pr_warn_ratelimited(
 				    "mxfs: P-RECYCLE-SANITIZE ino=%llu disk_gen=%u — peer-freed dead shell reset to free (missed local uninit emulated)\n",
 				    (unsigned long long)ip->i_ino,
@@ -2154,6 +2436,14 @@ again:
 	 */
 	if (xfs_iflags_test(ip, XFS_INEW) && VFS_I(ip)->i_mode != 0)
 		xfs_setup_existing_inode(ip);
+	/* sess23: attribute the reference this call is handing to its caller. */
+	ip->i_mxfs_iget_ret = _RET_IP_;
+	/* sess26 P205-REFBAL: xfs_iget hands the caller a reference that is NOT
+	 * an mxfs_igrab_tracked grab.  Count it, or the balance is asymmetric in
+	 * the other direction (releases via xfs_irele would drive net negative). */
+	if (ip->i_mxfs_tgrabs < 0xffff)
+		ip->i_mxfs_tgrabs++;
+	mxfs_refev_rec(ip, _RET_IP_, 1);
 	return 0;
 
 out_error_or_again:

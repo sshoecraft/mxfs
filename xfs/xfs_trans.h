@@ -169,6 +169,25 @@ typedef struct xfs_trans {
 						       * state (priority-3 dir-stale
 						       * + Free-inode-has-blocks). */
 	unsigned long		t_pflags;	/* saved process flags state */
+	/*
+	 * sess103 step 5.3 (P1 of the sess102 RULE-5 ruling): globally unique
+	 * id of this transaction's authority-CAPTURE WINDOW.
+	 *
+	 * The authority proof for a logged buffer image must name the grant
+	 * that authorized the MUTATION, so it is captured at the first
+	 * protected dirtying of the buffer and kept immutable until the
+	 * formatter serializes it.  The window key cannot be the `tp` POINTER:
+	 * transactions come from a slab and an address is reused, so a stale
+	 * key could alias a fresh transaction and suppress the recapture — the
+	 * exact stale-epoch stamp this whole change exists to prevent.
+	 *
+	 * Assigned lazily (0 => unassigned) from a global monotonic counter on
+	 * the first capture; zeroed for free by kmem_cache_zalloc in both
+	 * xfs_trans_alloc and xfs_trans_dup, so a ROLLED transaction correctly
+	 * opens a NEW window (it re-joins and re-logs its buffers, and the
+	 * tenure it holds at that point is the one that authorizes them).
+	 */
+	uint64_t		t_mxfs_capseq;
 } xfs_trans_t;
 
 /*

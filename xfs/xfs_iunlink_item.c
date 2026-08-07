@@ -90,6 +90,16 @@ xfs_iunlink_log_dinode(
 			mbli ? 1 : 0,
 			(mbli && (mbli->bli_flags & XFS_BLI_DIRTY)) ? 1 : 0,
 			mxfs_buf_has_uncheckpointed_mods(ibp) ? 1 : 0);
+		/* sess48: every fatal carries the store's view of this ino
+		 * (record present+value+homed vs absent) — the c2-392 fatal
+		 * had ZERO store telemetry, leaving the record lifecycle at
+		 * the mismatch undetermined. */
+		if (tp->t_mountp->m_mxfs_dlm) {
+			extern void mxfs_iunl_store_query_print(
+				struct xfs_mount *, uint64_t);
+
+			mxfs_iunl_store_query_print(tp->t_mountp, ip->i_ino);
+		}
 
 		/*
 		 * sess53 (RULE 4, PROVEN tcp_dlm_scaling iunlink corruption fix):
@@ -132,6 +142,20 @@ xfs_iunlink_log_dinode(
 	xfs_dinode_calc_crc(tp->t_mountp, dip);
 	xfs_trans_inode_buf(tp, ibp);
 	xfs_trans_log_buf(tp, ibp, offset, offset + sizeof(xfs_agino_t) - 1);
+	/* sess47 A-prime: record the committed value at MOUNT scope until its
+	 * home write completes — the only defense that survives inode reclaim
+	 * + buffer teardown (fossil producer, memories TAIL7-TAIL11). */
+	if (tp->t_mountp->m_mxfs_dlm) {
+		extern void mxfs_iunl_store_record(struct xfs_mount *,
+				uint64_t, uint32_t, uint32_t, xfs_daddr_t,
+				uint16_t);
+
+		mxfs_iunl_store_record(tp->t_mountp, ip->i_ino,
+				       VFS_I(ip)->i_generation,
+				       iup->next_agino,
+				       ibp->b_maps[0].bm_bn,
+				       ip->i_imap.im_boffset);
+	}
 	return 0;
 out:
 	xfs_trans_brelse(tp, ibp);

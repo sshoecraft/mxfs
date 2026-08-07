@@ -56,22 +56,73 @@ read state.md
 
 ## Previous session
 
-- session-id: `c9a99ab2-cbac-4873-892d-3c8b2e519d90`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/c9a99ab2-cbac-4873-892d-3c8b2e519d90.jsonl`
-- approx context at last assistant turn: unknown tokens
-- tools used: none
+- session-id: `5eb65340-1fe9-4cf5-b54e-81ffb89cea71`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/5eb65340-1fe9-4cf5-b54e-81ffb89cea71.jsonl`
+- approx context at last assistant turn: 507821 tokens
+- tools used: Bash×162 Edit×34 TaskUpdate×10 TaskCreate×6 mcp__ccmemory__memory_write×6 mcp__ccmemory__memory_get×5 ToolSearch×4 mcp__ask_gpt__query×4 Read×2 Write×2 mcp__ccusage__get_context_usage×2 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_search×1
 
 ## Files written or edited in the previous session
 
-_(none)_
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/CHANGELOG.md
+- /src/mxfs/xfs/libxfs/xfs_trans_inode.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/state.md
+- /src/mxfs/tests/suite/crash_consistency.sh
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-_(none)_
+    r=/tmp/run_crash_consistency_20260731T131837Z; timeout 15 grep -rh "victim\|kill\|VICTIM" $r/summary* $r/*.txt 2>/dev/null | head -8; ls $r/ | grep -iE "victim|
+    r=/tmp/run_crash_consistency_20260731T131837Z; ls $r | grep -v "dmesg\|kernlog\|^test[0-9]*$" | head -10; timeout 15 grep -l "node5_f1" $r/test*_drc_stream* 2>/
+    timeout 20 grep -n "victim\|kill\|f1\|durable" tests/suite/crash_consistency.sh | head -20
+    timeout 15 sed -n '1,56p' tests/suite/crash_consistency.sh
+    timeout 15 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defs = d if isinstance(d, list) else d.get('defects', d) lst 
+    for k in 1 2 3; do echo "lap$k load=$(cut -d' ' -f1-3 /proc/loadavg)"; timeout 300 ./run.sh 32 caw crash_consistency 2>&1 | grep -E "PASS|FAIL|BLOCK" | tail -1;
+    timeout 15 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defs = d if isinstance(d, list) else d.get('defects', d) lst 
+    timeout 15 sed -n '56,100p' tests/suite/crash_consistency.sh
+    timeout 20 tools/mxfs_sshpass.sh test1 "ls /mnt/shared/.crash_consistency/.cc_forensic_* 2>/dev/null; cat /mnt/shared/.crash_consistency/.cc_forensic_r2 /mnt/sh
+    timeout 15 tools/mxfs_sshpass.sh test1 "stat -c 'size=%s blocks=%b ino=%i' /mnt/shared/.crash_consistency/node5_f1 /mnt/shared/.crash_consistency/node6_f1 2>/de
+    o=tests/logs/sess33_crash_md5_mismatch; timeout 20 tools/mxfs_sshpass.sh test1 "cat /mnt/shared/.crash_consistency/.cc_forensic_r2 /mnt/shared/.crash_consistenc
+    timeout 20 grep -n "blkdev_flush\|blkdev_issue_flush" xfs/xfs_mxfs_dlm.c pal/linux/*.c | head -12; echo ===CLUSTER-DURABLE-TAIL===; timeout 25 awk '/^mxfs_inode
+    timeout 15 sed -n '1279,1330p' xfs/xfs_mxfs_dlm.c; echo ===7215-7245===; timeout 15 sed -n '7215,7245p' xfs/xfs_mxfs_dlm.c
+    timeout 20 tools/mxfs_sshpass.sh test5 "echo 1 > /sys/module/mxfs/parameters/release_barrier_dump 2>/dev/null; echo 1 > /sys/module/mxfs/parameters/cluster_auth
+    b=/tmp/claude-1000/-src-mxfs/5eb65340-1fe9-4cf5-b54e-81ffb89cea71/scratchpad/bulk_crash_run; timeout 20 grep -h "ino=18876678\|18876678" $b/kernlog_test5 2>/dev
+    b=/tmp/claude-1000/-src-mxfs/5eb65340-1fe9-4cf5-b54e-81ffb89cea71/scratchpad/bulk_crash_run; for f in $b/kernlog_test*; do n=$(basename $f); c=$(timeout 8 grep 
+    b=/tmp/claude-1000/-src-mxfs/5eb65340-1fe9-4cf5-b54e-81ffb89cea71/scratchpad/bulk_crash_run; timeout 25 grep -H "P170-CLWR daddr=18841320" $b/kernlog_* 2>/dev/n
+    b=/tmp/claude-1000/-src-mxfs/5eb65340-1fe9-4cf5-b54e-81ffb89cea71/scratchpad/bulk_crash_run; timeout 20 grep -h "13:19:0[4-9]" $b/kernlog_test5 2>/dev/null | gr
+    b=/tmp/claude-1000/-src-mxfs/5eb65340-1fe9-4cf5-b54e-81ffb89cea71/scratchpad/bulk_crash_run; timeout 20 grep -B1 -A1 "P170-CLWR daddr=18841320" $b/kernlog_test5
+    timeout 15 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) lst = d if isinstance(d, list) else d.get('defects', d) lst =
 
 ## Last text from previous session
 
-_(no text turn — session may have crashed mid-tool)_
+ sed matched `epoch_obligation` — extraction bug on my side. Re-pulling the full lines.
+Building 0.11.287 with the P234 source counter and deploying for a measurement lap.
+All PASS. Reading the P234 source-counter results — the unlink-heavy laps are exactly the inactivation producers.
+Building 0.11.289 and deploying for the full board (behavioral change → full board per standing method).
+Full 289 board green at healthy walls. Collecting the EX-gate counters and P235 prints.
+Now refreshing state.md (relay insurance) and reading the defect ledger to prioritize the next increment.
+crash_consistency produced no verdict line at all — checking the full output to understand cluster state.
+dd back to 65s — the 240s lap was a transient. Checking for hung-task warnings during that window (a self-recovered wedge episode would leave 120s-threshold traces).
+The stuck acquire keeps growing — 4 PR holders never release. This may be the wedge recurrence, injection-amplified, live right now. Fleet D-state census before anything else, per the capture protocol.
+590k remaining — continuing the repro hunt. Running crash laps with load recorded per lap.
+While the consult runs, refreshing state.md with the day's full state.
+GPT's filter false-positived on the wording. Rephrasing in neutral filesystem-engineering terms and retrying.
+Relay boundary — wrapping up.
+
+**Criteria: NO — not production ready.** The ledger now holds **12 OPEN defects (7 critical, 4 major, 1 minor)** against RULE 6's zero-defect bar; the marker stays unwritten.
+
+**Session 15 (sess33) delivered seven shipped builds (0.11.286→292), all boarded, plus one major new investigation:**
+
+- **286**: writer-quiescence admission barrier (`i_mxfs_ilk_wr_held` census, GPT-reviewed) — replaces the rarely-winning trylock; deferred=0 across ~232k unlocks since, no reader convoy possible by construction.
+- **287-290**: the P234 source counter proving GPT's closure criterion 3 — obligations stamped without cluster authority measured **strict zero** (after two honest sensor refinements: the pipeline's own re-log arms, then the mid-drain `ex_holders` authority form). The **inodegc/orphan class closed by audit + measurement** — MXFS's synchronous inactivation is structurally the reacquire design GPT prescribed.
+- **289**: EX-side epoch gate default-ON (dead-tenure staged images masked from EX-held writes; ~1 skip/node/board, zero unlanded).
+- **292**: the **CAW idle-holder starvation root fix**, proven by live intervention — a 23.7-minute EX starvation cleared seconds after a manual touch on one of 4 post-strikeout idle PR holders; the strikeout now downshifts to a 1s keep-alive instead of stranding peers.
+- **ICLUSTER campaign opened** (GPT ruled the mask family is containment, not closure — write-unit ownership required): first knob=1 boards in 274 builds are green including the historically-failing dlm_fairness; two campaign blockers captured (an unattributed conv-worker wedge; a knob=1-only readdir undercount **with a working reproducer**).
+- **New critical D-CRASH-COLDREAD-STALE-SPLIT**, captured end-to-end: all remote readers plus the evicted writer read a recycled-ino file at its mid-write state while the ledger honestly read closed. The archive decode converged on a sharp mechanism: **overlapping same-cluster writes completing out of order** (`mxfs_submit_partial_inode_write`, 14+ concurrent submissions of one buffer — upstream XFS forbids this by construction), with the ledger discharged by an early-completing new-image write while an older-image write landed last. The crash harness now self-captures on any recurrence.
+
+Everything is durably recorded: ledger updated (three entries touched, one added), CHANGELOG through 292, five sess33 ccmemory notes, fresh state.md with the ordered resume program (next move: read `mxfs_submit_partial_inode_write` at `pal/linux/xfs_buf.c:3028`, consult via Gemini since GPT's filter false-positived twice, then serialize-or-version-guard the cluster writes).
 
 ## Continue
 

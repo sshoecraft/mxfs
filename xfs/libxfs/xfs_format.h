@@ -399,6 +399,17 @@ xfs_sb_has_ro_compat_feature(
 #define XFS_SB_FEAT_INCOMPAT_METADIR	(1 << 8)  /* metadata dir tree */
 #define XFS_SB_FEAT_INCOMPAT_ZONED	(1 << 9)  /* zoned RT allocator */
 #define XFS_SB_FEAT_INCOMPAT_ZONE_GAPS	(1 << 10) /* RTGs have LBA gaps */
+/*
+ * sess42 C7 (MXFS): protocol-gated cluster filesystem.  Set by mkfs_mxfs on
+ * every gated format.  Every pre-gate mxfs kernel inherits the strict
+ * unknown-incompat refusal below, so old code cannot mount a gated
+ * filesystem at all — this bit is the PREVENTATIVE version gate; the
+ * envelope cluster_proto_gen and the disklock HB feature block are the
+ * live-enforcement layers among gate-aware kernels.  A high bit keeps
+ * clear of upstream's low-bit allocations (collision watch: re-audit on
+ * every upstream merge).
+ */
+#define XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE	(1 << 30)
 
 #define XFS_SB_FEAT_INCOMPAT_ALL \
 		(XFS_SB_FEAT_INCOMPAT_FTYPE | \
@@ -411,7 +422,8 @@ xfs_sb_has_ro_compat_feature(
 		 XFS_SB_FEAT_INCOMPAT_PARENT | \
 		 XFS_SB_FEAT_INCOMPAT_METADIR | \
 		 XFS_SB_FEAT_INCOMPAT_ZONED | \
-		 XFS_SB_FEAT_INCOMPAT_ZONE_GAPS)
+		 XFS_SB_FEAT_INCOMPAT_ZONE_GAPS | \
+		 XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE)
 
 #define XFS_SB_FEAT_INCOMPAT_UNKNOWN	~XFS_SB_FEAT_INCOMPAT_ALL
 static inline bool

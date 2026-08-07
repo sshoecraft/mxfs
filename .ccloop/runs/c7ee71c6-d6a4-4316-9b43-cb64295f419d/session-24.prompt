@@ -1,0 +1,143 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 24 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 23
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `6472d82d-cfbe-4c13-9340-871602173f8d`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/6472d82d-cfbe-4c13-9340-871602173f8d.jsonl`
+- approx context at last assistant turn: 504572 tokens
+- tools used: Bash×209 Edit×36 mcp__ccmemory__memory_write×4 Write×2 mcp__ask_gpt__query×2 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/pal/linux/xfs_file.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/tests/openunlink_matrix.sh
+- /src/mxfs/run.sh
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/tests/openunlink_deaths.sh
+- /src/mxfs/xfs/xfs_inode.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 590 tests/openunlink_deaths.sh opener_death test1 test2 2>&1
+    for i in 1 2 9; do R=$(tools/mxfs_sshpass.sh test$i "dmesg | grep -c 'P227-FR-ATOMIC-SKIP'" 2>/dev/null); echo "test$i P227=$R"; done; timeout 590 ./run.sh 32 c
+    timeout 590 ./run.sh 32 caw posix_multi mmap_coherency dlm_fairness dlm_membership dlm_scaling dirent_publish_integrity dirent_durability 2>&1 | grep -E "^  (PA
+    timeout 590 ./run.sh 32 caw crash_consistency fence_during_write fault_netpartition soak node_responsive kernel_health 2>&1 | grep -E "^  (PASS|FAIL)"
+    timeout 590 ./run.sh 32 caw ag_strand_repair sustained_load dlm_lock_correctness dirent_type_integrity dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)"
+    for i in 1 2 16; do R=$(tools/mxfs_sshpass.sh test$i "mount -t mxfs | wc -l; dmesg | grep -E 'SHUTDOWN|shutdown|unrecoverable|Internal error' | tail -3 | cut -c
+    L=$(ls -td /tmp/run_dir_reuse_coherency_* 2>/dev/null | head -1); echo "$L"; grep -rE "FAIL|failed" $L/*test1* 2>/dev/null | head -8
+    for i in 1 13 32; do R=$(tools/mxfs_sshpass.sh test$i "dmesg | grep -c 'P88-REAP-RETRY'; dmesg | grep -c 'P92-REAP-RETIRE'" 2>/dev/null | tr '\n' ' '); echo "te
+    timeout 30 python3 -c " import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) defs=d['defects'] if isinstance(d,dict) else d for x in defs:     i=x.
+    ls tests/host_write_sampler.sh 2>/dev/null && O=/tmp/claude-1000/-src-mxfs/6472d82d-cfbe-4c13-9340-871602173f8d/scratchpad/hs_349.txt && mkdir -p $(dirname $O) 
+    timeout 20 python3 -c " import re vals=[] for l in open('/tmp/claude-1000/-src-mxfs/6472d82d-cfbe-4c13-9340-871602173f8d/scratchpad/hs_349.txt'):     m=re.searc
+    timeout 300 ./run.sh 32 caw dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)"
+    timeout 30 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defs=d['defects'] if isinstance(d,dict) and 'defects' in d el
+    timeout 480 tests/openunlink_matrix.sh test1 test2 test3 2>&1 | grep -E "RESULT|SUMMARY"; timeout 200 tests/agi_bucket_repro.sh pair test1 test2 2>&1 | grep -E 
+    tools/mxfs_sshpass.sh test2 "dmesg | grep -E 'ino=141[ ,]' | grep -E 'P87|P88|P89|P19-B3DEC|INACT' | tail -8 | cut -c1-185" 2>/dev/null
+    for i in 1 2 3; do echo "== test$i:"; tools/mxfs_sshpass.sh test$i "dmesg | grep -E 'ino=141[ ,]' | tail -5 | cut -c1-165" 2>/dev/null; done
+    S=tools/mxfs_sshpass.sh; D=$($S test1 "ls -d /mnt/shared/.oum_* 2>/dev/null | head -1" 2>/dev/null); echo "base=$D"; $S test2 "ls -la $D/multi/ 2>&1 | head -4; 
+    S=tools/mxfs_sshpass.sh; echo "== test1 view:"; $S test1 "ls $D 2>/dev/null; ls -la /mnt/shared/.oum_1785618389_2705261/multi/ 2>&1 | head -4" 2>/dev/null; echo
+    tools/mxfs_sshpass.sh test2 "dmesg | awk -F'[][ ]+' '\$2+0>=1500 && \$2+0<=1800' | grep -viE 'P13-INSTR|P135|P138-BAST|P51-REL|P147|P70-BP|GRANT' | grep -iE 'er
+    timeout 30 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defs=d['defects'] if isinstance(d,dict) and 'defects' in d el
+
+## Last text from previous session
+
+44 with the sweep:
+Timed out with buffered output lost. Checking actual cluster state directly:
+Nodes rejoin via `tests/setup/prep_node.sh`. Finishing the retire-only wiring:
+Still leaked. Tracing this run's reap decisions:
+Restoring test2 into the cluster with the same recipe, then rerunning the case end-to-end:
+Now per RULE 5, gathering the replay-gating facts before the GPT consult:
+Board fully green on 347. Now the opener_death arm:
+B6 keeps seeing the dead opener's bit (`0x1` = slot 0) — no purge line on test2 at all. Checking which node (if any) ran recovery for slot 0:
+Recovery of slot 0 is stuck cluster-wide at PENDING. Finding the elected replayer and why it stalled:
+test9 completed the whole chain — likely after my 240s window (lease expiry for a dead node is minutes). Checking whether B's reap freed once the purge landed:
+Adding the GPT-approved transaction-atomic skip in the same build (independent verification per fix):
+Extending the opener_death window to cover lease-bound recovery, checking the actual lease default, then deploying 349:
+Both death cases PASS on 349 — the purge fix cut opener-death convergence from never to 93s. Running the full regression suite on 349:
+Two regressions vs 343 (multi_opener, mmap_only — "reap stuck"). Evidence before hypotheses:
+A and C behaved perfectly; **B has zero trace of the victim at all** — no defer, no inactivation, nothing. Checking the victim's current state on B:
+EIO on the parent directory from B. Scoping the damage:
+**Criteria: NO — not production ready. 8 defects remain OPEN against the RULE-6 zero-defect bar, plus one undiagnosed regression mid-investigation.**
+
+## What this session (23) accomplished
+
+**Closed a critical defect end-to-end:** D-PEER-TRUNCATE-INVISIBLE-TO-PRIOR-HOLDER — found by new test coverage, root-caused live (the `RELOAD-SIZE-DROP-SKIP` guard rested on "a peer never truncates our file" — workload lore, not POSIX — and kept a stale size *and freed-extent map*, a cross-file-leak class), fixed by gating the skip to mid-tenure reloads only, and verified (P96 adopt fires; new trunc cases pass; full board green). **FIXED AND VERIFIED** in the ledger.
+
+**Shipped and verified the GPT-audited open-tracking safety set** (0.11.342–349): publish now rides the release CAS atomically; the open-at-NL dcache-reopen hole is closed fail-closed at `open()`; eager bit-clear at last close; B6 fails closed on unreadable bitmaps; recovery can no longer free without EX; icluster mounts are refused pending publish support.
+
+**Built and verified the survivor sweep (C8)** through three successively-proven leak roots (dentry pinning, reload flag-stripping, stale cached nlink — each caught by the new `openunlink_deaths.sh` harness). Both crash arms now pass: **unlinker_death** (data intact through B's death, zombie swept, adopted-authority freed 6s after close) and **opener_death** (a dead opener's bits are now actually stripped — the purge's skip predicates had missed `open_holders` entirely — convergence in 93s).
+
+**Captured the foreign-replay tear doing live damage** — half-applied unlink (inode item applied, dirent+AGI buffer images skipped) manufacturing a `d?????????` dirent over an off-list zombie — and shipped the GPT-approved transaction-atomic skip (P227) as containment. The authority-protocol defect stays OPEN with a deterministic 2-minute reproducer it never had before.
+
+**Board state:** 22/22 criteria green on 0.11.349 at 32 nodes, `crash_consistency` 204/204 with the atomic skip, AGI repro clean.
+
+## For the next session
+First: the open investigation recorded in the ledger — `multi_opener`/`mmap_only` matrix cases fail on 349 because test2's `rm` never executed (EIO on the case subtree; suspect a wrong-generation parent-dir adoption, `P95-SAMETYPE-RELOAD` gen mismatch on ino=133). Fresh prep, run the case alone, catch the first EIO producer. Then C7 (version gate) and C9 (TCP open tracking), both with GPT-validated designs already in the transcript and memory.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

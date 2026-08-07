@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 31 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 30
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `e3a53544-9238-4a45-81ef-6b43c03a7477`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e3a53544-9238-4a45-81ef-6b43c03a7477.jsonl`
+- approx context at last assistant turn: 501150 tokens
+- tools used: Bash×242 Edit×51 mcp__ccmemory__memory_write×18 Read×10 Write×2 mcp__ask_gpt__query×2 mcp__ccmemory__memory_get×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_buf.c
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/iunl_soak_sweep.sh
+- /src/mxfs/xfs/xfs_iunlink_item.c
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/dlm/v5_mount.h
+- /src/mxfs/xfs/libxfs/xfs_ag.h
+- /src/mxfs/xfs/libxfs/xfs_log_format.h
+- /src/mxfs/pal/linux/xfs_buf_item.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '38825,38845p' /src/mxfs/xfs/xfs_mxfs_dlm.c; echo =====; sed -n '38955,39020p' /src/mxfs/xfs/xfs_mxfs_dlm.c | head -40
+    grep -n "xfs_buf_item_format\|xfs_buf_item_size" /src/mxfs/xfs/xfs_buf_item.c | head -6; grep -n "blf_flags\|XFS_BLF_" /src/mxfs/xfs/libxfs/xfs_log_format.h | h
+    ls /src/mxfs/xfs/ | grep buf_item; sed -n '480,545p' /src/mxfs/xfs/libxfs/xfs_log_format.h
+    grep -rln "xfs_buf_item_format" /src/mxfs/xfs /src/mxfs/pal --include=*.c | head -3; grep -rn "blf_flags .*(1<<\|1 << 5\|1<<5" /src/mxfs/xfs/libxfs/xfs_log_form
+    grep -n "xfs_buf_item_size_segment\|^xfs_buf_item_size\|^xfs_buf_item_format\|xfs_buf_item_format_segment\|xlog_copy_iovec" /src/mxfs/pal/linux/xfs_buf_item.c |
+    sed -n '126,175p' /src/mxfs/pal/linux/xfs_buf_item.c; echo =====; sed -n '280,356p' /src/mxfs/pal/linux/xfs_buf_item.c
+    sed -n '201,262p' /src/mxfs/pal/linux/xfs_buf_item.c
+    sed -n '100,126p' /src/mxfs/pal/linux/xfs_buf_item.c
+    grep -rn "mxfs_v5_dlm_is_single_node" /src/mxfs/dlm/v5_mount.h /src/mxfs/xfs/xfs_mount.h /src/mxfs/include -r | head -3; grep -n "include.*v5_mount\|mxfs_v5_dlm
+    grep -n "mxfs_v5_dlm_get_node_slot" /src/mxfs/dlm/v5_mount.h; grep -n "xfs_sb_buf_ops" /src/mxfs/xfs/libxfs/xfs_shared.h | head -2
+    python3 - <<'EOF' v=open('VERSION').read().strip(); a,b,c=v.split('.') nv=f"{a}.{b}.{int(c)+1}" open('VERSION','w').write(nv+"\n"); print(v,"->",nv) EOF make mo
+    grep -n "m_mxfs_dlm;" /src/mxfs/xfs/xfs_mount.h | head -2; sed -n '1,40p' /src/mxfs/pal/linux/xfs_buf_item.c | grep -n "include\|struct mxfs" | tail -6
+    grep -n "mxfs_v5_dlm_is_single_node\|mxfs_v5_dlm_get_node_slot\|struct mxfs_v5_dlm" /src/mxfs/xfs/xfs_mxfs_dlm.h | head -5
+    make modules 2>&1 | grep -E " error|buf_item.*warning" | head -6; modinfo mxfs.ko | grep srcversion
+    grep -n "i_len" /src/mxfs/pal/linux/xfs_buf_item_recover.c | head -8; grep -rn "check_iovec" /src/mxfs/pal/linux/xfs_buf_item_recover.c | head -3
+    MXFS_FORCE_PREP=1 timeout 340 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 170 tests/reap_midlist_repro.sh test2 test1 4 2>&1 | grep -E "^RESULT" && t
+    for i in $(seq 1 32); do tools/mxfs_sshpass.sh test$i "echo 'MXFS-SOAK-MARK 397-c1' > /dev/kmsg" 2>/dev/null & done; wait 2>/dev/null; timeout 580 ./run.sh 32 c
+    timeout 580 ./run.sh 32 caw crash_consistency 2>&1 | grep -E "^  (PASS|FAIL|SKIP|BLOCK)" | tail -1
+    python3 - <<'PYEOF' entry = """## 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log  - `XFS_BLF_MXFS_AUTHORITY (1<<5)` 
+    sed -n '2030,2145p' /src/mxfs/xfs/xfs_log_recover.c
+
+## Last text from previous session
+
+ash_consistency exercises exactly that):
+Tokened logs replay cleanly through real crash recovery (204/204). Step 3a verified end-to-end. Final banking:
+**Criteria: NO — 11 defects OPEN of 39 (4 critical). Not production ready.**
+
+Step 3a is shipped and verified on 0.11.397: the 24-byte authority trailer now rides **every multi-node buffer log record in production** — emitted at CIL format time with the AG's durable grant epoch, size-and-format kept in lockstep by a shared pure predicate (closing the shadow-buffer overrun hazard before it could exist), stale segments untokenized, and recovery's bitmap-bounds check leaving the trailer invisible until the parser lands. Verification went beyond the guards: **crash_consistency passed 204/204** — real dirty-log replay of tokened records across the 32-node fleet.
+
+The foreign-replay campaign now stands at three of five steps complete in a single session: the durable `ex_grant_epoch` in the CAW slot (395), the grantee plumbing to the pag (396), the CIL-barrier audit closed as a pass, and the token in the log stream (397). What remains is read-side: the 3b report-only parser at the foreign-replay gate, the recovery descriptor + IMAGE_REPLAY_DONE machinery with victim-slot freezing, and finally swapping the P223 untagged-skip for the exact-match token gate — each specced to the line in the eighteen banked memories, with `tests/foreign_replay_ab.sh` and the five-point fault-injection protocol as the verification harness.
+
+The fossil-arm tripwires stand at fifteen consecutive quiet cycles across 394-397. After this campaign: the inode-cluster publish-authority and cross-node open-unlink criticals, the 361 rename arm, and the pace majors are the remaining distance to YES.
+Step 3b — the report-only token decoder at the foreign-replay gate:
+Relay boundary reached — wrapping the sub-step. Banking the 3b insertion points just discovered, then closing:
+**Criteria: NO — 11 defects OPEN of 39 (4 critical). Not production ready.** Relay boundary reached; the wrapper carries forward from here.
+
+Session 30 summary:
+
+**Closed: the P53 fossil-nu family (critical arm of ledger entry 361) — FIXED AND VERIFIED.** The in-kernel media-vs-transit discriminator settled the campaign's standing question in one cycle (the fossil travels in *writes*, not transit), leading to two RULE-4-proven roots: the clmerge `bli_dirty` save/restore reverting checkpointed iunlink writes in-core (fixed in 0.11.391), and the reuse-carried fossil that iflush's gen stamp launders past every gen-keyed defense (fixed by P-CREATE-NUFIX in 0.11.394 — 61 fossils healed in its first cycle). The supporting store was hardened per two GPT rulings (write-side overlay, payload-verified retire, AG-tenure scoping, live-skew refusal). Fifteen consecutive clean soak cycles against a one-fatal-per-two-cycles baseline; permanent tripwires ride every future cycle.
+
+**Advanced: the D-FOREIGN-REPLAY full fix — three of five steps shipped in-session.** Under a fresh GPT design ruling: 0.11.395 put the durable `ex_grant_epoch` in the CAW lock slot (stamped inside the granting CAS, making the fenced slot the held-at-death manifest); 0.11.396 plumbed it to `pag_mxfs_grant_epoch`; the CIL-stability audit closed as a pass (the double log-force barrier already exists); 0.11.397 put the 24-byte authority trailer into every multi-node buffer log record — verified by crash_consistency 204/204 replaying tokened logs. Step 3b's exact insertion points (the ATOMIC-SKIP taint scan and P223 per-item gate) were just mapped and banked.
+
+Nineteen memories, four CHANGELOG entries, the updated defect ledger, and four awareness docs carry the complete state. The fleet is healthy at 32/caw on 0.11.397. The relay resumes at the 3b report-only token parser, then the DONE-marker machinery and the enforcement gate — after which the remaining criticals (inode-cluster publish authority, cross-node open-unlink), the 361 rename arm, and the pace majors stand between MXFS and YES.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

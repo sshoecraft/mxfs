@@ -1,0 +1,19 @@
+{
+  "source": [
+    "tools/chk_mxfs.c",
+    "dlm/disklock.h",
+    "dlm/disklock.c",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "xfs/xfs_mount.h",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "tests/drc_phase_census.py",
+    "pal/linux/xfs_super.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/tools.md"
+  ],
+  "regen_done": true,
+  "nudges": 3
+}

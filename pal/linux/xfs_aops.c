@@ -273,6 +273,218 @@ module_param_named(fix26_delay_ms, mxfs_fix26_delay_ms, int, 0644);
 MODULE_PARM_DESC(fix26_delay_ms,
 	"DEBUG: widen the writeback folio-locked->ilock window by N ms so a peer BAST can be deterministically collided with the FIX-26 admit (0=off)");
 
+/*
+ * FIX-27 verification injection (ccloop c7ee71c6 sess24) — see xfs_map_blocks.
+ *
+ * fix26_delay_ms is placed in xfs_convert_blocks, i.e. the DELALLOC CONVERSION
+ * path, which asks for xfs_ilock(EX).  That exercises the EX admit.  It cannot
+ * exercise FIX-27, whose whole point is that the submitter's FIRST lock in this
+ * path is SHARED: xfs_map_blocks() takes xfs_ilock(ip, XFS_ILOCK_SHARED) before
+ * any conversion is considered, and a folio needing no conversion never reaches
+ * xfs_convert_blocks at all.
+ *
+ * So this injection sits at the xfs_map_blocks SHARED acquire, folio already
+ * locked.  Note the FIX-26 comment records that a v1 injection at map_blocks
+ * entry bought no window "because only the first folio of a walk converts" —
+ * true for the EX path, and exactly why it is the RIGHT place for the SHARED
+ * path: every folio's map_blocks takes the shared lock, so every one is a
+ * genuine collision candidate.  Debug-only, 0 = off.
+ */
+int mxfs_fix27_delay_ms;
+module_param_named(fix27_delay_ms, mxfs_fix27_delay_ms, int, 0644);
+MODULE_PARM_DESC(fix27_delay_ms,
+	"DEBUG: widen the writeback folio-locked->ILOCK_SHARED window in xfs_map_blocks by N ms so a peer BAST is deterministically collided with the FIX-27 shared-class admit (0=off)");
+
+/*
+ * sess25 D-UNMOUNT-BUSY-INODES A/B gate.  mxfs_dlm_evict cancels the two BAST
+ * arms, each of which was armed holding an igrab; a cancel that actually
+ * cancels QUEUED work means the work function never ran, so that reference is
+ * released by nobody.  0 = reproduce the leak (historical behaviour),
+ * 1 = release the reference the cancelled arm was holding.  Ships OFF until
+ * the paired measurement proves the mechanism, per RULE 4.
+ */
+/*
+ * sess25 A/B gate for D-BAST-IRELE-INACTIVE-SELF-WEDGE and its suspected
+ * downstream D-UNMOUNT-BUSY-INODES.  1 restores the pre-fix i_dlm_demoter
+ * behaviour (an unconditional store that overwrites a live foreign claim and
+ * an unconditional clear), so the wedge can be re-armed on ONE build and the
+ * fix measured against its own negative control.  NEVER ship on.
+ */
+int mxfs_demoter_legacy_clobber;
+module_param_named(demoter_legacy_clobber, mxfs_demoter_legacy_clobber, int, 0644);
+MODULE_PARM_DESC(demoter_legacy_clobber,
+	"A/B ONLY: restore the pre-sess25 unqualified i_dlm_demoter claim (reproduces D-BAST-IRELE-INACTIVE-SELF-WEDGE); 0=fixed (default), 1=broken");
+
+/*
+ * sess26 TEST-ONLY wedge injector.  Makes mxfs_dlm_bast_work_fn drop its own
+ * demoter claim immediately before its trailing xfs_irele — the exact state a
+ * stolen claim leaves it in.  The theft and the wedge have different rates (a
+ * legacy-clobber arm measured 30 live-claim steals with wedge_precond=0,
+ * because the wedge also needs that irele to be the LAST reference so it
+ * cascades into inactivation), so this forces the missing condition and makes
+ * D-BAST-IRELE-INACTIVE-SELF-WEDGE demonstrable on demand instead of only
+ * observable by luck.  NEVER ship on.
+ */
+/*
+ * sess26 A/B lever for D-SILENT-MKDIR-LOSS.  1 = current behaviour (a dir
+ * dirtied under the current EX tenure skips its reload); 0 = always reload.
+ * Nominated by a token-frequency differential: the node that lost 8 dirents
+ * emitted P6-MIDTENURE-RELOAD-SKIP 661 times against a peer median of 37
+ * (range 25-215) in the same scoped window.  See the guard in
+ * mxfs_dlm_reload_inode.
+ */
+/*
+ * sess26 FIX for D-SILENT-MKDIR-LOSS — bitmask of i_dlm_stale_src values that
+ * the P6 mid-tenure reload skip must NOT swallow.  Bit N set => staleness from
+ * source N forces a real reload.
+ *
+ * Default 0x1A4 = sources 2, 5, 7 and 8. Every one is peer-driven:
+ *   src=2  MXFS_IF_DIR_RELOAD set, or dir_gen > dir_loaded_gen — "reader
+ *          consuming a peer's DIR_MODIFY: get the peer's full image".
+ *   src=5  set while RELEASING the lock — "in-memory fork data may be outdated
+ *          when we re-acquire this lock ... will reload from disk on the next
+ *          cache miss". A peer may have held EX for the whole interval.
+ *   src=7  the else-branch of dir_slow_skip, whose skip condition is literally
+ *          "no peer handoff, cached dir kept" — so src=7 means a peer handoff
+ *          DID happen.
+ *   src=8  MXFS_IF_DIR_RELOAD consumed on the EX-acquire fast path — "a
+ *          different node held EX since our last grant".
+ *
+ * src=1 (readdir refresh) is deliberately EXCLUDED: it is the largest bucket
+ * (208-376 per node per 3 runs) yet produced zero repeat streaks once 2/8 were
+ * honoured, so it is not swallowing notifications and excluding it keeps the
+ * pace cost at zero. Sources 5 and 7 were missed on the first pass because a
+ * single run did not exercise them — they only showed up in a 3-run
+ * accumulation. Widen this mask, do not disable the skip.
+ *
+ * Why this is the fix: at src=8 the flag is CLEARED before the reload is
+ * attempted, so when P6 then skips, the notification is destroyed outright —
+ * flag consumed, i_dlm_stale cleared, nothing re-read. The node never observes
+ * the peer's entry and its own later publish omits it, which is exactly
+ * silent mkdir loss. Measured: P6 skips are dominated by src 1/2/8 only, and
+ * inodes are skip-cleared up to 19 times consecutively with no real reload
+ * (i_dlm_p6skip_n), so the notification loss is repeated, not incidental.
+ *
+ * 0 restores the pre-fix behaviour for A/B. Do NOT "fix" this by setting
+ * p6_midtenure_skip=0: measured, that costs dirent_durability 120s -> 240s
+ * timeout (RULE 0). This mask reloads only on peer notifications, which is a
+ * small fraction of the skips.
+ */
+unsigned int mxfs_p6_honor_src_mask = 0x1A4u;
+module_param_named(p6_honor_src_mask, mxfs_p6_honor_src_mask, uint, 0644);
+MODULE_PARM_DESC(p6_honor_src_mask,
+	"bitmask of i_dlm_stale_src values the P6 mid-tenure skip must not swallow; default 0x1A4 (peer-driven srcs 2,5,7,8); 0=pre-fix");
+
+int mxfs_p6_midtenure_skip = 1;
+module_param_named(p6_midtenure_skip, mxfs_p6_midtenure_skip, int, 0644);
+MODULE_PARM_DESC(p6_midtenure_skip,
+	"skip the reload when a dir was dirtied under the current EX tenure; 1=on (default), 0=always reload (A/B for D-SILENT-MKDIR-LOSS)");
+
+int mxfs_bast_irele_unclaim_inject;
+module_param_named(bast_irele_unclaim_inject, mxfs_bast_irele_unclaim_inject, int, 0644);
+MODULE_PARM_DESC(bast_irele_unclaim_inject,
+	"TEST-ONLY: drop bast_work_fn's own demoter claim before its trailing irele, forcing the self-wedge; 0=off (default), 1=inject");
+
+int mxfs_teardown_arm_gate = 1;
+module_param_named(teardown_arm_gate, mxfs_teardown_arm_gate, int, 0644);
+MODULE_PARM_DESC(teardown_arm_gate,
+	"skip stranded-release dwork arms during unmount/shutdown/DLM-teardown (D-DWORK-TEARDOWN-LASTREF-LEAK fix); 1=on (default), 0=legacy arm (A/B)");
+
+int mxfs_bast_qfalse_inject;
+module_param_named(bast_qfalse_inject, mxfs_bast_qfalse_inject, int, 0644);
+MODULE_PARM_DESC(bast_qfalse_inject,
+	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically — exercises the P226 extra-ref drop (sess36 D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
+
+int mxfs_rel_stale_inject;
+module_param_named(rel_stale_inject, mxfs_rel_stale_inject, int, 0644);
+MODULE_PARM_DESC(rel_stale_inject,
+	"TEST-ONLY: force the stranded (-ESTALE) verdict on inode DLM releases while shutdown/unmounting is set — drives the P6G teardown-era dwork-arm decision deterministically (D-DWORK-TEARDOWN-LASTREF-LEAK A/B); 0=off (default), 1=inject");
+
+/* sess38 A/B (32/caw dir_reuse, same build 0.11.319): knob-on = 6 rounds,
+ * knob-off = 7 — CREATEINT moves refresh+evict+FUA-reread INSIDE the
+ * serialized dir-EX critical section (~19ms/create cluster-wide vs ~15ms),
+ * while the EDEADLK self-demote it avoids is already drain-free
+ * (dir_pr_release_fast=1) and burst batching is provided by
+ * dir_ex_tenure_floor + dir_ex_batch_grace_ms either way.  Net loss at
+ * high contention -> default OFF.  Mechanism kept correct (sess38 leak
+ * A/B/C fixes) for low-contention/future use. */
+int mxfs_create_intent_ex = 0;
+module_param_named(create_intent_ex, mxfs_create_intent_ex, int, 0644);
+MODULE_PARM_DESC(create_intent_ex,
+	"create-intent dir lookups take the cluster lock at EX from the lookup on; 0=off (default; measured net pace loss at 32-node contention), 1=on");
+
+int mxfs_evict_retain_pr = 1;
+module_param_named(evict_retain_pr, mxfs_evict_retain_pr, int, 0644);
+MODULE_PARM_DESC(evict_retain_pr,
+	"retain a clean PR DLM grant across inode eviction (demand-released via the no-inode BAST path) instead of CAS-clearing it at evict — kills the 32-way drop_caches unlock convoy on hot shared slots; 0=legacy eager unlock, 1=on (default)");
+
+int mxfs_cancel_ref_release;
+module_param_named(cancel_ref_release, mxfs_cancel_ref_release, int, 0644);
+MODULE_PARM_DESC(cancel_ref_release,
+	"release the igrab reference held by a BAST work/dwork arm that mxfs_dlm_evict cancels before it could run; 0=off (reproduces D-UNMOUNT-BUSY-INODES), 1=on");
+
+/* FIX-28 verification injection — see xfs_map_blocks.  Debug-only, 0 = off. */
+int mxfs_fix28_drain_stall_ms;
+module_param_named(fix28_drain_stall_ms, mxfs_fix28_drain_stall_ms, int, 0644);
+MODULE_PARM_DESC(fix28_drain_stall_ms,
+	"DEBUG: stall the release drain once, mid-batch, inside its drain-site-2 page flush so a writeback submitter can park in the demote-wait holding a folio of that same batch — closes the ABBA cycle deterministically (0=off)");
+
+/* FIX-27 A/B gate: 0 reproduces the pre-sess24 deadlock (shared-class writeback
+ * submitters are NOT admitted through a BAST/DEMOTING demote-wait), 1 = fixed.
+ * Exists so the fix can be verified against its own negative control on ONE
+ * build, rather than across two builds with a re-prep in between. */
+/*
+ * DEFAULT 1 = ON as of v0.11.206 (ccloop c7ee71c6 sess25).
+ *
+ * sess24 shipped this OFF on the grounds that it was "measured never to
+ * engage": a P47-FILEBLOCK census under a healthy 32-node workload recorded
+ * 4380 demote-wait blocks, 99.7% of them SHARED requests, and turning the
+ * admit on produced ZERO admits across 3613 of them.  That measurement was
+ * correct and is not retracted -- but it was answering the wrong question.
+ * Those blocks are ordinary syscalls (stat/cat/md5sum), which must keep
+ * waiting; the admit is scoped to writeback-submission context precisely so it
+ * does NOT touch them.  "Does not fire under a healthy workload" is what a
+ * deadlock breaker for a rare cycle is SUPPOSED to look like.
+ *
+ * The reason it can now ship on is that the cycle is no longer rare-and-
+ * unreproducible.  tests/abba_wedge_ab.sh builds it deterministically and
+ * A/B's it on ONE build (see that file for why sess24's exerciser could not:
+ * it collided with drain site 1, where the nest-admit fast path grants the
+ * request outright, instead of site 2 where mode==NL is what parks it):
+ *
+ *   arm 0 (this=0): WEDGED.  Both legs captured from /proc/<pid>/stack,
+ *     byte-identical to the test27 live capture --
+ *       kworker mxfs-ino-bast  folio_wait_bit_common <- __folio_lock
+ *         <- write_cache_pages <- ... <- mxfs_dlm_bast_process+0x5d8
+ *       kworker flush-252:1    mxfs_dlm_ilock_begin <- xfs_ilock
+ *         <- xfs_map_blocks <- iomap_writepage_map <- write_cache_pages
+ *     plus `sync` and `dd` piled up in D state; sync never returned; 2x
+ *     P73-WAITSTALL; 0 admits.
+ *   RECOVERY of that wedged node by writing 1 here at runtime produced
+ *     EXACTLY ONE probe line and the node came back:
+ *       P25-IOEND-ADMIT ino=132 state=3 g2=5 req=3 src=writepages
+ *     state=3 DEMOTING, g2=5 mirror still EX, req=3 SHARED -- i.e. precisely
+ *     the case FIX-26's EX-only gate cannot cover and this one can.
+ *   arm 1 (this=1): no wedge, sync completes, 0 P73-WAITSTALL, and 1
+ *     P25-IOEND-ADMIT src=writepages on the same constructed collision
+ *     (both arms recorded P28-DRAINSITE2 dirty=1 + P28-DRAINHOLD=1 + a
+ *     P47-FILEBLOCK in_wb=1 on the same inode, so the hazard was genuinely
+ *     built in both -- the fix-on arm did not merely fail to reach it).
+ *
+ * Safety of admitting a SHARED request is argued in mxfs_ilock_admit_ioend and
+ * is backed by a structural guard: the admit sets i_dlm_mode=EX when the mirror
+ * is EX, and the pre-unlock check in the release pipeline treats
+ * i_dlm_mode != MXFS_LOCK_NL as `stranded` and SKIPS the wire unlock, so an
+ * admitted submitter cannot have the grant released out from under it.  The
+ * anchored release path is protected by its own gen-anchored unlock (-ESTALE).
+ *
+ * 0 remains available as the negative control the A/B harness needs.
+ */
+int mxfs_fix27_shared_admit = 1;
+module_param_named(fix27_shared_admit, mxfs_fix27_shared_admit, int, 0644);
+MODULE_PARM_DESC(fix27_shared_admit,
+	"admit shared-class (PR/CR) writeback-submission ilock requests through a BAST/DEMOTING demote-wait; 0=off (reproduces the deadlock), 1=on (default)");
+
 struct xfs_wptask {
 	struct hlist_node	node;
 	struct task_struct	*task;
@@ -402,7 +614,7 @@ xfs_convert_blocks(
 	 * first folio of a walk converts, so ~all sleep time bought no admit
 	 * window — 0 collisions in 45s.)  Demoter-exempt; default 0 = off;
 	 * unlocked racy read of i_dlm_state is fine for debug pacing. */
-	if (unlikely(mxfs_fix26_delay_ms > 0) && ip->i_dlm_demoter != current) {
+	if (unlikely(mxfs_fix26_delay_ms > 0) && (ip->i_dlm_demoter != current && ip->i_dlm_demoter2 != current)) {
 		int fix26_left = mxfs_fix26_delay_ms;
 		uint8_t fix26_st0 = ip->i_dlm_state;
 		uint8_t fix26_md0 = ip->i_dlm_mode;
@@ -451,7 +663,7 @@ xfs_convert_blocks(
 				xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH) ? 1 : 0,
 				ip->i_dlm_stale ? 1 : 0,
 				ip->i_dlm_demoter ? 1 : 0,
-				ip->i_dlm_demoter == current ? 1 : 0,
+				(ip->i_dlm_demoter == current || ip->i_dlm_demoter2 == current) ? 1 : 0,
 				ip->i_dlm_ex_holders, ip->i_dlm_pr_holders,
 				ip->i_dlm_pin_count,
 				xfs_task_in_writepages() ? 1 : 0,
@@ -503,6 +715,44 @@ xfs_map_blocks(
 	XFS_ERRORTAG_DELAY(mp, XFS_ERRTAG_WB_DELAY_MS);
 
 	/*
+	 * FIX-28 verification injection (ccloop c7ee71c6 sess25) — the DRAIN
+	 * half of D-BAST-WRITEBACK-ABBA-DEADLOCK.
+	 *
+	 * sess24's exerciser drove 200/200 submitter-side collisions and still
+	 * produced ZERO demote-wait entries.  The reason is now proven from the
+	 * code rather than guessed: mxfs_dlm_bast_process flushes TWICE, and the
+	 * submitter-side injection broke out of its window as soon as the state
+	 * became BAST/DEMOTING — which is drain site 1, where i_dlm_mode is
+	 * STILL the granted mode, so mxfs_dlm_ilock_begin's nest-admit fast path
+	 * grants the shared request outright and nothing ever parks.  Only site
+	 * 2 (after `ip->i_dlm_mode = MXFS_LOCK_NL`, before the on-disk unlock)
+	 * can park a submitter, and that is where the live capture was.
+	 *
+	 * Closing the cycle deterministically needs BOTH halves synchronised,
+	 * which is what sess24's handoff named as the missing piece.  This is
+	 * the drain half: stall the drain ONCE, mid-batch, after it has fetched
+	 * a dirty-tagged folio batch and locked its first folio.  A submitter
+	 * arriving during the stall locks a LATER folio of that same batch,
+	 * parks in the demote-wait holding it, and when the stall ends the drain
+	 * walks into folio_lock() on exactly that folio.  writeback_get_folio()
+	 * locks unconditionally and works off the already-fetched batch, so the
+	 * submitter having cleared the dirty bit does not save us.
+	 *
+	 * Demoter-ONLY (the mirror image of fix26/fix27_delay_ms, which are
+	 * demoter-exempt) and site-2-only.  Debug-only, 0 = off.
+	 */
+	if (unlikely(mxfs_fix28_drain_stall_ms > 0) &&
+	    (ip->i_dlm_demoter == current || ip->i_dlm_demoter2 == current) &&
+	    ip->i_dlm_drain_site == 2 &&
+	    !ip->i_dlm_drain_stalled) {
+		ip->i_dlm_drain_stalled = 1;
+		pr_warn("mxfs: P28-DRAINHOLD ino=%llu off=%lld stall_ms=%d — drain holding a folio mid-batch at site 2 so a writeback submitter can park on a later folio of the same batch\n",
+			(unsigned long long)ip->i_ino, (long long)offset,
+			mxfs_fix28_drain_stall_ms);
+		msleep(mxfs_fix28_drain_stall_ms);
+	}
+
+	/*
 	 * COW fork blocks can overlap data fork blocks even if the blocks
 	 * aren't shared.  COW I/O always takes precedent, so we must always
 	 * check for overlap on reflink inodes unless the mapping is already a
@@ -529,6 +779,57 @@ xfs_map_blocks(
 retry:
 	cow_fsb = NULLFILEOFF;
 	whichfork = XFS_DATA_FORK;
+	/* FIX-27 verification injection: hold here — folio locked,
+	 * ILOCK_SHARED imminent — until a peer BAST lands on this inode or N ms
+	 * elapse, so the demote-wait shared-class admit (P25 src=writepages
+	 * req=3) is provably exercised.  Demoter-exempt; unlocked racy read of
+	 * i_dlm_state is fine for debug pacing. */
+	if (unlikely(mxfs_fix27_delay_ms > 0) && (ip->i_dlm_demoter != current && ip->i_dlm_demoter2 != current)) {
+		int f27_left = mxfs_fix27_delay_ms;
+		uint8_t f27_st0 = ip->i_dlm_state;
+
+		/* Break ONLY into a window that actually parks the submitter.
+		 *
+		 * v1 broke on ANY state change, which includes BAST->CACHED --
+		 * i.e. it released the window exactly when the drain had already
+		 * finished, so 68 armed windows produced 6 "collisions" and ZERO
+		 * demote-wait entries (P47/P73 both 0 in both A/B arms).
+		 *
+		 * v2 broke on state==BAST||DEMOTING, and STILL produced 0 P47
+		 * over 200/200 "collisions".  Root (sess25, read off the code):
+		 * the state goes BAST/DEMOTING at the TOP of the drain, i.e. at
+		 * drain site 1, where `ip->i_dlm_mode` is still the granted mode.
+		 * mxfs_dlm_ilock_begin then satisfies a shared request from the
+		 * nest-admit fast path (i_dlm_mode >= request) and the submitter
+		 * sails through without ever reaching the demote-wait.  The state
+		 * alone is NOT the parking precondition -- mode==NL is.
+		 *
+		 * v3 therefore waits for the real precondition: mid-drain AND
+		 * i_dlm_mode already dropped to NL, which is exactly drain site 2
+		 * (the S_ISREG durability flush) and exactly where test27's live
+		 * deadlock was captured. */
+		while (f27_left > 0) {
+			if ((ip->i_dlm_state == MXFS_DLM_ISTATE_BAST ||
+			     ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING) &&
+			    ip->i_dlm_mode == 0 /* MXFS_LOCK_NL */)
+				break;		/* mid-drain, post-mode-clear */
+			msleep(1);
+			f27_left--;
+		}
+		{
+			static atomic_t p27dbg = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&p27dbg) <= 200)
+				pr_warn("mxfs: P27-INJECT ino=%llu st0=%u st1=%u mode=%u dsite=%u waited_ms=%d collided=%d\n",
+					(unsigned long long)ip->i_ino, f27_st0,
+					ip->i_dlm_state, ip->i_dlm_mode,
+					ip->i_dlm_drain_site,
+					mxfs_fix27_delay_ms - f27_left,
+					((ip->i_dlm_state == MXFS_DLM_ISTATE_BAST ||
+					  ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING) &&
+					 ip->i_dlm_mode == 0));
+		}
+	}
 	xfs_ilock(ip, XFS_ILOCK_SHARED);
 	ASSERT(!xfs_need_iread_extents(&ip->i_df));
 

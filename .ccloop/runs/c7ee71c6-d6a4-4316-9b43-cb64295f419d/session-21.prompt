@@ -1,0 +1,132 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 21 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 20
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `91052ad0-0a14-4d36-abb7-a21359f3a019`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/91052ad0-0a14-4d36-abb7-a21359f3a019.jsonl`
+- approx context at last assistant turn: 496873 tokens
+- tools used: Bash×266 Edit×28 mcp__ccmemory__memory_write×9 Read×2 mcp__ask_gpt__query×2 ToolSearch×1 Write×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/pal/linux/xfs_aops.c
+- /src/mxfs/tests/drc_straggler_report.sh
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/dlm/disklock.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    for i in 1 2 16; do tools/mxfs_sshpass.sh test$i "mount | grep -c 'type mxfs'; dmesg | grep -cE 'P-HB-SLOW|P-HB-MONSLOW'; dmesg | grep -cE 'P139-LOCKTOTAL'; dme
+    for i in 1 2 16 24 32; do tools/mxfs_sshpass.sh test$i "dmesg | grep -E 'P-HB-SLOW|P-HB-MONSLOW'" 2>/dev/null | sed "s/^/n$i /"; done | head -10
+    grep -n "mutex_lock(ctx->lock)" dlm/disklock.c | wc -l; grep -n "mutex_lock(ctx->lock)" dlm/disklock.c | head -20
+    for ln in 953 1039 1097 1176 1251 1274 1298 1666 1779 1941 2012; do echo "== $ln: $(sed -n "$((ln-12)),$((ln))p" dlm/disklock.c | grep -E '^[a-z].*\(|^static.*\
+    for ln in 953 1097 1251 1666 1779 1941; do fn=$(awk -v L=$ln 'NR<=L && /^(int|void|static|uint|bool|struct)[a-z_ ]*mxfs_disklock[a-z_]*\(/ {f=$0} END{print f}' 
+    sed -n '1170,1215p' dlm/disklock.c; echo ==callers==; grep -rn "mxfs_disklock_read_all\|disklock_get_stale_slot_mask" dlm/*.c xfs/*.c pal/linux/*.c 2>/dev/null 
+    sed -n '1935,1990p' dlm/disklock.c
+    awk 'NR>=1990 && NR<=2050 {print NR": "$0}' dlm/disklock.c | grep -E "mutex|bdev_read|for \(" | head -8
+    sed -n '2012,2050p' dlm/disklock.c
+    timeout 30 python3 - <<'EOF' p='VERSION'; open(p,'w').write('0.11.325\n') p='CHANGELOG.md'; s=open(p).read() new="""## 0.11.325 (sess38) — 2026-08-01  - Heartbe
+    MXFS_FORCE_PREP=1 timeout 300 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 540 ./run.sh 32 caw fio_perf cache_coherency zero_silent_loss scaling_curve
+    timeout 540 ./run.sh 32 caw crash_consistency fence_during_write fault_netpartition soak dirent_durability 2>&1 | grep -E "^  (PASS|FAIL)" | head -6
+    for i in 1 2 16 24 32; do tools/mxfs_sshpass.sh test$i "dmesg | grep -cE 'P-HB-SLOW|P-HB-MONSLOW'" 2>/dev/null | tr -d '\n'; echo " <- n$i hb-slow events since 
+    for i in 1 16 32; do tools/mxfs_sshpass.sh test$i "dmesg | grep -E 'P-HB-SLOW|P-HB-MONSLOW' | tail -3" 2>/dev/null | sed "s/^/n$i /"; done
+    timeout 30 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) for e in d['defects']:     if e['id']=="D-RELABORT-ORPHAN-LOO
+    timeout 30 python3 - <<'EOF' p='CHANGELOG.md'; s=open(p).read() add="""### 0.11.325 verification (sess38) — DEFECT CLOSED (10 -> 9 OPEN) Same-saturation A/B: ev
+    timeout 540 ./run.sh 32 caw precond_readiness strong_consistency posix_multi mmap_coherency dlm_fairness dlm_membership dlm_scaling dirent_publish_integrity dir
+    timeout 540 ./run.sh 32 caw node_responsive kernel_health ag_strand_repair sustained_load dlm_lock_correctness dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL
+    timeout 165 ./run.sh 32 caw dir_reuse_coherency 2>&1 | grep -E "PASS|FAIL" | tail -1; timeout 165 ./run.sh 32 caw dir_reuse_coherency 2>&1 | grep -E "PASS|FAIL"
+    timeout 30 python3 - <<'EOF' p='CHANGELOG.md'; s=open(p).read() add="""### 0.11.325 full board @ 32/caw (sess38 true close) ALL FUNCTIONAL TESTS GREEN (2nd all-
+
+## Last text from previous session
+
+ng design, and the authority family.
+Checking why pal.md is still flagged (I appended the sess38 section earlier):
+**Criteria: NO — not production ready. 10 OPEN defects against the RULE-6 zero-defect bar.**
+
+Final increment this session: 0.11.324 is built, deployed to all 32 nodes, and smoke-tested green — it adds the heartbeat-outage anatomy probes (per-cycle write latency, mutex-wait split, age-since-last-successful-write, monitor-pass duration), completing RULE-4 step 1 for the self-fence defect. The deployed build now carries **three unconditional tripwires** — heartbeat outage anatomy, the AGI cross-node unlinked-recovery canary, and the grant-wait tail census — so each of the three open intermittents will self-document its next occurrence with the discriminating fields already in the ring, instead of rotating away as test21's forensics did.
+
+The full session record stands: CHANGELOG 319-324, the defect ledger at 10 OPEN with prescribed next steps for each, six ccmemory handoffs, updated dlm/xfs/pal awareness docs, and preserved evidence under `tests/logs/`. The cluster is healthy on 324 defaults. The relay continues with the self-fence reproduction watch, the release-drain pipelining design consult, and the authority-family batch.
+**The heartbeat tripwire fired on its first day** — P-HB-SLOW on every sampled node, plus dozens of LOCKTOTAL tails. Pulling the anatomy:
+Defect closed (10→9). Completing the 325 board — remaining roster in two chunks, then dir_reuse re-baseline:
+**Complete 0.11.325 board: every functional test green at 32/caw** — including dir_reuse (58/58, 110s). Second all-green board, now on the fixed build. dir_reuse ×2 more for the post-fix baseline:
+Bimodality persists on 325 (PASS-8 / FAIL-7 / FAIL-6) — the dir_reuse tail is the EX-rotation drain economics, unaffected by the heartbeat fix as expected. Final state record:
+**Criteria: NO — not production ready. 9 OPEN defects against the RULE-6 zero-defect bar.**
+
+## Session 20 (sess38) — complete arc
+
+This session ran the full RULE-4 discipline through seven builds (0.11.319 → 325) and ended with the project's strongest state yet:
+
+**Closed this session (net 8 → 9 after +2 found, −1 fixed):**
+- **D-RELABORT-ORPHAN-LOOP-HEARTBEAT-SELFFENCE: FIXED AND VERIFIED** — a full same-session RULE-4 arc: the 0.11.324 heartbeat probes caught the mechanism live within an hour (heartbeat writer starved **26.7s on the disklock mutex** while three read loops held it across full 64-slot scans at storm-saturated latency, against a 62s lease); 0.11.325 narrows to per-slot locking; same-saturation verification shows lockwait 26726→0 with 10/10 tests green — including crash_consistency and fence_during_write, whose incident-board failures rode the same starvation.
+
+**Board state:** 0.11.322 scored the first all-green functional board; **0.11.325 scored the second — every functional test green at 32/caw** including dir_reuse in-board. dir_reuse's bimodality persists standalone (8/7/6 rounds across three laps) — its tail is the EX-rotation × release-drain economics, fully quantified (58ms p50/turn) with the next design step (drain pipelining, GPT-first) recorded.
+
+**Other durable outcomes:** CREATEINT retired on same-build A/B evidence (mechanism corrected, then default-off); the PR-batch admission storm eliminated (batch-completion-on-claim); a new AGI cross-node unlinked-recovery shutdown defect ledgered with an unconditional canary standing in the deployed build; three permanent tripwires (heartbeat anatomy, AGI canary, grant-wait census) now self-document any recurrence of the open intermittents.
+
+Remaining OPEN: three pace defects, four authority-family defects (including the canary-armed AGI one), the dirview non-convergence, and the rig-blocked matrix columns. The cluster is healthy on 0.11.325 defaults; all state is persisted in CHANGELOG, ledger, awareness docs, and eight ccmemory entries. The relay continues from the drain-pipelining design and the authority family.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

@@ -1,0 +1,239 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 80 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 79
+
+## Original task
+
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
+
+
+## Previous session
+
+- session-id: `257fd512-4eea-4855-a02b-c5ca46479123`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/257fd512-4eea-4855-a02b-c5ca46479123.jsonl`
+- approx context at last assistant turn: 376964 tokens
+- tools used: Bash×86 Read×18 Edit×10 mcp__ccmemory__memory_write×5 mcp__ccmemory__memory_get×4 mcp__ccusage__get_context_usage×3 ToolSearch×2 Write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/incarnation_mismatch_probe.sh
+- /src/mxfs/tests/incarnation_death_probe.sh
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/tests/recov_takeover_retry_probe.sh
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; grep -rn "timeout_ms" dlm/lease.c | grep -v "^.*ctx->timeout_ms = MXFS_LEASE" | head -8; echo "--- who sets the lease timeout from the param ---";
+    cd /src/mxfs; python3 - <<'PYEOF' import json, collections P='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(P), object_pairs_hook=collections.OrderedDict) 
+    cd /src/mxfs; python3 - <<'PYEOF' import json, collections P='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(P), object_pairs_hook=collections.OrderedDict) 
+    cd /src/mxfs; echo "=== authority token structs / helpers ==="; grep -rn "mxfs_auth_tok\|auth_token\|MXFS_AUTHTOK\|authority trailer\|AUTHTRAILER\|auth_trailer"
+    cd /src/mxfs; grep -rn "mxfs_blf_authority\|XFS_BLF_MXFS_AUTHORITY\|mxfs_buf_item_wants_authority\|MXFS_BLF_AUTH" --include=*.h --include=*.c . 2>/dev/null | se
+    cd /src/mxfs; grep -n "mxfs_v5_dlm_get_node_slot\|mxfs_v5_dlm_is_single_node\|mxfs_v5_dlm_ag_grant_epoch" dlm/v5_mount.c | head; echo "--- disklock epoch/node a
+    cd /src/mxfs; python3 - <<'PYEOF' import json, collections P='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(P), object_pairs_hook=collections.OrderedDict) 
+    cd /src/mxfs; python3 - <<'PYEOF' import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) n={x['id']:x for x in d['defects']}['D-FOREIGN-REPLAY-UNGATE
+    cd /src/mxfs; python3 - <<'PYEOF' import json d=json.load(open('tests/criteria/OPEN_DEFECTS.json')) n={x['id']:x for x in d['defects']}['D-FOREIGN-REPLAY-UNGATE
+    cd /src/mxfs; sed -n '/recov_desc_crc/,/^}/p' dlm/disklock.c | head -40
+    cd /src/mxfs; chmod +x tests/recov_takeover_retry_probe.sh && bash -n tests/recov_takeover_retry_probe.sh && echo "syntax OK"; time timeout 400 ./tests/recov_ta
+    cd /src/mxfs; grep -n "owner_stamp_ms\|OWNER_STALE\|owner_lease\|takeover" dlm/disklock.c | grep -viE "^\s*[0-9]+:\s*\*" | head -20; echo "--- takeover fn + its
+    cd /src/mxfs; grep -n "MXFS_RECOV_ABANDON_MS" dlm/disklock.h dlm/disklock.c | head -4; echo "--- who CALLS recovery_takeover ---"; grep -rn "mxfs_disklock_recov
+    cd /src/mxfs; echo "=== every mention of recovery_takeover anywhere in the tree ==="; grep -rn "recovery_takeover" --include=*.c --include=*.h . ; echo; echo "=
+    cd /src/mxfs; for f in recovery_fence_takeover recovery_claim recovery_fence_intent recovery_fence_certify; do n=$(grep -rn "mxfs_disklock_$f(" --include=*.c . 
+    cd /src/mxfs; for f in recovery_takeover recovery_claim recovery_fence_intent recovery_fence_certify recovery_fence_takeover recovery_begin recovery_advance; do
+    cd /src/mxfs; grep -n "want->recov.desc.stage\|want->recov.desc.fence_kind\|fence_kind  *=" dlm/disklock.c | head -12; echo "--- and what the advance guard clai
+    cd /src/mxfs; python3 - <<'PYEOF' import json, collections P='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(P), object_pairs_hook=collections.OrderedDict) 
+    cd /src/mxfs; virsh -c qemu:///system start test32 >/dev/null 2>&1; MXFS_FORCE_PREP=1 timeout 300 ./run.sh 32 caw prep_cluster 2>&1 | tail -2; echo; timeout 120
+    cd /src/mxfs; echo "=== build ==="; cat VERSION; modinfo mxfs.ko | grep srcversion; echo; echo "=== fleet ==="; D=$(mktemp -d); for i in $(seq 1 32); do ( tools
+
+## Last text from previous session
+
+-scoped. Checking the clear path, then fixing the assertion.
+Both arms PASS cleanly. Recording the two refinements the measurements produced.
+Testing whether the lease detector — the path that passes `dead_epoch=0` — actually fires in normal operation.
+The lease detector has never fired here — 600s timeout vs the monitor's ~124s. Checking whether the tunable can invert that.
+The lease path has never actually fired here. Correcting my own over-claim in the ledger — precision matters more than severity.
+Rig restored to 32/32 on 0.11.421. Banking the corrections.
+Now the top critical — `D-FOREIGN-REPLAY-UNGATED-IMAGES` step 5.2, unblocked by the closure. Starting with reconnaissance of the shipped v1 token.
+I have a complete picture of the emission and size sites. Writing the line-verified step-5.2 inventory.
+The CRC recipe is fully determined. Building the takeover probe — it verifies the classification I shipped untested and measures the unbounded-retry critical.
+The takeover classification works, and the retry is bounded in this shape — but the slot is now orphaned. Checking whether a stale-owner takeover exists.
+`mxfs_disklock_recovery_takeover()` appears to have no callers. Verifying that rigorously.
+This is wider than expected. Verifying without a flawed filter.
+Confirmed and significant. Filing the results.
+## Summary
+
+**Criteria: NO — not production ready.** 23 open defects, 15 critical.
+
+### Shipped — 0.11.421 (`C2230B2B7487F93ED23EFF8`, deployed 32/32)
+
+One file, `dlm/disklock.c`. `inc_eq(a,b)` (`a && b && a==b`, the "zero is never a wildcard" comparator) was being used for a *self*-consistency test: `recov_auth_holds()` compared `d->victim_epoch` against `auth->victim_epoch`, where the auth is copied verbatim from that descriptor. `inc_eq(0,0)` is false, so **a recovery owner could not authenticate against its own descriptor** — replay completed, then the recovery hung at FENCED forever with the dead node's CAW grants frozen. Fixed with a separately-named `recov_tok_eq()` for token identity, applied at both auth holders, which now also compare `victim_slot` (copied by both issuers, checked by neither — a stale auth could pass against another slot's descriptor, and that was never zero-specific).
+
+A/B on the identical injection: `P234-RECOV-NOTOURS` 7→0, `COMPLETE-REPLAYEDFAIL` 7→0, `RECOVERY-COMPLETE` 0→1, slot went from frozen-at-12-minutes/11-retries to **zeroed at t+30s**. Full 32/caw board on the new build: **27/27 functional criteria PASS**.
+
+### Closed under RULE 6
+- **D-MOUNT-INCARNATION-CONSTANT-ZERO** — the decisive evidence wasn't that the identifier is nonzero (sess88 had that), it's that the *comparisons discriminate*. All three arms sess88/89 recorded as never having executed fired and each took the correct branch.
+- **D-RECOV-AUTH-ZERO-VICTIM-EPOCH-WEDGE** — found and fixed same session.
+
+### Filed (5, from a RULE-5 consult plus follow-on measurement)
+Most significant: **D-RECOVERY-TAKEOVER-UNREACHABLE**. Exhaustive grep shows 5 of the 7 recovery-descriptor entry points have **zero callers** — `recovery_takeover`, `recovery_claim`, `fence_intent`, `fence_certify`, `fence_takeover`. So an abandoned recovery is never taken over (measured: survivors defer to a phantom owner indefinitely), and the whole sess74/76 fence-certificate lifecycle is dead code — `recovery_begin` writes `stage = FENCED` directly with `fence_kind` left NONE, which is the mechanism behind two other open criticals.
+
+### Two corrections I made to my own work
+I first wrote into the ledger that the lease detector made zero-epoch descriptors routine. Measuring it: **zero** such lines on the fleet ever — the monitor detects at 62s, the lease at 600s. Narrowed. Similarly, the unbounded-retry entry was over-scoped: a takeover-class failure does *not* loop, and the probe I built to prove it showed that.
+
+New instruments: `tests/incarnation_mismatch_probe.sh`, `tests/recov_takeover_retry_probe.sh`. Tree is uncommitted (no commit directive given).
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
+
+---
+
+## Current project state
+
+Generated at the start of THIS session by the project's state hook:
+`/src/mxfs/.ccloop/state.sh`
+
+Everything above describes what PREVIOUS sessions did. This section
+describes the project as it is RIGHT NOW, and supersedes anything above
+that conflicts with it.
+
+### Build
+tree VERSION **0.11.421**  |  mxfs.ko srcversion `C2230B2B7487F93ED23EFF8`  |  last rig run: 32 nodes / caw @ 2026-08-04T06:32:57Z
+
+The srcversion above is what THIS TREE builds, not necessarily what the
+fleet is running. Confirm deployment before trusting a measurement.
+
+### Board — last conditions (32/caw)
+27 PASS, 1 not-passing, 28 applicable
+not passing:
+  - open_defects [FAIL] open=23 of=56 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CR
+
+`open_defects` is a POLICY cell: red BY DESIGN under RULE 6 while the
+ledger below is non-empty. It is not a regression and not a test fault.
+`NO_TERMINAL_RECORD` means the harness captured no verdict — that is a
+capture failure, NOT a filesystem fault. Do not diagnose the FS from it.
+
+### RULE 6 ledger — open defects, severity order
+23 open of 56 ledgered — 15 critical. Work these in order unless you state why not.
+
+1. [critical] D-FOREIGN-REPLAY-UNGATED-IMAGES
+   next: UNBLOCKED sess91. The prerequisite D-MOUNT-INCARNATION-CONSTANT-ZERO is CLOSED (FIXED AND VERIFIED): the mount incarnation is now a real random nonzero 64-bit value per mount, rig-verified, 
+2. [critical] D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY
+   next: 1) 369 knob=1 full board + knob=0 regression board. 2) Soak knob=1 (rsync laps + boards). 3) Slot-occupancy telemetry (bit-only slots unreclaimable — GPT liveness note). 4) GPT items 2-4. 5)
+3. [critical] D-CROSSNODE-OPEN-UNLINK-DATA-LOSS
+4. [critical] D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361
+   next: 1) Ship containment+telemetry build: full-target pre-dirty revalidate (-ESTALE restart / src -ENOENT), P217-RENAME-DIRTYCANCEL helper-failure probe at out_trans_cancel (error, XFS_TRANS_DIRT
+5. [critical] D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE
+   next: 1) Finish the sess57 GPT review set that shares this code (items 3, 4, 6C), then a single RULE-5 consult on the whole barrier before any rig cycle. 2) Verification run: 32/caw, mount node A 
+6. [critical] D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED
+   next: 1) Fault-inject: gate a forced failure of mxfs_xlog_recover_foreign_slice behind a module knob (default off), kill a node at 32/caw, and assert the survivor logs the new refusal, leaves the 
+7. [critical] D-FOREIGN-SLICE-INTENTS-ABANDONED
+   next: 1) Land the versioned GUARD/recovery descriptor + victim-manifest freeze, with the split broadcast predicate and the recovery-lease-vs-member-claim distinction. 2) Make any unsupported or am
+8. [critical] D-PR-FENCE-PREEMPT-WITHOUT-ABORT
+   next: 1) Plumb `abort` through the PAL preempt and switch mxfs_scsipr_fence_node to PREEMPT AND ABORT. 2) Verify on the rig that a real fence of a live registered node returns success (not ILLEGAL
+9. [critical] D-FENCED-STAGE-WITHOUT-PROVEN-EXCLUSION
+   next: 1) Land the typed fence outcome + descriptor v2 exclusion-kind fields together with the PREEMPT AND ABORT change. 2) Assert in a criterion that a published recovery descriptor carries an aut
+10. [critical] D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION
+   next: 1) Gate both replay-dispatch sites (xfs/xfs_mxfs_dlm.c:42090 live work fn, xfs/xfs_mxfs_dlm.c:42509 mount barrier) plus the re-election sweep on a proven victim-exclusion kind. 2) Add the du
+11. [critical] D-PURGE-NONATOMIC-PUBLICATION
+   next: 1) Build a test that forces two survivors to purge the SAME victim concurrently and asserts no live slot is zeroed — the CAS MISCOMPARE probes (P235-PURGE-CONTENDED / -HB) are the observable
+12. [critical] D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE
+   next: 1) RULE-5 consult: is a stable per-node identity the right fix (persisted node_uuid / identity derived from the slot+incarnation pair), or should pass-1 be deleted and the adopted-slice gate
+13. [critical] D-RECOV-ADVANCE-UNBOUNDED-RETRY
+   next: Per the sess91 RULE-5 ruling: (1) On each failure REREAD the descriptor and CLASSIFY. If owner/gen/term/recovery-id genuinely changed, stop immediately, discard the auth and let the new owne
+14. [critical] D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN
+   next: (0) Fix or rename the lease_timeout_ms module parameter, which today configures only the disklock dead threshold and not the lease timeout it is named for; decide deliberately whether the le
+15. [critical] D-RECOVERY-TAKEOVER-UNREACHABLE
+   next: 1) Wire mxfs_disklock_recovery_takeover into the survivor path: on seeing P234-RECOV-OWNED, sample owner_stamp_ms, wait MXFS_RECOV_ABANDON_MS, and attempt the takeover if it has not advanced
+16. [high] D-DIRVIEW-NONCONVERGE-SESS25
+   next: Reproduce pressure: aged-mount dirent_durability laps at 32/caw while one node is denied the dir EX handoffs (readdir-only role). If a next occurrence fires: capture the stale node's i_dlm_d
+17. [high] D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO
+   next: Per the sess91 RULE-5 ruling: (1) Guard the rebase with inc_valid(): a nonzero cached incarnation must be RETAINED when the sector reads 0, and the slot marked inconsistent/unknown rather th
+18. [major] D-32NODE-SHARED-DIR-CREATE-PACE
+   next: (1) Re-run the pace baseline on a QUIESCED host (no game server) to get the true build capability; every pace measurement must now carry its hostload= stamp. (2) The FS-side target is turns-
+19. [major] D-READDIR-PEER-CACHED-DIR-PACE
+20. [major] D-CRASH-CONSISTENCY-32-NOTERMINAL-354
+   next: 1) Find the trigger by bisecting the in-board prefix: the FAIL needs the board context, not any single predecessor. Run crash_consistency after progressively longer prefixes of the board (ch
+21. [minor] D-MATRIX-UNMEASURED
+22. [minor] D-RELOAD-FREED-ADOPT-BOGUS-IMODE
+   next: 0.11.357 guards the rewire with i_mode != 0 (freed-shell adopt keeps prior self-consistent ops; a later resurrecting reload still rewires since old_ifmt is captured per-reload). Verify: reru
+23. [unset] D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+   next: Reproduce with AGED fs: at grace=10, run board-chunk (dir_reuse x2 + cache_coherency + crash_consistency + rsync_paired) THEN dirent_durability loops, instr ON only from the dirent phase (av
+
+RULE 6: an entry closes ONLY as DISPROVED or FIXED AND VERIFIED. 'Cannot reproduce', a clean run, or a workaround are NOT dispositions. Full evidence per defect: tests/criteria/OPEN_DEFECTS.json (325KB — read the ONE entry you are working, never the whole file).
+
+### Most recently shipped
+- 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log
+- 0.11.396 (sess48) — 2026-08-03 — token campaign step 2a: grantee epoch plumbing
+- 0.11.395 (sess48) — 2026-08-03 — foreign-replay token campaign step 1: ex_grant_epoch
+
+### Before you measure anything
+- RULE 0 budgets (a timeout IS a failure): `tests/criteria/TIMEOUT_BUDGETS.md`
+- Deploy the fleet: `MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster` (72-137s).
+  A module reload RESETS runtime knobs.
+- Board a criterion: `./run.sh <nodes> <dlm> <test>`; read it with `./showstat.sh`.
+- Phase walls: `dmesg | grep mxfs-CCph` (crash) / `mxfs-DRCph` (dir_reuse).
+- Use MXFS tools on MXFS devices (`tools/chk_mxfs -v`), never xfs_db/xfs_info —
+  the on-disk envelope offsets them and they return garbage.

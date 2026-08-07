@@ -1,0 +1,13 @@
+{
+  "source": [
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_inode.h",
+    "xfs/libxfs/xfs_trans_inode.c",
+    "pal/linux/xfs_super.c"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

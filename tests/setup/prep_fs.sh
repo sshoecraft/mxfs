@@ -25,6 +25,18 @@ CHK="$MXFS_REPO/tools/chk_mxfs"
 
 fail() { echo "FS_PREP_FAIL: $*" >&2; exit 1; }
 
+# 0. NEVER mkfs a device another layer has claimed (sess44).  On the current
+# caw rig the legacy tcp/cawp default /dev/sda enumerates as a PATH MEMBER of
+# the caw multipath map — mkfs'ing it writes into a live path of the shared
+# caw LUN; only multipathd's exclusive claim turned that into a lucky EBUSY.
+# A claimed device means the condition's rig is NOT wired on this fleet:
+# refuse with a diagnosis instead of depending on that luck.
+DEV_BASE=$(basename "$(readlink -f "$MXFS_DEV" 2>/dev/null)" 2>/dev/null)
+if [ -n "$DEV_BASE" ] && [ -d "/sys/block/$DEV_BASE/holders" ] &&
+   [ -n "$(ls -A "/sys/block/$DEV_BASE/holders" 2>/dev/null)" ]; then
+    fail "$MXFS_DEV ($DEV_BASE) is claimed by: $(ls "/sys/block/$DEV_BASE/holders" | tr '\n' ' ')— it is a member of a device-mapper map, not a free LUN. This deployment condition's rig is not wired on this fleet."
+fi
+
 # 1. NFS /src must be present to reach the mkfs tool (idempotent).
 if ! mountpoint -q "$NFS_MOUNT"; then
     mkdir -p "$NFS_MOUNT"

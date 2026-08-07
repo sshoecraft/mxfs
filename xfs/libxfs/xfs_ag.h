@@ -140,6 +140,45 @@ struct xfs_perag {
 	 */
 	atomic64_t		pag_mxfs_meta_wr_epoch;
 	/*
+	 * sess47 (rsync-rename producer, fossil di_next_unlinked): sibling of
+	 * pag_mxfs_meta_wr_epoch for INODE CLUSTER buffers, which
+	 * mxfs_agmeta_ops deliberately excludes.  Stamped at every cluster
+	 * write completion; the cold-read side currently only REPORTS
+	 * (P-INOCL-COLDREAD) — fence action pending RULE-4 proof.
+	 */
+	atomic64_t		pag_mxfs_inocl_wr_epoch;
+	/*
+	 * sess48 (foreign-replay authority token, step 2a): the durable
+	 * exclusive-grant epoch of this AG's CURRENT CAW tenure — the
+	 * generation of the CAS that granted us EX, read back from the
+	 * slot at fresh-acquire (the on-disk counterpart of the in-memory
+	 * ag_dlm_tenure_id).  Buffer-log records for this AG will carry it
+	 * as their authority token; a fenced node's images replay iff
+	 * their token matches its slot's held-at-death epoch.  0 = no
+	 * authority known (TCP transport, read failure, repaired slot) —
+	 * token writers must fail closed (emit no-authority, never 0-as-
+	 * valid).  Written only on the fresh-grant path while EX is held.
+	 *
+	 * sess82 step 5.1 — LIFECYCLE INVARIANT.  Every write is under
+	 * pag_dlm_lock and uses WRITE_ONCE; the only lock-free reader is
+	 * xfs_buf_item_format_segment (READ_ONCE).  The value means:
+	 *
+	 *   nonzero => this node POSITIVELY HOLDS this AG's EX grant at that
+	 *              durable epoch AND no release of it has begun;
+	 *   zero    => no authority may be claimed for this AG.
+	 *
+	 * Publish (nonzero) happens only after the granting CAS succeeds.
+	 * Clear (zero) happens at every release-COMMIT point, strictly
+	 * BEFORE the drain/flush/on-disk unlock of that release becomes
+	 * visible — bast_work_fn Phase 2 (pag_dlm_demoting = true),
+	 * mxfs_dlm_ag_force_release_all (unmount), and the single->multi
+	 * administrative surrender.  Clearing only at the unlock sites would
+	 * leave a window in which an item could capture an epoch this node
+	 * is already surrendering.  Cached fast-path re-acquire does NOT
+	 * touch it: the slot was never yielded, so the epoch still stands.
+	 */
+	uint64_t		pag_mxfs_grant_epoch;
+	/*
 	 * AG-metadata coherency across DLM AG-lock grants.
 	 *
 	 * pag_dlm_meta_pending: count of AG-metadata buffers (AGF/AGI/AGFL/

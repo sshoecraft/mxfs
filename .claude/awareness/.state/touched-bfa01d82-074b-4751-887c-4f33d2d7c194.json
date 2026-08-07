@@ -1,0 +1,13 @@
+{
+  "source": [
+    "include/mxfs/mxfs_dlm.h",
+    "include/mxfs/mxfs_common.h",
+    "dlm/dlm_caw.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/xfs_inode.h",
+    "pal/linux/xfs_buf_item.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

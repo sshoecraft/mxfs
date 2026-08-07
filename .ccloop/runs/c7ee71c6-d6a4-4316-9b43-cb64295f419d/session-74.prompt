@@ -1,0 +1,222 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 74 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 73
+
+## Original task
+
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
+
+
+## Previous session
+
+- session-id: `a567ee9d-dcb2-4399-94d0-47e1208ce2f7`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/a567ee9d-dcb2-4399-94d0-47e1208ce2f7.jsonl`
+- approx context at last assistant turn: 155557 tokens
+- tools used: Bash×30 Edit×6 mcp__ccmemory__memory_get×2 ToolSearch×1 mcp__ask_gpt__query×1 mcp__ccmemory__memory_list×1 mcp__ccmemory__memory_write×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/dlm/disklock.c
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    cd /src/mxfs; sed -n '595,675p' xfs/xfs_log.c
+    cd /src/mxfs; grep -rn "m_mxfs_log_slice\|log_slice_bblks\|slice_bblks\|m_mxfs_slot" xfs/*.c pal/*.c pal/linux/*.c mxfs_clayer/*.c 2>/dev/null | head -30
+    cd /src/mxfs; sed -n '735,800p' xfs/xfs_log.c
+    cd /src/mxfs; grep -rn "zero_log\|xlog_clear\|format_slice\|zero the log\|slice.*zero\|MXFS.*log.*format" xfs/xfs_log_recover.c xfs/xfs_log.c | head -20
+    cd /src/mxfs; sed -n '4155,4202p' dlm/disklock.c; echo "########## NONCAW pass1 ##########"; sed -n '4037,4085p' dlm/disklock.c
+    cd /src/mxfs; sed -n '1030,1050p' xfs/xfs_mount.c
+    cd /src/mxfs; sed -n '2400,2500p' dlm/disklock.c
+    cd /src/mxfs; sed -n '2090,2145p' dlm/v5_mount.c; echo "===== noncaw caller ====="; grep -n "claim_slot_noncaw" dlm/disklock.c
+    cd /src/mxfs; sed -n '140,200p' dlm/disklock.c; echo "@@@@@@@@@@ 275-340 @@@@@@@@@@"; sed -n '275,340p' dlm/disklock.c
+    cd /src/mxfs; sed -n '440,500p' dlm/disklock.c
+    cd /src/mxfs; sed -n '770,778p' pal/pal.h; echo "=== includes in disklock.c ==="; sed -n '1,30p' dlm/disklock.c | grep -n "include"; echo "=== disklock_create c
+    cd /src/mxfs; grep -n "recov_desc_names\b\|recov_lease_covers\b" dlm/disklock.c
+    cd /src/mxfs; sed -n '283,302p' dlm/disklock.c; echo "@@@ 410-425 @@@"; sed -n '408,425p' dlm/disklock.c; echo "@@@ 4055-4070 @@@"; sed -n '4052,4072p' dlm/disk
+    cd /src/mxfs; python3 - <<'PYEOF' import re p='dlm/disklock.c' s=open(p).read() subs=[  ("if (!recov_lease_covers(hb, node_id, 0))",   "if (!recov_lease_covers_
+    cd /src/mxfs; grep -n "owner_epoch == ctx->epoch\|fence_prover_epoch == ctx->epoch\|victim_epoch &&\|victim_epoch)\s*$\|cur->epoch != victim_epoch" dlm/disklock
+    cd /src/mxfs; grep -n "owner_epoch\|fence_prover_epoch\|victim_epoch" dlm/disklock.c | grep -v "^\s*\*" | grep -vn "desc.owner_epoch    =\|desc.victim_epoch   =
+    cd /src/mxfs; for n in 1738 1836 2514 2519 2571 3026 3029 3034 3088 3203 3214 3391 3502 3623 3645; do echo "--- $n ---"; sed -n "$((n-3)),$((n+2))p" dlm/diskloc
+    cd /src/mxfs; python3 - <<'PYEOF' p='dlm/disklock.c' s=open(p).read()  subs = [  # (old, new, expected_count)  ("if (d->owner_node != ctx->local_node || d->owne
+    cd /src/mxfs; grep -n "slot_holds_incarnation" dlm/disklock.c dlm/disklock.h dlm/v5_mount.c; echo "======"; sed -n '3925,3985p' dlm/disklock.c
+    cd /src/mxfs; python3 - <<'PYEOF' import json, collections P='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(P), object_pairs_hook=collections.OrderedDict) 
+
+## Last text from previous session
+
+own-stamp reclaims and fully replays its predecessor's records. GPT's closure conditions hold. Let me read the remaining core sites.
+Full picture confirmed. `claim_slot_noncaw` is called from inside `claim_slot` (:4297), so one generator call covers both. Now let me read the helper region I'll be editing.
+I have everything needed. Let me verify two prerequisites, then start writing.
+Prerequisites confirmed. Now writing the implementation — starting with the generator and the required-match helpers.
+All four remaining callers are legitimately node-scoped except `hb_still_dead_stamp`, which must become a required match. Applying:
+Now the ownership and optional-epoch predicate sites. Let me locate them all at current line numbers.
+Now the mechanical conversion of the ownership and optional-epoch predicates. Let me get exact text for each.
+Now `slot_holds_incarnation`, which fails in the wrong direction today.
+At the relay boundary — closing out the in-flight edit, then banking precise state.
+Wrapping up at the relay boundary.
+
+## What this session did
+
+Worked defect #2 (`D-MOUNT-INCARNATION-CONSTANT-ZERO`), the prerequisite blocking defect #1. Started from the sess84 site inventory rather than re-discovering, fired the RULE-5 consult early (in parallel with the confirming read pass), and **wrote roughly two-thirds of the landing**.
+
+**The consult changed the design in two places.** GPT approved abandoning a superseded recovery, but made it conditional on a claim proven not to disturb slot recovery state — and added a requirement I did not have: an ACTIVE record proves *ownership, not liveness*, so after supersession the monitor must rebase onto the new incarnation and immediately dead-check it, or an already-dead successor leaves the predecessor cleared and nothing ever schedules recovery.
+
+**The conditional proof holds, verified by line.** The journal slice is slot-indexed in both directions (`xfs_mount.c:1039`, `xfs_log.c:768`), claim writes only the 512B heartbeat record, and — the load-bearing one — **claim pass-1 matches on `node_id` alone, with no epoch test**. That is what lets a rebooted node reclaim its own slot with `slice_adopted=false` and fully replay its predecessor. Adding an epoch test there, which is the natural-looking move when you are converting every other epoch comparison to a required match, would push every rebooted node onto a fresh claim whose adopted-slice gate suppresses image replay — silently abandoning its own journal. The claim site now carries that reasoning as a comment.
+
+**Landed:** the generator + `inc_valid`/`inc_eq`, draws at create and per-claim (both fail closed), the `recov_desc_names`/`recov_lease_covers` split into `_node`/`_inc` with the optional-epoch form now absent from the file, `hb_still_dead_stamp` as a required match, 13 substitution groups converting every ownership and prover predicate, and the `slot_holds_incarnation` zero guard.
+
+**One finding worse than sess84 recorded:** `mark_recovery_pending()` reads back `node_track[].last_epoch`, but the epoch-change path assigns the *new* incarnation there before jumping to `fire_dead`. So `pending_epoch[]` would name the **live** incarnation as the victim — and under the new required-match that *matches*, laying a guard on a live node. The victim epoch has to be carried explicitly through `fire_dead`.
+
+**Also logged for the ledger, not fixed here:** recovery identity is `(slot, incarnation)` but the SCSI-PR fence domain is the whole node, so fencing a dead incarnation evicts a live rejoined one on another slot. Pre-existing, adjacent to defects #9/#10.
+
+The tree is **mid-landing — unbuilt, not deployed**, and must not be: the proto_gen bump has to flip atomically with activation. Remaining steps are ordered in `ccloop-c7ee71c6-sess85-incarnation-PARTIALLY-LANDED-do-not-deploy`, and the ledger's `next` points there.
+
+**Criteria: NO.** 19 open defects, 12 critical. Nothing built, measured, or shipped this session — not production ready.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
+
+---
+
+## Current project state
+
+Generated at the start of THIS session by the project's state hook:
+`/src/mxfs/.ccloop/state.sh`
+
+Everything above describes what PREVIOUS sessions did. This section
+describes the project as it is RIGHT NOW, and supersedes anything above
+that conflicts with it.
+
+### Build
+tree VERSION **0.11.419**  |  mxfs.ko srcversion `4A60BCF3FAAA80055570F20`  |  last rig run: 32 nodes / caw @ 2026-08-03T23:55:29Z
+
+The srcversion above is what THIS TREE builds, not necessarily what the
+fleet is running. Confirm deployment before trusting a measurement.
+
+### Board — last conditions (32/caw)
+27 PASS, 1 not-passing, 28 applicable
+not passing:
+  - open_defects [FAIL] open=12 of=37 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CR
+
+`open_defects` is a POLICY cell: red BY DESIGN under RULE 6 while the
+ledger below is non-empty. It is not a regression and not a test fault.
+`NO_TERMINAL_RECORD` means the harness captured no verdict — that is a
+capture failure, NOT a filesystem fault. Do not diagnose the FS from it.
+
+### RULE 6 ledger — open defects, severity order
+19 open of 50 ledgered — 12 critical. Work these in order unless you state why not.
+
+1. [critical] D-FOREIGN-REPLAY-UNGATED-IMAGES
+   next: sess83 BLOCKED step 5.2 on a newly found prerequisite: D-MOUNT-INCARNATION-CONSTANT-ZERO. 5.2 requires binding the token to the victim INCARNATION, and the incarnation identifier is a measur
+2. [critical] D-MOUNT-INCARNATION-CONSTANT-ZERO
+   next: sess85 WROTE HALF THE LANDING into dlm/disklock.c (uncommitted, UNBUILT, NOT DEPLOYED — do not deploy mid-landing: proto_gen must flip atomically with activation). Read ccmemory ccloop-c7ee7
+3. [critical] D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY
+   next: 1) 369 knob=1 full board + knob=0 regression board. 2) Soak knob=1 (rsync laps + boards). 3) Slot-occupancy telemetry (bit-only slots unreclaimable — GPT liveness note). 4) GPT items 2-4. 5)
+4. [critical] D-CROSSNODE-OPEN-UNLINK-DATA-LOSS
+5. [critical] D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361
+   next: 1) Ship containment+telemetry build: full-target pre-dirty revalidate (-ESTALE restart / src -ENOENT), P217-RENAME-DIRTYCANCEL helper-failure probe at out_trans_cancel (error, XFS_TRANS_DIRT
+6. [critical] D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE
+   next: 1) Finish the sess57 GPT review set that shares this code (items 3, 4, 6C), then a single RULE-5 consult on the whole barrier before any rig cycle. 2) Verification run: 32/caw, mount node A 
+7. [critical] D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED
+   next: 1) Fault-inject: gate a forced failure of mxfs_xlog_recover_foreign_slice behind a module knob (default off), kill a node at 32/caw, and assert the survivor logs the new refusal, leaves the 
+8. [critical] D-FOREIGN-SLICE-INTENTS-ABANDONED
+   next: 1) Land the versioned GUARD/recovery descriptor + victim-manifest freeze, with the split broadcast predicate and the recovery-lease-vs-member-claim distinction. 2) Make any unsupported or am
+9. [critical] D-PR-FENCE-PREEMPT-WITHOUT-ABORT
+   next: 1) Plumb `abort` through the PAL preempt and switch mxfs_scsipr_fence_node to PREEMPT AND ABORT. 2) Verify on the rig that a real fence of a live registered node returns success (not ILLEGAL
+10. [critical] D-FENCED-STAGE-WITHOUT-PROVEN-EXCLUSION
+   next: 1) Land the typed fence outcome + descriptor v2 exclusion-kind fields together with the PREEMPT AND ABORT change. 2) Assert in a criterion that a published recovery descriptor carries an aut
+11. [critical] D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION
+   next: 1) Gate both replay-dispatch sites (xfs/xfs_mxfs_dlm.c:42090 live work fn, xfs/xfs_mxfs_dlm.c:42509 mount barrier) plus the re-election sweep on a proven victim-exclusion kind. 2) Add the du
+12. [critical] D-PURGE-NONATOMIC-PUBLICATION
+   next: 1) Build a test that forces two survivors to purge the SAME victim concurrently and asserts no live slot is zeroed — the CAS MISCOMPARE probes (P235-PURGE-CONTENDED / -HB) are the observable
+13. [high] D-DIRVIEW-NONCONVERGE-SESS25
+   next: Reproduce pressure: aged-mount dirent_durability laps at 32/caw while one node is denied the dir EX handoffs (readdir-only role). If a next occurrence fires: capture the stale node's i_dlm_d
+14. [major] D-32NODE-SHARED-DIR-CREATE-PACE
+   next: (1) Re-run the pace baseline on a QUIESCED host (no game server) to get the true build capability; every pace measurement must now carry its hostload= stamp. (2) The FS-side target is turns-
+15. [major] D-READDIR-PEER-CACHED-DIR-PACE
+16. [major] D-CRASH-CONSISTENCY-32-NOTERMINAL-354
+   next: Instrument for the next occurrence rather than hunt blind: (1) crash_consistency should emit per-phase kmsg markers like dir_reuse's DRCph so a NO_TERMINAL_RECORD says WHERE all 32 nodes wer
+17. [minor] D-MATRIX-UNMEASURED
+18. [minor] D-RELOAD-FREED-ADOPT-BOGUS-IMODE
+   next: 0.11.357 guards the rewire with i_mode != 0 (freed-shell adopt keeps prior self-consistent ops; a later resurrecting reload still rewires since old_ifmt is captured per-reload). Verify: reru
+19. [unset] D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+   next: Reproduce with AGED fs: at grace=10, run board-chunk (dir_reuse x2 + cache_coherency + crash_consistency + rsync_paired) THEN dirent_durability loops, instr ON only from the dirent phase (av
+
+RULE 6: an entry closes ONLY as DISPROVED or FIXED AND VERIFIED. 'Cannot reproduce', a clean run, or a workaround are NOT dispositions. Full evidence per defect: tests/criteria/OPEN_DEFECTS.json (325KB — read the ONE entry you are working, never the whole file).
+
+### Most recently shipped
+- 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log
+- 0.11.396 (sess48) — 2026-08-03 — token campaign step 2a: grantee epoch plumbing
+- 0.11.395 (sess48) — 2026-08-03 — foreign-replay token campaign step 1: ex_grant_epoch
+
+### Before you measure anything
+- RULE 0 budgets (a timeout IS a failure): `tests/criteria/TIMEOUT_BUDGETS.md`
+- Deploy the fleet: `MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster` (72-137s).
+  A module reload RESETS runtime knobs.
+- Board a criterion: `./run.sh <nodes> <dlm> <test>`; read it with `./showstat.sh`.
+- Phase walls: `dmesg | grep mxfs-CCph` (crash) / `mxfs-DRCph` (dir_reuse).
+- Use MXFS tools on MXFS devices (`tools/chk_mxfs -v`), never xfs_db/xfs_info —
+  the on-disk envelope offsets them and they return garbage.

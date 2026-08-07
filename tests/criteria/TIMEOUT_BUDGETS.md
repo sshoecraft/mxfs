@@ -16,6 +16,45 @@ Reference hardware facts (measured):
 - 4-node fresh_cluster_mount (teardown+mkfs+mount): ~60 s
 - ssh round-trip per node: ~1-2 s
 
+## Mount-path recovery barrier (0.11.401, sess57) — a CONDITIONAL mount cost
+
+`mxfs_dlm_mount_recovery_barrier()` runs inside `xfs_mountfs()` right after
+`xfs_log_mount()`.  When — and only when — this node finds a peer whose
+heartbeat was ALREADY frozen at mount time and which still holds CAW grants,
+the barrier blocks the mount thread for the dead-confirmation window before
+it may fence that peer and replay its slice:
+
+    confirm window = dead_threshold × HB interval
+                   = 31 × 2000 ms = **62 s**   (shipped defaults)
+
+then one foreign-slice replay per confirmed slot (0.2 s each, measured at
+crash_consistency 2/4-node).  A clean cluster pays **0 s** — there are no
+frozen-slot grants to confirm.  A crash-recovery mount pays 62 s ONCE for the
+whole cohort (the confirmation is a single batched window over the mask, not
+per slot).
+
+This is NOT slack: it is the price of not fencing a node that is merely slow.
+The pre-0.11.401 code paid the same 62 s off an async worker AFTER the mount
+returned — which is exactly the bootstrap deadlock this build fixes, because
+the grants being confirmed can block the mount's own recovery.
+
+**Who pays it.**  Only a node MOUNTING while ANOTHER slot is frozen AND still
+holds CAW grants.  It is not paid by a survivor that watches a peer die while
+already mounted (that is the heartbeat monitor's async path, unchanged), and
+it is not paid for the mounting node's OWN previous incarnation (mount step 4
+handles that slot).  In practice it fires on: remount after a mass crash with
+no survivor to replay, and a node rejoining a cluster whose dead peer nobody
+has recovered yet.
+
+Criteria that can hit it — verify a healthy wall on each before tightening:
+crash_consistency, fence_during_write, fault_netpartition,
+withdraw_recovery_test, ag_strand_repair.  crash_consistency's 90 s budget has
+the thinnest margin on the board (86-88 s actual); if it starts timing out at
+0.11.401, grep the mount's kmsg for `P225-SETTLE-VERIFY` / `MXFS mount
+recovery barrier complete` to tell a paid confirm window from a real
+regression — a paid window is a correctness cost to budget for, not slack to
+absorb.
+
 | Criterion | Infra | Workload (native×2) | BUDGET | Last healthy wall |
 |---|---|---|---|---|
 | cluster_reset_n.sh 16 (infra, not a criterion) | parallel destroy/start ~5s + boot-to-ssh ~25s + prep ~5s + parallel verify ~2s | n/a | **75s** | 35s (sess17 run14d) |
@@ -116,3 +155,65 @@ moves is a user decision (RULE 0 forbids widening toward a wall, but the
 native×2 formula is RULE 0's own ceiling standard).  FS-side debt that
 remains real regardless: the 8.75ms/unlink teardown and the create-wave
 rotation (both tracked in state.md SESS8).
+
+## 32-node CAW budgets (sess30) — derived, not round numbers
+
+Written down BEFORE the run, per RULE 0.  The criterion carries its own
+internal budget (printed by run.sh as `[wall/budget]`); the COMMAND timeout is
+that budget plus the 32-node harness fan-out, nothing more.
+
+| Step | Criterion budget | Harness fan-out | COMMAND timeout | Measured wall (0.11.262-265) |
+|---|---|---|---|---|
+| `./run.sh 32 caw prep_cluster` | n/a | mkfs+mount+converge | **240s** | 72s, 73s clean; 132s / 201s when a node needed a power-cycle (VM boot ~40-50s) |
+| `cache_coherency` | 60s | ~30s | **90s** | 25s, 26s, 25s |
+| `dir_reuse_coherency` | 120s | ~30s | **150s** | 105s, 106s, 108s |
+| `dirent_durability` | 240s | ~30s | **270s** | 65s, 66s, 65s |
+
+sess30 correction: earlier calls in this session used 500-540s blanket timeouts
+on these same steps — up to 7x the derived budget on a 72s prep.  RULE 0 names
+that a rule violation in itself, not merely wasteful: a blanket timeout cannot
+FAIL a run for being slow, which is the whole point of the assertion.
+
+### sess30 correction #2 — do not let the COMMAND timeout compete with run.sh
+
+`run.sh` is itself the RULE 0 enforcer: it measures each criterion and prints
+`[wall/budget]`, FAILing on overrun.  A command timeout set AT the criterion
+budget therefore duplicates the assertion at a tighter value and kills the
+harness mid-criterion — which leaves nodes unmounted and cascades into the next
+run.  Measured: a 90s cap on `cache_coherency` (60s criterion budget + a GUESSED
+30s fan-out) killed run.sh and left test6/test30/test32 without mxfs, so the
+next run pre-asserted before it could measure anything.
+
+Command timeout = criterion budget + measured 32-node fan-out (~30s) + one
+power-cycle escalation (~50s, run.sh:433 destroy+start, parallel across nodes):
+
+| Criterion | Criterion budget | COMMAND timeout |
+|---|---|---|
+| cache_coherency | 60s | **140s** |
+| dir_reuse_coherency | 120s | **200s** |
+| dirent_durability | 240s | **320s** |
+| prep_cluster | n/a | **240s** |
+
+The criterion budget stays the performance assertion.  The command timeout is a
+BACKSTOP against an infinite hang, and must never be the thing that fails a run.
+
+## Healthy-wall record — 2026-08-01, 0.11.317 board @ 32/caw (sess37)
+
+Full 20/21 board (dir_reuse the only FAIL at 117s/120s — pace defect, open).
+Actual walls vs budgets, for the RULE 0 tightening pass once a second healthy
+board confirms them (do not tighten from one sample):
+
+precond 1/10 · fio_perf 36/120 · cache_coherency 35/60 · strong 5/30 ·
+posix_multi 8/30 · mmap 6/30 · zero_silent_loss 34/60 · dlm_fairness 22/30 ·
+dlm_membership 6/30 · scaling_curve 42/90 · dlm_scaling 19/90 ·
+rsync_paired 32/60 · crash_consistency 86/90 (thin — watch, do NOT widen) ·
+fence_during_write 21/60 · fault_netpartition 10/60 · soak 31/60 ·
+dirent_durability 67/240 · node_responsive 11/90 · kernel_health 3/120 ·
+ag_strand_repair 81/240 · sustained_load 7/180 ·
+dirent_publish_integrity 3/60 · dirent_type_integrity 4/60.
+
+Candidates for tightening after confirmation: dirent_durability 240→120,
+ag_strand_repair 240→160, sustained_load 180→60, kernel_health 120→30,
+dlm_scaling 90→45, node_responsive 90→30.  crash_consistency runs 86-88s of
+its 90s budget every board — its margin is the thinnest on the board and any
+regression lands there first.

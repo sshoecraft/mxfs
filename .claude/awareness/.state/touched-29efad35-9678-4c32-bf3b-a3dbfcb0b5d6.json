@@ -1,0 +1,14 @@
+{
+  "source": [
+    "include/mxfs/mxfs_common.h",
+    "dlm/disklock.h",
+    "dlm/disklock.c",
+    "dlm/v5_mount.h",
+    "dlm/v5_mount.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "xfs/libxfs/xfs_dir2_data.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

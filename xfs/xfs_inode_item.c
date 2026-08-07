@@ -1104,6 +1104,34 @@ xfs_iflush_finish(
 		 * PASSING run).  This is the correct discharge point; the drain's
 		 * eager assignment is removed in the same change.
 		 */
+		/* sess35 P241 (RULE 4, classifier round 2): this discharge is
+		 * buffer-wide and overlay-blind.  If the cluster-merge overlay
+		 * replaced this inode's staged image in the submitted buffer
+		 * (MXFS_IF_CLMERGE_HIT, armed with the P239 trace), advancing
+		 * durable here asserts durability for bytes that were merged
+		 * away — a BLIND DISCHARGE.  fields==0 means the item is about
+		 * to detach clean: the newer in-core state will never be
+		 * flushed again and survives only in core (lost on eviction /
+		 * reload; peers read the older platter image after release).
+		 * fields!=0 means a re-log will re-flush it (self-healing).
+		 * Trace only — the behavioral decision needs this population.
+		 */
+		if (unlikely(xfs_iflags_test_and_clear(iip->ili_inode,
+						       MXFS_IF_CLMERGE_HIT)) &&
+		    iip->ili_inode->i_mxfs_pub_durable_seq !=
+		    iip->ili_inode->i_mxfs_pub_flush_seq)
+			pr_warn_ratelimited(
+			    "mxfs: P241-BLIND-DISCHARGE ino=%llu dur=%llu->%llu pend=%llu fields=0x%x icc=%llu%s realns=%llu\n",
+				(unsigned long long)iip->ili_inode->i_ino,
+				(unsigned long long)iip->ili_inode->i_mxfs_pub_durable_seq,
+				(unsigned long long)iip->ili_inode->i_mxfs_pub_flush_seq,
+				(unsigned long long)iip->ili_inode->i_mxfs_pub_pending_seq,
+				iip->ili_fields,
+				(unsigned long long)inode_peek_iversion(
+					VFS_I(iip->ili_inode)),
+				iip->ili_fields ? " (re-logged; will re-flush)"
+						: " (CLEAN DETACH — in-core state now sole copy)",
+				(unsigned long long)ktime_get_real_ns());
 		iip->ili_inode->i_mxfs_pub_durable_seq =
 			iip->ili_inode->i_mxfs_pub_flush_seq;
 		xfs_iflags_clear(iip->ili_inode, XFS_IFLUSHING);
@@ -1138,6 +1166,57 @@ xfs_buf_inode_iodone(
 		}
 		if (!iip->ili_last_fields)
 			continue;
+		/*
+		 * ccloop c7ee71c6 sess20 (H4 ROOT FIX, RULE-5 GPT-reviewed):
+		 * mxfs's partial inode-cluster write drops the sectors of
+		 * inodes this node may not publish, but the BUFFER still
+		 * completes — and everything below this point is buffer-wide.
+		 * For a dropped slot that path clears ili_last_fields, deletes
+		 * the item from the AIL and advances durable_seq, i.e. it
+		 * declares bytes that never left this host durable and removes
+		 * the change from every retry mechanism XFS has.  The change is
+		 * then simply gone: no flush will ever look at it again.
+		 *
+		 * This inode's sector was NOT written.  Treat it as the failed
+		 * flush it is: put the logged fields back so the item is dirty
+		 * again, drop the flush stamp, and leave it IN THE AIL (do not
+		 * route it to ail_updates) so xfsaild pushes it once more.  The
+		 * buffer reference stays attached because ili_fields is now
+		 * non-zero, which is exactly the "still dirty" contract
+		 * xfs_iflush_finish already implements for re-logged inodes.
+		 *
+		 * durable_seq is untouched here, and the submit path already
+		 * rolled i_mxfs_pub_flush_seq back to it, so the publication
+		 * obligation stays honestly OPEN.
+		 */
+		if (unlikely(xfs_iflags_test(iip->ili_inode,
+					     MXFS_IF_PUB_SKIPPED))) {
+			struct xfs_inode *sk_ip = iip->ili_inode;
+			static atomic_t sk_n = ATOMIC_INIT(0);
+
+			xfs_iflags_clear(sk_ip, MXFS_IF_PUB_SKIPPED);
+			/* sess35: the re-arm forces a fresh copy-in, which
+			 * supersedes any overlay of the old image — disarm the
+			 * P241 tripwire so it cannot fire on the NEXT (honest)
+			 * discharge. */
+			xfs_iflags_clear(sk_ip, MXFS_IF_CLMERGE_HIT);
+			spin_lock(&iip->ili_lock);
+			iip->ili_fields |= iip->ili_last_fields;
+			iip->ili_last_fields = 0;
+			iip->ili_flush_lsn = 0;
+			clear_bit(XFS_LI_FLUSHING, &lip->li_flags);
+			spin_unlock(&iip->ili_lock);
+			xfs_iflags_clear(sk_ip, XFS_IFLUSHING);
+			if (atomic_inc_return(&sk_n) <= 4000)
+				pr_warn("mxfs: P187-PUB-REARM ino=%llu pending=%llu durable=%llu fields=0x%x in_ail=%d — sector dropped from the partial write; item kept dirty and in the AIL instead of being completed\n",
+					(unsigned long long)sk_ip->i_ino,
+					(unsigned long long)sk_ip->i_mxfs_pub_pending_seq,
+					(unsigned long long)sk_ip->i_mxfs_pub_durable_seq,
+					iip->ili_fields,
+					test_bit(XFS_LI_IN_AIL,
+						&lip->li_flags) ? 1 : 0);
+			continue;
+		}
 
 		/* Do an unlocked check for needing the AIL lock. */
 		if (iip->ili_flush_lsn == lip->li_lsn ||

@@ -56,70 +56,73 @@ read state.md
 
 ## Previous session
 
-- session-id: `a0fd413e-2cb0-466e-9635-8c67e045d460`
-- transcript: `/home/steve/.claude/projects/-src-mxfs/a0fd413e-2cb0-466e-9635-8c67e045d460.jsonl`
-- approx context at last assistant turn: 498778 tokens
-- tools used: Bash×174 Edit×14 Read×4 mcp__ccmemory__memory_write×3 ToolSearch×2 Write×2 mcp__ask_gpt__query×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+- session-id: `820f8e82-e416-4088-9daa-0b9771c5e1eb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/820f8e82-e416-4088-9daa-0b9771c5e1eb.jsonl`
+- approx context at last assistant turn: 500308 tokens
+- tools used: Bash×138 Edit×19 Read×18 mcp__ccmemory__memory_write×9 mcp__ask_gpt__query×3 Write×2 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
 
 ## Files written or edited in the previous session
 
-- /src/mxfs/xfs/xfs_trans_ail.c
-- /src/mxfs/tests/wedge_load.sh
-- /src/mxfs/tests/repro_32caw_wedge.sh
-- /src/mxfs/state.md
+- /src/mxfs/dlm/dlm_caw.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
 - /src/mxfs/pal/linux/xfs_buf.c
-- /src/mxfs/xfs/libxfs/xfs_dir2_sf.c
-- /src/mxfs/xfs/libxfs/xfs_inode_fork.c
+- /src/mxfs/tests/yield_starvation_repro.sh
+- /src/mxfs/tests/ysr_dd_ab.sh
+- /src/mxfs/state.md
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/.claude/awareness/subsystems/pal.md
 
 ## Last 20 bash commands (truncated to 160 chars each)
 
-    cd /src/mxfs; sed -n '2040,2060p' xfs/xfs_inode.c; echo ===; sed -n '4995,5010p' xfs/xfs_inode.c
-    cd /src/mxfs; grep -n 'xfs_ifork_verify_local_dir' xfs/libxfs/xfs_inode_fork.c xfs/libxfs/*.h | head -4; sed -n "$(grep -n 'xfs_ifork_verify_local_dir' xfs/libx
-    cd /src/mxfs; grep -rn 'xfs_ifork_verify_local_dir' xfs/ | grep -v '\.o' | head -5
-    cd /src/mxfs; grep -rn 'xfs_dir2_sf_verify' xfs/libxfs/*.c xfs/*.c | grep -v xfs_mxfs_dlm | grep -v '\.o' | head -8
-    cd /src/mxfs; sed -n '675,730p' xfs/libxfs/xfs_inode_fork.c
-    cd /src/mxfs; sed -n '780,800p' xfs/libxfs/xfs_dir2_sf.c
-    cd /src/mxfs; echo "0.11.117" > VERSION; make modules 2>&1 | grep -E 'error|Error' | head -6; modinfo mxfs.ko 2>/dev/null | grep srcversion
-    cd /src/mxfs; ./run.sh 32 caw prep_cluster 2>&1 | tail -3
-    cd /src/mxfs; tests/wedge_load.sh start 120; PF=$(tools/mxfs_secrets.sh passfile); timeout 170 tools/mxfs_sshpass.sh test1 "$PF" 'for t in $(seq 1 28); do pgrep
-    cd /src/mxfs; tests/wedge_load.sh stop >/dev/null 2>&1; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'rm -rf /mnt/shared/.
-    cd /src/mxfs; jq -r '.categories[].tests[] | select(.name=="cache_coherency") | .runs["32/caw"].reason' criteria.json | cut -c1-200; PF=$(tools/mxfs_secrets.sh 
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 30 tools/mxfs_sshpass.sh test24 "$PF" 'ls -li /mnt/shared/.cache_coherency/cross_write_read/ 2>&1 | 
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); timeout 30 tools/mxfs_sshpass.sh test24 "$PF" 'ls -li /mnt/shared/.cache_coherency/cross_write_read/ 2>&1 | 
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); for i in $(seq 1 32); do (timeout 10 tools/mxfs_sshpass.sh test$i "$PF" 'echo 1 > /sys/module/mxfs/parameter
-    cd /src/mxfs; tests/wedge_load.sh stop >/dev/null 2>&1; PF=$(tools/mxfs_secrets.sh passfile); timeout 90 tools/mxfs_sshpass.sh test1 "$PF" 'rm -rf /mnt/shared/.
-    cd /src/mxfs; PF=$(tools/mxfs_secrets.sh passfile); for i in $(seq 1 32); do (timeout 10 tools/mxfs_sshpass.sh test$i "$PF" 'echo 0 > /sys/module/mxfs/parameter
-    cd /src/mxfs; tail -6 .claude/awareness/subsystems/pal.md 2>/dev/null; echo ---; tail -4 .claude/awareness/subsystems/xfs.md 2>/dev/null
-    cd /src/mxfs; cat >> .claude/awareness/subsystems/pal.md <<'EOF'  ## sess13 (ccloop c7ee71c6, 2026-07-26, v0.11.115-117) delta - xfs_buf.c write-submission (~77
-    cd /src/mxfs; tail -8 .claude/awareness/subsystems/pal.md; ls -la .claude/awareness/subsystems/pal.md pal/linux/xfs_buf.c | awk '{print $6,$7,$8,$9}'
-    cd /src/mxfs; grep -n 'xfs_dir2_priv.h\|xfs_dir2.h\|xfs_da_format' pal/linux/xfs_buf.c | head -4; grep -rn 'xfs_dir2_data_entsize' xfs/libxfs/xfs_dir2.h xfs/lib
+    timeout 15 head -40 tests/cluster_authority_merge.sh | grep -E "^#|Usage|usage" | head -12
+    timeout 20 grep -n "P56-NL-LOGGED-DIR-SKIP" /src/mxfs/pal/linux/xfs_buf.c | head -3
+    timeout 25 grep -n "int mxfs_dir_nl_logged_skip" /src/mxfs/xfs/xfs_mxfs_dlm.c | head -2; timeout 25 grep -n "int mxfs_pub_skip_rearm" /src/mxfs/xfs/xfs_mxfs_dlm
+    timeout 20 sed -n '34795,34815p' /src/mxfs/xfs/xfs_mxfs_dlm.c
+    timeout 40 python3 - <<'PY' p='pal/linux/xfs_buf.c' s=open(p).read() old="static atomic64_t mxfs_logwr_stale_nl;" assert s.count(old)==1 s=s.replace(old, old+"\
+    timeout 30 python3 -c " p='VERSION'; v=open(p).read().strip(); a,b,c=v.split('.'); nv='%s.%s.%d'%(a,b,int(c)+1); open(p,'w').write(nv+'\n'); print(v,'->',nv)"; 
+    timeout 60 python3 - <<'PY' import json s=open('CHANGELOG.md').read() s=s.replace("## 0.11.270 (sess31) — 2026-07-31", """## 0.11.271 (sess31) — 2026-07-31  - D
+    MXFS_FORCE_PREP=1 timeout 280 ./run.sh 32 caw prep_cluster 2>&1 | tail -1 && timeout 12 tools/mxfs_sshpass.sh test1 "modinfo mxfs | grep srcver; cat /sys/module
+    timeout 400 ./run.sh 32 caw dirent_durability 2>&1 | grep -E "PASS|FAIL" | tail -1; d=$(mktemp -d); for i in $(seq 1 32); do ( timeout 12 tools/mxfs_sshpass.sh 
+    timeout 25 sed -n '1085,1120p' /src/mxfs/pal/linux/xfs_buf.c | grep -nE "static int|module_param|dump" | head -5; timeout 25 awk 'NR>=1080 && NR<=1125' /src/mxf
+    d=$(mktemp -d); for i in $(seq 1 32); do ( timeout 12 tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/cluster_authority_dump 2>/dev/null; sle
+    for i in $(seq 1 32); do ( timeout 12 tools/mxfs_sshpass.sh test$i "echo 1 > /sys/module/mxfs/parameters/stale_stage_skip" 2>/dev/null </dev/null >/dev/null ) &
+    timeout 480 ./run.sh 32 caw cache_coherency dir_reuse_coherency 2>&1 | grep -E "PASS|FAIL|BLOCK" | tail -2
+    timeout 560 ./run.sh 32 caw crash_consistency dirent_publish_integrity dirent_durability 2>&1 | grep -E "PASS|FAIL|BLOCK" | tail -3
+    ls -td /tmp/run_crash_consistency_* 2>/dev/null | head -1; timeout 30 python3 -c " import json d=json.load(open('/src/mxfs/criteria.json')) for cat in d['catego
+    timeout 15 tools/mxfs_sshpass.sh test1 "ls /tmp/ | grep -i crash | head -3; cat /tmp/crash_consistency* 2>/dev/null | tail -5" 2>/dev/null; echo ===; timeout 20
+    timeout 15 ls tests/suite/ | grep -i crash; timeout 15 grep -c . tests/suite/crash_consistency.sh 2>/dev/null; timeout 20 head -40 tests/suite/crash_consistency
+    cat /proc/loadavg; timeout 300 ./run.sh 32 caw crash_consistency 2>&1 | grep -E "PASS|FAIL|BLOCK" | tail -1
+    for i in $(seq 1 32); do ( timeout 12 tools/mxfs_sshpass.sh test$i "echo 0 > /sys/module/mxfs/parameters/stale_stage_skip" 2>/dev/null </dev/null >/dev/null ) &
+    timeout 15 grep -E "^#.*mark|^#.*verdict|^#.*Usage|case|^\s+mark\)|^\s+verdict\)" tests/cluster_authority_merge.sh | head -10
 
 ## Last text from previous session
 
-uppresses the race (0/3 with tracing)** — the TOCTOU window is microseconds wide, so the named next step is a non-perturbing in-memory write-provenance ring dumped on detection.
+he containment in-tree (default OFF). Recording and closing out:
+**Criteria: NO — not production ready** (10 OPEN defects, 5 critical). Marker stays unwritten.
 
-2. **D4 — kernel panic (new discovery):** Found an unnoticed dual-node crash class: `xfs_dir2_sf_verify` NULL-deref (torn shortform fork — `if_data` NULLed visible to a flusher) in the BAST-release path; test6+test12 both panicked mid-test today, collapsing membership to 30 and hanging the cluster. v0.11.117 now refuses the NULL (node survives) and prints P171-SFNULL forensics naming the last ILOCK writer — the next occurrence identifies the mutator. Root invariant breach remains OPEN per RULE 6.
+This continuation implemented the first step of the GPT-ruled program instead of merely queuing it: **0.11.271 now carries the `mxfs.stale_stage_skip` containment** (default OFF, ship-safe) — the masking loop refuses to publish a logged slot staged under a dead tenure with no current authority, using P56's proven bookkeeping pattern: landed images (`durable==flush`) skip losslessly with no re-arm needed (re-logged items retry naturally), unlanded ones roll the watermark back, count loudly, and defer to the existing `pub_skip_rearm` lever whose livelock history is documented in place. Build is clean, format-checked, and the knob is verified present in the module.
 
-3. **D1 — fence-wedge shutdown:** Overturned sess12-E's diagnosis with journal forensics (the truncate's AG wait succeeded; bash parked 222 seconds somewhere else holding ILOCK — every candidate eliminated by absent prints). Escalated to GPT per RULE 5: leading theory is a log grant-head/CIL wait (periodically-waking, hence hung_task-invisible). Deployed the decisive probe: at every AG-AIL stall the kernel now names the ILOCK owner and dumps its stack.
+Handoff state is explicit in `state.md`: tree at 0.11.271 (built, not deployed), nodes on 0.11.270. Session 14's first move: deploy, baseline a `skip=0` producer lap, then `skip=1` laps — acceptance is stale_nl detections still firing but masked (`sskip_landed` counting), a green board, and `cluster_authority_merge.sh` divergence=0 — then the remaining GPT conditions (three-state consumer audit, the EX-side epoch gate that also covers class Z, and the foreign-replay authority gate).
+Continuing with the A/B itself. Deploying 0.11.271:
+271 deployed (the knob exists = new module). Baseline lap, skip=0:
+**Criteria: NO — not production ready** (10 OPEN defects, 5 critical). Marker stays unwritten; the wrapper relays.
 
-4. **D2 — aged 4× slope:** Mechanism found in code — once a directory has any peer-contact history, every create/unlink pays a ~1.65ms synchronous durability barrier forever; `rerr=-11` decoded as benign. Fix design pending a 5-minute A/B proof.
+This continuation carried the containment from design through first measured proof:
 
-All evidence is banked in `state.md` and three sess13 ccmemory dossiers; the cluster is prepped at v0.11.117 with all probes live and the recipe ready to fire. The relay continues from a defect factory with instruments attached, not a cold trail.
-Criteria: NO — continuing. First verifying the pal.md append actually landed (the hook flagged it), then building the D3 non-perturbing ring:
-Relay boundary. Recording the last verified detail (helpers confirmed available) so session 14 starts coding immediately:
-Relay boundary — session 13 complete. **Criteria answer: NO — not production ready** (four open defects, including reproducible durable data loss and a kernel panic; the YES marker stays unwritten).
+- **0.11.271 deployed** to all 32 nodes with the `stale_stage_skip` mask.
+- **Paired laps on one module load** (exact counter deltas): baseline (skip=0) put 2 dead-tenure images on the wire; the fix lap (skip=1) detected 1, classified it landed, **masked it — zero dead-tenure images written** — with `dirent_durability` PASS at 66s and the dangerous never-landed arm at 0, as predicted.
+- The result, harvest mechanics (P219 totals dump via `cluster_authority_dump`, not `release_barrier_dump`), the runtime-knob caveat, and the ordered completion plan (more paired laps → correctness guards incl. authority-merge divergence → default-ON decision → GPT conditions 2/4/7 → the upstream release-quiescence fix) are recorded in `ccloop-c7ee71c6-sess31-P222-first-AB-mask-works`.
 
-**Session 13 delivered:**
+Session 14 picks up at step 1 of that plan with a working, deployed, measurable mask already in hand.
+Continuing step 1: correctness guards with the mask active (knob still 1 on the live nodes):
+Accumulating detections — control lap next (skip=0):
+Relay boundary reached — wrapping up.
 
-1. **D3 (durable data loss) went from mystery to on-tap:** a new 2-minute recipe (`tests/wedge_load.sh` churn → tree removal → cache_coherency) reproduced catastrophic coherency failures **4 of 4 untraced attempts**: a cluster-wide-lost rename with physical platter proof (the reused ino's slot still carries the prior directory incarnation — decoded byte-level), vanished writer files, and erased dirents. The decisive discovery: **printk tracing at the dir-RMW point suppresses the race entirely (0/3)** — so session 14's provenance capture is specified as a memory-only write ring (design + helper availability verified and written into state.md).
+**Criteria: NO — not production ready** (10 OPEN defects, 5 critical). Marker unwritten.
 
-2. **D4 (new kernel panic class) found, contained, and trapped:** `xfs_dir2_sf_verify` NULL-deref during BAST release crashed test6+test12 simultaneously today (and once unnoticed this morning). v0.11.117 now survives it and prints P171-SFNULL forensics naming the mutator's identity on next occurrence. Root invariant breach stays open per RULE 6.
+**Final state of this session's A/B**: cumulative counters after the full guard batch and three producer laps read `stale_tenure=50, stale_nl=41, sskip_landed=30, sskip_unlanded=0` — meaning **30 dead-tenure images were masked out of home writes across six criterion types (cache_coherency, dir_reuse_coherency, crash_consistency, dirent_publish_integrity, dirent_durability ×3) with every criterion green, healthy walls, and the dangerous never-landed arm at zero**. The 9-event gap between stale_tenure and stale_nl is the EX-side class Z, which the mask deliberately doesn't cover yet (GPT condition 4). Knob is currently 0 on the live nodes (just reset for the control lap); module default remains 0 pending the divergence check.
 
-3. **D1 (fence-wedge shutdown) re-diagnosed:** journal forensics overturned sess12-E's cycle theory (all candidate parking spots eliminated by absent prints); GPT consult (RULE 5) points to a log grant-head/CIL wait. The decisive kernel probe is deployed: every AG-AIL stall now names and stack-dumps the ILOCK holder.
-
-4. **D2 (aged 4× slope) mechanism found in code:** a permanent per-dirop durability barrier triggered once a dir has any peer history; `rerr=-11` watch item resolved benign.
-
-State is fully banked: `state.md` rewritten with all four threads and exact next steps, three ccmemory dossiers (sess13-A/B/C), awareness docs updated, v0.11.117 (`998BB363E007879ED6F57E7`) built and prepped on all 32 nodes with every probe live and `dirwr=0` (the race left open for the hunt). Session 14 starts by coding the specified dir-write ring, then names the clobberer.
+**Session 14 resumes at**: `tests/cluster_authority_merge.sh mark 32` → one skip=1 `dirent_durability` lap → the merge verdict (divergence must be 0) → default-ON decision (0.11.272) → GPT conditions 2/4/7 → the release-quiescence root fix. Everything is recorded in the six sess31 ccmemory notes (headline: `ccloop-c7ee71c6-sess31-P222-first-AB-mask-works`, `-GPT-ruling-stale-stage-mask-conditions`), the defect ledger, CHANGELOG, state.md, and the pal awareness doc.
 
 ## Continue
 

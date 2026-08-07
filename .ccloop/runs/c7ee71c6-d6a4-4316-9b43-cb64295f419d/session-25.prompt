@@ -1,0 +1,150 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 25 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 24
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `e0eaea36-1e9b-4afb-b27f-1be1589d7660`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e0eaea36-1e9b-4afb-b27f-1be1589d7660.jsonl`
+- approx context at last assistant turn: 515523 tokens
+- tools used: Bash×194 Edit×52 Read×51 Write×5 mcp__ask_gpt__query×3 mcp__ccmemory__memory_get×3 mcp__ccmemory__memory_write×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/dir_reuse_stale_shell.sh
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/tests/openunlink_matrix.sh
+- /src/mxfs/VERSION
+- /src/mxfs/include/mxfs/mxfs_super.h
+- /src/mxfs/dlm/disklock.h
+- /src/mxfs/dlm/disklock.c
+- /src/mxfs/dlm/v5_mount.c
+- /src/mxfs/xfs/xfs_mount.h
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/libxfs/xfs_format.h
+- /src/mxfs/tools/mkfs_mxfs.c
+- /src/mxfs/tools/chk_mxfs.c
+- /src/mxfs/tests/vergate.sh
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.h
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    timeout 30 python3 - <<'EOF' import json p='tests/criteria/OPEN_DEFECTS.json' d=json.load(open(p)) defs=d['defects'] if isinstance(d,dict) and 'defects' in d el
+    timeout 590 tests/openunlink_deaths.sh opener_death test1 test2 2>&1 | grep -E "RESULT"
+    grep -n "^xfs_iunlink(\|STATIC.*xfs_iunlink\|static.*xfs_iunlink(" xfs/xfs_inode.c | head -3; grep -n "mxfs_survivor_sweep_slot" xfs/xfs_mxfs_dlm.c | head -3; g
+    grep -n "int xfs_inobt_walk\|int xfs_iwalk" xfs/xfs_iwalk.h 2>/dev/null; grep -n "xfs_inobt_walk_fn\|typedef.*inobt_walk" xfs/xfs_iwalk.h | head -4; grep -n "st
+    grep -n "xfs_iunlink\b" xfs/xfs_inode.c | head -5; grep -n "^xfs_iunlink\|^STATIC.*\nxfs_iunlink" xfs/xfs_inode.c | head -3; sed -n '5100,5130p' xfs/xfs_inode.c
+    grep -n "xfs_iunlink(" xfs/xfs_inode.h xfs/xfs_inode.c | grep -vE "lookup|reload|_log|remove|xfs_iunlink_" | head -5; awk '/^int$|^STATIC int$/{p=NR} /^xfs_iunl
+    grep -rn "xfs_iunlink(struct xfs_trans" xfs/*.h xfs/*.c | head -3
+    grep -rn "xfs_iunlink" xfs/xfs_inode.h | head; grep -n -B3 "^xfs_iunlink(" xfs/xfs_inode.c | head -8
+    timeout 20 python3 - <<'EOF' import re s=open('xfs/xfs_inode.c').read() m=re.search(r'\n(?:static\s+)?int\n?xfs_iunlink\(\n?([^)]*)\)',s) print(s[m.start()-200:
+    grep -rn "xfs_iunlink" xfs/libxfs/*.c xfs/libxfs/*.h 2>/dev/null | grep -vE "lookup|reload|log_" | head -5
+    grep -n -A12 "^xfs_iunlink(" xfs/libxfs/xfs_inode_util.c | head -30
+    sed -n '678,760p' xfs/libxfs/xfs_inode_util.c | grep -nE "bucket|slot|m_mxfs|agino %|UNLINKED_BUCKETS" | head -8
+    grep -n -B2 -A20 "xfs_iunlink_member_bucket" xfs/libxfs/xfs_inode_util.c | head -40
+    grep -n "mxfs_survivor_sweep_bucket_ag" xfs/xfs_mxfs_dlm.c | head -2; grep -n "void mxfs_defer_reap_add\|mxfs_defer_reap_add(" xfs/xfs_mxfs_dlm.c xfs/xfs_mount.
+    grep -n "xfs_iwalk.h\|xfs_inode_util.h\|xfs_ialloc.h\|xfs_trans_resv\|xfs_imap\b" xfs/xfs_mxfs_dlm.c | head -8; grep -n "int xfs_imap(" xfs/xfs_inode.h xfs/libx
+    sed -n '940,985p' xfs/xfs_mxfs_dlm.c
+    grep -n "mxfs_survivor_sweep_slot" xfs/xfs_mxfs_dlm.h | head -2; grep -n "xfs_iwalk.h\|xfs_inode_util.h" xfs/xfs_mxfs_dlm.c | head -2
+    head -60 xfs/xfs_mxfs_dlm.c | grep -n '#include' | tail -8
+    make modules 2>&1 | grep -E "error|Error" | head -15; echo "RC=$?"; ls -la mxfs.ko | awk '{print $6, $7, $8}'
+    make modules 2>&1 | tail -3; modinfo mxfs.ko | grep srcversion; stat -c '%y' mxfs.ko
+
+## Last text from previous session
+
+e rig transitions cleanly. Building C7 now. Step 1 — shared headers:
+Now the disklock.c implementation. Examining all HB write sites and the claim/join path:
+Now disklock.c. Checking the identity types first:
+Inserting the monitor per-pass validation before `check_dead:`:
+Now the join gate + setter, placed after `mxfs_disklock_set_recovered_cb`:
+Critical wiring question — does a v5 DLM create failure fail the mount or silently degrade? Checking the caller:
+Now the CAW-path registration + join gate:
+Now the envelope read validation in xfs_super.c:
+Now the sb incompat bit in xfs_format.h:
+Now the mount policy gate + `legacy_rw` param in xfs_super.c:
+Now mkfs — envelope fields and sb bit:
+chk has all helpers. Adding the `-U` upgrade mode:
+Writing the upgrade function and wiring the option:
+chk doesn't validate incompat — no conflict. Building kernel + tools:
+Positive arm proven — 32/32 mounted gated format, converged 79s (join gate adds no latency when all-compatible). Verifying the gate diagnostics:
+`fence=0` within a single atomic sample this time — the callback may genuinely be delayed/stuck on the second epoch. Checking test2 directly:
+Cluster-wide failure — 31 nodes lost their mounts. Checking what happened on test1:
+test32's NFS cache is stuck. Remounting its /src entirely, then retrying:
+Source reads correct — the failure must be in prep_node's local copy step. Reproducing it manually on test32:
+The copy truncates — checking test32's root disk space:
+test32's root fs is 100% full — that's the whole "staleness". Cleaning known-safe consumers:
+Now rejoining all 31 nodes (fresh boots need /src mounted first):
+32/32 on 351, clean state. Board chunk A again:
+No P89 at all — the reap finished via P92-REAP-RETIRE instead. Checking the reap worker's print paths to see which transitions emit P89 vs P92:
+GPT consult running in background. Meanwhile: opener_death on 351, then bookkeeping:
+**Criteria: NO — not production ready. 9 defects OPEN against the RULE-6 zero-defect bar** (one newly found and proven this session).
+
+## Session 24 summary
+
+**C7 version gate — SHIPPED AND VERIFIED (0.11.351).** Built the full GPT-ruled three-layer design: an XFS superblock incompat bit that every pre-gate kernel refuses via inherited upstream validation (proven live: the 350 kernel refused a gated format), an envelope `cluster_proto_gen` with unknown-flag refusal and a `mxfs.legacy_rw` explicit unsafe escape, plus a heartbeat feature block with a quarantined join gate and monitor-side PR fencing of live incompatible members. `chk_mxfs -U` performs the offline format upgrade (liveness-proven, crash-ordered, idempotent). All six verification arms pass (`tests/vergate.sh`), and the full 22-criteria board, 9-case matrix, opener_death, and AGI repro are green on 351.
+
+**New critical defect found, root-caused to the platter.** unlinker_death failed on 351: the dying unlinker's per-buffer destage landed the dirent removal and nlink=0 inode but not the same-transaction AGI bucket insert; the (correct) atomic replay skip couldn't repair it — leaving a proven permanent orphan (raw disk: ino 139, nlink=0, on no bucket). Registered as D-DESTAGE-TEAR-BUCKETLESS-ORPHAN. GPT ruled the closure order: survivor orphan-adoption scan now, chk audit, last-closer fast path, certified replay as the architectural fix. The orphan scan (adopt-via-durable-iunlink under inode-EX, then the existing authority-gated reap) is **implemented and building cleanly** — deploy as 0.11.352 and verify next session.
+
+**Also this session:** the sess41 matrix B-side EIO investigation — unreproduced across 5 faithful replays, two candidate producers eliminated by code evidence, and a GPT-designed `P-LKERR` tripwire now armed at `xfs_lookup` exit so the next natural occurrence self-diagnoses (zero false positives across all runs since).
+
+Next session: deploy 352, verify the orphan fix under repeated death arms, add the chk orphan audit, then C9 TCP open tracking and the certified-replay arc.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

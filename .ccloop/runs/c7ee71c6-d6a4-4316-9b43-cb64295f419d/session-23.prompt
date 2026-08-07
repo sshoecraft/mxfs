@@ -1,0 +1,135 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 23 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 22
+
+## Original task
+
+read state.md
+
+
+## Previous session
+
+- session-id: `f219cb04-230f-42ba-b7a7-005e51cc82eb`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb.jsonl`
+- approx context at last assistant turn: 503134 tokens
+- tools used: Bash×302 Edit×30 Read×6 Write×5 mcp__ccmemory__memory_write×3 mcp__ask_gpt__query×2 ToolSearch×1 mcp__ccmemory__memory_get×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/agi_bucket_repro.sh
+- /src/mxfs/tests/openunlink_probe.sh
+- /src/mxfs/xfs/xfs_inode.h
+- /src/mxfs/xfs/xfs_inode.c
+- /src/mxfs/xfs/xfs_mxfs_dlm.c
+- /src/mxfs/xfs/xfs_icache.c
+- /src/mxfs/xfs/libxfs/xfs_inode_util.c
+- /src/mxfs/xfs/xfs_log_recover.c
+- /src/mxfs/pal/linux/xfs_super.c
+- /src/mxfs/xfs/scrub/agheader.c
+- /src/mxfs/tests/native_xfs_ref.sh
+- /src/mxfs/dlm/dlm_caw.h
+- /src/mxfs/dlm/dlm_caw.c
+- /tmp/claude-1000/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb/scratchpad/cl341.py
+- /tmp/claude-1000/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb/scratchpad/ledger341.py
+
+## Last 20 bash commands (truncated to 160 chars each)
+
+    sed -n '/void \*mxfs_pal_alloc(/,/^}/p' pal/linux/kern.c | head -30
+    timeout 40 python3 - <<'EOF' p='dlm/dlm_caw.c'; s=open(p).read() old='''unsigned int mxfs_caw_probe_span_enable;	/* default 0 = per-slot reads */''' new='''/*  
+    timeout 30 python3 -c " open('VERSION','w').write('0.11.340\n') p='CHANGELOG.md'; s=open(p).read() add='''## 0.11.340 (sess40) — 2026-08-01  - caw_probe_span_en
+    for i in 1 9; do R=$(tools/mxfs_sshpass.sh test$i "dmesg | grep -m1 P94-SPAN-DISAGREE; dmesg | grep -c 'unrecoverable'" 2>/dev/null); echo "== test$i: $R"; done
+    cat > /tmp/claude-1000/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb/scratchpad/sz.c <<'EOF' #include <stdio.h> #include <stdint.h> struct r { uint64_t volume;
+    timeout 40 python3 - <<'EOF' p='dlm/dlm_caw.h'; s=open(p).read() old='''    uint64_t                open_holders;     uint8_t                 reserved[356];  /*
+    sed -n '263,278p' dlm/dlm_caw.h
+    timeout 30 python3 - <<'EOF' p='dlm/dlm_caw.h'; s=open(p).read() old='''/* Compile-time size check */ #ifdef __KERNEL__ #define MXFS_BUILD_CHECK_CAW_SLOT() \\  
+    timeout 30 python3 -c " open('VERSION','w').write('0.11.341\n') p='CHANGELOG.md'; s=open(p).read() add='''## 0.11.341 (sess40) — 2026-08-01 — TRUE ROOT: on-disk
+    timeout 30 python3 /tmp/claude-1000/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb/scratchpad/cl341.py; cat VERSION; for i in 1 9 20; do R=$(tools/mxfs_sshpass.
+    tools/mxfs_sshpass.sh test1 "dmesg | grep -E 'mxfs-drc' | tail -3 | cut -c1-140" 2>/dev/null; grep -n "ck \"drc rounds\|MIN_ROUNDS\|rounds>=" tests/suite/dir_re
+    O=/tmp/claude-1000/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb/scratchpad/hs3_$$.txt; timeout 45 tests/host_write_sampler.sh "$O" 30 >/dev/null 2>&1; timeout
+    timeout 30 python3 /tmp/claude-1000/-src-mxfs/f219cb04-230f-42ba-b7a7-005e51cc82eb/scratchpad/ledger341.py
+    timeout 590 ./run.sh 32 caw precond_readiness fio_perf cache_coherency zero_silent_loss strong_consistency scaling_curve 2>&1 | grep -E "^  (PASS|FAIL)" | head 
+    timeout 590 ./run.sh 32 caw posix_multi mmap_coherency dlm_fairness dlm_membership dlm_scaling dirent_publish_integrity dirent_durability 2>&1 | grep -E "^  (PA
+    timeout 590 ./run.sh 32 caw crash_consistency fence_during_write fault_netpartition soak node_responsive kernel_health 2>&1 | grep -E "^  (PASS|FAIL)" | head -7
+    timeout 590 ./run.sh 32 caw ag_strand_repair sustained_load dlm_lock_correctness dirent_type_integrity dir_reuse_coherency 2>&1 | grep -E "^  (PASS|FAIL)" | hea
+    timeout 180 tests/agi_bucket_repro.sh pair test1 test2 2>&1 | grep -E "REPRO=" | tail -1; for i in 1 16 31; do R=$(tools/mxfs_sshpass.sh test$i "mount -t mxfs|w
+    tools/mxfs_sshpass.sh test2 "cat /sys/module/mxfs/parameters/iunlink_slot_buckets; dmesg | grep -E 'P83-UNL-RELOAD|P82-ADD|P87-OPEN-DEFER' | tail -5 | cut -c1-1
+    timeout 30 python3 - <<'PYEOF' p='tests/agi_bucket_repro.sh'; s=open(p).read() old='''  if [ "${RELOADS:-0}" -gt 0 ] || [ "${RELOADS_B:-0}" -gt 0 ]; then say "R
+
+## Last text from previous session
+
+d adding the assertion:
+The assertion now compiles clean, proving the struct is back to exactly 512 bytes. Deploying and re-testing the criteria this broke:
+Zero span/garbage/shutdown events fleet-wide post-fix. Checking what dir_reuse's single failing check is:
+Confirmed: dir_reuse's only failing check is the RULE-0 round-count pace bar (7 vs 8) — all coherency checks pass. Checking host storage, since the rig has been hammered for hours:
+**Full 32-node board green on 341** — all 22 criteria including dir_reuse_coherency (58/58), plus both new reproducers. Recording the session's key lesson and state:
+The AGI repro now reports a reload firing (was NONE) — investigating, since per-slot buckets should make cross-node zombie reloads impossible:
+That reload is **owner-local and expected**: test2 (slot 23) reloading its own deferred zombie in its own bucket 23 — a designed consequence of deferred reap, not a cross-node fault. Making the harness say so rather than misleading a future session:
+**Criteria: NO — not production ready. 8 OPEN defects against the RULE-6 zero-defect bar.**
+
+The board is fully green on 0.11.341 (all 22 criteria at 32 nodes, plus both new reproducers), but a green board is not the gate — the ledger is.
+
+**The session's most important result is a correction of my own error.** Partway through, 32-node runs began cascading into cluster-wide filesystem shutdowns (`-110` → `SHUTDOWN_CORRUPT_INCORE`, 10–32 nodes at a time). I ran a same-build A/B with the `open_tracking` knob, saw the control arm fail identically, and concluded the defect predated my work. That conclusion was wrong, and the way it was wrong is the reusable lesson: **a knob A/B can only exonerate code the knob actually disables.** That knob gates behavior, not struct layout, so both arms carried the real bug.
+
+The real bug was mine. The `uint64_t open_holders` I added in 333 sits after a `uint32_t`, so the compiler inserted four bytes of padding and `struct mxfs_caw_lock_slot` — an *on-disk 512-byte sector image* — grew past 512. The lock-table probe reads sixteen slots at once and indexes that buffer as an array of that struct, so every slot past the first in a window decoded from the wrong offset. The shifted image had an unrecognized magic, nothing re-read it, and the probe both terminated its chain early (hiding live locks) and fed that garbage to a compare-and-swap as its compare value, which could never match. Hence the spin, the timeout, and the shutdown.
+
+It shipped silently because the size check's kernel arm was a macro that **nothing ever invoked** — kernel builds had no size assertion at all. That is now an unconditional `_Static_assert` that needs no call site, so any future field breaking the on-disk size fails the build.
+
+Finding it took four layered probes, and the step that mattered was noticing the buffer is `kzalloc`'d: garbage bytes therefore could not be uninitialized memory, which ruled out a short read and pointed at a decode offset. The byte dump then showed the span image was the true slot shifted by exactly eight bytes.
+
+Two independent hardening changes are kept because they are right regardless of that root: the claim path now retries to a wall-clock deadline instead of a bare count, always re-reads its target before the compare, and only a zero magic may terminate a probe chain. Those contained the damage while the root was being found. One related concern is documented but unfixed: escalating a transient lock-acquire timeout to a filesystem shutdown is a blunt response that deserves to become an error return.
+
+Earlier in the session, the AGI-unlinked family was root-caused and given a deterministic 40-second reproducer, per-slot unlinked buckets shipped, and a previously invisible POSIX violation was found and fixed — a peer's `rm` was truncating and freeing files another node held open, so the live fd read zeros. Both fixes are verified, and both defects remain OPEN pending the completion criteria recorded with them.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)

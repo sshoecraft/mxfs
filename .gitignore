@@ -22,6 +22,27 @@ tests/**/*.txt
 tests/**/*.log
 tests/**/*.log.*
 
+# ---- RULE 6 evidence is NOT a test-run capture: keep it. ----
+# tests/evidence/ is cited by tests/criteria/OPEN_DEFECTS.json and must
+# survive a clone. The rules above were silently excluding the readable
+# proofs (e.g. sess138-scst-bvec-uaf-live-proof.txt, 4KB) while admitting
+# hundreds of MB of raw dumps beside them — exactly backwards.
+!tests/evidence/**/*.txt
+!tests/evidence/**/*.log
+
+# ---- Harness output directory: regenerable, and enormous. ----
+# tests/logs/ is where the harnesses WRITE (sf_mkdir_storm.sh,
+# unmount_leak_check.sh, storm_ab_pass.sh, ag_strand_repair.sh,
+# drc_lap_probe.sh, ...). A single 32-node run drops ~16MB of dmesg per
+# node; it stood at 1,794 files / ~2.3GB on 2026-08-07 and none of it was
+# ever tracked. Nothing here is an input to anything.
+tests/logs/
+*.dmesg
+
+# ---- Kernel build dependency files (.kern.o.d, .xfs_buf.o.d, ...) ----
+# Not covered by .*.cmd above.
+.*.d
+
 # ---- Editor / OS cruft ----
 *.swp
 *~

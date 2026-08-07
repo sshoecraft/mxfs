@@ -672,6 +672,10 @@ xfs_init_mount_workqueues(
 	INIT_WORK(&mp->m_mxfs_pr_sweep_work, mxfs_dlm_pr_sweep_work_fn);
 	mp->m_mxfs_pr_sweep_last = 0;
 
+	/* sess37: bast-arm gate (D-DWORK-TEARDOWN-LASTREF-LEAK class fix). */
+	spin_lock_init(&mp->m_mxfs_arm_lock);
+	mp->m_mxfs_arms_off = false;
+
 	/* sess18: release-side device-flush coalescing state. */
 	atomic64_set(&mp->m_mxfs_flush_req, 0);
 	atomic64_set(&mp->m_mxfs_flush_done, 0);
@@ -872,6 +876,15 @@ xfs_fs_drop_inode(
 		return 0;
 	}
 
+	/*
+	 * ccloop c7ee71c6 sess27 (D-UNMOUNT-BUSY-INODES).  This callback runs
+	 * from iput_final(), i.e. AT the i_count->0 transition — the one place a
+	 * filesystem can observe it.  Open a fresh grab-attribution tenure here
+	 * so the table reported at unmount contains ONLY the grabs that built
+	 * the surviving reference.  See the field comments in xfs_inode.h.
+	 */
+	mxfs_inode_tenure_reset(ip);
+
 	return inode_generic_drop(inode);
 }
 
@@ -1043,6 +1056,14 @@ xfs_statfs_data(
 {
 	int64_t			fdblocks =
 		xfs_sum_freecounter(mp, XC_FREE_BLOCKS);
+	uint64_t		pa_ic, pa_if, pa_fdb;
+
+	/* sess39 D-STATFS fix: on multi-node mounts the percpu counter above
+	 * drifts (local-only deltas); report the cluster-coherent physical
+	 * per-AG sum instead.  Residual: omits foreign in-flight delalloc
+	 * (seconds-scale), vs unbounded monotonic drift. */
+	if (mxfs_statfs_perag_sums(mp, &pa_ic, &pa_if, &pa_fdb))
+		fdblocks = pa_fdb;
 
 	/* make sure st->f_bfree does not underflow */
 	st->f_bfree = max(0LL,
@@ -1078,7 +1099,17 @@ xfs_statfs_inodes(
 {
 	uint64_t		icount = percpu_counter_sum(&mp->m_icount);
 	uint64_t		ifree = percpu_counter_sum(&mp->m_ifree);
-	uint64_t		fakeinos = XFS_FSB_TO_INO(mp, st->f_bfree);
+	uint64_t		fakeinos;
+	uint64_t		pa_ic, pa_if, pa_fdb;
+
+	/* sess39 D-STATFS fix (see xfs_statfs_data): cluster-coherent per-AG
+	 * inode sums on multi-node mounts; the percpu counters drift under
+	 * cross-node create/free asymmetry (measured: ifree > icount). */
+	if (mxfs_statfs_perag_sums(mp, &pa_ic, &pa_if, &pa_fdb)) {
+		icount = pa_ic;
+		ifree = pa_if;
+	}
+	fakeinos = XFS_FSB_TO_INO(mp, st->f_bfree);
 
 	st->f_files = min(icount + fakeinos, (uint64_t)XFS_MAXINUMBER);
 	if (M_IGEO(mp)->maxicount)
@@ -1402,6 +1433,10 @@ xfs_fs_put_super(
 
 	xfs_notice(mp, "Unmounting Filesystem %pU", &mp->m_sb.sb_uuid);
 
+	/* sess39: retire this mount from the write-triggered diagnostics. */
+	if (READ_ONCE(mxfs_dbg_mp) == mp)
+		WRITE_ONCE(mxfs_dbg_mp, NULL);
+
 	/*
 	 * sess116 (ccloop 4eef1f39): drain in-flight INODE bast work BEFORE
 	 * anything is torn down.  Each pending mxfs_dlm_bast_work_fn holds an
@@ -1412,11 +1447,87 @@ xfs_fs_put_super(
 	 * the module at refcount -1).  Flushing here runs them while m_log and
 	 * the DLM are still valid, releasing the refs so reclaim can complete.
 	 */
+	/*
+	 * sess37 D-DWORK-TEARDOWN-LASTREF-LEAK class fix.  Close the
+	 * bast-arm gate FIRST: every per-inode bast work/dwork arm routes
+	 * through mxfs_bast_arm_queue*() (xfs_mxfs_dlm.c), which refuses
+	 * once m_mxfs_arms_off is set — the caller then drops the arm's
+	 * igrab ref via its existing queued-false path.  Arms landing
+	 * after the flush below would otherwise re-open the sess116
+	 * window.
+	 */
+	spin_lock(&mp->m_mxfs_arm_lock);
+	mp->m_mxfs_arms_off = true;
+	spin_unlock(&mp->m_mxfs_arm_lock);
+
 	if (mp->m_mxfs_inode_bast_wq) {
 		/* v0.10.38: the sweep re-queues per-inode dworks — settle it
 		 * before flushing so nothing re-arms after the flush. */
 		cancel_work_sync(&mp->m_mxfs_pr_sweep_work);
 		flush_workqueue(mp->m_mxfs_inode_bast_wq);
+	}
+
+	/*
+	 * sess37 part 2: break last-ref circulars the flush cannot see.
+	 * A delayed work still on its 4ms TIMER is not in the workqueue,
+	 * so flush_workqueue ignores it; when its igrab ref is the
+	 * inode's LAST ref, the eviction whose P204 cancel would disarm
+	 * it can never run.  The timer then fires after xfs_free_perag,
+	 * the pag ident check fails, and the P142 last-ref guard leaks
+	 * the inode (captured live sess36: ino 31457413, P6G src=10 ->
+	 * P142-DWORK-STALE pag=NULL -> P142-DWORK-LASTREF -> P202 at
+	 * unload).  Sweep the surviving s_inodes (evict_inodes already
+	 * ran — anything left is busy, i.e. exactly this class), sync-
+	 * cancel each armed bast work/dwork OUTSIDE all spinlocks, and
+	 * drop the ref each canceled arm owned; the inode becomes
+	 * evictable and normal reclaim handles it while pag and DLM are
+	 * still alive.  Gate closed => nothing can re-arm, so every
+	 * processed inode stays clear and the restart scan terminates.
+	 */
+	if (mp->m_mxfs_inode_bast_wq) {
+		struct inode	*vinode;
+		int		p6s_cancels = 0, p6s_refs = 0;
+
+restart_armsweep:
+		spin_lock(&sb->s_inode_list_lock);
+		list_for_each_entry(vinode, &sb->s_inodes, i_sb_list) {
+			struct xfs_inode *sip = XFS_I(vinode);
+			bool c_w, c_d;
+			int n;
+
+			if (!work_pending(&sip->i_dlm_bast_work) &&
+			    !delayed_work_pending(&sip->i_dlm_bast_dwork))
+				continue;
+			if (!igrab(vinode))
+				continue;  /* evicting — its own cancel runs */
+			spin_unlock(&sb->s_inode_list_lock);
+
+			c_w = cancel_work_sync(&sip->i_dlm_bast_work);
+			c_d = cancel_delayed_work_sync(&sip->i_dlm_bast_dwork);
+			n = (c_w ? 1 : 0) + (c_d ? 1 : 0);
+			p6s_cancels += n;
+			/* One arm == one igrab (every site's contract).
+			 * cnt must cover the arm ref(s) PLUS our pin. */
+			while (n--) {
+				int cnt = atomic_read(&vinode->i_count);
+
+				if (cnt < 2 ||
+				    (vinode->i_state & (I_FREEING | I_CLEAR))) {
+					pr_warn("mxfs: P6S-SWEEP-BADREF ino=%llu i_count=%d i_state=0x%lx — NOT releasing\n",
+						(unsigned long long)sip->i_ino,
+						cnt, vinode->i_state);
+					break;
+				}
+				xfs_irele(sip);
+				p6s_refs++;
+			}
+			iput(vinode);
+			goto restart_armsweep;
+		}
+		spin_unlock(&sb->s_inode_list_lock);
+		if (p6s_cancels || p6s_refs)
+			pr_warn("mxfs: P6S-ARMSWEEP cancels=%d arm_refs_dropped=%d — teardown bast-arm sweep engaged\n",
+				p6s_cancels, p6s_refs);
 	}
 
 	/* Shut down MXFS DLM before XFS unmount */
@@ -1434,6 +1545,17 @@ xfs_fs_put_super(
 		mxfs_iclus_purge_all(mp);
 		mxfs_dlm_ag_force_release_all(mp);
 		/*
+		 * sess171: retire the selftest trigger BEFORE the ctx is
+		 * NULLed/freed.  debugfs_remove waits out any in-flight
+		 * write handler (debugfs proxy), so a mid-run selftest —
+		 * which dereferences the ctx for seconds — completes and
+		 * releases its grants before teardown proceeds, and no new
+		 * run can arm.  m_debugfs itself is only removed in
+		 * xfs_mount_free, far too late for this file.
+		 */
+		debugfs_remove(mp->m_mxfs_pwtest_dentry);
+		mp->m_mxfs_pwtest_dentry = NULL;
+		/*
 		 * sess9 (ccloop a864): settle the shutdown-withdraw work
 		 * BEFORE freeing the ctx.  NULL the pointer first so a
 		 * withdraw queued in the window no-ops instead of using the
@@ -1441,6 +1563,7 @@ xfs_fs_put_super(
 		 */
 		mp->m_mxfs_dlm = NULL;
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
+		mxfs_defer_reap_destroy(mp);
 		/*
 		 * v0.11.74: keep our PR registration alive across
 		 * xfs_unmountfs.  Unregistering inside v5 shutdown fenced
@@ -1459,6 +1582,16 @@ xfs_fs_put_super(
 		 * mxfs_dlm_cache_init, which ran iff m_mxfs_dlm was set.
 		 */
 		cancel_work_sync(&mp->m_mxfs_foreign_replay_work);
+		/*
+		 * sess151: settle the DLM-stuck shutdown work AFTER
+		 * mxfs_v5_dlm_shutdown — its emitters (the owed worker,
+		 * the teardown escalate defer) are joined or channel-
+		 * closed in there, so nothing re-queues behind this
+		 * cancel.  A canceled escalation loses nothing: the CAW
+		 * layer recorded the failure synchronously and stop()'s
+		 * departure verdict already read it.
+		 */
+		cancel_work_sync(&mp->m_mxfs_dlm_stuck_work);
 	}
 	/* ccloop c7ee71c6 sess2: stop the destage kick while mp->m_log is
 	 * still valid (same teardown-ordering family as foreign_replay). */
@@ -1466,16 +1599,6 @@ xfs_fs_put_super(
 
 	xfs_filestream_unmount(mp);
 	xfs_unmountfs(mp);
-
-	/* Deferred PR unregister — the unmount record is on disk now. */
-	if (pr_late_key) {
-		int prret = mxfs_pal_scsi_pr_unregister_bdev(
-				mp->m_ddev_targp->bt_bdev, pr_late_key);
-		if (prret)
-			xfs_notice(mp,
-				   "MXFS: late PR unregister failed: %d",
-				   prret);
-	}
 
 	xfs_rtmount_freesb(mp);
 	xfs_freesb(mp);
@@ -1485,6 +1608,39 @@ xfs_fs_put_super(
 	xfs_destroy_percpu_counters(mp);
 	xfs_destroy_mount_workqueues(mp);
 	xfs_shutdown_devices(mp);
+
+	/*
+	 * Deferred PR unregister — LAST, after every device I/O this mount
+	 * will ever issue.
+	 *
+	 * v0.11.74 moved the unregister after xfs_unmountfs so our own unmount
+	 * log record could not bounce EBADE on a WE-RO target.  That was
+	 * necessary but not sufficient: xfs_shutdown_devices() ends with an
+	 * unconditional blkdev_issue_flush() on the data device (inherited
+	 * upstream, for bdev-pagecache coherency with udev/blkid), and it ran
+	 * AFTER the unregister — so every clean unmount of a PR-protected LUN
+	 * ended in a FAILED Synchronize Cache:
+	 *   "reservation conflict error, dev dm-1, sector 0 op 0x1:(WRITE)
+	 *    flags 0x800 phys_seg 0"
+	 * (D-UNMOUNT-RELEASE-FLUSH-AFTER-PR-UNREGISTER, sess43; measured on
+	 * multiple nodes at 8/caw).  Harmless for durability — the log and its
+	 * unmount record were already flushed while registered — but a failed
+	 * I/O on a clean path is not acceptable output, and it poisons every
+	 * health check that greps for reservation conflicts.
+	 *
+	 * xfs_shutdown_devices() only flushes and invalidates; it does not
+	 * release the buftargs, so bt_bdev is still valid here.  Keeping the
+	 * registration until after it means no MXFS-issued or XFS-issued I/O
+	 * can ever be rejected by our own de-registration.
+	 */
+	if (pr_late_key) {
+		int prret = mxfs_pal_scsi_pr_unregister_bdev(
+				mp->m_ddev_targp->bt_bdev, pr_late_key);
+		if (prret)
+			xfs_notice(mp,
+				   "MXFS: late PR unregister failed: %d",
+				   prret);
+	}
 }
 
 static long
@@ -1918,12 +2074,43 @@ struct mxfs_cache_caps {
 static struct mxfs_cache_caps mxfs_cache_caps;
 
 /*
- * v0.5.0: dead-node detection window in ms (lease_timeout_ms param,
- * defined with the other module params below).  0 = disklock compile-time
- * default (62 s, production-conservative).  Test rigs set e.g. 15000 so
- * crash recovery — lock purge + foreign-slice replay — fires promptly.
+ * DEAD-NODE DETECTION WINDOW in ms.  0 = disklock compile-time default
+ * (62 s, production-conservative).  Test rigs set e.g. 15000 so crash
+ * recovery — lock purge + foreign-slice replay — fires promptly.
+ *
+ * sess93 — THE NAME `lease_timeout_ms` IS A LIE, and it is kept only for
+ * compatibility.  It has never configured the lease: mxfs_v5_dlm_init feeds
+ * it to mxfs_disklock_set_dead_timeout_ms() and nothing else.  The lease's
+ * own timeout is MXFS_LEASE_TIMEOUT_DEFAULT_MS (600000, lease.h) and nothing
+ * ever changes it.  An operator setting lease_timeout_ms=15000 expecting a
+ * 15 s lease gets a 15 s DISKLOCK threshold and a still-10-minute lease.
+ *
+ * And the lease deliberately does NOT track it (sess43): a node that dies and
+ * rejoins takes a NEW node_id, so peers keep the dead identity ACTIVE in
+ * their lease table for up to ten minutes after every fault-injecting event.
+ * That long window is correct self-healing behaviour — shortening it to match
+ * the disklock threshold would make a rejoining node race its own ghost.  The
+ * authoritative membership is the on-disk HB table, not the lease beacon.
+ *
+ * `dead_timeout_ms` is the canonical name.  `lease_timeout_ms` still works
+ * and, when it is the one actually set, says so at load.
  */
+static unsigned int mxfs_dead_timeout_ms;
 static unsigned int mxfs_lease_timeout_ms;
+
+static unsigned int mxfs_resolve_dead_timeout_ms(void)
+{
+	return mxfs_dead_timeout_ms ? mxfs_dead_timeout_ms
+				    : mxfs_lease_timeout_ms;
+}
+
+/*
+ * sess42 C7 version gate: explicit, logged, UNSAFE opt-out that lets a
+ * legacy (pre-protogate) cluster format mount RW — e.g. to migrate data
+ * off an old format.  Default 0 = bit-absent cluster RW is refused
+ * (module param defined with the others below).
+ */
+static unsigned int mxfs_legacy_rw;
 
 /*
  * sess38: mxfs dentry revalidation for cluster coordination.
@@ -2523,6 +2710,22 @@ xfs_fs_fill_super(
 			if (ret == 0 && msup->magic == MXFS_FORMAT_MAGIC) {
 				xfs_daddr_t off = msup->xfs_data_offset >>
 						  BBSHIFT;
+
+				/*
+				 * sess42 C7: refuse unknown envelope flag bits
+				 * — a flag we do not understand marks a format
+				 * evolution this code cannot honour (the same
+				 * contract as XFS sb_features_incompat).
+				 */
+				if (msup->flags & ~MXFS_FORMAT_F_KNOWN) {
+					xfs_alert(mp,
+	"MXFS envelope has unknown incompatible flags 0x%x — this kernel is too old for this format; refusing mount",
+						  msup->flags &
+						  ~MXFS_FORMAT_F_KNOWN);
+					kfree(msup);
+					error = -EINVAL;
+					goto out_free_scrub_stats;
+				}
 				mp->m_ddev_targp->bt_sector_offset = off;
 				mp->m_mxfs_has_envelope = true;
 				mp->m_mxfs_journal_offset = msup->journal_offset;
@@ -2532,11 +2735,17 @@ xfs_fs_fill_super(
 					msup->xfs_log_node_count;
 				mp->m_mxfs_log_slice_bblks =
 					msup->xfs_log_slice_bblks;
+				mp->m_mxfs_protogate =
+					(msup->flags & MXFS_FORMAT_F_PROTOGATE);
+				mp->m_mxfs_cluster_proto_gen =
+					mp->m_mxfs_protogate ?
+						msup->cluster_proto_gen : 0;
 				xfs_notice(mp,
-					"MXFS envelope v%u: XFS data at offset %llu (%llu sectors)",
+					"MXFS envelope v%u: XFS data at offset %llu (%llu sectors) proto_gen=%u",
 					msup->version,
 					(unsigned long long)msup->xfs_data_offset,
-					(unsigned long long)off);
+					(unsigned long long)off,
+					mp->m_mxfs_cluster_proto_gen);
 			}
 			kfree(msup);
 		}
@@ -2787,6 +2996,68 @@ xfs_fs_fill_super(
 	 */
 	if (mp->m_mxfs_has_envelope) {
 		/*
+		 * sess41 (GPT audit C10/G6) refused icluster_dlm=1 +
+		 * open_tracking outright: routed files never claimed the
+		 * per-inode slot the open_holders bits live on, so open
+		 * publication silently no-op'd and a peer's unlink could
+		 * free a file this node holds open.
+		 *
+		 * sess46: LIFTED — routed open tracking is now implemented
+		 * per the GPT C9-ordering ruling: the icluster release is
+		 * GATED on a durable standalone per-inode SET for every
+		 * covered inode with protected activity
+		 * (mxfs_iclus_publish_open_bits), opens pass the icluster
+		 * admission gate (mxfs_iclus_open_admit), and the routed
+		 * freer's B6 reads via the claim-less chain probe
+		 * (mxfs_v5_dlm_inode_open_probe) with provable-absence
+		 * semantics.  Mixed-version clusters are excluded by the C7
+		 * proto_gen heartbeat gate; flipping icluster_dlm's DEFAULT
+		 * is the protocol change that must bump MXFS_PROTO_GEN.
+		 */
+		if (mxfs_icluster_dlm &&
+		    ({ extern unsigned int mxfs_open_tracking;
+		       mxfs_open_tracking; }))
+			xfs_notice(mp,
+	"mxfs: icluster_dlm=1 with routed open-unlink protection (gated release publication + admission gate + probe-based B6)");
+		/*
+		 * sess42 C7 version gate — admission policy (GPT ruling: no
+		 * hard-safe RW mode without the on-disk gate).  A cluster
+		 * (envelope) volume without the PROTOGATE format bits could be
+		 * mounted RW by a PRE-GATE kernel at any moment — such a
+		 * kernel ignores open_holders bits, replay tagging, and purge
+		 * rules, and the heartbeat-level fence can only stop it
+		 * seconds AFTER its first unsafe writes.  So bit-absent
+		 * cluster RW is not a safe configuration and is refused by
+		 * default; mxfs.legacy_rw=1 is the explicit, logged, unsafe
+		 * opt-out (e.g. to migrate data off an old format).  Gate
+		 * present ⇒ generations must match exactly.
+		 */
+		if (mp->m_mxfs_protogate) {
+			if (mp->m_mxfs_cluster_proto_gen != MXFS_PROTO_GEN) {
+				xfs_alert(mp,
+	"mxfs: C7 gate: filesystem cluster_proto_gen=%u but this kernel speaks %u — refusing mount (upgrade the mismatched side)",
+					  mp->m_mxfs_cluster_proto_gen,
+					  (unsigned)MXFS_PROTO_GEN);
+				error = -EPROTONOSUPPORT;
+				goto out_filestream_unmount;
+			}
+			if (!xfs_sb_has_incompat_feature(&mp->m_sb,
+					XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE)) {
+				xfs_alert(mp,
+	"mxfs: C7 gate: envelope is gated but the XFS sb lacks INCOMPAT_MXFS_PROTOGATE — half-upgraded format; run chk_mxfs --upgrade-protogate");
+				error = -EPROTONOSUPPORT;
+				goto out_filestream_unmount;
+			}
+		} else if (!mxfs_legacy_rw) {
+			xfs_alert(mp,
+	"mxfs: C7 gate: legacy (pre-protogate) cluster format — old kernels could mount it RW and corrupt open-unlink state undetected for seconds. Refusing mount; run chk_mxfs --upgrade-protogate (offline, all nodes unmounted), or set mxfs.legacy_rw=1 to explicitly accept the exposure.");
+			error = -EPROTONOSUPPORT;
+			goto out_filestream_unmount;
+		} else {
+			xfs_warn(mp,
+	"mxfs: C7 gate: LEGACY RW mount (mxfs.legacy_rw=1) — no protection against pre-gate kernels joining this LUN");
+		}
+		/*
 		 * v5 sess33: pick max_dlm_lock_caw from the per-mount override
 		 * (set via mount option, future work) or fall back to the
 		 * module-wide auto-sized mxfs_cache_caps.dlm_lock computed at
@@ -2802,7 +3073,11 @@ xfs_fs_fill_super(
 			.max_nodes = mp->m_mxfs_max_nodes,
 			.bdev = mp->m_ddev_targp->bt_bdev,
 			.max_dlm_lock_caw = max_dlm_caw,
-			.lease_timeout_ms = mxfs_lease_timeout_ms,
+			.lease_timeout_ms = mxfs_resolve_dead_timeout_ms(),
+			/* sess65: the log-slice divisor, read from the
+			 * envelope above.  The durable recovery descriptor
+			 * records which slice a recovery covers. */
+			.log_node_count = mp->m_mxfs_log_node_count,
 		};
 		memcpy(dlm_opts.volume_uuid, &mp->m_sb.sb_uuid, 16);
 		/* sess6 (46efd8b6): flush epoch starts at 1 so a buffer stamp
@@ -2828,11 +3103,17 @@ xfs_fs_fill_super(
 			mp->m_mxfs_dlm_was_active = true;
 			mp->m_mxfs_node_slot =
 				mxfs_v5_dlm_get_node_slot(mp->m_mxfs_dlm);
+			/* sess32: pass-2 fresh HB claim => the log slice we
+			 * inherit may be an already-recovered incarnation's;
+			 * xfs_log_mount gates image re-application on this. */
+			mp->m_mxfs_slice_adopted =
+				mxfs_v5_dlm_slice_adopted(mp->m_mxfs_dlm);
 			/* sess9 (ccloop a864): armed by xfs_do_force_shutdown
 			 * to withdraw this node from the cluster DLM (fence
 			 * acquires + stop heartbeat).  INIT here, immediately
 			 * after the ctx exists, so any shutdown from this
 			 * point on can queue it. */
+			mxfs_defer_reap_init(mp);
 			INIT_WORK(&mp->m_mxfs_withdraw_work,
 				  mxfs_dlm_withdraw_work_fn);
 		}
@@ -2843,8 +3124,25 @@ xfs_fs_fill_super(
 		goto out_filestream_unmount;
 
 	/* Post-mountfs DLM setup — cache init needs mounted FS (AIL etc.) */
-	if (mp->m_mxfs_dlm)
+	if (mp->m_mxfs_dlm) {
 		mxfs_dlm_cache_init(mp);
+		/* sess54 (D-FOREIGN-REPLAY step 4a): our log recovery has run
+		 * and replayed images authored under the previous
+		 * incarnation's authority bits, which step 4 deliberately
+		 * KEPT.  Make that durable, then release them and route the
+		 * peers deferred at step 6.5 into fence + slice recovery.
+		 * Must follow cache_init: the settle needs the slice-replay
+		 * hook it registers. */
+		mxfs_dlm_mount_recovery_settle(mp);
+	}
+
+	/* sess39 D-STATFS fix: baseline every AGF+AGI so the cluster-coherent
+	 * statfs perag sums cover AGs this node never touches, and expose the
+	 * mount to the write-triggered diagnostics (pin_census). */
+	if (mp->m_mxfs_dlm) {
+		mxfs_init_all_perag_data(mp);
+		WRITE_ONCE(mxfs_dbg_mp, mp);
+	}
 
 	root = igrab(VFS_I(mp->m_rootip));
 	if (!root) {
@@ -2865,6 +3163,7 @@ xfs_fs_fill_super(
 
 		mp->m_mxfs_dlm = NULL;	/* sess9: no-op any queued withdraw */
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
+		mxfs_defer_reap_destroy(mp);
 		mxfs_v5_dlm_shutdown(v5dlm);
 	}
 	xfs_filestream_unmount(mp);
@@ -2892,10 +3191,13 @@ xfs_fs_fill_super(
 
 		mp->m_mxfs_dlm = NULL;	/* sess9: no-op any queued withdraw */
 		cancel_work_sync(&mp->m_mxfs_withdraw_work);
+		mxfs_defer_reap_destroy(mp);
 		mxfs_v5_dlm_shutdown(v5dlm);
 		/* v0.5.0: work INIT'd by mxfs_dlm_cache_init (ran before
 		 * this label is reachable); drain while m_log is valid. */
 		cancel_work_sync(&mp->m_mxfs_foreign_replay_work);
+		/* sess151: same lifecycle — see the unmount-path comment. */
+		cancel_work_sync(&mp->m_mxfs_dlm_stuck_work);
 	}
 	xfs_filestream_unmount(mp);
 	xfs_unmountfs(mp);
@@ -3202,10 +3504,98 @@ xfs_init_fs_context(
 	return 0;
 }
 
+/*
+ * ccloop c7ee71c6 sess22 — P199: NAME THE INODE THAT LEAKS AT UNMOUNT.
+ *
+ * PROVEN DEFECT (test9, after a 32/caw board run):
+ *     WARNING at fs/super.c:649 generic_shutdown_super  (busy inodes at umount)
+ *     kmem_cache_destroy mxfs_inode: Slab cache still has objects
+ *         when called from xfs_destroy_caches+0xc2/0x140 [mxfs]
+ *     Slab objects=18 used=1
+ * i.e. exactly ONE mxfs_inode survives the super teardown, the VFS refuses to
+ * destroy the cache, and the node's taint goes to G B W.  A leaked slab cache
+ * is a use-after-free hazard for the next insmod, so this is not cosmetic.
+ *
+ * The warning fires INSIDE generic_shutdown_super and names nothing — no
+ * inode number, no state.  Walking the ICI radix trees immediately BEFORE
+ * kill_block_super() names the survivor and prints the DLM bookkeeping that
+ * would explain a retained reference (a queued bast dwork and the
+ * deferred-publish list both own an igrab ref).  Read-only; RCU only; runs
+ * once per unmount, so it costs nothing on any hot path.
+ */
+static void
+mxfs_report_residual_inodes(
+	struct xfs_mount		*mp)
+{
+	struct xfs_perag		*pag = NULL;
+	int				total = 0;
+	int				held = 0;
+
+	if (!mp)
+		return;
+
+	while ((pag = xfs_perag_next(mp, pag))) {
+		struct xfs_inode	*batch[32];
+		uint32_t		first_index = 0;
+		int			nr_found, i;
+
+		do {
+			rcu_read_lock();
+			nr_found = radix_tree_gang_lookup(&pag->pag_ici_root,
+					(void **)batch, first_index, 32);
+			for (i = 0; i < nr_found; i++) {
+				struct xfs_inode *ip = batch[i];
+				struct inode	 *vip;
+
+				if (!ip)
+					continue;
+				first_index = XFS_INO_TO_AGINO(mp, ip->i_ino) + 1;
+				vip = VFS_I(ip);
+				total++;
+				/*
+				 * Only a HELD reference can keep an inode alive
+				 * past the VFS eviction that follows, so print
+				 * just those.  (icount==0 entries are simply
+				 * awaiting reclaim and are normal here — this
+				 * probe runs BEFORE generic_shutdown_super's
+				 * shrink_dcache/evict_inodes, so a large
+				 * icount==0 population proves nothing.  Measured
+				 * on a healthy 32-node unmount: 770 icount==0,
+				 * 216 icount==1, 32 icount==2, zero VFS warns.)
+				 */
+				if (atomic_read(&vip->i_count) == 0)
+					continue;
+				held++;
+				if (held > 16)
+					continue;
+				pr_warn("mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=%llu icount=%d mode=0%o nlink=%u dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d iflags=0x%lx pincount=%d in_ail=%d — still in the ICI radix tree at unmount; generic_shutdown_super will report it busy\n",
+					(unsigned long long)ip->i_ino,
+					atomic_read(&vip->i_count),
+					vip->i_mode, vip->i_nlink,
+					ip->i_dlm_mode, ip->i_dlm_state,
+					ip->i_dlm_ex_holders,
+					ip->i_dlm_pr_holders,
+					ip->i_dlm_pin_count,
+					ip->i_dlm_bast_pending ? 1 : 0,
+					ip->i_dlm_unpublished ? 1 : 0,
+					ip->i_flags,
+					atomic_read(&ip->i_pincount),
+					(ip->i_itemp && test_bit(XFS_LI_IN_AIL,
+						&ip->i_itemp->ili_item.li_flags)) ? 1 : 0);
+			}
+			rcu_read_unlock();
+		} while (nr_found == 32);
+	}
+	if (held)
+		pr_warn("mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=%d still_referenced=%d (printed at most 16) — if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these\n",
+			total, held);
+}
+
 static void
 xfs_kill_sb(
 	struct super_block		*sb)
 {
+	mxfs_report_residual_inodes(XFS_M(sb));
 	kill_block_super(sb);
 	xfs_mount_free(XFS_M(sb));
 }
@@ -3451,6 +3841,13 @@ xfs_destroy_caches(void)
 	 * destroy caches.
 	 */
 	rcu_barrier();
+	/*
+	 * sess23 (D-UNMOUNT-BUSY-INODES): after the rcu_barrier every inode that
+	 * was going to be freed has been.  Anything still on the live registry
+	 * is the leak that makes the next kmem_cache_destroy(xfs_inode_cache)
+	 * report "Slab cache still has objects".  Name it before we lose it.
+	 */
+	mxfs_report_leaked_inodes();
 	kmem_cache_destroy(xfs_parent_args_cache);
 	kmem_cache_destroy(xfs_xmd_cache);
 	kmem_cache_destroy(xfs_xmi_cache);
@@ -3534,6 +3931,12 @@ xfs_destroy_workqueues(void)
  * The other caps are exposed for forward compatibility and parity with
  * the mxfs.1 module-param interface.)
  */
+module_param_named(legacy_rw, mxfs_legacy_rw, uint, 0644);
+MODULE_PARM_DESC(legacy_rw,
+	"Allow RW mount of a legacy (pre-protogate) MXFS cluster format "
+	"(UNSAFE: pre-gate kernels can join undetected for seconds; "
+	"default 0 = refuse, run chk_mxfs --upgrade-protogate instead).");
+
 static unsigned int mxfs_cache_mem_pct = 10;
 module_param_named(cache_mem_pct, mxfs_cache_mem_pct, uint, 0644);
 MODULE_PARM_DESC(cache_mem_pct,
@@ -3565,10 +3968,53 @@ module_param_named(block_cache_max, mxfs_block_cache_max, uint, 0644);
 MODULE_PARM_DESC(block_cache_max,
 	"Max cached 4 KB blocks per mount (0 = auto from cache_mem_pct).");
 
+module_param_named(dead_timeout_ms, mxfs_dead_timeout_ms, uint, 0644);
+MODULE_PARM_DESC(dead_timeout_ms,
+	"Dead-node detection window in ms (0 = 62 s default). Gates lock "
+	"purge + foreign log-slice replay after a peer dies.  This is the "
+	"DISKLOCK heartbeat threshold; the lease timeout is separate, fixed "
+	"at 600 s, and deliberately does not track it.");
+/* Deprecated alias — see the comment on mxfs_dead_timeout_ms.  It never
+ * configured the lease despite the name; dead_timeout_ms wins if both set. */
 module_param_named(lease_timeout_ms, mxfs_lease_timeout_ms, uint, 0644);
 MODULE_PARM_DESC(lease_timeout_ms,
-	"Dead-node detection window in ms (0 = 62 s default). Gates lock "
-	"purge + foreign log-slice replay after a peer dies.");
+	"DEPRECATED alias for dead_timeout_ms.  Never configured the lease.");
+
+unsigned int mxfs_open_tracking = 1;
+module_param_named(open_tracking, mxfs_open_tracking, uint, 0644);
+MODULE_PARM_DESC(open_tracking,
+	"sess40 cross-node open-unlink protection: 1 (default) = publish an "
+	"open-holder bit when releasing a still-open inode under BAST, and "
+	"defer a peer-open unlinked inode's destructive inactivation; 0 = "
+	"pre-sess40 behaviour (A/B control; a peer's unlink then destroys "
+	"data under a live fd).");
+
+unsigned int mxfs_inocl_fence = 1;
+module_param_named(inocl_fence, mxfs_inocl_fence, uint, 0644);
+MODULE_PARM_DESC(inocl_fence,
+	"sess47 inode-cluster time-travel fence: 1 (default) = device flush "
+	"before a cold inode-cluster read inside an unflushed write window "
+	"(sibling of the sess6 AG-meta fence; closes the fossil "
+	"di_next_unlinked producer, P53-IUNLINK-MISMATCH); 0 = report-only "
+	"(A/B control).");
+
+extern unsigned int mxfs_caw_probe_span_enable;
+module_param_named(caw_probe_span_enable, mxfs_caw_probe_span_enable, uint, 0644);
+MODULE_PARM_DESC(caw_probe_span_enable,
+	"CAW slot-probe multi-slot read window: 0 (default) = per-slot reads "
+	"only; 1 = re-enable the 16-slot span read, which is PROVEN to return "
+	"data disagreeing with a per-slot read of the same LBA "
+	"(P94-SPAN-DISAGREE) and is retained only as an A/B control.");
+
+extern unsigned int mxfs_iunlink_slot_buckets;
+module_param_named(iunlink_slot_buckets, mxfs_iunlink_slot_buckets, uint, 0644);
+MODULE_PARM_DESC(iunlink_slot_buckets,
+	"Multi-node AGI unlinked-list bucket choice: 1 (default) = this "
+	"node's disklock slot (private per-node buckets — cross-node zombie "
+	"adjacency structurally impossible); 0 = legacy agino%64 hashing "
+	"(A/B control). MUST be uniform across the cluster; removals of "
+	"entries inserted under the other setting stay correct via the "
+	"per-inode recorded bucket.");
 
 /*
  * Conservative per-entry size estimates (bytes).  Better to slightly
@@ -3677,8 +4123,14 @@ init_xfs_fs(void)
 	 * with this reading nonzero means the param was lost in plumbing,
 	 * not in insmod (sess18: a silently-failed insmod on an
 	 * already-loaded module swallows params). */
-	printk(KERN_INFO "mxfs: lease_timeout_ms=%u (0 = 62s default)\n",
-	       mxfs_lease_timeout_ms);
+	if (mxfs_lease_timeout_ms && !mxfs_dead_timeout_ms)
+		printk(KERN_WARNING "mxfs: lease_timeout_ms=%u is DEPRECATED and "
+		       "has never configured the lease — it is the disklock "
+		       "dead-detection threshold.  Use dead_timeout_ms.  The "
+		       "lease timeout stays 600000 ms by design (sess43).\n",
+		       mxfs_lease_timeout_ms);
+	printk(KERN_INFO "mxfs: dead_timeout_ms=%u (0 = 62s default)\n",
+	       mxfs_resolve_dead_timeout_ms());
 
 	mxfs_compute_cache_caps();
 
@@ -3744,6 +4196,7 @@ init_xfs_fs(void)
 	if (error)
 		goto out_qm_exit;
 	mxfs_net2_selftest_maybe_start();
+	mxfs_lru_sweep_start();	/* sess39: stranded-inode repatriation */
 	return 0;
 
  out_qm_exit:
@@ -3781,6 +4234,7 @@ void mxfs_pal_sdev_cache_release(void);
 STATIC void __exit
 exit_xfs_fs(void)
 {
+	mxfs_lru_sweep_stop();	/* sess39: before teardown — the sweep touches sb inodes */
 	mxfs_net2_selftest_stop();
 	xfs_qm_exit();
 	unregister_filesystem(&xfs_fs_type);

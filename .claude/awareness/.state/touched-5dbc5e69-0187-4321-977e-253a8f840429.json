@@ -1,0 +1,10 @@
+{
+  "source": [
+    "xfs/xfs_log_recover.c",
+    "xfs/xfs_log_priv.h",
+    "xfs/xfs_log.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

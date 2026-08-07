@@ -1,0 +1,9 @@
+{
+  "source": [
+    "tests/fence_inflight/prprobe.c",
+    "tests/fence_inflight/verdict.py"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

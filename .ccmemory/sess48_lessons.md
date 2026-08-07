@@ -1,3 +1,10 @@
+---
+name: sess48_lessons
+description: Lessons from the 2026-06-02 sess48 (pre-ccloop numbering — NOT ccloop c7ee71c6 sess48).
+metadata:
+  type: project
+---
+
 # sess48 lessons — 2026-06-02
 
 ## The remaining cache_coherency root, NAILED: reused-inode stale cache-HIT

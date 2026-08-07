@@ -4,6 +4,7 @@
  * All Rights Reserved.
  */
 #include "xfs_platform.h"
+#include <linux/namei.h>	/* sess37 CREATEINT: LOOKUP_CREATE/LOOKUP_EXCL */
 #include "xfs_fs.h"
 #include "xfs_shared.h"
 #include "xfs_format.h"
@@ -30,6 +31,10 @@
 #include "xfs_file.h"
 #include "xfs_bmap.h"
 #include "xfs_zone_alloc.h"
+
+/* sess23: igrab() call-site attribution — see mxfs_igrab_tracked(). */
+#define igrab(vi) mxfs_igrab_tracked((vi), __LINE__, 3)
+#define iput(vi) mxfs_iput_tracked((vi), __LINE__, 3)
 
 #include <linux/posix_acl.h>
 #include <linux/security.h>
@@ -374,7 +379,8 @@ xfs_vn_lookup(
 		return ERR_PTR(-ENAMETOOLONG);
 
 	xfs_dentry_to_name(&name, dentry);
-	error = xfs_lookup(XFS_I(dir), &name, &cip, NULL);
+	error = xfs_lookup(XFS_I(dir), &name, &cip, NULL,
+			   (flags & (LOOKUP_CREATE | LOOKUP_EXCL)) != 0);
 	if (likely(!error))
 		inode = VFS_I(cip);
 	else if (likely(error == -ENOENT))
@@ -415,7 +421,8 @@ xfs_vn_ci_lookup(
 		return ERR_PTR(-ENAMETOOLONG);
 
 	xfs_dentry_to_name(&xname, dentry);
-	error = xfs_lookup(XFS_I(dir), &xname, &ip, &ci_name);
+	error = xfs_lookup(XFS_I(dir), &xname, &ip, &ci_name,
+			   (flags & (LOOKUP_CREATE | LOOKUP_EXCL)) != 0);
 	if (unlikely(error)) {
 		if (unlikely(error != -ENOENT))
 			return ERR_PTR(error);

@@ -352,9 +352,20 @@ typedef struct xfs_mount {
 	uint64_t		m_mxfs_disklock_offset;
 	uint32_t		m_mxfs_max_nodes;
 	bool			m_mxfs_has_envelope;
+	/* sess42 C7 version gate: envelope carries MXFS_FORMAT_F_PROTOGATE +
+	 * cluster_proto_gen (0 when the flag is absent = legacy format). */
+	bool			m_mxfs_protogate;
+	uint32_t		m_mxfs_cluster_proto_gen;
 
 	/* MXFS DLM cluster context (opaque, NULL if single-node) */
 	void			*m_mxfs_dlm;
+	/* sess171: debugfs trigger for the CAW tenure-token selftest.  Kept
+	 * as a field (unlike the read-only stat files, which ride m_debugfs's
+	 * recursive removal in xfs_mount_free) because its write handler
+	 * dereferences m_mxfs_dlm and BLOCKS for a whole selftest run —
+	 * put_super must debugfs_remove() it (which waits out in-flight
+	 * handlers via the debugfs proxy) BEFORE NULLing/freeing the ctx. */
+	struct dentry		*m_mxfs_pwtest_dentry;
 	/* True if m_mxfs_dlm was EVER set this mount.  put_super tears the
 	 * DLM down and NULLs m_mxfs_dlm BEFORE xfs_unmountfs, so unmount-time
 	 * code (the quiesce summary-counter recompute) that must know "was
@@ -367,7 +378,46 @@ typedef struct xfs_mount {
 	 * 32/caw collapse: 27 shut-down nodes' retry loops starved the
 	 * survivors and one acquired the hot dir EX post-shutdown). */
 	struct work_struct	m_mxfs_withdraw_work;
+	/* sess40 deferred reap: unlinked inodes whose destructive
+	 * inactivation is deferred while a PEER's open-holder bit is set
+	 * (D-CROSSNODE-OPEN-UNLINK).  Entries are durable-backed by the
+	 * on-disk unlinked bucket; this list is just the retry driver. */
+	spinlock_t		m_mxfs_reap_lock;
+	struct list_head	m_mxfs_reap_list;
+	struct delayed_work	m_mxfs_reap_work;
+	int			m_mxfs_reap_count;
+	bool			m_mxfs_reap_dead;	/* set at destroy: no re-arm */
+	/* sess47 A-prime (fossil di_next_unlinked producer, GPT-ruled fix):
+	 * mount-level typed records of committed-but-not-yet-home iunlink
+	 * writes.  Inserted at iunlink-item precommit, retired when the
+	 * covering cluster buffer's home write completes, consulted to
+	 * overlay authoritative next_unlinked values onto any freshly
+	 * installed platter image of that cluster.  MOUNT-level because
+	 * every buffer/inode-scoped defense dies with reclaim/teardown
+	 * (probe-proven, sess47 TAIL9-TAIL11). */
+	spinlock_t		m_mxfs_iunl_lock;
+	struct list_head	m_mxfs_iunl_list;
+	int			m_mxfs_iunl_count;
+	/* sess43: deferred reap-worker duties beyond the entry list.
+	 * OWN_RESCAN: sweep our own slot's bucket (mount-time residue from
+	 *   prior incarnations/offline chk repairs; re-armed on a lost reap
+	 *   enqueue).  UBSCAN: the guarded unclaimed-bucket pass + orphan
+	 *   scan (armed at mount settle and after each recovery batch).
+	 * Bits stay set until the duty completes; the worker reschedules
+	 * itself while any are pending.
+	 * FREPLAY (sess59, GPT item 1/6D): a foreign slice was replayed but
+	 *   its recovery could not be PUBLISHED (durability flush, CAW purge
+	 *   or dead-heartbeat zero failed).  The slot's bit stays set in
+	 *   m_mxfs_foreign_dead_slots and this duty re-queues the replay
+	 *   worker, so a transient device error retries every
+	 *   MXFS_REAP_RETRY_MS instead of stranding the dead node's slice.
+	 */
+#define MXFS_REAPF_OWN_RESCAN	0
+#define MXFS_REAPF_UBSCAN	1
+#define MXFS_REAPF_FREPLAY	2
+	unsigned long		m_mxfs_reap_duties;
 	uint32_t		m_mxfs_node_slot;	/* disklock slot for AG affinity */
+	bool			m_mxfs_slice_adopted;	/* sess32: HB slot won by pass-2 fresh claim — inherited log slice may carry an already-recovered incarnation's records; mount recovery must not re-apply their images (D-FOREIGN-REPLAY-UNGATED-IMAGES) */
 	int			m_mxfs_max_dlm_lock_caw;	/* v5 sess33: per-mount cap */
 	atomic64_t		m_mxfs_flush_epoch;	/* sess6 (ccloop 46efd8b6): monotonic count of release-path device flushes (blkdev_issue_flush) this node has issued; starts at 1.  A buffer whose last write COMPLETED in the current epoch (b_mxfs_wr_flush_epoch == this) may still be ahead of the platter (LIO drops FUA; bio completion == target write cache, not media) — a platter (FUA) read must never be used to "refresh"/regress such a buffer.  Once any flush intervenes the platter is >= that write and platter-based refresh is safe.  A peer handoff always implies our release flush, so the guard self-disarms exactly when peer-newer platter content becomes possible. */
 	atomic_t		m_mxfs_dir_wr_inflight;	/* sess40 (ccloop, GPT-5.5 writeback-completion-barrier): count of dir DATA/leaf write bios this node has SUBMITTED but not yet had I/O-complete.  Incremented at xfs_buf_submit_bio (dir-metadata write, multi-node), decremented at __xfs_buf_ioend.  The dir EX release fence waits for this to reach 0 BEFORE releasing the DLM lock, so a prior-tenure stale dir-block write bio cannot land after the next holder cold-reads+RMWs the block (root of dir_reuse readdir=799 durable single-dirent loss; the release "disk==incore at sample instant" probe is blind to an in-flight bio that completes LATE). */
@@ -420,6 +470,21 @@ typedef struct xfs_mount {
 	 */
 	struct work_struct	m_mxfs_foreign_replay_work;
 	DECLARE_BITMAP(m_mxfs_foreign_dead_slots, 64);
+	/*
+	 * sess151 (D-RELEASEALL stuck-notify wiring): the DLM proved it can
+	 * no longer clear this node's bits out of the on-disk slot table —
+	 * peers block behind those bits, so the mount must stop writing.
+	 * The notify callback runs in DLM worker/defer context and is
+	 * contractually queue-only; this work fn does the force-shutdown.
+	 * Canceled after mxfs_v5_dlm_shutdown (the emitters are joined or
+	 * channel-closed there), before the mount is torn down further.
+	 */
+	struct work_struct	m_mxfs_dlm_stuck_work;
+	/* sess41 C8: dead slots whose unlinked-bucket survivor sweep has not
+	 * yet completed cleanly — set with the replay, cleared by a clean
+	 * sweep pass, retried from the reap worker.  The bucket itself is
+	 * the durable record; this bitmap only drives bounded retry. */
+	DECLARE_BITMAP(m_mxfs_sweep_pending_slots, 64);
 
 	/*
 	 * v0.3.147 sess33: dedicated ordered workqueue for AG BAST work fns.
@@ -442,6 +507,19 @@ typedef struct xfs_mount {
 	 * log is torn down, draining every pending bast and releasing the refs.
 	 */
 	struct workqueue_struct	*m_mxfs_inode_bast_wq;
+	/*
+	 * sess37 D-DWORK-TEARDOWN-LASTREF-LEAK class fix: every bast
+	 * work/dwork arm goes through one gate (mxfs_bast_dwork_queue /
+	 * the m_mxfs_arms_off check) so put_super can refuse NEW arms,
+	 * then sweep s_inodes sync-canceling armed works.  A delayed work
+	 * still on its timer is invisible to flush_workqueue, and when its
+	 * igrab ref is the inode's LAST ref the eviction whose cancel
+	 * would disarm it can never run (circular); the timer then fires
+	 * after xfs_free_perag and the P142 last-ref guard leaks the
+	 * inode.  The gate closes the window; the sweep breaks the circle.
+	 */
+	spinlock_t		m_mxfs_arm_lock;
+	bool			m_mxfs_arms_off;
 	/*
 	 * sess18 (ccloop): release-side device-flush COALESCING.  Every BAST
 	 * release that must persist data before the on-disk DLM unlock (LIO
@@ -563,6 +641,19 @@ __XFS_HAS_FEAT(exchange_range, EXCHANGE_RANGE)
 __XFS_HAS_FEAT(metadir, METADIR)
 __XFS_HAS_FEAT(zoned, ZONED)
 __XFS_HAS_FEAT(nolifetime, NOLIFETIME)
+
+/*
+ * sess62: does this filesystem give each node a PRIVATE journal slice?
+ * When it does not, every node shares one log, so a dead peer has no slice
+ * of its own to replay — our own xfs_log_mount already recovered it, and a
+ * caller may treat the absence of a foreign replay as success rather than
+ * as a refusal.  Same test xfs_mountfs uses to pick our own log's
+ * daddr/length, kept in one place so the two cannot drift.
+ */
+static inline bool mxfs_has_log_slices(const struct xfs_mount *mp)
+{
+	return mp->m_mxfs_log_node_count > 0 && mp->m_mxfs_log_slice_bblks > 0;
+}
 
 static inline bool xfs_has_rtgroups(const struct xfs_mount *mp)
 {

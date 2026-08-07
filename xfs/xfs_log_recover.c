@@ -28,6 +28,12 @@
 #include "xfs_ag.h"
 #include "xfs_quota.h"
 #include "xfs_reflink.h"
+#include "../dlm/v5_mount.h"	/* sess40: mxfs_v5_dlm_is_single_node (iunlink recovery scoping) */
+#include "../dlm/disklock.h"	/* sess166: MXFS_RECOV_STAGE_* (shadow evaluator capability check) */
+#include <linux/hash.h>		/* sess167: hash_64 (shadow evaluator manifest cache) */
+
+/* sess32: D-FOREIGN-REPLAY-UNGATED-IMAGES containment knob (xfs_mxfs_dlm.c) */
+extern int mxfs_foreign_replay_untagged_apply;
 
 #define BLK_AVG(blk1, blk2)	((blk1+blk2) >> 1)
 
@@ -2015,6 +2021,719 @@ xlog_recover_intent_item(
 	lip->li_ops->iop_unpin(lip, 0);
 }
 
+/*
+ * sess48 step 3b (D-FOREIGN-REPLAY-UNGATED-IMAGES, authority tokens):
+ * decode the authority trailer of a recovered BUFFER log item.
+ *
+ * sess94 step 5.2: decodes BOTH wire versions into one normalized view, and
+ * returns WHICH of four things happened — NOT_BUF / UNTAGGED / MALFORMED /
+ * OK.  v1 conflated the last three into a NULL return, which made
+ * "this producer emitted nothing" indistinguishable from "this trailer is
+ * corrupt", so report-only mode could not measure either.  Every caller
+ * still fails closed on anything other than OK; the point of the split is
+ * that the three failures are now COUNTED SEPARATELY (a ruling requirement),
+ * and MALFORMED is the one that means something is wrong with the log
+ * rather than with the producer.
+ *
+ * The trailer offset is RECOMPUTED from blf_map_size on every call — the
+ * record comes off a dead node's on-disk slice, so no stored offset and no
+ * in-core assumption about the emitting build may be trusted.  For the same
+ * reason the trailer SIZE comes from the version field in the record, never
+ * from this build's emit-size macro.
+ */
+static enum mxfs_auth_parse
+mxfs_blf_parse_authority(
+	struct xlog_recover_item	*item,
+	struct mxfs_auth_view		*out)
+{
+	struct xfs_buf_log_format	*blfp;
+	const char			*p;
+	size_t				base, sz;
+	unsigned int			ver;
+
+	memset(out, 0, sizeof(*out));
+	out->av_status = MXFS_AUTH_ST_MALFORMED;
+
+	if (item->ri_cnt < 1 || !item->ri_buf)
+		return MXFS_AUTH_PARSE_NOT_BUF;
+	if (ITEM_TYPE(item) != XFS_LI_BUF)
+		return MXFS_AUTH_PARSE_NOT_BUF;
+	/* bounds-checks iov_len against the header + the dirty bitmap */
+	if (!xfs_buf_log_check_iovec(&item->ri_buf[0]))
+		return MXFS_AUTH_PARSE_MALFORMED;
+
+	blfp = item->ri_buf[0].iov_base;
+	if (!(blfp->blf_flags & XFS_BLF_MXFS_AUTHORITY))
+		return MXFS_AUTH_PARSE_UNTAGGED;
+	if (blfp->blf_map_size > XFS_BLF_DATAMAP_SIZE)
+		return MXFS_AUTH_PARSE_MALFORMED;
+
+	base = offsetof(struct xfs_buf_log_format, blf_data_map) +
+		(size_t)blfp->blf_map_size * sizeof(blfp->blf_data_map[0]);
+	p = (const char *)item->ri_buf[0].iov_base;
+
+	/*
+	 * Read the version BEFORE sizing — this record came off a dead node's
+	 * on-disk slice and may have been written by any build, so the
+	 * emitting build's size macro is not usable here.  Enough bytes for
+	 * the version field first, then the per-version size.
+	 */
+	if (item->ri_buf[0].iov_len < base + sizeof(__be16))
+		return MXFS_AUTH_PARSE_MALFORMED;
+	ver = be16_to_cpu(*(const __be16 *)(p + base));
+	sz = mxfs_blf_authority_size(ver);
+	if (!sz)
+		return MXFS_AUTH_PARSE_MALFORMED;
+	if (item->ri_buf[0].iov_len < base + sz)
+		return MXFS_AUTH_PARSE_MALFORMED;
+
+	out->av_version = (uint16_t)ver;
+
+	if (ver == MXFS_BLF_AUTHORITY_V1) {
+		const struct mxfs_blf_authority *t1 =
+			(const struct mxfs_blf_authority *)(p + base);
+
+		/*
+		 * v1 carries no status and no incarnation.  It normalizes to
+		 * UNSET, never to VALID: v1 IS REPORT-ONLY AND MUST NEVER
+		 * GATE AN APPLY/SKIP DECISION, so no amount of producer-side
+		 * improvement may promote it here.
+		 */
+		out->av_class = be16_to_cpu(t1->mba_class);
+		out->av_status = MXFS_AUTH_ST_UNSET;
+		out->av_resource = be32_to_cpu(t1->mba_resource);
+		out->av_grant_epoch = be64_to_cpu(t1->mba_grant_epoch);
+		out->av_owner_slot = be32_to_cpu(t1->mba_owner_slot);
+		/* mba_owner_boot was memset 0 and never filled — not read */
+		return MXFS_AUTH_PARSE_OK;
+	}
+
+	{
+		const struct mxfs_blf_authority_v2 *t2 =
+			(const struct mxfs_blf_authority_v2 *)(p + base);
+		uint32_t flags = be32_to_cpu(t2->mba_flags);
+		uint32_t st = flags & MXFS_AUTH_FLAG_STATUS_MASK;
+
+		/*
+		 * Reserved bits MUST be zero.  This is the whole reason they
+		 * exist: a future wire addition is REJECTED by an older
+		 * enforcing node rather than silently misread as a token it
+		 * fully understands.
+		 */
+		if (flags & MXFS_AUTH_FLAG_RESERVED_MASK)
+			return MXFS_AUTH_PARSE_MALFORMED;
+		if (st >= MXFS_AUTH_ST_MAX)
+			return MXFS_AUTH_PARSE_MALFORMED;
+		/*
+		 * sess95: the CLASS names the resource TYPE that mba_resource's
+		 * id belongs to, so an unrecognized class makes the resource
+		 * uninterpretable — not merely unproven.  Reject rather than
+		 * decode, for the same reason the reserved bits are rejected.
+		 */
+		if (be16_to_cpu(t2->mba_class) >= MXFS_AUTH_CLASS_MAX)
+			return MXFS_AUTH_PARSE_MALFORMED;
+
+		out->av_class = be16_to_cpu(t2->mba_class);
+		out->av_status = (uint8_t)st;
+		out->av_resource = be64_to_cpu(t2->mba_resource);
+		out->av_grant_epoch = be64_to_cpu(t2->mba_grant_epoch);
+		out->av_owner_epoch = be64_to_cpu(t2->mba_owner_epoch);
+		out->av_owner_slot = be32_to_cpu(t2->mba_owner_slot);
+		out->av_owner_node = be32_to_cpu(t2->mba_owner_node);
+	}
+	return MXFS_AUTH_PARSE_OK;
+}
+
+/*
+ * sess166 (foreign-replay step 5): SHADOW authority evaluator.  For every
+ * authority token seen by untrusted replay, compute the verdict the real
+ * apply/skip gate WOULD reach — v2-only, owner-slot and (when a fence
+ * descriptor proves the incarnation) owner-epoch bound, checked against the
+ * fenced victim's quarantine-frozen grant manifest — and count it.  REPORT
+ * ONLY: no replay decision changes.  The counters exist to measure, on real
+ * foreign/adopted replays, how much of the blanket ATOMIC-SKIP an exact gate
+ * would lift and whether it would ever apply something the blanket skip
+ * suppressed wrongly.
+ *
+ * Verdict stability argument (why reading the manifest DURING replay is
+ * sound): would_apply/stale_epoch verdicts arise only on resources the victim
+ * holds EX/PW, and those bits are frozen by fencing (the victim cannot CAS;
+ * purge is ordered after IMAGES_REPLAYED; peers are refused EX on dead-bit
+ * resources).  not_held verdicts on live-peer resources are stable regardless
+ * of concurrent epoch churn because ex_grant_epoch is only meaningful under a
+ * set holder bit.  Pass-2 replay is single-threaded, so no locking here.
+ *
+ * How to read the counters (sess167 RULE-5 review):
+ *  - Per-token counters are FIRST-FAILURE terminals.  A token lands in the
+ *    counter of the FIRST layer that rejects it; later layers never see it.
+ *    Ordering therefore masks depth — a v1 token with a wrong owner slot
+ *    counts v1 only.  The counters isolate layers, not defect prevalence.
+ *  - would_apply means the exact gate WOULD AUTHORIZE the image.  It is not
+ *    "would hit disk": a real gate still sits above the upstream per-buffer
+ *    on-disk-LSN comparison, which runs downstream of authorization.
+ *  - txn_total counts only transactions carrying at least one buf item or
+ *    taint-class non-buf item; pure intent/cancel transactions are outside
+ *    the ATOMIC-SKIP population and are not part of the denominator.
+ *  - Until D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID lands a per-tenure unique
+ *    epoch source, would_apply is an EXPLORATORY UPPER BOUND (epoch
+ *    collisions across tenures of one slot inflate it).  It must not, by
+ *    itself, justify switching the enforcement gate on.
+ */
+struct mxfs_shadow_eval {
+	/* capability: the fence/recovery descriptor read once at creation */
+	int		desc_rc;
+	uint16_t	desc_stage;
+	uint64_t	desc_victim_epoch;
+	uint32_t	desc_victim_node;
+	bool		capable;	/* rc==0 && stage==FENCED: manifest is
+					 * frozen AND victim incarnation known */
+
+	/*
+	 * Per-resource manifest read cache: open-addressed hash table,
+	 * linear probe, insert-only.  kind==0 (MXFS_AUTH_CLASS_NONE, never
+	 * a cached class) marks an empty slot.  Past the fill cap — or when
+	 * the allocation failed (tbl==NULL) — lookups read the manifest
+	 * directly and count in uncached_reads, so nothing is ever dropped;
+	 * uncached resources merely lose the read-once determinism the
+	 * cache otherwise provides (visible in the counter).
+	 */
+	struct mxfs_shadow_man_ent {
+		uint64_t	resource;
+		uint64_t	epoch;
+		int		rc;
+		uint8_t		kind;	/* MXFS_AUTH_CLASS_AG or _INODE */
+		bool		holds;
+	}		*tbl;
+	unsigned int	tbl_n;
+
+	/* per-token verdicts (every buf item lands in exactly one) */
+	uint64_t	buf_items;
+	uint64_t	untagged;
+	uint64_t	malformed;
+	uint64_t	v1_not_evidence;
+	uint64_t	classless;
+	uint64_t	class_sb;
+	uint64_t	class_unsupported;
+	uint64_t	status_not_valid;
+	uint64_t	foreign_owner;
+	uint64_t	resource_mismatch;
+	uint64_t	wrong_incarnation;
+	uint64_t	manifest_err;
+	uint64_t	not_held;
+	uint64_t	stale_epoch;
+	uint64_t	uncapable_match;
+	uint64_t	would_apply;
+
+	/* per-transaction rollup (the ATOMIC-SKIP unit) */
+	uint64_t	txn_total;
+	uint64_t	txn_all_apply;
+	uint64_t	txn_buf_ok_taint_blocked;
+	uint64_t	txn_mixed;
+	uint64_t	txn_none;
+	uint64_t	txn_nonbuf_taint;
+
+	uint64_t	uncached_reads;
+};
+
+#define MXFS_SHADOW_TBL_BITS	13
+#define MXFS_SHADOW_TBL_SLOTS	(1u << MXFS_SHADOW_TBL_BITS)	/* ~192KB */
+#define MXFS_SHADOW_TBL_FILL_CAP \
+	(MXFS_SHADOW_TBL_SLOTS - MXFS_SHADOW_TBL_SLOTS / 4)
+
+static struct mxfs_shadow_eval *
+mxfs_shadow_eval_get(
+	struct xlog			*log)
+{
+	struct xfs_mount		*mp = log->l_mp;
+	struct mxfs_shadow_eval		*se = log->l_mxfs_shadow_eval;
+
+	if (se)
+		return se;
+	if (log->l_mxfs_victim_slot == MXFS_XLOG_VICTIM_NONE || !mp->m_mxfs_dlm)
+		return NULL;
+
+	se = kzalloc(sizeof(*se), GFP_NOFS);
+	if (!se)
+		return NULL;
+	/* NULL is a working state: every lookup reads direct and counts */
+	se->tbl = kvzalloc(array_size(MXFS_SHADOW_TBL_SLOTS, sizeof(*se->tbl)),
+			   GFP_NOFS);
+
+	se->desc_rc = mxfs_v5_dlm_victim_recovery_read(mp->m_mxfs_dlm,
+			log->l_mxfs_victim_slot, &se->desc_stage,
+			&se->desc_victim_epoch, &se->desc_victim_node);
+	se->capable = (se->desc_rc == 0 &&
+		       se->desc_stage == MXFS_RECOV_STAGE_FENCED);
+
+	/*
+	 * On an ADOPTED slice the "victim" is our own predecessor incarnation
+	 * and its descriptor is normally gone (desc_rc=-ENOENT, capable=0):
+	 * incarnation binding is then unavailable and every manifest lookup is
+	 * expected to answer not_held (the predecessor was purged before our
+	 * slot claim).  would_apply>0 there is itself a finding — an unpurged
+	 * manifest.
+	 */
+	xfs_notice(mp,
+	"MXFS %s replay: P273-SHADOW-CAP victim_slot=%u desc_rc=%d stage=%u victim_epoch=%llu victim_node=%u capable=%d",
+		   xlog_is_mxfs_foreign_replay(log) ? "foreign" : "adopted",
+		   log->l_mxfs_victim_slot, se->desc_rc,
+		   (unsigned int)se->desc_stage,
+		   (unsigned long long)se->desc_victim_epoch,
+		   se->desc_victim_node, se->capable ? 1 : 0);
+
+	log->l_mxfs_shadow_eval = se;
+	return se;
+}
+
+static int
+mxfs_shadow_manifest_lookup(
+	struct xfs_mount		*mp,
+	struct mxfs_shadow_eval		*se,
+	uint32_t			victim_slot,
+	uint8_t				kind,
+	uint64_t			resource,
+	bool				*holds,
+	uint64_t			*epoch)
+{
+	struct mxfs_shadow_man_ent	*e = NULL;
+	uint32_t			h, probes;
+	int				rc;
+
+	if (se->tbl) {
+		h = hash_64(resource ^ ((uint64_t)kind << 56),
+			    MXFS_SHADOW_TBL_BITS);
+		for (probes = 0; probes < MXFS_SHADOW_TBL_SLOTS; probes++) {
+			e = &se->tbl[h];
+			if (!e->kind)
+				break;
+			if (e->kind == kind && e->resource == resource) {
+				*holds = e->holds;
+				*epoch = e->epoch;
+				return e->rc;
+			}
+			h = (h + 1) & (MXFS_SHADOW_TBL_SLOTS - 1);
+		}
+		/*
+		 * Insert only into an empty slot and only under the fill
+		 * cap (the cap also guarantees the probe loop above always
+		 * terminates on an empty slot, never by exhaustion).
+		 */
+		if (!e || e->kind || se->tbl_n >= MXFS_SHADOW_TBL_FILL_CAP)
+			e = NULL;
+	}
+
+	*holds = false;
+	*epoch = 0;
+	if (kind == MXFS_AUTH_CLASS_AG)
+		rc = mxfs_v5_dlm_victim_ag_manifest_read(mp->m_mxfs_dlm,
+				(uint32_t)resource, victim_slot, holds, epoch);
+	else
+		rc = mxfs_v5_dlm_victim_inode_manifest_read(mp->m_mxfs_dlm,
+				resource, victim_slot, holds, epoch);
+
+	/*
+	 * Cache errors too: a per-resource answer must be deterministic across
+	 * the replay so the txn rollup can't see one resource both ways.
+	 */
+	if (e) {
+		e->resource = resource;
+		e->epoch = *epoch;
+		e->rc = rc;
+		e->holds = *holds;
+		e->kind = kind;
+		se->tbl_n++;
+	} else {
+		se->uncached_reads++;
+	}
+	return rc;
+}
+
+/*
+ * Classify one parsed token exactly as an enforcing gate would.  Returns true
+ * iff the image would be APPLIED under the exact-match rule; every token
+ * lands in exactly one counter.  Order matters: evidence-quality rejections
+ * (v1/class/status) come before binding rejections (owner slot/incarnation)
+ * before manifest verdicts, so each counter isolates one failure layer.
+ */
+static bool
+mxfs_shadow_eval_token(
+	struct xlog			*log,
+	struct mxfs_shadow_eval		*se,
+	const struct xfs_buf_log_format	*blfp,
+	const struct mxfs_auth_view	*av)
+{
+	struct xfs_mount		*mp = log->l_mp;
+	bool				holds;
+	uint64_t			epoch;
+	int				rc;
+
+	if (av->av_version == MXFS_BLF_AUTHORITY_V1) {
+		/* sess82 RULE-5 ruling: v1 is NEVER authority evidence */
+		se->v1_not_evidence++;
+		return false;
+	}
+	switch (av->av_class) {
+	case MXFS_AUTH_CLASS_AG:
+		/*
+		 * Binding check: the claimed resource must be the AG the
+		 * image physically lands in, else the token authorizes a
+		 * DIFFERENT resource than the write it rides — label noise
+		 * an exact gate must not credit.  (INODE class has no cheap
+		 * daddr→inode reverse map; the evaluator trusts the
+		 * producer's labeling there, the same trust the live apply
+		 * path places in its own locking.  A realtime-device blkno
+		 * would alias an AG number, but MXFS has no rtdev support.)
+		 */
+		if ((uint64_t)xfs_daddr_to_agno(mp, blfp->blf_blkno) !=
+		    av->av_resource) {
+			se->resource_mismatch++;
+			return false;
+		}
+		break;
+	case MXFS_AUTH_CLASS_INODE:
+		break;
+	case MXFS_AUTH_CLASS_SB:
+		/* producer stamps SB with no resource/epoch by design */
+		se->class_sb++;
+		return false;
+	case MXFS_AUTH_CLASS_NONE:
+		se->classless++;
+		return false;
+	default:	/* ICLUS: no proven manifest mapping yet */
+		se->class_unsupported++;
+		return false;
+	}
+	if (av->av_status != MXFS_AUTH_ST_VALID) {
+		se->status_not_valid++;
+		return false;
+	}
+	if (av->av_owner_slot != log->l_mxfs_victim_slot) {
+		se->foreign_owner++;
+		return false;
+	}
+	if (se->capable && av->av_owner_epoch != se->desc_victim_epoch) {
+		se->wrong_incarnation++;
+		return false;
+	}
+	rc = mxfs_shadow_manifest_lookup(mp, se,
+			log->l_mxfs_victim_slot, (uint8_t)av->av_class,
+			av->av_resource, &holds, &epoch);
+	if (rc == -ENOENT) {
+		/* definitive no-slot answer, not a read failure */
+		se->not_held++;
+		return false;
+	}
+	if (rc != 0) {
+		se->manifest_err++;
+		return false;
+	}
+	if (!holds) {
+		se->not_held++;
+		return false;
+	}
+	if (epoch != av->av_grant_epoch) {
+		se->stale_epoch++;
+		return false;
+	}
+	/*
+	 * Full manifest match.  Without a FENCED-stage descriptor the
+	 * victim's incarnation was never proven (the owner-epoch test above
+	 * was skipped), so this match cannot be credited as would-apply: an
+	 * epoch collision from a PRIOR tenure of the same slot would pool
+	 * into the headline number (D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID).
+	 * Terminal uncapable_match keeps would_apply incarnation-proven —
+	 * and, because adopted replay always runs !capable (the
+	 * predecessor's descriptor is CONSUMED before a pass-2 claim),
+	 * makes would_apply foreign-replay-only by construction.  An
+	 * uncapable_match>0 on an adopted replay is the unpurged-manifest
+	 * signal, preserved at full strength.
+	 */
+	if (!se->capable) {
+		se->uncapable_match++;
+		return false;
+	}
+	se->would_apply++;
+	return true;
+}
+
+/*
+ * sess48 step 3b: REPORT-ONLY authority decode for untrusted (foreign or
+ * adopted) replay.  This changes NO apply/skip decision — it proves the token
+ * captured at CIL format time (step 3a) survives the log round-trip and
+ * arrives at recovery with the right class/resource/epoch.
+ *
+ * sess82 step 5.0 — VERSION 1 IS REPORT-ONLY, PERMANENTLY.  The original
+ * plan was for step 5 to swap the blanket untagged-skip for an exact
+ * {class, resource, epoch} match here.  A RULE-5 ruling REFUTED that scope:
+ * doing it on v1 tokens introduces a false APPLY, which is strictly worse
+ * than the false SKIP it was meant to close.  v1 is not authority evidence
+ * because it is derived from the buffer's physical location rather than the
+ * resource that actually authorized the write, and mba_owner_boot is memset
+ * 0 and never filled, so a record cannot be bound to a victim incarnation.
+ *
+ * A future exact gate must key on a v2 token (be64 resource, bound to the
+ * victim slot AND incarnation) and must never accept version=1 as evidence,
+ * no matter how much the producer side is improved.  sess82's step-5.1
+ * producer fix (grant-state lifecycle + b_ops/BLFT conjunction) makes v1's
+ * class=AG *honest*, but honest is not the same as sufficient.
+ *
+ * Runs under both settings of mxfs_foreign_replay_untagged_apply so the
+ * foreign_replay_ab.sh A/B arms are directly comparable.
+ */
+/*
+ * sess165 (foreign-replay step 5): teardown for the shadow authority
+ * evaluator state hung on l_mxfs_shadow_eval.  EXACTLY ONE P273-SHADOW-EVAL
+ * line is emitted per untrusted log, always: a full summary when the
+ * evaluator ran, a state line when it never allocated (distinguishing "no
+ * transactions reached pass 2" from "transactions went unevaluated", which
+ * invalidates the measurement and must be visible).  Clearing
+ * l_mxfs_victim_slot at the end is what makes the function idempotent for
+ * both paths — the foreign replay path calls it explicitly and
+ * xlog_dealloc_log calls it again as a backstop.  The evaluator that
+ * allocates the state is the per-token verdict pass in
+ * mxfs_report_replay_authority.
+ */
+void
+mxfs_shadow_eval_finish(
+	struct xlog			*log)
+{
+	struct mxfs_shadow_eval		*se = log->l_mxfs_shadow_eval;
+	const char			*src = xlog_is_mxfs_foreign_replay(log) ?
+						"foreign" : "adopted";
+	uint64_t			csum;
+
+	/* not an untrusted-replay log, or its summary already emitted */
+	if (log->l_mxfs_victim_slot == MXFS_XLOG_VICTIM_NONE)
+		return;
+
+	if (!se) {
+		if (log->l_mxfs_shadow_missed)
+			xfs_notice(log->l_mp,
+	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u state=unevaluated missed_txns=%u",
+				   src, log->l_mxfs_victim_slot,
+				   log->l_mxfs_shadow_missed);
+		else
+			xfs_notice(log->l_mp,
+	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u state=no_txns",
+				   src, log->l_mxfs_victim_slot);
+		log->l_mxfs_victim_slot = MXFS_XLOG_VICTIM_NONE;
+		return;
+	}
+
+	/*
+	 * Conservation: every buf item lands in exactly one terminal, so
+	 * csum must equal buf.  Printed side by side so the analysis can
+	 * assert it — an inequality is a counting bug in the evaluator.
+	 */
+	csum = se->untagged + se->malformed + se->v1_not_evidence +
+	       se->classless + se->class_sb + se->class_unsupported +
+	       se->status_not_valid + se->foreign_owner +
+	       se->resource_mismatch + se->wrong_incarnation +
+	       se->manifest_err + se->not_held + se->stale_epoch +
+	       se->uncapable_match + se->would_apply;
+
+	xfs_notice(log->l_mp,
+	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u capable=%d buf=%llu csum=%llu untagged=%llu malformed=%llu v1=%llu classless=%llu sb=%llu unsup=%llu badst=%llu fowner=%llu resmis=%llu winc=%llu manerr=%llu notheld=%llu staleep=%llu uncap_match=%llu WOULD_APPLY=%llu txn=%llu all_apply=%llu taint_blocked=%llu mixed=%llu none=%llu nonbuf_taint=%llu uncached=%llu missed_txns=%u",
+		   src, log->l_mxfs_victim_slot, se->capable ? 1 : 0,
+		   (unsigned long long)se->buf_items,
+		   (unsigned long long)csum,
+		   (unsigned long long)se->untagged,
+		   (unsigned long long)se->malformed,
+		   (unsigned long long)se->v1_not_evidence,
+		   (unsigned long long)se->classless,
+		   (unsigned long long)se->class_sb,
+		   (unsigned long long)se->class_unsupported,
+		   (unsigned long long)se->status_not_valid,
+		   (unsigned long long)se->foreign_owner,
+		   (unsigned long long)se->resource_mismatch,
+		   (unsigned long long)se->wrong_incarnation,
+		   (unsigned long long)se->manifest_err,
+		   (unsigned long long)se->not_held,
+		   (unsigned long long)se->stale_epoch,
+		   (unsigned long long)se->uncapable_match,
+		   (unsigned long long)se->would_apply,
+		   (unsigned long long)se->txn_total,
+		   (unsigned long long)se->txn_all_apply,
+		   (unsigned long long)se->txn_buf_ok_taint_blocked,
+		   (unsigned long long)se->txn_mixed,
+		   (unsigned long long)se->txn_none,
+		   (unsigned long long)se->txn_nonbuf_taint,
+		   (unsigned long long)se->uncached_reads,
+		   log->l_mxfs_shadow_missed);
+	kvfree(se->tbl);
+	kfree(se);
+	log->l_mxfs_shadow_eval = NULL;
+	log->l_mxfs_victim_slot = MXFS_XLOG_VICTIM_NONE;
+}
+
+static void
+mxfs_report_replay_authority(
+	struct xlog			*log,
+	struct xlog_recover		*trans,
+	struct list_head		*item_list)
+{
+	static atomic_t			mxfs_tokdet_n = ATOMIC_INIT(0);
+	static atomic_t			mxfs_toksum_n = ATOMIC_INIT(0);
+	struct mxfs_shadow_eval		*se = mxfs_shadow_eval_get(log);
+	struct xlog_recover_item	*item;
+	const char			*src = xlog_is_mxfs_foreign_replay(log) ?
+						"foreign" : "adopted";
+	int				n_buf = 0, n_tok = 0;
+	int				n_ag = 0, n_sb = 0, n_none = 0;
+	int				n_v1 = 0, n_v2 = 0;
+	int				n_untag = 0, n_malf = 0;
+	int				n_wapply = 0;
+	bool				nonbuf_taint = false;
+	int				n_st[MXFS_AUTH_ST_MAX];
+	int				i;
+
+	/*
+	 * An untrusted log whose transactions pass through here without an
+	 * evaluator (allocation failure — including a first-call failure
+	 * followed by a later success) has a silently partial count.  Tally
+	 * the misses so the final summary can disclose them.
+	 */
+	if (!se && log->l_mxfs_victim_slot != MXFS_XLOG_VICTIM_NONE)
+		log->l_mxfs_shadow_missed++;
+
+	memset(n_st, 0, sizeof(n_st));
+
+	list_for_each_entry(item, item_list, ri_list) {
+		struct mxfs_auth_view		av;
+		struct xfs_buf_log_format	*blfp;
+		enum mxfs_auth_parse		pr;
+		int				n;
+
+		if (ITEM_TYPE(item) != XFS_LI_BUF) {
+			unsigned short t = ITEM_TYPE(item);
+
+			/*
+			 * The same non-buf types the ATOMIC-SKIP treats as
+			 * image-bearing: their presence blocks a txn from
+			 * ever being all-authorized under the shadow rule.
+			 */
+			if (t == XFS_LI_DQUOT || t == XFS_LI_QUOTAOFF ||
+			    t == XFS_LI_ICREATE)
+				nonbuf_taint = true;
+			continue;
+		}
+		n_buf++;
+		if (se)
+			se->buf_items++;
+		blfp = item->ri_buf[0].iov_base;
+
+		pr = mxfs_blf_parse_authority(item, &av);
+		if (pr == MXFS_AUTH_PARSE_UNTAGGED) {
+			n_untag++;
+			if (se)
+				se->untagged++;
+			continue;
+		}
+		if (pr != MXFS_AUTH_PARSE_OK) {
+			/*
+			 * MALFORMED is counted SEPARATELY and never folded
+			 * into "untagged" or "classless": an unusable trailer
+			 * on a record that ASKED to be authority-checked is
+			 * evidence about the log, not about the producer.
+			 */
+			n_malf++;
+			if (se)
+				se->malformed++;
+			continue;
+		}
+		n_tok++;
+		if (se && mxfs_shadow_eval_token(log, se, blfp, &av))
+			n_wapply++;
+		if (av.av_version == MXFS_BLF_AUTHORITY_V1)
+			n_v1++;
+		else
+			n_v2++;
+		if (av.av_status < MXFS_AUTH_ST_MAX)
+			n_st[av.av_status]++;
+
+		switch (av.av_class) {
+		case MXFS_AUTH_CLASS_AG:
+			n_ag++;
+			break;
+		case MXFS_AUTH_CLASS_SB:
+			n_sb++;
+			break;
+		default:
+			n_none++;
+			break;
+		}
+
+		n = atomic_inc_return(&mxfs_tokdet_n);
+		if (n > 400)
+			continue;
+		xfs_notice(log->l_mp,
+	"MXFS %s replay: P227-TOKEN blkno=%lld len=%u v=%u class=%u st=%u res=%llu gepoch=%llu oepoch=%llu slot=%u node=%u (n=%d)",
+			   src, (long long)blfp->blf_blkno,
+			   (unsigned int)blfp->blf_len,
+			   (unsigned int)av.av_version,
+			   (unsigned int)av.av_class,
+			   (unsigned int)av.av_status,
+			   (unsigned long long)av.av_resource,
+			   (unsigned long long)av.av_grant_epoch,
+			   (unsigned long long)av.av_owner_epoch,
+			   (unsigned int)av.av_owner_slot,
+			   (unsigned int)av.av_owner_node, n);
+	}
+
+	/*
+	 * Transaction rollup — the ATOMIC-SKIP unit.  all_apply means the
+	 * exact gate would have applied this ENTIRE transaction (every buf
+	 * image individually authorized, no unauthorizable non-buf images):
+	 * the population the blanket skip loses.  buf_ok_taint_blocked
+	 * separates "every buf authorized but a non-buf image blocks the
+	 * txn" from mixed — the first is unlockable by extending authority
+	 * to non-buf classes, the second is not.  mixed would still have to
+	 * skip atomically; none is the blanket skip agreeing with the gate.
+	 * nonbuf_taint is an overlapping how-many-had-taint count, not a
+	 * fifth exclusive category: total = all_apply + taint_blocked +
+	 * mixed + none.
+	 */
+	if (se && (n_buf || nonbuf_taint)) {
+		se->txn_total++;
+		if (nonbuf_taint)
+			se->txn_nonbuf_taint++;
+		if (n_buf && n_wapply == n_buf) {
+			if (nonbuf_taint)
+				se->txn_buf_ok_taint_blocked++;
+			else
+				se->txn_all_apply++;
+		} else if (!n_wapply) {
+			se->txn_none++;
+		} else {
+			se->txn_mixed++;
+		}
+	}
+
+	if (n_buf) {
+		int n = atomic_inc_return(&mxfs_toksum_n);
+		char stbuf[96];
+		int len = 0;
+
+		for (i = 0; i < MXFS_AUTH_ST_MAX; i++) {
+			if (!n_st[i] || len >= (int)sizeof(stbuf) - 16)
+				continue;
+			len += scnprintf(stbuf + len, sizeof(stbuf) - len,
+					 " s%d=%d", i, n_st[i]);
+		}
+		stbuf[len] = '\0';
+
+		if (n <= 2000)
+			xfs_notice(log->l_mp,
+	"MXFS %s replay: P227-TOKENSUM lsn=0x%llx buf_items=%d tokened=%d v1=%d v2=%d ag=%d sb=%d classless=%d untagged=%d malformed=%d wapply=%d wskip=%d st:%s",
+				   src, (unsigned long long)trans->r_lsn,
+				   n_buf, n_tok, n_v1, n_v2, n_ag, n_sb,
+				   n_none, n_untag, n_malf,
+				   se ? n_wapply : -1,
+				   se ? n_buf - n_wapply : -1,
+				   len ? stbuf : " none");
+	}
+}
+
 STATIC int
 xlog_recover_items_pass2(
 	struct xlog                     *log,
@@ -2024,6 +2743,58 @@ xlog_recover_items_pass2(
 {
 	struct xlog_recover_item	*item;
 	int				error = 0;
+
+	/*
+	 * sess48 step 3b: decode and report the authority tokens carried by
+	 * this transaction's buffer images.  Report-only — the skip decisions
+	 * below are unchanged in this build.
+	 */
+	if (xlog_is_mxfs_untrusted_replay(log))
+		mxfs_report_replay_authority(log, trans, item_list);
+
+	/*
+	 * sess41 (GPT-approved containment; PROVEN tear: unlinker_death
+	 * reproducer, D-FOREIGN-REPLAY-UNGATED-IMAGES): TRANSACTION-ATOMIC
+	 * SKIP for untrusted (foreign/adopted) replay.  The old per-item
+	 * policy applied a transaction's INODE items while skipping its
+	 * untagged BUFFER siblings — recovery then manufactured a state no
+	 * node ever had (dirent present -> nlink=0 inode on NO unlinked
+	 * bucket; permanent leak + poisoned dirent).  A committed log
+	 * transaction is the minimum redo-consistency unit: if ANY of its
+	 * images is unauthoritative here, apply NONE of it.  The un-synced
+	 * operation then evaporates atomically (crash semantics) instead of
+	 * tearing.  KNOWN LIMITS (ledger stays OPEN): multi-transaction ops
+	 * (rolling/deferred) can still tear at op granularity, and home
+	 * writes that landed before death are not rolled back — the full
+	 * authority protocol remains the real fix.
+	 */
+	if (xlog_is_mxfs_untrusted_replay(log) &&
+	    !mxfs_foreign_replay_untagged_apply) {
+		int mxfs_n_items = 0;
+		bool mxfs_tainted = false;
+
+		list_for_each_entry(item, item_list, ri_list) {
+			unsigned short t = ITEM_TYPE(item);
+
+			mxfs_n_items++;
+			if (t == XFS_LI_BUF || t == XFS_LI_DQUOT ||
+			    t == XFS_LI_QUOTAOFF || t == XFS_LI_ICREATE)
+				mxfs_tainted = true;
+		}
+		if (mxfs_tainted) {
+			static atomic_t mxfs_fratomic_n = ATOMIC_INIT(0);
+			int n = atomic_inc_return(&mxfs_fratomic_n);
+
+			if (n <= 2000)
+				xfs_notice(log->l_mp,
+	"MXFS %s replay: ATOMIC-SKIP whole transaction lsn=0x%llx items=%d — contains untagged image(s); partial apply would tear (P227-FR-ATOMIC-SKIP)",
+					   xlog_is_mxfs_foreign_replay(log) ?
+					   "foreign" : "adopted",
+					   (unsigned long long)trans->r_lsn,
+					   mxfs_n_items);
+			return 0;
+		}
+	}
 
 	list_for_each_entry(item, item_list, ri_list) {
 		trace_xfs_log_recover_item_recover(log, trans, item,
@@ -2040,14 +2811,53 @@ xlog_recover_items_pass2(
 		 * handling, exactly as before this feature).  Buffer/inode
 		 * replay is LSN-gated, so that re-replay is a no-op.
 		 */
-		if (xlog_is_mxfs_foreign_replay(log)) {
+		if (xlog_is_mxfs_untrusted_replay(log)) {
 			unsigned short t = ITEM_TYPE(item);
+			const char *src = xlog_is_mxfs_foreign_replay(log) ?
+					  "foreign" : "adopted";
 
 			if (t == XFS_LI_EFI || t == XFS_LI_EFD ||
 			    (t >= XFS_LI_RUI && t <= XFS_LI_CUD_RT)) {
-				xfs_notice(log->l_mp,
-		"MXFS foreign replay: skipping intent item type 0x%x",
-					   t);
+				/*
+				 * For an ADOPTED slice this abandons the dead
+				 * incarnation's incomplete intents for good
+				 * (mount recovery cleans the log afterwards) —
+				 * a counted leak, chosen over processing a
+				 * dead stranger's extent-frees against a
+				 * filesystem peers have long since moved on
+				 * (fail closed per the sess32 GPT ruling).
+				 */
+				xfs_warn(log->l_mp,
+		"MXFS %s replay: skipping intent item type 0x%x (P226-UNTRUSTED-INTENT-SKIP)",
+					   src, t);
+				continue;
+			}
+			/*
+			 * sess32 D-FOREIGN-REPLAY-UNGATED-IMAGES containment:
+			 * buffer/dquot/quotaoff/icreate records carry no
+			 * authority token and their only replay gate is a
+			 * cross-slice LSN compare, which is meaningless
+			 * (per-node slices number LSNs independently — the
+			 * sb-LSN check below skips itself for this exact
+			 * reason).  Applying them can silently revert a
+			 * survivor's newer dir block / AG state; skipping
+			 * loses only changes whose covering lock the dead
+			 * node still HELD at death (released tenures were
+			 * landed by the release drain).  Skip and count
+			 * LOUDLY until records carry authority tokens.
+			 * Inode records continue: their di_changecount gate
+			 * is node-independent and correct.
+			 */
+			if (!mxfs_foreign_replay_untagged_apply &&
+			    (t == XFS_LI_BUF || t == XFS_LI_DQUOT ||
+			     t == XFS_LI_QUOTAOFF || t == XFS_LI_ICREATE)) {
+				static atomic_t mxfs_frskip_n = ATOMIC_INIT(0);
+				int n = atomic_inc_return(&mxfs_frskip_n);
+
+				if (n <= 2000)
+					xfs_notice(log->l_mp,
+		"MXFS %s replay: skipping untagged image item type 0x%x (n=%d) — no cross-slice authority gate (P223-FR-UNTAGGED-SKIP)",
+						   src, t, n);
 				continue;
 			}
 		}
@@ -2787,6 +3597,9 @@ xlog_recover_iunlink_bucket(
 		ASSERT(VFS_I(ip)->i_nlink == 0);
 		ASSERT(VFS_I(ip)->i_mode != 0);
 		xfs_iflags_clear(ip, XFS_IRECOVERY);
+		/* mxfs sess40 (F1): membership established by this walk — the
+		 * later remove must target THIS bucket, not a recomputation. */
+		ip->i_unlinked_bucket = (short)bucket;
 		agino = ip->i_next_unlinked;
 
 		if (prev_ip) {
@@ -2851,6 +3664,7 @@ static void
 xlog_recover_iunlink_ag(
 	struct xfs_perag	*pag)
 {
+	struct xfs_mount	*mp = pag_mount(pag);
 	struct xfs_agi		*agi;
 	struct xfs_buf		*agibp;
 	int			bucket;
@@ -2879,6 +3693,32 @@ xlog_recover_iunlink_ag(
 	xfs_buf_unlock(agibp);
 
 	for (bucket = 0; bucket < XFS_AGI_UNLINKED_BUCKETS; bucket++) {
+		/*
+		 * mxfs sess40 (D-AGI-UNLINKED F1, recovery scoping): on a
+		 * multi-node mount this recovery owns ONLY its own slot's
+		 * bucket — every other bucket belongs to a live peer (its
+		 * members are the peer's in-flight open-unlinked inodes;
+		 * "recovering" them frees a live inode) or to a dead node
+		 * whose slice the elected survivor replays and whose bucket
+		 * that survivor sweeps.  Walking them here was the mount-time
+		 * arm of the cross-node zombie-recovery defect.  A genuinely
+		 * single-node cluster (first mounter forming a new cluster,
+		 * or degraded to one) still sweeps all 64, which also drains
+		 * legacy agino-hashed leftovers.
+		 */
+		if (mp->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+		    bucket != (int)(mp->m_mxfs_node_slot %
+				    XFS_AGI_UNLINKED_BUCKETS)) {
+			if (be32_to_cpu(agi->agi_unlinked[bucket]) !=
+			    NULLAGINO)
+				pr_warn_ratelimited(
+	"mxfs: P86-UNL-RECOVERY-SCOPE-SKIP agno=%u bucket=%d head=0x%x — peer-owned bucket left to its owner\n",
+					pag_agno(pag), bucket,
+					be32_to_cpu(
+						agi->agi_unlinked[bucket]));
+			continue;
+		}
 		error = xlog_recover_iunlink_bucket(pag, agi, bucket);
 		if (error) {
 			/*
