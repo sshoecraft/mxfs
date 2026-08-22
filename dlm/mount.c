@@ -1968,6 +1968,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
         mnt->scsipr = mxfs_scsipr_create(mnt->dev, opts->device,
                                           mnt->node_id);
         if (mnt->scsipr) {
+            mxfs_scsipr_observe_reservation(mnt->scsipr, NULL);
             ret = mxfs_scsipr_register(mnt->scsipr);
             if (ret) {
                 mxfs_pal_log(MXFS_LOG_WARN,
@@ -1976,8 +1977,19 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
                              "protection)");
                 mxfs_scsipr_destroy(mnt->scsipr);
                 mnt->scsipr = NULL;
+            } else if (mxfs_scsipr_reserve(mnt->scsipr)) {
+                /* sess381: a refused RESERVE means the LU carries a
+                 * reservation this build does not fence under; do not
+                 * carry on believing fencing is armed. */
+                mxfs_pal_log(MXFS_LOG_ERR,
+                             "mount: SCSI PR reserve refused — see the "
+                             "P304-RESV-* line above; hardware fencing is "
+                             "NOT what this build expects");
+                mxfs_scsipr_destroy(mnt->scsipr);
+                mnt->scsipr = NULL;
+                ret = -EPERM;
+                goto err_close;
             } else {
-                mxfs_scsipr_reserve(mnt->scsipr);
                 mxfs_pal_log(MXFS_LOG_DEBUG,
                              "mount: SCSI PR registered early for CAW");
             }
@@ -2179,7 +2191,10 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
     if (!mnt->scsipr && mnt->dlm_transport == MXFS_DLM_TRANSPORT_CAW) {
         mnt->scsipr = mxfs_scsipr_create(mnt->dev, opts->device, mnt->node_id);
         if (mnt->scsipr) {
+            mxfs_scsipr_observe_reservation(mnt->scsipr, NULL);
             ret = mxfs_scsipr_register(mnt->scsipr);
+            if (!ret)
+                ret = mxfs_scsipr_reserve(mnt->scsipr);   /* sess381 */
             if (ret) {
                 mxfs_pal_log(MXFS_LOG_WARN,
                              "mxfs: hardware-level node fencing not "
@@ -2187,8 +2202,6 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
                              "protection)", ret);
                 mxfs_scsipr_destroy(mnt->scsipr);
                 mnt->scsipr = NULL;
-            } else {
-                mxfs_scsipr_reserve(mnt->scsipr);
             }
         }
     }

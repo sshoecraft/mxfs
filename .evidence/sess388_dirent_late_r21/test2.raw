@@ -1,0 +1,14 @@
+Warning: Permanently added 'test2' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+  DD-DURABLE-LOSS round=21 rank=2 after=4000ms dir_ino=117444294 missing=[node7]
+  DD-DURABLE-LOSS round=22 rank=2 after=4000ms dir_ino=117444316 missing=[node7]
+  DD-DURABLE-LOSS round=23 rank=2 after=4000ms dir_ino=71307032 missing=[node7]
+  DD-DURABLE-LOSS round=24 rank=2 after=4000ms dir_ino=83889801 missing=[node7]
+  DD-DURABLE-LOSS round=25 rank=2 after=4000ms dir_ino=71307043 missing=[node7]
+  DD-DURABLE-LOSS round=26 rank=2 after=4000ms dir_ino=71307045 missing=[node7]
+  DD-DURABLE-LOSS round=27 rank=2 after=4000ms dir_ino=71307047 missing=[node7]
+  DD-DURABLE-LOSS round=28 rank=2 after=4000ms dir_ino=71307053 missing=[node7]
+RESULT: FAIL | test=dirent_durability | nodes=32 | measured=rounds=30 durable_loss=8 late_ok=3 mkdir_err=0 | reason=mkdir(2) returned success but the entry is DURABLY absent after 4000ms: r21[node7] r22[node7] r23[node7] r24[node7] r25[node7] r26[node7] r27[node7] r28[node7]

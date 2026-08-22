@@ -527,6 +527,7 @@ static atomic64_t	mxfs_authcap_nocap;
 struct mxfs_ownauth_snap {
 	uint64_t	epoch;
 	uint64_t	res;
+	uint64_t	lineage;
 	uint64_t	gen;
 	uint64_t	try_gen;
 	uint64_t	try_epoch;
@@ -618,6 +619,8 @@ mxfs_buf_owner_authority(
 					sn->epoch = ep;
 					sn->res = READ_ONCE(
 						ip->i_mxfs_auth_resource);
+					sn->lineage = READ_ONCE(
+						ip->i_mxfs_auth_lineage);
 				} else {
 					out = MXFS_OWNAUTH_DURABLE_NOEP;
 				}
@@ -724,6 +727,7 @@ mxfs_ownauth_measure(
 		out->mba_class = MXFS_AUTH_CLASS_INODE;
 		out->mba_resource = sn.res;
 		out->mba_epoch = sn.epoch;
+		out->mba_lineage = sn.lineage;
 		out->mba_auth_gen = sn.gen;
 		out->mba_status = MXFS_AUTH_ST_VALID;
 		break;
@@ -965,6 +969,8 @@ mxfs_auth_classify(
 			out->mba_class = MXFS_AUTH_CLASS_AG;
 			out->mba_resource = agno;
 			out->mba_epoch = ge;
+			out->mba_lineage =
+				READ_ONCE(apag->pag_mxfs_grant_lineage);
 			out->mba_status = MXFS_AUTH_ST_VALID;
 			atomic64_inc(&mxfs_tokcls_ag);
 		} else if (!auth && ge) {
@@ -1014,6 +1020,7 @@ mxfs_auth_same(
 	       a->mba_status == b->mba_status &&
 	       a->mba_resource == b->mba_resource &&
 	       a->mba_epoch == b->mba_epoch &&
+	       a->mba_lineage == b->mba_lineage &&
 	       a->mba_owner_ino == b->mba_owner_ino &&
 	       a->mba_auth_gen == b->mba_auth_gen;
 }
@@ -1176,8 +1183,8 @@ xfs_buf_item_size_segment(
 	*nbytes += xfs_buf_log_format_size(blfp);
 	/*
 	 * sess48 authority token (step 3a): multi-node buf format regions
-	 * carry a fixed-size trailer, MXFS_BLF_AUTHORITY_SIZE bytes — 40 as
-	 * of the sess94 v2 wire (see mxfs_blf_authority_v2).  MUST mirror
+	 * carry a fixed-size trailer, MXFS_BLF_AUTHORITY_SIZE bytes — 48 as
+	 * of the sess177 v3 wire (see mxfs_blf_authority_v3).  MUST mirror
 	 * the emission condition in xfs_buf_item_format_segment exactly —
 	 * an underestimate here overruns the CIL shadow buffer.  Stale
 	 * items never reach this function (handled in xfs_buf_item_size)
@@ -1374,17 +1381,20 @@ xfs_buf_item_format_segment(
 		 * the mutation.  See struct mxfs_bli_auth for the full
 		 * argument and the invariants.
 		 *
-		 * sess94 step 5.2: the wire is v2.
+		 * sess94 step 5.2: the wire was v2.  sess177: the wire is v3
+		 * (v2 + resource lineage), still report-only — old parsers
+		 * classify it MALFORMED, which the sess176 sweep verified is
+		 * purely observational on every replay path.
 		 */
 		struct {
 			char blf[sizeof(struct xfs_buf_log_format)];
-			struct mxfs_blf_authority_v2 tok;
+			struct mxfs_blf_authority_v3 tok;
 		} lbuf;
-		struct mxfs_blf_authority_v2 *tok;
+		struct mxfs_blf_authority_v3 *tok;
 		struct xfs_mount *mp = bp->b_mount;
 		const struct mxfs_bli_auth *cap = &bip->bli_mxfs_auth;
 		uint32_t oslot = 0, onode = 0;
-		uint64_t oepoch = 0, res, gepoch;
+		uint64_t oepoch = 0, res, gepoch, lineage;
 		uint16_t cls;
 		uint8_t  st;
 		bool ident;
@@ -1393,7 +1403,7 @@ xfs_buf_item_format_segment(
 		memcpy(lbuf.blf, blfp, base_size);
 		((struct xfs_buf_log_format *)lbuf.blf)->blf_flags |=
 						XFS_BLF_MXFS_AUTHORITY;
-		tok = (struct mxfs_blf_authority_v2 *)(lbuf.blf + base_size);
+		tok = (struct mxfs_blf_authority_v3 *)(lbuf.blf + base_size);
 		memset(tok, 0, sizeof(*tok));
 		{
 			/*
@@ -1416,12 +1426,14 @@ xfs_buf_item_format_segment(
 			st = cap->mba_status;
 			res = cap->mba_resource;
 			gepoch = cap->mba_epoch;
+			lineage = cap->mba_lineage;
 
 			if (!cap->mba_capseq) {
 				atomic64_inc(&mxfs_authcap_nocap);
 				cls = MXFS_AUTH_CLASS_NONE;
 				res = 0;
 				gepoch = 0;
+				lineage = 0;
 				st = MXFS_AUTH_ST_INCOMPLETE;
 			} else if (cap->mba_blft !=
 				   xfs_blft_from_flags(&bip->__bli_format)) {
@@ -1429,6 +1441,7 @@ xfs_buf_item_format_segment(
 				cls = MXFS_AUTH_CLASS_NONE;
 				res = 0;
 				gepoch = 0;
+				lineage = 0;
 				st = MXFS_AUTH_ST_INCOMPLETE;
 			}
 
@@ -1438,6 +1451,7 @@ xfs_buf_item_format_segment(
 				cls = MXFS_AUTH_CLASS_NONE;
 				res = 0;
 				gepoch = 0;
+				lineage = 0;
 				oslot = 0;
 				onode = 0;
 				oepoch = 0;
@@ -1445,7 +1459,7 @@ xfs_buf_item_format_segment(
 				atomic64_inc(&mxfs_tokcls_incomplete);
 			}
 		}
-		tok->mba_version = cpu_to_be16(MXFS_BLF_AUTHORITY_V2);
+		tok->mba_version = cpu_to_be16(MXFS_BLF_AUTHORITY_V3);
 		tok->mba_class = cpu_to_be16(cls);
 		/* reserved bits (8-31) stay zero — a parser rejects them */
 		tok->mba_flags =
@@ -1455,6 +1469,7 @@ xfs_buf_item_format_segment(
 		tok->mba_owner_epoch = cpu_to_be64(oepoch);
 		tok->mba_owner_slot = cpu_to_be32(oslot);
 		tok->mba_owner_node = cpu_to_be32(onode);
+		tok->mba_lineage = cpu_to_be64(lineage);
 
 		blfp = xlog_format_copy(lfb, XLOG_REG_TYPE_BFORMAT, &lbuf,
 					base_size +
@@ -1616,6 +1631,10 @@ xfs_buf_item_finish_stale(
 	ASSERT(bip->__bli_format.blf_flags & XFS_BLF_CANCEL);
 	ASSERT(list_empty(&lip->li_trans));
 	ASSERT(!bp->b_transp);
+
+	/* sess227 F4: committed XFS_BLF_CANCEL — the only non-shutdown
+	 * cancel point for a committed-never-submitted obligation. */
+	mxfs_f4_cancel(bp, MXFS_F4_CANCEL_STALE);
 
 	if (bip->bli_flags & XFS_BLI_STALE_INODE) {
 		xfs_buf_item_done(bp);
@@ -1994,6 +2013,10 @@ xfs_buf_item_release(
 		 * xfs_buftarg_drain at unmount (agi/inobt/finobt stuck at b_hold=2).
 		 */
 		mxfs_ag_meta_reclaim_abort(bp);
+		/* sess227 F4: shutdown is the only terminal cancel; a plain
+		 * abort keeps the obligation open + probes (ruling item 3). */
+		mxfs_f4_cancel(bp, xlog_is_shutdown(lip->li_log) ?
+				MXFS_F4_CANCEL_SHUTDOWN : MXFS_F4_CANCEL_ABORT);
 		xfs_buf_item_done(bp);
 		goto out_release;
 	}
@@ -2025,6 +2048,12 @@ xfs_buf_item_committing(
 	struct xfs_log_item	*lip,
 	xfs_csn_t		seq)
 {
+	struct xfs_buf_log_item	*bip = BUF_ITEM(lip);
+
+	/* sess227 F4: open/advance the committed-never-submitted obligation
+	 * while bli_flags still carry LOGGED/ORDERED — xfs_buf_item_release
+	 * clears them.  Buffer is still locked (bli owns b_sema here). */
+	mxfs_f4_commit(bip->bli_buf, bip->bli_flags);
 	return xfs_buf_item_release(lip);
 }
 
@@ -2370,9 +2399,18 @@ xfs_buf_item_done(
 	 *
 	 * Note that log recovery writes might have buffer items that are not on
 	 * the AIL even when the file system is not shut down.
+	 *
+	 * sess340 513B review item 1: foreign-replay buffers carry the same
+	 * "not-in-AIL is normal" property but the swapext owner-change family
+	 * (bmbt blocks via xfs_btree_block_change_owner) never gets
+	 * _XBF_LOGRECOVERY — a live bli attached to such a buffer must not
+	 * let the not-in-AIL delete shut down the SURVIVOR's mount, so the
+	 * provenance suppresses the shutdown type exactly like the flag.
+	 * (__xfs_buf_ioend clears the provenance only after this runs.)
 	 */
 	xfs_trans_ail_delete(&bip->bli_item,
-			     (bp->b_flags & _XBF_LOGRECOVERY) ? 0 :
+			     ((bp->b_flags & _XBF_LOGRECOVERY) ||
+			      bp->b_mxfs_foreign_recovery) ? 0 :
 			     SHUTDOWN_CORRUPT_INCORE);
 	xfs_buf_item_relse(bip);
 }

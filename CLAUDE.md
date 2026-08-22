@@ -52,6 +52,37 @@ Per-criterion budgets live in `tests/criteria/TIMEOUT_BUDGETS.md`.
 Keep them current: after a healthy PASS, record the actual wall and
 tighten the budget toward it.
 
+**6. THIS APPLIES TO THE Bash TOOL'S `timeout` PARAMETER AND TO EVERY
+`timeout N` YOU TYPE — not just to test budgets.**  This is the single
+most-repeated correction in this project's history.
+
+- **NEVER default to 600000 / 10 minutes / "the tool cap".**  A round
+  number is proof you did not derive it.
+- Derive it.  For a `run.sh` chunk, MEASURED 2026-08-20 at 32 nodes:
+
+      wrapper = sum(measured test walls) + 12s × n_tests + 15s startup
+
+  The `12s × n_tests` term is real harness overhead — ssh fan-out to 32
+  nodes, coord-broker retained sweep, criteria.json record — and it is
+  what a "sum the walls" estimate misses.  Verified both ways in one
+  session: omitting it made a 193s-of-tests chunk overrun a 254s
+  wrapper; including it predicted 88s for a chunk that ran 61s.
+  Get the measured walls from `./showstat.sh <N> <dlm>` — it prints
+  `elapsed/budget` per row.  Sum the ELAPSED column, never the budget
+  column: budgets are ceilings that already carry slack, so summing
+  ceilings and then padding compounds slack twice.
+- `run.sh` **already** enforces the per-test budget from
+  `tests/suite/manifest` as that test's hard timeout, and already flips
+  PASS→FAIL on `elapsed_s > budget_s`.  An outer `timeout` around it
+  adds nothing except how long you sit on a wedge.
+- Reference: the whole 28-row 32/caw board is a **~12-minute** job
+  (~690s of summed walls).  If you are typing 10 minutes for one chunk
+  of it, you are off by roughly 30×.
+- Padding is not free.  A wedge is the normal failure mode on this rig;
+  the padded number is exactly how long the session does nothing.  And
+  a run that takes 8 minutes under a 10-minute wrapper reads as success
+  when it is a RULE 0 failure.
+
 ---
 
 ### RULE 1 — NEVER DOWNLOAD THE LINUX KERNEL SOURCE
@@ -146,6 +177,60 @@ recovery is the user's call — never a session's.
 
 Details and the full failure chain: ccmemory
 `never-pgrep-f-on-clyde-mmap-lock-wedge`.
+
+---
+
+### RULE 2d — NEVER RUN THE RIG ON AN UNGUARDED HOST
+
+clyde was wedged unrecoverably twice in 24 hours.  Neither wedge was an MXFS
+filesystem bug; both were the host being driven into a state it could not
+return from, and both announced themselves in clyde's own kernel log while
+nothing was listening.  Full chains: `docs/host-safety.md`.
+
+**The gate.** `scripts/clyde_preflight.sh` runs before every fleet run — and
+`run.sh` calls it for you.  It hard-fails on: a halt flag from the kmsg guard,
+a kernel already tainted BAD_PAGE/oops/soft-lockup/MCE, a pile of D-state
+tasks, an SCST older than the PR bounds fix, per-IO SCST trace flags, a kernel
+log already running hot, or a filesystem below its headroom floor.
+
+**A failed gate is a host problem to fix, never a number to widen.** Do not
+raise a threshold, do not set `MXFS_PREFLIGHT_SKIP=1`, and do not comment the
+call out to make a run start.  The cost of a blocked run is one run; the cost
+of a wedged host is the campaign plus a physical reset only the user can do.
+
+**The watchdog.** `mxfs-clyde-guard.service` (`tools/clyde_kmsg_guard.sh`)
+tails `/dev/kmsg` and halts the rig on corruption, on a known precursor, or on
+a sustained log flood.  It must be `active` whenever the rig is up.  When it
+halts, read `.rig_halt` and the snapshot it names, understand the cause, and
+only then `tools/clyde_kmsg_guard.sh clear`.  Clearing a halt to get a run
+moving is the same violation as widening a timeout to make a test pass.
+
+**Debug tracing on the target is rig state, not session state.** Turning on an
+SCST trace flag is fine and often necessary; leaving it on is what produced
+1.07M host kernel lines in 98 minutes and deadlocked jbd2 on the one
+filesystem that carries the LUN, all 32 guest images and the journal.  Turn it
+off when the investigation ends.  `scripts/scst_setup.sh` resets the mask on
+every rig build so it can never survive silently.
+
+**Any host-kernel `BUG:`/`Oops`/bad-page is a first-class defect** — under
+RULE 6 it is evidence-backed and stays open until DISPROVED or FIXED AND
+VERIFIED, exactly like an MXFS defect.  It is never "the rig being flaky".
+
+**A wedged host's journal is not the record.**  `journalctl -b -N -k` for the
+2026-08-20 wedge contains zero `BUG:`/`Oops` lines because journald stopped
+writing when the root filesystem wedged — that boot had actually taken nine.
+Read `/var/lib/systemd/pstore/*` (systemd-pstore drains `/sys/fs/pstore` at
+boot and clears it, so an empty `/sys/fs/pstore` proves nothing) and check each
+`dmesg.txt`'s first line for the `Oops#N` count.  A quiet journal around a
+wedge is the wedge, not the absence of one.
+
+**The host now panics on an oops and reboots itself** (`panic_on_oops=1`,
+`panic=30`, user's decision 2026-08-21).  That is the kernel acting, not a
+session: RULE 2 is unchanged, and no session may ever initiate a reboot.  On
+the boot after a crash, `mxfs-crash-latch.service` halts the rig and archives
+the pstore record, so the workload cannot restart into the same crash.  A halt
+found at session start means **read the evidence first** — never clear it to
+get moving.
 
 ---
 
@@ -300,53 +385,101 @@ source to build understanding, not about banning `grep`.
 
 ---
 
-### RULE 8 — MAINTAIN `handoff.md` AS YOU WORK, NEVER AT THE CUTOFF
+### RULE 9 — THE POOL METERS REQUESTS. BATCH SIDE-EFFECT-FREE CALLS.
 
-ccloop starts a fresh session every time context fills, and the next
-session's entire starting picture is the run's handoff file. A session
-that dies abruptly writes nothing at the end: run c7ee71c6 session 173
-produced 4 user messages and **zero assistant turns**, so session 174
-started blind.
+The weekly allowance is a **request count**, not tokens (measured over
+four credit exhaustions: `docs/cost-audit.md`). Token volume swung 2.5×
+across those weeks and changed nothing about when credits died. One
+response carrying N tool calls bills as **one** request — verified: three
+`Read` calls, one requestId.
 
-Therefore the handoff is maintained CONTINUOUSLY. Update
-**`/src/mxfs/.ccloop/handoff.md`** whenever a hypothesis resolves, a test
-run finishes, or a fix lands — not when context runs out. (One file per
-PROJECT, beside `state.sh` — not per run, not under `runs/`. ccloop tells
-you the absolute path in the prompt; use that if it differs.)
+Measured rate before this rule: **1.10 tool calls per request.** Almost
+no batching at all.
 
-ccloop stamps it FRESH only if its mtime is at or after this session's
-start (30s slack). So:
+**The rule:** before issuing a tool call, ask whether the next one needs
+its result. If not, issue them in the same response.
 
-- **Touched this session** → it supersedes the scraped `last_text`, and
-  the prompt drops that scrape. Measured: 2,074 → 396 tokens.
-- **Not touched** → rendered under an explicit STALE marker naming its
-  age, and the scraper stays. You cost the next session ~900 tokens and
-  hand it a document it has to distrust.
+**Batch ONLY side-effect-free calls. Anything that mutates runs alone.**
+Never batch a build with the deploy that consumes it, a fix with the test
+that verifies it, or successive steps of a RULE 4 loop — measuring before
+the change lands is a false negative, which is the guessed-fix failure
+RULE 4 exists to prevent. **If you are unsure whether two calls are
+independent, they are not.**
 
-Updating it is therefore not housekeeping — it is the thing that makes it
-count. A handoff inherited unmodified from a previous session is stale by
-construction.
+**Reads are a special case (RULE 7 interaction).** The ccmemory hook fires
+per `Read`, and during orientation its value is *sequential*: the lesson
+injected after the first read redirects the second. Batch reads only when
+the file set is already determined — from a `Grep` hit, a stack trace, a
+handoff. Speculative "let me look at these three and see" reads stay
+sequential; you are buying steering, not files.
 
-Hard cap 6000 bytes (`CCLOOP_HANDOFF_MAX_BYTES`); past that ccloop
-truncates visibly. Aim well under it — these sections, ~1k tokens:
+`Grep`/`Glob` to LOCATE, `Read` to UNDERSTAND. Grep fires no memory hook,
+so it never substitutes for reading the file you are about to reason about.
 
-    ## Active defect       <ID + one line>
-    ## Where the code is   <subsystem; the 2-3 files that matter; which
-                            .claude/awareness/subsystems/*.md covers them>
-    ## Current hypothesis  <claim + RULE 4 state: open / disproven / proven>
-    ## Ruled out           <one line each, with the evidence that killed it>
-    ## Next command        <literal invocation, its RULE 0 budget, and what
-                            a pass looks like>
+**A fleet sweep is one Bash call — with per-node evidence.** All nodes
+backgrounded then `wait`, but each node gets its own output file, its own
+captured exit code, and its own inner `timeout`. A bare `wait` that
+discards per-node rc produces a RULE 0 failure with no RULE 6 evidence and
+orphans you cannot inspect (RULE 2c forbids the `ps` that would find them).
 
-**Orientation is the point, not history.** Measured: sessions spend a
-median of **16 tool calls** before their first productive action, and
-re-read the same few files every time — but they do NOT repeat each
-other's experiments (**1%** command overlap). So history is cheap to
-omit; orientation is what earns the space.
+**RULES 0, 2c, 4 and 6 OUTRANK THIS RULE.** Never skip a verification run,
+a measurement, or a disposition check to save a request. Cheapness is not
+correctness, and a request spent proving a fix is the cheapest one you will
+ever spend.
 
-Do NOT scrape the transcript into it. Bash-command history and
-last-message snapshots measured as the two lowest-value sections of the
-old resume.md, at ~1.6k tokens combined.
+Do not hardcode the allowance number anywhere. Re-derive it at each
+exhaustion with `scripts/ccloop_request_audit.py`; vendors change quotas.
+
+---
+
+### RULE 10 — DELEGATE ITERATIVE GRIND; CAP AND INSTRUMENT WHAT RETURNS
+
+A subagent pinned to `model: sonnet` / `model: haiku` in
+`.claude/agents/*.md` is served by that model (verified: a sonnet subagent
+billed 3 sonnet requests, a haiku one 9 haiku requests, parent untouched).
+Roughly 27% of a loop week is rig polls, harness runs, builds and tree
+sweeps that need no premium reasoning.
+
+**Delegate** multi-turn, low-return work: fleet polls, board runs,
+build+deploy+verify, "find every call site of X".
+
+**Never delegate:** reading the 2-3 files you must understand (RULE 7's
+injection lands in the subagent and dies with it), fix design, edits, or
+ledger dispositions.
+
+**Subagents DO inherit this file — but the session-start snapshot of it.**
+Verified 2026-08-15: a haiku subagent, with zero tool calls, listed RULES
+0-8 and quoted this file's opening line. It did **not** see RULES 9-10,
+which had been added to the file earlier in that same session. So a rule
+you write today does not reach a subagent until the next session starts.
+
+Therefore **still embed the rules a delegated task can violate — RULES 0,
+2c, 3 — verbatim in the agent definition.** Not because inheritance fails,
+but because (a) a newly-written rule has not propagated yet, (b) a
+constraint next to the task is obeyed more reliably than one 400 lines up
+a file, and (c) `.claude/agents/*.md` definitions are themselves only
+registered at session start. A haiku agent that runs `pgrep -f` wedges
+clyde unkillably, unattended, mid-loop; that is worth two lines of
+duplication.
+
+**Subagents return RAW EVIDENCE — `file:line`, exit codes, verbatim lines
+— never conclusions.**
+
+**The cap is itself a hazard.** Capping the report makes the *weaker* model
+choose which evidence survives, and selection is a conclusion wearing
+evidence's clothes: verbatim excerpts look RULE 6-compliant while silently
+omitting the line that mattered. Therefore every delegated report MUST
+state the exact commands run and the **pre-truncation total** ("173
+matches, returning 40") so the parent can see the cap bite. A
+disposition-critical **negative** ("no matches", "not present") is never
+evidence — re-run it in the parent before it touches the ledger. A subagent
+may never widen or retry a timed-out run (RULE 0): a helpful weak model
+re-running a flaky test until it passes launders a defect away.
+
+**Delegation saves requests, not context.** The returned payload still
+fills the parent's window and pulls the next restart forward, and each
+restart costs a fresh orientation ramp. An uncapped sweep returned ~20k
+tokens and netted roughly break-even. Cheap to run, expensive to report.
 
 ---
 
@@ -394,7 +527,7 @@ This project uses the three-layer awareness system (see
 
 - **Last bootstrapped**: 2026-05-08
 - **Subsystems documented**: 5 of 5 (xfs, dlm, pal, tools, tests)
-- **Structural map**: 2026-08-07, ~66393 tokens
+- **Structural map**: 2026-08-21, ~70751 tokens
 - **Bootstrap version**: 1.0
 
 ## ⚠️ USE MXFS TOOLS, NOT XFS TOOLS

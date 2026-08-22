@@ -1,0 +1,45 @@
+# Incident sess320: fence_during_write refused-replay -> 32-node cascade shutdown
+# Build 0.11.513 sv C774FEA614A2BB1AE74286F knob-on (icluster_dlm=1 release_proof_enforce=1), 32/caw, 2026-08-15 ~09:04-09:10Z
+# test1 boot: 2026-08-15 08:40:41 (dmesg t=0)
+
+## test1 (slot 0, elected replayer) key timeline
+[ 1378.375818] mxfs: P34-ACQ-SLOW ino=858369 isdir=1 req_mode=5 dur_ms=4477 attempts=1 rc=0
+[ 1437.300254] mxfs: mxfs: node in slot 3 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[ 1437.300276] mxfs: mxfs: node 2891031514 (slot 3 inc 11471549435935839158) lease expired/died — fencing; recovery starting
+[ 1437.301185] mxfs: mxfs: P238-FENCE-DONE slot=3 node=2891031514 — this victim is already certified fenced by another prover; issuing no second PREEMPT AND ABORT.  Authorisation is still decided by the replay gate, not by this result
+[ 1437.301192] mxfs: mxfs: P164-DEAD-NOTE node=2891031514 — identity retired; its announces/connects are ignored from now on
+[ 1437.301205] mxfs: mxfs: P163-RECOVERY-PENDING slot=3 node=2891031514 epoch=11471549435935839158 — purge deferred until slice replay completes
+[ 1437.301213] mxfs: mxfs: elected (slot 0) to replay dead node 2891031514's log slice 3
+[ 1437.307693] mxfs: disklock: P236-RECOV-CLAIMED slot=3 victim=2891031514 epoch=11471549435935839158 gen=1 owner=4136855251 term=1 stage=2 — claimed a CERTIFIED unowned recovery (proved by node=1520262534 term=1); this is a recovery lease, not a member slot
+[ 1437.309932] mxfs: mxfs: P238-RECOV-LEASE slot=3 node=2891031514 inc=11471549435935839158 stage=2 — execution lease acquired against a CERTIFIED fence and the exclusion still holds; this slice may now be replayed
+[ 1437.332398] XFS (dm-1): MXFS: foreign replay of dead slot 3 (slice 3/32) offset=50628616 bblks=130432
+[ 1437.490865] XFS (dm-1): Starting recovery (logdev: internal)
+[ 1437.499462] XFS (dm-1): MXFS foreign replay: P273-SHADOW-CAP victim_slot=3 desc_rc=0 stage=2 victim_epoch=11471549435935839158 victim_node=2891031514 capable=1
+[ 1437.500097] XFS (dm-1): MXFS foreign replay: P227-TOKEN blkno=12559322 len=1 v=3 class=1 st=1 res=3 gepoch=314 oepoch=11471549435935839158 slot=3 node=2891031514 lineage=5797620444607153166 (n=1)
+[ 1437.500110] XFS (dm-1): MXFS foreign replay: P227-TOKEN blkno=12559352 len=8 v=3 class=1 st=1 res=3 gepoch=314 oepoch=11471549435935839158 slot=3 node=2891031514 lineage=5797620444607153166 (n=2)
+[ 1437.500117] XFS (dm-1): MXFS foreign replay: P227-TOKEN blkno=12559344 len=8 v=3 class=1 st=1 res=3 gepoch=314 oepoch=11471549435935839158 slot=3 node=2891031514 lineage=5797620444607153166 (n=3)
+[ 1437.500124] XFS (dm-1): MXFS foreign replay: P227-TOKENSUM lsn=0x1000021af buf_items=3 tokened=3 v1=0 v2=0 v3=3 ag=3 sb=0 classless=0 untagged=0 malformed=0 wapply=3 wskip=0 st: s1=3
+[ 1437.500132] XFS (dm-1): MXFS foreign replay: ATOMIC-SKIP whole transaction lsn=0x1000021af items=5 — contains untagged image(s); partial apply would tear (P227-FR-ATOMIC-SKIP)
+[ 1437.502439] XFS (dm-1): MXFS: P227-FR-TORN-UNPUBLISHED slot 3: replay refused 1 committed untagged image(s) — the victim's partial home-writeback cannot be ruled out, so publishing would publish a torn platter; slice stays unpublished (needs repair or token-authorized redo)
+[ 1437.502448] XFS (dm-1): MXFS foreign replay: P273-SHADOW-EVAL victim_slot=3 capable=1 buf=3 csum=3 untagged=0 malformed=0 v1=0 classless=0 sb=0 unsup=0 badst=0 fowner=0 resmis=0 winc=0 manerr=0 wlineage=0 notheld=0 staleep=0 uncap_match=0 nolineage=0 WOULD_APPLY=3 ENFORCEABLE_WOULD_APPLY=3 txn=1 all_apply=1 taint_blocked=0 mixed=0 none=0 nonbuf_taint=0 uncached=0 missed_txns=0
+[ 1437.502570] XFS (dm-1): MXFS: foreign replay of slot 3 failed: error -117
+[ 1437.502576] XFS (dm-1): MXFS foreign replay slot=3: slice replay refused as TORN/corrupt (-117) — recovery NOT published, grants stay frozen; NOT auto-retried (deterministic refusal); needs repair or token-authorized redo
+[ 1739.296617] mxfs: P34-ACQ-SLOW ino=858369 isdir=1 req_mode=3 dur_ms=360582 attempts=4 rc=-110
+[ 1739.296633] mxfs: mxfs: DLM inode lock unrecoverable: ino=858369 mode=3 rc=-110 comm=bash — shutting down filesystem
+[ 1739.296648] mxfs: P-WITHDRAW-QUEUE — FS shut down; scheduling cluster DLM withdrawal
+[ 1739.296680] mxfs: mxfs: P-WITHDRAW — FS shut down; declaring voluntary death (acquires fenced, grants FROZEN until peers replay our journal slice)
+[ 1739.296738] XFS (dm-1): Corruption of in-memory data (0x8) detected at mxfs_dlm_ilock_begin+0x3c53/0x63f0 [mxfs] (/src/mxfs/xfs/xfs_mxfs_dlm.c:30684).  Shutting down filesystem.
+[ 1739.297242] mxfs: P71-UNDERFLOW ino=858369 mode=PR state=0 dlm_mode=0 comm=bash
+[ 1739.300179] mxfs: mxfs: P163-WITHDRAW-STAMP slot=0 node=4136855251 rc=0 — voluntary death declared; peers will fence, replay our slice, then purge
+
+## survivor shutdowns (all 32 nodes DOWN, same ino=858369 rc=-110, t=1735-1755)
+--- test2
+[ 1736.192593] mxfs: mxfs: DLM inode lock unrecoverable: ino=858369 mode=5 rc=-110 comm=bash — shutting down filesystem
+--- test5
+[ 1735.452793] mxfs: mxfs: DLM inode lock unrecoverable: ino=858369 mode=5 rc=-110 comm=bash — shutting down filesystem
+--- test9
+[ 1754.451140] mxfs: mxfs: DLM inode lock unrecoverable: ino=858369 mode=3 rc=-110 comm=rm — shutting down filesystem
+--- test17
+[ 1749.808710] mxfs: mxfs: DLM inode lock unrecoverable: ino=858369 mode=5 rc=-110 comm=bash — shutting down filesystem
+--- test30
+[ 1755.122343] mxfs: mxfs: DLM inode lock unrecoverable: ino=858369 mode=3 rc=-110 comm=rm — shutting down filesystem

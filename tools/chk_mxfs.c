@@ -46,6 +46,12 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <linux/fs.h>
+#include <sys/sysmacros.h>
+#include <scsi/sg.h>
+#include <dirent.h>
+#include <time.h>
+#include <limits.h>
+#include <libgen.h>
 
 #include <mxfs/mxfs_super.h>
 #include <mxfs/mxfs_common.h>
@@ -713,6 +719,306 @@ static uint32_t crc32c_raw(uint32_t crc, const void *data, size_t len)
     return crc;
 }
 
+/* ─── Terminal recovery quarantine (D-QUARANTINED-SLOT-…-376) ───────────────
+ *
+ * A terminal replay refusal turns the victim's heartbeat slot into a
+ * RECOVERY_GUARD record whose body carries the durable verdict: a
+ * mxfs_recov_desc at byte 40 and a mxfs_recov_outcome at byte 160.  That
+ * record is the ONLY copy of the verdict, and until the sess377 repair path
+ * exists nothing can clear it — so the very first thing an operator needs is
+ * to be able to READ it offline.  Before this, they could not: chk_mxfs did
+ * not decode the body, caw_slotdump is a CAW-region tool, and the kernel's
+ * /sys/kernel/debug/mxfs/<dev>/recovery_blocked only exists on a node that
+ * managed to MOUNT — which is exactly what a quarantine can prevent.
+ *
+ * Layouts duplicated from dlm/disklock.h to keep this tool a standalone
+ * single-file build; the _Static_asserts below mirror the ones there, so a
+ * layout change in the kernel header breaks this compile instead of silently
+ * decoding garbage.
+ */
+#define MXFS_DISKLOCK_FLAG_WITHDRAWN_C       2
+#define MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C  3
+
+#define MXFS_RECOV_DESC_OFF_C       40      /* 40B header, then the body union */
+#define MXFS_RECOV_OUTCOME_OFF_C    (MXFS_RECOV_DESC_OFF_C + 120)
+
+#define MXFS_RECOV_DESC_MAGIC_C     0x5643524Du  /* "MRCV" LE */
+#define MXFS_RECOV_DESC_VERSION_C   2
+#define MXFS_RECOV_OUTCOME_MAGIC_C  0x4F435652u  /* "RVCO" LE */
+
+#define MXFS_RECOV_F_QUARANTINED_C  0x00000001u
+
+#define MXFS_RECOV_OUTCOME_TERMINAL_REFUSED_C           1u
+#define MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE_C    1u
+#define MXFS_RECOV_REFUSAL_PHYSICALLY_TORN_C            2u
+#define MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE_C   3u
+#define MXFS_RECOV_DOMAIN_FSWIDE_C      1u
+#define MXFS_RECOV_DOMAIN_AG_MASK_C     2u
+#define MXFS_RECOV_OUTCOME_F_DIGEST_VALID_C  (1u << 0)
+
+struct chk_recov_desc {
+    uint32_t magic; uint16_t version; uint16_t stage;
+    uint64_t victim_epoch; uint64_t owner_epoch; uint64_t recovery_gen;
+    uint64_t owner_stamp_ms;
+    uint32_t victim_node; uint32_t owner_node; uint32_t victim_fs_gen;
+    uint32_t flags;
+    uint16_t victim_slot; uint16_t owner_slot;
+    uint16_t slice_idx; uint16_t slice_count;
+    uint64_t stage_seq; uint32_t owner_term;
+    uint16_t fence_kind; uint16_t fence_resv_type;
+    uint64_t fence_victim_key; uint64_t fence_prover_epoch;
+    uint64_t fence_stamp_ms;
+    uint32_t fence_prover_node; uint32_t fence_pr_gen; uint32_t fence_term;
+    uint32_t crc32c;
+} __attribute__((packed));
+
+struct chk_recov_outcome {
+    uint32_t magic; uint16_t version; uint16_t outcome;
+    uint16_t reason; uint16_t domain_kind;
+    uint16_t victim_slot; uint16_t owner_slot;
+    uint64_t victim_epoch; uint64_t owner_epoch; uint64_t recovery_gen;
+    uint64_t ag_mask; uint64_t slice_digest; uint64_t publish_seq;
+    uint32_t victim_node; uint32_t victim_fs_gen;
+    uint32_t owner_node; uint32_t owner_term;
+    uint32_t refused_items; uint32_t malformed_items; uint32_t flags;
+    uint32_t crc32c;
+} __attribute__((packed));
+
+_Static_assert(sizeof(struct chk_recov_desc) == 120,
+               "chk_recov_desc must match dlm/disklock.h mxfs_recov_desc (120B)");
+_Static_assert(offsetof(struct chk_recov_desc, fence_kind) == 76,
+               "the v2 certificate starts at byte 76");
+_Static_assert(offsetof(struct chk_recov_desc, crc32c) == 116,
+               "the descriptor crc must remain the last field");
+_Static_assert(sizeof(struct chk_recov_outcome) == 96,
+               "chk_recov_outcome must match dlm/disklock.h mxfs_recov_outcome (96B)");
+_Static_assert(offsetof(struct chk_recov_outcome, crc32c) == 92,
+               "the outcome crc must remain the last field");
+
+/* The heartbeat header fields this decoder needs, by name. */
+struct chk_hb_hdr {
+    uint32_t magic, flags, node_id, fs_gen;
+    uint64_t timestamp_ms, epoch, lock_count;
+} __attribute__((packed));
+_Static_assert(sizeof(struct chk_hb_hdr) == MXFS_RECOV_DESC_OFF_C,
+               "the recovery descriptor starts right after the 40-byte header");
+
+/*
+ * recov_desc_crc / recov_outcome_crc from dlm/disklock.c: crc32c (kernel
+ * semantics, seed ~0, no final inversion) over the record's own bytes up to
+ * the crc field, then folded with the SECTOR's identity triple.  That binding
+ * is what makes a descriptor spliced next to a different victim's header fail
+ * to validate — so it must be reproduced exactly, not approximated.
+ */
+static uint32_t chk_recov_body_crc(uint32_t fs_gen, uint32_t node_id,
+                                   uint64_t epoch, const void *rec, size_t len)
+{
+    struct { uint32_t fs_gen; uint32_t node_id; uint64_t epoch; }
+        __attribute__((packed)) id;
+    uint32_t crc;
+
+    id.fs_gen = fs_gen;
+    id.node_id = node_id;
+    id.epoch = epoch;
+    crc = crc32c_raw(~0U, rec, len);
+    return crc32c_raw(crc, &id, sizeof(id));
+}
+
+/*
+ * The verdict DIGEST an operator must quote back to authorize a repair
+ * (sess377 ruling: "a generic yes must not be able to clear the wrong victim
+ * or filesystem").  Bound to the filesystem UUID, the slot index and the
+ * COMPLETE 512-byte guard sector, so it changes if anything about the verdict
+ * or its location changes.  Two different seeds give 64 bits; this guards
+ * against operator error, and is not claimed to be adversarial.
+ */
+static uint64_t chk_verdict_digest(const uint8_t *uuid16, uint32_t slot,
+                                   const uint8_t *sector512)
+{
+    uint32_t hi, lo;
+    uint32_t s = slot;
+
+    hi = crc32c_raw(~0U, uuid16, 16);
+    hi = crc32c_raw(hi, &s, sizeof(s));
+    hi = crc32c_raw(hi, sector512, 512);
+
+    lo = crc32c_raw(0x1EDC6F41u, sector512, 512);
+    lo = crc32c_raw(lo, &s, sizeof(s));
+    lo = crc32c_raw(lo, uuid16, 16);
+
+    return ((uint64_t)hi << 32) | lo;
+}
+
+static const char *chk_refusal_reason_name(uint16_t r)
+{
+    switch (r) {
+    case MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE_C:
+        return "POLICY_REFUSED_COMPLETE (the replay gate refused every obligation)";
+    case MXFS_RECOV_REFUSAL_PHYSICALLY_TORN_C:
+        return "PHYSICALLY_TORN (the slice image is unreadable/corrupt)";
+    case MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE_C:
+        return "LEGACY_INTENT_QUARANTINE (backfilled verdict, inherited)";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+/*
+ * Decode and PRINT the terminal verdict in one guard sector.  Returns:
+ *   1  a valid quarantine verdict was printed
+ *   0  the slot is a RECOVERY_GUARD but carries no readable verdict
+ *  -1  the slot is not a RECOVERY_GUARD
+ * A guard whose descriptor or outcome fails its crc is reported LOUDLY: that
+ * is a corrupt verdict, which is a worse state than a readable one, and it
+ * must never be silently treated as "no quarantine here".
+ */
+static int chk_print_guard(uint32_t slot, const uint8_t *sec,
+                           const uint8_t *fsuuid, uint16_t slice_count_hint)
+{
+    const struct chk_hb_hdr *h = (const void *)sec;
+    struct chk_recov_desc d;
+    struct chk_recov_outcome oc;
+    uint32_t want;
+    bool desc_ok, oc_present, oc_ok;
+    int i;
+
+    if (h->magic != MXFS_DISKLOCK_MAGIC ||
+        h->flags != (uint32_t)MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C)
+        return -1;
+
+    memcpy(&d, sec + MXFS_RECOV_DESC_OFF_C, sizeof(d));
+    memcpy(&oc, sec + MXFS_RECOV_OUTCOME_OFF_C, sizeof(oc));
+
+    /* sess377: a RECOVERY_GUARD with NO descriptor body is NOT a damaged
+     * verdict — it is the unclaimed-bucket sweep's transient working guard.
+     * mxfs_unclaimed_bucket_scan() walks b < XFS_AGI_UNLINKED_BUCKETS (64)
+     * and uses the bucket index AS the disklock slot index, taking a bare
+     * guard on any unclaimed slot so it can sweep that AGI unlinked bucket.
+     * Reporting it as a corrupt terminal verdict would send an operator
+     * hunting evidence that was never written. */
+    if (d.magic == 0 && oc.magic == 0) {
+        printf("\n  ── heartbeat slot %u: bucket-sweep guard (node=%u, "
+               "transient) ──\n", slot, h->node_id);
+        printf("     Not a quarantine: no recovery descriptor was written "
+               "here.  The AGI\n"
+               "     unlinked-bucket sweep holds this guard while it sweeps "
+               "bucket %u and\n"
+               "     releases it when done.\n", slot);
+        return 2;
+    }
+
+    printf("\n  ── heartbeat slot %u: RECOVERY GUARD ──────────────────────\n",
+           slot);
+    printf("     sector identity   node=%u fs_gen=0x%08X incarnation=%llu\n",
+           h->node_id, h->fs_gen, (unsigned long long)h->epoch);
+
+    desc_ok = false;
+    if (d.magic != MXFS_RECOV_DESC_MAGIC_C) {
+        err("slot %u: RECOVERY_GUARD with NO recovery descriptor "
+            "(magic 0x%08X) but a non-empty outcome region — the verdict is "
+            "unreadable", slot, d.magic);
+    } else if (d.version != MXFS_RECOV_DESC_VERSION_C) {
+        err("slot %u: recovery descriptor version %u — this build speaks "
+            "version %u and will not interpret it",
+            slot, d.version, MXFS_RECOV_DESC_VERSION_C);
+    } else {
+        want = chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch,
+                                  &d, offsetof(struct chk_recov_desc, crc32c));
+        if (want != d.crc32c) {
+            err("slot %u: recovery descriptor CRC 0x%08X != computed 0x%08X "
+                "— the verdict is CORRUPT", slot, d.crc32c, want);
+        } else {
+            desc_ok = true;
+        }
+    }
+
+    if (desc_ok) {
+        printf("     victim            node=%u incarnation=%llu slot=%u "
+               "slice=%u of %u\n",
+               d.victim_node, (unsigned long long)d.victim_epoch,
+               d.victim_slot, d.slice_idx, d.slice_count);
+        printf("     recovery          owner=%u term=%u gen=%llu stage=%u "
+               "flags=0x%08X%s\n",
+               d.owner_node, d.owner_term,
+               (unsigned long long)d.recovery_gen, d.stage, d.flags,
+               (d.flags & MXFS_RECOV_F_QUARANTINED_C) ? " QUARANTINED" : "");
+        printf("     fence certificate kind=%u resv_type=0x%02X "
+               "victim_key=0x%016llX prover=%u term=%u\n",
+               d.fence_kind, d.fence_resv_type,
+               (unsigned long long)d.fence_victim_key,
+               d.fence_prover_node, d.fence_term);
+        if (!(d.flags & MXFS_RECOV_F_QUARANTINED_C))
+            printf("     NOTE: this guard is NOT quarantined — it is a "
+                   "recovery in progress, not a terminal verdict.\n");
+    }
+
+    oc_present = false;
+    for (i = 0; i < (int)sizeof(oc); i++)
+        if (((const uint8_t *)&oc)[i] != 0) { oc_present = true; break; }
+
+    oc_ok = false;
+    if (!oc_present) {
+        printf("     verdict           NONE RECORDED (outcome region all "
+               "zero).\n"
+               "                       This is the legacy intent-path "
+               "quarantine: terminal, but\n"
+               "                       carrying no domain evidence.  Treat "
+               "the domain as FSWIDE.\n");
+    } else if (oc.magic != MXFS_RECOV_OUTCOME_MAGIC_C) {
+        err("slot %u: outcome region is non-zero but has magic 0x%08X — "
+            "the verdict is CORRUPT", slot, oc.magic);
+    } else {
+        want = chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch,
+                                  &oc, offsetof(struct chk_recov_outcome, crc32c));
+        if (want != oc.crc32c)
+            err("slot %u: outcome CRC 0x%08X != computed 0x%08X — the verdict "
+                "is CORRUPT", slot, oc.crc32c, want);
+        else
+            oc_ok = true;
+    }
+
+    if (oc_ok) {
+        printf("     verdict           %s\n",
+               oc.outcome == MXFS_RECOV_OUTCOME_TERMINAL_REFUSED_C ?
+               "TERMINAL REFUSED" : "unknown outcome code");
+        printf("     reason            %s\n",
+               chk_refusal_reason_name(oc.reason));
+        if (oc.domain_kind == MXFS_RECOV_DOMAIN_FSWIDE_C) {
+            printf("     domain            FSWIDE — the whole filesystem is "
+                   "quarantined\n");
+        } else if (oc.domain_kind == MXFS_RECOV_DOMAIN_AG_MASK_C) {
+            printf("     domain            AG_MASK 0x%016llX — AGs:",
+                   (unsigned long long)oc.ag_mask);
+            for (i = 0; i < 64; i++)
+                if (oc.ag_mask & (1ULL << i))
+                    printf(" %d", i);
+            printf("\n");
+        } else {
+            printf("     domain            UNKNOWN kind=%u — treat as "
+                   "FSWIDE\n", oc.domain_kind);
+        }
+        printf("     refused by        node=%u term=%u publish_seq=%llu\n",
+               oc.owner_node, oc.owner_term,
+               (unsigned long long)oc.publish_seq);
+        printf("     log items         refused=%u malformed=%u\n",
+               oc.refused_items, oc.malformed_items);
+        if (oc.flags & MXFS_RECOV_OUTCOME_F_DIGEST_VALID_C)
+            printf("     refused slice     crc32c=0x%016llX (forensic identity "
+                   "of what was refused)\n",
+                   (unsigned long long)oc.slice_digest);
+        else
+            printf("     refused slice     digest NOT captured (the forensic "
+                   "reread failed)\n");
+    }
+
+    printf("     VERDICT DIGEST    %016llX\n",
+           (unsigned long long)chk_verdict_digest(fsuuid, slot, sec));
+    if (slice_count_hint && slot >= slice_count_hint)
+        printf("     NOTE: this slot is at or above the volume's slice count "
+               "(%u) — it bears no journal.\n", slice_count_hint);
+    return (desc_ok && (oc_ok || !oc_present)) ? 1 : 0;
+}
+
 /* Decode the §7.C MEPOCH record at offset 456 of one HB slot.  The
  * record is self-validating (own magic + crc32c over bytes 0..39);
  * returns the committed epoch (0 if absent/PREPARED), errs on a
@@ -782,6 +1088,8 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
     /* Read heartbeat slots (first MXFS_DISKLOCK_HB_SLOTS * 512 bytes) */
     int active = 0;
     int empty = 0;
+    int guards = 0;
+    int withdrawn = 0;
 
     for (int i = 0; i < MXFS_DISKLOCK_HB_SLOTS; i++) {
         uint64_t hb_off = dloff + (uint64_t)i * MXFS_DISKLOCK_RECORD_SIZE;
@@ -825,15 +1133,36 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
             }
         }
 
-        if (hflags & MXFS_DISKLOCK_FLAG_ACTIVE) {
+        /* sess377: `flags` is an ENUM (1 ACTIVE, 2 WITHDRAWN, 3
+         * RECOVERY_GUARD), never a bitmask.  The old `hflags &
+         * MXFS_DISKLOCK_FLAG_ACTIVE` test reported a quarantined slot
+         * (flags==3) as a LIVE MEMBER, which is exactly backwards: a guard is
+         * a terminal verdict occupying a slice, and an operator counting
+         * members off this output would conclude the cluster was full when it
+         * was actually one member short and needed repair. */
+        uint32_t node_id = *(uint32_t *)(buf + 8);
+
+        switch (hflags) {
+        case MXFS_DISKLOCK_FLAG_ACTIVE:
             active++;
-            /* node_id is at offset 8 (uint32_t) */
-            uint32_t node_id = *(uint32_t *)(buf + 8);
             info("disklock HB slot %d: ACTIVE (node_id=%u)", i, node_id);
-        } else {
+            break;
+        case MXFS_DISKLOCK_FLAG_WITHDRAWN_C:
+            withdrawn++;
+            info("disklock HB slot %d: WITHDRAWN (node_id=%u) — dirty slice "
+                 "awaiting fence+replay", i, node_id);
+            break;
+        case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C:
+            guards++;
+            info("disklock HB slot %d: RECOVERY GUARD (node_id=%u) — terminal "
+                 "quarantine verdict; run chk_mxfs --show-quarantine",
+                 i, node_id);
+            break;
+        default:
             empty++;
             if (verbose)
-                info("disklock HB slot %d: inactive", i);
+                info("disklock HB slot %d: inactive (flags=%u)", i, hflags);
+            break;
         }
     }
 
@@ -843,6 +1172,17 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
                MXFS_DISKLOCK_HB_SLOTS, active);
     } else {
         printf("Disklock ................ ERRORS (%d errors)\n", dlerrors);
+    }
+    if (guards || withdrawn) {
+        uint32_t slices = super->xfs_log_node_count;
+
+        printf("Recovery quarantine ..... %d terminal verdict(s), %d withdrawn "
+               "slice(s)\n", guards, withdrawn);
+        if (guards && slices)
+            printf("                          usable RW slices %u of %u — run "
+                   "chk_mxfs --show-quarantine\n",
+                   slices > (uint32_t)guards ? slices - (uint32_t)guards : 0,
+                   slices);
     }
     if (mep_recs)
         printf("Membership epoch ........ OK  (max committed epoch %llu, "
@@ -2198,6 +2538,17 @@ static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
         }
         orphan_push(members, ((uint64_t)agno << (geo->agblklog + geo->inopblog))
                              | agino);
+        /* sess389: -v names every chain member — the on-disk AGI chain-walk
+         * audit (RULE-5 ruling) needs the ino/mode/nlink/gen of each
+         * leftover so its unlink trail can be found in the nodes' logs. */
+        if (verbose)
+            info("  AG %u unlinked bucket %d: member ino=%llu agino=%u "
+                 "mode=0%o nlink=%u gen=%u next=0x%x",
+                 agno, bucket,
+                 (unsigned long long)(((uint64_t)agno <<
+                        (geo->agblklog + geo->inopblog)) | agino),
+                 agino, get_be16(ibuf + 0x02), get_be32(ibuf + 0x10),
+                 get_be32(ibuf + 0x44), get_be32(ibuf + 0x60));
         agino = get_be32(ibuf + 0x60);   /* di_next_unlinked */
     }
     free(ibuf);
@@ -2560,6 +2911,1256 @@ static void print_summary(int fd, const struct xfs_geo *geo,
  */
 #define CHK_SB_INCOMPAT_MXFS_PROTOGATE  (1u << 30)
 
+/* ─── SHA-256 (FIPS 180-4), self-contained ──────────────────────────────────
+ *
+ * The sess377 ruling asked for a cryptographic digest over the archived
+ * evidence: the two-seed CRC32C verdict digest is a fine wrong-token detector
+ * but is not tamper-resistant, and an archive that outlives the filesystem it
+ * describes is an audit artefact.  chk_mxfs is deliberately a single-file
+ * build with no library dependencies, so the hash comes with it.
+ */
+struct sha256_ctx {
+    uint32_t h[8];
+    uint64_t len;
+    uint8_t  buf[64];
+    size_t   n;
+};
+
+static const uint32_t sha256_k[64] = {
+0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2};
+
+#define SHR32(x,n)  ((x) >> (n))
+#define ROR32(x,n)  (((x) >> (n)) | ((x) << (32 - (n))))
+
+static void sha256_block(struct sha256_ctx *c, const uint8_t *p)
+{
+    uint32_t w[64], a, b, cc, d, e, f, g, h, t1, t2;
+    int i;
+
+    for (i = 0; i < 16; i++)
+        w[i] = ((uint32_t)p[i*4] << 24) | ((uint32_t)p[i*4+1] << 16) |
+               ((uint32_t)p[i*4+2] << 8) | (uint32_t)p[i*4+3];
+    for (i = 16; i < 64; i++) {
+        uint32_t s0 = ROR32(w[i-15],7) ^ ROR32(w[i-15],18) ^ SHR32(w[i-15],3);
+        uint32_t s1 = ROR32(w[i-2],17) ^ ROR32(w[i-2],19) ^ SHR32(w[i-2],10);
+
+        w[i] = w[i-16] + s0 + w[i-7] + s1;
+    }
+    a=c->h[0]; b=c->h[1]; cc=c->h[2]; d=c->h[3];
+    e=c->h[4]; f=c->h[5]; g=c->h[6];  h=c->h[7];
+    for (i = 0; i < 64; i++) {
+        uint32_t S1 = ROR32(e,6) ^ ROR32(e,11) ^ ROR32(e,25);
+        uint32_t ch = (e & f) ^ (~e & g);
+        uint32_t S0 = ROR32(a,2) ^ ROR32(a,13) ^ ROR32(a,22);
+        uint32_t mj = (a & b) ^ (a & cc) ^ (b & cc);
+
+        t1 = h + S1 + ch + sha256_k[i] + w[i];
+        t2 = S0 + mj;
+        h=g; g=f; f=e; e=d+t1; d=cc; cc=b; b=a; a=t1+t2;
+    }
+    c->h[0]+=a; c->h[1]+=b; c->h[2]+=cc; c->h[3]+=d;
+    c->h[4]+=e; c->h[5]+=f; c->h[6]+=g;  c->h[7]+=h;
+}
+
+static void sha256_init(struct sha256_ctx *c)
+{
+    static const uint32_t iv[8] = {0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
+                                   0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
+    memcpy(c->h, iv, sizeof(iv));
+    c->len = 0;
+    c->n = 0;
+}
+
+static void sha256_update(struct sha256_ctx *c, const void *data, size_t len)
+{
+    const uint8_t *p = data;
+
+    c->len += len;
+    while (len) {
+        size_t take = 64 - c->n;
+
+        if (take > len)
+            take = len;
+        memcpy(c->buf + c->n, p, take);
+        c->n += take; p += take; len -= take;
+        if (c->n == 64) {
+            sha256_block(c, c->buf);
+            c->n = 0;
+        }
+    }
+}
+
+static void sha256_final(struct sha256_ctx *c, uint8_t out[32])
+{
+    uint64_t bits = c->len * 8;
+    uint8_t pad = 0x80;
+    uint8_t zero = 0;
+    uint8_t lenb[8];
+    int i;
+
+    sha256_update(c, &pad, 1);
+    while (c->n != 56)
+        sha256_update(c, &zero, 1);
+    for (i = 0; i < 8; i++)
+        lenb[i] = (uint8_t)(bits >> (56 - 8*i));
+    sha256_update(c, lenb, 8);
+    for (i = 0; i < 8; i++) {
+        out[i*4]   = (uint8_t)(c->h[i] >> 24);
+        out[i*4+1] = (uint8_t)(c->h[i] >> 16);
+        out[i*4+2] = (uint8_t)(c->h[i] >> 8);
+        out[i*4+3] = (uint8_t)(c->h[i]);
+    }
+}
+
+static void sha256_hex(const uint8_t d[32], char out[65])
+{
+    static const char hx[] = "0123456789abcdef";
+    int i;
+
+    for (i = 0; i < 32; i++) {
+        out[i*2]   = hx[d[i] >> 4];
+        out[i*2+1] = hx[d[i] & 0xF];
+    }
+    out[64] = 0;
+}
+
+/*
+ * --show-quarantine — read the terminal recovery verdicts off the platter.
+ *
+ * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, sess377 RULE-5 ruling
+ * step 1 of the repair state machine ("validate and display": print volume
+ * UUID, slice/slot, victim identity, incarnation, PR key, fence kind, refusal
+ * reason, quarantine domain and digest; require confirmation tied to that
+ * digest).  This command is the DISPLAY half, shipped on its own because the
+ * operator currently has no way at all to see a verdict when the quarantine
+ * is what stops them mounting.
+ *
+ * Strictly read-only.  It does NOT need the cluster offline — it is most
+ * useful precisely when a node cannot mount — so it reads with O_DIRECT: the
+ * local block-device page cache can hold sectors this node cached before a
+ * peer rewrote them, and a buffered re-read would return that stale copy.
+ */
+static int do_show_quarantine(const char *device)
+{
+    struct mxfs_ondisk_super sup;
+    uint8_t *aligned = NULL;
+    uint8_t supbuf[MXFS_SUPER_SIZE];
+    int fd = -1, dfd = -1;
+    uint32_t slot, slice_count;
+    int n_guard = 0, n_active = 0, n_withdrawn = 0, n_other = 0;
+    int n_outofrange = 0, n_readable = 0, n_unreadable = 0, n_sweepguard = 0;
+    int n_released = 0;
+    int rc = 4;
+
+    fd = open(device, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s: %s\n",
+                device, strerror(errno));
+        return 4;
+    }
+    if (read_at(fd, supbuf, MXFS_SUPER_SIZE, 0) < 0) {
+        fprintf(stderr, "chk_mxfs: cannot read the MXFS envelope\n");
+        goto out;
+    }
+    memcpy(&sup, supbuf, sizeof(sup));
+    if (sup.magic != MXFS_FORMAT_MAGIC) {
+        fprintf(stderr, "chk_mxfs: no MXFS envelope on %s\n", device);
+        goto out;
+    }
+    slice_count = sup.xfs_log_node_count;
+
+    dfd = open(device, O_RDONLY | O_DIRECT);
+    if (dfd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s O_DIRECT: %s\n",
+                device, strerror(errno));
+        goto out;
+    }
+    if (posix_memalign((void **)&aligned, 4096, 4096) != 0) {
+        fprintf(stderr, "chk_mxfs: out of memory\n");
+        goto out;
+    }
+
+    printf("chk_mxfs v%s -- terminal recovery quarantines on %s\n",
+           CHK_MXFS_VERSION, device);
+    printf("volume uuid  %02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-"
+           "%02x%02x%02x%02x%02x%02x\n",
+           sup.fs_uuid[0], sup.fs_uuid[1], sup.fs_uuid[2], sup.fs_uuid[3],
+           sup.fs_uuid[4], sup.fs_uuid[5], sup.fs_uuid[6], sup.fs_uuid[7],
+           sup.fs_uuid[8], sup.fs_uuid[9], sup.fs_uuid[10], sup.fs_uuid[11],
+           sup.fs_uuid[12], sup.fs_uuid[13], sup.fs_uuid[14], sup.fs_uuid[15]);
+    printf("log slices   %u  (slot index == slice index; slots %u..%u bear no "
+           "journal)\n",
+           slice_count, slice_count, MXFS_DISKLOCK_HB_SLOTS - 1);
+
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = sup.disklock_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+        const struct chk_hb_hdr *h = (const void *)aligned;
+        ssize_t got;
+
+        /* O_DIRECT needs offset, length and buffer all block-aligned; the
+         * disklock region is sector-based, so read a 4096 window containing
+         * the sector when the offset is not itself 4096-aligned. */
+        {
+            uint64_t base = off & ~(uint64_t)4095;
+            uint64_t delta = off - base;
+
+            got = pread(dfd, aligned, 4096, (off_t)base);
+            if (got != 4096) {
+                err("heartbeat slot %u: O_DIRECT read failed: %s",
+                    slot, strerror(errno));
+                n_unreadable++;
+                continue;
+            }
+            if (delta)
+                memmove(aligned, aligned + delta, 512);
+        }
+
+        if (h->magic != MXFS_DISKLOCK_MAGIC) {
+            bool nonzero = false;
+            int b;
+
+            for (b = 0; b < 512; b++)
+                if (aligned[b] != 0) { nonzero = true; break; }
+            if (nonzero && slot >= slice_count)
+                n_outofrange++;
+            continue;
+        }
+
+        if (slot >= slice_count)
+            n_outofrange++;
+
+        switch (h->flags) {
+        case MXFS_DISKLOCK_FLAG_ACTIVE:
+            n_active++;
+            if (verbose)
+                printf("  slot %2u: ACTIVE node=%u incarnation=%llu\n",
+                       slot, h->node_id, (unsigned long long)h->epoch);
+            break;
+        case MXFS_DISKLOCK_FLAG_WITHDRAWN_C:
+            n_withdrawn++;
+            printf("  slot %2u: WITHDRAWN node=%u — a dirty journal slice "
+                   "awaiting fence+replay (transient)\n", slot, h->node_id);
+            break;
+        case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C: {
+            int gr = chk_print_guard(slot, aligned, sup.fs_uuid,
+                                     (uint16_t)slice_count);
+
+            if (gr == 2) {
+                n_sweepguard++;
+                if (slot >= slice_count)
+                    n_outofrange--;   /* legitimate up here — see below */
+            } else {
+                n_guard++;
+                if (gr == 1)
+                    n_readable++;
+            }
+            break;
+        }
+        case 0:  /* MXFS_DISKLOCK_FLAG_EMPTY */
+            /* sess377: a CLEANLY RELEASED slot keeps the MXLK magic and
+             * carries flags == EMPTY.  It is free, not damaged — reporting it
+             * as an "unknown record" made a healthy fully-departed cluster
+             * look like it had 31 corrupt sectors. */
+            n_released++;
+            if (verbose)
+                printf("  slot %2u: released (clean departure, node %u)\n",
+                       slot, h->node_id);
+            break;
+        default:
+            n_other++;
+            err("heartbeat slot %u: unknown record flags=%u node=%u",
+                slot, h->flags, h->node_id);
+            break;
+        }
+    }
+
+    printf("\n── summary ────────────────────────────────────────────────────\n");
+    printf("  live members            %d\n", n_active);
+    printf("  quarantined verdicts    %d  (%d readable, %d corrupt/absent)\n",
+           n_guard, n_readable, n_guard - n_readable);
+    printf("  withdrawn slices        %d\n", n_withdrawn);
+    printf("  bucket-sweep guards     %d  (transient; slots >= %u are their "
+           "normal home)\n", n_sweepguard, slice_count);
+    printf("  released slots          %d  (clean departures; free to claim)\n",
+           n_released);
+    printf("  unknown records         %d\n", n_other);
+    printf("  unreadable sectors      %d\n", n_unreadable);
+    if (n_outofrange > 0)
+        printf("  OUT-OF-RANGE occupants  %d MEMBER-shaped record(s) at or "
+               "above slot %u — a\n"
+               "                          FORMAT/PROTOCOL VIOLATION; this "
+               "volume has no journal\n"
+               "                          slice for them.  (Bucket-sweep "
+               "guards up here are normal\n"
+               "                          and are not counted.)\n",
+               n_outofrange, slice_count);
+    printf("  usable RW slices        %d of %u\n",
+           (int)slice_count - n_guard, slice_count);
+
+    if (n_guard) {
+        printf("\n  A quarantined slice's committed transactions were never "
+               "applied and\n"
+               "  cannot be applied safely.  Its slot therefore stays "
+               "unclaimable, and\n"
+               "  the cluster runs that many members short.\n"
+               "  DO NOT reformat to free it: mkfs_mxfs -f erases the verdict "
+               "above, and\n"
+               "  at 32 slices there is no larger format (mkfs_mxfs refuses "
+               "-n > 32).\n"
+               "  The repair path that accepts the loss and releases the slot "
+               "is not\n"
+               "  implemented yet (D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-"
+               "ADMISSION-376).\n");
+        rc = 4;
+    } else {
+        printf("\n  No terminal recovery quarantine on this volume.\n");
+        rc = 0;
+    }
+
+out:
+    free(aligned);
+    if (dfd >= 0)
+        close(dfd);
+    if (fd >= 0)
+        close(fd);
+    return rc;
+}
+
+/* ─── Exclusion proofs for the offline quarantine repair ────────────────────
+ *
+ * sess377 ruling: "'every node unmounted' is necessary but NOT sufficient …
+ * absence of fresh heartbeat records is not proof of exclusion."  Three
+ * independent proofs are required before anything destructive happens, and
+ * every one of them fails CLOSED:
+ *
+ *   LOCAL   the device opens O_EXCL (no local mount, no other opener).
+ *   REMOTE  no ACTIVE heartbeat record advances across a recheck window, AND
+ *           no slot other than the quarantined one is occupied at all — a
+ *           stale non-advancing ACTIVE record is a CRASHED node whose slice is
+ *           dirty, which is a different refusal but an equally hard one.
+ *   LUN     SCSI PERSISTENT RESERVE IN / READ KEYS reports no registrant.
+ *           A registered initiator can write to this LUN right now whatever
+ *           its heartbeat says.  If the LUN answers "no PR support", exclusion
+ *           cannot be proved here and the repair refuses.
+ */
+#define CHK_PR_MAX_KEYS 64
+
+/*
+ * PERSISTENT RESERVE IN, service action 0x00 (READ KEYS).  Returns the number
+ * of registered keys, or -1 if the command could not be issued / the device
+ * does not implement PR (which the caller must treat as "cannot prove").
+ */
+static int chk_pr_read_keys(int fd, uint64_t *keys, int max, int *unsupported)
+{
+    unsigned char cdb[10];
+    unsigned char sense[32];
+    unsigned char data[8 + CHK_PR_MAX_KEYS * 8];
+    sg_io_hdr_t io;
+    uint32_t list_len;
+    int n, i;
+
+    *unsupported = 0;
+    memset(cdb, 0, sizeof(cdb));
+    cdb[0] = 0x5E;                      /* PERSISTENT RESERVE IN */
+    cdb[1] = 0x00;                      /* READ KEYS */
+    cdb[7] = (unsigned char)(sizeof(data) >> 8);
+    cdb[8] = (unsigned char)(sizeof(data) & 0xFF);
+
+    memset(&io, 0, sizeof(io));
+    memset(sense, 0, sizeof(sense));
+    memset(data, 0, sizeof(data));
+    io.interface_id = 'S';
+    io.dxfer_direction = SG_DXFER_FROM_DEV;
+    io.cmd_len = sizeof(cdb);
+    io.mx_sb_len = sizeof(sense);
+    io.dxfer_len = sizeof(data);
+    io.dxferp = data;
+    io.cmdp = cdb;
+    io.sbp = sense;
+    io.timeout = 20000;
+
+    if (ioctl(fd, SG_IO, &io) < 0) {
+        *unsupported = 1;
+        return -1;
+    }
+    if (io.masked_status != 0 || io.host_status != 0) {
+        /* ILLEGAL REQUEST / INVALID COMMAND OPERATION CODE = no PR support. */
+        *unsupported = 1;
+        return -1;
+    }
+    list_len = ((uint32_t)data[4] << 24) | ((uint32_t)data[5] << 16) |
+               ((uint32_t)data[6] << 8) | (uint32_t)data[7];
+    n = (int)(list_len / 8);
+    if (n > max)
+        n = max;
+    for (i = 0; i < n; i++) {
+        uint64_t k = 0;
+        int b;
+
+        for (b = 0; b < 8; b++)
+            k = (k << 8) | data[8 + i * 8 + b];
+        keys[i] = k;
+    }
+    return n;
+}
+
+/* ─── Backing-device disjointness for --archive-to ──────────────────────────
+ *
+ * sess377 ruling: the archive destination must be "proven disjoint from every
+ * backing device of the repair target; inability to establish disjointness is
+ * an error".  Resolve both sides to their set of LEAF block devices by walking
+ * /sys/dev/block/<maj>:<min>/slaves recursively — that unwinds device-mapper,
+ * LVM, MD and multipath — and refuse on any overlap.  "Another partition on
+ * the same failing disk" is NOT independent preservation, so the comparison is
+ * against leaves, not against the logical device.
+ */
+#define CHK_LEAF_MAX 64
+struct chk_leafset {
+    char name[CHK_LEAF_MAX][64];
+    int  n;
+    int  overflow;
+};
+
+static void chk_leaf_add(struct chk_leafset *s, const char *name)
+{
+    int i;
+
+    for (i = 0; i < s->n; i++)
+        if (strcmp(s->name[i], name) == 0)
+            return;
+    if (s->n >= CHK_LEAF_MAX) {
+        s->overflow = 1;
+        return;
+    }
+    snprintf(s->name[s->n], sizeof(s->name[0]), "%s", name);
+    s->n++;
+}
+
+static void chk_collect_leaves(const char *devname, struct chk_leafset *s,
+                               int depth)
+{
+    char path[PATH_MAX];
+    DIR *d;
+    struct dirent *e;
+    int nslaves = 0;
+
+    if (depth > 8) {                 /* pathological stack: cannot prove */
+        s->overflow = 1;
+        return;
+    }
+    snprintf(path, sizeof(path), "/sys/class/block/%s/slaves", devname);
+    d = opendir(path);
+    if (d) {
+        while ((e = readdir(d)) != NULL) {
+            if (e->d_name[0] == '.')
+                continue;
+            nslaves++;
+            chk_collect_leaves(e->d_name, s, depth + 1);
+        }
+        closedir(d);
+    }
+    if (nslaves == 0) {
+        /* A partition's leaf is its whole disk: /sys/class/block/sda1/../ is
+         * sda.  Two partitions of one disk must therefore collide. */
+        char part[PATH_MAX];
+        char real[PATH_MAX];
+        char *slash, *base;
+
+        snprintf(part, sizeof(part), "/sys/class/block/%s/partition", devname);
+        if (access(part, F_OK) == 0) {
+            snprintf(path, sizeof(path), "/sys/class/block/%s", devname);
+            if (realpath(path, real)) {
+                slash = strrchr(real, '/');
+                if (slash) {
+                    *slash = 0;
+                    base = strrchr(real, '/');
+                    if (base) {
+                        chk_leaf_add(s, base + 1);
+                        return;
+                    }
+                }
+            }
+        }
+        chk_leaf_add(s, devname);
+    }
+}
+
+/* maj:min -> kernel block-device name, via /sys/dev/block. */
+static int chk_devname_of(dev_t rdev, char *out, size_t outsz)
+{
+    char link[PATH_MAX], real[PATH_MAX], *base;
+
+    snprintf(link, sizeof(link), "/sys/dev/block/%u:%u",
+             major(rdev), minor(rdev));
+    if (!realpath(link, real))
+        return -1;
+    base = strrchr(real, '/');
+    if (!base)
+        return -1;
+    snprintf(out, outsz, "%s", base + 1);
+    return 0;
+}
+
+/*
+ * Find the mount source device for the filesystem holding `dirfd`, using its
+ * st_dev and /proc/self/mountinfo.  Returns 0 and fills devname, or -1 when
+ * the destination is not backed by a block device at all (tmpfs, overlay, an
+ * unresolvable network mount) — which is itself a refusal, never a pass.
+ */
+static int chk_dest_backing_dev(dev_t st_dev, char *out, size_t outsz,
+                                char *fstype, size_t ftsz)
+{
+    FILE *f = fopen("/proc/self/mountinfo", "re");
+    char line[4096];
+    int found = -1;
+
+    if (!f)
+        return -1;
+    while (fgets(line, sizeof(line), f)) {
+        unsigned maj = 0, min = 0;
+        char *sep, *p, *ty, *src;
+
+        if (sscanf(line, "%*d %*d %u:%u", &maj, &min) != 2)
+            continue;
+        if (makedev(maj, min) != st_dev)
+            continue;
+        sep = strstr(line, " - ");
+        if (!sep)
+            continue;
+        p = sep + 3;
+        ty = strtok(p, " ");
+        src = strtok(NULL, " ");
+        if (!ty || !src)
+            continue;
+        snprintf(fstype, ftsz, "%s", ty);
+        snprintf(out, outsz, "%s", src);
+        found = 0;
+        /* keep scanning: the LAST matching entry is the effective mount */
+    }
+    fclose(f);
+    return found;
+}
+
+/*
+ * Prove the archive destination shares no backing device with the volume being
+ * repaired.  Fails closed on anything it cannot resolve.
+ */
+static int chk_archive_dest_disjoint(const char *device, int destdirfd,
+                                     const char *destdirpath)
+{
+    struct stat tst, dst;
+    struct chk_leafset tleaf, dleaf;
+    char tname[64], dsrc[PATH_MAX], dtype[64], dname[64];
+    struct stat srcst;
+    int i, j;
+
+    memset(&tleaf, 0, sizeof(tleaf));
+    memset(&dleaf, 0, sizeof(dleaf));
+
+    if (stat(device, &tst) < 0 || !S_ISBLK(tst.st_mode)) {
+        fprintf(stderr, "repair: %s is not a block device\n", device);
+        return -1;
+    }
+    if (chk_devname_of(tst.st_rdev, tname, sizeof(tname)) < 0) {
+        fprintf(stderr, "repair: cannot resolve %s (%u:%u) in /sys/dev/block — "
+                "disjointness of the archive destination cannot be proved\n",
+                device, major(tst.st_rdev), minor(tst.st_rdev));
+        return -1;
+    }
+    chk_collect_leaves(tname, &tleaf, 0);
+
+    if (fstat(destdirfd, &dst) < 0) {
+        fprintf(stderr, "repair: cannot stat the archive directory\n");
+        return -1;
+    }
+    if (chk_dest_backing_dev(dst.st_dev, dsrc, sizeof(dsrc),
+                             dtype, sizeof(dtype)) < 0) {
+        fprintf(stderr, "repair: cannot identify the filesystem holding %s in "
+                "/proc/self/mountinfo — disjointness cannot be proved\n",
+                destdirpath);
+        return -1;
+    }
+    if (stat(dsrc, &srcst) < 0 || !S_ISBLK(srcst.st_mode)) {
+        fprintf(stderr, "repair: the archive destination %s is on a %s mount "
+                "(source '%s') with no block backing.  A tmpfs or an "
+                "unresolvable stack cannot hold durable evidence; choose a "
+                "destination on real, independent storage.\n",
+                destdirpath, dtype, dsrc);
+        return -1;
+    }
+    if (chk_devname_of(srcst.st_rdev, dname, sizeof(dname)) < 0) {
+        fprintf(stderr, "repair: cannot resolve the archive destination's "
+                "backing device — disjointness cannot be proved\n");
+        return -1;
+    }
+    chk_collect_leaves(dname, &dleaf, 0);
+
+    if (tleaf.overflow || dleaf.overflow || !tleaf.n || !dleaf.n) {
+        fprintf(stderr, "repair: could not fully resolve the backing-device "
+                "graph (target leaves %d, destination leaves %d) — "
+                "disjointness cannot be proved, refusing\n",
+                tleaf.n, dleaf.n);
+        return -1;
+    }
+    for (i = 0; i < tleaf.n; i++)
+        for (j = 0; j < dleaf.n; j++)
+            if (strcmp(tleaf.name[i], dleaf.name[j]) == 0) {
+                fprintf(stderr,
+                        "repair: the archive destination %s is backed by %s, "
+                        "which also backs the volume being repaired (%s).\n"
+                        "        That is not independent preservation — a "
+                        "second copy on the same physical device dies with it. "
+                        "Choose another destination.\n",
+                        destdirpath, tleaf.name[i], device);
+                return -1;
+            }
+
+    printf("  archive destination : %s on %s (%s)\n", destdirpath, dsrc, dtype);
+    printf("  target leaves       :");
+    for (i = 0; i < tleaf.n; i++)
+        printf(" %s", tleaf.name[i]);
+    printf("\n  destination leaves  :");
+    for (j = 0; j < dleaf.n; j++)
+        printf(" %s", dleaf.name[j]);
+    printf("\n  DISJOINT            : yes\n");
+    return 0;
+}
+
+/* ─── --accept-quarantine-loss: the operator repair path ────────────────────
+ *
+ * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376.  A terminal replay
+ * refusal is permanent by design: the RECOVERY_GUARD record IS the durable
+ * verdict, its slice's committed transactions were never applied and cannot be
+ * applied safely, and every gate refuses it.  The cluster therefore runs one
+ * member short, forever, and before this there was no way out but mkfs.
+ *
+ * The way out is not "clear the slot".  It is the operator ACCEPTING that the
+ * refused slice's committed transactions are lost.  The command is named for
+ * that, and the sess377 RULE-5 ruling fixes its shape:
+ *
+ *   THE CENTRAL INVARIANT — a quarantined slice remains UNASSIGNABLE until
+ *   loss acceptance, slice invalidation, the required consistency repair and
+ *   durable verification have ALL completed; only the final guarded
+ *   transition may make it reusable.
+ *
+ * Order, each step durable before the next (ruling §2):
+ *   1  validate and DISPLAY the verdict; require --confirm <verdict digest>
+ *   2  acquire exclusive maintenance ownership (local O_EXCL + remote
+ *      heartbeat quiescence + SCSI-PR "no registrant")
+ *   3  REFUSE if any non-quarantined slice is dirty, naming the exact slots
+ *   4  MANDATORY verified OFF-VOLUME archive, on proven-disjoint storage
+ *   5  record LOSS_ACCEPTED — the administrative point of no return
+ *   6  reinitialize the slice; 7 consistency repair; 8 CHECK_COMPLETE;
+ *   9  clear the source slot in one atomic generation-checked transition
+ *
+ * THIS BUILD IMPLEMENTS STEPS 1-4 AND STOPS THERE, deliberately: everything up
+ * to and including the archive is non-destructive, so it can be shipped and
+ * exercised on a real quarantine without risking a filesystem.  Steps 5-9 are
+ * the next landing.  The command reports exactly where it stopped; it never
+ * pretends to have repaired anything.
+ */
+#define CHK_REPAIR_HB_RECHECK_MS   10000
+
+struct chk_quar_ctx {
+    struct mxfs_ondisk_super sup;
+    uint8_t  sector[512];            /* the guard sector, verbatim */
+    uint8_t  superblk[MXFS_SUPER_SIZE];
+    uint32_t slot;
+    uint64_t sector_off;
+    uint64_t digest;
+    struct chk_recov_desc    d;
+    struct chk_recov_outcome oc;
+    int      have_desc, have_outcome;
+};
+
+/* Aligned O_DIRECT read of one 512-byte disklock sector. */
+static int chk_read_sector_direct(int dfd, uint64_t off, uint8_t *out512)
+{
+    uint8_t *buf = NULL;
+    uint64_t base = off & ~(uint64_t)4095;
+    uint64_t delta = off - base;
+    int rc = -1;
+
+    if (posix_memalign((void **)&buf, 4096, 4096) != 0)
+        return -1;
+    if (pread(dfd, buf, 4096, (off_t)base) == 4096) {
+        memcpy(out512, buf + delta, 512);
+        rc = 0;
+    }
+    free(buf);
+    return rc;
+}
+
+/*
+ * Step 2b/3: every heartbeat slot must be either EMPTY, the quarantined guard
+ * itself, or a transient bucket-sweep guard.  Anything else blocks the repair,
+ * and the reason is reported per slot:
+ *   ACTIVE     a member is mounted, or crashed and left an unrecovered slice
+ *   WITHDRAWN  a dirty slice awaiting fence+replay
+ *   GUARD+desc another recovery lease, or a second quarantine
+ * Returns 0 if clear, or the number of blocking slots.
+ */
+static int chk_repair_table_clear(int dfd, const struct mxfs_ondisk_super *sup,
+                                  uint32_t keep_slot)
+{
+    uint8_t sec[512];
+    uint32_t slot;
+    int blocking = 0;
+
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        const struct chk_hb_hdr *h = (const void *)sec;
+        struct chk_recov_desc d;
+
+        if (slot == keep_slot)
+            continue;
+        if (chk_read_sector_direct(dfd, sup->disklock_offset +
+                                   (uint64_t)slot * 512, sec) < 0) {
+            fprintf(stderr, "  BLOCKED slot %2u: unreadable\n", slot);
+            blocking++;
+            continue;
+        }
+        if (h->magic != MXFS_DISKLOCK_MAGIC)
+            continue;                               /* empty / ghost */
+        switch (h->flags) {
+        case MXFS_DISKLOCK_FLAG_ACTIVE:
+            fprintf(stderr,
+                    "  BLOCKED slot %2u: ACTIVE, node %u, incarnation %llu.\n"
+                    "                   Either that node is mounted, or it "
+                    "crashed and its journal slice\n"
+                    "                   has not been recovered.  Bring the "
+                    "cluster up, let it settle,\n"
+                    "                   then unmount cleanly everywhere.\n",
+                    slot, h->node_id, (unsigned long long)h->epoch);
+            blocking++;
+            break;
+        case MXFS_DISKLOCK_FLAG_WITHDRAWN_C:
+            fprintf(stderr,
+                    "  BLOCKED slot %2u: WITHDRAWN, node %u — a DIRTY journal "
+                    "slice awaiting\n"
+                    "                   fence+replay.  A live peer recovers "
+                    "it; this tool must not\n"
+                    "                   repair around unsettled metadata.\n",
+                    slot, h->node_id);
+            blocking++;
+            break;
+        case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C:
+            memcpy(&d, sec + MXFS_RECOV_DESC_OFF_C, sizeof(d));
+            if (d.magic == MXFS_RECOV_DESC_MAGIC_C) {
+                fprintf(stderr,
+                        "  BLOCKED slot %2u: RECOVERY GUARD carrying a "
+                        "descriptor (victim node %u,\n"
+                        "                   incarnation %llu%s).  Repair one "
+                        "quarantine at a time.\n",
+                        slot, d.victim_node,
+                        (unsigned long long)d.victim_epoch,
+                        (d.flags & MXFS_RECOV_F_QUARANTINED_C) ?
+                        ", QUARANTINED" : ", recovery in progress");
+                blocking++;
+            }
+            /* bare guard = bucket sweep, transient, not blocking */
+            break;
+        default:
+            fprintf(stderr, "  BLOCKED slot %2u: unknown record flags=%u\n",
+                    slot, h->flags);
+            blocking++;
+            break;
+        }
+    }
+    return blocking;
+}
+
+static int chk_write_archive(const char *archive_path,
+                             const char *device,
+                             const struct chk_quar_ctx *q)
+{
+    char dirbuf[PATH_MAX], *dir, *base, filebuf[PATH_MAX];
+    int dirfd = -1, fd = -1, rc = -1;
+    struct sha256_ctx sc;
+    uint8_t sd[32], ss[32];
+    char sdhex[65], sshex[65], iso[64];
+    time_t now;
+    struct tm tmv;
+    FILE *f = NULL;
+    int i;
+
+    snprintf(dirbuf, sizeof(dirbuf), "%s", archive_path);
+    snprintf(filebuf, sizeof(filebuf), "%s", archive_path);
+    dir = dirname(dirbuf);
+    base = basename(filebuf);
+
+    dirfd = open(dir, O_RDONLY | O_DIRECTORY);
+    if (dirfd < 0) {
+        fprintf(stderr, "repair: cannot open the archive directory %s: %s\n",
+                dir, strerror(errno));
+        return -1;
+    }
+    if (chk_archive_dest_disjoint(device, dirfd, dir) < 0)
+        goto out;
+
+    /* Hash the canonical immutable evidence: the raw 512-byte guard sector,
+     * and separately the pre-repair 4KB MXFS envelope (ruling: include the
+     * pre-repair superblock hash in the export). */
+    sha256_init(&sc); sha256_update(&sc, q->sector, 512);   sha256_final(&sc, sd);
+    sha256_init(&sc); sha256_update(&sc, q->superblk, MXFS_SUPER_SIZE);
+    sha256_final(&sc, ss);
+    sha256_hex(sd, sdhex);
+    sha256_hex(ss, sshex);
+
+    now = time(NULL);
+    gmtime_r(&now, &tmv);
+    strftime(iso, sizeof(iso), "%Y-%m-%dT%H:%M:%SZ", &tmv);
+
+    fd = openat(dirfd, base, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0) {
+        fprintf(stderr, "repair: cannot create %s: %s%s\n", archive_path,
+                strerror(errno),
+                errno == EEXIST ? "  (this tool never overwrites an archive)" : "");
+        goto out;
+    }
+    f = fdopen(fd, "w");
+    if (!f) { fprintf(stderr, "repair: fdopen failed\n"); goto out; }
+    fd = -1;                                   /* owned by f now */
+
+    fprintf(f, "MXFS-QUARANTINE-ARCHIVE 1\n");
+    fprintf(f, "tool: chk_mxfs v%s\n", CHK_MXFS_VERSION);
+    fprintf(f, "captured-utc: %s\n", iso);
+    fprintf(f, "device: %s\n", device);
+    fprintf(f, "volume-uuid: ");
+    for (i = 0; i < 16; i++)
+        fprintf(f, "%02x", q->sup.fs_uuid[i]);
+    fprintf(f, "\n");
+    fprintf(f, "disklock-offset: %llu\n",
+            (unsigned long long)q->sup.disklock_offset);
+    fprintf(f, "sector-offset: %llu\n", (unsigned long long)q->sector_off);
+    fprintf(f, "slot: %u\n", q->slot);
+    fprintf(f, "slice-count: %u\n", q->sup.xfs_log_node_count);
+    fprintf(f, "slice-bblks: %u\n", q->sup.xfs_log_slice_bblks);
+    if (q->have_desc) {
+        fprintf(f, "slice: %u\n", q->d.slice_idx);
+        fprintf(f, "victim-node: %u\n", q->d.victim_node);
+        fprintf(f, "victim-incarnation: %llu\n",
+                (unsigned long long)q->d.victim_epoch);
+        fprintf(f, "recovery-owner: %u\n", q->d.owner_node);
+        fprintf(f, "recovery-gen: %llu\n",
+                (unsigned long long)q->d.recovery_gen);
+        fprintf(f, "fence-kind: %u\n", q->d.fence_kind);
+        fprintf(f, "fence-victim-key: 0x%016llx\n",
+                (unsigned long long)q->d.fence_victim_key);
+        fprintf(f, "descriptor-flags: 0x%08x\n", q->d.flags);
+    }
+    if (q->have_outcome) {
+        fprintf(f, "refusal-reason: %u (%s)\n", q->oc.reason,
+                chk_refusal_reason_name(q->oc.reason));
+        fprintf(f, "domain-kind: %u\n", q->oc.domain_kind);
+        fprintf(f, "ag-mask: 0x%016llx\n",
+                (unsigned long long)q->oc.ag_mask);
+        fprintf(f, "refused-items: %u\n", q->oc.refused_items);
+        fprintf(f, "malformed-items: %u\n", q->oc.malformed_items);
+        fprintf(f, "refused-slice-digest: 0x%016llx\n",
+                (unsigned long long)q->oc.slice_digest);
+        fprintf(f, "publish-seq: %llu\n",
+                (unsigned long long)q->oc.publish_seq);
+    } else {
+        fprintf(f, "refusal-reason: none-recorded (legacy intent quarantine; "
+                   "treat the domain as FSWIDE)\n");
+    }
+    fprintf(f, "verdict-digest-crc64: %016llx\n",
+            (unsigned long long)q->digest);
+    fprintf(f, "guard-sector-sha256: %s\n", sdhex);
+    fprintf(f, "mxfs-super-sha256: %s\n", sshex);
+    fprintf(f, "guard-sector-hex:\n");
+    for (i = 0; i < 512; i++) {
+        fprintf(f, "%02x", q->sector[i]);
+        if ((i & 31) == 31)
+            fprintf(f, "\n");
+    }
+    fprintf(f, "END\n");
+
+    if (fflush(f) != 0 || fsync(fileno(f)) != 0) {
+        fprintf(stderr, "repair: could not flush the archive: %s\n",
+                strerror(errno));
+        goto out;
+    }
+    fclose(f);
+    f = NULL;
+    if (fsync(dirfd) != 0) {
+        fprintf(stderr, "repair: could not fsync the archive directory: %s\n",
+                strerror(errno));
+        goto out;
+    }
+
+    /* Independent verification: reopen, re-read, re-parse the sector out of
+     * the hex block and re-derive BOTH digests from what is actually on the
+     * destination — never from what we still hold in memory. */
+    {
+        int vfd = openat(dirfd, base, O_RDONLY);
+        char *txt = NULL, *p;
+        off_t sz;
+        uint8_t back[512];
+        int n = 0;
+        struct sha256_ctx vc;
+        uint8_t vd[32];
+        char vdhex[65];
+
+        if (vfd < 0) {
+            fprintf(stderr, "repair: cannot reopen the archive to verify it\n");
+            goto out;
+        }
+        sz = lseek(vfd, 0, SEEK_END);
+        if (sz <= 0 || sz > (off_t)(1 << 20)) {
+            fprintf(stderr, "repair: archive readback size %lld is implausible\n",
+                    (long long)sz);
+            close(vfd);
+            goto out;
+        }
+        txt = malloc((size_t)sz + 1);
+        if (!txt) { close(vfd); goto out; }
+        if (pread(vfd, txt, (size_t)sz, 0) != sz) {
+            fprintf(stderr, "repair: archive readback failed\n");
+            free(txt); close(vfd); goto out;
+        }
+        close(vfd);
+        txt[sz] = 0;
+        p = strstr(txt, "guard-sector-hex:\n");
+        if (!p) {
+            fprintf(stderr, "repair: archive readback has no sector block\n");
+            free(txt); goto out;
+        }
+        p += strlen("guard-sector-hex:\n");
+        while (n < 512 && p[0] && p[1]) {
+            if (*p == '\n') { p++; continue; }
+            {
+                char hx[3] = { p[0], p[1], 0 };
+                char *end;
+                long v = strtol(hx, &end, 16);
+
+                if (end != hx + 2) break;
+                back[n++] = (uint8_t)v;
+                p += 2;
+            }
+        }
+        free(txt);
+        if (n != 512) {
+            fprintf(stderr, "repair: archive readback decoded %d of 512 "
+                    "sector bytes\n", n);
+            goto out;
+        }
+        if (memcmp(back, q->sector, 512) != 0) {
+            fprintf(stderr, "repair: the archive on disk does NOT match the "
+                    "guard sector — refusing\n");
+            goto out;
+        }
+        sha256_init(&vc); sha256_update(&vc, back, 512); sha256_final(&vc, vd);
+        sha256_hex(vd, vdhex);
+        if (strcmp(vdhex, sdhex) != 0) {
+            fprintf(stderr, "repair: archive readback SHA-256 mismatch\n");
+            goto out;
+        }
+        printf("  archive written and VERIFIED by readback\n");
+        printf("    path                : %s\n", archive_path);
+        printf("    guard-sector sha256 : %s\n", vdhex);
+        printf("    mxfs-super  sha256  : %s\n", sshex);
+    }
+    rc = 0;
+
+out:
+    if (f) fclose(f);
+    if (fd >= 0) close(fd);
+    if (dirfd >= 0) close(dirfd);
+    return rc;
+}
+
+/*
+ * --pr-keys — who can write to this LUN right now.
+ *
+ * MXFS's whole fencing story rests on SCSI persistent reservations, and
+ * mxfs_scsipr_create() sets local_key = node_id, so a registered key IS a
+ * node identity.  This prints the registration table without touching
+ * anything: it is the only way to answer "did every node that left actually
+ * stop being able to write?", which a heartbeat table cannot answer.
+ * Read-only, safe on a live cluster.
+ */
+static int do_pr_keys(const char *device)
+{
+    uint64_t keys[CHK_PR_MAX_KEYS];
+    int fd, n, unsupported = 0, i;
+
+    fd = open(device, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s: %s\n",
+                device, strerror(errno));
+        return 4;
+    }
+    n = chk_pr_read_keys(fd, keys, CHK_PR_MAX_KEYS, &unsupported);
+    close(fd);
+    if (unsupported || n < 0) {
+        printf("PR keys on %s: NOT SUPPORTED — this LUN does not answer "
+               "PERSISTENT RESERVE IN.\n"
+               "  Exclusion can never be proved here, so MXFS cannot fence on "
+               "this target.\n", device);
+        return 4;
+    }
+    printf("PR keys on %s: %d registered\n", device, n);
+    for (i = 0; i < n; i++)
+        printf("  0x%016llx   (node_id %llu)\n",
+               (unsigned long long)keys[i], (unsigned long long)keys[i]);
+    if (n == 0)
+        printf("  none — no initiator can write to this LUN\n");
+    return 0;
+}
+
+static int do_accept_quarantine_loss(const char *device, long slice_arg,
+                                     const char *confirm, const char *archive)
+{
+    struct chk_quar_ctx q;
+    int fd = -1, dfd = -1, rc = 4;
+    const struct chk_hb_hdr *h;
+    uint32_t want32;
+    uint64_t given = 0;
+    char *endp;
+    uint64_t hb_ts[MXFS_DISKLOCK_HB_SLOTS];
+    uint64_t hb_ep[MXFS_DISKLOCK_HB_SLOTS];
+    uint8_t  hb_live[MXFS_DISKLOCK_HB_SLOTS];
+    uint64_t keys[CHK_PR_MAX_KEYS];
+    uint32_t slot;
+    int nkeys, unsupported = 0, moved = 0, blocking;
+
+    memset(&q, 0, sizeof(q));
+
+    if (!confirm || !archive) {
+        fprintf(stderr,
+            "repair: --accept-quarantine-loss requires BOTH --confirm <digest> "
+            "and --archive-to <path>.\n"
+            "        Run `chk_mxfs --show-quarantine %s` first: it prints the "
+            "verdict you are\n"
+            "        accepting the loss of, and the VERDICT DIGEST you must "
+            "quote back.\n", device);
+        return 2;
+    }
+
+    /* ── step 2, LOCAL half: O_EXCL fails while anything has the device ── */
+    fd = open(device, O_RDWR | O_EXCL);
+    if (fd < 0) {
+        fprintf(stderr, "repair: cannot open %s exclusively: %s "
+                "(is it mounted here?)\n", device, strerror(errno));
+        return 4;
+    }
+    dfd = open(device, O_RDONLY | O_DIRECT);
+    if (dfd < 0) {
+        fprintf(stderr, "repair: cannot open %s O_DIRECT: %s\n",
+                device, strerror(errno));
+        goto out;
+    }
+    if (read_at(fd, q.superblk, MXFS_SUPER_SIZE, 0) < 0) {
+        fprintf(stderr, "repair: cannot read the MXFS envelope\n");
+        goto out;
+    }
+    memcpy(&q.sup, q.superblk, sizeof(q.sup));
+    if (q.sup.magic != MXFS_FORMAT_MAGIC) {
+        fprintf(stderr, "repair: no MXFS envelope on %s\n", device);
+        goto out;
+    }
+    if (slice_arg < 0 || (uint64_t)slice_arg >= MXFS_DISKLOCK_HB_SLOTS) {
+        fprintf(stderr, "repair: slice %ld is out of range 0..%d\n",
+                slice_arg, MXFS_DISKLOCK_HB_SLOTS - 1);
+        goto out;
+    }
+    q.slot = (uint32_t)slice_arg;
+    q.sector_off = q.sup.disklock_offset + (uint64_t)q.slot * 512;
+
+    printf("chk_mxfs v%s -- ACCEPT QUARANTINE LOSS on %s slice %u\n",
+           CHK_MXFS_VERSION, device, q.slot);
+    printf("\nThis operation DISCARDS the committed transactions in that "
+           "journal slice.\nThey were never applied and cannot be applied "
+           "safely; accepting the loss is\nthe only way to make the slice "
+           "usable again.  Nothing is destroyed until every\ncheck below "
+           "passes and the evidence is archived off this volume.\n\n");
+
+    /* ── step 1: validate and DISPLAY, then demand the digest back ── */
+    if (chk_read_sector_direct(dfd, q.sector_off, q.sector) < 0) {
+        fprintf(stderr, "repair: cannot read heartbeat slot %u\n", q.slot);
+        goto out;
+    }
+    h = (const void *)q.sector;
+    if (h->magic != MXFS_DISKLOCK_MAGIC ||
+        h->flags != (uint32_t)MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C) {
+        fprintf(stderr, "repair: heartbeat slot %u is not a RECOVERY GUARD "
+                "(magic 0x%08X flags %u) — there is no quarantine here\n",
+                q.slot, h->magic, h->flags);
+        goto out;
+    }
+    memcpy(&q.d,  q.sector + MXFS_RECOV_DESC_OFF_C,    sizeof(q.d));
+    memcpy(&q.oc, q.sector + MXFS_RECOV_OUTCOME_OFF_C, sizeof(q.oc));
+    if (q.d.magic != MXFS_RECOV_DESC_MAGIC_C) {
+        fprintf(stderr, "repair: slot %u carries no recovery descriptor.  A "
+                "bare guard is the AGI\n        unlinked-bucket sweep's "
+                "transient working record, not a quarantine.\n", q.slot);
+        goto out;
+    }
+    want32 = chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch, &q.d,
+                                offsetof(struct chk_recov_desc, crc32c));
+    if (q.d.version != MXFS_RECOV_DESC_VERSION_C || want32 != q.d.crc32c) {
+        fprintf(stderr, "repair: the descriptor at slot %u does not validate "
+                "(version %u, crc 0x%08X vs 0x%08X).\n"
+                "        Refusing: a corrupt verdict must be investigated, "
+                "not accepted.\n",
+                q.slot, q.d.version, q.d.crc32c, want32);
+        goto out;
+    }
+    q.have_desc = 1;
+    if (!(q.d.flags & MXFS_RECOV_F_QUARANTINED_C)) {
+        fprintf(stderr, "repair: slot %u holds a recovery lease IN PROGRESS, "
+                "not a terminal quarantine.\n        Let the cluster finish "
+                "it.\n", q.slot);
+        goto out;
+    }
+    if (q.oc.magic == MXFS_RECOV_OUTCOME_MAGIC_C) {
+        want32 = chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch, &q.oc,
+                                    offsetof(struct chk_recov_outcome, crc32c));
+        if (want32 != q.oc.crc32c) {
+            fprintf(stderr, "repair: the outcome record at slot %u does not "
+                    "validate — refusing\n", q.slot);
+            goto out;
+        }
+        q.have_outcome = 1;
+    }
+    if (q.d.slice_idx != q.slot)
+        printf("  NOTE: the descriptor names slice %u while sitting in slot "
+               "%u.\n", q.d.slice_idx, q.slot);
+
+    chk_print_guard(q.slot, q.sector, q.sup.fs_uuid,
+                    (uint16_t)q.sup.xfs_log_node_count);
+    q.digest = chk_verdict_digest(q.sup.fs_uuid, q.slot, q.sector);
+
+    given = strtoull(confirm, &endp, 16);
+    if (*endp != 0 || given != q.digest) {
+        fprintf(stderr,
+            "\nrepair: --confirm %s does not match this verdict.\n"
+            "        Expected %016llX (printed as VERDICT DIGEST above).\n"
+            "        The digest is bound to the volume uuid, the slot and the "
+            "complete guard\n        sector, so quoting the wrong one means "
+            "you are about to accept the loss of\n        a DIFFERENT "
+            "verdict, or of one that has changed since you read it.\n",
+            confirm, (unsigned long long)q.digest);
+        goto out;
+    }
+    printf("\n  verdict digest CONFIRMED: %016llX\n",
+           (unsigned long long)q.digest);
+
+    /* ── step 2, REMOTE half: no ACTIVE heartbeat may advance ── */
+    printf("\n── proving exclusion ──────────────────────────────────────────\n");
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint8_t sec[512];
+        const struct chk_hb_hdr *hh = (const void *)sec;
+
+        hb_live[slot] = 0;
+        if (chk_read_sector_direct(dfd, q.sup.disklock_offset +
+                                   (uint64_t)slot * 512, sec) < 0)
+            continue;
+        if (hh->magic == MXFS_DISKLOCK_MAGIC &&
+            hh->flags == MXFS_DISKLOCK_FLAG_ACTIVE) {
+            hb_live[slot] = 1;
+            hb_ts[slot] = hh->timestamp_ms;
+            hb_ep[slot] = hh->epoch;
+        }
+    }
+    printf("  rechecking heartbeat liveness for %d ms ...\n",
+           CHK_REPAIR_HB_RECHECK_MS);
+    usleep((useconds_t)CHK_REPAIR_HB_RECHECK_MS * 1000);
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint8_t sec[512];
+        const struct chk_hb_hdr *hh = (const void *)sec;
+
+        if (!hb_live[slot])
+            continue;
+        if (chk_read_sector_direct(dfd, q.sup.disklock_offset +
+                                   (uint64_t)slot * 512, sec) < 0)
+            continue;
+        if (hh->magic == MXFS_DISKLOCK_MAGIC &&
+            hh->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+            (hh->timestamp_ms != hb_ts[slot] || hh->epoch != hb_ep[slot])) {
+            fprintf(stderr, "  LIVE: heartbeat slot %u (node %u) is still "
+                    "beating — a node has this\n        filesystem mounted.  "
+                    "Unmount everywhere first.\n", slot, hh->node_id);
+            moved++;
+        }
+    }
+    if (moved)
+        goto out;
+    printf("  no heartbeat advanced: no node is mounted\n");
+
+    /* ── step 2, LUN half: SCSI PR must show no registrant ── */
+    nkeys = chk_pr_read_keys(fd, keys, CHK_PR_MAX_KEYS, &unsupported);
+    if (unsupported || nkeys < 0) {
+        fprintf(stderr,
+            "  CANNOT PROVE: this LUN does not answer PERSISTENT RESERVE IN, "
+            "so there is no\n        way to show that no initiator can write "
+            "to it right now.  A quiet\n        heartbeat table is not proof "
+            "of exclusion.  Refusing.\n");
+        goto out;
+    }
+    if (nkeys > 0) {
+        int i;
+
+        fprintf(stderr, "  REGISTERED: %d initiator key(s) are still "
+                "registered on this LUN and can\n        write to it right "
+                "now regardless of their heartbeats:\n", nkeys);
+        for (i = 0; i < nkeys; i++)
+            fprintf(stderr, "          0x%016llx\n",
+                    (unsigned long long)keys[i]);
+        fprintf(stderr, "        Fence or deregister them, then re-run.\n");
+        goto out;
+    }
+    printf("  SCSI PR: no registered initiator — nothing can write to this "
+           "LUN\n");
+
+    /* ── step 3: every other slice must be settled ── */
+    printf("\n── proving every other slice is settled ───────────────────────\n");
+    blocking = chk_repair_table_clear(dfd, &q.sup, q.slot);
+    if (blocking) {
+        fprintf(stderr, "\nrepair: %d slot(s) block this repair (above).  The "
+                "final consistency check\n        must run on a SETTLED "
+                "metadata image, or an apparent inconsistency may\n"
+                "        simply be work another slice has not replayed yet.\n",
+                blocking);
+        goto out;
+    }
+    printf("  every other heartbeat slot is empty or a transient sweep "
+           "guard\n");
+
+    /* ── step 4: the mandatory, verified, off-volume archive ── */
+    printf("\n── archiving the verdict off this volume ──────────────────────\n");
+    if (chk_write_archive(archive, device, &q) < 0) {
+        fprintf(stderr, "\nrepair: the archive could not be written and "
+                "verified.  Nothing was changed.\n");
+        goto out;
+    }
+
+    printf("\n── STOPPING HERE ─────────────────────────────────────────────\n");
+    printf("Steps 1-4 of the repair passed and the verdict is archived.  The\n"
+           "destructive half (accept the loss durably, reinitialize journal\n"
+           "slice %u, run the consistency repair over the quarantine domain,\n"
+           "then release the slot) is NOT implemented in this build.\n\n"
+           "Slice %u is still quarantined and slot %u is still unclaimable.\n"
+           "Nothing on this volume was modified.\n",
+           q.have_desc ? q.d.slice_idx : q.slot,
+           q.have_desc ? q.d.slice_idx : q.slot, q.slot);
+    rc = 3;
+
+out:
+    if (dfd >= 0) close(dfd);
+    if (fd >= 0) close(fd);
+    return rc;
+}
+
 static int do_upgrade_protogate(int fd)
 {
     struct mxfs_ondisk_super sup;
@@ -2692,8 +4293,36 @@ static void usage(const char *prog)
     fprintf(stderr, "  -y   repair all, answer yes to everything\n");
     fprintf(stderr, "  -U   upgrade-protogate: stamp the C7 version gate "
                     "(offline, all nodes unmounted)\n");
+    fprintf(stderr, "  -Q, --show-quarantine\n"
+                    "       print every terminal recovery quarantine verdict "
+                    "on this volume\n"
+                    "       (read-only, O_DIRECT; safe while the cluster is "
+                    "up).  Exit 4 if any\n"
+                    "       quarantine exists.\n");
+    fprintf(stderr, "  --pr-keys\n"
+                    "       print the SCSI persistent-reservation keys "
+                    "registered on this LUN.\n"
+                    "       MXFS uses node_id as the key, so each entry names "
+                    "a node that can\n"
+                    "       write to the shared device right now.  Read-only, "
+                    "safe on a live cluster.\n");
+    fprintf(stderr, "  --accept-quarantine-loss SLICE --confirm DIGEST "
+                    "--archive-to PATH\n"
+                    "       accept the loss of a terminally-quarantined "
+                    "journal slice's committed\n"
+                    "       transactions so its slot can be reused.  OFFLINE "
+                    "only: every node must\n"
+                    "       be unmounted and no initiator may be registered on "
+                    "the LUN.  DIGEST is\n"
+                    "       the VERDICT DIGEST printed by --show-quarantine; "
+                    "PATH must be on storage\n"
+                    "       with no backing device in common with the volume "
+                    "being repaired.\n");
     fprintf(stderr, "\nExit codes:\n");
     fprintf(stderr, "  0  filesystem clean\n");
+    fprintf(stderr, "  3  quarantine repair: pre-checks passed and the verdict "
+                    "was archived,\n     but the destructive half is not "
+                    "implemented in this build\n");
     fprintf(stderr, "  1  errors found and corrected\n");
     fprintf(stderr, "  4  errors found, not corrected\n");
     exit(2);
@@ -2708,6 +4337,12 @@ int main(int argc, char **argv)
     const char *progname;
 
     bool upgrade_protogate = false;
+    bool show_quarantine = false;
+    bool do_accept = false;
+    bool show_pr_keys = false;
+    long accept_slice = -1;
+    const char *accept_confirm = NULL;
+    const char *accept_archive = NULL;
     int ai;
 
     /* Detect if invoked as fsck.mxfs — default to auto-repair mode */
@@ -2716,14 +4351,45 @@ int main(int argc, char **argv)
     if (strcmp(progname, "fsck.mxfs") == 0)
         repair = REPAIR_AUTO;
 
-    /* long-form alias used by the kernel's refusal message */
-    for (ai = 1; ai < argc; ai++)
-        if (strcmp(argv[ai], "--upgrade-protogate") == 0) {
-            argv[ai] = "-U";
-            break;
-        }
+    /* long-form aliases used by the kernel's refusal messages, plus the
+     * three-part repair invocation.  The repair options take arguments, so
+     * they are consumed here and removed from argv before getopt runs. */
+    {
+        int w = 1;
 
-    while ((opt = getopt(argc, argv, "vapynhU")) != -1) {
+        for (ai = 1; ai < argc; ai++) {
+            const char *a = argv[ai];
+
+            if (strcmp(a, "--upgrade-protogate") == 0) {
+                argv[w++] = "-U";
+            } else if (strcmp(a, "--show-quarantine") == 0) {
+                argv[w++] = "-Q";
+            } else if (strcmp(a, "--accept-quarantine-loss") == 0 &&
+                       ai + 1 < argc) {
+                char *endp;
+
+                accept_slice = strtol(argv[++ai], &endp, 10);
+                if (*endp != 0) {
+                    fprintf(stderr, "chk_mxfs: --accept-quarantine-loss needs "
+                            "a slice number\n");
+                    return 2;
+                }
+                do_accept = true;
+            } else if (strcmp(a, "--pr-keys") == 0) {
+                show_pr_keys = true;
+            } else if (strcmp(a, "--confirm") == 0 && ai + 1 < argc) {
+                accept_confirm = argv[++ai];
+            } else if (strcmp(a, "--archive-to") == 0 && ai + 1 < argc) {
+                accept_archive = argv[++ai];
+            } else {
+                argv[w++] = argv[ai];
+            }
+        }
+        argc = w;
+        argv[argc] = NULL;
+    }
+
+    while ((opt = getopt(argc, argv, "vapynhUQ")) != -1) {
         switch (opt) {
         case 'v':
             verbose = true;
@@ -2741,6 +4407,9 @@ int main(int argc, char **argv)
         case 'U':
             upgrade_protogate = true;
             break;
+        case 'Q':
+            show_quarantine = true;
+            break;
         case 'h':
         default:
             usage(argv[0]);
@@ -2751,6 +4420,16 @@ int main(int argc, char **argv)
         usage(argv[0]);
 
     device = argv[optind];
+
+    if (show_pr_keys)
+        return do_pr_keys(device);
+
+    if (show_quarantine)
+        return do_show_quarantine(device);
+
+    if (do_accept)
+        return do_accept_quarantine_loss(device, accept_slice,
+                                         accept_confirm, accept_archive);
 
     if (upgrade_protogate) {
         /* O_EXCL on a block device fails while it is mounted locally —

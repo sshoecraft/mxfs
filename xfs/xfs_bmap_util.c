@@ -1491,7 +1491,7 @@ xfs_swap_change_owner(
 
 	do {
 		error = xfs_bmbt_change_owner(tp, ip, XFS_DATA_FORK, ip->i_ino,
-					      NULL);
+					      NULL, false);
 		/* success or fatal error */
 		if (error != -EAGAIN)
 			break;

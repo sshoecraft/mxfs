@@ -1,0 +1,6 @@
+Warning: Permanently added 'test7' (ED25519) to the list of known hosts.
+
+Unauthorized access to this system is prohibited.
+
+If you are not an authorized user, disconnect immediately.
+RESULT: PASS | test=dirent_durability | nodes=32 | measured=rounds=30 durable_loss=0 late_ok=16 mkdir_err=0 | reason=

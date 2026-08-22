@@ -19,6 +19,15 @@
 #                   on the probe node must be REFUSED by the join gate
 #                   (P-VERGATE-JOIN, -EPROTO); after the writer stops (and
 #                   its record is zeroed) the same mount succeeds.
+#   mixed_build   — B4 of D-MIXED-VERSION-UNGATED-REPLAY: a build whose
+#                   MXFS_PROTO_GEN is older than the volume's
+#                   cluster_proto_gen must be refused BEFORE any log
+#                   recovery starts.  This build plays the old node; the
+#                   volume is stamped gen+1.  Proof of "before recovery":
+#                   the log is left DIRTY (forced shutdown w/o log flush),
+#                   the refused mount logs zero recovery lines, and once
+#                   the gen is restored the SAME dirty log replays
+#                   ("Starting recovery"), i.e. the refusal touched nothing.
 #
 # The loop arms run on PROBE (default test32) with its shared mount taken
 # down for the duration (one mxfs mount at a time), restored at the end.
@@ -33,6 +42,8 @@ SSH=tools/mxfs_sshpass.sh
 LUN=/dev/mapper/mpatha
 IMG=/tmp/vergate_loop.img
 FAILS=0; PASSES=0
+RUN=$$   # unique per-run dmesg tag suffix — the kernel ring buffer keeps
+         # prior runs' tags, and sed anchors on the FIRST match (sess191)
 
 want() { [ ${#ONLY[@]} -eq 0 ] && return 0; local c; for c in "${ONLY[@]}"; do [ "$c" = "$1" ] && return 0; done; return 1; }
 verdict() { if [ "$2" -eq 0 ]; then PASSES=$((PASSES+1)); echo "RESULT: PASS | $1 | $3"; else FAILS=$((FAILS+1)); echo "RESULT: FAIL | $1 | $3"; fi; }
@@ -82,16 +93,50 @@ print('stripped agc=%d'%agc)
 EOF" 2>/dev/null
 }
 
+# stamp_gen <node> <dev> <delta>: add <delta> to the envelope's
+# cluster_proto_gen (PROTOGATE flag untouched), refresh the envelope CRC,
+# print "old->new".  Only the 4K envelope super is touched — the XFS sb
+# region (and its dirty log) is left byte-identical.
+stamp_gen() {
+  $SSH "$1" "python3 - <<'EOF'
+import struct
+dev='$2'; delta=$3
+f=open(dev,'r+b')
+sup=bytearray(f.read(4096))
+def mxfs_crc(buf):
+    c=0xFFFFFFFF
+    tab=[]
+    for i in range(256):
+        x=i
+        for _ in range(8): x=(x>>1)^0x82F63B78 if x&1 else x>>1
+        tab.append(x)
+    for b in buf: c=tab[(c^b)&0xFF]^(c>>8)
+    return c
+old,=struct.unpack_from('<I',sup,104)
+struct.pack_into('<I',sup,104,old+delta)
+struct.pack_into('<I',sup,12,0)
+struct.pack_into('<I',sup,12,mxfs_crc(bytes(sup)))
+f.seek(0); f.write(sup); f.flush(); f.close()
+print('%d->%d'%(old,old+delta))
+EOF" 2>/dev/null
+}
+
 # ── loop arms ──────────────────────────────────────────────────────────────
-if want legacy_refuse || want upgrade; then
+if want legacy_refuse || want upgrade || want mixed_build; then
   # SPARSE image (truncate, NOT fallocate): node root disks are ~6 GB; a
   # preallocated 4 GB image fills them (sess42: test32 hit 100% and every
   # later ko copy truncated — a whole prep cascade).  mkfs writes little.
-  $SSH "$PN" "umount /mnt/shared 2>/dev/null; umount /mnt/vgate 2>/dev/null; mkdir -p /mnt/vgate; rm -f /tmp/vergate_loop.img; truncate -s 4G $IMG && losetup -D 2>/dev/null; losetup /dev/loop7 $IMG 2>/dev/null || true; losetup -l | grep -c loop7" >/dev/null 2>&1
+  # Stale-residue guard (sess191): a pre-sess187 harness incident could leave
+  # /mnt/vgate/b4/marker on the node's ROOT fs; it poisons any later
+  # marker-existence check, so clear it while nothing is mounted there.
+  $SSH "$PN" "umount /mnt/shared 2>/dev/null; umount /mnt/vgate 2>/dev/null; rm -f /mnt/vgate/b4/marker; rmdir /mnt/vgate/b4 2>/dev/null; mkdir -p /mnt/vgate; rm -f /tmp/vergate_loop.img; truncate -s 4G $IMG && losetup -D 2>/dev/null; losetup /dev/loop7 $IMG 2>/dev/null || true; losetup -l | grep -c loop7" >/dev/null 2>&1
   MK=$($SSH "$PN" "/src/mxfs/tools/mkfs_mxfs -f /dev/loop7 2>&1 | tail -1" 2>/dev/null)
-  ST=$(strip_gate "$PN" /dev/loop7)
+  ST=
+  if want legacy_refuse || want upgrade; then
+    ST=$(strip_gate "$PN" /dev/loop7)
+  fi
   if want legacy_refuse; then
-    R1=$($SSH "$PN" "echo 0 > /sys/module/mxfs/parameters/legacy_rw; echo VG-LR1 > /dev/kmsg; mount -t mxfs /dev/loop7 /mnt/vgate 2>&1; echo rc=\$?; dmesg | sed -n '/VG-LR1/,\$p' | grep -c 'legacy (pre-protogate)'" 2>/dev/null | tr '\n' ' ')
+    R1=$($SSH "$PN" "echo 0 > /sys/module/mxfs/parameters/legacy_rw; echo VG-LR1-$RUN > /dev/kmsg; mount -t mxfs /dev/loop7 /mnt/vgate 2>&1; echo rc=\$?; dmesg | sed -n '/VG-LR1-$RUN/,\$p' | grep -c 'legacy (pre-protogate)'" 2>/dev/null | tr '\n' ' ')
     R2=$($SSH "$PN" "echo 1 > /sys/module/mxfs/parameters/legacy_rw; mount -t mxfs /dev/loop7 /mnt/vgate 2>&1; echo rc=\$?; mount -t mxfs | grep -c vgate; umount /mnt/vgate 2>/dev/null; echo 0 > /sys/module/mxfs/parameters/legacy_rw" 2>/dev/null | tr '\n' ' ')
     case "$R1" in *"rc=32 1"*) LR1=0;; *) LR1=1;; esac
     case "$R2" in *"rc=0 1"*) LR2=0;; *) LR2=1;; esac
@@ -105,7 +150,48 @@ if want legacy_refuse || want upgrade; then
     case "$U1" in *COMPLETE*) case "$R3" in *"rc=0 1"*) OK=0;; esac;; esac
     verdict upgrade $OK "u1='$U1' u2='$U2' mount='$R3'"
   fi
-  $SSH "$PN" "losetup -d /dev/loop7 2>/dev/null; rm -f /tmp/vergate_loop.img; mount -t mxfs $LUN /mnt/shared 2>&1 | tail -1" >/dev/null 2>&1
+  if want mixed_build; then
+    # Ensure the gate is present (idempotent; restores it if the strip arms
+    # ran first, no-op on a fresh gated mkfs).
+    $SSH "$PN" "/src/mxfs/tools/chk_mxfs -U /dev/loop7 >/dev/null 2>&1" 2>/dev/null
+    # Dirty the log: mount, fsync a file into the journal, force shutdown
+    # WITHOUT a log flush (XFS_IOC_GOINGDOWN, NOLOGFLUSH=2), umount.  The
+    # unmount record is never written, so the next mount needs recovery.
+    # sess191: single_node_exclusive=1 for the whole arm — this is a
+    # host-private loop device, so the operator assertion is TRUE, and since
+    # the dirty-slice work (sess184-190) the shutdown umount leaves a
+    # WITHDRAWN slot whose slice MB3 must fence-certify and replay before
+    # admission; without the assertion a loop device (no PR) cannot certify
+    # and the MB3 mount correctly fails -EBUSY after the admission wait.
+    # The victim mount needs it too (write-time snlocal marker at claim).
+    MB1=$($SSH "$PN" "echo 1 > /sys/module/mxfs/parameters/single_node_exclusive; mount -t mxfs /dev/loop7 /mnt/vgate 2>&1; echo rc=\$?; python3 - <<'EOF'
+import os, fcntl, struct
+os.makedirs('/mnt/vgate/b4', exist_ok=True)
+fd=os.open('/mnt/vgate/b4/marker', os.O_CREAT|os.O_WRONLY, 0o644)
+os.write(fd, b'B4-mixed-build')
+os.fsync(fd)
+os.close(fd)
+dfd=os.open('/mnt/vgate', os.O_RDONLY)
+fcntl.ioctl(dfd, 0x8004587d, struct.pack('I', 2))   # GOINGDOWN NOLOGFLUSH
+os.close(dfd)
+print('shutdown-ok')
+EOF
+umount /mnt/vgate 2>&1; echo urc=\$?" 2>/dev/null | tr '\n' ' ')
+    # Stamp the volume one generation AHEAD of this build and try to mount:
+    # must be refused (-EPROTONOSUPPORT, rc=32) with ZERO recovery lines.
+    G1=$(stamp_gen "$PN" /dev/loop7 1)
+    MB2=$($SSH "$PN" "echo VG-MB2-$RUN > /dev/kmsg; mount -t mxfs /dev/loop7 /mnt/vgate 2>&1 >/dev/null; echo rc=\$?; dmesg | sed -n '/VG-MB2-$RUN/,\$p' | grep -c 'refusing mount (upgrade the mismatched side)'; dmesg | sed -n '/VG-MB2-$RUN/,\$p' | grep -c 'recovery'" 2>/dev/null | tr '\n' ' ')
+    # Restore the gen: the SAME log must now replay — proof the refusal
+    # happened before recovery touched anything.
+    G2=$(stamp_gen "$PN" /dev/loop7 -1)
+    MB3=$($SSH "$PN" "echo VG-MB3-$RUN > /dev/kmsg; mount -t mxfs /dev/loop7 /mnt/vgate 2>&1 >/dev/null; echo rc=\$?; dmesg | sed -n '/VG-MB3-$RUN/,\$p' | grep -c 'Starting recovery'; grep -q B4-mixed-build /mnt/vgate/b4/marker 2>/dev/null && echo file=1 || echo file=0; umount /mnt/vgate 2>/dev/null; echo 0 > /sys/module/mxfs/parameters/single_node_exclusive" 2>/dev/null | tr '\n' ' ')
+    OK=1
+    case "$MB1" in *"rc=0 shutdown-ok"*)
+      case "$MB2" in *"rc=32 1 0"*)
+        case "$MB3" in *"rc=0 1 file=1"*) OK=0;; esac;; esac;; esac
+    verdict mixed_build $OK "dirty='$MB1' gen=$G1 refused='$MB2' restore=$G2 recovered='$MB3'"
+  fi
+  $SSH "$PN" "echo 0 > /sys/module/mxfs/parameters/single_node_exclusive; losetup -d /dev/loop7 2>/dev/null; rm -f /tmp/vergate_loop.img; mount -t mxfs $LUN /mnt/shared 2>&1 | tail -1" >/dev/null 2>&1
   sleep 3
   RB=$($SSH "$PN" "mount -t mxfs | grep -c shared" 2>/dev/null | tr -d ' \r\n')
   [ "${RB:-0}" = "1" ] || echo "WARN: $PN shared remount says '$RB' (rejoin manually if needed)"

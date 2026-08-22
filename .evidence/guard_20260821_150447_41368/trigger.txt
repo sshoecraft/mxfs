@@ -1,0 +1,5 @@
+when:    2026-08-21T15:04:47Z
+why:     FLOOD
+trigger: kernel log at ~796 lines/s for 2 consecutive 5s windows (max 60) — last: mxfs guard floodtest benign line 5765
+uptime:   10:04:47 up 34 min,  4 users,  load average: 9.53, 7.26, 5.00
+tainted: 12800

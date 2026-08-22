@@ -40,8 +40,18 @@ def parse_ts(rec):
         return None
 
 
-def audit_file(path):
-    """Return per-session stats dict, or None if the file has no usage data."""
+def audit_file(path, win=None):
+    """Return per-session stats dict, or None if the file has no usage data.
+
+    ``win`` is an optional ``(lo, hi)`` pair of aware datetimes. When given,
+    only assistant turns whose OWN timestamp falls inside the window are
+    counted. This differs from --since-hours, which selects whole session
+    FILES by mtime and then sums every turn in them, including turns outside
+    the period of interest. For a clean before/after comparison of a bounded
+    ccloop run, always use --from/--to: on 2026-08-07 the two methods gave
+    67.4M and 58.9M weighted for the same run, and the window-scoped 58.9M
+    is the one that actually describes the run.
+    """
     stats = {
         "path": path,
         "session_id": os.path.basename(path)[:-6],
@@ -68,6 +78,11 @@ def audit_file(path):
                 continue
 
             ts = parse_ts(rec)
+            if win is not None:
+                # Window mode: a turn with no timestamp cannot be shown to be
+                # inside the window, so it is excluded rather than assumed in.
+                if ts is None or not (win[0] <= ts <= win[1]):
+                    continue
             if ts:
                 if stats["first_ts"] is None or ts < stats["first_ts"]:
                     stats["first_ts"] = ts
@@ -134,7 +149,38 @@ def main():
         default=None,
         help="only include sessions whose last activity is within N hours",
     )
+    ap.add_argument(
+        "--from", dest="ts_from", default=None,
+        help="window start, local time, 'YYYY-MM-DDTHH:MM' or 'HH:MM' (today). "
+             "Counts only turns inside the window — use this, not --since-hours, "
+             "for a clean before/after on a bounded ccloop run.",
+    )
+    ap.add_argument(
+        "--to", dest="ts_to", default=None,
+        help="window end, same format as --from",
+    )
     args = ap.parse_args()
+
+    win = None
+    if args.ts_from or args.ts_to:
+        tz = datetime.now().astimezone().tzinfo
+
+        def parse_bound(s, default):
+            if not s:
+                return default
+            today = datetime.now(tz).strftime("%Y-%m-%d")
+            if len(s) <= 5 and ":" in s:
+                s = f"{today}T{s}"
+            return datetime.fromisoformat(s).replace(tzinfo=tz)
+
+        lo = parse_bound(args.ts_from, datetime.fromtimestamp(0, tz))
+        hi = parse_bound(args.ts_to, datetime.now(tz))
+        if lo > hi:
+            print("--from is after --to", file=sys.stderr)
+            return 1
+        win = (lo, hi)
+        print(f"window: {lo:%Y-%m-%d %H:%M} -> {hi:%H:%M} local "
+              f"(turn timestamps, not file mtime)\n")
 
     paths = sorted(glob.glob(os.path.join(args.project_dir, "*.jsonl")))
     if not paths:
@@ -144,7 +190,7 @@ def main():
     now = datetime.now(timezone.utc)
     sessions = []
     for p in paths:
-        s = audit_file(p)
+        s = audit_file(p, win)
         if s is None:
             continue
         if args.since_hours is not None and s["last_ts"] is not None:

@@ -54,6 +54,7 @@
 #include <linux/delay.h>
 #include <linux/ktime.h>
 #include <linux/sched.h>
+#include <linux/hashtable.h>
 #include <linux/sched/debug.h>	/* sess4: sched_show_task for mxfs_pal_dump_task_stack */
 #include <linux/sort.h>
 #include <linux/net.h>
@@ -789,6 +790,102 @@ void mxfs_pal_sdev_cache_release(void)
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
 
+/*
+ * ─── sess379: PER-TASK ABSOLUTE I/O BUDGET (RULE-5 ruling item 5) ───
+ *
+ * D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, root-caused sess379: a plain
+ * `statx()` of the mount point blocked 60.5 / 121 / 181.5 s on 30 of 32 nodes
+ * during a simultaneous mass unmount.  The captured stack was
+ *
+ *   blk_execute_rq < scsi_execute_cmd < mxfs_pal_scsi_read_fua_bdev
+ *     < read_slot < find_slot_skip < mxfs_dlm_caw_held
+ *     < mxfs_v5_dlm_inode_held_rawmode < mxfs_dlm_ilock_begin < xfs_ilock
+ *     < mxfs_getattr_dlm_lock < vfs_statx
+ *
+ * and every one of the 35 timeouts logged fleet-wide named THE SAME LBA
+ * (144080 — the root directory inode's CAW slot) with ret=0x30000 =
+ * DID_TIME_OUT.  The multiplication that turned a congested target into a
+ * three-minute syscall is three INDEPENDENT retry policies stacked on one
+ * logical operation:
+ *
+ *     30 s scsi_execute_cmd timeout  x  1 SCSI retry  x  20 wrapper retries
+ *
+ * i.e. a worst case of ~20 minutes for ONE slot probe.  The RULE-5 ruling
+ * (ccmemory ccloop-c7ee71c6-sess379-GPT-ruling-detector-io-off-the-fast-path)
+ * names that stack as "exactly the failure-amplification pattern to remove"
+ * and prescribes ONE absolute monotonic deadline per LOGICAL operation, with
+ * every attempt budget capped by the time remaining, and no nested
+ * independent retry policies.
+ *
+ * It ALSO warns that shortening the SCSI request timeout everywhere can cause
+ * SCSI EH / abort / reset / path-failover storms worse than the original
+ * load.  So this is deliberately NOT a global policy change: the default
+ * (unbudgeted) behavior is untouched, and a caller OPTS IN for the span of
+ * one logical operation by putting a budget on its own task.  The DLM's
+ * fast-path ownership verifies are the only opt-in users today — an
+ * authoritative buffer read must keep its patient policy, because turning a
+ * transient target stall into -EIO is how a healthy node manufactures a
+ * shutdown (D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356).
+ *
+ * The registry lives in PAL because the budget must be observable at the
+ * SCSI chokepoint without threading a deadline parameter through read_slot
+ * (27 call sites), find_slot_skip and mxfs_dlm_caw_held.  It is entered and
+ * exited on the caller's stack, so it cannot leak across a task.
+ */
+#define MXFS_IO_BUDGET_HASH_BITS 6
+static DEFINE_HASHTABLE(mxfs_io_budget_hash, MXFS_IO_BUDGET_HASH_BITS);
+static DEFINE_SPINLOCK(mxfs_io_budget_lock);
+
+void mxfs_pal_io_budget_enter(struct mxfs_pal_io_budget *b, uint32_t ms)
+{
+	if (!b)
+		return;
+	b->task = current;
+	b->deadline_j = jiffies + msecs_to_jiffies(ms ? ms : 1);
+	spin_lock(&mxfs_io_budget_lock);
+	hash_add(mxfs_io_budget_hash, &b->node, (unsigned long)current);
+	spin_unlock(&mxfs_io_budget_lock);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_io_budget_enter);
+
+void mxfs_pal_io_budget_exit(struct mxfs_pal_io_budget *b)
+{
+	if (!b || !b->task)
+		return;
+	spin_lock(&mxfs_io_budget_lock);
+	hash_del(&b->node);
+	spin_unlock(&mxfs_io_budget_lock);
+	b->task = NULL;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_io_budget_exit);
+
+/*
+ * Milliseconds left in the current task's budget.
+ *   0  = no budget registered (unbudgeted caller: legacy policy, unchanged)
+ *  <0  = budget registered and ALREADY EXHAUSTED (caller must fail, not retry)
+ * Nested enters are not supported by design: one logical operation, one
+ * deadline.  The innermost registration wins the hash lookup, which is the
+ * conservative direction (a shorter deadline can only fail sooner).
+ */
+static long mxfs_pal_io_budget_remaining_ms(void)
+{
+	struct mxfs_pal_io_budget *b;
+	long left = 0;
+
+	spin_lock(&mxfs_io_budget_lock);
+	hash_for_each_possible(mxfs_io_budget_hash, b, node,
+			       (unsigned long)current) {
+		if (b->task == current) {
+			long d = (long)(b->deadline_j - jiffies);
+
+			left = (d <= 0) ? -1 : jiffies_to_msecs(d);
+			break;
+		}
+	}
+	spin_unlock(&mxfs_io_budget_lock);
+	return left;
+}
+
 int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				 void *buf, uint32_t len)
 {
@@ -861,10 +958,40 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 		 * unsupported-target fallback below on the first attempt.
 		 */
 		for (fua_try = 0; ; fua_try++) {
+			/*
+			 * sess379: one absolute deadline, attempt budgets
+			 * capped by what is left of it, SCSI retries dropped
+			 * to 0 so the only retry policy in play is this loop's.
+			 * Unbudgeted callers take the `else` and keep the
+			 * historical 30 s / 1-retry / 20-lap policy verbatim.
+			 */
+			long budget_ms = mxfs_pal_io_budget_remaining_ms();
+			int cmd_j, cmd_retries;
+
+			if (budget_ms < 0) {
+				static atomic_t p_fuadl_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&p_fuadl_n) <= 200)
+					pr_warn("mxfs: P302-FUA-READ-DEADLINE lba=%llu len=%u tries=%d — per-task I/O budget exhausted; abandoning the read (no sample, NOT a proof of anything)\n",
+						(unsigned long long)lba_512,
+						len, fua_try);
+				scsi_device_put(sdev);
+				return -ETIME;
+			}
+			if (budget_ms > 0) {
+				cmd_j = msecs_to_jiffies((unsigned int)budget_ms);
+				if (cmd_j < 1)
+					cmd_j = 1;
+				cmd_retries = 0;
+			} else {
+				cmd_j = 30 * HZ;
+				cmd_retries = 1;
+			}
 			resid = (int)len;
 			args.resid = &resid;
 			ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_IN,
-					       buf, len, 30 * HZ, 1, &args);
+					       buf, len, cmd_j, cmd_retries,
+					       &args);
 			/*
 			 * v0.3.108 (sess26 root-cause): scsi_execute_cmd can
 			 * return 0 (success) but transfer LESS than requested
@@ -891,13 +1018,26 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 			}
 			{
 				static atomic_t p_fuartry_n = ATOMIC_INIT(0);
-				if (atomic_inc_return(&p_fuartry_n) <= 50)
-					pr_warn("mxfs: P-FUA-READ-RETRY lba=%llu ret=0x%x resid=%d key=0x%x try=%d\n",
+				if (atomic_inc_return(&p_fuartry_n) <= 400)
+					/*
+					 * sess379: comm + the budget this lap
+					 * SAW.  Without them a retry line cannot
+					 * be attributed to a task, and the
+					 * sess379 landing could not be told from
+					 * "budget not applied" vs "the command
+					 * timed out at the deadline but the
+					 * block layer only returned after SCSI
+					 * error recovery".  budget_ms=0 means NO
+					 * budget was registered for this task.
+					 */
+					pr_warn("mxfs: P-FUA-READ-RETRY lba=%llu ret=0x%x resid=%d key=0x%x try=%d budget_ms=%ld cmd_ms=%u comm=%s pid=%d\n",
 						(unsigned long long)lba_512,
 						ret, resid,
 						scsi_sense_valid(&sshdr) ?
 							sshdr.sense_key : 0xff,
-						fua_try + 1);
+						fua_try + 1, budget_ms,
+						jiffies_to_msecs(cmd_j),
+						current->comm, current->pid);
 			}
 			msleep(5 + fua_try * 5);
 		}
@@ -1748,6 +1888,13 @@ int mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms)
 	kthread_stop(t->task);
 	kfree(t);
 	return 0;
+}
+
+int mxfs_pal_thread_pid(mxfs_thread_t *t)
+{
+	if (!t || !t->task)
+		return 0;
+	return t->task->pid;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -2628,6 +2775,14 @@ void mxfs_pal_sleep_ms(uint32_t ms)
 	msleep(ms);
 }
 
+void mxfs_pal_sleep_ms_interruptible(uint32_t ms)
+{
+	/* See pal.h: an idle background worker must not park in
+	 * TASK_UNINTERRUPTIBLE, or it is a permanent D-state task. */
+	schedule_timeout_interruptible(msecs_to_jiffies(ms));
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_sleep_ms_interruptible);
+
 void mxfs_pal_cond_resched(void)
 {
 	cond_resched();
@@ -2863,46 +3018,326 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 	return ret;
 }
 
-int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key)
+int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
 {
 	const struct pr_ops *ops;
+	enum pr_type btype;
 	int ret;
 
 	if (!dev)
 		return -EINVAL;
+
+	/* Only the two types MXFS is allowed to establish.  Anything else is
+	 * a caller bug, and silently reserving the wrong type would hand the
+	 * fence path a reservation it will later refuse to recognise. */
+	if (type != MXFS_PAL_PR_TYPE_WR_EX_RO &&
+	    type != MXFS_PAL_PR_TYPE_WR_EX_AR)
+		return -EINVAL;
+	btype = scsi_pr_type_to_block((enum scsi_pr_type)type);
 
 	ops = get_pr_ops(dev);
 	if (!ops || !ops->pr_reserve)
 		return -EOPNOTSUPP;
 
-	/* WRITE EXCLUSIVE - REGISTRANTS ONLY */
 	{
 		int ua_try;
 
 		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
-			ret = ops->pr_reserve(dev->bdev, key,
-					      PR_WRITE_EXCLUSIVE_REG_ONLY, 0);
+			ret = ops->pr_reserve(dev->bdev, key, btype, 0);
 			if (ret != SAM_STAT_CHECK_CONDITION)
 				break;
 			msleep(2 << ua_try);
 		}
 	}
-	if (ret == -EBUSY || ret == 0x18) {
-		/* Reservation conflict — we're registered, which is
-		 * all we need for type 5 access */
-		return 0;
-	}
+	/*
+	 * sess381: this used to fold RESERVATION CONFLICT into 0 on the theory
+	 * that "we're registered, which is all we need for type 5 access".
+	 * That is a statement about I/O permission, not about the reservation,
+	 * and it hid the only condition that can tell a caller its reservation
+	 * is the WRONG TYPE OR SCOPE — the state that disarms fencing.  Under
+	 * an all-registrants type a conflict from a registered requester is
+	 * abnormal by SPC (a matching-scope/type RESERVE from a holder, and
+	 * every registrant is a holder, completes GOOD; MEASURED rc=0 from a
+	 * second nexus on SCST).  Report it and let the caller read back.
+	 */
+	if (ret == 0x18 || ret == -EBUSY)
+		return -EBUSY;
 	return ret;
 }
 
+/*
+ * PERSISTENT RESERVE OUT / PREEMPT AND ABORT (service action 0x05) issued as a
+ * RAW CDB straight at an underlying scsi_device.
+ *
+ * WHY THIS EXISTS, AND WHY ops->pr_preempt MUST NEVER BE USED FOR THE ABORT
+ * FORM.  Proven twice in sess378 — once in the kernel source, once on the wire:
+ *
+ *   drivers/md/dm.c dm_pr_preempt() takes `bool abort` and builds
+ *       struct dm_pr pr = { .new_key, .old_key, .type, .fail_early = false };
+ *   and NEVER ASSIGNS .abort.  struct dm_pr has the field (dm.c:3465) and the
+ *   only read of it is __dm_pr_preempt() handing pr->abort down (dm.c:3658);
+ *   there is no assignment anywhere in the file.  The designated initializer
+ *   zero-fills it, so every dm device ends up at
+ *   sd_pr_out_command(bdev, abort ? 0x05 : 0x04, ...) with abort==false.
+ *   PREEMPT AND ABORT is SILENTLY DOWNGRADED TO PREEMPT for every dm user.
+ *   Present at 6.19.0-rc0 and on the running 6.8.0-101.
+ *
+ *   MXFS opens /dev/mapper/mpatha, so `ops` is dm's and the abort we asked for
+ *   never reached the target.  Measured target-side, from SCST's own CDB
+ *   parser during a real fence: "Preempt: initiator ..." — the " and abort"
+ *   substring that only SA 0x05 produces was absent.  MXFS nevertheless minted
+ *   P236-FENCE-CERTIFIED kind=PREEMPT_ABORT_DONE "exclusion is PROVED and
+ *   durable", which is the certificate that authorises foreign-slice replay.
+ *
+ *   The difference is not academic.  With a victim write held in flight:
+ *      SA 0x04 -> PROUT returns in 0.2 ms, the write lands +12.000 s / +12.476 s
+ *                 AFTER the PR completed (two runs), bytes readable below.
+ *      SA 0x05 -> PROUT blocks 12.3 s in the target's wait_for_completion()
+ *                 and the write lands 126 US BEFORE the PR completes.
+ *   Only 0x05 orders the victim's in-flight writes before fence success.
+ *
+ * The CDB and 24-byte parameter list below are byte-for-byte what
+ * sd_pr_out_command() builds, so the ONLY difference from the in-tree path is
+ * that the service action survives the journey.
+ */
+static int mxfs_pal_prout_preempt_abort(struct scsi_device *sdev,
+					uint64_t my_key, uint64_t victim_key,
+					uint32_t type)
+{
+	struct scsi_sense_hdr sshdr;
+	unsigned char cdb[16];
+	unsigned char data[24];
+	int ret, ua_try = 0;
+
+prout_submit:
+	memset(cdb, 0, sizeof(cdb));
+	memset(data, 0, sizeof(data));
+	memset(&sshdr, 0, sizeof(sshdr));
+
+	cdb[0] = 0x5F;			/* PERSISTENT RESERVE OUT           */
+	cdb[1] = 0x05;			/* SERVICE ACTION: PREEMPT AND ABORT */
+	/* scope 0 (LU) | the type of the reservation actually in force.
+	 * sess381: this was hardcoded to type 5; with a WR_EX_AR reservation
+	 * held, a type-5 PROUT is a scope/type mismatch. */
+	cdb[2] = (u8)(type & 0x0f);
+	cdb[5] = (u8)(sizeof(data) >> 24);   /* PARAMETER LIST LENGTH = 24 */
+	cdb[6] = (u8)(sizeof(data) >> 16);
+	cdb[7] = (u8)(sizeof(data) >> 8);
+	cdb[8] = (u8)(sizeof(data));
+
+	/* RESERVATION KEY = ours (proves we are a registrant) */
+	data[0] = (u8)(my_key >> 56);	data[1] = (u8)(my_key >> 48);
+	data[2] = (u8)(my_key >> 40);	data[3] = (u8)(my_key >> 32);
+	data[4] = (u8)(my_key >> 24);	data[5] = (u8)(my_key >> 16);
+	data[6] = (u8)(my_key >> 8);	data[7] = (u8)(my_key);
+	/*
+	 * SERVICE ACTION RESERVATION KEY = the victim's.  SPC removes EVERY
+	 * registration whose reservation key matches this value, and aborts the
+	 * task sets of the I_T nexuses so removed — regardless of which nexus
+	 * the command arrived on.  MXFS uses one key per node across all of that
+	 * node's paths, so a single issuance covers both of a victim's multipath
+	 * nexuses; we do not need to, and must not, iterate paths ourselves.
+	 */
+	data[8]  = (u8)(victim_key >> 56); data[9]  = (u8)(victim_key >> 48);
+	data[10] = (u8)(victim_key >> 40); data[11] = (u8)(victim_key >> 32);
+	data[12] = (u8)(victim_key >> 24); data[13] = (u8)(victim_key >> 16);
+	data[14] = (u8)(victim_key >> 8);  data[15] = (u8)(victim_key);
+	/* data[20] flags: APTPL/ALL_TG_PT/SPEC_I_PT all 0, as sd_pr_preempt does */
+
+	/*
+	 * TIMEOUT.  A conforming target does not complete 0x05 until every
+	 * affected command has drained (SCST blocks in
+	 * wait_for_completion(&pr_aborting_cmpl), which has no timeout of its
+	 * own).  That wait is the entire value of this service action, so the
+	 * timeout must be generous enough not to abort our own fence while the
+	 * target is doing exactly what we asked.  60 s sits under the 62 s
+	 * dead-confirmation window that already preceded this call, and a
+	 * timeout here fails CLOSED: the caller cannot certify what it cannot
+	 * confirm.
+	 */
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
+	{
+		struct scsi_exec_args args = {
+			.sshdr = &sshdr,
+		};
+
+		ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_OUT,
+				       data, sizeof(data), 60 * HZ, 1, &args);
+	}
+#else
+	ret = scsi_execute(sdev, cdb, DMA_TO_DEVICE, data, sizeof(data),
+			   NULL, &sshdr, 60 * HZ, 1, 0, 0, NULL);
+#endif
+
+	/*
+	 * UNIT ATTENTION is reported INSTEAD of executing the command (a
+	 * (re)selected multipath path reports power-on/reset on its first
+	 * command).  Reissue, bounded — an abandoned preempt leaves a dead node
+	 * UNFENCED and its journal replay would race the survivor's.
+	 */
+	if (ret > 0 && scsi_sense_valid(&sshdr) &&
+	    sshdr.sense_key == UNIT_ATTENTION &&
+	    ua_try < MXFS_PR_UA_RETRIES) {
+		ua_try++;
+		pr_warn_ratelimited("mxfs: P302-PROUT-UA-RETRY victim_key=0x%llx "
+				    "asc=0x%x ascq=0x%x try=%d\n",
+				    (unsigned long long)victim_key,
+				    sshdr.asc, sshdr.ascq, ua_try);
+		msleep(2 << ua_try);
+		goto prout_submit;
+	}
+
+	if (ret && !(ret == 0x18 || ret == -EBUSY))
+		pr_warn("mxfs: P302-PROUT-ABORT-FAIL victim_key=0x%llx rc=%d "
+			"sense=%d/0x%x/0x%x — PREEMPT AND ABORT did not "
+			"complete; exclusion is NOT proved\n",
+			(unsigned long long)victim_key, ret,
+			sshdr.sense_key, sshdr.asc, sshdr.ascq);
+
+	return ret;
+}
+
+/*
+ * PERSISTENT RESERVE IN / REPORT CAPABILITIES (SA 0x02).  8-byte parameter
+ * data per SPC:
+ *   [0..1] LENGTH (8)
+ *   [2]    bit0 PTPL_C, bit2 ATP_C, bit3 SIP_C, bit4 CRH
+ *   [3]    bit0 PTPL_A, bit7 TMV
+ *   [4..5] PERSISTENT RESERVATION TYPE MASK
+ *          byte4: bit1 WR_EX, bit3 EX_AC, bit5 WR_EX_RO, bit6 EX_AC_RO,
+ *                 bit7 WR_EX_AR;  byte5: bit0 EX_AC_AR
+ */
+int mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev,
+					 struct mxfs_pal_pr_caps *out)
+{
+	struct scsi_device *sdev;
+	struct scsi_sense_hdr sshdr;
+	unsigned char cdb[10];
+	unsigned char resp[8];
+	int ua_try = 0;
+	int ret;
+
+	if (!dev || !dev->bdev || !out)
+		return -EINVAL;
+
+	memset(out, 0, sizeof(*out));
+
+	sdev = mxfs_bdev_to_sdev(dev->bdev);
+	if (!sdev) {
+		/*
+		 * No underlying SCSI device.  Report that plainly rather than
+		 * guessing: this is also exactly the condition under which a
+		 * genuine PREEMPT AND ABORT cannot be issued.
+		 */
+		return -EOPNOTSUPP;
+	}
+	/* Reaching an sdev at all IS the abort capability — see pal.h. */
+	out->abort_capable = true;
+
+resubmit:
+	memset(cdb, 0, sizeof(cdb));
+	memset(resp, 0, sizeof(resp));
+	cdb[0] = 0x5e;			/* PERSISTENT RESERVE IN      */
+	cdb[1] = 0x02;			/* REPORT CAPABILITIES        */
+	cdb[7] = (u8)(sizeof(resp) >> 8);
+	cdb[8] = (u8)sizeof(resp);
+
+	memset(&sshdr, 0, sizeof(sshdr));
+	{
+		struct scsi_exec_args args = { .sshdr = &sshdr };
+
+		ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_IN, resp,
+				       sizeof(resp), 30 * HZ, 1, &args);
+	}
+
+	if (ret > 0 && scsi_sense_valid(&sshdr) &&
+	    sshdr.sense_key == UNIT_ATTENTION && ua_try < MXFS_PR_UA_RETRIES) {
+		ua_try++;
+		msleep(2 << ua_try);
+		goto resubmit;
+	}
+	if (ret > 0) {
+		if (scsi_sense_valid(&sshdr) &&
+		    sshdr.sense_key == ILLEGAL_REQUEST)
+			ret = -EOPNOTSUPP;	/* target has no SA 0x02 */
+		else
+			ret = -EIO;
+	}
+	if (ret < 0) {
+		scsi_device_put(sdev);
+		return ret;
+	}
+
+	out->ptpl_c    = !!(resp[2] & 0x01);
+	out->atp_c     = !!(resp[2] & 0x04);
+	out->sip_c     = !!(resp[2] & 0x08);
+	out->crh       = !!(resp[2] & 0x10);
+	out->ptpl_a    = !!(resp[3] & 0x01);
+	out->tmv       = !!(resp[3] & 0x80);
+	out->type_mask = ((uint16_t)resp[4] << 8) | (uint16_t)resp[5];
+	/* WR_EX_RO is type 5h == byte 4 bit 5.  Only meaningful when TMV=1;
+	 * with TMV=0 the mask is not defined and we must not read offered
+	 * types out of it. */
+	out->we_ro     = out->tmv && !!(resp[4] & 0x20);
+	/* WR_EX_AR is type 7h == byte 4 bit 7 — the type MXFS establishes from
+	 * proto-gen 5 on (sess381).  Same TMV precondition as we_ro. */
+	out->we_ar     = out->tmv && !!(resp[4] & 0x80);
+
+	scsi_device_put(sdev);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_report_capabilities);
+
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
-			     uint64_t victim_key, bool abort)
+			     uint64_t victim_key, bool abort, uint32_t type)
 {
 	const struct pr_ops *ops;
 	int ret;
 
 	if (!dev)
 		return -EINVAL;
+
+	if (type != MXFS_PAL_PR_TYPE_WR_EX_RO &&
+	    type != MXFS_PAL_PR_TYPE_WR_EX_AR)
+		return -EINVAL;
+
+	if (abort) {
+		struct scsi_device *sdev;
+
+		/*
+		 * The abort form NEVER goes through ops->pr_preempt — see the
+		 * comment on mxfs_pal_prout_preempt_abort(): dm drops the flag
+		 * and we would issue 0x04 while reporting 0x05.
+		 */
+		sdev = mxfs_bdev_to_sdev(dev->bdev);
+		if (!sdev) {
+			/*
+			 * FAIL CLOSED.  No underlying SCSI device could be
+			 * resolved (all dm paths down, or a non-SCSI transport),
+			 * so a genuine PREEMPT AND ABORT is impossible.  We must
+			 * NOT fall back to ops->pr_preempt here: that would issue
+			 * the non-aborting 0x04 and hand the caller a success it
+			 * would turn into a PREEMPT_ABORT_DONE certificate.
+			 * -EOPNOTSUPP maps to MXFS_FENCE_KIND_UNSUPPORTED, which
+			 * mxfs_fence_kind_proves_exclusion() rejects, so the
+			 * slice stays blocked instead of being replayed under a
+			 * false proof.
+			 */
+			pr_warn("mxfs: P302-PROUT-NO-SDEV victim_key=0x%llx — no "
+				"underlying SCSI device; PREEMPT AND ABORT "
+				"cannot be issued and exclusion is NOT proved\n",
+				(unsigned long long)victim_key);
+			return -EOPNOTSUPP;
+		}
+
+		ret = mxfs_pal_prout_preempt_abort(sdev, my_key, victim_key,
+						   type);
+		scsi_device_put(sdev);
+
+		if (ret == 0x18 || ret == -EBUSY)
+			return -EBUSY;
+		return ret;
+	}
 
 	ops = get_pr_ops(dev);
 	if (!ops || !ops->pr_preempt)
@@ -2915,14 +3350,14 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 
 		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
 			/*
-			 * `abort` is the SPC service action selector, not a
-			 * hint: sd_pr_preempt() issues `abort ? 0x05 : 0x04`.
-			 * false here is PREEMPT, which does not touch the
-			 * victim's in-flight task set (sess71).
+			 * Plain PREEMPT (0x04).  This is the one form dm can
+			 * express, so the generic path is correct for it.  It
+			 * does NOT touch the victim's in-flight task set.
 			 */
 			ret = ops->pr_preempt(dev->bdev, my_key, victim_key,
-					      PR_WRITE_EXCLUSIVE_REG_ONLY,
-					      abort);
+					      scsi_pr_type_to_block(
+						      (enum scsi_pr_type)type),
+					      false);
 			if (ret != SAM_STAT_CHECK_CONDITION)
 				break;
 			msleep(2 << ua_try);
@@ -2987,15 +3422,23 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
 		return ret;
 
 	/*
-	 * The block layer reports "no reservation held" as a zeroed
-	 * descriptor (sd_pr_read_reservation leaves rsv untouched when the
-	 * ADDITIONAL LENGTH field says the LUN is unreserved).  A held
-	 * reservation always carries a non-zero holder key here because MXFS
-	 * never registers key 0.
+	 * The block layer reports "no reservation held" as a zeroed descriptor
+	 * (sd_pr_read_reservation returns early, leaving rsv untouched, when
+	 * the ADDITIONAL LENGTH field is 0), and rsv is memset above.
+	 *
+	 * sess381: `held` USED TO BE (rsv.key != 0), on the reasoning that a
+	 * held reservation always carries a nonzero holder key "because MXFS
+	 * never registers key 0".  That reasoning holds only for SINGLE-HOLDER
+	 * types.  Under an all-registrants type there is no single holder and
+	 * SPC reports the key as ZERO — MEASURED on SCST: a live WR_EX_AR
+	 * reservation reads back as `Key=0x0, type: Write Exclusive, all
+	 * registrants`.  The old test would have called that "none held" and
+	 * failed every fence closed.  The TYPE is the discriminator: 0 is not
+	 * a valid pr_type, so it means "sd wrote nothing", i.e. unreserved.
 	 */
 	out->generation = rsv.generation;
 	out->key = rsv.key;
-	out->held = (rsv.key != 0);
+	out->held = (rsv.type != 0);
 
 	/*
 	 * NUMBER-SPACE TRAP: sd_pr_read_reservation() stores
@@ -3043,12 +3486,132 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
  */
 /* declared in xfs/xfs_mxfs_dlm.h; redeclared here to silence
  * -Wmissing-prototypes since kern.c does not include xfs_mxfs_dlm.h. */
+/*
+ * ── D-CLEAN-UNMOUNT-LEAKS-PR-REGISTRATION-377 ─────────────────────────────
+ *
+ * MEASURED (sess377, 32/caw, dm-multipath with 2 paths): a mount registered
+ * its key on BOTH nexuses (READ KEYS listed it twice) and a clean unmount
+ * removed exactly ONE of them, reporting success.  The departed node's
+ * initiator kept write access to the shared LUN, and nothing in MXFS noticed.
+ *
+ * Two bugs, and the second is what hid the first:
+ *
+ *  1. ASYMMETRY.  Register used PR_FL_IGNORE_KEY (REGISTER AND IGNORE
+ *     EXISTING KEY, SA 0x06), which every path accepts unconditionally, so
+ *     dm registered all of them.  Unregister used a PLAIN REGISTER
+ *     (SA 0x00, old_key=key), which a path whose nexus key does not match
+ *     answers with RESERVATION CONFLICT — and dm's first pass runs with
+ *     fail_early, so the iteration stopped there and the remaining nexus kept
+ *     its registration.  The symmetric operation is REGISTER AND IGNORE
+ *     EXISTING KEY with SERVICE ACTION RESERVATION KEY = 0.
+ *
+ *  2. THE CONFLICT MAPPING.  The old code returned SUCCESS on 0x18/-EBUSY,
+ *     reasoning "our key was already removed".  A conflict from ONE nexus
+ *     proves nothing about the others; here it was returned PRECISELY because
+ *     a path refused.  The only valid reading is "the requested state was not
+ *     established by this command — inspect global state".
+ *
+ * sess377 RULE-5 ruling (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling3-pr-
+ * unregister-leak-fix-shape): the symmetric unregister is the MECHANISM, the
+ * READ KEYS read-back is the POSTCONDITION, and the load-bearing invariant is
+ *
+ *     once MXFS declares an incarnation's storage authority retired, no
+ *     registration bearing that incarnation's PR key may remain.
+ *
+ * so this function never reports success it did not prove.  The result
+ * mapping is exactly the ruling's table:
+ *
+ *   unregister   read-back        outcome
+ *   success      key absent       0            (retired)
+ *   success      key present      -EBUSY       (partial cleanup)
+ *   conflict     key absent       0            (already gone)
+ *   conflict     key present      -EBUSY       (partial cleanup)
+ *   any          read-back failed -EPROTO      (UNKNOWN — never "gone")
+ *
+ * LIVENESS: a synchronous PR command can block far longer than an attempt
+ * count suggests (queue_if_no_path, SCSI error recovery, path failover), so
+ * the loop is bounded by BOTH an attempt count and an absolute deadline.
+ */
+#define MXFS_PR_VERIFY_ATTEMPTS		6
+#define MXFS_PR_VERIFY_DEADLINE_MS	20000
+#define MXFS_PR_VERIFY_MAX_KEYS		256
+
+/*
+ * Is `key` present in the target's registration table?  Returns 0 and sets
+ * *present only on a COMPLETE read; an incomplete or failed READ KEYS is an
+ * error and never means absence.
+ */
+static int mxfs_pr_key_present_bdev(struct block_device *bdev, uint64_t key,
+				    bool *present)
+{
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
+	const struct pr_ops *ops;
+	struct pr_keys *buf;
+	unsigned int cap = 64;
+	int ret, i, ua_try;
+
+	if (!bdev || !bdev->bd_disk || !bdev->bd_disk->fops ||
+	    !bdev->bd_disk->fops->pr_ops)
+		return -EOPNOTSUPP;
+	ops = bdev->bd_disk->fops->pr_ops;
+	if (!ops->pr_read_keys)
+		return -EOPNOTSUPP;
+
+	for (;;) {
+		buf = kzalloc(sizeof(*buf) + (size_t)cap * sizeof(u64),
+			      GFP_KERNEL);
+		if (!buf)
+			return -ENOMEM;
+		buf->num_keys = cap;
+
+		ret = -EIO;
+		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+			ret = ops->pr_read_keys(bdev, buf);
+			if (ret != SAM_STAT_CHECK_CONDITION)
+				break;
+			msleep(2 << ua_try);
+		}
+		if (ret) {
+			kfree(buf);
+			return ret;
+		}
+		/*
+		 * pr_read_keys overwrites num_keys with the TOTAL the target
+		 * reports (ADDITIONAL LENGTH / 8), which may exceed the
+		 * capacity we offered — only min(cap, total) were copied.  A
+		 * truncated view cannot prove absence, so grow and re-read.
+		 */
+		if (buf->num_keys > cap) {
+			unsigned int need = buf->num_keys;
+
+			kfree(buf);
+			if (need > MXFS_PR_VERIFY_MAX_KEYS)
+				return -E2BIG;
+			cap = need;
+			continue;
+		}
+		*present = false;
+		for (i = 0; i < (int)buf->num_keys; i++)
+			if (buf->keys[i] == key) {
+				*present = true;
+				break;
+			}
+		kfree(buf);
+		return 0;
+	}
+#else
+	(void)bdev; (void)key; (void)present;
+	return -EOPNOTSUPP;
+#endif
+}
+
 int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key);
 int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 {
 	const struct pr_ops *ops;
+	unsigned long deadline;
 	int ret = -EOPNOTSUPP;
-	int ua_try;
+	int attempt;
 
 	if (!bdev)
 		return -EINVAL;
@@ -3060,24 +3623,74 @@ int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 	if (!ops->pr_register)
 		return -EOPNOTSUPP;
 
-	/* Unregister: old_key=key, new_key=0 */
-	for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
-		ret = ops->pr_register(bdev, key, 0, 0);
-		if (ret != SAM_STAT_CHECK_CONDITION)
+	deadline = jiffies + msecs_to_jiffies(MXFS_PR_VERIFY_DEADLINE_MS);
+
+	for (attempt = 0; attempt < MXFS_PR_VERIFY_ATTEMPTS; attempt++) {
+		bool present = true;
+		int vr, ua_try;
+
+		/*
+		 * The SYMMETRIC operation: REGISTER AND IGNORE EXISTING KEY
+		 * with SERVICE ACTION RESERVATION KEY = 0.  Every nexus
+		 * accepts it regardless of what it currently holds, so dm's
+		 * fail_early first pass has nothing to trip over and visits
+		 * them all.
+		 */
+		ret = -EIO;
+		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+			ret = ops->pr_register(bdev, key, 0, PR_FL_IGNORE_KEY);
+			if (ret != SAM_STAT_CHECK_CONDITION)
+				break;
+			msleep(2 << ua_try);
+		}
+
+		vr = mxfs_pr_key_present_bdev(bdev, key, &present);
+		if (vr == 0) {
+			if (!present)
+				return 0;	/* PROVEN retired */
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs-pal: P301-PR-UNREG-INCOMPLETE key "
+				     "0x%llx still registered after unregister "
+				     "(rc=%d, attempt %d/%d) — retrying",
+				     (unsigned long long)key, ret, attempt + 1,
+				     MXFS_PR_VERIFY_ATTEMPTS);
+		} else if (vr == -EOPNOTSUPP) {
+			/*
+			 * The target answers PR OUT but not PR IN READ KEYS,
+			 * so this node cannot prove its own departure.  Say
+			 * so; do NOT fall back to believing the return code.
+			 */
+			mxfs_pal_log(MXFS_LOG_ERR,
+				     "mxfs-pal: P301-PR-UNREG-UNVERIFIABLE key "
+				     "0x%llx — this target does not answer "
+				     "PERSISTENT RESERVE IN / READ KEYS, so "
+				     "retirement of this incarnation's storage "
+				     "authority CANNOT be proved (unregister "
+				     "rc=%d)",
+				     (unsigned long long)key, ret);
+			return -EPROTO;
+		} else {
+			mxfs_pal_log(MXFS_LOG_WARN,
+				     "mxfs-pal: P301-PR-UNREG-READBACK-FAIL key "
+				     "0x%llx read-back rc=%d (unregister rc=%d, "
+				     "attempt %d/%d)",
+				     (unsigned long long)key, vr, ret,
+				     attempt + 1, MXFS_PR_VERIFY_ATTEMPTS);
+		}
+
+		if (time_after(jiffies, deadline))
 			break;
-		msleep(2 << ua_try);
+		msleep(200);
 	}
 
-	/*
-	 * RESERVATION CONFLICT (0x18 / 24): our key was already
-	 * removed — preempted by another node or a previous
-	 * unregister succeeded. The key is gone, which is the
-	 * desired outcome.
-	 */
-	if (ret == 0x18 || ret == -EBUSY)
-		return 0;
-
-	return ret;
+	mxfs_pal_log(MXFS_LOG_ERR,
+		     "mxfs-pal: P301-PR-AUTHORITY-NOT-RETIRED key 0x%llx is "
+		     "STILL REGISTERED (or unverifiable) after %d attempts — "
+		     "this initiator can still write to the shared LUN.  "
+		     "Departure is NOT complete; the cluster must fence this "
+		     "key.  See D-CLEAN-UNMOUNT-LEAKS-PR-REGISTRATION-377.",
+		     (unsigned long long)key, attempt);
+	return -EBUSY;
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_unregister_bdev);
 
@@ -3093,27 +3706,13 @@ int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
 	if (!ops || !ops->pr_register)
 		return -EOPNOTSUPP;
 
-	/* Unregister: old_key=key, new_key=0 */
-	{
-		int ua_try;
-
-		for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
-			ret = ops->pr_register(dev->bdev, key, 0, 0);
-			if (ret != SAM_STAT_CHECK_CONDITION)
-				break;
-			msleep(2 << ua_try);
-		}
-	}
-
-	/*
-	 * RESERVATION CONFLICT (0x18 / 24): our key was already
-	 * removed — preempted by another node or a previous
-	 * unregister succeeded. The key is gone, which is the
-	 * desired outcome.
-	 */
-	if (ret == 0x18 || ret == -EBUSY)
-		return 0;
-
+	/* sess377: one implementation, one contract — the symmetric all-nexus
+	 * unregister plus the mandatory READ KEYS postcondition.  See
+	 * mxfs_pal_scsi_pr_unregister_bdev() for the full reasoning and the
+	 * result mapping; duplicating the old open-coded version here is how
+	 * D-CLEAN-UNMOUNT-LEAKS-PR-REGISTRATION-377 came to exist on two
+	 * paths at once. */
+	ret = mxfs_pal_scsi_pr_unregister_bdev(dev->bdev, key);
 	return ret;
 }
 
@@ -3189,6 +3788,158 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 		*count = 0;
 	if (total)
 		*total = 0;
+	return -EOPNOTSUPP;
+#endif
+}
+
+/*
+ * PERSISTENT RESERVE IN / READ FULL STATUS (service action 0x03).
+ *
+ * The block layer's pr_ops has no hook for this service action, so the
+ * CDB goes straight to the resolved scsi_device, the same way COMPARE
+ * AND WRITE does.  READ FULL STATUS is the only PR IN form whose answer
+ * is per-I_T-nexus AND target-generated at command time — READ KEYS
+ * cannot distinguish "my key" from "someone re-registered the same key
+ * value", and a fenced node's plain reads of the heartbeat sector can
+ * be arbitrarily stale (sess276: 51 generations).  PR IN is permitted
+ * to an unregistered initiator under WE-RO, so a fenced victim can
+ * still ask this question — that is the point.
+ *
+ * *present = 1 iff a registration descriptor carrying `key` exists.
+ * Parse anomalies (descriptor overrun, unbounded ADDITIONAL LENGTH)
+ * return -EPROTO: the caller must treat that as "unknown", never as
+ * absence.
+ */
+int mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key,
+				      int *present, uint32_t *generation)
+{
+#if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
+	struct scsi_device *sdev;
+	struct scsi_sense_hdr sshdr;
+	unsigned char cdb[10];
+	unsigned char *resp;
+	size_t resp_len = 4096;
+	uint32_t addl_len;
+	size_t off, end;
+	int ua_try = 0;
+	int resized = 0;
+	int ret;
+
+	if (!dev || !dev->bdev || !present)
+		return -EINVAL;
+
+	*present = 0;
+	if (generation)
+		*generation = 0;
+
+	sdev = mxfs_bdev_to_sdev(dev->bdev);
+	if (!sdev)
+		return -EOPNOTSUPP;
+
+resize:
+	resp = kzalloc(resp_len, GFP_KERNEL);
+	if (!resp) {
+		scsi_device_put(sdev);
+		return -ENOMEM;
+	}
+
+resubmit:
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = 0x5e;			/* PERSISTENT RESERVE IN */
+	cdb[1] = 0x03;			/* READ FULL STATUS */
+	cdb[7] = (u8)(resp_len >> 8);
+	cdb[8] = (u8)resp_len;
+
+	memset(&sshdr, 0, sizeof(sshdr));
+	{
+		struct scsi_exec_args args = { .sshdr = &sshdr };
+
+		ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_IN, resp,
+				       resp_len, 30 * HZ, 1, &args);
+	}
+
+	if (ret > 0 && scsi_sense_valid(&sshdr) &&
+	    sshdr.sense_key == UNIT_ATTENTION && ua_try < MXFS_PR_UA_RETRIES) {
+		ua_try++;
+		msleep(2 << ua_try);
+		goto resubmit;
+	}
+	if (ret > 0) {
+		/* ILLEGAL REQUEST → the target does not implement SA 0x03;
+		 * let the caller fall back to READ KEYS. */
+		if (scsi_sense_valid(&sshdr) &&
+		    sshdr.sense_key == ILLEGAL_REQUEST)
+			ret = -EOPNOTSUPP;
+		else
+			ret = -EIO;
+	}
+	if (ret < 0)
+		goto out;
+
+	if (generation)
+		*generation = ((uint32_t)resp[0] << 24) |
+			      ((uint32_t)resp[1] << 16) |
+			      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+	addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
+		   ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+
+	/* Truncated view: the target holds more descriptor bytes than we
+	 * allocated.  Absence in a truncated view proves nothing (see the
+	 * MXFS_PR_MAX_KEYS contract) — resize once to the reported length
+	 * and reissue. */
+	if (8 + (size_t)addl_len > resp_len) {
+		if (resized++ || addl_len > (1u << 20)) {
+			ret = -EPROTO;
+			goto out;
+		}
+		kfree(resp);
+		resp_len = round_up(8 + (size_t)addl_len, 512);
+		ua_try = 0;
+		goto resize;
+	}
+
+	/* Walk the full-status descriptors: 24 fixed bytes + the
+	 * ADDITIONAL DESCRIPTOR LENGTH (bytes 20-23) of TransportID. */
+	off = 8;
+	end = 8 + (size_t)addl_len;
+	while (off + 24 <= end) {
+		uint64_t dkey =
+			((uint64_t)resp[off]     << 56) |
+			((uint64_t)resp[off + 1] << 48) |
+			((uint64_t)resp[off + 2] << 40) |
+			((uint64_t)resp[off + 3] << 32) |
+			((uint64_t)resp[off + 4] << 24) |
+			((uint64_t)resp[off + 5] << 16) |
+			((uint64_t)resp[off + 6] << 8)  |
+			 (uint64_t)resp[off + 7];
+		uint32_t tid_len =
+			((uint32_t)resp[off + 20] << 24) |
+			((uint32_t)resp[off + 21] << 16) |
+			((uint32_t)resp[off + 22] << 8)  |
+			 (uint32_t)resp[off + 23];
+
+		if (dkey == key) {
+			*present = 1;
+			break;
+		}
+		if (off + 24 + (size_t)tid_len > end) {
+			ret = -EPROTO;	/* descriptor overruns payload */
+			goto out;
+		}
+		off += 24 + tid_len;
+	}
+	ret = 0;
+out:
+	kfree(resp);
+	scsi_device_put(sdev);
+	return ret;
+#else
+	(void)dev;
+	(void)key;
+	if (present)
+		*present = 0;
+	if (generation)
+		*generation = 0;
 	return -EOPNOTSUPP;
 #endif
 }
@@ -3560,6 +4311,17 @@ caw_submit:
 	}
 
 	if (ret > 0) {
+		/* RESERVATION CONFLICT is fencing, not an I/O fault: our PR
+		 * registration was preempted.  Collapsing it to -EIO hid the
+		 * sess276 fenced-victim from every layer above (the victim
+		 * spun P15-REL-ABORT for hours on -EIO CAS failures).  Both
+		 * submission paths land here: caw_manual_bio returns raw
+		 * scmd->result and scsi_execute_cmd returns the SCSI status,
+		 * so the status byte is the low byte in either case. */
+		if ((ret & 0xff) == SAM_STAT_RESERVATION_CONFLICT) {
+			ret = -EBADE;
+			goto done;
+		}
 		ret = -EIO;
 		goto done;
 	}
@@ -3742,6 +4504,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_thread_create);
 EXPORT_SYMBOL_GPL(mxfs_pal_thread_create_rt);
 EXPORT_SYMBOL_GPL(mxfs_pal_thread_join);
 EXPORT_SYMBOL_GPL(mxfs_pal_thread_join_timeout);
+EXPORT_SYMBOL_GPL(mxfs_pal_thread_pid);
 EXPORT_SYMBOL_GPL(mxfs_pal_mutex_create);
 EXPORT_SYMBOL_GPL(mxfs_pal_mutex_destroy);
 EXPORT_SYMBOL_GPL(mxfs_pal_mutex_lock);
@@ -3794,6 +4557,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_reserve);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_preempt);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_unregister);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_keys);
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_full_status);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_read_reservation);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_compare_and_write);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_get_bdev);

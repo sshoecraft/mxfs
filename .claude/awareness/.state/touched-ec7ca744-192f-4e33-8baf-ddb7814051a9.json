@@ -1,0 +1,13 @@
+{
+  "source": [
+    "tools/recov_forge.c",
+    "dlm/disklock.h",
+    "dlm/disklock.c",
+    "dlm/v5_mount.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/tools.md"
+  ],
+  "regen_done": true,
+  "nudges": 2
+}

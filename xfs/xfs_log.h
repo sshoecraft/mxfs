@@ -122,8 +122,38 @@ int	  xfs_log_mount(struct xfs_mount	*mp,
 			int		 	num_bblocks);
 int	  xfs_log_mount_finish(struct xfs_mount *mp);
 void	xfs_log_mount_cancel(struct xfs_mount *);
+
+/*
+ * sess324 (D-513, sess320 ruling): the verdict a refused foreign replay
+ * hands back to the caller so the recovery-lease owner can publish a
+ * TERMINAL REFUSED outcome instead of latching silently.  reason values
+ * intentionally equal the disklock wire constants (MXFS_RECOV_REFUSAL_*);
+ * the publish site maps them explicitly all the same, so this header does
+ * not depend on dlm/disklock.h.
+ *
+ * digest_valid=false means the forensic digest could not be captured
+ * (the slice reread failed).  sess327 (sess325 ruling item 5): the
+ * verdict still publishes — with the DIGEST_VALID flag clear and a zero
+ * digest — because the refusal evidence is the gate decision itself;
+ * the digest is forensics, never a gate.
+ */
+#define MXFS_FREPLAY_REASON_NONE		0
+#define MXFS_FREPLAY_REASON_POLICY_REFUSED	1
+#define MXFS_FREPLAY_REASON_TORN		2
+
+struct mxfs_freplay_verdict {
+	uint16_t	reason;		/* MXFS_FREPLAY_REASON_* */
+	bool		fswide;		/* quarantine domain = whole fs */
+	bool		digest_valid;	/* slice_digest captured OK */
+	uint64_t	ag_mask;	/* valid iff !fswide; bit n = AG n */
+	uint64_t	slice_digest;	/* crc32c of the refused slice image */
+	uint32_t	refused_items;	/* log items the gates refused */
+	uint32_t	malformed_items;/* log items that failed to parse */
+};
+
 int	mxfs_xlog_recover_foreign_slice(struct xfs_mount *mp,
-				uint32_t dead_slot);
+				uint32_t dead_slot,
+				struct mxfs_freplay_verdict *verdict);
 xfs_lsn_t xlog_assign_tail_lsn(struct xfs_mount *mp);
 xfs_lsn_t xlog_assign_tail_lsn_locked(struct xfs_mount *mp);
 void	xfs_log_space_wake(struct xfs_mount *mp);

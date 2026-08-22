@@ -44,8 +44,8 @@ for i in $(seq 1 "$ITERS"); do
       if [ -n "$FR" ]; then
         echo "[RDMISS/CLASS]"; grep -E "drc-RDMISS|drc-CLASS|drc-DIRID|drc-FAIL" "$FR" | tail -12
         echo "[flap events (deferring/reconnect/declare/timeout)]"; grep -E "deferring death|reconnected — cancelling|did not reconnect|declaring dead|timed out \(slow peer|communication with node" "$FR" | tail -12
-        echo "[COUNTREGRESS — fail+create snapshots]"; grep -hE "P-COUNTREGRESS" /root/drc_fail_r*.dmesg /root/drc_create_r*.dmesg 2>/dev/null | tail -12
-        echo "[DOUBLEGRANT / STALEMASTER (serialization breaks) — all snapshots]"; grep -hE "MX-DOUBLEGRANT|P-STALEMASTER-GRANT" /root/drc_fail_r*.dmesg /root/drc_create_r*.dmesg 2>/dev/null | tail -16
+        echo "[COUNTREGRESS — fail+create snapshots]"; grep -hE "P-COUNTREGRESS" /root/drc_fail_r*.dmesg /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg 2>/dev/null | tail -12
+        echo "[DOUBLEGRANT / STALEMASTER (serialization breaks) — all snapshots]"; grep -hE "MX-DOUBLEGRANT|P-STALEMASTER-GRANT" /root/drc_fail_r*.dmesg /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg 2>/dev/null | tail -16
         echo "[clobber/relverify/bmbt/hole/barrier]"; grep -E "P-DATACLOBBER-SKIP|P25-RELVERIFY|P60-BMBT|DABUF_MAP_HOLE|P39-EXSUBSET|P26-SUBSET|P40-WRBARRIER" "$FR" | tail -12
         echo "[P40 max waits across whole dmesg]"; grep -E "P40-WRBARRIER" "$FR" | grep -oE "waited=[0-9]+ms inflight=[0-9]+" | sort -t= -k2 -n | tail -6
         mkdir -p /src/mxfs/tests/tcp/drc_cap 2>/dev/null; grep -E "P-DLAND" "$FR" > "/src/mxfs/tests/tcp/drc_cap/dland_$(hostname).txt" 2>/dev/null; echo "[P-DLAND ring dump -> dland_$(hostname).txt lines=$(grep -cE P-DLAND "$FR")]"

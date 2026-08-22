@@ -1,0 +1,12 @@
+--- prep: 32 node(s) [test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 test12 test13 test14 test15 test16 test17 test18 test19 test20 test21 test22 test23 test24 test25 test26 test27 test28 test29 test30 test31 test32] transport=caw ---
+--- prep: test16 did not release mxfs / lost /src (or unreachable) — escalating ---
+--- prep: test27 did not release mxfs / lost /src (or unreachable) — escalating ---
+--- prep: test30 did not release mxfs / lost /src (or unreachable) — escalating ---
+--- prep: test32 did not release mxfs / lost /src (or unreachable) — escalating ---
+    power-cycling test16 (virsh destroy+start)
+    power-cycling test27 (virsh destroy+start)
+    power-cycling test30 (virsh destroy+start)
+    power-cycling test32 (virsh destroy+start)
+--- prep OK: mxfs mounted on all 32 node(s), build 489E81B9493ED7386D5B428 ---
+--- converged: all 32 nodes report active_count=32 (stable, 10s) ---
+=== prep_cluster OK @ 32/caw (102s) — marker updated ===

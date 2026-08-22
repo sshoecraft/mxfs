@@ -70,3 +70,16 @@ tests/logs/
 # ---- (test-node credentials, IPs). Never track. Durable notable-change
 # ---- history goes in CHANGELOG.md; durable context goes in ccmemory.
 state.md
+
+# ---- More compiled tool binaries (rebuilt from the .c beside them) ----
+/tools/caw_slotdump
+/tools/recov_forge
+
+# ---- Python bytecode ----
+__pycache__/
+*.pyc
+
+# ---- Raw per-node kernel-log dumps (.klog == .dmesg): same class as above,
+# ---- 47 files / 555MB stood untracked on 2026-08-22. Harvested .txt proofs
+# ---- beside them stay tracked via the tests/evidence rules above.
+*.klog

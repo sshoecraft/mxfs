@@ -1,0 +1,770 @@
+chk_mxfs v0.11.481 -- checking /home/steve/disk.img
+MXFS super .............. OK  (version=1, device=50.00 GB)
+  journal_offset=4096
+  disklock_offset=67117056
+  xfs_data_offset=100704256
+  slot 0: clean (owner=0)
+  slot 1: clean (owner=0)
+  slot 2: clean (owner=0)
+  slot 3: clean (owner=0)
+  slot 4: clean (owner=0)
+  slot 5: clean (owner=0)
+  slot 6: clean (owner=0)
+  slot 7: clean (owner=0)
+  slot 8: clean (owner=0)
+  slot 9: clean (owner=0)
+  slot 10: clean (owner=0)
+  slot 11: clean (owner=0)
+  slot 12: clean (owner=0)
+  slot 13: clean (owner=0)
+  slot 14: clean (owner=0)
+  slot 15: clean (owner=0)
+  slot 16: clean (owner=0)
+  slot 17: clean (owner=0)
+  slot 18: clean (owner=0)
+  slot 19: clean (owner=0)
+  slot 20: clean (owner=0)
+  slot 21: clean (owner=0)
+  slot 22: clean (owner=0)
+  slot 23: clean (owner=0)
+  slot 24: clean (owner=0)
+  slot 25: clean (owner=0)
+  slot 26: clean (owner=0)
+  slot 27: clean (owner=0)
+  slot 28: clean (owner=0)
+  slot 29: clean (owner=0)
+  slot 30: clean (owner=0)
+  slot 31: clean (owner=0)
+  slot 32: clean (owner=0)
+  slot 33: clean (owner=0)
+  slot 34: clean (owner=0)
+  slot 35: clean (owner=0)
+  slot 36: clean (owner=0)
+  slot 37: clean (owner=0)
+  slot 38: clean (owner=0)
+  slot 39: clean (owner=0)
+  slot 40: clean (owner=0)
+  slot 41: clean (owner=0)
+  slot 42: clean (owner=0)
+  slot 43: clean (owner=0)
+  slot 44: clean (owner=0)
+  slot 45: clean (owner=0)
+  slot 46: clean (owner=0)
+  slot 47: clean (owner=0)
+  slot 48: clean (owner=0)
+  slot 49: clean (owner=0)
+  slot 50: clean (owner=0)
+  slot 51: clean (owner=0)
+  slot 52: clean (owner=0)
+  slot 53: clean (owner=0)
+  slot 54: clean (owner=0)
+  slot 55: clean (owner=0)
+  slot 56: clean (owner=0)
+  slot 57: clean (owner=0)
+  slot 58: clean (owner=0)
+  slot 59: clean (owner=0)
+  slot 60: clean (owner=0)
+  slot 61: clean (owner=0)
+  slot 62: clean (owner=0)
+  slot 63: clean (owner=0)
+Journal ................. OK  (64 slots, 64 clean, 0 dirty)
+  disklock HB slot 7: inactive
+  disklock HB slot 8: inactive
+  disklock HB slot 9: inactive
+  disklock HB slot 10: inactive
+  disklock HB slot 11: inactive
+  disklock HB slot 13: inactive
+  disklock HB slot 14: inactive
+  disklock HB slot 15: inactive
+  disklock HB slot 16: inactive
+  disklock HB slot 17: inactive
+  disklock HB slot 18: inactive
+  disklock HB slot 19: inactive
+  disklock HB slot 20: inactive
+  disklock HB slot 21: inactive
+  disklock HB slot 22: inactive
+  disklock HB slot 23: inactive
+  disklock HB slot 24: inactive
+  disklock HB slot 27: inactive
+  disklock HB slot 31: inactive
+Disklock ................ OK  (64 HB slots, 0 active)
+Membership epoch ........ none (pre-NET2 volume)
+XFS superblock .......... OK  (blocksize=4096, agcount=25, fdblocks=12356272)
+  dblocks=13082614, icount=3456, ifree=129, rootino=128
+  sectsize=512, inodesize=512, inopblock=8
+  features_ro_compat=0x00000001 (finobt=yes)
+  UUID: 7b93c3dd-0a96-4b62-b7e5-6164d0fbcf80
+  AG 0 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=388830 longest=388814
+  AG 0 AGI: ino_root=3 ino_level=1 count=1152 freecount=29 fino_root=4 fino_level=1
+  AG 0: AGF OK, AGI OK
+  AG 0 BNO btree block 1: level=0 numrecs=2
+  AG 0 CNT btree block 2: level=0 numrecs=2
+  AG 0 BNO/CNT btrees .. OK  (free=388830 blocks)
+  AG 0 inobt btree block 3: level=0 numrecs=18
+  AG 0 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 1: startino=9920 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 2: startino=1064000 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 3: startino=1064064 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 4: startino=1064128 count=64 freecount=3 holemask=0x0000
+  AG 0 inobt rec 5: startino=1064256 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 6: startino=1064320 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 7: startino=1064384 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 8: startino=1064448 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 9: startino=1064512 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 10: startino=1064640 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 11: startino=1064704 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 12: startino=1069824 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 13: startino=1069952 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 14: startino=1070016 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 15: startino=1072768 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 16: startino=1074944 count=64 freecount=0 holemask=0x0000
+  AG 0 inobt rec 17: startino=1075520 count=64 freecount=26 holemask=0x0000
+  AG 0 inobt ........... OK  (1152 inodes, 29 free, 18 records)
+  AG 0 finobt btree block 4: level=0 numrecs=2
+  AG 0 finobt rec 0: startino=1064128 count=64 freecount=3 holemask=0x0000
+  AG 0 finobt rec 1: startino=1075520 count=64 freecount=26 holemask=0x0000
+  AG 0 finobt .......... OK  (29 free, 2 records)
+  AG 1 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=388874 longest=388867
+  AG 1 AGI: ino_root=3 ino_level=1 count=1152 freecount=58 fino_root=4 fino_level=1
+  AG 1: AGF OK, AGI OK
+  AG 1 BNO btree block 1: level=0 numrecs=2
+  AG 1 CNT btree block 2: level=0 numrecs=2
+  AG 1 BNO/CNT btrees .. OK  (free=388874 blocks)
+  AG 1 inobt btree block 3: level=0 numrecs=18
+  AG 1 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 1: startino=9792 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 2: startino=1063680 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 3: startino=1063744 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 4: startino=1063872 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 5: startino=1063936 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 6: startino=1064000 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 7: startino=1064064 count=64 freecount=1 holemask=0x0000
+  AG 1 inobt rec 8: startino=1064192 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 9: startino=1064256 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 10: startino=1064320 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 11: startino=1064384 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 12: startino=1064448 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 13: startino=1067712 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 14: startino=1070976 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 15: startino=1073344 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 16: startino=1074624 count=64 freecount=0 holemask=0x0000
+  AG 1 inobt rec 17: startino=1075328 count=64 freecount=53 holemask=0x0000
+  ERROR: AG 1: inobt total free=54 != AGI freecount=58
+  AG 1 inobt ........... ERRORS  (1152 inodes, 54 free, 18 records)
+  AG 1 finobt btree block 4: level=0 numrecs=3
+  AG 1 finobt rec 0: startino=1063744 count=64 freecount=4 holemask=0x0000
+  AG 1 finobt rec 1: startino=1064064 count=64 freecount=1 holemask=0x0000
+  AG 1 finobt rec 2: startino=1075328 count=64 freecount=53 holemask=0x0000
+  ERROR: AG 1: finobt total free=58 != inobt total free=54
+  AG 1 finobt .......... ERRORS  (58 free, 3 records)
+  AG 2 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=381217 longest=381172
+  AG 2 AGI: ino_root=3 ino_level=1 count=1152 freecount=48 fino_root=4 fino_level=1
+  AG 2: AGF OK, AGI OK
+  AG 2 BNO btree block 1: level=0 numrecs=2
+  AG 2 CNT btree block 2: level=0 numrecs=2
+  AG 2 BNO/CNT btrees .. OK  (free=381217 blocks)
+  AG 2 inobt btree block 3: level=0 numrecs=18
+  AG 2 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 1: startino=9728 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 2: startino=1125056 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 3: startino=1125120 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 4: startino=1125184 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 5: startino=1125312 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 6: startino=1125376 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 7: startino=1125440 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 8: startino=1125504 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 9: startino=1125568 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 10: startino=1125696 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 11: startino=1130432 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 12: startino=1130496 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 13: startino=1130560 count=64 freecount=8 holemask=0x0000
+  AG 2 inobt rec 14: startino=1130624 count=64 freecount=7 holemask=0x0000
+  AG 2 inobt rec 15: startino=1134208 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 16: startino=1135680 count=64 freecount=0 holemask=0x0000
+  AG 2 inobt rec 17: startino=1136768 count=64 freecount=33 holemask=0x0000
+  AG 2 inobt ........... OK  (1152 inodes, 48 free, 18 records)
+  AG 2 finobt btree block 4: level=0 numrecs=3
+  AG 2 finobt rec 0: startino=1130560 count=64 freecount=8 holemask=0x0000
+  AG 2 finobt rec 1: startino=1130624 count=64 freecount=7 holemask=0x0000
+  AG 2 finobt rec 2: startino=1136768 count=64 freecount=33 holemask=0x0000
+  AG 2 finobt .......... OK  (48 free, 3 records)
+  AG 3 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=389272 longest=389272
+  AG 3 AGI: ino_root=3 ino_level=1 count=768 freecount=76 fino_root=4 fino_level=1
+  AG 3: AGF OK, AGI OK
+  AG 3 BNO btree block 1: level=0 numrecs=1
+  AG 3 CNT btree block 2: level=0 numrecs=1
+  AG 3 BNO/CNT btrees .. OK  (free=389272 blocks)
+  AG 3 inobt btree block 3: level=0 numrecs=12
+  AG 3 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 1: startino=15040 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 2: startino=1063680 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 3: startino=1063744 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 4: startino=1063872 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 5: startino=1063936 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 6: startino=1064000 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 7: startino=1065216 count=64 freecount=42 holemask=0x0000
+  AG 3 inobt rec 8: startino=1066816 count=64 freecount=34 holemask=0x0000
+  AG 3 inobt rec 9: startino=1068480 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 10: startino=1070656 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt rec 11: startino=1071360 count=64 freecount=0 holemask=0x0000
+  AG 3 inobt ........... OK  (768 inodes, 76 free, 12 records)
+  AG 3 finobt btree block 4: level=0 numrecs=2
+  AG 3 finobt rec 0: startino=1065216 count=64 freecount=42 holemask=0x0000
+  AG 3 finobt rec 1: startino=1066816 count=64 freecount=34 holemask=0x0000
+  AG 3 finobt .......... OK  (76 free, 2 records)
+  AG 4 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=388022 longest=387967
+  AG 4 AGI: ino_root=3 ino_level=1 count=1600 freecount=51 fino_root=4 fino_level=1
+  AG 4: AGF OK, AGI OK
+  AG 4 BNO btree block 1: level=0 numrecs=4
+  AG 4 CNT btree block 2: level=0 numrecs=4
+  AG 4 BNO/CNT btrees .. OK  (free=388022 blocks)
+  AG 4 inobt btree block 3: level=0 numrecs=25
+  AG 4 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 1: startino=9856 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 2: startino=1063680 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 3: startino=1063808 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 4: startino=1063872 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 5: startino=1063936 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 6: startino=1066368 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 7: startino=1066432 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 8: startino=1066496 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 9: startino=1066624 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 10: startino=1066688 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 11: startino=1066752 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 12: startino=1066816 count=64 freecount=5 holemask=0x0000
+  AG 4 inobt rec 13: startino=1066880 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 14: startino=1066944 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 15: startino=1067008 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 16: startino=1067136 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 17: startino=1067200 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 18: startino=1067264 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 19: startino=1067328 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 20: startino=1067392 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 21: startino=1077760 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 22: startino=1080192 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 23: startino=1081856 count=64 freecount=0 holemask=0x0000
+  AG 4 inobt rec 24: startino=1082368 count=64 freecount=42 holemask=0x0000
+  ERROR: AG 4: inobt total free=47 != AGI freecount=51
+  AG 4 inobt ........... ERRORS  (1600 inodes, 47 free, 25 records)
+  AG 4 finobt btree block 4: level=0 numrecs=3
+  AG 4 finobt rec 0: startino=1063680 count=64 freecount=4 holemask=0x0000
+  AG 4 finobt rec 1: startino=1066816 count=64 freecount=5 holemask=0x0000
+  AG 4 finobt rec 2: startino=1082368 count=64 freecount=42 holemask=0x0000
+  ERROR: AG 4: finobt total free=51 != inobt total free=47
+  AG 4 finobt .......... ERRORS  (51 free, 3 records)
+  AG 5 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=389103 longest=389089
+  AG 5 AGI: ino_root=3 ino_level=1 count=1152 freecount=67 fino_root=4 fino_level=1
+  AG 5: AGF OK, AGI OK
+  AG 5 BNO btree block 1: level=0 numrecs=4
+  AG 5 CNT btree block 2: level=0 numrecs=4
+  AG 5 BNO/CNT btrees .. OK  (free=389103 blocks)
+  AG 5 inobt btree block 3: level=0 numrecs=18
+  AG 5 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 1: startino=1061568 count=64 freecount=2 holemask=0x0000
+  AG 5 inobt rec 2: startino=1061632 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 3: startino=1061696 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 4: startino=1061760 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 5: startino=1061824 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 6: startino=1061952 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 7: startino=1062016 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 8: startino=1065024 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 9: startino=1065152 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 10: startino=1065216 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 11: startino=1065280 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 12: startino=1065344 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 13: startino=1065472 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 14: startino=1069312 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 15: startino=1071744 count=64 freecount=0 holemask=0x0000
+  AG 5 inobt rec 16: startino=1072896 count=64 freecount=1 holemask=0x0000
+  AG 5 inobt rec 17: startino=1073664 count=64 freecount=64 holemask=0x0000
+  AG 5 inobt ........... OK  (1152 inodes, 67 free, 18 records)
+  AG 5 finobt btree block 4: level=0 numrecs=3
+  AG 5 finobt rec 0: startino=1061568 count=64 freecount=2 holemask=0x0000
+  AG 5 finobt rec 1: startino=1072896 count=64 freecount=1 holemask=0x0000
+  AG 5 finobt rec 2: startino=1073664 count=64 freecount=64 holemask=0x0000
+  AG 5 finobt .......... OK  (67 free, 3 records)
+  AG 6 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=388637 longest=388615
+  AG 6 AGI: ino_root=3 ino_level=1 count=1152 freecount=52 fino_root=4 fino_level=1
+  AG 6: AGF OK, AGI OK
+  AG 6 BNO btree block 1: level=0 numrecs=2
+  AG 6 CNT btree block 2: level=0 numrecs=2
+  AG 6 BNO/CNT btrees .. OK  (free=388637 blocks)
+  AG 6 inobt btree block 3: level=0 numrecs=18
+  AG 6 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 1: startino=12032 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 2: startino=1065920 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 3: startino=1065984 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 4: startino=1066048 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 5: startino=1066112 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 6: startino=1066176 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 7: startino=1066240 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 8: startino=1069184 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 9: startino=1069312 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 10: startino=1069376 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 11: startino=1069440 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 12: startino=1069504 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 13: startino=1069632 count=64 freecount=4 holemask=0x0000
+  AG 6 inobt rec 14: startino=1069696 count=64 freecount=14 holemask=0x0000
+  AG 6 inobt rec 15: startino=1075072 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 16: startino=1076480 count=64 freecount=0 holemask=0x0000
+  AG 6 inobt rec 17: startino=1077120 count=64 freecount=34 holemask=0x0000
+  AG 6 inobt ........... OK  (1152 inodes, 52 free, 18 records)
+  AG 6 finobt btree block 4: level=0 numrecs=3
+  AG 6 finobt rec 0: startino=1069632 count=64 freecount=4 holemask=0x0000
+  AG 6 finobt rec 1: startino=1069696 count=64 freecount=14 holemask=0x0000
+  AG 6 finobt rec 2: startino=1077120 count=64 freecount=34 holemask=0x0000
+  AG 6 finobt .......... OK  (52 free, 3 records)
+  AG 7 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456067
+  AG 7 AGI: ino_root=3 ino_level=1 count=576 freecount=29 fino_root=4 fino_level=1
+  AG 7: AGF OK, AGI OK
+  AG 7 BNO btree block 1: level=0 numrecs=2
+  AG 7 CNT btree block 2: level=0 numrecs=2
+  AG 7 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 7 inobt btree block 3: level=0 numrecs=9
+  AG 7 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 6: startino=532288 count=64 freecount=7 holemask=0x0000
+  AG 7 inobt rec 7: startino=535552 count=64 freecount=0 holemask=0x0000
+  AG 7 inobt rec 8: startino=537536 count=64 freecount=22 holemask=0x0000
+  AG 7 inobt ........... OK  (576 inodes, 29 free, 9 records)
+  AG 7 finobt btree block 4: level=0 numrecs=2
+  AG 7 finobt rec 0: startino=532288 count=64 freecount=7 holemask=0x0000
+  AG 7 finobt rec 1: startino=537536 count=64 freecount=22 holemask=0x0000
+  AG 7 finobt .......... OK  (29 free, 2 records)
+  AG 8 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456067
+  AG 8 AGI: ino_root=3 ino_level=1 count=576 freecount=25 fino_root=4 fino_level=1
+  AG 8: AGF OK, AGI OK
+  AG 8 BNO btree block 1: level=0 numrecs=2
+  AG 8 CNT btree block 2: level=0 numrecs=2
+  AG 8 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 8 inobt btree block 3: level=0 numrecs=9
+  AG 8 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 8 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 8 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 8 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 8 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 8 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 8 inobt rec 6: startino=534720 count=64 freecount=4 holemask=0x0000
+  AG 8 inobt rec 7: startino=534784 count=64 freecount=3 holemask=0x0000
+  AG 8 inobt rec 8: startino=537408 count=64 freecount=18 holemask=0x0000
+  AG 8 inobt ........... OK  (576 inodes, 25 free, 9 records)
+  AG 8 finobt btree block 4: level=0 numrecs=3
+  AG 8 finobt rec 0: startino=534720 count=64 freecount=4 holemask=0x0000
+  AG 8 finobt rec 1: startino=534784 count=64 freecount=3 holemask=0x0000
+  AG 8 finobt rec 2: startino=537408 count=64 freecount=18 holemask=0x0000
+  AG 8 finobt .......... OK  (25 free, 3 records)
+  AG 9 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456075 longest=456068
+  AG 9 AGI: ino_root=3 ino_level=1 count=576 freecount=29 fino_root=4 fino_level=1
+  AG 9: AGF OK, AGI OK
+  AG 9 BNO btree block 1: level=0 numrecs=2
+  AG 9 CNT btree block 2: level=0 numrecs=2
+  AG 9 BNO/CNT btrees .. OK  (free=456075 blocks)
+  AG 9 inobt btree block 3: level=0 numrecs=9
+  AG 9 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 6: startino=534848 count=64 freecount=7 holemask=0x0000
+  AG 9 inobt rec 7: startino=535552 count=64 freecount=0 holemask=0x0000
+  AG 9 inobt rec 8: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 9 inobt ........... OK  (576 inodes, 29 free, 9 records)
+  AG 9 finobt btree block 4: level=0 numrecs=2
+  AG 9 finobt rec 0: startino=534848 count=64 freecount=7 holemask=0x0000
+  AG 9 finobt rec 1: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 9 finobt .......... OK  (29 free, 2 records)
+  AG 10 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456073 longest=456066
+  AG 10 AGI: ino_root=3 ino_level=1 count=576 freecount=29 fino_root=4 fino_level=1
+  AG 10: AGF OK, AGI OK
+  AG 10 BNO btree block 1: level=0 numrecs=3
+  AG 10 CNT btree block 2: level=0 numrecs=3
+  AG 10 BNO/CNT btrees .. OK  (free=456073 blocks)
+  AG 10 inobt btree block 3: level=0 numrecs=9
+  AG 10 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 10 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 10 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 10 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 10 inobt rec 4: startino=532160 count=64 freecount=1 holemask=0x0000
+  AG 10 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 10 inobt rec 6: startino=534784 count=64 freecount=6 holemask=0x0000
+  AG 10 inobt rec 7: startino=535552 count=64 freecount=0 holemask=0x0000
+  AG 10 inobt rec 8: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 10 inobt ........... OK  (576 inodes, 29 free, 9 records)
+  AG 10 finobt btree block 4: level=0 numrecs=3
+  AG 10 finobt rec 0: startino=532160 count=64 freecount=1 holemask=0x0000
+  AG 10 finobt rec 1: startino=534784 count=64 freecount=6 holemask=0x0000
+  AG 10 finobt rec 2: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 10 finobt .......... OK  (29 free, 3 records)
+  AG 11 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456069
+  AG 11 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 11: AGF OK, AGI OK
+  AG 11 BNO btree block 1: level=0 numrecs=2
+  AG 11 CNT btree block 2: level=0 numrecs=2
+  AG 11 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 11 inobt btree block 3: level=0 numrecs=9
+  AG 11 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 11 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 11 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 11 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 11 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 11 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 11 inobt rec 6: startino=532288 count=64 freecount=4 holemask=0x0000
+  AG 11 inobt rec 7: startino=535104 count=64 freecount=1 holemask=0x0000
+  AG 11 inobt rec 8: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 11 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 11 finobt btree block 4: level=0 numrecs=3
+  AG 11 finobt rec 0: startino=532288 count=64 freecount=4 holemask=0x0000
+  AG 11 finobt rec 1: startino=535104 count=64 freecount=1 holemask=0x0000
+  AG 11 finobt rec 2: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 11 finobt .......... OK  (27 free, 3 records)
+  AG 12 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=3 longest=2
+  AG 12 AGI: ino_root=3 ino_level=1 count=448 freecount=33 fino_root=4 fino_level=1
+  AG 12: AGF OK, AGI OK
+  AG 12 BNO btree block 1: level=0 numrecs=2
+  AG 12 CNT btree block 2: level=0 numrecs=2
+  AG 12 BNO/CNT btrees .. OK  (free=3 blocks)
+  AG 12 inobt btree block 3: level=0 numrecs=8
+  AG 12 inobt rec 0: startino=4173952 count=64 freecount=0 holemask=0x0000
+  AG 12 inobt rec 1: startino=4185536 count=32 freecount=0 holemask=0x00FF
+  AG 12 inobt rec 2: startino=4185664 count=64 freecount=16 holemask=0x0000
+  AG 12 inobt rec 3: startino=4186048 count=32 freecount=0 holemask=0x00FF
+  AG 12 inobt rec 4: startino=4186112 count=64 freecount=17 holemask=0x0000
+  AG 12 inobt rec 5: startino=4186176 count=64 freecount=0 holemask=0x0000
+  AG 12 inobt rec 6: startino=4186240 count=64 freecount=0 holemask=0x0000
+  AG 12 inobt rec 7: startino=4186304 count=64 freecount=0 holemask=0x0000
+  AG 12 inobt ........... OK  (448 inodes, 33 free, 8 records)
+  AG 12 finobt btree block 4: level=0 numrecs=2
+  AG 12 finobt rec 0: startino=4185664 count=64 freecount=16 holemask=0x0000
+  AG 12 finobt rec 1: startino=4186112 count=64 freecount=17 holemask=0x0000
+  AG 12 finobt .......... OK  (33 free, 2 records)
+  AG 13 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=398439 longest=398436
+  AG 13 AGI: ino_root=3 ino_level=1 count=704 freecount=49 fino_root=4 fino_level=1
+  AG 13: AGF OK, AGI OK
+  AG 13 BNO btree block 1: level=0 numrecs=2
+  AG 13 CNT btree block 2: level=0 numrecs=2
+  AG 13 BNO/CNT btrees .. OK  (free=398439 blocks)
+  AG 13 inobt btree block 3: level=0 numrecs=11
+  AG 13 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 1: startino=990656 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 2: startino=990784 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 3: startino=990848 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 4: startino=990912 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 5: startino=990976 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 6: startino=991040 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 7: startino=993856 count=64 freecount=5 holemask=0x0000
+  AG 13 inobt rec 8: startino=996480 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 9: startino=998016 count=64 freecount=0 holemask=0x0000
+  AG 13 inobt rec 10: startino=998464 count=64 freecount=44 holemask=0x0000
+  AG 13 inobt ........... OK  (704 inodes, 49 free, 11 records)
+  AG 13 finobt btree block 4: level=0 numrecs=2
+  AG 13 finobt rec 0: startino=993856 count=64 freecount=5 holemask=0x0000
+  AG 13 finobt rec 1: startino=998464 count=64 freecount=44 holemask=0x0000
+  AG 13 finobt .......... OK  (49 free, 2 records)
+  AG 14 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456069
+  AG 14 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 14: AGF OK, AGI OK
+  AG 14 BNO btree block 1: level=0 numrecs=2
+  AG 14 CNT btree block 2: level=0 numrecs=2
+  AG 14 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 14 inobt btree block 3: level=0 numrecs=9
+  AG 14 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 14 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 14 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 14 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 14 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 14 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 14 inobt rec 6: startino=532288 count=64 freecount=4 holemask=0x0000
+  AG 14 inobt rec 7: startino=535104 count=64 freecount=1 holemask=0x0000
+  AG 14 inobt rec 8: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 14 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 14 finobt btree block 4: level=0 numrecs=3
+  AG 14 finobt rec 0: startino=532288 count=64 freecount=4 holemask=0x0000
+  AG 14 finobt rec 1: startino=535104 count=64 freecount=1 holemask=0x0000
+  AG 14 finobt rec 2: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 14 finobt .......... OK  (27 free, 3 records)
+  AG 15 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456072 longest=456066
+  AG 15 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 15: AGF OK, AGI OK
+  AG 15 BNO btree block 1: level=0 numrecs=2
+  AG 15 CNT btree block 2: level=0 numrecs=2
+  AG 15 BNO/CNT btrees .. OK  (free=456072 blocks)
+  AG 15 inobt btree block 3: level=0 numrecs=9
+  AG 15 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 15 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 15 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 15 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 15 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 15 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 15 inobt rec 6: startino=534720 count=64 freecount=5 holemask=0x0000
+  AG 15 inobt rec 7: startino=534848 count=64 freecount=1 holemask=0x0000
+  AG 15 inobt rec 8: startino=537536 count=64 freecount=21 holemask=0x0000
+  AG 15 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 15 finobt btree block 4: level=0 numrecs=3
+  AG 15 finobt rec 0: startino=534720 count=64 freecount=5 holemask=0x0000
+  AG 15 finobt rec 1: startino=534848 count=64 freecount=1 holemask=0x0000
+  AG 15 finobt rec 2: startino=537536 count=64 freecount=21 holemask=0x0000
+  AG 15 finobt .......... OK  (27 free, 3 records)
+  AG 16 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456073 longest=456066
+  AG 16 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 16: AGF OK, AGI OK
+  AG 16 BNO btree block 1: level=0 numrecs=2
+  AG 16 CNT btree block 2: level=0 numrecs=2
+  AG 16 BNO/CNT btrees .. OK  (free=456073 blocks)
+  AG 16 inobt btree block 3: level=0 numrecs=9
+  AG 16 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 16 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 16 inobt rec 2: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 16 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 16 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 16 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 16 inobt rec 6: startino=534912 count=64 freecount=6 holemask=0x0000
+  AG 16 inobt rec 7: startino=534976 count=64 freecount=1 holemask=0x0000
+  AG 16 inobt rec 8: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 16 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 16 finobt btree block 4: level=0 numrecs=3
+  AG 16 finobt rec 0: startino=534912 count=64 freecount=6 holemask=0x0000
+  AG 16 finobt rec 1: startino=534976 count=64 freecount=1 holemask=0x0000
+  AG 16 finobt rec 2: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 16 finobt .......... OK  (27 free, 3 records)
+  AG 17 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456067
+  AG 17 AGI: ino_root=3 ino_level=1 count=576 freecount=25 fino_root=4 fino_level=1
+  AG 17: AGF OK, AGI OK
+  AG 17 BNO btree block 1: level=0 numrecs=2
+  AG 17 CNT btree block 2: level=0 numrecs=2
+  AG 17 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 17 inobt btree block 3: level=0 numrecs=9
+  AG 17 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 17 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 17 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 17 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 17 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 17 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 17 inobt rec 6: startino=534848 count=64 freecount=4 holemask=0x0000
+  AG 17 inobt rec 7: startino=534976 count=64 freecount=3 holemask=0x0000
+  AG 17 inobt rec 8: startino=537408 count=64 freecount=18 holemask=0x0000
+  AG 17 inobt ........... OK  (576 inodes, 25 free, 9 records)
+  AG 17 finobt btree block 4: level=0 numrecs=3
+  AG 17 finobt rec 0: startino=534848 count=64 freecount=4 holemask=0x0000
+  AG 17 finobt rec 1: startino=534976 count=64 freecount=3 holemask=0x0000
+  AG 17 finobt rec 2: startino=537408 count=64 freecount=18 holemask=0x0000
+  AG 17 finobt .......... OK  (25 free, 3 records)
+  AG 18 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456077 longest=456071
+  AG 18 AGI: ino_root=3 ino_level=1 count=576 freecount=28 fino_root=4 fino_level=1
+  AG 18: AGF OK, AGI OK
+  AG 18 BNO btree block 1: level=0 numrecs=2
+  AG 18 CNT btree block 2: level=0 numrecs=2
+  AG 18 BNO/CNT btrees .. OK  (free=456077 blocks)
+  AG 18 inobt btree block 3: level=0 numrecs=9
+  AG 18 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 4: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 6: startino=534912 count=64 freecount=6 holemask=0x0000
+  AG 18 inobt rec 7: startino=535552 count=64 freecount=0 holemask=0x0000
+  AG 18 inobt rec 8: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 18 inobt ........... OK  (576 inodes, 28 free, 9 records)
+  AG 18 finobt btree block 4: level=0 numrecs=2
+  AG 18 finobt rec 0: startino=534912 count=64 freecount=6 holemask=0x0000
+  AG 18 finobt rec 1: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 18 finobt .......... OK  (28 free, 2 records)
+  AG 19 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456057 longest=456049
+  AG 19 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 19: AGF OK, AGI OK
+  AG 19 BNO btree block 1: level=0 numrecs=2
+  AG 19 CNT btree block 2: level=0 numrecs=2
+  AG 19 BNO/CNT btrees .. OK  (free=456057 blocks)
+  AG 19 inobt btree block 3: level=0 numrecs=9
+  AG 19 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 19 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 19 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 19 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 19 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 19 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 19 inobt rec 6: startino=534848 count=64 freecount=7 holemask=0x0000
+  AG 19 inobt rec 7: startino=534912 count=64 freecount=1 holemask=0x0000
+  AG 19 inobt rec 8: startino=537600 count=64 freecount=19 holemask=0x0000
+  AG 19 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 19 finobt btree block 4: level=0 numrecs=3
+  AG 19 finobt rec 0: startino=534848 count=64 freecount=7 holemask=0x0000
+  AG 19 finobt rec 1: startino=534912 count=64 freecount=1 holemask=0x0000
+  AG 19 finobt rec 2: startino=537600 count=64 freecount=19 holemask=0x0000
+  AG 19 finobt .......... OK  (27 free, 3 records)
+  AG 20 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456076 longest=456069
+  AG 20 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 20: AGF OK, AGI OK
+  AG 20 BNO btree block 1: level=0 numrecs=2
+  AG 20 CNT btree block 2: level=0 numrecs=2
+  AG 20 BNO/CNT btrees .. OK  (free=456076 blocks)
+  AG 20 inobt btree block 3: level=0 numrecs=9
+  AG 20 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 6: startino=534784 count=64 freecount=7 holemask=0x0000
+  AG 20 inobt rec 7: startino=535552 count=64 freecount=0 holemask=0x0000
+  AG 20 inobt rec 8: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 20 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 20 finobt btree block 4: level=0 numrecs=2
+  AG 20 finobt rec 0: startino=534784 count=64 freecount=7 holemask=0x0000
+  AG 20 finobt rec 1: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 20 finobt .......... OK  (27 free, 2 records)
+  AG 21 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456076 longest=456069
+  AG 21 AGI: ino_root=3 ino_level=1 count=576 freecount=29 fino_root=4 fino_level=1
+  AG 21: AGF OK, AGI OK
+  AG 21 BNO btree block 1: level=0 numrecs=2
+  AG 21 CNT btree block 2: level=0 numrecs=2
+  AG 21 BNO/CNT btrees .. OK  (free=456076 blocks)
+  AG 21 inobt btree block 3: level=0 numrecs=9
+  AG 21 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 3: startino=532032 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 4: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 6: startino=534848 count=64 freecount=7 holemask=0x0000
+  AG 21 inobt rec 7: startino=535552 count=64 freecount=0 holemask=0x0000
+  AG 21 inobt rec 8: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 21 inobt ........... OK  (576 inodes, 29 free, 9 records)
+  AG 21 finobt btree block 4: level=0 numrecs=2
+  AG 21 finobt rec 0: startino=534848 count=64 freecount=7 holemask=0x0000
+  AG 21 finobt rec 1: startino=537408 count=64 freecount=22 holemask=0x0000
+  AG 21 finobt .......... OK  (29 free, 2 records)
+  AG 22 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456067
+  AG 22 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 22: AGF OK, AGI OK
+  AG 22 BNO btree block 1: level=0 numrecs=2
+  AG 22 CNT btree block 2: level=0 numrecs=2
+  AG 22 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 22 inobt btree block 3: level=0 numrecs=9
+  AG 22 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 22 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 22 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 22 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 22 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 22 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 22 inobt rec 6: startino=534848 count=64 freecount=6 holemask=0x0000
+  AG 22 inobt rec 7: startino=534912 count=64 freecount=1 holemask=0x0000
+  AG 22 inobt rec 8: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 22 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 22 finobt btree block 4: level=0 numrecs=3
+  AG 22 finobt rec 0: startino=534848 count=64 freecount=6 holemask=0x0000
+  AG 22 finobt rec 1: startino=534912 count=64 freecount=1 holemask=0x0000
+  AG 22 finobt rec 2: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 22 finobt .......... OK  (27 free, 3 records)
+  AG 23 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456074 longest=456068
+  AG 23 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 23: AGF OK, AGI OK
+  AG 23 BNO btree block 1: level=0 numrecs=2
+  AG 23 CNT btree block 2: level=0 numrecs=2
+  AG 23 BNO/CNT btrees .. OK  (free=456074 blocks)
+  AG 23 inobt btree block 3: level=0 numrecs=9
+  AG 23 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 23 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 23 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 23 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 23 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 23 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 23 inobt rec 6: startino=532288 count=64 freecount=5 holemask=0x0000
+  AG 23 inobt rec 7: startino=535232 count=64 freecount=1 holemask=0x0000
+  AG 23 inobt rec 8: startino=537408 count=64 freecount=21 holemask=0x0000
+  AG 23 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 23 finobt btree block 4: level=0 numrecs=3
+  AG 23 finobt rec 0: startino=532288 count=64 freecount=5 holemask=0x0000
+  AG 23 finobt rec 1: startino=535232 count=64 freecount=1 holemask=0x0000
+  AG 23 finobt rec 2: startino=537408 count=64 freecount=21 holemask=0x0000
+  AG 23 finobt .......... OK  (27 free, 3 records)
+  AG 24 AGF: bno_root=1 cnt_root=2 bno_level=1 cnt_level=1 freeblks=456063 longest=456056
+  AG 24 AGI: ino_root=3 ino_level=1 count=576 freecount=27 fino_root=4 fino_level=1
+  AG 24: AGF OK, AGI OK
+  AG 24 BNO btree block 1: level=0 numrecs=2
+  AG 24 CNT btree block 2: level=0 numrecs=2
+  AG 24 BNO/CNT btrees .. OK  (free=456063 blocks)
+  AG 24 inobt btree block 3: level=0 numrecs=9
+  AG 24 inobt rec 0: startino=128 count=64 freecount=0 holemask=0x0000
+  AG 24 inobt rec 1: startino=531904 count=64 freecount=0 holemask=0x0000
+  AG 24 inobt rec 2: startino=531968 count=64 freecount=0 holemask=0x0000
+  AG 24 inobt rec 3: startino=532096 count=64 freecount=0 holemask=0x0000
+  AG 24 inobt rec 4: startino=532160 count=64 freecount=0 holemask=0x0000
+  AG 24 inobt rec 5: startino=532224 count=64 freecount=0 holemask=0x0000
+  AG 24 inobt rec 6: startino=533376 count=64 freecount=6 holemask=0x0000
+  AG 24 inobt rec 7: startino=535040 count=64 freecount=1 holemask=0x0000
+  AG 24 inobt rec 8: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 24 inobt ........... OK  (576 inodes, 27 free, 9 records)
+  AG 24 finobt btree block 4: level=0 numrecs=3
+  AG 24 finobt rec 0: startino=533376 count=64 freecount=6 holemask=0x0000
+  AG 24 finobt rec 1: startino=535040 count=64 freecount=1 holemask=0x0000
+  AG 24 finobt rec 2: startino=537408 count=64 freecount=20 holemask=0x0000
+  AG 24 finobt .......... OK  (27 free, 3 records)
+Inode spot-check ........   inode 128 (rootdir): mode=040755 format=LOCAL nlink=13 version=3 OK
+  inode 129 (rbmino): mode=0100000 format=EXTENTS nlink=1 version=3 OK
+  inode 130 (rsumino): mode=0100000 format=EXTENTS nlink=1 version=3 OK
+  inode 131 (ino-131): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 132 (ino-132): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 133 (ino-133): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 134 (ino-134): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 135 (ino-135): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 136 (ino-136): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 137 (ino-137): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+  inode 138 (ino-138): mode=0100644 format=EXTENTS nlink=1 version=3 OK
+OK  (11/11 inodes passed)
+Orphan inode audit ......   ERROR: inode 5258109: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 5258110: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 5258111: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 5258176: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 5258177: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 17841029: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 17841030: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 17841031: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 17841032: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+  ERROR: inode 17841033: allocated, nlink=0, on NO AGI unlinked bucket — orphaned (space leaked, nothing will reap it)
+ERRORS  (17604 allocated, 11 bucketed zombies, 10 orphans, 0 repaired)
+  note: 11 unlinked-but-bucketed inode(s) are legal crash residue; mount recovery reaps them
+
+─── Summary ───
+  Per-AG free blocks:
+    AG 0: 388830 blocks (btree verified: 388830)
+    AG 1: 388874 blocks (btree verified: 388874)
+    AG 2: 381217 blocks (btree verified: 381217)
+    AG 3: 389272 blocks (btree verified: 389272)
+    AG 4: 388022 blocks (btree verified: 388022)
+    AG 5: 389103 blocks (btree verified: 389103)
+    AG 6: 388637 blocks (btree verified: 388637)
+    AG 7: 456074 blocks (btree verified: 456074)
+    AG 8: 456074 blocks (btree verified: 456074)
+    AG 9: 456075 blocks (btree verified: 456075)
+    AG 10: 456073 blocks (btree verified: 456073)
+    AG 11: 456074 blocks (btree verified: 456074)
+    AG 12: 3 blocks (btree verified: 3)
+    AG 13: 398439 blocks (btree verified: 398439)
+    AG 14: 456074 blocks (btree verified: 456074)
+    AG 15: 456072 blocks (btree verified: 456072)
+    AG 16: 456073 blocks (btree verified: 456073)
+    AG 17: 456074 blocks (btree verified: 456074)
+    AG 18: 456077 blocks (btree verified: 456077)
+    AG 19: 456057 blocks (btree verified: 456057)
+    AG 20: 456076 blocks (btree verified: 456076)
+    AG 21: 456076 blocks (btree verified: 456076)
+    AG 22: 456074 blocks (btree verified: 456074)
+    AG 23: 456074 blocks (btree verified: 456074)
+    AG 24: 456063 blocks (btree verified: 456063)
+  Total free blocks (BNO btree sum): 10409557
+  Total free blocks (AGF sum):       10409557
+  Superblock fdblocks:               12356272
+  Total inodes (inobt sum):          18496
+  Superblock icount:                 3456
+  ERROR: inobt total inodes 18496 != superblock icount 3456
+  Total free inodes (inobt sum):     892
+  Superblock ifree:                  129
+  ERROR: inobt total free inodes 892 != superblock ifree 129
+  Allocated inodes:                  17604
+
+chk_mxfs: 16 error(s) found (run with -a or -y to repair)

@@ -1,0 +1,6 @@
+Aug 15 14:23:36.293532 test8 kernel: XFS (dm-1): Unmounting Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+Aug 15 14:23:36.293608 test8 kernel: mxfs: mxfs: DLM shutting down
+Aug 15 14:23:36.294524 test8 kernel: mxfs: mxfs: DLM shutdown complete
+Aug 15 14:23:36.294537 test8 kernel: mxfs: P140-RECLAIM-COMMIT ino=0x80 ip=ffff8c2cb744c3a0 pid=1164 comm=umount
+Aug 15 14:23:36.343516 test8 kernel: mxfs: disklock: released heartbeat slot 19 (clean teardown)
+Aug 15 14:23:36.344507 test8 kernel: mxfs: mxfs: P278-LATE-RELEASE unmount_clean=1 release rc=0

@@ -1,0 +1,300 @@
+You are running inside ccloop, a relay-loop wrapper that hands work between
+fresh Claude Code sessions as context fills. This is session 203 of the
+current run.
+
+IMPORTANT — this run has explicit success criteria:
+
+<BEGIN CRITERIA>
+is it production ready?
+<END CRITERIA>
+
+These criteria are your ONLY exit condition.
+
+YOU HAVE UNLIMITED CONTEXT AND UNLIMITED SESSIONS.
+
+ccloop is wrapping your session. When your context fills, ccloop will:
+  1. summarize this session's transcript into a resume file
+  2. spawn a fresh Claude Code session with that summary as its prompt
+  3. pass through the same criteria so the new session continues the work
+The new session inherits the project state, the criteria, and a digest
+of what you've already learned and tried. You can take as many sessions
+as the problem needs. There is no session cap, no turn cap, no time cap.
+
+Because of this, NEVER:
+
+- propose to "kill the wrapper", "end the session", or "exit so a fresh
+  session can take over". The wrapper handles relay automatically.
+- ask the user "what should I do?" or offer them options. This is
+  autonomous — there is no human in the loop.
+- claim the work "requires a fresh session", "needs multi-day effort
+  outside this session's scope", or "is architectural and out of scope".
+  Session scope is irrelevant; the work is in scope by definition.
+- write YES dishonestly to escape the loop. The criteria are checked;
+  lying wastes downstream work.
+
+The Stop hook is active. Every time you try to end a turn it asks:
+HAVE YOU MET THE CRITERIA? If YES, write YES to the marker:
+
+    echo YES > "/src/mxfs/.ccloop/runs/c7ee71c6-d6a4-4316-9b43-cb64295f419d/criteria-met"
+
+Only on cited, third-party-verifiable evidence that EVERY criterion is
+met.
+
+If NO, keep working. Pick a new angle: read more of the code, write a
+targeted diagnostic, generate a minimal reproducer, consult any external
+analysis tools available to you, form a new hypothesis and test it.
+Then return to the criteria.
+
+---
+
+## Maintain your handoff file
+
+    /src/mxfs/.ccloop/handoff.md
+
+Keep it current AS YOU WORK — not at the end. A session that fills its context
+or dies mid-tool never gets the chance to write a parting summary, and ccloop
+can only hand on what is already on disk when the session stops.
+
+Rewrite the whole file (don't append) whenever your understanding changes:
+what you are doing, what you have established, what you tried that did NOT
+work, and the single next concrete step. Keep it under ~100 lines — this is a
+handoff, not a log.
+
+ccloop freshness-checks it. If the file was not written during your session,
+the next session is told plainly that it is stale and falls back to scraping
+your transcript. An unmaintained file costs the handoff; it does not silently
+pass off old intent as current.
+
+---
+
+# Resume — run c7ee71c6-d6a4-4316-9b43-cb64295f419d, after session 202
+
+## Original task
+
+Continue the MXFS production-readiness campaign.
+
+Current project state — build identity, board tally, and the RULE 6 open
+defects in severity order with each one's next step — is GENERATED FRESH
+into the "## Current project state" section at the END of this prompt.
+Start there, not with discovery. It is computed seconds before you read
+it and supersedes anything earlier in the prompt that conflicts.
+
+Work the open defects in the order that section lists them unless you
+state why not.
+
+Do NOT read or maintain state.md. It is a deprecated artifact of the
+pre-ccloop handoff system (user directive, sess35; ccmemory
+state-md-deprecated-do-not-maintain) and it is stale.
+
+
+## Previous session
+
+- session-id: `e4820579-55d6-4ce1-952a-7ece762d788a`
+- transcript: `/home/steve/.claude/projects/-src-mxfs/e4820579-55d6-4ce1-952a-7ece762d788a.jsonl`
+- approx context at last assistant turn: 150863 tokens
+- tools used: Bash×35 Read×6 Edit×4 Write×2 ToolSearch×1 mcp__ccmemory__memory_list×1
+
+## Files written or edited in the previous session
+
+- /src/mxfs/tests/suite/rsync_paired.sh
+- /src/mxfs/.ccloop/handoff.md
+
+## Handoff from the previous session
+
+Written by the previous session itself, during that session, at `/src/mxfs/.ccloop/handoff.md`. This is that session's own account of where it got to — prefer it over the scraped sections above where they conflict.
+
+# ccloop handoff — sess202
+
+## Active defect
+NEW CRITICAL (not yet ledgered): iunlink fossil precommit shutdown on
+0.11.471, tripped by rsync_paired OVERWRITE lap at 32/caw (2nd+ lap on
+same fs — first time this workload ever ran; prep_cluster mkfs's so all
+prior boards were lap-1 only). test4 hit:
+P-CLMERGE restored ino=44040450 → buffer di_next_unlinked=0x101 (fossil)
+vs iunlink-store committed=0x100; P-IUNLSTORE-LIVESKEW (incore=0xffffffff
+!= committed=0x100) → graft REFUSED; xfs_iunlink_item_precommit old_ptr
+0x101 != old_agino 0x100, not idempotent case → EFSCORRUPTED →
+"Corruption of in-memory data (0x8)" shutdown + withdraw (dmesg ~31155,
+12:43Z). Fleet survey: ONLY test4 has mism/liveskew/shutdown.
+SECOND distinct mode: lap-2 (12:36Z) test16+test22 rsync rc!=0, leftover
+temp dotfile, 401 files, NO kernel probes — errno unknown; I added stderr
+capture to tests/suite/rsync_paired.sh (err text now lands in reason).
+
+## Where the code is
+xfs/xfs_iunlink_item.c (precommit, P53 probes, idempotent carve-out);
+iunlink store = xfs/xfs_mxfs_dlm.c ~32300-32700 (P-IUNLSTORE-*);
+CLMERGE restore path in xfs_mxfs_dlm.c (P-CLMERGE restored). Awareness:
+.claude/awareness/subsystems/xfs.md. Ledger relatives: #27
+D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN (open) + closed P53 fossil
+campaign (ccmemory compiled-p53-fossil-next-unlinked-campaign).
+
+## Current hypothesis
+CLMERGE dinode restore resurrects a FOSSIL di_next_unlinked from an older
+image; the LIVESKEW guard then refuses the store graft that would repair
+it (because the live inode's in-core edge has already moved to NULLAGINO
+for the in-flight remove), so precommit sees the fossil. RULE 4 state:
+OPEN — need to read CLMERGE restore code (does it exclude/graft
+di_next_unlinked?) and re-trip with the cheap reproducer.
+
+## Reproducer (cheap!)
+Overwrite lap: run `timeout 90 ./run.sh 32 caw rsync_paired` TWICE+ on
+the same fs (lap1 populates, lap2+ rewrites via temp+rename = cross-node
+unlink churn). Lap2: 2 nodes failed; lap3: 3 nodes incl test4 shutdown.
+~23s/lap, budget 60s.
+
+## Done this session
+- 0.11.471 DEPLOYED 32/caw (sv CCB3BC58C73A719218DEFEC), prep 73s.
+- Smoke rsync_paired lap1 PASS. Cert telemetry: cas_unproved=0, no P283
+  on test1/16/32 (knob=0) — step-3 increment verified clean.
+- Board chunk1 8/8 PASS; chunk2: all PASS except rsync_paired (above).
+  Board INCOMPLETE: chunks 3-5 not run (paused for the shutdown).
+- test4 recovered via prep_node.sh caw (NODE_PREP_OK, same sv).
+
+## ROOT (RULE 4: evidence-backed, code-read confirmed)
+Overlay code READ (xfs_mxfs_dlm.c:32557 mxfs_iunl_store_overlay; CLMERGE
+caller xfs_inode.c:8810-8818). Chain: remove logs iunlink item (captures
+old_agino=0x100==record), runtime sets incore i_next_unlinked=NULLAGINO
+BEFORE precommit; CLMERGE restores fossil img 0x101 in that window; the
+sess48-v5 LIVESKEW guard (dlm.c:32595-32632) peeks incore (0xffffffff)
+!= record (0x100) and REFUSES the graft — misreading the pending-remove
+window as record-abandonment; precommit sees 0x101!=0x100, idempotent
+carve-out (needs old_ptr==next_agino) misses → EFSCORRUPTED shutdown.
+Timestamps: LIVESKEW .003960 → mismatch .004077 (117µs, same op).
+Fix candidates (NOT designed yet, RULE-5 consult REQUIRED first):
+(a) graft anyway when a gen-matched record exists (record IS committed
+truth; incore==NULLAGINO+pending remove is a legit window, not skew);
+(b) precommit carve-out: if store committed==old_agino, image is a known
+fossil — apply update instead of shutdown; (c) CLMERGE preserves
+di_next_unlinked (blanket save/restore was tried+removed sess48 — see
+xfs_inode.c:8796 comment; don't resurrect naively).
+
+## Next (literal)
+1. RULE-5 GPT consult (mcp__ask_gpt__query, no max_tokens) with the full
+   chain above + the sess48-v5 c3-391 autopsy context (ccmemory
+   compiled-p53-fossil-next-unlinked-campaign) — which fix shape.
+2. Mode B errno STILL unknown: lap4 (12:55Z) FAIL 3 nodes (test4 among
+   them, 2 failed checks each, no shutdown this lap) but the run.sh
+   logs: /tmp/tmp.* dir is deleted before it can be read, and reason=
+   text location in criteria.json unresolved. Find where RESULT reason
+   lands (check run.sh collect path / showstat -v) or make rsync_paired
+   RSYNC-ERR visible another way, then rerun a lap.
+3. Ledger BOTH modes (new entry/entries) in OPEN_DEFECTS.json — NOT YET
+   DONE. Mode A relatives: #27 D-AGI-UNLINKED-CROSSNODE-RECOVERY-
+   SHUTDOWN + closed P53 fossil campaign.
+4. Fix per consult, rebuild (rev VERSION), redeploy, re-trip laps.
+5. Then resume: board chunks 3-5 on .471 (chunk cmds in sess201
+   transcript / this transcript), then #1 step 4 (F4 obligation
+   registry) per sess197 ruling.
+
+## Ruled out / traps
+- VERSION file does NOT reach mxfs.ko; srcversion is deploy identity.
+- release_cert_dump is WRITE-triggered (echo 1 > param, dmesg P280).
+- Victim rejoin: NFS mount + tests/setup/prep_node.sh caw, NEVER
+  prep_cluster. (Worked this session on test4.)
+- Manual single-node mount on caw MUST use /dev/mapper/mpatha.
+- make clean before rebuild when changes span .c+.h; make tools after.
+- Fleet survey loop via mxfs_sshpass takes >4min for 32 nodes serially —
+  parallelize or subset.
+
+## Continue
+
+Continue the original task from where the previous session stopped. The
+previous session's transcript is at the path noted above — you may Read
+it if you need full detail on what was done. (Loop mechanics and how to
+signal DONE are in the wrapper preamble above this summary.)
+
+---
+
+## Current project state
+
+Generated at the start of THIS session by the project's state hook:
+`/src/mxfs/.ccloop/state.sh`
+
+Everything above describes what PREVIOUS sessions did. This section
+describes the project as it is RIGHT NOW, and supersedes anything above
+that conflicts with it.
+
+### Build
+tree VERSION **0.11.471**  |  mxfs.ko srcversion `CCB3BC58C73A719218DEFEC`  |  last rig run: 32 nodes / caw @ 2026-08-10T12:56:45Z
+
+The srcversion above is what THIS TREE builds, not necessarily what the
+fleet is running. Confirm deployment before trusting a measurement.
+
+### Board — last conditions (32/caw)
+26 PASS, 2 not-passing, 28 applicable
+not passing:
+  - rsync_paired [FAIL] nodes_pass=29/32 states:FAIL=3 hostload=23.29 first_fail[test4:checks=6 passed=4 failed=2] rank1[checks=6 pass
+  - open_defects [FAIL] open=27 of=71 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CR
+
+`open_defects` is a POLICY cell: red BY DESIGN under RULE 6 while the
+ledger below is non-empty. It is not a regression and not a test fault.
+`NO_TERMINAL_RECORD` means the harness captured no verdict — that is a
+capture failure, NOT a filesystem fault. Do not diagnose the FS from it.
+
+### RULE 6 ledger — open defects, severity order
+27 open of 71 ledgered — 16 critical. Work these in order unless you state why not.
+
+1. [critical] D-FOREIGN-REPLAY-UNGATED-IMAGES
+   next: PLAN OF RECORD (sess175 RULE-5 ruling, ccmemory ccloop-c7ee71c6-sess175-GPT-ruling-enforcement-gate-design-and-sample3 and ccloop-c7ee71c6-sess175-GPT-ruling-lineage-implementation-shape; fu
+2. [critical] D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY
+   next: 1) DONE sess199/sess201: 0.11.469 knob=1 FULL board 27/27 PASS and knob=0 regression board 27/27 PASS, both 32/caw on 2026-08-10 (criteria.json 11:31-11:45Z run); sess201 re-ran the full kno
+3. [critical] D-CROSSNODE-OPEN-UNLINK-DATA-LOSS
+4. [critical] D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361
+   next: 1) Ship containment+telemetry build: full-target pre-dirty revalidate (-ESTALE restart / src -ENOENT), P217-RENAME-DIRTYCANCEL helper-failure probe at out_trans_cancel (error, XFS_TRANS_DIRT
+5. [critical] D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE
+   next: 1) Finish the sess57 GPT review set that shares this code (items 3, 4, 6C), then a single RULE-5 consult on the whole barrier before any rig cycle. 2) Verification run: 32/caw, mount node A 
+6. [critical] D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED
+   next: 1) Fault-inject: gate a forced failure of mxfs_xlog_recover_foreign_slice behind a module knob (default off), kill a node at 32/caw, and assert the survivor logs the new refusal, leaves the 
+7. [critical] D-FOREIGN-SLICE-INTENTS-ABANDONED
+   next: 1) DONE (sess164 audit): the versioned GUARD/recovery descriptor + victim-manifest freeze is BUILT AND LIVE — recovery_complete stage machine in dlm/v5_mount.c (~2897-3180), freeze gate in d
+8. [critical] D-PR-FENCE-PREEMPT-WITHOUT-ABORT
+   next: 1) DONE (sess71). 2) DONE (sess73, rig). 3) DONE (sess93): fence_during_write and crash_consistency re-boarded on 0.11.422 with the certificate live and CONSUMED — both PASS 32/32. 4) OUTSTA
+9. [critical] D-PURGE-NONATOMIC-PUBLICATION
+   next: 1) Build a test that forces two survivors to purge the SAME victim concurrently and asserts no live slot is zeroed — the CAS MISCOMPARE probes (P235-PURGE-CONTENDED / -HB) are the observable
+10. [critical] D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE
+   next: 1) RULE-5 consult: is a stable per-node identity the right fix (persisted node_uuid / identity derived from the slot+incarnation pair), or should pass-1 be deleted and the adopted-slice gate
+11. [critical] D-RECOV-ADVANCE-UNBOUNDED-RETRY
+   next: Per the sess91 RULE-5 ruling: (1) On each failure REREAD the descriptor and CLASSIFY. If owner/gen/term/recovery-id genuinely changed, stop immediately, discard the auth and let the new owne
+12. [critical] D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN
+   next: 1) THE CLOSURE STEP: a test that exercises the cause. Inject epoch 0 into a victim's ACTIVE heartbeat record on the backing store, kill it, and assert P238-FENCE-ZEROINC fires and NO descrip
+13. [critical] D-FENCED-VICTIM-MAY-REREGISTER
+   next: 1) DONE sess93 — the measurement that decides severity: CONFIRMED, see evidence. 2) DONE sess93 — the interim detector shipped and rig-verified (0.11.424, D-FENCE-RESERVATION-HEALTH-UNCHECKE
+14. [critical] D-MIXED-VERSION-UNGATED-REPLAY
+   next: 1) DONE sess131 — mechanism chosen: MXFS_PROTO_GEN 3->4, RULE-5 APPROVED (see evidence). 2) B1 DONE sess179 (0.11.464 sv 66F51D070BC971F72E39387): sess178 audited all 7 entry-point classes; 
+15. [critical] D-SAMENODE-WAITER-CANCEL-COLLISION
+   next: sess113 RULE-5 RULING: the sess112 landing (0.11.441) is STOP-SHIP -- 'no-go for the 32-node rig'. Sampling the registry's aggregate counters does NOT establish exclusive ownership of the ad
+16. [critical] D-RECONCILE-SLOT-IDENTITY-UNCHECKED
+   next: sess112 landed the resource memcmp at the remembered slot on 0.11.441 (the check was previously UNREPRESENTABLE -- the function took no resource argument). That direction is right but sess11
+17. [high] D-DIRVIEW-NONCONVERGE-SESS25
+   next: Reproduce pressure: aged-mount dirent_durability laps at 32/caw while one node is denied the dir EX handoffs (readdir-only role). If a next occurrence fires: capture the stale node's i_dlm_d
+18. [high] D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO
+   next: Per the sess91 RULE-5 ruling: (1) Guard the rebase with inc_valid(): a nonzero cached incarnation must be RETAINED when the sector reads 0, and the slot marked inconsistent/unknown rather th
+19. [high] D-FENCE-CAPABILITY-UNVALIDATED-AT-MOUNT
+   next: 1) Add the admission check to the mount path, before normal I/O is admitted: issue PERSISTENT RESERVE IN / REPORT CAPABILITIES (assert PTPL_A=1 and that the type mask offers WE-RO), READ RES
+20. [high] D-FENCE-CRASH-MATRIX-UNTESTED
+   next: 1) Build the crash-matrix harness: inject death/power loss before intent persistence, after intent before P&A, during P&A, after P&A before certify, during certify, after certificate before 
+21. [high] D-RECONCILE-EXHAUSTION-SILENT
+   next: sess112 landed -EBUSY + P245-RECONCILE-EXHAUST + requeue-as-owed on 0.11.441. sess113 RULE-5: THAT IS NOT ESCALATION and does not satisfy the requirement. 'A warning, counter and owed flag a
+22. [high] D-TRACK-PUBLISH-ORDERING
+   next: sess112 moved tenure publication into the same critical section that ends the acquiring attempt (0.11.441), closing the observe-to-track window for the publish side. sess113 RULE-5: necessar
+23. [major] D-32NODE-SHARED-DIR-CREATE-PACE
+   next: 1) RULE-5 CONSULT: DONE (sess130, gpt-5.6-sol; full review in the sess130 transcript). Its closure requirements now MET: queue conservation accounting (closes exactly); zero stale-ticket exp
+24. [major] D-READDIR-PEER-CACHED-DIR-PACE
+   next: sess127: check this against the BAST-DELIVERY root (single-threaded bast_recv_fn doing a synchronous shared-LUN slot read per packet, hints dropped at RcvbufErrors=8085) before doing any ind
+25. [minor] D-MATRIX-UNMEASURED
+26. [minor] D-RELOAD-FREED-ADOPT-BOGUS-IMODE
+   next: 0.11.357 guards the rewire with i_mode != 0 (freed-shell adopt keeps prior self-consistent ops; a later resurrecting reload still rewires since old_ifmt is captured per-reload). Verify: reru
+27. [unset] D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
+   next: Reproduce with AGED fs: at grace=10, run board-chunk (dir_reuse x2 + cache_coherency + crash_consistency + rsync_paired) THEN dirent_durability loops, instr ON only from the dirent phase (av
+
+RULE 6: an entry closes ONLY as DISPROVED or FIXED AND VERIFIED. 'Cannot reproduce', a clean run, or a workaround are NOT dispositions. Full evidence per defect: tests/criteria/OPEN_DEFECTS.json (325KB — read the ONE entry you are working, never the whole file).
+
+### Most recently shipped
+- 0.11.397 (sess48) — 2026-08-03 — token campaign step 3a: authority trailer live in the log
+- 0.11.396 (sess48) — 2026-08-03 — token campaign step 2a: grantee epoch plumbing
+- 0.11.395 (sess48) — 2026-08-03 — foreign-replay token campaign step 1: ex_grant_epoch
+
+### Before you measure anything
+- RULE 0 budgets (a timeout IS a failure): `test
+
+_(truncated at 8000 bytes — raise CCLOOP_STATE_HOOK_MAX_BYTES to see the rest)_

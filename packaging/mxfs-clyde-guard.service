@@ -1,0 +1,22 @@
+[Unit]
+# Host-safety watchdog for the MXFS test rig.  See tools/clyde_kmsg_guard.sh
+# for the two wedges (2026-08-20, 2026-08-21) this exists to prevent.
+Description=MXFS clyde kernel-log safety guard
+Documentation=file:/src/mxfs/tools/clyde_kmsg_guard.sh
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/src/mxfs/tools/clyde_kmsg_guard.sh run
+Restart=always
+RestartSec=5
+# The guard must survive whatever it is watching: it reads only /proc/<pid>/stat,
+# comm and stack, writes evidence to /src (NFS, off clyde's root ext4), and
+# never issues a blocking storage or libvirt teardown call.
+Nice=-5
+OOMScoreAdjust=-500
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

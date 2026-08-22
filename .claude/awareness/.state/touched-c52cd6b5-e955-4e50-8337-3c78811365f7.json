@@ -1,0 +1,10 @@
+{
+  "source": [
+    "tests/scst_pr_fullstatus_bounds.c"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

@@ -354,8 +354,18 @@ record() {  # name status measured reason [elapsed] [budget]
 # after it BLOCKED rather than running it against a broken cluster.
 DESTRUCTIVE_TESTS=" crash_consistency fence_during_write fault_netpartition "
 
+# sess376 (D-FENCE-RECONVERGE-POSTCONDITION-280S-376): a single boolean at the
+# deadline says nothing about WHY.  These two globals carry the member-count
+# TRAJECTORY over the whole window and the final per-node view, so a repeat of
+# the 2026-08-15 incident names which nodes were missing and whether the count
+# was climbing, stuck, or oscillating.  Set on every call; only read on failure.
+RECONV_TRAJ=""
+RECONV_LAST=""
+RECONV_WALL=""
 wait_converged() {   # <deadline_seconds> -> 0 converged, 1 did not
     local dl=$(( SECONDS + ${1:-120} )) stable=0 cgd n all
+    local t0=$SECONDS nalive
+    RECONV_TRAJ=""; RECONV_LAST=""; RECONV_WALL=0
     [ "$N" -gt 1 ] || return 0
     while [ "$SECONDS" -lt "$dl" ]; do
         cgd=$(mktemp -d)
@@ -398,6 +408,17 @@ wait_converged() {   # <deadline_seconds> -> 0 converged, 1 did not
                 *) all=0 ;;                      # unmounted/unresponsive
             esac
         done
+        # sess376: sample the trajectory BEFORE the scratch dir goes away.
+        nalive=0; RECONV_LAST=""
+        for n in "${NODES[@]}"; do
+            local v; v=$(cat "$cgd/$n" 2>/dev/null)
+            case "$v" in ALIVE:*) nalive=$((nalive+1)) ;; esac
+            case "$v" in
+                "ALIVE:$N"|"ALIVE:none") ;;
+                *) RECONV_LAST="$RECONV_LAST $n=${v:-nores}" ;;
+            esac
+        done
+        RECONV_TRAJ="$RECONV_TRAJ $(( SECONDS - t0 ))s:${nalive}/${N}"
         rm -rf "$cgd"
         # Only when some beacon over-counts: ask the disk.  Exactly N live
         # heartbeat writers = healthy (the excess is a lease-aging identity);
@@ -412,12 +433,14 @@ wait_converged() {   # <deadline_seconds> -> 0 converged, 1 did not
         fi
         if [ "$all" = 1 ]; then
             stable=$((stable+1))
+            RECONV_WALL=$(( SECONDS - t0 ))
             [ "$stable" -ge 3 ] && return 0
         else
             stable=0
         fi
         sleep 2
     done
+    RECONV_WALL=$(( SECONDS - t0 ))
     return 1
 }
 
@@ -473,9 +496,19 @@ power_cycle_node() {  # <node>  -> 0 once node is reachable and DEV present
         return 1
     fi
     echo "    power-cycling $n (virsh destroy+start)"
-    virsh -c qemu:///system destroy "$n" >/dev/null 2>&1
+    # BOUND EVERY virsh CALL (sess384).  libvirtd deadlocks per-domain when it
+    # cannot reap a qemu whose threads are stuck in uninterruptible kernel
+    # sleep: `virsh domstate <healthy>` answers instantly while `virsh
+    # domstate <stuck>` and `virsh list --all` never return.  Measured on
+    # clyde 2026-08-20 (test4, 5 threads wedged in ext4_buffered_write_iter
+    # writing the guest SERIAL LOG).  Unbounded, this hangs prep_cluster
+    # forever in an unattended loop -- the exact RULE 2b/2c failure shape.
+    # A power cycle that cannot be issued must be REPORTED, not waited on.
+    timeout 60 virsh -c qemu:///system destroy "$n" >/dev/null 2>&1 \
+        || echo "    WARN: virsh destroy $n did not complete in 60s (libvirtd may be stuck on this domain)"
     sleep 2
-    virsh -c qemu:///system start "$n" >/dev/null 2>&1
+    timeout 60 virsh -c qemu:///system start "$n" >/dev/null 2>&1 \
+        || echo "    WARN: virsh start $n did not complete in 60s"
     dl=$(( SECONDS + 180 ))
     while [ "$SECONDS" -lt "$dl" ]; do
         if timeout 8 "$SSH" "$n" "$PASS" "echo SSH_UP" 2>/dev/null | grep -q SSH_UP; then
@@ -543,7 +576,7 @@ prep_cluster() {
     #    skip it rather than pay the virsh round-trip for nothing.
     if [ -z "${MXFS_NODE_LIST:-}" ]; then
     local v extras=() epids=() dirty=""
-    for v in $(virsh -c qemu:///system list --name 2>/dev/null | grep -E '^test[0-9]+$'); do
+    for v in $(timeout 60 virsh -c qemu:///system list --name 2>/dev/null | grep -E '^test[0-9]+$'); do
         case " ${NODES[*]} " in *" $v "*) ;; *) extras+=("$v") ;; esac
     done
     if [ "${#extras[@]}" -gt 0 ]; then
@@ -563,9 +596,9 @@ prep_cluster() {
             echo "--- prep: leftover node(s) still hold mxfs:$dirty — power-cycling ---"
             epids=()
             for v in $dirty; do
-                ( virsh -c qemu:///system destroy "$v" >/dev/null 2>&1
+                ( timeout 60 virsh -c qemu:///system destroy "$v" >/dev/null 2>&1
                   sleep 1
-                  virsh -c qemu:///system start "$v" >/dev/null 2>&1 ) &
+                  timeout 60 virsh -c qemu:///system start "$v" >/dev/null 2>&1 ) &
                 epids+=($!)
             done
             for v in "${epids[@]}"; do wait "$v"; done
@@ -643,7 +676,12 @@ prep_cluster() {
 
     # 2. Format the shared LUN once (node1).
     local out
-    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' bash /src/mxfs/tests/setup/prep_fs.sh")
+    # sess376: let a caller ask for SPARE log slices.  The slice count is the
+    # disklock slot limit, so a 32-node rig on the default 32 slices has ZERO
+    # spare slots — and a terminal refusal quarantine permanently occupies one,
+    # after which no node can mount at all (claim_slot -ENOSPC).  Tests that
+    # need a node to rejoin after a quarantine prep with MXFS_LOG_SLICES > N.
+    out=$(ssh_node "$NODE1" "MXFS_DEV='$DEV' MXFS_LOG_SLICES='${MXFS_LOG_SLICES:-32}' MXFS_MKFS_OPTS='${MXFS_MKFS_OPTS:-}' bash /src/mxfs/tests/setup/prep_fs.sh")
     echo "$out" | grep -q FS_PREP_OK || { echo "PREP FAIL (mkfs): $out"; return 1; }
 
     # sess10 (ccloop c7ee71c6): ship the build host's ko md5 so prep_node.sh
@@ -841,20 +879,39 @@ run_none() {  # name cat budget
     # seconds later. Bounded retry (kill_budget still applies PER attempt, so
     # a genuinely wedged node still hits the timeout branch and FAILs; a
     # merely-flaky-connection node gets a few quick, cheap re-attempts).
+    # RULE-0 terminal-record guarantee (sess384): tell the node when this
+    # harness will kill it, so its watchdog can name the step it was in rather
+    # than leaving a bare "script wall-clock timeout".  See run_coord.
+    local reserve_ms=4000
+    [ $(( kill_budget * 1000 / 3 )) -lt "$reserve_ms" ] && reserve_ms=$(( kill_budget * 1000 / 3 ))
+    [ "$reserve_ms" -lt 1500 ] && reserve_ms=1500
+    local spool="/run/mxfs-suite/$RUN_ID.$name.result"
     for attempt in 1 2 3; do
-        raw=$(timeout "$kill_budget" "$SSH" "$NODE1" "$PASS" \
-            "MXFS_NODES=$N MXFS_RANK=1 MXFS_DLM=$DLM MXFS_DEV='$DEV' MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$DLM bash $script '$MNT'" \
+        local dl_ms=$(( $(date +%s%3N) + kill_budget * 1000 ))
+        raw=$(timeout --kill-after=3 "$kill_budget" "$SSH" "$NODE1" "$PASS" \
+            "MXFS_NODES=$N MXFS_RANK=1 MXFS_DLM=$DLM MXFS_DEV='$DEV' MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$DLM \
+             MXFS_DEADLINE_MS=$dl_ms MXFS_RESERVE_MS=$reserve_ms MXFS_SPOOL='$spool' bash $script '$MNT'" \
             2>&1)
         rc=$?
         out=$(echo "$raw" | grep -vE '^Warning:|^Unauthorized|^If you')
-        [ "$rc" -eq 124 ] && break
-        line=$(echo "$out" | grep -E '^RESULT:' | tail -1)
+        [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] && break
+        # source precedence, not line order: a watchdog fallback must never
+        # bury the test's own, more specific verdict.
+        line=$(echo "$out" | grep -E '^RESULT:' | grep -m1 'src=test')
+        [ -n "$line" ] || line=$(echo "$out" | grep -E '^RESULT:' | grep -m1 'src=watchdog')
+        [ -n "$line" ] || line=$(echo "$out" | grep -E '^RESULT:' | tail -1)
         [ -n "$line" ] && break
         [ "$attempt" -lt 3 ] && sleep 2
     done
+    # stdout may have been lost to ssh buffering when the kill landed; the node
+    # spools every record it emits, so try that before calling it a timeout.
+    if [ -z "$line" ]; then
+        line=$(timeout 20 "$SSH" "$NODE1" "$PASS" "cat '$spool' 2>/dev/null" 2>/dev/null \
+               | grep -E '^RESULT:' | tail -1)
+    fi
     t1=$(date +%s); elapsed=$(( t1 - t0 ))
-    if [ "$rc" -eq 124 ]; then
-        record "$name" FAIL "elapsed>${kill_budget}s" "script wall-clock timeout (kill_budget=${kill_budget}s)" "$elapsed" "$real_budget"
+    if [ -z "$line" ] && { [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; }; then
+        record "$name" FAIL "elapsed>${kill_budget}s" "script wall-clock timeout (kill_budget=${kill_budget}s, rc=$rc, no record on stdout or in the node spool)" "$elapsed" "$real_budget"
         echo "  FAIL  $name (timeout >${kill_budget}s)"; return
     fi
     if [ -z "$line" ]; then record "$name" FAIL "no-result" "no RESULT line from $NODE1 after $attempt attempts" "$elapsed" "$real_budget"; echo "  FAIL  $name (no result)"; return; fi
@@ -1028,8 +1085,14 @@ run_coord() {  # name cat budget scale
             "for dp in \$(ps -eo stat,pid --no-headers 2>/dev/null | awk '\$1 ~ /^D/ {print \$2}'); do
                  dc=\$(cat /proc/\$dp/comm 2>/dev/null)
                  case \"\$dc\" in
-                     *mxfs*|flush-*|sync|*xfsaild*)
-                         echo \$dc[\$(cat /proc/\$dp/wchan 2>/dev/null)] ;;
+                     *mxfs*|flush-*|sync|*xfsaild*|jbd2*|kworker*)
+                         st=\$(sed -n 's/^\\[<0>\\] //p' /proc/\$dp/stack 2>/dev/null | head -4 | tr '\n' '<')
+                         sub=other
+                         case \"\$st\" in
+                             *ext4*|*jbd2*) sub=EXT4-ROOTDISK ;;
+                             *mxfs*|*xfs_*) sub=MXFS ;;
+                         esac
+                         echo \$dc{\$sub}[\$(cat /proc/\$dp/wchan 2>/dev/null)]\$st ;;
                  esac
              done" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
         pa_faults="$pa_faults ${pa_sn}:sync-wedged[${pa_diag:-no-diag}]"
@@ -1037,7 +1100,7 @@ run_coord() {  # name cat budget scale
     rm -rf "$pa_d"
     if [ -n "$pa_faults" ]; then
         record "$name" BLOCKED "node-fault" \
-            "NODE FAULT (not a filesystem verdict):$pa_faults — a node cannot complete sync and/or has an MXFS/writeback task wedged in D state. See D-BAST-WRITEBACK-ABBA-DEADLOCK. Every barrier criterion would report NO_TERMINAL_RECORD on ALL nodes because one rank can never reach a barrier; BLOCKED so that is not recorded as a correctness failure. Recover the node (virsh destroy+start) and re-run." \
+            "NODE FAULT (not a filesystem verdict):$pa_faults — a node cannot complete sync and/or has a task wedged in D state. READ THE {sub} TAG BEFORE BLAMING MXFS: {EXT4-ROOTDISK} means the wedge is in the NODE OWN root filesystem (ext4/jbd2 on dm-0), i.e. host storage, and MXFS is not in the path at all — sess376 saw exactly that and it is the documented host-rig degradation class (see D-DIR-REUSE-COHERENCY-32-FLAKY). {MXFS} is the one that implicates the filesystem; cf. D-BAST-WRITEBACK-ABBA-DEADLOCK. Every barrier criterion would report NO_TERMINAL_RECORD on ALL nodes because one rank can never reach a barrier; BLOCKED so that is not recorded as a correctness failure. Recover the node (virsh destroy+start) and re-run." \
             0 "$real_budget"
         echo "  BLOCK $name  (node fault:$pa_faults)"
         rm -rf "$tmpd"
@@ -1054,6 +1117,19 @@ run_coord() {  # name cat budget scale
     i=0
 
     t0=$(date +%s)
+    # RULE-0 TERMINAL-RECORD GUARANTEE (sess384, D-CRASH-CONSISTENCY-NO-TERMINAL-
+    # RECORD-CAPTURE-374).  Each node is told the exact wall-clock instant this
+    # harness will SIGKILL its ssh, minus a reporting reserve, so its barriers
+    # and its watchdog can emit a terminal record BEFORE the kill instead of
+    # dying mute.  Nothing here widens a budget: the kill box is still $tt.
+    #
+    # The reserve must cover NTP offset + barrier poll granularity + scheduling
+    # delay + the write/flush of one line.  4s flat, but never more than a third
+    # of a short criterion's budget (a 10s row must not hand 40% of itself away).
+    local reserve_ms=4000
+    [ $(( tt * 1000 / 3 )) -lt "$reserve_ms" ] && reserve_ms=$(( tt * 1000 / 3 ))
+    [ "$reserve_ms" -lt 1500 ] && reserve_ms=1500
+    local spool="/run/mxfs-suite/$RUN_ID.$name.result"
     for n in "${NODES[@]}"; do
         i=$((i+1))
         # Reusable diagnostic hook: MXFS_STRACE_RANK=<i> [MXFS_STRACE_OUT=<path>]
@@ -1064,12 +1140,24 @@ run_coord() {  # name cat budget scale
         if [ -n "${MXFS_STRACE_RANK:-}" ] && [ "$i" = "${MXFS_STRACE_RANK}" ]; then
             runcmd="strace -ff -ttt -T -s 256 -e trace=%file -o ${MXFS_STRACE_OUT:-/tmp/drc_strace} -- $runcmd"
         fi
-        ( timeout "$tt" "$SSH" "$n" "$PASS" \
+        # The deadline is computed per node, immediately before that node's own
+        # `timeout` starts, so ssh connect latency is charged against the budget
+        # exactly as the kill box charges it.
+        local dl_ms=$(( $(date +%s%3N) + tt * 1000 ))
+        # The exit status of `timeout` is what tells the aggregator WHY a node
+        # produced no record (124/137 killed at the budget vs 255 transport vs a
+        # plain non-zero exit).  The old form piped straight into grep, so the
+        # pipeline status was grep's and that evidence was thrown away.
+        ( nrc=0
+          timeout --kill-after=3 "$tt" "$SSH" "$n" "$PASS" \
             "MXFS_NODES=$N MXFS_RANK=$i MXFS_DLM=$DLM MXFS_DEV='$DEV' \
              MXFS_EXPECT_FSTYPE=$fstype MXFS_FS_LABEL=$DLM \
              MXFS_COORD_BROKER=$BROKER MXFS_COORD_PREFIX=$prefix COORD_TIMEOUT=$ct \
+             MXFS_DEADLINE_MS=$dl_ms MXFS_RESERVE_MS=$reserve_ms MXFS_SPOOL='$spool' \
              ${MXFS_TEST_ENV:-} \
-             $runcmd" 2>&1 | grep -vE '^Warning:|^Unauthorized|^If you' > "$tmpd/$n" ) &
+             $runcmd" > "$tmpd/$n.raw" 2>&1 || nrc=$?
+          printf '%s\n' "$nrc" > "$tmpd/$n.rc"
+          grep -vE '^Warning:|^Unauthorized|^If you' "$tmpd/$n.raw" > "$tmpd/$n" ) &
         pids+=($!)
     done
     local rc=0
@@ -1093,18 +1181,71 @@ run_coord() {  # name cat budget scale
     # named it in its reason — the aggregate simply threw the failing node's
     # numbers away.
     local fail_measured=""
-    local -A state_count
+    # Initialize with =() — `local -A x` alone leaves the array UNSET, and
+    # under set -u `${#x[@]}` on an unset array is a fatal "unbound variable"
+    # (the bash 4.4 set -u exemption covers ${x[@]}, not ${#x[@]}).  Measured
+    # sess386: a failing node whose reason carried no step= breadcrumb killed
+    # the whole sweep at the aggregation step and the row's result was lost.
+    local -A state_count=()
+    local -A step_count=()
+
+    # DELIVERY PATH 2 of 3 (sess384): fetch the node-local terminal spool for any
+    # node whose stdout carries no record.  ssh block-buffering has been measured
+    # to LOSE unflushed stdout when the kill lands (both prior all-32 events
+    # recorded tail:<empty> on every node), so a record the node genuinely wrote
+    # can still be sitting on that node.  Runs before the aggregation decides
+    # anything, and only when something is actually missing.
+    local sn need_spool=0
+    for sn in "${NODES[@]}"; do
+        grep -qE '^RESULT:' "$tmpd/$sn" 2>/dev/null || need_spool=1
+    done
+    if [ "$need_spool" = 1 ]; then
+        for sn in "${NODES[@]}"; do
+            grep -qE '^RESULT:' "$tmpd/$sn" 2>/dev/null && continue
+            ( timeout 20 "$SSH" "$sn" "$PASS" "cat '$spool' 2>/dev/null" 2>/dev/null \
+                | grep -E '^RESULT:' | tail -1 >> "$tmpd/$sn" ) &
+        done
+        wait
+    fi
+
     for n in "${NODES[@]}"; do
-        line=$(grep -E '^RESULT:' "$tmpd/$n" | tail -1)
+        # SOURCE PRECEDENCE, not line order (sess384).  A watchdog fallback and a
+        # real test verdict can both be present; `tail -1` would let a late
+        # BUDGET_EXHAUSTED bury an earlier, far more specific SYSCALL_HANG.
+        # Order: the test's own record, then this node's watchdog, then any
+        # untagged legacy record (tests that print RESULT directly).
+        line=$(grep -E '^RESULT:' "$tmpd/$n" 2>/dev/null | grep -m1 'src=test')
+        [ -n "$line" ] || line=$(grep -E '^RESULT:' "$tmpd/$n" 2>/dev/null | grep -m1 'src=watchdog')
+        [ -n "$line" ] || line=$(grep -E '^RESULT:' "$tmpd/$n" 2>/dev/null | tail -1)
         if [ -z "$line" ]; then
-            status="NO_TERMINAL_RECORD"; saw_noresult=1
-            fail_reason="$fail_reason $n:$status:no-result(tail:$(tail -1 "$tmpd/$n" 2>/dev/null))"
+            # DELIVERY PATH 3 of 3: synthesize from `timeout`'s exit status.  This
+            # is the only path that cannot fail, because it runs outside the ssh
+            # session — no node-side mechanism can guarantee delivery ahead of an
+            # external SIGKILL.  It replaces the undifferentiated
+            # NO_TERMINAL_RECORD that said nothing about which of these happened.
+            local nrc; nrc=$(cat "$tmpd/$n.rc" 2>/dev/null)
+            case "$nrc" in
+                124|137) status=BUDGET_EXHAUSTED ;;
+                255)     status=TRANSPORT_ERROR ;;
+                '')      status=NO_TERMINAL_RECORD ;;
+                *)       status=MISSING_TERMINAL_RECORD ;;
+            esac
+            saw_noresult=1
+            fail_reason="$fail_reason $n:$status:rc=${nrc:-?}(tail:$(tail -1 "$tmpd/$n" 2>/dev/null))"
         else
             status=$(awk '{print $2}' <<<"$line")
             if [ "$status" = PASS ]; then
                 npass=$((npass+1))
             else
                 fail_reason="$fail_reason $n:$status:$(echo "$line"|field reason)"
+                # The node now REPORTS its own budget exhaustion / hang instead of
+                # dying mute, so the leftover-kill sweep below can no longer key
+                # off "no record at all" — without this the still-running workload
+                # would hammer the FS through every later criterion, which is the
+                # exact cascade the sweep was written to stop.
+                case "$status" in
+                    BUDGET_EXHAUSTED|SYSCALL_HANG|BARRIER_TIMEOUT) saw_noresult=1 ;;
+                esac
             fi
             # rank 1 is NODES[0]; its own measured= payload (e.g. fio_perf's
             # AGGREGATE seqW/seqR/randW/randR figures) is real per-test detail
@@ -1126,6 +1267,16 @@ run_coord() {  # name cat budget scale
                 local nf
                 nf=$(echo "$line" | field measured | sed -n 's/.*failed=\([0-9]*\).*/\1/p')
                 [ -n "$nf" ] && faildist="$faildist $nf"
+                # sess384 STEP CENSUS.  fail_reason is capped at 400 chars, which
+                # at 32 nodes keeps about six of them -- so the per-node step
+                # breadcrumb, the whole point of the terminal-record guarantee,
+                # was being truncated away exactly when it matters most.  Tally
+                # it instead: "steps[pm barrier clean=31,injected-stall=1]" is
+                # the shape a human needs -- 31 nodes parked at one barrier and
+                # ONE somewhere else names the node to investigate.
+                local stp
+                stp=$(echo "$line" | field reason | sed -n 's/^step=\(.*\) report_s=.*/\1/p')
+                [ -n "$stp" ] && step_count["$stp"]=$(( ${step_count["$stp"]:-0} + 1 ))
             fi
         fi
         state_count["$status"]=$(( ${state_count["$status"]:-0} + 1 ))
@@ -1163,7 +1314,7 @@ run_coord() {  # name cat budget scale
         # Compact last-phase census across nodes -> appended to the reason so
         # the criteria history self-diagnoses the stuck phase distribution.
         local pc_phase pc_summary=""
-        local -A pc_count
+        local -A pc_count=()
         for kn in "${NODES[@]}"; do
             pc_phase=$(sed -n 's/.*PHASE=//p' "$tmpd/$kn.ccph" 2>/dev/null | head -1)
             [ -z "$pc_phase" ] && pc_phase="none"
@@ -1208,6 +1359,14 @@ run_coord() {  # name cat budget scale
             hist=$(printf '%s\n' $faildist | sort -n | uniq -c \
                    | awk '{printf "%s%sx%s", (NR>1?",":""), $2, $1}')
             [ -n "$hist" ] && measured="$measured faildist[$hist]"
+        fi
+        # sess384: where each non-passing node WAS, as a census (see above).
+        if [ "${#step_count[@]}" -gt 0 ]; then
+            local sk stephist=""
+            for sk in "${!step_count[@]}"; do
+                stephist="$stephist${stephist:+,}${sk}=${step_count[$sk]}"
+            done
+            measured="$measured steps[$stephist]"
         fi
     elif [ -n "$rank1_measured" ]; then
         measured="$measured $rank1_measured"
@@ -1384,6 +1543,24 @@ finalize_pending() {
        "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
 }
 # ---------------------------------------------------------------------------
+# HOST-SAFETY GATE.  Nothing below this line may run on a host that is already
+# damaged, already flooding its own kernel log, or out of filesystem headroom.
+#
+# clyde was wedged unrecoverably twice inside 24h (2026-08-20, 2026-08-21),
+# each time needing a manual reset, and each time the host had already said so
+# in a way nothing was checking.  A failed gate costs one run; a wedged host
+# costs the campaign and a physical reset.  See scripts/clyde_preflight.sh.
+#
+# MXFS_PREFLIGHT_SKIP=1 bypasses it, loudly, for the rare case where the gate
+# itself is what is broken.
+# ---------------------------------------------------------------------------
+if ! "$REPO/scripts/clyde_preflight.sh"; then
+    echo "=== run.sh ABORTED: host-safety preflight failed at ${N}/${DLM} ===" >&2
+    echo "    Do not widen or skip this to make a run start.  Fix the host." >&2
+    exit 3
+fi
+
+# ---------------------------------------------------------------------------
 # Cluster prep decision (2026-07-14): see the MARKER comment near the top of
 # this file for the rationale.
 # ---------------------------------------------------------------------------
@@ -1559,10 +1736,15 @@ for row in "${ROWS[@]}"; do
     case "$DESTRUCTIVE_TESTS" in
         *" $name "*)
             if wait_converged $(( 120 + 5 * N )); then
-                echo "    (reconverged: all $N nodes report active_count=$N)"
+                echo "    (reconverged: all $N nodes report active_count=$N in ${RECONV_WALL}s; trajectory:${RECONV_TRAJ})"
             else
                 echo "    RECONVERGENCE FAILED after $name — cluster did not return to $N members"
-                record "$name" FAIL "recovery_postcondition=FAILED" \
+                # 2s per sample over a 280s window is ~140 samples; the
+                # recorded field keeps the last 25, the console prints all.
+                rc_tail=$(printf '%s' "${RECONV_TRAJ# }" | tr ' ' '\n' | tail -25 | tr '\n' ' ')
+                echo "    trajectory (alive/N per sample):${RECONV_TRAJ}"
+                echo "    final dissenting nodes:${RECONV_LAST:- <none — every node answered ALIVE:$N>}"
+                record "$name" FAIL "recovery_postcondition=FAILED traj=[${rc_tail% }] dissent=[${RECONV_LAST# }]" \
                        "the cluster did not reconverge to $N members within $(( 120 + 5 * N ))s after this destructive test; every later criterion is BLOCKED rather than measured on a half-formed cluster"
                 BLOCK_REST=1
             fi ;;

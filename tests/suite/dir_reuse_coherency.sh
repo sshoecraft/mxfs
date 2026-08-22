@@ -32,8 +32,14 @@ D="$MNT/.dir_reuse_coherency"
 # failure survive.  Enabled only when DRC_STREAM is set.
 if [ -n "${DRC_STREAM:-}" ]; then
     pkill -f 'dmesg --follow' 2>/dev/null || true
-    rm -f "/root/drc_stream_rank${R}.log"
-    ( dmesg --follow > "/root/drc_stream_rank${R}.log" 2>&1 & )
+    # sess304: stream lands on /dev/shm (tmpfs), NOT /root.  Writing it to the
+    # root fs forced ~17MB/round/node through vda→qcow2→the same host NVMe that
+    # backs the LUN; at 32 nodes that is 540MB/round of harness-only IO, and the
+    # sess303 null-mxfs repro (tests/drc_synth_sync.sh) proved it alone collapses
+    # host NVMe write latency enough to fail a back-to-back run.  The stream is
+    # harvested post-run over ssh, so tmpfs is equivalent for diagnostics.
+    rm -f "/dev/shm/drc_stream_rank${R}.log"
+    ( dmesg --follow > "/dev/shm/drc_stream_rank${R}.log" 2>&1 & )
 fi
 # sess17(ccloop): persistent NFS capture — survives a node panic/reboot (the
 # fatal round's trace was lost when rank1 rebooted).  /src is clyde's NFS export
@@ -51,7 +57,7 @@ fi
 # run's artifact as if they were current (r4 post-mortem chased a "divergent
 # DIRID incarnation" for an hour that was really iter-r3's files from an
 # earlier boot).  Start every run with a clean forensic slate.
-rm -f /root/drc_create_r*.dmesg /root/drc_fail_r*.dmesg \
+rm -f /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg /root/drc_fail_r*.dmesg \
       /root/drc_failverify_r*.dmesg /root/drc_failrounds.txt 2>/dev/null
 rm -rf /root/drc_blkdump_r* 2>/dev/null
 # ccloop c7ee71c6 sess6: the newer capture families were MISSING from this
@@ -232,7 +238,13 @@ for round in $(seq 1 "$ROUNDS"); do
     # sess62: snapshot the create-phase ring NOW (before verify-phase reads +
     # the next round flood it out).  Per-round so a node1_f1-losing round's
     # create snapshot (holding the clobber) can be correlated after the fact.
-    dmesg > "/root/drc_create_r${round}_rank${R}.dmesg" 2>/dev/null || true
+    # sess304: target is /dev/shm (tmpfs), NOT /root.  The full 16.9MB ring
+    # dumped to the root fs every round on every node (540MB/round fleet-wide,
+    # forced out by this test's own syncs) saturates the shared host NVMe and
+    # was the proven but-for cause of the back-to-back-run FAIL (D-503 residual,
+    # sess303 null-mxfs repro tests/drc_synth_sync.sh).  tmpfs also can't leak
+    # stale snapshots across reboots (the sess14 contamination above).
+    dmesg > "/dev/shm/drc_create_r${round}_rank${R}.dmesg" 2>/dev/null || true
     drc_barrier "drc_r${round}_wr"
     echo "mxfs-DRCph r=${round} rank=${R} PHASE=wrbar-done" > /dev/kmsg 2>/dev/null || true
 

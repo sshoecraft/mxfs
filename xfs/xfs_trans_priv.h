@@ -22,6 +22,44 @@ struct xfs_log_vec;
  * overhead until a wedge manifests (single atomic read per call).
  */
 extern atomic_t mxfs_ailstuck_probe;
+/*
+ * incident474: budget of ILOCK-owner sched_show_task dumps for P129-CLSKIP
+ * why=ILOCK_NOWAIT_FAIL.  Reset to 0 at every arm event (self-latch or manual
+ * param) so a fresh wedge always gets its 3 stack dumps — a lifetime-static
+ * cap was burned by healthy-baseline skips when the probe was pre-armed.
+ */
+extern atomic_t mxfs_ailstuck_odumps;
+static inline void mxfs_ailstuck_probe_arm(void)
+{
+	atomic_set(&mxfs_ailstuck_odumps, 0);
+	atomic_set(&mxfs_ailstuck_probe, 1);
+}
+
+/*
+ * Fence-scoped arming (0.11.477).  The noino fence arms at stall==2, but the
+ * benign alloc-buflist class also reaches stall==2 and then recovers via the
+ * stall==3 LISTDRAIN repair — with a permanent latch, every benign burst
+ * left more nodes armed for life (9/32 latched within one day of .476,
+ * ~100 P129 lines/lap each: exactly the fleet-wide-arm noise the self-latch
+ * was meant to avoid).  Fence arming therefore uses probe value 2 plus an
+ * armer refcount: recovery disarms only when no stalled fence remains, and
+ * only value 2 — a manual param arm (1) or the 30s xfs_ail_push_all_sync
+ * latch (1) is never cleared by a fence recovering.  A fence that exits on
+ * DRAIN-STUCK or shutdown deliberately never decrements, keeping the latch
+ * (and all later P129 output) for the post-mortem.
+ */
+extern atomic_t mxfs_ailstuck_fence_armers;
+static inline void mxfs_ailstuck_probe_fence_arm(void)
+{
+	atomic_inc(&mxfs_ailstuck_fence_armers);
+	atomic_set(&mxfs_ailstuck_odumps, 0);
+	atomic_cmpxchg(&mxfs_ailstuck_probe, 0, 2);
+}
+static inline void mxfs_ailstuck_probe_fence_disarm(void)
+{
+	if (atomic_dec_return(&mxfs_ailstuck_fence_armers) == 0)
+		atomic_cmpxchg(&mxfs_ailstuck_probe, 2, 0);
+}
 
 void	xfs_trans_init(struct xfs_mount *);
 void	xfs_trans_add_item(struct xfs_trans *, struct xfs_log_item *);
@@ -168,7 +206,8 @@ void			xfs_ail_push_ag_sync(struct xfs_ail *ailp,
 int			xfs_ail_push_ag_sync_bounded(struct xfs_ail *ailp,
 					     xfs_agnumber_t agno,
 					     unsigned int stall_iters,
-					     unsigned int min_iters);
+					     unsigned int min_iters,
+					     unsigned int max_iters);
 xfs_lsn_t		xfs_ail_min_lsn(struct xfs_ail *ailp);
 
 struct xfs_log_item *	xfs_trans_ail_cursor_first(struct xfs_ail *ailp,

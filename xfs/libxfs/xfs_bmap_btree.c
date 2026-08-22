@@ -882,7 +882,8 @@ xfs_bmbt_change_owner(
 	struct xfs_inode	*ip,
 	int			whichfork,
 	xfs_ino_t		new_owner,
-	struct list_head	*buffer_list)
+	struct list_head	*buffer_list,
+	bool			mxfs_foreign_recovery)
 {
 	struct xfs_btree_cur	*cur;
 	int			error;
@@ -894,7 +895,8 @@ xfs_bmbt_change_owner(
 	cur = xfs_bmbt_init_cursor(ip->i_mount, tp, ip, whichfork);
 	cur->bc_flags |= XFS_BTREE_BMBT_INVALID_OWNER;
 
-	error = xfs_btree_change_owner(cur, new_owner, buffer_list);
+	error = xfs_btree_change_owner(cur, new_owner, buffer_list,
+				       mxfs_foreign_recovery);
 	xfs_btree_del_cursor(cur, error);
 	return error;
 }

@@ -27,6 +27,7 @@
 #include "xfs_rtbitmap.h"
 #include "xfs_rtgroup.h"
 #include "xfs_sb.h"
+#include "xfs_ag.h"	/* -488: xfs_perag_put (seam AG-want ref) */
 #include "xfs_mxfs_dlm.h"  /* mxfs_trans_drain_ag_unlocks */
 
 struct kmem_cache	*xfs_trans_cache;
@@ -97,6 +98,12 @@ xfs_trans_free(
 	mxfs_trans_drain_ag_unlocks(tp);
 	mxfs_trans_drain_inode_unlocks(tp);
 
+	/* MXFS -488: drop an unconsumed seam AG-want ref (cancel/abort path). */
+	if (tp->t_mxfs_ag_want) {
+		xfs_perag_put(tp->t_mxfs_ag_want);
+		tp->t_mxfs_ag_want = NULL;
+	}
+
 	trace_xfs_trans_free(tp, _RET_IP_);
 	xfs_trans_clear_context(tp);
 	if (!(tp->t_flags & XFS_TRANS_NO_WRITECOUNT))
@@ -133,6 +140,16 @@ xfs_trans_dup(
 	INIT_LIST_HEAD(&ntp->t_mxfs_ag_unlocks);
 	INIT_LIST_HEAD(&ntp->t_mxfs_inode_unlocks);
 	ntp->t_highest_agno = NULLAGNUMBER;
+	/* A rolled chain has committed state; restart is no longer clean. */
+	ntp->t_mxfs_wouldblock_agno = NULLAGNUMBER;
+	/* Not inherited: xfs_defer_finish_noroll re-arms SAFE after the roll. */
+	ntp->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_NOTDEFER;
+	/*
+	 * MXFS -488: the seam AG-want (set by a finish_item just before the
+	 * roll that consumes it) rides the roll — the ref moves to ntp.
+	 */
+	ntp->t_mxfs_ag_want = tp->t_mxfs_ag_want;
+	tp->t_mxfs_ag_want = NULL;
 
 	/*
 	 * MXFS Approach A: handoff active-trans publication from tp to ntp.
@@ -301,6 +318,8 @@ __xfs_trans_alloc(
 	INIT_LIST_HEAD(&tp->t_mxfs_ag_unlocks);
 	INIT_LIST_HEAD(&tp->t_mxfs_inode_unlocks);
 	tp->t_highest_agno = NULLAGNUMBER;
+	tp->t_mxfs_wouldblock_agno = NULLAGNUMBER;
+	tp->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_NOTDEFER;
 
 	/*
 	 * MXFS Approach A: publish this trans on the per-task slot so

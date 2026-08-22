@@ -61,6 +61,7 @@ struct mxfs_dlm_caw_ctx {
 **Slot table.** `MXFS_CAW_MAX_SLOTS=65536` slots on disk in the lock region (after disklock heartbeat area). Each slot is 64 bytes containing magic, generation, holders_ex/pr bitmasks, granted_mode, requested_mode, resource_id (32 bytes). Hash from `mxfs_resource_id` → starting slot index, linear probe.
 
 **CAW lock acquire** (`mxfs_dlm_caw_lock`): `find_slot` (read+probe) → `caw_slot` CAS submitting our want → `caw_wait_for_grant` poll loop until granted or 120s timeout (`MXFS_CAW_WAIT_TIMEOUT_MS`). Poll with backoff 1ms→25ms.
+**Deadline-bounded acquire** (`mxfs_dlm_caw_lock_deadline`, sess386/0.19.23): same path with an absolute `deadline_ms` (mxfs_pal_time_ms domain, 0=unbounded) threaded through `caw_lock_body`→`caw_wait_for_grant`. Checked AFTER each read/grant lap (grant-wins), exits via the robust `caw_drop_own_waiter` cancel, logs `P-RESV-DEADLINE`, returns -ETIMEDOUT. `mxfs_v5_dlm_inode_lock_retries` now honors `retries` on CAW as a retries×1s deadline (it used to ignore it — the 474 leg-A hole: dialloc reserve blocked minutes under a held AGI buffer). Callers that hold any XFS resource (AGI, ILOCK) across a cluster acquire MUST use the deadline variant.
 
 **BAST poll thread** (`bast_poll_fn`): kthread reads our slot table entries every `MXFS_CAW_BAST_POLL_MS=200` (idle) or `MXFS_CAW_BAST_POLL_FAST_MS=100` (under contention; was 5ms — sess33 storm fix). When peer's request bit set on a slot we hold, fires `bast_cb` → upper layer (xfs) handles drain+release.
 
@@ -688,3 +689,276 @@ Note for anyone injecting an epoch into a heartbeat record: `hb_feature_crc()`
 covers `fs_gen`, `node_id` AND `epoch`, so a naive epoch rewrite makes
 `hb_feature_state()` read !OK and a *different* refusal arm fires. Reseal the
 feature block or you measure the wrong thing.
+
+## sess376 (2026-08-19, 0.14.8-0.14.9) — closure-purge observability, and what the logs actually mean
+
+The out-of-closure selective purge (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356)
+has two chokepoints into the SAME function, `caw_closure_strip_one()`
+(`dlm/dlm_caw.c`):
+
+- **publisher scan** — `caw_purge_victim_selective_body()` walks all 65536 CAW
+  slots in 32-slot batches; each batch entry is a candidacy HINT only.
+- **survivor demand scrub** — `caw_closure_scrub_slot()`, called from the
+  acquire wait loop and from the NOQUEUE conflict path, so a node blocked on a
+  refusal victim's grant repairs the slot itself instead of running to the 120s
+  DLM wait timeout.
+
+### Two log-reading traps that cost a session each
+
+1. **"the publisher purges before it publishes" is FALSE.** The durable publish
+   is `mxfs_v5_dlm_recovery_publish_refusal()` at `xfs/xfs_mxfs_dlm.c:46711`;
+   the purge scan runs after it at `:46759`; the `terminal outcome PUBLISHED`
+   xfs_alert at `:46791` is only the trailing summary. Remote monitors import
+   the verdict ~2.1s after their own fence-done, and the whole un-injected scan
+   is **418 ms** (measured: `P299-CLOSURE-SCAN ENTRY` 14028.136 →
+   `P299-CLOSURE-PURGE` 14028.554). Proof that publication is not gated on the
+   scan: a publisher destroyed mid-scan, which never emits the summary line at
+   all, still had its verdict imported by all 30 remote survivors.
+2. **`caw_inject_closure_pause_n` is a single global consumed by whichever
+   caller arrives first**, and both callers pass through the same site. An
+   unfiltered injection therefore parks a blocked waiter's demand scrub, which
+   reads exactly like "the scrub never fired". Use
+   `caw_inject_closure_pause_who` (0=any, 1=publisher scan, 2=demand scrub).
+
+### Probes added (all default-off or log-only)
+
+| marker | where | what it answers |
+|---|---|---|
+| `P299-SCRUB-TRY` | end of `caw_closure_scrub_slot` | census on EVERY demand-scrub attempt: `site=WAIT\|NOQ`, wait age at hook ENTRY (`el_ms`), and which zero-return reason applied (`kept/vanished/bit_gone/res_moved/flipped/cas_mis/hard_rc`). Before this, a scrub that stripped nothing was completely silent. |
+| `P299-INJECT-PAUSE` | both injection sites | logs a pause actually taken, with `who=` and `inv=`. |
+| `P299-HINT-MOVED` / `-FLIPPED` | `caw_closure_strip_one` | per-attempt, naming slot, hint resource, found resource, `gen`, `lineage`, `vbit_present`. The aggregate `P299-CLOSURE-SHAPES` counters accumulate over a WHOLE scan and therefore name no slot — never assert on them alone. |
+| `P299-STRIP-CASMISS` | CAS miscompare path | the expected image (`expect_ino/gen/lineage/vfoot`) that lost. |
+| `cand=`/`scrubs=`/`laps=` | `P-ACQ-STUCK` | the live `closure_cand_mask`, how many times THIS wait entered the scrub chokepoint, and the lap count — distinguishes "hook never entered" from "hook entered, oracle refused". |
+
+`el_ms` on `P299-SCRUB-TRY` is the wait's age at hook ENTRY, snapshotted before
+the call. It is **not** the mutation time — the strip happens inside.
+
+### Slot identity semantics the ABA argument rests on
+
+- `generation` is **per-binding** and restarts at 1 on a fresh claim, so it is
+  not a global monotonic discriminator for a slot.
+- `caw_tombstone_slot()` **preserves** generation, resource identity,
+  `dir_epoch`, `last_ex_slot`, `ex_grant_epoch`, `open_holders` and
+  `resource_lineage` — a tombstone is the binding surviving an idle gap.
+- `resource_lineage` is a random nonzero 64-bit id minted per FRESH binding
+  (`caw_mint_lineage`, fail-closed: no lineage, no claim) and **inherited** by a
+  same-resource tombstone recycle (`caw_claim_inherit_epoch`).
+- What actually excludes an ABA success on a closure strip is neither: the
+  expected image necessarily carries the victim's footprint (`strip_one` returns
+  at the victim-bit check otherwise), and reaching a tombstone requires every
+  holder/waiter/open bit to be clear first. Measured: A → tombstone → A with
+  identical resource AND identical lineage still produced `P299-STRIP-CASMISS`,
+  and the retry re-read, found the bit gone, and mutated nothing.
+
+## sess380 — new instrumentation knobs and probes (dlm/dlm_caw.c)
+
+| symbol | default | what it is |
+|---|---|---|
+| `mxfs.caw_watch_slot` | -1 (off) | Arm a single CAW slot index; every single-slot read and every CAW this node issues to exactly that LBA is counted and timed. |
+| `mxfs.caw_watch_{reads,read_totms,read_maxms,spans,caws,caw_totms,caw_maxms,miscmp,err}` | 0 | The counters. Writable, so a test zeroes them between arms. Plain ints, unserialised — every value is a LOWER bound. |
+| `mxfs.caw_locktotal_ms` | 800 | Floor for the **P139-LOCKTOTAL** whole-acquire census. The old hardcoded 800ms sat ABOVE the whole 32-node create-tail distribution, so the probe that exists to explain that tail produced zero lines. Lower it (50) for a census run. |
+
+New probes:
+- **`P381-UNLK-CONTEND ino= retries= miscmp= sleep_ms= wall_ms= backoff=`** —
+  fires only when an INODE unlock CAS lost at least one race. This is the
+  release-side half of the shared-slot CAS collision; see
+  `D-32NODE-SHARED-DIR-CREATE-PACE`.
+- **`P380-RA-CASRETRY node= slot= attempts= cleared= last_rc=`** — per-slot
+  attempt count in `caw_release_all_body`, whose retry loop has no backoff.
+
+Reading the existing probes correctly (this cost sess380 several runs):
+`P138-WAIT` times ONE `wait_for_grant` call at a >5ms floor, so a contended
+acquire made of many sub-5ms waits with outer retries is INVISIBLE to it.
+`P139-LOCKTOTAL` brackets the whole acquire including retries and its
+`retries=`/`ea_*` fields are the CLAIM-BOUND vs HOLDER-BOUND discriminator.
+`P138-BAST`'s `sx` field is the wire unlock proper; `sa+sb+sc+sd` is the drain
+pipeline. On a contended directory `sx` is 95-98% of the release.
+
+---
+
+## 0.16.0-0.17.0 — SCSI-PR reservation LIFETIME and the fencing retry state machine (sess381)
+
+Two critical defects closed here changed the shape of PR fencing. Read this
+before touching `dlm/scsipr.{c,h}`, the `MXFS_PAL_PR_TYPE_*` constants, or
+`dlm/disklock.c`'s fence intent / certify / takeover trio.
+
+### The reservation is now WRITE EXCLUSIVE - ALL REGISTRANTS (0x07), not WE-RO
+
+`MXFS_SCSIPR_RESV_TYPE` in `dlm/scsipr.h`. WE-RO (0x05) is a **single-holder**
+type: SPC releases it when its holder's registration is removed, and MXFS
+retires its own registration unconditionally at `put_super`. Measured at 32
+nodes: **one node's routine 0.49-second clean unmount took the LU from a held
+reservation to none, with 31 nodes still mounted**, nothing re-reserved, and the
+next peer death fenced with `NO_RESERVATION(8)` and left the filesystem
+permanently unmountable. Under an all-registrants type every registrant is a
+holder, so the reservation survives until the last registration goes.
+
+Consequences to keep in mind:
+
+- **`READ RESERVATION` reports the holder key as ZERO** under any all-registrants
+  type (measured on SCST). `held` is therefore decided by the **type**, never by
+  the key — `pal/linux/kern.c`'s old `held = (rsv.key != 0)` would have called a
+  live WE-AR reservation "none held" and failed every fence closed.
+- **RESERVATION CONFLICT is no longer success.** Under WE-AR a matching
+  scope+type RESERVE from any registrant completes GOOD, so a conflict means the
+  reservation in force has the wrong type/scope or our registration is gone.
+  `mxfs_scsipr_reserve()`'s return value is checked at all four call sites and an
+  incompatible reservation refuses the mount.
+- **The fence path and the certificate re-check accept EITHER Write Exclusive
+  form** (`mxfs_pr_type_excludes_nonregistrants()`), because that is the property
+  an exclusion proof rests on. Only the ADMISSION gate insists on
+  `MXFS_SCSIPR_RESV_TYPE`. **There are FIVE such type tests in the tree** —
+  `scsipr.c` fence/admission/cert-recheck plus `disklock.c` ~5007 and ~5261 (the
+  certificate minter and its verifier). Missing the disklock pair produced the
+  worst possible outcome on the rig: the fence PROVED exclusion and the minter
+  then refused to certify it, with the victim key already consumed.
+- **`mxfs_scsipr_observe_reservation()` must be called before register+reserve.**
+  The sess378 admission gate ran immediately AFTER `mxfs_scsipr_reserve()` and so
+  validated a reservation it had just created — it logged `P303-FENCECAP-OK
+  ... WE-RO held` on a LUN two independent observers read as unreserved.
+  `P304-PREOBSERVE` is the honest line.
+- `MXFS_PROTO_GEN` is **5**. Gen-4 binaries hard-require type 0x05 in three
+  places and cannot see a WE-AR reservation at all; mixed generations are
+  excluded cluster-wide by the existing three gate layers.
+- **Never PREEMPT with SARK == our own key** (`P304-PREEMPT-SELFKEY`): SPC
+  protects the issuer's own registration from its own PREEMPT, so it fences
+  nobody and removes our sibling nexus instead.
+
+### The command-submission boundary
+
+`enum mxfs_fence_phase` (`scsipr.h`) — `PRECOMMAND` / `MAY_HAVE_SUBMITTED` /
+`VERIFIED` — is set at the two lines that bracket the PROUT, and is **never
+derived from `fence_kind`**: a future refactor could detect reservation loss
+after submission and the reason would then lie.
+
+Durably, the same boundary is `MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN` (0x8) on the
+recovery descriptor, written by `mxfs_disklock_recovery_fence_arm_submit()`,
+which `mxfs_scsipr_fence_node()` calls through its `arm_submit` hook on the last
+line before the PROUT. **If it cannot be made durable, the command is not
+issued.** The bit is monotonic and its name is the contract: it may never be read
+as proof that submission *did* happen.
+
+Three durable states result: `FENCING`+clear (nothing was submitted — safe to
+repeat), `FENCING`+set (reconcile before assuming anything), `stage >= FENCED`.
+
+### The fence-retry worker
+
+`v5_fence_retry_*` in `dlm/v5_mount.c`. Its **queue is the on-disk descriptor**
+(`mxfs_disklock_recovery_fence_retryable()` = stage FENCING, bit clear, prover
+is us); `ctx->fence_retry[]` is only a wake-up accelerator and every firing
+re-reads the descriptor. Backoff 250ms..6s with jitter, a 60s descriptor sweep
+behind it, and it **never gives up on an attempt count**. The thread is created
+lazily on the first retryable outcome.
+
+**Do NOT drive fence retries from the heartbeat monitor or from mount
+admission.** `expire_cb` means "a live identity became dead, do the one-time
+retirement" — re-firing it repeats dead-node retirement, notifications,
+slice-recovery creation, purge and successor rebasing. A mounting node is not yet
+a member and must not become a fencing authority. Certification instead fires an
+explicit wake-up (`P304-FENCE-RETRY-OK` -> `v5_dispatch_slice_recovery`).
+
+`ctx->fence_prove_busy[]` guards ONE prover per slot per node: the attempt lease
+is per node, so two local threads would both "resume our own attempt" and the
+second P&A would take RESERVATION CONFLICT and classify as `RACE_LOST` at
+`MAY_HAVE_SUBMITTED` — converting our own success into a blocked slice. The
+disklock CAS cannot catch that; both threads hold the same valid lease.
+
+### Still open
+
+The `MAY_HAVE_SUBMITTED` half has **no reconciliation** and
+`mxfs_disklock_recovery_fence_takeover()` does not consult the new bit before
+letting a successor issue a fresh P&A — `D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381`.
+Post-PREEMPT verification must not be made mandatory until that is green.
+
+### Harnesses
+
+- `tests/pr_reservation_ownership_probe.sh <observer> [dev]` — read-only; holder,
+  type, key counts, or `NONE HELD`.
+- `tests/pr_all_registrants_semantics.sh <spare> <observer>` (`PART2=1`) — proves
+  the WE-AR properties on the real target; restores pre-state.
+- `tests/fence_lifetime_ab.sh <resv-node> <victim> [observer]` — the minimal
+  sequence that used to brick the filesystem.
+- `tests/fence_precondition_retry.sh <spare> <victim> [observer]` — removes the
+  reservation out of band, kills a node, restores it, asserts self-certification.
+  **It verifies its own kill**: `virsh destroy` can leave a domain wedged in
+  "in shutdown" with the guest still running and serving I/O, and a test that
+  proceeds from there scores the absence of a fence as a code defect.
+
+## sess383 (2026-08-20, 0.19.6) — the terminal-outcome import CHOKEPOINT
+
+Three consumers read a victim's terminal recovery-outcome record. They applied
+three different levels of scrutiny, and two of them applied none. Measured on
+the real LUN with `tools/recov_forge` + `tests/d513_forged_record_checks.sh`
+(ledger `D-TERMINAL-OUTCOME-IMPORT-UNVALIDATED-383`):
+
+- the registration-time scan imported a crc-valid record carrying
+  `outcome=99` as a real AG-scoped verdict, and fed the selective grant purge
+  from it;
+- a **pre-mkfs ghost** (a sector whose `fs_gen` is not ours) quarantined the
+  live filesystem, because `recovery_read_outcome()` never looked at `fs_gen`
+  while the requires-recovery sweep always did;
+- an FSWIDE quarantine discovered by that scan **did not refuse the mount** —
+  the barrier's two FSWIDE gates run ~0.5 s earlier, inside `xfs_mountfs`.
+
+### What changed
+
+`recov_outcome_structural(ctx, hb, slot, &oc)` (disklock.c) is now the ONE
+place that decides what a sector's recovery object structurally is. Both the
+monitor and `mxfs_disklock_recovery_read_outcome()` go through it, so they
+cannot disagree. It adds two gates every consumer now inherits:
+
+- **generation first**: a foreign `fs_gen` returns **`-ESTALE`**, distinct
+  from `-ENOENT`. A ghost is outside this filesystem's recovery namespace, so
+  malformed bytes inside one must not quarantine the new filesystem either.
+  `-ESTALE` may never cause backfill, closure-note insertion, grant purge,
+  slot retirement/zeroing or quarantine import — it is observational only,
+  and the scan aggregates it into one `P241-RECOV-GHOST-GEN` line.
+- **descriptor identity**: `d->victim_slot != slot` is `-EPROTO`. The
+  descriptor crc binds the SECTOR header, which travels with a byte-copied
+  record, so `victim_slot` is the only binding to the slot it was read from.
+  Only `backfill_legacy` used to check this.
+
+`mxfs_disklock_recov_outcome_cb` now **returns** `enum mxfs_quar_disposition`
+(`NOT_TERMINAL` / `VALID_AG` / `VALID_FSWIDE` / `INVALID_FSWIDE` / `FOREIGN`,
+disklock.h). The semantic predicate is XFS policy and stays in ONE place
+(`mxfs_freplay_import_verdict`); the disposition is what lets a caller act on
+a record beyond importing it. **"It imported FSWIDE" is NOT evidence of
+validity** — a rejected record imports FSWIDE by design, so closure candidacy
+follows `VALID_AG` only, and `v5_closure_note_terminal()` now runs AFTER the
+callback, never before.
+
+The monitor no longer pre-filters on `oc->outcome == TERMINAL_REFUSED`. That
+filter was itself a bypass: an unknown outcome kind was skipped silently every
+pass, so a QUARANTINED slot never quarantined any live peer — the D-513
+park/timeout shape. `-EPROTO` now joins `-EBADMSG` on the fail-closed arm.
+
+### Admission is a transaction now
+
+`mxfs_dlm_cache_init()` sets `mp->m_mxfs_quar_admitting` under
+`m_mxfs_quar_lock` **before** registering the consumer;
+`mxfs_dlm_admission_commit()` (called from `xfs_fs_fill_super` after the
+recovery settle) reads `m_mxfs_quar_fswide` and clears the flag under that
+same lock, returning `-EIO` to refuse the mount. The shared lock is the whole
+point: an import landing before the transition is seen by the check, and one
+landing after meets an admitted mount, where a runtime EIO quarantine is the
+only response mount can still give. A bare post-registration flag test can
+read false and be overtaken one instruction later.
+
+**Still open** (ruling's longer-term item): the barrier derives its cut from
+`get_recovery_pending_slots()`, which omits `stage >= GRANTS_RELEASED`. That
+is a valid reason to omit a slot from the REPLAY cut, not from ADMISSION — the
+barrier should examine current-generation terminal guards independently. The
+admission commit makes the outcome correct today; the mount just pays a full
+`xfs_mountfs` before unwinding.
+
+### Reusable levers
+
+- `tools/recov_forge <dev> mkguard <slot> [--fsgen|--victim-slot|--stage|
+  --live|--break-desc-crc|--oc SHAPE|--oc-agmask]` — writes a real GUARD
+  record with a real CRC binding, via SCSI READ(16)/WRITE(16)+FUA. Also
+  `dump` / `save` / `restore` / `copy`. **`save` before forging, `restore`
+  after** — the harness does.
+- `tests/d513_forged_record_checks.sh <shape> [slot] [node]` — ~15 s per
+  shape, non-destructive: one node cycles its mount, the other 31 stay up.
+  Asserts mount disposition, byte-preservation of the refused sector,
+  quarantine expectation and no-shutdown.

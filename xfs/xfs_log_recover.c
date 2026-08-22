@@ -34,6 +34,15 @@
 
 /* sess32: D-FOREIGN-REPLAY-UNGATED-IMAGES containment knob (xfs_mxfs_dlm.c) */
 extern int mxfs_foreign_replay_untagged_apply;
+/* sess358 (#1, sess357 ruling): token-enforcement knob + its use-time
+ * domain/proof predicates (all defined in xfs_mxfs_dlm.c) */
+extern int mxfs_foreign_replay_token_enforce;
+extern int mxfs_fua_disable;
+extern int mxfs_target_cache_protected;
+extern int mxfs_release_proof_enforce;
+/* sess359 (GPT review Q5): serializes the enforce/F2-param setters with
+ * the preflight's configuration sample */
+extern struct mutex mxfs_fr_cfg_lock;
 
 #define BLK_AVG(blk1, blk2)	((blk1+blk2) >> 1)
 
@@ -2140,8 +2149,240 @@ mxfs_blf_parse_authority(
 		out->av_owner_epoch = be64_to_cpu(t2->mba_owner_epoch);
 		out->av_owner_slot = be32_to_cpu(t2->mba_owner_slot);
 		out->av_owner_node = be32_to_cpu(t2->mba_owner_node);
+
+		/*
+		 * sess177: v3 = v2 + the resource lineage of the authorizing
+		 * binding.  A v2 record leaves av_lineage 0, and a v3 record
+		 * MAY carry 0 (grant predates the lineage-minting build);
+		 * the evaluator distinguishes those by av_version, so 0 is
+		 * never treated as a comparable lineage value.
+		 */
+		if (ver == MXFS_BLF_AUTHORITY_V3) {
+			const struct mxfs_blf_authority_v3 *t3 =
+				(const struct mxfs_blf_authority_v3 *)(p + base);
+
+			out->av_lineage = be64_to_cpu(t3->mba_lineage);
+		}
 	}
 	return MXFS_AUTH_PARSE_OK;
+}
+
+/*
+ * sess352 (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130): lazily build
+ * the masked-compare baseline for the counter-only SB classifier — the
+ * REPLAYER's own m_sb serialized to disk format.  Under the blanket
+ * ATOMIC-SKIP nothing is ever applied, so the effective SB state at every
+ * replay point IS this snapshot (sess351 ruling2 Q3); a victim-side growfs
+ * image then mismatches the baseline and stays refused (false refusal is
+ * acceptable, false clean-skip is not).  Snapshotted ONCE per replay: the
+ * only fields that drift on the live replayer are the lazy counters, and
+ * those are exactly the masked ones.  kzalloc so fields xfs_sb_to_disk
+ * leaves untouched (feature-gated tails) compare equal to a victim image
+ * serialized over a mkfs-zeroed sector.
+ */
+static struct xfs_dsb *
+mxfs_sb_baseline_get(
+	struct xlog		*log)
+{
+	struct xfs_mount	*mp = log->l_mp;
+	struct xfs_sb		*sbp;
+	struct xfs_dsb		*dsb;
+
+	if (log->l_mxfs_sb_baseline)
+		return log->l_mxfs_sb_baseline;
+
+	dsb = kzalloc(sizeof(*dsb), GFP_KERNEL);
+	sbp = kmalloc(sizeof(*sbp), GFP_KERNEL);
+	if (!dsb || !sbp) {
+		kfree(dsb);
+		kfree(sbp);
+		return NULL;
+	}
+	spin_lock(&mp->m_sb_lock);
+	memcpy(sbp, &mp->m_sb, sizeof(*sbp));
+	spin_unlock(&mp->m_sb_lock);
+	xfs_sb_to_disk(dsb, sbp);
+	kfree(sbp);
+	log->l_mxfs_sb_baseline = dsb;
+	return dsb;
+}
+
+/*
+ * Masked content compare for the counter-only SB classifier.  Returns true
+ * iff the victim's SB image differs from the baseline ONLY in the lazy
+ * summary counters (sb_icount/sb_ifree/sb_fdblocks — reconstructible from
+ * AGF/AGI) and the derived-at-write fields (sb_crc is computed by the write
+ * verifier, sb_lsn stamped at buffer submit; both are meaningless in a
+ * logged image).  Implemented as memcmp over the four UNMASKED ranges so
+ * any field this build does not know about fails closed.  sb_frextents is
+ * deliberately NOT masked: no rt device in any MXFS configuration, so a
+ * frextents delta is evidence of something else and must refuse.  Bytes of
+ * the sector beyond sizeof(struct xfs_dsb) are not compared — no consumer
+ * interprets them.
+ */
+static bool
+mxfs_dsb_counter_only_diff(
+	const struct xfs_dsb	*base,
+	const struct xfs_dsb	*img,
+	size_t			*diff_off)
+{
+	static const struct {
+		size_t	off;
+		size_t	end;
+	} unmasked[] = {
+		{ 0, offsetof(struct xfs_dsb, sb_icount) },
+		{ offsetof(struct xfs_dsb, sb_frextents),
+		  offsetof(struct xfs_dsb, sb_crc) },
+		{ offsetof(struct xfs_dsb, sb_spino_align),
+		  offsetof(struct xfs_dsb, sb_lsn) },
+		{ offsetof(struct xfs_dsb, sb_meta_uuid),
+		  sizeof(struct xfs_dsb) },
+	};
+	int			i;
+	size_t			o;
+
+	for (i = 0; i < ARRAY_SIZE(unmasked); i++) {
+		if (!memcmp((const char *)base + unmasked[i].off,
+			    (const char *)img + unmasked[i].off,
+			    unmasked[i].end - unmasked[i].off))
+			continue;
+		for (o = unmasked[i].off; o < unmasked[i].end; o++) {
+			if (((const char *)base)[o] != ((const char *)img)[o])
+				break;
+		}
+		*diff_off = o;
+		return false;
+	}
+	return true;
+}
+
+/*
+ * sess352 (#94, sess351 rulings): counter-only SB clean-skip classifier for
+ * the blanket ATOMIC-SKIP.  A skipped foreign transaction is refusal-grade
+ * ONLY if skipping it can omit NON-RECONSTRUCTIBLE state; routine lazy
+ * SB-counter logging (xfs_log_sb from the percpu-counter sync path) is
+ * reconstructible from AGF/AGI, and every mxfs mount recomputes the summary
+ * counters from per-AG data unconditionally (xfs_check_summary_counts).
+ * Without this carve-out ANY fenced node whose slice retains a routine SB
+ * sync — i.e. any node that went idle after activity — deterministically
+ * arms the -117 terminal refusal and quarantines AG0 cluster-wide.
+ *
+ * STRICT eligibility, every item of the transaction must pass ALL of:
+ *   - XFS_LI_BUF whose token parses PARSE_OK with av_class == CLASS_SB
+ *     (st may be UNPROVEN: SB images carry no grant epoch to name, by
+ *     design — pal/linux/xfs_buf_item.c producer classify.  UNTAGGED /
+ *     MALFORMED stay refusal-grade);
+ *   - the image is the PRIMARY superblock: blf_blkno == XFS_SB_DADDR,
+ *     one-sector length, BLFT SB, exactly one logged region starting at
+ *     buffer offset 0 (xfs_log_sb logs the whole buffer) and covering at
+ *     least the dsb, magic intact;
+ *   - masked content compare against the replayer-side baseline shows the
+ *     image differs ONLY in the whitelisted counter/derived fields.
+ * Anything else — mixed transactions, secondary SBs, growfs/feature/
+ * geometry deltas, unparseable tokens, allocation failure — stays on the
+ * existing refusal path.  Returns a VERDICT CODE, not a bool (sess352 GPT
+ * review item 3/4): 0 = eligible, nonzero = the FIRST reason the txn was
+ * not — printed by both the refusal notice and the P227-TOKENSUM sample so
+ * a systematic false-mismatch (which would silently restore the old
+ * always-quarantine behavior) is visible on the rig, not inferred.
+ *
+ * CLASSIFIED EXACTLY ONCE per transaction, in xlog_recover_items_pass2,
+ * BEFORE the report call; the verdict is passed down.  Pass-2 replay is
+ * single-threaded (see the shadow-evaluator locking argument above), so the
+ * lazy baseline install has exactly one call site and no concurrency.
+ */
+#define MXFS_SBCLEAN_OK		0	/* eligible: clean-skip */
+#define MXFS_SBCLEAN_TOKEN	1	/* item token not PARSE_OK / non-buf */
+#define MXFS_SBCLEAN_CLASS	2	/* token class != CLASS_SB */
+#define MXFS_SBCLEAN_STATUS	3	/* token status != UNPROVEN */
+#define MXFS_SBCLEAN_NOTSB	4	/* not the primary-SB image shape */
+#define MXFS_SBCLEAN_FRAMING	5	/* region/bitmap/magic framing */
+#define MXFS_SBCLEAN_BASELINE	6	/* baseline allocation failed */
+#define MXFS_SBCLEAN_CONTENT	7	/* non-counter content mismatch */
+#define MXFS_SBCLEAN_EMPTY	8	/* no items */
+
+static int
+mxfs_sb_counter_only_txn(
+	struct xlog			*log,
+	struct list_head		*item_list)
+{
+	struct xlog_recover_item	*item;
+	int				n_sb = 0;
+
+	list_for_each_entry(item, item_list, ri_list) {
+		struct xfs_buf_log_format	*blfp;
+		struct mxfs_auth_view		av;
+		const struct xfs_dsb		*img;
+		const struct xfs_dsb		*base;
+		int				nbits;
+		size_t				doff;
+
+		if (mxfs_blf_parse_authority(item, &av) != MXFS_AUTH_PARSE_OK)
+			return MXFS_SBCLEAN_TOKEN;
+		if (av.av_class != MXFS_AUTH_CLASS_SB)
+			return MXFS_SBCLEAN_CLASS;
+		/*
+		 * sess352 GPT review item 2: the producer stamps SB images
+		 * UNPROVEN and nothing else — a parsed CLASS_SB token with
+		 * any OTHER status (including VALID) is not the shape this
+		 * carve-out reasoned about and must not ride it.
+		 */
+		if (av.av_status != MXFS_AUTH_ST_UNPROVEN)
+			return MXFS_SBCLEAN_STATUS;
+		/* parser bounds-checked ri_buf[0] via check_iovec */
+		blfp = item->ri_buf[0].iov_base;
+		if (blfp->blf_blkno != XFS_SB_DADDR)
+			return MXFS_SBCLEAN_NOTSB;
+		if (blfp->blf_len != XFS_FSS_TO_BB(log->l_mp, 1))
+			return MXFS_SBCLEAN_NOTSB;
+		if (xfs_blft_from_flags(blfp) != XFS_BLFT_SB_BUF)
+			return MXFS_SBCLEAN_NOTSB;
+		if (blfp->blf_flags & (XFS_BLF_CANCEL | XFS_BLF_INODE_BUF |
+				       XFS_BLF_UDQUOT_BUF |
+				       XFS_BLF_PDQUOT_BUF |
+				       XFS_BLF_GDQUOT_BUF))
+			return MXFS_SBCLEAN_NOTSB;
+		/*
+		 * sess352 GPT review item 1: require the EXACT producer
+		 * framing, not merely a compatible prefix.  xfs_log_sb
+		 * dirties bytes [0, sizeof(dsb)) of the SB buffer — one
+		 * contiguous chunk run from bit 0 of exactly the chunks
+		 * covering the dsb, no other dirty bits, and one data
+		 * region whose length matches that run (the log rounds
+		 * iovec lengths, so allow [sizeof(dsb), run bytes]).
+		 */
+		if (item->ri_cnt != 2)
+			return MXFS_SBCLEAN_FRAMING;
+		nbits = xfs_contig_bits(blfp->blf_data_map,
+					blfp->blf_map_size, 0);
+		if (nbits != DIV_ROUND_UP(sizeof(struct xfs_dsb),
+					  XFS_BLF_CHUNK))
+			return MXFS_SBCLEAN_FRAMING;
+		if (xfs_next_bit(blfp->blf_data_map, blfp->blf_map_size,
+				 nbits) != -1)
+			return MXFS_SBCLEAN_FRAMING;
+		if (item->ri_buf[1].iov_len < sizeof(struct xfs_dsb) ||
+		    item->ri_buf[1].iov_len >
+		    (size_t)nbits * XFS_BLF_CHUNK)
+			return MXFS_SBCLEAN_FRAMING;
+		img = item->ri_buf[1].iov_base;
+		if (img->sb_magicnum != cpu_to_be32(XFS_SB_MAGIC))
+			return MXFS_SBCLEAN_FRAMING;
+		base = mxfs_sb_baseline_get(log);
+		if (!base)
+			return MXFS_SBCLEAN_BASELINE;
+		if (!mxfs_dsb_counter_only_diff(base, img, &doff)) {
+			size_t	po = min(doff, sizeof(struct xfs_dsb) - 16);
+
+			xfs_notice(log->l_mp,
+	"MXFS foreign replay: SBCLEAN-CONTENT-DIFF off=%zu base=%16phN img=%16phN",
+				   doff, (const char *)base + po,
+				   (const char *)img + po);
+			return MXFS_SBCLEAN_CONTENT;
+		}
+		n_sb++;
+	}
+	return n_sb ? MXFS_SBCLEAN_OK : MXFS_SBCLEAN_EMPTY;
 }
 
 /*
@@ -2187,6 +2428,13 @@ struct mxfs_shadow_eval {
 	uint32_t	desc_victim_node;
 	bool		capable;	/* rc==0 && stage==FENCED: manifest is
 					 * frozen AND victim incarnation known */
+	/* sess358 (#1), reshaped sess359 (GPT review Q3): enforcement state
+	 * INHERITED from the attempt-local l_mxfs_fr_enforce_mode that only
+	 * the preflight ever sets — never resampled from the global knob, so
+	 * a knob or domain-param flip after the preflight point can neither
+	 * arm enforcement for an unpreflighted attempt nor half-enforce a
+	 * slice. */
+	bool		enforce_cfg;
 
 	/*
 	 * Per-resource manifest read cache: open-addressed hash table,
@@ -2200,6 +2448,7 @@ struct mxfs_shadow_eval {
 	struct mxfs_shadow_man_ent {
 		uint64_t	resource;
 		uint64_t	epoch;
+		uint64_t	lineage;
 		int		rc;
 		uint8_t		kind;	/* MXFS_AUTH_CLASS_AG or _INODE */
 		bool		holds;
@@ -2219,10 +2468,20 @@ struct mxfs_shadow_eval {
 	uint64_t	resource_mismatch;
 	uint64_t	wrong_incarnation;
 	uint64_t	manifest_err;
+	uint64_t	wrong_lineage;
 	uint64_t	not_held;
 	uint64_t	stale_epoch;
 	uint64_t	uncapable_match;
-	uint64_t	would_apply;
+	uint64_t	v2_no_lineage;
+	uint64_t	enforceable_would_apply;
+	/*
+	 * sess177 (sess175 ruling Q-C): the pre-lineage gate's verdict, kept
+	 * with UNCHANGED semantics so the P273 samples 1-3 stay comparable.
+	 * NOT a terminal — a token counted here continues to its terminal
+	 * (wrong_lineage / v2_no_lineage / enforceable_would_apply), so this
+	 * is excluded from the conservation csum.
+	 */
+	uint64_t	legacy_would_apply;
 
 	/* per-transaction rollup (the ATOMIC-SKIP unit) */
 	uint64_t	txn_total;
@@ -2231,6 +2490,10 @@ struct mxfs_shadow_eval {
 	uint64_t	txn_mixed;
 	uint64_t	txn_none;
 	uint64_t	txn_nonbuf_taint;
+	/* sess358 (#1): all_apply txns actually ADMITTED by the enforcement
+	 * arm — always <= txn_all_apply; 0 whenever enforcement is off or a
+	 * use-time predicate (foreign/capable/proto/domain/proof) failed. */
+	uint64_t	txn_enforce_admitted;
 
 	uint64_t	uncached_reads;
 };
@@ -2264,6 +2527,7 @@ mxfs_shadow_eval_get(
 			&se->desc_victim_epoch, &se->desc_victim_node);
 	se->capable = (se->desc_rc == 0 &&
 		       se->desc_stage == MXFS_RECOV_STAGE_FENCED);
+	se->enforce_cfg = (log->l_mxfs_fr_enforce_mode != 0);
 
 	/*
 	 * On an ADOPTED slice the "victim" is our own predecessor incarnation
@@ -2274,12 +2538,13 @@ mxfs_shadow_eval_get(
 	 * manifest.
 	 */
 	xfs_notice(mp,
-	"MXFS %s replay: P273-SHADOW-CAP victim_slot=%u desc_rc=%d stage=%u victim_epoch=%llu victim_node=%u capable=%d",
+	"MXFS %s replay: P273-SHADOW-CAP victim_slot=%u desc_rc=%d stage=%u victim_epoch=%llu victim_node=%u capable=%d enforce_cfg=%d",
 		   xlog_is_mxfs_foreign_replay(log) ? "foreign" : "adopted",
 		   log->l_mxfs_victim_slot, se->desc_rc,
 		   (unsigned int)se->desc_stage,
 		   (unsigned long long)se->desc_victim_epoch,
-		   se->desc_victim_node, se->capable ? 1 : 0);
+		   se->desc_victim_node, se->capable ? 1 : 0,
+		   se->enforce_cfg ? 1 : 0);
 
 	log->l_mxfs_shadow_eval = se;
 	return se;
@@ -2293,7 +2558,8 @@ mxfs_shadow_manifest_lookup(
 	uint8_t				kind,
 	uint64_t			resource,
 	bool				*holds,
-	uint64_t			*epoch)
+	uint64_t			*epoch,
+	uint64_t			*lineage)
 {
 	struct mxfs_shadow_man_ent	*e = NULL;
 	uint32_t			h, probes;
@@ -2309,6 +2575,7 @@ mxfs_shadow_manifest_lookup(
 			if (e->kind == kind && e->resource == resource) {
 				*holds = e->holds;
 				*epoch = e->epoch;
+				*lineage = e->lineage;
 				return e->rc;
 			}
 			h = (h + 1) & (MXFS_SHADOW_TBL_SLOTS - 1);
@@ -2324,12 +2591,14 @@ mxfs_shadow_manifest_lookup(
 
 	*holds = false;
 	*epoch = 0;
+	*lineage = 0;
 	if (kind == MXFS_AUTH_CLASS_AG)
 		rc = mxfs_v5_dlm_victim_ag_manifest_read(mp->m_mxfs_dlm,
-				(uint32_t)resource, victim_slot, holds, epoch);
+				(uint32_t)resource, victim_slot, holds, epoch,
+				lineage);
 	else
 		rc = mxfs_v5_dlm_victim_inode_manifest_read(mp->m_mxfs_dlm,
-				resource, victim_slot, holds, epoch);
+				resource, victim_slot, holds, epoch, lineage);
 
 	/*
 	 * Cache errors too: a per-resource answer must be deterministic across
@@ -2338,6 +2607,7 @@ mxfs_shadow_manifest_lookup(
 	if (e) {
 		e->resource = resource;
 		e->epoch = *epoch;
+		e->lineage = *lineage;
 		e->rc = rc;
 		e->holds = *holds;
 		e->kind = kind;
@@ -2363,8 +2633,8 @@ mxfs_shadow_eval_token(
 	const struct mxfs_auth_view	*av)
 {
 	struct xfs_mount		*mp = log->l_mp;
-	bool				holds;
-	uint64_t			epoch;
+	bool				holds, lineage_bearing;
+	uint64_t			epoch, man_lineage;
 	int				rc;
 
 	if (av->av_version == MXFS_BLF_AUTHORITY_V1) {
@@ -2417,7 +2687,7 @@ mxfs_shadow_eval_token(
 	}
 	rc = mxfs_shadow_manifest_lookup(mp, se,
 			log->l_mxfs_victim_slot, (uint8_t)av->av_class,
-			av->av_resource, &holds, &epoch);
+			av->av_resource, &holds, &epoch, &man_lineage);
 	if (rc == -ENOENT) {
 		/* definitive no-slot answer, not a read failure */
 		se->not_held++;
@@ -2427,6 +2697,33 @@ mxfs_shadow_eval_token(
 		se->manifest_err++;
 		return false;
 	}
+
+	/*
+	 * sess177 compatibility series (sess175 ruling Q-C): the verdict the
+	 * PRE-LINEAGE gate reaches, with unchanged semantics, so P273 samples
+	 * 1-3 stay comparable.  Non-terminal by design — the token continues.
+	 */
+	if (holds && epoch == av->av_grant_epoch && se->capable)
+		se->legacy_would_apply++;
+
+	/*
+	 * LINEAGE EQUALITY BEFORE THE HOLD CHECK (sess175 ruling Q-C).  A
+	 * lineage mismatch means the manifest slot describes a DIFFERENT
+	 * binding of this resource name than the one that issued the grant
+	 * the token records — its hold bitmap and epoch are inapplicable to
+	 * this token, so a holds-first order would mislabel the token as
+	 * not_held.  Terminal for lineage-bearing tokens only; a lineage-less
+	 * token (v2, or v3 minted before the grant's binding carried one)
+	 * cannot be checked and flows on to the legacy layers unchanged.
+	 * Equality only — lineage values carry no order or distance.
+	 */
+	lineage_bearing = av->av_version >= MXFS_BLF_AUTHORITY_V3 &&
+			  av->av_lineage != 0;
+	if (lineage_bearing && av->av_lineage != man_lineage) {
+		se->wrong_lineage++;
+		return false;
+	}
+
 	if (!holds) {
 		se->not_held++;
 		return false;
@@ -2441,10 +2738,10 @@ mxfs_shadow_eval_token(
 	 * was skipped), so this match cannot be credited as would-apply: an
 	 * epoch collision from a PRIOR tenure of the same slot would pool
 	 * into the headline number (D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID).
-	 * Terminal uncapable_match keeps would_apply incarnation-proven —
-	 * and, because adopted replay always runs !capable (the
-	 * predecessor's descriptor is CONSUMED before a pass-2 claim),
-	 * makes would_apply foreign-replay-only by construction.  An
+	 * Terminal uncapable_match keeps the would-apply family
+	 * incarnation-proven — and, because adopted replay always runs
+	 * !capable (the predecessor's descriptor is CONSUMED before a pass-2
+	 * claim), makes it foreign-replay-only by construction.  An
 	 * uncapable_match>0 on an adopted replay is the unpurged-manifest
 	 * signal, preserved at full strength.
 	 */
@@ -2452,7 +2749,16 @@ mxfs_shadow_eval_token(
 		se->uncapable_match++;
 		return false;
 	}
-	se->would_apply++;
+	/*
+	 * sess175 ruling Q-C: a lineage-less full match is NOT
+	 * enforcement-ready — the future gate requires v3 lineage equality,
+	 * so counting it in the enforceable series would overstate readiness.
+	 */
+	if (!lineage_bearing) {
+		se->v2_no_lineage++;
+		return false;
+	}
+	se->enforceable_would_apply++;
 	return true;
 }
 
@@ -2529,11 +2835,19 @@ mxfs_shadow_eval_finish(
 	       se->classless + se->class_sb + se->class_unsupported +
 	       se->status_not_valid + se->foreign_owner +
 	       se->resource_mismatch + se->wrong_incarnation +
-	       se->manifest_err + se->not_held + se->stale_epoch +
-	       se->uncapable_match + se->would_apply;
+	       se->manifest_err + se->wrong_lineage + se->not_held +
+	       se->stale_epoch + se->uncapable_match + se->v2_no_lineage +
+	       se->enforceable_would_apply;
 
+	/*
+	 * WOULD_APPLY keeps the pre-lineage semantics (compatibility series,
+	 * sess175 ruling Q-C) and is NON-TERMINAL, hence outside csum.  The
+	 * enforceable series — the only one that may ever justify turning
+	 * enforcement on — is ENFORCEABLE_WOULD_APPLY; nolineage counts full
+	 * matches that lack the v3 lineage the future gate requires.
+	 */
 	xfs_notice(log->l_mp,
-	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u capable=%d buf=%llu csum=%llu untagged=%llu malformed=%llu v1=%llu classless=%llu sb=%llu unsup=%llu badst=%llu fowner=%llu resmis=%llu winc=%llu manerr=%llu notheld=%llu staleep=%llu uncap_match=%llu WOULD_APPLY=%llu txn=%llu all_apply=%llu taint_blocked=%llu mixed=%llu none=%llu nonbuf_taint=%llu uncached=%llu missed_txns=%u",
+	"MXFS %s replay: P273-SHADOW-EVAL victim_slot=%u capable=%d buf=%llu csum=%llu untagged=%llu malformed=%llu v1=%llu classless=%llu sb=%llu unsup=%llu badst=%llu fowner=%llu resmis=%llu winc=%llu manerr=%llu wlineage=%llu notheld=%llu staleep=%llu uncap_match=%llu nolineage=%llu WOULD_APPLY=%llu ENFORCEABLE_WOULD_APPLY=%llu txn=%llu all_apply=%llu taint_blocked=%llu mixed=%llu none=%llu nonbuf_taint=%llu enforce_admitted=%llu uncached=%llu missed_txns=%u",
 		   src, log->l_mxfs_victim_slot, se->capable ? 1 : 0,
 		   (unsigned long long)se->buf_items,
 		   (unsigned long long)csum,
@@ -2548,16 +2862,20 @@ mxfs_shadow_eval_finish(
 		   (unsigned long long)se->resource_mismatch,
 		   (unsigned long long)se->wrong_incarnation,
 		   (unsigned long long)se->manifest_err,
+		   (unsigned long long)se->wrong_lineage,
 		   (unsigned long long)se->not_held,
 		   (unsigned long long)se->stale_epoch,
 		   (unsigned long long)se->uncapable_match,
-		   (unsigned long long)se->would_apply,
+		   (unsigned long long)se->v2_no_lineage,
+		   (unsigned long long)se->legacy_would_apply,
+		   (unsigned long long)se->enforceable_would_apply,
 		   (unsigned long long)se->txn_total,
 		   (unsigned long long)se->txn_all_apply,
 		   (unsigned long long)se->txn_buf_ok_taint_blocked,
 		   (unsigned long long)se->txn_mixed,
 		   (unsigned long long)se->txn_none,
 		   (unsigned long long)se->txn_nonbuf_taint,
+		   (unsigned long long)se->txn_enforce_admitted,
 		   (unsigned long long)se->uncached_reads,
 		   log->l_mxfs_shadow_missed);
 	kvfree(se->tbl);
@@ -2566,11 +2884,23 @@ mxfs_shadow_eval_finish(
 	log->l_mxfs_victim_slot = MXFS_XLOG_VICTIM_NONE;
 }
 
-static void
+/*
+ * sess358 (#1, sess357 ruling): the per-transaction verdict feeds the
+ * enforcement arm in xlog_recover_items_pass2.  Returns true iff THIS
+ * transaction is admissible under the whole-txn rule: an evaluator exists,
+ * every buffer image individually reached the enforceable terminal, and no
+ * unauthorizable non-buf image (dquot/quotaoff/icreate) taints the txn.
+ * The verdict is computed ONCE here, from the same evaluator state
+ * (descriptor + manifest cache) the shadow series reports — shadow and
+ * enforce can never disagree.  false on any evaluator-allocation failure
+ * (fail closed; the miss is already tallied in l_mxfs_shadow_missed).
+ */
+static bool
 mxfs_report_replay_authority(
 	struct xlog			*log,
 	struct xlog_recover		*trans,
-	struct list_head		*item_list)
+	struct list_head		*item_list,
+	int				sbverdict)
 {
 	static atomic_t			mxfs_tokdet_n = ATOMIC_INIT(0);
 	static atomic_t			mxfs_toksum_n = ATOMIC_INIT(0);
@@ -2580,10 +2910,11 @@ mxfs_report_replay_authority(
 						"foreign" : "adopted";
 	int				n_buf = 0, n_tok = 0;
 	int				n_ag = 0, n_sb = 0, n_none = 0;
-	int				n_v1 = 0, n_v2 = 0;
+	int				n_v1 = 0, n_v2 = 0, n_v3 = 0;
 	int				n_untag = 0, n_malf = 0;
 	int				n_wapply = 0;
 	bool				nonbuf_taint = false;
+	bool				admissible = false;
 	int				n_st[MXFS_AUTH_ST_MAX];
 	int				i;
 
@@ -2608,12 +2939,23 @@ mxfs_report_replay_authority(
 			unsigned short t = ITEM_TYPE(item);
 
 			/*
-			 * The same non-buf types the ATOMIC-SKIP treats as
-			 * image-bearing: their presence blocks a txn from
-			 * ever being all-authorized under the shadow rule.
+			 * sess359 (GPT review Q6): STRICT ALLOWLIST for the
+			 * admissibility verdict.  The only non-buf items that
+			 * do NOT taint are the ones with a proven-safe pass-2
+			 * disposition of their own: XFS_LI_INODE (independent
+			 * node-comparable di_changecount staleness gate — a
+			 * skip there means disk is same-or-newer, a correct
+			 * redo no-op, not a refusal) and the intent/done set
+			 * the per-item loop always skips (P226, LSN-gated
+			 * re-replay by the next mount-time claimer).
+			 * EVERYTHING else — dquot/quotaoff/icreate as before,
+			 * plus iunlink or any future item type — blocks
+			 * all-authorized: an unknown type must never inherit
+			 * admission by being absent from a blacklist.
 			 */
-			if (t == XFS_LI_DQUOT || t == XFS_LI_QUOTAOFF ||
-			    t == XFS_LI_ICREATE)
+			if (t != XFS_LI_INODE &&
+			    !(t == XFS_LI_EFI || t == XFS_LI_EFD ||
+			      (t >= XFS_LI_RUI && t <= XFS_LI_CUD_RT)))
 				nonbuf_taint = true;
 			continue;
 		}
@@ -2646,6 +2988,8 @@ mxfs_report_replay_authority(
 			n_wapply++;
 		if (av.av_version == MXFS_BLF_AUTHORITY_V1)
 			n_v1++;
+		else if (av.av_version == MXFS_BLF_AUTHORITY_V3)
+			n_v3++;
 		else
 			n_v2++;
 		if (av.av_status < MXFS_AUTH_ST_MAX)
@@ -2667,7 +3011,7 @@ mxfs_report_replay_authority(
 		if (n > 400)
 			continue;
 		xfs_notice(log->l_mp,
-	"MXFS %s replay: P227-TOKEN blkno=%lld len=%u v=%u class=%u st=%u res=%llu gepoch=%llu oepoch=%llu slot=%u node=%u (n=%d)",
+	"MXFS %s replay: P227-TOKEN blkno=%lld len=%u v=%u class=%u st=%u res=%llu gepoch=%llu oepoch=%llu slot=%u node=%u lineage=%llu (n=%d)",
 			   src, (long long)blfp->blf_blkno,
 			   (unsigned int)blfp->blf_len,
 			   (unsigned int)av.av_version,
@@ -2677,7 +3021,8 @@ mxfs_report_replay_authority(
 			   (unsigned long long)av.av_grant_epoch,
 			   (unsigned long long)av.av_owner_epoch,
 			   (unsigned int)av.av_owner_slot,
-			   (unsigned int)av.av_owner_node, n);
+			   (unsigned int)av.av_owner_node,
+			   (unsigned long long)av.av_lineage, n);
 	}
 
 	/*
@@ -2698,10 +3043,12 @@ mxfs_report_replay_authority(
 		if (nonbuf_taint)
 			se->txn_nonbuf_taint++;
 		if (n_buf && n_wapply == n_buf) {
-			if (nonbuf_taint)
+			if (nonbuf_taint) {
 				se->txn_buf_ok_taint_blocked++;
-			else
+			} else {
 				se->txn_all_apply++;
+				admissible = true;
+			}
 		} else if (!n_wapply) {
 			se->txn_none++;
 		} else {
@@ -2724,14 +3071,185 @@ mxfs_report_replay_authority(
 
 		if (n <= 2000)
 			xfs_notice(log->l_mp,
-	"MXFS %s replay: P227-TOKENSUM lsn=0x%llx buf_items=%d tokened=%d v1=%d v2=%d ag=%d sb=%d classless=%d untagged=%d malformed=%d wapply=%d wskip=%d st:%s",
+	"MXFS %s replay: P227-TOKENSUM lsn=0x%llx buf_items=%d tokened=%d v1=%d v2=%d v3=%d ag=%d sb=%d classless=%d untagged=%d malformed=%d wapply=%d wskip=%d sbclean=%d st:%s",
 				   src, (unsigned long long)trans->r_lsn,
-				   n_buf, n_tok, n_v1, n_v2, n_ag, n_sb,
+				   n_buf, n_tok, n_v1, n_v2, n_v3, n_ag, n_sb,
 				   n_none, n_untag, n_malf,
 				   se ? n_wapply : -1,
 				   se ? n_buf - n_wapply : -1,
+				   sbverdict,
 				   len ? stbuf : " none");
 	}
+	return admissible;
+}
+
+/*
+ * Use-time enforcement predicate for one untrusted log.  enforce_cfg is
+ * the attempt-local preflight verdict (see mxfs_fr_enforce_preflight) —
+ * FOREIGN only and proto-admission-pinned by construction, since only the
+ * preflight sets the mode and only for a foreign shadow log on an admitted
+ * mount.  Adopted replay keeps blanket refusal twice over: its mode is
+ * never set AND it runs !capable (the predecessor's descriptor is consumed
+ * before a pass-2 claim).  The explicit foreign check is a belt in case a
+ * future caller sets the mode on a non-foreign log.
+ */
+static bool
+mxfs_fr_enforcement_active(
+	struct xlog			*log)
+{
+	struct mxfs_shadow_eval		*se = log->l_mxfs_shadow_eval;
+
+	if (!se || !se->enforce_cfg || !se->capable)
+		return false;
+	if (!xlog_is_mxfs_foreign_replay(log))
+		return false;
+	return true;
+}
+
+/*
+ * sess358 (#1, sess357 ruling; reshaped sess359 per the GPT review):
+ * enforcement preflight at elected-recovery entry, called by
+ * mxfs_xlog_recover_foreign_slice BEFORE xlog_recover so an abort has
+ * ZERO replay side effects.  This is the ONLY place the attempt-local
+ * l_mxfs_fr_enforce_mode is ever set — the whole attempt then runs under
+ * this one verdict and no global-knob flip after this point can change it
+ * (GPT review Q3: no OFF->ARMED transition after the preflight point).
+ *
+ * With the knob armed, the outcome is one of:
+ *   - config invalid (an F2 domain param raced the setter's validation):
+ *     ABORT retryably and LOUDLY — an armed knob must never silently
+ *     degrade to enforcement-off blanket refusal (GPT review Q5);
+ *   - proto not admitted (mixed-version fleet): explicit logged DEMOTE to
+ *     the old blanket-refusal behavior for this attempt — fail closed and
+ *     attributable, chosen over an abort that could never terminate on a
+ *     genuinely mixed fleet;
+ *   - evaluator allocation failed or the victim's FENCED descriptor is
+ *     unproven: ABORT retryably — enforcing against an unproven
+ *     incarnation could credit a prior tenure's epoch, and blanket
+ *     refusal would instead publish the refusal cascade the gate exists
+ *     to end;
+ *   - otherwise: mode ARMED; the evaluator (one descriptor read, cached
+ *     on the log, consumed by every per-txn verdict) carries it.
+ *
+ * The abort errnos are deliberately NOT -EFSCORRUPTED: the verdict reason
+ * stays NONE, so no terminal outcome publishes and the slice stays dirty.
+ * Both call paths are VERIFIED to key retry-vs-terminal on the verdict
+ * reason, not the errno: the reap loop re-arms MXFS_REAPF_FREPLAY and the
+ * mount barrier leaves the slot in the cut for later rounds.
+ */
+int
+mxfs_fr_enforce_preflight(
+	struct xlog			*log)
+{
+	struct mxfs_shadow_eval		*se;
+	bool				cfg_ok;
+
+	if (!xlog_is_mxfs_foreign_replay(log))
+		return 0;
+	if (!READ_ONCE(mxfs_foreign_replay_token_enforce))
+		return 0;
+
+	mutex_lock(&mxfs_fr_cfg_lock);
+	cfg_ok = !(READ_ONCE(mxfs_fua_disable) &&
+		   !READ_ONCE(mxfs_target_cache_protected)) &&
+		 mxfs_release_proof_enforce;
+	mutex_unlock(&mxfs_fr_cfg_lock);
+	if (!cfg_ok) {
+		xfs_alert(log->l_mp,
+	"MXFS foreign replay: P227-FR-ENFORCE-CFG-ABORT victim_slot=%u — foreign_replay_token_enforce is armed but its F2/proof prerequisites no longer hold; refusing to run enforcement-off under an armed knob, aborting elected recovery (slice stays dirty, retryable)",
+			  log->l_mxfs_victim_slot);
+		return -EIO;
+	}
+	if (!log->l_mp->m_mxfs_proto_admitted) {
+		xfs_notice(log->l_mp,
+	"MXFS foreign replay: P227-FR-ENFORCE-PROTO-DEMOTE victim_slot=%u — token enforcement armed but this mount lacks proto admission (mixed-version fleet); this attempt keeps blanket refusal",
+			   log->l_mxfs_victim_slot);
+		return 0;
+	}
+
+	log->l_mxfs_fr_enforce_mode = 1;
+	se = mxfs_shadow_eval_get(log);
+	if (!se) {
+		xfs_alert(log->l_mp,
+	"MXFS foreign replay: P227-FR-ENFORCE-PREFLIGHT-ABORT victim_slot=%u — evaluator allocation failed with token enforcement configured; aborting elected recovery (slice stays dirty, retryable)",
+			  log->l_mxfs_victim_slot);
+		return -ENOMEM;
+	}
+	if (!se->capable) {
+		xfs_alert(log->l_mp,
+	"MXFS foreign replay: P227-FR-ENFORCE-DESC-ABORT victim_slot=%u desc_rc=%d stage=%u — token enforcement configured but the victim's FENCED descriptor is unproven; aborting elected recovery (slice stays dirty, retryable)",
+			  log->l_mxfs_victim_slot, se->desc_rc,
+			  (unsigned int)se->desc_stage);
+		return -EIO;
+	}
+	return 0;
+}
+
+/*
+ * sess323 (sess320 ruling, D-513): map a REFUSED log item to the AG it would
+ * have modified, accumulating the quarantine domain for the terminal outcome
+ * record.  Anything that cannot be mapped confidently — unmappable item
+ * type, malformed format, agno beyond the 64-bit mask — widens the domain to
+ * the whole filesystem: refusing too much is safe, refusing too little
+ * re-creates the suppressed-work hazard the quarantine exists to stop.
+ */
+STATIC void
+mxfs_refused_item_domain(
+	struct xlog			*log,
+	struct xlog_recover_item	*item)
+{
+	struct xfs_mount	*mp = log->l_mp;
+	unsigned short		t = ITEM_TYPE(item);
+	xfs_agnumber_t		agno;
+
+	switch (t) {
+	case XFS_LI_BUF: {
+		struct xfs_buf_log_format *blf = item->ri_buf[0].iov_base;
+
+		if (item->ri_buf[0].iov_len <
+		    offsetof(struct xfs_buf_log_format, blf_map_size)) {
+			log->l_mxfs_malformed_skips++;
+			log->l_mxfs_refused_fswide = true;
+			return;
+		}
+		agno = xfs_daddr_to_agno(mp, blf->blf_blkno);
+		break;
+	}
+	case XFS_LI_INODE: {
+		struct xfs_inode_log_format *ilf = item->ri_buf[0].iov_base;
+
+		if (item->ri_buf[0].iov_len != sizeof(*ilf)) {
+			/* legacy 32-bit padding variant or torn format —
+			 * unmappable without conversion; go fswide */
+			log->l_mxfs_malformed_skips++;
+			log->l_mxfs_refused_fswide = true;
+			return;
+		}
+		agno = XFS_INO_TO_AGNO(mp, ilf->ilf_ino);
+		break;
+	}
+	case XFS_LI_ICREATE: {
+		struct xfs_icreate_log *icl = item->ri_buf[0].iov_base;
+
+		if (item->ri_buf[0].iov_len < sizeof(*icl)) {
+			log->l_mxfs_malformed_skips++;
+			log->l_mxfs_refused_fswide = true;
+			return;
+		}
+		agno = be32_to_cpu(icl->icl_ag);
+		break;
+	}
+	default:
+		/* dquot/quotaoff/intents: no single-AG home */
+		log->l_mxfs_refused_fswide = true;
+		return;
+	}
+
+	if (agno >= mp->m_sb.sb_agcount || agno >= 64) {
+		log->l_mxfs_refused_fswide = true;
+		return;
+	}
+	log->l_mxfs_refused_ag_mask |= 1ULL << agno;
 }
 
 STATIC int
@@ -2743,14 +3261,28 @@ xlog_recover_items_pass2(
 {
 	struct xlog_recover_item	*item;
 	int				error = 0;
+	int				mxfs_sbverdict = MXFS_SBCLEAN_EMPTY;
+	bool				mxfs_txn_admissible = false;
+	bool				mxfs_txn_admitted = false;
 
 	/*
 	 * sess48 step 3b: decode and report the authority tokens carried by
-	 * this transaction's buffer images.  Report-only — the skip decisions
-	 * below are unchanged in this build.
+	 * this transaction's buffer images.  sess358 (#1): no longer report-
+	 * only — the returned whole-txn verdict feeds the enforcement admit
+	 * arm below (one evaluation, one verdict; the preflight in
+	 * mxfs_xlog_recover_foreign_slice guarantees the evaluator's
+	 * descriptor read preceded any apply when enforcement is on).
+	 *
+	 * sess352 (#94): the counter-only SB classifier runs EXACTLY ONCE
+	 * per transaction, here, and its verdict feeds both the sample line
+	 * and the blanket-skip decision below — so the reported verdict can
+	 * never diverge from the decision taken (GPT review item 3).
 	 */
-	if (xlog_is_mxfs_untrusted_replay(log))
-		mxfs_report_replay_authority(log, trans, item_list);
+	if (xlog_is_mxfs_untrusted_replay(log)) {
+		mxfs_sbverdict = mxfs_sb_counter_only_txn(log, item_list);
+		mxfs_txn_admissible = mxfs_report_replay_authority(log, trans,
+					     item_list, mxfs_sbverdict);
+	}
 
 	/*
 	 * sess41 (GPT-approved containment; PROVEN tear: unlinker_death
@@ -2781,17 +3313,93 @@ xlog_recover_items_pass2(
 			    t == XFS_LI_QUOTAOFF || t == XFS_LI_ICREATE)
 				mxfs_tainted = true;
 		}
-		if (mxfs_tainted) {
-			static atomic_t mxfs_fratomic_n = ATOMIC_INIT(0);
-			int n = atomic_inc_return(&mxfs_fratomic_n);
+		/*
+		 * sess187 (sess184 ruling): the kind-17 + victim-snlocal
+		 * conjunction authorizes untagged images on THIS shadow xlog —
+		 * the victim durably classified its log single-node-local at
+		 * write time, so no cross-node authority question exists and
+		 * the tear the atomic skip prevents cannot arise.  Counted
+		 * separately from the knob path so acceptance is always
+		 * attributable.
+		 */
+		if (mxfs_tainted && log->l_mxfs_untagged_authorized) {
+			static atomic_t mxfs_snaccept_n = ATOMIC_INIT(0);
+			int n = atomic_inc_return(&mxfs_snaccept_n);
 
 			if (n <= 2000)
 				xfs_notice(log->l_mp,
-	"MXFS %s replay: ATOMIC-SKIP whole transaction lsn=0x%llx items=%d — contains untagged image(s); partial apply would tear (P227-FR-ATOMIC-SKIP)",
+	"MXFS %s replay: applying untagged transaction lsn=0x%llx items=%d under kind-17 + victim snlocal marker (P227-SNLOCAL-ACCEPT)",
 					   xlog_is_mxfs_foreign_replay(log) ?
 					   "foreign" : "adopted",
 					   (unsigned long long)trans->r_lsn,
 					   mxfs_n_items);
+		} else if (mxfs_tainted && mxfs_txn_admissible &&
+			   mxfs_fr_enforcement_active(log)) {
+			/*
+			 * sess358 (#1, sess357 ruling): ENFORCEMENT ADMIT.
+			 * Every buffer image in this transaction individually
+			 * reached the enforceable terminal (v3 lineage +
+			 * FENCED-proven incarnation + held manifest grant +
+			 * epoch match) and no unauthorizable non-buf image
+			 * rides along — the whole-txn unit the ATOMIC-SKIP
+			 * protects is authorized, so apply ALL of it.  The
+			 * per-item P223 skip below honors mxfs_txn_admitted;
+			 * XFS_LI_INODE items keep their node-independent
+			 * di_changecount gate in commit_pass2 (authority AND
+			 * changecount, per the ruling).  Nothing here counts
+			 * as a refusal: no untagged_skips, no quarantine
+			 * domain, no torn-verdict arming.
+			 */
+			static atomic_t mxfs_fradmit_n = ATOMIC_INIT(0);
+			int n = atomic_inc_return(&mxfs_fradmit_n);
+
+			mxfs_txn_admitted = true;
+			log->l_mxfs_shadow_eval->txn_enforce_admitted++;
+			if (n <= 2000)
+				xfs_notice(log->l_mp,
+	"MXFS foreign replay: ADMIT fully-tokenized transaction lsn=0x%llx items=%d — every buffer image carries an enforceable authority verdict (P227-FR-ENFORCE-ADMIT n=%d)",
+					   (unsigned long long)trans->r_lsn,
+					   mxfs_n_items, n);
+		} else if (mxfs_tainted &&
+			   mxfs_sbverdict == MXFS_SBCLEAN_OK) {
+			/*
+			 * sess352 (#94): counter-only SB transaction — skip
+			 * it CLEAN.  Lazy SB counters are reconstructible
+			 * (mxfs mounts recompute them from AGF/AGI
+			 * unconditionally), so this skip omits nothing
+			 * non-reconstructible: it is NOT a refusal, must not
+			 * arm the terminal torn-verdict predicate, and adds
+			 * nothing to the quarantine domain.
+			 */
+			static atomic_t mxfs_sbclean_n = ATOMIC_INIT(0);
+			int n = atomic_inc_return(&mxfs_sbclean_n);
+
+			log->l_mxfs_sbclean_skips++;
+			if (n <= 2000)
+				xfs_notice(log->l_mp,
+	"MXFS %s replay: CLEAN-SKIP counter-only SB transaction lsn=0x%llx items=%d — lazy counters are recomputed from AGF/AGI at every mxfs mount (P227-FR-SBCOUNTER-CLEANSKIP)",
+					   xlog_is_mxfs_foreign_replay(log) ?
+					   "foreign" : "adopted",
+					   (unsigned long long)trans->r_lsn,
+					   mxfs_n_items);
+			return 0;
+		} else if (mxfs_tainted) {
+			static atomic_t mxfs_fratomic_n = ATOMIC_INIT(0);
+			int n = atomic_inc_return(&mxfs_fratomic_n);
+
+			log->l_mxfs_untagged_skips++;
+			/* sess323: every item of the refused transaction is
+			 * work that will never be applied — fold each into
+			 * the quarantine domain. */
+			list_for_each_entry(item, item_list, ri_list)
+				mxfs_refused_item_domain(log, item);
+			if (n <= 2000)
+				xfs_notice(log->l_mp,
+	"MXFS %s replay: ATOMIC-SKIP whole transaction lsn=0x%llx items=%d — contains unauthorized image(s); partial apply would tear (P227-FR-ATOMIC-SKIP sbreason=%d)",
+					   xlog_is_mxfs_foreign_replay(log) ?
+					   "foreign" : "adopted",
+					   (unsigned long long)trans->r_lsn,
+					   mxfs_n_items, mxfs_sbverdict);
 			return 0;
 		}
 	}
@@ -2849,17 +3457,41 @@ xlog_recover_items_pass2(
 			 * is node-independent and correct.
 			 */
 			if (!mxfs_foreign_replay_untagged_apply &&
+			    !log->l_mxfs_untagged_authorized &&
+			    !mxfs_txn_admitted &&
 			    (t == XFS_LI_BUF || t == XFS_LI_DQUOT ||
 			     t == XFS_LI_QUOTAOFF || t == XFS_LI_ICREATE)) {
 				static atomic_t mxfs_frskip_n = ATOMIC_INIT(0);
 				int n = atomic_inc_return(&mxfs_frskip_n);
 
+				log->l_mxfs_untagged_skips++;
+				/* sess323: refused item → quarantine domain */
+				mxfs_refused_item_domain(log, item);
 				if (n <= 2000)
 					xfs_notice(log->l_mp,
 		"MXFS %s replay: skipping untagged image item type 0x%x (n=%d) — no cross-slice authority gate (P223-FR-UNTAGGED-SKIP)",
 						   src, t, n);
 				continue;
 			}
+		}
+
+		/*
+		 * sess332 (sess328 ruling Q2b): genuine mid-replay TORN fault
+		 * injection.  Fails BEFORE applying this item, so the applied
+		 * prefix is deterministic and the caller's xlog_recover_cancel
+		 * runs the real unwind mid-replay — nothing after the failure
+		 * point may reach the platter.  Foreign-replay shadow logs
+		 * only (the arm site guarantees it; the opstate check makes it
+		 * structurally impossible on an owned log).
+		 */
+		if (unlikely(log->l_mxfs_force_torn_countdown) &&
+		    xlog_is_mxfs_foreign_replay(log) &&
+		    --log->l_mxfs_force_torn_countdown == 0) {
+			xfs_alert(log->l_mp,
+	"MXFS foreign replay: P227-FR-FORCED-TORN mid-replay fault injection at lsn=0x%llx item type 0x%x — failing pass 2 with a real applied prefix",
+				  (unsigned long long)trans->r_lsn,
+				  ITEM_TYPE(item));
+			return -EFSCORRUPTED;
 		}
 
 		if (item->ri_ops->commit_pass2)
@@ -4155,14 +4787,41 @@ xlog_do_recovery_pass(
 			 * prevent future recovery of all the changes in the
 			 * checkpoints at this start LSN.
 			 *
+			 * sess338 513B (sess337 GPT ruling): the upstream
+			 * unwind below achieves that by shutting down
+			 * log->l_mp so the delwri submission stales the
+			 * batch without I/O — but on a FOREIGN-slice replay
+			 * this xlog is a shadow whose l_mp is the SURVIVOR's
+			 * live mount, so that unwind kills the replayer (the
+			 * exact D-513 suicide class).  For the foreign shadow
+			 * fail the batch directly instead: no I/O, no
+			 * shutdown-state consultation, error propagated so
+			 * the slice recovery is refused (TORN verdict) and
+			 * quarantined by the caller.  Adopted-slice
+			 * mount-time recovery deliberately KEEPS the upstream
+			 * shutdown: that log is the mounting fs's own log,
+			 * and skipping its shutdown would let the
+			 * mount-failure teardown write an unmount record over
+			 * a dirty slice whose replay just failed.
+			 *
 			 * Note: Shutting down the filesystem will result in the
 			 * delwri submission marking all the buffers stale,
 			 * completing them and cleaning up _XBF_LOGRECOVERY
 			 * state without doing any IO.
 			 */
-			xlog_force_shutdown(log, SHUTDOWN_LOG_IO_ERROR);
+			if (xlog_is_mxfs_foreign_replay(log)) {
+				pr_warn("mxfs: P227-FR-UNWIND err=%d — foreign-slice pass-2 error with queued buffers; failing batch without I/O, survivor mount untouched\n",
+					error);
+				error2 = xfs_buf_delwri_fail(&buffer_list,
+							     error);
+			} else {
+				xlog_force_shutdown(log,
+						    SHUTDOWN_LOG_IO_ERROR);
+				error2 = xfs_buf_delwri_submit(&buffer_list);
+			}
+		} else {
+			error2 = xfs_buf_delwri_submit(&buffer_list);
 		}
-		error2 = xfs_buf_delwri_submit(&buffer_list);
 	}
 
 	if (error && first_bad)

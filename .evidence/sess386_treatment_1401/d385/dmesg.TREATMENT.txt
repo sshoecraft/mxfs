@@ -1,0 +1,120 @@
+test1 
+test1 
+test1 [ 1055.954393] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test1 [ 1125.603971] mxfs: P86-AGI-PUBLISH-TOTALS heads=2 joint_ok=2 REPAIRED=0 SPLIT=0 BADHEAD=0
+test1 [ 1183.698071] mxfs: P87-OPEN-DEFER ino=8388744 gen=1078633283 open_holders=0x20000000 self=0x1 bucket=0 — peer holds this unlinked inode open; deferring destructive inactivation
+test1 [ 1184.194293] mxfs: P86-AGI-PUBLISH-TOTALS heads=13 joint_ok=13 REPAIRED=0 SPLIT=0 BADHEAD=0
+test1 [ 1189.152887] mxfs: P87-OPEN-DEFER ino=8388744 gen=1078633283 open_holders=0x20000000 self=0x1 bucket=0 — peer holds this unlinked inode open; deferring destructive inactivation
+test1 [ 1214.622618] mxfs: P86-AGI-PUBLISH-TOTALS heads=25 joint_ok=25 REPAIRED=0 SPLIT=0 BADHEAD=0
+test1 [ 1219.353860] mxfs: P87-OPEN-DEFER ino=8388744 gen=1078633283 open_holders=0x20000000 self=0x1 bucket=0 — peer holds this unlinked inode open; deferring destructive inactivation
+test1 [ 1221.087282] mxfs: P86-AGI-UNLINKED-PUBLISH ag=0 bucket=0 agino=0x27d ino=637 disk_nlink=1 disk_next=0xffffffff core_nlink=0 disk_gen=3737794013 disk_mode=0x81a4 tries=3 — publishing an unlinked-list head whose HOME dinode still reads LINKED; the acquirer's xfs_iunlink_reload_next will call this AGI corruption
+test1 [ 1249.558438] mxfs: P87-OPEN-DEFER ino=8388744 gen=1078633283 open_holders=0x20000000 self=0x1 bucket=0 — peer holds this unlinked inode open; deferring destructive inactivation
+test1 [ 1279.767381] mxfs: P87-OPEN-DEFER ino=8388744 gen=1078633283 open_holders=0x20000000 self=0x1 bucket=0 — peer holds this unlinked inode open; deferring destructive inactivation
+test10 
+test10 
+test11 
+test11 
+test12 
+test12 
+test13 
+test13 
+test13 [ 1201.580698] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test13 [ 1231.865430] mxfs: P86-AGI-PUBLISH-TOTALS heads=70 joint_ok=70 REPAIRED=0 SPLIT=0 BADHEAD=0
+test14 
+test14 
+test15 
+test15 
+test16 
+test16 
+test16 [  331.622788] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test16 [  382.232497] mxfs: P86-AGI-PUBLISH-TOTALS heads=2 joint_ok=2 REPAIRED=0 SPLIT=0 BADHEAD=0
+test16 [  412.875637] mxfs: P86-AGI-PUBLISH-TOTALS heads=27 joint_ok=27 REPAIRED=0 SPLIT=0 BADHEAD=0
+test16 [  413.832777] mxfs: P86-AGI-UNLINKED-BADHEAD ag=0 bucket=0 agino=0x27d ino=637 disk_nlink=1 disk_next=0xffffffff core_nlink=-1 disk_gen=3737794013 disk_mode=0x81a4 — unlinked-list head reads LINKED on the medium and is NOT in this node's cache; we did not create it
+test17 
+test17 
+test17 [ 1141.264276] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test17 [ 1201.777134] mxfs: P86-AGI-PUBLISH-TOTALS heads=7 joint_ok=7 REPAIRED=0 SPLIT=0 BADHEAD=0
+test17 [ 1232.396469] mxfs: P86-AGI-PUBLISH-TOTALS heads=28 joint_ok=28 REPAIRED=0 SPLIT=0 BADHEAD=0
+test17 [ 1269.165275] mxfs: P86-AGI-PUBLISH-TOTALS heads=70 joint_ok=70 REPAIRED=0 SPLIT=0 BADHEAD=0
+test18 
+test18 
+test18 [ 1143.573585] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test18 [ 1202.108805] mxfs: P86-AGI-PUBLISH-TOTALS heads=8 joint_ok=8 REPAIRED=0 SPLIT=0 BADHEAD=0
+test18 [ 1227.572841] mxfs: P86-AGI-UNLINKED-BADHEAD ag=1 bucket=26 agino=0x105 ino=4194565 disk_nlink=1 disk_next=0xffffffff core_nlink=-1 disk_gen=218681614 disk_mode=0x81a4 — unlinked-list head reads LINKED on the medium and is NOT in this node's cache; we did not create it
+test18 [ 1232.903030] mxfs: P86-AGI-PUBLISH-TOTALS heads=31 joint_ok=30 REPAIRED=0 SPLIT=0 BADHEAD=1
+test18 [ 1271.228033] mxfs: P86-AGI-PUBLISH-TOTALS heads=64 joint_ok=63 REPAIRED=0 SPLIT=0 BADHEAD=1
+test19 
+test19 
+test19 [ 1126.253957] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test19 [ 1208.069491] mxfs: P86-AGI-PUBLISH-TOTALS heads=3 joint_ok=3 REPAIRED=0 SPLIT=0 BADHEAD=0
+test19 [ 1208.413722] mxfs: P86-AGI-UNLINKED-PUBLISH ag=5 bucket=30 agino=0x25b ino=20972123 disk_nlink=1 disk_next=0xffffffff core_nlink=0 disk_gen=3462220315 disk_mode=0x81a4 tries=3 — publishing an unlinked-list head whose HOME dinode still reads LINKED; the acquirer's xfs_iunlink_reload_next will call this AGI corruption
+test19 [ 1238.371470] mxfs: P86-AGI-PUBLISH-TOTALS heads=17 joint_ok=16 REPAIRED=0 SPLIT=1 BADHEAD=0
+test19 [ 1268.585181] mxfs: P86-AGI-PUBLISH-TOTALS heads=19 joint_ok=18 REPAIRED=0 SPLIT=1 BADHEAD=0
+test2 
+test2 
+test20 
+test20 
+test20 [ 1208.267005] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test21 
+test21 
+test22 
+test22 
+test22 [ 1208.697645] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test22 [ 1268.790822] mxfs: P86-AGI-PUBLISH-TOTALS heads=16 joint_ok=16 REPAIRED=0 SPLIT=0 BADHEAD=0
+test23 
+test23 
+test23 [ 1208.297358] mxfs: P86-AGI-PUBLISH-TOTALS heads=2 joint_ok=2 REPAIRED=0 SPLIT=0 BADHEAD=0
+test23 [ 1252.806957] mxfs: P86-AGI-PUBLISH-TOTALS heads=45 joint_ok=45 REPAIRED=0 SPLIT=0 BADHEAD=0
+test24 
+test24 
+test24 [ 1233.891475] mxfs: P217-RENAME-FAILSITE site=droplink_tgt rc=-117 ino=96469487 fmt=2 if_bytes=16 size=73 nextents=1 comm=rsync — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next
+test24 [ 1233.891479] mxfs: P217-RENAME-DIRTYCANCEL rc=-117 src_dp=96469133 tgt_dp=96469133 src=".file16.LpVG6R" tgt="file16" armed=1 pre[iv=101 bytes=16 fmt=2 dgen=2 ve=0] now[iv=101 bytes=16 fmt=2 dgen=2 ve=0] exch=0 wip=0 comm=rsync — dirty cancel imminent (0x8 shutdown); cookie names the class
+test24 [ 1233.894068] XFS (dm-1): Corruption of in-memory data (0x8) detected at xfs_trans_cancel+0x15e/0x170 [mxfs] (/src/mxfs/xfs/xfs_trans.c:1088).  Shutting down filesystem.
+test25 
+test25 
+test25 [ 1232.595649] XFS (dm-1): Metadata I/O Error (0x1) detected at xfs_inactive_ifree+0x566/0xef0 [mxfs] (/src/mxfs/xfs/xfs_inode.c:4176).  Shutting down filesystem.
+test26 
+test26 
+test27 
+test27 
+test28 
+test28 
+test28 [ 1222.271586] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test28 [ 1222.630815] mxfs: P86-AGI-UNLINKED-BADHEAD ag=5 bucket=30 agino=0x25b ino=20972123 disk_nlink=1 disk_next=0xffffffff core_nlink=-1 disk_gen=3462220315 disk_mode=0x81a4 — unlinked-list head reads LINKED on the medium and is NOT in this node's cache; we did not create it
+test28 [ 1253.030363] mxfs: P86-AGI-PUBLISH-TOTALS heads=11 joint_ok=10 REPAIRED=0 SPLIT=0 BADHEAD=1
+test29 
+test29 
+test3 
+test3 
+test30 
+test30 
+test30 [  401.066040] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test30 [  431.565846] mxfs: P86-AGI-PUBLISH-TOTALS heads=40 joint_ok=40 REPAIRED=0 SPLIT=0 BADHEAD=0
+test31 
+test31 
+test31 [ 1141.668721] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test31 [ 1223.683938] mxfs: P86-AGI-PUBLISH-TOTALS heads=3 joint_ok=3 REPAIRED=0 SPLIT=0 BADHEAD=0
+test31 [ 1229.620951] mxfs: P87-PUBLISH-REPAIRED ag=4 bucket=29 agino=0x22e tries=1 — home dinode converted and written before unlock
+test31 [ 1269.077445] mxfs: P86-AGI-PUBLISH-TOTALS heads=58 joint_ok=58 REPAIRED=1 SPLIT=0 BADHEAD=0
+test32 
+test32 
+test32 [  319.223539] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test32 [  402.240028] mxfs: P86-AGI-PUBLISH-TOTALS heads=2 joint_ok=2 REPAIRED=0 SPLIT=0 BADHEAD=0
+test32 [  450.167266] XFS (dm-1): Metadata I/O Error (0x1) detected at mxfs_dlm_noino_bast_work_fn+0x19b/0x1b0 [mxfs] (/src/mxfs/xfs/xfs_mxfs_dlm.c:21274).  Shutting down filesystem.
+test4 
+test4 
+test4 [ 1216.517927] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test5 
+test5 
+test6 
+test6 
+test6 [ 1187.242146] mxfs: P86-AGI-PUBLISH-TOTALS heads=1 joint_ok=1 REPAIRED=0 SPLIT=0 BADHEAD=0
+test6 [ 1217.402097] mxfs: P86-AGI-PUBLISH-TOTALS heads=72 joint_ok=72 REPAIRED=0 SPLIT=0 BADHEAD=0
+test6 [ 1225.099178] mxfs: P86-AGI-UNLINKED-PUBLISH ag=2 bucket=2 agino=0x19a ino=8389018 disk_nlink=1 disk_next=0xffffffff core_nlink=0 disk_gen=2428355603 disk_mode=0x81a4 tries=3 — publishing an unlinked-list head whose HOME dinode still reads LINKED; the acquirer's xfs_iunlink_reload_next will call this AGI corruption
+test6 [ 1255.866102] mxfs: P86-AGI-PUBLISH-TOTALS heads=135 joint_ok=134 REPAIRED=0 SPLIT=1 BADHEAD=0
+test7 
+test7 
+test8 
+test8 
+test9 
+test9 

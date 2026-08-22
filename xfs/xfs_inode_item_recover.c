@@ -78,7 +78,8 @@ xfs_recover_inode_owner_change(
 	struct xfs_mount	*mp,
 	struct xfs_dinode	*dip,
 	struct xfs_inode_log_format *in_f,
-	struct list_head	*buffer_list)
+	struct list_head	*buffer_list,
+	bool			mxfs_foreign_recovery)
 {
 	struct xfs_inode	*ip;
 	int			error;
@@ -99,7 +100,8 @@ xfs_recover_inode_owner_change(
 	if (in_f->ilf_fields & XFS_ILOG_DOWNER) {
 		ASSERT(in_f->ilf_fields & XFS_ILOG_DBROOT);
 		error = xfs_bmbt_change_owner(NULL, ip, XFS_DATA_FORK,
-					      ip->i_ino, buffer_list);
+					      ip->i_ino, buffer_list,
+					      mxfs_foreign_recovery);
 		if (error)
 			goto out_free_ip;
 	}
@@ -107,7 +109,8 @@ xfs_recover_inode_owner_change(
 	if (in_f->ilf_fields & XFS_ILOG_AOWNER) {
 		ASSERT(in_f->ilf_fields & XFS_ILOG_ABROOT);
 		error = xfs_bmbt_change_owner(NULL, ip, XFS_ATTR_FORK,
-					      ip->i_ino, buffer_list);
+					      ip->i_ino, buffer_list,
+					      mxfs_foreign_recovery);
 		if (error)
 			goto out_free_ip;
 	}
@@ -603,7 +606,8 @@ out_owner_change:
 	if ((in_f->ilf_fields & (XFS_ILOG_DOWNER|XFS_ILOG_AOWNER)) &&
 	    (dip->di_mode != 0))
 		error = xfs_recover_inode_owner_change(mp, dip, in_f,
-						       buffer_list);
+					buffer_list,
+					xlog_is_mxfs_foreign_replay(log));
 	/* re-generate the checksum and validate the recovered inode. */
 	xfs_dinode_calc_crc(log->l_mp, dip);
 	fa = xfs_dinode_verify(log->l_mp, in_f->ilf_ino, dip);
@@ -620,7 +624,9 @@ out_owner_change:
 
 	ASSERT(bp->b_mount == mp);
 	bp->b_flags |= _XBF_LOGRECOVERY;
-	xfs_buf_delwri_queue(bp, buffer_list);
+	/* sess340 513B: ownership-safe foreign provenance + queue */
+	error = xfs_buf_delwri_queue_recovery(bp, buffer_list,
+			xlog_is_mxfs_foreign_replay(log));
 
 out_release:
 	xfs_buf_relse(bp);

@@ -17,6 +17,7 @@ struct xfs_efi_log_item;
 struct xfs_inode;
 struct xfs_item_ops;
 struct xfs_mount;
+struct xfs_perag;
 struct xfs_trans;
 struct xfs_trans_res;
 struct xfs_dquot_acct;
@@ -120,6 +121,20 @@ void	xfs_log_item_init(struct xfs_mount *mp, struct xfs_log_item *item,
 #define XFS_ITEM_FLUSHING	3
 
 /*
+ * Values for t_mxfs_ag_relsafe (-488 release-before-block protocol).
+ * NOTDEFER: not inside xfs_defer finish processing — never auto-release.
+ * SAFE:     at a clean defer roll boundary; retained AG grants cover only
+ *           durably-logged intents (EFIs), so they may be released before
+ *           blocking on another AG.
+ * UNSAFE:   a ->finish_item has run since the last roll; the trans holds
+ *           uncommitted AG mutations — must NOT release, and must not
+ *           block either (return -EAGAIN so defer relogs + rolls).
+ */
+#define MXFS_AG_RELSAFE_NOTDEFER	0
+#define MXFS_AG_RELSAFE_SAFE		1
+#define MXFS_AG_RELSAFE_UNSAFE		2
+
+/*
  * This is the structure maintained for every active transaction.
  */
 typedef struct xfs_trans {
@@ -131,6 +146,32 @@ typedef struct xfs_trans {
 	unsigned int		t_rtx_res_used;	/* # of resvd rt extents used */
 	unsigned int		t_flags;	/* misc flags */
 	xfs_agnumber_t		t_highest_agno;	/* highest AGF locked */
+	xfs_agnumber_t		t_mxfs_wouldblock_agno; /* first AG skipped on
+						 * a nonblocking AG-DLM miss
+						 * (NULLAGNUMBER = none) */
+	bool			t_mxfs_ag_restart_ok; /* caller can restart the
+						 * whole op after a clean-txn
+						 * cancel; enables trylock+
+						 * restart AG allocation */
+	uint8_t			t_mxfs_ag_relsafe; /* release-before-block state
+						 * for the defer-finish path:
+						 * SAFE only at a clean roll
+						 * boundary (no AG mutations
+						 * logged since the roll), so
+						 * retained AG-DLM grants may
+						 * be dropped before blocking
+						 * on another AG (-488 ABBA
+						 * fix). XFS_TRANS_DIRTY is
+						 * NOT usable: create_done
+						 * dirties the trans before
+						 * the first finish_item. */
+	struct xfs_perag	*t_mxfs_ag_want; /* -488 third face: AG a defer
+						 * finish_item found peer-held
+						 * under the caller's ILOCK; the
+						 * post-roll seam blocks for it
+						 * with all caller ILOCKs handed
+						 * off (holds a perag ref;
+						 * migrates across rolls). */
 	struct xlog_ticket	*t_ticket;	/* log mgr ticket */
 	struct xfs_mount	*t_mountp;	/* ptr to fs mount struct */
 	struct xfs_dquot_acct   *t_dqinfo;	/* acctg info for dquots */

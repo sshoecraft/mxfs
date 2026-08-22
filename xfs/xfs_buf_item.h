@@ -77,6 +77,8 @@ struct mxfs_bli_auth {
 	uint64_t	mba_owner_ino;	/* derived owning inode, 0 if not inode-owned */
 	uint64_t	mba_resource;	/* class-dependent resource id */
 	uint64_t	mba_epoch;	/* durable grant epoch that authorized it */
+	uint64_t	mba_lineage;	/* resource lineage of the authorizing
+					 * binding; 0 = pre-lineage grant */
 	uint64_t	mba_auth_gen;	/* i_mxfs_auth_gen at capture (inode arm) */
 	uint16_t	mba_class;	/* MXFS_AUTH_CLASS_* */
 	uint16_t	mba_blft;	/* BLFT seen at capture (format re-checks) */

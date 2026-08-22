@@ -1,0 +1,11 @@
+--- cluster already prepped for 32/caw (srcver=489E81B9493ED7386D5B428) — skipping prep ---
+--- coord broker: 192 retained message(s) left after sweep (under threshold) ---
+--- marked 4 test(s) PENDING for 32/caw: posix_multi rsync_paired dir_reuse_coherency dirent_durability ---
+=== run @ 32/caw (run_id=20260821T140108Z) ===
+  PASS  posix_multi  (nodes_pass=32/32 hostload=12.13 checks=80 passed=80 failed=0) [9s/30s]
+    (killed leftover rsync_paired processes on all nodes after timeout)
+  FAIL  rsync_paired  (nodes_pass=0/32 states:BUDGET_EXHAUSTED=3,FAIL=29 hostload=15.46 first_fail[test1:checks=6 passed=5 failed=1] rank1[checks=6 passed=5 failed=1] faildist[0x3,1x27,4x2] steps[rsync barrier ready=3]) [60s/60s]
+    logs: /tmp/tmp.Rwy6nmnKYe
+  FAIL  dir_reuse_coherency  (pre-assert: mxfs not mounted/readable on test24 test25 test32)
+  FAIL  dirent_durability  (pre-assert: mxfs not mounted/readable on test24 test25 test32)
+=== done: ran=4 pending=0 @ 32/caw — see ./showstat.sh 32 caw ===

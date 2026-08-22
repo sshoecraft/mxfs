@@ -1,0 +1,18 @@
+Filesystem       1024-blocks        Used  Available Capacity Mounted on
+tmpfs                9890752        2972    9887780       1% /run
+efivarfs                 256         196         56      78% /sys/firmware/efi/efivars
+/dev/nvme0n1p2    1920641288  1460885092  362119232      81% /
+tmpfs               49453744         860   49452884       1% /dev/shm
+tmpfs                   5120           0       5120       0% /run/lock
+tmpfs               49453744           0   49453744       0% /run/qemu
+/dev/nvme0n1p1       1098632        6288    1092344       1% /boot/efi
+tmpfs                9890748          16    9890732       1% /run/user/1006
+tmpfs                9890748          24    9890724       1% /run/user/1005
+tmpfs                9890748          16    9890732       1% /run/user/1007
+tmpfs                9890748          16    9890732       1% /run/user/1008
+192.168.1.4:/src 11412690944 10042895360 1369795584      88% /src
+overlay           1920641288  1460885096  362119228      81% /var/lib/docker/rootfs/overlayfs/c955c59bf0ba523ae61c3ec5511a7ea0e2b68c73ff28fd33ae5aa9b8604ff905
+overlay           1920641288  1460885096  362119228      81% /var/lib/docker/rootfs/overlayfs/8e5082ce16e487d65ac59269fc721b4349a49200beb728b70959f5e2c87ea5e3
+overlay           1920641288  1460885096  362119228      81% /var/lib/docker/rootfs/overlayfs/479ed7f41f5bd11261c160cd54d19ed2b4d465bce067309cac4204412e9524f4
+overlay           1920641288  1460885096  362119228      81% /var/lib/docker/rootfs/overlayfs/2b663d40cbdb4e0a9672d847261af29db0406f36680ae0ce3f3782f716faa48c
+tmpfs                9890748          16    9890732       1% /run/user/1000

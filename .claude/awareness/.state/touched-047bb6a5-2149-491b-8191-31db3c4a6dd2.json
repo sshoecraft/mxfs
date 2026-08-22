@@ -1,0 +1,10 @@
+{
+  "source": [
+    "xfs/xfs_log_recover.c",
+    "tools/mkfs_mxfs.c",
+    "xfs/xfs_mount.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

@@ -86,8 +86,46 @@
  * Per-record fail-closed is no defence here (the sess74 ruling, again): the
  * gen-2 code does not know there is anything to fail closed about.  Only
  * cluster-wide exclusion works, so gen-2 code is kept out by layers 1-3 above.
+ *
+ * sess346: 3 -> 4 for the CLEAN-DEPARTURE PROVENANCE carve (#92
+ * D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526).  The heartbeat
+ * record layout changed (evict ring 25→23 entries; a 32-byte
+ * mxfs_hb_provenance block now sits at offset 424) and the monitor's
+ * clean-departure arms consume it.  A gen-3 node reading a gen-4 record
+ * would misparse ring entries 23/24 as live hints and see garbage where
+ * it expects zeros; a gen-3 node's records carry no provenance, so gen-4
+ * monitors would conservatively fire death on its clean releases —
+ * exactly the defect this carve fixes.  Mixed generations are excluded
+ * cluster-wide, as above.
+ *
+ * sess381: 4 -> 5 for the SCSI-PR RESERVATION TYPE change
+ * (D-PR-RESERVATION-SINGLE-HOLDER-UNMOUNT-DISARMS-FENCING-381).
+ *
+ * MXFS reserved the shared LUN with type 0x05 WRITE EXCLUSIVE - REGISTRANTS
+ * ONLY, a SINGLE-HOLDER type.  SPC releases it when the holder's registration
+ * is removed, and MXFS retires its own registration unconditionally at
+ * put_super, so the holder's routine clean unmount released the reservation
+ * and disarmed fencing for the WHOLE cluster.  MEASURED at 32 nodes: one
+ * 0.49-second umount took the LU from a held reservation to none with 31 nodes
+ * still mounted; nothing re-reserved; the next peer death fenced with
+ * kind=NO_RESERVATION(8) and the filesystem became permanently unmountable.
+ * Gen 5 reserves type 0x07 WRITE EXCLUSIVE - ALL REGISTRANTS instead, under
+ * which every registrant is a holder and the reservation survives until the
+ * last registration goes.
+ *
+ * This bump is a HARD PREREQUISITE, not bookkeeping, and the hazard is
+ * OLD-watching-NEW as usual.  A gen-4 binary hard-requires resv.type == 0x05
+ * in three places — the fence path, the admission gate and the certificate
+ * re-check — so against a live WR_EX_AR reservation it would classify a
+ * perfectly armed LU as "no reservation held": it would refuse its own
+ * admission, and any fence it attempted would publish an UNPROVEN result that
+ * blocks the slice.  Its kernel PAL is worse than that: it decides `held` from
+ * the reservation KEY, which SPC reports as ZERO for an all-registrants type
+ * (MEASURED), so it cannot see the reservation at all.  Per-record
+ * fail-closed is no defence — gen-4 code does not know there is anything to
+ * fail closed about — so gen-4 code is kept out cluster-wide by layers 1-3.
  */
-#define MXFS_PROTO_GEN          3u
+#define MXFS_PROTO_GEN          5u
 
 /*
  * On-disk MXFS superblock — first 4KB of the block device.

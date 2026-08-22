@@ -13,6 +13,7 @@
 #include "xfs_bmap.h"
 #include "xfs_iomap.h"
 #include "xfs_pnfs.h"
+#include "xfs_mxfs_dlm.h"
 
 /*
  * Ensure that we do not have any outstanding pNFS layouts that can be used by
@@ -187,8 +188,17 @@ xfs_fs_map_blocks(
 					       imap.br_blockcount);
 		xfs_iunlock(ip, lock_flags);
 
-		error = xfs_iomap_write_direct(ip, offset_fsb,
-				end_fsb - offset_fsb, 0, &imap, &seq);
+		/*
+		 * -488 restart protocol: write_direct may return the private
+		 * -MXFS_ERESTART_AG after winning + caching the contended
+		 * AG's grant with all locks dropped.  Retry until it resolves
+		 * so the private code never leaks to the pnfs client; the
+		 * function re-derives everything it needs from its args.
+		 */
+		do {
+			error = xfs_iomap_write_direct(ip, offset_fsb,
+					end_fsb - offset_fsb, 0, &imap, &seq);
+		} while (error == -MXFS_ERESTART_AG);
 		if (error)
 			goto out_unlock;
 

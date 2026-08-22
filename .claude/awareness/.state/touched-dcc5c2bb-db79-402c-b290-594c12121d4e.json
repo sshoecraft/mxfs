@@ -1,0 +1,21 @@
+{
+  "source": [
+    "xfs/xfs_buf.h",
+    "pal/linux/xfs_buf.c",
+    "xfs/xfs_log_recover.c",
+    "pal/linux/xfs_buf_item_recover.c",
+    "xfs/xfs_inode_item_recover.c",
+    "xfs/xfs_dquot_item_recover.c",
+    "xfs/libxfs/xfs_ialloc.h",
+    "xfs/libxfs/xfs_ialloc.c",
+    "xfs/xfs_icreate_item.c",
+    "xfs/libxfs/xfs_btree.c",
+    "xfs/libxfs/xfs_bmap_btree.c",
+    "xfs/libxfs/xfs_bmap_btree.h",
+    "xfs/libxfs/xfs_btree.h",
+    "xfs/xfs_bmap_util.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

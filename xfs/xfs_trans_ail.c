@@ -28,6 +28,8 @@ extern int mxfs_instr_enabled;
 
 /* sess129: latched ON by the P128-AILSTUCK dump; see xfs_trans_priv.h. */
 atomic_t mxfs_ailstuck_probe = ATOMIC_INIT(0);
+atomic_t mxfs_ailstuck_odumps = ATOMIC_INIT(0);
+atomic_t mxfs_ailstuck_fence_armers = ATOMIC_INIT(0);
 
 #ifdef DEBUG
 /*
@@ -785,7 +787,7 @@ xfs_ail_push_all_sync(
 			int			dk = 0;
 
 			/* sess129: latch the push-path branch probes ON. */
-			atomic_set(&mxfs_ailstuck_probe, 1);
+			mxfs_ailstuck_probe_arm();
 			pr_warn("mxfs: P128-AILSTUCK iter=%u comm=%s dumping AIL head:\n",
 				iter, current->comm);
 			list_for_each_entry(dlip, &ailp->ail_head, li_ail) {
@@ -1092,12 +1094,20 @@ mxfs_rwsem_owner_peek(struct rw_semaphore *sem, bool *reader)
 	return (struct task_struct *)(o & ~7UL);
 }
 
+/*
+ * sess391: @max_iters is a HARD cap on polling iterations (10 ms each), 0 =
+ * none.  The no-progress detector alone is unbounded under churn (a count
+ * that occasionally decreases resets it), and the AG BAST worker's prepass
+ * now runs with local holders admitted, so its AIL set need never empty.
+ * Returns -EAGAIN at the cap; the caller treats the push as advisory.
+ */
 int
 xfs_ail_push_ag_sync_bounded(
 	struct xfs_ail		*ailp,
 	xfs_agnumber_t		agno,
 	unsigned int		stall_iters,
-	unsigned int		min_iters)
+	unsigned int		min_iters,
+	unsigned int		max_iters)
 {
 	struct xfs_log_item	*lip;
 	bool			found;
@@ -1325,6 +1335,12 @@ xfs_ail_push_ag_sync_bounded(
 			}
 			if (last_count == UINT_MAX || total < last_count)
 				last_count = total;
+			if (max_iters && iter >= max_iters) {
+				pr_warn_ratelimited("mxfs: P67-INSTR AG-AIL-PUSH-CAP agno=%u iter=%u total=%u(buf=%u inode=%u other=%u pinned=%u) — hard cap reached, push advisory\n",
+					agno, iter, total, n_buf, n_inode,
+					n_other, n_pinned_buf);
+				return -EAGAIN;
+			}
 			if (iter > 0 && (iter & 255) == 0)
 				pr_warn("mxfs: P67-INSTR AG-AIL-STALL agno=%u iter=%u buf=%u(pinned=%u) inode=%u other=%u stuck_ino=%llu iflags=0x%x buf_locked=%d pin=%d libuf_null=%d buf_pinned=%d ili_fields=0x%x in_ail=%d buf_flags=0x%x ilocked=%d\n",
 					agno, iter, n_buf, n_pinned_buf,
@@ -1354,7 +1370,7 @@ xfs_ail_push_ag_sync(
 	 * pre-sess33 semantics.  Used by mxfs_dlm_bast_process (inode
 	 * BAST drain) where the caller cannot reasonably abort.
 	 */
-	(void)xfs_ail_push_ag_sync_bounded(ailp, agno, 0, 0);
+	(void)xfs_ail_push_ag_sync_bounded(ailp, agno, 0, 0, 0);
 }
 
 void

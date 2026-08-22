@@ -295,12 +295,19 @@ xfs_check_agi_freecount(
  * (e.g. from recovery) we initiate a delayed write of the inode buffers rather
  * than logging them (which in a transaction context puts them into the AIL
  * for writeback rather than the xfsbufd queue).
+ *
+ * sess338 513B: @mxfs_foreign_recovery — the recovery caller (icreate item
+ * replay) is applying a DEAD PEER's log slice through a foreign shadow xlog;
+ * stamp its queued buffers with the write-failure provenance so a failed
+ * write fails the replay instead of shutting down the survivor's live
+ * b_mount.  Always false with a transaction context.
  */
 int
 xfs_ialloc_inode_init(
 	struct xfs_mount	*mp,
 	struct xfs_trans	*tp,
 	struct list_head	*buffer_list,
+	bool			mxfs_foreign_recovery,
 	int			icount,
 	xfs_agnumber_t		agno,
 	xfs_agblock_t		agbno,
@@ -590,9 +597,17 @@ xfs_ialloc_inode_init(
 				}
 			}
 		} else {
+			int	qerr;
+
 			fbuf->b_flags |= XBF_DONE;
-			xfs_buf_delwri_queue(fbuf, buffer_list);
+			/* sess340 513B: ownership-safe foreign provenance +
+			 * queue; a conflict refuses the replay (earlier
+			 * clusters stay queued for the caller's unwind). */
+			qerr = xfs_buf_delwri_queue_recovery(fbuf, buffer_list,
+					mxfs_foreign_recovery);
 			xfs_buf_relse(fbuf);
+			if (qerr)
+				return qerr;
 		}
 	}
 	return 0;
@@ -1061,8 +1076,9 @@ sparse_alloc:
 	 * rather than a linear progression to prevent the next generation
 	 * number from being easily guessable.
 	 */
-	error = xfs_ialloc_inode_init(args.mp, tp, NULL, newlen, pag_agno(pag),
-			args.agbno, args.len, get_random_u32());
+	error = xfs_ialloc_inode_init(args.mp, tp, NULL, false, newlen,
+			pag_agno(pag), args.agbno, args.len,
+			get_random_u32());
 
 	if (error)
 		return error;
@@ -2272,6 +2288,20 @@ xfs_dialloc_try_ag(
 	}
 	}
 	/*
+	 * MXFS sess386 (474 leg A unwind): a reserve-contended skip
+	 * (-EAGAIN from mxfs_dialloc_reserve_ino, transaction still clean)
+	 * used to fall through to the deferred-unlock tail below, leaving
+	 * THIS AG's AGI buffer locked in the transaction and its AG DLM
+	 * grant held until the create finally committed or cancelled —
+	 * exactly the held-resource window that froze inactive-ifree, the
+	 * AIL min and the release fence fleet-wide.  A skipped AG modified
+	 * nothing under the hold, so release both NOW, the same contract as
+	 * the !pagi_freecount skip above.
+	 */
+	if (error == -EAGAIN)
+		goto out_release;
+
+	/*
 	 * MXFS: defer the DLM unlock to trans commit (priority-2 fix).
 	 * Releasing here lets a peer ACQ-FRESH and read pre-allocation AGI /
 	 * inobt / finobt content while our trans is still active, leading to
@@ -2432,6 +2462,18 @@ xfs_dialloc(
 	bool			partition_relaxed = false;
 	int			flags;
 	int			error = 0;
+	/*
+	 * MXFS sess386 (RULE-5 ruling): bounded jittered re-sweeps before
+	 * ENOSPC.  With the bounded inode-DLM reserve, a fully swept AG set
+	 * can mean transient CLUSTER CONTENTION (every candidate's grant
+	 * parked on a peer for <1s), not exhaustion — and converting that to
+	 * ENOSPC is both wrong and user-visible under exactly the workload
+	 * the reserve bound protects.  Retry the whole ladder a few times
+	 * with jittered backoff (no locks are held at the retry point).  On
+	 * a genuinely full fs the extra sweeps are cheap: every good_ag
+	 * check fails without I/O.
+	 */
+	int			resv_sweeps = 0;
 
 	start_agno = xfs_dialloc_pick_ag(mp, args->pip, mode);
 
@@ -2521,6 +2563,23 @@ retry:
 			flags = XFS_ALLOC_FLAG_TRYLOCK;
 			goto retry;
 		}
+#ifdef __KERNEL__
+		/* MXFS sess386: see resv_sweeps above.  Loud on purpose —
+		 * persistent all-AG contention after the deadlock fix is a
+		 * defect signal, never something to hide. */
+		if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)
+		    && resv_sweeps++ < 4) {
+			pr_warn_ratelimited(
+			    "mxfs: P-DIALLOC-SWEEP-RETRY sweep=%d start_agno=%u — all AG passes came up empty under cluster contention; jittered re-sweep before any ENOSPC\n",
+				resv_sweeps, start_agno);
+			msleep(50 + get_random_u32_below(150));
+			flags = XFS_ALLOC_FLAG_TRYLOCK;
+			partition_relaxed = false;
+			if (low_space)
+				ok_alloc = false;
+			goto retry;
+		}
+#endif
 		return -ENOSPC;
 	}
 

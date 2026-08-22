@@ -143,6 +143,60 @@ struct xfs_freecounter {
 };
 
 /*
+ * sess227 F4 obligation registry (D-FOREIGN-REPLAY-UNGATED-IMAGES hard
+ * barrier F4).  One open record per dir-class buffer with a committed
+ * modification that has never been pushed into a write submission.
+ * Records are ENUMERABLE descriptors ({ino, daddr, length, gen} — no bp
+ * hold, so a leaked record can never wedge xfs_buftarg_drain) hashed by
+ * owner ino across 256 buckets; owner==0 (undecodable v5 header) lands
+ * in a poison bucket the release proof treats as open-for-every-dir.
+ * Conservation invariant at quiesce: opens == retires + stale_cancels +
+ * shutdown_cancels + open-now (abort_keeps/orphans keep records OPEN by
+ * design — they are anomaly markers, not dispositions).
+ */
+#define MXFS_F4_HASH_BUCKETS	256
+struct mxfs_f4_registry {
+	spinlock_t		f4_lock;
+	struct hlist_head	f4_hash[MXFS_F4_HASH_BUCKETS];
+	atomic64_t		f4_opens;
+	atomic64_t		f4_recommits;	/* commit on already-open record (gen bump) */
+	atomic64_t		f4_retires;
+	atomic64_t		f4_stale_cancels;	/* finish_stale (committed XFS_BLF_CANCEL) */
+	atomic64_t		f4_shutdown_cancels;	/* abort under xlog_is_shutdown */
+	atomic64_t		f4_abort_keeps;		/* abort WITHOUT shutdown: kept open + P-probe */
+	atomic64_t		f4_orphans;		/* buffer freed with record open (kept, buffer_gone) */
+	atomic64_t		f4_suppress_skips;	/* fence-suppressed completion: NOT retired */
+	atomic64_t		f4_ordered_opens;	/* XFS_BLI_ORDERED commit opened/refreshed a record (fail-closed; ruling item 2) */
+	atomic_t		f4_unknown;		/* open records with owner==0 (poison bucket) */
+};
+
+/*
+ * sess256 step-5 F3 (D-FOREIGN-REPLAY-UNGATED-IMAGES, sess253 ruling):
+ * keyed inode-cluster write accounting.  One entry per cluster daddr that
+ * has ever had an inode-cluster (xfs_inode_buf_ops) home write submitted;
+ * entries live until unmount (freeing+recreating would alias the
+ * generations a spanning proof depends on).  The release proof waits on
+ * the CLUSTER'S OWN entry (inflight -> 0, then submit/complete generations
+ * unchanged across the flush), never on a device-wide aggregate — a leaked
+ * or busy foreign cluster must not widen the blast radius past its own
+ * releases.  m_mxfs_iclus_wr_inflight is the device-wide TELEMETRY mirror
+ * only; no proof may wait on it.
+ */
+#define MXFS_ICWR_HASH_BUCKETS	256
+struct mxfs_icwr_registry {
+	spinlock_t		icwr_lock;
+	struct hlist_head	icwr_hash[MXFS_ICWR_HASH_BUCKETS];
+	wait_queue_head_t	icwr_wq;	/* woken on every counted completion */
+	atomic64_t		icwr_submits;
+	atomic64_t		icwr_completes;
+	atomic64_t		icwr_resubmit_keeps;	/* error-path resubmit kept the single token */
+	atomic64_t		icwr_orphans;		/* counted buffer freed without completion (fail closed: entry stays inflight) */
+	atomic64_t		icwr_underflows;	/* completion without a matching counted submit (clamped, loud) */
+	atomic64_t		icwr_untracked;		/* entry alloc failed at submit: that cluster's proof is poisoned conservative */
+	atomic_t		icwr_entries;		/* keyed entries live (never freed until unmount) */
+};
+
+/*
  * The struct xfsmount layout is optimised to separate read-mostly variables
  * from variables that are frequently modified. We put the read-mostly variables
  * first, then place all the other variables at the end.
@@ -356,6 +410,13 @@ typedef struct xfs_mount {
 	 * cluster_proto_gen (0 when the flag is absent = legacy format). */
 	bool			m_mxfs_protogate;
 	uint32_t		m_mxfs_cluster_proto_gen;
+	/* sess179 B1 (D-MIXED-VERSION-UNGATED-REPLAY): true once this
+	 * mount's cluster-protocol admission is decided — set exactly once
+	 * in xfs_fs_fill_super after the C7 gate admits (or trivially for
+	 * non-envelope mounts, which speak no cluster protocol), never
+	 * cleared.  Every log-recovery entry point asserts it before
+	 * applying any image; replay before admission is refused -EPROTO. */
+	bool			m_mxfs_proto_admitted;
 
 	/* MXFS DLM cluster context (opaque, NULL if single-node) */
 	void			*m_mxfs_dlm;
@@ -398,6 +459,13 @@ typedef struct xfs_mount {
 	spinlock_t		m_mxfs_iunl_lock;
 	struct list_head	m_mxfs_iunl_list;
 	int			m_mxfs_iunl_count;
+	/* sess387 publication obligations: one entry per inode this node put
+	 * on the on-disk unlinked list whose home-dinode nlink=0 conversion
+	 * has not yet been verified written.  Enforced at every AG release —
+	 * covers mid-chain members the head-only audit cannot see. */
+	spinlock_t		m_mxfs_pubob_lock;
+	struct list_head	m_mxfs_pubob_list;
+	int			m_mxfs_pubob_count;
 	/* sess43: deferred reap-worker duties beyond the entry list.
 	 * OWN_RESCAN: sweep our own slot's bucket (mount-time residue from
 	 *   prior incarnations/offline chk repairs; re-armed on a lost reap
@@ -421,6 +489,9 @@ typedef struct xfs_mount {
 	int			m_mxfs_max_dlm_lock_caw;	/* v5 sess33: per-mount cap */
 	atomic64_t		m_mxfs_flush_epoch;	/* sess6 (ccloop 46efd8b6): monotonic count of release-path device flushes (blkdev_issue_flush) this node has issued; starts at 1.  A buffer whose last write COMPLETED in the current epoch (b_mxfs_wr_flush_epoch == this) may still be ahead of the platter (LIO drops FUA; bio completion == target write cache, not media) — a platter (FUA) read must never be used to "refresh"/regress such a buffer.  Once any flush intervenes the platter is >= that write and platter-based refresh is safe.  A peer handoff always implies our release flush, so the guard self-disarms exactly when peer-newer platter content becomes possible. */
 	atomic_t		m_mxfs_dir_wr_inflight;	/* sess40 (ccloop, GPT-5.5 writeback-completion-barrier): count of dir DATA/leaf write bios this node has SUBMITTED but not yet had I/O-complete.  Incremented at xfs_buf_submit_bio (dir-metadata write, multi-node), decremented at __xfs_buf_ioend.  The dir EX release fence waits for this to reach 0 BEFORE releasing the DLM lock, so a prior-tenure stale dir-block write bio cannot land after the next holder cold-reads+RMWs the block (root of dir_reuse readdir=799 durable single-dirent loss; the release "disk==incore at sample instant" probe is blind to an in-flight bio that completes LATE). */
+	struct mxfs_f4_registry	m_mxfs_f4;	/* sess227: F4 committed-never-submitted obligation registry (see struct above) */
+	atomic_t		m_mxfs_iclus_wr_inflight;	/* sess256 step-5 F3: device-wide TELEMETRY mirror of counted inode-cluster home writes in flight.  Never waited on — the release proof waits on the per-cluster keyed entry (m_mxfs_icwr) so a leaked count on one cluster cannot stall every other release. */
+	struct mxfs_icwr_registry m_mxfs_icwr;	/* sess256 step-5 F3: keyed inode-cluster write registry (see struct above) */
 	struct work_struct	m_mxfs_pr_sweep_work;	/* v0.10.38 dir-EX-BAST idle-PR sweep (mxfs_dlm_pr_sweep_work_fn); queued rate-limited when a PR-held directory is BAST-stripped by a peer's EX request */
 	unsigned long		m_mxfs_pr_sweep_last;	/* jiffies of the last sweep trigger (rate limit) */
 	struct inode		*m_mxfs_pr_sweep_pinned;	/* ccloop cc87fed3 sess6: sweep-pin tripwire. The `struct inode *` mxfs_dlm_pr_sweep_work_fn currently holds a live igrab() reference on (its `toput` variable's window, which can span many s_inodes loop iterations), or NULL when the sweep holds no reference. Set/cleared via WRITE_ONCE around every igrab/iput in that function; read via READ_ONCE at the P25-INSTR sync-inactive site (xfs_inode_mark_reclaimable, xfs_icache.c) to prove/refute whether an inode pr_sweep believes is pinned is entering real eviction anyway — which would mean something ELSE over-released a reference it didn't hold (RULE 4 direct-evidence probe for the P135-PRSWEEP-CYCLE self-loop hang; NOT a correctness dependency, diagnostic-only, best-effort unlocked pointer, no ordering/locking guarantees needed beyond WRITE_ONCE/READ_ONCE). */
@@ -470,6 +541,59 @@ typedef struct xfs_mount {
 	 */
 	struct work_struct	m_mxfs_foreign_replay_work;
 	DECLARE_BITMAP(m_mxfs_foreign_dead_slots, 64);
+	/*
+	 * sess233 (#21 incident-481): slots whose slice replay was refused
+	 * as TORN (P227-FR-TORN-UNPUBLISHED / P227-SNLOCAL-TORN — the replay
+	 * atomic-skipped a committed transaction, so publishing would publish
+	 * a torn platter).  The refusal is DETERMINISTIC: retrying the same
+	 * slice re-reads the same records and refuses again, so the 30s reap
+	 * retry loop must not re-drive it (#11 unbounded-retry interaction).
+	 * A torn slot's dead bit stays SET — grants frozen, evidence
+	 * preserved, sweeps held — but the replay loop skips it until a NEW
+	 * death event for the slot (new incarnation, new slice content)
+	 * clears the latch for one fresh attempt.
+	 */
+	DECLARE_BITMAP(m_mxfs_foreign_torn_slots, 64);
+	/*
+	 * sess324 (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, sess320
+	 * RULE-5 ruling): the VICTIM-DOMAIN QUARANTINE map.  When a foreign
+	 * slice replay is terminally refused (policy-refused complete or
+	 * physically torn), the recovery-lease owner publishes a durable
+	 * outcome record in the victim's heartbeat sector and every node —
+	 * publisher immediately, survivors via the disklock monitor import —
+	 * folds the refused domain into this map.  Operations touching a
+	 * quarantined AG (or anything, if fswide) fail with -EIO instead of
+	 * either consuming state whose committed redo was suppressed or
+	 * escalating a frozen grant into a node shutdown (the incident-513
+	 * all-32 suicide).  IRREVERSIBLE in-core: quarantine is terminal
+	 * until operator action, which means a remount — entries are only
+	 * ever added.  Readers are lockless (monotonic bool/mask, READ_ONCE);
+	 * writers serialize on the spinlock.  The (seen_epoch, seen_seq)
+	 * TUPLE dedups the import LOGGING per victim slot — seq alone is
+	 * wrong across slot reuse, where a new victim incarnation restarts
+	 * publish_seq at 1 (sess325 ruling item 3); the map itself is
+	 * idempotent.
+	 */
+	/*
+	 * sess383 (RULE-5 ruling Q3): the ADMISSION handshake.  True from the
+	 * moment the quarantine consumer is registered until the mount either
+	 * commits or fails, and flipped under m_mxfs_quar_lock — the SAME lock
+	 * every import takes.  That is what makes "check fswide, then admit"
+	 * a transaction rather than a race: an import that lands before the
+	 * transition is seen by the check, and one that lands after runs
+	 * against an already-admitted mount, where a runtime EIO quarantine is
+	 * the correct (and only available) response because mount can no
+	 * longer return a failure.  A bare post-registration flag test without
+	 * this ordering can read false and be overtaken by an FSWIDE import
+	 * one instruction later, admitting a zombie whose every operation
+	 * fails with EIO.
+	 */
+	spinlock_t		m_mxfs_quar_lock;
+	bool			m_mxfs_quar_admitting;
+	bool			m_mxfs_quar_fswide;
+	uint64_t		m_mxfs_quar_ag_mask;
+	uint64_t		m_mxfs_quar_seen_epoch[64];
+	uint64_t		m_mxfs_quar_seen_seq[64];
 	/*
 	 * sess151 (D-RELEASEALL stuck-notify wiring): the DLM proved it can
 	 * no longer clear this node's bits out of the on-disk slot table —
@@ -653,6 +777,56 @@ __XFS_HAS_FEAT(nolifetime, NOLIFETIME)
 static inline bool mxfs_has_log_slices(const struct xfs_mount *mp)
 {
 	return mp->m_mxfs_log_node_count > 0 && mp->m_mxfs_log_slice_bblks > 0;
+}
+
+/*
+ * D-LOG-SLICE-SHARED-MULTIWRITER (sess219 ruling): a heartbeat slot's log
+ * slice is the IDENTICALLY NUMBERED slice — identity, never modulo.  A slot
+ * with no slice (slot >= log_node_count) may not journal and may not be
+ * replayed: the old `slot % count` mapping silently aliased 32 nodes onto 4
+ * slices (8 concurrent writers each), interleaving their log streams into
+ * unreplayable soup.  Every slice-index computation MUST go through here so
+ * an out-of-range slot is an error, not an alias.
+ */
+static inline int mxfs_log_slice_of_slot(const struct xfs_mount *mp,
+					 uint32_t slot, uint32_t *slice)
+{
+	if (!mxfs_has_log_slices(mp))
+		return -ENODEV;
+	if (slot >= mp->m_mxfs_log_node_count)
+		return -ERANGE;
+	*slice = slot;
+	return 0;
+}
+
+/*
+ * sess324 (D-513): victim-domain quarantine coverage tests.  Lockless by
+ * design — the map is monotonic (entries only ever added, terminal until
+ * remount), so a racing reader can only under-read a just-published
+ * quarantine, and every enforcement site re-checks later in its path
+ * (ilock entry gate, post-poll re-check, central inode gate).  AGs >= 64
+ * cannot appear in the mask: the collection pass forces fswide for them.
+ */
+static inline bool mxfs_quarantine_covers_agno(const struct xfs_mount *mp,
+					       xfs_agnumber_t agno)
+{
+	if (likely(!READ_ONCE(mp->m_mxfs_quar_fswide) &&
+		   !READ_ONCE(mp->m_mxfs_quar_ag_mask)))
+		return false;
+	if (READ_ONCE(mp->m_mxfs_quar_fswide))
+		return true;
+	return agno < 64 &&
+	       (READ_ONCE(mp->m_mxfs_quar_ag_mask) & (1ULL << agno));
+}
+
+static inline bool mxfs_quarantine_covers_ino(const struct xfs_mount *mp,
+					      uint64_t ino)
+{
+	if (likely(!READ_ONCE(mp->m_mxfs_quar_fswide) &&
+		   !READ_ONCE(mp->m_mxfs_quar_ag_mask)))
+		return false;
+	return mxfs_quarantine_covers_agno(mp,
+			XFS_INO_TO_AGNO(mp, (xfs_ino_t)ino));
 }
 
 static inline bool xfs_has_rtgroups(const struct xfs_mount *mp)

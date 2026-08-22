@@ -1,0 +1,827 @@
+Aug 15 14:22:00.275799 test30 systemd[1]: Cannot find unit for notify message of PID 791, ignoring.
+Aug 15 14:22:00.280819 test30 systemd[1]: Started snapd.service - Snap Daemon.
+Aug 15 14:22:00.292165 test30 dbus-daemon[676]: [system] Activating via systemd: service name='org.freedesktop.timedate1' unit='dbus-org.freedesktop.timedate1.service' requested by ':1.9' (uid=0 pid=683 comm="/usr/lib/snapd/snapd" label="unconfined")
+Aug 15 14:22:00.319590 test30 systemd[1]: Starting systemd-timedated.service - Time & Date Service...
+Aug 15 14:22:00.395109 test30 dbus-daemon[676]: [system] Successfully activated service 'org.freedesktop.timedate1'
+Aug 15 14:22:00.395609 test30 systemd[1]: Started systemd-timedated.service - Time & Date Service.
+Aug 15 14:22:00.417402 test30 systemd[1]: Finished snapd.seeded.service - Wait until snapd is fully seeded.
+Aug 15 14:22:00.418343 test30 systemd[1]: snapd.autoimport.service - Auto import assertions from block devices was skipped because no trigger condition checks were met.
+Aug 15 14:22:00.603757 test30 systemd-networkd[522]: eth0: Gained IPv6LL
+Aug 15 14:22:00.605981 test30 systemd-timesyncd[620]: Network configuration changed, trying to establish connection.
+Aug 15 14:22:00.646185 test30 systemd[1]: Finished systemd-networkd-wait-online.service - Wait for Network to be Configured.
+Aug 15 14:22:00.646905 test30 systemd[1]: Reached target network-online.target - Network is Online.
+Aug 15 14:22:00.647190 test30 systemd[1]: Started update-notifier-download.timer - Download data for packages that failed at package install time.
+Aug 15 14:22:00.647655 test30 systemd[1]: Started update-notifier-motd.timer - Check to see whether there is a new version of Ubuntu available.
+Aug 15 14:22:00.651043 test30 systemd[1]: Reached target timers.target - Timer Units.
+Aug 15 14:22:00.653824 test30 systemd[1]: Starting iscsid.service - iSCSI initiator daemon (iscsid)...
+Aug 15 14:22:00.654405 test30 systemd[1]: pollinate.service - Pollinate to seed the pseudo random number generator was skipped because of an unmet condition check (ConditionPathExists=!/var/cache/pollinate/seeded).
+Aug 15 14:22:00.656350 test30 systemd[1]: Starting rpc-statd-notify.service - Notify NFS peers of a restart...
+Aug 15 14:22:00.658284 test30 systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
+Aug 15 14:22:00.658356 test30 systemd[1]: ubuntu-advantage.service - Ubuntu Pro Background Auto Attach was skipped because no trigger condition checks were met.
+Aug 15 14:22:00.669273 test30 sm-notify[799]: Version 2.6.4 starting
+Aug 15 14:22:00.672414 test30 systemd[1]: Started rpc-statd-notify.service - Notify NFS peers of a restart.
+Aug 15 14:22:00.696354 test30 iscsid[804]: iSCSI logger with pid=806 started!
+Aug 15 14:22:00.698277 test30 systemd[1]: Started iscsid.service - iSCSI initiator daemon (iscsid).
+Aug 15 14:22:00.711603 test30 systemd[1]: Starting open-iscsi.service - Login to default iSCSI targets...
+Aug 15 14:22:00.717636 test30 kernel: Loading iSCSI transport class v2.0-870.
+Aug 15 14:22:00.737498 test30 sshd[810]: Server listening on :: port 22.
+Aug 15 14:22:00.738677 test30 systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
+Aug 15 14:22:00.753272 test30 kernel: iscsi: registered transport (tcp)
+Aug 15 14:22:00.762437 test30 kernel: scsi host3: iSCSI Initiator over TCP/IP
+Aug 15 14:22:00.775183 test30 kernel: scsi 3:0:0:0: Direct-Access     SCST_FIO mxfs             3110 PQ: 0 ANSI: 6
+Aug 15 14:22:00.785260 test30 kernel: sd 3:0:0:0: Power-on or device reset occurred
+Aug 15 14:22:00.790492 test30 kernel: sd 3:0:0:0: [sda] 104857600 512-byte logical blocks: (53.7 GB/50.0 GiB)
+Aug 15 14:22:00.790874 test30 kernel: sd 3:0:0:0: [sda] 4096-byte physical blocks
+Aug 15 14:22:00.791180 test30 kernel: sd 3:0:0:0: Attached scsi generic sg0 type 0
+Aug 15 14:22:00.791483 test30 kernel: sd 3:0:0:0: [sda] Write Protect is off
+Aug 15 14:22:00.791831 test30 kernel: sd 3:0:0:0: [sda] Mode Sense: 83 00 10 08
+Aug 15 14:22:00.793120 test30 kernel: sd 3:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+Aug 15 14:22:00.794471 test30 kernel: sd 3:0:0:0: [sda] Preferred minimum I/O size 4096 bytes
+Aug 15 14:22:00.794835 test30 kernel: sd 3:0:0:0: [sda] Optimal transfer size 524288 bytes
+Aug 15 14:22:00.801137 test30 kernel: sd 3:0:0:0: [sda] Attached SCSI disk
+Aug 15 14:22:00.911030 test30 (udev-worker)[421]: sda: Process '/usr/bin/unshare -m /usr/bin/snap auto-import --mount=/dev/sda' failed with exit code 1.
+Aug 15 14:22:00.979970 test30 multipathd[385]: mpatha: addmap [0 104857600 multipath 0 0 1 1 service-time 0 1 1 8:0 1]
+Aug 15 14:22:00.990464 test30 kernel: device-mapper: multipath service-time: version 0.3.0 loaded
+Aug 15 14:22:00.999559 test30 multipathd[385]: sda [8:0]: path added to devmap mpatha
+Aug 15 14:22:01.001166 test30 (udev-worker)[426]: dm-1: Process '/usr/bin/unshare -m /usr/bin/snap auto-import --mount=/dev/dm-1' failed with exit code 1.
+Aug 15 14:22:01.277283 test30 sshd[814]: Accepted password for root from 192.168.120.1 port 42354 ssh2
+Aug 15 14:22:01.280854 test30 sshd[814]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:01.320288 test30 systemd[1]: Created slice user-0.slice - User Slice of UID 0.
+Aug 15 14:22:01.323312 test30 systemd[1]: Starting user-runtime-dir@0.service - User Runtime Directory /run/user/0...
+Aug 15 14:22:01.355259 test30 systemd-logind[686]: New session 1 of user root.
+Aug 15 14:22:01.378188 test30 systemd[1]: Finished user-runtime-dir@0.service - User Runtime Directory /run/user/0.
+Aug 15 14:22:01.403432 test30 systemd[1]: Starting user@0.service - User Manager for UID 0...
+Aug 15 14:22:01.419875 test30 multipathd[385]: mpatha: sda - tur checker reports path is up
+Aug 15 14:22:01.419875 test30 multipathd[385]: 8:0: reinstated
+Aug 15 14:22:01.419875 test30 multipathd[385]: mpatha: remaining active paths: 1
+Aug 15 14:22:01.435491 test30 (systemd)[861]: pam_unix(systemd-user:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:01.697134 test30 iscsid[806]: iSCSI daemon with pid=807 started!
+Aug 15 14:22:01.697174 test30 iscsid[806]: Connection1:0 to [target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.1,3260] through [iface: default] is operational now
+Aug 15 14:22:01.721059 test30 systemd[861]: Queued start job for default target default.target.
+Aug 15 14:22:01.736512 test30 systemd[861]: Created slice app.slice - User Application Slice.
+Aug 15 14:22:01.736669 test30 systemd[861]: Started launchpadlib-cache-clean.timer - Clean up old files in the Launchpadlib cache.
+Aug 15 14:22:01.736778 test30 systemd[861]: Reached target paths.target - Paths.
+Aug 15 14:22:01.736854 test30 systemd[861]: Reached target timers.target - Timers.
+Aug 15 14:22:01.739664 test30 systemd[861]: Starting dbus.socket - D-Bus User Message Bus Socket...
+Aug 15 14:22:01.739985 test30 systemd[861]: Listening on dirmngr.socket - GnuPG network certificate management daemon.
+Aug 15 14:22:01.740348 test30 systemd[861]: Listening on gpg-agent-browser.socket - GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Aug 15 14:22:01.740700 test30 systemd[861]: Listening on gpg-agent-extra.socket - GnuPG cryptographic agent and passphrase cache (restricted).
+Aug 15 14:22:01.746957 test30 systemd[861]: Starting gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation)...
+Aug 15 14:22:01.747403 test30 systemd[861]: Listening on gpg-agent.socket - GnuPG cryptographic agent and passphrase cache.
+Aug 15 14:22:01.748161 test30 systemd[861]: Listening on keyboxd.socket - GnuPG public key management service.
+Aug 15 14:22:01.748456 test30 systemd[861]: Listening on pk-debconf-helper.socket - debconf communication socket.
+Aug 15 14:22:01.748717 test30 systemd[861]: Listening on snapd.session-agent.socket - REST API socket for snapd user session agent.
+Aug 15 14:22:01.775136 test30 kernel: scsi host4: iSCSI Initiator over TCP/IP
+Aug 15 14:22:01.772036 test30 systemd[861]: Listening on dbus.socket - D-Bus User Message Bus Socket.
+Aug 15 14:22:01.784218 test30 kernel: scsi 4:0:0:0: Direct-Access     SCST_FIO mxfs             3110 PQ: 0 ANSI: 6
+Aug 15 14:22:01.789520 test30 kernel: sd 4:0:0:0: Power-on or device reset occurred
+Aug 15 14:22:01.792445 test30 kernel: sd 4:0:0:0: Attached scsi generic sg1 type 0
+Aug 15 14:22:01.792794 test30 kernel: sd 4:0:0:0: [sdb] 104857600 512-byte logical blocks: (53.7 GB/50.0 GiB)
+Aug 15 14:22:01.793140 test30 kernel: sd 4:0:0:0: [sdb] 4096-byte physical blocks
+Aug 15 14:22:01.793455 test30 kernel: sd 4:0:0:0: [sdb] Write Protect is off
+Aug 15 14:22:01.793747 test30 kernel: sd 4:0:0:0: [sdb] Mode Sense: 83 00 10 08
+Aug 15 14:22:01.793942 test30 kernel: sd 4:0:0:0: [sdb] Write cache: enabled, read cache: enabled, supports DPO and FUA
+Aug 15 14:22:01.794360 test30 kernel: sd 4:0:0:0: [sdb] Preferred minimum I/O size 4096 bytes
+Aug 15 14:22:01.794551 test30 kernel: sd 4:0:0:0: [sdb] Optimal transfer size 524288 bytes
+Aug 15 14:22:01.794750 test30 iscsiadm[809]: Logging in to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.2,3260]
+Aug 15 14:22:01.794750 test30 iscsiadm[809]: Logging in to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.1,3260]
+Aug 15 14:22:01.794750 test30 iscsiadm[809]: Login to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.2,3260] successful.
+Aug 15 14:22:01.794750 test30 iscsiadm[809]: Login to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.1,3260] successful.
+Aug 15 14:22:01.798671 test30 systemd[861]: Listening on gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation).
+Aug 15 14:22:01.798905 test30 systemd[861]: Reached target sockets.target - Sockets.
+Aug 15 14:22:01.798936 test30 systemd[861]: Reached target basic.target - Basic System.
+Aug 15 14:22:01.799016 test30 systemd[861]: Reached target default.target - Main User Target.
+Aug 15 14:22:01.799109 test30 systemd[861]: Startup finished in 339ms.
+Aug 15 14:22:01.801149 test30 kernel: sd 4:0:0:0: [sdb] Attached SCSI disk
+Aug 15 14:22:01.812355 test30 systemd[1]: Started user@0.service - User Manager for UID 0.
+Aug 15 14:22:01.817289 test30 systemd[1]: Started session-1.scope - Session 1 of User root.
+Aug 15 14:22:01.820194 test30 systemd[1]: Finished open-iscsi.service - Login to default iSCSI targets.
+Aug 15 14:22:01.822035 test30 systemd[1]: Reached target remote-fs-pre.target - Preparation for Remote File Systems.
+Aug 15 14:22:01.822283 test30 systemd[1]: Reached target remote-fs.target - Remote File Systems.
+Aug 15 14:22:01.828856 test30 systemd[1]: Starting apport.service - automatic crash report generation...
+Aug 15 14:22:01.829291 test30 systemd[1]: Finished blk-availability.service - Availability of block devices.
+Aug 15 14:22:01.833586 test30 systemd[1]: Started cron.service - Regular background program processing daemon.
+Aug 15 14:22:01.834553 test30 systemd[1]: systemd-pcrphase.service - TPM2 PCR Barrier (User) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:01.836847 test30 systemd[1]: Starting systemd-user-sessions.service - Permit User Sessions...
+Aug 15 14:22:01.844019 test30 (cron)[890]: cron.service: Referenced but unset environment variable evaluates to an empty string: EXTRA_OPTS
+Aug 15 14:22:01.849319 test30 cron[890]: (CRON) INFO (pidfile fd = 3)
+Aug 15 14:22:01.853167 test30 systemd[1]: Finished systemd-user-sessions.service - Permit User Sessions.
+Aug 15 14:22:01.854381 test30 cron[890]: (CRON) INFO (Running @reboot jobs)
+Aug 15 14:22:01.870497 test30 systemd[1]: Starting plymouth-quit-wait.service - Hold until boot process finishes up...
+Aug 15 14:22:01.873587 test30 systemd[1]: Starting plymouth-quit.service - Terminate Plymouth Boot Screen...
+Aug 15 14:22:01.875153 test30 systemd[1]: Finished plymouth-quit-wait.service - Hold until boot process finishes up.
+Aug 15 14:22:01.881961 test30 systemd[1]: Started serial-getty@ttyS0.service - Serial Getty on ttyS0.
+Aug 15 14:22:01.882703 test30 sshd[814]: Received disconnect from 192.168.120.1 port 42354:11: disconnected by user
+Aug 15 14:22:01.882908 test30 sshd[814]: Disconnected from user root 192.168.120.1 port 42354
+Aug 15 14:22:01.883060 test30 sshd[814]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:01.883982 test30 systemd[1]: Starting setvtrgb.service - Set console scheme...
+Aug 15 14:22:01.888234 test30 systemd[1]: session-1.scope: Deactivated successfully.
+Aug 15 14:22:01.888254 test30 (udev-worker)[428]: sdb: Process '/usr/bin/unshare -m /usr/bin/snap auto-import --mount=/dev/sdb' failed with exit code 1.
+Aug 15 14:22:01.890187 test30 systemd-logind[686]: Session 1 logged out. Waiting for processes to exit.
+Aug 15 14:22:01.892313 test30 systemd-logind[686]: Removed session 1.
+Aug 15 14:22:01.899244 test30 systemd[1]: Finished plymouth-quit.service - Terminate Plymouth Boot Screen.
+Aug 15 14:22:01.904862 test30 systemd[1]: Finished setvtrgb.service - Set console scheme.
+Aug 15 14:22:01.906815 test30 systemd[1]: Created slice system-getty.slice - Slice /system/getty.
+Aug 15 14:22:01.916717 test30 multipathd[385]: mpatha: reload [0 104857600 multipath 0 0 2 1 service-time 0 1 1 8:0 1 service-time 0 1 1 8:16 1]
+Aug 15 14:22:01.914536 test30 systemd[1]: Started getty@tty1.service - Getty on tty1.
+Aug 15 14:22:01.914837 test30 systemd[1]: Reached target getty.target - Login Prompts.
+Aug 15 14:22:01.919516 test30 multipathd[385]: sdb [8:16]: path added to devmap mpatha
+Aug 15 14:22:02.233976 test30 systemd[1]: Finished apport.service - automatic crash report generation.
+Aug 15 14:22:02.234961 test30 systemd[1]: Reached target multi-user.target - Multi-User System.
+Aug 15 14:22:02.235193 test30 systemd[1]: Reached target graphical.target - Graphical Interface.
+Aug 15 14:22:02.248285 test30 systemd[1]: Starting systemd-update-utmp-runlevel.service - Record Runlevel Change in UTMP...
+Aug 15 14:22:02.262500 test30 systemd[1]: systemd-update-utmp-runlevel.service: Deactivated successfully.
+Aug 15 14:22:02.263179 test30 systemd[1]: Finished systemd-update-utmp-runlevel.service - Record Runlevel Change in UTMP.
+Aug 15 14:22:02.263967 test30 systemd[1]: Startup finished in 5.528s (kernel) + 7.895s (userspace) = 13.423s.
+Aug 15 14:22:02.278150 test30 kernel: fbcon: Taking over console
+Aug 15 14:22:02.281276 test30 kernel: Console: switching to colour frame buffer device 100x37
+Aug 15 14:22:02.319980 test30 sshd[912]: Accepted password for root from 192.168.120.1 port 41138 ssh2
+Aug 15 14:22:02.331270 test30 sshd[912]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:02.352252 test30 systemd-logind[686]: New session 3 of user root.
+Aug 15 14:22:02.354253 test30 systemd[1]: Started session-3.scope - Session 3 of User root.
+Aug 15 14:22:02.422035 test30 systemd[1]: dmesg.service: Deactivated successfully.
+Aug 15 14:22:02.450167 test30 kernel: netfs: FS-Cache loaded
+Aug 15 14:22:02.697388 test30 iscsid[806]: Connection2:0 to [target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.2,3260] through [iface: default] is operational now
+Aug 15 14:22:02.788144 test30 kernel: NFS: Registering the id_resolver key type
+Aug 15 14:22:02.788222 test30 kernel: Key type id_resolver registered
+Aug 15 14:22:02.788240 test30 kernel: Key type id_legacy registered
+Aug 15 14:22:02.821678 test30 nfsrahead[1002]: setting /src readahead to 128
+Aug 15 14:22:02.887172 test30 sshd[912]: Received disconnect from 192.168.120.1 port 41138:11: disconnected by user
+Aug 15 14:22:02.887385 test30 sshd[912]: Disconnected from user root 192.168.120.1 port 41138
+Aug 15 14:22:02.887501 test30 sshd[912]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:02.890776 test30 systemd[1]: session-3.scope: Deactivated successfully.
+Aug 15 14:22:02.891926 test30 systemd-logind[686]: Session 3 logged out. Waiting for processes to exit.
+Aug 15 14:22:02.893212 test30 systemd-logind[686]: Removed session 3.
+Aug 15 14:22:03.244066 test30 sshd[1010]: Accepted password for root from 192.168.120.1 port 41148 ssh2
+Aug 15 14:22:03.245938 test30 sshd[1010]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:03.253186 test30 systemd-logind[686]: New session 4 of user root.
+Aug 15 14:22:03.266455 test30 systemd[1]: Started session-4.scope - Session 4 of User root.
+Aug 15 14:22:03.326846 test30 sshd[1010]: Received disconnect from 192.168.120.1 port 41148:11: disconnected by user
+Aug 15 14:22:03.327114 test30 sshd[1010]: Disconnected from user root 192.168.120.1 port 41148
+Aug 15 14:22:03.327229 test30 sshd[1010]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:03.330503 test30 systemd[1]: session-4.scope: Deactivated successfully.
+Aug 15 14:22:03.332214 test30 systemd-logind[686]: Session 4 logged out. Waiting for processes to exit.
+Aug 15 14:22:03.333451 test30 systemd-logind[686]: Removed session 4.
+Aug 15 14:22:03.979416 test30 ModemManager[730]: <msg> [base-manager] couldn't check support for device '/sys/devices/pci0000:00/0000:00:03.0': not supported by any plugin
+Aug 15 14:22:05.308710 test30 snapd[683]: daemon.go:548: gracefully waiting for running hooks
+Aug 15 14:22:05.308710 test30 snapd[683]: daemon.go:550: done waiting for running hooks
+Aug 15 14:22:08.309385 test30 snapd[683]: overlord.go:518: Released state lock file
+Aug 15 14:22:08.309385 test30 snapd[683]: daemon stop requested to wait for socket activation
+Aug 15 14:22:08.313077 test30 systemd[1]: snapd.service: Deactivated successfully.
+Aug 15 14:22:13.559381 test30 systemd[1]: Stopping user@0.service - User Manager for UID 0...
+Aug 15 14:22:13.561707 test30 systemd[861]: Activating special unit exit.target...
+Aug 15 14:22:13.562005 test30 systemd[861]: Stopped target default.target - Main User Target.
+Aug 15 14:22:13.562054 test30 systemd[861]: Stopped target basic.target - Basic System.
+Aug 15 14:22:13.562071 test30 systemd[861]: Stopped target paths.target - Paths.
+Aug 15 14:22:13.562103 test30 systemd[861]: Stopped target sockets.target - Sockets.
+Aug 15 14:22:13.562120 test30 systemd[861]: Stopped target timers.target - Timers.
+Aug 15 14:22:13.562137 test30 systemd[861]: Stopped launchpadlib-cache-clean.timer - Clean up old files in the Launchpadlib cache.
+Aug 15 14:22:13.562717 test30 systemd[861]: Closed dbus.socket - D-Bus User Message Bus Socket.
+Aug 15 14:22:13.562925 test30 systemd[861]: Closed dirmngr.socket - GnuPG network certificate management daemon.
+Aug 15 14:22:13.563104 test30 systemd[861]: Closed gpg-agent-browser.socket - GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Aug 15 14:22:13.563267 test30 systemd[861]: Closed gpg-agent-extra.socket - GnuPG cryptographic agent and passphrase cache (restricted).
+Aug 15 14:22:13.570276 test30 systemd[861]: Stopping gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation)...
+Aug 15 14:22:13.570392 test30 systemd[861]: Closed gpg-agent.socket - GnuPG cryptographic agent and passphrase cache.
+Aug 15 14:22:13.570504 test30 systemd[861]: Closed keyboxd.socket - GnuPG public key management service.
+Aug 15 14:22:13.570619 test30 systemd[861]: Closed pk-debconf-helper.socket - debconf communication socket.
+Aug 15 14:22:13.570732 test30 systemd[861]: Closed snapd.session-agent.socket - REST API socket for snapd user session agent.
+Aug 15 14:22:13.596399 test30 systemd[861]: Closed gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation).
+Aug 15 14:22:13.597903 test30 systemd[861]: Removed slice app.slice - User Application Slice.
+Aug 15 14:22:13.597955 test30 systemd[861]: Reached target shutdown.target - Shutdown.
+Aug 15 14:22:13.598145 test30 systemd[861]: Finished systemd-exit.service - Exit the Session.
+Aug 15 14:22:13.598199 test30 systemd[861]: Reached target exit.target - Exit the Session.
+Aug 15 14:22:13.612552 test30 (sd-pam)[862]: pam_unix(systemd-user:session): session closed for user root
+Aug 15 14:22:13.614187 test30 systemd[1]: user@0.service: Deactivated successfully.
+Aug 15 14:22:13.614671 test30 systemd[1]: Stopped user@0.service - User Manager for UID 0.
+Aug 15 14:22:13.665463 test30 systemd[1]: Stopping user-runtime-dir@0.service - User Runtime Directory /run/user/0...
+Aug 15 14:22:13.671728 test30 systemd[1]: run-user-0.mount: Deactivated successfully.
+Aug 15 14:22:13.672666 test30 systemd[1]: user-runtime-dir@0.service: Deactivated successfully.
+Aug 15 14:22:13.672882 test30 systemd[1]: Stopped user-runtime-dir@0.service - User Runtime Directory /run/user/0.
+Aug 15 14:22:13.674714 test30 systemd[1]: Removed slice user-0.slice - User Slice of UID 0.
+Aug 15 14:22:16.458358 test30 sshd[1027]: Accepted password for root from 192.168.120.1 port 41870 ssh2
+Aug 15 14:22:16.460711 test30 sshd[1027]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:16.470590 test30 systemd-logind[686]: New session 5 of user root.
+Aug 15 14:22:16.480124 test30 systemd[1]: Created slice user-0.slice - User Slice of UID 0.
+Aug 15 14:22:16.481912 test30 systemd[1]: Starting user-runtime-dir@0.service - User Runtime Directory /run/user/0...
+Aug 15 14:22:16.500625 test30 systemd[1]: Finished user-runtime-dir@0.service - User Runtime Directory /run/user/0.
+Aug 15 14:22:16.505471 test30 systemd[1]: Starting user@0.service - User Manager for UID 0...
+Aug 15 14:22:16.514573 test30 (systemd)[1033]: pam_unix(systemd-user:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:16.693128 test30 systemd[1033]: Queued start job for default target default.target.
+Aug 15 14:22:16.710026 test30 systemd[1033]: Created slice app.slice - User Application Slice.
+Aug 15 14:22:16.710133 test30 systemd[1033]: Started launchpadlib-cache-clean.timer - Clean up old files in the Launchpadlib cache.
+Aug 15 14:22:16.710183 test30 systemd[1033]: Reached target paths.target - Paths.
+Aug 15 14:22:16.710229 test30 systemd[1033]: Reached target timers.target - Timers.
+Aug 15 14:22:16.711815 test30 systemd[1033]: Starting dbus.socket - D-Bus User Message Bus Socket...
+Aug 15 14:22:16.712011 test30 systemd[1033]: Listening on dirmngr.socket - GnuPG network certificate management daemon.
+Aug 15 14:22:16.712174 test30 systemd[1033]: Listening on gpg-agent-browser.socket - GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Aug 15 14:22:16.712307 test30 systemd[1033]: Listening on gpg-agent-extra.socket - GnuPG cryptographic agent and passphrase cache (restricted).
+Aug 15 14:22:16.713369 test30 systemd[1033]: Starting gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation)...
+Aug 15 14:22:16.713507 test30 systemd[1033]: Listening on gpg-agent.socket - GnuPG cryptographic agent and passphrase cache.
+Aug 15 14:22:16.713654 test30 systemd[1033]: Listening on keyboxd.socket - GnuPG public key management service.
+Aug 15 14:22:16.713771 test30 systemd[1033]: Listening on pk-debconf-helper.socket - debconf communication socket.
+Aug 15 14:22:16.713892 test30 systemd[1033]: Listening on snapd.session-agent.socket - REST API socket for snapd user session agent.
+Aug 15 14:22:16.727637 test30 systemd[1033]: Listening on dbus.socket - D-Bus User Message Bus Socket.
+Aug 15 14:22:16.745053 test30 systemd[1033]: Listening on gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation).
+Aug 15 14:22:16.745165 test30 systemd[1033]: Reached target sockets.target - Sockets.
+Aug 15 14:22:16.745186 test30 systemd[1033]: Reached target basic.target - Basic System.
+Aug 15 14:22:16.745251 test30 systemd[1033]: Reached target default.target - Main User Target.
+Aug 15 14:22:16.745325 test30 systemd[1033]: Startup finished in 223ms.
+Aug 15 14:22:16.745667 test30 systemd[1]: Started user@0.service - User Manager for UID 0.
+Aug 15 14:22:16.747391 test30 systemd[1]: Started session-5.scope - Session 5 of User root.
+Aug 15 14:22:16.803422 test30 sshd[1027]: Received disconnect from 192.168.120.1 port 41870:11: disconnected by user
+Aug 15 14:22:16.803658 test30 sshd[1027]: Disconnected from user root 192.168.120.1 port 41870
+Aug 15 14:22:16.803765 test30 sshd[1027]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:16.806560 test30 systemd-logind[686]: Session 5 logged out. Waiting for processes to exit.
+Aug 15 14:22:16.806783 test30 systemd[1]: session-5.scope: Deactivated successfully.
+Aug 15 14:22:16.807891 test30 systemd-logind[686]: Removed session 5.
+Aug 15 14:22:23.102763 test30 sshd[1051]: Accepted password for root from 192.168.120.1 port 40950 ssh2
+Aug 15 14:22:23.105602 test30 sshd[1051]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:23.111276 test30 systemd-logind[686]: New session 7 of user root.
+Aug 15 14:22:23.121518 test30 systemd[1]: Started session-7.scope - Session 7 of User root.
+Aug 15 14:22:27.555806 test30 systemd[1]: systemd-fsckd.service: Deactivated successfully.
+Aug 15 14:22:29.729442 test30 systemd[1]: systemd-hostnamed.service: Deactivated successfully.
+Aug 15 14:22:30.431028 test30 systemd[1]: systemd-timedated.service: Deactivated successfully.
+Aug 15 14:22:30.933008 test30 systemd-timesyncd[620]: Contacted time server 185.125.190.57:123 (ntp.ubuntu.com).
+Aug 15 14:22:30.933157 test30 systemd-timesyncd[620]: Initial clock synchronization to Sat 2026-08-15 14:22:31.321768 UTC.
+Aug 15 14:22:32.440153 test30 kernel: sd 4:0:0:0: Parameters changed
+Aug 15 14:22:33.285210 test30 kernel: mxfs: loading out-of-tree module taints kernel.
+Aug 15 14:22:33.285365 test30 kernel: mxfs: module verification failed: signature and/or required key missing - tainting kernel
+Aug 15 14:22:33.904202 test30 kernel: MXFS with security attributes, no debug enabled
+Aug 15 14:22:33.904358 test30 kernel: mxfs: dead_timeout_ms=0 (0 = 62s default)
+Aug 15 14:22:33.904397 test30 kernel: mxfs: cache sizing: ram=2307 MB pct=10% max=16384 MB budget=230 MB
+Aug 15 14:22:33.904420 test30 kernel: mxfs: cache caps: inode=220519 dlm_lock=65536 dir=27564 block=11631
+Aug 15 14:22:33.904447 test30 kernel: mxfs: cache memory estimate: 237 MB (inode 220519, dlm 65536, dir 27564, block 11631)
+Aug 15 14:22:34.186187 test30 kernel: sd 3:0:0:0: Parameters changed
+Aug 15 14:22:34.194153 test30 kernel: XFS (dm-1): MXFS envelope v1: XFS data at offset 100704256 (196688 sectors) proto_gen=3
+Aug 15 14:22:34.194249 test30 kernel: mxfs: P-MPATH-RESOLVE stacked bdev 252:1 -> SCSI backing path 3:0:0:0
+Aug 15 14:22:34.219630 test30 kernel: mxfs: mxfs: DLM init: node_id=2867806060 transport=caw
+Aug 15 14:22:34.219763 test30 kernel: sd 3:0:0:0: reservation conflict
+Aug 15 14:22:34.220178 test30 kernel: sd 4:0:0:0: reservation conflict
+Aug 15 14:22:34.230148 test30 kernel: mxfs: scsipr: P-PR-PROBE 'mxfs': own key 0xaaef3f6c visible, 8 key(s) registered — per-node PR active
+Aug 15 14:22:34.230217 test30 kernel: mxfs: disklock: claimed heartbeat slot 3 for node 2867806060 (attempt 0, fresh claim — slice ADOPTED)
+Aug 15 14:22:34.231146 test30 kernel: mxfs: mxfs: MDS-IDENTITY node_slot=3 is_mds=0 (asymmetric Phase1)
+Aug 15 14:22:34.961363 test30 kernel: mxfs: mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x8
+Aug 15 14:22:34.961804 test30 kernel: mxfs: mxfs: P-H22-PURGE-MASK DONE mask=0x8 flags=0x1 purged=0 retained_ex=0
+Aug 15 14:22:34.963153 test30 kernel: mxfs: dlm_caw: single_node = true
+Aug 15 14:22:34.964185 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=0 node=3855575347 (CAW auto-monitor)
+Aug 15 14:22:34.964270 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=1 node=73950 (CAW auto-monitor)
+Aug 15 14:22:34.965160 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=2 node=1071829746 (CAW auto-monitor)
+Aug 15 14:22:34.965286 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=4 node=3262812647 (CAW auto-monitor)
+Aug 15 14:22:37.023174 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=5 node=1351537904 (CAW auto-monitor)
+Aug 15 14:22:37.023358 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=6 node=2041203241 (CAW auto-monitor)
+Aug 15 14:22:37.023389 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=7 node=2049413980 (CAW auto-monitor)
+Aug 15 14:22:37.023418 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=8 node=3876847543 (CAW auto-monitor)
+Aug 15 14:22:37.023447 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=9 node=3290638303 (CAW auto-monitor)
+Aug 15 14:22:37.023474 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=10 node=3505048020 (CAW auto-monitor)
+Aug 15 14:22:37.053174 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=11 node=660479046 (CAW auto-monitor)
+Aug 15 14:22:37.053359 test30 kernel: mxfs: mxfs: DLM initialized (CAW, slot=3, node_id=2867806060)
+Aug 15 14:22:37.153181 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=1
+Aug 15 14:22:37.153408 test30 kernel: mxfs: heartbeat received from unknown node 1351537904 (may be joining or was recently removed)
+Aug 15 14:22:37.153467 test30 kernel: mxfs: discovery: new peer -- node 1351537904 (192.168.120.149) tcp_port 7600
+Aug 15 14:22:37.153549 test30 kernel: mxfs: mxfs: peer discovered: node_id=1351537904 hostname=192.168.120.149
+Aug 15 14:22:37.153600 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=2
+Aug 15 14:22:37.213196 test30 kernel: mxfs: dlm_caw: single_node = false
+Aug 15 14:22:37.213398 test30 kernel: mxfs: discovery: new peer -- node 3262812647 (192.168.120.139) tcp_port 7600
+Aug 15 14:22:37.213456 test30 kernel: mxfs: mxfs: peer discovered: node_id=3262812647 hostname=192.168.120.139
+Aug 15 14:22:37.213516 test30 kernel: mxfs: heartbeat received from unknown node 3262812647 (may be joining or was recently removed)
+Aug 15 14:22:37.299199 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=3
+Aug 15 14:22:37.299390 test30 kernel: mxfs: heartbeat received from unknown node 73950 (may be joining or was recently removed)
+Aug 15 14:22:37.299427 test30 kernel: mxfs: discovery: new peer -- node 73950 (192.168.120.183) tcp_port 7600
+Aug 15 14:22:37.299469 test30 kernel: mxfs: mxfs: peer discovered: node_id=73950 hostname=192.168.120.183
+Aug 15 14:22:37.436197 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=4
+Aug 15 14:22:37.436419 test30 kernel: mxfs: discovery: new peer -- node 2041203241 (192.168.120.184) tcp_port 7600
+Aug 15 14:22:37.436471 test30 kernel: mxfs: mxfs: peer discovered: node_id=2041203241 hostname=192.168.120.184
+Aug 15 14:22:37.436498 test30 kernel: mxfs: heartbeat received from unknown node 2041203241 (may be joining or was recently removed)
+Aug 15 14:22:37.459208 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=5
+Aug 15 14:22:37.459431 test30 kernel: mxfs: heartbeat received from unknown node 3855575347 (may be joining or was recently removed)
+Aug 15 14:22:37.469236 test30 kernel: mxfs: heartbeat received from unknown node 1071829746 (may be joining or was recently removed)
+Aug 15 14:22:37.470147 test30 kernel: mxfs: discovery: new peer -- node 1071829746 (192.168.120.198) tcp_port 7600
+Aug 15 14:22:37.470200 test30 kernel: mxfs: mxfs: peer discovered: node_id=1071829746 hostname=192.168.120.198
+Aug 15 14:22:37.582178 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=6
+Aug 15 14:22:37.582372 test30 kernel: mxfs: discovery: new peer -- node 3855575347 (192.168.120.186) tcp_port 7600
+Aug 15 14:22:37.582419 test30 kernel: mxfs: mxfs: peer discovered: node_id=3855575347 hostname=192.168.120.186
+Aug 15 14:22:37.664200 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=7
+Aug 15 14:22:37.725173 test30 kernel: mxfs: lease: node 1351537904 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:37.814201 test30 kernel: mxfs: lease: node 3262812647 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:37.951193 test30 kernel: mxfs: lease: node 73950 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:37.974258 test30 kernel: mxfs: lease: node 2041203241 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:37.979154 test30 kernel: mxfs: lease: node 3855575347 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:38.064159 test30 kernel: mxfs: lease: node 1071829746 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:38.064292 test30 kernel: mxfs: discovery: new peer -- node 2049413980 (192.168.120.111) tcp_port 7600
+Aug 15 14:22:38.064334 test30 kernel: mxfs: mxfs: peer discovered: node_id=2049413980 hostname=192.168.120.111
+Aug 15 14:22:38.064365 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=8
+Aug 15 14:22:38.318163 test30 kernel: mxfs: lease: node 2049413980 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:38.318311 test30 kernel: mxfs: discovery: new peer -- node 3876847543 (192.168.120.126) tcp_port 7600
+Aug 15 14:22:38.318350 test30 kernel: mxfs: mxfs: peer discovered: node_id=3876847543 hostname=192.168.120.126
+Aug 15 14:22:38.318394 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=9
+Aug 15 14:22:39.164151 test30 kernel: mxfs: lease: node 3876847543 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:39.164288 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=12 node=1295235186 (CAW auto-monitor)
+Aug 15 14:22:39.167145 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=13 node=46039088 (CAW auto-monitor)
+Aug 15 14:22:39.173161 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=14 node=1665079376 (CAW auto-monitor)
+Aug 15 14:22:39.180155 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=15 node=432087646 (CAW auto-monitor)
+Aug 15 14:22:39.185155 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=16 node=2968775057 (CAW auto-monitor)
+Aug 15 14:22:39.188134 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=17 node=1297180320 (CAW auto-monitor)
+Aug 15 14:22:39.235198 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=18 node=3227447293 (CAW auto-monitor)
+Aug 15 14:22:39.235331 test30 kernel: mxfs: discovery: new peer -- node 3290638303 (192.168.120.130) tcp_port 7600
+Aug 15 14:22:39.235366 test30 kernel: mxfs: mxfs: peer discovered: node_id=3290638303 hostname=192.168.120.130
+Aug 15 14:22:39.235396 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=10
+Aug 15 14:22:39.387209 test30 kernel: mxfs: lease: node 3290638303 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:39.387369 test30 kernel: mxfs: discovery: new peer -- node 3505048020 (192.168.120.152) tcp_port 7600
+Aug 15 14:22:39.387396 test30 kernel: mxfs: mxfs: peer discovered: node_id=3505048020 hostname=192.168.120.152
+Aug 15 14:22:39.387428 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=11
+Aug 15 14:22:39.727161 test30 kernel: mxfs: lease: node 3505048020 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:39.727349 test30 kernel: mxfs: discovery: new peer -- node 660479046 (192.168.120.148) tcp_port 7600
+Aug 15 14:22:39.727415 test30 kernel: mxfs: mxfs: peer discovered: node_id=660479046 hostname=192.168.120.148
+Aug 15 14:22:39.727465 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=12
+Aug 15 14:22:40.213215 test30 kernel: mxfs: lease: node 660479046 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.213395 test30 kernel: mxfs: discovery: new peer -- node 1295235186 (192.168.120.171) tcp_port 7600
+Aug 15 14:22:40.213419 test30 kernel: mxfs: mxfs: peer discovered: node_id=1295235186 hostname=192.168.120.171
+Aug 15 14:22:40.213460 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=13
+Aug 15 14:22:40.392169 test30 kernel: mxfs: lease: node 1295235186 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.392296 test30 kernel: mxfs: discovery: new peer -- node 1665079376 (192.168.120.194) tcp_port 7600
+Aug 15 14:22:40.392317 test30 kernel: mxfs: mxfs: peer discovered: node_id=1665079376 hostname=192.168.120.194
+Aug 15 14:22:40.392341 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=14
+Aug 15 14:22:40.447196 test30 kernel: mxfs: lease: node 1665079376 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.447322 test30 kernel: mxfs: discovery: new peer -- node 46039088 (192.168.120.123) tcp_port 7600
+Aug 15 14:22:40.447401 test30 kernel: mxfs: mxfs: peer discovered: node_id=46039088 hostname=192.168.120.123
+Aug 15 14:22:40.447464 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=15
+Aug 15 14:22:40.657200 test30 kernel: mxfs: lease: node 46039088 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.657332 test30 kernel: mxfs: discovery: new peer -- node 2968775057 (192.168.120.115) tcp_port 7600
+Aug 15 14:22:40.657375 test30 kernel: mxfs: mxfs: peer discovered: node_id=2968775057 hostname=192.168.120.115
+Aug 15 14:22:40.657432 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=16
+Aug 15 14:22:40.662191 test30 kernel: mxfs: lease: node 2968775057 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.662275 test30 kernel: mxfs: discovery: new peer -- node 432087646 (192.168.120.102) tcp_port 7600
+Aug 15 14:22:40.662303 test30 kernel: mxfs: mxfs: peer discovered: node_id=432087646 hostname=192.168.120.102
+Aug 15 14:22:40.662346 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=17
+Aug 15 14:22:41.252162 test30 kernel: mxfs: lease: node 432087646 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.252365 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=19 node=3317911391 (CAW auto-monitor)
+Aug 15 14:22:41.253134 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=20 node=3986792468 (CAW auto-monitor)
+Aug 15 14:22:41.253192 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=21 node=3988904026 (CAW auto-monitor)
+Aug 15 14:22:41.253231 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=22 node=910101799 (CAW auto-monitor)
+Aug 15 14:22:41.254140 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=23 node=2660200657 (CAW auto-monitor)
+Aug 15 14:22:41.254231 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=24 node=1189870114 (CAW auto-monitor)
+Aug 15 14:22:41.254267 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=25 node=539527939 (CAW auto-monitor)
+Aug 15 14:22:41.254293 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=26 node=3458226597 (CAW auto-monitor)
+Aug 15 14:22:41.254320 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=27 node=297203799 (CAW auto-monitor)
+Aug 15 14:22:41.255128 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=28 node=1686135596 (CAW auto-monitor)
+Aug 15 14:22:41.255226 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=29 node=3227595972 (CAW auto-monitor)
+Aug 15 14:22:41.255283 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=30 node=2595351064 (CAW auto-monitor)
+Aug 15 14:22:41.571174 test30 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=31 node=1511882952 (CAW auto-monitor)
+Aug 15 14:22:41.571292 test30 kernel: mxfs: discovery: new peer -- node 1297180320 (192.168.120.170) tcp_port 7600
+Aug 15 14:22:41.571379 test30 kernel: mxfs: mxfs: peer discovered: node_id=1297180320 hostname=192.168.120.170
+Aug 15 14:22:41.571415 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=18
+Aug 15 14:22:41.695220 test30 kernel: mxfs: lease: node 1297180320 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.695444 test30 kernel: mxfs: discovery: new peer -- node 3227447293 (192.168.120.117) tcp_port 7600
+Aug 15 14:22:41.695507 test30 kernel: mxfs: mxfs: peer discovered: node_id=3227447293 hostname=192.168.120.117
+Aug 15 14:22:41.695564 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=19
+Aug 15 14:22:41.775186 test30 kernel: mxfs: lease: node 3227447293 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.775404 test30 kernel: mxfs: mxfs: membership settled at mount: 11 active slot(s) on LUN, lease sees 19 node(s) after 7000ms
+Aug 15 14:22:41.775465 test30 kernel: XFS (dm-1): MXFS: per-node log slice 3/32 offset=50628616 bblks=130432
+Aug 15 14:22:41.775505 test30 kernel: XFS (dm-1): Mounting V5 Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+Aug 15 14:22:41.776202 test30 kernel: XFS (dm-1): MXFS: adopted log slice (fresh disklock claim) — image records in prior dirty content will not be re-applied
+Aug 15 14:22:41.776310 test30 kernel: XFS (dm-1): totally zeroed log
+Aug 15 14:22:42.191198 test30 kernel: mxfs: mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x8
+Aug 15 14:22:42.191372 test30 kernel: mxfs: discovery: new peer -- node 3317911391 (192.168.120.162) tcp_port 7600
+Aug 15 14:22:42.191410 test30 kernel: mxfs: mxfs: peer discovered: node_id=3317911391 hostname=192.168.120.162
+Aug 15 14:22:42.191434 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=20
+Aug 15 14:22:42.196157 test30 kernel: mxfs: lease: node 3317911391 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:42.196256 test30 kernel: mxfs: discovery: new peer -- node 3986792468 (192.168.120.182) tcp_port 7600
+Aug 15 14:22:42.196356 test30 kernel: mxfs: mxfs: peer discovered: node_id=3986792468 hostname=192.168.120.182
+Aug 15 14:22:42.196385 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=21
+Aug 15 14:22:42.627175 test30 kernel: mxfs: lease: node 3986792468 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:42.627377 test30 kernel: mxfs: mxfs: P-H22-PURGE-MASK DONE mask=0x8 flags=0x2 purged=0 retained_ex=0
+Aug 15 14:22:42.627420 test30 kernel: mxfs: mxfs: P225-ADOPT-WINDOW closed
+Aug 15 14:22:42.627447 test30 kernel: XFS (dm-1): MXFS mount recovery barrier complete: cohort=0x0 late=0x0 replayed=0 published=0x0 quarantined=0x0
+Aug 15 14:22:42.627500 test30 kernel: mxfs: P144-RD inobt agno=0 daddr=24 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803762627195532
+Aug 15 14:22:42.649671 test30 kernel: mxfs: P6H-ADOPT ino=128 mode=5 held=5 elapsed_ms=18 gen=5 reg_gen=3 handoff=1 reads=2 gep=5 reg_gep=4 st=1 realms=1786803762648
+Aug 15 14:22:42.649816 test30 kernel: mxfs: P291-EXWIN ino=128 path=adopt mode=5 slot=3 waited_ms=18 yt=0 wex=40 realms=1786803762648
+Aug 15 14:22:42.649921 test30 kernel: mxfs: P11-ACQSTALE-SELFBAST ino=128 mode=5 stale=1 src=7 acq_bast=0 en=1 comm=mount realns=1786803762648412414
+Aug 15 14:22:42.649974 test30 kernel: mxfs: P71-HOLD ino=128 begin-slow d_ex=1 d_pr=0 now_ex=1 now_pr=0 mode=5 state=2 pin=0 comm=mount
+Aug 15 14:22:42.650023 test30 kernel: mxfs: mxfs DLM cache: hit=0 miss=1 (0%) bast: imm=0 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:22:42.650068 test30 kernel: mxfs: P142-BWORK-STALE ip=ffff8bd7be2d1ec0 ino=128 rcu_cur=0000000000000000 locked_cur=0000000000000000 agno=0 agino=128 agcount=25 pag=ffff8bd881136c00 pag_agno=0 src=7 i_count=2 i_state=0x0 — work fired on non-current inode object; bailing (ref not dropped)
+Aug 15 14:22:42.650159 test30 kernel: CPU: 1 PID: 65 Comm: kworker/u10:1 Tainted: G           OE      6.8.0-101-generic #101-Ubuntu
+Aug 15 14:22:42.650213 test30 kernel: Hardware name: QEMU Ubuntu 24.04 PC (i440FX + PIIX, 1996), BIOS 1.16.3-debian-1.16.3-2 04/01/2014
+Aug 15 14:22:42.650240 test30 kernel: Workqueue: mxfs-ino-bast/dm-1 mxfs_dlm_bast_work_fn [mxfs]
+Aug 15 14:22:42.650285 test30 kernel: Call Trace:
+Aug 15 14:22:42.650332 test30 kernel:  <TASK>
+Aug 15 14:22:42.650373 test30 kernel:  dump_stack_lvl+0x76/0xa0
+Aug 15 14:22:42.650428 test30 kernel:  dump_stack+0x10/0x20
+Aug 15 14:22:42.650464 test30 kernel:  mxfs_dlm_work_ident_ok+0x25f/0x280 [mxfs]
+Aug 15 14:22:42.650512 test30 kernel:  mxfs_dlm_bast_work_fn+0x4d/0x1f90 [mxfs]
+Aug 15 14:22:42.650569 test30 kernel:  ? finish_task_switch.isra.0+0x93/0x300
+Aug 15 14:22:42.650605 test30 kernel:  process_one_work+0x184/0x3a0
+Aug 15 14:22:42.650644 test30 kernel:  ? __pfx_mxfs_dlm_bast_work_fn+0x10/0x10 [mxfs]
+Aug 15 14:22:42.650680 test30 kernel:  ? process_one_work+0x184/0x3a0
+Aug 15 14:22:42.650716 test30 kernel:  worker_thread+0x306/0x440
+Aug 15 14:22:42.650761 test30 kernel:  ? __pfx_worker_thread+0x10/0x10
+Aug 15 14:22:42.650798 test30 kernel:  kthread+0xf2/0x120
+Aug 15 14:22:42.650835 test30 kernel:  ? __pfx_kthread+0x10/0x10
+Aug 15 14:22:42.650871 test30 kernel:  ret_from_fork+0x47/0x70
+Aug 15 14:22:42.650898 test30 kernel:  ? __pfx_kthread+0x10/0x10
+Aug 15 14:22:42.650946 test30 kernel:  ret_from_fork_asm+0x1b/0x30
+Aug 15 14:22:42.650981 test30 kernel:  </TASK>
+Aug 15 14:22:42.651020 test30 kernel: mxfs: P71-HOLD ino=128 end d_ex=-1 d_pr=0 now_ex=0 now_pr=0 mode=5 state=2 pin=0 comm=mount
+Aug 15 14:22:42.663220 test30 kernel: mxfs: P144-RD finobt agno=0 daddr=32 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803762662176644
+Aug 15 14:22:42.664131 test30 kernel: mxfs: P144-RD finobt agno=1 daddr=4186472 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762664001378
+Aug 15 14:22:42.665156 test30 kernel: mxfs: P144-RD finobt agno=2 daddr=8372912 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762664247457
+Aug 15 14:22:42.665197 test30 kernel: mxfs: P144-RD finobt agno=3 daddr=12559352 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762664488146
+Aug 15 14:22:42.666139 test30 kernel: mxfs: P144-RD finobt agno=4 daddr=16745792 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762665545907
+Aug 15 14:22:42.666201 test30 kernel: mxfs: P144-RD finobt agno=5 daddr=20932232 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762665829739
+Aug 15 14:22:42.666254 test30 kernel: mxfs: P144-RD finobt agno=6 daddr=25118672 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762666091511
+Aug 15 14:22:42.666314 test30 kernel: mxfs: P70-BP ino=128 ENTRY mode=5 state=3 ex=0 pr=0 pin=0 selfdem=0 qsrc=9 bpend=0 held_ms=17 tops=1 fo_ms=1 lo_ms=16 comm=kworker/u10:1 realns=1786803762666167846
+Aug 15 14:22:42.666357 test30 kernel: mxfs: P137-PRSWEEP-ENTER
+Aug 15 14:22:42.666402 test30 kernel: mxfs: P137-PRSWEEP-EXIT visited=1 seen=0 swept=0 (reached list head, no candidates)
+Aug 15 14:22:42.666442 test30 kernel: mxfs: P35-DIRHONOR ino=128 realns=1786803762666233712 (bast_process drain+unlock)
+Aug 15 14:22:42.666532 test30 kernel: mxfs: P144-RD finobt agno=7 daddr=29305112 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762666443404
+Aug 15 14:22:42.667142 test30 kernel: mxfs: P146-RELDUR ino=128 nx=0 chg=2 size=6 dsize=6 flushed=1 wrote=0 rerr=-11 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u10:1 realns=1786803762666631840
+Aug 15 14:22:42.667211 test30 kernel: mxfs: P51-REL ino=128 held_mode=5 selfdemote=0 sf=1 clean_skip=0 drain_ms=0
+Aug 15 14:22:42.667255 test30 kernel: mxfs: P147-PREUNLOCK ino=128 nx=0 chg=2 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u10:1 realns=1786803762666655472
+Aug 15 14:22:42.667283 test30 kernel: mxfs: P144-RD finobt agno=8 daddr=33491552 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762666678215
+Aug 15 14:22:42.667308 test30 kernel: mxfs: P144-RD finobt agno=9 daddr=37677992 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762666916021
+Aug 15 14:22:42.667666 test30 kernel: mxfs: P6H-HANDOFF ino=128 to_slot=6 gen=7 epoch=5 gep=6 handoff=1 realms=1786803762666
+Aug 15 14:22:42.667715 test30 kernel: mxfs: P144-RD finobt agno=10 daddr=41864432 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762667229987
+Aug 15 14:22:42.667762 test30 kernel: mxfs: mxfs: P141-UNLK-EXCLR ino=128 expected=2 rel_seq0=2 seq_now=2 retry=0 gen=6
+Aug 15 14:22:42.667800 test30 kernel: mxfs: P291-EXWIN ino=128 path=mint mode=5 slot=6 waited_ms=0 yt=0 wex=40 realms=1786803762667
+Aug 15 14:22:42.667841 test30 kernel: mxfs: P70-BP ino=128 EXIT=full rel_gen=2 ex=0 pr=0 comm=kworker/u10:1 realns=1786803762667325337
+Aug 15 14:22:42.667878 test30 kernel: mxfs: P144-RD finobt agno=11 daddr=46050872 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762667759182
+Aug 15 14:22:42.670156 test30 kernel: mxfs: P144-RD finobt agno=12 daddr=50237312 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762669335080
+Aug 15 14:22:42.670237 test30 kernel: mxfs: P144-RD finobt agno=13 daddr=54423752 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762669612241
+Aug 15 14:22:42.670280 test30 kernel: mxfs: P144-RD finobt agno=14 daddr=58610192 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762669863185
+Aug 15 14:22:42.670325 test30 kernel: mxfs: P144-RD finobt agno=15 daddr=62796632 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762670141888
+Aug 15 14:22:42.671140 test30 kernel: mxfs: P144-RD finobt agno=16 daddr=66983072 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762670369640
+Aug 15 14:22:42.671219 test30 kernel: mxfs: P144-RD finobt agno=17 daddr=71169512 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762670526371
+Aug 15 14:22:42.671259 test30 kernel: mxfs: P144-RD finobt agno=18 daddr=75355952 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762670724066
+Aug 15 14:22:42.671297 test30 kernel: mxfs: P144-RD finobt agno=19 daddr=79542392 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762670862694
+Aug 15 14:22:42.671381 test30 kernel: mxfs: P144-RD finobt agno=20 daddr=83728832 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762671033170
+Aug 15 14:22:42.671436 test30 kernel: mxfs: P144-RD finobt agno=21 daddr=87915272 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762671166119
+Aug 15 14:22:42.671484 test30 kernel: mxfs: P144-RD finobt agno=22 daddr=92101712 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762671302933
+Aug 15 14:22:42.672142 test30 kernel: mxfs: P144-RD finobt agno=23 daddr=96288152 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762671549928
+Aug 15 14:22:42.672206 test30 kernel: mxfs: P144-RD finobt agno=24 daddr=100474592 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762671757420
+Aug 15 14:22:42.672256 test30 kernel: XFS (dm-1): Ending clean mount
+Aug 15 14:22:42.672302 test30 kernel: XFS (dm-1): MXFS adopted replay: P273-SHADOW-EVAL victim_slot=3 state=no_txns
+Aug 15 14:22:42.672340 test30 kernel: mxfs: P144-RD finobt agno=0 daddr=32 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803762672306148
+Aug 15 14:22:42.673128 test30 kernel: mxfs: P144-RD finobt agno=1 daddr=4186472 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762672981081
+Aug 15 14:22:42.674126 test30 kernel: mxfs: P144-RD finobt agno=2 daddr=8372912 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762673594783
+Aug 15 14:22:42.674164 test30 kernel: mxfs: P144-RD finobt agno=3 daddr=12559352 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762674124329
+Aug 15 14:22:42.675125 test30 kernel: mxfs: P144-RD finobt agno=4 daddr=16745792 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762674687674
+Aug 15 14:22:42.676138 test30 kernel: mxfs: P144-RD finobt agno=5 daddr=20932232 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762675230575
+Aug 15 14:22:42.676173 test30 kernel: mxfs: P144-RD finobt agno=6 daddr=25118672 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762675888898
+Aug 15 14:22:42.677130 test30 kernel: mxfs: P144-RD finobt agno=7 daddr=29305112 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762676648594
+Aug 15 14:22:42.678131 test30 kernel: mxfs: P144-RD finobt agno=8 daddr=33491552 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762677375519
+Aug 15 14:22:42.678169 test30 kernel: mxfs: P144-RD finobt agno=9 daddr=37677992 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762678137375
+Aug 15 14:22:42.679125 test30 kernel: mxfs: P144-RD finobt agno=10 daddr=41864432 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762678857576
+Aug 15 14:22:42.680121 test30 kernel: mxfs: P144-RD finobt agno=11 daddr=46050872 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762679580181
+Aug 15 14:22:42.681125 test30 kernel: mxfs: P144-RD finobt agno=12 daddr=50237312 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762680294078
+Aug 15 14:22:42.681151 test30 kernel: mxfs: P144-RD finobt agno=13 daddr=54423752 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762681039423
+Aug 15 14:22:42.682126 test30 kernel: mxfs: P144-RD finobt agno=14 daddr=58610192 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762681719625
+Aug 15 14:22:42.683135 test30 kernel: mxfs: P144-RD finobt agno=15 daddr=62796632 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762682379091
+Aug 15 14:22:42.684140 test30 kernel: mxfs: P144-RD finobt agno=16 daddr=66983072 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762683184597
+Aug 15 14:22:42.684164 test30 kernel: mxfs: P144-RD finobt agno=17 daddr=71169512 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762683913059
+Aug 15 14:22:42.685128 test30 kernel: mxfs: P144-RD finobt agno=18 daddr=75355952 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762684638371
+Aug 15 14:22:42.686130 test30 kernel: mxfs: P144-RD finobt agno=19 daddr=79542392 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762685303363
+Aug 15 14:22:42.686179 test30 kernel: mxfs: P144-RD finobt agno=20 daddr=83728832 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762685944717
+Aug 15 14:22:42.687128 test30 kernel: mxfs: P144-RD finobt agno=21 daddr=87915272 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762686637996
+Aug 15 14:22:42.688145 test30 kernel: mxfs: P144-RD finobt agno=22 daddr=92101712 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762687344874
+Aug 15 14:22:42.688224 test30 kernel: mxfs: P144-RD finobt agno=23 daddr=96288152 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762688036179
+Aug 15 14:22:42.689142 test30 kernel: mxfs: P144-RD finobt agno=24 daddr=100474592 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803762688679015
+Aug 15 14:22:42.689194 test30 kernel: mxfs: mxfs: peer_joined cb registered post-multi — firing now to flush stale single-node state
+Aug 15 14:22:42.711166 test30 kernel: mxfs: mxfs: peer joined — flushing XFS dirty state before single→multi transition
+Aug 15 14:22:42.711326 test30 kernel: mxfs: mxfs: peer-joined ag=0 inode-cache walked=1 invalidated=1
+Aug 15 14:22:42.719154 test30 kernel: mxfs: mxfs: cached-view invalidation complete (25 perags, 0 inode(s) skipped)
+Aug 15 14:22:42.733651 test30 kernel: mxfs: mxfs: DLM lock caching enabled
+Aug 15 14:22:42.733807 test30 kernel: mxfs: statfs perag baseline initialized (25 AGs)
+Aug 15 14:22:42.733838 test30 kernel: mxfs filesystem being mounted at /mnt/shared supports timestamps until 2038-01-19 (0x7fffffff)
+Aug 15 14:22:42.737145 test30 kernel: mxfs: P65-EPOCH-ADOPT ino=128 grant_epoch=5 acq_epoch=0 valid_epoch=0 post_release=1 fmt=1 adopt=1 clean=1 — epoch advanced (converges dir-block0 extent map)
+Aug 15 14:22:42.737235 test30 kernel: mxfs: P63-HANDOFF ino=128 grant_gen=5 acted_gen=0 post_release=1 fmt=1 dir_gen=1 loaded_gen=0 — cross-node EX handoff; forcing disk-superset adopt
+Aug 15 14:22:42.737270 test30 kernel: mxfs: P62-RELOAD-FORK-SHRINK ino=128 incore_fmt=1 incore_nx=0 incore_size=6 disk_fmt=1 disk_nx=0 disk_size=6 shrink=0 in_ail=0 pin=0 incore_gen=0 disk_gen=0 post_release=1 self_created=0 pre_ms=0 bp_ms=0 tot_ms=0
+Aug 15 14:22:42.737293 test30 kernel: mxfs: P-RELOAD-IDENTICAL ino=128 cc=2 gen=0 fmt=1 nx=0 size=6 — disk == in-core, keeping loaded fork (no destroy/adopt)
+Aug 15 14:22:42.738133 test30 kernel: mxfs: P56-RELOAD-MERGE ino=128 merged=0 clean=1 in_ail=0 ili=0x0 pin=0 post_cnt=0 disk_cnt=0 ours_cnt=255 resurrect=0 disk=[] ours=[]
+Aug 15 14:22:42.745322 test30 sshd[1051]: Received disconnect from 192.168.120.1 port 40950:11: disconnected by user
+Aug 15 14:22:42.745873 test30 sshd[1051]: Disconnected from user root 192.168.120.1 port 40950
+Aug 15 14:22:42.746181 test30 sshd[1051]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:42.751013 test30 systemd-logind[686]: Session 7 logged out. Waiting for processes to exit.
+Aug 15 14:22:42.892153 test30 kernel: mxfs: mxfs DLM cache: hit=0 miss=1 (0%) bast: imm=0 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:22:42.892287 test30 kernel: mxfs: P-DIRBAST ino=128 state=1 mode=3 ex=0 pr=0 pin=0 realns=1786803762891728451
+Aug 15 14:22:42.892326 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=1 mode=3 ex=0 pr=0 pin=0
+Aug 15 14:22:42.892356 test30 kernel: mxfs: P70-BP ino=128 ENTRY mode=3 state=3 ex=0 pr=0 pin=0 selfdem=0 qsrc=5 bpend=0 held_ms=243 tops=1 fo_ms=1 lo_ms=154 comm=kworker/u12:2 realns=1786803762891774463
+Aug 15 14:22:42.892391 test30 kernel: mxfs: P35-DIRHONOR ino=128 realns=1786803762891784369 (bast_process drain+unlock)
+Aug 15 14:22:42.893137 test30 kernel: mxfs: P146-RELDUR ino=128 nx=0 chg=2 size=6 dsize=6 flushed=1 wrote=0 rerr=-11 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u12:2 realns=1786803762892751042
+Aug 15 14:22:42.893211 test30 kernel: mxfs: P51-REL ino=128 held_mode=3 selfdemote=0 sf=1 clean_skip=1 drain_ms=0
+Aug 15 14:22:42.893231 test30 kernel: mxfs: P147-PREUNLOCK ino=128 nx=0 chg=2 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u12:2 realns=1786803762892763391
+Aug 15 14:22:42.894160 test30 kernel: mxfs: P291-EXWIN ino=128 path=nom mode=5 slot=7 waited_ms=0 yt=0 wex=80 realms=1786803762893
+Aug 15 14:22:42.894215 test30 kernel: mxfs: P70-BP ino=128 EXIT=full rel_gen=4 ex=0 pr=0 comm=kworker/u12:2 realns=1786803762893522708
+Aug 15 14:22:42.917147 test30 kernel: mxfs: heartbeat received from unknown node 3988904026 (may be joining or was recently removed)
+Aug 15 14:22:42.917279 test30 kernel: mxfs: discovery: new peer -- node 3988904026 (192.168.120.124) tcp_port 7600
+Aug 15 14:22:42.917320 test30 kernel: mxfs: mxfs: peer discovered: node_id=3988904026 hostname=192.168.120.124
+Aug 15 14:22:43.097176 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=22
+Aug 15 14:22:43.097347 test30 kernel: mxfs: discovery: new peer -- node 910101799 (192.168.120.185) tcp_port 7600
+Aug 15 14:22:43.097383 test30 kernel: mxfs: mxfs: peer discovered: node_id=910101799 hostname=192.168.120.185
+Aug 15 14:22:43.097413 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=23
+Aug 15 14:22:43.111145 test30 kernel: mxfs: lease: node 910101799 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.111226 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803763110657529
+Aug 15 14:22:43.111261 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:43.112126 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:43.260157 test30 kernel: mxfs: discovery: new peer -- node 2660200657 (192.168.120.110) tcp_port 7600
+Aug 15 14:22:43.260282 test30 kernel: mxfs: heartbeat received from unknown node 2660200657 (may be joining or was recently removed)
+Aug 15 14:22:43.260347 test30 kernel: mxfs: mxfs: peer discovered: node_id=2660200657 hostname=192.168.120.110
+Aug 15 14:22:43.425169 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=24
+Aug 15 14:22:43.541199 test30 kernel: mxfs: lease: node 3988904026 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.541396 test30 kernel: mxfs: discovery: new peer -- node 1189870114 (192.168.120.107) tcp_port 7600
+Aug 15 14:22:43.541527 test30 kernel: mxfs: mxfs: peer discovered: node_id=1189870114 hostname=192.168.120.107
+Aug 15 14:22:43.541597 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=25
+Aug 15 14:22:43.565166 test30 kernel: mxfs: lease: node 1189870114 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.565254 test30 kernel: mxfs: discovery: new peer -- node 3458226597 (192.168.120.164) tcp_port 7600
+Aug 15 14:22:43.565272 test30 kernel: mxfs: mxfs: peer discovered: node_id=3458226597 hostname=192.168.120.164
+Aug 15 14:22:43.565324 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=26
+Aug 15 14:22:43.585144 test30 kernel: mxfs: lease: node 3458226597 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.585278 test30 kernel: mxfs: discovery: new peer -- node 539527939 (192.168.120.106) tcp_port 7600
+Aug 15 14:22:43.585316 test30 kernel: mxfs: mxfs: peer discovered: node_id=539527939 hostname=192.168.120.106
+Aug 15 14:22:43.585372 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=27
+Aug 15 14:22:43.744180 test30 kernel: mxfs: lease: node 539527939 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.744364 test30 kernel: mxfs: discovery: new peer -- node 297203799 (192.168.120.128) tcp_port 7600
+Aug 15 14:22:43.744422 test30 kernel: mxfs: mxfs: peer discovered: node_id=297203799 hostname=192.168.120.128
+Aug 15 14:22:43.744464 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=28
+Aug 15 14:22:43.769166 test30 kernel: mxfs: lease: node 297203799 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.831177 test30 kernel: mxfs: lease: node 2660200657 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.831343 test30 kernel: mxfs: discovery: new peer -- node 1686135596 (192.168.120.169) tcp_port 7600
+Aug 15 14:22:43.831385 test30 kernel: mxfs: mxfs: peer discovered: node_id=1686135596 hostname=192.168.120.169
+Aug 15 14:22:43.831429 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=29
+Aug 15 14:22:44.505238 test30 kernel: mxfs: lease: node 1686135596 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.505361 test30 kernel: mxfs: discovery: new peer -- node 3227595972 (192.168.120.158) tcp_port 7600
+Aug 15 14:22:44.505395 test30 kernel: mxfs: mxfs: peer discovered: node_id=3227595972 hostname=192.168.120.158
+Aug 15 14:22:44.505467 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=30
+Aug 15 14:22:44.526183 test30 kernel: mxfs: lease: node 3227595972 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.526311 test30 kernel: mxfs: discovery: new peer -- node 2595351064 (192.168.120.147) tcp_port 7600
+Aug 15 14:22:44.526415 test30 kernel: mxfs: mxfs: peer discovered: node_id=2595351064 hostname=192.168.120.147
+Aug 15 14:22:44.526444 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=31
+Aug 15 14:22:44.598187 test30 kernel: mxfs: lease: node 2595351064 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.598298 test30 kernel: mxfs: discovery: new peer -- node 1511882952 (192.168.120.129) tcp_port 7600
+Aug 15 14:22:44.598332 test30 kernel: mxfs: mxfs: peer discovered: node_id=1511882952 hostname=192.168.120.129
+Aug 15 14:22:44.598359 test30 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=2867806060 active_count=32
+Aug 15 14:22:45.106305 test30 kernel: mxfs: lease: node 1511882952 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:45.106527 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765105162774
+Aug 15 14:22:45.106566 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.106617 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:45.340183 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=8 dispatched=8 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:22:45.498366 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765497774516
+Aug 15 14:22:45.500741 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.500777 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:45.610181 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765609197410
+Aug 15 14:22:45.610351 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.610381 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765609928163
+Aug 15 14:22:45.610419 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.622169 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765621662335
+Aug 15 14:22:45.622312 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.623163 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765622363079
+Aug 15 14:22:45.623239 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.630168 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765629604828
+Aug 15 14:22:45.630348 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.777173 test30 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765776758647
+Aug 15 14:22:45.777292 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.787168 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:45.787317 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.809230 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.814202 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.823179 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.158279 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.159179 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:46.346237 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.347156 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:46.361226 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.442187 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.448232 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.600250 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.609180 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:46.628321 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.052219 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.055162 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:47.055241 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.334425 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.338146 test30 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:47.338214 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.359276 test30 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:57.436166 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:02.236187 test30 kernel: mxfs: P96-OWN-RESCAN slot=3 bucket=3 — own-bucket residue re-driven
+Aug 15 14:23:02.299154 test30 kernel: mxfs: P144-RD inobt agno=0 daddr=24 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782298841601
+Aug 15 14:23:02.299265 test30 kernel: mxfs: P144-RD inobt agno=1 daddr=4186464 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782299011674
+Aug 15 14:23:02.299291 test30 kernel: mxfs: P144-RD inobt agno=2 daddr=8372904 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782299167560
+Aug 15 14:23:02.299322 test30 kernel: mxfs: P144-RD inobt agno=3 daddr=12559344 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782299304251
+Aug 15 14:23:02.302131 test30 kernel: mxfs: P144-RD inobt agno=4 daddr=16745784 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782301239651
+Aug 15 14:23:02.305137 test30 kernel: mxfs: P144-RD inobt agno=5 daddr=20932224 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782304712198
+Aug 15 14:23:02.307149 test30 kernel: mxfs: P144-RD inobt agno=6 daddr=25118664 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782306653771
+Aug 15 14:23:02.307224 test30 kernel: mxfs: P144-RD inobt agno=7 daddr=29305104 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782306974570
+Aug 15 14:23:02.307262 test30 kernel: mxfs: P144-RD inobt agno=8 daddr=33491544 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782307199745
+Aug 15 14:23:02.308125 test30 kernel: mxfs: P144-RD inobt agno=9 daddr=37677984 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782307380699
+Aug 15 14:23:02.308182 test30 kernel: mxfs: P144-RD inobt agno=10 daddr=41864424 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782307523871
+Aug 15 14:23:02.308230 test30 kernel: mxfs: P144-RD inobt agno=11 daddr=46050864 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782307681497
+Aug 15 14:23:02.308273 test30 kernel: mxfs: P144-RD inobt agno=12 daddr=50237304 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782307822604
+Aug 15 14:23:02.308302 test30 kernel: mxfs: P144-RD inobt agno=13 daddr=54423744 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782307984895
+Aug 15 14:23:02.308335 test30 kernel: mxfs: P144-RD inobt agno=14 daddr=58610184 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782308162392
+Aug 15 14:23:02.308357 test30 kernel: mxfs: P144-RD inobt agno=15 daddr=62796624 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782308315383
+Aug 15 14:23:02.309139 test30 kernel: mxfs: P144-RD inobt agno=16 daddr=66983064 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782308468115
+Aug 15 14:23:02.309200 test30 kernel: mxfs: P144-RD inobt agno=17 daddr=71169504 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782308651082
+Aug 15 14:23:02.311141 test30 kernel: mxfs: P144-RD inobt agno=18 daddr=75355944 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782310429901
+Aug 15 14:23:02.314151 test30 kernel: mxfs: P144-RD inobt agno=19 daddr=79542384 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782313550506
+Aug 15 14:23:02.316157 test30 kernel: mxfs: P144-RD inobt agno=20 daddr=83728824 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782315279792
+Aug 15 14:23:02.317133 test30 kernel: mxfs: P144-RD inobt agno=21 daddr=87915264 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782316748834
+Aug 15 14:23:02.317182 test30 kernel: mxfs: P144-RD inobt agno=22 daddr=92101704 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782316957392
+Aug 15 14:23:02.317239 test30 kernel: mxfs: P144-RD inobt agno=23 daddr=96288144 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782317203375
+Aug 15 14:23:02.318132 test30 kernel: mxfs: P144-RD inobt agno=24 daddr=100474584 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/1:1 realns=1786803782317340460
+Aug 15 14:23:09.532201 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:20.260960 test30 sshd[1134]: Accepted password for root from 192.168.120.1 port 50088 ssh2
+Aug 15 14:23:20.263264 test30 sshd[1134]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:20.268997 test30 systemd-logind[686]: New session 8 of user root.
+Aug 15 14:23:20.279276 test30 systemd[1]: Started session-8.scope - Session 8 of User root.
+Aug 15 14:23:20.335181 test30 sshd[1134]: Received disconnect from 192.168.120.1 port 50088:11: disconnected by user
+Aug 15 14:23:20.335380 test30 sshd[1134]: Disconnected from user root 192.168.120.1 port 50088
+Aug 15 14:23:20.335483 test30 sshd[1134]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:20.338306 test30 systemd-logind[686]: Session 8 logged out. Waiting for processes to exit.
+Aug 15 14:23:20.338433 test30 systemd[1]: session-8.scope: Deactivated successfully.
+Aug 15 14:23:20.339444 test30 systemd-logind[686]: Removed session 8.
+Aug 15 14:23:20.655147 test30 sshd[1141]: Accepted password for root from 192.168.120.1 port 50102 ssh2
+Aug 15 14:23:20.657361 test30 sshd[1141]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:20.662305 test30 systemd-logind[686]: New session 9 of user root.
+Aug 15 14:23:20.673282 test30 systemd[1]: Started session-9.scope - Session 9 of User root.
+Aug 15 14:23:20.724671 test30 sshd[1141]: Received disconnect from 192.168.120.1 port 50102:11: disconnected by user
+Aug 15 14:23:20.724853 test30 sshd[1141]: Disconnected from user root 192.168.120.1 port 50102
+Aug 15 14:23:20.724956 test30 sshd[1141]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:20.727547 test30 systemd[1]: session-9.scope: Deactivated successfully.
+Aug 15 14:23:20.728301 test30 systemd-logind[686]: Session 9 logged out. Waiting for processes to exit.
+Aug 15 14:23:20.729666 test30 systemd-logind[686]: Removed session 9.
+Aug 15 14:23:21.628168 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:22.893944 test30 sshd[1147]: Accepted password for root from 192.168.120.1 port 60908 ssh2
+Aug 15 14:23:22.897331 test30 sshd[1147]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:22.903548 test30 systemd-logind[686]: New session 10 of user root.
+Aug 15 14:23:22.915717 test30 systemd[1]: Started session-10.scope - Session 10 of User root.
+Aug 15 14:23:22.980581 test30 sshd[1147]: Received disconnect from 192.168.120.1 port 60908:11: disconnected by user
+Aug 15 14:23:22.981056 test30 sshd[1147]: Disconnected from user root 192.168.120.1 port 60908
+Aug 15 14:23:22.981313 test30 sshd[1147]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:22.984714 test30 systemd[1]: session-10.scope: Deactivated successfully.
+Aug 15 14:23:22.985627 test30 systemd-logind[686]: Session 10 logged out. Waiting for processes to exit.
+Aug 15 14:23:22.986796 test30 systemd-logind[686]: Removed session 10.
+Aug 15 14:23:25.566951 test30 sshd[1156]: Accepted password for root from 192.168.120.1 port 60910 ssh2
+Aug 15 14:23:25.569015 test30 sshd[1156]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:25.574017 test30 systemd-logind[686]: New session 11 of user root.
+Aug 15 14:23:25.584489 test30 systemd[1]: Started session-11.scope - Session 11 of User root.
+Aug 15 14:23:25.651071 test30 sshd[1156]: Received disconnect from 192.168.120.1 port 60910:11: disconnected by user
+Aug 15 14:23:25.651387 test30 sshd[1156]: Disconnected from user root 192.168.120.1 port 60910
+Aug 15 14:23:25.651586 test30 sshd[1156]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:25.655128 test30 systemd[1]: session-11.scope: Deactivated successfully.
+Aug 15 14:23:25.655975 test30 systemd-logind[686]: Session 11 logged out. Waiting for processes to exit.
+Aug 15 14:23:25.657358 test30 systemd-logind[686]: Removed session 11.
+Aug 15 14:23:28.204686 test30 sshd[1165]: Accepted password for root from 192.168.120.1 port 60922 ssh2
+Aug 15 14:23:28.207941 test30 sshd[1165]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:28.214050 test30 systemd-logind[686]: New session 12 of user root.
+Aug 15 14:23:28.223390 test30 systemd[1]: Started session-12.scope - Session 12 of User root.
+Aug 15 14:23:28.286217 test30 sshd[1165]: Received disconnect from 192.168.120.1 port 60922:11: disconnected by user
+Aug 15 14:23:28.286450 test30 sshd[1165]: Disconnected from user root 192.168.120.1 port 60922
+Aug 15 14:23:28.286576 test30 sshd[1165]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:28.290120 test30 systemd[1]: session-12.scope: Deactivated successfully.
+Aug 15 14:23:28.291214 test30 systemd-logind[686]: Session 12 logged out. Waiting for processes to exit.
+Aug 15 14:23:28.292676 test30 systemd-logind[686]: Removed session 12.
+Aug 15 14:23:33.724162 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:36.380663 test30 sshd[1175]: Accepted password for root from 192.168.120.1 port 56474 ssh2
+Aug 15 14:23:36.382957 test30 sshd[1175]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:36.388204 test30 systemd-logind[686]: New session 13 of user root.
+Aug 15 14:23:36.394682 test30 systemd[1]: Started session-13.scope - Session 13 of User root.
+Aug 15 14:23:45.820153 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:57.916188 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:10.012203 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:22.108239 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:34.204145 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:36.464148 test30 kernel: mxfs: P139-LOCKTOTAL ino=128 req=3 rc=0 total_ms=60014 retries=1 ea_claim=0 ea_compat=1 ea_regwait=0 yield_bo=0 yield_stale=0 realms=1786803876463
+Aug 15 14:24:36.464325 test30 kernel: mxfs: P34-ACQ-SLOW ino=128 isdir=1 req_mode=3 dur_ms=60014 attempts=1 rc=0
+Aug 15 14:24:36.464382 test30 kernel: mxfs: P65-EPOCH-ADOPT ino=128 grant_epoch=30 acq_epoch=5 valid_epoch=5 post_release=1 fmt=1 adopt=1 clean=1 — epoch advanced (converges dir-block0 extent map)
+Aug 15 14:24:36.464431 test30 kernel: mxfs: P63-HANDOFF ino=128 grant_gen=30 acted_gen=5 post_release=1 fmt=1 dir_gen=2 loaded_gen=1 — cross-node EX handoff; forcing disk-superset adopt
+Aug 15 14:24:36.465119 test30 kernel: mxfs: P62-RELOAD-FORK-SHRINK ino=128 incore_fmt=1 incore_nx=0 incore_size=6 disk_fmt=1 disk_nx=0 disk_size=6 shrink=0 in_ail=0 pin=0 incore_gen=0 disk_gen=0 post_release=1 self_created=0 pre_ms=0 bp_ms=0 tot_ms=0
+Aug 15 14:24:36.465166 test30 kernel: mxfs: P-RELOAD-IDENTICAL ino=128 cc=2 gen=0 fmt=1 nx=0 size=6 — disk == in-core, keeping loaded fork (no destroy/adopt)
+Aug 15 14:24:36.465188 test30 kernel: mxfs: P56-RELOAD-MERGE ino=128 merged=0 clean=1 in_ail=0 ili=0x0 pin=0 post_cnt=0 disk_cnt=0 ours_cnt=0 resurrect=0 disk=[] ours=[]
+Aug 15 14:24:36.465896 test30 sshd[1175]: Received disconnect from 192.168.120.1 port 56474:11: disconnected by user
+Aug 15 14:24:36.466183 test30 sshd[1175]: Disconnected from user root 192.168.120.1 port 56474
+Aug 15 14:24:36.466313 test30 sshd[1175]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:24:36.470386 test30 systemd[1]: session-13.scope: Deactivated successfully.
+Aug 15 14:24:36.470392 test30 systemd-logind[686]: Session 13 logged out. Waiting for processes to exit.
+Aug 15 14:24:36.472478 test30 systemd-logind[686]: Removed session 13.
+Aug 15 14:24:38.179695 test30 kernel: mxfs: mxfs DLM cache: hit=0 miss=2 (0%) bast: imm=1 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:24:38.179862 test30 kernel: mxfs: mxfs: node in slot 1 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.179887 test30 kernel: mxfs: mxfs: node 73950 (slot 1 inc 12739327102022135839) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.179950 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=1 node=73950 epoch=12739327102022135839 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.180007 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=73950 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.180031 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=1 node=73950 epoch=12739327102022135839 — purge deferred until slice replay completes
+Aug 15 14:24:38.180119 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.180163 test30 kernel: mxfs: mxfs: node in slot 2 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.186604 test30 kernel: mxfs: mxfs: node 1071829746 (slot 2 inc 14113284235986954369) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.186679 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=2 node=1071829746 epoch=14113284235986954369 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.186714 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=1071829746 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.186737 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=2 node=1071829746 epoch=14113284235986954369 — purge deferred until slice replay completes
+Aug 15 14:24:38.196002 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.196057 test30 kernel: mxfs: mxfs: node in slot 16 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.196116 test30 kernel: mxfs: mxfs: node 2968775057 (slot 16 inc 17790329753121501144) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.196142 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=16 node=2968775057 epoch=17790329753121501144 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.196166 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=2968775057 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.196187 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=16 node=2968775057 epoch=17790329753121501144 — purge deferred until slice replay completes
+Aug 15 14:24:38.197113 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.197153 test30 kernel: mxfs: mxfs: node in slot 19 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.197177 test30 kernel: mxfs: mxfs: node 3317911391 (slot 19 inc 2971992893550177666) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.197195 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=19 node=3317911391 epoch=2971992893550177666 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.203377 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=3317911391 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.203438 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=19 node=3317911391 epoch=2971992893550177666 — purge deferred until slice replay completes
+Aug 15 14:24:38.210912 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.210950 test30 kernel: mxfs: mxfs: node in slot 23 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.210977 test30 kernel: mxfs: mxfs: node 2660200657 (slot 23 inc 5497936878802060180) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.210994 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=23 node=2660200657 epoch=5497936878802060180 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.211023 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=2660200657 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.211055 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=23 node=2660200657 epoch=5497936878802060180 — purge deferred until slice replay completes
+Aug 15 14:24:38.218332 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.218449 test30 kernel: mxfs: mxfs: node in slot 26 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.218485 test30 kernel: mxfs: mxfs: node 3458226597 (slot 26 inc 15776456058719166486) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.218601 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=26 node=3458226597 epoch=15776456058719166486 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.218625 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=3458226597 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.218652 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=26 node=3458226597 epoch=15776456058719166486 — purge deferred until slice replay completes
+Aug 15 14:24:38.225808 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.225885 test30 kernel: mxfs: mxfs: node in slot 29 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.225919 test30 kernel: mxfs: mxfs: node 3227595972 (slot 29 inc 12697859869972487182) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.225941 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=29 node=3227595972 epoch=12697859869972487182 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.225968 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=3227595972 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.225991 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=29 node=3227595972 epoch=12697859869972487182 — purge deferred until slice replay completes
+Aug 15 14:24:38.232833 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.232985 test30 kernel: mxfs: mxfs: node in slot 30 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.233008 test30 kernel: mxfs: mxfs: node 2595351064 (slot 30 inc 9607414033531685815) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.233028 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=30 node=2595351064 epoch=9607414033531685815 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.233079 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=2595351064 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.233137 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=30 node=2595351064 epoch=9607414033531685815 — purge deferred until slice replay completes
+Aug 15 14:24:38.239932 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:38.240054 test30 kernel: mxfs: mxfs: node in slot 31 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:38.240097 test30 kernel: mxfs: mxfs: node 1511882952 (slot 31 inc 11891373367613744389) lease expired/died — fencing; recovery starting
+Aug 15 14:24:38.240135 test30 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=31 node=1511882952 epoch=11891373367613744389 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:38.240171 test30 kernel: mxfs: mxfs: P164-DEAD-NOTE node=1511882952 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:38.240191 test30 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=31 node=1511882952 epoch=11891373367613744389 — purge deferred until slice replay completes
+Aug 15 14:24:46.300153 test30 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 3) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:46.300311 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:54.966967 test30 sshd[1190]: Accepted password for root from 192.168.120.1 port 48272 ssh2
+Aug 15 14:24:54.968795 test30 sshd[1190]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:24:54.973178 test30 systemd-logind[686]: New session 14 of user root.
+Aug 15 14:24:54.989231 test30 systemd[1]: Started session-14.scope - Session 14 of User root.
+Aug 15 14:24:55.041495 test30 sshd[1190]: Received disconnect from 192.168.120.1 port 48272:11: disconnected by user
+Aug 15 14:24:55.041666 test30 sshd[1190]: Disconnected from user root 192.168.120.1 port 48272
+Aug 15 14:24:55.041770 test30 sshd[1190]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:24:55.044296 test30 systemd[1]: session-14.scope: Deactivated successfully.
+Aug 15 14:24:55.045022 test30 systemd-logind[686]: Session 14 logged out. Waiting for processes to exit.
+Aug 15 14:24:55.045925 test30 systemd-logind[686]: Removed session 14.
+Aug 15 14:24:58.460137 test30 kernel: mxfs: mxfs DLM cache: hit=1 miss=2 (33%) bast: imm=1 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:24:58.460292 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:01.859547 test30 CRON[1197]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:01.860279 test30 CRON[1198]: (root) CMD (command -v debian-sa1 > /dev/null && debian-sa1 1 1)
+Aug 15 14:25:01.863998 test30 CRON[1197]: pam_unix(cron:session): session closed for user root
+Aug 15 14:25:05.584044 test30 sshd[1200]: Accepted password for root from 192.168.120.1 port 51982 ssh2
+Aug 15 14:25:05.586610 test30 sshd[1200]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:05.593130 test30 systemd-logind[686]: New session 16 of user root.
+Aug 15 14:25:05.602551 test30 systemd[1]: Started session-16.scope - Session 16 of User root.
+Aug 15 14:25:05.661701 test30 sshd[1200]: Received disconnect from 192.168.120.1 port 51982:11: disconnected by user
+Aug 15 14:25:05.661981 test30 sshd[1200]: Disconnected from user root 192.168.120.1 port 51982
+Aug 15 14:25:05.662135 test30 sshd[1200]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:25:05.666369 test30 systemd[1]: session-16.scope: Deactivated successfully.
+Aug 15 14:25:05.667499 test30 systemd-logind[686]: Session 16 logged out. Waiting for processes to exit.
+Aug 15 14:25:05.668569 test30 systemd-logind[686]: Removed session 16.
+Aug 15 14:25:10.556337 test30 kernel: mxfs: mxfs DLM cache: hit=2 miss=2 (50%) bast: imm=1 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:25:10.556527 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=periodic submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:17.530033 test30 sshd[1207]: Accepted password for root from 192.168.120.1 port 42096 ssh2
+Aug 15 14:25:17.531878 test30 sshd[1207]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:17.536169 test30 systemd-logind[686]: New session 17 of user root.
+Aug 15 14:25:17.546439 test30 systemd[1]: Started session-17.scope - Session 17 of User root.
+Aug 15 14:25:17.625653 test30 systemd[1]: mnt-shared.mount: Deactivated successfully.
+Aug 15 14:25:17.627112 test30 kernel: mxfs: mxfs DLM cache: hit=3 miss=2 (60%) bast: imm=1 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:25:17.627182 test30 kernel: mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=128 icount=2 mode=040755 nlink=2 dlm_mode=3 dlm_state=1 ex_h=0 pr_h=0 pin=0 bast_pending=0 unpublished=0 iflags=0x0 pincount=0 in_ail=0 — still in the ICI radix tree at unmount; generic_shutdown_super will report it busy
+Aug 15 14:25:17.627211 test30 kernel: mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=1 still_referenced=1 (printed at most 16) — if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these
+Aug 15 14:25:17.639121 test30 kernel: XFS (dm-1): Unmounting Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+Aug 15 14:25:17.639232 test30 kernel: mxfs: mxfs: DLM shutting down
+Aug 15 14:25:17.639281 test30 kernel: mxfs: P265-BASTQ-STATS node=2867806060 at=stop submitted=31 dispatched=31 merged=0 rearmed=4 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:17.661201 test30 kernel: mxfs: mxfs: P109-CLR-RELEASE-ALL type=I id=128 cur_gm=3 slot=60593 cas_rc=-11
+Aug 15 14:25:17.662121 test30 kernel: mxfs: journal: destroyed (commits=0, flushes=0)
+Aug 15 14:25:17.662203 test30 kernel: mxfs: mxfs: DLM shutdown complete
+Aug 15 14:25:17.662245 test30 kernel: mxfs: P140-RECLAIM-COMMIT ino=0x80 ip=ffff8bd7be2d24e0 pid=1214 comm=umount
+Aug 15 14:25:17.662289 test30 kernel: P30-QUIESCE-RECOUNT err=0 ifree pre=61 post=61 icount=64 fdblocks=12560753
+Aug 15 14:25:17.717142 test30 kernel: mxfs: disklock: released heartbeat slot 3 (clean teardown)
+Aug 15 14:25:17.718131 test30 kernel: mxfs: mxfs: P278-LATE-RELEASE unmount_clean=1 release rc=0
+Aug 15 14:25:17.718180 test30 kernel: mxfs: F4-REGISTRY-TOTAL opens=0 recommits=0 retires=0 stale_cancels=0 shutdown_cancels=0 abort_keeps=0 orphans=0 suppress_skips=0 ordered=0 unknown=0 open_at_destroy=0
+Aug 15 14:25:17.718204 test30 kernel: mxfs: ICWR-REGISTRY-TOTAL submits=0 completes=0 resubmit_keeps=0 orphans=0 underflows=0 untracked=0 entries=0 leaked_inflight=0
+Aug 15 14:25:17.822321 test30 sshd[1207]: Received disconnect from 192.168.120.1 port 42096:11: disconnected by user
+Aug 15 14:25:17.822552 test30 sshd[1207]: Disconnected from user root 192.168.120.1 port 42096
+Aug 15 14:25:17.822676 test30 sshd[1207]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:25:17.825555 test30 systemd[1]: session-17.scope: Deactivated successfully.
+Aug 15 14:25:17.826613 test30 systemd-logind[686]: Session 17 logged out. Waiting for processes to exit.
+Aug 15 14:25:17.827675 test30 systemd-logind[686]: Removed session 17.
+Aug 15 14:26:56.318404 test30 systemd[1]: Starting update-notifier-download.service - Download data for packages that failed at package install time...
+Aug 15 14:26:56.459689 test30 systemd[1]: update-notifier-download.service: Deactivated successfully.
+Aug 15 14:26:56.459929 test30 systemd[1]: Finished update-notifier-download.service - Download data for packages that failed at package install time.
+Aug 15 14:27:29.019710 test30 sshd[1231]: Accepted password for root from 192.168.120.1 port 41060 ssh2
+Aug 15 14:27:29.021440 test30 sshd[1231]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:27:29.025425 test30 systemd-logind[686]: New session 18 of user root.
+Aug 15 14:27:29.043281 test30 systemd[1]: Started session-18.scope - Session 18 of User root.
+Aug 15 14:27:29.103235 test30 sshd[1231]: Received disconnect from 192.168.120.1 port 41060:11: disconnected by user
+Aug 15 14:27:29.103408 test30 sshd[1231]: Disconnected from user root 192.168.120.1 port 41060
+Aug 15 14:27:29.103503 test30 sshd[1231]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:27:29.106278 test30 systemd[1]: session-18.scope: Deactivated successfully.
+Aug 15 14:27:29.106416 test30 systemd-logind[686]: Session 18 logged out. Waiting for processes to exit.
+Aug 15 14:27:29.107910 test30 systemd-logind[686]: Removed session 18.
+Aug 15 14:27:56.307953 test30 systemd[1033]: launchpadlib-cache-clean.service - Clean up old files in the Launchpadlib cache was skipped because of an unmet condition check (ConditionPathExists=/root/.launchpadlib/api.launchpad.net/cache).

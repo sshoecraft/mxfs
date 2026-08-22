@@ -27,7 +27,7 @@ reboot_clean() {
   # sess46: hung-task watchdog — dump the stack of any task in D-state >18s so a
   # wedged node's blocked op (the MASS-isolation root) lands in dmesg BEFORE the
   # 25s TCP_USER_TIMEOUT kills it.  panic_on_hung_task=0 (warn only, no reboot).
-  for n in $NODES; do timeout 8 $SSH $n $PASS "sysctl -w kernel.hung_task_timeout_secs=18 kernel.hung_task_warnings=999999 kernel.hung_task_panic=0 >/dev/null 2>&1; rm -f /root/drc_failrounds.txt /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg; dmesg -C" >/dev/null 2>&1; done
+  for n in $NODES; do timeout 8 $SSH $n $PASS "sysctl -w kernel.hung_task_timeout_secs=18 kernel.hung_task_warnings=999999 kernel.hung_task_panic=0 >/dev/null 2>&1; rm -f /root/drc_failrounds.txt /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg; dmesg -C" >/dev/null 2>&1; done
 }
 for i in $(seq 1 "$ITERS"); do
   echo "########## ITER $i/$ITERS reboot @ $(date -u +%T) ##########"
@@ -44,10 +44,10 @@ for i in $(seq 1 "$ITERS"); do
   for n in $NODES; do
     echo "----- $n -----"
     timeout 25 $SSH $n $PASS '
-      for F in /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg; do
+      for F in /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg; do
         [ -f "$F" ] || continue
       done
-      ALL="/root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg"
+      ALL="/root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg"
       echo "[RDMISS]";        grep -hE "drc-RDMISS" $ALL 2>/dev/null | tail -2
       echo "[DOUBLEGRANT]";   grep -hE "P-DOUBLEGRANT" $ALL 2>/dev/null | tail -4
       echo "[STALEMASTER]";   grep -hE "P-STALEMASTER-GRANT" $ALL 2>/dev/null | tail -4
@@ -55,7 +55,7 @@ for i in $(seq 1 "$ITERS"); do
       RND=$(grep -hoE "round=[0-9]+" /root/drc_failrounds.txt 2>/dev/null | head -1 | cut -d= -f2)
       echo "[FAILROUND] R=$RND"
       echo "[P46-GROW failround newdbno->daddr (this node)]"
-      CS=$(ls /root/drc_create_r${RND}_rank*.dmesg 2>/dev/null | head -1)
+      CS=$(ls /root/drc_create_r${RND}_rank*.dmesg /dev/shm/drc_create_r${RND}_rank*.dmesg 2>/dev/null | head -1)
       if [ -n "$CS" ]; then
         sed -n "/DRCph r=$RND .*PHASE=create-start/,\$p" "$CS" 2>/dev/null | grep -oE "newdbno=[0-9]+ daddr=[0-9]+ incore_nx=[0-9]+" | sort | uniq -c | head -25
       fi

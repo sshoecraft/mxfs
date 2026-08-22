@@ -33,6 +33,14 @@ xfs_iunlink_item_release(
 {
 	struct xfs_iunlink_item	*iup = IUL_ITEM(lip);
 
+	/* mxfs sess203: retire the pending-transition certificate.  On the
+	 * precommit path this runs after the buffer and the iunl store have
+	 * caught up (both under the cluster buffer lock, which every overlay
+	 * site also holds), so no observer can see divergent in-core state
+	 * without an explanation.  On the cancel path the trans is dirty and
+	 * shutdown follows anyway. */
+	WRITE_ONCE(iup->ip->i_mxfs_nu_cert_valid, 0);
+
 	xfs_perag_put(iup->pag);
 	kmem_cache_free(xfs_iunlink_cache, IUL_ITEM(lip));
 }
@@ -127,12 +135,46 @@ xfs_iunlink_log_dinode(
 			goto out;
 		}
 
+		/*
+		 * mxfs sess203 (GPT ruling, backstop (b)): if a live iunl-store
+		 * record for exactly this slot (ino+gen+daddr+boffset) says the
+		 * committed value IS our captured old_agino, then the buffer's
+		 * old_ptr is a proven fossil — some image install slipped past
+		 * the overlay (or the overlay refused on a race).  The correct
+		 * response is the normal transition, not a fleet shutdown: the
+		 * store conclusively identifies the four stale bytes.  STRICT:
+		 * additionally require our own pending certificate to match
+		 * this item, and alarm loudly — every absorbed event here is a
+		 * standing regression alarm (an install site is leaking).
+		 */
+		if (tp->t_mountp->m_mxfs_dlm &&
+		    READ_ONCE(ip->i_mxfs_nu_cert_valid) &&
+		    ip->i_mxfs_nu_cert_old == iup->old_agino &&
+		    ip->i_mxfs_nu_cert_next == iup->next_agino) {
+			extern bool mxfs_iunl_store_fossil_match(
+					struct xfs_mount *, uint64_t, uint32_t,
+					xfs_daddr_t, uint16_t, uint32_t);
+
+			if (mxfs_iunl_store_fossil_match(tp->t_mountp,
+					ip->i_ino, VFS_I(ip)->i_generation,
+					ibp->b_maps[0].bm_bn,
+					ip->i_imap.im_boffset,
+					iup->old_agino)) {
+				pr_warn("mxfs: P-IUNL-PRECOMMIT-FOSSILFIX ino=0x%llx old_ptr=0x%x committed=old_agino=0x%x next_agino=0x%x incore=0x%x — buffer held a proven fossil; repairing via the normal transition\n",
+					(unsigned long long)ip->i_ino, old_ptr,
+					iup->old_agino, iup->next_agino,
+					ip->i_next_unlinked);
+				goto apply;
+			}
+		}
+
 		xfs_inode_verifier_error(ip, -EFSCORRUPTED, __func__, dip,
 				sizeof(*dip), __this_address);
 		error = -EFSCORRUPTED;
 		goto out;
 	}
 
+apply:
 	trace_xfs_iunlink_update_dinode(iup, old_ptr);
 
 	dip->di_next_unlinked = cpu_to_be32(iup->next_agino);
@@ -234,6 +276,23 @@ xfs_iunlink_log_inode(
 	iup->next_agino = next_agino;
 	iup->old_agino = ip->i_next_unlinked;
 	iup->pag = xfs_perag_hold(pag);
+
+	/* mxfs sess203: publish the pending-transition certificate BEFORE the
+	 * caller advances i_next_unlinked, so any overlay that observes the
+	 * advanced in-core edge also observes the certificate explaining it
+	 * (the item-init-to-precommit window is a legitimate skew window, not
+	 * record abandonment — GPT ruling sess203).  The trailing barrier
+	 * orders valid=1 before the caller's in-core store. */
+	if (ip->i_mxfs_nu_cert_valid)
+		pr_warn_ratelimited("mxfs: P-IUNL-CERT-STACKED ino=0x%llx prev={0x%x->0x%x} new={0x%x->0x%x}\n",
+			(unsigned long long)ip->i_ino,
+			ip->i_mxfs_nu_cert_old, ip->i_mxfs_nu_cert_next,
+			ip->i_next_unlinked, next_agino);
+	WRITE_ONCE(ip->i_mxfs_nu_cert_old, ip->i_next_unlinked);
+	WRITE_ONCE(ip->i_mxfs_nu_cert_next, next_agino);
+	smp_wmb();
+	WRITE_ONCE(ip->i_mxfs_nu_cert_valid, 1);
+	smp_wmb();
 
 	xfs_trans_add_item(tp, &iup->item);
 	tp->t_flags |= XFS_TRANS_DIRTY;

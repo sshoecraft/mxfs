@@ -39,7 +39,10 @@ LADDER="${LADDER:-1 2 4 8 16 32}"
 W=$(cat <<'EOS'
 set -u
 D="$1"; F="$2"; TAG="$3"; R="$4"
-mkdir -p "$D" 2>/dev/null
+# sess380: the caller pre-creates BOTH shapes' directories from one node, so
+# this must NOT mkdir -- doing so put a 32-way EX acquire of the shared parent
+# inside the measured window and destroyed the private arm as a control.
+[ -d "$D" ] || { echo "MISSING_DIR $D"; exit 1; }
 line="CSC $TAG r$R"$'\n'
 s="$line"; while [ "${#s}" -lt 4096 ]; do s="$s$s"; done
 pat="${s:0:4096}"
@@ -60,10 +63,23 @@ arm() {
     local lab="${shape}_P${P}"
     local od="$OUT/$lab"; mkdir -p "$od"
     dirbase="$MNT/.csc_${STAMP}_${lab}"
-    # Pre-create the shared dir from rank 1 so the mkdir itself is not part of
-    # the measured window (otherwise P=1 pays a mkdir the others do not).
-    if [ "$shape" = shared ]; then
-        "$SSH" test1 "mkdir -p '$dirbase'" >/dev/null 2>&1
+    # Pre-create the directories from rank 1 so no mkdir is part of the measured
+    # window (otherwise P=1 pays a mkdir the others do not).
+    #
+    # sess380 CORRECTION — THE `private` ARM WAS NOT AN UNCONTENDED CONTROL.
+    # Only the shared arm used to be pre-created, so in the private arm every
+    # one of the P nodes ran `mkdir -p $dirbase/r$i` INSIDE the measured window,
+    # which takes the SAME parent directory inode EX P times.  Both arms
+    # therefore contended on one shared directory and the shared-vs-private
+    # ratio measured nothing about contention.  That is very likely why this
+    # entry's own history contains two irreconcilable private-arm numbers
+    # (D-32NODE-SHARED-DIR-CREATE-PACE: "wall 33..41ms, FLAT in N" against
+    # "mean 5.2..191.8ms, 37x in N", from the same harness).  Pre-create BOTH
+    # shapes from one node, so the private arm shares nothing but the mount.
+    "$SSH" test1 "mkdir -p '$dirbase'" >/dev/null 2>&1
+    if [ "$shape" != shared ]; then
+        "$SSH" test1 "for i in \$(seq 1 $P); do mkdir -p '$dirbase'/r\$i; done" \
+            >/dev/null 2>&1
     fi
     for i in $(seq 1 "$P"); do
         if [ "$shape" = shared ]; then d="$dirbase"; else d="$dirbase/r$i"; fi

@@ -30,7 +30,7 @@ reboot_clean() {
   done
   sleep 20
   rm -f "$REPO/tests/tcp/drc_cap/stream_rank"*.log 2>/dev/null
-  for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_stream_rank*.log; dmesg -C" >/dev/null 2>&1; done
+  for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_stream_rank*.log /dev/shm/drc_stream_rank*.log; dmesg -C" >/dev/null 2>&1; done
 }
 for i in $(seq 1 "$ITERS"); do
   echo "########## TRACE ITER $i/$ITERS rounds=$ROUNDS nfiles=$NFILES @ $(date -u +%T) ##########"

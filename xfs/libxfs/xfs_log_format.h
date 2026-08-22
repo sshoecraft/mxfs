@@ -690,10 +690,45 @@ struct mxfs_blf_authority_v2 {
 };
 #define MXFS_BLF_AUTHORITY_V2	2
 
+/*
+ * sess177 — VERSION 3.  48 bytes: v2 plus the RESOURCE LINEAGE.
+ *
+ *   mba_lineage      be64 — the random nonzero lineage minted when the CAW
+ *                    slot's current resource binding was created (fresh claim)
+ *                    and inherited across same-resource tombstone recycles.
+ *                    It discriminates "the binding this grant was issued
+ *                    under" from "a later binding of the same resource name
+ *                    to a recycled slot": epoch alone cannot, because epochs
+ *                    restart when a binding is rebuilt.  EQUALITY COMPARISONS
+ *                    ONLY — lineage values carry no order, age or distance.
+ *
+ * A zero mba_lineage on the wire means the emitter had no lineage for the
+ * grant (pre-lineage grant still in tenure); the evaluator classifies that
+ * separately (v2_no_lineage semantics) rather than treating 0 as a value.
+ *
+ * VERSION 3 IS STILL REPORT-ONLY IN THIS BUILD (sess175 ruling Q-B: emit may
+ * precede the proto-gen 4 admission gate; ENFORCEMENT stays hard-gated on the
+ * cluster-admitted generation >= 4, not on any local constant).
+ */
+struct mxfs_blf_authority_v3 {
+	__be16	mba_version;
+	__be16	mba_class;
+	__be32	mba_flags;	/* bits 0-7 status; 8-31 reserved, MBZ */
+	__be64	mba_resource;
+	__be64	mba_grant_epoch;
+	__be64	mba_owner_epoch;
+	__be32	mba_owner_slot;
+	__be32	mba_owner_node;
+	__be64	mba_lineage;
+};
+#define MXFS_BLF_AUTHORITY_V3	3
+
 _Static_assert(sizeof(struct mxfs_blf_authority) == 24,
 	       "mxfs_blf_authority v1 is 24 bytes on the wire");
 _Static_assert(sizeof(struct mxfs_blf_authority_v2) == 40,
 	       "mxfs_blf_authority_v2 is 40 bytes on the wire");
+_Static_assert(sizeof(struct mxfs_blf_authority_v3) == 48,
+	       "mxfs_blf_authority_v3 is 48 bytes on the wire");
 
 /*
  * THE SIZE-MACRO TRAP.  Trailer presence must be size-stable or the CIL
@@ -705,7 +740,7 @@ _Static_assert(sizeof(struct mxfs_blf_authority_v2) == 40,
  * size a PARSE — the parser meets both versions and must size from the
  * version field it read (mxfs_blf_authority_size()).
  */
-#define MXFS_BLF_AUTHORITY_SIZE	sizeof(struct mxfs_blf_authority_v2)
+#define MXFS_BLF_AUTHORITY_SIZE	sizeof(struct mxfs_blf_authority_v3)
 
 static inline size_t mxfs_blf_authority_size(unsigned int version)
 {
@@ -714,6 +749,8 @@ static inline size_t mxfs_blf_authority_size(unsigned int version)
 		return sizeof(struct mxfs_blf_authority);
 	case MXFS_BLF_AUTHORITY_V2:
 		return sizeof(struct mxfs_blf_authority_v2);
+	case MXFS_BLF_AUTHORITY_V3:
+		return sizeof(struct mxfs_blf_authority_v3);
 	default:
 		return 0;	/* unknown version — fail closed */
 	}
@@ -735,6 +772,7 @@ struct mxfs_auth_view {
 	uint64_t	av_owner_epoch;
 	uint32_t	av_owner_slot;
 	uint32_t	av_owner_node;
+	uint64_t	av_lineage;	/* 0 for v1/v2 records and pre-lineage v3 */
 };
 
 /* Result of mxfs_blf_parse_authority(): four outcomes, never conflated. */

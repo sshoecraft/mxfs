@@ -34,7 +34,7 @@ for run in $(seq 1 "$MAX"); do
         timeout 15 $SSH test$n /tmp/.mxfs_pass "cat /root/drc_failrounds.txt 2>/dev/null" > "$CAP/failrounds_test$n.txt" 2>/dev/null
         if [ -n "$RND" ]; then
             timeout 30 $SSH test$n /tmp/.mxfs_pass "cat /root/drc_failverify_r${RND}_rank${n}.dmesg 2>/dev/null" > "$CAP/failverify_r${RND}_test$n.txt" 2>/dev/null
-            timeout 30 $SSH test$n /tmp/.mxfs_pass "cat /root/drc_create_r${RND}_rank${n}.dmesg 2>/dev/null" > "$CAP/create_r${RND}_test$n.txt" 2>/dev/null
+            timeout 30 $SSH test$n /tmp/.mxfs_pass "cat /root/drc_create_r${RND}_rank${n}.dmesg /dev/shm/drc_create_r${RND}_rank${n}.dmesg 2>/dev/null" > "$CAP/create_r${RND}_test$n.txt" 2>/dev/null
         fi
     done
     echo "--- RDMISS/CLASS (round $RND) ---" | tee -a "$SCR/catch2.log"

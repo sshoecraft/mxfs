@@ -179,6 +179,21 @@ struct xfs_perag {
 	 */
 	uint64_t		pag_mxfs_grant_epoch;
 	/*
+	 * sess176 (sess175 lineage ruling): the slot binding's
+	 * resource_lineage from the SAME grant result that carried
+	 * pag_mxfs_grant_epoch.  Identifies WHICH binding of this AG's slot
+	 * the epoch namespace belongs to — a slot recycled through a
+	 * different resource restarts its epoch sequence, and only the
+	 * lineage distinguishes tokens of the old binding from the new.
+	 * Same lifecycle as the epoch: published under pag_dlm_lock with
+	 * WRITE_ONCE only beside a proving epoch, cleared (0) at every
+	 * release-commit point beside the epoch clear, READ_ONCE by the
+	 * token producer.  Zero = binding lineage unknown (legacy peer
+	 * minted the binding): tokens still emit but are not enforceable
+	 * under the v3 lineage gate.  EQUALITY comparisons only.
+	 */
+	uint64_t		pag_mxfs_grant_lineage;
+	/*
 	 * AG-metadata coherency across DLM AG-lock grants.
 	 *
 	 * pag_dlm_meta_pending: count of AG-metadata buffers (AGF/AGI/AGFL/
@@ -348,6 +363,42 @@ struct xfs_perag {
 	unsigned long		pag_dlm_bast_pending_since;
 	u32			pag_dlm_readopt_n;
 	/*
+	 * sess291 (D-488 leg 7 part 1b, sess289 ruling): the rx strand
+	 * detector found our own CAW holder bit on the platter with no
+	 * in-core tenure.  This is NOT cached ownership and NOT write
+	 * authority — the bast worker must first perform the verified
+	 * READOPT mint (P294, fresh epoch through a real CAS) before any
+	 * tenure or release can proceed.  Set/cleared under pag_dlm_lock;
+	 * single-flight is guaranteed by pag_dlm_bast_scheduled, which is
+	 * latched in the same critical section that sets this.
+	 */
+	bool			pag_dlm_readopt_pending;
+	/*
+	 * sess391 (RULE-5 ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
+	 * latch-closing-restartable; D-RSYNC-LAP-PACE-AG-SHARING-388): the
+	 * handoff LATCH.  The AG BAST worker's release COMMIT (cached=false,
+	 * demoting=true, epoch=0) used to be reachable only by the worker
+	 * itself winning a race against local re-adopters at holders==0; at a
+	 * 3 ms op cadence the worker lost that race ~2 M times per lap and a
+	 * peer waited seconds.  Now the COMMIT is an atomic admission decision
+	 * taken by whichever path observes holders==0 first once the
+	 * prepass ran and the grace is spent: the last-holder unlock, a
+	 * would-be re-adopter, or the worker.  pag_dlm_latched marks a COMMIT
+	 * performed OUTSIDE the worker (the worker then skips straight to the
+	 * post-COMMIT drains); pag_dlm_prepass_done marks that the worker has
+	 * run its pre-COMMIT pass (publish unpublished inodes + bounded AIL
+	 * push) for the current BAST generation — the latch is armed only
+	 * after that, because the publish pass does data writeback that must
+	 * acquire this very AG and would deadlock against a closed admission.
+	 * Both cleared on every demote completion and at each new BAST
+	 * generation.  pag_dlm_latch_ns stamps the COMMIT (either path) for
+	 * the BAST->COMMIT / COMMIT->release latency accounting.
+	 */
+	bool			pag_dlm_latched;
+	bool			pag_dlm_prepass_done;
+	u64			pag_dlm_latch_ns;
+	u64			pag_dlm_bast_rx_ns;	/* first rx of this generation */
+	/*
 	 * sess12(a9a03929): identity of the last holders 0->1 adopter.  When a
 	 * peer's BAST finds the hold stuck (page_ms large, holders frozen>0),
 	 * mxfs_dlm_ag_bast_notify dumps this task's stack (sched_show_task) —
@@ -356,6 +407,34 @@ struct xfs_perag {
 	 */
 	pid_t			pag_dlm_holder_pid;
 	char			pag_dlm_holder_comm[16];
+	/*
+	 * sess388 (D-474 AIL-freeze anatomy): pag_dlm_lock hold forensics.
+	 * P-AILMIN dumps showed the frozen AIL-min ILOCK owner blocked for
+	 * >5 s in mutex_lock(&pag_dlm_lock) via mxfs_ag_dlm_trylock — a
+	 * mutex documented as "never held across CAW".  Every lock/unlock
+	 * site in xfs_mxfs_dlm.c goes through mxfs_pag_dlm_lock/_unlock,
+	 * which stamp the lock site/owner/time here so P-AGMUTEX-HOLD can
+	 * name the site pair that held it and P-AGMUTEX-WAIT the owner a
+	 * long waiter found.
+	 */
+	u64			pag_dlm_lock_t0;
+	int			pag_dlm_lock_site;
+	pid_t			pag_dlm_lock_pid;
+	char			pag_dlm_lock_comm[16];
+	/*
+	 * sess390 (D-474, convoy-aware noino fence): count of LOCAL tasks
+	 * currently inside the BLOCKING per-AG CAW acquire for this AG
+	 * (mxfs_v5_dlm_ag_lock in __mxfs_ag_dlm_lock), and the start time
+	 * of the oldest such episode.  The no-inode release fence consults
+	 * these when its AIL min freezes: a frozen EFI whose extents live
+	 * in an AG a local task is waiting for is a bounded CONVOY (the
+	 * EFD lands when that wait ends), not a wedge, and must not be
+	 * charged against the 8-stall shutdown budget.  Measured at 25 AGs
+	 * (7 node slots sharing home AGs): the peer held the shared AG 13 s;
+	 * every fence on the node froze on one EFI and shut the node down.
+	 */
+	atomic_t		pag_mxfs_agwait_inflight;
+	u64			pag_mxfs_agwait_since_ns;
 	struct work_struct	pag_dlm_bast_work;
 	/*
 	 * pag_dlm_demoting: set by mxfs_dlm_ag_bast_work_fn during the brief

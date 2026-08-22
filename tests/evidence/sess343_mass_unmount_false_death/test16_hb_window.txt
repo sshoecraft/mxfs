@@ -1,0 +1,6 @@
+Aug 15 14:23:36.292587 test16 kernel: XFS (dm-1): Unmounting Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+Aug 15 14:23:36.292704 test16 kernel: mxfs: mxfs: DLM shutting down
+Aug 15 14:23:36.294606 test16 kernel: mxfs: mxfs: DLM shutdown complete
+Aug 15 14:23:36.294645 test16 kernel: mxfs: P140-RECLAIM-COMMIT ino=0x80 ip=ffff88c415bf5820 pid=1179 comm=umount
+Aug 15 14:23:36.296487 test16 kernel: mxfs: disklock: released heartbeat slot 2 (clean teardown)
+Aug 15 14:23:36.296557 test16 kernel: mxfs: mxfs: P278-LATE-RELEASE unmount_clean=1 release rc=0

@@ -32,6 +32,29 @@ COORD_B="$MXFS_COORD_BROKER"
 # coord_enabled — true when real multi-node coordination is in play.
 coord_enabled() { [ "${MXFS_NODES:-1}" -ge 2 ]; }
 
+# coord_eff_timeout [requested] — the rendezvous cap this node may actually
+# use, = min(requested, time left until the REPORTING deadline).
+#
+# D-374 (sess384): COORD_TIMEOUT defaulted to 120s while run.sh SIGKILLs the
+# ssh at the criterion's RULE-0 budget (30-90s for most of the board).  So a
+# genuine barrier stall was killed before the timeout that would have REPORTED
+# it — every node produced NO_TERMINAL_RECORD and the board said nothing about
+# what stalled.  run.sh had the correct clamp, but only for dir_reuse_coherency.
+# The clamp is now universal and derived from the deadline lib.sh computed.
+#
+# Returns 0 with a positive cap, or 1 with "0" when no reporting time is left
+# (callers must treat that as an immediate rendezvous failure, not a wait).
+coord_eff_timeout() {
+    local eff="${1:-$COORD_TIMEOUT}" rem
+    if [ -n "${SUITE_REPORT_S:-}" ] && [ -n "${SUITE_T0_S:-}" ]; then
+        rem=$(( SUITE_REPORT_S - ( $(date +%s) - SUITE_T0_S ) ))
+        [ "$rem" -lt "$eff" ] && eff="$rem"
+    fi
+    if [ "$eff" -lt 1 ]; then printf '0'; return 1; fi
+    printf '%s' "$eff"
+    return 0
+}
+
 # coord_barrier <tag> — rendezvous: every node must reach <tag> before any
 # proceeds.  Publishes its own rank (retained), then polls until it has seen
 # all N ranks.  No-op (success) on a single node.  Returns 1 on timeout.
@@ -59,10 +82,15 @@ coord_barrier() {
     # keeps the instant -C exit but verifies DISTINCT topics; on a dup
     # shortfall it falls back to short re-polls of the retained set until
     # all N ranks are genuinely present.
-    local deadline=$(( $(date +%s) + COORD_TIMEOUT ))
+    local eff
+    if ! eff=$(coord_eff_timeout); then
+        echo "coord_barrier '$tag' NO_REPORTING_TIME (rank $MXFS_RANK)" >&2
+        return 1
+    fi
+    local deadline=$(( $(date +%s) + eff ))
     local uniq cnt
-    cnt=$(timeout $(( COORD_TIMEOUT + 3 )) mosquitto_sub -h "$COORD_B" \
-            -t "$base/r/+" -C "$MXFS_NODES" -W "$COORD_TIMEOUT" -v -q 1 2>/dev/null \
+    cnt=$(timeout $(( eff + 3 )) mosquitto_sub -h "$COORD_B" \
+            -t "$base/r/+" -C "$MXFS_NODES" -W "$eff" -v -q 1 2>/dev/null \
           | awk '{print $1}' | sort -u | grep -c .)
     [ "$cnt" -ge "$MXFS_NODES" ] && return 0
     echo "coord_barrier '$tag' dup-shortfall (uniq $cnt/$MXFS_NODES) — re-polling" >&2
@@ -85,6 +113,7 @@ coord_put() {
 # timeout) until the value exists; echoes it.  Returns 1 on timeout.
 coord_get() {
     local key="$1" to="${2:-$COORD_TIMEOUT}" val
+    to=$(coord_eff_timeout "$to") || { echo "coord_get '$key' NO_REPORTING_TIME" >&2; return 1; }
     val=$(timeout $(( to + 3 )) mosquitto_sub -h "$COORD_B" \
             -t "$MXFS_COORD_PREFIX/kv/$key" -C 1 -W "$to" -q 1 2>/dev/null)
     [ -n "$val" ] || { echo "coord_get '$key' TIMEOUT" >&2; return 1; }
@@ -99,6 +128,7 @@ coord_signal() {
 # coord_wait <event> [timeout] — block until <event> fired.  Returns 1 on timeout.
 coord_wait() {
     local evt="$1" to="${2:-$COORD_TIMEOUT}" v
+    to=$(coord_eff_timeout "$to") || { echo "coord_wait '$evt' NO_REPORTING_TIME" >&2; return 1; }
     v=$(timeout $(( to + 3 )) mosquitto_sub -h "$COORD_B" \
             -t "$MXFS_COORD_PREFIX/sig/$evt" -C 1 -W "$to" -q 1 2>/dev/null)
     [ -n "$v" ] || { echo "coord_wait '$evt' TIMEOUT" >&2; return 1; }

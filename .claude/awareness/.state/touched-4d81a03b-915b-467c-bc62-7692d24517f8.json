@@ -1,0 +1,10 @@
+{
+  "source": [
+    "dlm/dlm_caw.c",
+    "tests/closure_foot_parse.py",
+    "tools/caw_slot_hash.py"
+  ],
+  "docs": [],
+  "regen_done": true,
+  "nudges": 2
+}

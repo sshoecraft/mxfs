@@ -27,4 +27,4 @@ run_id=$(basename "$latest")
 echo "cc: resuming ccloop run $run_id"
 [ -f "$runs_dir/$run_id/task.md" ] && echo "cc: task — $(head -n1 "$runs_dir/$run_id/task.md")"
 
-exec ccloop --model=fable --effort=high --cutoff=145 --resume-run "$run_id" "$@"
+exec ccloop --model=fable --effort=high --cutoff=500 --resume-run "$run_id" "$@"

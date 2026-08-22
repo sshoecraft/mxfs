@@ -542,13 +542,28 @@ relogin() {
   sudo iscsiadm -m node -T "$TGT" -p "$PORTAL" -I "$ifn" -o update \
     -n node.session.timeo.replacement_timeout -v 300 >/dev/null 2>&1
   sudo iscsiadm -m node -T "$TGT" -p "$PORTAL" -I "$ifn" --login >/dev/null 2>&1
-  udevadm settle 2>/dev/null
-  local after i
+  # --login RETURNS BEFORE THE SESSION IS USABLE.  When this relogin is the
+  # release path for a command the target dropped without a response (the 0x05
+  # arm, TAS off), the preceding logout must first tear down that stuck request,
+  # and the new session's LUN scan lands well after --login has returned.
+  # MEASURED 2026-08-20: the sd device attached 31 s after the call began --
+  # the same second a 30 s poll gave up, which FATAL'd a relogin that had in
+  # fact succeeded and left the stack looking broken.  So: wait for the session
+  # to reach LOGGED_IN first, THEN poll for the disk, and give the disk poll a
+  # bound derived from that measurement (31 s observed, 90 s allowed) rather
+  # than one that expires exactly when it should have passed.
+  local i
   for i in $(seq 1 60); do
+    grep -qx LOGGED_IN /sys/class/iscsi_session/session*/state 2>/dev/null && break
+    sleep 0.5
+  done
+  udevadm settle 2>/dev/null
+  local after
+  for i in $(seq 1 180); do
     after=$(sd_for_iface "$ifn") && [ -b "$after" ] && break
     after=""; sleep 0.5
   done
-  [ -n "$after" ] || die "relogin $which: no disk after login"
+  [ -n "$after" ] || die "relogin $which: no disk 90 s after login (iface=$ifn)"
   echo 300 | sudo tee "/sys/block/$(basename "$after")/device/timeout" >/dev/null 2>&1
   echo "relogin $which iface=$ifn dev=$before -> $after"
 }

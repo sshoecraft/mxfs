@@ -547,6 +547,13 @@ xfs_iunlink_update_bucket(
 	 * head of the list.
 	 */
 	if (old_value == new_agino) {
+		/* sess387: was a SILENT -EFSCORRUPTED — one of the two unnamed
+		 * exits a lap-2 droplink rc=-117 could have escaped through. */
+		pr_warn("mxfs: P-IUNL-BUCKETSAME agno=%u bucket=%u old=new=0x%x disk_head=0x%x agi_gen=%llu comm=%s\n",
+			pag_agno(pag), bucket_index, old_value,
+			mxfs_agi_disk_bucket_head(agibp, bucket_index),
+			(unsigned long long)agibp->b_mxfs_ag_gen,
+			current->comm);
 		xfs_buf_mark_corrupt(agibp);
 		xfs_ag_mark_sick(pag, XFS_SICK_AG_AGI);
 		return -EFSCORRUPTED;
@@ -679,17 +686,62 @@ xfs_iunlink_insert_inode(
 			error = 0;
 		}
 	}
-	if (error)
+	if (error) {
+		/* sess387: backref/reload chain error leaving insert unnamed. */
+		pr_warn("mxfs: P-IUNL-INSFAIL ino=%llu agino=0x%x bucket=%d next=0x%x rc=%d comm=%s\n",
+			(unsigned long long)ip->i_ino, agino,
+			(int)bucket_index, next_agino, error, current->comm);
 		return error;
+	}
 
 	if (next_agino != NULLAGINO) {
 		/*
 		 * There is already another inode in the bucket, so point this
 		 * inode to the current head of the list.
+		 *
+		 * sess388 (D-FOSSIL-NEXT-UNLINKED-IGET-LOGSAME-388, deterministic
+		 * lap-3 shutdown on test7 ino 12585587): xfs_iunlink_log_inode
+		 * force-shuts-down when ip->i_next_unlinked == next_agino != NULL.
+		 * We are on the INSERT path — this inode is definitionally NOT on
+		 * any unlinked list yet (adding it is the whole point), so its
+		 * pre-insert i_next_unlinked MUST be NULLAGINO.  A non-NULL value
+		 * that happens to equal the bucket head we just read is a FOSSIL:
+		 * a prior life's di_next_unlinked reloaded from a platter whose
+		 * removal (NULLAGINO) never landed home (the P119 flush-skip
+		 * retired the committed removal), re-adopted at iget, and the next
+		 * lap's identical rename order made the same agino the head again.
+		 * The genuine-split hazard GPT ruling-4 warns about is a READ-side
+		 * ambiguity (deciding a linked dinode's list membership); it does
+		 * NOT apply here, where the insert itself proves fresh membership.
+		 * Reset the fossil so the transition is the legitimate
+		 * NULLAGINO -> next_agino; the != next_agino fossil case is already
+		 * handled downstream by the precommit fossil backstop (sess203).
+		 * Multinode only; single-node keeps upstream's strict detector.
 		 */
+		if (mp->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+		    ip->i_next_unlinked == next_agino) {
+			pr_warn("mxfs: P-IUNL-FOSSIL-RESET ino=%llu agino=0x%x bucket=%d fossil_next=0x%x head=0x%x gen=%u comm=%s — insert-path i_next_unlinked is a reloaded prior-life fossil; resetting to NULLAGINO before insert\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index, ip->i_next_unlinked,
+				next_agino, VFS_I(ip)->i_generation,
+				current->comm);
+			ip->i_next_unlinked = NULLAGINO;
+		}
 		error = xfs_iunlink_log_inode(tp, ip, pag, next_agino);
-		if (error)
+		if (error) {
+			/* sess387: xfs_iunlink_log_inode's i_next_unlinked ==
+			 * next_agino check is the other silent -EFSCORRUPTED. */
+			pr_warn("mxfs: P-IUNL-LOGSAME ino=%llu agino=0x%x bucket=%d incore_next=0x%x head=0x%x prev=0x%x ub=%d lu=%d au=%d rc=%d comm=%s\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index, ip->i_next_unlinked,
+				next_agino, ip->i_prev_unlinked,
+				(int)ip->i_unlinked_bucket,
+				xfs_iflags_test(ip, MXFS_IF_LOCAL_UNLINK) ? 1 : 0,
+				xfs_iflags_test(ip, MXFS_IF_ADOPTED_UNLINK) ? 1 : 0,
+				error, current->comm);
 			return error;
+		}
 		ip->i_next_unlinked = next_agino;
 	}
 
@@ -716,6 +768,7 @@ xfs_iunlink(
 	struct xfs_buf		*agibp;
 	int			error;
 	bool			dlm_held = false;
+	const char		*stage = "dlm_lock";
 
 	ASSERT(VFS_I(ip)->i_nlink == 0);
 	ASSERT(VFS_I(ip)->i_mode != 0);
@@ -746,10 +799,12 @@ xfs_iunlink(
 	dlm_held = true;
 
 	/* Get the agi buffer first.  It ensures lock ordering on the list. */
+	stage = "read_agi";
 	error = xfs_read_agi(pag, tp, 0, &agibp);
 	if (error)
 		goto out;
 
+	stage = "insert";
 	error = xfs_iunlink_insert_inode(tp, pag, agibp, ip);
 	/* sess43 P82-ADD: trace every unlinked-list ADD (ino+agino+bucket+nlink)
 	 * so the cross-node correlation for the P71 iunlink corruption is
@@ -771,7 +826,31 @@ xfs_iunlink(
 				VFS_I(ip)->i_nlink, error,
 				(unsigned long long)ktime_get_real_ns());
 	}
+	/* sess387 publication obligation: this inode is now (or is about to be,
+	 * when this txn commits) an on-disk unlinked-list member; its home
+	 * dinode owes a nlink=0 conversion before any AG release publishes the
+	 * list.  Armed here because every caller's transaction is already
+	 * dirty (a cancel after this point is a shutdown, never a clean
+	 * unwind).  Enforced at AG release; discharged by xfs_iflush_finish
+	 * or by the remove below. */
+	if (!error) {
+		extern void mxfs_pubob_arm(struct xfs_mount *,
+					   struct xfs_inode *);
+		mxfs_pubob_arm(mp, ip);
+	}
 out:
+	/* sess387: the lap-2 rsync collapse EXITS this function with -117 while
+	 * every named probe stays silent — P82-ADD's 300-event cap had suppressed
+	 * the failing add's rc line.  An ERROR exit is the rare case the trace
+	 * exists for: log it unconditionally, with the stage that produced it,
+	 * so no -EFSCORRUPTED can leave here unnamed again. */
+	if (error)
+		pr_warn("mxfs: P82-ADD-FAIL ino=%llu agno=%u agino=0x%x stage=%s rc=%d nlink=%u next_unlinked=0x%x prev=0x%x ub=%d comm=%s\n",
+			(unsigned long long)ip->i_ino, pag_agno(pag),
+			XFS_INO_TO_AGINO(mp, ip->i_ino), stage, error,
+			VFS_I(ip)->i_nlink, ip->i_next_unlinked,
+			ip->i_prev_unlinked, (int)ip->i_unlinked_bucket,
+			current->comm);
 	if (dlm_held) {
 		if (error)
 			mxfs_ag_dlm_unlock(mp, pag);
@@ -954,6 +1033,14 @@ xfs_iunlink_remove_inode(
 	ip->i_next_unlinked = NULLAGINO;
 	ip->i_prev_unlinked = 0;
 	ip->i_unlinked_bucket = -1;
+	/* sess387: leaving the on-disk list discharges the publication
+	 * obligation — the entry peers could dereference is gone. */
+	if (!error) {
+		extern void mxfs_pubob_discharge(struct xfs_mount *,
+						 struct xfs_inode *,
+						 const char *);
+		mxfs_pubob_discharge(mp, ip, "removed");
+	}
 	return error;
 }
 

@@ -249,8 +249,10 @@ xlog_recover_icreate_commit_pass2(
 	}
 
 	trace_xfs_log_recover_icreate_recover(log, icl);
-	return xfs_ialloc_inode_init(mp, NULL, buffer_list, count, agno, agbno,
-				     length, be32_to_cpu(icl->icl_gen));
+	return xfs_ialloc_inode_init(mp, NULL, buffer_list,
+				     xlog_is_mxfs_foreign_replay(log), count,
+				     agno, agbno, length,
+				     be32_to_cpu(icl->icl_gen));
 }
 
 const struct xlog_recover_item_ops xlog_icreate_item_ops = {

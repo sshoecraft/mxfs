@@ -1,0 +1,11 @@
+{
+  "source": [
+    "scripts/ccloop_request_audit.py",
+    "scripts/ccloop_subagent_billing_check.py"
+  ],
+  "docs": [
+    "CLAUDE.md"
+  ],
+  "regen_done": true,
+  "nudges": 0
+}

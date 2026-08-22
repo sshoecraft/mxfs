@@ -15,6 +15,175 @@
 # Coordinated tests use it to carve their own per-node namespace.
 : "${RANK:=${MXFS_RANK:-1}}"
 
+# ─── RULE-0 TERMINAL-RECORD GUARANTEE (sess384) ────────────────────────────
+#
+# D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374, root cause: run.sh runs
+# each node under `timeout <RULE-0 budget> ssh ...` and aggregates by grepping
+# ^RESULT: out of the captured stdout.  The node-side rendezvous cap
+# (COORD_TIMEOUT, default 120s) was larger than that budget for every criterion
+# except dir_reuse_coherency, so a genuine stall was SIGKILLed before the
+# barrier layer could print its BARRIER_TIMEOUT record: the board showed
+# `nodes_pass=0/32 states:NO_TERMINAL_RECORD=32` and nothing else.  Proof that
+# the reporting path was structurally unreachable: BARRIER_TIMEOUT has never
+# once appeared in criteria.json's recorded history.
+#
+# The guarantee now has THREE delivery paths, in precedence order:
+#   1. the test's own finish/finish_state record          (src=test)
+#   2. this node's watchdog, fired at the reporting deadline   (src=watchdog)
+#   3. a state the HARNESS synthesizes from `timeout`'s exit status when
+#      neither of the above was delivered (src=harness, in run.sh)
+# Path 3 is the only one that cannot fail, because it runs outside the ssh
+# session; 1 and 2 are strictly enrichment.  Every record is ALSO spooled
+# node-locally (MXFS_SPOOL), because ssh block-buffering has been observed to
+# lose unflushed stdout when the kill lands — run.sh fetches the spool before
+# it synthesizes.
+#
+# Harness-provided (all optional; absent = every guard below is inert):
+#   MXFS_DEADLINE_MS  epoch ms at which the harness will SIGKILL this ssh
+#   MXFS_RESERVE_MS   margin reserved for emitting the record (default 4000)
+#   MXFS_SPOOL        node-local path for the terminal-record spool
+: "${MXFS_DEADLINE_MS:=}"
+: "${MXFS_RESERVE_MS:=4000}"
+: "${MXFS_SPOOL:=}"
+
+SUITE_T0_S=$(date +%s)
+SUITE_REPORT_S=""          # seconds from SUITE_T0_S to the reporting deadline
+SUITE_STEP_FILE=""
+SUITE_STEP="startup"
+SUITE_WD_PID=""
+SUITE_EMITTED=0
+
+if [ -n "$MXFS_DEADLINE_MS" ]; then
+    # Convert the absolute deadline to a RELATIVE remaining interval ONCE, here,
+    # and use relative waits from now on: an NTP correction mid-test would
+    # otherwise move the watchdog.  The absolute value is kept only for logging.
+    suite_now_ms=$(date +%s%3N)
+    SUITE_REPORT_S=$(( (MXFS_DEADLINE_MS - MXFS_RESERVE_MS - suite_now_ms) / 1000 ))
+    unset suite_now_ms
+fi
+
+# Breadcrumb lives on tmpfs under /run on a node (root); anywhere else, fall
+# back to TMPDIR so the guarantee still works when the suite lib is exercised
+# off-cluster (tests/d384_terminal_record_guarantee.sh).
+if mkdir -p /run/mxfs-suite 2>/dev/null && [ -w /run/mxfs-suite ]; then
+    SUITE_STEP_FILE="/run/mxfs-suite/step.$$"
+else
+    SUITE_STEP_FILE="${TMPDIR:-/tmp}/mxfs-suite-step.$$"
+fi
+
+# suite_step "<label>" — breadcrumb.  Records WHERE this node is, so a watchdog
+# record can name the step instead of just saying "budget gone".  Written with
+# the shell BUILTIN printf and a single redirection: no fork, one write(2), so
+# it is cheap enough to call on every check (cache_coherency runs 654).  The
+# O_TRUNC-then-write window means a reader can catch the file momentarily
+# EMPTY; suite_step_read retries once for that, which is the whole race.
+suite_step() {
+    SUITE_STEP="${1//|/ }"
+    [ -n "$SUITE_STEP_FILE" ] || return 0
+    printf 'step=%s|checks=%s|passed=%s|failed=%s\n' \
+        "$SUITE_STEP" "$((PASS_N + FAIL_N))" "$PASS_N" "$FAIL_N" \
+        > "$SUITE_STEP_FILE" 2>/dev/null
+    return 0
+}
+
+suite_step_read() {
+    local v=""
+    [ -n "$SUITE_STEP_FILE" ] || return 1
+    v=$(cat "$SUITE_STEP_FILE" 2>/dev/null)
+    if [ -z "$v" ]; then sleep 0.05; v=$(cat "$SUITE_STEP_FILE" 2>/dev/null); fi
+    [ -n "$v" ] || return 1
+    printf '%s' "$v"
+}
+
+# suite_emit <state> <src> <measured> <reason...> — the ONE place a terminal
+# record is produced.  Prints the single-line RESULT record on stdout (inherited
+# by the watchdog subshell, so it reaches the same ssh channel) and spools it
+# node-locally via write-then-rename so run.sh can fetch a record whose stdout
+# was lost to buffering.  `src=` sits BEFORE `reason=` so an arbitrary reason
+# string can never shadow it.
+suite_emit() {
+    local state="$1" src="$2" measured="$3"; shift 3
+    local ln="RESULT: $state | test=$SUITE_TEST_NAME | nodes=$NODES | src=$src | measured=$measured | reason=$*"
+    printf '%s\n' "$ln"
+    if [ -n "$MXFS_SPOOL" ]; then
+        printf '%s\n' "$ln" > "$MXFS_SPOOL.tmp.$BASHPID" 2>/dev/null &&
+            mv -f "$MXFS_SPOOL.tmp.$BASHPID" "$MXFS_SPOOL" 2>/dev/null
+    fi
+    SUITE_EMITTED=1
+}
+
+# suite_proc_starttime <pid> — field 22 of /proc/<pid>/stat, the process start
+# time.  (pid, starttime) is a stable identity across PID reuse.  Uses the read
+# builtin so a poll costs no fork.  Empty output = the process is gone.
+suite_proc_starttime() {
+    local st=""
+    { read -r st < "/proc/$1/stat"; } 2>/dev/null || return 1
+    # comm (field 2) is parenthesised and may contain spaces; count from its ')'
+    st="${st#*) }"
+    set -- $st
+    printf '%s' "${20:-}"
+}
+
+# suite_watchdog_start — best-effort node-side reporter.  NOT the guarantee (a
+# wedged scheduler, a dead ssh channel or a host reset all defeat it); run.sh's
+# synthesized state is.  Explicitly started, and idempotent, rather than a
+# source-time side effect, because lib.sh is sourced from subshells too.
+#
+# It does NOT try to kill the workload: the stall that fires it is normally a
+# D-state kernel wait, which cannot take a signal at all, and blind
+# process-group kills would reach processes this script does not own.  run.sh
+# already sweeps leftovers after the budget.  The watchdog's job is one line.
+#
+# It POLLS for the main shell rather than sleeping the whole interval, because
+# a background subshell INHERITS stdout — i.e. it holds the ssh channel's pipe
+# open, and sshd will not close the session until every holder exits.  A
+# one-shot `sleep $SUITE_REPORT_S` would therefore stretch EVERY passing test to
+# its full budget whenever the test exits without reaching finish() (several set
+# their own EXIT trap, so a lib.sh trap cannot be relied on).  Liveness is
+# checked by (pid, starttime) from /proc/<pid>/stat, not by `kill -0` alone: a
+# bare pid check is a PID-reuse TOCTOU, which is the same trap that once wedged
+# every barrier criterion cluster-wide (see coord_barrier_or_abort's header).
+# Reading /proc/<pid>/stat is safe on a wedged node; /proc/<pid>/cmdline is not.
+suite_watchdog_start() {
+    [ -n "$SUITE_REPORT_S" ] || return 0
+    [ -z "$SUITE_WD_PID" ] || return 0
+    if [ "$SUITE_REPORT_S" -le 0 ]; then
+        suite_emit BUDGET_EXHAUSTED watchdog "checks=0 passed=0 failed=0" \
+            "insufficient_time_after_ssh_connect report_s=$SUITE_REPORT_S deadline_ms=$MXFS_DEADLINE_MS"
+        exit 1
+    fi
+    local main=$BASHPID mainst=""
+    mainst=$(suite_proc_starttime "$main")
+    (
+        local i=0 st
+        while [ "$i" -lt "$SUITE_REPORT_S" ]; do
+            sleep 1
+            st=$(suite_proc_starttime "$main")
+            [ -n "$st" ] && [ "$st" = "$mainst" ] || exit 0
+            i=$((i + 1))
+        done
+        local snap ck pa fa lbl
+        snap=$(suite_step_read) || snap=""
+        lbl=$(printf '%s' "$snap" | sed -n 's/^step=\([^|]*\).*/\1/p')
+        ck=$(printf '%s' "$snap" | sed -n 's/.*|checks=\([0-9]*\).*/\1/p')
+        pa=$(printf '%s' "$snap" | sed -n 's/.*|passed=\([0-9]*\).*/\1/p')
+        fa=$(printf '%s' "$snap" | sed -n 's/.*|failed=\([0-9]*\)/\1/p')
+        suite_emit BUDGET_EXHAUSTED watchdog \
+            "checks=${ck:-0} passed=${pa:-0} failed=${fa:-0}" \
+            "step=${lbl:-unknown} report_s=$SUITE_REPORT_S elapsed_s=$(( $(date +%s) - SUITE_T0_S ))"
+    ) &
+    SUITE_WD_PID=$!
+    return 0
+}
+
+suite_watchdog_stop() {
+    [ -n "$SUITE_WD_PID" ] || return 0
+    kill "$SUITE_WD_PID" 2>/dev/null
+    wait "$SUITE_WD_PID" 2>/dev/null
+    SUITE_WD_PID=""
+    return 0
+}
+
 # Coordination primitive — sourced so every test has coord_* available
 # (no-ops on a single node). Lives beside this lib.
 if [ -f "$(dirname -- "${BASH_SOURCE[0]}")/coord.sh" ]; then
@@ -29,6 +198,7 @@ FAILED=()
 # ck "<desc>" cmd args...   — pass if cmd exits 0
 ck() {
     local desc="$1"; shift
+    suite_step "$desc"
     if "$@" >/dev/null 2>&1; then
         PASS_N=$((PASS_N + 1))
     else
@@ -39,6 +209,7 @@ ck() {
 # ckeq "<desc>" <expected> <actual>   — pass if equal
 ckeq() {
     local desc="$1" exp="$2" act="$3"
+    suite_step "$desc"
     if [ "$exp" = "$act" ]; then
         PASS_N=$((PASS_N + 1))
     else
@@ -61,7 +232,8 @@ finish() {
         status="FAIL"
         reason="${FAILED[*]}"
     fi
-    echo "RESULT: $status | test=$SUITE_TEST_NAME | nodes=$NODES | measured=$measured | reason=$reason"
+    suite_watchdog_stop
+    suite_emit "$status" test "$measured" "$reason"
     [ "$FAIL_N" -eq 0 ]
 }
 
@@ -81,7 +253,8 @@ finish_state() {
     [ -w /sys/module/mxfs/parameters/watch_ino ] && \
         echo 1 > /sys/module/mxfs/parameters/watch_ino 2>/dev/null
     local measured="checks=$((PASS_N + FAIL_N)) passed=$PASS_N failed=$FAIL_N"
-    echo "RESULT: $state | test=$SUITE_TEST_NAME | nodes=$NODES | measured=$measured | reason=$*"
+    suite_watchdog_stop
+    suite_emit "$state" test "$measured" "$*"
     [ "$state" = "PASS" ]
 }
 
@@ -225,3 +398,31 @@ dirent_window_scope() {
     rm -f "$raw"
     return 0
 }
+
+# ─── arm the watchdog (sess384) ────────────────────────────────────────────
+# Armed here, at the END of lib.sh, so every helper it needs is defined; the
+# exported marker makes it once-per-process-tree, so a subshell that re-sources
+# this lib cannot fork a second reporter that emits a spurious record.
+if [ -z "${MXFS_WD_ARMED:-}" ]; then
+    export MXFS_WD_ARMED=1
+    suite_watchdog_start
+fi
+
+# ─── stall injection (sess384) ─────────────────────────────────────────────
+# The ONLY way to exercise the terminal-record guarantee is to make a node miss
+# its deadline on purpose.  MXFS_STALL_RANK=<rank> MXFS_STALL_S=<seconds> stalls
+# exactly that rank, here at the top of the test, BEFORE it reaches any barrier
+# — the shape that actually happened in the sess384 incident (test1 printed
+# nothing at all in 60s because it never got as far as a rendezvous).  Its peers
+# then stall at the first barrier, so one run exercises both halves: the
+# watchdog path on the stalled rank and the deadline-clamped barrier path on the
+# other 31.
+#
+# Inert unless MXFS_STALL_RANK is set, and it touches no filesystem state — it
+# is a sleep.  Set through the harness with:
+#     MXFS_TEST_ENV="MXFS_STALL_RANK=7 MXFS_STALL_S=300" ./run.sh 32 caw <test>
+if [ -n "${MXFS_STALL_RANK:-}" ] && [ "${MXFS_STALL_RANK}" = "$RANK" ]; then
+    suite_step "injected-stall"
+    echo "mxfs-INJECTED-STALL rank=$RANK for ${MXFS_STALL_S:-600}s" > /dev/kmsg 2>/dev/null
+    sleep "${MXFS_STALL_S:-600}"
+fi

@@ -4801,6 +4801,7 @@ xfs_btree_visit_blocks(
 struct xfs_btree_block_change_owner_info {
 	uint64_t		new_owner;
 	struct list_head	*buffer_list;
+	bool			mxfs_foreign_recovery;	/* sess338 513B */
 };
 
 static int
@@ -4844,7 +4845,9 @@ xfs_btree_block_change_owner(
 			return -EAGAIN;
 		}
 	} else {
-		xfs_buf_delwri_queue(bp, bbcoi->buffer_list);
+		/* sess340 513B: ownership-safe foreign provenance + queue */
+		return xfs_buf_delwri_queue_recovery(bp, bbcoi->buffer_list,
+				bbcoi->mxfs_foreign_recovery);
 	}
 
 	return 0;
@@ -4854,12 +4857,14 @@ int
 xfs_btree_change_owner(
 	struct xfs_btree_cur	*cur,
 	uint64_t		new_owner,
-	struct list_head	*buffer_list)
+	struct list_head	*buffer_list,
+	bool			mxfs_foreign_recovery)
 {
 	struct xfs_btree_block_change_owner_info	bbcoi;
 
 	bbcoi.new_owner = new_owner;
 	bbcoi.buffer_list = buffer_list;
+	bbcoi.mxfs_foreign_recovery = mxfs_foreign_recovery;
 
 	return xfs_btree_visit_blocks(cur, xfs_btree_block_change_owner,
 			XFS_BTREE_VISIT_ALL, &bbcoi);

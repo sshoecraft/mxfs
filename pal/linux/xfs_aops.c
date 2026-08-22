@@ -267,6 +267,43 @@ xfs_task_in_ioend(void)
 static DEFINE_SPINLOCK(xfs_wptask_lock);
 static DEFINE_HASHTABLE(xfs_wptask_hash, XFS_WPTASK_HASH_BITS);
 
+/*
+ * incident474 (D-NOINO-RELFENCE-AIL-FREEZE-474): manual arm for the AIL-stuck
+ * probes (P129-CLSKIP / P129-IPUSH / P119 et al).  The atomic normally
+ * self-latches after 30s inside xfs_ail_push_all_sync, or at stall==2 in the
+ * noino release fence; this param lets a repro run arm it from t=0 fleet-wide
+ * so the FIRST skip of a frozen AIL item is named, not just the late ones.
+ */
+extern atomic_t mxfs_ailstuck_probe;
+extern atomic_t mxfs_ailstuck_odumps;
+static int mxfs_ailstuck_probe_param_set(const char *val,
+					 const struct kernel_param *kp)
+{
+	int v, rc;
+
+	rc = kstrtoint(val, 0, &v);
+	if (rc)
+		return rc;
+	/* arming resets the ILOCK-owner stack-dump budget so a fresh episode
+	 * always gets its dumps (see xfs_trans_priv.h) */
+	if (v)
+		atomic_set(&mxfs_ailstuck_odumps, 0);
+	atomic_set(&mxfs_ailstuck_probe, v);
+	return 0;
+}
+static int mxfs_ailstuck_probe_param_get(char *buffer,
+					 const struct kernel_param *kp)
+{
+	return sysfs_emit(buffer, "%d\n", atomic_read(&mxfs_ailstuck_probe));
+}
+static const struct kernel_param_ops mxfs_ailstuck_probe_param_ops = {
+	.set = mxfs_ailstuck_probe_param_set,
+	.get = mxfs_ailstuck_probe_param_get,
+};
+module_param_cb(ailstuck_probe, &mxfs_ailstuck_probe_param_ops, NULL, 0644);
+MODULE_PARM_DESC(ailstuck_probe,
+	"DEBUG: arm the AIL-stuck skip-reason probes (P129-CLSKIP etc) immediately instead of waiting for the 30s self-latch (0=off default, 1=armed)");
+
 /* FIX-26 verification injection — see xfs_map_blocks.  Debug-only, 0 = off. */
 int mxfs_fix26_delay_ms;
 module_param_named(fix26_delay_ms, mxfs_fix26_delay_ms, int, 0644);
@@ -394,6 +431,41 @@ int mxfs_bast_qfalse_inject;
 module_param_named(bast_qfalse_inject, mxfs_bast_qfalse_inject, int, 0644);
 MODULE_PARM_DESC(bast_qfalse_inject,
 	"TEST-ONLY: bast_work_fn self-requeues at entry (own donated ref) so queue_work collisions hit the false branch deterministically — exercises the P226 extra-ref drop (sess36 D-UNMOUNT-BUSY-INODES verification); 0=off (default), 1=inject");
+
+/*
+ * sess385 P85: gate the inode-drain skip census + the FUA home-dinode compare
+ * on skipped dirty inode-cluster buffers (D-AGI-UNLINKED-CROSSNODE-RECOVERY-
+ * SHUTDOWN / #361 split-transition probe).  Read-only diagnostic.
+ */
+extern int mxfs_p87_publish_retries;
+module_param_named(publish_retries, mxfs_p87_publish_retries, int, 0644);
+MODULE_PARM_DESC(publish_retries,
+	"P87: bounded retries of the targeted inode conversion for an unlinked-list head whose home dinode still reads LINKED, attempted immediately before AG unlock; default 3");
+
+extern int mxfs_p87_refuse_unlock;
+module_param_named(publish_refuse_unlock, mxfs_p87_refuse_unlock, int, 0644);
+
+extern int mxfs_p87_repair_budget_ms;
+module_param_named(publish_repair_budget_ms, mxfs_p87_repair_budget_ms, int, 0644);
+MODULE_PARM_DESC(publish_repair_budget_ms,
+	"sess387: aggregate ms budget per AG release for converting split unlinked-list heads before publication (default 3000)");
+MODULE_PARM_DESC(publish_refuse_unlock,
+	"P87: if a split unlinked-list head survives repair, shut down rather than publish it (Invariant 1 fail-closed); 0=warn only (default, until the repair rate is measured), 1=enforce");
+
+extern int mxfs_p87_publish_inodes;
+module_param_named(publish_inodes, mxfs_p87_publish_inodes, int, 0644);
+MODULE_PARM_DESC(publish_inodes,
+	"P87: at AG DLM release, convert dirty inode log items into their cluster buffers (xfs_iflush_cluster) before publishing the AGI, so an unlinked-list head's home dinode reads UNLINKED; 1=on (default), 0=off (A/B)");
+
+extern int mxfs_p86_agi_audit;
+module_param_named(agi_publish_audit, mxfs_p86_agi_audit, int, 0644);
+MODULE_PARM_DESC(agi_publish_audit,
+	"P86: immediately before AG DLM unlock, FUA-read the home dinode of every non-null AGI unlinked bucket head and report any that still reads LINKED; 1=on (default), 0=off");
+
+extern int mxfs_p85_drain_probe;
+module_param_named(inode_drain_probe, mxfs_p85_drain_probe, int, 0644);
+MODULE_PARM_DESC(inode_drain_probe,
+	"P85: report the AG-release inode-drain census on ANOMALY only (write error, iflush_cluster failure, lost hold, alloc-queue skip, or >1 pass); 1=on (default), 0=off");
 
 int mxfs_rel_stale_inject;
 module_param_named(rel_stale_inject, mxfs_rel_stale_inject, int, 0644);

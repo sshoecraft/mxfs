@@ -1,0 +1,22 @@
+[Unit]
+# Halts the MXFS rig on the boot that follows a host crash, so an automatic
+# panic-reboot cannot loop back into the same crash with no evidence kept.
+# See tools/clyde_crash_latch.sh and docs/host-safety.md.
+Description=MXFS clyde post-crash rig latch
+Documentation=file:/src/mxfs/tools/clyde_crash_latch.sh
+After=systemd-pstore.service src.mount
+Wants=systemd-pstore.service
+RequiresMountsFor=/src
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# A found crash record makes the script exit 1 on purpose; that is a latch, not
+# a unit failure, so do not let systemd mark the unit failed and obscure it.
+SuccessExitStatus=0 1
+ExecStart=/src/mxfs/tools/clyde_crash_latch.sh check
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

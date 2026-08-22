@@ -370,6 +370,16 @@ xfs_buf_free(
 		return;
 	}
 
+	/* sess227 F4: buffer teardown with an open obligation fails closed —
+	 * orphan the descriptor (kept until registry destroy) + P286. */
+	mxfs_f4_buf_free(bp);
+
+	/* sess256 step-5 F3: teardown with a counted-but-uncompleted
+	 * inode-cluster write fails closed too — the keyed entry keeps its
+	 * inflight (that cluster's release proofs land as proof_failed via
+	 * the bounded wait; never a wedge) + loud probe. */
+	mxfs_icwr_buf_free(bp);
+
 	/*
 	 * ccloop 72513a13 sess2 tripwire: freeing a buffer that still has log
 	 * items attached (b_li_list non-empty) strands every attached inode
@@ -2221,6 +2231,28 @@ xfs_buf_ioend_handle_error(
 	mxfs_buf_ev(bp, MXFS_BEV_EHERR);
 
 	/*
+	 * D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B (sess337 ruling): this
+	 * buffer's write carries a dead peer's FOREIGN-slice recovery state;
+	 * b_mount is the SURVIVOR's live mount.  A failure here must fail the
+	 * foreign replay, never the survivor: skip every shutdown/retry arm
+	 * below, stale the buffer, and let the error propagate through the
+	 * normal completion to the recovery waiter (the mid-pass synchronous
+	 * xfs_buf_delwri_submit / the mis-sized-inode-buf bwrite), which
+	 * fails the replay and unwinds the rest of the batch via
+	 * xfs_buf_delwri_fail with zero live-mount side effects.
+	 */
+	if (unlikely(bp->b_mxfs_foreign_recovery)) {
+		xfs_buf_ioerror_alert_ratelimited(bp);
+		pr_warn_ratelimited(
+	"mxfs: P227-FR-BUFFAIL daddr=%lld len=%u err=%d ops=%s flags=0x%x — foreign-replay buffer write failed; failing the replay, NOT this mount\n",
+			(long long)bp->b_maps[0].bm_bn,
+			(unsigned int)BBTOB(bp->b_length), bp->b_error,
+			bp->b_ops && bp->b_ops->name ? bp->b_ops->name : "?",
+			(unsigned int)bp->b_flags);
+		goto out_stale;
+	}
+
+	/*
 	 * If we've already shutdown the journal because of I/O errors, there's
 	 * no point in giving this a retry.
 	 */
@@ -2478,6 +2510,10 @@ __xfs_buf_ioend(
 	 * off the lock knowing no prior-tenure dir-block write can still land.
 	 * Only writes are ever counted; this fires once per counted buffer.
 	 */
+	/* sess227 F4: disposition the committed-never-submitted obligation at
+	 * physical completion (retire / suppress-skip / error), BEFORE the
+	 * wr_counted decrement below releases the dir EX fence. */
+	mxfs_f4_write_complete(bp);
 	if (bp->b_mxfs_dir_wr_counted) {
 		extern int mxfs_dir_wseq_at_completion;
 		/*
@@ -2839,6 +2875,16 @@ __xfs_buf_ioend(
 		bp->b_first_retry_time = 0;
 
 		/*
+		 * sess256 step-5 F3: retire this buffer's counted inode-cluster
+		 * write token.  Deliberately AFTER the error/resubmit decision
+		 * above (unlike the dir dec earlier in this function): a
+		 * resubmitted write keeps its token, so the keyed inflight
+		 * count never passes through a transient zero the release
+		 * proof could certify against (sess253 ruling item A).
+		 */
+		mxfs_icwr_complete(bp);
+
+		/*
 		 * Note that for things like remote attribute buffers, there may
 		 * not be a buffer log item here, so processing the buffer log
 		 * item must remain optional.
@@ -2852,6 +2898,13 @@ __xfs_buf_ioend(
 
 	bp->b_flags &= ~(XBF_READ | XBF_WRITE | XBF_READ_AHEAD |
 			 _XBF_LOGRECOVERY);
+	/*
+	 * sess338 513B: retire the foreign-replay provenance with the same
+	 * finality as _XBF_LOGRECOVERY — this completion ends the recovery
+	 * write, so the flag must never survive into live-mount reuse of
+	 * this cached buffer.
+	 */
+	bp->b_mxfs_foreign_recovery = false;
 	return true;
 }
 
@@ -2981,6 +3034,14 @@ xfs_bwrite(
 	struct xfs_buf		*bp)
 {
 	int			error;
+	/*
+	 * sess338 513B: snapshot the foreign-replay provenance BEFORE submit
+	 * (still under b_sema here) — the completion clears the field, so it
+	 * cannot be consulted after iowait.  A failed foreign-recovery write
+	 * (the mis-sized inode buffer arm of xlog_recover_buf_commit_pass2)
+	 * must fail the replay, not shut down the survivor's live b_mount.
+	 */
+	bool			foreign_recovery = bp->b_mxfs_foreign_recovery;
 
 	ASSERT(xfs_buf_islocked(bp));
 
@@ -2998,8 +3059,14 @@ xfs_bwrite(
 	bp->b_mxfs_force_sync = true;
 	xfs_buf_submit(bp);
 	error = xfs_buf_iowait(bp);
-	if (error)
+	if (error && !foreign_recovery)
 		xfs_force_shutdown(bp->b_mount, SHUTDOWN_META_IO_ERROR);
+	/*
+	 * sess340 513B review item 3: completion normally cleared the
+	 * provenance already; clear defensively so no future pre-submit
+	 * early-return can leak a set flag into live reuse of this buffer.
+	 */
+	bp->b_mxfs_foreign_recovery = false;
 	return error;
 }
 
@@ -6003,6 +6070,19 @@ xfs_buf_submit_bio(
 			kfree(p4c_tmp);
 	}
 
+	/*
+	 * sess256 step-5 F3 (sess253 ruling item A): count this inode-cluster
+	 * home write into its cluster's KEYED registry entry BEFORE the
+	 * partial-write diversion below — both the whole-buffer path and
+	 * mxfs_submit_partial_inode_write's bios complete via
+	 * xfs_buf_bio_end_io -> __xfs_buf_ioend, so one submit-side count here
+	 * pairs with exactly one completion-side decrement there.  The helper
+	 * applies the predicate (XBF_WRITE, multi-node, xfs_inode_buf_ops)
+	 * and mirrors the P-WRCNT-RESUBMIT neutralizer: a resubmit of a
+	 * still-counted buffer keeps the single logical-write token.
+	 */
+	mxfs_icwr_submit(bp);
+
 	if (mxfs_submit_partial_inode_write(bp))
 		return;
 
@@ -6078,6 +6158,10 @@ xfs_buf_submit_bio(
 		atomic_inc(&bp->b_mount->m_mxfs_dir_wr_inflight);
 		bp->b_mxfs_dir_wr_counted = true;
 	}
+
+	/* sess227 F4: snapshot which committed gen this write bio covers —
+	 * retire at completion compares against the latest committed gen. */
+	mxfs_f4_submit(bp);
 
 	/*
 	 * sess40 (ccloop) COUNT-REGRESSION detector (always-on, ratelimited) — the
@@ -11076,6 +11160,14 @@ xfs_buf_delwri_cancel(
 
 		xfs_buf_lock(bp);
 		bp->b_flags &= ~(_XBF_DELWRI_Q | _XBF_MXFS_ALLOC_QUEUED);
+		/*
+		 * sess340 513B review item 3: cancellation abandons the queued
+		 * write with no completion, so the foreign-replay provenance
+		 * must not outlive it — a leaked tag would misroute a later
+		 * LIVE write failure on this cached buffer away from the
+		 * shutdown it is owed.
+		 */
+		bp->b_mxfs_foreign_recovery = false;
 		xfs_buf_list_del(bp);
 		xfs_buf_relse(bp);
 	}
@@ -11127,6 +11219,63 @@ xfs_buf_delwri_queue(
 	}
 
 	return true;
+}
+
+/*
+ * sess340 513B review items 2-4: queue a journal-recovery buffer with its
+ * write-failure provenance assigned atomically with queue ACQUISITION.
+ *
+ * The provenance (b_mxfs_foreign_recovery) routes a later write failure away
+ * from the live-mount shutdown arms, so a blind store before
+ * xfs_buf_delwri_queue() is not ownership-safe: when the queue call declines
+ * because another owner already holds _XBF_DELWRI_Q, an unconditional store
+ * would either tag a live owner's pending write as foreign (swallowing a
+ * shutdown the live mount is owed) or leak a set flag on a buffer this batch
+ * never completes.  So:
+ *
+ *  - queue acquired            -> assign the caller's provenance;
+ *  - already queued, SAME      -> the common same-batch multi-item requeue,
+ *    provenance                   nothing to do;
+ *  - already queued by a live  -> the DLM recovery quarantine failed to keep
+ *    owner, caller is FOREIGN     the victim's metadata private to the
+ *                                 replayer; refuse the replay (-EBUSY ->
+ *                                 refusal/TORN verdict) rather than share a
+ *                                 write whose failure would be misclassified
+ *                                 (P227-FR-QCONFLICT);
+ *  - already queued with STALE -> unreachable by construction (no foreign
+ *    foreign tag, caller own-log   replay runs during this node's own
+ *                                 mount-time recovery); clear the stale tag
+ *                                 so an adopted-slice recovery keeps its
+ *                                 deliberate upstream shutdown semantics.
+ */
+int
+xfs_buf_delwri_queue_recovery(
+	struct xfs_buf		*bp,
+	struct list_head	*buffer_list,
+	bool			foreign)
+{
+	if (xfs_buf_delwri_queue(bp, buffer_list)) {
+		bp->b_mxfs_foreign_recovery = foreign;
+		return 0;
+	}
+
+	if (bp->b_mxfs_foreign_recovery == foreign)
+		return 0;
+
+	if (foreign) {
+		pr_warn_ratelimited(
+	"mxfs: P227-FR-QCONFLICT daddr=%lld len=%u flags=0x%x — foreign-replay buffer already delwri-queued by a live owner; refusing the replay rather than sharing the write\n",
+			(long long)bp->b_maps[0].bm_bn,
+			(unsigned int)BBTOB(bp->b_length),
+			(unsigned int)bp->b_flags);
+		return -EBUSY;
+	}
+
+	pr_warn_ratelimited(
+	"mxfs: P227-FR-QSTALE daddr=%lld flags=0x%x — non-foreign recovery requeue found a stale foreign tag; clearing it so this recovery keeps upstream failure semantics\n",
+		(long long)bp->b_maps[0].bm_bn, (unsigned int)bp->b_flags);
+	bp->b_mxfs_foreign_recovery = false;
+	return 0;
 }
 
 /*
@@ -11292,6 +11441,82 @@ xfs_buf_delwri_submit(
 		xfs_buf_relse(bp);
 		if (!error)
 			error = error2;
+	}
+
+	return error;
+}
+
+/*
+ * sess338 D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B (sess337 GPT ruling):
+ * fail a delwri list with NO device I/O and NO consultation or modification
+ * of any mount/log shutdown state.
+ *
+ * Foreign-slice journal replay (mxfs_xlog_recover_foreign_slice) queues a
+ * dead peer's pass-2 buffers on a private list; on an item-recovery error
+ * upstream's unwind (xlog_do_recovery_pass) shuts down the log's l_mp so
+ * the subsequent delwri_submit stales the batch without I/O — but the
+ * shadow xlog's l_mp is the SURVIVOR's LIVE mount, so that unwind is
+ * survivor suicide (the exact class D-513 forbids).  Instead each queued
+ * buffer is run through the normal failure completion inline: error +
+ * stale + xfs_buf_ioend, which retires the LSN-carrier bli via
+ * xfs_buf_item_done (shutdown_type 0 for _XBF_LOGRECOVERY, so the
+ * not-in-AIL delete cannot shut anything down), runs b_iodone, clears
+ * _XBF_LOGRECOVERY and the b_mxfs_foreign_recovery provenance, and wakes
+ * this thread's inline wait.  The buffers were never submitted, so no
+ * sync-waiter credit was registered and the complete()/iowait() pair here
+ * stays balanced.
+ *
+ * The walk mirrors xfs_buf_delwri_submit's: blocking lock, the
+ * delwri_submit_prep-style lazy-removal check (a racing synchronous
+ * writer that already cleared _XBF_DELWRI_Q owns its own completion), and
+ * XBF_ASYNC cleared so the inline ioend routes to the synchronous branch.
+ *
+ * Returns @error, so the caller can use it as its unwind result.
+ */
+int
+xfs_buf_delwri_fail(
+	struct list_head	*buffer_list,
+	int			error)
+{
+	struct xfs_buf		*bp, *n;
+
+	list_for_each_entry_safe(bp, n, buffer_list, b_list) {
+		xfs_buf_lock(bp);
+		if (!(bp->b_flags & _XBF_DELWRI_Q)) {
+			xfs_buf_list_del(bp);
+			xfs_buf_relse(bp);
+			continue;
+		}
+		trace_xfs_buf_delwri_split(bp, _RET_IP_);
+		/*
+		 * sess340 513B review item 5: this op's contract is "fail the
+		 * batch with NO mount side effects", so make the no-shutdown
+		 * provenance intrinsic — an untagged buffer reaching the
+		 * inline ioend below would otherwise take handle_error's
+		 * _XBF_LOGRECOVERY one-strike shutdown, the exact survivor
+		 * suicide this helper exists to prevent.  Untagged here means
+		 * a queue site missed the provenance audit: warn loudly.
+		 */
+		if (unlikely(!bp->b_mxfs_foreign_recovery)) {
+			ASSERT(0);
+			pr_warn_ratelimited(
+	"mxfs: P227-FR-UNTAGGED daddr=%lld len=%u flags=0x%x ops=%s — buffer reached xfs_buf_delwri_fail without foreign provenance (missed queue-site tag); forcing it so the batch-fail cannot shut down the survivor\n",
+				(long long)bp->b_maps[0].bm_bn,
+				(unsigned int)BBTOB(bp->b_length),
+				(unsigned int)bp->b_flags,
+				bp->b_ops && bp->b_ops->name ?
+					bp->b_ops->name : "?");
+			bp->b_mxfs_foreign_recovery = true;
+		}
+		bp->b_flags &= ~(_XBF_DELWRI_Q | _XBF_MXFS_ALLOC_QUEUED |
+				 XBF_ASYNC | XBF_DONE);
+		bp->b_flags |= XBF_WRITE;
+		xfs_buf_list_del(bp);
+		xfs_buf_ioerror(bp, error);
+		xfs_buf_stale(bp);
+		xfs_buf_ioend(bp);
+		xfs_buf_iowait(bp);
+		xfs_buf_relse(bp);
 	}
 
 	return error;

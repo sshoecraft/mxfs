@@ -4013,6 +4013,17 @@ xfs_alloc_vextent_prepare_ag(
 	 */
 	if ((alloc_flags & XFS_ALLOC_FLAG_TRYLOCK) || args->mxfs_ag_trylock)
 		error = mxfs_ag_dlm_trylock(args->mp, args->pag);
+	else if (args->tp && args->tp->t_mxfs_ag_restart_ok &&
+		 !(args->tp->t_flags & XFS_TRANS_DIRTY))
+		/*
+		 * -488 restart protocol: this caller can cancel its clean
+		 * trans and restart the whole operation, so NEVER block here
+		 * holding ILOCK+trans (the proven Coffman cycle).  Trylock;
+		 * a miss is recorded below and surfaces as MXFS_ERESTART_AG
+		 * from xfs_alloc_vextent_finish so the caller can pregrant
+		 * the AG while holding nothing, then restart.
+		 */
+		error = mxfs_ag_dlm_trylock(args->mp, args->pag);
 	else if (args->tp && (args->tp->t_flags & XFS_TRANS_DIRTY))
 		/*
 		 * sess5 ABBA edge-2 (stack-proven run36): a DIRTY trans here
@@ -4030,6 +4041,9 @@ xfs_alloc_vextent_prepare_ag(
 	if (error) {
 		if (error == -EAGAIN) {
 			/* peer holds AG under TRYLOCK: skip, iterate to next AG */
+			if (args->tp && args->tp->t_mxfs_ag_restart_ok &&
+			    args->tp->t_mxfs_wouldblock_agno == NULLAGNUMBER)
+				args->tp->t_mxfs_wouldblock_agno = args->agno;
 			if (need_pag)
 				xfs_perag_put(args->pag);
 			args->agbno = NULLAGBLOCK;
@@ -4100,6 +4114,26 @@ xfs_alloc_vextent_finish(
 	    (args->tp->t_highest_agno == NULLAGNUMBER ||
 	     args->agno > minimum_agno))
 		args->tp->t_highest_agno = args->agno;
+
+	/*
+	 * -488 restart protocol: the iteration found no space, at least one
+	 * AG was skipped because a peer holds its DLM lock, and the caller
+	 * opted in with a still-clean transaction.  Convert the would-be
+	 * ENOSPC into the private restart code so the caller can cancel,
+	 * pregrant the contended AG holding nothing, and restart.  Never
+	 * converts a real allocator error, and never fires once the trans
+	 * is dirty (cancel would shut down the fs).
+	 */
+	if (!alloc_error && args->agbno == NULLAGBLOCK && args->tp &&
+	    args->tp->t_mxfs_ag_restart_ok &&
+	    args->tp->t_mxfs_wouldblock_agno != NULLAGNUMBER &&
+	    !(args->tp->t_flags & XFS_TRANS_DIRTY)) {
+		static DEFINE_RATELIMIT_STATE(mxfs_agrestart_rl, 30 * HZ, 4);
+		if (__ratelimit(&mxfs_agrestart_rl))
+			pr_warn("mxfs: P270-AGRESTART wouldblock ag=%u -> restart\n",
+				args->tp->t_mxfs_wouldblock_agno);
+		alloc_error = -MXFS_ERESTART_AG;
+	}
 
 	/*
 	 * If the allocation failed with an error or we had an ENOSPC result,
@@ -4611,6 +4645,26 @@ restart:
 		break;
 	}
 	if (error) {
+		/*
+		 * MXFS: an allocator error after a successful prepare_ag lands
+		 * here with the AG DLM hold taken but its deferred unlock NOT
+		 * yet registered — that happens in xfs_alloc_vextent_finish
+		 * out_drop_perag, gated on args->pag, which we are about to
+		 * NULL.  Transfer the hold to the trans (drained at
+		 * xfs_trans_free on both commit and cancel) before dropping
+		 * the perag, or pag_dlm_holders leaks at 1 forever: the BAST
+		 * worker then bails on holders>0 and the on-disk EX bit
+		 * strands — the -488 dead-holder livelock (sess265: dd killed
+		 * mid-allocation left ag=10 EX-held fleet-wide).  agbp is the
+		 * discriminant: prepare_ag's own error paths unlock the DLM
+		 * themselves and always leave agbp NULL (fix_freelist clears
+		 * it on every error path), so agbp set ⇒ hold owned here.
+		 */
+		if (args->agbp) {
+			pr_warn("mxfs: P272-AGITER-ERRLEAK agno=%u err=%d comm=%s tp=%p — deferring AG DLM unlock on error unwind\n",
+				args->agno, error, current->comm, args->tp);
+			mxfs_ag_dlm_unlock_deferred(args->tp, args->pag);
+		}
 		xfs_perag_rele(args->pag);
 		args->pag = NULL;
 		return error;
@@ -4864,8 +4918,50 @@ __xfs_free_extent(
 	if (XFS_TEST_ERROR(mp, XFS_ERRTAG_FREE_EXTENT))
 		return -EIO;
 
-	/* MXFS: acquire per-AG DLM lock for extent freeing */
-	error = mxfs_ag_dlm_lock(mp, pag);
+	/*
+	 * MXFS: acquire per-AG DLM lock for extent freeing.
+	 *
+	 * -488 (sess263 + sess267 third face): a defer chain freeing extents
+	 * blocks here on a peer-held AG while (a) retaining other AGs' grants
+	 * until commit (proven 3-node ABBA, sess263) and (b) holding the
+	 * caller's ILOCK_EXCL, which pins the caller's own committed inode
+	 * log item in the AIL and so wedges its HOME AG's release drain —
+	 * a cross-node Coffman cycle with ZERO retained grants (proven
+	 * test3/test25 truncate pair, sess267).  Blocking here is therefore
+	 * never safe inside defer processing, retained grants or not:
+	 *  - trylock succeeded -> proceed (cached/nested fast path).
+	 *  - inside defer (SAFE or UNSAFE): record the wanted AG on the
+	 *    trans and return -EAGAIN.  Defer relogs the intent and rolls;
+	 *    the post-roll seam (mxfs_defer_agwait) hands off the caller's
+	 *    ILOCKs, drains retained grants, and blocks for this AG holding
+	 *    nothing.  The retry lands on the then-cached grant.
+	 *  - NOTDEFER: not a defer chain; keep the old blocking acquire
+	 *    (audited loudly when grants are retained — the -488 analysis
+	 *    says that cannot happen outside defer).
+	 */
+	error = mxfs_ag_dlm_trylock(mp, pag);
+	if (error == -EAGAIN) {
+		static DEFINE_RATELIMIT_STATE(mxfs_agwant_rl, 30 * HZ, 8);
+
+		if (tp->t_mxfs_ag_relsafe == MXFS_AG_RELSAFE_NOTDEFER) {
+			if (!list_empty(&tp->t_mxfs_ag_unlocks))
+				pr_warn("mxfs: P271-AGNOTDEFER want ag=%u comm=%s — retained grants outside defer, blocking (audit)\n",
+					pag_agno(pag), current->comm);
+			error = mxfs_ag_dlm_lock(mp, pag);
+		} else {
+			if (tp->t_mxfs_ag_want != pag) {
+				if (tp->t_mxfs_ag_want)
+					xfs_perag_put(tp->t_mxfs_ag_want);
+				xfs_perag_hold(pag);
+				tp->t_mxfs_ag_want = pag;
+			}
+			if (__ratelimit(&mxfs_agwant_rl))
+				pr_warn("mxfs: P271-AGWANT want ag=%u relsafe=%u comm=%s — requeueing to post-roll seam\n",
+					pag_agno(pag), tp->t_mxfs_ag_relsafe,
+					current->comm);
+			return -EAGAIN;
+		}
+	}
 	if (error)
 		return error;
 

@@ -217,3 +217,32 @@ ag_strand_repair 240→160, sustained_load 180→60, kernel_health 120→30,
 dlm_scaling 90→45, node_responsive 90→30.  crash_consistency runs 86-88s of
 its 90s budget every board — its margin is the thinnest on the board and any
 regression lands there first.
+
+## D-513 forged-record probes (sess383, 2026-08-20) — MEASURED
+
+`tests/d513_forged_record_checks.sh <shape>` forges an adversarial recovery
+outcome record into an unused heartbeat slot, cycles ONE node's mount, and
+asserts the disposition.  It is non-destructive: the other N-1 nodes stay
+mounted, so it needs no re-prep.
+
+Measured walls at 32/caw, 0.19.5 and 0.19.6:
+
+- umount: ~1 s · forge/dump/restore (SG_IO round trip): ~1 s each
+- mount that ABORTS on its first classification: **5-7 s**
+- mount that ADMITS with an AG-scoped quarantine: **6-7 s**
+- whole shape, end to end including the ssh fan-out: **13-20 s**
+
+Budget: **60 s per shape** (`PER_SHAPE` in `tests/d513_forged_matrix.sh`).
+That is ~3x the measured wall, and the failure it guards against is a wedged
+mount, not a slow one — a shape that takes 60 s has not "nearly passed".
+
+The two staged probes pay the dead-confirm window and are budgeted from it,
+not from a round number:
+
+- `tests/d513_lone_mount_refusal.sh` — the mount confirms a peer that was
+  ALREADY frozen when we mounted, which costs dead_threshold heartbeat samples
+  (~62 s at 31 x 2 s) by design, plus fence + the replay it refuses + the
+  publish.  Budget **150 s**; the 62 s confirm dominates.
+- `tests/d513_fswide_abort_preserves_death.sh` — two such mounts, each with
+  the same ~62 s floor; the second also replays the victim's slice.
+  Budget **150 s per mount**.

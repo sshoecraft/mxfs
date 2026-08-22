@@ -169,7 +169,16 @@ xlog_recover_dquot_commit_pass2(
 	ASSERT(dq_f->qlf_size == 2);
 	ASSERT(bp->b_mount == mp);
 	bp->b_flags |= _XBF_LOGRECOVERY;
-	xfs_buf_delwri_queue(bp, buffer_list);
+	/*
+	 * sess340 513B: ownership-safe foreign provenance + queue.  Unlike
+	 * the corruption arm above (upstream tolerates a bad dquot here and
+	 * returns 0 — quotacheck repairs it), a queue-ownership conflict
+	 * refuses the replay.
+	 */
+	error = xfs_buf_delwri_queue_recovery(bp, buffer_list,
+			xlog_is_mxfs_foreign_replay(log));
+	xfs_buf_relse(bp);
+	return error;
 
 out_release:
 	xfs_buf_relse(bp);

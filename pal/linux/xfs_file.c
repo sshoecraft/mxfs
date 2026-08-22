@@ -344,6 +344,11 @@ xfs_file_read_iter(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
+	/* sess318: poisoned dead incarnation — its bmap's blocks belong to
+	 * another live file now (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
+	if (mxfs_inode_incarn_estale(XFS_I(inode)))
+		return -ESTALE;
+
 	/*
 	 * sess46 STICKY-PR coherency envelope (see coherency-sticky-pr-fix.md):
 	 * acquire the inode DLM PR grant BEFORE any VFS lock so a grant-less/stale
@@ -386,6 +391,10 @@ xfs_file_splice_read(
 
 	if (xfs_is_shutdown(mp))
 		return -EIO;
+
+	/* sess318: see xfs_file_read_iter */
+	if (mxfs_inode_incarn_estale(ip))
+		return -ESTALE;
 
 	trace_xfs_file_splice_read(ip, *ppos, len);
 
@@ -1158,6 +1167,11 @@ xfs_file_write_iter(
 	if (xfs_is_shutdown(ip->i_mount))
 		return -EIO;
 
+	/* sess318: a poisoned shell must never dirty pages / write through
+	 * a stale bmap (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
+	if (mxfs_inode_incarn_estale(ip))
+		return -ESTALE;
+
 	if (iocb->ki_flags & IOCB_ATOMIC) {
 		if (ocount < xfs_get_atomic_write_min(ip))
 			return -EINVAL;
@@ -1545,6 +1559,9 @@ xfs_file_fallocate(
 		return -EINVAL;
 	if (mode & ~XFS_FALLOC_FL_SUPPORTED)
 		return -EOPNOTSUPP;
+	/* sess318: no allocation changes through a poisoned dead incarnation */
+	if (mxfs_inode_incarn_estale(XFS_I(inode)))
+		return -ESTALE;
 
 	/*
 	 * For zoned file systems, zeroing the first and last block of a hole
@@ -1607,6 +1624,10 @@ xfs_file_remap_range(
 	if (remap_flags & ~(REMAP_FILE_DEDUP | REMAP_FILE_ADVISORY))
 		return -EINVAL;
 
+	/* sess318: neither side of a remap may be a poisoned dead incarnation */
+	if (mxfs_inode_incarn_estale(src) || mxfs_inode_incarn_estale(dest))
+		return -ESTALE;
+
 	if (!xfs_has_reflink(mp))
 		return -EOPNOTSUPP;
 
@@ -1667,6 +1688,11 @@ xfs_file_open(
 {
 	if (xfs_is_shutdown(XFS_M(inode->i_sb)))
 		return -EIO;
+	/* sess318: never hand out an fd on a poisoned dead incarnation; the
+	 * -ESTALE makes the VFS re-walk with LOOKUP_REVAL → fresh lookup →
+	 * the retire arm re-igets the live incarnation. */
+	if (mxfs_inode_incarn_estale(XFS_I(inode)))
+		return -ESTALE;
 	/*
 	 * sess46 NOTE: an open()-time mxfs_dlm_reload_inode for peer-AG regular
 	 * files was TRIED here (build F3CA2903) to trigger the reused-inode
@@ -2176,6 +2202,12 @@ xfs_filemap_fault(
 	struct xfs_inode	*ip = XFS_I(inode);
 	vm_fault_t		ret;
 
+	/* sess318: no fault may fill pages from a poisoned dead incarnation's
+	 * stale bmap; SIGBUS is the mmap-path shape of -ESTALE
+	 * (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
+	if (mxfs_inode_incarn_estale(ip))
+		return VM_FAULT_SIGBUS;
+
 	/* DAX can shortcut the normal fault path on write faults! */
 	if (IS_DAX(inode)) {
 		if (xfs_is_write_fault(vmf))
@@ -2234,6 +2266,9 @@ static vm_fault_t
 xfs_filemap_page_mkwrite(
 	struct vm_fault		*vmf)
 {
+	/* sess318: no dirty page may be created against a poisoned shell */
+	if (mxfs_inode_incarn_estale(XFS_I(file_inode(vmf->vma->vm_file))))
+		return VM_FAULT_SIGBUS;
 	return xfs_write_fault(vmf, 0);
 }
 
@@ -2246,6 +2281,9 @@ static vm_fault_t
 xfs_filemap_pfn_mkwrite(
 	struct vm_fault		*vmf)
 {
+	/* sess318: see xfs_filemap_page_mkwrite */
+	if (mxfs_inode_incarn_estale(XFS_I(file_inode(vmf->vma->vm_file))))
+		return VM_FAULT_SIGBUS;
 	return xfs_write_fault(vmf, 0);
 }
 
@@ -2270,6 +2308,10 @@ xfs_file_mmap_prepare(
 				      target->bt_daxdev))
 		return -EOPNOTSUPP;
 
+	/* sess318: no new mapping of a poisoned dead incarnation */
+	if (mxfs_inode_incarn_estale(XFS_I(inode)))
+		return -ESTALE;
+
 	file_accessed(file);
 	desc->vm_ops = &xfs_file_vm_ops;
 	if (IS_DAX(inode))
@@ -2282,6 +2324,9 @@ xfs_file_mmap(
 	struct file		*file,
 	struct vm_area_struct	*vma)
 {
+	/* sess318: no new mapping of a poisoned dead incarnation */
+	if (mxfs_inode_incarn_estale(XFS_I(file_inode(file))))
+		return -ESTALE;
 	file_accessed(file);
 	vma->vm_ops = &xfs_file_vm_ops;
 	return 0;

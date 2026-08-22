@@ -765,6 +765,12 @@ xfs_vn_getattr(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
+	/* sess318: stale size/attrs from a poisoned dead incarnation are a
+	 * wrong-object answer; -ESTALE makes the VFS re-walk with LOOKUP_REVAL
+	 * (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
+	if (mxfs_inode_incarn_estale(ip))
+		return -ESTALE;
+
 	/*
 	 * MXFS multi-node: refresh this inode from the cluster under the
 	 * inode-DLM before reading its attributes, so a peer's committed

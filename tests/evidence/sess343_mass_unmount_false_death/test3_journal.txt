@@ -1,0 +1,1696 @@
+Aug 15 14:22:08.672986 test3 kernel: Linux version 6.8.0-101-generic (buildd@lcy02-amd64-051) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #101-Ubuntu SMP PREEMPT_DYNAMIC Mon Feb  9 10:15:05 UTC 2026 (Ubuntu 6.8.0-101.101-generic 6.8.12)
+Aug 15 14:22:08.673061 test3 kernel: Command line: BOOT_IMAGE=/vmlinuz-6.8.0-101-generic root=/dev/mapper/ubuntu--vg-ubuntu--lv ro net.ifnames=0 biosdevname=0 log_buf_len=16M console=ttyS0,115200 loglevel=3
+Aug 15 14:22:08.673088 test3 kernel: KERNEL supported cpus:
+Aug 15 14:22:08.673107 test3 kernel:   Intel GenuineIntel
+Aug 15 14:22:08.673126 test3 kernel:   AMD AuthenticAMD
+Aug 15 14:22:08.673143 test3 kernel:   Hygon HygonGenuine
+Aug 15 14:22:08.673165 test3 kernel:   Centaur CentaurHauls
+Aug 15 14:22:08.673183 test3 kernel:   zhaoxin   Shanghai  
+Aug 15 14:22:08.673199 test3 kernel: BIOS-provided physical RAM map:
+Aug 15 14:22:08.673217 test3 kernel: BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+Aug 15 14:22:08.673242 test3 kernel: BIOS-e820: [mem 0x000000000009fc00-0x000000000009ffff] reserved
+Aug 15 14:22:08.673260 test3 kernel: BIOS-e820: [mem 0x00000000000f0000-0x00000000000fffff] reserved
+Aug 15 14:22:08.673278 test3 kernel: BIOS-e820: [mem 0x0000000000100000-0x00000000bfffafff] usable
+Aug 15 14:22:08.673297 test3 kernel: BIOS-e820: [mem 0x00000000bfffb000-0x00000000bfffffff] reserved
+Aug 15 14:22:08.673323 test3 kernel: BIOS-e820: [mem 0x00000000feffc000-0x00000000feffffff] reserved
+Aug 15 14:22:08.673343 test3 kernel: BIOS-e820: [mem 0x00000000fffc0000-0x00000000ffffffff] reserved
+Aug 15 14:22:08.673362 test3 kernel: BIOS-e820: [mem 0x0000000100000000-0x000000013fffffff] usable
+Aug 15 14:22:08.673381 test3 kernel: NX (Execute Disable) protection: active
+Aug 15 14:22:08.673401 test3 kernel: APIC: Static calls initialized
+Aug 15 14:22:08.673419 test3 kernel: SMBIOS 3.0.0 present.
+Aug 15 14:22:08.673438 test3 kernel: DMI: QEMU Ubuntu 24.04 PC (i440FX + PIIX, 1996), BIOS 1.16.3-debian-1.16.3-2 04/01/2014
+Aug 15 14:22:08.673463 test3 kernel: Hypervisor detected: KVM
+Aug 15 14:22:08.673481 test3 kernel: kvm-clock: Using msrs 4b564d01 and 4b564d00
+Aug 15 14:22:08.673499 test3 kernel: kvm-clock: using sched offset of 19259996416 cycles
+Aug 15 14:22:08.673520 test3 kernel: clocksource: kvm-clock: mask: 0xffffffffffffffff max_cycles: 0x1cd42e4dffb, max_idle_ns: 881590591483 ns
+Aug 15 14:22:08.673538 test3 kernel: tsc: Detected 2394.728 MHz processor
+Aug 15 14:22:08.673558 test3 kernel: e820: update [mem 0x00000000-0x00000fff] usable ==> reserved
+Aug 15 14:22:08.673576 test3 kernel: e820: remove [mem 0x000a0000-0x000fffff] usable
+Aug 15 14:22:08.673613 test3 kernel: last_pfn = 0x140000 max_arch_pfn = 0x400000000
+Aug 15 14:22:08.673633 test3 kernel: MTRR map: 4 entries (3 fixed + 1 variable; max 19), built from 8 variable MTRRs
+Aug 15 14:22:08.673651 test3 kernel: x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+Aug 15 14:22:08.673670 test3 kernel: last_pfn = 0xbfffb max_arch_pfn = 0x400000000
+Aug 15 14:22:08.673688 test3 kernel: found SMP MP-table at [mem 0x000f5420-0x000f542f]
+Aug 15 14:22:08.673707 test3 kernel: Using GB pages for direct mapping
+Aug 15 14:22:08.673736 test3 kernel: printk: log_buf_len: 16777216 bytes
+Aug 15 14:22:08.673753 test3 kernel: printk: early log buf free: 259840(99%)
+Aug 15 14:22:08.673804 test3 kernel: RAMDISK: [mem 0x2ee5b000-0x33724fff]
+Aug 15 14:22:08.674110 test3 kernel: ACPI: Early table checksum verification disabled
+Aug 15 14:22:08.674283 test3 kernel: ACPI BIOS Error (bug): A valid RSDP was not found (20230628/tbxfroot-222)
+Aug 15 14:22:08.674334 test3 kernel: No NUMA configuration found
+Aug 15 14:22:08.676132 test3 kernel: Faking a node at [mem 0x0000000000000000-0x000000013fffffff]
+Aug 15 14:22:08.676145 test3 kernel: NODE_DATA(0) allocated [mem 0x13b7d5000-0x13b7fffff]
+Aug 15 14:22:08.676155 test3 kernel: Zone ranges:
+Aug 15 14:22:08.676163 test3 kernel:   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+Aug 15 14:22:08.676172 test3 kernel:   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+Aug 15 14:22:08.676181 test3 kernel:   Normal   [mem 0x0000000100000000-0x000000013fffffff]
+Aug 15 14:22:08.676189 test3 kernel:   Device   empty
+Aug 15 14:22:08.676198 test3 kernel: Movable zone start for each node
+Aug 15 14:22:08.676210 test3 kernel: Early memory node ranges
+Aug 15 14:22:08.676219 test3 kernel:   node   0: [mem 0x0000000000001000-0x000000000009efff]
+Aug 15 14:22:08.676228 test3 kernel:   node   0: [mem 0x0000000000100000-0x00000000bfffafff]
+Aug 15 14:22:08.676236 test3 kernel:   node   0: [mem 0x0000000100000000-0x000000013fffffff]
+Aug 15 14:22:08.676245 test3 kernel: Initmem setup node 0 [mem 0x0000000000001000-0x000000013fffffff]
+Aug 15 14:22:08.676254 test3 kernel: On node 0, zone DMA: 1 pages in unavailable ranges
+Aug 15 14:22:08.676263 test3 kernel: On node 0, zone DMA: 97 pages in unavailable ranges
+Aug 15 14:22:08.676271 test3 kernel: On node 0, zone Normal: 5 pages in unavailable ranges
+Aug 15 14:22:08.676280 test3 kernel: Intel MultiProcessor Specification v1.4
+Aug 15 14:22:08.676288 test3 kernel: MPTABLE: OEM ID: BOCHSCPU
+Aug 15 14:22:08.676297 test3 kernel: MPTABLE: Product ID: 0.1         
+Aug 15 14:22:08.676305 test3 kernel: MPTABLE: APIC at: 0xFEE00000
+Aug 15 14:22:08.676317 test3 kernel: Processor #0 (Bootup-CPU)
+Aug 15 14:22:08.676326 test3 kernel: Processor #1
+Aug 15 14:22:08.676334 test3 kernel: Processor #2
+Aug 15 14:22:08.676342 test3 kernel: Processor #3
+Aug 15 14:22:08.676351 test3 kernel: IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+Aug 15 14:22:08.676360 test3 kernel: Processors: 4
+Aug 15 14:22:08.676368 test3 kernel: TSC deadline timer available
+Aug 15 14:22:08.676377 test3 kernel: smpboot: Allowing 4 CPUs, 0 hotplug CPUs
+Aug 15 14:22:08.676385 test3 kernel: kvm-guest: APIC: eoi() replaced with kvm_guest_apic_eoi_write()
+Aug 15 14:22:08.676394 test3 kernel: kvm-guest: KVM setup pv remote TLB flush
+Aug 15 14:22:08.676403 test3 kernel: kvm-guest: setup PV sched yield
+Aug 15 14:22:08.676412 test3 kernel: PM: hibernation: Registered nosave memory: [mem 0x00000000-0x00000fff]
+Aug 15 14:22:08.676420 test3 kernel: PM: hibernation: Registered nosave memory: [mem 0x0009f000-0x000fffff]
+Aug 15 14:22:08.676432 test3 kernel: PM: hibernation: Registered nosave memory: [mem 0xbfffb000-0xffffffff]
+Aug 15 14:22:08.676441 test3 kernel: [mem 0xc0000000-0xfeffbfff] available for PCI devices
+Aug 15 14:22:08.676450 test3 kernel: Booting paravirtualized kernel on KVM
+Aug 15 14:22:08.676463 test3 kernel: clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1910969940391419 ns
+Aug 15 14:22:08.676478 test3 kernel: setup_percpu: NR_CPUS:8192 nr_cpumask_bits:4 nr_cpu_ids:4 nr_node_ids:1
+Aug 15 14:22:08.676495 test3 kernel: percpu: Embedded 86 pages/cpu s229376 r8192 d114688 u524288
+Aug 15 14:22:08.676515 test3 kernel: pcpu-alloc: s229376 r8192 d114688 u524288 alloc=1*2097152
+Aug 15 14:22:08.676531 test3 kernel: pcpu-alloc: [0] 0 1 2 3 
+Aug 15 14:22:08.676543 test3 kernel: kvm-guest: PV spinlocks enabled
+Aug 15 14:22:08.676552 test3 kernel: PV qspinlock hash table entries: 256 (order: 0, 4096 bytes, linear)
+Aug 15 14:22:08.676562 test3 kernel: Kernel command line: BOOT_IMAGE=/vmlinuz-6.8.0-101-generic root=/dev/mapper/ubuntu--vg-ubuntu--lv ro net.ifnames=0 biosdevname=0 log_buf_len=16M console=ttyS0,115200 loglevel=3
+Aug 15 14:22:08.676576 test3 kernel: Unknown kernel command line parameters "BOOT_IMAGE=/vmlinuz-6.8.0-101-generic biosdevname=0", will be passed to user space.
+Aug 15 14:22:08.676605 test3 kernel: random: crng init done
+Aug 15 14:22:08.676620 test3 kernel: Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+Aug 15 14:22:08.676633 test3 kernel: Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+Aug 15 14:22:08.676642 test3 kernel: Fallback order for Node 0: 0 
+Aug 15 14:22:08.676651 test3 kernel: Built 1 zonelists, mobility grouping on.  Total pages: 1031931
+Aug 15 14:22:08.676659 test3 kernel: Policy zone: Normal
+Aug 15 14:22:08.676668 test3 kernel: mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+Aug 15 14:22:08.676678 test3 kernel: software IO TLB: area num 4.
+Aug 15 14:22:08.676687 test3 kernel: Memory: 3851800K/4193892K available (22528K kernel code, 4439K rwdata, 14400K rodata, 4920K init, 4788K bss, 341832K reserved, 0K cma-reserved)
+Aug 15 14:22:08.676696 test3 kernel: SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+Aug 15 14:22:08.676709 test3 kernel: Kernel/User page tables isolation: enabled
+Aug 15 14:22:08.676718 test3 kernel: ftrace: allocating 58250 entries in 228 pages
+Aug 15 14:22:08.676727 test3 kernel: ftrace: allocated 228 pages with 4 groups
+Aug 15 14:22:08.676735 test3 kernel: Dynamic Preempt: voluntary
+Aug 15 14:22:08.676757 test3 kernel: rcu: Preemptible hierarchical RCU implementation.
+Aug 15 14:22:08.676791 test3 kernel: rcu:         RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=4.
+Aug 15 14:22:08.676861 test3 kernel:         Trampoline variant of Tasks RCU enabled.
+Aug 15 14:22:08.676936 test3 kernel:         Rude variant of Tasks RCU enabled.
+Aug 15 14:22:08.677048 test3 kernel:         Tracing variant of Tasks RCU enabled.
+Aug 15 14:22:08.677118 test3 kernel: rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+Aug 15 14:22:08.677194 test3 kernel: rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+Aug 15 14:22:08.677275 test3 kernel: RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Aug 15 14:22:08.677392 test3 kernel: RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Aug 15 14:22:08.677474 test3 kernel: RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Aug 15 14:22:08.677543 test3 kernel: NR_IRQS: 524544, nr_irqs: 456, preallocated irqs: 16
+Aug 15 14:22:08.677593 test3 kernel: rcu: srcu_init: Setting srcu_struct sizes based on contention.
+Aug 15 14:22:08.677604 test3 kernel: Console: colour dummy device 80x25
+Aug 15 14:22:08.677651 test3 kernel: printk: legacy console [ttyS0] enabled
+Aug 15 14:22:08.677726 test3 kernel: APIC: Switch to symmetric I/O mode setup
+Aug 15 14:22:08.677800 test3 kernel: x2apic enabled
+Aug 15 14:22:08.677857 test3 kernel: APIC: Switched APIC routing to: physical x2apic
+Aug 15 14:22:08.677932 test3 kernel: kvm-guest: APIC: send_IPI_mask() replaced with kvm_send_ipi_mask()
+Aug 15 14:22:08.678046 test3 kernel: kvm-guest: APIC: send_IPI_mask_allbutself() replaced with kvm_send_ipi_mask_allbutself()
+Aug 15 14:22:08.678144 test3 kernel: kvm-guest: setup PV IPIs
+Aug 15 14:22:08.678219 test3 kernel: clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x2284c357c05, max_idle_ns: 440795273457 ns
+Aug 15 14:22:08.678337 test3 kernel: Calibrating delay loop (skipped) preset value.. 4789.45 BogoMIPS (lpj=2394728)
+Aug 15 14:22:08.678412 test3 kernel: x86/cpu: User Mode Instruction Prevention (UMIP) activated
+Aug 15 14:22:08.678456 test3 kernel: Last level iTLB entries: 4KB 0, 2MB 0, 4MB 0
+Aug 15 14:22:08.678512 test3 kernel: Last level dTLB entries: 4KB 0, 2MB 0, 4MB 0, 1GB 0
+Aug 15 14:22:08.678570 test3 kernel: Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+Aug 15 14:22:08.678637 test3 kernel: Spectre V2 : Mitigation: Retpolines
+Aug 15 14:22:08.678688 test3 kernel: Spectre V2 : Spectre v2 / SpectreRSB: Filling RSB on context switch and VMEXIT
+Aug 15 14:22:08.678740 test3 kernel: Spectre V2 : Enabling Restricted Speculation for firmware calls
+Aug 15 14:22:08.678791 test3 kernel: Spectre V2 : mitigation: Enabling conditional Indirect Branch Prediction Barrier
+Aug 15 14:22:08.678944 test3 kernel: Speculative Store Bypass: Mitigation: Speculative Store Bypass disabled via prctl
+Aug 15 14:22:08.678958 test3 kernel: MDS: Mitigation: Clear CPU buffers
+Aug 15 14:22:08.680387 test3 kernel: TAA: Mitigation: Clear CPU buffers
+Aug 15 14:22:08.680437 test3 kernel: MMIO Stale Data: Mitigation: Clear CPU buffers
+Aug 15 14:22:08.680463 test3 kernel: ITS: WARNING: ITS mitigation depends on retpoline and rethunk support
+Aug 15 14:22:08.680489 test3 kernel: ITS: Vulnerable
+Aug 15 14:22:08.680512 test3 kernel: x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+Aug 15 14:22:08.680534 test3 kernel: x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+Aug 15 14:22:08.680559 test3 kernel: x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+Aug 15 14:22:08.680596 test3 kernel: x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+Aug 15 14:22:08.680642 test3 kernel: x86/fpu: Enabled xstate features 0x7, context size is 832 bytes, using 'standard' format.
+Aug 15 14:22:08.680691 test3 kernel: Freeing SMP alternatives memory: 48K
+Aug 15 14:22:08.680707 test3 kernel: pid_max: default: 32768 minimum: 301
+Aug 15 14:22:08.680726 test3 kernel: LSM: initializing lsm=lockdown,capability,landlock,yama,apparmor,integrity
+Aug 15 14:22:08.680745 test3 kernel: landlock: Up and running.
+Aug 15 14:22:08.680767 test3 kernel: Yama: becoming mindful.
+Aug 15 14:22:08.680788 test3 kernel: AppArmor: AppArmor initialized
+Aug 15 14:22:08.680830 test3 kernel: Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+Aug 15 14:22:08.680862 test3 kernel: Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+Aug 15 14:22:08.680901 test3 kernel: smpboot: CPU0: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz (family: 0x6, model: 0x4f, stepping: 0x1)
+Aug 15 14:22:08.680942 test3 kernel: Performance Events: Broadwell events, full-width counters, Intel PMU driver.
+Aug 15 14:22:08.681056 test3 kernel: ... version:                2
+Aug 15 14:22:08.681102 test3 kernel: ... bit width:              48
+Aug 15 14:22:08.681146 test3 kernel: ... generic registers:      4
+Aug 15 14:22:08.681192 test3 kernel: ... value mask:             0000ffffffffffff
+Aug 15 14:22:08.681262 test3 kernel: ... max period:             00007fffffffffff
+Aug 15 14:22:08.681367 test3 kernel: ... fixed-purpose events:   3
+Aug 15 14:22:08.681419 test3 kernel: ... event mask:             000000070000000f
+Aug 15 14:22:08.681464 test3 kernel: signal: max sigframe size: 1776
+Aug 15 14:22:08.681508 test3 kernel: rcu: Hierarchical SRCU implementation.
+Aug 15 14:22:08.681569 test3 kernel: rcu:         Max phase no-delay instances is 400.
+Aug 15 14:22:08.681800 test3 kernel: smp: Bringing up secondary CPUs ...
+Aug 15 14:22:08.681854 test3 kernel: smpboot: x86: Booting SMP configuration:
+Aug 15 14:22:08.681892 test3 kernel: .... node  #0, CPUs:      #1 #2 #3
+Aug 15 14:22:08.681937 test3 kernel: smpboot: CPU 1 Converting physical 0 to logical die 1
+Aug 15 14:22:08.682012 test3 kernel: smpboot: CPU 2 Converting physical 0 to logical die 2
+Aug 15 14:22:08.682059 test3 kernel: smpboot: CPU 3 Converting physical 0 to logical die 3
+Aug 15 14:22:08.682097 test3 kernel: smp: Brought up 1 node, 4 CPUs
+Aug 15 14:22:08.682154 test3 kernel: smpboot: Max logical packages: 4
+Aug 15 14:22:08.682164 test3 kernel: smpboot: Total of 4 processors activated (19157.82 BogoMIPS)
+Aug 15 14:22:08.682219 test3 kernel: devtmpfs: initialized
+Aug 15 14:22:08.682236 test3 kernel: x86/mm: Memory block size: 128MB
+Aug 15 14:22:08.682245 test3 kernel: clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+Aug 15 14:22:08.682255 test3 kernel: futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+Aug 15 14:22:08.682264 test3 kernel: pinctrl core: initialized pinctrl subsystem
+Aug 15 14:22:08.682272 test3 kernel: PM: RTC time: 14:22:04, date: 2026-08-15
+Aug 15 14:22:08.682281 test3 kernel: NET: Registered PF_NETLINK/PF_ROUTE protocol family
+Aug 15 14:22:08.682290 test3 kernel: DMA: preallocated 512 KiB GFP_KERNEL pool for atomic allocations
+Aug 15 14:22:08.682299 test3 kernel: DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+Aug 15 14:22:08.682307 test3 kernel: DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+Aug 15 14:22:08.682324 test3 kernel: audit: initializing netlink subsys (disabled)
+Aug 15 14:22:08.682332 test3 kernel: audit: type=2000 audit(1786803724.632:1): state=initialized audit_enabled=0 res=1
+Aug 15 14:22:08.682342 test3 kernel: thermal_sys: Registered thermal governor 'fair_share'
+Aug 15 14:22:08.682350 test3 kernel: thermal_sys: Registered thermal governor 'bang_bang'
+Aug 15 14:22:08.682358 test3 kernel: thermal_sys: Registered thermal governor 'step_wise'
+Aug 15 14:22:08.682367 test3 kernel: thermal_sys: Registered thermal governor 'user_space'
+Aug 15 14:22:08.682375 test3 kernel: thermal_sys: Registered thermal governor 'power_allocator'
+Aug 15 14:22:08.682384 test3 kernel: cpuidle: using governor ladder
+Aug 15 14:22:08.682392 test3 kernel: cpuidle: using governor menu
+Aug 15 14:22:08.682401 test3 kernel: PCI: Using configuration type 1 for base access
+Aug 15 14:22:08.682410 test3 kernel: kprobes: kprobe jump-optimization is enabled. All kprobes are optimized if possible.
+Aug 15 14:22:08.682419 test3 kernel: HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+Aug 15 14:22:08.682427 test3 kernel: HugeTLB: 16380 KiB vmemmap can be freed for a 1.00 GiB page
+Aug 15 14:22:08.682440 test3 kernel: HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+Aug 15 14:22:08.682448 test3 kernel: HugeTLB: 28 KiB vmemmap can be freed for a 2.00 MiB page
+Aug 15 14:22:08.682457 test3 kernel: ACPI: Interpreter disabled.
+Aug 15 14:22:08.682466 test3 kernel: iommu: Default domain type: Translated
+Aug 15 14:22:08.682474 test3 kernel: iommu: DMA domain TLB invalidation policy: lazy mode
+Aug 15 14:22:08.682482 test3 kernel: SCSI subsystem initialized
+Aug 15 14:22:08.682491 test3 kernel: libata version 3.00 loaded.
+Aug 15 14:22:08.682500 test3 kernel: usbcore: registered new interface driver usbfs
+Aug 15 14:22:08.682509 test3 kernel: usbcore: registered new interface driver hub
+Aug 15 14:22:08.682517 test3 kernel: usbcore: registered new device driver usb
+Aug 15 14:22:08.682525 test3 kernel: pps_core: LinuxPPS API ver. 1 registered
+Aug 15 14:22:08.682534 test3 kernel: pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+Aug 15 14:22:08.682543 test3 kernel: PTP clock support registered
+Aug 15 14:22:08.682551 test3 kernel: EDAC MC: Ver: 3.0.0
+Aug 15 14:22:08.682563 test3 kernel: NetLabel: Initializing
+Aug 15 14:22:08.682572 test3 kernel: NetLabel:  domain hash size = 128
+Aug 15 14:22:08.682596 test3 kernel: NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+Aug 15 14:22:08.682606 test3 kernel: NetLabel:  unlabeled traffic allowed by default
+Aug 15 14:22:08.682615 test3 kernel: mctp: management component transport protocol core
+Aug 15 14:22:08.682624 test3 kernel: NET: Registered PF_MCTP protocol family
+Aug 15 14:22:08.682633 test3 kernel: PCI: Probing PCI hardware
+Aug 15 14:22:08.682641 test3 kernel: PCI: root bus 00: using default resources
+Aug 15 14:22:08.682650 test3 kernel: PCI: Probing PCI hardware (bus 00)
+Aug 15 14:22:08.682659 test3 kernel: PCI host bridge to bus 0000:00
+Aug 15 14:22:08.682959 test3 kernel: pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+Aug 15 14:22:08.683133 test3 kernel: pci_bus 0000:00: root bus resource [mem 0x00000000-0x3fffffffffff]
+Aug 15 14:22:08.683440 test3 kernel: pci_bus 0000:00: No busn resource found for root bus, will use [bus 00-ff]
+Aug 15 14:22:08.684613 test3 kernel: pci 0000:00:00.0: [8086:1237] type 00 class 0x060000 conventional PCI endpoint
+Aug 15 14:22:08.685754 test3 kernel: pci 0000:00:01.0: [8086:7000] type 00 class 0x060100 conventional PCI endpoint
+Aug 15 14:22:08.686072 test3 kernel: pci 0000:00:01.1: [8086:7010] type 00 class 0x010180 conventional PCI endpoint
+Aug 15 14:22:08.686256 test3 kernel: pci 0000:00:01.1: BAR 4 [io  0xc140-0xc14f]
+Aug 15 14:22:08.686470 test3 kernel: pci 0000:00:01.1: BAR 0 [io  0x01f0-0x01f7]: legacy IDE quirk
+Aug 15 14:22:08.686692 test3 kernel: pci 0000:00:01.1: BAR 1 [io  0x03f6]: legacy IDE quirk
+Aug 15 14:22:08.687047 test3 kernel: pci 0000:00:01.1: BAR 2 [io  0x0170-0x0177]: legacy IDE quirk
+Aug 15 14:22:08.688423 test3 kernel: pci 0000:00:01.1: BAR 3 [io  0x0376]: legacy IDE quirk
+Aug 15 14:22:08.689005 test3 kernel: pci 0000:00:01.2: [8086:7020] type 00 class 0x0c0300 conventional PCI endpoint
+Aug 15 14:22:08.689193 test3 kernel: pci 0000:00:01.2: BAR 4 [io  0xc100-0xc11f]
+Aug 15 14:22:08.689373 test3 kernel: pci 0000:00:02.0: [1013:00b8] type 00 class 0x030000 conventional PCI endpoint
+Aug 15 14:22:08.689547 test3 kernel: pci 0000:00:02.0: BAR 0 [mem 0xfc000000-0xfdffffff pref]
+Aug 15 14:22:08.689759 test3 kernel: pci 0000:00:02.0: BAR 1 [mem 0xfeb90000-0xfeb90fff]
+Aug 15 14:22:08.689945 test3 kernel: pci 0000:00:02.0: ROM [mem 0xfeb80000-0xfeb8ffff pref]
+Aug 15 14:22:08.691050 test3 kernel: pci 0000:00:02.0: Video device with shadowed ROM at [mem 0x000c0000-0x000dffff]
+Aug 15 14:22:08.692357 test3 kernel: pci 0000:00:03.0: [1af4:1000] type 00 class 0x020000 conventional PCI endpoint
+Aug 15 14:22:08.692775 test3 kernel: pci 0000:00:03.0: BAR 0 [io  0xc120-0xc13f]
+Aug 15 14:22:08.693138 test3 kernel: pci 0000:00:03.0: BAR 1 [mem 0xfeb91000-0xfeb91fff]
+Aug 15 14:22:08.695175 test3 kernel: pci 0000:00:03.0: BAR 4 [mem 0x380000000000-0x380000003fff 64bit pref]
+Aug 15 14:22:08.695496 test3 kernel: pci 0000:00:03.0: ROM [mem 0xfeb00000-0xfeb7ffff pref]
+Aug 15 14:22:08.695815 test3 kernel: pci 0000:00:04.0: [1af4:1001] type 00 class 0x010000 conventional PCI endpoint
+Aug 15 14:22:08.696155 test3 kernel: pci 0000:00:04.0: BAR 0 [io  0xc000-0xc07f]
+Aug 15 14:22:08.699202 test3 kernel: pci 0000:00:04.0: BAR 1 [mem 0xfeb92000-0xfeb92fff]
+Aug 15 14:22:08.699507 test3 kernel: pci 0000:00:04.0: BAR 4 [mem 0x380000004000-0x380000007fff 64bit pref]
+Aug 15 14:22:08.699898 test3 kernel: pci 0000:00:05.0: [1af4:1002] type 00 class 0x00ff00 conventional PCI endpoint
+Aug 15 14:22:08.700204 test3 kernel: pci 0000:00:05.0: BAR 0 [io  0xc080-0xc0bf]
+Aug 15 14:22:08.702298 test3 kernel: pci 0000:00:05.0: BAR 4 [mem 0x380000008000-0x38000000bfff 64bit pref]
+Aug 15 14:22:08.702715 test3 kernel: pci 0000:00:06.0: [1af4:1004] type 00 class 0x010000 conventional PCI endpoint
+Aug 15 14:22:08.703096 test3 kernel: pci 0000:00:06.0: BAR 0 [io  0xc0c0-0xc0ff]
+Aug 15 14:22:08.703926 test3 kernel: pci 0000:00:06.0: BAR 1 [mem 0xfeb93000-0xfeb93fff]
+Aug 15 14:22:08.709140 test3 kernel: pci 0000:00:06.0: BAR 4 [mem 0x38000000c000-0x38000000ffff 64bit pref]
+Aug 15 14:22:08.709490 test3 kernel: pci_bus 0000:00: busn_res: [bus 00-ff] end is updated to 00
+Aug 15 14:22:08.709815 test3 kernel: pci 0000:00:01.0: PIIX/ICH IRQ router [8086:7000]
+Aug 15 14:22:08.709862 test3 kernel: PCI: pci_cache_line_size set to 64 bytes
+Aug 15 14:22:08.709883 test3 kernel: e820: reserve RAM buffer [mem 0x0009fc00-0x0009ffff]
+Aug 15 14:22:08.709901 test3 kernel: e820: reserve RAM buffer [mem 0xbfffb000-0xbfffffff]
+Aug 15 14:22:08.710219 test3 kernel: pci 0000:00:02.0: vgaarb: setting as boot VGA device
+Aug 15 14:22:08.710511 test3 kernel: pci 0000:00:02.0: vgaarb: bridge control possible
+Aug 15 14:22:08.710838 test3 kernel: pci 0000:00:02.0: vgaarb: VGA device added: decodes=io+mem,owns=io+mem,locks=none
+Aug 15 14:22:08.710868 test3 kernel: vgaarb: loaded
+Aug 15 14:22:08.710887 test3 kernel: clocksource: Switched to clocksource kvm-clock
+Aug 15 14:22:08.710905 test3 kernel: VFS: Disk quotas dquot_6.6.0
+Aug 15 14:22:08.710924 test3 kernel: VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+Aug 15 14:22:08.710941 test3 kernel: AppArmor: AppArmor Filesystem Enabled
+Aug 15 14:22:08.710966 test3 kernel: pnp: PnP ACPI: disabled
+Aug 15 14:22:08.711048 test3 kernel: NET: Registered PF_INET protocol family
+Aug 15 14:22:08.711066 test3 kernel: IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+Aug 15 14:22:08.711083 test3 kernel: tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+Aug 15 14:22:08.711100 test3 kernel: Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+Aug 15 14:22:08.711117 test3 kernel: TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+Aug 15 14:22:08.711133 test3 kernel: TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+Aug 15 14:22:08.711150 test3 kernel: TCP: Hash tables configured (established 32768 bind 32768)
+Aug 15 14:22:08.711165 test3 kernel: MPTCP token hash table entries: 4096 (order: 4, 98304 bytes, linear)
+Aug 15 14:22:08.711180 test3 kernel: UDP hash table entries: 2048 (order: 4, 65536 bytes, linear)
+Aug 15 14:22:08.711197 test3 kernel: UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+Aug 15 14:22:08.711213 test3 kernel: NET: Registered PF_UNIX/PF_LOCAL protocol family
+Aug 15 14:22:08.711238 test3 kernel: NET: Registered PF_XDP protocol family
+Aug 15 14:22:08.713094 test3 kernel: pci_bus 0000:00: resource 4 [io  0x0000-0xffff]
+Aug 15 14:22:08.714443 test3 kernel: pci_bus 0000:00: resource 5 [mem 0x00000000-0x3fffffffffff]
+Aug 15 14:22:08.714835 test3 kernel: pci 0000:00:01.0: PIIX3: Enabling Passive Release
+Aug 15 14:22:08.715159 test3 kernel: pci 0000:00:00.0: Limiting direct PCI/PCI transfers
+Aug 15 14:22:08.715470 test3 kernel: pci 0000:00:01.2: PCI->APIC IRQ transform: INT D -> IRQ 11
+Aug 15 14:22:08.715501 test3 kernel: PCI: CLS 0 bytes, default 64
+Aug 15 14:22:08.715521 test3 kernel: Trying to unpack rootfs image as initramfs...
+Aug 15 14:22:08.715538 test3 kernel: PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+Aug 15 14:22:08.715558 test3 kernel: software IO TLB: mapped [mem 0x00000000bbffb000-0x00000000bfffb000] (64MB)
+Aug 15 14:22:08.715612 test3 kernel: clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x2284c357c05, max_idle_ns: 440795273457 ns
+Aug 15 14:22:08.715955 test3 kernel: platform rtc_cmos: registered platform RTC device (no PNP device found)
+Aug 15 14:22:08.716028 test3 kernel: Initialise system trusted keyrings
+Aug 15 14:22:08.716048 test3 kernel: Key type blacklist registered
+Aug 15 14:22:08.716068 test3 kernel: workingset: timestamp_bits=36 max_order=20 bucket_order=0
+Aug 15 14:22:08.716087 test3 kernel: zbud: loaded
+Aug 15 14:22:08.716107 test3 kernel: squashfs: version 4.0 (2009/01/31) Phillip Lougher
+Aug 15 14:22:08.716129 test3 kernel: fuse: init (API version 7.39)
+Aug 15 14:22:08.716151 test3 kernel: integrity: Platform Keyring initialized
+Aug 15 14:22:08.716170 test3 kernel: integrity: Machine keyring initialized
+Aug 15 14:22:08.716188 test3 kernel: Key type asymmetric registered
+Aug 15 14:22:08.716220 test3 kernel: Asymmetric key parser 'x509' registered
+Aug 15 14:22:08.716241 test3 kernel: Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
+Aug 15 14:22:08.716261 test3 kernel: io scheduler mq-deadline registered
+Aug 15 14:22:08.716282 test3 kernel: shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+Aug 15 14:22:08.716651 test3 kernel: virtio-pci 0000:00:03.0: PCI->APIC IRQ transform: INT A -> IRQ 11
+Aug 15 14:22:08.717022 test3 kernel: virtio-pci 0000:00:04.0: PCI->APIC IRQ transform: INT A -> IRQ 11
+Aug 15 14:22:08.717363 test3 kernel: virtio-pci 0000:00:05.0: PCI->APIC IRQ transform: INT A -> IRQ 10
+Aug 15 14:22:08.717764 test3 kernel: virtio-pci 0000:00:06.0: PCI->APIC IRQ transform: INT A -> IRQ 10
+Aug 15 14:22:08.717856 test3 kernel: Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+Aug 15 14:22:08.717884 test3 kernel: serial8250: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+Aug 15 14:22:08.717923 test3 kernel: Linux agpgart interface v0.103
+Aug 15 14:22:08.717946 test3 kernel: loop: module loaded
+Aug 15 14:22:08.718488 test3 kernel: virtio_blk virtio1: 4/0/0 default/read/poll queues
+Aug 15 14:22:08.722639 test3 kernel: virtio_blk virtio1: [vda] 58720256 512-byte logical blocks (30.1 GB/28.0 GiB)
+Aug 15 14:22:08.722762 test3 kernel:  vda: vda1 vda2 vda3
+Aug 15 14:22:08.723514 test3 kernel: virtio_scsi virtio3: 4/0/0 default/read/poll queues
+Aug 15 14:22:08.724652 test3 kernel: scsi host0: Virtio SCSI HBA
+Aug 15 14:22:08.728547 test3 kernel: ata_piix 0000:00:01.1: version 2.13
+Aug 15 14:22:08.729560 test3 kernel: scsi host1: ata_piix
+Aug 15 14:22:08.729956 test3 kernel: scsi host2: ata_piix
+Aug 15 14:22:08.730032 test3 kernel: ata1: PATA max MWDMA2 cmd 0x1f0 ctl 0x3f6 bmdma 0xc140 irq 14 lpm-pol 0
+Aug 15 14:22:08.730053 test3 kernel: ata2: PATA max MWDMA2 cmd 0x170 ctl 0x376 bmdma 0xc148 irq 15 lpm-pol 0
+Aug 15 14:22:08.730073 test3 kernel: tun: Universal TUN/TAP device driver, 1.6
+Aug 15 14:22:08.730094 test3 kernel: PPP generic driver version 2.4.2
+Aug 15 14:22:08.730461 test3 kernel: uhci_hcd 0000:00:01.2: PCI->APIC IRQ transform: INT D -> IRQ 11
+Aug 15 14:22:08.730850 test3 kernel: uhci_hcd 0000:00:01.2: UHCI Host Controller
+Aug 15 14:22:08.731814 test3 kernel: uhci_hcd 0000:00:01.2: new USB bus registered, assigned bus number 1
+Aug 15 14:22:08.732918 test3 kernel: uhci_hcd 0000:00:01.2: detected 2 ports
+Aug 15 14:22:08.733320 test3 kernel: uhci_hcd 0000:00:01.2: irq 11, io port 0x0000c100
+Aug 15 14:22:08.733928 test3 kernel: usb usb1: New USB device found, idVendor=1d6b, idProduct=0001, bcdDevice= 6.08
+Aug 15 14:22:08.734448 test3 kernel: usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+Aug 15 14:22:08.736314 test3 kernel: usb usb1: Product: UHCI Host Controller
+Aug 15 14:22:08.737805 test3 kernel: usb usb1: Manufacturer: Linux 6.8.0-101-generic uhci_hcd
+Aug 15 14:22:08.738202 test3 kernel: usb usb1: SerialNumber: 0000:00:01.2
+Aug 15 14:22:08.738639 test3 kernel: hub 1-0:1.0: USB hub found
+Aug 15 14:22:08.739066 test3 kernel: hub 1-0:1.0: 2 ports detected
+Aug 15 14:22:08.739102 test3 kernel: i8042: PNP: No PS/2 controller found.
+Aug 15 14:22:08.739124 test3 kernel: i8042: Probing ports directly.
+Aug 15 14:22:08.739161 test3 kernel: serio: i8042 KBD port at 0x60,0x64 irq 1
+Aug 15 14:22:08.739182 test3 kernel: serio: i8042 AUX port at 0x60,0x64 irq 12
+Aug 15 14:22:08.739202 test3 kernel: mousedev: PS/2 mouse device common for all mice
+Aug 15 14:22:08.739223 test3 kernel: input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input0
+Aug 15 14:22:08.739533 test3 kernel: rtc_cmos rtc_cmos: registered as rtc0
+Aug 15 14:22:08.739857 test3 kernel: rtc_cmos rtc_cmos: setting system clock to 2026-08-15T14:22:04 UTC (1786803724)
+Aug 15 14:22:08.740181 test3 kernel: rtc_cmos rtc_cmos: alarms up to one day, 114 bytes nvram
+Aug 15 14:22:08.740212 test3 kernel: i2c_dev: i2c /dev entries driver
+Aug 15 14:22:08.740233 test3 kernel: device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+Aug 15 14:22:08.740254 test3 kernel: device-mapper: uevent: version 1.0.3
+Aug 15 14:22:08.740273 test3 kernel: device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@redhat.com
+Aug 15 14:22:08.740300 test3 kernel: intel_pstate: CPU model not supported
+Aug 15 14:22:08.740320 test3 kernel: ledtrig-cpu: registered to indicate activity on CPUs
+Aug 15 14:22:08.740340 test3 kernel: [drm] Initialized simpledrm 1.0.0 20200625 for simple-framebuffer.0 on minor 0
+Aug 15 14:22:08.740359 test3 kernel: fbcon: Deferring console take-over
+Aug 15 14:22:08.740424 test3 kernel: simple-framebuffer simple-framebuffer.0: [drm] fb0: simpledrmdrmfb frame buffer device
+Aug 15 14:22:08.740451 test3 kernel: drop_monitor: Initializing network drop monitor service
+Aug 15 14:22:08.740472 test3 kernel: NET: Registered PF_INET6 protocol family
+Aug 15 14:22:08.740515 test3 kernel: Freeing initrd memory: 74536K
+Aug 15 14:22:08.740535 test3 kernel: Segment Routing with IPv6
+Aug 15 14:22:08.740551 test3 kernel: In-situ OAM (IOAM) with IPv6
+Aug 15 14:22:08.740567 test3 kernel: NET: Registered PF_PACKET protocol family
+Aug 15 14:22:08.740598 test3 kernel: Key type dns_resolver registered
+Aug 15 14:22:08.740615 test3 kernel: No MBM correction factor available
+Aug 15 14:22:08.740631 test3 kernel: IPI shorthand broadcast: enabled
+Aug 15 14:22:08.740647 test3 kernel: sched_clock: Marking stable (990004295, 3290535)->(1094440840, -101146010)
+Aug 15 14:22:08.740663 test3 kernel: registered taskstats version 1
+Aug 15 14:22:08.740679 test3 kernel: Loading compiled-in X.509 certificates
+Aug 15 14:22:08.740701 test3 kernel: Loaded X.509 cert 'Build time autogenerated kernel key: 7f71bdefc17a4d88631555bf9efbb1c93d6f5260'
+Aug 15 14:22:08.740718 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Live Patch Signing 2025 Kmod: d541cef61dc7e793b7eb7e899970a2eef0b5dc8c'
+Aug 15 14:22:08.740734 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Live Patch Signing: 14df34d1a87cf37625abec039ef2bf521249b969'
+Aug 15 14:22:08.740750 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing: 88f752e560a1e0737e31163a466ad7b70a850c19'
+Aug 15 14:22:08.740766 test3 kernel: blacklist: Loading compiled-in revocation X.509 certificates
+Aug 15 14:22:08.740780 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing: 61482aa2830d0ab2ad5af10b7250da9033ddcef0'
+Aug 15 14:22:08.740795 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2017): 242ade75ac4a15e50d50c84b0d45ff3eae707a03'
+Aug 15 14:22:08.740810 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (ESM 2018): 365188c1d374d6b07c3c8f240f8ef722433d6a8b'
+Aug 15 14:22:08.740826 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2019): c0746fd6c5da3ae827864651ad66ae47fe24b3e8'
+Aug 15 14:22:08.740841 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v1): a8d54bbb3825cfb94fa13c9f8a594a195c107b8d'
+Aug 15 14:22:08.740866 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v2): 4cf046892d6fd3c9a5b03f98d845f90851dc6a8c'
+Aug 15 14:22:08.740884 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v3): 100437bb6de6e469b581e61cd66bce3ef4ed53af'
+Aug 15 14:22:08.740902 test3 kernel: Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (Ubuntu Core 2019): c1d57b8f6b743f23ee41f4f7ee292f06eecadfb9'
+Aug 15 14:22:08.740920 test3 kernel: Key type .fscrypt registered
+Aug 15 14:22:08.740937 test3 kernel: Key type fscrypt-provisioning registered
+Aug 15 14:22:08.740956 test3 kernel: cryptd: max_cpu_qlen set to 1000
+Aug 15 14:22:08.740990 test3 kernel: AVX2 version of gcm_enc/dec engaged.
+Aug 15 14:22:08.741006 test3 kernel: AES CTR mode by8 optimization enabled
+Aug 15 14:22:08.741023 test3 kernel: Key type encrypted registered
+Aug 15 14:22:08.741039 test3 kernel: AppArmor: AppArmor sha256 policy hashing enabled
+Aug 15 14:22:08.741054 test3 kernel: ima: No TPM chip found, activating TPM-bypass!
+Aug 15 14:22:08.741072 test3 kernel: Loading compiled-in module X.509 certificates
+Aug 15 14:22:08.741096 test3 kernel: Loaded X.509 cert 'Build time autogenerated kernel key: 7f71bdefc17a4d88631555bf9efbb1c93d6f5260'
+Aug 15 14:22:08.741114 test3 kernel: ima: Allocated hash algorithm: sha256
+Aug 15 14:22:08.741133 test3 kernel: ima: No architecture policies found
+Aug 15 14:22:08.741150 test3 kernel: evm: Initialising EVM extended attributes:
+Aug 15 14:22:08.741168 test3 kernel: evm: security.selinux
+Aug 15 14:22:08.741185 test3 kernel: evm: security.SMACK64
+Aug 15 14:22:08.741202 test3 kernel: evm: security.SMACK64EXEC
+Aug 15 14:22:08.741219 test3 kernel: evm: security.SMACK64TRANSMUTE
+Aug 15 14:22:08.741236 test3 kernel: evm: security.SMACK64MMAP
+Aug 15 14:22:08.741252 test3 kernel: evm: security.apparmor
+Aug 15 14:22:08.741265 test3 kernel: evm: security.ima
+Aug 15 14:22:08.741280 test3 kernel: evm: security.capability
+Aug 15 14:22:08.741300 test3 kernel: evm: HMAC attrs: 0x1
+Aug 15 14:22:08.741314 test3 kernel: PM:   Magic number: 6:447:384
+Aug 15 14:22:08.741329 test3 kernel: RAS: Correctable Errors collector initialized.
+Aug 15 14:22:08.741345 test3 kernel: clk: Disabling unused clocks
+Aug 15 14:22:08.741363 test3 kernel: Freeing unused decrypted memory: 2028K
+Aug 15 14:22:08.741386 test3 kernel: Freeing unused kernel image (initmem) memory: 4920K
+Aug 15 14:22:08.741403 test3 kernel: Write protecting the kernel read-only data: 38912k
+Aug 15 14:22:08.741421 test3 kernel: Freeing unused kernel image (rodata/data gap) memory: 1984K
+Aug 15 14:22:08.741435 test3 kernel: x86/mm: Checked W+X mappings: passed, no W+X pages found.
+Aug 15 14:22:08.741449 test3 kernel: x86/mm: Checking user space page tables
+Aug 15 14:22:08.741466 test3 kernel: x86/mm: Checked W+X mappings: passed, no W+X pages found.
+Aug 15 14:22:08.741482 test3 kernel: Run /init as init process
+Aug 15 14:22:08.741497 test3 kernel:   with arguments:
+Aug 15 14:22:08.741511 test3 kernel:     /init
+Aug 15 14:22:08.741526 test3 kernel:   with environment:
+Aug 15 14:22:08.741542 test3 kernel:     HOME=/
+Aug 15 14:22:08.741564 test3 kernel:     TERM=linux
+Aug 15 14:22:08.741594 test3 kernel:     BOOT_IMAGE=/vmlinuz-6.8.0-101-generic
+Aug 15 14:22:08.741611 test3 kernel:     biosdevname=0
+Aug 15 14:22:08.741880 test3 kernel: cirrus 0000:00:02.0: vgaarb: deactivate vga console
+Aug 15 14:22:08.741906 test3 kernel: [drm] Initialized cirrus 2.0.0 2019 for 0000:00:02.0 on minor 0
+Aug 15 14:22:08.741922 test3 kernel: fbcon: cirrusdrmfb (fb0) is primary device
+Aug 15 14:22:08.741937 test3 kernel: fbcon: Deferring console take-over
+Aug 15 14:22:08.742241 test3 kernel: cirrus 0000:00:02.0: [drm] fb0: cirrusdrmfb frame buffer device
+Aug 15 14:22:08.742268 test3 kernel: input: VirtualPS/2 VMware VMMouse as /devices/platform/i8042/serio1/input/input3
+Aug 15 14:22:08.742285 test3 kernel: input: VirtualPS/2 VMware VMMouse as /devices/platform/i8042/serio1/input/input2
+Aug 15 14:22:08.742302 test3 kernel: raid6: avx2x4   gen()  5434 MB/s
+Aug 15 14:22:08.742318 test3 kernel: raid6: avx2x2   gen()  6093 MB/s
+Aug 15 14:22:08.742342 test3 kernel: raid6: avx2x1   gen()  4747 MB/s
+Aug 15 14:22:08.742358 test3 kernel: raid6: using algorithm avx2x2 gen() 6093 MB/s
+Aug 15 14:22:08.742375 test3 kernel: raid6: .... xor() 3800 MB/s, rmw enabled
+Aug 15 14:22:08.742392 test3 kernel: raid6: using avx2x2 recovery algorithm
+Aug 15 14:22:08.742406 test3 kernel: xor: automatically using best checksumming function   avx       
+Aug 15 14:22:08.742420 test3 kernel: async_tx: api initialized (async)
+Aug 15 14:22:08.742435 test3 kernel: Btrfs loaded, zoned=yes, fsverity=yes
+Aug 15 14:22:08.742452 test3 kernel: EXT4-fs (dm-0): mounted filesystem f6fae59a-a97e-4466-811a-5067a8f9084e ro with ordered data mode. Quota mode: none.
+Aug 15 14:22:08.742471 test3 systemd[1]: Inserted module 'autofs4'
+Aug 15 14:22:08.742495 test3 systemd[1]: systemd 255.4-1ubuntu8.12 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+Aug 15 14:22:08.742523 test3 systemd[1]: Detected virtualization kvm.
+Aug 15 14:22:08.742542 test3 systemd[1]: Detected architecture x86-64.
+Aug 15 14:22:08.742560 test3 systemd[1]: Hostname set to <test3>.
+Aug 15 14:22:08.742578 test3 systemd[1]: Queued start job for default target graphical.target.
+Aug 15 14:22:08.742616 test3 systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+Aug 15 14:22:08.742636 test3 systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+Aug 15 14:22:08.742655 test3 systemd[1]: Created slice system-systemd\x2dfsck.slice - Slice /system/systemd-fsck.
+Aug 15 14:22:08.742673 test3 systemd[1]: Created slice user.slice - User and Session Slice.
+Aug 15 14:22:08.742690 test3 systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+Aug 15 14:22:08.742709 test3 systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+Aug 15 14:22:08.742730 test3 systemd[1]: Expecting device dev-disk-by\x2duuid-e5752e4b\x2d6d25\x2d47cb\x2d9d72\x2d114fb3498759.device - /dev/disk/by-uuid/e5752e4b-6d25-47cb-9d72-114fb3498759...
+Aug 15 14:22:08.742755 test3 systemd[1]: Expecting device dev-ttyS0.device - /dev/ttyS0...
+Aug 15 14:22:08.742775 test3 systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+Aug 15 14:22:08.742793 test3 systemd[1]: Reached target slices.target - Slice Units.
+Aug 15 14:22:08.742814 test3 systemd[1]: Reached target snapd.mounts-pre.target - Mounting snaps.
+Aug 15 14:22:08.742832 test3 systemd[1]: Reached target snapd.mounts.target - Mounted snaps.
+Aug 15 14:22:08.742851 test3 systemd[1]: Reached target swap.target - Swaps.
+Aug 15 14:22:08.742873 test3 systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+Aug 15 14:22:08.742895 test3 systemd[1]: Listening on dm-event.socket - Device-mapper event daemon FIFOs.
+Aug 15 14:22:08.742917 test3 kernel: workqueue: update_balloon_size_func hogged CPU for >10000us 4 times, consider switching to WQ_UNBOUND
+Aug 15 14:22:08.742945 test3 systemd[1]: Listening on lvm2-lvmpolld.socket - LVM2 poll daemon socket.
+Aug 15 14:22:08.742966 test3 systemd[1]: Listening on multipathd.socket - multipathd control socket.
+Aug 15 14:22:08.743013 test3 systemd[1]: Listening on rpcbind.socket - RPCbind Server Activation Socket.
+Aug 15 14:22:08.743052 test3 systemd[1]: Listening on systemd-fsckd.socket - fsck to fsckd communication Socket.
+Aug 15 14:22:08.743085 test3 systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+Aug 15 14:22:08.743143 test3 systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+Aug 15 14:22:08.743215 test3 systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+Aug 15 14:22:08.743291 test3 systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+Aug 15 14:22:08.743358 test3 systemd[1]: systemd-pcrextend.socket - TPM2 PCR Extension (Varlink) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:08.743447 test3 systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+Aug 15 14:22:08.743524 test3 kernel: workqueue: update_balloon_size_func hogged CPU for >10000us 8 times, consider switching to WQ_UNBOUND
+Aug 15 14:22:08.743631 test3 systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+Aug 15 14:22:08.743692 test3 systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+Aug 15 14:22:08.743745 test3 systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+Aug 15 14:22:08.743785 test3 systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+Aug 15 14:22:08.743842 test3 systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+Aug 15 14:22:08.743897 test3 systemd[1]: Starting systemd-journald.service - Journal Service...
+Aug 15 14:22:08.743952 test3 systemd[1]: auth-rpcgss-module.service - Kernel Module supporting RPCSEC_GSS was skipped because of an unmet condition check (ConditionPathExists=/etc/krb5.keytab).
+Aug 15 14:22:08.744036 test3 systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+Aug 15 14:22:08.744113 test3 systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+Aug 15 14:22:08.744216 test3 systemd[1]: Starting lvm2-monitor.service - Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+Aug 15 14:22:08.744285 test3 systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+Aug 15 14:22:08.744598 test3 systemd-journald[337]: Collecting audit messages is disabled.
+Aug 15 14:22:08.744764 test3 systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+Aug 15 14:22:08.744956 test3 systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+Aug 15 14:22:08.745112 test3 systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+Aug 15 14:22:08.745138 test3 systemd-journald[337]: Journal started
+Aug 15 14:22:08.745191 test3 systemd-journald[337]: Runtime Journal (/run/log/journal/7c7d0e2188e24a7286a3ecd2d726f9a9) is 6.2M, max 50.0M, 43.7M free.
+Aug 15 14:22:08.764791 test3 systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+Aug 15 14:22:08.805006 test3 systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+Aug 15 14:22:08.805101 test3 lvm[340]:   1 logical volume(s) in volume group "ubuntu-vg" monitored
+Aug 15 14:22:08.808000 test3 systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+Aug 15 14:22:08.808063 test3 systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathExists=!/run/initramfs/fsck-root).
+Aug 15 14:22:08.817443 test3 systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+Aug 15 14:22:08.823132 test3 systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:08.826671 test3 systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+Aug 15 14:22:08.835996 test3 systemd[1]: systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:08.841075 test3 systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+Aug 15 14:22:08.857017 test3 systemd[1]: Started systemd-journald.service - Journal Service.
+Aug 15 14:22:08.864828 test3 systemd[1]: Mounted dev-hugepages.mount - Huge Pages File System.
+Aug 15 14:22:08.867749 test3 systemd-modules-load[357]: Inserted module 'msr'
+Aug 15 14:22:08.871640 test3 systemd[1]: Mounted dev-mqueue.mount - POSIX Message Queue File System.
+Aug 15 14:22:08.876483 test3 systemd[1]: Mounted sys-kernel-debug.mount - Kernel Debug File System.
+Aug 15 14:22:08.886493 test3 systemd-modules-load[357]: Inserted module 'dm_multipath'
+Aug 15 14:22:08.889177 test3 systemd[1]: Mounted sys-kernel-tracing.mount - Kernel Trace File System.
+Aug 15 14:22:08.894691 test3 systemd[1]: Finished keyboard-setup.service - Set the console keyboard layout.
+Aug 15 14:22:08.901847 test3 systemd[1]: Finished kmod-static-nodes.service - Create List of Static Device Nodes.
+Aug 15 14:22:08.910955 test3 systemd[1]: Finished lvm2-monitor.service - Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling.
+Aug 15 14:22:08.912992 test3 kernel: EXT4-fs (dm-0): re-mounted f6fae59a-a97e-4466-811a-5067a8f9084e r/w.
+Aug 15 14:22:08.921276 test3 systemd[1]: modprobe@configfs.service: Deactivated successfully.
+Aug 15 14:22:08.921782 test3 systemd[1]: Finished modprobe@configfs.service - Load Kernel Module configfs.
+Aug 15 14:22:08.928472 test3 systemd[1]: modprobe@dm_mod.service: Deactivated successfully.
+Aug 15 14:22:08.928853 test3 systemd[1]: Finished modprobe@dm_mod.service - Load Kernel Module dm_mod.
+Aug 15 14:22:08.935094 test3 systemd[1]: modprobe@drm.service: Deactivated successfully.
+Aug 15 14:22:08.935514 test3 systemd[1]: Finished modprobe@drm.service - Load Kernel Module drm.
+Aug 15 14:22:08.941590 test3 systemd[1]: modprobe@efi_pstore.service: Deactivated successfully.
+Aug 15 14:22:08.944164 test3 systemd[1]: Finished modprobe@efi_pstore.service - Load Kernel Module efi_pstore.
+Aug 15 14:22:08.950784 test3 systemd[1]: modprobe@fuse.service: Deactivated successfully.
+Aug 15 14:22:08.951233 test3 systemd[1]: Finished modprobe@fuse.service - Load Kernel Module fuse.
+Aug 15 14:22:08.957237 test3 systemd[1]: modprobe@loop.service: Deactivated successfully.
+Aug 15 14:22:08.957788 test3 systemd[1]: Finished modprobe@loop.service - Load Kernel Module loop.
+Aug 15 14:22:08.963860 test3 systemd[1]: Finished systemd-modules-load.service - Load Kernel Modules.
+Aug 15 14:22:08.969654 test3 systemd[1]: Finished systemd-remount-fs.service - Remount Root and Kernel File Systems.
+Aug 15 14:22:09.010226 test3 systemd[1]: Mounting sys-fs-fuse-connections.mount - FUSE Control File System...
+Aug 15 14:22:09.018872 test3 systemd[1]: Mounting sys-kernel-config.mount - Kernel Configuration File System...
+Aug 15 14:22:09.028997 test3 systemd[1]: Starting multipathd.service - Device-Mapper Multipath Device Controller...
+Aug 15 14:22:09.033927 test3 systemd[1]: systemd-hwdb-update.service - Rebuild Hardware Database was skipped because of an unmet condition check (ConditionNeedsUpdate=/etc).
+Aug 15 14:22:09.040773 test3 systemd[1]: Starting systemd-journal-flush.service - Flush Journal to Persistent Storage...
+Aug 15 14:22:09.045137 test3 systemd[1]: systemd-pstore.service - Platform Persistent Storage Archival was skipped because of an unmet condition check (ConditionDirectoryNotEmpty=/sys/fs/pstore).
+Aug 15 14:22:09.048767 test3 systemd[1]: Starting systemd-random-seed.service - Load/Save OS Random Seed...
+Aug 15 14:22:09.054394 test3 systemd[1]: systemd-repart.service - Repartition Root Disk was skipped because no trigger condition checks were met.
+Aug 15 14:22:09.058199 test3 systemd[1]: Starting systemd-sysctl.service - Apply Kernel Variables...
+Aug 15 14:22:09.087553 test3 systemd-journald[337]: Runtime Journal (/run/log/journal/7c7d0e2188e24a7286a3ecd2d726f9a9) is 6.2M, max 50.0M, 43.7M free.
+Aug 15 14:22:09.088432 test3 systemd-journald[337]: Received client request to flush runtime journal.
+Aug 15 14:22:09.089415 test3 systemd[1]: Starting systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully...
+Aug 15 14:22:09.095514 test3 systemd[1]: systemd-tpm2-setup.service - TPM2 SRK Setup was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:09.103320 test3 systemd[1]: Mounted sys-fs-fuse-connections.mount - FUSE Control File System.
+Aug 15 14:22:09.109151 test3 systemd[1]: Mounted sys-kernel-config.mount - Kernel Configuration File System.
+Aug 15 14:22:09.119110 test3 systemd[1]: Finished systemd-journal-flush.service - Flush Journal to Persistent Storage.
+Aug 15 14:22:09.125138 test3 systemd[1]: Finished systemd-random-seed.service - Load/Save OS Random Seed.
+Aug 15 14:22:09.188008 test3 systemd[1]: Finished systemd-tmpfiles-setup-dev-early.service - Create Static Device Nodes in /dev gracefully.
+Aug 15 14:22:09.201492 test3 systemd[1]: Finished systemd-udev-trigger.service - Coldplug All udev Devices.
+Aug 15 14:22:09.206478 test3 systemd[1]: Finished systemd-sysctl.service - Apply Kernel Variables.
+Aug 15 14:22:09.211749 test3 multipathd[386]: multipathd v0.9.4: start up
+Aug 15 14:22:09.215349 test3 systemd[1]: systemd-sysusers.service - Create System Users was skipped because no trigger condition checks were met.
+Aug 15 14:22:09.226364 test3 systemd[1]: Starting systemd-tmpfiles-setup-dev.service - Create Static Device Nodes in /dev...
+Aug 15 14:22:09.230017 test3 multipathd[386]: reconfigure: setting up paths and maps
+Aug 15 14:22:09.233665 test3 systemd[1]: Started multipathd.service - Device-Mapper Multipath Device Controller.
+Aug 15 14:22:09.298521 test3 systemd[1]: Finished systemd-tmpfiles-setup-dev.service - Create Static Device Nodes in /dev.
+Aug 15 14:22:09.304279 test3 systemd[1]: Reached target local-fs-pre.target - Preparation for Local File Systems.
+Aug 15 14:22:09.326653 test3 systemd[1]: Starting systemd-udevd.service - Rule-based Manager for Device Events and Files...
+Aug 15 14:22:09.482902 test3 systemd-udevd[409]: Using default interface naming scheme 'v255'.
+Aug 15 14:22:09.634946 test3 systemd[1]: Started systemd-udevd.service - Rule-based Manager for Device Events and Files.
+Aug 15 14:22:09.651384 test3 kernel: workqueue: update_balloon_size_func hogged CPU for >10000us 16 times, consider switching to WQ_UNBOUND
+Aug 15 14:22:09.649392 test3 systemd[1]: plymouth-start.service - Show Plymouth Boot Screen was skipped because of an unmet condition check (ConditionKernelCommandLine=splash).
+Aug 15 14:22:09.649630 test3 systemd[1]: Started systemd-ask-password-console.path - Dispatch Password Requests to Console Directory Watch.
+Aug 15 14:22:09.656446 test3 systemd[1]: systemd-ask-password-plymouth.path - Forward Password Requests to Plymouth Directory Watch was skipped because of an unmet condition check (ConditionPathExists=/run/plymouth/pid).
+Aug 15 14:22:09.656532 test3 systemd[1]: Reached target cryptsetup.target - Local Encrypted Volumes.
+Aug 15 14:22:09.960438 test3 (udev-worker)[421]: Network interface NamePolicy= disabled on kernel command line.
+Aug 15 14:22:10.013412 test3 systemd[1]: Found device dev-ttyS0.device - /dev/ttyS0.
+Aug 15 14:22:10.242494 test3 lvm[457]: PV /dev/vda3 online, VG ubuntu-vg is complete.
+Aug 15 14:22:10.242554 test3 lvm[457]: VG ubuntu-vg finished
+Aug 15 14:22:10.243068 test3 systemd[1]: Found device dev-disk-by\x2duuid-e5752e4b\x2d6d25\x2d47cb\x2d9d72\x2d114fb3498759.device - /dev/disk/by-uuid/e5752e4b-6d25-47cb-9d72-114fb3498759.
+Aug 15 14:22:10.254278 test3 systemd[1]: Starting systemd-fsck@dev-disk-by\x2duuid-e5752e4b\x2d6d25\x2d47cb\x2d9d72\x2d114fb3498759.service - File System Check on /dev/disk/by-uuid/e5752e4b-6d25-47cb-9d72-114fb3498759...
+Aug 15 14:22:10.287555 test3 systemd[1]: Started systemd-fsckd.service - File System Check Daemon to report status.
+Aug 15 14:22:10.302227 test3 systemd-fsck[463]: /dev/vda2: recovering journal
+Aug 15 14:22:10.324051 test3 systemd-fsck[463]: /dev/vda2: clean, 321/114688 files, 67747/458752 blocks
+Aug 15 14:22:10.330518 test3 systemd[1]: Finished systemd-fsck@dev-disk-by\x2duuid-e5752e4b\x2d6d25\x2d47cb\x2d9d72\x2d114fb3498759.service - File System Check on /dev/disk/by-uuid/e5752e4b-6d25-47cb-9d72-114fb3498759.
+Aug 15 14:22:10.344227 test3 systemd[1]: Mounting boot.mount - /boot...
+Aug 15 14:22:10.428022 test3 kernel: EXT4-fs (vda2): mounted filesystem e5752e4b-6d25-47cb-9d72-114fb3498759 r/w with ordered data mode. Quota mode: none.
+Aug 15 14:22:10.435271 test3 systemd[1]: Mounted boot.mount - /boot.
+Aug 15 14:22:10.442010 test3 kernel: RAPL PMU: API unit is 2^-32 Joules, 0 fixed counters, 10737418240 ms ovfl timer
+Aug 15 14:22:10.447881 test3 systemd[1]: Reached target local-fs.target - Local File Systems.
+Aug 15 14:22:10.453060 test3 systemd[1]: Listening on systemd-rfkill.socket - Load/Save RF Kill Switch Status /dev/rfkill Watch.
+Aug 15 14:22:10.460244 test3 systemd[1]: Listening on systemd-sysext.socket - System Extension Image Management (Varlink).
+Aug 15 14:22:10.475480 test3 systemd[1]: Starting apparmor.service - Load AppArmor profiles...
+Aug 15 14:22:10.485384 test3 systemd[1]: Starting console-setup.service - Set console font and keymap...
+Aug 15 14:22:10.492624 test3 systemd[1]: Starting finalrd.service - Create final runtime dir for shutdown pivot root...
+Aug 15 14:22:10.498639 test3 systemd[1]: ldconfig.service - Rebuild Dynamic Linker Cache was skipped because no trigger condition checks were met.
+Aug 15 14:22:10.504430 test3 apparmor.systemd[495]: Restarting AppArmor
+Aug 15 14:22:10.505387 test3 systemd[1]: Starting plymouth-read-write.service - Tell Plymouth To Write Out Runtime Data...
+Aug 15 14:22:10.512001 test3 apparmor.systemd[495]: /lib/apparmor/apparmor.systemd: 148: [: Illegal number: yes
+Aug 15 14:22:10.512001 test3 apparmor.systemd[495]: Reloading AppArmor profiles
+Aug 15 14:22:10.513264 test3 systemd[1]: Starting systemd-binfmt.service - Set Up Additional Binary Formats...
+Aug 15 14:22:10.521870 test3 systemd[1]: Starting systemd-tmpfiles-setup.service - Create Volatile Files and Directories...
+Aug 15 14:22:10.526118 test3 apparmor.systemd[528]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.526649 test3 apparmor.systemd[527]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.527540 test3 apparmor.systemd[529]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.528990 test3 apparmor.systemd[526]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.530900 test3 systemd[1]: Starting ufw.service - Uncomplicated firewall...
+Aug 15 14:22:10.531766 test3 apparmor.systemd[533]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.532390 test3 apparmor.systemd[531]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.534007 test3 apparmor.systemd[530]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.534866 test3 apparmor.systemd[532]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.538997 test3 apparmor.systemd[536]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.539328 test3 apparmor.systemd[537]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.539577 test3 apparmor.systemd[538]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.539776 test3 apparmor.systemd[539]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.541082 test3 systemd[1]: Finished console-setup.service - Set console font and keymap.
+Aug 15 14:22:10.541921 test3 apparmor.systemd[541]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.542225 test3 apparmor.systemd[540]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.542932 test3 apparmor.systemd[542]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.543709 test3 apparmor.systemd[543]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.545530 test3 apparmor.systemd[545]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.546520 test3 apparmor.systemd[546]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.546804 test3 apparmor.systemd[547]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.546578 test3 systemd[1]: Finished finalrd.service - Create final runtime dir for shutdown pivot root.
+Aug 15 14:22:10.547520 test3 apparmor.systemd[548]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.550668 test3 apparmor.systemd[549]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.551213 test3 apparmor.systemd[550]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.552357 test3 apparmor.systemd[551]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.552645 test3 apparmor.systemd[552]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.553075 test3 systemd[1]: Finished plymouth-read-write.service - Tell Plymouth To Write Out Runtime Data.
+Aug 15 14:22:10.554325 test3 apparmor.systemd[553]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.555405 test3 apparmor.systemd[554]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.556261 test3 apparmor.systemd[556]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.557101 test3 apparmor.systemd[557]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.557531 test3 apparmor.systemd[558]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.557944 test3 systemd[1]: Finished ufw.service - Uncomplicated firewall.
+Aug 15 14:22:10.558052 test3 apparmor.systemd[559]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.559515 test3 apparmor.systemd[560]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.559770 test3 apparmor.systemd[561]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.560274 test3 apparmor.systemd[562]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.561333 test3 apparmor.systemd[563]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.561849 test3 apparmor.systemd[555]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.562380 test3 apparmor.systemd[564]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.562738 test3 apparmor.systemd[565]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.564011 test3 apparmor.systemd[566]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.565200 test3 apparmor.systemd[567]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.565984 test3 apparmor.systemd[569]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.567677 test3 apparmor.systemd[570]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.567293 test3 systemd[1]: proc-sys-fs-binfmt_misc.automount: Got automount request for /proc/sys/fs/binfmt_misc, triggered by 521 (systemd-binfmt)
+Aug 15 14:22:10.568194 test3 apparmor.systemd[571]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.568514 test3 apparmor.systemd[568]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.571142 test3 apparmor.systemd[575]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.572288 test3 apparmor.systemd[578]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.572607 test3 apparmor.systemd[576]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.572957 test3 apparmor.systemd[579]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.575194 test3 systemd[1]: Reached target network-pre.target - Preparation for Network.
+Aug 15 14:22:10.575347 test3 apparmor.systemd[580]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.579347 test3 apparmor.systemd[583]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.580686 test3 apparmor.systemd[581]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.580899 test3 apparmor.systemd[582]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.581082 test3 apparmor.systemd[586]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.584237 test3 apparmor.systemd[584]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.584683 test3 apparmor.systemd[588]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.584943 test3 apparmor.systemd[585]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.584693 test3 systemd[1]: Mounting proc-sys-fs-binfmt_misc.mount - Arbitrary Executable File Formats File System...
+Aug 15 14:22:10.586740 test3 apparmor.systemd[591]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.588232 test3 apparmor.systemd[589]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.588930 test3 apparmor.systemd[590]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.589400 test3 apparmor.systemd[592]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.593658 test3 apparmor.systemd[593]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.595654 test3 apparmor.systemd[594]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.598947 test3 apparmor.systemd[595]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.599497 test3 apparmor.systemd[597]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.599867 test3 apparmor.systemd[596]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.601181 test3 apparmor.systemd[600]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.604287 test3 apparmor.systemd[599]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected ch
+Aug 15 14:22:10.604287 test3 apparmor.systemd[598]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.607134 test3 apparmor.systemd[603]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.607590 test3 apparmor.systemd[602]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.607759 test3 apparmor.systemd[604]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.607916 test3 apparmor.systemd[599]: aracter: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.608015 test3 apparmor.systemd[605]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.608813 test3 apparmor.systemd[608]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.609852 test3 apparmor.systemd[607]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.610042 test3 apparmor.systemd[606]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.610206 test3 apparmor.systemd[610]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.610836 test3 apparmor.systemd[612]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.612338 test3 systemd[1]: Starting systemd-networkd.service - Network Configuration...
+Aug 15 14:22:10.614146 test3 apparmor.systemd[611]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.614534 test3 apparmor.systemd[609]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.614960 test3 apparmor.systemd[614]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.616469 test3 apparmor.systemd[613]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.616881 test3 apparmor.systemd[617]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.617692 test3 apparmor.systemd[615]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.624797 test3 apparmor.systemd[616]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected ch
+Aug 15 14:22:10.624797 test3 apparmor.systemd[619]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.625136 test3 systemd[1]: Mounted proc-sys-fs-binfmt_misc.mount - Arbitrary Executable File Formats File System.
+Aug 15 14:22:10.625696 test3 apparmor.systemd[620]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.625852 test3 apparmor.systemd[622]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.626185 test3 apparmor.systemd[623]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.626489 test3 apparmor.systemd[616]: aracter: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.627825 test3 apparmor.systemd[621]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.629085 test3 apparmor.systemd[626]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.629439 test3 apparmor.systemd[624]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.630872 test3 apparmor.systemd[625]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.631308 test3 apparmor.systemd[627]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.632211 test3 apparmor.systemd[629]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.633793 test3 systemd[1]: Finished systemd-binfmt.service - Set Up Additional Binary Formats.
+Aug 15 14:22:10.633913 test3 apparmor.systemd[630]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.634477 test3 apparmor.systemd[631]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.635457 test3 apparmor.systemd[628]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.640058 test3 apparmor.systemd[632]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.643456 test3 apparmor.systemd[634]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected ch
+Aug 15 14:22:10.643456 test3 apparmor.systemd[635]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.644102 test3 apparmor.systemd[634]: aracter: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.645461 test3 apparmor.systemd[640]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected ch
+Aug 15 14:22:10.645461 test3 apparmor.systemd[638]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.646230 test3 apparmor.systemd[633]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.646911 test3 apparmor.systemd[640]: aracter: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.647468 test3 apparmor.systemd[639]: AppArmor parser error for /etc/apparmor.d in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:10.648249 test3 apparmor.systemd[495]: Error: At least one profile failed to load
+Aug 15 14:22:10.653065 test3 systemd[1]: Finished systemd-tmpfiles-setup.service - Create Volatile Files and Directories.
+Aug 15 14:22:10.657628 test3 systemd[1]: apparmor.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:22:10.657926 test3 systemd[1]: apparmor.service: Failed with result 'exit-code'.
+Aug 15 14:22:10.658299 test3 systemd[1]: Failed to start apparmor.service - Load AppArmor profiles.
+Aug 15 14:22:10.681423 test3 systemd[1]: Mounting run-rpc_pipefs.mount - RPC Pipe File System...
+Aug 15 14:22:10.686095 test3 systemd[1]: Starting rpcbind.service - RPC bind portmap service...
+Aug 15 14:22:10.701485 test3 systemd[1]: Starting snapd.apparmor.service - Load AppArmor profiles managed internally by snapd...
+Aug 15 14:22:10.706893 test3 systemd[1]: systemd-firstboot.service - First Boot Wizard was skipped because of an unmet condition check (ConditionFirstBoot=yes).
+Aug 15 14:22:10.706958 test3 systemd[1]: first-boot-complete.target - First Boot Complete was skipped because of an unmet condition check (ConditionFirstBoot=yes).
+Aug 15 14:22:10.710106 test3 systemd[1]: systemd-journal-catalog-update.service - Rebuild Journal Catalog was skipped because of an unmet condition check (ConditionNeedsUpdate=/var).
+Aug 15 14:22:10.710234 test3 systemd[1]: systemd-machine-id-commit.service - Commit a transient machine-id on disk was skipped because of an unmet condition check (ConditionPathIsMountPoint=/etc/machine-id).
+Aug 15 14:22:10.729862 test3 snapd-apparmor[647]: main.go:143: No profiles to load
+Aug 15 14:22:10.760318 test3 systemd[1]: Starting systemd-resolved.service - Network Name Resolution...
+Aug 15 14:22:10.818589 test3 systemd[1]: Starting systemd-timesyncd.service - Network Time Synchronization...
+Aug 15 14:22:10.822539 test3 systemd[1]: systemd-update-done.service - Update is Completed was skipped because no trigger condition checks were met.
+Aug 15 14:22:10.835593 test3 systemd[1]: Starting systemd-update-utmp.service - Record System Boot/Shutdown in UTMP...
+Aug 15 14:22:10.839026 test3 kernel: RPC: Registered named UNIX socket transport module.
+Aug 15 14:22:10.839109 test3 kernel: RPC: Registered udp transport module.
+Aug 15 14:22:10.839135 test3 kernel: RPC: Registered tcp transport module.
+Aug 15 14:22:10.839157 test3 kernel: RPC: Registered tcp-with-tls transport module.
+Aug 15 14:22:10.839177 test3 kernel: RPC: Registered tcp NFSv4.1 backchannel transport module.
+Aug 15 14:22:10.841238 test3 systemd[1]: vgauth.service - Authentication service for virtual machines hosted on VMware was skipped because of an unmet condition check (ConditionVirtualization=vmware).
+Aug 15 14:22:10.844585 test3 systemd[1]: open-vm-tools.service - Service for virtual machines hosted on VMware was skipped because of an unmet condition check (ConditionVirtualization=vmware).
+Aug 15 14:22:10.845552 test3 systemd[1]: Started rpcbind.service - RPC bind portmap service.
+Aug 15 14:22:10.850032 test3 kernel: cfg80211: Loading compiled-in X.509 certificates for regulatory database
+Aug 15 14:22:10.850869 test3 systemd[1]: Finished snapd.apparmor.service - Load AppArmor profiles managed internally by snapd.
+Aug 15 14:22:10.852039 test3 kernel: Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+Aug 15 14:22:10.852074 test3 kernel: Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+Aug 15 14:22:10.858915 test3 systemd[1]: Mounted run-rpc_pipefs.mount - RPC Pipe File System.
+Aug 15 14:22:10.864771 test3 systemd[1]: Reached target rpc_pipefs.target.
+Aug 15 14:22:10.869010 test3 systemd[1]: Reached target rpcbind.target - RPC Port Mapper.
+Aug 15 14:22:10.872441 test3 systemd[1]: rpc-gssd.service - RPC security service for NFS client and server was skipped because of an unmet condition check (ConditionPathExists=/etc/krb5.keytab).
+Aug 15 14:22:10.872511 test3 systemd[1]: Reached target nfs-client.target - NFS client services.
+Aug 15 14:22:10.888459 test3 systemd[1]: Finished systemd-update-utmp.service - Record System Boot/Shutdown in UTMP.
+Aug 15 14:22:10.888479 test3 systemd-networkd[601]: lo: Link UP
+Aug 15 14:22:10.888489 test3 systemd-networkd[601]: lo: Gained carrier
+Aug 15 14:22:10.893809 test3 systemd-networkd[601]: Enumeration completed
+Aug 15 14:22:10.894219 test3 systemd[1]: Started systemd-networkd.service - Network Configuration.
+Aug 15 14:22:10.899488 test3 systemd-networkd[601]: eth0: found matching network '/run/systemd/network/10-netplan-eth0.network', based on potentially unpredictable interface name.
+Aug 15 14:22:10.899503 test3 systemd-networkd[601]: eth0: Configuring with /run/systemd/network/10-netplan-eth0.network.
+Aug 15 14:22:10.901502 test3 systemd-networkd[601]: eth0: Link UP
+Aug 15 14:22:10.902201 test3 systemd-networkd[601]: eth0: Gained carrier
+Aug 15 14:22:10.902235 test3 systemd-networkd[601]: eth0: found matching network '/run/systemd/network/10-netplan-eth0.network', based on potentially unpredictable interface name.
+Aug 15 14:22:10.908004 test3 systemd[1]: Starting systemd-networkd-wait-online.service - Wait for Network to be Configured...
+Aug 15 14:22:10.927077 test3 systemd-networkd[601]: eth0: DHCPv4 address 192.168.120.123/24, gateway 192.168.120.1 acquired from 192.168.120.1
+Aug 15 14:22:10.950542 test3 systemd[1]: Started systemd-timesyncd.service - Network Time Synchronization.
+Aug 15 14:22:10.955330 test3 systemd[1]: Reached target time-set.target - System Time Set.
+Aug 15 14:22:10.959687 test3 systemd-resolved[655]: Positive Trust Anchors:
+Aug 15 14:22:10.959712 test3 systemd-resolved[655]: . IN DS 20326 8 2 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d
+Aug 15 14:22:10.959788 test3 systemd-resolved[655]: Negative trust anchors: home.arpa 10.in-addr.arpa 16.172.in-addr.arpa 17.172.in-addr.arpa 18.172.in-addr.arpa 19.172.in-addr.arpa 20.172.in-addr.arpa 21.172.in-addr.arpa 22.172.in-addr.arpa 23.172.in-addr.arpa 24.172.in-addr.arpa 25.172.in-addr.arpa 26.172.in-addr.arpa 27.172.in-addr.arpa 28.172.in-addr.arpa 29.172.in-addr.arpa 30.172.in-addr.arpa 31.172.in-addr.arpa 170.0.0.192.in-addr.arpa 171.0.0.192.in-addr.arpa 168.192.in-addr.arpa d.f.ip6.arpa ipv4only.arpa corp home internal intranet lan local private test
+Aug 15 14:22:11.038442 test3 systemd-resolved[655]: Using system hostname 'test3'.
+Aug 15 14:22:11.040856 test3 systemd[1]: Started systemd-resolved.service - Network Name Resolution.
+Aug 15 14:22:11.044337 test3 systemd[1]: Reached target network.target - Network.
+Aug 15 14:22:11.046724 test3 systemd[1]: Reached target nss-lookup.target - Host and Network Name Lookups.
+Aug 15 14:22:11.049905 test3 systemd[1]: Reached target sysinit.target - System Initialization.
+Aug 15 14:22:11.053439 test3 systemd[1]: apport-autoreport.path - Process error reports when automatic reporting is enabled (file watch) was skipped because of an unmet condition check (ConditionPathExists=/var/lib/apport/autoreport).
+Aug 15 14:22:11.053484 test3 systemd[1]: tpm-udev.path - Handle dynamically added tpm devices was skipped because of an unmet condition check (ConditionVirtualization=container).
+Aug 15 14:22:11.053518 test3 systemd[1]: apport-autoreport.timer - Process error reports when automatic reporting is enabled (timer based) was skipped because of an unmet condition check (ConditionPathExists=/var/lib/apport/autoreport).
+Aug 15 14:22:11.053904 test3 systemd[1]: Started apt-daily.timer - Daily apt download activities.
+Aug 15 14:22:11.057516 test3 systemd[1]: Started apt-daily-upgrade.timer - Daily apt upgrade and clean activities.
+Aug 15 14:22:11.061743 test3 systemd[1]: Started dpkg-db-backup.timer - Daily dpkg database backup timer.
+Aug 15 14:22:11.065705 test3 systemd[1]: Started e2scrub_all.timer - Periodic ext4 Online Metadata Check for All Filesystems.
+Aug 15 14:22:11.069910 test3 systemd[1]: Started fstrim.timer - Discard unused filesystem blocks once a week.
+Aug 15 14:22:11.074051 test3 systemd[1]: Started fwupd-refresh.timer - Refresh fwupd metadata regularly.
+Aug 15 14:22:11.077933 test3 systemd[1]: Started logrotate.timer - Daily rotation of log files.
+Aug 15 14:22:11.081410 test3 systemd[1]: Started man-db.timer - Daily man-db regeneration.
+Aug 15 14:22:11.084727 test3 systemd[1]: Started motd-news.timer - Message of the Day.
+Aug 15 14:22:11.087932 test3 systemd[1]: snapd.snap-repair.timer - Timer to automatically fetch and run repair assertions was skipped because no trigger condition checks were met.
+Aug 15 14:22:11.088029 test3 systemd[1]: Started sysstat-collect.timer - Run system activity accounting tool every 10 minutes.
+Aug 15 14:22:11.092018 test3 systemd[1]: Started sysstat-summary.timer - Generate summary of yesterday's process accounting.
+Aug 15 14:22:11.095937 test3 systemd[1]: Started systemd-tmpfiles-clean.timer - Daily Cleanup of Temporary Directories.
+Aug 15 14:22:11.100206 test3 systemd[1]: ua-timer.timer - Ubuntu Pro Timer for running repeated jobs was skipped because of an unmet condition check (ConditionPathExists=/var/lib/ubuntu-advantage/private/machine-token.json).
+Aug 15 14:22:11.100296 test3 systemd[1]: Reached target paths.target - Path Units.
+Aug 15 14:22:11.103122 test3 systemd[1]: apport-forward.socket - Unix socket for apport crash forwarding was skipped because of an unmet condition check (ConditionVirtualization=container).
+Aug 15 14:22:11.103460 test3 systemd[1]: Listening on dbus.socket - D-Bus System Message Bus Socket.
+Aug 15 14:22:11.107039 test3 systemd[1]: Listening on iscsid.socket - Open-iSCSI iscsid Socket.
+Aug 15 14:22:11.113636 test3 systemd[1]: Starting lxd-installer.socket - Helper to install lxd snap on demand...
+Aug 15 14:22:11.126266 test3 systemd[1]: Starting snapd.socket - Socket activation for snappy daemon...
+Aug 15 14:22:11.133748 test3 systemd[1]: Listening on ssh.socket - OpenBSD Secure Shell server socket.
+Aug 15 14:22:11.137644 test3 systemd[1]: Listening on uuidd.socket - UUID daemon activation socket.
+Aug 15 14:22:11.141255 test3 systemd[1]: systemd-pcrphase-sysinit.service - TPM2 PCR Barrier (Initialization) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:11.142171 test3 systemd[1]: Listening on lxd-installer.socket - Helper to install lxd snap on demand.
+Aug 15 14:22:11.146218 test3 systemd[1]: Listening on snapd.socket - Socket activation for snappy daemon.
+Aug 15 14:22:11.150138 test3 systemd[1]: Reached target sockets.target - Socket Units.
+Aug 15 14:22:11.153145 test3 systemd[1]: Reached target basic.target - Basic System.
+Aug 15 14:22:11.158670 test3 systemd[1]: Starting dbus.service - D-Bus System Message Bus...
+Aug 15 14:22:11.163222 test3 systemd[1]: Started dmesg.service - Save initial kernel messages after boot.
+Aug 15 14:22:11.169067 test3 systemd[1]: Starting e2scrub_reap.service - Remove Stale Online ext4 Metadata Check Snapshots...
+Aug 15 14:22:11.172804 test3 systemd[1]: getty-static.service - getty on tty2-tty6 if dbus and logind are not available was skipped because of an unmet condition check (ConditionPathExists=!/usr/bin/dbus-daemon).
+Aug 15 14:22:11.175078 test3 systemd[1]: Starting grub-common.service - Record successful boot for GRUB...
+Aug 15 14:22:11.180392 test3 systemd[1]: networkd-dispatcher.service - Dispatcher daemon for systemd-networkd was skipped because no trigger condition checks were met.
+Aug 15 14:22:11.182610 test3 dbus-daemon[672]: dbus[672]: Unknown group "power" in message bus configuration file
+Aug 15 14:22:11.186291 test3 systemd[1]: Starting polkit.service - Authorization Manager...
+Aug 15 14:22:11.189750 test3 systemd[1]: secureboot-db.service - Secure Boot updates for DB and DBX was skipped because of an unmet condition check (ConditionPathExists=/sys/firmware/efi/efivars/db-d719b2cb-3d3a-4596-a3bc-dad00e67656f).
+Aug 15 14:22:11.190467 test3 dbus-daemon[672]: [system] AppArmor D-Bus mediation is enabled
+Aug 15 14:22:11.189911 test3 systemd[1]: snapd.core-fixup.service - Automatically repair incorrect owner/permissions on core devices was skipped because no trigger condition checks were met.
+Aug 15 14:22:11.190041 test3 systemd[1]: snapd.recovery-chooser-trigger.service - Wait for the Ubuntu Core chooser trigger was skipped because of an unmet condition check (ConditionKernelCommandLine=snapd_recovery_mode).
+Aug 15 14:22:11.190088 test3 systemd[1]: Reached target getty-pre.target - Preparation for Logins.
+Aug 15 14:22:11.193477 test3 dbus-daemon[672]: [system] Activating systemd to hand-off: service name='org.freedesktop.hostname1' unit='dbus-org.freedesktop.hostname1.service' requested by ':1.1' (uid=998 pid=601 comm="/usr/lib/systemd/systemd-networkd" label="unconfined")
+Aug 15 14:22:11.195359 test3 systemd[1]: Starting snapd.seeded.service - Wait until snapd is fully seeded...
+Aug 15 14:22:11.200140 test3 systemd[1]: Starting snapd.service - Snap Daemon...
+Aug 15 14:22:11.206241 test3 systemd[1]: Starting sysstat.service - Resets System Activity Logs...
+Aug 15 14:22:11.215334 test3 systemd[1]: Starting systemd-logind.service - User Login Management...
+Aug 15 14:22:11.219736 test3 systemd[1]: thermald.service - Thermal Daemon Service was skipped because of an unmet condition check (ConditionVirtualization=no).
+Aug 15 14:22:11.219786 test3 systemd[1]: ua-reboot-cmds.service - Ubuntu Pro reboot cmds was skipped because of an unmet condition check (ConditionPathExists=/var/lib/ubuntu-advantage/private/machine-token.json).
+Aug 15 14:22:11.227224 test3 systemd[1]: Starting udisks2.service - Disk Manager...
+Aug 15 14:22:11.234519 test3 systemd[1]: Started dbus.service - D-Bus System Message Bus.
+Aug 15 14:22:11.242586 test3 systemd[1]: e2scrub_reap.service: Deactivated successfully.
+Aug 15 14:22:11.245722 test3 systemd[1]: Finished e2scrub_reap.service - Remove Stale Online ext4 Metadata Check Snapshots.
+Aug 15 14:22:11.255655 test3 systemd[1]: Finished sysstat.service - Resets System Activity Logs.
+Aug 15 14:22:11.272843 test3 dbus-daemon[672]: [system] Successfully activated service 'org.freedesktop.systemd1'
+Aug 15 14:22:11.274787 test3 udisksd[682]: udisks daemon version 2.10.1 starting
+Aug 15 14:22:11.290811 test3 systemd[1]: Starting systemd-hostnamed.service - Hostname Service...
+Aug 15 14:22:11.296287 test3 systemd-logind[681]: New seat seat0.
+Aug 15 14:22:11.297757 test3 systemd-logind[681]: Watching system buttons on /dev/input/event0 (AT Translated Set 2 keyboard)
+Aug 15 14:22:11.298372 test3 systemd[1]: Started systemd-logind.service - User Login Management.
+Aug 15 14:22:11.319448 test3 systemd[1]: grub-common.service: Deactivated successfully.
+Aug 15 14:22:11.319812 test3 systemd[1]: Finished grub-common.service - Record successful boot for GRUB.
+Aug 15 14:22:11.333300 test3 systemd[1]: Starting grub-initrd-fallback.service - GRUB failed boot detection...
+Aug 15 14:22:11.360442 test3 polkitd[676]: Started polkitd version 124
+Aug 15 14:22:11.364780 test3 dbus-daemon[672]: [system] Activating via systemd: service name='org.freedesktop.PolicyKit1' unit='polkit.service' requested by ':1.4' (uid=0 pid=682 comm="/usr/libexec/udisks2/udisksd" label="unconfined")
+Aug 15 14:22:11.368293 test3 polkitd[676]: Loading rules from directory /etc/polkit-1/rules.d
+Aug 15 14:22:11.368545 test3 polkitd[676]: Loading rules from directory /usr/share/polkit-1/rules.d
+Aug 15 14:22:11.372014 test3 systemd[1]: grub-initrd-fallback.service: Deactivated successfully.
+Aug 15 14:22:11.372381 test3 systemd[1]: Finished grub-initrd-fallback.service - GRUB failed boot detection.
+Aug 15 14:22:11.372489 test3 dbus-daemon[672]: [system] Successfully activated service 'org.freedesktop.hostname1'
+Aug 15 14:22:11.376019 test3 polkitd[676]: Finished loading, compiling and executing 6 rules
+Aug 15 14:22:11.376533 test3 dbus-daemon[672]: [system] Successfully activated service 'org.freedesktop.PolicyKit1'
+Aug 15 14:22:11.376769 test3 systemd[1]: Started systemd-hostnamed.service - Hostname Service.
+Aug 15 14:22:11.379784 test3 polkitd[676]: Acquired the name org.freedesktop.PolicyKit1 on the system bus
+Aug 15 14:22:11.380152 test3 systemd[1]: Started polkit.service - Authorization Manager.
+Aug 15 14:22:11.390502 test3 systemd[1]: Starting ModemManager.service - Modem Manager...
+Aug 15 14:22:11.421778 test3 ModemManager[729]: <msg> ModemManager (version 1.23.4) starting in system bus...
+Aug 15 14:22:11.425340 test3 systemd-hostnamed[703]: Hostname set to <test3> (static)
+Aug 15 14:22:11.464329 test3 kernel: NET: Registered PF_QIPCRTR protocol family
+Aug 15 14:22:11.465794 test3 systemd[1]: Started ModemManager.service - Modem Manager.
+Aug 15 14:22:11.473662 test3 systemd[1]: Started udisks2.service - Disk Manager.
+Aug 15 14:22:11.476656 test3 udisksd[682]: Acquired the name org.freedesktop.UDisks2 on the system message bus
+Aug 15 14:22:11.484589 test3 snapd[679]: overlord.go:294: Acquiring state lock file
+Aug 15 14:22:11.484589 test3 snapd[679]: overlord.go:299: Acquired state lock file
+Aug 15 14:22:11.509534 test3 snapd[679]: daemon.go:276: started snapd/2.73+ubuntu24.04 (series 16; classic) ubuntu/24.04 (amd64) linux/6.8.0-101-generic.
+Aug 15 14:22:11.525002 test3 kernel: loop0: detected capacity change from 0 to 8
+Aug 15 14:22:11.530039 test3 snapd[679]: daemon.go:370: adjusting startup timeout by 30s (pessimistic estimate of 30s plus 5s per snap)
+Aug 15 14:22:11.529878 test3 systemd[1]: tmp-syscheck\x2dmountpoint\x2d1611061321.mount: Deactivated successfully.
+Aug 15 14:22:11.532103 test3 snapd[679]: backends.go:70: AppArmor status: apparmor is enabled and all features are available
+Aug 15 14:22:11.561652 test3 snapd[679]: backend.go:145: reloading profiles for snap-confine
+Aug 15 14:22:11.567158 test3 snapd[679]: cannot run daemon: state startup errors: [cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: cannot load apparmor profiles: exit status 1
+Aug 15 14:22:11.567158 test3 snapd[679]: apparmor_parser output:
+Aug 15 14:22:11.567158 test3 snapd[679]: AppArmor parser error for /etc/apparmor.d/usr.lib.snapd.snap-confine.real in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:11.567158 test3 snapd[679]: ]
+Aug 15 14:22:11.570172 test3 systemd[1]: snapd.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:22:11.570194 test3 systemd[1]: snapd.service: Failed with result 'exit-code'.
+Aug 15 14:22:11.794260 test3 systemd[1]: snapd.service: Scheduled restart job, restart counter is at 1.
+Aug 15 14:22:11.808522 test3 systemd[1]: Starting snapd.service - Snap Daemon...
+Aug 15 14:22:11.957765 test3 snapd[789]: overlord.go:294: Acquiring state lock file
+Aug 15 14:22:11.957765 test3 snapd[789]: overlord.go:299: Acquired state lock file
+Aug 15 14:22:11.972434 test3 snapd[789]: daemon.go:276: started snapd/2.73+ubuntu24.04 (series 16; classic) ubuntu/24.04 (amd64) linux/6.8.0-101-generic.
+Aug 15 14:22:11.985004 test3 kernel: loop0: detected capacity change from 0 to 8
+Aug 15 14:22:11.988017 test3 systemd[1]: tmp-syscheck\x2dmountpoint\x2d1832474784.mount: Deactivated successfully.
+Aug 15 14:22:11.988157 test3 snapd[789]: daemon.go:370: adjusting startup timeout by 30s (pessimistic estimate of 30s plus 5s per snap)
+Aug 15 14:22:11.989024 test3 snapd[789]: backends.go:70: AppArmor status: apparmor is enabled and all features are available
+Aug 15 14:22:12.008054 test3 snapd[789]: backend.go:145: reloading profiles for snap-confine
+Aug 15 14:22:12.012797 test3 snapd[789]: cannot run daemon: state startup errors: [cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: cannot load apparmor profiles: exit status 1
+Aug 15 14:22:12.012797 test3 snapd[789]: apparmor_parser output:
+Aug 15 14:22:12.012797 test3 snapd[789]: AppArmor parser error for /etc/apparmor.d/usr.lib.snapd.snap-confine.real in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:12.012797 test3 snapd[789]: ]
+Aug 15 14:22:12.014497 test3 systemd[1]: snapd.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:22:12.014518 test3 systemd[1]: snapd.service: Failed with result 'exit-code'.
+Aug 15 14:22:12.353249 test3 systemd[1]: snapd.service: Scheduled restart job, restart counter is at 2.
+Aug 15 14:22:12.362309 test3 systemd[1]: Starting snapd.service - Snap Daemon...
+Aug 15 14:22:12.491561 test3 snapd[845]: overlord.go:294: Acquiring state lock file
+Aug 15 14:22:12.491561 test3 snapd[845]: overlord.go:299: Acquired state lock file
+Aug 15 14:22:12.509779 test3 snapd[845]: daemon.go:276: started snapd/2.73+ubuntu24.04 (series 16; classic) ubuntu/24.04 (amd64) linux/6.8.0-101-generic.
+Aug 15 14:22:12.530060 test3 kernel: loop0: detected capacity change from 0 to 8
+Aug 15 14:22:12.533865 test3 snapd[845]: daemon.go:370: adjusting startup timeout by 30s (pessimistic estimate of 30s plus 5s per snap)
+Aug 15 14:22:12.535254 test3 snapd[845]: backends.go:70: AppArmor status: apparmor is enabled and all features are available
+Aug 15 14:22:12.535601 test3 systemd[1]: tmp-syscheck\x2dmountpoint\x2d1368984345.mount: Deactivated successfully.
+Aug 15 14:22:12.564032 test3 snapd[845]: backend.go:145: reloading profiles for snap-confine
+Aug 15 14:22:12.566180 test3 systemd-networkd[601]: eth0: Gained IPv6LL
+Aug 15 14:22:12.567120 test3 systemd-timesyncd[656]: Network configuration changed, trying to establish connection.
+Aug 15 14:22:12.570371 test3 snapd[845]: cannot run daemon: state startup errors: [cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: cannot load apparmor profiles: exit status 1
+Aug 15 14:22:12.570371 test3 snapd[845]: apparmor_parser output:
+Aug 15 14:22:12.570371 test3 snapd[845]: AppArmor parser error for /etc/apparmor.d/usr.lib.snapd.snap-confine.real in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:12.570371 test3 snapd[845]: ]
+Aug 15 14:22:12.584692 test3 systemd[1]: snapd.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:22:12.584705 test3 systemd[1]: snapd.service: Failed with result 'exit-code'.
+Aug 15 14:22:12.596290 test3 systemd[1]: Finished systemd-networkd-wait-online.service - Wait for Network to be Configured.
+Aug 15 14:22:12.601260 test3 systemd[1]: Reached target network-online.target - Network is Online.
+Aug 15 14:22:12.604798 test3 systemd[1]: Started update-notifier-download.timer - Download data for packages that failed at package install time.
+Aug 15 14:22:12.609031 test3 systemd[1]: Started update-notifier-motd.timer - Check to see whether there is a new version of Ubuntu available.
+Aug 15 14:22:12.613396 test3 systemd[1]: Reached target timers.target - Timer Units.
+Aug 15 14:22:12.626371 test3 systemd[1]: Starting iscsid.service - iSCSI initiator daemon (iscsid)...
+Aug 15 14:22:12.631368 test3 systemd[1]: Starting mxfs-netconsole.service - mxfs netconsole panic capture to clyde...
+Aug 15 14:22:12.635225 test3 systemd[1]: pollinate.service - Pollinate to seed the pseudo random number generator was skipped because of an unmet condition check (ConditionPathExists=!/var/cache/pollinate/seeded).
+Aug 15 14:22:12.637740 test3 systemd[1]: Starting rpc-statd-notify.service - Notify NFS peers of a restart...
+Aug 15 14:22:12.645168 test3 systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
+Aug 15 14:22:12.648090 test3 systemd[1]: ubuntu-advantage.service - Ubuntu Pro Background Auto Attach was skipped because no trigger condition checks were met.
+Aug 15 14:22:12.648267 test3 sm-notify[910]: Version 2.6.4 starting
+Aug 15 14:22:12.649038 test3 kernel: netpoll: netconsole: local port 6665
+Aug 15 14:22:12.649061 test3 kernel: netpoll: netconsole: local IPv4 address 0.0.0.0
+Aug 15 14:22:12.649074 test3 kernel: netpoll: netconsole: interface 'eth0'
+Aug 15 14:22:12.649093 test3 kernel: netpoll: netconsole: remote port 6666
+Aug 15 14:22:12.649105 test3 kernel: netpoll: netconsole: remote IPv4 address 192.168.120.1
+Aug 15 14:22:12.649117 test3 kernel: netpoll: netconsole: remote ethernet address ff:ff:ff:ff:ff:ff
+Aug 15 14:22:12.649128 test3 kernel: netpoll: netconsole: local IP 192.168.120.123
+Aug 15 14:22:12.652112 test3 systemd[1]: Started rpc-statd-notify.service - Notify NFS peers of a restart.
+Aug 15 14:22:12.654003 test3 kernel: printk: legacy console [netcon0] enabled
+Aug 15 14:22:12.654055 test3 kernel: netconsole: network logging started
+Aug 15 14:22:12.657083 test3 systemd[1]: Finished mxfs-netconsole.service - mxfs netconsole panic capture to clyde.
+Aug 15 14:22:12.667740 test3 iscsid[912]: iSCSI logger with pid=916 started!
+Aug 15 14:22:12.669160 test3 systemd[1]: Started iscsid.service - iSCSI initiator daemon (iscsid).
+Aug 15 14:22:12.680962 test3 kernel: Loading iSCSI transport class v2.0-870.
+Aug 15 14:22:12.681804 test3 systemd[1]: Starting open-iscsi.service - Login to default iSCSI targets...
+Aug 15 14:22:12.690631 test3 systemd[1]: snapd.service: Scheduled restart job, restart counter is at 3.
+Aug 15 14:22:12.693149 test3 systemd[1]: Starting snapd.service - Snap Daemon...
+Aug 15 14:22:12.710001 test3 kernel: iscsi: registered transport (tcp)
+Aug 15 14:22:12.713006 test3 kernel: scsi host3: iSCSI Initiator over TCP/IP
+Aug 15 14:22:12.716518 test3 sshd[921]: Server listening on 0.0.0.0 port 22.
+Aug 15 14:22:12.716584 test3 sshd[921]: Server listening on :: port 22.
+Aug 15 14:22:12.716802 test3 systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
+Aug 15 14:22:12.727006 test3 kernel: scsi host4: iSCSI Initiator over TCP/IP
+Aug 15 14:22:12.727402 test3 kernel: scsi 3:0:0:0: Direct-Access     SCST_FIO mxfs             3110 PQ: 0 ANSI: 6
+Aug 15 14:22:12.727458 test3 kernel: scsi 4:0:0:0: Direct-Access     SCST_FIO mxfs             3110 PQ: 0 ANSI: 6
+Aug 15 14:22:12.732051 test3 kernel: sd 4:0:0:0: Attached scsi generic sg0 type 0
+Aug 15 14:22:12.737396 test3 kernel: sd 4:0:0:0: Power-on or device reset occurred
+Aug 15 14:22:12.737756 test3 kernel: sd 4:0:0:0: [sda] 104857600 512-byte logical blocks: (53.7 GB/50.0 GiB)
+Aug 15 14:22:12.738058 test3 kernel: sd 4:0:0:0: [sda] 4096-byte physical blocks
+Aug 15 14:22:12.738589 test3 kernel: sd 4:0:0:0: [sda] Write Protect is off
+Aug 15 14:22:12.738890 test3 kernel: sd 4:0:0:0: [sda] Mode Sense: 83 00 10 08
+Aug 15 14:22:12.739389 test3 kernel: sd 4:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+Aug 15 14:22:12.739874 test3 kernel: sd 4:0:0:0: [sda] Preferred minimum I/O size 4096 bytes
+Aug 15 14:22:12.742030 test3 kernel: sd 4:0:0:0: [sda] Optimal transfer size 524288 bytes
+Aug 15 14:22:12.742369 test3 kernel: sd 3:0:0:0: Power-on or device reset occurred
+Aug 15 14:22:12.742716 test3 kernel: sd 3:0:0:0: Attached scsi generic sg1 type 0
+Aug 15 14:22:12.743029 test3 kernel: sd 3:0:0:0: [sdb] 104857600 512-byte logical blocks: (53.7 GB/50.0 GiB)
+Aug 15 14:22:12.743323 test3 kernel: sd 3:0:0:0: [sdb] 4096-byte physical blocks
+Aug 15 14:22:12.749375 test3 kernel: sd 3:0:0:0: [sdb] Write Protect is off
+Aug 15 14:22:12.749754 test3 kernel: sd 3:0:0:0: [sdb] Mode Sense: 83 00 10 08
+Aug 15 14:22:12.750111 test3 kernel: sd 3:0:0:0: [sdb] Write cache: enabled, read cache: enabled, supports DPO and FUA
+Aug 15 14:22:12.750402 test3 kernel: sd 3:0:0:0: [sdb] Preferred minimum I/O size 4096 bytes
+Aug 15 14:22:12.750710 test3 kernel: sd 3:0:0:0: [sdb] Optimal transfer size 524288 bytes
+Aug 15 14:22:12.752120 test3 kernel: sd 4:0:0:0: [sda] Attached SCSI disk
+Aug 15 14:22:12.752494 test3 iscsiadm[919]: Logging in to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.1,3260]
+Aug 15 14:22:12.752494 test3 iscsiadm[919]: Logging in to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.2,3260]
+Aug 15 14:22:12.752494 test3 iscsiadm[919]: Login to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.1,3260] successful.
+Aug 15 14:22:12.752494 test3 iscsiadm[919]: Login to [iface: default, target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.2,3260] successful.
+Aug 15 14:22:12.763823 test3 systemd[1]: Finished open-iscsi.service - Login to default iSCSI targets.
+Aug 15 14:22:12.769307 test3 kernel: sd 3:0:0:0: [sdb] Attached SCSI disk
+Aug 15 14:22:12.769840 test3 systemd[1]: Reached target remote-fs-pre.target - Preparation for Remote File Systems.
+Aug 15 14:22:12.775624 test3 systemd[1]: Reached target remote-fs.target - Remote File Systems.
+Aug 15 14:22:12.788425 test3 systemd[1]: Starting apport.service - automatic crash report generation...
+Aug 15 14:22:12.794819 test3 systemd[1]: Finished blk-availability.service - Availability of block devices.
+Aug 15 14:22:12.809506 test3 systemd[1]: Started cron.service - Regular background program processing daemon.
+Aug 15 14:22:12.812828 test3 systemd[1]: systemd-pcrphase.service - TPM2 PCR Barrier (User) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+Aug 15 14:22:12.821399 test3 systemd[1]: Starting systemd-user-sessions.service - Permit User Sessions...
+Aug 15 14:22:12.821710 test3 (cron)[956]: cron.service: Referenced but unset environment variable evaluates to an empty string: EXTRA_OPTS
+Aug 15 14:22:12.824493 test3 cron[956]: (CRON) INFO (pidfile fd = 3)
+Aug 15 14:22:12.826814 test3 cron[956]: (CRON) INFO (Running @reboot jobs)
+Aug 15 14:22:12.838945 test3 systemd[1]: Finished systemd-user-sessions.service - Permit User Sessions.
+Aug 15 14:22:12.852265 test3 systemd[1]: Starting plymouth-quit-wait.service - Hold until boot process finishes up...
+Aug 15 14:22:12.863444 test3 systemd[1]: Starting plymouth-quit.service - Terminate Plymouth Boot Screen...
+Aug 15 14:22:12.883828 test3 multipathd[386]: mpatha: addmap [0 104857600 multipath 0 0 1 1 service-time 0 1 1 8:0 1]
+Aug 15 14:22:12.884649 test3 systemd[1]: Finished plymouth-quit-wait.service - Hold until boot process finishes up.
+Aug 15 14:22:12.896006 test3 kernel: device-mapper: multipath service-time: version 0.3.0 loaded
+Aug 15 14:22:12.903085 test3 systemd[1]: Finished plymouth-quit.service - Terminate Plymouth Boot Screen.
+Aug 15 14:22:12.907386 test3 multipathd[386]: sda [8:0]: path added to devmap mpatha
+Aug 15 14:22:12.943482 test3 systemd[1]: Started serial-getty@ttyS0.service - Serial Getty on ttyS0.
+Aug 15 14:22:12.961401 test3 systemd[1]: Starting setvtrgb.service - Set console scheme...
+Aug 15 14:22:12.968208 test3 systemd[1]: Finished setvtrgb.service - Set console scheme.
+Aug 15 14:22:12.972681 test3 systemd[1]: Created slice system-getty.slice - Slice /system/getty.
+Aug 15 14:22:12.976261 test3 snapd[924]: overlord.go:294: Acquiring state lock file
+Aug 15 14:22:12.976261 test3 snapd[924]: overlord.go:299: Acquired state lock file
+Aug 15 14:22:12.984322 test3 systemd[1]: Started getty@tty1.service - Getty on tty1.
+Aug 15 14:22:12.988381 test3 systemd[1]: Reached target getty.target - Login Prompts.
+Aug 15 14:22:12.990098 test3 snapd[924]: daemon.go:276: started snapd/2.73+ubuntu24.04 (series 16; classic) ubuntu/24.04 (amd64) linux/6.8.0-101-generic.
+Aug 15 14:22:13.008996 test3 kernel: loop0: detected capacity change from 0 to 8
+Aug 15 14:22:13.016172 test3 systemd[1]: tmp-syscheck\x2dmountpoint\x2d1251257151.mount: Deactivated successfully.
+Aug 15 14:22:13.017777 test3 snapd[924]: daemon.go:370: adjusting startup timeout by 30s (pessimistic estimate of 30s plus 5s per snap)
+Aug 15 14:22:13.018990 test3 snapd[924]: backends.go:70: AppArmor status: apparmor is enabled and all features are available
+Aug 15 14:22:13.024742 test3 multipathd[386]: mpatha: performing delayed actions
+Aug 15 14:22:13.026246 test3 multipathd[386]: mpatha: reload [0 104857600 multipath 0 0 2 1 service-time 0 1 1 8:0 1 service-time 0 1 1 8:16 1]
+Aug 15 14:22:13.049577 test3 snapd[924]: backend.go:145: reloading profiles for snap-confine
+Aug 15 14:22:13.055884 test3 snapd[924]: cannot run daemon: state startup errors: [cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: cannot load apparmor profiles: exit status 1
+Aug 15 14:22:13.055884 test3 snapd[924]: apparmor_parser output:
+Aug 15 14:22:13.055884 test3 snapd[924]: AppArmor parser error for /etc/apparmor.d/usr.lib.snapd.snap-confine.real in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:13.055884 test3 snapd[924]: ]
+Aug 15 14:22:13.059256 test3 systemd[1]: snapd.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:22:13.059282 test3 systemd[1]: snapd.service: Failed with result 'exit-code'.
+Aug 15 14:22:13.160663 test3 sshd[933]: Accepted password for root from 192.168.120.1 port 37908 ssh2
+Aug 15 14:22:13.162622 test3 sshd[933]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:13.164492 test3 systemd[1]: snapd.service: Scheduled restart job, restart counter is at 4.
+Aug 15 14:22:13.175486 test3 systemd[1]: Starting snapd.service - Snap Daemon...
+Aug 15 14:22:13.185106 test3 systemd[1]: Finished apport.service - automatic crash report generation.
+Aug 15 14:22:13.191206 test3 systemd-logind[681]: New session 1 of user root.
+Aug 15 14:22:13.200431 test3 systemd[1]: Created slice user-0.slice - User Slice of UID 0.
+Aug 15 14:22:13.204294 test3 systemd[1]: Starting user-runtime-dir@0.service - User Runtime Directory /run/user/0...
+Aug 15 14:22:13.226252 test3 systemd[1]: Finished user-runtime-dir@0.service - User Runtime Directory /run/user/0.
+Aug 15 14:22:13.246673 test3 systemd[1]: Starting user@0.service - User Manager for UID 0...
+Aug 15 14:22:13.254461 test3 (systemd)[1090]: pam_unix(systemd-user:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:13.332021 test3 snapd[1082]: overlord.go:294: Acquiring state lock file
+Aug 15 14:22:13.332021 test3 snapd[1082]: overlord.go:299: Acquired state lock file
+Aug 15 14:22:13.342735 test3 snapd[1082]: daemon.go:276: started snapd/2.73+ubuntu24.04 (series 16; classic) ubuntu/24.04 (amd64) linux/6.8.0-101-generic.
+Aug 15 14:22:13.355025 test3 kernel: loop0: detected capacity change from 0 to 8
+Aug 15 14:22:13.359237 test3 snapd[1082]: daemon.go:370: adjusting startup timeout by 30s (pessimistic estimate of 30s plus 5s per snap)
+Aug 15 14:22:13.360899 test3 snapd[1082]: backends.go:70: AppArmor status: apparmor is enabled and all features are available
+Aug 15 14:22:13.382675 test3 snapd[1082]: backend.go:145: reloading profiles for snap-confine
+Aug 15 14:22:13.389050 test3 snapd[1082]: cannot run daemon: state startup errors: [cannot initialize snap-confine profiles: cannot reload snap-confine apparmor profile: cannot load apparmor profiles: exit status 1
+Aug 15 14:22:13.389050 test3 snapd[1082]: apparmor_parser output:
+Aug 15 14:22:13.389050 test3 snapd[1082]: AppArmor parser error for /etc/apparmor.d/usr.lib.snapd.snap-confine.real in profile /etc/apparmor.d/tunables/home.d/ubuntu at line 7: Lexer found unexpected character: '' (0x0) in state: INITIAL
+Aug 15 14:22:13.389050 test3 snapd[1082]: ]
+Aug 15 14:22:13.390097 test3 systemd[1]: snapd.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:22:13.390125 test3 systemd[1]: snapd.service: Failed with result 'exit-code'.
+Aug 15 14:22:13.429228 test3 systemd[1090]: Queued start job for default target default.target.
+Aug 15 14:22:13.450555 test3 systemd[1090]: Created slice app.slice - User Application Slice.
+Aug 15 14:22:13.450622 test3 systemd[1090]: Started launchpadlib-cache-clean.timer - Clean up old files in the Launchpadlib cache.
+Aug 15 14:22:13.450658 test3 systemd[1090]: Reached target paths.target - Paths.
+Aug 15 14:22:13.450697 test3 systemd[1090]: Reached target timers.target - Timers.
+Aug 15 14:22:13.452157 test3 systemd[1090]: Starting dbus.socket - D-Bus User Message Bus Socket...
+Aug 15 14:22:13.452354 test3 systemd[1090]: Listening on dirmngr.socket - GnuPG network certificate management daemon.
+Aug 15 14:22:13.452585 test3 systemd[1090]: Listening on gpg-agent-browser.socket - GnuPG cryptographic agent and passphrase cache (access for web browsers).
+Aug 15 14:22:13.452730 test3 systemd[1090]: Listening on gpg-agent-extra.socket - GnuPG cryptographic agent and passphrase cache (restricted).
+Aug 15 14:22:13.453578 test3 systemd[1090]: Starting gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation)...
+Aug 15 14:22:13.453780 test3 systemd[1090]: Listening on gpg-agent.socket - GnuPG cryptographic agent and passphrase cache.
+Aug 15 14:22:13.454205 test3 systemd[1090]: Listening on keyboxd.socket - GnuPG public key management service.
+Aug 15 14:22:13.454357 test3 systemd[1090]: Listening on pk-debconf-helper.socket - debconf communication socket.
+Aug 15 14:22:13.454507 test3 systemd[1090]: Listening on snapd.session-agent.socket - REST API socket for snapd user session agent.
+Aug 15 14:22:13.467639 test3 systemd[1090]: Listening on dbus.socket - D-Bus User Message Bus Socket.
+Aug 15 14:22:13.483492 test3 systemd[1090]: Listening on gpg-agent-ssh.socket - GnuPG cryptographic agent (ssh-agent emulation).
+Aug 15 14:22:13.483599 test3 systemd[1090]: Reached target sockets.target - Sockets.
+Aug 15 14:22:13.483620 test3 systemd[1090]: Reached target basic.target - Basic System.
+Aug 15 14:22:13.483677 test3 systemd[1090]: Reached target default.target - Main User Target.
+Aug 15 14:22:13.483722 test3 systemd[1090]: Startup finished in 219ms.
+Aug 15 14:22:13.483850 test3 systemd[1]: Started user@0.service - User Manager for UID 0.
+Aug 15 14:22:13.487693 test3 systemd[1]: Started session-1.scope - Session 1 of User root.
+Aug 15 14:22:13.490910 test3 systemd[1]: snapd.service: Scheduled restart job, restart counter is at 5.
+Aug 15 14:22:13.491057 test3 systemd[1]: snapd.service: Start request repeated too quickly.
+Aug 15 14:22:13.491066 test3 systemd[1]: snapd.service: Failed with result 'exit-code'.
+Aug 15 14:22:13.491155 test3 systemd[1]: Failed to start snapd.service - Snap Daemon.
+Aug 15 14:22:13.495237 test3 systemd[1]: snapd.socket: Failed with result 'service-start-limit-hit'.
+Aug 15 14:22:13.495556 test3 systemd[1]: snapd.service: Triggering OnFailure= dependencies.
+Aug 15 14:22:13.507370 test3 systemd[1]: Starting snapd.failure.service - Failure handling of the snapd snap...
+Aug 15 14:22:13.517746 test3 snap-failure[1160]: cmd_snapd.go:132: no snapd snap in the system
+Aug 15 14:22:13.519441 test3 systemd[1]: snapd.failure.service: Deactivated successfully.
+Aug 15 14:22:13.519697 test3 systemd[1]: Finished snapd.failure.service - Failure handling of the snapd snap.
+Aug 15 14:22:13.548088 test3 sshd[933]: Received disconnect from 192.168.120.1 port 37908:11: disconnected by user
+Aug 15 14:22:13.548276 test3 sshd[933]: Disconnected from user root 192.168.120.1 port 37908
+Aug 15 14:22:13.548377 test3 sshd[933]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:13.551262 test3 systemd[1]: session-1.scope: Deactivated successfully.
+Aug 15 14:22:13.552153 test3 systemd-logind[681]: Session 1 logged out. Waiting for processes to exit.
+Aug 15 14:22:13.553179 test3 systemd-logind[681]: Removed session 1.
+Aug 15 14:22:13.668103 test3 iscsid[916]: iSCSI daemon with pid=917 started!
+Aug 15 14:22:13.668121 test3 iscsid[916]: Connection1:0 to [target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.1,3260] through [iface: default] is operational now
+Aug 15 14:22:13.668125 test3 iscsid[916]: Connection2:0 to [target: iqn.2026-05.local.mxfs:shared, portal: 192.168.120.2,3260] through [iface: default] is operational now
+Aug 15 14:22:13.924104 test3 sshd[1170]: Accepted password for root from 192.168.120.1 port 46574 ssh2
+Aug 15 14:22:13.926162 test3 sshd[1170]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:13.931212 test3 systemd-logind[681]: New session 3 of user root.
+Aug 15 14:22:13.951252 test3 systemd[1]: Started session-3.scope - Session 3 of User root.
+Aug 15 14:22:14.045026 test3 kernel: netfs: FS-Cache loaded
+Aug 15 14:22:14.328068 test3 kernel: NFS: Registering the id_resolver key type
+Aug 15 14:22:14.328155 test3 kernel: Key type id_resolver registered
+Aug 15 14:22:14.328174 test3 kernel: Key type id_legacy registered
+Aug 15 14:22:14.357733 test3 nfsrahead[1190]: setting /src readahead to 128
+Aug 15 14:22:14.423192 test3 sshd[1170]: Received disconnect from 192.168.120.1 port 46574:11: disconnected by user
+Aug 15 14:22:14.423397 test3 sshd[1170]: Disconnected from user root 192.168.120.1 port 46574
+Aug 15 14:22:14.423510 test3 sshd[1170]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:14.426220 test3 systemd[1]: session-3.scope: Deactivated successfully.
+Aug 15 14:22:14.427758 test3 systemd-logind[681]: Session 3 logged out. Waiting for processes to exit.
+Aug 15 14:22:14.428948 test3 systemd-logind[681]: Removed session 3.
+Aug 15 14:22:14.741410 test3 sshd[1198]: Accepted password for root from 192.168.120.1 port 46586 ssh2
+Aug 15 14:22:14.743150 test3 sshd[1198]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:14.747454 test3 systemd-logind[681]: New session 4 of user root.
+Aug 15 14:22:14.757128 test3 systemd[1]: Started session-4.scope - Session 4 of User root.
+Aug 15 14:22:14.816511 test3 sshd[1198]: Received disconnect from 192.168.120.1 port 46586:11: disconnected by user
+Aug 15 14:22:14.816851 test3 sshd[1198]: Disconnected from user root 192.168.120.1 port 46586
+Aug 15 14:22:14.817043 test3 sshd[1198]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:14.819631 test3 systemd[1]: session-4.scope: Deactivated successfully.
+Aug 15 14:22:14.820542 test3 systemd-logind[681]: Session 4 logged out. Waiting for processes to exit.
+Aug 15 14:22:14.821620 test3 systemd-logind[681]: Removed session 4.
+Aug 15 14:22:15.556143 test3 ModemManager[729]: <msg> [base-manager] couldn't check support for device '/sys/devices/pci0000:00/0000:00:03.0': not supported by any plugin
+Aug 15 14:22:16.195036 test3 kernel: fbcon: Taking over console
+Aug 15 14:22:16.199033 test3 kernel: Console: switching to colour frame buffer device 128x48
+Aug 15 14:22:16.221221 test3 sshd[1207]: Accepted password for root from 192.168.120.1 port 46594 ssh2
+Aug 15 14:22:16.223493 test3 sshd[1207]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:16.236791 test3 systemd-logind[681]: New session 5 of user root.
+Aug 15 14:22:16.252466 test3 systemd[1]: Started session-5.scope - Session 5 of User root.
+Aug 15 14:22:16.314906 test3 sshd[1207]: Received disconnect from 192.168.120.1 port 46594:11: disconnected by user
+Aug 15 14:22:16.315145 test3 sshd[1207]: Disconnected from user root 192.168.120.1 port 46594
+Aug 15 14:22:16.315256 test3 sshd[1207]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:16.318056 test3 systemd[1]: session-5.scope: Deactivated successfully.
+Aug 15 14:22:16.318788 test3 systemd-logind[681]: Session 5 logged out. Waiting for processes to exit.
+Aug 15 14:22:16.319996 test3 systemd-logind[681]: Removed session 5.
+Aug 15 14:22:21.279351 test3 systemd[1]: dmesg.service: Deactivated successfully.
+Aug 15 14:22:22.956591 test3 sshd[1264]: Accepted password for root from 192.168.120.1 port 46216 ssh2
+Aug 15 14:22:22.959936 test3 sshd[1264]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:22.965373 test3 systemd-logind[681]: New session 6 of user root.
+Aug 15 14:22:22.976556 test3 systemd[1]: Started session-6.scope - Session 6 of User root.
+Aug 15 14:22:23.237026 test3 kernel: sd 4:0:0:0: Parameters changed
+Aug 15 14:22:23.237576 test3 kernel: sd 3:0:0:0: Parameters changed
+Aug 15 14:22:36.147022 test3 kernel: mxfs: loading out-of-tree module taints kernel.
+Aug 15 14:22:36.148010 test3 kernel: mxfs: module verification failed: signature and/or required key missing - tainting kernel
+Aug 15 14:22:36.770044 test3 kernel: MXFS with security attributes, no debug enabled
+Aug 15 14:22:36.770154 test3 kernel: mxfs: dead_timeout_ms=0 (0 = 62s default)
+Aug 15 14:22:36.770172 test3 kernel: mxfs: cache sizing: ram=2307 MB pct=10% max=16384 MB budget=230 MB
+Aug 15 14:22:36.770186 test3 kernel: mxfs: cache caps: inode=220519 dlm_lock=65536 dir=27564 block=11631
+Aug 15 14:22:36.770198 test3 kernel: mxfs: cache memory estimate: 237 MB (inode 220519, dlm 65536, dir 27564, block 11631)
+Aug 15 14:22:37.036044 test3 kernel: XFS (dm-1): MXFS envelope v1: XFS data at offset 100704256 (196688 sectors) proto_gen=3
+Aug 15 14:22:37.036999 test3 kernel: mxfs: P-MPATH-RESOLVE stacked bdev 252:1 -> SCSI backing path 3:0:0:0
+Aug 15 14:22:37.076149 test3 kernel: mxfs: mxfs: DLM init: node_id=46039088 transport=caw
+Aug 15 14:22:37.076228 test3 kernel: sd 4:0:0:0: reservation conflict
+Aug 15 14:22:37.076895 test3 kernel: sd 3:0:0:0: reservation conflict
+Aug 15 14:22:37.114025 test3 kernel: mxfs: scsipr: P-PR-PROBE 'mxfs': own key 0x2be8030 visible, 28 key(s) registered — per-node PR active
+Aug 15 14:22:37.114093 test3 kernel: mxfs: disklock: claimed heartbeat slot 13 for node 46039088 (attempt 0, fresh claim — slice ADOPTED)
+Aug 15 14:22:37.115021 test3 kernel: mxfs: mxfs: MDS-IDENTITY node_slot=13 is_mds=0 (asymmetric Phase1)
+Aug 15 14:22:37.825022 test3 kernel: mxfs: mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x2000
+Aug 15 14:22:37.825122 test3 kernel: mxfs: mxfs: P-H22-PURGE-MASK DONE mask=0x2000 flags=0x1 purged=0 retained_ex=0
+Aug 15 14:22:37.827001 test3 kernel: mxfs: dlm_caw: single_node = true
+Aug 15 14:22:37.828002 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=0 node=3855575347 (CAW auto-monitor)
+Aug 15 14:22:37.828052 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=1 node=73950 (CAW auto-monitor)
+Aug 15 14:22:37.828993 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=2 node=1071829746 (CAW auto-monitor)
+Aug 15 14:22:37.829055 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=3 node=2867806060 (CAW auto-monitor)
+Aug 15 14:22:37.829992 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=4 node=3262812647 (CAW auto-monitor)
+Aug 15 14:22:37.830023 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=5 node=1351537904 (CAW auto-monitor)
+Aug 15 14:22:37.830989 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=6 node=2041203241 (CAW auto-monitor)
+Aug 15 14:22:37.832020 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=7 node=2049413980 (CAW auto-monitor)
+Aug 15 14:22:37.832053 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=8 node=3876847543 (CAW auto-monitor)
+Aug 15 14:22:37.834010 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=9 node=3290638303 (CAW auto-monitor)
+Aug 15 14:22:37.834995 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=10 node=3505048020 (CAW auto-monitor)
+Aug 15 14:22:37.843059 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=11 node=660479046 (CAW auto-monitor)
+Aug 15 14:22:37.863028 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=12 node=1295235186 (CAW auto-monitor)
+Aug 15 14:22:37.863144 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=14 node=1665079376 (CAW auto-monitor)
+Aug 15 14:22:37.863169 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=15 node=432087646 (CAW auto-monitor)
+Aug 15 14:22:39.898017 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=16 node=2968775057 (CAW auto-monitor)
+Aug 15 14:22:39.898110 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=17 node=1297180320 (CAW auto-monitor)
+Aug 15 14:22:39.898126 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=18 node=3227447293 (CAW auto-monitor)
+Aug 15 14:22:39.898138 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=19 node=3317911391 (CAW auto-monitor)
+Aug 15 14:22:39.898996 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=20 node=3986792468 (CAW auto-monitor)
+Aug 15 14:22:39.899019 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=21 node=3988904026 (CAW auto-monitor)
+Aug 15 14:22:39.899032 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=22 node=910101799 (CAW auto-monitor)
+Aug 15 14:22:39.992025 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=23 node=2660200657 (CAW auto-monitor)
+Aug 15 14:22:39.992128 test3 kernel: mxfs: mxfs: DLM initialized (CAW, slot=13, node_id=46039088)
+Aug 15 14:22:40.058035 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=1
+Aug 15 14:22:40.058112 test3 kernel: mxfs: heartbeat received from unknown node 2041203241 (may be joining or was recently removed)
+Aug 15 14:22:40.058140 test3 kernel: mxfs: discovery: new peer -- node 2041203241 (192.168.120.184) tcp_port 7600
+Aug 15 14:22:40.058161 test3 kernel: mxfs: mxfs: peer discovered: node_id=2041203241 hostname=192.168.120.184
+Aug 15 14:22:40.058174 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=2
+Aug 15 14:22:40.066088 test3 kernel: mxfs: dlm_caw: single_node = false
+Aug 15 14:22:40.066133 test3 kernel: mxfs: discovery: new peer -- node 1071829746 (192.168.120.198) tcp_port 7600
+Aug 15 14:22:40.066159 test3 kernel: mxfs: mxfs: peer discovered: node_id=1071829746 hostname=192.168.120.198
+Aug 15 14:22:40.066181 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=3
+Aug 15 14:22:40.080029 test3 kernel: mxfs: lease: node 1071829746 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.080086 test3 kernel: mxfs: heartbeat received from unknown node 3855575347 (may be joining or was recently removed)
+Aug 15 14:22:40.122016 test3 kernel: mxfs: heartbeat received from unknown node 2867806060 (may be joining or was recently removed)
+Aug 15 14:22:40.123024 test3 kernel: mxfs: discovery: new peer -- node 2867806060 (192.168.120.188) tcp_port 7600
+Aug 15 14:22:40.123054 test3 kernel: mxfs: mxfs: peer discovered: node_id=2867806060 hostname=192.168.120.188
+Aug 15 14:22:40.172028 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=4
+Aug 15 14:22:40.172098 test3 kernel: mxfs: heartbeat received from unknown node 2049413980 (may be joining or was recently removed)
+Aug 15 14:22:40.172115 test3 kernel: mxfs: discovery: new peer -- node 2049413980 (192.168.120.111) tcp_port 7600
+Aug 15 14:22:40.172128 test3 kernel: mxfs: mxfs: peer discovered: node_id=2049413980 hostname=192.168.120.111
+Aug 15 14:22:40.198082 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=5
+Aug 15 14:22:40.198231 test3 kernel: mxfs: discovery: new peer -- node 2968775057 (192.168.120.115) tcp_port 7600
+Aug 15 14:22:40.198301 test3 kernel: mxfs: mxfs: peer discovered: node_id=2968775057 hostname=192.168.120.115
+Aug 15 14:22:40.198320 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=6
+Aug 15 14:22:40.202096 test3 kernel: mxfs: lease: node 2968775057 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.202161 test3 kernel: mxfs: discovery: new peer -- node 432087646 (192.168.120.102) tcp_port 7600
+Aug 15 14:22:40.202184 test3 kernel: mxfs: mxfs: peer discovered: node_id=432087646 hostname=192.168.120.102
+Aug 15 14:22:40.202202 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=7
+Aug 15 14:22:40.264039 test3 kernel: mxfs: lease: node 432087646 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.264155 test3 kernel: mxfs: discovery: new peer -- node 1295235186 (192.168.120.171) tcp_port 7600
+Aug 15 14:22:40.264178 test3 kernel: mxfs: mxfs: peer discovered: node_id=1295235186 hostname=192.168.120.171
+Aug 15 14:22:40.264202 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=8
+Aug 15 14:22:40.281075 test3 kernel: mxfs: lease: node 1295235186 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.281196 test3 kernel: mxfs: discovery: new peer -- node 1351537904 (192.168.120.149) tcp_port 7600
+Aug 15 14:22:40.281222 test3 kernel: mxfs: mxfs: peer discovered: node_id=1351537904 hostname=192.168.120.149
+Aug 15 14:22:40.281303 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=9
+Aug 15 14:22:40.284024 test3 kernel: mxfs: lease: node 1351537904 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.284078 test3 kernel: mxfs: heartbeat received from unknown node 660479046 (may be joining or was recently removed)
+Aug 15 14:22:40.284095 test3 kernel: mxfs: discovery: new peer -- node 660479046 (192.168.120.148) tcp_port 7600
+Aug 15 14:22:40.284107 test3 kernel: mxfs: mxfs: peer discovered: node_id=660479046 hostname=192.168.120.148
+Aug 15 14:22:40.332050 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=10
+Aug 15 14:22:40.332141 test3 kernel: mxfs: heartbeat received from unknown node 3290638303 (may be joining or was recently removed)
+Aug 15 14:22:40.332157 test3 kernel: mxfs: discovery: new peer -- node 3290638303 (192.168.120.130) tcp_port 7600
+Aug 15 14:22:40.332171 test3 kernel: mxfs: mxfs: peer discovered: node_id=3290638303 hostname=192.168.120.130
+Aug 15 14:22:40.340058 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=11
+Aug 15 14:22:40.340140 test3 kernel: mxfs: heartbeat received from unknown node 3262812647 (may be joining or was recently removed)
+Aug 15 14:22:40.340173 test3 kernel: mxfs: discovery: new peer -- node 3262812647 (192.168.120.139) tcp_port 7600
+Aug 15 14:22:40.340187 test3 kernel: mxfs: mxfs: peer discovered: node_id=3262812647 hostname=192.168.120.139
+Aug 15 14:22:40.346347 test3 systemd[1]: systemd-fsckd.service: Deactivated successfully.
+Aug 15 14:22:40.416140 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=12
+Aug 15 14:22:40.416212 test3 kernel: mxfs: discovery: new peer -- node 3876847543 (192.168.120.126) tcp_port 7600
+Aug 15 14:22:40.416235 test3 kernel: mxfs: mxfs: peer discovered: node_id=3876847543 hostname=192.168.120.126
+Aug 15 14:22:40.416248 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=13
+Aug 15 14:22:40.427112 test3 kernel: mxfs: lease: node 3876847543 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.427162 test3 kernel: mxfs: discovery: new peer -- node 73950 (192.168.120.183) tcp_port 7600
+Aug 15 14:22:40.427176 test3 kernel: mxfs: mxfs: peer discovered: node_id=73950 hostname=192.168.120.183
+Aug 15 14:22:40.427189 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=14
+Aug 15 14:22:40.439007 test3 kernel: mxfs: lease: node 73950 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.439046 test3 kernel: mxfs: heartbeat received from unknown node 1665079376 (may be joining or was recently removed)
+Aug 15 14:22:40.439060 test3 kernel: mxfs: discovery: new peer -- node 1665079376 (192.168.120.194) tcp_port 7600
+Aug 15 14:22:40.439073 test3 kernel: mxfs: mxfs: peer discovered: node_id=1665079376 hostname=192.168.120.194
+Aug 15 14:22:40.446015 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=15
+Aug 15 14:22:40.446060 test3 kernel: mxfs: discovery: new peer -- node 3505048020 (192.168.120.152) tcp_port 7600
+Aug 15 14:22:40.446078 test3 kernel: mxfs: mxfs: peer discovered: node_id=3505048020 hostname=192.168.120.152
+Aug 15 14:22:40.447043 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=16
+Aug 15 14:22:40.562040 test3 kernel: mxfs: lease: node 3505048020 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.584073 test3 kernel: mxfs: lease: node 2041203241 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.584200 test3 kernel: mxfs: heartbeat received from unknown node 3855575347 (may be joining or was recently removed)
+Aug 15 14:22:40.676092 test3 kernel: mxfs: lease: node 2867806060 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.785073 test3 kernel: mxfs: lease: node 2049413980 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.841059 test3 kernel: mxfs: lease: node 660479046 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.844044 test3 kernel: mxfs: lease: node 3290638303 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:40.943075 test3 kernel: mxfs: lease: node 3262812647 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.088053 test3 kernel: mxfs: lease: node 1665079376 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.088149 test3 kernel: mxfs: heartbeat received from unknown node 3855575347 (may be joining or was recently removed)
+Aug 15 14:22:41.100035 test3 kernel: mxfs: discovery: new peer -- node 1297180320 (192.168.120.170) tcp_port 7600
+Aug 15 14:22:41.100092 test3 kernel: mxfs: mxfs: peer discovered: node_id=1297180320 hostname=192.168.120.170
+Aug 15 14:22:41.100107 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=17
+Aug 15 14:22:41.222074 test3 kernel: mxfs: lease: node 1297180320 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.222180 test3 kernel: mxfs: discovery: new peer -- node 3227447293 (192.168.120.117) tcp_port 7600
+Aug 15 14:22:41.222215 test3 kernel: mxfs: mxfs: peer discovered: node_id=3227447293 hostname=192.168.120.117
+Aug 15 14:22:41.222229 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=18
+Aug 15 14:22:41.272025 test3 kernel: mxfs: lease: node 3227447293 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.272086 test3 kernel: mxfs: discovery: new peer -- node 3855575347 (192.168.120.186) tcp_port 7600
+Aug 15 14:22:41.272100 test3 kernel: mxfs: mxfs: peer discovered: node_id=3855575347 hostname=192.168.120.186
+Aug 15 14:22:41.458543 test3 systemd[1]: systemd-hostnamed.service: Deactivated successfully.
+Aug 15 14:22:41.592097 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=19
+Aug 15 14:22:41.712059 test3 kernel: mxfs: lease: node 3855575347 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.712168 test3 kernel: mxfs: discovery: new peer -- node 3317911391 (192.168.120.162) tcp_port 7600
+Aug 15 14:22:41.712192 test3 kernel: mxfs: mxfs: peer discovered: node_id=3317911391 hostname=192.168.120.162
+Aug 15 14:22:41.712211 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=20
+Aug 15 14:22:41.717061 test3 kernel: mxfs: lease: node 3317911391 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.717157 test3 kernel: mxfs: discovery: new peer -- node 3986792468 (192.168.120.182) tcp_port 7600
+Aug 15 14:22:41.717185 test3 kernel: mxfs: mxfs: peer discovered: node_id=3986792468 hostname=192.168.120.182
+Aug 15 14:22:41.717207 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=21
+Aug 15 14:22:41.947023 test3 kernel: mxfs: lease: node 3986792468 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:41.947093 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=24 node=1189870114 (CAW auto-monitor)
+Aug 15 14:22:41.947108 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=25 node=539527939 (CAW auto-monitor)
+Aug 15 14:22:41.947119 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=26 node=3458226597 (CAW auto-monitor)
+Aug 15 14:22:41.947131 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=27 node=297203799 (CAW auto-monitor)
+Aug 15 14:22:41.947142 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=28 node=1686135596 (CAW auto-monitor)
+Aug 15 14:22:41.947153 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=29 node=3227595972 (CAW auto-monitor)
+Aug 15 14:22:41.947180 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=30 node=2595351064 (CAW auto-monitor)
+Aug 15 14:22:42.430119 test3 kernel: mxfs: mxfs: P-EVICT-AUTOMON slot=31 node=1511882952 (CAW auto-monitor)
+Aug 15 14:22:42.430321 test3 kernel: mxfs: discovery: new peer -- node 3988904026 (192.168.120.124) tcp_port 7600
+Aug 15 14:22:42.430349 test3 kernel: mxfs: mxfs: peer discovered: node_id=3988904026 hostname=192.168.120.124
+Aug 15 14:22:42.430370 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=22
+Aug 15 14:22:42.609082 test3 kernel: mxfs: lease: node 3988904026 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:42.609164 test3 kernel: mxfs: discovery: new peer -- node 910101799 (192.168.120.185) tcp_port 7600
+Aug 15 14:22:42.609192 test3 kernel: mxfs: mxfs: peer discovered: node_id=910101799 hostname=192.168.120.185
+Aug 15 14:22:42.609216 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=23
+Aug 15 14:22:43.244930 test3 systemd-resolved[655]: Clock change detected. Flushing caches.
+Aug 15 14:22:43.245176 test3 systemd-timesyncd[656]: Contacted time server 91.189.91.157:123 (ntp.ubuntu.com).
+Aug 15 14:22:43.245259 test3 systemd-timesyncd[656]: Initial clock synchronization to Sat 2026-08-15 14:22:43.244706 UTC.
+Aug 15 14:22:43.346752 test3 kernel: mxfs: lease: node 910101799 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.346829 test3 kernel: mxfs: discovery: new peer -- node 2660200657 (192.168.120.110) tcp_port 7600
+Aug 15 14:22:43.346844 test3 kernel: mxfs: mxfs: peer discovered: node_id=2660200657 hostname=192.168.120.110
+Aug 15 14:22:43.346857 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=24
+Aug 15 14:22:43.625737 test3 kernel: mxfs: lease: node 2660200657 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.625871 test3 kernel: mxfs: discovery: new peer -- node 1189870114 (192.168.120.107) tcp_port 7600
+Aug 15 14:22:43.625906 test3 kernel: mxfs: mxfs: peer discovered: node_id=1189870114 hostname=192.168.120.107
+Aug 15 14:22:43.625945 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=25
+Aug 15 14:22:43.647724 test3 kernel: mxfs: lease: node 1189870114 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.647808 test3 kernel: mxfs: discovery: new peer -- node 3458226597 (192.168.120.164) tcp_port 7600
+Aug 15 14:22:43.647823 test3 kernel: mxfs: mxfs: peer discovered: node_id=3458226597 hostname=192.168.120.164
+Aug 15 14:22:43.647835 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=26
+Aug 15 14:22:43.667704 test3 kernel: mxfs: lease: node 3458226597 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.667782 test3 kernel: mxfs: discovery: new peer -- node 539527939 (192.168.120.106) tcp_port 7600
+Aug 15 14:22:43.667807 test3 kernel: mxfs: mxfs: peer discovered: node_id=539527939 hostname=192.168.120.106
+Aug 15 14:22:43.667835 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=27
+Aug 15 14:22:43.825728 test3 kernel: mxfs: lease: node 539527939 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.825857 test3 kernel: mxfs: discovery: new peer -- node 297203799 (192.168.120.128) tcp_port 7600
+Aug 15 14:22:43.825883 test3 kernel: mxfs: mxfs: peer discovered: node_id=297203799 hostname=192.168.120.128
+Aug 15 14:22:43.825922 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=28
+Aug 15 14:22:43.911755 test3 kernel: mxfs: lease: node 297203799 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:43.911897 test3 kernel: mxfs: discovery: new peer -- node 1686135596 (192.168.120.169) tcp_port 7600
+Aug 15 14:22:43.911964 test3 kernel: mxfs: mxfs: peer discovered: node_id=1686135596 hostname=192.168.120.169
+Aug 15 14:22:44.417735 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=29
+Aug 15 14:22:44.579739 test3 kernel: mxfs: lease: node 1686135596 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.579825 test3 kernel: mxfs: discovery: new peer -- node 3227595972 (192.168.120.158) tcp_port 7600
+Aug 15 14:22:44.579858 test3 kernel: mxfs: mxfs: peer discovered: node_id=3227595972 hostname=192.168.120.158
+Aug 15 14:22:44.579916 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=30
+Aug 15 14:22:44.600717 test3 kernel: mxfs: lease: node 3227595972 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.600800 test3 kernel: mxfs: discovery: new peer -- node 2595351064 (192.168.120.147) tcp_port 7600
+Aug 15 14:22:44.600817 test3 kernel: mxfs: mxfs: peer discovered: node_id=2595351064 hostname=192.168.120.147
+Aug 15 14:22:44.600838 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=31
+Aug 15 14:22:44.671775 test3 kernel: mxfs: lease: node 2595351064 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.671891 test3 kernel: mxfs: discovery: new peer -- node 1511882952 (192.168.120.129) tcp_port 7600
+Aug 15 14:22:44.671943 test3 kernel: mxfs: mxfs: peer discovered: node_id=1511882952 hostname=192.168.120.129
+Aug 15 14:22:44.671964 test3 kernel: mxfs: mxfs: MXFS-MEMBERSHIP local=46039088 active_count=32
+Aug 15 14:22:44.906740 test3 kernel: mxfs: lease: node 1511882952 transitioned to ACTIVE (was JOINING)
+Aug 15 14:22:44.906848 test3 kernel: mxfs: mxfs: membership settled at mount: 24 active slot(s) on LUN, lease sees 32 node(s) after 7000ms
+Aug 15 14:22:44.906916 test3 kernel: XFS (dm-1): MXFS: per-node log slice 13/32 offset=51932936 bblks=130432
+Aug 15 14:22:44.906938 test3 kernel: XFS (dm-1): Mounting V5 Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+Aug 15 14:22:44.906958 test3 kernel: XFS (dm-1): MXFS: adopted log slice (fresh disklock claim) — image records in prior dirty content will not be re-applied
+Aug 15 14:22:44.907725 test3 kernel: XFS (dm-1): totally zeroed log
+Aug 15 14:22:45.673767 test3 kernel: mxfs: mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x2000
+Aug 15 14:22:45.673888 test3 kernel: mxfs: mxfs: P-H22-PURGE-MASK DONE mask=0x2000 flags=0x2 purged=0 retained_ex=0
+Aug 15 14:22:45.674006 test3 kernel: mxfs: mxfs: P225-ADOPT-WINDOW closed
+Aug 15 14:22:45.674026 test3 kernel: XFS (dm-1): MXFS mount recovery barrier complete: cohort=0x0 late=0x0 replayed=0 published=0x0 quarantined=0x0
+Aug 15 14:22:45.674692 test3 kernel: mxfs: P144-RD inobt agno=0 daddr=24 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803765674286806
+Aug 15 14:22:45.718162 test3 kernel: mxfs: P6H-ADOPT ino=128 mode=5 held=5 elapsed_ms=22 gen=8 reg_gen=6 handoff=1 reads=3 gep=13 reg_gep=11 st=1 realms=1786803765717
+Aug 15 14:22:45.718255 test3 kernel: mxfs: P291-EXWIN ino=128 path=adopt mode=5 slot=13 waited_ms=22 yt=0 wex=604000 realms=1786803765717
+Aug 15 14:22:45.718307 test3 kernel: mxfs: P11-ACQSTALE-SELFBAST ino=128 mode=5 stale=1 src=7 acq_bast=0 en=1 comm=mount realns=1786803765717097873
+Aug 15 14:22:45.718322 test3 kernel: mxfs: P71-HOLD ino=128 begin-slow d_ex=1 d_pr=0 now_ex=1 now_pr=0 mode=5 state=2 pin=0 comm=mount
+Aug 15 14:22:45.718333 test3 kernel: mxfs: mxfs DLM cache: hit=0 miss=1 (0%) bast: imm=0 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:22:45.718346 test3 kernel: mxfs: P142-BWORK-STALE ip=ffff894909322900 ino=128 rcu_cur=0000000000000000 locked_cur=0000000000000000 agno=0 agino=128 agcount=25 pag=ffff894a0c4efc00 pag_agno=0 src=7 i_count=2 i_state=0x0 — work fired on non-current inode object; bailing (ref not dropped)
+Aug 15 14:22:45.718361 test3 kernel: CPU: 2 PID: 41 Comm: kworker/u11:0 Tainted: G           OE      6.8.0-101-generic #101-Ubuntu
+Aug 15 14:22:45.718465 test3 kernel: Hardware name: QEMU Ubuntu 24.04 PC (i440FX + PIIX, 1996), BIOS 1.16.3-debian-1.16.3-2 04/01/2014
+Aug 15 14:22:45.718491 test3 kernel: Workqueue: mxfs-ino-bast/dm-1 mxfs_dlm_bast_work_fn [mxfs]
+Aug 15 14:22:45.718514 test3 kernel: Call Trace:
+Aug 15 14:22:45.718536 test3 kernel:  <TASK>
+Aug 15 14:22:45.718558 test3 kernel:  dump_stack_lvl+0x76/0xa0
+Aug 15 14:22:45.718589 test3 kernel:  dump_stack+0x10/0x20
+Aug 15 14:22:45.718611 test3 kernel:  mxfs_dlm_work_ident_ok+0x25f/0x280 [mxfs]
+Aug 15 14:22:45.718624 test3 kernel:  mxfs_dlm_bast_work_fn+0x4d/0x1f90 [mxfs]
+Aug 15 14:22:45.718637 test3 kernel:  ? finish_task_switch.isra.0+0x93/0x300
+Aug 15 14:22:45.718713 test3 kernel:  process_one_work+0x184/0x3a0
+Aug 15 14:22:45.718738 test3 kernel:  ? __pfx_mxfs_dlm_bast_work_fn+0x10/0x10 [mxfs]
+Aug 15 14:22:45.718752 test3 kernel:  ? process_one_work+0x184/0x3a0
+Aug 15 14:22:45.718763 test3 kernel:  worker_thread+0x306/0x440
+Aug 15 14:22:45.718774 test3 kernel:  ? __pfx_worker_thread+0x10/0x10
+Aug 15 14:22:45.718785 test3 kernel:  kthread+0xf2/0x120
+Aug 15 14:22:45.718803 test3 kernel:  ? __pfx_kthread+0x10/0x10
+Aug 15 14:22:45.718814 test3 kernel:  ret_from_fork+0x47/0x70
+Aug 15 14:22:45.718825 test3 kernel:  ? __pfx_kthread+0x10/0x10
+Aug 15 14:22:45.718836 test3 kernel:  ret_from_fork_asm+0x1b/0x30
+Aug 15 14:22:45.718848 test3 kernel:  </TASK>
+Aug 15 14:22:45.718859 test3 kernel: mxfs: P71-HOLD ino=128 end d_ex=-1 d_pr=0 now_ex=0 now_pr=0 mode=5 state=2 pin=0 comm=mount
+Aug 15 14:22:45.735718 test3 kernel: mxfs: P70-BP ino=128 ENTRY mode=5 state=3 ex=0 pr=0 pin=0 selfdem=0 qsrc=9 bpend=0 held_ms=17 tops=1 fo_ms=1 lo_ms=16 comm=kworker/u11:0 realns=1786803765734679823
+Aug 15 14:22:45.735799 test3 kernel: mxfs: P137-PRSWEEP-ENTER
+Aug 15 14:22:45.735815 test3 kernel: mxfs: P137-PRSWEEP-EXIT visited=1 seen=0 swept=0 (reached list head, no candidates)
+Aug 15 14:22:45.735829 test3 kernel: mxfs: P35-DIRHONOR ino=128 realns=1786803765734701161 (bast_process drain+unlock)
+Aug 15 14:22:45.735841 test3 kernel: mxfs: P146-RELDUR ino=128 nx=0 chg=2 size=6 dsize=6 flushed=1 wrote=0 rerr=-11 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u11:0 realns=1786803765735317634
+Aug 15 14:22:45.735872 test3 kernel: mxfs: P51-REL ino=128 held_mode=5 selfdemote=0 sf=1 clean_skip=0 drain_ms=0
+Aug 15 14:22:45.735885 test3 kernel: mxfs: P147-PREUNLOCK ino=128 nx=0 chg=2 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u11:0 realns=1786803765735330636
+Aug 15 14:22:45.735912 test3 kernel: mxfs: P6H-HANDOFF ino=128 to_slot=14 gen=9 epoch=13 gep=14 handoff=1 realms=1786803765735
+Aug 15 14:22:45.737729 test3 kernel: mxfs: mxfs: P141-UNLK-EXCLR ino=128 expected=2 rel_seq0=2 seq_now=2 retry=0 gen=8
+Aug 15 14:22:45.737793 test3 kernel: mxfs: P291-EXWIN ino=128 path=mint mode=5 slot=14 waited_ms=0 yt=0 wex=604000 realms=1786803765737
+Aug 15 14:22:45.737824 test3 kernel: mxfs: P70-BP ino=128 EXIT=full rel_gen=2 ex=0 pr=0 comm=kworker/u11:0 realns=1786803765737390238
+Aug 15 14:22:45.746725 test3 kernel: mxfs: P144-RD finobt agno=0 daddr=32 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803765746607576
+Aug 15 14:22:45.747727 test3 kernel: mxfs: P144-RD finobt agno=1 daddr=4186472 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765746948111
+Aug 15 14:22:45.747770 test3 kernel: mxfs: P144-RD finobt agno=2 daddr=8372912 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765747246020
+Aug 15 14:22:45.747794 test3 kernel: mxfs: P144-RD finobt agno=3 daddr=12559352 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765747530829
+Aug 15 14:22:45.748706 test3 kernel: mxfs: P144-RD finobt agno=4 daddr=16745792 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765747876766
+Aug 15 14:22:45.748754 test3 kernel: mxfs: P144-RD finobt agno=5 daddr=20932232 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765748198572
+Aug 15 14:22:45.750703 test3 kernel: mxfs: P144-RD finobt agno=6 daddr=25118672 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765749833547
+Aug 15 14:22:45.751689 test3 kernel: mxfs: P144-RD finobt agno=7 daddr=29305112 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765751356048
+Aug 15 14:22:45.751726 test3 kernel: mxfs: P144-RD finobt agno=8 daddr=33491552 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765751641622
+Aug 15 14:22:45.753688 test3 kernel: mxfs: P144-RD finobt agno=9 daddr=37677992 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765753336509
+Aug 15 14:22:45.753710 test3 kernel: mxfs: P144-RD finobt agno=10 daddr=41864432 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765753559402
+Aug 15 14:22:45.754725 test3 kernel: mxfs: P144-RD finobt agno=11 daddr=46050872 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765753939305
+Aug 15 14:22:45.754754 test3 kernel: mxfs: P144-RD finobt agno=12 daddr=50237312 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765754221585
+Aug 15 14:22:45.754773 test3 kernel: mxfs: P144-RD finobt agno=13 daddr=54423752 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765754489869
+Aug 15 14:22:45.754786 test3 kernel: mxfs: P144-RD finobt agno=14 daddr=58610192 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765754736534
+Aug 15 14:22:45.755723 test3 kernel: mxfs: P144-RD finobt agno=15 daddr=62796632 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765754986537
+Aug 15 14:22:45.755761 test3 kernel: mxfs: P144-RD finobt agno=16 daddr=66983072 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765755330369
+Aug 15 14:22:45.755781 test3 kernel: mxfs: P144-RD finobt agno=17 daddr=71169512 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765755707353
+Aug 15 14:22:45.756721 test3 kernel: mxfs: P144-RD finobt agno=18 daddr=75355952 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765756087063
+Aug 15 14:22:45.756762 test3 kernel: mxfs: P144-RD finobt agno=19 daddr=79542392 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765756373941
+Aug 15 14:22:45.756786 test3 kernel: mxfs: P144-RD finobt agno=20 daddr=83728832 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765756751709
+Aug 15 14:22:45.758702 test3 kernel: mxfs: P144-RD finobt agno=21 daddr=87915272 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765758581145
+Aug 15 14:22:45.759716 test3 kernel: mxfs: P144-RD finobt agno=22 daddr=92101712 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765758956247
+Aug 15 14:22:45.760690 test3 kernel: mxfs: P144-RD finobt agno=23 daddr=96288152 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765760582900
+Aug 15 14:22:45.761711 test3 kernel: mxfs: P144-RD finobt agno=24 daddr=100474592 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765761023535
+Aug 15 14:22:45.761761 test3 kernel: XFS (dm-1): Ending clean mount
+Aug 15 14:22:45.761775 test3 kernel: XFS (dm-1): MXFS adopted replay: P273-SHADOW-EVAL victim_slot=13 state=no_txns
+Aug 15 14:22:45.761795 test3 kernel: mxfs: P144-RD finobt agno=0 daddr=32 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803765761726961
+Aug 15 14:22:45.762712 test3 kernel: mxfs: P144-RD finobt agno=1 daddr=4186472 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765762572440
+Aug 15 14:22:45.763694 test3 kernel: mxfs: P144-RD finobt agno=2 daddr=8372912 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765763405560
+Aug 15 14:22:45.766725 test3 kernel: mxfs: P144-RD finobt agno=3 daddr=12559352 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765765732210
+Aug 15 14:22:45.769726 test3 kernel: mxfs: P144-RD finobt agno=4 daddr=16745792 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765769419142
+Aug 15 14:22:45.770724 test3 kernel: mxfs: P144-RD finobt agno=5 daddr=20932232 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765770249265
+Aug 15 14:22:45.771701 test3 kernel: mxfs: P144-RD finobt agno=6 daddr=25118672 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765771050188
+Aug 15 14:22:45.772709 test3 kernel: mxfs: P144-RD finobt agno=7 daddr=29305112 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765771877501
+Aug 15 14:22:45.774718 test3 kernel: mxfs: P144-RD finobt agno=8 daddr=33491552 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765773958948
+Aug 15 14:22:45.777697 test3 kernel: mxfs: P144-RD finobt agno=9 daddr=37677992 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765777495545
+Aug 15 14:22:45.780725 test3 kernel: mxfs: P144-RD finobt agno=10 daddr=41864432 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765779867098
+Aug 15 14:22:45.781724 test3 kernel: mxfs: P144-RD finobt agno=11 daddr=46050872 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765780977731
+Aug 15 14:22:45.782711 test3 kernel: mxfs: P144-RD finobt agno=12 daddr=50237312 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765781858738
+Aug 15 14:22:45.787720 test3 kernel: mxfs: P144-RD finobt agno=13 daddr=54423752 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765787046934
+Aug 15 14:22:45.788760 test3 kernel: mxfs: P144-RD finobt agno=14 daddr=58610192 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765788146947
+Aug 15 14:22:45.789751 test3 kernel: mxfs: P144-RD finobt agno=15 daddr=62796632 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765789175209
+Aug 15 14:22:45.790713 test3 kernel: mxfs: P144-RD finobt agno=16 daddr=66983072 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765790098421
+Aug 15 14:22:45.795723 test3 kernel: mxfs: P144-RD finobt agno=17 daddr=71169512 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765795379518
+Aug 15 14:22:45.796711 test3 kernel: mxfs: P144-RD finobt agno=18 daddr=75355952 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765796401072
+Aug 15 14:22:45.797707 test3 kernel: mxfs: P144-RD finobt agno=19 daddr=79542392 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765797323203
+Aug 15 14:22:45.798707 test3 kernel: mxfs: P144-RD finobt agno=20 daddr=83728832 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765798411699
+Aug 15 14:22:45.799705 test3 kernel: mxfs: P144-RD finobt agno=21 daddr=87915272 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765799362925
+Aug 15 14:22:45.805737 test3 kernel: mxfs: P144-RD finobt agno=22 daddr=92101712 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765804830651
+Aug 15 14:22:45.807700 test3 kernel: mxfs: P144-RD finobt agno=23 daddr=96288152 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765807017219
+Aug 15 14:22:45.808703 test3 kernel: mxfs: P144-RD finobt agno=24 daddr=100474592 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803765808052368
+Aug 15 14:22:45.808732 test3 kernel: mxfs: mxfs: peer_joined cb registered post-multi — firing now to flush stale single-node state
+Aug 15 14:22:45.830721 test3 kernel: mxfs: mxfs: peer joined — flushing XFS dirty state before single→multi transition
+Aug 15 14:22:45.830803 test3 kernel: mxfs: mxfs: peer-joined ag=0 inode-cache walked=1 invalidated=1
+Aug 15 14:22:45.841757 test3 kernel: mxfs: mxfs: cached-view invalidation complete (25 perags, 0 inode(s) skipped)
+Aug 15 14:22:45.841820 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765841529915
+Aug 15 14:22:45.841837 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.851752 test3 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:45.851800 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803765850780664
+Aug 15 14:22:45.851816 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.868704 test3 kernel: mxfs: mxfs: DLM lock caching enabled
+Aug 15 14:22:45.868762 test3 kernel: mxfs: statfs perag baseline initialized (25 AGs)
+Aug 15 14:22:45.868778 test3 kernel: mxfs filesystem being mounted at /mnt/shared supports timestamps until 2038-01-19 (0x7fffffff)
+Aug 15 14:22:45.878752 test3 kernel: mxfs: P-DIRBAST ino=128 state=4 mode=0 ex=0 pr=0 pin=0 realns=1786803765878392888
+Aug 15 14:22:45.878854 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=4 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.887801 test3 kernel: mxfs: P-DIRBAST ino=128 state=4 mode=0 ex=0 pr=0 pin=0 realns=1786803765887482022
+Aug 15 14:22:45.887958 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=4 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:45.898708 test3 kernel: mxfs: P297-TKT ino=128 mode=3 el_ms=25 wake=1 slept_ms=24 read_ms=0 miss=0 reads=2 gen=9 yt=206000 realms=1786803765898
+Aug 15 14:22:45.898762 test3 kernel: mxfs: P6H-PRCLAIMBATCH ino=128 mask=204000 n=2 realms=1786803765898
+Aug 15 14:22:45.898789 test3 kernel: mxfs: P6H-ADOPT ino=128 mode=3 held=3 elapsed_ms=25 gen=10 reg_gen=5 handoff=1 reads=3 gep=18 reg_gep=17 st=2 realms=1786803765898
+Aug 15 14:22:45.898808 test3 kernel: mxfs: P65-EPOCH-ADOPT ino=128 grant_epoch=17 acq_epoch=0 valid_epoch=0 post_release=1 fmt=1 adopt=1 clean=1 — epoch advanced (converges dir-block0 extent map)
+Aug 15 14:22:45.898824 test3 kernel: mxfs: P63-HANDOFF ino=128 grant_gen=17 acted_gen=0 post_release=1 fmt=1 dir_gen=1 loaded_gen=0 — cross-node EX handoff; forcing disk-superset adopt
+Aug 15 14:22:45.899690 test3 kernel: mxfs: P62-RELOAD-FORK-SHRINK ino=128 incore_fmt=1 incore_nx=0 incore_size=6 disk_fmt=1 disk_nx=0 disk_size=6 shrink=0 in_ail=0 pin=0 incore_gen=0 disk_gen=0 post_release=1 self_created=0 pre_ms=0 bp_ms=0 tot_ms=0
+Aug 15 14:22:45.899725 test3 kernel: mxfs: P-RELOAD-IDENTICAL ino=128 cc=2 gen=0 fmt=1 nx=0 size=6 — disk == in-core, keeping loaded fork (no destroy/adopt)
+Aug 15 14:22:45.899739 test3 kernel: mxfs: P56-RELOAD-MERGE ino=128 merged=0 clean=1 in_ail=0 ili=0x0 pin=0 post_cnt=0 disk_cnt=0 ours_cnt=255 resurrect=0 disk=[] ours=[]
+Aug 15 14:22:45.899764 test3 kernel: mxfs: P11-ACQSTALE-SELFBAST ino=128 mode=3 stale=0 src=7 acq_bast=1 en=1 comm=mountpoint realns=1786803765899689090
+Aug 15 14:22:45.899780 test3 kernel: mxfs: P35-ACQBAST-HONOR ino=128 mode=3 (deferred-during-ACQUIRING BAST now honored)
+Aug 15 14:22:45.899801 test3 kernel: mxfs: P71-HOLD ino=128 begin-slow d_ex=0 d_pr=1 now_ex=0 now_pr=1 mode=3 state=2 pin=0 comm=mountpoint
+Aug 15 14:22:45.899824 test3 kernel: mxfs: mxfs DLM cache: hit=0 miss=1 (0%) bast: imm=0 def=2 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:22:45.899842 test3 kernel: mxfs: P71-HOLD ino=128 end d_ex=0 d_pr=-1 now_ex=0 now_pr=0 mode=3 state=2 pin=0 comm=mountpoint
+Aug 15 14:22:45.899854 test3 kernel: mxfs: P76-QW-FALSE ino=128 site=ilock-end — work already pending; DEMOTING set on top
+Aug 15 14:22:45.899867 test3 kernel: mxfs: P70-BP ino=128 ENTRY mode=3 state=3 ex=0 pr=0 pin=0 selfdem=0 qsrc=1 bpend=0 held_ms=182 tops=1 fo_ms=1 lo_ms=0 comm=kworker/u11:0 realns=1786803765899850274
+Aug 15 14:22:45.899878 test3 kernel: mxfs: P35-DIRHONOR ino=128 realns=1786803765899861099 (bast_process drain+unlock)
+Aug 15 14:22:45.900690 test3 kernel: mxfs: P146-RELDUR ino=128 nx=0 chg=2 size=6 dsize=6 flushed=1 wrote=0 rerr=-11 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u11:0 realns=1786803765900393020
+Aug 15 14:22:45.900744 test3 kernel: mxfs: P51-REL ino=128 held_mode=3 selfdemote=0 sf=1 clean_skip=1 drain_ms=0
+Aug 15 14:22:45.900759 test3 kernel: mxfs: P147-PREUNLOCK ino=128 nx=0 chg=2 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u11:0 realns=1786803765900407740
+Aug 15 14:22:45.904778 test3 kernel: mxfs: P70-BP ino=128 EXIT=full rel_gen=5 ex=0 pr=0 comm=kworker/u11:0 realns=1786803765904314713
+Aug 15 14:22:45.909231 test3 sshd[1264]: Received disconnect from 192.168.120.1 port 46216:11: disconnected by user
+Aug 15 14:22:45.909536 test3 sshd[1264]: Disconnected from user root 192.168.120.1 port 46216
+Aug 15 14:22:45.909755 test3 sshd[1264]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:45.913550 test3 systemd-logind[681]: Session 6 logged out. Waiting for processes to exit.
+Aug 15 14:22:46.219882 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803766219623564
+Aug 15 14:22:46.220157 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.221712 test3 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:46.406772 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803766406405789
+Aug 15 14:22:46.406982 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.408739 test3 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:46.421754 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803766421185901
+Aug 15 14:22:46.421879 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.502845 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803766502282527
+Aug 15 14:22:46.502986 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.508729 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803766508041537
+Aug 15 14:22:46.508831 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.659771 test3 kernel: mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803766659419860
+Aug 15 14:22:46.659924 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:46.669748 test3 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:46.687807 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.108822 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.110756 test3 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:47.110818 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.389804 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.393697 test3 kernel: mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=0
+Aug 15 14:22:47.393741 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:47.413788 test3 kernel: mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+Aug 15 14:22:48.726730 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:22:50.500440 test3 sshd[1346]: Accepted password for root from 192.168.120.1 port 38558 ssh2
+Aug 15 14:22:50.502976 test3 sshd[1346]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:50.509542 test3 systemd-logind[681]: New session 7 of user root.
+Aug 15 14:22:50.519048 test3 systemd[1]: Started session-7.scope - Session 7 of User root.
+Aug 15 14:22:51.112539 test3 sshd[1346]: Received disconnect from 192.168.120.1 port 38558:11: disconnected by user
+Aug 15 14:22:51.112752 test3 sshd[1346]: Disconnected from user root 192.168.120.1 port 38558
+Aug 15 14:22:51.112870 test3 sshd[1346]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:51.116149 test3 systemd-logind[681]: Session 7 logged out. Waiting for processes to exit.
+Aug 15 14:22:51.116181 test3 systemd[1]: session-7.scope: Deactivated successfully.
+Aug 15 14:22:51.117162 test3 systemd-logind[681]: Removed session 7.
+Aug 15 14:22:51.479065 test3 sshd[1366]: Accepted password for root from 192.168.120.1 port 38572 ssh2
+Aug 15 14:22:51.481025 test3 sshd[1366]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:22:51.485690 test3 systemd-logind[681]: New session 8 of user root.
+Aug 15 14:22:51.496981 test3 systemd[1]: Started session-8.scope - Session 8 of User root.
+Aug 15 14:22:51.555976 test3 sshd[1366]: Received disconnect from 192.168.120.1 port 38572:11: disconnected by user
+Aug 15 14:22:51.556195 test3 sshd[1366]: Disconnected from user root 192.168.120.1 port 38572
+Aug 15 14:22:51.556318 test3 sshd[1366]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:22:51.559724 test3 systemd[1]: session-8.scope: Deactivated successfully.
+Aug 15 14:22:51.560933 test3 systemd-logind[681]: Session 8 logged out. Waiting for processes to exit.
+Aug 15 14:22:51.562111 test3 systemd-logind[681]: Removed session 8.
+Aug 15 14:23:00.822764 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:05.110725 test3 kernel: mxfs: P96-OWN-RESCAN slot=13 bucket=13 — own-bucket residue re-driven
+Aug 15 14:23:05.161710 test3 kernel: mxfs: P144-RD inobt agno=0 daddr=24 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785161268502
+Aug 15 14:23:05.161781 test3 kernel: mxfs: P144-RD inobt agno=1 daddr=4186464 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785161684998
+Aug 15 14:23:05.162686 test3 kernel: mxfs: P144-RD inobt agno=2 daddr=8372904 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785162047306
+Aug 15 14:23:05.162728 test3 kernel: mxfs: P144-RD inobt agno=3 daddr=12559344 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785162393862
+Aug 15 14:23:05.163681 test3 kernel: mxfs: P144-RD inobt agno=4 daddr=16745784 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785163030626
+Aug 15 14:23:05.163723 test3 kernel: mxfs: P144-RD inobt agno=5 daddr=20932224 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785163338176
+Aug 15 14:23:05.163754 test3 kernel: mxfs: P144-RD inobt agno=6 daddr=25118664 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785163678843
+Aug 15 14:23:05.166717 test3 kernel: mxfs: P144-RD inobt agno=7 daddr=29305104 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785166202335
+Aug 15 14:23:05.166754 test3 kernel: mxfs: P144-RD inobt agno=8 daddr=33491544 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785166603818
+Aug 15 14:23:05.167720 test3 kernel: mxfs: P144-RD inobt agno=9 daddr=37677984 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785166942061
+Aug 15 14:23:05.167751 test3 kernel: mxfs: P144-RD inobt agno=10 daddr=41864424 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785167239972
+Aug 15 14:23:05.167771 test3 kernel: mxfs: P144-RD inobt agno=11 daddr=46050864 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785167546753
+Aug 15 14:23:05.168721 test3 kernel: mxfs: P144-RD inobt agno=12 daddr=50237304 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785167842915
+Aug 15 14:23:05.168761 test3 kernel: mxfs: P144-RD inobt agno=13 daddr=54423744 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785168150935
+Aug 15 14:23:05.168784 test3 kernel: mxfs: P144-RD inobt agno=14 daddr=58610184 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785168424516
+Aug 15 14:23:05.168805 test3 kernel: mxfs: P144-RD inobt agno=15 daddr=62796624 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785168701222
+Aug 15 14:23:05.169720 test3 kernel: mxfs: P144-RD inobt agno=16 daddr=66983064 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785169087820
+Aug 15 14:23:05.169758 test3 kernel: mxfs: P144-RD inobt agno=17 daddr=71169504 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785169360891
+Aug 15 14:23:05.169772 test3 kernel: mxfs: P144-RD inobt agno=18 daddr=75355944 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785169633306
+Aug 15 14:23:05.170726 test3 kernel: mxfs: P144-RD inobt agno=19 daddr=79542384 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785169919375
+Aug 15 14:23:05.170750 test3 kernel: mxfs: P144-RD inobt agno=20 daddr=83728824 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785170200532
+Aug 15 14:23:05.170763 test3 kernel: mxfs: P144-RD inobt agno=21 daddr=87915264 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785170459894
+Aug 15 14:23:05.170775 test3 kernel: mxfs: P144-RD inobt agno=22 daddr=92101704 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785170735616
+Aug 15 14:23:05.171705 test3 kernel: mxfs: P144-RD inobt agno=23 daddr=96288144 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785171088129
+Aug 15 14:23:05.171740 test3 kernel: mxfs: P144-RD inobt agno=24 daddr=100474584 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/2:1 realns=1786803785171479778
+Aug 15 14:23:12.918732 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:22.918151 test3 sshd[1377]: Accepted password for root from 192.168.120.1 port 52448 ssh2
+Aug 15 14:23:22.921890 test3 sshd[1377]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:22.928102 test3 systemd-logind[681]: New session 9 of user root.
+Aug 15 14:23:22.948093 test3 systemd[1]: Started session-9.scope - Session 9 of User root.
+Aug 15 14:23:23.015200 test3 sshd[1377]: Received disconnect from 192.168.120.1 port 52448:11: disconnected by user
+Aug 15 14:23:23.015498 test3 sshd[1377]: Disconnected from user root 192.168.120.1 port 52448
+Aug 15 14:23:23.015748 test3 sshd[1377]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:23.019938 test3 systemd[1]: session-9.scope: Deactivated successfully.
+Aug 15 14:23:23.021242 test3 systemd-logind[681]: Session 9 logged out. Waiting for processes to exit.
+Aug 15 14:23:23.022324 test3 systemd-logind[681]: Removed session 9.
+Aug 15 14:23:25.014703 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:25.649913 test3 sshd[1391]: Accepted password for root from 192.168.120.1 port 52456 ssh2
+Aug 15 14:23:25.653064 test3 sshd[1391]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:25.658462 test3 systemd-logind[681]: New session 10 of user root.
+Aug 15 14:23:25.670015 test3 systemd[1]: Started session-10.scope - Session 10 of User root.
+Aug 15 14:23:25.737061 test3 sshd[1391]: Received disconnect from 192.168.120.1 port 52456:11: disconnected by user
+Aug 15 14:23:25.737302 test3 sshd[1391]: Disconnected from user root 192.168.120.1 port 52456
+Aug 15 14:23:25.737426 test3 sshd[1391]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:25.740863 test3 systemd[1]: session-10.scope: Deactivated successfully.
+Aug 15 14:23:25.741808 test3 systemd-logind[681]: Session 10 logged out. Waiting for processes to exit.
+Aug 15 14:23:25.743216 test3 systemd-logind[681]: Removed session 10.
+Aug 15 14:23:28.288835 test3 sshd[1403]: Accepted password for root from 192.168.120.1 port 52462 ssh2
+Aug 15 14:23:28.291510 test3 sshd[1403]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:28.297420 test3 systemd-logind[681]: New session 11 of user root.
+Aug 15 14:23:28.306977 test3 systemd[1]: Started session-11.scope - Session 11 of User root.
+Aug 15 14:23:28.378195 test3 sshd[1403]: Received disconnect from 192.168.120.1 port 52462:11: disconnected by user
+Aug 15 14:23:28.378420 test3 sshd[1403]: Disconnected from user root 192.168.120.1 port 52462
+Aug 15 14:23:28.378619 test3 sshd[1403]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:23:28.382222 test3 systemd[1]: session-11.scope: Deactivated successfully.
+Aug 15 14:23:28.383233 test3 systemd-logind[681]: Session 11 logged out. Waiting for processes to exit.
+Aug 15 14:23:28.384602 test3 systemd-logind[681]: Removed session 11.
+Aug 15 14:23:36.244913 test3 sshd[1415]: Accepted password for root from 192.168.120.1 port 57124 ssh2
+Aug 15 14:23:36.247513 test3 sshd[1415]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:23:36.252777 test3 systemd-logind[681]: New session 12 of user root.
+Aug 15 14:23:36.262983 test3 systemd[1]: Started session-12.scope - Session 12 of User root.
+Aug 15 14:23:37.110714 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:23:49.206750 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:01.302718 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:11.964893 test3 snap[678]: error: cannot communicate with server: Get "http://localhost/v2/snaps/system/conf?keys=seed.loaded": dial unix /run/snapd.socket: connect: connection refused
+Aug 15 14:24:11.967846 test3 systemd[1]: snapd.seeded.service: Main process exited, code=exited, status=1/FAILURE
+Aug 15 14:24:11.968039 test3 systemd[1]: snapd.seeded.service: Failed with result 'exit-code'.
+Aug 15 14:24:11.968345 test3 systemd[1]: Failed to start snapd.seeded.service - Wait until snapd is fully seeded.
+Aug 15 14:24:11.969028 test3 systemd[1]: snapd.autoimport.service - Auto import assertions from block devices was skipped because no trigger condition checks were met.
+Aug 15 14:24:11.969228 test3 systemd[1]: Reached target multi-user.target - Multi-User System.
+Aug 15 14:24:11.969353 test3 systemd[1]: Reached target graphical.target - Graphical Interface.
+Aug 15 14:24:11.985114 test3 systemd[1]: Starting systemd-update-utmp-runlevel.service - Record Runlevel Change in UTMP...
+Aug 15 14:24:11.994085 test3 systemd[1]: systemd-update-utmp-runlevel.service: Deactivated successfully.
+Aug 15 14:24:11.994387 test3 systemd[1]: Finished systemd-update-utmp-runlevel.service - Record Runlevel Change in UTMP.
+Aug 15 14:24:11.994620 test3 systemd[1]: Startup finished in 3.666s (kernel) + 2min 3.790s (userspace) = 2min 7.456s.
+Aug 15 14:24:13.398741 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:25.494765 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:36.461735 test3 kernel: mxfs: P139-LOCKTOTAL ino=128 req=3 rc=0 total_ms=60135 retries=3 ea_claim=0 ea_compat=3 ea_regwait=0 yield_bo=0 yield_stale=0 realms=1786803876461
+Aug 15 14:24:36.461888 test3 kernel: mxfs: P34-ACQ-SLOW ino=128 isdir=1 req_mode=3 dur_ms=60135 attempts=1 rc=0
+Aug 15 14:24:36.461924 test3 kernel: mxfs: P65-EPOCH-ADOPT ino=128 grant_epoch=30 acq_epoch=17 valid_epoch=17 post_release=1 fmt=1 adopt=1 clean=1 — epoch advanced (converges dir-block0 extent map)
+Aug 15 14:24:36.461953 test3 kernel: mxfs: P63-HANDOFF ino=128 grant_gen=30 acted_gen=17 post_release=1 fmt=1 dir_gen=2 loaded_gen=1 — cross-node EX handoff; forcing disk-superset adopt
+Aug 15 14:24:36.462683 test3 kernel: mxfs: P62-RELOAD-FORK-SHRINK ino=128 incore_fmt=1 incore_nx=0 incore_size=6 disk_fmt=1 disk_nx=0 disk_size=6 shrink=0 in_ail=0 pin=0 incore_gen=0 disk_gen=0 post_release=1 self_created=0 pre_ms=0 bp_ms=0 tot_ms=0
+Aug 15 14:24:36.462727 test3 kernel: mxfs: P-RELOAD-IDENTICAL ino=128 cc=2 gen=0 fmt=1 nx=0 size=6 — disk == in-core, keeping loaded fork (no destroy/adopt)
+Aug 15 14:24:36.462754 test3 kernel: mxfs: P56-RELOAD-MERGE ino=128 merged=0 clean=1 in_ail=0 ili=0x0 pin=0 post_cnt=0 disk_cnt=0 ours_cnt=0 resurrect=0 disk=[] ours=[]
+Aug 15 14:24:36.463428 test3 sshd[1415]: Received disconnect from 192.168.120.1 port 57124:11: disconnected by user
+Aug 15 14:24:36.463707 test3 sshd[1415]: Disconnected from user root 192.168.120.1 port 57124
+Aug 15 14:24:36.463831 test3 sshd[1415]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:24:36.467212 test3 systemd[1]: session-12.scope: Deactivated successfully.
+Aug 15 14:24:36.468269 test3 systemd-logind[681]: Session 12 logged out. Waiting for processes to exit.
+Aug 15 14:24:36.469552 test3 systemd-logind[681]: Removed session 12.
+Aug 15 14:24:37.496928 test3 sshd[1434]: Accepted password for root from 192.168.120.1 port 37636 ssh2
+Aug 15 14:24:37.498639 test3 sshd[1434]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:24:37.503319 test3 systemd-logind[681]: New session 13 of user root.
+Aug 15 14:24:37.517940 test3 systemd[1]: Started session-13.scope - Session 13 of User root.
+Aug 15 14:24:37.590738 test3 kernel: mxfs: mxfs DLM cache: hit=0 miss=2 (0%) bast: imm=0 def=2 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:24:37.590804 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:24:38.016181 test3 sshd[1434]: Received disconnect from 192.168.120.1 port 37636:11: disconnected by user
+Aug 15 14:24:38.016383 test3 sshd[1434]: Disconnected from user root 192.168.120.1 port 37636
+Aug 15 14:24:38.016481 test3 sshd[1434]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:24:38.019683 test3 systemd[1]: session-13.scope: Deactivated successfully.
+Aug 15 14:24:38.020432 test3 systemd-logind[681]: Session 13 logged out. Waiting for processes to exit.
+Aug 15 14:24:38.021405 test3 systemd-logind[681]: Removed session 13.
+Aug 15 14:24:39.841375 test3 kernel: mxfs: mxfs: node in slot 1 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.841503 test3 kernel: mxfs: mxfs: node 73950 (slot 1 inc 12739327102022135839) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.841523 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=1 node=73950 epoch=12739327102022135839 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.841539 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=73950 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.841580 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=1 node=73950 epoch=12739327102022135839 — purge deferred until slice replay completes
+Aug 15 14:24:39.848570 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.848606 test3 kernel: mxfs: mxfs: node in slot 2 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.848623 test3 kernel: mxfs: mxfs: node 1071829746 (slot 2 inc 14113284235986954369) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.848636 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=2 node=1071829746 epoch=14113284235986954369 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.848649 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=1071829746 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.848685 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=2 node=1071829746 epoch=14113284235986954369 — purge deferred until slice replay completes
+Aug 15 14:24:39.860827 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.860858 test3 kernel: mxfs: mxfs: node in slot 16 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.860879 test3 kernel: mxfs: mxfs: node 2968775057 (slot 16 inc 17790329753121501144) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.860905 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=16 node=2968775057 epoch=17790329753121501144 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.860921 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=2968775057 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.860933 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=16 node=2968775057 epoch=17790329753121501144 — purge deferred until slice replay completes
+Aug 15 14:24:39.863684 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.863722 test3 kernel: mxfs: mxfs: node in slot 19 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.874246 test3 kernel: mxfs: mxfs: node 3317911391 (slot 19 inc 2971992893550177666) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.874278 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=19 node=3317911391 epoch=2971992893550177666 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.874301 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=3317911391 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.874314 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=19 node=3317911391 epoch=2971992893550177666 — purge deferred until slice replay completes
+Aug 15 14:24:39.875688 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.875725 test3 kernel: mxfs: mxfs: node in slot 23 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.882684 test3 kernel: mxfs: mxfs: node 2660200657 (slot 23 inc 5497936878802060180) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.882736 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=23 node=2660200657 epoch=5497936878802060180 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.882759 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=2660200657 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.882772 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=23 node=2660200657 epoch=5497936878802060180 — purge deferred until slice replay completes
+Aug 15 14:24:39.883682 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.883708 test3 kernel: mxfs: mxfs: node in slot 26 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.890185 test3 kernel: mxfs: mxfs: node 3458226597 (slot 26 inc 15776456058719166486) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.890220 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=26 node=3458226597 epoch=15776456058719166486 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.890238 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=3458226597 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.890259 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=26 node=3458226597 epoch=15776456058719166486 — purge deferred until slice replay completes
+Aug 15 14:24:39.897723 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.897756 test3 kernel: mxfs: mxfs: node in slot 29 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.897780 test3 kernel: mxfs: mxfs: node 3227595972 (slot 29 inc 12697859869972487182) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.897794 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=29 node=3227595972 epoch=12697859869972487182 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.897807 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=3227595972 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.897820 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=29 node=3227595972 epoch=12697859869972487182 — purge deferred until slice replay completes
+Aug 15 14:24:39.906519 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.906574 test3 kernel: mxfs: mxfs: node in slot 30 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.906593 test3 kernel: mxfs: mxfs: node 2595351064 (slot 30 inc 9607414033531685815) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.906620 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=30 node=2595351064 epoch=9607414033531685815 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.906665 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=2595351064 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.906682 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=30 node=2595351064 epoch=9607414033531685815 — purge deferred until slice replay completes
+Aug 15 14:24:39.914989 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:39.915020 test3 kernel: mxfs: mxfs: node in slot 31 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+Aug 15 14:24:39.915043 test3 kernel: mxfs: mxfs: node 1511882952 (slot 31 inc 11891373367613744389) lease expired/died — fencing; recovery starting
+Aug 15 14:24:39.915056 test3 kernel: mxfs: mxfs: P238-FENCE-NOINTENT slot=31 node=1511882952 epoch=11891373367613744389 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+Aug 15 14:24:39.915076 test3 kernel: mxfs: mxfs: P164-DEAD-NOTE node=1511882952 — identity retired; its announces/connects are ignored from now on
+Aug 15 14:24:39.915100 test3 kernel: mxfs: mxfs: P163-RECOVERY-PENDING slot=31 node=1511882952 epoch=11891373367613744389 — purge deferred until slice replay completes
+Aug 15 14:24:49.686731 test3 kernel: mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 13) — deferring local purge until the slot is reclaimed
+Aug 15 14:24:49.686900 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:01.409143 test3 CRON[1454]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:01.410074 test3 CRON[1455]: (root) CMD (command -v debian-sa1 > /dev/null && debian-sa1 1 1)
+Aug 15 14:25:01.413607 test3 CRON[1454]: pam_unix(cron:session): session closed for user root
+Aug 15 14:25:01.782800 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:05.549498 test3 sshd[1459]: Accepted password for root from 192.168.120.1 port 45288 ssh2
+Aug 15 14:25:05.553459 test3 sshd[1459]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:05.561433 test3 systemd-logind[681]: New session 15 of user root.
+Aug 15 14:25:05.571300 test3 systemd[1]: Started session-15.scope - Session 15 of User root.
+Aug 15 14:25:05.637510 test3 sshd[1459]: Received disconnect from 192.168.120.1 port 45288:11: disconnected by user
+Aug 15 14:25:05.637750 test3 sshd[1459]: Disconnected from user root 192.168.120.1 port 45288
+Aug 15 14:25:05.637889 test3 sshd[1459]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:25:05.640772 test3 systemd[1]: session-15.scope: Deactivated successfully.
+Aug 15 14:25:05.641644 test3 systemd-logind[681]: Session 15 logged out. Waiting for processes to exit.
+Aug 15 14:25:05.642883 test3 systemd-logind[681]: Removed session 15.
+Aug 15 14:25:13.878757 test3 kernel: mxfs: mxfs DLM cache: hit=2 miss=2 (50%) bast: imm=0 def=2 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:25:13.878873 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=periodic submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:17.563116 test3 sshd[1468]: Accepted password for root from 192.168.120.1 port 35148 ssh2
+Aug 15 14:25:17.565227 test3 sshd[1468]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:17.569963 test3 systemd-logind[681]: New session 16 of user root.
+Aug 15 14:25:17.584935 test3 systemd[1]: Started session-16.scope - Session 16 of User root.
+Aug 15 14:25:17.653822 test3 systemd[1]: mnt-shared.mount: Deactivated successfully.
+Aug 15 14:25:17.654687 test3 kernel: mxfs: mxfs DLM cache: hit=3 miss=2 (60%) bast: imm=0 def=2 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+Aug 15 14:25:17.654738 test3 kernel: mxfs: P199-UNMOUNT-RESIDUAL-INODE ino=128 icount=2 mode=040755 nlink=2 dlm_mode=3 dlm_state=1 ex_h=0 pr_h=0 pin=0 bast_pending=0 unpublished=0 iflags=0x0 pincount=0 in_ail=0 — still in the ICI radix tree at unmount; generic_shutdown_super will report it busy
+Aug 15 14:25:17.654775 test3 kernel: mxfs: P199-UNMOUNT-RESIDUAL-TOTAL in_tree=1 still_referenced=1 (printed at most 16) — if the VFS then warns at fs/super.c generic_shutdown_super, the leak is among these
+Aug 15 14:25:17.666711 test3 kernel: XFS (dm-1): Unmounting Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+Aug 15 14:25:17.666786 test3 kernel: mxfs: mxfs: DLM shutting down
+Aug 15 14:25:17.666802 test3 kernel: mxfs: P265-BASTQ-STATS node=46039088 at=stop submitted=30 dispatched=30 merged=0 rearmed=3 overflow=0 inline=0 depth=0 hiwater=1 running=0
+Aug 15 14:25:17.740765 test3 kernel: mxfs: mxfs: P109-CLR-RELEASE-ALL type=I id=128 cur_gm=3 slot=60593 cas_rc=0
+Aug 15 14:25:17.741701 test3 kernel: mxfs: journal: destroyed (commits=0, flushes=0)
+Aug 15 14:25:17.741732 test3 kernel: mxfs: mxfs: DLM shutdown complete
+Aug 15 14:25:17.741745 test3 kernel: mxfs: P140-RECLAIM-COMMIT ino=0x80 ip=ffff894909322f20 pid=1477 comm=umount
+Aug 15 14:25:17.741757 test3 kernel: P30-QUIESCE-RECOUNT err=0 ifree pre=61 post=61 icount=64 fdblocks=12560753
+Aug 15 14:25:17.875700 test3 kernel: mxfs: disklock: released heartbeat slot 13 (clean teardown)
+Aug 15 14:25:17.875794 test3 kernel: mxfs: mxfs: P278-LATE-RELEASE unmount_clean=1 release rc=0
+Aug 15 14:25:17.875810 test3 kernel: mxfs: F4-REGISTRY-TOTAL opens=0 recommits=0 retires=0 stale_cancels=0 shutdown_cancels=0 abort_keeps=0 orphans=0 suppress_skips=0 ordered=0 unknown=0 open_at_destroy=0
+Aug 15 14:25:17.875823 test3 kernel: mxfs: ICWR-REGISTRY-TOTAL submits=0 completes=0 resubmit_keeps=0 orphans=0 underflows=0 untracked=0 entries=0 leaked_inflight=0
+Aug 15 14:25:17.924219 test3 sshd[1468]: Received disconnect from 192.168.120.1 port 35148:11: disconnected by user
+Aug 15 14:25:17.924438 test3 sshd[1468]: Disconnected from user root 192.168.120.1 port 35148
+Aug 15 14:25:17.924556 test3 sshd[1468]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:25:17.927448 test3 systemd[1]: session-16.scope: Deactivated successfully.
+Aug 15 14:25:17.928262 test3 systemd-logind[681]: Session 16 logged out. Waiting for processes to exit.
+Aug 15 14:25:17.929237 test3 systemd-logind[681]: Removed session 16.
+Aug 15 14:25:48.809974 test3 sshd[1482]: Accepted password for root from 192.168.120.1 port 48776 ssh2
+Aug 15 14:25:48.811807 test3 sshd[1482]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:25:48.816088 test3 systemd-logind[681]: New session 17 of user root.
+Aug 15 14:25:48.830810 test3 systemd[1]: Started session-17.scope - Session 17 of User root.
+Aug 15 14:25:49.330102 test3 sshd[1482]: Received disconnect from 192.168.120.1 port 48776:11: disconnected by user
+Aug 15 14:25:49.330313 test3 sshd[1482]: Disconnected from user root 192.168.120.1 port 48776
+Aug 15 14:25:49.330414 test3 sshd[1482]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:25:49.333664 test3 systemd-logind[681]: Session 17 logged out. Waiting for processes to exit.
+Aug 15 14:25:49.333673 test3 systemd[1]: session-17.scope: Deactivated successfully.
+Aug 15 14:25:49.334952 test3 systemd-logind[681]: Removed session 17.
+Aug 15 14:27:12.438954 test3 systemd[1]: Starting update-notifier-download.service - Download data for packages that failed at package install time...
+Aug 15 14:27:12.584536 test3 systemd[1]: update-notifier-download.service: Deactivated successfully.
+Aug 15 14:27:12.584793 test3 systemd[1]: Finished update-notifier-download.service - Download data for packages that failed at package install time.
+Aug 15 14:27:28.157122 test3 sshd[1513]: Accepted password for root from 192.168.120.1 port 59202 ssh2
+Aug 15 14:27:28.158899 test3 sshd[1513]: pam_unix(sshd:session): session opened for user root(uid=0) by root(uid=0)
+Aug 15 14:27:28.163642 test3 systemd-logind[681]: New session 18 of user root.
+Aug 15 14:27:28.170823 test3 systemd[1]: Started session-18.scope - Session 18 of User root.
+Aug 15 14:27:28.693665 test3 sshd[1513]: Received disconnect from 192.168.120.1 port 59202:11: disconnected by user
+Aug 15 14:27:28.693846 test3 sshd[1513]: Disconnected from user root 192.168.120.1 port 59202
+Aug 15 14:27:28.693949 test3 sshd[1513]: pam_unix(sshd:session): session closed for user root
+Aug 15 14:27:28.696378 test3 systemd[1]: session-18.scope: Deactivated successfully.
+Aug 15 14:27:28.697176 test3 systemd-logind[681]: Session 18 logged out. Waiting for processes to exit.
+Aug 15 14:27:28.698405 test3 systemd-logind[681]: Removed session 18.

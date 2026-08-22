@@ -47,6 +47,39 @@ EH_MARKERS = [
 # One line per command the SCSI midlayer completed with RESERVATION CONFLICT.
 RE_SD_CONFLICT = re.compile(r"sd \d+:\d+:\d+:\d+: reservation conflict", re.I)
 
+# TARGET-STACK LINES ARE NOT INITIATOR ERROR RECOVERY.
+#
+# EH_MARKERS exists to invalidate a run that coincided with INITIATOR error
+# recovery.  But clyde runs the target too, and SCST's 'pr' tracing is
+# deliberately left on, so the same dmesg carries the target's own task-
+# management activity -- which on the 0x05 arm is THE MECHANISM UNDER TEST:
+#
+#   scst: scst_abort_task_set:5560:Aborting task set (lun=0, mcmd=...)
+#
+# That line is PREEMPT AND ABORT doing exactly what it promises, and a blanket
+# case-insensitive match on "abort_task" scored a perfect safety arm INVALID.
+# It is the same failure as the "reservation conflict" marker sess133 removed:
+# a marker that matches the deliberate behaviour.  It could only ever surface
+# on the 0x05 arm, because plain PREEMPT (0x04) never issues PR_ABORT_ALL --
+# which is why stage (i), 0x04-only, never caught it.
+#
+# SCST's trace format stamps every one of its own lines with the emitting pid
+# in brackets ("[632981]: ..."), immediately after the kernel timestamp.  The
+# initiator's messages never carry it ("sd 12:0:0:0: reservation conflict").
+# So the pid-bracket IS the target/initiator discriminator, and it is a
+# structural one rather than a keyword blacklist.  Target lines are removed
+# before EH scanning and reported separately, so nothing is hidden.
+RE_TARGET_STACK = re.compile(r"^(?:\[[\d\s.]+\]\s*)?\[\d+\]:")
+RE_TM_ACTIVITY = re.compile(r"scst_abort_task_set|PR_ABORT_ALL|scst_abort_cmd")
+
+
+def split_stacks(dmesg):
+    """-> (initiator_only_text, target_stack_lines)"""
+    ini, tgt = [], []
+    for ln in dmesg.splitlines():
+        (tgt if RE_TARGET_STACK.search(ln) else ini).append(ln)
+    return "\n".join(ini), tgt
+
 
 def readenv(p):
     env = {}
@@ -256,7 +289,9 @@ def main():
     dmesg = ""
     if os.path.exists(os.path.join(d, "dmesg.txt")):
         dmesg = open(os.path.join(d, "dmesg.txt"), errors="replace").read()
-    eh_hits = [m for m in EH_MARKERS if re.search(m, dmesg, re.I)]
+    dmesg_ini, tgt_lines = split_stacks(dmesg)
+    tm_lines = [l for l in tgt_lines if RE_TM_ACTIVITY.search(l)]
+    eh_hits = [m for m in EH_MARKERS if re.search(m, dmesg_ini, re.I)]
     v["4_no_eh_reset_timeout"] = not eh_hits
     # 4d: item 4 is only meaningful if the window's kernel log was actually
     # CAPTURED.  An empty or truncated dmesg.txt makes "no EH markers" true
@@ -334,7 +369,8 @@ def main():
     if os.path.exists(os.path.join(d, "dmesg_post.txt")):
         dmesg_post = open(os.path.join(d, "dmesg_post.txt"),
                           errors="replace").read()
-    post_eh_hits = [m for m in EH_MARKERS if re.search(m, dmesg_post, re.I)]
+    dmesg_post_ini, _ = split_stacks(dmesg_post)
+    post_eh_hits = [m for m in EH_MARKERS if re.search(m, dmesg_post_ini, re.I)]
 
     v["8_post_state_correct"] = (vk not in after) and (sk in after)
     v["9_post_fence_conflict"] = bool(c_conflict)
@@ -403,6 +439,10 @@ def main():
         L.append("  post-window EH (dmesg_post.txt, OUTSIDE the measurement "
                  "window, expected when the write had to be released): %s"
                  % ", ".join(post_eh_hits))
+    L.append("  target-stack TM activity in window (EXPECTED on 0x05, not "
+             "initiator EH): %d line(s)" % len(tm_lines))
+    for l in tm_lines[:4]:
+        L.append("     %s" % l.strip()[:150])
     L.append("  target PR path (ftrace): do_preempt=%s preempt_and_abort=%s "
              "abort_reg=%s cmd_done_pr_preempt=%d"
              % (t_do_preempt is not None, t_pa is not None,
@@ -422,6 +462,7 @@ def main():
                    held_write_answered=held_answered,
                    held_write_released_by=held_by,
                    post_window_eh=post_eh_hits,
+                   target_tm_lines=len(tm_lines),
                    ftrace=dict(do_preempt=t_do_preempt, preempt_and_abort=t_pa,
                                abort_reg=t_abort_reg,
                                cmd_done_pr_preempt_n=len(done_pr_all)),

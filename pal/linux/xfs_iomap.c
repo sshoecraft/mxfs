@@ -32,6 +32,7 @@
 #include "xfs_rtbitmap.h"
 #include "xfs_icache.h"
 #include "xfs_zone_alloc.h"
+#include "xfs_mxfs_dlm.h"
 
 #define XFS_ALLOC_ALIGN(mp, off) \
 	(((off) >> mp->m_allocsize_log) << mp->m_allocsize_log)
@@ -331,6 +332,14 @@ xfs_iomap_write_direct(
 	if (error)
 		return error;
 
+	/*
+	 * -488 restart protocol opt-in: this function's caller can restart
+	 * the whole operation (dio iomap_begin relock loop, pnfs retry
+	 * loop), so the allocator may trylock peer-held AGs and surface
+	 * -MXFS_ERESTART_AG instead of blocking with ILOCK+trans held.
+	 */
+	tp->t_mxfs_ag_restart_ok = true;
+
 	error = xfs_iext_count_extend(tp, ip, XFS_DATA_FORK, nr_exts);
 	if (error)
 		goto out_trans_cancel;
@@ -342,6 +351,30 @@ xfs_iomap_write_direct(
 	nimaps = 1;
 	error = xfs_bmapi_write(tp, ip, offset_fsb, count_fsb, bmapi_flags, 0,
 				imap, &nimaps);
+	if (error == -MXFS_ERESTART_AG) {
+		xfs_agnumber_t	agno = tp->t_mxfs_wouldblock_agno;
+
+		/*
+		 * Restart handshake: the allocator promised the trans is
+		 * still clean and recorded the would-block AG.  If either
+		 * promise is broken, fail safe as ENOSPC through the normal
+		 * cancel path instead of restarting.
+		 */
+		if (WARN_ON_ONCE((tp->t_flags & XFS_TRANS_DIRTY) ||
+				 agno == NULLAGNUMBER)) {
+			error = -ENOSPC;
+			goto out_trans_cancel;
+		}
+		xfs_trans_cancel(tp);
+		xfs_iunlock(ip, XFS_ILOCK_EXCL);
+		/*
+		 * Holding NOTHING now: block for the contended AG's grant
+		 * (registers a real waiter -> BASTs the idle cacher), leave
+		 * it cached, and tell the caller to restart.
+		 */
+		error = xfs_mxfs_ag_pregrant(mp, agno);
+		return error ? error : -MXFS_ERESTART_AG;
+	}
 	if (error)
 		goto out_trans_cancel;
 
@@ -1031,6 +1064,25 @@ allocate_blocks:
 
 	error = xfs_iomap_write_direct(ip, offset_fsb, end_fsb - offset_fsb,
 			flags, &imap, &seq);
+	if (error == -MXFS_ERESTART_AG) {
+		/*
+		 * -488 restart protocol: the allocation would have blocked on
+		 * a peer-held AG; write_direct cancelled its clean trans,
+		 * dropped ILOCK, and blocked lock-neutrally until the AG's
+		 * grant was won and cached.  Restart from relock — the full
+		 * revalidation (bmapi_read etc.) runs again, which is
+		 * required since we dropped all locks.
+		 */
+		static atomic_t mxfs_agrestart_loops = ATOMIC_INIT(0);
+		int loops = atomic_inc_return(&mxfs_agrestart_loops);
+
+		if ((loops & 15) == 1)
+			pr_warn("mxfs: P270-AGRESTART-LOOP ino=%llu comm=%s total_restarts=%d\n",
+				(unsigned long long)ip->i_ino, current->comm,
+				loops);
+		nimaps = 1;
+		goto relock;
+	}
 	if (error)
 		return error;
 

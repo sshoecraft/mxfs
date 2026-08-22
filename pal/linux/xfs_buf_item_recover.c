@@ -1101,7 +1101,16 @@ xlog_recover_buf_commit_pass2(
 			xfs_buf_hold(rtsb_bp);
 			xfs_update_rtsb(rtsb_bp, bp);
 			rtsb_bp->b_flags |= _XBF_LOGRECOVERY;
-			xfs_buf_delwri_queue(rtsb_bp, buffer_list);
+			/*
+			 * sess340 513B: ownership-safe foreign provenance +
+			 * queue.  On conflict record the error but keep the
+			 * upstream shape (bp itself still goes through the
+			 * writebuf path below so its release stays on the
+			 * normal submission/unwind machinery).
+			 */
+			error = xfs_buf_delwri_queue_recovery(rtsb_bp,
+					buffer_list,
+					xlog_is_mxfs_foreign_replay(log));
 			xfs_buf_relse(rtsb_bp);
 		}
 	} else {
@@ -1136,11 +1145,28 @@ out_writebuf:
 	    be16_to_cpu(*((__be16 *)xfs_buf_offset(bp, 0))) &&
 	    (BBTOB(bp->b_length) != M_IGEO(log->l_mp)->inode_cluster_size)) {
 		xfs_buf_stale(bp);
+		/*
+		 * sess338 513B: on a foreign replay this synchronous write's
+		 * failure must fail the replay, not shut down the survivor's
+		 * live b_mount — xfs_bwrite snapshots the provenance and
+		 * skips its error shutdown for it.
+		 */
+		bp->b_mxfs_foreign_recovery = xlog_is_mxfs_foreign_replay(log);
 		error = xfs_bwrite(bp);
 	} else {
+		int	qerr;
+
 		ASSERT(bp->b_mount == mp);
 		bp->b_flags |= _XBF_LOGRECOVERY;
-		xfs_buf_delwri_queue(bp, buffer_list);
+		/*
+		 * sess340 513B: ownership-safe foreign provenance + queue.
+		 * A conflict (-EBUSY) refuses the replay; keep any earlier
+		 * primary error.
+		 */
+		qerr = xfs_buf_delwri_queue_recovery(bp, buffer_list,
+				xlog_is_mxfs_foreign_replay(log));
+		if (qerr && !error)
+			error = qerr;
 	}
 
 out_release:

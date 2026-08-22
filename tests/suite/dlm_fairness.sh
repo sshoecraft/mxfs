@@ -26,7 +26,14 @@ ROUNDS=$(( 533 / NODES ))
 [ "$ROUNDS" -lt 16 ] && ROUNDS=16
 [ "$ROUNDS" -gt 50 ] && ROUNDS=50
 
+# Node-local phase trace (transient diagnostic data): where the budget goes
+# when the aggregate misses its window — rounds vs sync vs barriers.
+PROG=/tmp/dlm_fairness_progress
+: > "$PROG"
+echo "$(date +%s.%3N) barrier_ready_enter" >> "$PROG"
+
 ck "df barrier ready" coord_barrier "df_ready"
+echo "$(date +%s.%3N) rounds_start rounds=$ROUNDS" >> "$PROG"
 
 done_rounds=0
 for r in $(seq 1 "$ROUNDS"); do
@@ -35,13 +42,17 @@ for r in $(seq 1 "$ROUNDS"); do
     mv "$f" "$f.done" || break
     rm -f "$f.done" || break
     done_rounds=$r
+    echo "$(date +%s.%3N) r=$r" >> "$PROG"
 done
+echo "$(date +%s.%3N) rounds_end done=$done_rounds" >> "$PROG"
 sync
+echo "$(date +%s.%3N) sync_done" >> "$PROG"
 
 # Fairness: this node must have completed ALL its rounds (not starved).
 ckeq "df node${R} completed all rounds" "$ROUNDS" "$done_rounds"
 
 ck "df barrier done" coord_barrier "df_done"
+echo "$(date +%s.%3N) barrier_done_cleared" >> "$PROG"
 
 # Rank 1 confirms the shared dir is clean (every node's churn drained, no leak).
 if [ "$R" = 1 ]; then
@@ -50,6 +61,7 @@ if [ "$R" = 1 ]; then
 fi
 
 ck "df barrier verify" coord_barrier "df_verify"
+echo "$(date +%s.%3N) barrier_verify_cleared" >> "$PROG"
 
 coord_done "$([ "$FAIL_N" -eq 0 ] && echo PASS || echo FAIL)"
 finish

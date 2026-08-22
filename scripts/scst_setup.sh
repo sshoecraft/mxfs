@@ -102,11 +102,35 @@ start_daemon() {
     pgrep -x iscsi-scstd >/dev/null 2>&1 || fail "iscsi-scstd did not stay up"
 }
 
+# Reset SCST's runtime trace mask to the build default on EVERY setup.
+#
+# Why this is not optional: SCST is built in debug mode, so the per-IO
+# TRACE_BLOCKING prints in scst_check_scsi_atomicity() are compiled in and one
+# sysfs write turns them on.  They are not in SCST_DEFAULT_LOG_FLAGS, but a
+# debug session that enables them (or "pr", per sess132) and does not turn them
+# back off leaves them on across the whole next fleet run.  On 2026-08-20 that
+# cost 1,074,700 host kernel lines in 98 minutes (~182/s, 92% of them from this
+# one trace point).  journald wrote every one of them to clyde's root ext4 —
+# the same filesystem that holds the shared LUN and all 32 guest images — and
+# the resulting jbd2 commit deadlock wedged the host with 875 unkillable
+# D-state threads on an otherwise IDLE nvme.
+#
+# The mask is therefore rig state, owned by setup, not something a session
+# leaves behind.  Turn tracing on deliberately for the duration of an
+# investigation and turn it off; a rig rebuild always returns it to default.
+reset_trace() {
+    local tl="$SCST_ROOT/trace_level"
+    [ -f "$tl" ] || return 0
+    echo default | $SUDO tee "$tl" >/dev/null 2>&1
+    say "SCST trace mask reset to build default: $($SUDO head -1 "$tl" 2>/dev/null)"
+}
+
 setup() {
     [ -f "$IMG" ] || fail "backing file $IMG does not exist (create it first)"
     need_root
     release_lio
     load_modules
+    reset_trace
     start_daemon
 
     # 1. vdisk_fileio device over the shared image.
@@ -182,6 +206,9 @@ status() {
     fi
     say "=== iscsi-scstd ==="
     pgrep -x iscsi-scstd >/dev/null 2>&1 && say "  running" || say "  NOT running"
+    say "=== trace mask ==="
+    say "  $($SUDO head -1 "$SCST_ROOT/trace_level" 2>/dev/null || echo '(unreadable)')"
+    say "  (high-volume flags here are a host-safety hazard — see reset_trace())"
 }
 
 teardown() {

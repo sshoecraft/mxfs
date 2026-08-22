@@ -90,6 +90,29 @@ void xfs_blockgc_start(struct xfs_mount *mp);
 
 void xfs_inodegc_worker(struct work_struct *work);
 void xfs_inodegc_push(struct xfs_mount *mp);
+
+/*
+ * sess390 (ccloop c7ee71c6): reference-free in-core LIFECYCLE probe for the
+ * no-inode BAST path.  xfs_iget(XFS_IGET_INCORE) says -EAGAIN/-ENOENT for
+ * INEW / IRECLAIM / INACTIVATING / NEED_INACTIVE / IRECLAIMABLE / VFS teardown
+ * alike, but only IRECLAIMABLE means "no local owner"; the others are a local
+ * lifecycle op still running under the grant (RULE-5 sess390 ruling item 1).
+ */
+enum xfs_ino_lifecycle {
+	XFS_ILC_ABSENT = 0,
+	XFS_ILC_LIVE,
+	XFS_ILC_RECLAIMABLE,
+	XFS_ILC_INEW,
+	XFS_ILC_IRECLAIM,
+	XFS_ILC_INACTIVATING,
+	XFS_ILC_NEED_INACTIVE,
+	XFS_ILC_VFS_TEARDOWN,
+	XFS_ILC_NR
+};
+enum xfs_ino_lifecycle xfs_icache_ino_lifecycle(struct xfs_mount *mp,
+		xfs_ino_t ino, unsigned long *iflags_out, unsigned int *nlink_out,
+		unsigned long *istate_out);
+const char *xfs_ino_lifecycle_name(enum xfs_ino_lifecycle lc);
 int xfs_inodegc_flush(struct xfs_mount *mp);
 void xfs_inodegc_stop(struct xfs_mount *mp);
 void xfs_inodegc_start(struct xfs_mount *mp);

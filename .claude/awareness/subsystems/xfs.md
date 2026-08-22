@@ -1165,3 +1165,312 @@ incomplete=0` over 16384 tokens.
 **Still report-only.**  The ATOMIC-SKIP taint scan and the P223 gate are
 byte-identical so the `foreign_replay_ab.sh` arms stay comparable.
 Enforcement is step 5.4, and proto_gen is deliberately unbumped until then.
+
+## Publication obligation: pending / durable / the fenced-flush chokepoint (sess382)
+
+The per-inode publication obligation is `i_mxfs_pub_pending_seq !=
+i_mxfs_pub_durable_seq`. `pending` increments in `xfs_trans_log_inode`
+(`libxfs/xfs_trans_inode.c`); `flush_seq` is stamped at the copy-in inside
+`xfs_iflush`; `durable` is promoted from `flush_seq` at `xfs_iflush_finish`
+(`xfs_inode_item.c`). An open obligation blocks the DLM release.
+
+**The trap.** `xfs_iflush` has **eleven** "safe skip" fences that return
+`error = 0; goto flush_out;` *without* reaching the `flush_seq` stamp —
+P119-NONEX-FLUSH-SKIP, P17B-EPOCH-GHOST-SKIP, P25-RESURRECT-SKIP,
+P32F-NXSHRINK-FENCE, P32D-DEADINCARN-SKIP, P32E-DIREPOCH-FENCE,
+P67-IFLUSH-OWNER-FENCE, P65-IFLUSH-FENCE, P14-SFSIZE-DESYNC,
+P32-IFLUSH-NXSHRINK, plus the P189 arm in the release drain itself. Each says
+"reload on next acquire" and sets `i_dlm_stale`. **Any new fence you add here
+must go through the same chokepoint**, or it will leave an obligation nothing
+can close.
+
+**The chokepoint** is at the `flush_out` label: returning success without having
+stamped `flush_seq` while an obligation is open sets `i_mxfs_pub_fenced`. That
+flag is the ONLY signal the release path has that a flush was fenced rather than
+landed. Consumed by `mxfs_dlm_bast_dwork_fn`, cleared when the obligation
+resolves.
+
+**Two invariants that cost a mount when broken:**
+1. `i_dlm_stale` is honored only by **access** paths (`xfs_iget`/lookup,
+   readdir). Before sess382 it had no release-path consumer at all, so an
+   abandoned publication was reconciled only if a local reader happened to touch
+   the inode inside the 60 s no-progress bound — otherwise `mxfs_inode_wedge`
+   pinned the grant and force-shut-down the whole mount.
+2. The drain's own re-log (P146V-UNLANDED) must NOT create a new obligation.
+   It re-logs the same core purely to get it flushed; `i_mxfs_pipe_relog` marks
+   that caller and suppresses the `pending_seq` bump. Counting it made the
+   obligation uncloseable (measured: pending 6 → 730 with flush frozen at 6).
+
+### The unlink publication obligation (PUBOB) and the durability gate (sess387-389)
+
+`MXFS_IF_PUBOB` is armed by this node's own `xfs_iunlink` insert
+(`libxfs/xfs_inode_util.c`, `mxfs_pubob_arm`, per-mount list) and means "the
+home dinode owes a nlink=0 conversion before any AG release publishes the
+list".  It is discharged on a confirmed home write (`MXFS_IF_PUBOB_FLUSHED` set
+at copy-in, `mxfs_pubob_discharge` in `xfs_iflush_finish`), on list removal
+(`P82-REM`), lazily by the AG-release audit when the home already reads
+nlink=0, or cancelled (`P177-PUBOB-SUPERSEDED`) when a reload adopts a
+DIFFERENT incarnation.  Reclaim refuses a PUBOB inode (`P88-PUBOB-RECLAIM-
+REFUSED`): the shell is the only repair authority.
+
+**The sess389 chain (one measured root, three launderings), all fixed in 0.19.40:**
+1. `xfs_iflush` P119 discarded a committed conversion on a **PR**-held inode
+   (an unlink can commit at PR after a mid-drain re-acquire, `P15-REL-ABORT`).
+   Fix F1: `P55B-PUBOB-PR-FLUSH` — owned PUBOB + nlink==0 + PR + same
+   incarnation + live same-type slot + in AIL → `mxfs_cores_commit_flush=true`
+   (WRITE under the P55 exclusion argument; P244 fences PR through completion).
+   Never widen this to generic `pending != durable` (ruling).
+2. `mxfs_iflush_agino_target` returned 0 on `xfs_inode_clean` (laundered item).
+   Fix F2: clean+PUBOB → `mxfs_pubob_relog_core` (tr_ichange, `pipe_relog=1`,
+   ILOCK EXCL nowait + deadline, raw un-take) → restart → flush; the helper
+   self-sanctions (`MXFS_IF_DLM_RELFLUSH`) when PUBOB so the AG-release audit
+   (inode at NL) is not laundered again; second clean sighting → `-ENOMSG`
+   (`P245-CLEAN-MISMATCH`).  Probes `P245-RELOG`, `P245-RELOG-FAIL`.
+3. `mxfs_dlm_reload_inode` discharged the ledger (durable=pending) even when it
+   KEPT the in-core because it was AHEAD of the platter (P3-REFUSE-OLDER-DISK /
+   P34F / P184).  Fix F3: `reload_kept_ahead` → no discharge
+   (`P177-KEPT-AHEAD-OBLIGATION-OPEN`); `P-RELOAD-IDENTICAL` now also requires
+   `di_nlink` equality.
+4. The sess19 `MXFS_IF_LOCAL_UNLINK|ADOPTED_UNLINK` clear ran at reload ENTRY,
+   so the sess382 reldefer reload of our own live unlink stripped freer
+   authority and `xfs_inactive` B3 skipped the ifree (`torn-live-no-local-
+   unlink`).  Fix F4: the clear runs only in the real-adopt branch (after
+   `xfs_inode_from_disk`, `!reload_identical`).
+
+Sweep: `tests/fleet_pubob_counters.sh N` (one dmesg pass per node).  Expected
+zero: P88-PUBOB-UNREPAIRED, P87-PUBLISH-DEFER-EXHAUSTED, torn-live on local
+unlinks, P88-RECLAIM-REFUSED, P-IUNL-LOGSAME, P245-CLEAN-MISMATCH.  Known
+residual: P119 at NL on an unlinked inode still fires when the same node's
+inactivation removes it ms later (harmless end state); the ifree FINAL
+mode=0 write at NL is also skipped (freed-shell family, `P-CR63-SHELL`).
+
+**Dir-epoch staleness:** every consumer must call `mxfs_dir_epoch_superseded()`,
+never a raw `cur_ep > i_dlm_dir_valid_epoch` — the raw form compares a dead
+incarnation's handoff lineage against a live incarnation's baseline. Sites:
+`libxfs/xfs_dir2.c` (P194/P195 gate), and the P32F and P32E arms in
+`xfs_inode.c`.
+
+**Adding a field to `struct xfs_inode`:** `xfs_inode_alloc` uses
+`kmem_cache_alloc`, **not** zalloc. Reset it in the explicit init block in
+`xfs_mxfs_dlm.c` (near `i_mxfs_pub_pending_seq = 0`) or a recycled inode
+inherits the previous incarnation's value.
+
+## sess385 (2026-08-21, 0.19.17) — THE AG-RELEASE INODE PUBLICATION STAGE
+
+Read this before touching `mxfs_dlm_ag_bast_work_fn` Phase 2 or either drain.
+
+### The invariant that was missing
+
+A peer never replays our journal; it reads only HOME BLOCKS. So
+`xfs_log_force(SYNC)` publishes nothing. **A log force is not an inode home-block
+flush.**
+
+The two halves of `xfs_iunlink` travel by different mechanisms:
+
+| carried by | reaches medium via | covered before sess385? |
+|---|---|---|
+| `agi_unlinked[bucket]`, `di_next_unlinked` | buffer log item | yes — the drains |
+| `di_nlink = 0` (from `xfs_droplink`) | **inode log item -> `xfs_iflush`** | **NO** |
+
+`xfs_iflush` normally runs from xfsaild, asynchronously. Nothing in the AG
+release path forced it, so we published an AGI whose unlinked bucket head
+pointed at a dinode still reading LINKED. The acquirer's
+`xfs_iunlink_reload_next` sees `i_nlink != 0`, returns `-EFSCORRUPTED` **inside
+an already-dirty rename transaction**, and the fs shuts down. Measured: 11 of 65
+published heads bad on an all-PASS lap; publisher and victim matched on one
+incident (same AG, same agino, 3.2 s apart).
+
+The generalisation, which is the thing to remember: **any field carried by the
+inode log item is journal-only at AG unlock** — `di_mode`, uid/gid, `di_size`,
+timestamps, `di_nblocks`, extent counts, flags, `di_gen`, `di_forkoff`, local
+fork contents, embedded btree roots. Ordinary inode content is covered by the
+per-inode DLM (`mxfs_ail_drain_inode_to` really does wait for the item to leave
+the AIL). The AG DLM is different because the AGI unlinked list lets a peer
+dereference an inode's home dinode **without ever taking that inode's DLM lock**.
+That is why the AG release must publish those pointees.
+
+### What Phase 2 does now
+
+    log_force(SYNC); msleep(3); log_force(SYNC)
+    drain_alloc_buflist                 <-- moved earlier
+    drain_inode_buffers                 <-- moved earlier; now CONVERTS then writes
+    blkdev_flush                        <-- barrier: pointees durable
+    drain_meta_buffers                  <-- AGI (the pointer) only now
+    blkdev_flush
+    log_force(SYNC); drain_meta_buffers  (sess43 second pass)
+    Phase 3 meta_pending wait; flush; unlock
+
+Pointee before pointer. The old order wrote and flushed the AGI first.
+
+### `drain_inode_buffers` — three traps, all paid for
+
+1. It had none of the AG-META drain's hardenings: it skipped `_XBF_DELWRI_Q`
+   (the v0.3.31 bug), skipped on failed trylock (the v0.3.27 bug), and had no
+   pinned/BLI fallthrough. These bit harder here than for AG-meta, because the
+   normal route a dinode takes to its cluster buffer IS xfsaild
+   (`xfs_inode_item_push` -> `xfs_iflush` -> `xfs_buf_delwri_queue`) — so the
+   skipped buffer was the COMMON case. Nothing else waited for it either:
+   Phase 3 waits on `pag_dlm_meta_pending`, which counts **AG-META** buffers only.
+2. **Do NOT copy the meta drain's write predicate.** For an AG-meta buffer
+   `b_li_list` carries the buf log item, which iodone releases, so the predicate
+   self-clears. For an INODE cluster buffer `b_li_list` carries the INODE log
+   items, which **survive the write** — `xfs_trans_log_inode` attaches them at
+   first dirty. Copying it made the predicate permanently true: the drain
+   rewrote the same buffer every pass and hit the pass cap on 133 of 423
+   releases (meta drain: 0). Correct predicate is
+   `_XBF_DELWRI_Q || xfs_buf_ispinned(bp) || bp->b_log_item`, **re-evaluated
+   under the buffer lock**. Fixing it took PASSCAP 141 -> 0 and writes 1095 -> 19.
+3. That same `b_li_list` is why the conversion needs no radix-tree walk: it IS
+   the set of inodes to convert. `xfs_iflush_cluster(bp)` is the non-blocking
+   converter — `xfs_ilock_nowait(SHARED)`, skips what it cannot get, which keeps
+   this out of the whole-AG `ail_push` deadlock that killed the two previous
+   attempts (a sibling in the AG can be ILOCK-EXCL-held by a thread blocked
+   behind this very worker). Skipped inodes are retried by the
+   pass-until-quiescent loop. **On failure it has already unlocked AND released
+   the buffer and shut the fs down — do not touch `bp` again and do not drop the
+   reference; that path consumed it.**
+
+`xfs_bwrite` already calls `xfs_force_shutdown(SHUTDOWN_META_IO_ERROR)` on write
+failure, so switching off `xfs_buf_delwri_submit` bought the fail-closed property
+for free: a write we cannot complete can no longer be followed by an unlock that
+publishes stale metadata.
+
+### Probes (leave them on)
+
+- `mxfs.inode_drain_probe=1` -> `P85-INODE-DRAIN-CENSUS` (anomaly-only),
+  `P85-INODE-DRAIN-WRITE-FAIL`, `P85-INODE-DRAIN-PASSCAP`.
+- `mxfs.agi_publish_audit=1` -> `P86-AGI-UNLINKED-PUBLISH` (per bad head),
+  `P86-AGI-PUBLISH-TOTALS` (<=1 per 30 s).
+- `mxfs.publish_inodes` (default 1) A/B's the conversion stage itself.
+
+Both were made anomaly-gated after a per-release line at 32 nodes deadlocked the
+HOST — see ccmemory `sess385-clyde-ext4-jbd2-wedge-shared-lun-on-root-fs`.
+
+### sess385 Part D — publication ENFORCEMENT at the unlock point (0.19.20)
+
+`xfs_iflush_cluster` is non-blocking by design (`xfs_ilock_nowait`), which is
+what keeps the conversion stage out of the whole-AG `ail_push` deadlock — but it
+means an inode whose ILOCK is held elsewhere is simply skipped, and if it is
+still skipped at the pass cap we would unlock and publish a split anyway.
+Invariant 1 forbids that.
+
+So `mxfs_p86_agi_unlinked_publish_audit()` (called immediately before
+`mxfs_v5_dlm_ag_unlock`) is now **verify → repair → re-verify**:
+
+- head's home dinode reads `nlink == 0` → `joint_ok`, done.
+- reads LINKED **and** `radix_tree_lookup` finds it with `i_nlink == 0` → **SPLIT**:
+  ours. Retry a targeted conversion for that one inode up to
+  `mxfs.publish_retries` (default 3): `log_force(SYNC)` → `xfs_imap` →
+  `xfs_buf_incore` (blocking, **INCORE-only**) → `xfs_iflush_cluster` →
+  `xfs_bwrite` → `blkdev_flush` → re-FUA-read. Logs `P87-PUBLISH-REPAIRED`.
+- reads LINKED and **not in our cache** → **BADHEAD**: we have no authority to
+  repair it; most likely another node created that head. Report only.
+- survives repair → `P86-AGI-UNLINKED-PUBLISH`, and with
+  `mxfs.publish_refuse_unlock=1` a `SHUTDOWN_META_IO_ERROR` instead of the
+  unlock. **That param defaults to 0** — shipping an unmeasured cluster-wide
+  shutdown path would be a RULE 4 violation, and #474 shows the cost of an
+  uncontained one. Measure the repair rate, then flip it.
+
+**LOCK ORDER — the trap this created, caught in review before any rig run.**
+The first cut ran the repair while still holding the AGI buffer locked. That
+deadlocks: with `flags=0`, `xfs_imap` *still* falls through to `xfs_imap_lookup`
+— an inobt btree read that reads the AGI — whenever `blocks_per_cluster > 1` and
+`inoalign_mask == 0`; and `xfs_log_force` can drive an AIL push that wants the
+AGI too. The audit now **snapshots all 64 bucket heads into a local array and
+drops the AGI buffer before doing anything else.** Nothing can change the list
+underneath it: we still hold the AG DLM EX and `pag_dlm_demoting` is set.
+
+If you add anything to this audit, keep it outside the AGI buffer lock.
+
+## sess386 (0.19.23-24) — dialloc reserve bound + AGI-skip hygiene + P87 repair probes
+
+- `mxfs_dialloc_reserve_ino` (libxfs/xfs_ialloc.c): its CAW acquire is now
+  genuinely bounded (retries×1s deadline via `mxfs_v5_dlm_inode_lock_retries`;
+  the CAW branch previously ignored `retries` — measured 474 leg A: create held
+  the AGI buffer across a minutes-long `caw_wait_for_grant`).
+- `xfs_dialloc_try_ag`: `-EAGAIN` from `xfs_dialloc_ag` now exits via
+  `out_release` (brelse AGI + immediate AG DLM unlock). It used to fall through
+  to `mxfs_ag_dlm_unlock_deferred` and leak the LOCKED AGI + held AG grant into
+  the rest of the create. A skipped AG modified nothing, so immediate release is
+  the same contract as the `!pagi_freecount` skip.
+- `xfs_dialloc`: after the partition-relaxed pass fails, up to 4 jittered
+  re-sweeps (`P-DIALLOC-SWEEP-RETRY`, kernel-only) before returning -ENOSPC —
+  transient cluster contention must not surface as ENOSPC.
+- `mxfs_p87_publish_repair` (xfs_mxfs_dlm.c): every failure arm now logs
+  `P87-REPAIR-FAIL arm=imap|noincore|nolist|iflush|bwrite|reread-linked`.
+  Measured on 0.19.23: repair converts only ~1/3 of splits (tally SPLIT=2 of 3
+  attempts at 584 heads) — the arm data decides the next fix.
+
+## sess390 (ccloop c7ee71c6, 2026-08-22, 0.20.1-0.20.2) — noino fence is CONVOY-AWARE; nonblock AG acquire never parks in the demote window
+
+Two roots measured at the 25-AG geometry (7 node slots sharing home AGs; rig LUN
+normally 64 AGs), both fixes apply at every geometry.
+
+### The no-inode release fence and intent items (`mxfs_noino_drain_fence`, xfs_mxfs_dlm.c ~21300)
+- The fence pushes the WHOLE AIL to a snapshot target.  An EFI (XFS_LI_EFI =
+  0x1236 = 4662 in P-AILMIN dumps) has no `iop_push`: xfsaild treats it PINNED
+  and it leaves the AIL only when its EFD commits, which needs the AGF of each
+  extent's AG — a per-AG CAW acquire.  A defer chain whose owner is blocked on a
+  peer-held AG therefore freezes the fence's AIL min for the whole AG wait
+  (13 s measured), while the truncating inode's own log item re-logs past the
+  target on every `xfs_trans_roll`.  sess389's "relfence wedge at 25 AGs" was
+  exactly this: 8 stalls × 2 s → `P-NOINO-DRAIN-STUCK` → shutdown.
+- RULE-5 ruling (ccmemory `ccloop-c7ee71c6-sess390-GPT-ruling-noino-fence-convoy-intents-lifecycle`):
+  do NOT exempt intents (an un-done intent is unfinished work whose continuation
+  commits after the target); instead attribute the freeze.  Landed 0.20.1:
+  `pag_mxfs_agwait_inflight` / `pag_mxfs_agwait_since_ns` (xfs_ag.h) bracket the
+  BLOCKING `mxfs_v5_dlm_ag_lock` in `__mxfs_ag_dlm_lock`; `mxfs_noino_freeze_is_convoy()`
+  maps the frozen min (EFI → extent AGs, BUF → daddr AG, INODE → ino AG) to an
+  in-flight local AG wait and such stalls are NOT charged against
+  `MXFS_NOINO_STALL_TRIES` (probe `P-NOINO-CONVOY ino= try= min= item= ag= agwait_ms=
+  frozen= chargeable=`); the `MXFS_NOINO_MAX_TRIES`=45 hard wall is unchanged and
+  bounds everything.  `P-AILMIN` now prints `EFI nextents= ag0= agwait_inflight=`.
+- INVARIANT kept: the fence still never unlocks undrained; it only stops calling a
+  bounded convoy a wedge.
+- STILL OPEN (ruling items): lifecycle routing — `xfs_iget(XFS_IGET_INCORE)` returns
+  -EAGAIN for INEW/IRECLAIM/INACTIVATING (and -ENOENT for NEED_INACTIVE nlink==0),
+  so a BAST for an inode mid-inactivation takes the noino path and can release the
+  grant between the last EFD and `xfs_inactive_ifree`; and closing local
+  re-adoption once a BAST is pending (the pace root under AG sharing).
+
+### `__mxfs_ag_dlm_lock(nonblock=true)` must return -EAGAIN during the demote window (0.20.2)
+- `mxfs_ag_dlm_wait_demote()` was called at entry BEFORE `nonblock` was honoured,
+  so `mxfs_ag_dlm_trylock` from a defer chain PARKED while this AG was mid-demote.
+  Stack-proven (test17): rsync's `iput` runs inactivation INLINE
+  (`xfs_inode_mark_reclaimable → xfs_inactive → xfs_inactive_truncate →
+  xfs_defer_finish → __xfs_free_extent → mxfs_ag_dlm_trylock → wait_demote`) holding
+  ILOCK_EXCL on the just-unlinked inode; the demote's publication stage needed that
+  ILOCK to land nlink=0 → `P87-TARGET-TIMEOUT stage=ilock ocomm=rsync` ×2/pass →
+  `P86-AGI-UNLINKED-PUBLISH` split published under protest; peer waited 11.4 s.
+- Now: `if (nonblock && pag->pag_dlm_demoting) return -EAGAIN` (`P-AGTRY-DEMOTING`,
+  stat `trydemote=` in the DLM cache line), so the existing -488 seam
+  (`P271-AGWANT` in `__xfs_free_extent`) relogs the intent, rolls, drops the ILOCKs
+  and blocks holding nothing.  All five trylock call sites already treat -EAGAIN as
+  "peer-held".  Same shape as the sess388 `P-AGTRY-LOCALBUSY` fix — the rule is:
+  **a nonblock AG acquire never sleeps, for any reason.**
+- Measured 0.20.2 @25 AGs, 3 laps: 0 wedge, 0 shutdown, 0 split, 0 P87 ilock
+  timeout, 0 dirty-cancel (0.20.1: 24 splits / 48 timeouts in 3 laps).  Pace at
+  25 AGs remains a defect (PACE-388: rsync lap 2-3 > 60 s).
+
+### 0.21.x (sess390) — noino lifecycle classes; the AG re-adoption gate (inert) and why
+- `xfs_icache_ino_lifecycle()` (xfs_icache.c/.h): reference-free in-core state probe
+  (rcu + radix + i_flags_lock + ino re-check): ABSENT / LIVE / RECLAIMABLE / INEW /
+  IRECLAIM / INACTIVATING / NEED_INACTIVE / VFS_TEARDOWN.  `__mxfs_dlm_bast_notify`
+  consults it when `xfs_iget(XFS_IGET_INCORE)` fails with anything but -ENODATA; with
+  `mxfs.noino_lifecycle_requeue=1` (default) an INEW/IRECLAIM/INACTIVATING/
+  NEED_INACTIVE/VFS_TEARDOWN inode parks the BAST in a 20 ms delayed work
+  (`mxfs_noino_lc_work_fn`, per-ino dedup hash, `noino_lifecycle_max_ms` wall,
+  `P-NOINO-LIFECYCLE{,-DONE,-TIMEOUT}`) instead of running the whole-AIL fence
+  against a grant a local lifecycle op still uses; RECLAIMABLE/ABSENT fence as
+  before.  Measured: RECLAIMABLE dominates (7091/lap), active classes ~0.
+- `__mxfs_ag_dlm_lock(mp, pag, nonblock, demand, resfree)`: the cached fast path
+  has a knob-gated admission gate (`mxfs.ag_readopt_window_ms`, default -1 = OFF).
+  Both attempts to arm it failed at 25 AGs (ccmemory
+  `ccloop-c7ee71c6-sess390-readopt-close-two-failures-latch-design`): blocking
+  waiters wedged ILOCK holders; pinned re-adoption livelocked/starved peers.  The
+  re-adoption storm is the UNLOCK-side race (P12-ULBP schedules the worker async; a
+  re-adopter wins 0→1 first) — the next design latches the handoff at the last-
+  holder unlock and brackets `mxfs_ag_dlm_wait_demote` as an AG wait.
+  `mxfs_ag_dlm_lock_resfree()` = RESOURCE_FREE class (pregrant, P271 seam: hold
+  nothing, may wait for a handoff).  RULE: a nonblock AG acquire never sleeps;
+  a blocking acquirer that may hold ILOCKs never waits at an admission gate.

@@ -88,7 +88,8 @@ uint8_t xfs_inobt_rec_freecount(const struct xfs_inobt_rec_incore *irec);
  * Inode chunk initialisation routine
  */
 int xfs_ialloc_inode_init(struct xfs_mount *mp, struct xfs_trans *tp,
-			  struct list_head *buffer_list, int icount,
+			  struct list_head *buffer_list,
+			  bool mxfs_foreign_recovery, int icount,
 			  xfs_agnumber_t agno, xfs_agblock_t agbno,
 			  xfs_agblock_t length, unsigned int gen);
 

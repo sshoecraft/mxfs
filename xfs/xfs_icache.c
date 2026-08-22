@@ -422,9 +422,15 @@ xfs_inode_alloc(
 	INIT_LIST_HEAD(&ip->i_ioend_list);
 	spin_lock_init(&ip->i_ioend_lock);
 	ip->i_next_unlinked = NULLAGINO;
+	ip->i_mxfs_nu_cert_old = NULLAGINO;
+	ip->i_mxfs_nu_cert_next = NULLAGINO;
+	ip->i_mxfs_nu_cert_valid = 0;
 	ip->i_prev_unlinked = 0;
 	ip->i_unlinked_bucket = -1;
 	atomic_set(&ip->i_mxfs_open_n, 0);
+	atomic_set(&ip->i_mxfs_open_admit_n, 0);
+	ip->i_mxfs_openprot_pid = 0;
+	ip->i_mxfs_openprot_arm = 0;
 	ip->i_mxfs_open_pub = false;
 	ip->i_mxfs_open_setting = false;
 
@@ -1453,6 +1459,101 @@ xfs_inodegc_wait_all(
 	}
 
 	return error;
+}
+
+/*
+ * sess390 (ccloop c7ee71c6): reference-free lifecycle probe.  Same locking
+ * discipline as the prologue of xfs_iget_cache_hit — rcu + the radix lookup,
+ * then i_flags_lock for a coherent snapshot; the ino re-check defends against
+ * the RCU-deferred free/reuse of the slot.  No reference is taken and no
+ * pointer escapes; the caller gets a CLASSIFICATION plus the raw flags for
+ * the probe line.  i_state is read racily (probe-only field).
+ */
+enum xfs_ino_lifecycle
+xfs_icache_ino_lifecycle(
+	struct xfs_mount	*mp,
+	xfs_ino_t		ino,
+	unsigned long		*iflags_out,
+	unsigned int		*nlink_out,
+	unsigned long		*istate_out)
+{
+	struct xfs_perag	*pag;
+	struct xfs_inode	*ip;
+	unsigned long		fl, st;
+	unsigned int		nl;
+	enum xfs_ino_lifecycle	lc;
+
+	if (iflags_out)
+		*iflags_out = 0;
+	if (nlink_out)
+		*nlink_out = 0;
+	if (istate_out)
+		*istate_out = 0;
+	if (!xfs_verify_ino(mp, ino))
+		return XFS_ILC_ABSENT;
+	pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, ino));
+	if (!pag)
+		return XFS_ILC_ABSENT;
+	rcu_read_lock();
+	ip = radix_tree_lookup(&pag->pag_ici_root, XFS_INO_TO_AGINO(mp, ino));
+	if (!ip) {
+		rcu_read_unlock();
+		xfs_perag_put(pag);
+		return XFS_ILC_ABSENT;
+	}
+	spin_lock(&ip->i_flags_lock);
+	if (ip->i_ino != ino) {
+		spin_unlock(&ip->i_flags_lock);
+		rcu_read_unlock();
+		xfs_perag_put(pag);
+		return XFS_ILC_ABSENT;
+	}
+	fl = ip->i_flags;
+	nl = VFS_I(ip)->i_nlink;
+	st = READ_ONCE(VFS_I(ip)->i_state);
+	spin_unlock(&ip->i_flags_lock);
+	rcu_read_unlock();
+	xfs_perag_put(pag);
+
+	if (fl & XFS_IRECLAIM)
+		lc = XFS_ILC_IRECLAIM;
+	else if (fl & XFS_INACTIVATING)
+		lc = XFS_ILC_INACTIVATING;
+	else if (fl & XFS_NEED_INACTIVE)
+		lc = XFS_ILC_NEED_INACTIVE;
+	else if (fl & XFS_INEW)
+		lc = XFS_ILC_INEW;
+	else if (fl & XFS_IRECLAIMABLE)
+		lc = XFS_ILC_RECLAIMABLE;
+	else if (st & (I_FREEING | I_WILL_FREE | I_NEW))
+		lc = XFS_ILC_VFS_TEARDOWN;
+	else
+		lc = XFS_ILC_LIVE;
+	if (iflags_out)
+		*iflags_out = fl;
+	if (nlink_out)
+		*nlink_out = nl;
+	if (istate_out)
+		*istate_out = st;
+	return lc;
+}
+
+const char *
+xfs_ino_lifecycle_name(
+	enum xfs_ino_lifecycle	lc)
+{
+	static const char *const names[XFS_ILC_NR] = {
+		[XFS_ILC_ABSENT] = "ABSENT",
+		[XFS_ILC_LIVE] = "LIVE",
+		[XFS_ILC_RECLAIMABLE] = "RECLAIMABLE",
+		[XFS_ILC_INEW] = "INEW",
+		[XFS_ILC_IRECLAIM] = "IRECLAIM",
+		[XFS_ILC_INACTIVATING] = "INACTIVATING",
+		[XFS_ILC_NEED_INACTIVE] = "NEED_INACTIVE",
+		[XFS_ILC_VFS_TEARDOWN] = "VFS_TEARDOWN",
+	};
+
+	return (lc < XFS_ILC_NR && names[lc]) ? names[lc] : "?";
 }
 
 /*
@@ -2616,10 +2717,42 @@ xfs_reclaim_inode(
 		goto out_clear_flush;
 	if (!xfs_inode_clean(ip))
 		goto out_clear_flush;
+	/* sess387 (d), RULE-5 ruling: reclaim must REFUSE an inode with a live
+	 * publication obligation regardless of ili_fields — reclaiming the
+	 * shell strands an on-disk unlinked-list entry whose home dinode still
+	 * reads LINKED, and the next adjacent remove/reload shuts the node
+	 * down.  The shell is the only repair authority we have; keep it until
+	 * the conversion is verified written (discharge) or the log dies. */
+	if (xfs_iflags_test(ip, MXFS_IF_PUBOB) &&
+	    !test_bit(XFS_OPSTATE_UNMOUNTING, &ip->i_mount->m_opstate)) {
+		pr_warn_ratelimited("mxfs: P88-PUBOB-RECLAIM-REFUSED ino=%llu clean=%d ili_fields=0x%x flushed=%d nlink=%u comm=%s\n",
+			(unsigned long long)ino, xfs_inode_clean(ip) ? 1 : 0,
+			ip->i_itemp ? ip->i_itemp->ili_fields : 0,
+			xfs_iflags_test(ip, MXFS_IF_PUBOB_FLUSHED) ? 1 : 0,
+			VFS_I(ip)->i_nlink, current->comm);
+		goto out_clear_flush;
+	}
 
 	xfs_iflags_clear(ip, XFS_IFLUSHING);
 reclaim:
 	trace_xfs_inode_reclaiming(ip);
+
+	/* sess387 tripwire: a live publication obligation means this inode is
+	 * an on-disk unlinked-list member whose home-dinode nlink=0 conversion
+	 * has never been verified written — reclaiming its shell now strands a
+	 * list entry that any adjacent remove or reload will read as LINKED
+	 * (-EFSCORRUPTED, the test22 remove-path shutdown, 720ms from P82-ADD
+	 * to a dead shell).  The clean-inode gate above should make this
+	 * impossible (dirty conversion => not clean => not reclaimable), so a
+	 * firing names the path that elided the flush.  Trace-only. */
+	if (xfs_iflags_test(ip, MXFS_IF_PUBOB))
+		pr_warn("mxfs: P88-PUBOB-RECLAIM ino=%llu clean=%d ili_fields=0x%x flushed=%d pin=%d nlink=%u shutdown=%d comm=%s\n",
+			(unsigned long long)ino, xfs_inode_clean(ip) ? 1 : 0,
+			ip->i_itemp ? ip->i_itemp->ili_fields : 0,
+			xfs_iflags_test(ip, MXFS_IF_PUBOB_FLUSHED) ? 1 : 0,
+			xfs_ipincount(ip), VFS_I(ip)->i_nlink,
+			xlog_is_shutdown(ip->i_mount->m_log) ? 1 : 0,
+			current->comm);
 
 	/*
 	 * ccloop cc87fed3 sess6: RULE 4 audit trail (Fable-guided, P135

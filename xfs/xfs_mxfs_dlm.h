@@ -292,6 +292,14 @@ void mxfs_dlm_publish_inode(struct xfs_inode *ip);
  * Called from xfs_fs_fill_super after mxfs_v5_dlm_init.
  */
 void mxfs_dlm_cache_init(struct xfs_mount *mp);
+/*
+ * sess383 (RULE-5 ruling Q3): close the admission transaction opened by
+ * mxfs_dlm_cache_init.  Must be called exactly once, after every synchronous
+ * registration-phase import (the outcome scan and the recovery settle) and
+ * before fill_super returns success.  0 = admit, -EIO = refuse the mount
+ * because the filesystem is known FSWIDE-quarantined.
+ */
+int mxfs_dlm_admission_commit(struct xfs_mount *mp);
 
 /*
  * sess54: close the two-phase mount reclaim.  Makes our own log recovery
@@ -566,6 +574,8 @@ int mxfs_ag_buf_disk_bnobt(struct xfs_buf *bp, uint16_t *disk_nr,
 /* sess43 P71 diagnostic: on-disk agi_unlinked[bucket] head via FUA read.
  * 0xfffffffe = read error (distinct from NULLAGINO 0xffffffff). */
 uint32_t mxfs_agi_disk_bucket_head(struct xfs_buf *agibp, int bucket);
+int mxfs_iflush_agino_target(struct xfs_perag *pag, xfs_agino_t agino,
+			     unsigned long deadline);
 /* sess43 P71 diagnostic: on-disk di_mode of this inode via FUA. 0=freed by peer
  * (cross-node double-inactivation), nonzero=allocated, <0 error. */
 struct xfs_inode;
@@ -593,9 +603,27 @@ void mxfs_dlm_reset_inode_for_create(struct xfs_inode *ip);
  * Holder counting handles nesting (inode alloc → block alloc in same AG).
  */
 int  mxfs_ag_dlm_lock(struct xfs_mount *mp, struct xfs_perag *pag);
+int  mxfs_ag_dlm_lock_resfree(struct xfs_mount *mp, struct xfs_perag *pag);
 int  mxfs_ag_dlm_trylock(struct xfs_mount *mp, struct xfs_perag *pag);
 int  mxfs_ag_dlm_lock_bounded(struct xfs_mount *mp, struct xfs_perag *pag);
 void mxfs_ag_dlm_unlock(struct xfs_mount *mp, struct xfs_perag *pag);
+
+/*
+ * Private in-kernel restart code for the clean-txn AG allocation restart
+ * protocol (-488 livelock fix).  Deliberately clear of the kernel's
+ * internal ERESTART* range (512-521) and of every userspace errno; it
+ * must NEVER leak to userspace — every caller of a function that can
+ * return it is responsible for consuming it (restart or translate).
+ */
+#define MXFS_ERESTART_AG	552
+
+/*
+ * Blocking, lock-neutral AG-DLM acquire+release: registers a real waiter
+ * (BASTs idle cachers) while the caller holds NOTHING, then releases —
+ * leaving the grant cached on disk so the restarted allocation re-adopts
+ * it on the fast path.  Must be called with no transaction context.
+ */
+int  xfs_mxfs_ag_pregrant(struct xfs_mount *mp, xfs_agnumber_t agno);
 
 /*
  * Defer the AG DLM unlock to xfs_trans_free time.  Used by xfs_alloc /
@@ -607,6 +635,7 @@ void mxfs_ag_dlm_unlock(struct xfs_mount *mp, struct xfs_perag *pag);
  */
 void mxfs_ag_dlm_unlock_deferred(struct xfs_trans *tp, struct xfs_perag *pag);
 void mxfs_trans_drain_ag_unlocks(struct xfs_trans *tp);
+int  mxfs_defer_agwait(struct xfs_trans *tp);
 /* FIX-21 (sess8 a9a03929): selective AG-grant migration at xfs_trans_dup —
  * carry forward only grants for AGs still referenced by pending defer work
  * items; the rest release at the old tp's trans_free (convoy breaker). */
@@ -621,9 +650,19 @@ void mxfs_sf_fmt_names(struct xfs_mount *mp, struct xfs_dir2_sf_hdr *sfp,
  * sess77: Pre-acquire per-AG DLM locks for a set of inodes in ascending AG
  * order BEFORE any inode ILOCK is taken — breaks the rename hold-and-wait
  * deadlock (see definition in xfs_mxfs_dlm.c).  Returns 0 on success.
+ *
+ * sess286 (D-501): AGs are classed by intent.  mand_inodes (a subset of
+ * inodes) name the AGs the transaction WILL demand past a non-restartable
+ * boundary (in-trans iunlink add/remove, difree): a trylock miss on those
+ * keeps the full handoff/relock/-EAGAIN protocol.  Every other
+ * participating inode's home AG is OPTIONAL insurance: a miss just
+ * proceeds without the grant (no handoff, no blocking) — the deep
+ * allocator paths acquire on demand as they always could.
  */
 int  mxfs_trans_preacquire_inode_ags(struct xfs_trans *tp,
-				     struct xfs_inode **inodes, int num_inodes);
+				     struct xfs_inode **inodes, int num_inodes,
+				     struct xfs_inode **mand_inodes,
+				     int num_mand);
 
 /*
  * Inode-DLM bast deferral (Approach A — priority-3 dir-stale Mode A and
@@ -750,6 +789,311 @@ extern atomic64_t mxfs_fua_scsi_actual;
 extern atomic64_t mxfs_fua_p91_skip;
 extern atomic64_t mxfs_iget_cluster_staled;
 extern int mxfs_fua_disable;
+extern int mxfs_target_cache_protected;	/* sess198: operator declares target cache power-protected */
+extern int mxfs_replay_gate_enforce;	/* sess198: per-class enforcement gate, fail-closed setter */
+int mxfs_replay_gate_mode(void);	/* current gate bitmask (0 = disabled) */
+
+/*
+ * sess198 (build-order step 2 of the sess197 tenure-release ruling):
+ * release certificates, aggregate counters, and deterministic fault
+ * injection at the ruled 18 release/mint/gate boundaries.  Pure
+ * observation this step — no release path changes behavior; the
+ * certificate records what the path could prove, and the counters
+ * surface the F1-F4 violations the audit found (a release proceeding
+ * with obligations outstanding shows up as cas_invalid_proof, exactly
+ * the "normally impossible" counter the ruling names).
+ */
+enum mxfs_relgate_class {
+	MXFS_RELCLASS_AG	= 0,
+	MXFS_RELCLASS_INODE	= 1,
+	MXFS_RELCLASS_ICLUS	= 2,
+	MXFS_RELCLASS_DIR	= 3,
+};
+
+/* Stable fault-stage IDs (sess197 ruling, "Fault-injection points" 1-18).
+ * A hook fires only in sleepable context — every placement site must be
+ * able to msleep. */
+enum mxfs_relgate_fault_stage {
+	MXFS_RGF_DEMOTING	= 1,	/* entered DEMOTING, admissions not yet diverted */
+	MXFS_RGF_QUIESCED	= 2,	/* admissions quiesced */
+	MXFS_RGF_LOGFORCED	= 3,	/* after log force, before CIL/AIL progress */
+	MXFS_RGF_OBLIG_COMMITTED = 4,	/* obligation committed, before home submission */
+	MXFS_RGF_HOME_SUBMITTED	= 5,	/* immediately after home submission */
+	MXFS_RGF_HOME_IODONE	= 6,	/* home iodone, before obligation retirement */
+	MXFS_RGF_OBLIG_ZERO	= 7,	/* last obligation retired, before flush issue */
+	MXFS_RGF_FLUSH_INFLIGHT	= 8,	/* durable flush in flight */
+	MXFS_RGF_FLUSH_DONE	= 9,	/* flush complete, before post-flush recheck */
+	MXFS_RGF_PROOF		= 10,	/* post-flush proof, before final tripwire */
+	MXFS_RGF_PRE_CAS	= 11,	/* immediately before unlock/handoff CAW submission */
+	MXFS_RGF_CAS_TARGET_DONE = 12,	/* CAW target completion, before local handling */
+	MXFS_RGF_POST_HANDOFF	= 13,	/* after handoff CAW, before waiter admission */
+	MXFS_RGF_EPOCH_MINTED	= 14,	/* acquire-side epoch mint, before persistence barrier */
+	MXFS_RGF_EPOCH_DURABLE	= 15,	/* epoch persisted, before first new-tenure txn */
+	MXFS_RGF_GATE_LOOKUP	= 16,	/* immediately before gate lineage lookup */
+	MXFS_RGF_GATE_VERDICT	= 17,	/* after lineage lookup, before accept/reject */
+	MXFS_RGF_GATE_REJECTED	= 18,	/* after gate rejection, before home-location use */
+};
+
+#include <linux/jump_label.h>
+DECLARE_STATIC_KEY_FALSE(mxfs_relgate_fault_key);
+int mxfs_relgate_fault_slow(int stage, uint64_t res);
+bool mxfs_relgate_fault_slow_forced(int stage, uint64_t res);
+static inline void mxfs_relgate_fault(int stage, uint64_t res)
+{
+	if (static_branch_unlikely(&mxfs_relgate_fault_key))
+		mxfs_relgate_fault_slow(stage, res);
+}
+
+/* sess314 (sess312 ruling item 10): FORCE variant — fires the armed stage
+ * like mxfs_relgate_fault, and additionally returns true when
+ * mxfs.relgate_fault_force=1, letting the placement site FORCE the outcome
+ * the stage models (forced still-dirty / forced ticket-stale / forced
+ * proof-fail) instead of injecting delay only.  false when disarmed,
+ * unmatched, or force is off — the site then behaves exactly as before. */
+static inline bool mxfs_relgate_fault_forced(int stage, uint64_t res)
+{
+	if (static_branch_unlikely(&mxfs_relgate_fault_key))
+		return mxfs_relgate_fault_slow_forced(stage, res);
+	return false;
+}
+
+/*
+ * sess201 (build-order step 3) — per-resource release state machine, the
+ * ruling's instrumentation set (ACTIVE/DEMOTING/DRAINING/PROVED/RELEASING/
+ * WEDGED).  Observation-only this step: transitions are recorded so the
+ * certificate can state WHICH phase the release was in when the CAS fired.
+ * sess305: the per-inode scalar is DIAGNOSTIC ONLY — two legal concurrent
+ * release pipelines (two-slot demoter) alias it in both directions, so a
+ * CAS observed != PROVED (cas_unproved) does not prove a skipped proof
+ * and a CAS observed == PROVED does not prove this instance ran one.  The
+ * sound audit is the per-instance certificate flag (cert->proved, counted
+ * as cas_noproof_v2) — THAT is the signal steps 9-10 require to be zero
+ * before gate enable.  Step 6 turns DEMOTING retention + WEDGED into
+ * behavior.
+ */
+enum mxfs_release_state {
+	MXFS_RELSTATE_ACTIVE	= 0,	/* tenure live, no release in progress */
+	MXFS_RELSTATE_DEMOTING,		/* release requested / deferred for retry */
+	MXFS_RELSTATE_DRAINING,		/* proof passes running */
+	MXFS_RELSTATE_PROVED,		/* predicate held at last recheck */
+	MXFS_RELSTATE_RELEASING,	/* CAS submitted */
+	MXFS_RELSTATE_WEDGED,		/* bounded no-progress (step 6 arms this) */
+};
+
+/* sess314 (sess312 INODE-containment ruling item 7): explicit defer-cause
+ * mask for a release-defer episode.  A defer with NO derivable cause is an
+ * invariant failure (certify + count it as UNKNOWN).  Badness weights the
+ * causes; a DECREASE between attempts is genuine progress (restamps the
+ * episode's progress clock) — cause oscillation is not, which is why the
+ * total bound exists. */
+/*
+ * sess382: how many release-side reloads one defer episode may drive before it
+ * must escalate.  Small on purpose — the adopt either installs the platter and
+ * reconciles the ledger on the first try or its keep-guards are refusing, and a
+ * refusing guard is exactly the "cannot prove the release" case the wedge is
+ * for.  This bound is what keeps the fix fail-closed.
+ */
+#define MXFS_RELDEFER_RELOAD_MAX	3
+/* sess382: A/B lever for the release-side reload; see its module_param. */
+extern int mxfs_reldefer_reload;
+/* sess382 ruling-2 Q2: gate for the P383-HOME-VS-OWED telemetry. */
+extern int mxfs_home_equals_owed_probe;
+/* sess382 ruling-2 Q1: A/B lever for re-log version suppression. */
+extern int mxfs_relog_holds_version;
+/* sess382: A/B lever for re-log obligation suppression. */
+extern int mxfs_relog_holds_obligation;
+/* sess382: release-defer episode bounds in ms (TESTING knobs; see
+ * mxfs_inode_episode_expired_locked).  Defaults 60000 / 300000. */
+extern unsigned int mxfs_reldefer_noprogress_ms;
+extern unsigned int mxfs_reldefer_total_ms;
+
+#define MXFS_RELCAUSE_OBLIG_OPEN	(1u << 0)	/* pending != durable */
+#define MXFS_RELCAUSE_TICKET_STALE	(1u << 1)	/* no covering flush ticket */
+#define MXFS_RELCAUSE_F4_OPEN		(1u << 2)	/* committed-never-submitted open */
+#define MXFS_RELCAUSE_F4_UNKNOWN	(1u << 3)	/* unknown-owner poison bucket */
+#define MXFS_RELCAUSE_FLUSH_IOERR	(1u << 4)	/* durable flush I/O error */
+#define MXFS_RELCAUSE_UNKNOWN		(1u << 5)	/* underivable — invariant failure */
+
+/* Why a release attempt stopped short of (or should have stopped short
+ * of) the CAS.  Maps 1:1 onto the ruling's defer counters. */
+enum mxfs_relcert_defer {
+	MXFS_RELDEFER_NONE	= 0,
+	MXFS_RELDEFER_OBLIG,		/* obligations outstanding */
+	MXFS_RELDEFER_IO,		/* home I/O inflight */
+	MXFS_RELDEFER_PINCIL,		/* pinned / CIL-resident */
+	MXFS_RELDEFER_FLUSH,		/* waiting for flush ticket */
+	MXFS_RELDEFER_WEDGE,		/* wedged / shutdown */
+};
+
+/*
+ * sess256 step-5 F3 (sess253 ruling item D): disposition of the tenure-
+ * boundary flush ticket a release certificate carries.  A ticket is the
+ * proof that a REAL device flush covered every settled home write the
+ * release certifies — or the explicit domain statement for why none was
+ * needed.  NONE = path never evaluated a ticket (legacy/deferred-before-
+ * proof); NO_DOMAIN = fua_disable=1 without target_cache_protected (no
+ * durability domain declared — cert must never read as complete proof);
+ * STALE = a ticket was held but durable_seq advanced past its coverage by
+ * the final pre-CAS revalidation.
+ */
+enum mxfs_ticket_status {
+	MXFS_TICKET_NONE = 0,
+	MXFS_TICKET_REAL_FLUSH,		/* flush_epoch advanced past the stamp in fua_disable=0 mode */
+	MXFS_TICKET_PROTECTED,		/* operator declared target cache power-protected */
+	MXFS_TICKET_NO_DOMAIN,		/* fua_disable=1, no protection declared: nothing to certify */
+	MXFS_TICKET_FLUSH_FAILED,	/* direct ticket-issue flush failed (or never covered) */
+	MXFS_TICKET_STALE,		/* durable_seq advanced past the ticket at pre-CAS revalidation */
+};
+
+/*
+ * One record per release ATTEMPT (never per buffer) — the ruling's
+ * release certificate.  Fields a path cannot measure yet stay 0 and gain
+ * meaning as build-order steps 3-5 convert that path to the common
+ * proof helper (dirty_seq/admission_seq arrive with the obligation
+ * registry).  Counters are always fed; the full record is printed only
+ * under mxfs.release_cert_log=1.
+ */
+struct mxfs_release_cert {
+	uint64_t	res_id;
+	uint8_t		rclass;		/* enum mxfs_relgate_class */
+	uint8_t		handoff;	/* 1 = handoff to waiter, 0 = release to free */
+	uint8_t		cas_attempted;	/* 0 = deferred before any CAS */
+	uint8_t		timeout;	/* drain/settle gave up on a timeout */
+	const char	*path;		/* release path name (static string) */
+	uint64_t	old_epoch;
+	uint64_t	new_epoch;
+	uint64_t	dirty_seq_quiesce;
+	uint64_t	dirty_seq_flush;
+	uint64_t	dirty_seq_tripwire;
+	uint32_t	oblig_quiesce;
+	uint32_t	oblig_flush;
+	uint32_t	oblig_cas;	/* obligations still outstanding at CAS */
+	uint32_t	inflight_cas;	/* home I/O inflight at CAS */
+	uint8_t		ticket_required;
+	uint8_t		ticket_completed;
+	uint64_t	admission_before;
+	uint64_t	admission_after;
+	int		cas_result;
+	uint64_t	drain_ns;
+	uint8_t		defer_kind;	/* enum mxfs_relcert_defer */
+	uint8_t		rel_state_cas;	/* enum mxfs_release_state entering the CAS */
+	const char	*defer_reason;	/* human detail, NULL = none */
+	/*
+	 * sess227 F4 fields — SEPARATE from the pending-durable oblig_*
+	 * delta (GPT ruling item 10; never fold them together).  Committed-
+	 * never-submitted dir-class obligations open for this dir's owner
+	 * ino at the quiesce sample and after the flush pass.
+	 */
+	uint32_t	f4_quiesce;	/* open F4 obligations at quiesce sample */
+	uint32_t	f4_flush;	/* open F4 obligations after flush pass */
+	uint8_t		f4_unknown;	/* unknown-owner poison bucket nonempty (counts as open) */
+	uint8_t		f4_blocked;	/* knob=1 and F4 proof would have blocked the CAS */
+	/*
+	 * sess256 step-5 F3 fields (sess253 ruling items B/C/D).  ticket_seq
+	 * is the durable_seq the ticket covers; stamp_epoch the flush_epoch
+	 * stamped when that durable_seq was discharged; observed_epoch the
+	 * flush_epoch at validation — a REAL_FLUSH ticket requires
+	 * observed_epoch > stamp_epoch in fua_disable=0 mode.  icwr_* are the
+	 * keyed inode-cluster write registry's final samples (ICLUS class);
+	 * tripwire = the final pre-CAS re-sample saw state change after the
+	 * proof (cert invalidated, rel_state returned to DRAINING); the
+	 * proof itself could not complete (settle unknown, keyed inflight
+	 * never reached 0, gen bounced out, or no ticket could be issued) =
+	 * proof_failed — telemetry release while the gate is off, counted
+	 * via cas_unproved/proof_failed, NEVER certified PROVED.
+	 */
+	uint8_t		ticket_status;	/* enum mxfs_ticket_status */
+	uint8_t		tripwire;
+	uint8_t		proof_failed;
+	/*
+	 * sess305 (P283 ruling): per-instance, tenure-bound proof
+	 * attestation.  Set by the proof body itself (relbar close /
+	 * iclus settle+keyed proof) when THIS attempt's proof completed;
+	 * cleared again if a pre-CAS tripwire invalidates it.  Unlike
+	 * rel_state_cas it cannot be aliased by a legal concurrent
+	 * release pipeline on the same resource, so cas_attempted &&
+	 * !proved (cas_noproof_v2) is the sound gate-enable audit.
+	 */
+	uint8_t		proved;
+	/* sess315 (sess312 ruling item 10): the recorded failure was FORCED
+	 * by the fault engine (relgate_fault_force=1) — the defer-cause
+	 * derivation then attributes the episode to the modeled cause
+	 * instead of tripping the zero-cause invariant probe. */
+	uint8_t		fault_forced;
+	uint32_t	rel_gen;	/* release gen the CAS was anchored to (0 = unanchored) */
+	uint64_t	ticket_seq;
+	uint64_t	stamp_epoch;
+	uint64_t	observed_epoch;
+	uint32_t	icwr_inflight_final;
+	uint64_t	icwr_gen_final;	/* keyed complete_gen at proof capture */
+	uint64_t	icwr_daddr;	/* cluster daddr the keyed proof ran against (0 = none) */
+};
+void mxfs_release_cert_emit(const struct mxfs_release_cert *rc);
+void mxfs_relcert_count_tripwire_retry(void);	/* final-tripwire bounce, no full cert */
+
+/*
+ * sess309 step-6 F1 (sess307 ruling): when set, an ICLUS release whose
+ * proof did not complete (still-dirty settle, failed keyed proof, or
+ * pre-CAS tripwire) is DEFERRED — no CAS — and a per-cluster worker
+ * retries under wall-clock bounds; a no-progress bound wedges the
+ * cluster (grant pinned, mount shut down) instead of ever releasing
+ * unproven.  Load-time only (0444): flipping it mid-tenure would change
+ * the admission predicate under live episodes.  0 = the pre-step-6
+ * telemetry baseline (release proceeds, certificate records).
+ */
+extern int mxfs_release_proof_enforce;
+
+/* sess358 (#1, sess357 ruling): recovery-time foreign-replay token
+ * enforcement knob — fail-closed setter in xfs_mxfs_dlm.c.  sess359:
+ * mxfs_fr_cfg_lock serializes that setter, the F2-domain param setters
+ * (fua_disable / target_cache_protected) and the recovery preflight's
+ * configuration sample. */
+extern int mxfs_foreign_replay_token_enforce;
+extern struct mutex mxfs_fr_cfg_lock;
+
+/*
+ * sess227 F4 obligation registry API (struct mxfs_f4_registry in
+ * xfs_mount.h; records private to xfs_mxfs_dlm.c).  Lifecycle:
+ * commit opens (or re-commits, gen bump) under b_sema at
+ * iop_committing; submit snapshots committed_gen; a successful
+ * non-suppressed write completion whose snapshot covers the latest
+ * committed gen retires; finish_stale / shutdown-abort cancel.  A
+ * plain abort or a fence-suppressed completion KEEPS the record open
+ * (probe + counter) — fail closed.
+ */
+enum mxfs_f4_cancel_why {
+	MXFS_F4_CANCEL_STALE,		/* xfs_buf_item_finish_stale: committed XFS_BLF_CANCEL */
+	MXFS_F4_CANCEL_SHUTDOWN,	/* abort with xlog_is_shutdown: terminal, nothing will retire */
+	MXFS_F4_CANCEL_ABORT,		/* abort WITHOUT shutdown: NOT a cancel — keep open + probe */
+};
+void mxfs_f4_registry_init(struct xfs_mount *mp);
+void mxfs_f4_registry_destroy(struct xfs_mount *mp);
+void mxfs_f4_commit(struct xfs_buf *bp, unsigned int bli_flags);	/* iop_committing, under b_sema */
+void mxfs_f4_submit(struct xfs_buf *bp);	/* write bio submit: snapshot committed_gen */
+void mxfs_f4_write_complete(struct xfs_buf *bp);	/* completion: retire / suppress-skip / error-cancel */
+void mxfs_f4_cancel(struct xfs_buf *bp, enum mxfs_f4_cancel_why why);
+void mxfs_f4_buf_free(struct xfs_buf *bp);	/* free-time orphan check: record kept, buffer_gone */
+
+/*
+ * sess256 step-5 F3 keyed inode-cluster write registry API (struct
+ * mxfs_icwr_registry in xfs_mount.h; entries private to xfs_mxfs_dlm.c,
+ * never freed until unmount).  submit counts an inode-cluster home write
+ * into its cluster's keyed entry BEFORE mxfs_submit_partial_inode_write
+ * (covers whole + partial paths — both complete via __xfs_buf_ioend);
+ * complete decrements in the write branch AFTER the error/resubmit
+ * decision, so an error-path resubmit retains the single logical-write
+ * token with no transient zero (submit's already-counted neutralizer
+ * skips the re-inc).  buf_free fails closed: a counted buffer freed
+ * without completion leaves its entry inflight (bounded keyed wait turns
+ * the leak into proof_failed, never a wedge) + loud probe.
+ */
+void mxfs_icwr_registry_init(struct xfs_mount *mp);
+void mxfs_icwr_registry_destroy(struct xfs_mount *mp);
+void mxfs_icwr_submit(struct xfs_buf *bp);
+void mxfs_icwr_complete(struct xfs_buf *bp);
+void mxfs_icwr_buf_free(struct xfs_buf *bp);
+long mxfs_f4_open_for_dir(struct xfs_mount *mp, uint64_t dir_ino, int *unknown_out);
+extern int mxfs_f4_gate;	/* 0 = telemetry only (default); 1 = F4 blocks dir release CAS */
 extern int mxfs_publish_dirs;
 void mxfs_ag_meta_track(struct xfs_buf *bp);
 void mxfs_dlm_ag_meta_iodone(struct xfs_buf *bp);

@@ -70,8 +70,17 @@ if command -v sg_persist >/dev/null 2>&1; then
 fi
 
 # 4. mkfs (-f: non-interactive, destroys existing FS — intended for a fresh LUN).
-echo "mkfs: $MKFS -f $MXFS_DEV"
-"$MKFS" -f "$MXFS_DEV" || fail "mkfs_mxfs -f $MXFS_DEV returned $?"
+#    -n: per-node log slices = max cluster members (D-LOG-SLICE-SHARED-
+#    MULTIWRITER: a slot's slice is the identically numbered slice, so the
+#    32-node rig needs 32 slices; mkfs errors — not clamps — if the device
+#    cannot host them).
+MXFS_LOG_SLICES="${MXFS_LOG_SLICES:-32}"
+# sess389: MXFS_MKFS_OPTS passthrough (e.g. "-d 50G" to reproduce a smaller
+# device's agcount on the 128 GiB LUN for the agcount<nodes correctness arm).
+MXFS_MKFS_OPTS="${MXFS_MKFS_OPTS:-}"
+echo "mkfs: $MKFS -f -n $MXFS_LOG_SLICES $MXFS_MKFS_OPTS $MXFS_DEV"
+# shellcheck disable=SC2086
+"$MKFS" -f -n "$MXFS_LOG_SLICES" $MXFS_MKFS_OPTS "$MXFS_DEV" || fail "mkfs_mxfs -f -n $MXFS_LOG_SLICES $MXFS_MKFS_OPTS $MXFS_DEV returned $?"
 
 # 5. Validate with chk_mxfs (geometry / clean) if available — non-fatal warn.
 if [ -x "$CHK" ]; then

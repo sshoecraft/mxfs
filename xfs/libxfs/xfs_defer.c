@@ -29,6 +29,7 @@
 #include "xfs_da_btree.h"
 #include "xfs_attr.h"
 #include "xfs_exchmaps.h"
+#include "xfs_mxfs_dlm.h"	/* -488: mxfs_defer_agwait post-roll seam */
 
 static struct kmem_cache	*xfs_defer_pending_cache;
 
@@ -593,6 +594,12 @@ xfs_defer_finish_one(
 		dfp->dfp_count--;
 		trace_xfs_defer_finish_item(tp->t_mountp, dfp, li);
 		error = ops->finish_item(tp, dfp->dfp_done, li, &state);
+		/*
+		 * MXFS -488: whatever finish_item did (even on error), the
+		 * trans may now hold uncommitted AG mutations — retained AG
+		 * grants must not be released until the next roll.
+		 */
+		tp->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_UNSAFE;
 		if (error == -EAGAIN) {
 			int		ret;
 
@@ -689,12 +696,37 @@ xfs_defer_finish_noroll(
 			if (error)
 				goto out_shutdown;
 
+			/*
+			 * MXFS -488: clean roll boundary — every intent is
+			 * durably logged and no AG mutation has run in this
+			 * trans, so retained AG-DLM grants may be released
+			 * before blocking on another AG (release-before-block
+			 * checkpoint consumed in __xfs_free_extent).
+			 */
+			(*tp)->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_SAFE;
+
 			/* Relog intent items to keep the log moving. */
 			xfs_defer_relog(tp, &dop_pending);
 			xfs_defer_relog(tp, &dop_paused);
 
 			if ((*tp)->t_flags & XFS_TRANS_DIRTY) {
 				error = xfs_defer_trans_roll(tp);
+				if (error)
+					goto out_shutdown;
+				(*tp)->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_SAFE;
+			}
+
+			/*
+			 * MXFS -488 third face: a finish_item found its AG
+			 * peer-held while the caller's ILOCKs poison our own
+			 * AGs' AIL drains.  The trans is clean and every
+			 * intent is durably relogged, so hand the ILOCKs
+			 * off, block for the wanted AG holding nothing, and
+			 * re-acquire (see mxfs_defer_agwait).  Failure is a
+			 * recovery boundary.
+			 */
+			if ((*tp)->t_mxfs_ag_want) {
+				error = mxfs_defer_agwait(*tp);
 				if (error)
 					goto out_shutdown;
 			}
@@ -712,6 +744,9 @@ xfs_defer_finish_noroll(
 	/* Requeue the paused items in the outgoing transaction. */
 	list_splice_tail_init(&dop_paused, &(*tp)->t_dfops);
 
+	/* MXFS -488: leaving defer processing — checkpoint no longer valid. */
+	(*tp)->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_NOTDEFER;
+
 	trace_xfs_defer_finish_done(*tp, _RET_IP_);
 	return 0;
 
@@ -726,6 +761,7 @@ out_shutdown:
 	if (error == -ETIMEDOUT)
 		xfs_alert((*tp)->t_mountp,
 	"mxfs: deferred-op finish rc=-110 (cluster AG DLM acquire outwaited) — escalating to shutdown");
+	(*tp)->t_mxfs_ag_relsafe = MXFS_AG_RELSAFE_NOTDEFER;
 	list_splice_tail_init(&dop_paused, &dop_pending);
 	xfs_defer_trans_abort(*tp, &dop_pending);
 	xfs_force_shutdown((*tp)->t_mountp, SHUTDOWN_CORRUPT_INCORE);

@@ -1,0 +1,16 @@
+{
+  "source": [
+    "dlm/dlm_caw.h",
+    "include/mxfs/mxfs_dlm.h",
+    "dlm/dlm_caw.c",
+    "dlm/v5_mount.c",
+    "dlm/v5_mount.h",
+    "xfs/xfs_mxfs_dlm.c",
+    "tools/caw_slotdump.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/tools.md"
+  ],
+  "regen_done": true,
+  "nudges": 1
+}

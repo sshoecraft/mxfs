@@ -106,8 +106,15 @@
 #define XFS_INODES_PER_CHUNK    64
 #define XFS_INODE_CHUNK_BLOCKS  8   /* 64 * 512 / 4096 */
 
-/* Feature flags */
-#define XFS_SB_VERSIONNUM      0xB4A5
+/* Feature flags.
+ * ATTRBIT (0x0010) is preset at format time (sess353, #94 closure + GPT
+ * ruling): FEATURES2 already advertises ATTR2, and leaving ATTRBIT unset
+ * makes the kernel perform a LAZY per-node xfs_add_attr + whole-SB log on
+ * the first xattr-bearing create — an uncoordinated cluster-wide SB feature
+ * transition that diverges peers' in-core superblocks and false-refuses
+ * foreign replay of the transitioning node's slice.  Stock mkfs.xfs presets
+ * this bit; so do we.  The kernel refuses a cluster mount without it. */
+#define XFS_SB_VERSIONNUM      0xB4B5
 #define XFS_SB_FEATURES2       0x018A  /* LAZYSBCOUNT|ATTR2|PROJID32|CRC */
 #define XFS_SB_FEAT_RO_COMPAT_FINOBT  (1 << 0)  /* free inode btree */
 /* sess42 C7: FTYPE|SPINODES + MXFS_PROTOGATE (bit 30).  The PROTOGATE
@@ -1095,9 +1102,10 @@ static void write_inode(uint8_t *buf, uint64_t ino, const uint8_t *uuid,
  * Returns 0 on success, -1 on error.
  */
 static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
-                             const uint8_t *uuid, uint32_t log_node_count,
+                             const uint8_t *uuid, uint32_t *log_node_count_io,
                              uint32_t *logblocks_out)
 {
+    uint32_t log_node_count = *log_node_count_io;   /* 0 = auto-size */
     struct xfs_geom geom;
     uint8_t *block;     /* 4KB working buffer */
     uint8_t *ichunk;    /* 32KB inode chunk buffer */
@@ -1115,16 +1123,93 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
     geom.dblocks = data_size / XFS_BLOCKSIZE;
 
     /*
+     * D-LOG-SLICE-SHARED-MULTIWRITER (sess219): the internal log is carved
+     * into log_node_count per-node slices, the slice index IS the heartbeat
+     * slot (identity, no modulo), and the kernel refuses admission of any
+     * slot >= log_node_count.  So the count formatted here is the cluster's
+     * hard node limit for this filesystem, and every slice must be viable:
+     *
+     *  - each slice needs ~64MB (16384 fsb).  sess21: 32MB slices keep the
+     *    log tail under constant pressure (rsync wedge); mkfs.xfs has
+     *    enforced a 64MB minimum since xfsprogs 5.19.
+     *  - XFS caps the whole internal log at 2GiB-10MiB (XFS_MAX_LOG_BYTES,
+     *    xfs_fs.h) = 521728 fsb, so at most 32 slices fit; at count=32 each
+     *    slice shaves to 16304 fsb (63.7MB) to stay under the cap.
+     *  - the log must fit in ONE AG, so AG size is derived FROM the log
+     *    requirement (fewer, larger AGs on small devices) — never the other
+     *    way around.  If the device cannot host every slice, mkfs FAILS
+     *    with the numbers; it never silently shrinks slices (the pre-sess219
+     *    AG-fit clamp did, reintroducing the sess36 wedge).
+     */
+    {
+        const uint32_t max_log_fsb = (uint32_t)
+            (((2ULL << 30) - (10ULL << 20)) / XFS_BLOCKSIZE); /* 521728 */
+        const uint32_t slice_want_fsb = 16384;                /* 64MB */
+        uint32_t count = log_node_count;
+        uint32_t slice_fsb;
+
+        if (count == 0) {
+            /* auto: largest power-of-two count <= 32 whose log stays
+             * within 1/8 of the data region; tiny devices fall to a
+             * single legacy-sized slice. */
+            for (count = 32; count >= 2; count >>= 1) {
+                slice_fsb = slice_want_fsb;
+                if ((uint64_t)count * slice_fsb > max_log_fsb)
+                    slice_fsb = max_log_fsb / count;
+                if ((uint64_t)count * slice_fsb <= geom.dblocks / 8)
+                    break;
+            }
+            if (count < 2)
+                count = 1;
+            log_node_count = count;
+            *log_node_count_io = count;
+        }
+
+        if (count > 1) {
+            slice_fsb = slice_want_fsb;
+            if ((uint64_t)count * slice_fsb > max_log_fsb)
+                slice_fsb = max_log_fsb / count;
+            geom.logblocks = count * slice_fsb;
+        } else {
+            /* single slice: legacy sizing, dblocks/2048 in [1024, 65536] */
+            geom.logblocks = (uint32_t)(geom.dblocks / 2048);
+            if (geom.logblocks < 1024)
+                geom.logblocks = 1024;
+            if (geom.logblocks > 65536)
+                geom.logblocks = 65536;
+        }
+    }
+
+    /*
      * XFS convention: agblocks is the standard (maximum) AG size.
      * All AGs except the last have exactly agblocks blocks.
      * The last AG has <= agblocks blocks (the runt).
      * agcount = ceil(dblocks / agblocks).
      *
-     * Target ~262144 blocks per AG (~1GB).  Derive agcount from that,
-     * then set agblocks = ceil(dblocks / agcount) so the kernel's
-     * validation (div_u64_rem + round-up == agcount) passes.
+     * Target ~262144 blocks per AG (~1GB) — but the log AG must contain the
+     * whole log (5 header blocks + log + 4 AGFL + 16 btree-root slack), so
+     * on devices where a 1GB AG cannot, use fewer, larger AGs.
      */
     geom.agcount = (uint32_t)((geom.dblocks + 262143) / 262144);
+    {
+        uint64_t log_ag_need = (uint64_t)geom.logblocks + 5 + 4 + 16;
+        uint64_t max_agcount = geom.dblocks / log_ag_need;
+
+        if (max_agcount < 2) {
+            pr_err("mkfs.mxfs: device too small for %u log slices: the log "
+                   "needs %llu blocks (%llu MB) inside one AG and the device "
+                   "has only %llu blocks (%llu MB) total; use -n with a "
+                   "smaller slice count or a bigger device\n",
+                   log_node_count,
+                   (unsigned long long)log_ag_need,
+                   (unsigned long long)(log_ag_need * XFS_BLOCKSIZE >> 20),
+                   (unsigned long long)geom.dblocks,
+                   (unsigned long long)(geom.dblocks * XFS_BLOCKSIZE >> 20));
+            return -1;
+        }
+        if (geom.agcount > max_agcount)
+            geom.agcount = (uint32_t)max_agcount;
+    }
     if (geom.agcount < 2)
         geom.agcount = 2;
 
@@ -1141,54 +1226,63 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
         geom.last_agblocks = (uint32_t)(geom.dblocks - (uint64_t)(geom.agcount - 1) * geom.agblocks);
     }
 
+    /*
+     * sess389 (D-RSYNC-LAP-PACE-AG-SHARING-388, RULE-5 ruling): the kernel
+     * gives every node the home AG (node_slot % agcount), so with fewer AGs
+     * than nodes, slots >= agcount share a home AG pairwise and their dirops
+     * ping-pong the AG EX grant.  Measured 25 AGs / 32 nodes: the 14 shared-AG
+     * nodes were exactly the rsync_paired lap-2+ failures (34-60s+ vs 14-27s
+     * exclusive); 64 AGs on the same rig: all 32 nodes 14-30s across 8 laps.
+     * The log must fit one AG, so agcount is capped at dblocks/log_ag_need;
+     * the lever is device size (or fewer slices).  Correctness does not depend
+     * on this — say so loudly and compute the minimum size that fixes it.
+     */
+    if (log_node_count > 0 && geom.agcount < log_node_count) {
+        uint64_t log_ag_need = (uint64_t)geom.logblocks + 5 + 4 + 16;
+        uint64_t need_blocks = log_ag_need * (uint64_t)log_node_count;
+        uint32_t shared = log_node_count - geom.agcount;
+
+        pr_err("mkfs.mxfs: WARNING: agcount %u < node count %u — %u node slot(s) "
+                "(>= %u) will SHARE a home AG with a lower slot and pace "
+                "degrades under contention (correctness unaffected).  "
+                "Sizing rule: agcount >= nodes (2x for the perf class).  "
+                "The %u-slice log (%llu blocks) must fit one AG, so this needs "
+                "a device of at least %llu blocks (%llu MB) for %u AGs "
+                "(%llu MB for 2x); this device has %llu blocks (%llu MB).\n",
+                geom.agcount, log_node_count, shared, geom.agcount,
+                log_node_count, (unsigned long long)geom.logblocks,
+                (unsigned long long)need_blocks,
+                (unsigned long long)(need_blocks * XFS_BLOCKSIZE >> 20),
+                log_node_count,
+                (unsigned long long)(need_blocks * 2 * XFS_BLOCKSIZE >> 20),
+                (unsigned long long)geom.dblocks,
+                (unsigned long long)(geom.dblocks * XFS_BLOCKSIZE >> 20));
+    }
+
     geom.agblklog = ceil_log2(geom.agblocks);
 
     /* Log placement: middle AG */
     geom.log_ag = geom.agcount / 2;
 
-    /* Log size: dblocks/2048, clamped to [1024, 65536].
-     * XFS kernel requires minimum ~847 blocks for this geometry,
-     * use 1024 as safe minimum. */
-    geom.logblocks = (uint32_t)(geom.dblocks / 2048);
-    if (geom.logblocks < 1024)
-        geom.logblocks = 1024;
-    if (geom.logblocks > 65536)
-        geom.logblocks = 65536;
-
-    /* Per-node log: each slice gets its OWN portion of the internal XFS log
-     * (geom.logblocks / log_node_count).  sess36: a 1024-fsb (4 MiB) slice is
-     * below XFS's viable minimum and WEDGES under sustained metadata/data
-     * writes (rsync): the slice fills, xfsaild can't advance the tail fast
-     * enough, and all txns block in xlog_grant_head_wait (single-node hang
-     * that fails single_node_paired and every heavy-load criterion).  Give
-     * each node a 4096-fsb (16 MiB) slice — comfortably above the XFS minimum.
-     * The log is INTERNAL (middle AG, multi-GB) so this only reserves more
-     * data-region blocks; no separate region to overflow.  Validate with
-     * tests/repro_logwedge.sh after rebuilding tools + re-mkfs. */
-    {
-        /* sess36: 16MB (4096) helped subset rsync but the FULL recursive
-         * rsync still wedged; bump to 8192 fsb = 32MB/slice to test whether
-         * more log clears it (size) or it's an xfsaild tail-advance bug.
-         *
-         * sess21 (ccloop): 32MB/slice keeps the log tail under constant
-         * pressure on metadata-heavy workloads — the canonical rsync ran
-         * 1500 sync log writes + 8119 xfsaild buffer pushes vs native
-         * XFS's 107/0 (single_node_paired 155%).  mkfs.xfs has enforced a
-         * 64MB minimum log since xfsprogs 5.19 for exactly this reason;
-         * match it per node slice: 16384 fsb = 64MB/slice.  The AG-fit
-         * clamp below still shrinks the total on tiny devices. */
-        uint32_t min_total = log_node_count * 16384;
-        if (geom.logblocks < min_total)
-            geom.logblocks = min_total;
-    }
-
-    /* Ensure log fits in its AG (leaving room for header+btrees+AGFL) */
+    /* Verify the log fits its AG (log starts at block 5 of the log AG,
+     * after SB+AGF+AGI+AGFL, BNO, CNT, INO, FINO; +4 AGFL +16 slack).
+     * With multiple slices this must never shrink — a shrunken slice is
+     * the sess36 wedge — so a misfit is a hard error.  A single legacy
+     * slice may still shrink to fit tiny devices. */
     {
         uint32_t log_ag_len = (geom.log_ag == geom.agcount - 1) ?
                                geom.last_agblocks : geom.agblocks;
-        /* log starts at block 5 in the log AG (after SB+AGF+AGI+AGFL, BNO, CNT, INO, FINO) */
-        if (5 + geom.logblocks + 4 + 16 > log_ag_len)
+        if (5 + geom.logblocks + 4 + 16 > log_ag_len) {
+            if (log_node_count > 1) {
+                pr_err("mkfs.mxfs: internal error: %u-slice log (%u blocks) "
+                       "does not fit AG %u (%u blocks) — AG sizing should "
+                       "have prevented this\n",
+                       log_node_count, geom.logblocks, geom.log_ag,
+                       log_ag_len);
+                return -1;
+            }
             geom.logblocks = log_ag_len - 5 - 4 - 16;
+        }
     }
 
     /* Log start: block 5 of the log AG.
@@ -1452,12 +1546,17 @@ out:
 static void usage(const char *prog)
 {
     fprintf(stderr,
-            "Usage: %s [-f] [-n count] [-v] [-V] DEVICE\n"
+            "Usage: %s [-f] [-n count] [-d size] [-v] [-V] DEVICE\n"
             "\n"
             "Format a block device for MXFS (Multinode XFS).\n"
             "\n"
             "  -f          Force — skip confirmation prompt\n"
-            "  -n COUNT    Per-node XFS log slices (1-64, default 4)\n"
+            "  -n COUNT    Per-node XFS log slices = max cluster nodes for\n"
+            "              this FS (1-32; default: auto-sized from device)\n"
+            "  -d SIZE     Cap the XFS data area at SIZE bytes (K/M/G/T suffix;\n"
+            "              default: the whole device).  Like mkfs.xfs -d size=;\n"
+            "              used to reproduce a smaller-device geometry (agcount)\n"
+            "              on a larger LUN.\n"
             "  -v          Verbose output\n"
             "  -V          Print version and exit\n"
             "\n"
@@ -1476,20 +1575,53 @@ int main(int argc, char *argv[])
     uint64_t disklock_offset, journal_offset, xfs_data_offset;
     uint64_t journal_size, disklock_size, xfs_data_size;
     uint32_t max_nodes = MXFS_MAX_NODES;
-    uint32_t log_node_count = 4;
+    uint32_t log_node_count = 0;    /* 0 = auto-size from the device;
+                                     * D-LOG-SLICE-SHARED-MULTIWRITER: the
+                                     * old fixed default of 4 silently gave
+                                     * a 32-node cluster 8 writers per log
+                                     * slice */
     uint8_t uuid[16];
     char hbuf[64], hbuf2[64];
     struct stat st;
+    uint64_t data_cap = 0;              /* -d: XFS data-area cap, 0 = whole device */
 
-    while ((opt = getopt(argc, argv, "fn:vV")) != -1) {
+    while ((opt = getopt(argc, argv, "fn:d:vV")) != -1) {
         switch (opt) {
         case 'f':
             force = true;
             break;
+        case 'd': {
+            /* sess389: data-area cap (geometry reproduction).  Accepts a
+             * plain byte count or K/M/G/T suffix. */
+            char *end = NULL;
+            unsigned long long v = strtoull(optarg, &end, 10);
+
+            if (end == optarg || v == 0) {
+                pr_err("mkfs.mxfs: -d SIZE must be a positive number "
+                       "(optional K/M/G/T suffix)\n");
+                return 1;
+            }
+            switch (*end) {
+            case 'k': case 'K': v <<= 10; end++; break;
+            case 'm': case 'M': v <<= 20; end++; break;
+            case 'g': case 'G': v <<= 30; end++; break;
+            case 't': case 'T': v <<= 40; end++; break;
+            default: break;
+            }
+            if (*end != '\0') {
+                pr_err("mkfs.mxfs: -d: bad size suffix '%s'\n", end);
+                return 1;
+            }
+            data_cap = (uint64_t)v;
+            break;
+        }
         case 'n':
             log_node_count = (uint32_t)atoi(optarg);
-            if (log_node_count < 1 || log_node_count > 64) {
-                pr_err("mkfs.mxfs: -n must be 1-64\n");
+            if (log_node_count < 1 || log_node_count > 32) {
+                pr_err("mkfs.mxfs: -n must be 1-32 (XFS caps the internal "
+                       "log at 2GiB-10MiB, so at most 32 ~64MB per-node "
+                       "slices fit; the slice count is the cluster's hard "
+                       "node limit for this filesystem)\n");
                 return 1;
             }
             break;
@@ -1563,6 +1695,18 @@ int main(int argc, char *argv[])
     disklock_offset = ALIGN_UP_4K(journal_offset + journal_size);
     xfs_data_offset = ALIGN_UP_4K(disklock_offset + disklock_size);
     xfs_data_size = device_size - xfs_data_offset;
+    if (data_cap) {
+        if (data_cap > xfs_data_size) {
+            pr_err("mkfs.mxfs: -d %s exceeds the device's XFS data area (%s)\n",
+                   human_size(data_cap, hbuf, sizeof(hbuf)),
+                   human_size(xfs_data_size, hbuf2, sizeof(hbuf2)));
+            return 1;
+        }
+        pr_info("  -d: capping XFS data area at %s (device has %s)\n",
+                human_size(data_cap, hbuf, sizeof(hbuf)),
+                human_size(xfs_data_size, hbuf2, sizeof(hbuf2)));
+        xfs_data_size = data_cap;
+    }
 
     if (xfs_data_size < 16 * 1024 * 1024) {
         pr_err("mkfs.mxfs: %s: device too small for XFS data "
@@ -1675,7 +1819,7 @@ int main(int argc, char *argv[])
     uint32_t xfs_logblocks = 0;
 
     if (format_xfs_native(fd, xfs_data_size, xfs_data_offset, uuid,
-                           log_node_count, &xfs_logblocks) < 0) {
+                           &log_node_count, &xfs_logblocks) < 0) {
         pr_err("mkfs.mxfs: XFS format failed\n");
         close(fd);
         return 1;

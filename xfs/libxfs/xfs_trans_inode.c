@@ -113,7 +113,25 @@ xfs_trans_log_inode(
 	 * safe.  Counter only — nothing consumes it until step 3 gates the
 	 * drain's success return on pending == durable.
 	 */
-	ip->i_mxfs_pub_pending_seq++;
+	/*
+	 * sess382 (D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380): NOT for
+	 * the release drain's own gated re-log.  That re-log re-logs the SAME
+	 * in-core core purely to get it flushed after a fence abandoned the
+	 * previous attempt (P146V-UNLANDED); it represents no new committed
+	 * change, so counting it as a new obligation is simply wrong — and it
+	 * is what made the obligation UNCLOSEABLE: every retry pushed pending
+	 * past whatever the eventual flush could stamp, so flush_seq < pending
+	 * held permanently, the state read as cls=UNCOPIED forever, and the
+	 * defer episode wedged the mount.  MEASURED (injected fence, ino 132):
+	 * pending ran 6 -> 730 while flush stayed frozen at 6.
+	 *
+	 * i_mxfs_pipe_relog is the existing marker for exactly this caller —
+	 * set around the re-log in mxfs_dlm_bast_process and already consulted
+	 * by the P234 authority probe below as "the pipeline's own gated
+	 * re-log".  Nothing else sets it.
+	 */
+	if (!(mxfs_relog_holds_obligation && READ_ONCE(ip->i_mxfs_pipe_relog)))
+		ip->i_mxfs_pub_pending_seq++;
 
 	/*
 	 * sess32 P230: this mutation is being logged under an ILOCK that was
@@ -240,8 +258,37 @@ xfs_trans_log_inode(
 	 * set however, then go ahead and bump the i_version counter
 	 * unconditionally.
 	 */
+	/*
+	 * sess382 (GPT ruling 2, Q1): the release drain's own gated re-log must
+	 * not advance the LOGICAL VERSION either.  Same argument as the
+	 * pending_seq suppression above, on the counter that matters more:
+	 * di_changecount is MXFS's cross-node freshness stamp, compared by
+	 * P-RELOAD-IDENTICAL, P3-REFUSE-OLDER, P189-RELOG-BEHIND-DISK and the
+	 * epoch gates.  A re-log is a new PUBLICATION ATTEMPT, not a new logical
+	 * modification — "a repeated publication of version 10 should still
+	 * contain changecount 10; incrementing it to 11 would falsely claim a
+	 * modification occurred."
+	 *
+	 * Left unsuppressed, a re-log storm walks our in-core version past the
+	 * platter's purely from our own repair attempts, and the inode then
+	 * looks strictly AHEAD of home — which is exactly the state
+	 * P34F-RELOAD-SELFAHEAD-SKIP refuses to adopt over, so the repair
+	 * defeats the recovery that would have resolved it.  Self-inflicted,
+	 * and the same shape as the pending_seq runaway.
+	 *
+	 * SAFE BY CONSTRUCTION: the re-log site logs XFS_ILOG_CORE on an
+	 * otherwise untouched in-core inode and never calls xfs_trans_ichgtime,
+	 * so the only mutation it would make to the persisted image IS this
+	 * bump.  i_mxfs_pipe_relog has exactly one setter (the re-log in
+	 * mxfs_dlm_bast_process).  The XFS_LI_DIRTY transition itself still
+	 * runs — the item must still become dirty so the re-log can be flushed.
+	 *
+	 * A/B lever: mxfs.relog_holds_version=0 restores the pre-fix bumping.
+	 */
 	if (!test_and_set_bit(XFS_LI_DIRTY, &iip->ili_item.li_flags)) {
-		if (IS_I_VERSION(inode) &&
+		if (!(mxfs_relog_holds_version &&
+		      READ_ONCE(ip->i_mxfs_pipe_relog)) &&
+		    IS_I_VERSION(inode) &&
 		    inode_maybe_inc_iversion(inode, flags & XFS_ILOG_CORE))
 			flags |= XFS_ILOG_IVERSION;
 	}
@@ -265,6 +312,11 @@ xfs_trans_log_inode(
 	if ((flags & XFS_ILOG_CORE) &&
 	    !(iip->ili_dirty_flags & (XFS_ILOG_CORE | XFS_ILOG_IVERSION)) &&
 	    !(flags & XFS_ILOG_IVERSION) &&
+	    /* sess382 Q1: the forced bump is the OTHER half of the same
+	     * suppression — see the block above.  Missing it here would leave
+	     * the drain's re-log inflating cc through the MXFS path even after
+	     * the upstream path was fixed. */
+	    !(mxfs_relog_holds_version && READ_ONCE(ip->i_mxfs_pipe_relog)) &&
 	    ip->i_mount && ip->i_mount->m_mxfs_dlm &&
 	    IS_I_VERSION(inode)) {
 		inode_inc_iversion(inode);

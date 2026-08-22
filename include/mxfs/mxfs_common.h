@@ -126,6 +126,11 @@ enum mxfs_self_fence_reason {
 	MXFS_SELF_FENCE_PR_KEY_LOST_FENCING,
 	/* SCSI PR: periodic self-check found our key preempted. */
 	MXFS_SELF_FENCE_PR_KEY_PREEMPTED,
+	/* SCSI PR: repeated RESERVATION CONFLICT on data-path I/O triggered
+	 * an inspection, and PR IN (READ FULL STATUS / READ KEYS) confirmed
+	 * this node's key is no longer registered — a peer fenced us while
+	 * our own media reads were stale (sess276 fenced-victim ruling). */
+	MXFS_SELF_FENCE_PR_CONFLICT_FENCED,
 };
 
 static inline const char *mxfs_self_fence_reason_name(int reason)
@@ -139,6 +144,8 @@ static inline const char *mxfs_self_fence_reason_name(int reason)
 		return "PR_KEY_LOST_FENCING";
 	case MXFS_SELF_FENCE_PR_KEY_PREEMPTED:
 		return "PR_KEY_PREEMPTED";
+	case MXFS_SELF_FENCE_PR_CONFLICT_FENCED:
+		return "PR_CONFLICT_FENCED";
 	default:
 		return "UNKNOWN";
 	}
@@ -164,6 +171,11 @@ static inline const char *mxfs_self_fence_reason_desc(int reason)
 		return "this node's SCSI PR reservation key was preempted by "
 		       "a peer — this mount has been fenced by the cluster, "
 		       "the device is intact";
+	case MXFS_SELF_FENCE_PR_CONFLICT_FENCED:
+		return "data-path I/O hit repeated SCSI RESERVATION CONFLICT "
+		       "and PR IN confirmed this node's key is unregistered — "
+		       "this mount has been fenced by the cluster, the device "
+		       "is intact";
 	default:
 		return "unknown self-fence detector";
 	}

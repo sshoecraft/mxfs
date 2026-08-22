@@ -1132,8 +1132,29 @@ xfs_iflush_finish(
 				iip->ili_fields ? " (re-logged; will re-flush)"
 						: " (CLEAN DETACH — in-core state now sole copy)",
 				(unsigned long long)ktime_get_real_ns());
+		/* sess257 step-5 F3 (ruling item C): stamp the flush_epoch
+		 * observed at this discharge BEFORE advancing durable_seq —
+		 * ticket readers load durable, smp_rmb, then the stamp, so a
+		 * new durable_seq can never pair with a pre-discharge stamp.
+		 * A REAL_FLUSH ticket requires flush_epoch to advance PAST
+		 * this value (a real flush after these bytes landed). */
+		WRITE_ONCE(iip->ili_inode->i_mxfs_pub_durable_fepoch,
+			   (uint64_t)atomic64_read(
+				&iip->ili_inode->i_mount->m_mxfs_flush_epoch));
+		smp_wmb();
 		iip->ili_inode->i_mxfs_pub_durable_seq =
 			iip->ili_inode->i_mxfs_pub_flush_seq;
+		/* sess387: the write that just completed carried this inode's
+		 * unlink conversion (flag set at copy-in under the IFLUSHING
+		 * interlock) — the publication obligation is discharged. */
+		if (xfs_iflags_test_and_clear(iip->ili_inode,
+					      MXFS_IF_PUBOB_FLUSHED)) {
+			extern void mxfs_pubob_discharge(struct xfs_mount *,
+							 struct xfs_inode *,
+							 const char *);
+			mxfs_pubob_discharge(iip->ili_inode->i_mount,
+					     iip->ili_inode, "flushed");
+		}
 		xfs_iflags_clear(iip->ili_inode, XFS_IFLUSHING);
 		if (drop_buffer)
 			xfs_buf_rele(bp);
@@ -1246,6 +1267,20 @@ static void
 xfs_iflush_abort_clean(
 	struct xfs_inode_log_item *iip)
 {
+	/* sess387 (d): name every silent evaporation of a live publication
+	 * obligation's dirty conversion (RULE-5 ruling: the obligation must
+	 * survive re-log/stale/abort/detach; the corpse chain begins where
+	 * the fields vanish without a flush). */
+	if ((iip->ili_fields || iip->ili_last_fields) &&
+	    xfs_iflags_test(iip->ili_inode, MXFS_IF_PUBOB) &&
+	    !xfs_iflags_test(iip->ili_inode, MXFS_IF_PUBOB_FLUSHED) &&
+	    !xlog_is_shutdown(iip->ili_inode->i_mount->m_log)) {
+		pr_warn("mxfs: P88-PUBOB-FIELDSCLEAR ino=%llu site=abort_clean fields=0x%x last=0x%x nlink=%u comm=%s\n",
+			(unsigned long long)iip->ili_inode->i_ino,
+			iip->ili_fields, iip->ili_last_fields,
+			VFS_I(iip->ili_inode)->i_nlink, current->comm);
+		dump_stack();
+	}
 	iip->ili_last_fields = 0;
 	iip->ili_fields = 0;
 	iip->ili_flush_lsn = 0;
@@ -1272,6 +1307,12 @@ xfs_iflush_abort(
 {
 	struct xfs_inode_log_item *iip = ip->i_itemp;
 	struct xfs_buf		*bp;
+
+	/* sess387: an aborted flush did NOT deliver the unlink conversion —
+	 * clear only the FLUSHED mark so a later flush re-establishes it; the
+	 * obligation itself (MXFS_IF_PUBOB + store entry) stays armed,
+	 * fail-closed. */
+	xfs_iflags_clear(ip, MXFS_IF_PUBOB_FLUSHED);
 
 	if (!iip) {
 		/* clean inode, nothing to do */

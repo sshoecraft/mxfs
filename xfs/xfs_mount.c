@@ -543,9 +543,24 @@ xfs_check_summary_counts(
 	 * not flag anything weird, then we can trust the values in the
 	 * superblock to be correct and we don't need to do anything here.
 	 * Otherwise, recalculate the summary counters.
+	 *
+	 * MXFS (sess352, #94 sess351 ruling2 Q1 limit case): a cluster
+	 * (envelope) mount NEVER trusts the on-disk summary counters, clean
+	 * log or not.  Every node's lazy-counter writeback last-writer-wins
+	 * over the shared SB home with its own node-local drifted values,
+	 * and foreign-slice replay CLEAN-SKIPs counter-only SB images
+	 * rather than applying a dead peer's stale ones — both by design.
+	 * Recomputing from AGF/AGI here is the single obligation that makes
+	 * those safe, with no durable marker to persist or race
+	 * (multi-victim and successor-replayer safe by construction).
+	 * m_mxfs_dlm is set before xfs_mountfs (pal fill_super), and an
+	 * envelope volume fails the mount outright if DLM init fails, so
+	 * this test covers every mxfs cluster mount.  Multi-node statfs
+	 * already reads every AGF/AGI at mount, so the added cost is ~0.
 	 */
 	if ((xfs_has_lazysbcount(mp) && !xfs_is_clean(mp)) ||
-	    xfs_fs_has_sickness(mp, XFS_SICK_FS_COUNTERS)) {
+	    xfs_fs_has_sickness(mp, XFS_SICK_FS_COUNTERS) ||
+	    mp->m_mxfs_dlm) {
 		error = xfs_initialize_perag_data(mp, mp->m_sb.sb_agcount);
 		if (error)
 			return error;
@@ -880,6 +895,24 @@ xfs_mountfs(
 	}
 
 	/*
+	 * MXFS (sess353, #94 closure + GPT ruling): a cluster mount requires
+	 * ATTRBIT preset by mkfs_mxfs.  Without it the first xattr-bearing
+	 * create on ANY node performs a lazy per-node xfs_add_attr +
+	 * whole-SB log — an uncoordinated cluster-wide SB feature transition
+	 * that diverges peers' in-core superblocks, is clobberable by any
+	 * peer's later whole-SB counter sync, and false-refuses foreign
+	 * replay of the transitioning node's slice (versionnum mismatch in
+	 * the counter-only classifier).  mkfs_mxfs >= 0.13.3 presets the
+	 * bit; refuse the old format outright rather than transition at
+	 * runtime.
+	 */
+	if (mp->m_mxfs_dlm && !xfs_has_attr(mp)) {
+		xfs_warn(mp,
+	"MXFS: superblock lacks ATTRBIT (old mkfs_mxfs format); cluster mount refused — reformat with current mkfs_mxfs");
+		return -EINVAL;
+	}
+
+	/*
 	 * If we were given new sunit/swidth options, do some basic validation
 	 * checks and convert the incore dalign and swidth values to the
 	 * same units (FSB) that everything else uses.  This /must/ happen
@@ -1035,17 +1068,34 @@ xfs_mountfs(
 		xfs_daddr_t log_daddr = XFS_FSB_TO_DADDR(mp, sbp->sb_logstart);
 		int	    log_bblks = XFS_FSB_TO_BB(mp, sbp->sb_logblocks);
 
-		if (mp->m_mxfs_log_node_count > 0 &&
-		    mp->m_mxfs_log_slice_bblks > 0) {
-			uint32_t slot = mp->m_mxfs_node_slot %
-					mp->m_mxfs_log_node_count;
-			log_daddr += (xfs_daddr_t)slot *
+		if (mxfs_has_log_slices(mp)) {
+			uint32_t slice;
+
+			error = mxfs_log_slice_of_slot(mp,
+					mp->m_mxfs_node_slot, &slice);
+			if (error) {
+				/*
+				 * Our heartbeat slot has no journal slice
+				 * (slot >= log_node_count).  Mounting anyway
+				 * would share another slot's slice — the
+				 * multi-writer interleave that produced
+				 * unreplayable logs.  Refuse; the unwind
+				 * releases the slot so a retry can land on
+				 * a numbered one.
+				 */
+				xfs_alert(mp,
+					"MXFS: heartbeat slot %u has no log slice (fs has %u slices); refusing mount",
+					mp->m_mxfs_node_slot,
+					mp->m_mxfs_log_node_count);
+				goto out_inodegc_shrinker;
+			}
+			log_daddr += (xfs_daddr_t)slice *
 				     mp->m_mxfs_log_slice_bblks;
 			log_bblks  = mp->m_mxfs_log_slice_bblks;
 			xfs_notice(mp,
 				"MXFS: per-node log slice %u/%u "
 				"offset=%lld bblks=%d",
-				slot, mp->m_mxfs_log_node_count,
+				slice, mp->m_mxfs_log_node_count,
 				(long long)log_daddr, log_bblks);
 		}
 

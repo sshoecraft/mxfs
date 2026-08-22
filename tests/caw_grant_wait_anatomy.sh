@@ -49,12 +49,32 @@ MNT=/mnt/shared
 STAMP=$(date -u +%H%M%S)
 OUT=$(mktemp -d)
 MARK="MXFS_CGWA_WINDOW_$STAMP"
+# sess380: SHAPE selects which resource is contended.
+#   shared  (default) — every node creates into ONE directory, which is the
+#           shape D-32NODE-SHARED-DIR-CREATE-PACE is about.
+#   private — per-node subdirectories; then the only contended inode is the
+#           parent, and only for the mkdir.  That is what this harness used to
+#           do unconditionally, which is why its census kept reporting the
+#           parent inode rather than the directory under test.
+# LOCKTOTAL_MS lowers the P139-LOCKTOTAL whole-acquire census floor (kernel
+# default 800ms) on every node for the run and restores it afterwards.  Without
+# that this harness is BLIND to the tail it exists to explain: measured 2026-08-20,
+# a 32-node create tail of p95 424ms / max 471ms produced exactly 4 P138-WAIT
+# lines fleet-wide and ZERO P139-LOCKTOTAL, because the acquire is many sub-5ms
+# waits with outer retries between them and the whole-acquire probe floor sat
+# above the entire distribution.
+SHAPE="${SHAPE:-shared}"
+LOCKTOTAL_MS="${LOCKTOTAL_MS:-50}"
+PARM=/sys/module/mxfs/parameters/caw_locktotal_ms
 
 W=$(cat <<'EOS'
 set -u
 D="$1"; F="$2"; R="$3"; MARK="$4"
 echo "$MARK rank=$R" > /dev/kmsg 2>/dev/null || true
-mkdir -p "$D" 2>/dev/null
+# sess380: the caller pre-creates every directory, so no mkdir runs inside the
+# measured window (a 32-way mkdir on a shared parent is its own contention event
+# and used to be silently folded into these numbers).
+[ -d "$D" ] || { echo "MISSING_DIR $D"; exit 1; }
 line="CGWA r$R"$'\n'
 s="$line"; while [ "${#s}" -lt 4096 ]; do s="$s$s"; done
 pat="${s:0:4096}"
@@ -68,16 +88,34 @@ EOS
 
 echo "=== caw_grant_wait_anatomy: P=$P F=$F mark=$MARK ==="
 DIRB="$MNT/.cgwa_${STAMP}"
-"$SSH" test1 "mkdir -p '$DIRB'" >/dev/null 2>&1
+echo "--- shape=$SHAPE locktotal_floor=${LOCKTOTAL_MS}ms"
+"$SSH" test1 "mkdir -p '$DIRB'; [ '$SHAPE' = shared ] || for i in \$(seq 1 $P); do mkdir -p '$DIRB'/r\$i; done" >/dev/null 2>&1
+armed=0
 for i in $(seq 1 "$P"); do
-    ( "$SSH" "test$i" "bash -s '$DIRB/r$i' '$F' '$i' '$MARK'" <<< "$W" \
+    ( "$SSH" "test$i" "[ -w $PARM ] && echo $LOCKTOTAL_MS > $PARM && cat $PARM" \
+        > "$OUT/arm$i.txt" 2>&1 ) &
+done
+wait
+for i in $(seq 1 "$P"); do
+    [ "$(grep -xE '[0-9]+' "$OUT/arm$i.txt" 2>/dev/null | tail -1)" = "$LOCKTOTAL_MS" ] &&
+        armed=$((armed+1))
+done
+echo "--- P139-LOCKTOTAL floor armed on $armed/$P nodes"
+[ "$armed" -eq "$P" ] || echo "    WARNING: nodes without the knob are running the 800ms default and will under-report"
+for i in $(seq 1 "$P"); do
+    if [ "$SHAPE" = shared ]; then d="$DIRB"; else d="$DIRB/r$i"; fi
+    ( "$SSH" "test$i" "bash -s '$d' '$F' '$i' '$MARK'" <<< "$W" \
         > "$OUT/op$i.txt" 2>&1 ) &
+done
+wait
+for i in $(seq 1 "$P"); do
+    ( "$SSH" "test$i" "[ -w $PARM ] && echo 800 > $PARM" >/dev/null 2>&1 ) &
 done
 wait
 echo "--- workload done, harvesting scoped probes ---"
 for i in $(seq 1 "$P"); do
     ( "$SSH" "test$i" \
-        "dmesg | awk '/$MARK/{f=1} f' | grep -E 'P138-WAIT|P131-WAITLONG|P138-BAST' | tail -4000" \
+        "dmesg | awk '/$MARK/{f=1} f' | grep -E 'P138-WAIT|P131-WAITLONG|P138-BAST|P139-LOCKTOTAL|P139-TAILCENSUS|P34-ACQ-SLOW' | tail -8000" \
         > "$OUT/pr$i.txt" 2>/dev/null ) &
 done
 wait
@@ -221,6 +259,60 @@ if longs:
     for l in sorted(longs, key=lambda x: -x[5])[:10]:
         print(f"  node{l[0]:<3d} type={LT.get(l[1],l[1]):6s} ino={l[2]:12d} ag={l[3]:4d} "
               f"mode={l[4]} elapsed_ms={l[5]}")
+# ---------------------------------------------------------------- sess380 ---
+# WHOLE-ACQUIRE census.  P138-WAIT times ONE wait_for_grant call; an acquire
+# that loses a claim race re-registers and waits again, so a 400ms acquire can
+# be twenty sub-5ms waits and appear NOWHERE in the per-wait census.
+# P139-LOCKTOTAL brackets the whole acquire including every retry, and its
+# `retries` field is the discriminator:
+#   retries ~0 and total large  -> HOLDER-BOUND, a peer really held it
+#   retries large               -> CLAIM-BOUND, we keep losing the race
+LOCKTOT = re.compile(
+    r'P139-LOCKTOTAL ino=(\d+) req=(\d+) rc=(-?\d+) total_ms=(\d+) retries=(\d+) '
+    r'ea_claim=(\d+) ea_compat=(\d+) ea_regwait=(\d+)')
+acqs = []
+for p_ in sorted(glob.glob(os.path.join(out, "pr*.txt"))):
+    node = os.path.basename(p_)[2:-4]
+    for ln in open(p_, errors='replace'):
+        m = LOCKTOT.search(ln)
+        if m:
+            ino, req, rc, tot, rtr, eac, eacm, ear = (int(x) for x in m.groups())
+            acqs.append(dict(node=node, ino=ino, req=req, rc=rc, total=tot,
+                             retries=rtr, ea_claim=eac, ea_compat=eacm,
+                             ea_regwait=ear))
+
+print(f"\n=== WHOLE-ACQUIRE census (P139-LOCKTOTAL, floor set by the harness) ===")
+if not acqs:
+    print("  NONE. Either no acquire crossed the floor, or the floor knob is not")
+    print("  present in this build (mxfs.caw_locktotal_ms, added 0.15.5) and the")
+    print("  kernel default of 800ms sat above the whole distribution.")
+else:
+    tots = sorted(a['total'] for a in acqs)
+    rtrs = sorted(a['retries'] for a in acqs)
+    n = len(tots)
+    print(f"  n={n}  total_ms mean={statistics.fmean(tots):.1f} p50={tots[n//2]} "
+          f"p95={tots[min(n-1,int(n*.95))]} max={tots[-1]}")
+    print(f"  retries  mean={statistics.fmean(rtrs):.2f} p50={rtrs[n//2]} "
+          f"p95={rtrs[min(n-1,int(n*.95))]} max={rtrs[-1]}")
+    print(f"  aggregate acquire wait across cluster = {sum(tots)/1000.0:.1f}s")
+    zero = sum(1 for r in rtrs if r == 0)
+    print(f"  acquires with ZERO retries: {zero}/{n} ({100.0*zero/n:.1f}%)  "
+          f"-> {'HOLDER-BOUND dominates' if zero > n/2 else 'CLAIM-BOUND dominates'}")
+    by_ino = {}
+    for a in acqs:
+        d_ = by_ino.setdefault(a['ino'], [0, 0, 0])
+        d_[0] += a['total']; d_[1] += 1; d_[2] += a['retries']
+    print("  by inode (top 8 by total ms):")
+    for ino, (t, c, r) in sorted(by_ino.items(), key=lambda kv: -kv[1][0])[:8]:
+        print(f"    ino={ino:<12d} total={t:7d}ms grants={c:5d} "
+              f"mean={t/c:7.1f}ms retries/grant={r/c:5.2f}")
+    ea = [(sum(a['ea_claim'] for a in acqs), 'ea_claim  (lost the SLOT-CLAIM race)'),
+          (sum(a['ea_compat'] for a in acqs), 'ea_compat (lost the COMPATIBLE-admit CAS)'),
+          (sum(a['ea_regwait'] for a in acqs), 'ea_regwait(lost the WAITER-REGISTER CAS)')]
+    print("  where the retries were spent (total -EAGAIN by site):")
+    for v, lab in sorted(ea, reverse=True):
+        print(f"    {lab:48s} {v}")
+
 PY
 rc=$?
 echo "=== cleanup ==="

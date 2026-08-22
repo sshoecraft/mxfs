@@ -118,8 +118,15 @@ struct mxfs_disklock_record {
  * The ring is a non-authoritative hint ring; old 28-entry records read
  * by new code are capped by the count guard in disklock.c, and the
  * bytes where entries 25..27 lived are now mepoch+reserved — protected
- * by their own magic+crc so stale ring garbage is never misread. */
-#define MXFS_EVICT_RING_ENTRIES     25
+ * by their own magic+crc so stale ring garbage is never misread.
+ *
+ * sess346 (#92 clean-departure): 25 → 23, freeing 32 B for the claim
+ * provenance block (mxfs_hb_provenance, between the body union and
+ * mepoch).  Same compatibility argument as the 28→25 carve — the ring
+ * is a hint, the count guard caps old records, and the provenance
+ * block carries its own magic+crc.  Layout change ⇒ MXFS_PROTO_GEN
+ * bump (vergate fences old nodes). */
+#define MXFS_EVICT_RING_ENTRIES     23
 
 /*
  * sess80: entry TYPE, carried in the former `pad` field (wire size unchanged,
@@ -151,7 +158,7 @@ struct mxfs_evict_ring {
     uint16_t                pad;
     struct mxfs_evict_entry entry[MXFS_EVICT_RING_ENTRIES];
 };                                      /* hdr 16 (4B align pad before entry[])
-                                         * + 28*16 = 464 bytes */
+                                         * + 23*16 = 384 bytes */
 
 /*
  * net2 step 5 (§7.C): the committed MEPOCH authority record, embedded in
@@ -357,6 +364,45 @@ struct mxfs_mepoch_rec {
 #define MXFS_RECOV_F_QUARANTINED    0x00000001u
 /* The victim declared its own death (WITHDRAWN) rather than being detected. */
 #define MXFS_RECOV_F_VICTIM_WITHDREW 0x00000002u
+/*
+ * sess186: the victim's own record carried a VALID feature block with
+ * MXFS_HB_FEAT_SNLOCAL set — its incarnation durably classified itself a
+ * single-node local log BEFORE writing (sess184 ruling item 1).  Captured at
+ * descriptor creation from the victim record being overlaid and immutable
+ * from then on, like MXFS_RECOV_F_VICTIM_WITHDREW.  A recovery certificate
+ * NEVER retroactively classifies untagged records (precedent boundary) —
+ * this flag is the only way a replay may learn the victim was snlocal.
+ */
+#define MXFS_RECOV_F_VICTIM_SNLOCAL  0x00000004u
+/*
+ * sess381 (D-FENCE-PRECONDITION-FAILURE-RECORDED-TERMINAL-381) — THE
+ * COMMAND-SUBMISSION BOUNDARY, MADE DURABLE.
+ *
+ * Set immediately BEFORE a state-changing PR command (PREEMPT / PREEMPT AND
+ * ABORT) is handed to the transport, and never cleared while the attempt
+ * stands.  It is MONOTONIC, like the other flags here, and it is deliberately
+ * the "may have run" polarity rather than "nothing ran": a fresh intent has it
+ * clear by construction, every pre-command early return leaves it clear, and
+ * nothing has to succeed at clearing it on a path that must not fail.  The name
+ * is also the contract — it may NEVER be read as proof that submission DID
+ * happen, only that it might have.
+ *
+ * The three durable states this creates, with `stage`:
+ *   FENCING, bit CLEAR  — GUARANTEED no state-changing command was submitted
+ *                         for this standing attempt.  Nothing was consumed, the
+ *                         victim key is intact, and the attempt is safe to
+ *                         repeat.  This is the state the fence-retry worker
+ *                         drives.
+ *   FENCING, bit SET    — a command may have reached the target, including the
+ *                         case "it executed and the response was never seen".
+ *                         MUST be reconciled against a coherent PR view before
+ *                         anything is assumed; it is NOT retryable-as-harmless.
+ *   stage >= FENCED     — a certificate.
+ *
+ * Crash between setting the bit and submitting leaves the conservative
+ * ambiguous state, which is the correct failure mode.
+ */
+#define MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN 0x00000008u
 
 /*
  * THE FENCE CERTIFICATE (sess75, v2).
@@ -478,10 +524,124 @@ struct mxfs_recov_fence_auth {
     uint16_t        victim_slot;
 };
 
+/*
+ * ── THE TERMINAL RECOVERY OUTCOME RECORD (sess320 ruling, sess323) ─────────
+ *
+ * Written by the recovery-lease OWNER when it refuses to publish a victim's
+ * slice as recovered — either the replay policy refused every obligation
+ * (foreign gate: 0 applied / N refused) or the slice is physically torn.
+ * Publishing "recovered" in that state suppresses unreplayed work; publishing
+ * nothing leaves 31 survivors to time out one by one into their own
+ * shutdowns (the proven all-32 suicide of D-513).  The outcome record is the
+ * third verdict: TERMINAL REFUSED, durable in the victim's own sector next
+ * to the descriptor, imported by every survivor's monitor so the whole
+ * cluster converges on the same quarantine domain instead of dying.
+ *
+ * It lives at byte 120 of mxfs_recov_body — after the descriptor, inside
+ * bytes the pad already owned — so the sector layout does not move.  It has
+ * its own magic/version/crc: a descriptor from a build that never wrote an
+ * outcome presents zeroes here, which fail the magic test and read as "no
+ * outcome", never as garbage.  The crc binds the record to the sector's
+ * victim identity exactly as recov_desc_crc does, so an outcome spliced next
+ * to a different victim's header never validates.
+ *
+ * The record is written ONLY together with MXFS_RECOV_F_QUARANTINED in the
+ * descriptor flags, and every stage gate already refuses a quarantined
+ * descriptor, so the state machine cannot advance past it: it is terminal
+ * until operator action.
+ */
+#define MXFS_RECOV_OUTCOME_MAGIC    0x4F435652u  /* "RVCO" LE */
+#define MXFS_RECOV_OUTCOME_VERSION  1
+
+/* outcome */
+#define MXFS_RECOV_OUTCOME_TERMINAL_REFUSED     1u
+/* reason */
+#define MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE  1u  /* gate refused all */
+#define MXFS_RECOV_REFUSAL_PHYSICALLY_TORN          2u  /* slice unreadable/corrupt */
+/*
+ * sess329/sess330 (sess328 ruling Q1 + sess330 ruling): BACKFILL
+ * provenance, never a fresh verdict.  A descriptor QUARANTINED with an
+ * ALL-ZERO outcome region is the legacy intent-path quarantine: builds
+ * before the outcome record set MXFS_RECOV_F_QUARANTINED alone
+ * (undischargeable intent obligations), leaving terminal-but-
+ * uncommunicated state — peers park forever and a remount cannot
+ * reconstruct the verdict (the D-513 shape again).  No recovery auth can
+ * EVER exist over a quarantined descriptor (the claim path's certificate
+ * evaluator refuses it, verified sess330), so the backfill is leaseless:
+ * recovery_backfill_legacy() synthesizes a terminal record with THIS
+ * reason so the record's provenance is honest — the quarantine is
+ * inherited, not the result of a replay this build ran.  Domain is FSWIDE
+ * because the intent path recorded no domain evidence (verified sess329:
+ * no in-tree setter writes the flag without an outcome).
+ * publish_refusal() REJECTS this reason (-EINVAL); only the backfill API
+ * writes it, only against an already-QUARANTINED descriptor whose outcome
+ * region is exactly all-zero — it can backfill, never overwrite.
+ */
+#define MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE 3u  /* backfilled verdict */
+/* domain_kind */
+#define MXFS_RECOV_DOMAIN_FSWIDE    1u  /* quarantine the whole filesystem */
+#define MXFS_RECOV_DOMAIN_AG_MASK   2u  /* quarantine only the AGs in ag_mask */
+/* flags (sess327, sess325 ruling item 5): digest must not gate containment.
+ * DIGEST_VALID set = slice_digest is a real reread crc of the refused image;
+ * clear = the forensic reread failed and slice_digest is zero.  The verdict
+ * publishes either way — a missing digest weakens forensics, never safety. */
+#define MXFS_RECOV_OUTCOME_F_DIGEST_VALID   (1u << 0)
+
+struct mxfs_recov_outcome {
+    uint32_t    magic;          /*  0: MXFS_RECOV_OUTCOME_MAGIC */
+    uint16_t    version;        /*  4: MXFS_RECOV_OUTCOME_VERSION */
+    uint16_t    outcome;        /*  6: MXFS_RECOV_OUTCOME_* */
+    uint16_t    reason;         /*  8: MXFS_RECOV_REFUSAL_* */
+    uint16_t    domain_kind;    /* 10: MXFS_RECOV_DOMAIN_* */
+    uint16_t    victim_slot;    /* 12 */
+    uint16_t    owner_slot;     /* 14 */
+    uint64_t    victim_epoch;   /* 16 */
+    uint64_t    owner_epoch;    /* 24 */
+    uint64_t    recovery_gen;   /* 32: ties the refusal to the recovery txn */
+    uint64_t    ag_mask;        /* 40: valid iff domain_kind == AG_MASK; bit n
+                                 *     = AG n is quarantined (AGs >= 64 force
+                                 *     FSWIDE at collection time) */
+    uint64_t    slice_digest;   /* 48: crc32c of the refused slice image,
+                                 *     reread at refusal time — forensic
+                                 *     identity of WHAT was refused */
+    uint64_t    publish_seq;    /* 56: monotonic per-victim publish counter;
+                                 *     importers dedup on (victim_epoch, seq) */
+    uint32_t    victim_node;    /* 64 */
+    uint32_t    victim_fs_gen;  /* 68 */
+    uint32_t    owner_node;     /* 72: who refused */
+    uint32_t    owner_term;     /* 76: owner_term at publication */
+    uint32_t    refused_items;  /* 80: log items the gate refused */
+    uint32_t    malformed_items;/* 84: log items that failed to parse */
+    uint32_t    flags;          /* 88: MXFS_RECOV_OUTCOME_F_* (was pad0;
+                                 *     old records read as flags==0 =
+                                 *     digest not validated) */
+    uint32_t    crc32c;         /* 92: over bytes 0..91 + victim identity */
+};                              /* 96 */
+
+/*
+ * The refusal verdict as it crosses the layer boundary — filled by the XFS
+ * replay layer at the refusal site (publish direction) and handed back to
+ * the XFS layer by the monitor import (consume direction).  Deliberately the
+ * SAME struct both ways so the two paths cannot diverge in what they carry.
+ */
+struct mxfs_recov_refusal_info {
+    uint16_t    reason;         /* MXFS_RECOV_REFUSAL_* */
+    uint16_t    domain_kind;    /* MXFS_RECOV_DOMAIN_* */
+    uint64_t    ag_mask;
+    uint64_t    slice_digest;   /* meaningful iff digest_valid */
+    uint32_t    refused;
+    uint32_t    malformed;
+    bool        digest_valid;   /* sess327: forensic reread succeeded; when
+                                 * false the outcome still publishes with
+                                 * slice_digest zeroed and the DIGEST_VALID
+                                 * flag clear (ruling item 5) */
+};
+
 /* The descriptor plus the rest of the evict-ring footprint it overlays. */
 struct mxfs_recov_body {
-    struct mxfs_recov_desc  desc;
-    uint8_t                 pad[296];
+    struct mxfs_recov_desc      desc;
+    struct mxfs_recov_outcome   outcome;    /* sess323: terminal refusal */
+    uint8_t                     pad[168];   /* sess346: 200→168 (prov carve) */
 };
 
 /*
@@ -503,6 +663,25 @@ struct mxfs_recov_body {
  */
 #define MXFS_HB_FEAT_MAGIC      0x47465846u  /* "FXFG" LE → reads MXFG-ish */
 
+/*
+ * sess186 (D-SHUTDOWN-UMOUNT-CLEAN-RELEASE-DIRTY-SLICE blocker 1, sess184
+ * RULE-5 ruling): WRITE-TIME provenance for a SINGLE_NODE_LOCAL_LOG
+ * incarnation.  Set in every own-record write of a mount that claimed its
+ * slot under the operator's single_node_exclusive assertion, from the CLAIM
+ * onwards — i.e. durably BEFORE the first untagged log record this
+ * incarnation can produce.  The feature crc binds it to the incarnation
+ * identity, and the fence-intent path copies the victim record wholesale, so
+ * the marker survives WITHDRAWN stamping and GUARD overlay.
+ *
+ * The marker is one of TWO independent predicates for untagged-image replay
+ * (ruling item 5): it proves log_was_single_node_authorized_when_written;
+ * a KIND_SINGLE_NODE_EXCLUSIVE certificate proves takeover_is_exclusive_now.
+ * NEITHER implies the other and replay of untagged images requires BOTH.
+ * It is never set, cleared, or reinterpreted mid-incarnation (ruling item 3:
+ * no dirty mode transition).
+ */
+#define MXFS_HB_FEAT_SNLOCAL    0x0001
+
 struct mxfs_hb_feature {
     uint32_t                magic;      /* MXFS_HB_FEAT_MAGIC */
     uint16_t                proto_gen;  /* must equal MXFS_PROTO_GEN */
@@ -511,6 +690,55 @@ struct mxfs_hb_feature {
                                          * fs_gen,node_id,epoch} — see
                                          * mxfs_hb_feature_crc() */
 };
+
+/*
+ * sess346 (#92 D-CLEAN-RELEASE-TREATED-AS-DEATH, sess344 ruling items
+ * 7-9): CLAIM PROVENANCE — on-disk proof of what this incarnation's
+ * claim CONSUMED, carried in every heartbeat record it writes.
+ *
+ * The clean-departure protocol lets a monitor retire a released
+ * (FLAG_EMPTY) slot without fencing — but only while the EMPTY record
+ * is still on the platter.  If a new claimant consumes the EMPTY
+ * between two monitor passes (ACTIVE→EMPTY→ACTIVE' missed-EMPTY race),
+ * the monitor sees only an epoch change and would conservatively fire
+ * death on the CLEAN predecessor.  The provenance block closes that:
+ * the successor's record proves "I consumed a clean EMPTY left by
+ * {prev_node, prev_epoch}", and slot_seq/chain_len extend the proof
+ * across MULTIPLE missed clean cycles (monitor's last-tracked seq S
+ * within [S'-chain_len, S'-1] of the observed record ⇒ every tenancy
+ * between S and S' ended cleanly).
+ *
+ * seq rules (claim time):
+ *   - pass-1 own-stamp reclaim:       seq = old.seq+1 if old prov valid
+ *                                     else fresh random; chain_len = 0
+ *                                     (dirty predecessor: ourselves).
+ *   - pass-2 from valid EMPTY+prov:   prev = EMPTY's {node, epoch},
+ *                                     seq = prev.seq+1,
+ *                                     chain_len = min(prev.chain_len+1, cap).
+ *   - pass-2 from zero/garbage:       RANDOM 64-bit seq (entropy à la
+ *                                     hb_draw_incarnation), chain_len = 0,
+ *                                     prev = 0.  The random restart makes
+ *                                     cross-generation seq collision
+ *                                     negligible.
+ *
+ * crc32c binds the block to the record identity {magic, prev_node,
+ * prev_epoch, slot_seq, chain_len, fs_gen, node_id, epoch} (packed LE,
+ * mirroring mxfs_hb_feature_crc) so a stale or foreign provenance block
+ * can never validate against the wrong incarnation.  Old-proto records
+ * carry zeros here (magic 0 ⇒ invalid ⇒ conservative fire), and the
+ * layout shift is fenced by the PROTO_GEN bump anyway.
+ */
+#define MXFS_HB_PROV_MAGIC      0x5650584D  /* "MXPV" LE */
+#define MXFS_HB_PROV_CHAIN_CAP  255
+
+struct mxfs_hb_provenance {
+    uint32_t                magic;      /* MXFS_HB_PROV_MAGIC */
+    uint32_t                prev_node;  /* clean-EMPTY predecessor, 0 = none */
+    uint64_t                prev_epoch; /* predecessor's incarnation, 0 = none */
+    uint64_t                slot_seq;   /* per-slot tenancy sequence */
+    uint32_t                chain_len;  /* proven-clean lineage length */
+    uint32_t                crc32c;     /* see block comment */
+};                                      /* 32 bytes */
 
 /*
  * On-disk heartbeat record — exactly 512 bytes, one sector.
@@ -539,9 +767,10 @@ struct mxfs_disklock_heartbeat {
      * bytes in a guard) is rejected rather than misread.
      */
     union {
-        struct mxfs_evict_ring  evict;      /* sess55; net2 step 5: 416B (25 entries) */
-        struct mxfs_recov_body  recov;      /* sess64: 80B descriptor + pad */
+        struct mxfs_evict_ring  evict;      /* sess55; sess346: 384B (23 entries) */
+        struct mxfs_recov_body  recov;      /* sess64: 120B descriptor + outcome + pad */
     };
+    struct mxfs_hb_provenance prov;         /* sess346: 32B claim provenance */
     struct mxfs_mepoch_rec  mepoch;         /* net2 step 5: 44B, §7.C authority */
     struct mxfs_hb_feature  feat;           /* sess42 C7: 12B version gate */
 };
@@ -554,13 +783,14 @@ struct mxfs_disklock_heartbeat {
         BUILD_BUG_ON(sizeof(struct mxfs_recov_desc) != 120); \
         BUILD_BUG_ON(sizeof(struct mxfs_recov_body) != \
                      sizeof(struct mxfs_evict_ring)); \
+        BUILD_BUG_ON(offsetof(struct mxfs_disklock_heartbeat, prov) != 424); \
         BUILD_BUG_ON(offsetof(struct mxfs_disklock_heartbeat, mepoch) != 456); \
     } while (0)
 #else
 _Static_assert(sizeof(struct mxfs_disklock_heartbeat) == MXFS_DISKLOCK_RECORD_SIZE,
                "mxfs_disklock_heartbeat must be exactly 512 bytes");
-_Static_assert(sizeof(struct mxfs_evict_ring) == 416,
-               "mxfs_evict_ring must be 25 entries (net2 step 5 carve)");
+_Static_assert(sizeof(struct mxfs_evict_ring) == 384,
+               "mxfs_evict_ring must be 23 entries (sess346 prov carve)");
 _Static_assert(sizeof(struct mxfs_mepoch_rec) == 44,
                "mxfs_mepoch_rec is 44 bytes on disk (§7.C)");
 _Static_assert(sizeof(struct mxfs_hb_feature) == 12,
@@ -583,8 +813,18 @@ _Static_assert(offsetof(struct mxfs_recov_desc, crc32c) == 116,
                "the crc must remain the LAST descriptor field");
 _Static_assert(sizeof(struct mxfs_recov_body) == sizeof(struct mxfs_evict_ring),
                "recovery descriptor body must exactly overlay the evict ring");
+_Static_assert(sizeof(struct mxfs_recov_outcome) == 96,
+               "mxfs_recov_outcome is 96 bytes on disk (sess323)");
+_Static_assert(offsetof(struct mxfs_recov_outcome, crc32c) == 92,
+               "the outcome crc must remain the LAST field");
+_Static_assert(offsetof(struct mxfs_recov_body, outcome) == 120,
+               "the outcome record sits immediately after the 120B descriptor");
 _Static_assert(sizeof(struct mxfs_disklock_heartbeat) == MXFS_DISKLOCK_RECORD_SIZE,
                "sess64 union must not change the 512-byte heartbeat record");
+_Static_assert(sizeof(struct mxfs_hb_provenance) == 32,
+               "mxfs_hb_provenance is the 32-byte sess346 carve");
+_Static_assert(offsetof(struct mxfs_disklock_heartbeat, prov) == 424,
+               "the provenance block sits between the body union and mepoch");
 _Static_assert(offsetof(struct mxfs_disklock_heartbeat, mepoch) == 456,
                "sess64 union must not move the mepoch/feat tail");
 
@@ -596,6 +836,13 @@ struct mxfs_disklock_node_track {
     bool            live;
     uint32_t        last_evict_seq;   /* sess55: highest evict head_seq consumed from this peer */
     bool            evict_seen;       /* sess55: last_evict_seq has been initialised */
+    /* sess346 (#92): slot_seq from the last VALID provenance block seen on
+     * this slot's ACTIVE record.  The epoch-change arm tests the successor's
+     * lineage window against it; seq_seen gates the test so a peer without a
+     * tracked seq (pre-carve record, or we joined mid-tenure before the first
+     * valid prov) conservatively fires instead of falsely retiring. */
+    uint64_t        last_seq;
+    bool            seq_seen;
 };
 
 /*
@@ -637,6 +884,28 @@ typedef void (*mxfs_disklock_recovered_cb)(void *data, int slot,
                                            mxfs_node_id_t dead_node);
 
 /*
+ * sess346 (#92 D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526):
+ * CLEAN-DEPARTURE callback.  Fired by the monitor when a tracked slot's
+ * record reads FLAG_EMPTY with an FUA-confirmed EXACT stamp match on the
+ * incarnation we were tracking — i.e. the node RELEASED its slot via
+ * mxfs_disklock_release_slot (clean unmount), it did not die.  Also fired
+ * by the pending-block EMPTY arm when a recovery-pending victim's slot
+ * reads as its own clean release (the death was declared from a stale
+ * read that raced the release).
+ *
+ * The body unwinds membership WITHOUT the death machinery: lease
+ * unregister, in-memory DLM grant purge, membership refresh, and the XFS
+ * notify that clears the dead-slot/torn latches and re-arms the reap
+ * worker.  It must NOT retire the identity (no v5_note_dead_node — a
+ * cleanly-departed node must be able to remount and rejoin) and must NOT
+ * zero the slot on disk (it is already EMPTY, and peers still need the
+ * stamp for their own clean-departure matching).
+ */
+typedef void (*mxfs_disklock_clean_depart_cb)(void *data, int slot,
+                                              mxfs_node_id_t node,
+                                              mxfs_epoch_t epoch);
+
+/*
  * sess131: self-fence callback.  Fired (once) by the heartbeat thread when
  * this mount must stop writing immediately.  The body (v5_mount → XFS glue)
  * must force-shutdown the filesystem; the heartbeat thread stops writing
@@ -650,6 +919,17 @@ typedef void (*mxfs_disklock_recovered_cb)(void *data, int slot,
  * callback used to report both as the former.
  */
 typedef void (*mxfs_disklock_fence_cb)(void *data, int reason);
+
+/*
+ * sess279 (sess276 fenced-victim ruling): heartbeat-write RESERVATION
+ * CONFLICT callback.  Fired (from the HB thread) each time the own-slot
+ * CAS bounces with SCSI RESERVATION CONFLICT (-EBADE) — the one signal a
+ * fenced-but-alive victim gets from the TARGET rather than from stale
+ * media.  The v5 layer counts these and runs the PR IN inspection that
+ * decides withdraw; disklock itself keeps heartbeating (the writes bounce
+ * harmlessly) so a transient target hiccup never kills a healthy node.
+ */
+typedef void (*mxfs_disklock_conflict_cb)(void *data);
 
 /*
  * sess55: per-freed-inode eviction callback.  The disklock HB consumer reads a
@@ -672,22 +952,124 @@ typedef void (*mxfs_disklock_vergate_cb)(void *data, int slot,
                                          mxfs_node_id_t node_id,
                                          mxfs_epoch_t epoch, int state);
 
+/*
+ * sess323: terminal recovery-outcome callback.  Fired by the monitor when a
+ * recovery-pending slot's GUARD record carries a VALID outcome record (magic/
+ * version/crc against the sector's victim identity) plus F_QUARANTINED, and
+ * the (victim_epoch, publish_seq) pair is newer than what this ctx has
+ * already delivered for the slot.  The body (v5 → XFS) imports the quarantine
+ * domain; the deferred local purge stays armed — a quarantined slot never
+ * becomes CONSUMABLE on its own.  Fired at most once per (epoch, seq).
+ *
+ * sess327 (ruling item 8): oc == NULL is the fail-closed contract — the slot
+ * is QUARANTINED but its outcome record is unreadable (present yet fails
+ * magic/version/crc), so no domain evidence exists.  The consumer MUST treat
+ * NULL as an FSWIDE quarantine.  Unlike valid outcomes this fires every
+ * monitor pass (there is no (epoch, seq) to dedup on); importers make it
+ * idempotent on their side.
+ *
+ * sess383 (RULE-5 ruling): the callback now RETURNS a disposition instead of
+ * being a void notification with side effects.  Two consumers of this record
+ * were found importing it with no validation at all, and one of them then fed
+ * the SELECTIVE GRANT PURGE from the same unvalidated bytes.  The semantic
+ * predicate (which outcome kinds and reasons exist, what a domain means,
+ * whether an AG mask is valid for THIS filesystem) is XFS-layer policy and
+ * must have exactly ONE implementation, so it lives behind this callback —
+ * and the callback must report what it decided so no caller can act on a
+ * record the validator rejected.  In particular a rejected record still
+ * imports an FSWIDE quarantine (fail closed), so "it imported FSWIDE" is NOT
+ * evidence the record was valid, and MUST NOT authorize closure processing.
+ *
+ * The monitor therefore hands over EVERY structurally readable quarantined
+ * outcome; it may not pre-filter on outcome kind (that filter was itself a
+ * bypass: an unknown kind was silently skipped pass after pass, so a
+ * quarantined slot never quarantined any live peer).
+ */
+enum mxfs_quar_disposition {
+    MXFS_QUAR_NOT_TERMINAL = 0, /* nothing terminal here */
+    MXFS_QUAR_VALID_AG,         /* validated TERMINAL_REFUSED, AG-scoped */
+    MXFS_QUAR_VALID_FSWIDE,     /* validated TERMINAL_REFUSED, whole fs */
+    MXFS_QUAR_INVALID_FSWIDE,   /* failed validation -> fail-closed FSWIDE */
+    MXFS_QUAR_FOREIGN,          /* pre-mkfs ghost; ignored operationally */
+};
+
+typedef int (*mxfs_disklock_recov_outcome_cb)(void *data, int slot,
+                                    const struct mxfs_recov_outcome *oc);
+
+/*
+ * sess280 (sess276 ruling, part D): heartbeat-cycle stage, published by the
+ * heartbeat thread at each phase boundary so the watchdog can name WHERE a
+ * stalled cycle is stuck (identity read vs ctx->lock wait vs the CAS write
+ * vs the 63-slot monitor pass) instead of only that the lease is aging.
+ * SLEEP is the only stage with no I/O in flight, so only non-SLEEP ages
+ * count as stalls.
+ */
+enum mxfs_hb_stage {
+    MXFS_HB_STAGE_SLEEP = 0,
+    MXFS_HB_STAGE_IDCHECK,
+    MXFS_HB_STAGE_LOCKWAIT,
+    MXFS_HB_STAGE_CASWRITE,
+    MXFS_HB_STAGE_MONITOR,
+};
+
 /* Disk lock subsystem context */
 struct mxfs_disklock_ctx {
     mxfs_bdev_t             *dev;
     uint64_t                base_offset;    /* byte offset on device */
     mxfs_node_id_t          local_node;
     int                     local_slot;     /* unique HB slot 0-63, -1 if unclaimed */
+    /*
+     * D-LOG-SLICE-SHARED-MULTIWRITER (sess219 ruling, claim-time layer):
+     * exclusive upper bound on the slot number this node may CLAIM.  Set
+     * from the volume's xfs_log_node_count before claiming, because a
+     * slot's journal slice is the identically numbered slice — a node on
+     * a slot >= the slice count has no slice and must not join at all.
+     * 0 = no bound (unsliced legacy volume / user-mode tools).
+     */
+    uint32_t                slot_limit;
     /* sess32 (D-FOREIGN-REPLAY-UNGATED-IMAGES): true when the slot was won by
      * the pass-2 fresh scan — our previous incarnation's ACTIVE stamp was
-     * absent/zeroed, so any dirt in the log slice (slot %% node_count) belongs
+     * absent/zeroed, so any dirt in the log slice (the identically numbered
+     * slice) belongs
      * to an already-recovered or foreign incarnation and its images must NOT
      * be re-applied by our mount recovery (cross-slice LSNs incomparable).
      * false = pass-1 reclaim of our own surviving stamp: nobody replayed us,
      * full own-slice recovery is safe and REQUIRED. */
     bool                    slice_adopted;
+    /* sess187 (D-SHUTDOWN-UMOUNT, sess184 ruling item 1): true when this
+     * mount durably classifies itself a SINGLE-NODE LOCAL LOG writer —
+     * set from the operator's single_node_exclusive assertion BEFORE the
+     * slot is claimed, so every heartbeat/claim record this incarnation
+     * ever writes carries MXFS_HB_FEAT_SNLOCAL in its feature block.
+     * Write-time provenance only: it must never be flipped after
+     * claim_slot has stamped the first record (mxfs_disklock_set_snlocal
+     * refuses once local_slot >= 0), because a marker that can appear
+     * mid-tenure is a retroactive classification, which the ruling
+     * forbids. */
+    bool                    snlocal;
     mxfs_thread_t           *hb_thread;
+    /*
+     * sess280 part D: heartbeat-stall watchdog.  hb_stage/hb_stage_ms are
+     * written only by the heartbeat thread and read racily by the watchdog
+     * (diagnostic tolerance — a torn read costs one poll, never a false
+     * fence).  hb_pid names the heartbeat task for the stack dump; 0 in
+     * user mode where mxfs_pal_dump_task_stack is a no-op.
+     */
+    volatile int            hb_stage;       /* enum mxfs_hb_stage */
+    volatile uint64_t       hb_stage_ms;    /* entry time of hb_stage */
+    int                     hb_pid;
+    mxfs_thread_t           *hb_watchdog;
     mxfs_mutex_t            *lock;
+    /*
+     * D-RECOVERY-CTXLOCK-HOLD-HB-STARVATION: serializes local dead-node
+     * purges (freeze gate -> 65536-record scan -> heartbeat publication)
+     * against each other.  purge_node used to get this serialization by
+     * holding ctx->lock for the whole scan, which starved the heartbeat
+     * writer for the entire purge (~35s measured, >half the 62s lease).
+     * The heartbeat writer NEVER takes purge_lock; ordering is purge_lock
+     * first, ctx->lock per-I/O inside it, never the reverse.
+     */
+    mxfs_mutex_t            *purge_lock;
     volatile bool           running;
 
     /* Shutdown signaling: condvar wakes sleeping heartbeat thread */
@@ -723,6 +1105,9 @@ struct mxfs_disklock_ctx {
     mxfs_epoch_t                     pending_epoch[MXFS_DISKLOCK_HB_SLOTS];
     mxfs_disklock_recovered_cb       recovered_cb;
     void                             *recovered_cb_data;
+    /* sess346 (#92): clean-departure delivery (see typedef above). */
+    mxfs_disklock_clean_depart_cb    clean_depart_cb;
+    void                             *clean_depart_cb_data;
 
     /* sess43 recovery GUARD (see MXFS_DISKLOCK_FLAG_RECOVERY_GUARD).  One
      * guard at a time per node; guard_img is the exact on-disk image we
@@ -760,6 +1145,17 @@ struct mxfs_disklock_ctx {
     bool                             hb_img_valid;
 
     /*
+     * sess346 (#92): this incarnation's claim provenance, computed ONCE at
+     * claim time (see mxfs_hb_provenance) and copied verbatim into every
+     * record the heartbeat thread writes — disklock_hb_fn rebuilds the
+     * outgoing record fresh each cycle, so the block must persist here or
+     * the first heartbeat would erase the lineage proof the claim wrote.
+     * The crc binds it to {fs_gen, node_id, epoch}, all fixed for the
+     * incarnation, so the copy stays valid without recomputation.
+     */
+    struct mxfs_hb_provenance        own_prov;
+
+    /*
      * sess131 generation identity.  fs_gen is a nonzero 32-bit fold of the
      * volume_id (FNV-1a of the XFS sb_uuid); written into every heartbeat
      * record this node emits.  Heartbeat records with a different fs_gen are
@@ -775,6 +1171,8 @@ struct mxfs_disklock_ctx {
     bool                             fenced;
     mxfs_disklock_fence_cb           fence_cb;
     void                             *fence_cb_data;
+    mxfs_disklock_conflict_cb        conflict_cb;
+    void                             *conflict_cb_data;
 
     /*
      * sess55: inode-eviction ring.  Producer side stages locally-freed
@@ -807,6 +1205,24 @@ struct mxfs_disklock_ctx {
     bool                             vergate_admitted;
     mxfs_epoch_t                     vergate_fenced_epoch[MXFS_DISKLOCK_HB_SLOTS];
     bool                             vergate_fenced[MXFS_DISKLOCK_HB_SLOTS];
+
+    /*
+     * sess323: terminal recovery-outcome import state.  The monitor fires
+     * recov_outcome_cb at most once per (victim_epoch, publish_seq) per
+     * slot; the seen cache is what makes the delivery idempotent across
+     * monitor passes (the record stays on the platter until operator
+     * action, so every pass re-reads it).
+     */
+    mxfs_disklock_recov_outcome_cb   recov_outcome_cb;
+    void                             *recov_outcome_cb_data;
+    mxfs_epoch_t                     outcome_seen_epoch[MXFS_DISKLOCK_HB_SLOTS];
+    uint64_t                         outcome_seen_seq[MXFS_DISKLOCK_HB_SLOTS];
+    /* sess327 (ruling item 8): a QUARANTINED descriptor whose outcome record
+     * is present but fails magic/version/crc is a persistent high-severity
+     * condition — the monitor alerts once per slot (this latch) and fires
+     * recov_outcome_cb with oc == NULL every pass so the consumer fails
+     * closed fswide.  Cleared when the slot's descriptor goes away. */
+    bool                             outcome_badcrc_alerted[MXFS_DISKLOCK_HB_SLOTS];
 };
 
 /* Lifecycle */
@@ -814,6 +1230,13 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
                                                 uint64_t disklock_offset,
                                                 mxfs_node_id_t local_node);
 void mxfs_disklock_destroy(struct mxfs_disklock_ctx *ctx);
+
+/* sess187: durably classify this incarnation a single-node local log
+ * writer (MXFS_HB_FEAT_SNLOCAL in every record it emits).  PRE-CLAIM
+ * ONLY — refused (with a conspicuous log line) once a slot is held,
+ * because the marker is write-time provenance, not mutable state. */
+void mxfs_disklock_set_snlocal(struct mxfs_disklock_ctx *ctx, bool snlocal);
+void mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit);
 
 /* Heartbeat */
 int  mxfs_disklock_start_heartbeat(struct mxfs_disklock_ctx *ctx);
@@ -853,6 +1276,10 @@ void mxfs_disklock_set_expire_cb(struct mxfs_disklock_ctx *ctx,
 void mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx);
 void mxfs_disklock_set_recovered_cb(struct mxfs_disklock_ctx *ctx,
                                     mxfs_disklock_recovered_cb cb, void *data);
+/* sess346 (#92): clean-departure delivery (see the typedef's comment). */
+void mxfs_disklock_set_clean_depart_cb(struct mxfs_disklock_ctx *ctx,
+                                       mxfs_disklock_clean_depart_cb cb,
+                                       void *data);
 /*
  * sess86: the victim incarnation is an ARGUMENT, never a read-back.  See the
  * mxfs_disklock_expire_cb comment — mark_recovery_pending used to copy
@@ -1074,6 +1501,40 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
                                         uint16_t slice_count,
                                         uint32_t flags,
                                         struct mxfs_recov_fence_auth *out_auth);
+/*
+ * Make "this prover is about to submit a state-changing PR command" DURABLE.
+ *
+ * sess381.  Called on the last line before the PROUT leaves for the transport,
+ * with the fencing-attempt lease held.  Sets MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN
+ * on the standing FENCING descriptor and does not return until that write is
+ * durable — the ordering is the whole point, so a caller may NOT submit if this
+ * returns nonzero.
+ *
+ *   0        the boundary is durable; the command may now be issued
+ *   -EBUSY   the fencing-attempt lease is no longer ours
+ *   -EEXIST  already certified by somebody; there is nothing to submit
+ *   <0 other the boundary is NOT durable — DO NOT ISSUE THE COMMAND
+ *
+ * Idempotent: re-arming an attempt that already carries the bit returns 0
+ * without a write.
+ */
+int mxfs_disklock_recovery_fence_arm_submit(struct mxfs_disklock_ctx *ctx,
+                                            int slot,
+                                            const struct mxfs_recov_fence_auth *auth);
+
+/*
+ * Does this slot carry a standing fencing attempt owned by THIS node that is
+ * known never to have submitted a command (stage==FENCING, MAY_HAVE_RUN clear)?
+ * That is exactly the set the fence-retry worker may re-drive (sess381).
+ *
+ * Fills *out_victim / *out_epoch when it returns 1.  Returns 0 for "no", and a
+ * negative errno if the question could not be answered — which is NOT "no".
+ */
+int mxfs_disklock_recovery_fence_retryable(struct mxfs_disklock_ctx *ctx,
+                                           int slot,
+                                           mxfs_node_id_t *out_victim,
+                                           mxfs_epoch_t *out_epoch);
+
 int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot,
                                          const struct mxfs_recov_fence_auth *auth,
                                          uint16_t fence_kind,
@@ -1103,12 +1564,21 @@ int mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot,
                                  mxfs_node_id_t victim,
                                  mxfs_epoch_t victim_epoch,
                                  struct mxfs_recov_auth *out_auth);
+/*
+ * out_fence_kind (optional): set to the certificate's fence_kind, but ONLY
+ * when the gate answers 0 — i.e. only from a descriptor that validated
+ * strictly AND still matches the presented execution lease.  On any refusal
+ * it reads MXFS_FENCE_KIND_NONE.  sess188 ruling: an exclusion recheck may
+ * branch on the certificate kind only through this path; a bare descriptor
+ * reread could hand it a successor's kind.
+ */
 int mxfs_disklock_recovery_replay_authorized(struct mxfs_disklock_ctx *ctx,
                                              int slot,
                                              mxfs_node_id_t victim,
                                              mxfs_epoch_t victim_epoch,
                                              const struct mxfs_recov_auth *auth,
-                                             const char *site);
+                                             const char *site,
+                                             uint16_t *out_fence_kind);
 
 /*
  * sess93 — READ-ONLY classification of a victim slot.
@@ -1155,6 +1625,8 @@ void mxfs_disklock_set_fs_identity(struct mxfs_disklock_ctx *ctx,
                                    const uint8_t *fs_uuid);
 void mxfs_disklock_set_fence_cb(struct mxfs_disklock_ctx *ctx,
                                 mxfs_disklock_fence_cb cb, void *data);
+void mxfs_disklock_set_conflict_cb(struct mxfs_disklock_ctx *ctx,
+                                   mxfs_disklock_conflict_cb cb, void *data);
 
 /*
  * sess55: inode-eviction ring API.
@@ -1228,6 +1700,154 @@ int  mxfs_disklock_slot_unclaimed(struct mxfs_disklock_ctx *ctx, int slot);
  */
 void mxfs_disklock_set_vergate_cb(struct mxfs_disklock_ctx *ctx,
                                   mxfs_disklock_vergate_cb cb, void *data);
+
+/*
+ * sess323 (sess320 ruling, D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513):
+ * the recovery-lease owner durably publishes a TERMINAL REFUSED outcome for
+ * the victim's slice instead of either lying ("recovered") or going silent
+ * (all-32 timeout suicide).  Requires the caller's live recov_auth — the same
+ * authority contract as recovery_advance; -EBUSY with P234-RECOV-NOTOURS
+ * evidence otherwise.  Sets MXFS_RECOV_F_QUARANTINED and fills the outcome
+ * record in ONE durable CAS; does NOT advance the stage (quarantine is
+ * terminal, and every stage gate already refuses a quarantined descriptor).
+ * Idempotent: a descriptor already quarantined with an equivalent outcome
+ * returns 0.  A publish failure means the refusal is NOT durable — the
+ * caller must keep the retry path armed and must not act as if it landed.
+ *
+ * set_recov_outcome_cb registers the survivor-side import hook (see the
+ * typedef); the publisher itself must ALSO import its own record locally so
+ * enforcement does not wait a monitor lap.  On success (including the
+ * idempotent already-quarantined case) *oc_out receives the canonical
+ * on-platter outcome record so the caller imports EXACTLY what the cluster
+ * will read, not its local draft (oc_out may be NULL if unwanted).
+ */
+int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
+                                    int slot,
+                                    const struct mxfs_recov_auth *auth,
+                                    const struct mxfs_recov_refusal_info *info,
+                                    struct mxfs_recov_outcome *oc_out);
+/*
+ * sess374 (sess363 RULE-5 ruling, D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356):
+ * the CLOSURE GATE — the authority+verdict test that authorizes force-revoking
+ * a quarantined victim's provably-out-of-closure grants.
+ *
+ * sess361 built the revoke itself here, over the disklock RECORD table.  That
+ * was the wrong table (sess362): write_grant has zero callers, so the frozen
+ * grants that strand survivors are CAW slot bits, not disklock records.  The
+ * mutation now lives in dlm_caw.c where those bits are; disklock keeps only
+ * the gate, because the descriptor + outcome that authorize it live in the
+ * victim's heartbeat sector and nothing above this layer may parse them.
+ *
+ * All three read the sector FRESH on every call.  A gate image is never
+ * cached, never amortized across a scan, and never reused across a CAS —
+ * every destructive CAS is authorized by its own read (ruling item A).
+ *
+ * Common gate predicate (all required): the slot's descriptor must parse,
+ * name THIS slot as its victim_slot, be QUARANTINED, and carry a valid
+ * TERMINAL_REFUSED outcome with an AG_MASK domain and a non-zero mask.
+ * FSWIDE refusals define no out-of-closure set at all — -EOPNOTSUPP.
+ *
+ * Returns (all three):
+ *   0          gate holds; *victim / *ag_mask filled from the image read
+ *   -ESTALE    no descriptor (snapshot/terminal), or the descriptor/verdict
+ *              moved out from under the caller (revalidate)
+ *   -EPROTO    descriptor bytes present but unparseable, or its victim_slot
+ *              does not name this slot
+ *   -EBUSY     the caller's recovery lease no longer holds (leased forms), or
+ *              the slot is still LIVE (leaseless form — fail closed)
+ *   -EINVAL    descriptor is not QUARANTINED (the full purge's job), or bad
+ *              arguments
+ *   -EBADMSG   QUARANTINED with no readable verdict
+ *   -EOPNOTSUPP FSWIDE / malformed domain — no out-of-closure set exists
+ *   other      I/O errors from the platter read pass through
+ *
+ * _snapshot     leased phase-0 read: establishes {victim, ag_mask} for the
+ *               whole operation from an image the caller's auth covers.
+ * _revalidate   leased per-CAS recheck: re-reads, re-evaluates, and compares
+ *               against the caller's expected {victim, ag_mask} — any drift
+ *               is -ESTALE.  There is deliberately NO zero sentinel: node 0
+ *               is a valid victim, so the expectation is always passed in.
+ * _terminal_gate_check
+ *               LEASELESS form for the survivor-side scrub, which can hold no
+ *               lease (none is obtainable over a quarantined descriptor).  It
+ *               is sound only because a TERMINAL verdict is irreversible for
+ *               a given {fs, node, epoch, recovery_gen} and the slot cannot be
+ *               re-adopted while that descriptor stands.  It therefore drops
+ *               the auth test and adds a liveness test FIRST: a slot our
+ *               monitor still calls live (our own included) fails -EBUSY.
+ */
+int mxfs_disklock_closure_gate_snapshot(struct mxfs_disklock_ctx *ctx, int slot,
+                                    const struct mxfs_recov_auth *auth,
+                                    mxfs_node_id_t *victim,
+                                    uint64_t *ag_mask);
+int mxfs_disklock_closure_gate_revalidate(struct mxfs_disklock_ctx *ctx,
+                                    int slot,
+                                    const struct mxfs_recov_auth *auth,
+                                    mxfs_node_id_t victim,
+                                    uint64_t ag_mask);
+int mxfs_disklock_terminal_gate_check(struct mxfs_disklock_ctx *ctx, int slot,
+                                    mxfs_node_id_t *victim,
+                                    uint64_t *ag_mask);
+/*
+ * sess330 (RULE-5 ruling): leaseless terminalization of the LEGACY
+ * intent-path quarantine — a descriptor QUARANTINED with an outcome region
+ * of exactly all-zero bytes (pre-outcome-build state).  No authority
+ * argument by design: no recovery lease is obtainable over a quarantined
+ * descriptor, and the write preserves every descriptor byte (owner, epoch,
+ * gen, term, stage, flags, stamp) while filling ONLY the outcome region
+ * with a deterministic synthesized FSWIDE LEGACY_INTENT verdict via
+ * full-record CAS at normal publish durability.  Returns:
+ *   0        - a terminal outcome is now durable; *oc_out (if non-NULL)
+ *              holds the CANONICAL record (ours, or a pre-existing/racing
+ *              verdict that won — first durable verdict wins either way)
+ *   -ENOENT  - no recovery descriptor on the slot
+ *   -EPROTO  - descriptor bytes present but unparseable
+ *   -EAGAIN  - descriptor live (not QUARANTINED — not backfillable), or
+ *              the CAS raced past the retry bound; caller re-arms
+ *   -EBADMSG - nonzero outcome bytes that fail validation: corruption;
+ *              caller must fail closed, backfill never overwrites
+ *   other    - I/O errors pass through (verdict NOT durable)
+ */
+int mxfs_disklock_recovery_backfill_legacy(struct mxfs_disklock_ctx *ctx,
+                                    int slot,
+                                    struct mxfs_recov_outcome *oc_out);
+/*
+ * sess327 (ruling item 2): synchronous read of a slot's canonical durable
+ * outcome — the -EPERM-conflict import path and the registration-time scan.
+ * No authority required; this is a read of terminal public state.  Returns:
+ *   0        - valid outcome copied to *oc_out
+ *   -ENOENT  - no recovery descriptor on the slot
+ *   -ESTALE  - a recovery object IS present, but the sector belongs to a
+ *              DIFFERENT mkfs generation (sess383): a pre-mkfs ghost.  It is
+ *              outside this filesystem's recovery namespace, so malformed
+ *              bytes inside it must not quarantine the new filesystem either
+ *              — the generation gate runs BEFORE any crc or semantic test.
+ *              -ESTALE may never cause backfill, closure-note insertion,
+ *              grant purge, slot retirement/zeroing or quarantine import;
+ *              it is observational only.  It is deliberately DISTINCT from
+ *              -ENOENT so a caller cannot mistake "wrong generation" for
+ *              "nothing there", and so a test can prove the ghost was
+ *              recognized rather than accidentally absent.
+ *   -EPROTO  - current-generation descriptor present but unparseable (bad
+ *              magic/version/crc), or its victim_slot does not name the slot
+ *              the sector was read from (sess383: the descriptor's identity
+ *              binding, checked here so EVERY consumer gets it — the crc
+ *              binds the sector header, which travels with a byte-copied
+ *              record, so victim_slot is the only slot binding)
+ *   -ENODATA - QUARANTINED but outcome region all-zero (intent-path
+ *              quarantine: terminal, but carries no domain evidence)
+ *   -EBADMSG - QUARANTINED with an outcome present but invalid (bad
+ *              magic/version/crc) — consumer must fail closed fswide
+ *   -EAGAIN  - descriptor valid but not QUARANTINED (no outcome yet)
+ *   other    - I/O errors from the platter read pass through.  An unknown
+ *              negative must NEVER be treated as absence.
+ */
+int mxfs_disklock_recovery_read_outcome(struct mxfs_disklock_ctx *ctx,
+                                    int slot,
+                                    struct mxfs_recov_outcome *oc_out);
+void mxfs_disklock_set_recov_outcome_cb(struct mxfs_disklock_ctx *ctx,
+                                    mxfs_disklock_recov_outcome_cb cb,
+                                    void *data);
 int  mxfs_disklock_join_gate(struct mxfs_disklock_ctx *ctx,
                              uint32_t timeout_ms);
 bool mxfs_disklock_slice_adopted(struct mxfs_disklock_ctx *ctx);
@@ -1299,6 +1919,44 @@ int  mxfs_disklock_get_stale_slot_mask(struct mxfs_disklock_ctx *ctx,
                                         uint64_t threshold_ms,
                                         int skip_slot,
                                         uint64_t *out_mask);
+
+/*
+ * sess185 (D-SHUTDOWN-UMOUNT-CLEAN-RELEASE-DIRTY-SLICE): scan all
+ * heartbeat slots ONCE and report own-generation WITHDRAWN records —
+ * voluntary death declarations left by a force-shutdown FS whose
+ * journal slice is dirty and unreplayed.  No wait window: unlike an
+ * ACTIVE record, a WITHDRAWN stamp is definitive (its writer declared
+ * its own death), so there is no liveness to disprove.  out_node[] /
+ * out_epoch[] (each indexed by slot, sized MXFS_DISKLOCK_HB_SLOTS)
+ * receive the victim identity the stamp itself names — the record is
+ * the victim's own final write, so no baseline tracking is needed.
+ */
+int  mxfs_disklock_get_withdrawn_slots(struct mxfs_disklock_ctx *ctx,
+                                        int skip_slot,
+                                        uint64_t *out_mask,
+                                        mxfs_node_id_t *out_node,
+                                        mxfs_epoch_t *out_epoch);
+
+/*
+ * sess190 (sess189 admission-barrier ruling, shape B): scan the heartbeat
+ * slots ONCE and report every slice the platter says REQUIRES RECOVERY —
+ * a WITHDRAWN stamp (voluntary death, fence pipeline not yet started) or
+ * a recovery descriptor below GRANTS_RELEASED (fence/replay underway or
+ * abandoned).  There is no gap between the two shapes: fence_intent
+ * replaces the WITHDRAWN flags and lays the FENCING descriptor in one
+ * durable CAS, so at every instant a dirty slice is visible under exactly
+ * one of them.  The in-memory recovery_pending[] marker is deliberately
+ * NOT consulted — it records only deaths THIS node's monitor processed.
+ * Fail-closed: an unreadable sector or an unvalidatable descriptor sets
+ * the slot's bit.  out_node[]/out_epoch[] (optional, indexed by slot,
+ * sized MXFS_DISKLOCK_HB_SLOTS) receive the victim identity where the
+ * evidence names one; a fail-closed bit leaves them 0.
+ */
+int  mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx,
+                                              int skip_slot,
+                                              uint64_t *out_mask,
+                                              mxfs_node_id_t *out_node,
+                                              mxfs_epoch_t *out_epoch);
 
 /*
  * sess54: continuous, cancellable death confirmation for a set of slots.

@@ -340,70 +340,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "elapsed=72s (fresh prep)",
+              "measured": "skipped (marker matched 32/caw)",
               "reason": "",
-              "iso": "2026-08-07T12:55:04Z",
-              "elapsed_s": 72,
+              "iso": "2026-08-22T08:03:38Z",
+              "elapsed_s": 0,
               "budget_s": 300,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T11:26:46Z",
+                  "iso": "2026-08-22T08:02:22Z",
                   "measured": "elapsed=73s (fresh prep)",
                   "reason": ""
                 },
                 {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T08:00:27Z",
+                  "measured": "elapsed=6s",
+                  "reason": "prep failed"
+                },
+                {
                   "status": "PASS",
-                  "iso": "2026-08-07T10:37:29Z",
+                  "iso": "2026-08-22T07:20:52Z",
                   "measured": "skipped (marker matched 32/caw)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T10:36:04Z",
+                  "iso": "2026-08-22T07:20:13Z",
+                  "measured": "elapsed=75s (fresh prep)",
+                  "reason": ""
+                },
+                {
+                  "status": "PASS",
+                  "iso": "2026-08-22T07:15:29Z",
                   "measured": "skipped (marker matched 32/caw)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T10:32:37Z",
+                  "iso": "2026-08-22T07:10:53Z",
                   "measured": "skipped (marker matched 32/caw)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T10:26:55Z",
+                  "iso": "2026-08-22T07:05:32Z",
                   "measured": "skipped (marker matched 32/caw)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T10:23:03Z",
+                  "iso": "2026-08-22T07:01:32Z",
                   "measured": "skipped (marker matched 32/caw)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T10:13:25Z",
-                  "measured": "elapsed=139s (fresh prep)",
+                  "iso": "2026-08-22T07:00:48Z",
+                  "measured": "elapsed=61s (fresh prep)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T09:27:07Z",
-                  "measured": "elapsed=57s (fresh prep)",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-07T09:25:39Z",
-                  "measured": "elapsed=117s (fresh prep)",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-07T09:22:58Z",
-                  "measured": "elapsed=117s (fresh prep)",
+                  "iso": "2026-08-22T06:55:28Z",
+                  "measured": "skipped (marker matched 32/caw)",
                   "reason": ""
                 }
               ]
@@ -570,6 +570,15 @@
               "iso": "2026-07-26T10:55:03Z",
               "elapsed_s": 0,
               "budget_s": 300
+            },
+            "31/caw": {
+              "status": "PASS",
+              "measured": "elapsed=50s (fresh prep)",
+              "reason": "",
+              "iso": "2026-08-20T00:08:13Z",
+              "elapsed_s": 50,
+              "budget_s": 300,
+              "history": []
             }
           }
         },
@@ -733,67 +742,67 @@
               "status": "PASS",
               "measured": "checks=9 passed=9 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:23:08Z",
+              "iso": "2026-08-22T07:01:37Z",
               "elapsed_s": 1,
               "budget_s": 10,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:38:19Z",
+                  "iso": "2026-08-22T05:54:02Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:05:19Z",
+                  "iso": "2026-08-21T00:09:56Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:41:55Z",
+                  "iso": "2026-08-20T22:48:11Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:08:39Z",
+                  "iso": "2026-08-20T22:30:22Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:41:51Z",
+                  "iso": "2026-08-20T21:20:49Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:09:05Z",
+                  "iso": "2026-08-20T21:14:32Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:12:34Z",
+                  "iso": "2026-08-20T20:15:44Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:36:14Z",
+                  "iso": "2026-08-20T18:56:31Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:35:11Z",
+                  "iso": "2026-08-20T18:09:48Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T12:04:50Z",
+                  "iso": "2026-08-20T17:04:45Z",
                   "measured": "checks=9 passed=9 failed=0",
                   "reason": ""
                 }
@@ -1289,70 +1298,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=543.59 seqW=6191MiB/s seqR=8477MiB/s randW=344764iops randR=470552iops",
+              "measured": "nodes_pass=32/32 hostload=9.00 seqW=5243MiB/s seqR=7160MiB/s randW=330919iops randR=386999iops",
               "reason": "",
-              "iso": "2026-08-07T10:23:35Z",
-              "elapsed_s": 18,
+              "iso": "2026-08-22T07:02:12Z",
+              "elapsed_s": 25,
               "budget_s": 120,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:38:45Z",
-                  "measured": "nodes_pass=32/32 hostload=10.27 seqW=5656MiB/s seqR=9769MiB/s randW=503533iops randR=509262iops",
+                  "iso": "2026-08-22T05:54:36Z",
+                  "measured": "nodes_pass=32/32 hostload=11.85 seqW=5173MiB/s seqR=8097MiB/s randW=448521iops randR=363759iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:05:45Z",
-                  "measured": "nodes_pass=32/32 hostload=9.43 seqW=9094MiB/s seqR=5095MiB/s randW=506731iops randR=453994iops",
+                  "iso": "2026-08-21T00:10:28Z",
+                  "measured": "nodes_pass=32/32 hostload=18.26 seqW=8779MiB/s seqR=13156MiB/s randW=498806iops randR=521092iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:42:22Z",
-                  "measured": "nodes_pass=32/32 hostload=15.17 seqW=10966MiB/s seqR=7117MiB/s randW=408969iops randR=618956iops",
+                  "iso": "2026-08-20T22:48:46Z",
+                  "measured": "nodes_pass=32/32 hostload=21.03 seqW=10193MiB/s seqR=6060MiB/s randW=349398iops randR=602366iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:09:05Z",
-                  "measured": "nodes_pass=32/32 hostload=8.37 seqW=6440MiB/s seqR=10590MiB/s randW=397070iops randR=356038iops",
+                  "iso": "2026-08-20T22:30:58Z",
+                  "measured": "nodes_pass=32/32 hostload=32.08 seqW=4862MiB/s seqR=8522MiB/s randW=477828iops randR=589828iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:42:18Z",
-                  "measured": "nodes_pass=32/32 hostload=14.37 seqW=4837MiB/s seqR=11166MiB/s randW=354980iops randR=583480iops",
+                  "iso": "2026-08-20T21:21:25Z",
+                  "measured": "nodes_pass=32/32 hostload=22.41 seqW=4004MiB/s seqR=9089MiB/s randW=391286iops randR=551943iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:09:34Z",
-                  "measured": "nodes_pass=32/32 hostload=15.59 seqW=6220MiB/s seqR=7275MiB/s randW=443527iops randR=387851iops",
+                  "iso": "2026-08-20T20:16:16Z",
+                  "measured": "nodes_pass=32/32 hostload=22.80 seqW=8062MiB/s seqR=9631MiB/s randW=497360iops randR=756179iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:13:01Z",
-                  "measured": "nodes_pass=32/32 hostload=13.33 seqW=7538MiB/s seqR=9286MiB/s randW=392227iops randR=569678iops",
+                  "iso": "2026-08-20T18:57:03Z",
+                  "measured": "nodes_pass=32/32 hostload=15.13 seqW=8826MiB/s seqR=7101MiB/s randW=487289iops randR=529290iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:36:40Z",
-                  "measured": "nodes_pass=32/32 hostload=12.67 seqW=4941MiB/s seqR=4836MiB/s randW=449603iops randR=477275iops",
+                  "iso": "2026-08-20T18:10:21Z",
+                  "measured": "nodes_pass=32/32 hostload=17.16 seqW=4477MiB/s seqR=4900MiB/s randW=380228iops randR=440410iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:35:39Z",
-                  "measured": "nodes_pass=32/32 hostload=12.46 seqW=8665MiB/s seqR=11519MiB/s randW=376193iops randR=415668iops",
+                  "iso": "2026-08-20T17:05:19Z",
+                  "measured": "nodes_pass=32/32 hostload=25.67 seqW=2365MiB/s seqR=4296MiB/s randW=356649iops randR=428582iops",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T11:48:15Z",
-                  "measured": "nodes_pass=32/32 hostload=23.57 seqW=3850MiB/s seqR=10100MiB/s randW=127624iops randR=314303iops",
+                  "iso": "2026-08-20T16:17:48Z",
+                  "measured": "nodes_pass=32/32 hostload=15.23 seqW=4589MiB/s seqR=5728MiB/s randW=438296iops randR=606641iops",
                   "reason": ""
                 }
               ]
@@ -1623,70 +1632,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "seqW=1084% seqR=549% randW=962% randR=1714% worst(write)=962% (threshold>=70%, wsrc=raw-ceiling)",
+              "measured": "seqW=918% seqR=464% randW=924% randR=1410% worst(write)=918% (threshold>=70%, wsrc=raw-ceiling)",
               "reason": "",
-              "iso": "2026-08-07T10:23:36Z",
+              "iso": "2026-08-22T07:02:14Z",
               "elapsed_s": 1,
               "budget_s": 10,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:38:46Z",
-                  "measured": "seqW=990% seqR=633% randW=1406% randR=1855% worst(write)=990% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-22T05:54:37Z",
+                  "measured": "seqW=905% seqR=525% randW=1252% randR=1325% worst(write)=905% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:05:46Z",
-                  "measured": "seqW=1592% seqR=330% randW=1414% randR=1654% worst(write)=1414% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-21T00:10:29Z",
+                  "measured": "seqW=1537% seqR=853% randW=1392% randR=1898% worst(write)=1392% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:42:23Z",
-                  "measured": "seqW=1920% seqR=461% randW=1141% randR=2255% worst(write)=1141% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T22:48:47Z",
+                  "measured": "seqW=1785% seqR=392% randW=975% randR=2194% worst(write)=975% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:09:06Z",
-                  "measured": "seqW=1127% seqR=686% randW=1108% randR=1297% worst(write)=1108% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T22:30:59Z",
+                  "measured": "seqW=851% seqR=552% randW=1334% randR=2149% worst(write)=851% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:42:19Z",
-                  "measured": "seqW=847% seqR=724% randW=991% randR=2126% worst(write)=847% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T21:21:26Z",
+                  "measured": "seqW=701% seqR=589% randW=1092% randR=2011% worst(write)=701% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:09:35Z",
-                  "measured": "seqW=1089% seqR=471% randW=1238% randR=1413% worst(write)=1089% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T20:16:17Z",
+                  "measured": "seqW=1411% seqR=624% randW=1388% randR=2755% worst(write)=1388% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:13:02Z",
-                  "measured": "seqW=1320% seqR=602% randW=1095% randR=2075% worst(write)=1095% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T18:57:04Z",
+                  "measured": "seqW=1545% seqR=460% randW=1360% randR=1928% worst(write)=1360% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:36:41Z",
-                  "measured": "seqW=865% seqR=313% randW=1255% randR=1739% worst(write)=865% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T18:10:21Z",
+                  "measured": "seqW=784% seqR=317% randW=1061% randR=1604% worst(write)=784% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:35:40Z",
-                  "measured": "seqW=1517% seqR=747% randW=1050% randR=1514% worst(write)=1050% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T17:05:20Z",
+                  "measured": "seqW=414% seqR=278% randW=995% randR=1561% worst(write)=414% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T11:48:16Z",
-                  "measured": "seqW=674% seqR=654% randW=356% randR=1145% worst(write)=356% (threshold>=70%, wsrc=raw-ceiling)",
+                  "iso": "2026-08-20T16:17:49Z",
+                  "measured": "seqW=803% seqR=371% randW=1223% randR=2210% worst(write)=803% (threshold>=70%, wsrc=raw-ceiling)",
                   "reason": ""
                 }
               ]
@@ -2032,70 +2041,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=547.64 checks=654 passed=654 failed=0",
+              "measured": "nodes_pass=32/32 hostload=12.12 checks=654 passed=654 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:24:09Z",
-              "elapsed_s": 24,
+              "iso": "2026-08-22T07:02:51Z",
+              "elapsed_s": 27,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T05:38:20Z",
-                  "measured": "nodes_pass=32/32 hostload=531.38 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-22T05:55:15Z",
+                  "measured": "nodes_pass=32/32 hostload=13.99 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:39:19Z",
-                  "measured": "nodes_pass=32/32 hostload=22.61 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-21T00:11:10Z",
+                  "measured": "nodes_pass=32/32 hostload=17.93 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:06:16Z",
-                  "measured": "nodes_pass=32/32 hostload=10.54 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T22:49:27Z",
+                  "measured": "nodes_pass=32/32 hostload=20.32 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:42:56Z",
-                  "measured": "nodes_pass=32/32 hostload=16.76 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T22:31:41Z",
+                  "measured": "nodes_pass=32/32 hostload=26.70 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T13:15:47Z",
-                  "measured": "nodes_pass=32/32 hostload=15.76 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T21:22:01Z",
+                  "measured": "nodes_pass=32/32 hostload=22.19 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T12:17:50Z",
-                  "measured": "nodes_pass=32/32 hostload=13.86 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T21:15:10Z",
+                  "measured": "nodes_pass=32/32 hostload=15.94 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:48:57Z",
-                  "measured": "nodes_pass=32/32 hostload=12.60 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T20:16:59Z",
+                  "measured": "nodes_pass=32/32 hostload=24.35 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:21:16Z",
-                  "measured": "nodes_pass=32/32 hostload=13.00 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T18:57:44Z",
+                  "measured": "nodes_pass=32/32 hostload=19.06 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:09:39Z",
-                  "measured": "nodes_pass=32/32 hostload=14.17 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T18:11:00Z",
+                  "measured": "nodes_pass=32/32 hostload=19.85 checks=654 passed=654 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:42:52Z",
-                  "measured": "nodes_pass=32/32 hostload=16.83 checks=654 passed=654 failed=0",
+                  "iso": "2026-08-20T17:06:01Z",
+                  "measured": "nodes_pass=32/32 hostload=22.45 checks=654 passed=654 failed=0",
                   "reason": ""
                 }
               ]
@@ -2285,70 +2294,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=546.32 checks=3 passed=3 failed=0",
+              "measured": "nodes_pass=32/32 hostload=12.28 checks=3 passed=3 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:24:23Z",
-              "elapsed_s": 2,
+              "iso": "2026-08-22T07:03:06Z",
+              "elapsed_s": 5,
               "budget_s": 30,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:39:33Z",
-                  "measured": "nodes_pass=32/32 hostload=23.29 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-22T05:55:30Z",
+                  "measured": "nodes_pass=32/32 hostload=14.23 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:06:27Z",
-                  "measured": "nodes_pass=32/32 hostload=10.01 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-21T00:11:24Z",
+                  "measured": "nodes_pass=32/32 hostload=20.34 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:43:10Z",
-                  "measured": "nodes_pass=32/32 hostload=14.16 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T22:49:41Z",
+                  "measured": "nodes_pass=32/32 hostload=18.72 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:21:28Z",
-                  "measured": "nodes_pass=32/32 hostload=11.39 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T22:31:56Z",
+                  "measured": "nodes_pass=32/32 hostload=23.98 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:09:52Z",
-                  "measured": "nodes_pass=32/32 hostload=11.83 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T21:22:17Z",
+                  "measured": "nodes_pass=32/32 hostload=22.18 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:43:05Z",
-                  "measured": "nodes_pass=32/32 hostload=16.64 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T20:17:13Z",
+                  "measured": "nodes_pass=32/32 hostload=21.37 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:10:22Z",
-                  "measured": "nodes_pass=32/32 hostload=14.96 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T18:57:59Z",
+                  "measured": "nodes_pass=32/32 hostload=18.95 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:13:48Z",
-                  "measured": "nodes_pass=32/32 hostload=12.74 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T18:11:14Z",
+                  "measured": "nodes_pass=32/32 hostload=19.51 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:37:28Z",
-                  "measured": "nodes_pass=32/32 hostload=12.52 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T17:06:15Z",
+                  "measured": "nodes_pass=32/32 hostload=20.93 checks=3 passed=3 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:36:25Z",
-                  "measured": "nodes_pass=32/32 hostload=9.91 checks=3 passed=3 failed=0",
+                  "iso": "2026-08-20T16:18:46Z",
+                  "measured": "nodes_pass=32/32 hostload=22.84 checks=3 passed=3 failed=0",
                   "reason": ""
                 }
               ]
@@ -2667,71 +2676,71 @@
               "budget_s": 30
             },
             "32/caw": {
-              "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=545.80 checks=80 passed=80 failed=0",
-              "reason": "",
-              "iso": "2026-08-07T10:24:38Z",
-              "elapsed_s": 5,
+              "status": "FAIL",
+              "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=32 hostload=7.21 first_fail[test1:checks=13 passed=13 failed=0] rank1[checks=13 passed=13 failed=0] faildist[0x32] steps[pm barrier count=8,pm barrier ops=24]",
+              "reason": "test1:BUDGET_EXHAUSTED:step=pm barrier count report_s=25 elapsed_s=25 test2:BUDGET_EXHAUSTED:step=pm barrier count report_s=25 elapsed_s=25 test3:BUDGET_EXHAUSTED:step=pm barrier ops report_s=25 elapsed_s=25 test4:BUDGET_EXHAUSTED:step=pm barrier count report_s=25 elapsed_s=25 test5:BUDGET_EXHAUSTED:step=pm barrier ops report_s=25 elapsed_s=25 test6:BUDGET_EXHAUSTED:step=pm barrier ops report_s=25",
+              "iso": "2026-08-22T08:04:23Z",
+              "elapsed_s": 30,
               "budget_s": 30,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:39:47Z",
-                  "measured": "nodes_pass=32/32 hostload=21.83 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T07:21:12Z",
+                  "measured": "nodes_pass=32/32 hostload=8.04 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:06:45Z",
-                  "measured": "nodes_pass=32/32 hostload=14.33 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T07:03:22Z",
+                  "measured": "nodes_pass=32/32 hostload=11.53 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:43:25Z",
-                  "measured": "nodes_pass=32/32 hostload=19.46 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T06:55:48Z",
+                  "measured": "nodes_pass=32/32 hostload=6.37 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:21:43Z",
-                  "measured": "nodes_pass=32/32 hostload=10.97 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T06:48:22Z",
+                  "measured": "nodes_pass=32/32 hostload=7.29 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:10:07Z",
-                  "measured": "nodes_pass=32/32 hostload=11.76 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T06:36:11Z",
+                  "measured": "nodes_pass=32/32 hostload=13.63 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:43:20Z",
-                  "measured": "nodes_pass=32/32 hostload=14.13 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T06:30:13Z",
+                  "measured": "nodes_pass=32/32 hostload=9.85 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:10:39Z",
-                  "measured": "nodes_pass=32/32 hostload=13.47 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T06:24:19Z",
+                  "measured": "nodes_pass=32/32 hostload=11.65 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:14:03Z",
-                  "measured": "nodes_pass=32/32 hostload=10.88 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T06:19:23Z",
+                  "measured": "nodes_pass=32/32 hostload=5.30 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:37:42Z",
-                  "measured": "nodes_pass=32/32 hostload=10.81 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T05:55:46Z",
+                  "measured": "nodes_pass=32/32 hostload=14.31 checks=80 passed=80 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:36:40Z",
-                  "measured": "nodes_pass=32/32 hostload=8.53 checks=80 passed=80 failed=0",
+                  "iso": "2026-08-22T05:45:09Z",
+                  "measured": "nodes_pass=32/32 hostload=12.17 checks=80 passed=80 failed=0",
                   "reason": ""
                 }
               ]
@@ -3057,70 +3066,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=546.79 checks=35 passed=35 failed=0",
+              "measured": "nodes_pass=32/32 hostload=13.79 checks=35 passed=35 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:24:51Z",
+              "iso": "2026-08-22T07:03:37Z",
               "elapsed_s": 4,
               "budget_s": 30,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:40:01Z",
-                  "measured": "nodes_pass=32/32 hostload=20.85 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-22T05:56:00Z",
+                  "measured": "nodes_pass=32/32 hostload=15.58 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:06:58Z",
-                  "measured": "nodes_pass=32/32 hostload=13.67 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-21T00:11:59Z",
+                  "measured": "nodes_pass=32/32 hostload=19.23 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:43:38Z",
-                  "measured": "nodes_pass=32/32 hostload=17.60 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T22:50:16Z",
+                  "measured": "nodes_pass=32/32 hostload=19.71 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:21:57Z",
-                  "measured": "nodes_pass=32/32 hostload=14.99 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T22:32:30Z",
+                  "measured": "nodes_pass=32/32 hostload=19.92 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:10:21Z",
-                  "measured": "nodes_pass=32/32 hostload=11.97 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T21:22:53Z",
+                  "measured": "nodes_pass=32/32 hostload=20.63 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:43:33Z",
-                  "measured": "nodes_pass=32/32 hostload=15.05 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T20:17:46Z",
+                  "measured": "nodes_pass=32/32 hostload=16.84 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:10:54Z",
-                  "measured": "nodes_pass=32/32 hostload=11.89 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T18:58:30Z",
+                  "measured": "nodes_pass=32/32 hostload=20.25 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:14:17Z",
-                  "measured": "nodes_pass=32/32 hostload=12.61 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T18:11:44Z",
+                  "measured": "nodes_pass=32/32 hostload=21.19 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:37:56Z",
-                  "measured": "nodes_pass=32/32 hostload=13.16 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T17:06:46Z",
+                  "measured": "nodes_pass=32/32 hostload=22.24 checks=35 passed=35 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:36:54Z",
-                  "measured": "nodes_pass=32/32 hostload=8.08 checks=35 passed=35 failed=0",
+                  "iso": "2026-08-20T16:19:17Z",
+                  "measured": "nodes_pass=32/32 hostload=17.39 checks=35 passed=35 failed=0",
                   "reason": ""
                 }
               ]
@@ -3440,70 +3449,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=558.07 checks=644 passed=644 failed=0",
+              "measured": "nodes_pass=32/32 hostload=23.50 checks=644 passed=644 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:25:30Z",
-              "elapsed_s": 28,
+              "iso": "2026-08-22T07:04:17Z",
+              "elapsed_s": 31,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:40:38Z",
-                  "measured": "nodes_pass=32/32 hostload=27.98 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-22T05:56:42Z",
+                  "measured": "nodes_pass=32/32 hostload=20.21 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:07:26Z",
-                  "measured": "nodes_pass=32/32 hostload=26.33 checks=644 passed=644 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T18:44:16Z",
-                  "measured": "nodes_pass=32/32 hostload=29.20 checks=644 passed=644 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:22:35Z",
+                  "iso": "2026-08-21T00:12:40Z",
                   "measured": "nodes_pass=32/32 hostload=27.47 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:10:59Z",
-                  "measured": "nodes_pass=32/32 hostload=24.42 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-20T22:50:58Z",
+                  "measured": "nodes_pass=32/32 hostload=28.36 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:44:11Z",
-                  "measured": "nodes_pass=32/32 hostload=22.57 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-20T22:33:11Z",
+                  "measured": "nodes_pass=32/32 hostload=32.82 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:11:37Z",
-                  "measured": "nodes_pass=32/32 hostload=24.99 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-20T21:23:34Z",
+                  "measured": "nodes_pass=32/32 hostload=29.81 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:14:54Z",
-                  "measured": "nodes_pass=32/32 hostload=25.63 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-20T20:18:26Z",
+                  "measured": "nodes_pass=32/32 hostload=26.81 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:38:57Z",
-                  "measured": "nodes_pass=32/32 hostload=26.92 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-20T18:59:11Z",
+                  "measured": "nodes_pass=32/32 hostload=28.15 checks=644 passed=644 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:38:01Z",
-                  "measured": "nodes_pass=32/32 hostload=30.14 checks=644 passed=644 failed=0",
+                  "iso": "2026-08-20T18:12:30Z",
+                  "measured": "nodes_pass=32/32 hostload=36.87 checks=644 passed=644 failed=0",
+                  "reason": ""
+                },
+                {
+                  "status": "PASS",
+                  "iso": "2026-08-20T17:07:26Z",
+                  "measured": "nodes_pass=32/32 hostload=32.88 checks=644 passed=644 failed=0",
+                  "reason": ""
+                },
+                {
+                  "status": "PASS",
+                  "iso": "2026-08-20T16:19:58Z",
+                  "measured": "nodes_pass=32/32 hostload=25.70 checks=644 passed=644 failed=0",
                   "reason": ""
                 }
               ]
@@ -3853,70 +3862,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=557.43 checks=5 passed=5 failed=0",
+              "measured": "nodes_pass=32/32 hostload=23.49 checks=5 passed=5 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:25:58Z",
-              "elapsed_s": 18,
+              "iso": "2026-08-22T07:04:41Z",
+              "elapsed_s": 15,
               "budget_s": 30,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:41:07Z",
-                  "measured": "nodes_pass=32/32 hostload=19.77 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-22T05:57:07Z",
+                  "measured": "nodes_pass=32/32 hostload=14.92 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:00:45Z",
-                  "measured": "nodes_pass=32/32 hostload=8.61 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-21T00:13:40Z",
+                  "measured": "nodes_pass=32/32 hostload=27.91 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:45:15Z",
-                  "measured": "nodes_pass=32/32 hostload=16.67 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:51:59Z",
+                  "measured": "nodes_pass=32/32 hostload=14.44 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:11:28Z",
-                  "measured": "nodes_pass=32/32 hostload=17.94 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:44:39Z",
+                  "measured": "nodes_pass=32/32 hostload=16.33 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:44:40Z",
-                  "measured": "nodes_pass=32/32 hostload=19.01 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:41:54Z",
+                  "measured": "nodes_pass=32/32 hostload=15.05 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:12:08Z",
-                  "measured": "nodes_pass=32/32 hostload=17.16 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:36:22Z",
+                  "measured": "nodes_pass=32/32 hostload=14.10 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:15:22Z",
-                  "measured": "nodes_pass=32/32 hostload=18.92 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:30:50Z",
+                  "measured": "nodes_pass=32/32 hostload=15.74 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:39:24Z",
-                  "measured": "nodes_pass=32/32 hostload=18.59 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:27:32Z",
+                  "measured": "nodes_pass=32/32 hostload=17.13 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:38:30Z",
-                  "measured": "nodes_pass=32/32 hostload=22.95 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:19:58Z",
+                  "measured": "nodes_pass=32/32 hostload=17.53 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T20:25:26Z",
-                  "measured": "nodes_pass=32/32 hostload=23.70 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:08:54Z",
+                  "measured": "nodes_pass=32/32 hostload=18.91 checks=5 passed=5 failed=0",
                   "reason": ""
                 }
               ]
@@ -4320,70 +4329,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=554.24 checks=5 passed=5 failed=0",
+              "measured": "nodes_pass=32/32 hostload=20.23 checks=5 passed=5 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:26:12Z",
-              "elapsed_s": 4,
+              "iso": "2026-08-22T07:04:57Z",
+              "elapsed_s": 6,
               "budget_s": 30,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:41:21Z",
-                  "measured": "nodes_pass=32/32 hostload=16.73 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-22T05:57:21Z",
+                  "measured": "nodes_pass=32/32 hostload=12.50 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:00:59Z",
-                  "measured": "nodes_pass=32/32 hostload=9.59 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-21T00:13:55Z",
+                  "measured": "nodes_pass=32/32 hostload=25.89 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:45:29Z",
-                  "measured": "nodes_pass=32/32 hostload=16.90 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:52:14Z",
+                  "measured": "nodes_pass=32/32 hostload=14.50 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:11:41Z",
-                  "measured": "nodes_pass=32/32 hostload=16.25 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:44:53Z",
+                  "measured": "nodes_pass=32/32 hostload=15.00 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:44:54Z",
-                  "measured": "nodes_pass=32/32 hostload=15.38 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:42:10Z",
+                  "measured": "nodes_pass=32/32 hostload=16.45 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:12:28Z",
-                  "measured": "nodes_pass=32/32 hostload=13.40 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:36:38Z",
+                  "measured": "nodes_pass=32/32 hostload=17.18 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:15:36Z",
-                  "measured": "nodes_pass=32/32 hostload=16.90 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:31:04Z",
+                  "measured": "nodes_pass=32/32 hostload=17.14 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:39:39Z",
-                  "measured": "nodes_pass=32/32 hostload=15.62 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:27:48Z",
+                  "measured": "nodes_pass=32/32 hostload=20.20 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:38:45Z",
-                  "measured": "nodes_pass=32/32 hostload=21.92 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:20:14Z",
+                  "measured": "nodes_pass=32/32 hostload=16.13 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T20:25:41Z",
-                  "measured": "nodes_pass=32/32 hostload=20.99 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T23:09:10Z",
+                  "measured": "nodes_pass=32/32 hostload=18.53 checks=5 passed=5 failed=0",
                   "reason": ""
                 }
               ]
@@ -4615,70 +4624,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=547.77 checks=8 passed=8 failed=0",
+              "measured": "nodes_pass=32/32 hostload=14.84 checks=8 passed=8 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:27:15Z",
-              "elapsed_s": 6,
+              "iso": "2026-08-22T07:05:58Z",
+              "elapsed_s": 13,
               "budget_s": 90,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:41:59Z",
-                  "measured": "nodes_pass=32/32 hostload=13.75 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-22T05:58:22Z",
+                  "measured": "nodes_pass=32/32 hostload=11.25 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:01:17Z",
-                  "measured": "nodes_pass=32/32 hostload=18.23 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-21T00:14:19Z",
+                  "measured": "nodes_pass=32/32 hostload=22.59 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:45:46Z",
-                  "measured": "nodes_pass=32/32 hostload=17.36 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:52:39Z",
+                  "measured": "nodes_pass=32/32 hostload=15.20 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:11:57Z",
-                  "measured": "nodes_pass=32/32 hostload=14.43 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:45:17Z",
+                  "measured": "nodes_pass=32/32 hostload=18.35 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:45:09Z",
-                  "measured": "nodes_pass=32/32 hostload=13.87 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:42:32Z",
+                  "measured": "nodes_pass=32/32 hostload=15.39 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:12:44Z",
-                  "measured": "nodes_pass=32/32 hostload=14.51 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:37:02Z",
+                  "measured": "nodes_pass=32/32 hostload=16.21 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:15:51Z",
-                  "measured": "nodes_pass=32/32 hostload=16.01 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:31:27Z",
+                  "measured": "nodes_pass=32/32 hostload=16.57 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:39:55Z",
-                  "measured": "nodes_pass=32/32 hostload=16.79 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:28:13Z",
+                  "measured": "nodes_pass=32/32 hostload=19.85 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:39:02Z",
-                  "measured": "nodes_pass=32/32 hostload=22.06 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:20:40Z",
+                  "measured": "nodes_pass=32/32 hostload=17.56 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T20:26:16Z",
-                  "measured": "nodes_pass=32/32 hostload=22.18 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T23:09:35Z",
+                  "measured": "nodes_pass=32/32 hostload=16.42 checks=8 passed=8 failed=0",
                   "reason": ""
                 }
               ]
@@ -4957,70 +4966,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=550.62 checks=7 passed=7 failed=0",
+              "measured": "nodes_pass=32/32 hostload=18.56 checks=7 passed=7 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:27:36Z",
-              "elapsed_s": 12,
+              "iso": "2026-08-22T07:06:23Z",
+              "elapsed_s": 15,
               "budget_s": 90,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:42:24Z",
-                  "measured": "nodes_pass=32/32 hostload=19.02 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-22T05:58:47Z",
+                  "measured": "nodes_pass=32/32 hostload=17.06 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:01:52Z",
-                  "measured": "nodes_pass=32/32 hostload=31.48 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-21T00:14:45Z",
+                  "measured": "nodes_pass=32/32 hostload=25.92 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:46:10Z",
-                  "measured": "nodes_pass=32/32 hostload=20.30 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:53:05Z",
+                  "measured": "nodes_pass=32/32 hostload=17.71 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:12:20Z",
-                  "measured": "nodes_pass=32/32 hostload=18.56 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:45:43Z",
+                  "measured": "nodes_pass=32/32 hostload=20.57 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:45:31Z",
-                  "measured": "nodes_pass=32/32 hostload=19.38 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:42:59Z",
+                  "measured": "nodes_pass=32/32 hostload=20.26 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:13:14Z",
-                  "measured": "nodes_pass=32/32 hostload=18.87 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:37:34Z",
+                  "measured": "nodes_pass=32/32 hostload=19.09 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:16:14Z",
-                  "measured": "nodes_pass=32/32 hostload=21.06 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:31:55Z",
+                  "measured": "nodes_pass=32/32 hostload=20.01 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:40:19Z",
-                  "measured": "nodes_pass=32/32 hostload=19.82 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:28:38Z",
+                  "measured": "nodes_pass=32/32 hostload=23.01 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:39:26Z",
-                  "measured": "nodes_pass=32/32 hostload=26.64 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:21:06Z",
+                  "measured": "nodes_pass=32/32 hostload=21.85 checks=7 passed=7 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T20:27:13Z",
-                  "measured": "nodes_pass=32/32 hostload=33.76 checks=7 passed=7 failed=0",
+                  "iso": "2026-08-20T23:10:00Z",
+                  "measured": "nodes_pass=32/32 hostload=19.89 checks=7 passed=7 failed=0",
                   "reason": ""
                 }
               ]
@@ -5354,72 +5363,72 @@
               ]
             },
             "32/caw": {
-              "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=550.08 checks=6 passed=6 failed=0",
-              "reason": "",
-              "iso": "2026-08-07T10:28:31Z",
-              "elapsed_s": 45,
+              "status": "FAIL",
+              "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=32 hostload=6.64 first_fail[test1:checks=0 passed=0 failed=0] rank1[checks=0 passed=0 failed=0] faildist[0x32] steps[rsync barrier ready=27,unknown=5]",
+              "reason": "test1:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test2:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test3:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test4:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test5:BUDGET_EXHAUSTED:step=unknown report_s=55 elapsed_s=55 test6:BUDGET_EXHAUSTED:step=rsync barrier ready",
+              "iso": "2026-08-22T08:05:37Z",
+              "elapsed_s": 60,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:43:20Z",
-                  "measured": "nodes_pass=32/32 hostload=17.52 checks=6 passed=6 failed=0",
+                  "iso": "2026-08-22T07:21:39Z",
+                  "measured": "nodes_pass=32/32 hostload=18.97 checks=6 passed=6 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T19:02:25Z",
-                  "measured": "nodes_pass=32/32 hostload=38.37 checks=6 passed=6 failed=0",
+                  "iso": "2026-08-22T07:06:50Z",
+                  "measured": "nodes_pass=32/32 hostload=25.80 checks=6 passed=6 failed=0",
+                  "reason": ""
+                },
+                {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T06:57:01Z",
+                  "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=12,FAIL=20 hostload=14.29 first_fail[test1:checks=0 passed=0 failed=0] rank1[checks=0 passed=0 failed=0] faildist[0x12,1x20] steps[rsync barrier ready=12]",
+                  "reason": "test1:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test2:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test3:FAIL:rsync barrier done test4:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test5:FAIL:rsync barrier done test6:FAIL:rsync barrier done test7:FAIL:rsync barrier done test8:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 e"
+                },
+                {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T06:49:35Z",
+                  "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=15,FAIL=17 hostload=13.13 first_fail[test1:checks=0 passed=0 failed=0] rank1[checks=0 passed=0 failed=0] faildist[0x15,1x17] steps[rsync barrier ready=15]",
+                  "reason": "test1:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test2:FAIL:rsync barrier done test3:FAIL:rsync barrier done test4:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test5:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test6:FAIL:rsync barrier done test7:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test8:FAIL:rsync b"
+                },
+                {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T06:37:22Z",
+                  "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=6,FAIL=26 hostload=16.42 first_fail[test1:checks=6 passed=5 failed=1] rank1[checks=6 passed=5 failed=1] faildist[0x6,1x25,4x1] steps[rsync barrier ready=6]",
+                  "reason": "test1:FAIL:rsync barrier done test2:FAIL:rsync barrier done test3:FAIL:rsync barrier done test4:FAIL:rsync barrier done test5:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test6:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test7:FAIL:rsync barrier done test8:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test9:FAIL:rsync barrier done t"
+                },
+                {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T06:31:25Z",
+                  "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=3,FAIL=29 hostload=14.56 first_fail[test1:checks=6 passed=5 failed=1] rank1[checks=6 passed=5 failed=1] faildist[0x3,1x29] steps[rsync barrier ready=3]",
+                  "reason": "test1:FAIL:rsync barrier done test2:FAIL:rsync barrier done test3:FAIL:rsync barrier done test4:FAIL:rsync barrier done test5:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test6:FAIL:rsync barrier done test7:FAIL:rsync barrier done test8:FAIL:rsync barrier done test9:FAIL:rsync barrier done test10:FAIL:rsync barrier done test11:FAIL:rsync barrier done test12:FAIL:rsync barrier"
+                },
+                {
+                  "status": "PASS",
+                  "iso": "2026-08-22T06:25:19Z",
+                  "measured": "nodes_pass=32/32 hostload=18.16 checks=6 passed=6 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:46:35Z",
-                  "measured": "nodes_pass=32/32 hostload=25.68 checks=6 passed=6 failed=0",
+                  "iso": "2026-08-22T06:19:49Z",
+                  "measured": "nodes_pass=32/32 hostload=12.11 checks=6 passed=6 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T13:14:46Z",
-                  "measured": "nodes_pass=32/32 hostload=21.22 checks=6 passed=6 failed=0",
+                  "iso": "2026-08-22T05:59:15Z",
+                  "measured": "nodes_pass=32/32 hostload=25.07 checks=6 passed=6 failed=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T12:16:59Z",
-                  "measured": "nodes_pass=32/32 hostload=17.17 checks=6 passed=6 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:48:05Z",
-                  "measured": "nodes_pass=32/32 hostload=14.24 checks=6 passed=6 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:18:18Z",
-                  "measured": "nodes_pass=32/32 hostload=25.60 checks=6 passed=6 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:17:34Z",
-                  "measured": "nodes_pass=32/32 hostload=21.55 checks=6 passed=6 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:15:22Z",
-                  "measured": "nodes_pass=32/32 hostload=15.53 checks=6 passed=6 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T10:55:46Z",
-                  "measured": "nodes_pass=32/32 hostload=21.20 checks=6 passed=6 failed=0",
-                  "reason": ""
+                  "status": "FAIL",
+                  "iso": "2026-08-22T05:46:20Z",
+                  "measured": "nodes_pass=0/32 states:BUDGET_EXHAUSTED=5,FAIL=27 hostload=18.01 first_fail[test1:checks=6 passed=5 failed=1] rank1[checks=6 passed=5 failed=1] faildist[0x5,1x27] steps[rsync barrier ready=5]",
+                  "reason": "test1:FAIL:rsync barrier done test2:FAIL:rsync barrier done test3:FAIL:rsync barrier done test4:FAIL:rsync barrier done test5:BUDGET_EXHAUSTED:step=rsync barrier ready report_s=55 elapsed_s=55 test6:FAIL:rsync barrier done test7:FAIL:rsync barrier done test8:FAIL:rsync barrier done test9:FAIL:rsync barrier done test10:FAIL:rsync barrier done test11:BUDGET_EXHAUSTED:step=rsync barrier ready report_"
                 }
               ]
             },
@@ -5841,71 +5850,41 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=553.61 checks=204 passed=204 failed=0",
+              "measured": "nodes_pass=32/32 hostload=20.14 checks=204 passed=204 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:29:57Z",
-              "elapsed_s": 75,
+              "iso": "2026-08-22T07:08:26Z",
+              "elapsed_s": 86,
               "budget_s": 90,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T21:25:51Z",
-                  "measured": "nodes_pass=32/32 hostload=19.67 checks=204 passed=204 failed=0",
+                  "iso": "2026-08-22T06:00:49Z",
+                  "measured": "nodes_pass=32/32 hostload=18.94 checks=204 passed=204 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T21:17:08Z",
-                  "measured": "nodes_pass=32/32 hostload=15.72 checks=204 passed=204 failed=0",
+                  "iso": "2026-08-22T03:02:33Z",
+                  "measured": "nodes_pass=32/32 hostload=13.67 checks=204 passed=204 failed=0",
                   "reason": ""
                 },
                 {
-                  "status": "FAIL",
-                  "iso": "2026-08-04T21:11:01Z",
-                  "measured": "nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=11.08",
-                  "reason": "test1:NO_TERMINAL_RECORD:no-result(tail:) test2:NO_TERMINAL_RECORD:no-result(tail:) test3:NO_TERMINAL_RECORD:no-result(tail:) test4:NO_TERMINAL_RECORD:no-result(tail:) test5:NO_TERMINAL_RECORD:no-result(tail:) test6:NO_TERMINAL_RECORD:no-result(tail:) test7:NO_TERMINAL_RECORD:no-result(tail:) test8:NO_TERMINAL_RECORD:no-result(tail:) test9:NO_TERMINAL_RECORD:no-result(tail:) test10:NO_TERMINAL_REC"
+                  "status": "BLOCKED",
+                  "iso": "2026-08-21T00:16:27Z",
+                  "measured": "node-fault",
+                  "reason": "NODE FAULT (not a filesystem verdict): test5:sync-wedged[kworker/u11:3+mxfs-ino-bast/dm-1{MXFS}[__mxfs_ag_dlm_lock]__mxfs_ag_dlm_lock+0x123/0x1110 [mxfs]<mxfs_trans_agwait_handoff+0x19b/0x5f0 [mxfs]<mxfs_defer_agwait+0x28/0x50 [mxfs]<xfs_defer_finish_noroll+0x26d/0x4e0 [mxfs]<,kworker/u12:14+mxfs-ino-bast/dm-1{MXFS}[xfs_ail_push_upto_sync_bounded]xfs_ail_push_upto_sync_bounded+0x155/0x220 [mxfs]<m"
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:58:53Z",
-                  "measured": "nodes_pass=32/32 hostload=15.37 checks=204 passed=204 failed=0",
+                  "iso": "2026-08-20T22:10:42Z",
+                  "measured": "nodes_pass=32/32 hostload=19.68 checks=204 passed=204 failed=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T20:55:24Z",
-                  "measured": "nodes_pass=32/32 hostload=13.73 checks=204 passed=204 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T20:36:54Z",
-                  "measured": "nodes_pass=32/32 hostload=13.94 checks=204 passed=204 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "FAIL",
-                  "iso": "2026-08-04T20:06:01Z",
-                  "measured": "nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=12.68",
-                  "reason": "test1:NO_TERMINAL_RECORD:no-result(tail:) test2:NO_TERMINAL_RECORD:no-result(tail:) test3:NO_TERMINAL_RECORD:no-result(tail:) test4:NO_TERMINAL_RECORD:no-result(tail:) test5:NO_TERMINAL_RECORD:no-result(tail:) test6:NO_TERMINAL_RECORD:no-result(tail:) test7:NO_TERMINAL_RECORD:no-result(tail:) test8:NO_TERMINAL_RECORD:no-result(tail:) test9:NO_TERMINAL_RECORD:no-result(tail:) test10:NO_TERMINAL_REC"
-                },
-                {
-                  "status": "FAIL",
-                  "iso": "2026-08-04T19:43:42Z",
-                  "measured": "nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=68.72",
-                  "reason": "test1:NO_TERMINAL_RECORD:no-result(tail:) test2:NO_TERMINAL_RECORD:no-result(tail:) test3:NO_TERMINAL_RECORD:no-result(tail:) test4:NO_TERMINAL_RECORD:no-result(tail:) test5:NO_TERMINAL_RECORD:no-result(tail:) test6:NO_TERMINAL_RECORD:no-result(tail:) test7:NO_TERMINAL_RECORD:no-result(tail:) test8:NO_TERMINAL_RECORD:no-result(tail:) test9:NO_TERMINAL_RECORD:no-result(tail:) test10:NO_TERMINAL_REC"
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T19:35:33Z",
-                  "measured": "nodes_pass=32/32 hostload=15.63 checks=204 passed=204 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "FAIL",
-                  "iso": "2026-08-04T19:23:31Z",
-                  "measured": "nodes_pass=0/32 states:NO_TERMINAL_RECORD=32 hostload=8.16",
-                  "reason": "test1:NO_TERMINAL_RECORD:no-result(tail:) test2:NO_TERMINAL_RECORD:no-result(tail:) test3:NO_TERMINAL_RECORD:no-result(tail:) test4:NO_TERMINAL_RECORD:no-result(tail:) test5:NO_TERMINAL_RECORD:no-result(tail:) test6:NO_TERMINAL_RECORD:no-result(tail:) test7:NO_TERMINAL_RECORD:no-result(tail:) test8:NO_TERMINAL_RECORD:no-result(tail:) test9:NO_TERMINAL_RECORD:no-result(tail:) test10:NO_TERMINAL_REC"
+                  "status": "ABORTED",
+                  "iso": "2026-08-20T21:14:30Z",
+                  "measured": "",
+                  "reason": "run was killed while this test was executing (marker: executing 20260820T203159Z)"
                 }
               ]
             },
@@ -6236,71 +6215,71 @@
               ]
             },
             "32/caw": {
-              "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=551.09 checks=79 passed=79 failed=0",
-              "reason": "",
-              "iso": "2026-08-07T10:32:03Z",
-              "elapsed_s": 105,
+              "status": "FAIL",
+              "measured": "nodes_pass=0/32 states:BARRIER_TIMEOUT=9,BUDGET_EXHAUSTED=23 hostload=7.89 first_fail[test1:checks=3 passed=2 failed=1] rank1[checks=3 passed=2 failed=1] faildist[0x23,1x9] steps[unknown=23]",
+              "reason": "test1:BARRIER_TIMEOUT:round=1 barrier=drc_r1_wr test2:BARRIER_TIMEOUT:round=1 barrier=drc_r1_wr test3:BUDGET_EXHAUSTED:step=unknown report_s=115 elapsed_s=116 test4:BUDGET_EXHAUSTED:step=unknown report_s=115 elapsed_s=116 test5:BUDGET_EXHAUSTED:step=unknown report_s=115 elapsed_s=116 test6:BUDGET_EXHAUSTED:step=unknown report_s=115 elapsed_s=116 test7:BUDGET_EXHAUSTED:step=unknown report_s=115 ela",
+              "iso": "2026-08-22T08:07:51Z",
+              "elapsed_s": 120,
               "budget_s": 120,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:45:15Z",
-                  "measured": "nodes_pass=32/32 hostload=18.64 checks=79 passed=79 failed=0",
+                  "iso": "2026-08-22T07:23:36Z",
+                  "measured": "nodes_pass=32/32 hostload=19.25 checks=72 passed=72 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:50:39Z",
-                  "measured": "nodes_pass=32/32 hostload=22.59 checks=79 passed=79 failed=0",
+                  "iso": "2026-08-22T07:12:50Z",
+                  "measured": "nodes_pass=32/32 hostload=13.76 checks=79 passed=79 failed=0",
+                  "reason": ""
+                },
+                {
+                  "status": "BLOCKED",
+                  "iso": "2026-08-22T06:57:26Z",
+                  "measured": "node-fault",
+                  "reason": "NODE FAULT (not a filesystem verdict): test10:sync-wedged[kworker/u12:0+flush-252:1{MXFS}[__mxfs_ag_dlm_lock]__mxfs_ag_dlm_lock+0xaea/0x1680 [mxfs]<mxfs_ag_dlm_lock+0x15/0x30 [mxfs]<xfs_alloc_vextent_prepare_ag+0x154/0x270 [mxfs]<xfs_alloc_vextent_iterate_ags.constprop.0+0xa5/0x260 [mxfs]<,sync{other}[wb_wait_for_completion]wb_wait_for_completion+0x89/0xc0<sync_inodes_sb+0xd6/0x2c0<sync_inodes_one"
+                },
+                {
+                  "status": "BLOCKED",
+                  "iso": "2026-08-22T06:50:01Z",
+                  "measured": "node-fault",
+                  "reason": "NODE FAULT (not a filesystem verdict): test10:sync-wedged[kworker/u11:0+flush-252:1{MXFS}[__mxfs_ag_dlm_lock]__mxfs_ag_dlm_lock+0xaf0/0x13f0 [mxfs]<mxfs_ag_dlm_lock+0x12/0x20 [mxfs]<xfs_alloc_vextent_prepare_ag+0x154/0x270 [mxfs]<xfs_alloc_vextent_iterate_ags.constprop.0+0xa5/0x260 [mxfs]<,sync{other}[wb_wait_for_completion]wb_wait_for_completion+0x89/0xc0<sync_inodes_sb+0xd6/0x2c0<sync_inodes_one"
+                },
+                {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T06:37:33Z",
+                  "measured": "pre-assert",
+                  "reason": "PRE-ASSERT: mxfs not mounted/readable on test24 test32 — a prior test broke cluster formation state (unmounted or shutdown zombie); reform required"
+                },
+                {
+                  "status": "PASS",
+                  "iso": "2026-08-22T06:33:30Z",
+                  "measured": "nodes_pass=32/32 hostload=19.77 checks=79 passed=79 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T13:18:01Z",
-                  "measured": "nodes_pass=32/32 hostload=16.78 checks=79 passed=79 failed=0",
+                  "iso": "2026-08-22T06:27:16Z",
+                  "measured": "nodes_pass=32/32 hostload=18.16 checks=79 passed=79 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T12:20:23Z",
-                  "measured": "nodes_pass=32/32 hostload=15.08 checks=65 passed=65 failed=0",
+                  "iso": "2026-08-22T06:21:44Z",
+                  "measured": "nodes_pass=32/32 hostload=10.74 checks=72 passed=72 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:51:15Z",
-                  "measured": "nodes_pass=32/32 hostload=29.51 checks=79 passed=79 failed=0",
+                  "iso": "2026-08-22T06:05:34Z",
+                  "measured": "nodes_pass=32/32 hostload=15.50 checks=79 passed=79 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:18:52Z",
-                  "measured": "nodes_pass=32/32 hostload=22.15 checks=79 passed=79 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:51:59Z",
-                  "measured": "nodes_pass=32/32 hostload=22.37 checks=79 passed=79 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:19:40Z",
-                  "measured": "nodes_pass=32/32 hostload=24.00 checks=79 passed=79 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:24:06Z",
-                  "measured": "nodes_pass=32/32 hostload=19.71 checks=79 passed=79 failed=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:44:51Z",
-                  "measured": "nodes_pass=32/32 hostload=22.90 checks=79 passed=79 failed=0",
+                  "iso": "2026-08-22T05:48:33Z",
+                  "measured": "nodes_pass=32/32 hostload=13.64 checks=58 passed=58 failed=0",
                   "reason": ""
                 }
               ]
@@ -6659,70 +6638,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=547.87 checks=8 passed=8 failed=0",
+              "measured": "nodes_pass=32/32 hostload=15.39 checks=8 passed=8 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:33:11Z",
+              "iso": "2026-08-22T07:09:06Z",
               "elapsed_s": 20,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:46:18Z",
-                  "measured": "nodes_pass=32/32 hostload=13.56 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-22T06:01:29Z",
+                  "measured": "nodes_pass=32/32 hostload=14.51 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:51:10Z",
-                  "measured": "nodes_pass=32/32 hostload=19.43 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-21T00:23:22Z",
+                  "measured": "nodes_pass=32/32 hostload=17.60 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:13:14Z",
-                  "measured": "nodes_pass=32/32 hostload=22.93 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T22:08:09Z",
+                  "measured": "nodes_pass=32/32 hostload=22.71 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:46:25Z",
-                  "measured": "nodes_pass=32/32 hostload=20.14 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T20:24:55Z",
+                  "measured": "nodes_pass=32/32 hostload=40.84 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:14:07Z",
-                  "measured": "nodes_pass=32/32 hostload=20.02 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T19:08:00Z",
+                  "measured": "nodes_pass=32/32 hostload=19.74 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:11:34Z",
-                  "measured": "nodes_pass=32/32 hostload=6.83 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T18:20:36Z",
+                  "measured": "nodes_pass=32/32 hostload=20.75 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:45:22Z",
-                  "measured": "nodes_pass=32/32 hostload=25.35 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T17:15:25Z",
+                  "measured": "nodes_pass=32/32 hostload=23.69 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:44:59Z",
-                  "measured": "nodes_pass=32/32 hostload=18.00 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T16:27:44Z",
+                  "measured": "nodes_pass=32/32 hostload=19.05 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-03T23:50:18Z",
-                  "measured": "nodes_pass=32/32 hostload=14.70 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T15:47:23Z",
+                  "measured": "nodes_pass=32/32 hostload=27.72 checks=8 passed=8 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T19:40:51Z",
-                  "measured": "nodes_pass=32/32 hostload=26.76 checks=8 passed=8 failed=0",
+                  "iso": "2026-08-20T15:12:30Z",
+                  "measured": "nodes_pass=32/32 hostload=29.47 checks=8 passed=8 failed=0",
                   "reason": ""
                 }
               ]
@@ -7029,70 +7008,70 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=547.11 checks=5 passed=5 failed=0",
+              "measured": "nodes_pass=32/32 hostload=10.76 checks=5 passed=5 failed=0",
               "reason": "",
-              "iso": "2026-08-07T10:33:42Z",
-              "elapsed_s": 8,
+              "iso": "2026-08-22T07:09:35Z",
+              "elapsed_s": 9,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:46:50Z",
-                  "measured": "nodes_pass=32/32 hostload=16.36 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-22T06:01:58Z",
+                  "measured": "nodes_pass=32/32 hostload=12.78 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:51:40Z",
-                  "measured": "nodes_pass=32/32 hostload=15.49 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-21T00:23:48Z",
+                  "measured": "nodes_pass=32/32 hostload=16.23 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:13:45Z",
-                  "measured": "nodes_pass=32/32 hostload=26.40 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T22:08:35Z",
+                  "measured": "nodes_pass=32/32 hostload=21.27 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:46:56Z",
-                  "measured": "nodes_pass=32/32 hostload=21.29 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T20:25:27Z",
+                  "measured": "nodes_pass=32/32 hostload=30.99 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T08:14:38Z",
-                  "measured": "nodes_pass=32/32 hostload=17.23 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T19:08:31Z",
+                  "measured": "nodes_pass=32/32 hostload=19.71 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T07:16:57Z",
-                  "measured": "nodes_pass=32/32 hostload=22.33 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T18:21:07Z",
+                  "measured": "nodes_pass=32/32 hostload=21.68 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T05:45:54Z",
-                  "measured": "nodes_pass=32/32 hostload=28.22 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T17:15:57Z",
+                  "measured": "nodes_pass=32/32 hostload=25.36 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T04:45:30Z",
-                  "measured": "nodes_pass=32/32 hostload=14.93 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T16:28:15Z",
+                  "measured": "nodes_pass=32/32 hostload=17.32 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T12:01:47Z",
+                  "iso": "2026-08-20T15:47:55Z",
                   "measured": "nodes_pass=32/32 hostload=21.30 checks=5 passed=5 failed=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-02T10:45:20Z",
-                  "measured": "nodes_pass=32/32 hostload=31.08 checks=5 passed=5 failed=0",
+                  "iso": "2026-08-20T15:13:02Z",
+                  "measured": "nodes_pass=32/32 hostload=29.95 checks=5 passed=5 failed=0",
                   "reason": ""
                 }
               ]
@@ -7437,71 +7416,23 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "dur=30s ops=1605 errs=0 dmesg_hits=0",
+              "measured": "dur=30s ops=1269 errs=0 dmesg_hits=0",
               "reason": "",
-              "iso": "2026-08-07T10:34:25Z",
+              "iso": "2026-08-22T07:10:18Z",
               "elapsed_s": 31,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:47:34Z",
-                  "measured": "dur=30s ops=1285 errs=0 dmesg_hits=0",
+                  "iso": "2026-08-22T06:06:06Z",
+                  "measured": "dur=30s ops=1108 errs=0 dmesg_hits=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T18:52:24Z",
-                  "measured": "dur=30s ops=1318 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:14:28Z",
-                  "measured": "dur=30s ops=1627 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:47:39Z",
-                  "measured": "dur=30s ops=1635 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:15:21Z",
-                  "measured": "dur=30s ops=1310 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:17:40Z",
-                  "measured": "dur=30s ops=1303 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:47:04Z",
-                  "measured": "dur=30s ops=1218 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:49:25Z",
-                  "measured": "dur=30s ops=1290 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T12:02:31Z",
-                  "measured": "dur=30s ops=1039 errs=0 dmesg_hits=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T10:46:05Z",
-                  "measured": "dur=30s ops=1372 errs=0 dmesg_hits=0",
-                  "reason": ""
+                  "status": "ABORTED",
+                  "iso": "2026-08-22T06:02:41Z",
+                  "measured": "",
+                  "reason": "run died while this test was executing — result unknown, re-run it"
                 }
               ]
             },
@@ -7637,72 +7568,70 @@
           "budget_scale": "flat",
           "runs": {
             "32/caw": {
-              "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=544.25 rounds=30 durable_loss=0 late_ok=13 mkdir_err=0",
-              "reason": "",
-              "iso": "2026-08-07T10:35:40Z",
-              "elapsed_s": 65,
-              "budget_s": 240,
+              "status": "PENDING",
+              "measured": "",
+              "reason": "executing 20260822T080310Z",
+              "iso": "2026-08-22T08:03:42Z",
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:48:49Z",
-                  "measured": "nodes_pass=32/32 hostload=11.28 rounds=30 durable_loss=0 late_ok=13 mkdir_err=0",
+                  "iso": "2026-08-22T07:24:53Z",
+                  "measured": "nodes_pass=32/32 hostload=14.23 rounds=30 durable_loss=0 late_ok=15 mkdir_err=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:54:01Z",
-                  "measured": "nodes_pass=32/32 hostload=15.02 rounds=30 durable_loss=0 late_ok=15 mkdir_err=0",
+                  "iso": "2026-08-22T07:14:05Z",
+                  "measured": "nodes_pass=32/32 hostload=11.26 rounds=30 durable_loss=0 late_ok=15 mkdir_err=0",
+                  "reason": ""
+                },
+                {
+                  "status": "BLOCKED",
+                  "iso": "2026-08-22T06:57:54Z",
+                  "measured": "node-fault",
+                  "reason": "NODE FAULT (not a filesystem verdict): test10:sync-wedged[kworker/u12:0+flush-252:1{MXFS}[__mxfs_ag_dlm_lock]__mxfs_ag_dlm_lock+0xaea/0x1680 [mxfs]<mxfs_ag_dlm_lock+0x15/0x30 [mxfs]<xfs_alloc_vextent_prepare_ag+0x154/0x270 [mxfs]<xfs_alloc_vextent_iterate_ags.constprop.0+0xa5/0x260 [mxfs]<,sync{other}[sync_inodes_sb]sync_inodes_sb+0xbc/0x2c0<sync_inodes_one_sb+0x1b/0x30<iterate_supers+0x72/0xe0<ks"
+                },
+                {
+                  "status": "BLOCKED",
+                  "iso": "2026-08-22T06:50:28Z",
+                  "measured": "node-fault",
+                  "reason": "NODE FAULT (not a filesystem verdict): test10:sync-wedged[kworker/u11:0+flush-252:1{MXFS}[__mxfs_ag_dlm_lock]__mxfs_ag_dlm_lock+0xaf0/0x13f0 [mxfs]<mxfs_ag_dlm_lock+0x12/0x20 [mxfs]<xfs_alloc_vextent_prepare_ag+0x154/0x270 [mxfs]<xfs_alloc_vextent_iterate_ags.constprop.0+0xa5/0x260 [mxfs]<,sync{other}[sync_inodes_sb]sync_inodes_sb+0xbc/0x2c0<sync_inodes_one_sb+0x1b/0x30<iterate_supers+0x72/0xe0<ks"
+                },
+                {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T06:37:37Z",
+                  "measured": "pre-assert",
+                  "reason": "PRE-ASSERT: mxfs not mounted/readable on test24 test32 — a prior test broke cluster formation state (unmounted or shutdown zombie); reform required"
+                },
+                {
+                  "status": "PASS",
+                  "iso": "2026-08-22T06:34:47Z",
+                  "measured": "nodes_pass=32/32 hostload=15.18 rounds=30 durable_loss=0 late_ok=14 mkdir_err=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T13:19:50Z",
-                  "measured": "nodes_pass=32/32 hostload=12.81 rounds=30 durable_loss=0 late_ok=14 mkdir_err=0",
+                  "iso": "2026-08-22T06:28:32Z",
+                  "measured": "nodes_pass=32/32 hostload=16.08 rounds=30 durable_loss=0 late_ok=15 mkdir_err=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T12:22:26Z",
-                  "measured": "nodes_pass=32/32 hostload=10.40 rounds=30 durable_loss=0 late_ok=12 mkdir_err=0",
+                  "iso": "2026-08-22T06:23:00Z",
+                  "measured": "nodes_pass=32/32 hostload=13.60 rounds=30 durable_loss=0 late_ok=15 mkdir_err=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T11:52:58Z",
-                  "measured": "nodes_pass=32/32 hostload=14.98 rounds=30 durable_loss=0 late_ok=19 mkdir_err=0",
+                  "iso": "2026-08-22T06:07:22Z",
+                  "measured": "nodes_pass=32/32 hostload=17.63 rounds=30 durable_loss=0 late_ok=16 mkdir_err=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:23:49Z",
-                  "measured": "nodes_pass=32/32 hostload=17.13 rounds=30 durable_loss=0 late_ok=20 mkdir_err=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:20:06Z",
-                  "measured": "nodes_pass=32/32 hostload=14.63 rounds=30 durable_loss=0 late_ok=14 mkdir_err=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:53:14Z",
-                  "measured": "nodes_pass=32/32 hostload=15.53 rounds=30 durable_loss=0 late_ok=18 mkdir_err=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:20:55Z",
-                  "measured": "nodes_pass=32/32 hostload=16.71 rounds=30 durable_loss=0 late_ok=13 mkdir_err=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:25:21Z",
-                  "measured": "nodes_pass=32/32 hostload=26.93 rounds=30 durable_loss=0 late_ok=19 mkdir_err=0",
-                  "reason": ""
+                  "status": "ABORTED",
+                  "iso": "2026-08-22T05:49:49Z",
+                  "measured": "",
+                  "reason": "run died while this test was executing — result unknown, re-run it"
                 }
               ]
             },
@@ -7873,71 +7802,29 @@
           "runs": {
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=541.08 checks=4 failed=0 dstate=0",
+              "measured": "nodes_pass=32/32 hostload=10.52 checks=4 failed=0 dstate=0",
               "reason": "",
-              "iso": "2026-08-07T10:36:30Z",
-              "elapsed_s": 12,
+              "iso": "2026-08-22T07:14:27Z",
+              "elapsed_s": 11,
               "budget_s": 90,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-07T05:40:30Z",
-                  "measured": "nodes_pass=32/32 hostload=524.51 checks=4 failed=0 dstate=0",
+                  "iso": "2026-08-22T06:07:45Z",
+                  "measured": "nodes_pass=32/32 hostload=12.93 checks=4 failed=0 dstate=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:49:11Z",
-                  "measured": "nodes_pass=32/32 hostload=9.03 checks=4 failed=0 dstate=0",
+                  "iso": "2026-08-22T02:57:26Z",
+                  "measured": "nodes_pass=32/32 hostload=6.10 checks=4 failed=0 dstate=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T18:54:23Z",
-                  "measured": "nodes_pass=32/32 hostload=12.11 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:14:40Z",
-                  "measured": "nodes_pass=32/32 hostload=21.12 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:47:51Z",
-                  "measured": "nodes_pass=32/32 hostload=14.53 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:15:33Z",
-                  "measured": "nodes_pass=32/32 hostload=11.74 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:17:52Z",
-                  "measured": "nodes_pass=32/32 hostload=13.45 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T06:32:43Z",
-                  "measured": "nodes_pass=32/32 hostload=9.91 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:49:10Z",
-                  "measured": "nodes_pass=32/32 hostload=13.94 checks=4 failed=0 dstate=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:51:31Z",
-                  "measured": "nodes_pass=32/32 hostload=9.19 checks=4 failed=0 dstate=0",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },
@@ -8068,71 +7955,35 @@
           "runs": {
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=541.32 hits=0 kinds=[]",
+              "measured": "nodes_pass=32/32 hostload=11.73 hits=0 kinds=[]",
               "reason": "",
-              "iso": "2026-08-07T10:36:43Z",
+              "iso": "2026-08-22T07:25:05Z",
               "elapsed_s": 2,
               "budget_s": 120,
               "history": [
                 {
+                  "status": "FAIL",
+                  "iso": "2026-08-22T07:14:40Z",
+                  "measured": "nodes_pass=26/32 states:FAIL=6 hostload=9.26 first_fail[test1:hits=1 kinds=[WARNING:]] rank1[hits=1 kinds=[WARNING:]]",
+                  "reason": "test1:FAIL:1 kernel fault line(s): WARNING: test11:FAIL:1 kernel fault line(s): WARNING: test19:FAIL:1 kernel fault line(s): WARNING: test22:FAIL:1 kernel fault line(s): WARNING: test24:FAIL:1 kernel fault line(s): WARNING: test27:FAIL:1 kernel fault line(s): WARNING:"
+                },
+                {
                   "status": "PASS",
-                  "iso": "2026-08-07T05:40:42Z",
-                  "measured": "nodes_pass=32/32 hostload=527.33 hits=0 kinds=[]",
+                  "iso": "2026-08-22T06:07:57Z",
+                  "measured": "nodes_pass=32/32 hostload=11.25 hits=0 kinds=[]",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:49:24Z",
-                  "measured": "nodes_pass=32/32 hostload=9.79 hits=0 kinds=[]",
+                  "iso": "2026-08-22T02:57:38Z",
+                  "measured": "nodes_pass=32/32 hostload=8.84 hits=0 kinds=[]",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T18:54:35Z",
-                  "measured": "nodes_pass=32/32 hostload=14.92 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T18:40:58Z",
-                  "measured": "nodes_pass=32/32 hostload=10.04 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:14:52Z",
-                  "measured": "nodes_pass=32/32 hostload=17.34 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:48:03Z",
-                  "measured": "nodes_pass=32/32 hostload=17.34 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:15:45Z",
-                  "measured": "nodes_pass=32/32 hostload=11.20 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:18:04Z",
-                  "measured": "nodes_pass=32/32 hostload=13.55 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T06:32:56Z",
-                  "measured": "nodes_pass=32/32 hostload=10.94 hits=0 kinds=[]",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:49:23Z",
-                  "measured": "nodes_pass=32/32 hostload=17.27 hits=0 kinds=[]",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },
@@ -8263,71 +8114,29 @@
           "runs": {
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=548.13 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
+              "measured": "nodes_pass=32/32 hostload=7.04 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
               "reason": "",
-              "iso": "2026-08-07T10:39:01Z",
-              "elapsed_s": 79,
+              "iso": "2026-08-22T07:17:05Z",
+              "elapsed_s": 82,
               "budget_s": 240,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:51:14Z",
-                  "measured": "nodes_pass=32/32 hostload=8.99 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
+                  "iso": "2026-08-22T06:10:03Z",
+                  "measured": "nodes_pass=32/32 hostload=14.10 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:56:03Z",
-                  "measured": "nodes_pass=32/32 hostload=10.87 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
+                  "iso": "2026-08-22T03:00:12Z",
+                  "measured": "nodes_pass=32/32 hostload=8.50 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:21:36Z",
-                  "measured": "nodes_pass=32/32 hostload=11.05 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:54:44Z",
-                  "measured": "nodes_pass=32/32 hostload=14.38 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:22:24Z",
-                  "measured": "nodes_pass=32/32 hostload=12.02 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:26:50Z",
-                  "measured": "nodes_pass=32/32 hostload=13.76 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:50:55Z",
-                  "measured": "nodes_pass=32/32 hostload=16.30 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:53:13Z",
-                  "measured": "nodes_pass=32/32 hostload=7.82 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T11:58:19Z",
-                  "measured": "nodes_pass=32/32 hostload=28.15 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T10:53:15Z",
-                  "measured": "nodes_pass=32/32 hostload=25.81 strands=1 repaired=2 declined=0 abandoned=0 write_ok=1 faults=0",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },
@@ -8443,71 +8252,29 @@
           "runs": {
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=551.11 ops=20 wall=2922ms per_op=146ms setup=79ms rmrf=6ms mkb=55ms syn=18ms bar1=62ms mkd=12ms bar2=270ms twall=3351ms errs=0",
+              "measured": "nodes_pass=32/32 hostload=7.02 ops=20 wall=2126ms per_op=106ms setup=119ms rmrf=22ms mkb=77ms syn=20ms bar1=73ms mkd=1660ms bar2=236ms twall=4219ms errs=0",
               "reason": "",
-              "iso": "2026-08-07T10:39:16Z",
-              "elapsed_s": 4,
+              "iso": "2026-08-22T07:17:21Z",
+              "elapsed_s": 6,
               "budget_s": 180,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:51:28Z",
-                  "measured": "nodes_pass=32/32 hostload=7.64 ops=20 wall=2036ms per_op=101ms setup=94ms rmrf=6ms mkb=68ms syn=20ms bar1=67ms mkd=876ms bar2=358ms twall=3436ms errs=0",
+                  "iso": "2026-08-22T06:10:18Z",
+                  "measured": "nodes_pass=32/32 hostload=12.76 ops=20 wall=2860ms per_op=143ms setup=105ms rmrf=24ms mkb=55ms syn=26ms bar1=69ms mkd=36ms bar2=623ms twall=3699ms errs=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:56:17Z",
-                  "measured": "nodes_pass=32/32 hostload=10.48 ops=20 wall=2667ms per_op=133ms setup=105ms rmrf=5ms mkb=82ms syn=18ms bar1=65ms mkd=37ms bar2=535ms twall=3414ms errs=0",
+                  "iso": "2026-08-22T03:00:28Z",
+                  "measured": "nodes_pass=32/32 hostload=9.80 ops=20 wall=2358ms per_op=117ms setup=95ms rmrf=7ms mkb=68ms syn=20ms bar1=63ms mkd=506ms bar2=440ms twall=3467ms errs=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:21:51Z",
-                  "measured": "nodes_pass=32/32 hostload=11.40 ops=20 wall=2806ms per_op=140ms setup=101ms rmrf=10ms mkb=72ms syn=19ms bar1=64ms mkd=17ms bar2=524ms twall=3519ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:54:58Z",
-                  "measured": "nodes_pass=32/32 hostload=15.04 ops=20 wall=2854ms per_op=142ms setup=98ms rmrf=5ms mkb=72ms syn=21ms bar1=73ms mkd=66ms bar2=382ms twall=3479ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:22:38Z",
-                  "measured": "nodes_pass=32/32 hostload=14.22 ops=20 wall=1660ms per_op=83ms setup=94ms rmrf=19ms mkb=57ms syn=18ms bar1=65ms mkd=1131ms bar2=598ms twall=3553ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:27:04Z",
-                  "measured": "nodes_pass=32/32 hostload=12.01 ops=20 wall=2388ms per_op=119ms setup=77ms rmrf=6ms mkb=52ms syn=19ms bar1=63ms mkd=1042ms bar2=86ms twall=3660ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:51:42Z",
-                  "measured": "nodes_pass=32/32 hostload=19.14 ops=20 wall=3026ms per_op=151ms setup=108ms rmrf=7ms mkb=83ms syn=18ms bar1=112ms mkd=22ms bar2=419ms twall=3693ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:53:55Z",
-                  "measured": "nodes_pass=32/32 hostload=10.56 ops=20 wall=3213ms per_op=160ms setup=80ms rmrf=9ms mkb=52ms syn=19ms bar1=67ms mkd=12ms bar2=289ms twall=3666ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T11:58:36Z",
-                  "measured": "nodes_pass=32/32 hostload=28.92 ops=20 wall=3497ms per_op=174ms setup=141ms rmrf=12ms mkb=107ms syn=22ms bar1=63ms mkd=21ms bar2=1043ms twall=4769ms errs=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T10:53:33Z",
-                  "measured": "nodes_pass=32/32 hostload=25.54 ops=20 wall=4461ms per_op=223ms setup=189ms rmrf=8ms mkb=152ms syn=29ms bar1=73ms mkd=77ms bar2=1272ms twall=6081ms errs=0",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },
@@ -8633,71 +8400,29 @@
           "runs": {
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=543.97 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
+              "measured": "nodes_pass=32/32 hostload=7.01 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
               "reason": "",
-              "iso": "2026-08-07T10:36:56Z",
+              "iso": "2026-08-22T07:17:35Z",
               "elapsed_s": 3,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:51:41Z",
-                  "measured": "nodes_pass=32/32 hostload=7.11 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
+                  "iso": "2026-08-22T06:10:32Z",
+                  "measured": "nodes_pass=32/32 hostload=14.80 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:56:30Z",
-                  "measured": "nodes_pass=32/32 hostload=12.36 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
+                  "iso": "2026-08-22T02:57:53Z",
+                  "measured": "nodes_pass=32/32 hostload=9.67 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:24:02Z",
-                  "measured": "nodes_pass=32/32 hostload=15.02 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:22:04Z",
-                  "measured": "nodes_pass=32/32 hostload=12.76 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:55:11Z",
-                  "measured": "nodes_pass=32/32 hostload=13.53 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:22:51Z",
-                  "measured": "nodes_pass=32/32 hostload=12.47 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:27:17Z",
-                  "measured": "nodes_pass=32/32 hostload=13.72 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "FAIL",
-                  "iso": "2026-08-04T07:18:19Z",
-                  "measured": "nodes_pass=19/32 states:FAIL=13 hostload=14.54 first_fail[test3:stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=0 win_src=none win_trunc=0] rank1[stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=timestamp win_trunc=1]",
-                  "reason": "test3:FAIL:could not locate this run's dirent window (no MXFS_DIRENT_WINDOW marker in the ring and no durable start timestamp) — nothing to judge, and unverifiable is not a pass test4:FAIL:could not locate this run's dirent window (no MXFS_DIRENT_WINDOW marker in the ring and no durable start timestamp) — nothing to judge, and unverifiable is not a pass test7:FAIL:could not locate this run's diren"
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:51:55Z",
-                  "measured": "nodes_pass=32/32 hostload=17.69 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:54:08Z",
-                  "measured": "nodes_pass=32/32 hostload=10.04 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },
@@ -8883,71 +8608,29 @@
             },
             "32/caw": {
               "status": "PASS",
-              "measured": "nodes_pass=32/32 hostload=544.12 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
+              "measured": "nodes_pass=32/32 hostload=8.96 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
               "reason": "",
-              "iso": "2026-08-07T10:37:10Z",
-              "elapsed_s": 3,
+              "iso": "2026-08-22T07:17:49Z",
+              "elapsed_s": 5,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T20:51:54Z",
-                  "measured": "nodes_pass=32/32 hostload=9.06 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
+                  "iso": "2026-08-22T06:10:45Z",
+                  "measured": "nodes_pass=32/32 hostload=13.41 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:56:43Z",
-                  "measured": "nodes_pass=32/32 hostload=12.50 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
+                  "iso": "2026-08-22T02:58:07Z",
+                  "measured": "nodes_pass=32/32 hostload=9.33 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T11:24:16Z",
-                  "measured": "nodes_pass=32/32 hostload=15.46 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T09:22:17Z",
-                  "measured": "nodes_pass=32/32 hostload=13.04 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:55:24Z",
-                  "measured": "nodes_pass=32/32 hostload=14.57 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:23:04Z",
-                  "measured": "nodes_pass=32/32 hostload=13.83 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:27:30Z",
-                  "measured": "nodes_pass=32/32 hostload=13.97 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "FAIL",
-                  "iso": "2026-08-04T07:18:55Z",
-                  "measured": "nodes_pass=19/32 states:FAIL=13 hostload=32.89 first_fail[test3:unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=0 win_src=none win_trunc=0] rank1[unresolved=0 failed_estale=0 total_flips=1 stale_skips=0 probe=1 window=1 win_src=timestamp win_trunc=1]",
-                  "reason": "test3:FAIL:no MXFS_DIRENT_WINDOW marker on this node — the workload has not run in this boot, so the ring cannot be scoped to it and any hit found would be stale evidence from an earlier run. Run this after dirent_durability (P6), which stamps the marker. test4:FAIL:no MXFS_DIRENT_WINDOW marker on this node — the workload has not run in this boot, so the ring cannot be scoped to it and any hit fou"
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:52:08Z",
-                  "measured": "nodes_pass=32/32 hostload=18.12 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:54:21Z",
-                  "measured": "nodes_pass=32/32 hostload=11.63 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },
@@ -9048,71 +8731,71 @@
           "runs": {
             "32/caw": {
               "status": "FAIL",
-              "measured": "open=28 of=70 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCE-CAPABILITY-UNVALIDATED-AT-MOUNT(high),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID(critical),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical)]",
-              "reason": "28 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCE-CAPABILITY-UNVALIDATED-AT-MOUNT(high),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID(critical),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical)",
-              "iso": "2026-08-07T10:39:16Z",
-              "elapsed_s": 0,
+              "measured": "open=52 of=118 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical),D-TERMINAL-OUTCOME-IMPORT-UNVALIDATED-383(critical),D-RSYNC-LAP-PACE-AG-SHARING-388(critical)]",
+              "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical),D-TERMINAL-OUTCOME-IMPORT-UNVALIDATED-383(critical),D-RSYNC-LAP-PACE-AG-SHARING-388(critical)",
+              "iso": "2026-08-22T07:17:50Z",
+              "elapsed_s": 1,
               "budget_s": 30,
               "history": [
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-04T20:51:54Z",
-                  "measured": "open=29 of=68 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCE-CAPABILITY-UNVALIDATED-AT-MOUNT(high),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-EX-GRANT-EPOCH-NOT-UNIQUE-TENURE-ID(critical),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical)]",
-                  "reason": "29 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMIN"
+                  "iso": "2026-08-22T06:10:46Z",
+                  "measured": "open=52 of=118 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical),D-TERMINAL-OUTCOME-IMPORT-UNVALIDATED-383(critical),D-RSYNC-LAP-PACE-AG-SHARING-388(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-04T06:32:57Z",
-                  "measured": "open=23 of=56 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-FENCED-STAGE-WITHOUT-PROVEN-EXCLUSION(critical),D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-RECOVERY-TAKEOVER-UNREACHABLE(critical)]",
-                  "reason": "23 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMIN"
+                  "iso": "2026-08-20T22:16:37Z",
+                  "measured": "open=52 of=116 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical),D-TERMINAL-OUTCOME-IMPORT-UNVALIDATED-383(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-04T05:55:11Z",
-                  "measured": "open=22 of=55 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-FENCED-STAGE-WITHOUT-PROVEN-EXCLUSION(critical),D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(high)]",
-                  "reason": "22 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMIN"
+                  "iso": "2026-08-20T20:30:16Z",
+                  "measured": "open=52 of=116 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical),D-TERMINAL-OUTCOME-IMPORT-UNVALIDATED-383(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-04T05:52:09Z",
-                  "measured": "open=21 of=52 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MOUNT-INCARNATION-CONSTANT-ZERO(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-FENCED-STAGE-WITHOUT-PROVEN-EXCLUSION(critical),D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-AUTH-ZERO-VICTIM-EPOCH-WEDGE(critical)]",
-                  "reason": "21 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MOUNT-INCARNATION-CONSTANT-ZERO(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LO"
+                  "iso": "2026-08-20T19:14:49Z",
+                  "measured": "open=51 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "51 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-04T04:54:22Z",
-                  "measured": "open=20 of=51 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MOUNT-INCARNATION-CONSTANT-ZERO(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PR-FENCE-PREEMPT-WITHOUT-ABORT(critical),D-FENCED-STAGE-WITHOUT-PROVEN-EXCLUSION(critical),D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical)]",
-                  "reason": "20 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MOUNT-INCARNATION-CONSTANT-ZERO(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LO"
+                  "iso": "2026-08-20T18:27:24Z",
+                  "measured": "open=52 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-02T12:05:17Z",
-                  "measured": "open=12 of=37 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS-2332(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-DIRENT-PUBLISH-STALE-BASE-P195-360(major)]",
-                  "reason": "12 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS"
+                  "iso": "2026-08-20T16:34:33Z",
+                  "measured": "open=52 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-02T10:54:34Z",
-                  "measured": "open=14 of=37 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS-2332(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE(major),D-OUTAGE-REMOUNT-MUTUAL-IFREE-SKIP-STRAND(major),D-DIRENT-PUBLISH-STALE-BASE-P195-360(high)]",
-                  "reason": "14 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS"
+                  "iso": "2026-08-20T15:56:43Z",
+                  "measured": "open=52 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-02T10:17:27Z",
-                  "measured": "open=13 of=36 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS-2332(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE(major),D-OUTAGE-REMOUNT-MUTUAL-IFREE-SKIP-STRAND(major)]",
-                  "reason": "13 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS"
+                  "iso": "2026-08-20T15:19:21Z",
+                  "measured": "open=52 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-02T09:34:42Z",
-                  "measured": "open=14 of=36 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS-2332(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE(major),D-REAP-WORK-UAF-PANIC-AFTER-UNMOUNT(critical),D-OUTAGE-REMOUNT-MUTUAL-IFREE-SKIP-STRAND(major)]",
-                  "reason": "14 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-CACHE-COHERENCY-UV-COUNT-MISS"
+                  "iso": "2026-08-20T14:55:17Z",
+                  "measured": "open=52 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 },
                 {
                   "status": "FAIL",
-                  "iso": "2026-08-02T07:53:04Z",
-                  "measured": "open=13 of=34 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-DESTAGE-TEAR-BUCKETLESS-ORPHAN(critical),D-CACHE-COHERENCY-UV-COUNT-MISS-2332(critical),D-CRASH-CONSISTENCY-32-NOTERMINAL-354(major),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-MASS-TEARDOWN-DEPARTURE-WAVE-WEDGE(major)]",
-                  "reason": "13 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(?),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-DESTAGE-TEAR-BUCKETLESS-ORPHA"
+                  "iso": "2026-08-20T14:24:09Z",
+                  "measured": "open=52 of=115 ids=[D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOGUS-IMODE(minor),D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361(critical),D-MOUNT-WINDOW-PEER-DEATH-IMMEDIATE-PURGE(critical),D-FOREIGN-REPLAY-FAILURE-PUBLISHED-AS-RECOVERED(critical),D-FOREIGN-SLICE-INTENTS-ABANDONED(critical),D-PURGE-NONATOMIC-PUBLICATION(critical),D-OWN-CRASH-RECLAIM-PATH-UNREACHABLE(critical),D-RECOV-ADVANCE-UNBOUNDED-RETRY(critical),D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO(high),D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN(critical),D-FENCED-VICTIM-MAY-REREGISTER(critical),D-MIXED-VERSION-UNGATED-REPLAY(critical),D-FENCE-CRASH-MATRIX-UNTESTED(high),D-SAMENODE-WAITER-CANCEL-COLLISION(critical),D-RECONCILE-EXHAUSTION-SILENT(high),D-TRACK-PUBLISH-ORDERING(high),D-RECONCILE-SLOT-IDENTITY-UNCHECKED(critical),D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-UNKNOWN(critical),D-NOINO-RELFENCE-AIL-FREEZE-474(critical),D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474(critical),D-LOG-SLICE-SHARED-MULTIWRITER(critical),D-FINOBT-IBT-FREE-MISMATCH-481(critical),D-MASS-FALSE-DEATH-FROZEN-GRANT-STALL-482(critical),D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488(critical),D-FENCED-VICTIM-NONCONTAINMENT-498(critical),D-DUP-RELEASE-HANDOFF-INVARIANTS-UNVERIFIED(high),D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512(critical),D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513(critical),D-FOREIGN-SHADOW-UNWIND-HOST-SHUTDOWN-513B(critical),D-CLEAN-RELEASE-TREATED-AS-DEATH-PHANTOM-RECOVERY-526(critical),D-SB-PERNODE-DIVERGENT-WHOLE-LOG-LOST-UPDATE-0133(critical),D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356(critical),D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374(high),D-FENCE-RECONVERGE-POSTCONDITION-280S-376(high),D-FDW-REJOIN-BNOBT-OVERLAPPING-FREE-SHUTDOWN-376(critical),D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376(critical),D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377(critical),D-PR-KEY-32BIT-NODE-ID-COLLISION-RISK-377(high),D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378(critical),D-DIRTY-SLICE-DEPARTURE-RETIRES-FENCE-KEY-UNMOUNTABLE-379(critical),D-DLMSCALING-DSCAN-MISS-CR3-EUCLEAN-SHUTDOWN-380(critical),D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380(critical),D-PR-RESERVATION-HEALTH-UNMONITORED-AFTER-MOUNT-381(high),D-FENCE-POSTSUBMIT-AMBIGUITY-NO-RECONCILIATION-381(critical)]",
+                  "reason": "52 unresolved defect(s) in the RULE 6 ledger: D-FOREIGN-REPLAY-UNGATED-IMAGES(critical),D-MATRIX-UNMEASURED(minor),D-32NODE-SHARED-DIR-CREATE-PACE(major),D-INODE-CLUSTER-PUBLISH-WITHOUT-AUTHORITY(critical),D-READDIR-PEER-CACHED-DIR-PACE(major),D-DIRVIEW-NONCONVERGE-SESS25(high),D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN(critical),D-CROSSNODE-OPEN-UNLINK-DATA-LOSS(critical),D-RELOAD-FREED-ADOPT-BOG"
                 }
               ]
             },
@@ -9743,69 +9426,27 @@
               "status": "PASS",
               "measured": "fua=ok caw=ok lba=131087",
               "reason": "",
-              "iso": "2026-08-04T20:51:55Z",
+              "iso": "2026-08-22T07:17:51Z",
               "elapsed_s": 1,
               "budget_s": 60,
               "history": [
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T18:56:44Z",
+                  "iso": "2026-08-22T06:10:47Z",
                   "measured": "fua=ok caw=ok lba=131087",
                   "reason": ""
                 },
                 {
                   "status": "PASS",
-                  "iso": "2026-08-04T09:14:53Z",
+                  "iso": "2026-08-22T03:03:27Z",
                   "measured": "fua=ok caw=ok lba=131087",
                   "reason": ""
                 },
                 {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:48:04Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T08:15:46Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T07:19:15Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T05:52:10Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-04T04:54:23Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T12:05:18Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T10:54:36Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
-                },
-                {
-                  "status": "PASS",
-                  "iso": "2026-08-02T10:17:28Z",
-                  "measured": "fua=ok caw=ok lba=131087",
-                  "reason": ""
+                  "status": "NOT_RUN",
+                  "iso": "2026-08-21T13:03:24Z",
+                  "measured": "",
+                  "reason": "run was killed before reaching this test (marker: running 20260821T002235Z)"
                 }
               ]
             },

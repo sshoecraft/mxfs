@@ -166,7 +166,13 @@ fi
 #     content, but those peers would mount on top of stale cached metadata ->
 #     round-1 dir incoherence / DABUF-HOLE corruption.  BLKFLSBUF flushes dirty
 #     buffers then INVALIDATES the cache so the new mount reads the fresh LUN.
-blockdev --flushbufs "$MXFS_DEV" 2>/dev/null || echo "WARN: blockdev --flushbufs $MXFS_DEV failed"
+# sess376: this is a HARD requirement, not a nicety.  A node that mounts on top
+# of stale OLD-filesystem pages after a peer re-mkfs'd the LUN gets an
+# inconsistent free-space picture, and the failure surfaces much later as
+# "bno + len > gtbno" on a free or "i != 1" in xfs_alloc_fixup_trees on an
+# allocation, i.e. a corruption shutdown with no obvious connection to the prep.
+# A silent WARN is how that class survives a prep, so fail here instead.
+blockdev --flushbufs "$MXFS_DEV" || fail "blockdev --flushbufs $MXFS_DEV failed — refusing to mount on a possibly stale block-device cache"
 
 # 6. Mount the FS.
 mkdir -p "$MXFS_MOUNT"

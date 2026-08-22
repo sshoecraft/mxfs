@@ -1,0 +1,10 @@
+{
+  "source": [
+    "dlm/v5_mount.h",
+    "dlm/v5_mount.c",
+    "xfs/xfs_mxfs_dlm.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

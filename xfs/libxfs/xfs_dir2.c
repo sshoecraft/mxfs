@@ -1901,6 +1901,45 @@ xfs_dir_exchange_children(
  * directory then its '..' doesn't already point to @target_dp, and that @wip
  * is a freshly allocated whiteout.
  */
+/*
+ * sess384 P217-RENAME-FAILSITE.  D-RSYNC-RENAME-DIRTY-CANCEL-MASS-SHUTDOWN-361:
+ * a same-directory rsync rename returns rc=-117 (EFSCORRUPTED) with the
+ * transaction already DIRTY, so xfs_trans_cancel force-shuts the filesystem
+ * (0x8, SHUTDOWN_CORRUPT_INCORE) and 17 of 32 nodes died from it -- twice on
+ * 2026-08-20, on a fresh cluster both times.
+ *
+ * The existing P217-RENAME-DIRTYCANCEL probe names the errno and proves the
+ * source directory's image is IDENTICAL to its preflight cookie
+ * (pre[iv=133 bytes=16 fmt=2 dgen=2 ve=0] == now[...]), which rules out BOTH
+ * classes that probe was written to discriminate -- neither an image swapped
+ * below the held ILOCK nor our own chain mutating it.  And nothing printed a
+ * corruption report, so the -EFSCORRUPTED came from a bare `return
+ * -EFSCORRUPTED` rather than XFS_IS_CORRUPT/a buffer verifier.  So the next
+ * thing the evidence has to name is WHICH helper produced it.
+ *
+ * Fires only on a helper error, i.e. never on the success path, and is
+ * rate-limited.  Multi-node only: single-node MXFS has no DLM and cannot hit
+ * the cross-node classes this is chasing.
+ */
+static inline void
+mxfs_dir_rename_fail(
+	struct xfs_mount	*mp,
+	const char		*site,
+	int			error,
+	struct xfs_inode	*subject)
+{
+	if (likely(!error) || !mp->m_mxfs_dlm)
+		return;
+	pr_warn_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%u size=%lld nextents=%llu comm=%s — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
+		site, error,
+		(unsigned long long)(subject ? subject->i_ino : 0),
+		subject ? subject->i_df.if_format : 0,
+		subject ? subject->i_df.if_bytes : 0,
+		subject ? (long long)subject->i_disk_size : -1,
+		subject ? (unsigned long long)subject->i_df.if_nextents : 0,
+		current->comm);
+}
+
 int
 xfs_dir_rename_children(
 	struct xfs_trans	*tp,
@@ -1933,8 +1972,10 @@ xfs_dir_rename_children(
 		 */
 		if (!spaceres) {
 			error = xfs_dir_canenter(tp, target_dp, target_name);
-			if (error)
+			if (error) {
+				mxfs_dir_rename_fail(mp, "canenter", error, target_dp);
 				return error;
+			}
 		}
 	} else {
 		/*
@@ -1968,8 +2009,10 @@ xfs_dir_rename_children(
 		pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, du_wip->ip->i_ino));
 		error = xfs_iunlink_remove(tp, pag, du_wip->ip);
 		xfs_perag_put(pag);
-		if (error)
+		if (error) {
+			mxfs_dir_rename_fail(mp, "iunlink_remove", error, du_wip->ip);
 			return error;
+		}
 
 		xfs_bumplink(tp, du_wip->ip);
 	}
@@ -1985,8 +2028,10 @@ xfs_dir_rename_children(
 		 */
 		error = xfs_dir_createname(tp, target_dp, target_name,
 					   src_ip->i_ino, spaceres);
-		if (error)
+		if (error) {
+			mxfs_dir_rename_fail(mp, "createname", error, target_dp);
 			return error;
+		}
 
 		xfs_trans_ichgtime(tp, target_dp,
 					XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
@@ -2006,8 +2051,10 @@ xfs_dir_rename_children(
 		 */
 		error = xfs_dir_replace(tp, target_dp, target_name,
 					src_ip->i_ino, spaceres);
-		if (error)
+		if (error) {
+			mxfs_dir_rename_fail(mp, "replace_tgt", error, target_dp);
 			return error;
+		}
 
 		xfs_trans_ichgtime(tp, target_dp,
 					XFS_ICHGTIME_MOD | XFS_ICHGTIME_CHG);
@@ -2017,16 +2064,20 @@ xfs_dir_rename_children(
 		 * dir no longer points to it.
 		 */
 		error = xfs_droplink(tp, target_ip);
-		if (error)
+		if (error) {
+			mxfs_dir_rename_fail(mp, "droplink_tgt", error, target_ip);
 			return error;
+		}
 
 		if (src_is_directory) {
 			/*
 			 * Drop the link from the old "." entry.
 			 */
 			error = xfs_droplink(tp, target_ip);
-			if (error)
+			if (error) {
+				mxfs_dir_rename_fail(mp, "droplink_tgt2", error, target_ip);
 				return error;
+			}
 		}
 	} /* target_ip != NULL */
 
@@ -2041,8 +2092,10 @@ xfs_dir_rename_children(
 		error = xfs_dir_replace(tp, src_ip, &xfs_name_dotdot,
 					target_dp->i_ino, spaceres);
 		ASSERT(error != -EEXIST);
-		if (error)
+		if (error) {
+			mxfs_dir_rename_fail(mp, "replace_dotdot", error, src_ip);
 			return error;
+		}
 	}
 
 	/*
@@ -2067,8 +2120,10 @@ xfs_dir_rename_children(
 		 * entry that's moved no longer points to it.
 		 */
 		error = xfs_droplink(tp, src_dp);
-		if (error)
+		if (error) {
+			mxfs_dir_rename_fail(mp, "droplink_srcdp", error, src_dp);
 			return error;
+		}
 	}
 
 	/*
@@ -2082,6 +2137,9 @@ xfs_dir_rename_children(
 	else
 		error = xfs_dir_removename(tp, src_dp, src_name, src_ip->i_ino,
 					   spaceres);
+	if (unlikely(error))
+		mxfs_dir_rename_fail(mp, du_wip->ip ? "replace_src" : "removename",
+				     error, src_dp);
 	{
 		extern int mxfs_dirwr_enabled, mxfs_instr_enabled;
 		if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled) &&

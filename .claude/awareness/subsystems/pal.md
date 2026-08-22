@@ -2705,3 +2705,121 @@ Pre-fix the same arm found the failure on essentially every unmount.
   assumes map 0 covers the range).  All five overlay sites and every
   legit di_next_unlinked writer hold the cluster buffer lock — that lock
   is what makes the overlay's icache live-skew peek coherent.
+
+## SCSI PR PREEMPT AND ABORT is issued by MXFS itself, NOT via `ops->pr_preempt` (0.14.12, sess378)
+
+`mxfs_pal_scsi_pr_preempt(dev, my_key, victim_key, abort)` in
+`pal/linux/kern.c` now **splits on `abort`**, and the split is load-bearing —
+do not "simplify" it back into one call.
+
+**Why.** `drivers/md/dm.c dm_pr_preempt()` accepts `bool abort` and builds
+`struct dm_pr pr = { .new_key, .old_key, .type, .fail_early = false }` **and
+never assigns `.abort`**. The field exists (dm.c:3465) and the only read is
+`__dm_pr_preempt()` passing `pr->abort` down (dm.c:3658); there is no
+assignment anywhere in the file. The designated initializer zero-fills it, so
+`sd_pr_preempt()` always runs `sd_pr_out_command(bdev, abort ? 0x05 : 0x04,
+...)` with `abort == false`. **PREEMPT AND ABORT is silently downgraded to
+PREEMPT on every dm device** — an upstream Linux bug, present at 6.19.0-rc0 and
+on the running 6.8.0-101, affecting all dm users. MXFS opens
+`/dev/mapper/mpatha`, so `ops` is dm's and the abort never reached the target,
+while MXFS minted a durable certificate asserting exclusion was PROVED.
+
+**The two paths now:**
+
+- `abort == true` → `mxfs_pal_prout_preempt_abort(sdev, my_key, victim_key)`,
+  a raw PERSISTENT RESERVE OUT CDB (opcode `0x5F`, `cdb[1]=0x05`,
+  `cdb[2]=SCSI_PR_WRITE_EXCLUSIVE_REG_ONLY`, 24-byte parameter list with our
+  key at `data[0..7]` and the victim's at `data[8..15]`) issued with
+  `scsi_execute_cmd(REQ_OP_DRV_OUT)` against an underlying `scsi_device`
+  resolved by the existing `mxfs_bdev_to_sdev()`. Byte-for-byte what
+  `sd_pr_out_command()` builds, so only the service action differs from the
+  in-tree path. 60 s timeout (a conforming target does not complete 0x05 until
+  the victim's affected commands drain); bounded UA reissue.
+- `abort == false` → the generic `ops->pr_preempt` path. Plain PREEMPT is the
+  only thing dm can express, so it is correct there.
+
+**One issuance covers both multipath nexuses.** SPC removes every registration
+whose key equals the service action reservation key and aborts those I_T
+nexuses' task sets; MXFS uses one key per node across all of that node's paths.
+Do not add path iteration.
+
+**FAIL CLOSED, and this is not optional.** If no `scsi_device` resolves (all dm
+paths down, non-SCSI transport) the function returns `-EOPNOTSUPP` and logs
+`P302-PROUT-NO-SDEV`. It must **never** fall back to `ops->pr_preempt` there:
+that issues the non-aborting 0x04 and the caller would turn the success into a
+`PREEMPT_ABORT_DONE` certificate. `-EOPNOTSUPP` maps to
+`MXFS_FENCE_KIND_UNSUPPORTED`, which `mxfs_fence_kind_proves_exclusion()`
+rejects, so the slice stays blocked instead of being replayed under a false
+proof.
+
+**Debugging note:** the `P302-PROUT-*` markers are **failure-only**. A
+successful 0x05 prints nothing, so `grep -c P302 == 0` does NOT mean the path
+did not run. For positive confirmation read the TARGET: with SCST `pr` tracing
+on (`echo "add pr" > /sys/kernel/scst_tgt/trace_level`, not on by default and
+lost across an scst reload), `scst_pr_do_preempt` prints `Preempt and abort:`
+for 0x05 and `Preempt:` for 0x04. `tests/fence_stage3_real.sh` automates this.
+
+## sess379 — `kern.c`: per-task absolute I/O budget (`mxfs_pal_io_budget_*`)
+
+**New public surface** (declared in `pal/pal.h` inside the `#ifdef __KERNEL__`
+block, implemented in `pal/linux/kern.c`):
+
+```c
+struct mxfs_pal_io_budget { struct task_struct *task; unsigned long deadline_j;
+                            struct hlist_node node; };
+void mxfs_pal_io_budget_enter(struct mxfs_pal_io_budget *b, uint32_t ms);
+void mxfs_pal_io_budget_exit(struct mxfs_pal_io_budget *b);
+```
+
+### What it does
+
+Puts ONE absolute deadline on every SCSI slot read the calling task issues for
+the span of one logical operation. `mxfs_pal_scsi_read_fua_bdev`'s retry
+loop consults it on each lap: with a budget it uses `min(remaining)` as the
+command timeout and **0 SCSI retries**, and returns `-ETIME` +
+`P302-FUA-READ-DEADLINE` once the budget is gone. With no budget registered it
+takes the historical path VERBATIM — `30 s timeout x 1 SCSI retry x 20 wrapper
+retries`.
+
+### Why it exists
+
+D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B (sess379): those three stacked retry
+policies gave ONE slot probe a ~20-minute worst case, and a plain `statx()` of
+the mount point inherited all of it — measured 60.5 / 121 / 181.5 s on 30 of 32
+nodes. The registry lives in PAL, keyed on `current`, because the deadline has
+to be visible at the SCSI chokepoint without threading a parameter through
+`read_slot` (27 call sites), `find_slot_skip` and `mxfs_dlm_caw_held`.
+
+### CONTRACT — read before using it
+
+- **`-ETIME` means NO SAMPLE.** It is never evidence that a lock is held, is not
+  held, or that the device is healthy. A caller that treats it as any of those
+  has reintroduced the defect this exists to remove.
+- **Always pair enter/exit on the same stack frame.** The registration is keyed
+  on `current`; a leaked entry silently bounds every later read that task
+  issues, **including authoritative ones**.
+- **Never budget an authoritative read whose failure escalates.** Turning a
+  transient target stall into `-EIO` is how a healthy node manufactures a
+  shutdown (D-UMOUNT-QUARANTINE-TIMEOUT-DIRTY-WITHDRAW-356). Today the only
+  opt-in users are the DLM's three cached-grant ownership verifies in
+  `xfs/xfs_mxfs_dlm.c`, via `mxfs_dlm_verify_rawmode()`.
+- Nested enters are unsupported by design (one logical operation, one deadline);
+  the innermost registration wins the lookup, which is the conservative
+  direction.
+
+### PITFALL — the deadline does NOT bound the wall
+
+Measured sess379: with a 1000 ms command timeout the block layer still returns
+only after **SCSI error recovery** completes, so a congested target still cost
+~60 s per stall. The budget removes the *amplification* (181.5 s -> 60.6 s max);
+it does not remove the first stall. That is why the XFS-side governor pairs it
+with a circuit breaker — see `mxfs_verify_begin`/`mxfs_verify_end` and
+`P303-VERIFY-BREAKER` — and why the real fix is to stop N nodes converging on
+one LBA (D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379).
+
+### Diagnostics
+
+`P302-FUA-READ-DEADLINE` (budget exhausted, read abandoned).
+`P-FUA-READ-RETRY` now carries `budget_ms=`, `cmd_ms=`, `comm=` and `pid=` —
+`budget_ms=0` means no budget was registered for that task, which is how a
+retry line is attributed to the verify path versus the teardown path.

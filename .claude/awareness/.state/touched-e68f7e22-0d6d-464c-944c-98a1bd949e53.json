@@ -1,0 +1,14 @@
+{
+  "source": [
+    "xfs/xfs_trans.h",
+    "xfs/xfs_trans.c",
+    "xfs/xfs_mxfs_dlm.h",
+    "xfs/libxfs/xfs_alloc.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_iomap.c",
+    "xfs/xfs_pnfs.c"
+  ],
+  "docs": [],
+  "regen_done": false,
+  "nudges": 0
+}

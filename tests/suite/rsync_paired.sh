@@ -14,7 +14,7 @@ R="$RANK"; T="$NODES"
 D="$MNT/.rsync_paired/node${R}"
 SRC="/tmp/rsync_paired_src.$$"
 mkdir -p "$D" "$SRC" 2>/dev/null
-trap 'rm -rf "$SRC" 2>/dev/null' EXIT
+trap 'rm -rf "$SRC" "$SRC.err" 2>/dev/null' EXIT
 
 NFILES="${RSYNC_NFILES:-400}"
 WINDOW="${RSYNC_WINDOW:-90}"
@@ -34,17 +34,25 @@ src_sum=$(find "$SRC" -type f -exec md5sum {} \; | awk '{print $1}' | sort | md5
 ck "rsync barrier ready" coord_barrier "rs_ready"
 
 t0=$(date +%s.%N)
-rsync -a --no-compress "$SRC/" "$D/" 2>/dev/null
+rsync -a --no-compress "$SRC/" "$D/" 2>"$SRC.err"
 rc=$?
 sync
 t1=$(date +%s.%N)
+# On rsync failure, surface the first error lines in the check reason —
+# without this the errno is lost and a FAIL is undiagnosable after cleanup.
+err1=""
+if [ "$rc" -ne 0 ] && [ -s "$SRC.err" ]; then
+    err1=$(grep -m2 'rsync:' "$SRC.err" | tr '\n' ';' | tr -d '|' | head -c 220)
+    [ -n "$err1" ] || err1=$(head -2 "$SRC.err" | tr '\n' ';' | tr -d '|' | head -c 220)
+    echo "RSYNC-ERR: node$R $err1" >&2
+fi
 elapsed=$(awk "BEGIN{e=$t1-$t0; print (e>0)?e:0.001}")
 
 dst_count=$(find "$D" -type f | wc -l | tr -d ' ')
 dst_sum=$(find "$D" -type f -exec md5sum {} \; | awk '{print $1}' | sort | md5sum | awk '{print $1}')
 
 echo "RSYNC: node$R files=$dst_count/$src_count elapsed=${elapsed}s rc=$rc" >&2
-ckeq "rsync node${R} rc"          0 "$rc"
+ckeq "rsync node${R} rc${err1:+ [$err1]}" 0 "$rc"
 ckeq "rsync node${R} file count"  "$src_count" "$dst_count"
 ckeq "rsync node${R} content sum" "$src_sum"   "$dst_sum"
 ck   "rsync node${R} within window" awk "BEGIN{exit !($elapsed <= $WINDOW)}"

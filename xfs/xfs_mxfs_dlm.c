@@ -27,6 +27,7 @@
 #include <linux/seq_file.h>
 
 #include "xfs_platform.h"
+#include "../pal/pal.h"	/* sess379: mxfs_pal_io_budget_* */
 #include "../dlm/v5_mount.h"
 #include "../dlm/disklock.h"	/* sess80: MXFS_EVICT_TYPE_* */
 #include "../dlm/scsipr.h"	/* sess93: mxfs_fence_kind_name */
@@ -47,6 +48,7 @@
 #include "xfs_inode_item.h"
 #include "xfs_buf.h"
 #include "xfs_buf_item.h"
+#include "xfs_extfree_item.h"
 #include "xfs_bit.h"
 #include "../mxfs_clayer/yield_quantum.h"
 #include "../mxfs_clayer/pinned_resource.h"
@@ -70,9 +72,11 @@ static inline bool mxfs_iclus_routed(struct xfs_inode *ip);
 extern int mxfs_pub_defer_claim;	/* sess5: defined near the publish batch */
 static int mxfs_dlm_inode_lock_routed(struct xfs_inode *ip, uint8_t mode,
 				      uint64_t gen_snap);
-static void mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base);
+struct mxfs_release_cert;	/* defined in xfs_mxfs_dlm.h, included below */
+static int mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base,
+				   struct mxfs_release_cert *cert);
 static bool mxfs_iclus_covered_active(struct xfs_mount *mp, uint64_t base,
-				      uint64_t skip_ino);
+				      uint64_t skip_ino, bool granted_only);
 static void mxfs_iclus_pi_reconcile(struct xfs_inode *ip, int clus_rc);
 /* sess28 creator baseline stamp — defined near the publish drain loop, used by
  * mxfs_dlm_ilock_begin's sess107 unpublished-modify backstop (site 4). */
@@ -92,6 +96,187 @@ static void mxfs_dlm_creator_baseline_query(struct xfs_inode *ip,
  */
 #define igrab(vi) mxfs_igrab_tracked((vi), __LINE__, 1)
 #define iput(vi) mxfs_iput_tracked((vi), __LINE__, 1)
+
+/*
+ * sess388 (D-474 AIL-freeze anatomy): pag_dlm_lock hold/wait forensics.
+ * See the field comment in xfs_ag.h.  Every mutex_lock/unlock of a
+ * pag_dlm_lock in this file routes through these two helpers (mechanical
+ * rewrite; the only other site is the mutex_init in xfs_ag.c).
+ *
+ *   P-AGMUTEX-WAIT  — a waiter waited >= mxfs_agmutex_warn_ms; names the
+ *                     owner (pid/comm/lock-site) sampled when the wait began.
+ *   P-AGMUTEX-HOLD  — a holder held it >= mxfs_agmutex_warn_ms; names the
+ *                     lock site and unlock site and dumps the holder's stack
+ *                     (ratelimited) so the blocking edge between them is read
+ *                     off the kernel, not guessed.
+ */
+static atomic64_t mxfs_dlm_stat_agtry_localbusy = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_ag_trydemoting = ATOMIC64_INIT(0);
+/*
+ * sess391 handoff-latch accounting (D-RSYNC-LAP-PACE-AG-SHARING-388).
+ *   latch_unlock / latch_acq / latch_acqnb — who performed the COMMIT
+ *     outside the worker (last-holder unlock, blocking acquirer, nonblock
+ *     acquirer); worker COMMITs are the existing P12-WORK COMMIT path.
+ *   handoff_n + b2c (BAST rx -> COMMIT) and c2r (COMMIT -> on-disk release)
+ *     sums/maxima in ms, with >50 ms and >500 ms buckets — the ruling's
+ *     acceptance numbers (p50 needs the sum/n; p99/max need the buckets and
+ *     the max).
+ *   demote_wait_n / _ms / _max / _trans / _dirty — blocking acquirers that
+ *     slept in wait_demote (the ILOCK-holder hazard class the ruling wants
+ *     counted), how long, and whether they carried a (dirty) transaction.
+ *   postlatch_adopt — invariant counter, must stay 0: a cached fast-path
+ *     adoption observed while latched.
+ */
+static atomic64_t mxfs_dlm_stat_latch_unlock = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_latch_acq = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_latch_acqnb = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_n = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_b2c_ms = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_b2c_max = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_b2c_gt50 = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_b2c_gt500 = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_c2r_ms = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_c2r_max = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_c2r_gt50 = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_handoff_c2r_gt500 = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_demote_wait_n = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_demote_wait_ms = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_demote_wait_max = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_demote_wait_trans = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_demote_wait_dirty = ATOMIC64_INIT(0);
+static atomic64_t mxfs_dlm_stat_postlatch_adopt = ATOMIC64_INIT(0);
+
+/*
+ * sess391: every demote-completion site clears the latch state with the
+ * demoting flag — a latched COMMIT that completed (or was abandoned by an
+ * inject/unmount path) must never leave pag_dlm_latched behind, or the
+ * next worker run would re-enter the committed path on a released grant.
+ */
+static inline void mxfs_ag_demote_clear(struct xfs_perag *pag)
+{
+	pag->pag_dlm_demoting = false;
+	pag->pag_dlm_latched = false;
+	pag->pag_dlm_prepass_done = false;
+}
+
+static inline void mxfs_stat_max64(atomic64_t *v, s64 n)
+{
+	s64 old = atomic64_read(v);
+
+	while (n > old) {
+		s64 seen = atomic64_cmpxchg(v, old, n);
+
+		if (seen == old)
+			break;
+		old = seen;
+	}
+}
+/* sess390 lifecycle probe counters (defined with the machinery near
+ * mxfs_dlm_bast_notify; tentative declarations here for the stats line). */
+static atomic64_t mxfs_noino_lifecycle_stat[XFS_ILC_NR];
+static atomic64_t mxfs_noino_lifecycle_requeued;
+static atomic64_t mxfs_noino_lifecycle_timeouts;
+/*
+ * sess391 (RULE-5 ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-latch-
+ * closing-restartable): the armed handoff latch — see pag_dlm_latched in
+ * xfs_ag.h and mxfs_ag_handoff_commit() below.  Replaces the sess390
+ * admission-window knob (ag_readopt_window_ms): arm 3 of that (blocking
+ * acquirers waited at the gate) wedged two nodes, arm 4 (nonblock refused,
+ * blocking re-adopted PINNED) livelocked at 1.5-2.2 M refusals per lap; both
+ * measured at 25 AGs.  Both gated ADMISSION while the worker still had to win
+ * a race to COMMIT; the latch makes the COMMIT itself the admission decision.
+ *
+ *   ag_handoff_latch      1 = on.  0 = legacy (worker-only COMMIT), for A/B.
+ *   ag_handoff_grace_ms   local re-adoptions are admitted for this long after
+ *                         the peer's BAST before the latch arms (ruling: 0 to
+ *                         validate immediate closing, then 20-25 ms).
+ *   ag_handoff_admit_cap  or after this many post-BAST re-adoptions
+ *                         (whichever first; 0 = no count cap; ruling: 8).
+ */
+int mxfs_ag_handoff_latch = 1;
+module_param_named(ag_handoff_latch, mxfs_ag_handoff_latch, int, 0644);
+MODULE_PARM_DESC(ag_handoff_latch,
+	"sess391: commit a pending AG handoff at the first holders==0 after the worker prepass + grace (1=on, 0=legacy worker-only COMMIT)");
+int mxfs_ag_handoff_grace_ms = 0;
+module_param_named(ag_handoff_grace_ms, mxfs_ag_handoff_grace_ms, int, 0644);
+MODULE_PARM_DESC(ag_handoff_grace_ms,
+	"sess391: local re-adoptions admitted for this many ms after a peer's AG BAST before the handoff latch arms (default 0 = immediate)");
+int mxfs_ag_handoff_admit_cap = 0;
+module_param_named(ag_handoff_admit_cap, mxfs_ag_handoff_admit_cap, int, 0644);
+MODULE_PARM_DESC(ag_handoff_admit_cap,
+	"sess391: the handoff latch also arms after this many post-BAST local re-adoptions (0 = no count cap)");
+int mxfs_ag_prepass_push_iters = 20;
+module_param_named(ag_prepass_push_iters, mxfs_ag_prepass_push_iters, int, 0644);
+MODULE_PARM_DESC(ag_prepass_push_iters,
+	"sess391: no-progress bound (10 ms iterations) of the worker's pre-COMMIT AIL push; non-fatal, the post-COMMIT drains carry Invariant 1 (0 = skip the push)");
+static int mxfs_agmutex_warn_ms = 300;
+module_param_named(agmutex_warn_ms, mxfs_agmutex_warn_ms, int, 0644);
+MODULE_PARM_DESC(agmutex_warn_ms,
+	"sess388: warn when pag_dlm_lock is held or waited for >= this many ms (0=off)");
+
+static void
+mxfs_pag_dlm_lock(struct xfs_perag *pag, int site)
+{
+	u64		t0 = 0;
+	pid_t		opid = 0;
+	int		osite = 0;
+	char		ocomm[16] = "";
+
+	if (!mutex_trylock(&pag->pag_dlm_lock)) {
+		struct task_struct *own;
+
+		t0 = ktime_get_ns();
+		/* owner word: task pointer with the low 3 flag bits set. */
+		rcu_read_lock();
+		own = (struct task_struct *)
+			(atomic_long_read(&pag->pag_dlm_lock.owner) & ~0x07UL);
+		if (own) {
+			opid = own->pid;
+			strscpy(ocomm, own->comm, sizeof(ocomm));
+		}
+		rcu_read_unlock();
+		osite = READ_ONCE(pag->pag_dlm_lock_site);
+		mutex_lock(&pag->pag_dlm_lock);
+		if (mxfs_agmutex_warn_ms > 0) {
+			u64 w = ktime_get_ns() - t0;
+
+			if (w >= (u64)mxfs_agmutex_warn_ms * NSEC_PER_MSEC)
+				pr_warn("mxfs: P-AGMUTEX-WAIT ag=%u site=%d waited_ms=%llu owner_at_start=%s/%d owner_site=%d comm=%s pid=%d\n",
+					pag_agno(pag), site,
+					(unsigned long long)(w / NSEC_PER_MSEC),
+					ocomm, opid, osite, current->comm,
+					current->pid);
+		}
+	}
+	pag->pag_dlm_lock_t0 = ktime_get_ns();
+	pag->pag_dlm_lock_site = site;
+	pag->pag_dlm_lock_pid = current->pid;
+	strscpy(pag->pag_dlm_lock_comm, current->comm,
+		sizeof(pag->pag_dlm_lock_comm));
+}
+
+static void
+mxfs_pag_dlm_unlock(struct xfs_perag *pag, int site)
+{
+	u64	held = ktime_get_ns() - pag->pag_dlm_lock_t0;
+	int	lsite = pag->pag_dlm_lock_site;
+	bool	warn = mxfs_agmutex_warn_ms > 0 &&
+		       held >= (u64)mxfs_agmutex_warn_ms * NSEC_PER_MSEC;
+
+	pag->pag_dlm_lock_site = 0;
+	pag->pag_dlm_lock_pid = 0;
+	mutex_unlock(&pag->pag_dlm_lock);
+	if (warn) {
+		static DEFINE_RATELIMIT_STATE(rs, 10 * HZ, 3);
+
+		pr_warn("mxfs: P-AGMUTEX-HOLD ag=%u lock_site=%d unlock_site=%d held_ms=%llu comm=%s pid=%d\n",
+			pag_agno(pag), lsite, site,
+			(unsigned long long)(held / NSEC_PER_MSEC),
+			current->comm, current->pid);
+		if (__ratelimit(&rs))
+			dump_stack();
+	}
+}
 
 /*
  * sess12(a9a03929) — per-inode DLM transition ring for the watched inode.
@@ -159,6 +344,8 @@ mxfs_bast_arm_queue(
 	else
 		queued = queue_work(mp->m_mxfs_inode_bast_wq,
 				    &ip->i_dlm_bast_work);
+	if (queued)
+		ip->i_dlm_bastq_qns = ktime_get_ns();
 	spin_unlock(&mp->m_mxfs_arm_lock);
 	return queued;
 }
@@ -178,8 +365,81 @@ mxfs_bast_arm_queue_delayed(
 	else
 		queued = queue_delayed_work(mp->m_mxfs_inode_bast_wq,
 					    &ip->i_dlm_bast_dwork, delay_j);
+	if (queued)
+		ip->i_dlm_bastq_qns = ktime_get_ns() +
+				      jiffies_to_nsecs(delay_j);
 	spin_unlock(&mp->m_mxfs_arm_lock);
 	return queued;
+}
+
+/*
+ * sess294 P296-BASTQLAT (D-503 RULE-4 instrumentation): measure the pure
+ * queue-to-run EXCESS of every per-inode bast work/dwork on
+ * m_mxfs_inode_bast_wq.  Hypothesis under test: during the post-load
+ * sync-write pace collapse the shared-dir demote/handoff work sits queued
+ * behind a torrent of sweep-release (src=16) works, so the dd writer's
+ * ~1.7s/create EX-acquire wait (P36-MHT-REARM exh_ms=1672) is queue delay,
+ * not lock-protocol delay.  Called at both work-fn entries right after the
+ * ident check.  Logs only when the excess tops 100ms; capped per boot so a
+ * genuine torrent cannot flood the ring.
+ */
+static void
+mxfs_bastq_lat_probe(
+	struct xfs_inode	*ip,
+	const char		*who)
+{
+	static atomic_t		p296_logged = ATOMIC_INIT(0);
+	u64			qns = ip->i_dlm_bastq_qns;
+	s64			excess;
+
+	if (!qns)
+		return;
+	ip->i_dlm_bastq_qns = 0;
+	excess = ktime_get_ns() - qns;
+	if (excess < 100 * NSEC_PER_MSEC)
+		return;
+	if (atomic_inc_return(&p296_logged) > 400)
+		return;
+	pr_warn("mxfs: P296-BASTQLAT %s ino=%llu src=%u isdir=%d excess_ms=%lld\n",
+		who, (unsigned long long)ip->i_ino, ip->i_dlm_bastq_src,
+		S_ISDIR(VFS_I(ip)->i_mode) ? 1 : 0,
+		div_s64(excess, NSEC_PER_MSEC));
+}
+
+/*
+ * sess279 (sess276 ruling B): exponential backoff for the release-abort
+ * re-arm loop.  The P15/P244/P95 defer arms re-fire the release pipeline
+ * via a 25ms dwork; when the abort repeats with an UNCHANGED tenure gen
+ * (no progress — the sess276 victim's fenced drain writes could never
+ * land), each repeat doubles the delay toward a 1s cap so the loop cannot
+ * hammer the node/target at 40Hz forever.  Gen movement (a fresh grant —
+ * real progress) resets the streak, so healthy operation keeps today's
+ * 25ms first-retry latency.  0-31ms jitter decorrelates a fleet of
+ * victims re-firing in lockstep.  Fields are only touched here and at the
+ * committed-release reset; the bast dwork is coalesced per inode, so
+ * cross-call races are benign.
+ */
+static unsigned int
+mxfs_relab_backoff_ms(
+	struct xfs_inode	*ip,
+	uint32_t		now_gen)
+{
+	unsigned int		delay;
+
+	if (ip->i_dlm_relab_gen != now_gen) {
+		ip->i_dlm_relab_gen = now_gen;
+		ip->i_dlm_relab_streak = 0;
+	} else if (ip->i_dlm_relab_streak < 6) {
+		ip->i_dlm_relab_streak++;
+	}
+	delay = 25U << ip->i_dlm_relab_streak;
+	if (delay > 1000) {
+		delay = 1000;
+		pr_warn_ratelimited("mxfs: P279-RELAB-BACKOFF ino=%llu gen=%u streak=%u — release-abort re-arm at 1s cap (no tenure-gen progress)\n",
+			(unsigned long long)ip->i_ino, now_gen,
+			ip->i_dlm_relab_streak);
+	}
+	return delay + (get_random_u32() & 31);
 }
 
 /*
@@ -954,6 +1214,7 @@ mxfs_inode_authority_revoke_locked(struct xfs_inode *ip, u32 line)
 	ip->i_mxfs_auth_reaffirm = 0;
 	ip->i_mxfs_auth_resource = 0;
 	ip->i_mxfs_auth_epoch = 0;
+	ip->i_mxfs_auth_lineage = 0;
 	ip->i_mxfs_auth_incarn = 0;
 	atomic64_inc(&mxfs_auth_revoke_n);
 }
@@ -1059,6 +1320,7 @@ mxfs_inode_authority_note_unpublished_locked(struct xfs_inode *ip, u32 line)
 		ip->i_mxfs_auth_reaffirm = 0;
 		ip->i_mxfs_auth_resource = 0;
 		ip->i_mxfs_auth_epoch = 0;
+		ip->i_mxfs_auth_lineage = 0;
 		ip->i_mxfs_auth_incarn = VFS_I(ip)->i_generation;
 		atomic64_inc(&mxfs_auth_unpub_n);
 	}
@@ -1153,6 +1415,12 @@ mxfs_inode_authority_install_durable_ex_locked(struct xfs_inode *ip,
 	    ip->i_mxfs_auth_incarn == VFS_I(ip)->i_generation) {
 		if (gres->grant_epoch > ip->i_mxfs_auth_epoch) {
 			ip->i_mxfs_auth_epoch = gres->grant_epoch;
+			/* sess176: the lineage travels with the epoch it was
+			 * read beside.  Same binding => same value in the
+			 * normal case; a difference means the slot binding
+			 * was recycled mid-tenure and the NEWER image is the
+			 * truth the tokens must match. */
+			ip->i_mxfs_auth_lineage = gres->resource_lineage;
 			ip->i_mxfs_auth_reaffirm = gres->reaffirm;
 			ip->i_mxfs_auth_line = line;
 			atomic64_inc(&mxfs_auth_install_advance_n);
@@ -1172,6 +1440,7 @@ mxfs_inode_authority_install_durable_ex_locked(struct xfs_inode *ip,
 	ip->i_mxfs_auth_reaffirm = gres->reaffirm;
 	ip->i_mxfs_auth_resource = gres->resource;
 	ip->i_mxfs_auth_epoch = gres->grant_epoch;
+	ip->i_mxfs_auth_lineage = gres->resource_lineage;
 	ip->i_mxfs_auth_incarn = VFS_I(ip)->i_generation;
 	ip->i_mxfs_auth_line = line;
 	atomic64_inc(&mxfs_auth_install_n);
@@ -1241,6 +1510,43 @@ mxfs_dlmtr_rec(struct xfs_inode *ip, u8 om, u8 os, u32 line)
 		}
 		mxfs_inode_authority_revoke_locked(ip, line);
 	}
+
+	/* sess207 #18 forensics: stamp the last granted->NL lowering on EVERY
+	 * inode (the ring below is watch_ino-gated and useless for an
+	 * unpredictable ino).  P95-OPEN-PROTECT-FAIL prints these to name the
+	 * setter that left mode==NL after the open's ilock ride. */
+	if (ip->i_dlm_mode == MXFS_LOCK_NL && om != MXFS_LOCK_NL) {
+		ip->i_dlm_nl_line = line;
+		ip->i_dlm_nl_pid = current->pid;
+		ip->i_dlm_nl_ns = ktime_get_real_ns();
+		ip->i_dlm_nl_om = om;
+		strscpy(ip->i_dlm_nl_comm, current->comm,
+			sizeof(ip->i_dlm_nl_comm));
+		/* sess208 #18 near-miss survey: holders sit inside
+		 * ilock_begin/ilock_end critical sections, so a granted->NL
+		 * lowering while exh/prh != 0 is the P95-OPEN-PROTECT-FAIL
+		 * hazard class firing REGARDLESS of whether an open loses the
+		 * microsecond race — names the setter population without
+		 * waiting for the EIO to reproduce. */
+		if (ip->i_dlm_ex_holders || ip->i_dlm_pr_holders)
+			pr_warn_ratelimited("mxfs: P95-NL-UNDER-HOLD ino=%llu L%u om=%u os=%u ns=%u exh=%u prh=%u acq=%u open_n=%d imode=%o pid=%d comm=%s\n",
+				(unsigned long long)ip->i_ino, line, om, os,
+				ip->i_dlm_state, ip->i_dlm_ex_holders,
+				ip->i_dlm_pr_holders, ip->i_dlm_acq_inflight,
+				atomic_read(&ip->i_mxfs_open_n),
+				VFS_I(ip)->i_mode, current->pid,
+				current->comm);
+	}
+
+	/* sess238 #23 forensics (RULE-5 ruling): if the task recording this
+	 * event is an open_protect admission mid-ride, stamp the call-site
+	 * line.  Every ilock_begin admit arm ends in MXFS_DLMTR_H at its
+	 * holder++, so the LAST line stamped before the admission re-read
+	 * names the admit arm that registered the opener's holder (the arm
+	 * that let it ride at mode==NL).  All callers hold i_dlm_lock. */
+	if (unlikely(ip->i_mxfs_openprot_pid == current->pid &&
+		     ip->i_mxfs_openprot_pid != 0))
+		ip->i_mxfs_openprot_arm = line;
 
 	if (likely(!mxfs_watch_ino) || ip->i_ino != mxfs_watch_ino)
 		return;
@@ -2204,6 +2510,44 @@ int mxfs_watch_light = 0;
 module_param_named(watch_light, mxfs_watch_light, int, 0644);
 MODULE_PARM_DESC(watch_light,
 	"1 = watched-ino probes skip the heavy per-placement platter reads (near-natural timing)");
+
+/* sess237 (D-OPEN-PROTECT-DEMOTE-RACE-SPURIOUS-EIO verification) — fault
+ * injection: widen the proven 16us window between mxfs_dlm_open_protect's
+ * ilock ride and its admission re-read so a pending BAST demote's terminal
+ * NL store (bast_process, spinlock-only, needs no ILOCK) lands inside it
+ * deterministically.  Applied only on the FIRST admission pass and only
+ * when a demote is actually in flight on the inode, so the restart loop
+ * under test runs at natural timing.  Default 0 = off; test-only. */
+int mxfs_openprotect_race_delay_ms = 0;
+module_param_named(openprotect_race_delay_ms, mxfs_openprotect_race_delay_ms, int, 0644);
+MODULE_PARM_DESC(openprotect_race_delay_ms,
+	"Fault injection: ms to sleep between open_protect's ilock ride and its admission re-read when a BAST demote is pending (default 0 = off)");
+
+/* sess238 (D-OPEN-PROTECT-DEMOTE-RACE-SPURIOUS-EIO) RULE-4 build-1 fault
+ * injection, arm 2 of 2: park bast_process right AFTER the terminal NL
+ * store, prolonging the natural {mode=NL, DEMOTING, RELFLUSH-set} tail
+ * the opener's admission re-read can land in.  With the ride injection
+ * above widening the opener side and this park widening the release
+ * side, the sess238-hypothesized interleave (relflush-admit arm at the
+ * ilock ride + NL at the re-read) becomes deterministic.  No spinlock
+ * held across the park.  Default 0 = off; test-only, capped 5000ms. */
+int mxfs_openprotect_park_ms = 0;
+module_param_named(openprotect_park_ms, mxfs_openprotect_park_ms, int, 0644);
+MODULE_PARM_DESC(openprotect_park_ms,
+	"Fault injection: ms to park bast_process after the terminal NL store, before the release flush tail (default 0 = off, cap 5000)");
+
+/* sess239 (sess238 ruling, deterministic exercise 2 — PRE-TERMINAL GATE):
+ * with the epoch-aware wait landed, opens converge on their first restart
+ * and the admission gate never arms naturally, so the gate's terminal-
+ * store defer path (P95-OPEN-ADMIT-DEFER) is unreachable by plain load.
+ * This knob arms the gate at open_protect ENTRY for every covered open —
+ * the same counter the real 2-lost-races path arms, no DLM state
+ * fabricated — so a release reaching its terminal store during any open
+ * defers instead of storing NL.  Default 0 = off; test-only. */
+int mxfs_openprotect_arm_gate = 0;
+module_param_named(openprotect_arm_gate, mxfs_openprotect_arm_gate, int, 0644);
+MODULE_PARM_DESC(openprotect_arm_gate,
+	"Fault injection: arm the open-admission gate at open_protect entry so the terminal-store defer path is exercised (default 0 = off)");
 
 MODULE_PARM_DESC(dirop_durable_tcp,
 	"Run per-dirop durability barriers on the TCP DLM transport too (1=legacy always-on; default 0: TCP relies on the BAST-release drain)");
@@ -5730,6 +6074,201 @@ MODULE_PARM_DESC(dir_zombie_retire,
  * bast_process (which hits the same seq-gated unlock that keeps leaving the bit).
  * PROVEN root of dir_reuse@32/caw wedge (P-ORPH-FORENSIC held_raw=5 scan_mine=1
  * nslots=1).  1=on (default), 0=off (legacy re-queue). */
+/*
+ * ─── sess379 DLM FAST-PATH VERIFY GOVERNOR ───
+ * D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B (RULE-5 ruling items 5 and 6:
+ * ccmemory ccloop-c7ee71c6-sess379-GPT-ruling-detector-io-off-the-fast-path).
+ *
+ * THE DEFECT, measured sess379.  mxfs_dlm_ilock_begin's three cached-grant
+ * ownership verifies (P108 stale-EX, the throttled dir-EX phantom check, and
+ * the un-throttled dir-EX check) each issue a SYNCHRONOUS SCSI READ(16)+FUA of
+ * the inode's CAW slot from the CALLER's context.  With 32 nodes unmounting a
+ * quiescent filesystem simultaneously, 30 of them blocked 60.5 / 121 / 181.5 s
+ * inside `statx()` on the mount point — and all 35 timeouts logged fleet-wide
+ * named THE SAME LBA (144080, the root directory inode's slot) with
+ * DID_TIME_OUT.  Native XFS unmounts an idle filesystem in under a second.
+ *
+ * The verifies are NOT pure detectors — each one ENFORCES (P108-REACQUIRE /
+ * P106-STALE-EX / P-TCPEX-REACQ demote the cached grant to NL and force a
+ * real slow-path acquire), so the ruling is explicit that they may not simply
+ * be deferred off the caller's path on the "the throttle already allows a
+ * TOCTOU window" argument.  What they MAY NOT do is block without bound.
+ *
+ * This governor keeps every verify exactly where it is and changes only what
+ * happens when the device will not answer:
+ *
+ *   1. ABSOLUTE DEADLINE.  The verify runs under a per-task PAL I/O budget,
+ *      so the whole probe-chain walk is bounded by verify_deadline_ms instead
+ *      of 30 s x 1 SCSI retry x 20 wrapper retries (~20 minutes).
+ *   2. CIRCUIT BREAKER + EXPONENTIAL BACKOFF.  One timed-out verify suppresses
+ *      further verifies node-wide for a doubling interval (1 s -> 60 s).  A
+ *      congested target therefore costs ONE bounded stall per backoff window
+ *      instead of one per operation per inode — which is also what keeps the
+ *      shortened command timeout from turning into a SCSI-EH/abort storm, the
+ *      hazard the ruling warned about.
+ *   3. CONCURRENCY CAP.  At most verify_max_inflight probes in flight on this
+ *      node at once, so a thousand threads cannot each own a slot read.
+ *   4. JITTER.  The per-inode throttle interval is randomised +/-25% so 32
+ *      nodes do not sample the same hot slot in lockstep.
+ *
+ * A skipped or timed-out verify is NO SAMPLE: the caller keeps serving the
+ * cached grant, exactly as it already does between throttle ticks, and it
+ * deliberately does NOT re-arm the per-inode throttle stamp, so the very next
+ * operation re-tries the verify once the breaker closes.  -ETIME is never
+ * evidence that a grant is held, is not held, or that the device is healthy.
+ *
+ * STILL OPEN after this (ledgered, not fixed here): the single-LBA hotspot
+ * itself — every node caches the root directory at PR and re-probes that one
+ * slot — and the audit of the one P108-REACQUIRE observed fleet-wide, which
+ * the ruling ranks ABOVE this performance fix.
+ */
+int mxfs_dlm_verify_deadline_ms = 1000;
+module_param_named(dlm_verify_deadline_ms, mxfs_dlm_verify_deadline_ms, int, 0644);
+MODULE_PARM_DESC(dlm_verify_deadline_ms,
+		 "Absolute deadline (ms) for a DLM cached-grant ownership verify "
+		 "slot read.  0 = unbounded (pre-sess379 behaviour: 30s x 2 x 20 "
+		 "~= 20 minutes per probe).  Default 1000.");
+
+int mxfs_dlm_verify_max_inflight = 2;
+module_param_named(dlm_verify_max_inflight, mxfs_dlm_verify_max_inflight, int, 0644);
+MODULE_PARM_DESC(dlm_verify_max_inflight,
+		 "Max concurrent DLM ownership-verify slot reads on this node "
+		 "(0 = unlimited).  Default 2.");
+
+int mxfs_dlm_verify_backoff_max_ms = 60000;
+module_param_named(dlm_verify_backoff_max_ms, mxfs_dlm_verify_backoff_max_ms, int, 0644);
+MODULE_PARM_DESC(dlm_verify_backoff_max_ms,
+		 "Ceiling (ms) for the verify circuit-breaker's exponential "
+		 "backoff after a timed-out verify.  Default 60000.");
+
+static atomic_t mxfs_verify_inflight = ATOMIC_INIT(0);
+static unsigned long mxfs_verify_breaker_until_j;	/* READ_ONCE/WRITE_ONCE */
+static unsigned int mxfs_verify_backoff_ms;		/* current backoff step */
+atomic64_t mxfs_verify_stat_sampled = ATOMIC64_INIT(0);
+atomic64_t mxfs_verify_stat_skipped_breaker = ATOMIC64_INIT(0);
+atomic64_t mxfs_verify_stat_skipped_inflight = ATOMIC64_INIT(0);
+atomic64_t mxfs_verify_stat_timeout = ATOMIC64_INIT(0);
+
+/*
+ * Jittered form of the per-inode verify throttle.  Callers used
+ * time_after(jiffies, ip->i_dlm_heldchk_j + msecs_to_jiffies(N)) directly;
+ * this adds +/-25% so a fleet does not converge on one cadence.
+ */
+static bool
+mxfs_verify_throttle_elapsed(unsigned long stamp_j, unsigned int base_ms)
+{
+	unsigned int jitter;
+
+	if (!base_ms)
+		return true;
+	jitter = base_ms / 2;
+	if (jitter)
+		jitter = get_random_u32() % jitter;	/* 0 .. base/2 */
+	/* base*0.75 .. base*1.25 */
+	base_ms = base_ms - base_ms / 4 + jitter;
+	return time_after(jiffies, stamp_j + msecs_to_jiffies(base_ms));
+}
+
+/*
+ * Admit one verify sample.  Returns false (do not probe) when the breaker is
+ * open or the in-flight cap is reached.  On true the caller MUST call
+ * mxfs_verify_end().
+ */
+static bool
+mxfs_verify_begin(struct mxfs_pal_io_budget *b)
+{
+	unsigned long until = READ_ONCE(mxfs_verify_breaker_until_j);
+
+	if (until && time_before(jiffies, until)) {
+		atomic64_inc(&mxfs_verify_stat_skipped_breaker);
+		return false;
+	}
+	if (mxfs_dlm_verify_max_inflight > 0 &&
+	    atomic_inc_return(&mxfs_verify_inflight) >
+			mxfs_dlm_verify_max_inflight) {
+		atomic_dec(&mxfs_verify_inflight);
+		atomic64_inc(&mxfs_verify_stat_skipped_inflight);
+		return false;
+	}
+	if (mxfs_dlm_verify_max_inflight <= 0)
+		atomic_inc(&mxfs_verify_inflight);
+	if (mxfs_dlm_verify_deadline_ms > 0)
+		mxfs_pal_io_budget_enter(b,
+					 (uint32_t)mxfs_dlm_verify_deadline_ms);
+	else
+		b->task = NULL;
+	return true;
+}
+
+static void
+mxfs_verify_end(struct mxfs_pal_io_budget *b, bool sampled, uint64_t ino)
+{
+	if (mxfs_dlm_verify_deadline_ms > 0)
+		mxfs_pal_io_budget_exit(b);
+	atomic_dec(&mxfs_verify_inflight);
+	if (sampled) {
+		atomic64_inc(&mxfs_verify_stat_sampled);
+		/* A good sample closes the breaker and resets the backoff. */
+		if (READ_ONCE(mxfs_verify_breaker_until_j)) {
+			WRITE_ONCE(mxfs_verify_breaker_until_j, 0);
+			WRITE_ONCE(mxfs_verify_backoff_ms, 0);
+		}
+		return;
+	}
+	atomic64_inc(&mxfs_verify_stat_timeout);
+	{
+		unsigned int next = READ_ONCE(mxfs_verify_backoff_ms);
+		static atomic_t p303_n = ATOMIC_INIT(0);
+
+		next = next ? next * 2 : 1000;
+		if (mxfs_dlm_verify_backoff_max_ms > 0 &&
+		    next > (unsigned int)mxfs_dlm_verify_backoff_max_ms)
+			next = (unsigned int)mxfs_dlm_verify_backoff_max_ms;
+		WRITE_ONCE(mxfs_verify_backoff_ms, next);
+		WRITE_ONCE(mxfs_verify_breaker_until_j,
+			   jiffies + msecs_to_jiffies(next));
+		if (atomic_inc_return(&p303_n) <= 400)
+			pr_warn("mxfs: P303-VERIFY-BREAKER ino=%llu deadline_ms=%d backoff_ms=%u sampled=%llu timeouts=%llu skip_breaker=%llu skip_inflight=%llu — ownership verify did not complete in its budget; NO SAMPLE (cached grant kept, throttle NOT re-armed), suppressing verifies node-wide for the backoff\n",
+				(unsigned long long)ino,
+				mxfs_dlm_verify_deadline_ms, next,
+				(unsigned long long)atomic64_read(&mxfs_verify_stat_sampled),
+				(unsigned long long)atomic64_read(&mxfs_verify_stat_timeout),
+				(unsigned long long)atomic64_read(&mxfs_verify_stat_skipped_breaker),
+				(unsigned long long)atomic64_read(&mxfs_verify_stat_skipped_inflight));
+	}
+}
+
+/*
+ * Bounded form of mxfs_v5_dlm_inode_held_rawmode() for the fast-path verifies.
+ * *sampled is set false when the probe was skipped or abandoned, in which case
+ * the return value is the historical fail-open answer (MXFS_LOCK_EX, "assume
+ * held, do not demote") that an unreachable transport has always produced
+ * here — so a skipped sample is byte-for-byte the pre-sess379 behaviour of an
+ * unanswerable read, minus the wait.
+ */
+static uint8_t
+mxfs_dlm_verify_rawmode(struct mxfs_v5_dlm *dlm, uint64_t ino, bool *sampled)
+{
+	struct mxfs_pal_io_budget b = { .task = NULL };
+	uint8_t raw;
+
+	*sampled = false;
+	if (!mxfs_verify_begin(&b))
+		return MXFS_LOCK_EX;
+	raw = mxfs_v5_dlm_inode_held_rawmode(dlm, ino);
+	/*
+	 * mxfs_v5_dlm_inode_held_rawmode collapses an I/O error to
+	 * MXFS_LOCK_EX ("unknown: assume held").  That is indistinguishable
+	 * from a genuine EX, so the deadline verdict is taken from the PAL
+	 * budget instead: if the budget is gone, the read cannot have been
+	 * answered inside it.
+	 */
+	*sampled = !(mxfs_dlm_verify_deadline_ms > 0 &&
+		     time_after_eq(jiffies, b.deadline_j));
+	mxfs_verify_end(&b, *sampled, ino);
+	return raw;
+}
+
 int mxfs_caw_orphan_reclaim = 1;	/* sess5 (ccloop 72513a13): default ON with GATE
 				 * v2 at the reclaim site — v1 regressed by
 				 * strikes-overriding LIVE demoters (trans-deferred
@@ -13371,12 +13910,42 @@ static void mxfs_dlm_report_stats(void)
 		mxfs_pal_log(MXFS_LOG_WARN,
 			"mxfs DLM cache: hit=%lld miss=%lld (%lld%%) "
 			"bast: imm=%lld def=%lld noino=%lld "
-			"ag: acq=%lld nest=%lld rel=%lld "
+			"ag: acq=%lld nest=%lld rel=%lld trybusy=%lld trydemote=%lld "
+			"handoff: n=%lld latch_unlock=%lld latch_acq=%lld latch_acqnb=%lld b2c_ms=%lld b2c_max=%lld b2c_gt50=%lld b2c_gt500=%lld c2r_ms=%lld c2r_max=%lld c2r_gt50=%lld c2r_gt500=%lld dwait_n=%lld dwait_ms=%lld dwait_max=%lld dwait_trans=%lld dwait_dirty=%lld postlatch_adopt=%lld "
+			"noino_lc: inact=%lld needinact=%lld inew=%lld ireclaim=%lld vfsteardown=%lld reclaimable=%lld requeued=%lld lc_timeouts=%lld "
 			"fua: ino=%lld dir=%lld agm=%lld ino_skip=%lld",
 			hit, miss,
 			(hit + miss) ? hit * 100 / (hit + miss) : 0,
 			imm, def, noino,
 			ag_acq, ag_nest, ag_rel,
+			(long long)atomic64_read(&mxfs_dlm_stat_agtry_localbusy),
+			(long long)atomic64_read(&mxfs_dlm_stat_ag_trydemoting),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_n),
+			(long long)atomic64_read(&mxfs_dlm_stat_latch_unlock),
+			(long long)atomic64_read(&mxfs_dlm_stat_latch_acq),
+			(long long)atomic64_read(&mxfs_dlm_stat_latch_acqnb),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_b2c_ms),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_b2c_max),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_b2c_gt50),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_b2c_gt500),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_c2r_ms),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_c2r_max),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_c2r_gt50),
+			(long long)atomic64_read(&mxfs_dlm_stat_handoff_c2r_gt500),
+			(long long)atomic64_read(&mxfs_dlm_stat_demote_wait_n),
+			(long long)atomic64_read(&mxfs_dlm_stat_demote_wait_ms),
+			(long long)atomic64_read(&mxfs_dlm_stat_demote_wait_max),
+			(long long)atomic64_read(&mxfs_dlm_stat_demote_wait_trans),
+			(long long)atomic64_read(&mxfs_dlm_stat_demote_wait_dirty),
+			(long long)atomic64_read(&mxfs_dlm_stat_postlatch_adopt),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_stat[XFS_ILC_INACTIVATING]),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_stat[XFS_ILC_NEED_INACTIVE]),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_stat[XFS_ILC_INEW]),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_stat[XFS_ILC_IRECLAIM]),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_stat[XFS_ILC_VFS_TEARDOWN]),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_stat[XFS_ILC_RECLAIMABLE]),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_requeued),
+			(long long)atomic64_read(&mxfs_noino_lifecycle_timeouts),
 			(long long)atomic64_read(&mxfs_fua_inode_reads),
 			(long long)atomic64_read(&mxfs_fua_dir_reads),
 			(long long)atomic64_read(&mxfs_fua_agmeta_reads),
@@ -13504,6 +14073,758 @@ mxfs_task_in_dir_drain(void)
 	}
 	spin_unlock(&mxfs_dirdrain_lock);
 	return sanctioned;
+}
+
+/*
+ * sess214 — recovery-context task registry (incident474 hole b, GPT RULE-5
+ * ruling).  Tasks doing victim recovery — foreign-slice replay and the
+ * post-recovery cleanup sweeps — register here so the inode DLM acquire
+ * path can tell them apart from ordinary threads:
+ *
+ *   - A recovery-context task whose acquire times out must NEVER escalate
+ *     to its own shutdown: in incident474 the elected replayer's sweep
+ *     blocked on an EX grant naming a still-unpurged fenced victim (whose
+ *     purge was queued BEHIND the blocked sweep), timed out, and shut the
+ *     last survivor down — completing the fleet-wide cascade.  It requeues
+ *     and retries instead; progress arrives when the recovery machinery
+ *     purges the dead holder's grants.
+ *
+ *   - A task in the REPLAY phase must never take an ordinary inode DLM
+ *     lock at all: foreign-slice replay is buffer-level by design, and the
+ *     b2 phase split (replay every pending slice before any lock-taking
+ *     sweep) is only sound while that stays true.  The acquire path warns
+ *     if it ever stops being true.
+ */
+#define MXFS_RECOV_PHASE_CLEANUP	1
+#define MXFS_RECOV_PHASE_REPLAY		2
+
+static DEFINE_SPINLOCK(mxfs_recovtask_lock);
+static DEFINE_HASHTABLE(mxfs_recovtask_hash, 4);
+
+struct mxfs_recovtask {
+	struct hlist_node	node;
+	struct task_struct	*task;
+	uint8_t			phase;
+};
+
+static void
+mxfs_recovtask_enter(struct mxfs_recovtask *e, uint8_t phase)
+{
+	e->task = current;
+	e->phase = phase;
+	spin_lock(&mxfs_recovtask_lock);
+	hash_add(mxfs_recovtask_hash, &e->node, (unsigned long)current);
+	spin_unlock(&mxfs_recovtask_lock);
+}
+
+static void
+mxfs_recovtask_exit(struct mxfs_recovtask *e)
+{
+	spin_lock(&mxfs_recovtask_lock);
+	hash_del(&e->node);
+	spin_unlock(&mxfs_recovtask_lock);
+}
+
+static void
+mxfs_recovtask_set_phase(uint8_t phase)
+{
+	struct mxfs_recovtask *e;
+
+	spin_lock(&mxfs_recovtask_lock);
+	hash_for_each_possible(mxfs_recovtask_hash, e, node,
+			       (unsigned long)current) {
+		if (e->task == current) {
+			e->phase = phase;
+			break;
+		}
+	}
+	spin_unlock(&mxfs_recovtask_lock);
+}
+
+/* 0 = current task is not in recovery context. */
+static uint8_t
+mxfs_task_recovery_phase(void)
+{
+	struct mxfs_recovtask *e;
+	uint8_t phase = 0;
+
+	spin_lock(&mxfs_recovtask_lock);
+	hash_for_each_possible(mxfs_recovtask_hash, e, node,
+			       (unsigned long)current) {
+		if (e->task == current) {
+			phase = e->phase;
+			break;
+		}
+	}
+	spin_unlock(&mxfs_recovtask_lock);
+	return phase;
+}
+
+/*
+ * sess227 — F4 OBLIGATION REGISTRY (D-FOREIGN-REPLAY-UNGATED-IMAGES hard
+ * barrier F4: dir-class COMMITTED-NEVER-SUBMITTED).
+ *
+ * The F1 tripwire (oblig_cas) sees a commit racing the flush→unlock window;
+ * what nothing saw until now is a dir-class buffer whose modification was
+ * COMMITTED (iop_committing ran — the change is in the CIL/log and will
+ * replay) but whose covering write was never even SUBMITTED before the dir
+ * grant is handed to a peer.  The peer then cold-reads the stale platter
+ * image with full authority, and our committed change lands later from
+ * xfsaild with none — the exact publish-without-authority shape P219
+ * counts downstream.
+ *
+ * One ENUMERABLE record per such buffer (sess227 GPT ruling item 1 — a
+ * count cannot repair the (f) fence-suppressed permanent-wedge shape; a
+ * {ino,daddr,length,gen} descriptor can re-drive the exact buffer).  No bp
+ * hold: a leaked hold would wedge xfs_buftarg_drain at unmount; a leaked
+ * DESCRIPTOR is loud (P286) and harmless.  Lifecycle, all under b_sema:
+ *   commit  (xfs_buf_item_committing, dirty|ordered, !stale, dir-class)
+ *           → open record / bump f4_committed_gen (own u64 gen — NOT
+ *             b_mxfs_logged_seq, which ORDERED buffers dirty without
+ *             advancing; ruling item 2)
+ *   submit  (xfs_buf_submit_bio, XBF_WRITE) → f4_submit_gen = committed_gen
+ *   ioend   (success, !fence_skipped, submit_gen >= committed_gen) → RETIRE
+ *   finish_stale (committed XFS_BLF_CANCEL) → STALE-CANCEL
+ *   abort under xlog_is_shutdown → SHUTDOWN-CANCEL
+ *   abort without shutdown → KEEP OPEN + P284 (ruling item 3: a later
+ *             aborting txn must not erase an older committed obligation)
+ *   fence-suppressed "success" → KEEP OPEN + P287 (nothing reached the LUN)
+ *   buffer freed with record open → ORPHAN (record kept, buffer_gone) + P286
+ * Owner ino comes from the buffer's own v5 header (magic-validated per
+ * class); owner==0/invalid lands in the unknown poison bucket, which the
+ * release proof treats as open-for-EVERY-dir (fail closed).
+ * Conservation at quiesce: opens == retires + stale_cancels +
+ * shutdown_cancels + open-now.
+ *
+ * ENFORCEMENT (mxfs_f4_gate=1) IS BLOCKED by ruling items 4+5 (records
+ * need tenure tagging or drain-at-enable; the proof-vs-new-commit race
+ * needs the linearized close protocol).  Default 0 = telemetry: the P285
+ * census fires when a dir release proof walks clean while F4 records for
+ * that dir are open — that occurrence IS the defect made visible.
+ */
+int mxfs_f4_gate;
+module_param_named(f4_gate, mxfs_f4_gate, int, 0644);
+MODULE_PARM_DESC(f4_gate,
+		 "F4 committed-never-submitted obligations block the dir "
+		 "release proof (0=telemetry only default; 1=extra durable "
+		 "passes + defer while open — NOT yet sound for enforcement, "
+		 "see sess227 ruling items 4-5)");
+
+static atomic64_t mxfs_f4_genctr;	/* global monotonic commit generation */
+
+struct mxfs_f4_record {
+	struct hlist_node	f4_node;
+	uint64_t		f4_ino;		/* owner dir/bmbt ino; 0 = unknown (poison) */
+	xfs_daddr_t		f4_daddr;
+	unsigned int		f4_length;	/* BBs */
+	u64			f4_gen;		/* latest committed gen */
+	u8			f4_buffer_gone;	/* orphaned: buffer freed with record open */
+	u8			f4_aborted;	/* saw a non-shutdown abort while open */
+};
+
+static inline struct hlist_head *
+mxfs_f4_bucket(struct mxfs_f4_registry *reg, uint64_t ino)
+{
+	return &reg->f4_hash[hash_64(ino, 8)];	/* 2^8 == MXFS_F4_HASH_BUCKETS */
+}
+
+static bool
+mxfs_f4_class(struct xfs_buf *bp)
+{
+	/*
+	 * Same class set as the dir writeback-completion barrier at
+	 * xfs_buf_submit_bio: every buffer type a peer consults through the
+	 * dir handoff.  bmbt included per ruling item 9 (counting non-dir
+	 * bmbt too is conservative — only dir release consults by owner).
+	 */
+	return bp->b_ops == &xfs_dir3_data_buf_ops ||
+	       bp->b_ops == &xfs_dir3_block_buf_ops ||
+	       bp->b_ops == &xfs_dir3_leaf1_buf_ops ||
+	       bp->b_ops == &xfs_dir3_leafn_buf_ops ||
+	       bp->b_ops == &xfs_dir3_free_buf_ops ||
+	       bp->b_ops == &xfs_da3_node_buf_ops ||
+	       bp->b_ops == &xfs_bmbt_buf_ops;
+}
+
+/*
+ * Decode the owner ino from the buffer's own v5 header, validating the
+ * magic so the field offset is never guessed (ruling item 8).  Returns 0
+ * for anything unrecognized — the caller files it under the unknown
+ * poison bucket, which fails closed.
+ */
+static uint64_t
+mxfs_f4_owner_decode(struct xfs_buf *bp)
+{
+	void			*blk = bp->b_addr;
+	uint32_t		magic32;
+
+	if (!blk || BBTOB(bp->b_length) < sizeof(struct xfs_dir3_blk_hdr))
+		return 0;
+	magic32 = be32_to_cpu(*(__be32 *)blk);
+	switch (magic32) {
+	case XFS_DIR3_BLOCK_MAGIC:
+	case XFS_DIR3_DATA_MAGIC:
+		return be64_to_cpu(((struct xfs_dir3_blk_hdr *)blk)->owner);
+	case XFS_DIR3_FREE_MAGIC:
+		return be64_to_cpu(((struct xfs_dir3_free_hdr *)blk)->hdr.owner);
+	case XFS_BMAP_CRC_MAGIC:
+		return be64_to_cpu(((struct xfs_btree_block *)blk)->bb_u.l.bb_owner);
+	}
+	switch (be16_to_cpu(((struct xfs_da_blkinfo *)blk)->magic)) {
+	case XFS_DIR3_LEAF1_MAGIC:
+	case XFS_DIR3_LEAFN_MAGIC:
+	case XFS_DA3_NODE_MAGIC:
+	case XFS_ATTR3_LEAF_MAGIC:
+		return be64_to_cpu(((struct xfs_da3_blkinfo *)blk)->owner);
+	}
+	return 0;
+}
+
+void
+mxfs_f4_registry_init(struct xfs_mount *mp)
+{
+	struct mxfs_f4_registry	*reg = &mp->m_mxfs_f4;
+	int			i;
+
+	spin_lock_init(&reg->f4_lock);
+	for (i = 0; i < MXFS_F4_HASH_BUCKETS; i++)
+		INIT_HLIST_HEAD(&reg->f4_hash[i]);
+	atomic64_set(&reg->f4_opens, 0);
+	atomic64_set(&reg->f4_recommits, 0);
+	atomic64_set(&reg->f4_retires, 0);
+	atomic64_set(&reg->f4_stale_cancels, 0);
+	atomic64_set(&reg->f4_shutdown_cancels, 0);
+	atomic64_set(&reg->f4_abort_keeps, 0);
+	atomic64_set(&reg->f4_orphans, 0);
+	atomic64_set(&reg->f4_suppress_skips, 0);
+	atomic64_set(&reg->f4_ordered_opens, 0);
+	atomic_set(&reg->f4_unknown, 0);
+}
+
+void
+mxfs_f4_registry_destroy(struct xfs_mount *mp)
+{
+	struct mxfs_f4_registry	*reg = &mp->m_mxfs_f4;
+	struct mxfs_f4_record	*rec;
+	struct hlist_node	*tmp;
+	int			i, live = 0, orphan = 0;
+
+	spin_lock(&reg->f4_lock);
+	for (i = 0; i < MXFS_F4_HASH_BUCKETS; i++) {
+		hlist_for_each_entry_safe(rec, tmp, &reg->f4_hash[i],
+					  f4_node) {
+			if (rec->f4_buffer_gone)
+				orphan++;
+			else
+				live++;
+			hlist_del(&rec->f4_node);
+			kfree(rec);
+		}
+	}
+	spin_unlock(&reg->f4_lock);
+	/*
+	 * Every open record should have been retired/cancelled by unmount's
+	 * flushes, or orphaned by xfs_buf_free during buftarg drain.  A LIVE
+	 * (non-orphan) record here means a buffer was freed without the
+	 * orphan hook or a record leaked — both are registry defects.
+	 */
+	if (live || orphan)
+		pr_warn("mxfs: P286-F4-TEARDOWN-OPEN live=%d orphan=%d — obligations still open at registry destroy\n",
+			live, orphan);
+	pr_info("mxfs: F4-REGISTRY-TOTAL opens=%lld recommits=%lld retires=%lld stale_cancels=%lld shutdown_cancels=%lld abort_keeps=%lld orphans=%lld suppress_skips=%lld ordered=%lld unknown=%d open_at_destroy=%d\n",
+		(long long)atomic64_read(&reg->f4_opens),
+		(long long)atomic64_read(&reg->f4_recommits),
+		(long long)atomic64_read(&reg->f4_retires),
+		(long long)atomic64_read(&reg->f4_stale_cancels),
+		(long long)atomic64_read(&reg->f4_shutdown_cancels),
+		(long long)atomic64_read(&reg->f4_abort_keeps),
+		(long long)atomic64_read(&reg->f4_orphans),
+		(long long)atomic64_read(&reg->f4_suppress_skips),
+		(long long)atomic64_read(&reg->f4_ordered_opens),
+		atomic_read(&reg->f4_unknown), live + orphan);
+}
+
+/*
+ * sess256 step-5 F3 (sess253 ruling item A) — keyed inode-cluster write
+ * accounting.  One entry per cluster daddr, created at the first counted
+ * home-write submit and NEVER freed until unmount: freeing + recreating
+ * would restart the generations a spanning release proof compares, so a
+ * proof could alias "no writes since capture" with "entry recycled".
+ * The release proof (mxfs_iclus_make_durable) waits on the CLUSTER'S OWN
+ * inflight and generations only — never a device-wide aggregate.
+ */
+struct mxfs_icwr_entry {
+	struct hlist_node	ie_node;
+	xfs_daddr_t		ie_daddr;
+	atomic_t		ie_inflight;	/* counted submits not yet completed */
+	atomic64_t		ie_submit_gen;	/* bumped at every counted submit */
+	atomic64_t		ie_complete_gen;/* bumped at every counted completion (incl. errors: conservative) */
+};
+
+static struct mxfs_icwr_entry *
+mxfs_icwr_get(struct xfs_mount *mp, xfs_daddr_t daddr, bool create)
+{
+	struct mxfs_icwr_registry *reg = &mp->m_mxfs_icwr;
+	struct hlist_head	*bucket =
+		&reg->icwr_hash[hash_64((u64)daddr, 8)];
+	struct mxfs_icwr_entry	*ent;
+
+	spin_lock(&reg->icwr_lock);
+	hlist_for_each_entry(ent, bucket, ie_node) {
+		if (ent->ie_daddr == daddr) {
+			spin_unlock(&reg->icwr_lock);
+			return ent;
+		}
+	}
+	if (!create) {
+		spin_unlock(&reg->icwr_lock);
+		return NULL;
+	}
+	/* submit context may be atomic (bio submission under locks) */
+	ent = kzalloc(sizeof(*ent), GFP_NOWAIT | __GFP_NOWARN);
+	if (ent) {
+		ent->ie_daddr = daddr;
+		atomic_set(&ent->ie_inflight, 0);
+		atomic64_set(&ent->ie_submit_gen, 0);
+		atomic64_set(&ent->ie_complete_gen, 0);
+		hlist_add_head(&ent->ie_node, bucket);
+		atomic_inc(&reg->icwr_entries);
+	}
+	spin_unlock(&reg->icwr_lock);
+	return ent;
+}
+
+void
+mxfs_icwr_registry_init(struct xfs_mount *mp)
+{
+	struct mxfs_icwr_registry *reg = &mp->m_mxfs_icwr;
+	int	i;
+
+	spin_lock_init(&reg->icwr_lock);
+	for (i = 0; i < MXFS_ICWR_HASH_BUCKETS; i++)
+		INIT_HLIST_HEAD(&reg->icwr_hash[i]);
+	init_waitqueue_head(&reg->icwr_wq);
+	atomic64_set(&reg->icwr_submits, 0);
+	atomic64_set(&reg->icwr_completes, 0);
+	atomic64_set(&reg->icwr_resubmit_keeps, 0);
+	atomic64_set(&reg->icwr_orphans, 0);
+	atomic64_set(&reg->icwr_underflows, 0);
+	atomic64_set(&reg->icwr_untracked, 0);
+	atomic_set(&reg->icwr_entries, 0);
+	atomic_set(&mp->m_mxfs_iclus_wr_inflight, 0);
+}
+
+void
+mxfs_icwr_registry_destroy(struct xfs_mount *mp)
+{
+	struct mxfs_icwr_registry *reg = &mp->m_mxfs_icwr;
+	struct mxfs_icwr_entry	*ent;
+	struct hlist_node	*tmp;
+	int	i, leaked = 0;
+
+	spin_lock(&reg->icwr_lock);
+	for (i = 0; i < MXFS_ICWR_HASH_BUCKETS; i++) {
+		hlist_for_each_entry_safe(ent, tmp, &reg->icwr_hash[i],
+					  ie_node) {
+			leaked += atomic_read(&ent->ie_inflight);
+			hlist_del(&ent->ie_node);
+			kfree(ent);
+		}
+	}
+	spin_unlock(&reg->icwr_lock);
+	if (leaked)
+		pr_warn("mxfs: P288-ICWR-TEARDOWN-LEAK inflight=%d — counted inode-cluster writes never completed (orphans=%lld)\n",
+			leaked, (long long)atomic64_read(&reg->icwr_orphans));
+	pr_info("mxfs: ICWR-REGISTRY-TOTAL submits=%lld completes=%lld resubmit_keeps=%lld orphans=%lld underflows=%lld untracked=%lld entries=%d leaked_inflight=%d\n",
+		(long long)atomic64_read(&reg->icwr_submits),
+		(long long)atomic64_read(&reg->icwr_completes),
+		(long long)atomic64_read(&reg->icwr_resubmit_keeps),
+		(long long)atomic64_read(&reg->icwr_orphans),
+		(long long)atomic64_read(&reg->icwr_underflows),
+		(long long)atomic64_read(&reg->icwr_untracked),
+		atomic_read(&reg->icwr_entries), leaked);
+}
+
+/*
+ * Submit-side count, called from xfs_buf_submit_bio BEFORE the
+ * partial-inode-write diversion (both paths complete via __xfs_buf_ioend).
+ */
+void
+mxfs_icwr_submit(struct xfs_buf *bp)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	struct mxfs_icwr_registry *reg;
+	struct mxfs_icwr_entry	*ent;
+
+	if (!(bp->b_flags & XBF_WRITE) || !mp || !mp->m_mxfs_dlm ||
+	    mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) ||
+	    bp->b_ops != &xfs_inode_buf_ops)
+		return;
+	reg = &mp->m_mxfs_icwr;
+	if (unlikely(bp->b_mxfs_iclus_wr_counted)) {
+		/*
+		 * Error-path resubmit before its completion decremented (the
+		 * P-WRCNT-RESUBMIT family): keep the single logical-write
+		 * token — the resubmission's completion decrements exactly
+		 * once, and the keyed inflight never transits zero while the
+		 * logical write is still capable of landing (ruling item A).
+		 */
+		atomic64_inc(&reg->icwr_resubmit_keeps);
+		pr_warn_ratelimited("mxfs: P287-ICWR-RESUBMIT daddr=%lld inflight=%d — counted inode-cluster write resubmitted before completion; keeping single token\n",
+				    (long long)bp->b_maps[0].bm_bn,
+				    bp->b_mxfs_icwr_ent ?
+					atomic_read(&bp->b_mxfs_icwr_ent->ie_inflight) : -1);
+		return;
+	}
+	ent = mxfs_icwr_get(mp, bp->b_maps[0].bm_bn, true);
+	if (unlikely(!ent)) {
+		/*
+		 * Allocation failed at submit: this write is UNTRACKED.  The
+		 * sticky counter poisons every subsequent keyed proof whose
+		 * entry lookup misses (conservative: proof_failed, telemetry)
+		 * — a tracked-looking clean pass over an untracked in-flight
+		 * write would be exactly the false certificate F3 exists to
+		 * kill.
+		 */
+		atomic64_inc(&reg->icwr_untracked);
+		pr_warn_ratelimited("mxfs: P287-ICWR-UNTRACKED daddr=%lld — icwr entry alloc failed; cluster proofs poisoned conservative\n",
+				    (long long)bp->b_maps[0].bm_bn);
+		return;
+	}
+	atomic64_inc(&ent->ie_submit_gen);
+	atomic_inc(&ent->ie_inflight);
+	atomic_inc(&mp->m_mxfs_iclus_wr_inflight);
+	atomic64_inc(&reg->icwr_submits);
+	bp->b_mxfs_icwr_ent = ent;
+	bp->b_mxfs_iclus_wr_counted = true;
+}
+
+/*
+ * Completion-side retire, called from __xfs_buf_ioend's write branch AFTER
+ * the error/resubmit decision (a resubmit returns early there and keeps
+ * the token; see mxfs_icwr_submit's neutralizer).
+ */
+void
+mxfs_icwr_complete(struct xfs_buf *bp)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	struct mxfs_icwr_entry	*ent = bp->b_mxfs_icwr_ent;
+	struct mxfs_icwr_registry *reg;
+	int	now;
+
+	if (!bp->b_mxfs_iclus_wr_counted)
+		return;
+	bp->b_mxfs_iclus_wr_counted = false;
+	bp->b_mxfs_icwr_ent = NULL;
+	if (!mp)
+		return;
+	reg = &mp->m_mxfs_icwr;
+	atomic64_inc(&reg->icwr_completes);
+	if (ent) {
+		/* gen bump BEFORE the dec: a proof that samples inflight==0
+		 * is guaranteed to see this completion in complete_gen */
+		atomic64_inc(&ent->ie_complete_gen);
+		now = atomic_dec_return(&ent->ie_inflight);
+		if (unlikely(now < 0)) {
+			atomic_set(&ent->ie_inflight, 0);
+			atomic64_inc(&reg->icwr_underflows);
+			pr_warn_ratelimited("mxfs: P287-ICWR-UNDERFLOW daddr=%lld — keyed inflight went negative; clamped\n",
+					    (long long)ent->ie_daddr);
+		}
+	}
+	now = atomic_dec_return(&mp->m_mxfs_iclus_wr_inflight);
+	if (unlikely(now < 0))
+		atomic_set(&mp->m_mxfs_iclus_wr_inflight, 0);
+	wake_up_all(&reg->icwr_wq);
+}
+
+/*
+ * Teardown orphan hook (beside mxfs_f4_buf_free): a counted buffer freed
+ * without its completion FAILS CLOSED — the keyed entry keeps its
+ * inflight, so that cluster's release proofs land as proof_failed via the
+ * bounded wait (telemetry while the gate is off) instead of certifying a
+ * write whose fate is unknown.
+ */
+void
+mxfs_icwr_buf_free(struct xfs_buf *bp)
+{
+	if (!bp->b_mxfs_iclus_wr_counted)
+		return;
+	bp->b_mxfs_iclus_wr_counted = false;
+	if (bp->b_mount) {
+		atomic64_inc(&bp->b_mount->m_mxfs_icwr.icwr_orphans);
+		/* telemetry mirror must not leak with the entry (which is
+		 * deliberately kept inflight) */
+		if (atomic_dec_return(&bp->b_mount->m_mxfs_iclus_wr_inflight) < 0)
+			atomic_set(&bp->b_mount->m_mxfs_iclus_wr_inflight, 0);
+	}
+	pr_alert("mxfs: P288-ICWR-ORPHAN daddr=%lld ent=%d — counted inode-cluster write buffer freed without completion; keyed entry kept inflight (fail closed)\n",
+		 (long long)(bp->b_mxfs_icwr_ent ?
+			     bp->b_mxfs_icwr_ent->ie_daddr : -1),
+		 bp->b_mxfs_icwr_ent ?
+			atomic_read(&bp->b_mxfs_icwr_ent->ie_inflight) : -1);
+	bp->b_mxfs_icwr_ent = NULL;
+}
+
+/*
+ * iop_committing hook, called under b_sema BEFORE xfs_buf_item_release
+ * clears the per-transaction bli flags.  Opens (or re-commits) the
+ * obligation for a dirty, non-stale, dir-class buffer.
+ */
+void
+mxfs_f4_commit(struct xfs_buf *bp, unsigned int bli_flags)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	struct mxfs_f4_registry	*reg;
+	struct mxfs_f4_record	*rec;
+	uint64_t		owner;
+	u64			gen;
+
+	if (!mp || !mp->m_mxfs_dlm ||
+	    mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+		return;
+	if (!(bli_flags & (XFS_BLI_DIRTY | XFS_BLI_ORDERED)))
+		return;
+	if ((bp->b_flags & XBF_STALE) || (bli_flags & XFS_BLI_STALE))
+		return;
+	if (!mxfs_f4_class(bp))
+		return;
+	reg = &mp->m_mxfs_f4;
+	owner = mxfs_f4_owner_decode(bp);
+	if (bli_flags & XFS_BLI_ORDERED)
+		atomic64_inc(&reg->f4_ordered_opens);
+	gen = (u64)atomic64_inc_return(&mxfs_f4_genctr);
+	rec = bp->b_mxfs_f4_rec;	/* b_sema-stable */
+	if (!rec) {
+		/* GFP_NOFS|__GFP_NOFAIL per CIL precedent (ruling item 11):
+		 * no allocation-failure poison path to reason about. */
+		rec = kmalloc(sizeof(*rec), GFP_NOFS | __GFP_NOFAIL);
+		rec->f4_ino = owner;
+		rec->f4_daddr = bp->b_maps[0].bm_bn;
+		rec->f4_length = bp->b_length;
+		rec->f4_gen = gen;
+		rec->f4_buffer_gone = 0;
+		rec->f4_aborted = 0;
+		spin_lock(&reg->f4_lock);
+		hlist_add_head(&rec->f4_node, mxfs_f4_bucket(reg, owner));
+		spin_unlock(&reg->f4_lock);
+		bp->b_mxfs_f4_rec = rec;
+		atomic64_inc(&reg->f4_opens);
+		if (owner == 0)
+			atomic_inc(&reg->f4_unknown);
+	} else {
+		spin_lock(&reg->f4_lock);
+		if (unlikely(rec->f4_ino != owner)) {
+			/* block repurposed while a committed obligation is
+			 * open — rehash under the new owner, conservatively
+			 * keeping the record (ruling item 8 assert) */
+			pr_warn_ratelimited(
+			    "mxfs: P284-F4-OWNER-MISMATCH daddr=%lld old_ino=%llu new_ino=%llu gen=%llu — owner changed under an open obligation\n",
+				(long long)rec->f4_daddr,
+				(unsigned long long)rec->f4_ino,
+				(unsigned long long)owner,
+				(unsigned long long)gen);
+			hlist_del(&rec->f4_node);
+			if (rec->f4_ino == 0 && owner != 0)
+				atomic_dec(&reg->f4_unknown);
+			else if (rec->f4_ino != 0 && owner == 0)
+				atomic_inc(&reg->f4_unknown);
+			rec->f4_ino = owner;
+			hlist_add_head(&rec->f4_node,
+				       mxfs_f4_bucket(reg, owner));
+		}
+		rec->f4_gen = gen;
+		spin_unlock(&reg->f4_lock);
+		atomic64_inc(&reg->f4_recommits);
+	}
+	bp->b_mxfs_f4_committed_gen = gen;
+	bp->b_mxfs_f4_owner = owner;
+}
+
+/* Write-bio submit (under the submitter's buffer hold): snapshot what this
+ * bio covers.  Retire compares the snapshot at completion. */
+void
+mxfs_f4_submit(struct xfs_buf *bp)
+{
+	if (bp->b_flags & XBF_WRITE)
+		bp->b_mxfs_f4_submit_gen = bp->b_mxfs_f4_committed_gen;
+}
+
+static void
+mxfs_f4_record_close(struct xfs_buf *bp, struct mxfs_f4_record *rec,
+		     atomic64_t *counter)
+{
+	struct mxfs_f4_registry	*reg = &bp->b_mount->m_mxfs_f4;
+
+	spin_lock(&reg->f4_lock);
+	hlist_del(&rec->f4_node);
+	spin_unlock(&reg->f4_lock);
+	if (rec->f4_ino == 0)
+		atomic_dec(&reg->f4_unknown);
+	atomic64_inc(counter);
+	kfree(rec);
+	bp->b_mxfs_f4_rec = NULL;
+}
+
+void
+mxfs_f4_cancel(struct xfs_buf *bp, enum mxfs_f4_cancel_why why)
+{
+	struct mxfs_f4_registry	*reg;
+	struct mxfs_f4_record	*rec = bp->b_mxfs_f4_rec;
+
+	if (!rec || !bp->b_mount)
+		return;
+	reg = &bp->b_mount->m_mxfs_f4;
+	if (why == MXFS_F4_CANCEL_ABORT) {
+		/* NOT a cancel (ruling item 3): this abort may belong to a
+		 * LATER transaction than the commit that opened the record;
+		 * erasing it would lose an older committed obligation.  Keep
+		 * open — shutdown-cancel or retire will disposition it. */
+		rec->f4_aborted = 1;
+		atomic64_inc(&reg->f4_abort_keeps);
+		pr_warn_ratelimited(
+		    "mxfs: P284-F4-ABORT-KEEP ino=%llu daddr=%lld gen=%llu — aborted without shutdown; obligation kept open\n",
+			(unsigned long long)rec->f4_ino,
+			(long long)rec->f4_daddr,
+			(unsigned long long)rec->f4_gen);
+		return;
+	}
+	mxfs_f4_record_close(bp, rec,
+			     why == MXFS_F4_CANCEL_STALE ?
+				&reg->f4_stale_cancels :
+				&reg->f4_shutdown_cancels);
+}
+
+/*
+ * Write completion (before the wr_counted decrement in __xfs_buf_ioend,
+ * buffer still locked).  Retires on a successful, non-suppressed write
+ * whose submit snapshot covers the latest committed gen.
+ */
+void
+mxfs_f4_write_complete(struct xfs_buf *bp)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	struct mxfs_f4_registry	*reg;
+	struct mxfs_f4_record	*rec = bp->b_mxfs_f4_rec;
+
+	if (!rec || !mp || !(bp->b_flags & XBF_WRITE))
+		return;
+	reg = &mp->m_mxfs_f4;
+	if (bp->b_mxfs_fence_skipped) {
+		/* the (f) shape: submitter saw "success", NOTHING reached
+		 * the LUN.  The obligation stays open — this record is what
+		 * lets release re-drive the buffer (ruling item 1). */
+		atomic64_inc(&reg->f4_suppress_skips);
+		pr_warn_ratelimited(
+		    "mxfs: P287-F4-SUPPRESSED-COMPLETION ino=%llu daddr=%lld gen=%llu — fence suppressed the covering write; obligation stays open\n",
+			(unsigned long long)rec->f4_ino,
+			(long long)rec->f4_daddr,
+			(unsigned long long)rec->f4_gen);
+		return;
+	}
+	if (bp->b_error) {
+		if (xfs_is_shutdown(mp))
+			mxfs_f4_cancel(bp, MXFS_F4_CANCEL_SHUTDOWN);
+		/* transient error: keep open; the retry path re-submits or
+		 * escalates to shutdown */
+		return;
+	}
+	if (bp->b_mxfs_f4_submit_gen < bp->b_mxfs_f4_committed_gen)
+		return;	/* a newer commit landed after this bio's snapshot */
+	mxfs_f4_record_close(bp, rec, &reg->f4_retires);
+}
+
+/* Buffer teardown with the obligation still open: fail closed.  The
+ * DESCRIPTOR outlives the buffer (marked buffer_gone) so the census and
+ * any future enforcement still see the exposure; only registry destroy
+ * frees it. */
+void
+mxfs_f4_buf_free(struct xfs_buf *bp)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	struct mxfs_f4_registry	*reg;
+	struct mxfs_f4_record	*rec = bp->b_mxfs_f4_rec;
+
+	if (!rec || !mp)
+		return;
+	reg = &mp->m_mxfs_f4;
+	spin_lock(&reg->f4_lock);
+	rec->f4_buffer_gone = 1;
+	spin_unlock(&reg->f4_lock);
+	atomic64_inc(&reg->f4_orphans);
+	bp->b_mxfs_f4_rec = NULL;
+	pr_warn("mxfs: P286-F4-ORPHAN ino=%llu daddr=%lld len=%u gen=%llu aborted=%u shutdown=%d — buffer freed with committed-never-submitted obligation open; record kept\n",
+		(unsigned long long)rec->f4_ino, (long long)rec->f4_daddr,
+		rec->f4_length, (unsigned long long)rec->f4_gen,
+		rec->f4_aborted, xfs_is_shutdown(mp) ? 1 : 0);
+}
+
+/*
+ * Release-proof query: open obligations owned by this dir.  unknown_out
+ * returns the poison-bucket population — the proof treats unknown>0 as
+ * open for EVERY dir (fail closed, ruling item 8).
+ */
+long
+mxfs_f4_open_for_dir(struct xfs_mount *mp, uint64_t dir_ino, int *unknown_out)
+{
+	struct mxfs_f4_registry	*reg = &mp->m_mxfs_f4;
+	struct mxfs_f4_record	*rec;
+	long			n = 0;
+
+	spin_lock(&reg->f4_lock);
+	hlist_for_each_entry(rec, mxfs_f4_bucket(reg, dir_ino), f4_node)
+		if (rec->f4_ino == dir_ino)
+			n++;
+	spin_unlock(&reg->f4_lock);
+	if (unknown_out)
+		*unknown_out = atomic_read(&reg->f4_unknown);
+	return n;
+}
+
+/* P285 census detail: enumerate (up to 4) the open records behind a
+ * walk-clean-but-F4-open occurrence, so the log names the exact buffers. */
+static void
+mxfs_f4_census_dump(struct xfs_mount *mp, uint64_t dir_ino)
+{
+	struct mxfs_f4_registry	*reg = &mp->m_mxfs_f4;
+	struct mxfs_f4_record	*rec;
+	int			shown = 0;
+
+	spin_lock(&reg->f4_lock);
+	hlist_for_each_entry(rec, mxfs_f4_bucket(reg, dir_ino), f4_node) {
+		if (rec->f4_ino != dir_ino || shown >= 4)
+			continue;
+		pr_warn("mxfs: P285-F4-REC ino=%llu daddr=%lld len=%u gen=%llu gone=%u aborted=%u\n",
+			(unsigned long long)rec->f4_ino,
+			(long long)rec->f4_daddr, rec->f4_length,
+			(unsigned long long)rec->f4_gen,
+			rec->f4_buffer_gone, rec->f4_aborted);
+		shown++;
+	}
+	spin_unlock(&reg->f4_lock);
+}
+
+/*
+ * THE F4 occurrence probe: the dir release proof walked clean (pending ==
+ * durable) while committed-never-submitted obligations for this dir are
+ * still open.  Under gate=0 the CAS then proceeds and the committed bytes
+ * land later without authority — exactly what this registry exists to
+ * make countable before enforcement.
+ */
+static void
+mxfs_relbar_f4_census(struct xfs_inode *ip, long f4_open, int f4_unknown,
+		      const char *site)
+{
+	static atomic_t p285_n = ATOMIC_INIT(0);
+
+	if (atomic_inc_return(&p285_n) <= 400)
+		pr_warn("mxfs: P285-F4-CENSUS ino=%llu site=%s f4_open=%ld unknown=%d pend=%llu dur=%llu gate=%d — dir release proof walked clean with committed-never-submitted obligations open\n",
+			(unsigned long long)ip->i_ino, site, f4_open,
+			f4_unknown,
+			(unsigned long long)READ_ONCE(ip->i_mxfs_pub_pending_seq),
+			(unsigned long long)READ_ONCE(ip->i_mxfs_pub_durable_seq),
+			mxfs_f4_gate);
+	mxfs_f4_census_dump(ip->i_mount, ip->i_ino);
 }
 
 /*
@@ -13780,16 +15101,88 @@ module_param_cb(release_barrier_dump, &mxfs_relbar_dump_ops, NULL, 0644);
  * must then DEFER the wire unlock through its own requeue path instead of
  * handing the grant away with a committed change not yet at home.  The wire
  * grant is still ours here, so the durable writes are fully authorized.
+ *
+ * sess200 (build-order step 3, sess197 ruling): this IS the per-inode
+ * release-proof body, so it also fills the caller's release certificate —
+ * ledger state at quiesce and after the drain passes, WRQ-budget timeout,
+ * and the pass-bounce (tripwire-retry) count.  cert may be NULL (enforce=0
+ * A/B callers).  Proof behavior is unchanged.
+ */
+/*
+ * sess258 (step 5 F3, sess253 ruling item C): durable flush-ticket check.
+ * In fua_disable=0 mode a closed pending/durable ledger is NOT yet a
+ * proof — the discharge only means the bytes reached the target's write
+ * cache.  The ticket demands the device flush epoch have advanced PAST
+ * the epoch stamped at this inode's last durable discharge
+ * (i_mxfs_pub_durable_fepoch): a real SYNCHRONIZE CACHE completed after
+ * the settled bytes arrived.  Reader protocol pairs with the stamp sites
+ * (stamp; smp_wmb; durable): read durable, smp_rmb, read stamp — so a
+ * new durable value is never paired with a pre-discharge stamp.  In
+ * fua_disable=1 mode the epoch never certifies a real flush; the domain
+ * question (PROTECTED vs NO_DOMAIN) is recorded at the certificate
+ * instead and the ticket check passes trivially.
  */
 static bool
-mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm)
+mxfs_relbar_ticket_ok(struct xfs_inode *ip)
+{
+	uint64_t stamp;
+
+	if (mxfs_fua_disable)
+		return true;
+	(void)READ_ONCE(ip->i_mxfs_pub_durable_seq);
+	smp_rmb();
+	stamp = READ_ONCE(ip->i_mxfs_pub_durable_fepoch);
+	return (uint64_t)atomic64_read(&ip->i_mount->m_mxfs_flush_epoch) >
+	       stamp;
+}
+
+static bool
+mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm,
+			   struct mxfs_release_cert *cert)
 {
 	int rb_try = 0;
 	int rb_budget = 40;	/* sess33: shared wait budget (~40ms) across both passes */
+	bool isdir = S_ISDIR(VFS_I(ip)->i_mode);
+	long f4_open = 0;
+	int f4_unknown = 0;
 
+	/* sess227 F4: committed-never-submitted dir-class obligations owned
+	 * by this dir (unknown-owner poison bucket counts for every dir). */
+	if (isdir)
+		f4_open = mxfs_f4_open_for_dir(ip->i_mount, ip->i_ino,
+					       &f4_unknown);
+	if (cert) {
+		uint64_t rc_pend = READ_ONCE(ip->i_mxfs_pub_pending_seq);
+		uint64_t rc_dur = READ_ONCE(ip->i_mxfs_pub_durable_seq);
+		uint64_t rc_delta = rc_pend - rc_dur;
+
+		cert->dirty_seq_quiesce = rc_pend;
+		cert->oblig_quiesce = rc_delta > (uint64_t)U32_MAX ?
+					U32_MAX : (uint32_t)rc_delta;
+		cert->f4_quiesce = f4_open > (long)U32_MAX ?
+					U32_MAX : (uint32_t)f4_open;
+		cert->f4_unknown = f4_unknown ? 1 : 0;
+	}
+	/* sess201 step 3: the proof body owns DRAINING→PROVED/DEMOTING */
+	WRITE_ONCE(ip->i_mxfs_rel_state, MXFS_RELSTATE_DRAINING);
 	if (READ_ONCE(ip->i_mxfs_pub_pending_seq) ==
-	    READ_ONCE(ip->i_mxfs_pub_durable_seq))
-		return false;
+	    READ_ONCE(ip->i_mxfs_pub_durable_seq)) {
+		if (isdir && (f4_open || f4_unknown))
+			mxfs_relbar_f4_census(ip, f4_open, f4_unknown,
+					      "quiesce");
+		if (!(mxfs_f4_gate && isdir && (f4_open || f4_unknown)) &&
+		    mxfs_relbar_ticket_ok(ip)) {
+			/* sess305: per-instance attestation — THIS attempt's
+			 * proof completed (the shared scalar is diagnostic) */
+			if (cert)
+				cert->proved = 1;
+			WRITE_ONCE(ip->i_mxfs_rel_state, MXFS_RELSTATE_PROVED);
+			return false;
+		}
+		/* gate=1 with F4 open, or no covering flush ticket (sess258
+		 * F3): fall into the durable passes so the flush below can
+		 * retire the obligations / earn the ticket in place */
+	}
 	for (rb_try = 0; rb_try < 2; rb_try++) {
 		/*
 		 * sess33 WRITER-QUIESCENCE barrier (replaces the .283 bounded
@@ -13818,8 +15211,14 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm)
 			}
 			if (atomic_read_acquire(&ip->i_mxfs_ilk_wr_held) == 0)
 				atomic64_inc(&mxfs_relbar_wrq_ok);
-			else
+			else {
 				atomic64_inc(&mxfs_relbar_wrq_tmo);
+				/* writer-quiescence budget exhausted: the
+				 * settle gave up on a timeout (certificate
+				 * timeout field, sess197 ruling) */
+				if (cert)
+					cert->timeout = 1;
+			}
 		}
 		/*
 		 * sess32 ADMISSION BARRIER (the 119-defer hot-dir shape): the
@@ -13866,13 +15265,55 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm)
 		else
 			(void)mxfs_inode_cluster_durable(ip);
 		if (READ_ONCE(ip->i_mxfs_pub_pending_seq) ==
-		    READ_ONCE(ip->i_mxfs_pub_durable_seq))
-			break;
+		    READ_ONCE(ip->i_mxfs_pub_durable_seq)) {
+			/* sess227 F4: under the enforcement gate a closed
+			 * pending/durable ledger is not enough for a dir —
+			 * committed-never-submitted buffers must also have
+			 * retired.  Re-sample; another pass can flush them. */
+			if (mxfs_f4_gate && isdir) {
+				f4_open = mxfs_f4_open_for_dir(ip->i_mount,
+							       ip->i_ino,
+							       &f4_unknown);
+				if (f4_open == 0 && f4_unknown == 0)
+					break;
+			} else {
+				break;
+			}
+		}
+		/* post-pass recheck observed a still-open ledger and is
+		 * bouncing the release back for another drain pass — the
+		 * ruling's tripwire-retry event */
+		if (rb_try == 0)
+			mxfs_relcert_count_tripwire_retry();
 	}
-	if (READ_ONCE(ip->i_mxfs_pub_pending_seq) !=
+	/* sess227 F4: post-pass state of the committed-never-submitted set */
+	if (isdir)
+		f4_open = mxfs_f4_open_for_dir(ip->i_mount, ip->i_ino,
+					       &f4_unknown);
+	if (cert) {
+		uint64_t rc_pend = READ_ONCE(ip->i_mxfs_pub_pending_seq);
+		uint64_t rc_dur = READ_ONCE(ip->i_mxfs_pub_durable_seq);
+		uint64_t rc_delta = rc_pend - rc_dur;
+
+		cert->dirty_seq_flush = rc_pend;
+		cert->oblig_flush = rc_delta > (uint64_t)U32_MAX ?
+					U32_MAX : (uint32_t)rc_delta;
+		cert->f4_flush = f4_open > (long)U32_MAX ?
+					U32_MAX : (uint32_t)f4_open;
+		cert->f4_unknown |= f4_unknown ? 1 : 0;
+	}
+	/* sess315 (sess312 ruling item 10): INODE stage-7 fault — a forced
+	 * OBLIG_ZERO hit models "last obligation did NOT retire": treat the
+	 * ledger as open and take the defer branch deterministically. */
+	if (cert && mxfs_relgate_fault_forced(MXFS_RGF_OBLIG_ZERO, ip->i_ino))
+		cert->fault_forced = 1;
+	if ((cert && cert->fault_forced) ||
+	    READ_ONCE(ip->i_mxfs_pub_pending_seq) !=
 	    READ_ONCE(ip->i_mxfs_pub_durable_seq)) {
 		static atomic_t p228_n = ATOMIC_INIT(0);
 
+		/* deferred: the release stays requested but unproven */
+		WRITE_ONCE(ip->i_mxfs_rel_state, MXFS_RELSTATE_DEMOTING);
 		atomic64_inc(&mxfs_relbar_deferred);
 		if (atomic_inc_return(&p228_n) <= 400)
 			pr_warn("mxfs: P228-RELBAR-DEFER ino=%llu arm=%s pend=%llu dur=%llu flush=%llu isdir=%d — obligation would not close after %d durable passes; deferring the wire unlock (requeue)\n",
@@ -13884,8 +15325,352 @@ mxfs_relbar_close_or_defer(struct xfs_inode *ip, const char *arm)
 				rb_try);
 		return true;
 	}
+	/* sess227 F4: pending/durable ledger closed, but the dir still owns
+	 * committed-never-submitted buffers (or the unknown-owner poison
+	 * bucket is non-empty).  Telemetry mode (gate=0): census probe P285
+	 * and proceed — this is exactly the walked-clean-with-obligations
+	 * occurrence the registry exists to surface.  Enforcement (gate=1):
+	 * defer the wire unlock like an open ledger. */
+	if (isdir && (f4_open || f4_unknown)) {
+		mxfs_relbar_f4_census(ip, f4_open, f4_unknown, "post-pass");
+		if (mxfs_f4_gate) {
+			static atomic_t p228_f4_n = ATOMIC_INIT(0);
+
+			if (cert)
+				cert->f4_blocked = 1;
+			WRITE_ONCE(ip->i_mxfs_rel_state,
+				   MXFS_RELSTATE_DEMOTING);
+			atomic64_inc(&mxfs_relbar_deferred);
+			if (atomic_inc_return(&p228_f4_n) <= 400)
+				pr_warn("mxfs: P228-RELBAR-F4-DEFER ino=%llu arm=%s f4_open=%ld unknown=%d — committed-never-submitted obligations open after %d durable passes; deferring the wire unlock (requeue)\n",
+					(unsigned long long)ip->i_ino, arm,
+					f4_open, f4_unknown, rb_try);
+			return true;
+		}
+	}
+	/*
+	 * sess258 (step 5 F3): the ledger is closed, but PROVED also
+	 * requires the durable flush ticket.  The durable passes above ran
+	 * under fua_disable=1 semantics for their epoch bumps only when a
+	 * real flush happened; if the current epoch has not passed the
+	 * discharge stamp, issue ONE direct flush here (no locks held) and
+	 * recheck.  Still no ticket → the proof FAILED: record it on the
+	 * certificate and leave rel_state at DRAINING so the CAS counts as
+	 * unproved (telemetry release while the gate is off — the unlock
+	 * still proceeds this step; step 6 turns this into a deferral).
+	 */
+	/* sess315 (sess312 ruling item 10): INODE stage-9/10 faults.  A
+	 * forced FLUSH_DONE hit fails the FIRST ticket check (the direct
+	 * flush below then usually recovers it — the transient leg); a
+	 * forced PROOF hit fails the post-flush recheck too (persistent
+	 * proof failure).  Both stages consult the same one-shot matcher. */
+	{
+		bool rgf9 = cert &&
+			mxfs_relgate_fault_forced(MXFS_RGF_FLUSH_DONE,
+						  ip->i_ino);
+		bool rgf10 = cert &&
+			mxfs_relgate_fault_forced(MXFS_RGF_PROOF, ip->i_ino);
+
+		if ((rgf9 || rgf10) && cert)
+			cert->fault_forced = 1;
+		if (rgf9 || rgf10 || !mxfs_relbar_ticket_ok(ip)) {
+			(void)mxfs_blkdev_flush_epoch(ip->i_mount);
+			if (rgf10 || !mxfs_relbar_ticket_ok(ip)) {
+				if (cert) {
+					cert->proof_failed = 1;
+					cert->ticket_status =
+						MXFS_TICKET_FLUSH_FAILED;
+				}
+				return false;
+			}
+		}
+	}
+	/* sess305: per-instance attestation — proof body ran to completion
+	 * in THIS attempt (proof_failed exits above leave it 0) */
+	if (cert)
+		cert->proved = 1;
+	WRITE_ONCE(ip->i_mxfs_rel_state, MXFS_RELSTATE_PROVED);
 	atomic64_inc(&mxfs_relbar_closed);
 	return false;
+}
+
+/*
+ * sess200 (build-order step 3): complete and emit the per-inode release
+ * certificate at the wire CAS.  Called immediately after
+ * mxfs_v5_dlm_inode_unlock_open on both unlock arms — the moment the
+ * grant becomes peer-claimable.  The final tripwire state (ledger delta,
+ * IFLUSHING) is captured HERE, after the proof passes, so a commit that
+ * raced the flush→unlock window shows up as oblig_cas != 0 (the F1
+ * occurrence P281 names).  Observation only this step: the CAS already
+ * happened when this runs.
+ */
+static void
+mxfs_inode_relcert_finish(struct xfs_inode *ip, struct mxfs_release_cert *cert,
+			  int cas_result, uint64_t t0)
+{
+	uint64_t rc_pend = READ_ONCE(ip->i_mxfs_pub_pending_seq);
+	uint64_t rc_dur = READ_ONCE(ip->i_mxfs_pub_durable_seq);
+	uint64_t rc_delta = rc_pend - rc_dur;
+
+	cert->cas_attempted = 1;
+	cert->cas_result = cas_result;
+	cert->drain_ns = ktime_get_ns() - t0;
+	cert->dirty_seq_tripwire = rc_pend;
+	cert->oblig_cas = rc_delta > (uint64_t)U32_MAX ?
+				U32_MAX : (uint32_t)rc_delta;
+	cert->inflight_cas = xfs_iflags_test(ip, XFS_IFLUSHING) ? 1 : 0;
+	/*
+	 * F2 domain fact, same terms as the ICLUS site: a tenure-boundary
+	 * flush ticket is required unless the operator declared the target
+	 * cache power-protected; under fua_disable=1 no real flush covered
+	 * the settled writes (counted as cas_noticket, never printed).
+	 *
+	 * sess258 (step 5 F3, sess253 ruling item C): in fua_disable=0 mode
+	 * the ticket is REVALIDATED here against the CURRENT durable_seq —
+	 * the proof's ticket only counts if a real flush still covers the
+	 * discharge stamp as of the CAS.  A durable_seq that advanced past
+	 * the proof re-stamps the fepoch, so observed>stamp failing here
+	 * means the ticket went STALE in the proof→CAS window (the F3
+	 * check-then-CAS occurrence, now countable).
+	 */
+	cert->ticket_required = 1;
+	{
+		uint64_t stamp, observed;
+
+		smp_rmb();	/* pair with the stamp sites: rc_dur above,
+				 * then the stamp */
+		stamp = READ_ONCE(ip->i_mxfs_pub_durable_fepoch);
+		observed = (uint64_t)atomic64_read(
+				&ip->i_mount->m_mxfs_flush_epoch);
+		cert->ticket_seq = rc_dur;
+		cert->stamp_epoch = stamp;
+		cert->observed_epoch = observed;
+		if (!mxfs_fua_disable) {
+			cert->ticket_completed = observed > stamp;
+			if (cert->ticket_status != MXFS_TICKET_FLUSH_FAILED)
+				cert->ticket_status = cert->ticket_completed ?
+					MXFS_TICKET_REAL_FLUSH :
+					MXFS_TICKET_STALE;
+		} else {
+			cert->ticket_completed =
+				mxfs_target_cache_protected ? 1 : 0;
+			cert->ticket_status = mxfs_target_cache_protected ?
+				MXFS_TICKET_PROTECTED : MXFS_TICKET_NO_DOMAIN;
+		}
+	}
+	mxfs_release_cert_emit(cert);
+	/* attempt over (whatever the CAS said) — tenure state returns to
+	 * ACTIVE; a failed CAS re-enters via DEMOTING on the requeue.
+	 * sess315 (sess312 ruling item 3): a SUCCESSFUL CAS closes the
+	 * defer episode — the only reset point (never local reacquire,
+	 * repeated BAST or cause change).  Build 1 still CASes unproved on
+	 * proof_failed, so close keys on cas_result==0 mirroring the iclus
+	 * release-done; the proved-only flip is build 2.  WEDGED is
+	 * terminal: never overwrite it with ACTIVE. */
+	{
+		bool episode_closed = false;
+
+		spin_lock(&ip->i_dlm_lock);
+		if (cas_result == 0 && ip->i_mxfs_reldefer_started_j) {
+			ip->i_mxfs_reldefer_started_j = 0;
+			ip->i_mxfs_reldefer_progress_j = 0;
+			ip->i_mxfs_reldefer_causes = 0;
+			ip->i_mxfs_reldefer_badness = 0;
+			ip->i_mxfs_reldefer_tries = 0;
+			ip->i_mxfs_reldefer_reloads = 0;	/* sess382 */
+			WRITE_ONCE(ip->i_mxfs_pub_fenced, 0);	/* sess382 */
+			episode_closed = true;
+		}
+		if (READ_ONCE(ip->i_mxfs_rel_state) != MXFS_RELSTATE_WEDGED)
+			WRITE_ONCE(ip->i_mxfs_rel_state,
+				   MXFS_RELSTATE_ACTIVE);
+		spin_unlock(&ip->i_dlm_lock);
+		if (episode_closed)
+			wake_up_all(&ip->i_dlm_wait);
+	}
+}
+
+/* Defer flavor: the relbar proof would not close the ledger and the arm
+ * is requeueing the release instead of unlocking. */
+static void
+mxfs_inode_relcert_defer(struct xfs_inode *ip, struct mxfs_release_cert *cert,
+			 uint64_t t0)
+{
+	cert->defer_kind = MXFS_RELDEFER_OBLIG;
+	cert->defer_reason = "relbar open after durable passes";
+	cert->drain_ns = ktime_get_ns() - t0;
+	mxfs_release_cert_emit(cert);
+}
+
+/*
+ * sess315 (sess312 INODE-containment ruling item 7): derive the explicit
+ * defer-cause mask for this attempt from its certificate.  A defer with NO
+ * derivable cause is an invariant failure — certify it as UNKNOWN and say
+ * so.  A fault-forced failure attributes to the cause the armed stage
+ * models (an open obligation ledger) rather than tripping that probe.
+ */
+static unsigned int
+mxfs_inode_defer_causes(struct xfs_inode *ip,
+			const struct mxfs_release_cert *cert)
+{
+	unsigned int causes = 0;
+
+	if (cert->oblig_flush)
+		causes |= MXFS_RELCAUSE_OBLIG_OPEN;
+	if (cert->f4_blocked || cert->f4_flush)
+		causes |= MXFS_RELCAUSE_F4_OPEN;
+	if (cert->f4_unknown)
+		causes |= MXFS_RELCAUSE_F4_UNKNOWN;
+	if (cert->proof_failed ||
+	    cert->ticket_status == MXFS_TICKET_FLUSH_FAILED)
+		causes |= MXFS_RELCAUSE_TICKET_STALE;
+	if (!causes && cert->fault_forced)
+		causes |= MXFS_RELCAUSE_OBLIG_OPEN;
+	if (!causes) {
+		static atomic_t nocause_n = ATOMIC_INIT(0);
+
+		causes = MXFS_RELCAUSE_UNKNOWN;
+		if (atomic_inc_return(&nocause_n) <= 200)
+			pr_err("mxfs: P-INODE-DEFER-NOCAUSE ino=%llu path=%s oblig=%u f4=%u/%u pf=%u tstat=%u — release deferred with no derivable cause (invariant failure)\n",
+			       (unsigned long long)ip->i_ino,
+			       cert->path ? cert->path : "-",
+			       cert->oblig_flush, cert->f4_flush,
+			       cert->f4_unknown, cert->proof_failed,
+			       cert->ticket_status);
+	}
+	return causes;
+}
+
+/* Ruling item 3: badness weights the causes; a DECREASE between attempts
+ * is genuine progress (a cause retired) and restamps the progress clock —
+ * retries, new BASTs and cause oscillation are not. */
+static unsigned int
+mxfs_inode_defer_badness(unsigned int causes)
+{
+	return ((causes & MXFS_RELCAUSE_UNKNOWN) ? 8 : 0) +
+	       ((causes & MXFS_RELCAUSE_OBLIG_OPEN) ? 4 : 0) +
+	       ((causes & (MXFS_RELCAUSE_F4_OPEN |
+			   MXFS_RELCAUSE_F4_UNKNOWN)) ? 2 : 0) +
+	       ((causes & MXFS_RELCAUSE_TICKET_STALE) ? 1 : 0);
+}
+
+/*
+ * Ruling items 4/5: 60s without progress or 300s total → wedge.  Caller
+ * holds i_dlm_lock.
+ *
+ * sess382: the two bounds are now knobs, for TESTING, not for tuning.  The
+ * natural fence-abandoned publications on this rig all resolve well inside 60s
+ * — which is exactly why the wedge they can cause is luck-dependent and why
+ * every attempt to reproduce it with a real workload failed.  Shrinking ONLY
+ * the bound turns those same real, unmodified fences into observable wedges,
+ * so a fix can be verified against the NATURAL cause instead of only against
+ * fault injection (the sess382 GPT ruling recommends exactly this: "shorten
+ * only the test episode timeout").
+ *
+ * DO NOT raise these to make something pass.  A larger bound does not make an
+ * unresolvable release resolvable; it only lengthens the window in which the
+ * grant is held and peers are blocked.
+ */
+static bool
+mxfs_inode_episode_expired_locked(struct xfs_inode *ip)
+{
+	unsigned int np = READ_ONCE(mxfs_reldefer_noprogress_ms);
+	unsigned int tot = READ_ONCE(mxfs_reldefer_total_ms);
+
+	return ip->i_mxfs_reldefer_started_j &&
+	       (time_after(jiffies,
+			   ip->i_mxfs_reldefer_progress_j +
+				msecs_to_jiffies(np)) ||
+		time_after(jiffies,
+			   ip->i_mxfs_reldefer_started_j +
+				msecs_to_jiffies(tot)));
+}
+
+/*
+ * sess315 (sess312 ruling, INODE analog of mxfs_iclus_defer_arm): enter or
+ * extend the per-inode defer episode.  Unlike the ICLUS class this arms no
+ * worker of its own — the existing stranded re-arm / bast dwork owns retry
+ * scheduling (with episode-aware backoff at the arm site).  Returns true
+ * when the bounds expired and the caller must WEDGE instead of deferring.
+ */
+static bool
+mxfs_inode_defer_arm(struct xfs_inode *ip, unsigned int causes)
+{
+	unsigned int badness = mxfs_inode_defer_badness(causes);
+	bool wedge = false;
+
+	spin_lock(&ip->i_dlm_lock);
+	if (!ip->i_mxfs_reldefer_started_j) {
+		ip->i_mxfs_reldefer_started_j = jiffies ?: 1;
+		ip->i_mxfs_reldefer_progress_j = jiffies;
+		ip->i_mxfs_reldefer_badness = badness;
+		ip->i_mxfs_reldefer_reloads = 0;	/* sess382 */
+	} else {
+		if (badness < ip->i_mxfs_reldefer_badness) {
+			ip->i_mxfs_reldefer_progress_j = jiffies;
+			ip->i_mxfs_reldefer_badness = badness;
+		}
+		if (mxfs_inode_episode_expired_locked(ip))
+			wedge = true;
+	}
+	ip->i_mxfs_reldefer_causes |= causes;
+	if (!wedge)
+		ip->i_mxfs_reldefer_tries++;
+	spin_unlock(&ip->i_dlm_lock);
+	return wedge;
+}
+
+/*
+ * sess315 (sess312 ruling items 6/8/9): the bounded end of an INODE defer
+ * episode.  One-shot per inode incarnation: pin the wedged grant on the
+ * DLM side so the unconditional teardown release_all cannot strip our
+ * unproven bits (peers then refuse our clean departure; their recovery
+ * machinery fences and recovers us), mark the resource WEDGED (terminal —
+ * admission refused in ilock_begin, CAS refused pre-submit), FREEZE the
+ * episode fields as evidence, and force-shutdown the mount — skipped
+ * under teardown, where the mount is already going away, UNLESS the pin
+ * failed (then the shutdown is the only fence left).  NEVER CASes.
+ */
+static void
+mxfs_inode_wedge(struct xfs_inode *ip, struct mxfs_release_cert *cert,
+		 bool teardown)
+{
+	struct xfs_mount *mp = ip->i_mount;
+	bool shoot = false;
+	int pin_rc;
+
+	spin_lock(&ip->i_dlm_lock);
+	WRITE_ONCE(ip->i_mxfs_rel_state, MXFS_RELSTATE_WEDGED);
+	if (!ip->i_mxfs_relwedge_shot) {
+		ip->i_mxfs_relwedge_shot = true;
+		shoot = true;
+	}
+	spin_unlock(&ip->i_dlm_lock);
+	if (shoot) {
+		pin_rc = mp->m_mxfs_dlm ?
+			mxfs_v5_dlm_inode_pin(mp->m_mxfs_dlm, ip->i_ino) :
+			-ENODEV;
+		if (cert) {
+			cert->cas_attempted = 0;
+			cert->defer_kind = MXFS_RELDEFER_WEDGE;
+			cert->defer_reason = teardown ?
+				"teardown with unproven release" :
+				"no-progress bound exceeded";
+			mxfs_release_cert_emit(cert);
+		}
+		pr_err("mxfs: P-INODE-WEDGE ino=%llu tries=%u causes=0x%x badness=%u pin_rc=%d teardown=%d — release unprovable within bounds; grant PINNED on disk, admission closed%s\n",
+		       (unsigned long long)ip->i_ino,
+		       ip->i_mxfs_reldefer_tries,
+		       ip->i_mxfs_reldefer_causes,
+		       ip->i_mxfs_reldefer_badness, pin_rc,
+		       teardown ? 1 : 0,
+		       (teardown && !pin_rc) ?
+			   " (teardown: departure will not be clean)" :
+			   "; forcing shutdown");
+		if (!teardown || pin_rc)
+			xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
+	}
+	wake_up_all(&ip->i_dlm_wait);
 }
 
 void
@@ -13967,6 +15752,59 @@ mxfs_dlm_bast_process(
 	 * cached PR->NL to re-request EX; no peer reads our state across it, so a
 	 * clean drop can skip the durability drain (the upgrade-livelock
 	 * amplifier) while genuine peer handoffs keep the coherency barrier. */
+	/*
+	 * sess382 — UNSERVICEABLE-BUT-BEATING FAULT (incident474 hole (c),
+	 * D-WITHDRAWN-NODE-CASCADE-NONCONTAINMENT-474).
+	 *
+	 * That entry's hole (c) says the liveness oracle cannot tell "HB thread
+	 * alive" from "filesystem serviceable": an arm-A victim wedged in AIL
+	 * drain keeps beating its disklock HB, so v5_caw_holders_alive
+	 * truthfully reports the holder alive and P-WAIT-EXTEND stretches
+	 * survivors' waits toward the 480s liveness-extended cap on a lock
+	 * whose holder is a dead filesystem.
+	 *
+	 * That shape could not be reproduced: sess382's inode-wedge injection
+	 * makes the victim force-shutdown and WITHDRAW immediately, which stops
+	 * the HB — measured, 31 survivors stayed mounted and the fleet logged
+	 * ZERO P-WAIT-EXTEND.  So the premise needs its own switch: a node that
+	 * holds a grant forever while remaining mounted and beating.
+	 *
+	 * Armed, the release drain for this inode never releases.  The node
+	 * stays mounted, its HB thread keeps beating (the sleep is here, not in
+	 * the HB thread), and peers requesting the inode must wait on a holder
+	 * that will never hand off — exactly the hole (c) shape.
+	 *
+	 * INTERRUPTIBLE by construction: mxfs_pal_sleep_ms() is msleep(), which
+	 * is TASK_UNINTERRUPTIBLE, and a long-lived kernel thread idling in it
+	 * shows as a permanent D-state task — +1 to loadavg per node, forever,
+	 * and indistinguishable from the wedged-in-I/O tasks the rig's
+	 * readiness check exists to catch (sess381 shipped exactly that
+	 * regression).  Disarming the knob releases the drain.
+	 */
+	{
+		extern unsigned long long mxfs_hold_grant_fault_ino;
+
+		if (unlikely(READ_ONCE(mxfs_hold_grant_fault_ino) ==
+			     (unsigned long long)ip->i_ino)) {
+			unsigned int hg_n = 0;
+
+			pr_warn("mxfs: P384-HOLD-GRANT-FAULT ino=%llu mode=%u — INJECTED: holding the grant, refusing to release; node stays mounted and beating\n",
+				(unsigned long long)ip->i_ino, ip->i_dlm_mode);
+			while (READ_ONCE(mxfs_hold_grant_fault_ino) ==
+			       (unsigned long long)ip->i_ino &&
+			       !xfs_is_shutdown(mp)) {
+				mxfs_pal_sleep_ms_interruptible(200);
+				if (++hg_n % 50 == 0)
+					pr_warn("mxfs: P384-HOLD-GRANT-FAULT ino=%llu held_s=%u — still holding\n",
+						(unsigned long long)ip->i_ino,
+						hg_n / 5);
+			}
+			pr_warn("mxfs: P384-HOLD-GRANT-FAULT ino=%llu — released after %u.%us\n",
+				(unsigned long long)ip->i_ino,
+				hg_n / 5, (hg_n % 5) * 2);
+		}
+	}
+
 	spin_lock(&ip->i_dlm_lock);
 	p_self_demote = ip->i_dlm_self_demote;
 	ip->i_dlm_self_demote = false;
@@ -13986,8 +15824,29 @@ mxfs_dlm_bast_process(
 	 * the next occurrence names the exit deterministically.  Capped. */
 	{
 		static atomic_t p70_n = ATOMIC_INIT(0);
-		if (atomic_inc_return(&p70_n) <= 6000)
-			pr_warn("mxfs: P70-BP ino=%llu ENTRY mode=%u state=%u ex=%u pr=%u pin=%u selfdem=%d qsrc=%u bpend=%d held_ms=%llu tops=%u comm=%s realns=%llu\n",
+		if (atomic_inc_return(&p70_n) <= 6000) {
+			/* sess296 (D-503 ruling step 1) tenure decomposition:
+			 * fo_ms = grant→first completed op (adoption/setup
+			 * cost), lo_ms = last completed op→this release entry
+			 * (idle tail).  With held_ms and tops, marginal per-op
+			 * cost = (held_ms - fo_ms - lo_ms) / (tops - 1). */
+			u64 p70_now = ktime_get_ns();
+			u64 p70_fo = 0, p70_lo = 0;
+
+			if (ip->i_dlm_ex_acquire_ns &&
+			    ip->i_dlm_tenure_firstop_ns >
+			    ip->i_dlm_ex_acquire_ns)
+				p70_fo = (ip->i_dlm_tenure_firstop_ns -
+					  ip->i_dlm_ex_acquire_ns) /
+					 NSEC_PER_MSEC;
+			if (ip->i_dlm_tenure_lastop_ns &&
+			    ip->i_dlm_tenure_lastop_ns >
+			    ip->i_dlm_ex_acquire_ns &&
+			    p70_now > ip->i_dlm_tenure_lastop_ns)
+				p70_lo = (p70_now -
+					  ip->i_dlm_tenure_lastop_ns) /
+					 NSEC_PER_MSEC;
+			pr_warn("mxfs: P70-BP ino=%llu ENTRY mode=%u state=%u ex=%u pr=%u pin=%u selfdem=%d qsrc=%u bpend=%d held_ms=%llu tops=%u fo_ms=%llu lo_ms=%llu comm=%s realns=%llu\n",
 				(unsigned long long)ip->i_ino, ip->i_dlm_mode,
 				ip->i_dlm_state, ip->i_dlm_ex_holders,
 				ip->i_dlm_pr_holders, ip->i_dlm_pin_count,
@@ -13995,11 +15854,14 @@ mxfs_dlm_bast_process(
 				ip->i_dlm_bastq_src,
 				ip->i_dlm_bast_pending ? 1 : 0,
 				(unsigned long long)(ip->i_dlm_ex_acquire_ns ?
-					(ktime_get_ns() - ip->i_dlm_ex_acquire_ns)
+					(p70_now - ip->i_dlm_ex_acquire_ns)
 						/ NSEC_PER_MSEC : 0),
 				ip->i_dlm_tenure_ops,
+				(unsigned long long)p70_fo,
+				(unsigned long long)p70_lo,
 				current->comm,
 				(unsigned long long)ktime_get_real_ns());
+		}
 	}
 
 	/* v0.10.38: losing a held DIRECTORY to a peer's request marks the
@@ -15484,7 +17346,9 @@ skip_bast_cluster_stale:
 			 * family; same pattern as P134-ILEND-FREEING). */
 			if (igrab(vip)) {
 				ip->i_dlm_bastq_src = orphan_only ? 14 : 21;
-				if (!mxfs_bast_arm_queue_delayed(ip, msecs_to_jiffies(25)))
+				if (!mxfs_bast_arm_queue_delayed(ip,
+					msecs_to_jiffies(
+					    mxfs_relab_backoff_ms(ip, p_rel_gen))))
 					xfs_irele(ip);	/* dwork already armed */
 			} else {
 				pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=%s i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
@@ -15492,6 +17356,40 @@ skip_bast_cluster_stale:
 					orphan_only ? "orphan_rearm" :
 						      "obligation_rearm",
 					vip->i_state);
+			}
+		}
+		/* sess387 RULE-5 ruling (c): a deferred obligation LIVELOCKS if
+		 * nothing converts it — once this bast returns, i_dlm_demoter is
+		 * NULL and the P119 non-EX fence blocks every xfsaild flush of
+		 * the committed change (measured: unlink conversions stranded
+		 * until the shell died and an adjacent remove shut the node
+		 * down).  Convert it HERE, inside the protected release context:
+		 * the tenure is KEPT (this abort refuses the unlock), the
+		 * on-disk grant is still ours, no peer grant can become
+		 * effective — exactly the continuous-exclusion window the
+		 * RELFLUSH sanction exists for.  Scoped: sanction set only
+		 * around the call, nlink==0 conversions only (the helper
+		 * declines anything else).  The 25ms dwork re-fire then finds
+		 * pend==dur and the release completes. */
+		if (obligation_only && !xfs_is_shutdown(mp) &&
+		    VFS_I(ip)->i_nlink == 0) {
+			struct xfs_perag *fpag = xfs_perag_get(mp,
+					XFS_INO_TO_AGNO(mp, ip->i_ino));
+
+			if (fpag) {
+				int frc;
+
+				xfs_iflags_set(ip, MXFS_IF_DLM_RELFLUSH);
+				frc = mxfs_iflush_agino_target(fpag,
+					XFS_INO_TO_AGINO(mp, ip->i_ino),
+					jiffies + msecs_to_jiffies(500));
+				xfs_iflags_clear(ip, MXFS_IF_DLM_RELFLUSH);
+				pr_warn_ratelimited("mxfs: P245-REL-OBLIGATION-CONVERT ino=%llu rc=%d pend=%llu dur=%llu flush=%llu\n",
+					(unsigned long long)ip->i_ino, frc,
+					(unsigned long long)ip->i_mxfs_pub_pending_seq,
+					(unsigned long long)ip->i_mxfs_pub_durable_seq,
+					(unsigned long long)ip->i_mxfs_pub_flush_seq);
+				xfs_perag_put(fpag);
 			}
 		}
 		/* sess34 FIX-2: the defer verdict, always-on + capped (this is
@@ -15614,10 +17512,61 @@ skip_bast_cluster_stale:
 		}
 		if (igrab(vip)) {
 			ip->i_dlm_bastq_src = 22;
-			if (!mxfs_bast_arm_queue_delayed(ip, msecs_to_jiffies(25)))
+			if (!mxfs_bast_arm_queue_delayed(ip,
+				msecs_to_jiffies(
+				    mxfs_relab_backoff_ms(ip, p_rel_gen))))
 				xfs_irele(ip);	/* dwork already armed */
 		} else {
 			pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=terminal_rearm i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
+				(unsigned long long)ip->i_ino, vip->i_state);
+		}
+		wake_up_all(&ip->i_dlm_wait);
+		return;
+	}
+	/*
+	 * sess236 (D-OPEN-PROTECT-DEMOTE-RACE-SPURIOUS-EIO, sess235 RULE-5
+	 * ruling) — ADMISSION GATE, honored at the terminal store.  An open
+	 * whose admission re-read keeps losing the race to this store (proven
+	 * 0.11.482 cache_coherency test23: NL landed 16us before the re-read
+	 * on a live published file, cat got fail-closed -EIO) arms
+	 * i_mxfs_open_admit_n after a few plain cold-open restarts.  While
+	 * armed, ONLY the terminal demotion is delayed: the grant is kept
+	 * (CACHED), the BAST stays pending and the 25ms dwork re-fires the
+	 * pipeline, exactly like the P236/P244 obligation defers.  Checked
+	 * under i_dlm_lock — open_protect arms it before its re-acquire, so
+	 * a release reaching this gate after the arm defers, which bounds
+	 * the open's restart loop.  Contention must never become -EIO.
+	 * Shutdown exempt: the open fails at the shutdown fence anyway and
+	 * releases must not strand at teardown.
+	 */
+	if (atomic_read(&ip->i_mxfs_open_admit_n) > 0 && !xfs_is_shutdown(mp)) {
+		{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
+		ip->i_dlm_state = MXFS_DLM_ISTATE_CACHED;
+		mxfs_dlmtr_rec(ip, dtr_om, dtr_os, __LINE__); }
+		if (!ip->i_dlm_bast_pending)
+			ip->i_dlm_dwork_strikes = 0;
+		ip->i_dlm_bast_pending = true;
+		xfs_iflags_clear(ip, MXFS_IF_DLM_RELFLUSH);
+		spin_unlock(&ip->i_dlm_lock);
+		{
+			static atomic_t p95g_n = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&p95g_n) <= 2000)
+				pr_warn("mxfs: P95-OPEN-ADMIT-DEFER ino=%llu mode=%u admits=%d comm=%s realns=%llu — open admission in critical section; terminal demotion deferred\n",
+					(unsigned long long)ip->i_ino,
+					ip->i_dlm_mode,
+					atomic_read(&ip->i_mxfs_open_admit_n),
+					current->comm,
+					(unsigned long long)ktime_get_real_ns());
+		}
+		if (igrab(vip)) {
+			ip->i_dlm_bastq_src = 23;
+			if (!mxfs_bast_arm_queue_delayed(ip,
+				msecs_to_jiffies(
+				    mxfs_relab_backoff_ms(ip, p_rel_gen))))
+				xfs_irele(ip);	/* dwork already armed */
+		} else {
+			pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=admit_gate_rearm i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
 				(unsigned long long)ip->i_ino, vip->i_state);
 		}
 		wake_up_all(&ip->i_dlm_wait);
@@ -15633,7 +17582,28 @@ skip_bast_cluster_stale:
 	mxfs_dlmtr_rec(ip, dtr_om, dtr_os, __LINE__); }
 	ip->i_dlm_epoch++; ip->i_dlm_epoch_src = __LINE__; mxfs_relbar_epoch_check(ip);	/* v0.5.1: grant lost — invalidate epoch-stamped dentries */
 	ip->i_dlm_bast_starve_since_ns = 0;	/* a real release just completed */
+	ip->i_dlm_relab_streak = 0;	/* sess279: release committed — abort-backoff episode over */
 	spin_unlock(&ip->i_dlm_lock);
+
+	/* sess238 build-1 injection (see mxfs_openprotect_park_ms decl):
+	 * prolong the natural {NL, DEMOTING, RELFLUSH-set} post-store tail so
+	 * the opener's admission ride deterministically lands inside it.  50ms
+	 * slices so a shutdown mid-park is honored promptly. */
+	if (unlikely(mxfs_openprotect_park_ms) && !xfs_is_shutdown(mp)) {
+		int park = min(mxfs_openprotect_park_ms, 5000);
+		int slept = 0;
+		static atomic_t p95p_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p95p_n) <= 500)
+			pr_warn("mxfs: P95-OPEN-PARK ino=%llu park_ms=%d comm=%s realns=%llu — bast_process parked post-terminal-store (injection)\n",
+				(unsigned long long)ip->i_ino, park,
+				current->comm,
+				(unsigned long long)ktime_get_real_ns());
+		while (slept < park && !xfs_is_shutdown(mp)) {
+			msleep(50);
+			slept += 50;
+		}
+	}
 
 	/* sess75 SEQUENCE TRACE (always-on, dir only): record every real
 	 * release-to-NL so we can reconstruct release->re-grant ordering vs
@@ -17510,6 +19480,10 @@ reg_durable_done:
 	 */
 	{
 		bool stranded = false;
+		/* sess315 (sess312 ruling item 8): a relbar defer happened in
+		 * THIS pipeline — the teardown no-arm branch must then wedge
+		 * pin-only instead of letting release_all strip the slot. */
+		bool p_rb_deferred = false;
 
 		if (p_rel_gen == 0 && mp->m_mxfs_dlm &&
 		    mxfs_v5_dlm_is_tcp(mp->m_mxfs_dlm)) {
@@ -17575,6 +19549,15 @@ reg_durable_done:
 			uint32_t p6zc_now = mxfs_v5_dlm_inode_grant_gen(
 						mp->m_mxfs_dlm, ip->i_ino);
 			static atomic_t p6zc_n = ATOMIC_INIT(0);
+			/* sess200 step 3: per-inode release certificate for
+			 * this unconditional-unlock arm (class=INODE) */
+			struct mxfs_release_cert p282c = {
+				.res_id = ip->i_ino,
+				.rclass = MXFS_RELCLASS_INODE,
+				.path = "noanchor",
+				.old_epoch = ip->i_dlm_epoch,
+			};
+			uint64_t p282_t0 = ktime_get_ns();
 
 			/* daf50d34 sess2: grant_gen reads the collision-LOSSY
 			 * grant_meta (can be 0 with a live tenure).  in-core
@@ -17585,13 +19568,28 @@ reg_durable_done:
 			    READ_ONCE(ip->i_dlm_mode) != MXFS_LOCK_NL) {
 				stranded = true;
 			} else if (mxfs_relbar_enforce &&
-				   mxfs_relbar_close_or_defer(ip, "noanchor")) {
+				   mxfs_relbar_close_or_defer(ip, "noanchor",
+							      &p282c)) {
 				/* sess32: same released=>landed enforcement as
 				 * the anchored sibling — an open ledger defers
 				 * this unconditional unlock via the stranded
 				 * re-arm instead of publishing the grant with
-				 * a committed change not yet at home. */
-				stranded = true;
+				 * a committed change not yet at home.
+				 * sess315: under the proof gate the defer
+				 * enters/extends the bounded episode; expired
+				 * bounds WEDGE instead (no re-arm). */
+				p_rb_deferred = true;
+				if (mxfs_release_proof_enforce &&
+				    mxfs_inode_defer_arm(ip,
+					mxfs_inode_defer_causes(ip, &p282c))) {
+					p282c.drain_ns =
+						ktime_get_ns() - p282_t0;
+					mxfs_inode_wedge(ip, &p282c, false);
+				} else {
+					mxfs_inode_relcert_defer(ip, &p282c,
+								 p282_t0);
+					stranded = true;
+				}
 			} else {
 				/* sess7 (ccloop 8ba7ae5c) P147 — see the
 				 * anchored-unlock sibling below. */
@@ -17638,10 +19636,38 @@ reg_durable_done:
 					if (p_held_mode == MXFS_LOCK_NL)
 						mxfs_iclus_pi_reconcile(ip,
 									zrc);
-				} else
-					(void)mxfs_v5_dlm_inode_unlock_open(
+				} else if (mxfs_release_proof_enforce &&
+					   READ_ONCE(ip->i_mxfs_rel_state) ==
+						MXFS_RELSTATE_WEDGED) {
+					/* sess315 (ruling item 9): pre-CAS
+					 * WEDGED re-check — never submit,
+					 * never re-arm. */
+					p282c.cas_attempted = 0;
+					p282c.defer_kind = MXFS_RELDEFER_WEDGE;
+					p282c.defer_reason =
+						"wedged — CAS refused";
+					p282c.drain_ns =
+						ktime_get_ns() - p282_t0;
+					mxfs_release_cert_emit(&p282c);
+				} else {
+					/* rc capture is for the certificate
+					 * only — this arm's unlock outcome
+					 * was always discarded (in-loop seq
+					 * abort parries mid-CAS grants) */
+					int p282_rc;
+
+					p282c.rel_state_cas = READ_ONCE(
+						ip->i_mxfs_rel_state);
+					WRITE_ONCE(ip->i_mxfs_rel_state,
+						   MXFS_RELSTATE_RELEASING);
+					p282_rc =
+						mxfs_v5_dlm_inode_unlock_open(
 						mp->m_mxfs_dlm, ip->i_ino, 0,
 						p_open_op);
+					mxfs_inode_relcert_finish(ip, &p282c,
+								  p282_rc,
+								  p282_t0);
+				}
 			}
 			if (atomic_inc_return(&p6zc_n) <= 2000)
 				pr_warn("mxfs: P6ZC-REL-NOANCHOR ino=%llu mode=%u state=%u ex=%u pr=%u reap=%d now_gen=%u %s\n",
@@ -17713,20 +19739,49 @@ reg_durable_done:
 			 * Default OFF pending the same-build A/B.
 			 */
 			{
+				/* sess200 step 3: per-inode release
+				 * certificate for the anchored arm */
+				struct mxfs_release_cert p282c = {
+					.res_id = ip->i_ino,
+					.rclass = MXFS_RELCLASS_INODE,
+					.path = "anchored",
+					.old_epoch = ip->i_dlm_epoch,
+				};
+				uint64_t p282_t0 = ktime_get_ns();
 				bool rb_defer = mxfs_relbar_enforce ?
-					mxfs_relbar_close_or_defer(ip, "anchored") :
+					mxfs_relbar_close_or_defer(ip, "anchored",
+								   &p282c) :
 					false;
 
 			if (READ_ONCE(ip->i_dlm_mode) != MXFS_LOCK_NL || rb_defer) {
 				static atomic_t p15h_live_cap = ATOMIC_INIT(0);
 
+				p6u_rc = -ESTALE;
+				if (rb_defer) {
+					/* sess315: bounded episode — expired
+					 * bounds WEDGE (no re-arm; -EIO is
+					 * not -ESTALE so no strand). */
+					p_rb_deferred = true;
+					if (mxfs_release_proof_enforce &&
+					    mxfs_inode_defer_arm(ip,
+						mxfs_inode_defer_causes(ip,
+								&p282c))) {
+						p282c.drain_ns =
+						    ktime_get_ns() - p282_t0;
+						mxfs_inode_wedge(ip, &p282c,
+								 false);
+						p6u_rc = -EIO;
+					} else {
+						mxfs_inode_relcert_defer(ip,
+							&p282c, p282_t0);
+					}
+				}
 				if (!rb_defer &&
 				    atomic_inc_return(&p15h_live_cap) <= 400)
 					pr_warn("mxfs: P15H-LIVE-SKIP ino=%llu mode=%u reap=%d — live tenure appeared before unlock; deferring\n",
 						(unsigned long long)ip->i_ino,
 						ip->i_dlm_mode,
 						p15h_reap ? 1 : 0);
-				p6u_rc = -ESTALE;
 			} else {
 				/* sess7 (ccloop 8ba7ae5c) P147 — the on-disk
 				 * unlock is the moment the peer's grant-side
@@ -17877,10 +19932,32 @@ reg_durable_done:
 						mxfs_iclus_pi_reconcile(ip,
 							p_iclus_declined ?
 							-EBUSY : 0);
+				} else if (mxfs_release_proof_enforce &&
+					   READ_ONCE(ip->i_mxfs_rel_state) ==
+						MXFS_RELSTATE_WEDGED) {
+					/* sess315 (ruling item 9): pre-CAS
+					 * WEDGED re-check — never submit,
+					 * never re-arm (-EIO, not -ESTALE). */
+					p282c.cas_attempted = 0;
+					p282c.defer_kind = MXFS_RELDEFER_WEDGE;
+					p282c.defer_reason =
+						"wedged — CAS refused";
+					p282c.drain_ns =
+						ktime_get_ns() - p282_t0;
+					mxfs_release_cert_emit(&p282c);
+					p6u_rc = -EIO;
 				} else {
+					p282c.rel_state_cas = READ_ONCE(
+						ip->i_mxfs_rel_state);
+					p282c.rel_gen = p_rel_gen;
+					WRITE_ONCE(ip->i_mxfs_rel_state,
+						   MXFS_RELSTATE_RELEASING);
 					p6u_rc = mxfs_v5_dlm_inode_unlock_open(
 						mp->m_mxfs_dlm, ip->i_ino,
 						p_rel_gen, p_open_op);
+					mxfs_inode_relcert_finish(ip, &p282c,
+								  p6u_rc,
+								  p282_t0);
 				}
 				p2s_f = ktime_get_ns();	/* sess35: su split */
 			}
@@ -17948,14 +20025,71 @@ reg_durable_done:
 					xfs_is_unmounting(mp) ? 1 : 0,
 					xfs_is_shutdown(mp) ? 1 : 0,
 					mp->m_mxfs_dlm ? 1 : 0);
+				/* sess315 (sess312 ruling item 8): an
+				 * UNPROVEN release abandoned here would let
+				 * release_all strip the slot without proof —
+				 * the same latent hole the ICLUS teardown
+				 * pin closed for class 2.  Pin-only wedge. */
+				if (mxfs_release_proof_enforce &&
+				    (p_rb_deferred ||
+				     READ_ONCE(ip->i_mxfs_reldefer_started_j))) {
+					struct mxfs_release_cert p6gt_cert = {
+						.res_id = ip->i_ino,
+						.rclass = MXFS_RELCLASS_INODE,
+						.path = "teardown",
+						.old_epoch = ip->i_dlm_epoch,
+					};
+
+					mxfs_inode_wedge(ip, &p6gt_cert, true);
+				}
 				wake_up_all(&ip->i_dlm_wait);
 				return;
 			}
 			/* 2026-07-16: igrab, never raw ihold (BUG3 family —
 			 * see P134-BASTQ-FREEING at the orphan_rearm site). */
 			if (igrab(vip)) {
+				unsigned long p6g_delay =
+					msecs_to_jiffies(4) + 1;
+
+				/* sess315 (sess312 ruling item 5): once an
+				 * episode is open, exponential backoff +
+				 * jitter owns the retry pace, clamped to the
+				 * remaining episode deadline so the bound is
+				 * checked ON TIME, not one backoff late. */
+				spin_lock(&ip->i_dlm_lock);
+				if (mxfs_release_proof_enforce &&
+				    ip->i_mxfs_reldefer_started_j) {
+					unsigned int p6g_tries =
+						ip->i_mxfs_reldefer_tries;
+					unsigned int p6g_ms =
+						min(25u << min(p6g_tries, 5u),
+						    1000u);
+					unsigned long p6g_dl, p6g_rem;
+
+					p6g_ms += get_random_u32_below(
+							p6g_ms / 4 + 1);
+					/* sess382: same knobs as
+					 * mxfs_inode_episode_expired_locked —
+					 * this deadline exists so the bound is
+					 * checked ON TIME, so it must shrink
+					 * with the bound or a shortened test
+					 * bound would simply be slept past. */
+					p6g_dl = min(
+					    ip->i_mxfs_reldefer_progress_j +
+						msecs_to_jiffies(READ_ONCE(
+						  mxfs_reldefer_noprogress_ms)),
+					    ip->i_mxfs_reldefer_started_j +
+						msecs_to_jiffies(READ_ONCE(
+						  mxfs_reldefer_total_ms)));
+					p6g_rem = time_after(p6g_dl, jiffies) ?
+						p6g_dl - jiffies : 1;
+					p6g_delay = min_t(unsigned long,
+						msecs_to_jiffies(p6g_ms) + 1,
+						p6g_rem);
+				}
+				spin_unlock(&ip->i_dlm_lock);
 				ip->i_dlm_bastq_src = 10;
-				if (!mxfs_bast_arm_queue_delayed(ip, msecs_to_jiffies(4) + 1))
+				if (!mxfs_bast_arm_queue_delayed(ip, p6g_delay))
 					xfs_irele(ip);	/* dwork already armed */
 			} else {
 				pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=rel_stale_defer i_state=0x%lx (inode evicting; skipping deferred release)\n",
@@ -18168,6 +20302,7 @@ mxfs_dlm_bast_work_fn(
 				(unsigned long long)ip->i_ino);
 		return;
 	}
+	mxfs_bastq_lat_probe(ip, "BWORK");
 	/* sess29: same retirement as the dwork sibling — a claim stranded by
 	 * the trans-free punt can equally be found by the immediate bast_work
 	 * path, and retiring it BEFORE our own MXFS_SET_DEMOTER is what lets us
@@ -18359,6 +20494,8 @@ mxfs_dlm_bast_dwork_fn(
 		return;
 	}
 
+	mxfs_bastq_lat_probe(ip, "DWORK");
+
 	/*
 	 * ccloop c7ee71c6 sess29: this dwork IS the release the trans-free punt
 	 * handed off to, so it is the natural place to retire the claim the
@@ -18370,6 +20507,147 @@ mxfs_dlm_bast_dwork_fn(
 	 */
 	mxfs_demoter_punt_reclaim_check(ip, 1);
 
+	/*
+	 * sess382 ROOT FIX — D-RELOG-BEHIND-DISK-OBLIGATION-DEADLOCK-WEDGE-380.
+	 *
+	 * THE BUG.  xfs_iflush has eleven "safe skip" fences that abandon a
+	 * flush with `error = 0; goto flush_out;` and WITHOUT stamping
+	 * i_mxfs_pub_flush_seq (P32E/P189/P17B/P25/P119/P65/P67/...).  Every one
+	 * of them says "reload on next acquire" and sets i_dlm_stale to ask for
+	 * it.  But i_dlm_stale had NO RELEASE-PATH CONSUMER — only ACCESS paths
+	 * (xfs_iget/lookup, readdir) honored it.  So the publication obligation
+	 * (pending_seq != durable_seq) stayed open forever, the drain re-logged
+	 * the clean-but-unlanded core on every attempt (P146V), and each re-log
+	 * bumped pending_seq through xfs_trans_log_inode — the drain's own
+	 * repair feeding the counter it was waiting on.  Badness stayed pinned
+	 * at OBLIG_OPEN, the 60s no-progress bound expired, and
+	 * mxfs_inode_wedge pinned the grant and force-shut-down the WHOLE MOUNT.
+	 * Measured (injected fence, ino 132): pending 6 -> 730 while flush
+	 * stayed frozen at 6, then P-INODE-WEDGE tries=714 causes=0x1, mount
+	 * down.  Whether it recovered was pure luck: the ONLY path that
+	 * reconciles the ledger is the adopt inside mxfs_dlm_reload_inode, so
+	 * survival depended on an unrelated local reader touching the inode
+	 * inside the 60s window.
+	 *
+	 * THE FIX.  Drive the reload the fence asked for, from the release side.
+	 * This worker is the right place per the sess382 RULE-5 ruling: it is
+	 * OUTSIDE the drain, so it is not the documented ABBA site that takes
+	 * folio locks while a parked writeback submitter waits on our demote,
+	 * and it runs before the deadline check below — so a reload that lands
+	 * prevents the wedge instead of racing it.
+	 *
+	 * WHAT THIS DOES NOT DO.  It does not invent a "superseded" verdict and
+	 * it never touches durable_seq directly.  It calls the same adopt every
+	 * access path already calls, so the same keep-guards (P3 changecount
+	 * time-travel, P33/P43, P177 obligation merge, P34J demote-wait) remain
+	 * the sole authority on whether the platter image may be installed, and
+	 * a dropped committed change is still reported by
+	 * P177-OBLIGATION-DROPPED-AT-ADOPT rather than laundered.  If the adopt
+	 * bails, the obligation stays open and the wedge still fires — the
+	 * fail-closed escalation is preserved, only its FALSE firings are
+	 * removed.
+	 *
+	 * BOUNDED.  An inode whose reload keeps bailing must still reach the
+	 * wedge rather than spin here forever, so the attempts are counted
+	 * against the episode and stop at MXFS_RELDEFER_RELOAD_MAX.
+	 */
+	if (mxfs_reldefer_reload && READ_ONCE(ip->i_mxfs_pub_fenced) &&
+	    READ_ONCE(ip->i_mxfs_pub_pending_seq) !=
+	    READ_ONCE(ip->i_mxfs_pub_durable_seq) &&
+	    READ_ONCE(ip->i_mxfs_rel_state) != MXFS_RELSTATE_WEDGED) {
+		bool do_reload = false;
+		unsigned int rl_n;
+
+		spin_lock(&ip->i_dlm_lock);
+		rl_n = ip->i_mxfs_reldefer_reloads;
+		if (ip->i_dlm_bast_pending && rl_n < MXFS_RELDEFER_RELOAD_MAX) {
+			ip->i_mxfs_reldefer_reloads = rl_n + 1;
+			do_reload = true;
+		}
+		spin_unlock(&ip->i_dlm_lock);
+
+		if (do_reload) {
+			uint64_t rl_p0 = READ_ONCE(ip->i_mxfs_pub_pending_seq);
+			uint64_t rl_d0 = READ_ONCE(ip->i_mxfs_pub_durable_seq);
+			uint64_t rl_p1, rl_d1;
+			bool closed;
+
+			/*
+			 * sess387 RULE-5 ruling: an UNLINK conversion must never
+			 * be closed by ADOPTION — the platter image is the
+			 * pre-unlink dinode while the on-disk AGI entry
+			 * (committed by the same transaction) remains, so
+			 * adopting strands a list entry that the next adjacent
+			 * remove/reload calls AGI corruption (the measured
+			 * P177 -> P84-UNL-RELOAD-LIVE -> shutdown chain).  We
+			 * are in the deferred-release worker: the tenure is
+			 * kept, the on-disk grant is ours, no peer grant can
+			 * become effective — the continuous-exclusion window
+			 * the RELFLUSH sanction exists for.  Convert first;
+			 * adopt only what conversion cannot claim.
+			 */
+			if (xfs_iflags_test(ip, MXFS_IF_PUBOB) &&
+			    VFS_I(ip)->i_nlink == 0 &&
+			    !xfs_is_shutdown(ip->i_mount)) {
+				struct xfs_mount *cmp = ip->i_mount;
+				struct xfs_perag *fpag = xfs_perag_get(cmp,
+					XFS_INO_TO_AGNO(cmp, ip->i_ino));
+				int frc = -EINVAL;
+
+				if (fpag) {
+					xfs_iflags_set(ip, MXFS_IF_DLM_RELFLUSH);
+					frc = mxfs_iflush_agino_target(fpag,
+						XFS_INO_TO_AGINO(cmp,
+								 ip->i_ino),
+						jiffies +
+						msecs_to_jiffies(500));
+					xfs_iflags_clear(ip,
+							 MXFS_IF_DLM_RELFLUSH);
+					xfs_perag_put(fpag);
+				}
+				pr_warn_ratelimited("mxfs: P245-REL-OBLIGATION-CONVERT ino=%llu rc=%d site=reldefer pend=%llu dur=%llu\n",
+					(unsigned long long)ip->i_ino, frc,
+					(unsigned long long)READ_ONCE(ip->i_mxfs_pub_pending_seq),
+					(unsigned long long)READ_ONCE(ip->i_mxfs_pub_durable_seq));
+			}
+
+			if (READ_ONCE(ip->i_mxfs_pub_pending_seq) !=
+			    READ_ONCE(ip->i_mxfs_pub_durable_seq))
+				mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN,
+						      false);
+
+			rl_p1 = READ_ONCE(ip->i_mxfs_pub_pending_seq);
+			rl_d1 = READ_ONCE(ip->i_mxfs_pub_durable_seq);
+			closed = (rl_p1 == rl_d1);
+
+			/*
+			 * Retiring a cause IS progress, and the deadline below
+			 * is time-based, so an obligation we just closed must
+			 * restamp the clock or the very next check wedges on a
+			 * cause that no longer exists.  Restamp ONLY on an
+			 * actual close: a bailed adopt must not buy time.
+			 */
+			if (closed) {
+				/* obligation resolved — the abandonment is
+				 * settled, so re-arm the detector for the next
+				 * one instead of leaving it latched. */
+				WRITE_ONCE(ip->i_mxfs_pub_fenced, 0);
+				spin_lock(&ip->i_dlm_lock);
+				if (ip->i_mxfs_reldefer_started_j)
+					ip->i_mxfs_reldefer_progress_j = jiffies;
+				spin_unlock(&ip->i_dlm_lock);
+			}
+			pr_warn_ratelimited(
+			    "mxfs: P382-RELDEFER-RELOAD ino=%llu n=%u/%u stale_src=%u pend=%llu->%llu dur=%llu->%llu closed=%d — release-side reload of a fence-abandoned publication\n",
+				(unsigned long long)ip->i_ino, rl_n + 1,
+				MXFS_RELDEFER_RELOAD_MAX, ip->i_dlm_stale_src,
+				(unsigned long long)rl_p0,
+				(unsigned long long)rl_p1,
+				(unsigned long long)rl_d0,
+				(unsigned long long)rl_d1, closed ? 1 : 0);
+		}
+	}
+
 	spin_lock(&ip->i_dlm_lock);
 	if (!ip->i_dlm_bast_pending) {
 		/*
@@ -18379,6 +20657,26 @@ mxfs_dlm_bast_dwork_fn(
 		 */
 		spin_unlock(&ip->i_dlm_lock);
 		mxfs_dlm_dwork_safe_irele(ip, 1);
+		return;
+	}
+
+	/* sess315 (sess312 ruling item 5): episode deadlines carry across
+	 * ALL dwork branches — BUSY included.  Checked at every re-entry so
+	 * a reacquired holder cannot park an expired episode in the strike
+	 * machinery (~30 min) while the bound claims 300s. */
+	if (mxfs_release_proof_enforce &&
+	    READ_ONCE(ip->i_mxfs_rel_state) != MXFS_RELSTATE_WEDGED &&
+	    mxfs_inode_episode_expired_locked(ip)) {
+		struct mxfs_release_cert dwedge_cert = {
+			.res_id = ip->i_ino,
+			.rclass = MXFS_RELCLASS_INODE,
+			.path = "dwork-deadline",
+			.old_epoch = ip->i_dlm_epoch,
+		};
+
+		spin_unlock(&ip->i_dlm_lock);
+		mxfs_inode_wedge(ip, &dwedge_cert, false);
+		mxfs_dlm_dwork_safe_irele(ip, 5);
 		return;
 	}
 
@@ -19024,6 +21322,9 @@ mxfs_release_coalesced_flush(
  * create-only stat-storm workload (posix_multi's 3200-file `ls`) never
  * triggers, unlike dir_reuse's rm-churn.  Capped dump; diagnostic only.
  */
+static int mxfs_noino_agwait_inflight(struct xfs_mount *mp,
+				      xfs_agnumber_t agno);
+
 static void
 mxfs_noino_dump_ail_min(
 	struct xfs_mount	*mp,
@@ -19065,12 +21366,174 @@ mxfs_noino_dump_ail_min(
 			(unsigned long long)(iip->ili_inode ?
 				iip->ili_inode->i_ino : 0),
 			lip->li_flags);
+	} else if (lip->li_type == XFS_LI_EFI) {
+		/*
+		 * sess390: an EFI at the AIL min is an extent-free DEFER
+		 * CHAIN still in flight (no iop_push — it leaves the AIL
+		 * only when its EFD commits, which needs the AGF of each
+		 * extent's AG).  Name the AGs so the freeze can be matched
+		 * to a local blocking AG wait (P1-AGWAIT / agwait_inflight).
+		 */
+		struct xfs_efi_log_item *efip =
+			container_of(lip, struct xfs_efi_log_item, efi_item);
+		unsigned int nx = efip->efi_format.efi_nextents;
+		xfs_agnumber_t a0 = nx ? XFS_FSB_TO_AGNO(mp,
+				efip->efi_format.efi_extents[0].ext_start) :
+				NULLAGNUMBER;
+		int wait0 = (a0 != NULLAGNUMBER) ?
+			mxfs_noino_agwait_inflight(mp, a0) : -1;
+
+		pr_warn("mxfs: P-AILMIN ino=%llu EFI lsn=0x%llx nextents=%u ag0=%u agwait_inflight=%d liflags=0x%lx — extent-free intent: EFD pending on that AG's lock\n",
+			(unsigned long long)ino,
+			(unsigned long long)lip->li_lsn, nx, a0, wait0,
+			lip->li_flags);
 	} else {
-		pr_warn("mxfs: P-AILMIN ino=%llu type=%u lsn=0x%llx liflags=0x%lx\n",
+		pr_warn("mxfs: P-AILMIN ino=%llu type=0x%x intent=%d lsn=0x%llx liflags=0x%lx\n",
 			(unsigned long long)ino, lip->li_type,
+			xlog_item_is_intent(lip) ? 1 : 0,
 			(unsigned long long)lip->li_lsn, lip->li_flags);
 	}
 	spin_unlock(&ailp->ail_lock);
+}
+
+/*
+ * sess390 (D-474 convoy-aware fence): classify a FROZEN AIL min.  Returns
+ * true when the freeze is attributable to a LOCAL task blocked in the per-AG
+ * CAW acquire — i.e. the item cannot land until that bounded wait ends, so
+ * the fence must keep waiting rather than shut the node down:
+ *   EFI        -> an extent's AG has agwait_inflight > 0 (exact: the EFD
+ *                 commits when xfs_extent_free_finish_item gets that AGF);
+ *   BUF/INODE  -> some local blocking AG wait is in flight (the owner that
+ *                 holds the buffer/ILOCK across the wait cannot be named
+ *                 cheaply; the fence's 45-try hard wall still bounds it).
+ * *agno_out names the attributed AG (NULLAGNUMBER when none), *wait_ms the
+ * age of that AG's oldest in-flight wait episode.  Done under ail_lock; no
+ * item pointer escapes it.
+ */
+static int
+mxfs_noino_agwait_inflight(
+	struct xfs_mount	*mp,
+	xfs_agnumber_t		agno)
+{
+	struct xfs_perag	*pag;
+	int			n;
+
+	if (agno == NULLAGNUMBER || agno >= mp->m_sb.sb_agcount)
+		return 0;
+	pag = xfs_perag_get(mp, agno);
+	if (!pag)
+		return 0;
+	n = atomic_read(&pag->pag_mxfs_agwait_inflight);
+	xfs_perag_put(pag);
+	return n;
+}
+
+static xfs_agnumber_t
+mxfs_noino_any_agwait(
+	struct xfs_mount	*mp,
+	u64			*since_ns)
+{
+	xfs_agnumber_t		agno;
+
+	for (agno = 0; agno < mp->m_sb.sb_agcount; agno++) {
+		struct xfs_perag *pag = xfs_perag_get(mp, agno);
+
+		if (!pag)
+			continue;
+		if (atomic_read(&pag->pag_mxfs_agwait_inflight) > 0) {
+			*since_ns = READ_ONCE(pag->pag_mxfs_agwait_since_ns);
+			xfs_perag_put(pag);
+			return agno;
+		}
+		xfs_perag_put(pag);
+	}
+	return NULLAGNUMBER;
+}
+
+static bool
+mxfs_noino_freeze_is_convoy(
+	struct xfs_mount	*mp,
+	xfs_agnumber_t		*agno_out,
+	unsigned int		*item_type_out,
+	u64			*wait_ms_out)
+{
+	struct xfs_ail		*ailp = mp->m_ail;
+	struct xfs_log_item	*lip;
+	xfs_agnumber_t		item_ag = NULLAGNUMBER;
+	xfs_agnumber_t		ags[8];
+	unsigned int		nags = 0, i;
+	unsigned int		type = 0;
+	u64			since = 0;
+	bool			convoy = false;
+
+	*agno_out = NULLAGNUMBER;
+	*item_type_out = 0;
+	*wait_ms_out = 0;
+
+	spin_lock(&ailp->ail_lock);
+	lip = xfs_ail_min(ailp);
+	if (lip) {
+		type = lip->li_type;
+		if (lip->li_type == XFS_LI_EFI) {
+			struct xfs_efi_log_item *efip =
+				container_of(lip, struct xfs_efi_log_item,
+					     efi_item);
+			unsigned int nx = efip->efi_format.efi_nextents;
+
+			for (i = 0; i < nx && nags < ARRAY_SIZE(ags); i++)
+				ags[nags++] = XFS_FSB_TO_AGNO(mp,
+					efip->efi_format.efi_extents[i].ext_start);
+		} else if (lip->li_type == XFS_LI_BUF) {
+			struct xfs_buf_log_item *bip =
+				container_of(lip, struct xfs_buf_log_item,
+					     bli_item);
+			item_ag = xfs_daddr_to_agno(mp,
+					bip->bli_buf->b_maps[0].bm_bn);
+		} else if (lip->li_type == XFS_LI_INODE) {
+			struct xfs_inode_log_item *iip =
+				container_of(lip, struct xfs_inode_log_item,
+					     ili_item);
+			if (iip->ili_inode)
+				item_ag = XFS_INO_TO_AGNO(mp,
+						iip->ili_inode->i_ino);
+		}
+	}
+	spin_unlock(&ailp->ail_lock);
+	*item_type_out = type;
+	if (!lip)
+		return false;
+
+	if (type == XFS_LI_EFI) {
+		for (i = 0; i < nags; i++) {
+			struct xfs_perag *pag;
+
+			if (ags[i] >= mp->m_sb.sb_agcount)
+				continue;
+			pag = xfs_perag_get(mp, ags[i]);
+			if (!pag)
+				continue;
+			if (atomic_read(&pag->pag_mxfs_agwait_inflight) > 0) {
+				since = READ_ONCE(pag->pag_mxfs_agwait_since_ns);
+				*agno_out = ags[i];
+				convoy = true;
+			}
+			xfs_perag_put(pag);
+			if (convoy)
+				break;
+		}
+	} else {
+		xfs_agnumber_t wag = mxfs_noino_any_agwait(mp, &since);
+
+		if (wag != NULLAGNUMBER) {
+			*agno_out = wag;
+			convoy = true;
+		} else {
+			*agno_out = item_ag;
+		}
+	}
+	if (convoy && since)
+		*wait_ms_out = (ktime_get_ns() - since) / 1000000;
+	return convoy;
 }
 
 /*
@@ -19118,7 +21581,12 @@ mxfs_noino_drain_fence(
 {
 	xfs_lsn_t		last_min = 0;
 	int			stall = 0;
+	int			convoy_stalls = 0;
+	xfs_agnumber_t		cv_ag = NULLAGNUMBER;
+	unsigned int		cv_type = 0;
+	u64			cv_wait_ms = 0;
 	int			try;
+	bool			armed_here = false;
 
 	for (try = 0; try < MXFS_NOINO_MAX_TRIES; try++) {
 		xfs_lsn_t target = 0;
@@ -19137,6 +21605,8 @@ mxfs_noino_drain_fence(
 			 * unlock hands the platter to a FUA reader. */
 			if (landed > 0)
 				mxfs_release_coalesced_flush(mp);
+			if (armed_here)
+				mxfs_ailstuck_probe_fence_disarm();
 			return true;
 		}
 		if (xfs_ail_push_upto_sync_bounded(mp->m_ail, 2000,
@@ -19153,6 +21623,8 @@ mxfs_noino_drain_fence(
 				       &mp->m_mxfs_noino_drained_lsn,
 				       &old, (s64)target))
 				;
+			if (armed_here)
+				mxfs_ailstuck_probe_fence_disarm();
 			return true;
 		}
 		if (xfs_is_shutdown(mp))
@@ -19161,6 +21633,35 @@ mxfs_noino_drain_fence(
 		if (min_now != last_min) {
 			stall = 0;
 			last_min = min_now;
+			/* freeze broke: disarm now so a later new freeze in
+			 * this same fence re-arms with a fresh odumps budget */
+			if (armed_here) {
+				mxfs_ailstuck_probe_fence_disarm();
+				armed_here = false;
+			}
+		} else if (mxfs_noino_freeze_is_convoy(mp, &cv_ag, &cv_type,
+						       &cv_wait_ms)) {
+			/*
+			 * sess390 (D-474, RULE-5 ruling sess390): the frozen
+			 * min is attributable to a LOCAL task blocked in the
+			 * bounded per-AG CAW acquire (measured at 25 AGs: an
+			 * EFI whose EFD needs the shared AG a peer held 13 s;
+			 * every fence on the node froze on it and the 8-stall
+			 * budget shut the node down).  A convoy is not a
+			 * wedge: do not charge the stall budget.  The
+			 * MXFS_NOINO_MAX_TRIES hard wall still bounds the
+			 * whole fence, so an unrelated or never-ending wait
+			 * cannot suppress a real freeze forever.
+			 */
+			convoy_stalls++;
+			if (convoy_stalls == 1 || (convoy_stalls % 4) == 0)
+				pr_warn("mxfs: P-NOINO-CONVOY ino=%llu try=%d min=0x%llx item=0x%x ag=%u agwait_ms=%llu frozen=%d chargeable=%d — AIL min frozen behind a local blocking AG wait; not charged as a wedge\n",
+					(unsigned long long)ino, try,
+					(unsigned long long)min_now, cv_type,
+					cv_ag, (unsigned long long)cv_wait_ms,
+					convoy_stalls, stall);
+			if (convoy_stalls == 2)
+				mxfs_noino_dump_ail_min(mp, ino);
 		} else {
 			stall++;
 			/* Frozen min: name the item (proof), then land the
@@ -19168,24 +21669,44 @@ mxfs_noino_drain_fence(
 			 * FLUSHING dead-end class xfsaild cannot write).
 			 * Only wedge if the min stays frozen even after the
 			 * repair had two further pushes to show effect. */
-			if (stall == 2)
+			if (stall == 2) {
+				/* incident474: the fence wedged and shut the
+				 * node down without ever arming the AIL-stuck
+				 * probes (they self-latch only after 30s inside
+				 * xfs_ail_push_all_sync, a path this fence never
+				 * takes).  Latch them here so the remaining
+				 * bounded pushes name WHY the frozen item's
+				 * cluster flush is skipped (P129-CLSKIP incl.
+				 * ILOCK owner) instead of dying silent.
+				 * Fence-scoped: a recovered fence disarms on
+				 * its success return (sess212 — the benign
+				 * LISTDRAIN-repairable class was permanently
+				 * latching the fleet); DRAIN-STUCK/shutdown
+				 * exits keep the latch for the post-mortem. */
+				if (!armed_here) {
+					mxfs_ailstuck_probe_fence_arm();
+					armed_here = true;
+				}
 				mxfs_noino_dump_ail_min(mp, ino);
+			}
 			if (stall == 3)
 				mxfs_noino_drain_mxfs_buflists(mp, ino);
 			if (stall >= MXFS_NOINO_STALL_TRIES) {
-				pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu try=%d — AIL min frozen at 0x%llx across %d bounded pushes (post-listdrain)\n",
+				pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu try=%d — AIL min frozen at 0x%llx across %d bounded pushes (post-listdrain) convoy_stalls=%d\n",
 					(unsigned long long)ino, try,
-					(unsigned long long)min_now, stall);
+					(unsigned long long)min_now, stall,
+					convoy_stalls);
 				return false;
 			}
 		}
 		if ((try % 5) == 4)
-			pr_warn("mxfs: P-NOINO-DRAIN-RETRY ino=%llu try=%d min=0x%llx stall=%d — pre-release AIL target not yet landed\n",
+			pr_warn("mxfs: P-NOINO-DRAIN-RETRY ino=%llu try=%d min=0x%llx stall=%d convoy=%d — pre-release AIL target not yet landed\n",
 				(unsigned long long)ino, try,
-				(unsigned long long)min_now, stall);
+				(unsigned long long)min_now, stall, convoy_stalls);
 	}
-	pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu — hard cap %d tries exceeded (AIL advancing but never caught the snapshot target)\n",
-		(unsigned long long)ino, MXFS_NOINO_MAX_TRIES);
+	pr_warn("mxfs: P-NOINO-DRAIN-STUCK ino=%llu — hard cap %d tries exceeded (AIL advancing or convoy-frozen but never caught the snapshot target) convoy_stalls=%d last_ag=%u agwait_ms=%llu\n",
+		(unsigned long long)ino, MXFS_NOINO_MAX_TRIES, convoy_stalls,
+		cv_ag, (unsigned long long)cv_wait_ms);
 	return false;
 }
 
@@ -19299,13 +21820,167 @@ mxfs_dlm_noino_bast_work_fn(
  *
  * data = struct xfs_mount *
  */
+/*
+ * sess390 (ccloop c7ee71c6, RULE-5 ruling item 1): the no-inode BAST path
+ * must not treat a LOCALLY ACTIVE lifecycle state as "no inode".
+ * xfs_iget(XFS_IGET_INCORE) returns -EAGAIN for INEW / IRECLAIM /
+ * INACTIVATING / VFS teardown and -ENOENT for NEED_INACTIVE nlink==0; only
+ * IRECLAIMABLE (also -EAGAIN) and a radix miss (-ENODATA) mean no local owner.
+ * Today every one of those takes the whole-AIL noino fence and can release
+ * the inode's on-disk grant while this node's own inactivation of that inode
+ * is still committing (between the truncate's last EFD and xfs_inactive_ifree
+ * at the latest).  With noino_lifecycle_requeue=1 a BAST that finds such a
+ * state is RE-QUEUED (delayed work, 20 ms, bounded by
+ * noino_lifecycle_max_ms) until the inode is LIVE (normal in-core BAST
+ * handling), RECLAIMABLE or ABSENT (noino fence).  The grant stays held
+ * meanwhile; the peer keeps waiting on its own bounded timeouts.  Probe
+ * P-NOINO-LIFECYCLE names the class either way (knob 0 = measure only).
+ */
+/* sess390 A/B at 25 AGs: probe-only laps 1-2 = 0 INACTIVATING/NEED_INACTIVE, 5-8
+ * IRECLAIM, 7091 RECLAIMABLE; requeue=1 lap 3 clean (1 INEW->LIVE in 20 ms).
+ * Ship default 1 (RULE-5 sess390 ruling item 1). */
+int mxfs_noino_lifecycle_requeue = 1;
+module_param_named(noino_lifecycle_requeue, mxfs_noino_lifecycle_requeue, int, 0644);
+MODULE_PARM_DESC(noino_lifecycle_requeue,
+	"no-inode BAST on an INEW/IRECLAIM/INACTIVATING/NEED_INACTIVE inode: 0=fence as before (probe only), 1=requeue until the local lifecycle op completes (default 1)");
+int mxfs_noino_lifecycle_max_ms = 60000;
+module_param_named(noino_lifecycle_max_ms, mxfs_noino_lifecycle_max_ms, int, 0644);
+MODULE_PARM_DESC(noino_lifecycle_max_ms,
+	"bound on how long a no-inode BAST is requeued behind a local lifecycle op before it falls through to the fence (default 60000)");
+static atomic64_t mxfs_noino_lifecycle_stat[XFS_ILC_NR];
+static atomic64_t mxfs_noino_lifecycle_requeued = ATOMIC64_INIT(0);
+static atomic64_t mxfs_noino_lifecycle_timeouts = ATOMIC64_INIT(0);
+
+struct mxfs_noino_lc_work {
+	struct delayed_work	dw;
+	struct xfs_mount	*mp;
+	uint64_t		ino;
+	uint8_t			mode;
+	u64			first_ns;
+	unsigned int		n;
+	struct hlist_node	hnode;
+};
+static DEFINE_HASHTABLE(mxfs_noino_lc_ht, 6);
+static DEFINE_SPINLOCK(mxfs_noino_lc_lock);
+
+static void __mxfs_dlm_bast_notify(struct xfs_mount *mp, uint64_t ino,
+				   uint8_t requested_mode, bool allow_requeue);
+
+static void
+mxfs_noino_lc_work_fn(
+	struct work_struct	*work)
+{
+	struct mxfs_noino_lc_work *w =
+		container_of(to_delayed_work(work), struct mxfs_noino_lc_work, dw);
+	struct xfs_mount	*mp = w->mp;
+	uint64_t		ino = w->ino;
+	uint8_t			mode = w->mode;
+	unsigned long		fl, st;
+	unsigned int		nl;
+	enum xfs_ino_lifecycle	lc;
+	u64			age_ms;
+	unsigned long		flags;
+	bool			requeue;
+
+	lc = xfs_icache_ino_lifecycle(mp, ino, &fl, &nl, &st);
+	age_ms = (ktime_get_ns() - w->first_ns) / 1000000;
+	requeue = mxfs_noino_lifecycle_requeue &&
+		  (lc == XFS_ILC_INEW || lc == XFS_ILC_IRECLAIM ||
+		   lc == XFS_ILC_INACTIVATING || lc == XFS_ILC_NEED_INACTIVE ||
+		   lc == XFS_ILC_VFS_TEARDOWN) &&
+		  age_ms < (u64)mxfs_noino_lifecycle_max_ms &&
+		  !xfs_is_shutdown(mp);
+	if (requeue) {
+		w->n++;
+		if (lc == XFS_ILC_NEED_INACTIVE)
+			xfs_inodegc_push(mp);
+		queue_delayed_work(mp->m_mxfs_inode_bast_wq, &w->dw,
+				   msecs_to_jiffies(20));
+		return;
+	}
+	spin_lock_irqsave(&mxfs_noino_lc_lock, flags);
+	hash_del(&w->hnode);
+	spin_unlock_irqrestore(&mxfs_noino_lc_lock, flags);
+	if (age_ms >= (u64)mxfs_noino_lifecycle_max_ms) {
+		atomic64_inc(&mxfs_noino_lifecycle_timeouts);
+		pr_warn("mxfs: P-NOINO-LIFECYCLE-TIMEOUT ino=%llu class=%s iflags=0x%lx nlink=%u age_ms=%llu requeues=%u — local lifecycle op still running; falling through to the fence\n",
+			(unsigned long long)ino, xfs_ino_lifecycle_name(lc), fl,
+			nl, (unsigned long long)age_ms, w->n);
+	} else {
+		static atomic_t p_lcdone_n = ATOMIC_INIT(0);
+
+		if ((unsigned)atomic_inc_return(&p_lcdone_n) <= 64)
+			pr_warn("mxfs: P-NOINO-LIFECYCLE-DONE ino=%llu class=%s age_ms=%llu requeues=%u — lifecycle op finished; re-driving the BAST\n",
+				(unsigned long long)ino,
+				xfs_ino_lifecycle_name(lc),
+				(unsigned long long)age_ms, w->n);
+	}
+	/* re-drive; a fresh transient state may requeue again (new bound),
+	 * a timed-out one must not. */
+	__mxfs_dlm_bast_notify(mp, ino, mode,
+			       age_ms < (u64)mxfs_noino_lifecycle_max_ms);
+	kfree(w);
+}
+
+/* Returns true when the BAST was parked behind the lifecycle op (caller must
+ * return without fencing); false when the caller should proceed as before. */
+static bool
+mxfs_noino_lifecycle_park(
+	struct xfs_mount	*mp,
+	uint64_t		ino,
+	uint8_t			requested_mode,
+	enum xfs_ino_lifecycle	lc)
+{
+	struct mxfs_noino_lc_work *w, *e;
+	unsigned long		flags;
+
+	if (!mp->m_mxfs_inode_bast_wq)
+		return false;
+	w = kzalloc(sizeof(*w), GFP_ATOMIC);
+	if (!w)
+		return false;
+	w->mp = mp;
+	w->ino = ino;
+	w->mode = requested_mode;
+	w->first_ns = ktime_get_ns();
+	INIT_DELAYED_WORK(&w->dw, mxfs_noino_lc_work_fn);
+	spin_lock_irqsave(&mxfs_noino_lc_lock, flags);
+	hash_for_each_possible(mxfs_noino_lc_ht, e, hnode, ino) {
+		if (e->mp == mp && e->ino == ino) {
+			/* already parked: drop this duplicate BAST (the peer
+			 * re-BASTs while our bit stays set; the parked work
+			 * re-drives when the lifecycle op finishes). */
+			spin_unlock_irqrestore(&mxfs_noino_lc_lock, flags);
+			kfree(w);
+			return true;
+		}
+	}
+	hash_add(mxfs_noino_lc_ht, &w->hnode, ino);
+	spin_unlock_irqrestore(&mxfs_noino_lc_lock, flags);
+	atomic64_inc(&mxfs_noino_lifecycle_requeued);
+	if (lc == XFS_ILC_NEED_INACTIVE)
+		xfs_inodegc_push(mp);
+	queue_delayed_work(mp->m_mxfs_inode_bast_wq, &w->dw,
+			   msecs_to_jiffies(20));
+	return true;
+}
+
 void
 mxfs_dlm_bast_notify(
 	void		*data,
 	uint64_t	ino,
 	uint8_t		requested_mode)
 {
-	struct xfs_mount	*mp = data;
+	__mxfs_dlm_bast_notify(data, ino, requested_mode, true);
+}
+
+static void
+__mxfs_dlm_bast_notify(
+	struct xfs_mount	*mp,
+	uint64_t		ino,
+	uint8_t			requested_mode,
+	bool			allow_requeue)
+{
 	struct xfs_inode	*ip;
 	int			error;
 	uint32_t		noino_rel_gen;
@@ -19325,6 +22000,40 @@ mxfs_dlm_bast_notify(
 	/* Look up the inode in XFS's existing radix tree cache */
 	error = xfs_iget(mp, NULL, ino, XFS_IGET_INCORE, 0, &ip);
 	if (error || !ip) {
+		/*
+		 * sess390 lifecycle classification (see the block comment at
+		 * mxfs_noino_lifecycle_requeue): -ENODATA is a radix miss;
+		 * anything else is an IN-CORE inode in a transient state.
+		 */
+		if (error && error != -ENODATA) {
+			unsigned long lfl = 0, lst = 0;
+			unsigned int lnl = 0;
+			enum xfs_ino_lifecycle lc =
+				xfs_icache_ino_lifecycle(mp, ino, &lfl, &lnl,
+							 &lst);
+			bool active = (lc == XFS_ILC_INEW ||
+				       lc == XFS_ILC_IRECLAIM ||
+				       lc == XFS_ILC_INACTIVATING ||
+				       lc == XFS_ILC_NEED_INACTIVE ||
+				       lc == XFS_ILC_VFS_TEARDOWN);
+			static atomic_t p_lc_n = ATOMIC_INIT(0);
+
+			if (lc < XFS_ILC_NR)
+				atomic64_inc(&mxfs_noino_lifecycle_stat[lc]);
+			if (active &&
+			    (unsigned)atomic_inc_return(&p_lc_n) <= 96)
+				pr_warn("mxfs: P-NOINO-LIFECYCLE ino=%llu err=%d class=%s iflags=0x%lx istate=0x%lx nlink=%u req=%u requeue=%d — BAST for an inode whose LOCAL lifecycle op is still running\n",
+					(unsigned long long)ino, error,
+					xfs_ino_lifecycle_name(lc), lfl, lst,
+					lnl, requested_mode,
+					(mxfs_noino_lifecycle_requeue &&
+					 allow_requeue) ? 1 : 0);
+			if (active && mxfs_noino_lifecycle_requeue &&
+			    allow_requeue &&
+			    mxfs_noino_lifecycle_park(mp, ino, requested_mode,
+						      lc))
+				return;
+		}
 		/*
 		 * Inode not in cache — it was evicted but the DLM lock
 		 * wasn't released (race). Release the orphan lock now.
@@ -20903,6 +23612,7 @@ mxfs_dlm_reload_inode(
 	u64			rl_tpre = 0;	/* at the dinode buffer read */
 	u64			rl_tbp = 0;	/* after the dinode buffer read */
 	bool			reload_identical = false; /* sess8 (ccloop 12e0d157): on-disk dinode provably identical to in-core — skip the destructive fork adopt (the 32-node dir EX-loop igniter); see the gate above the fork destroy */
+	bool			reload_kept_ahead = false; /* sess389 (RULE-5 ruling F3): reload_identical was set because the IN-CORE IS AHEAD of the platter (P3-REFUSE-OLDER-DISK / P34F dirty-data keep / P184 obligation keep) — nothing of ours landed, so the publication ledger must NOT be discharged at the end of this reload (measured: P177 identical=1 pend=1 dur=0 "closed" a laundered unlink conversion; the AGI list then named a LINKED home dinode forever). */
 	unsigned long		r_entry_epoch = 0;	/* c7ee71c6 sess3: TOCTOU guard vs a racing release drain */
 
 	/*
@@ -21229,8 +23939,18 @@ mxfs_dlm_reload_inode(
 	 * destructively free the PEER's live blocks (bnobt double-free → FS
 	 * shutdown).  A legit local unlink->inactivation holds the inode and
 	 * does not take the DLM reload path, so clearing here is safe.
+	 *
+	 * sess389 (RULE-5 ruling F4): the premise above is no longer true —
+	 * the sess382 reldefer worker DOES reload this node's own live unlink
+	 * (P382-RELDEFER-RELOAD), and the reload may then KEEP the in-core
+	 * (reload_identical / kept-ahead: no adopt at all).  Clearing here
+	 * stripped the rightful freer's authority, xfs_inactive's B3 guard
+	 * skipped the ifree as "torn-live-no-local-unlink", and the inode's AGI
+	 * unlinked-list entry was never removed (measured test10/test7).  The
+	 * clear now runs at the adopt itself (the `else` after from_disk,
+	 * only when !reload_identical), which is exactly the "about to adopt
+	 * the peer's incarnation" moment this comment describes.
 	 */
-	xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK | MXFS_IF_ADOPTED_UNLINK);
 
 	/*
 	 * sess5(a9a03929) run78 ROOT FIX (RULE 4, test4 r3 @76.239): a reload
@@ -23964,6 +26684,9 @@ mxfs_dlm_reload_inode(
 	    be32_to_cpu(dip->di_gen) == VFS_I(ip)->i_generation &&
 	    be64_to_cpu(dip->di_changecount) ==
 			inode_peek_iversion(VFS_I(ip)) &&
+	    /* sess389 (RULE-5 ruling F3): "identical" discharges the ledger,
+	     * so it must also prove the field the unlink obligation is about. */
+	    be32_to_cpu(dip->di_nlink) == VFS_I(ip)->i_nlink &&
 	    dip->di_format == ip->i_df.if_format &&
 	    be64_to_cpu(dip->di_size) == (uint64_t)ip->i_disk_size &&
 	    ((be64_to_cpu(dip->di_flags2) & XFS_DIFLAG2_NREXT64) ?
@@ -24055,6 +26778,7 @@ mxfs_dlm_reload_inode(
 		static atomic_t p3tt = ATOMIC_INIT(0);
 
 		reload_identical = true;
+		reload_kept_ahead = true;	/* sess389: in-core AHEAD, nothing landed */
 		/*
 		 * ccloop c7ee71c6 sess20 — DECIDE WHETHER THIS REFUSAL IS THE LOSS.
 		 *
@@ -24132,6 +26856,7 @@ mxfs_dlm_reload_inode(
 
 		if (dd_dirty) {
 			reload_identical = true;
+			reload_kept_ahead = true;	/* sess389: platter behind us */
 			pr_warn_ratelimited(
 				"mxfs: P34F-RELOAD-DIRTYDATA-SKIP ino=%llu delayed_blks=%llu vfs_size=%lld disk_size=%lld incore_nx=%llu disk_nx=%u dlm_mode=%u comm=%s — un-destaged local file data; keeping in-core fork (platter is behind us)\n",
 				(unsigned long long)ip->i_ino,
@@ -24235,6 +26960,7 @@ mxfs_dlm_reload_inode(
 		static atomic_t p184n = ATOMIC_INIT(0);
 
 		reload_identical = true;
+		reload_kept_ahead = true;	/* sess389: obligation kept open */
 		ip->i_dlm_stale = true; ip->i_dlm_stale_src = 26;
 		/* sess20: same question as P3-SFSETS — a "keep our fork" verdict
 		 * is only safe if the platter has nothing we lack.  Print both
@@ -24524,6 +27250,71 @@ mxfs_dlm_reload_inode(
 		 * make every later release drain re-log the adopted image
 		 * forever).
 		 */
+		/*
+		 * sess389 (RULE-5 ruling F3/F4).  Three distinct outcomes share
+		 * this branch and only ONE of them may touch the ledger:
+		 *
+		 *  (a) reload_kept_ahead — the in-core was KEPT because it is
+		 *      AHEAD of the platter (P3-REFUSE-OLDER-DISK / P34F / P184).
+		 *      Nothing of ours landed; discharging here is laundering
+		 *      (measured: P177 identical=1 pend=1 dur=0 closed a P119-
+		 *      laundered unlink conversion, the AGI list then named a
+		 *      LINKED dinode forever).  Leave the obligation OPEN — the
+		 *      reldefer worker's converter (P245, now with the re-log
+		 *      repair) and xfsaild's PR-held PUBOB flush (P55B) are its
+		 *      writers; D-380's bounded episode still applies.
+		 *  (b) reload_identical by PROOF (disk == in-core incl. changecount,
+		 *      P-RELOAD-IDENTICAL) — the platter already carries every
+		 *      committed change; discharge is honest.
+		 *  (c) a REAL adopt (from_disk ran) — the in-core was replaced by
+		 *      the platter image; by construction nothing in core is
+		 *      unlanded.  Discharge (P177 says so loudly if it was open).
+		 *      If the adopted image is a DIFFERENT INCARNATION (di_gen
+		 *      moved / slot freed / type flipped) an armed PUBOB belongs to
+		 *      the dead incarnation: its home conversion was superseded by
+		 *      whoever freed+reused the number — cancel it (drop the flag
+		 *      and list entry, "superseded"), never call it durable.
+		 *      A real adopt is also the ONLY case that may strip this
+		 *      node's freer authority (MXFS_IF_LOCAL_UNLINK /
+		 *      ADOPTED_UNLINK): the sess19 clear used to run
+		 *      unconditionally at reload ENTRY, so the sess382 reldefer
+		 *      reload of our OWN live unlink (no adopt) stripped the flag
+		 *      and xfs_inactive's B3 guard then skipped the ifree as
+		 *      "torn-live-no-local-unlink" — the inode was never freed and
+		 *      its AGI entry never removed (measured, INACT-SKIP-STALE).
+		 */
+		if (reload_kept_ahead) {
+			if (ip->i_mxfs_pub_pending_seq !=
+			    ip->i_mxfs_pub_durable_seq)
+				pr_warn_ratelimited(
+				    "mxfs: P177-KEPT-AHEAD-OBLIGATION-OPEN ino=%llu pending=%llu durable=%llu flush=%llu mode=0%o nlink=%u pubob=%d — in-core ahead of platter, reload kept it; ledger NOT discharged\n",
+					(unsigned long long)ip->i_ino,
+					(unsigned long long)ip->i_mxfs_pub_pending_seq,
+					(unsigned long long)ip->i_mxfs_pub_durable_seq,
+					(unsigned long long)ip->i_mxfs_pub_flush_seq,
+					VFS_I(ip)->i_mode, VFS_I(ip)->i_nlink,
+					xfs_iflags_test(ip, MXFS_IF_PUBOB) ? 1 : 0);
+		} else {
+		if (!reload_identical) {
+			bool new_incarn = dip &&
+				(be32_to_cpu(dip->di_gen) != p68_old_incarn ||
+				 be16_to_cpu(dip->di_mode) == 0 ||
+				 (be16_to_cpu(dip->di_mode) & S_IFMT) != old_ifmt);
+
+			xfs_iflags_clear(ip, MXFS_IF_LOCAL_UNLINK |
+					     MXFS_IF_ADOPTED_UNLINK);
+			if (new_incarn && xfs_iflags_test(ip, MXFS_IF_PUBOB)) {
+				extern void mxfs_pubob_discharge(struct xfs_mount *,
+								 struct xfs_inode *,
+								 const char *);
+				pr_warn_ratelimited(
+				    "mxfs: P177-PUBOB-SUPERSEDED ino=%llu old_gen=%u disk_gen=%u disk_mode=0%o — obligation belonged to a dead incarnation; cancelled (not durable)\n",
+					(unsigned long long)ip->i_ino,
+					p68_old_incarn, be32_to_cpu(dip->di_gen),
+					be16_to_cpu(dip->di_mode));
+				mxfs_pubob_discharge(mp, ip, "superseded");
+			}
+		}
 		if (ip->i_mxfs_pub_pending_seq != ip->i_mxfs_pub_durable_seq) {
 			pr_warn_ratelimited(
 			    "mxfs: P177-OBLIGATION-DROPPED-AT-ADOPT ino=%llu pending=%llu durable=%llu flush=%llu mode=0%o identical=%d — reload adopted the platter over an UNLANDED committed change\n",
@@ -24534,8 +27325,17 @@ mxfs_dlm_reload_inode(
 				VFS_I(ip)->i_mode,
 				reload_identical ? 1 : 0);
 		}
+		/* sess257 F3: adopt discharges the ledger, so it must stamp
+		 * like a discharge (stamp first, wmb, durable second).  The
+		 * adopted image came FROM the platter, but stamping the
+		 * CURRENT epoch is the conservative direction: the ticket
+		 * check then demands a flush after this adopt, never before. */
+		WRITE_ONCE(ip->i_mxfs_pub_durable_fepoch,
+			   (uint64_t)atomic64_read(&mp->m_mxfs_flush_epoch));
+		smp_wmb();
 		ip->i_mxfs_pub_durable_seq = ip->i_mxfs_pub_pending_seq;
 		ip->i_mxfs_pub_flush_seq = ip->i_mxfs_pub_pending_seq;
+		}
 		/* <ccloop sess49> tripwire: xfs_inode_from_disk must produce only
 		 * REAL extents (disk never stores delalloc).  If a delalloc extent
 		 * is present right after adopting disk, the in-core fork was
@@ -26284,7 +29084,7 @@ mxfs_dlm_yield_basted_cached_ags(
 			xfs_perag_put(scan);
 			continue;
 		}
-		mutex_lock(&scan->pag_dlm_lock);
+		mxfs_pag_dlm_lock(scan, __LINE__);
 		eligible = scan->pag_dlm_cached &&
 			   scan->pag_dlm_bast_pending &&
 			   scan->pag_dlm_holders == 0 &&
@@ -26306,7 +29106,7 @@ mxfs_dlm_yield_basted_cached_ags(
 				scan->pag_dlm_holders,
 				scan->pag_dlm_demoting ? 1 : 0,
 				scan->pag_dlm_release_pending ? 1 : 0);
-		mutex_unlock(&scan->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(scan, __LINE__);
 		if (eligible) {
 			/* sess14 (ccloop c7ee71c6) D1 ROOT FIX: NEVER wait for
 			 * an in-flight bast_work_fn here.  The caller can hold
@@ -26329,14 +29129,14 @@ mxfs_dlm_yield_basted_cached_ags(
 				xfs_perag_put(scan);
 				continue;
 			}
-			mutex_lock(&scan->pag_dlm_lock);
+			mxfs_pag_dlm_lock(scan, __LINE__);
 			eligible = scan->pag_dlm_cached &&
 				   scan->pag_dlm_bast_pending &&
 				   scan->pag_dlm_holders == 0 &&
 				   !scan->pag_dlm_demoting;
 			if (eligible)
 				scan->pag_dlm_bast_scheduled = true;
-			mutex_unlock(&scan->pag_dlm_lock);
+			mxfs_pag_dlm_unlock(scan, __LINE__);
 		}
 		if (eligible) {
 			mxfs_idbg("mxfs: P13-INODE-YIELD-AG draining cached-basted ag=%u to break inode<->AG deadlock\n",
@@ -26672,6 +29472,8 @@ mxfs_dlm_ilock_begin(
 {
 	struct mxfs_v5_dlm	*dlm;
 	int			relock_laps = 0;
+	int			recov_laps = 0;		/* sess214 b3: recovery-context requeues */
+	int			park_laps = 0;		/* sess325 D-513: parked on pending recovery */
 	int			phantom_laps = 0;	/* v0.6.5: P106 phantom-EX bail retries */
 	bool			slowpath_publish = false; /* sess28: this acquire IS the publish (creator baseline site 4) */
 	/* sess99 step 5.3(d): i_mxfs_auth_gen as it stood BEFORE this acquire
@@ -26714,6 +29516,37 @@ restart:
 		pr_warn_ratelimited(
 		    "mxfs: P-SHUTDOWN-FENCE ino=%llu mode=%u — FS shut down; refusing DLM acquire\n",
 			(unsigned long long)ip->i_ino, mode);
+		return;
+	}
+
+	/* sess315 (sess312 ruling item 2): explicit WEDGED admission gate.
+	 * The mount-shutdown fence above is NOT sufficient — the wedge→
+	 * shutdown transition has a visibility window, and a teardown wedge
+	 * never shuts down at all.  Terminal: the release on this inode is
+	 * unprovable, its grant is pinned, and no new acquire may be built
+	 * on it; the op dies at the trans/buffer layer like any shutdown. */
+	if (mxfs_release_proof_enforce &&
+	    READ_ONCE(ip->i_mxfs_rel_state) == MXFS_RELSTATE_WEDGED) {
+		pr_warn_ratelimited(
+		    "mxfs: P-INODE-WEDGE-FENCE ino=%llu mode=%u — release wedged; refusing DLM acquire\n",
+			(unsigned long long)ip->i_ino, mode);
+		return;
+	}
+
+	/*
+	 * sess325 (D-513 enforcement point c): inode in a quarantined victim
+	 * domain — refuse the acquire and poison the inode so the op fails
+	 * deterministically with EIO at the central incarnation gate (plus
+	 * the P95 NL fail-closed check) instead of waiting out a frozen
+	 * grant.  Inside the restart loop deliberately: a task parked on the
+	 * timeout classifier's quarantine-pending branch re-checks here
+	 * every lap and self-releases the moment the import lands.
+	 */
+	if (unlikely(mxfs_quarantine_covers_ino(ip->i_mount, ip->i_ino))) {
+		xfs_iflags_set(ip, MXFS_IF_QUAR_EIO);
+		pr_warn_ratelimited(
+		    "mxfs: P240-QUAR-REFUSE ino=%llu mode=%u comm=%s — inode in quarantined victim domain; refusing DLM acquire\n",
+			(unsigned long long)ip->i_ino, mode, current->comm);
 		return;
 	}
 
@@ -26839,16 +29672,27 @@ restart:
 	     * (lost-slot) condition this verify detects; it is a DOUBLE-GRANT
 	     * (both nodes hold a valid EX concurrently — undetectable from the
 	     * disk heartbeat slot) or a transient read-staleness.  Throttle kept. */
-	    time_after(jiffies, ip->i_dlm_heldchk_j + msecs_to_jiffies(1000)) &&
+	    /* sess379: jittered, so 32 nodes do not sample the same hot slot
+	     * on the same cadence (see the verify governor above). */
+	    mxfs_verify_throttle_elapsed(ip->i_dlm_heldchk_j, 1000) &&
 	    (ip->i_dlm_mode == MXFS_LOCK_EX ||
 	     (ip->i_dlm_mode == MXFS_LOCK_PR && mode == MXFS_LOCK_PR))) {
 		int p108_held;
 		uint8_t p108_raw;
+		bool p108_sampled;
 
 		spin_unlock(&ip->i_dlm_lock);
-		p108_raw = mxfs_v5_dlm_inode_held_rawmode(dlm, ip->i_ino);
+		p108_raw = mxfs_dlm_verify_rawmode(dlm, ip->i_ino,
+						   &p108_sampled);
 		spin_lock(&ip->i_dlm_lock);
-		ip->i_dlm_heldchk_j = jiffies;
+		/*
+		 * sess379: re-arm the throttle only on a REAL sample.  A
+		 * skipped/abandoned probe must not buy the inode another
+		 * second of unverified fast-path serves — the next operation
+		 * retries it as soon as the breaker closes.
+		 */
+		if (p108_sampled)
+			ip->i_dlm_heldchk_j = jiffies;
 		/* sess42 (ccloop 8ddb16a2) PHANTOM-LOCK CHECK FIX: a phantom lock
 		 * is when we hold STRICTLY LESS than the mode we have cached.  The
 		 * old check used mxfs_v5_dlm_inode_held() == 0, i.e. held_mode >= EX,
@@ -26861,8 +29705,11 @@ restart:
 		p108_held = (p108_raw >= ip->i_dlm_mode) ? 1 : 0;
 		/* Re-validate under the lock after the I/O window: only act if
 		 * still idle (no holders raced in) and still claiming a cached
-		 * grant we provably do not hold at the cached mode. */
-		if (p108_held == 0 &&
+		 * grant we provably do not hold at the cached mode.
+		 * sess379: and only on a REAL sample — "the device did not
+		 * answer inside the budget" proves nothing in either
+		 * direction and must never demote a valid grant. */
+		if (p108_sampled && p108_held == 0 &&
 		    ip->i_dlm_pin_count == 0 &&
 		    ip->i_dlm_ex_holders == 0 &&
 		    ip->i_dlm_pr_holders == 0 &&
@@ -26928,11 +29775,24 @@ restart:
 	     (mxfs_dir_ex_verify_caw &&
 	      mxfs_v5_dlm_transport_caw(dlm)))) {
 		int tcpex_held;
+		bool tcpex_sampled;
+		uint8_t tcpex_raw;
 
 		spin_unlock(&ip->i_dlm_lock);
-		tcpex_held = mxfs_v5_dlm_inode_held(dlm, ip->i_ino);
+		/*
+		 * sess379: same bounded governor as the P108 verify above.
+		 * On TCP this is an in-memory mirror walk and the governor is
+		 * a few atomics; on CAW it is the 512B slot read that blocked
+		 * `statx()` for 181 s during the sess379 mass-unmount storm.
+		 * mxfs_v5_dlm_inode_held() is exactly
+		 * (inode_held_rawmode() >= MXFS_LOCK_EX), reproduced here so
+		 * the probe runs under the deadline.
+		 */
+		tcpex_raw = mxfs_dlm_verify_rawmode(dlm, ip->i_ino,
+						    &tcpex_sampled);
+		tcpex_held = (tcpex_raw >= MXFS_LOCK_EX) ? 1 : 0;
 		spin_lock(&ip->i_dlm_lock);
-		if (tcpex_held == 0 &&
+		if (tcpex_sampled && tcpex_held == 0 &&
 		    ip->i_dlm_pin_count == 0 &&
 		    ip->i_dlm_ex_holders == 0 &&
 		    ip->i_dlm_pr_holders == 0 &&
@@ -27047,7 +29907,20 @@ restart:
 					ip->i_dlm_ex_acquire_ns) /
 					NSEC_PER_MSEC));
 		}
-		if (S_ISDIR(VFS_I(ip)->i_mode) &&
+		/* sess315 (sess312 ruling item 1): DEFER-TIME ADMISSION
+		 * CONTAINMENT — while a release-defer episode is open on
+		 * this inode, the fast path must not serve NEW EX
+		 * admissions (any file class): local churn would reopen
+		 * obligations forever and turn the 300s cumulative bound
+		 * into a false wedge.  Fall through to the demote-wait,
+		 * which parks on the episode until it closes or wedges.
+		 * pin_count>0 keeps the fast path (an op mid-flight; the
+		 * BUSY dwork re-arm owns that window, and parking a pinned
+		 * chain risks ABBA on held AG bufs). */
+		if ((mxfs_release_proof_enforce && mode == MXFS_LOCK_EX &&
+		     ip->i_dlm_pin_count == 0 &&
+		     READ_ONCE(ip->i_mxfs_reldefer_started_j) != 0) ||
+		    (S_ISDIR(VFS_I(ip)->i_mode) &&
 		    ip->i_dlm_pin_count == 0 &&
 		    (ip->i_dlm_state != MXFS_DLM_ISTATE_CACHED ||
 		     /* v0.5.4 sess24: the synchronous unpublished-EX backstop
@@ -27115,7 +29988,7 @@ restart:
 		      * AGF is held, so this cannot ABBA-deadlock.
 		      */
 		     (mxfs_dir_ex_divert_on_demote && mode == MXFS_LOCK_EX &&
-		      mxfs_foreign_demoter(ip)))) {
+		      mxfs_foreign_demoter(ip))))) {
 			/* P24-DIRSLOW (sess24 ccloop 14d31183, RULE 4): name the
 			 * GATE REASON for every dir fall-through while the entry
 			 * state is still unmodified (P23 below logs after this
@@ -27404,9 +30277,10 @@ restart:
 				 * the phantom-EX condition persists until acted on, so
 				 * sampled detection is equivalent (same TOCTOU class as
 				 * P108's 1000ms argument above).  TCP keeps every-serve. */
+				/* sess379: jittered throttle (verify governor). */
 				if (!mxfs_v5_dlm_transport_caw(dlm) ||
-				    time_after(jiffies, ip->i_dlm_heldchk_j +
-					       msecs_to_jiffies(100))) {
+				    mxfs_verify_throttle_elapsed(
+					    ip->i_dlm_heldchk_j, 100)) {
 					dir_ex_verify_held = true;
 					ip->i_dlm_heldchk_j = jiffies;
 				}
@@ -27553,8 +30427,22 @@ restart:
 				 * dir_ex_verify_held throttle and do the raw read
 				 * ONCE; p42 + the sess107 enforce below reuse it. */
 				if (dir_ex_verify_held) {
-					s6_raw_snap = mxfs_v5_dlm_inode_held_rawmode(
-						ip->i_mount->m_mxfs_dlm, ip->i_ino);
+					bool s6_sampled;
+
+					/* sess379: bounded under the verify
+					 * governor.  A skipped/abandoned probe
+					 * leaves s6_raw_snap at the fail-open
+					 * EX, so neither the phantom counters
+					 * below nor the sess107 enforce further
+					 * down can act on a non-sample; the
+					 * throttle stamp set above is rolled
+					 * back so the next serve retries. */
+					s6_raw_snap = mxfs_dlm_verify_rawmode(
+						ip->i_mount->m_mxfs_dlm,
+						ip->i_ino, &s6_sampled);
+					if (!s6_sampled)
+						ip->i_dlm_heldchk_j = jiffies -
+							msecs_to_jiffies(1000);
 					atomic64_inc(&mxfs_dirEX_serve_total);
 					if (s6_raw_snap < MXFS_LOCK_EX) {
 						atomic64_inc(&mxfs_dirEX_phantom_total);
@@ -27902,10 +30790,17 @@ restart:
 				/* ccloop 72513a13 sess3: reuse the sess6 snapshot
 				 * (same slot, read moments ago) instead of a second
 				 * on-disk probe-chain walk. */
+				bool held_sampled = true;
 				int held = (s6_raw_snap >= 0)
 					? (s6_raw_snap > MXFS_LOCK_NL ? 1 : 0)
-					: mxfs_v5_dlm_inode_held(dlm, ip->i_ino);
-				if (held == 0) {
+					/* sess379: the snapshot-miss fallback is
+					 * the same synchronous slot read and gets
+					 * the same deadline. */
+					: (mxfs_dlm_verify_rawmode(dlm, ip->i_ino,
+						&held_sampled) > MXFS_LOCK_NL
+						? 1 : 0);
+				/* sess379: only a REAL sample may demote. */
+				if (held_sampled && held == 0) {
 					pr_warn(
 					"mxfs: P106-STALE-EX ino=%llu cached_mode=EX on_disk_held=0 state=%u pin=%d unpub=%d gen=%llu realns=%llu\n",
 						(unsigned long long)ip->i_ino,
@@ -28308,10 +31203,19 @@ restart:
 		}
 	}
 
-	while ((ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING ||
-		ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING ||
-		ip->i_dlm_state == MXFS_DLM_ISTATE_BAST) &&
-	       !mxfs_is_demoter(ip)) {
+	while (((ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING ||
+		 ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING ||
+		 ip->i_dlm_state == MXFS_DLM_ISTATE_BAST) &&
+		!mxfs_is_demoter(ip)) ||
+	       /* sess315 (sess312 ruling item 1): an open release-defer
+		* episode parks NEW EX admissions here until it closes
+		* (successful CAS wakes i_dlm_wait) or wedges (terminal
+		* refuse below).  Demoter/ioend/pinned chains exempt. */
+	       (mxfs_release_proof_enforce && mode == MXFS_LOCK_EX &&
+		ip->i_mxfs_reldefer_started_j &&
+		ip->i_dlm_pin_count == 0 &&
+		READ_ONCE(ip->i_mxfs_rel_state) != MXFS_RELSTATE_WEDGED &&
+		!mxfs_is_demoter(ip))) {
 		spin_unlock(&ip->i_dlm_lock);
 		/* sess4(a9a03929) P73: run68's awk sat here 180s+ invisibly
 		 * (hung-task warns only, no mxfs state).  Same wait, but
@@ -28343,7 +31247,14 @@ restart:
 		if (wait_event_timeout(ip->i_dlm_wait,
 			   ip->i_dlm_state != MXFS_DLM_ISTATE_DEMOTING &&
 			   ip->i_dlm_state != MXFS_DLM_ISTATE_ACQUIRING &&
-			   ip->i_dlm_state != MXFS_DLM_ISTATE_BAST,
+			   ip->i_dlm_state != MXFS_DLM_ISTATE_BAST &&
+			   /* sess315: keep sleeping while the episode is
+			    * open (close and wedge both wake this queue) */
+			   !(mxfs_release_proof_enforce &&
+			     mode == MXFS_LOCK_EX &&
+			     READ_ONCE(ip->i_mxfs_reldefer_started_j) &&
+			     READ_ONCE(ip->i_mxfs_rel_state) !=
+				MXFS_RELSTATE_WEDGED),
 			   3 * HZ) == 0) {
 			static atomic_t p73_n = ATOMIC_INIT(0);
 			if ((++p73_waits % 10) == 0 &&
@@ -28370,7 +31281,7 @@ restart:
 				 * Without these three the next occurrence is
 				 * another session of inference.
 				 */
-				pr_warn("mxfs: P73-WAITSTALL ino=%llu req=%u mode=%u state=%u ex=%u pr=%u pin=%u bast_pend=%d work_busy=%d dwork_pend=%d relflush=%d demoter_pid=%d demoter_comm=%s demoter_line=%d demoter_age_ms=%llu me=%d comm=%s\n",
+				pr_warn("mxfs: P73-WAITSTALL ino=%llu req=%u mode=%u state=%u ex=%u pr=%u pin=%u bast_pend=%d work_busy=%d dwork_pend=%d relflush=%d demoter_pid=%d demoter_comm=%s demoter_line=%d demoter_age_ms=%llu acq_inflight=%u acq_pid=%d acq_comm=%s acq_age_ms=%llu me=%d comm=%s\n",
 					(unsigned long long)ip->i_ino, mode,
 					ip->i_dlm_mode, ip->i_dlm_state,
 					ip->i_dlm_ex_holders,
@@ -28385,6 +31296,31 @@ restart:
 					ip->i_dlm_demoter ? ip->i_dlm_demoter_line : 0,
 					ip->i_dlm_demoter_set_ns ?
 						(ktime_get_ns() - ip->i_dlm_demoter_set_ns) / 1000000ULL : 0,
+					/*
+					 * sess379 (D-MASS-UMOUNT-ROOT-EX-
+					 * SERIALIZE-100S-526B, RULE-4 step 2):
+					 * THE DISCRIMINATOR.  This wait parks
+					 * on state=ACQUIRING as well as on
+					 * BAST/DEMOTING, but the line above
+					 * names only the DEMOTER — so an
+					 * ACQUIRING stall prints demoter_pid=0
+					 * and says nothing about who owns it.
+					 * i_dlm_acq_inflight is the untrampled
+					 * in-flight count: >0 means a real
+					 * caw_lock is running and the stall is
+					 * transport latency; ==0 with
+					 * state=ACQUIRING is a LEAKED state
+					 * whose only reclaim (P-ACQ-ORPHAN-
+					 * RECLAIM) lives in bast_notify and
+					 * therefore cannot fire when no peer
+					 * is left to BAST — the sess378
+					 * 302-second quiescent-fleet shape.
+					 */
+					ip->i_dlm_acq_inflight,
+					ip->i_dlm_acq_pid,
+					ip->i_dlm_acq_comm,
+					ip->i_dlm_acq_set_ns ?
+						(ktime_get_ns() - ip->i_dlm_acq_set_ns) / 1000000ULL : 0,
 					current->pid,
 					current->comm);
 			/* Replay the claim ring oldest-first.  The CLEAR
@@ -28423,12 +31359,27 @@ restart:
 			spin_unlock(&ip->i_dlm_lock);
 			return;
 		}
+		/* sess315 (sess312 ruling item 2): a waiter that parked
+		 * BEFORE the wedge fired wakes here — terminal refuse, same
+		 * as the entry gate (the op dies at the trans layer). */
+		if (mxfs_release_proof_enforce &&
+		    READ_ONCE(ip->i_mxfs_rel_state) == MXFS_RELSTATE_WEDGED) {
+			spin_unlock(&ip->i_dlm_lock);
+			pr_warn_ratelimited(
+			    "mxfs: P-INODE-WEDGE-FENCE ino=%llu mode=%u — release wedged; refusing DLM acquire (postwait)\n",
+				(unsigned long long)ip->i_ino, mode);
+			return;
+		}
 		/* Re-check fast path — a peer thread's caw_lock may have
 		 * fetched/upgraded the lock and our cached mode now satisfies
-		 * the request. */
+		 * the request.  sess315: never re-admit EX while the defer
+		 * episode is still open (the park exists to close it). */
 		if ((ip->i_dlm_mode == MXFS_LOCK_EX ||
 		     (ip->i_dlm_mode == MXFS_LOCK_PR && mode == MXFS_LOCK_PR)) &&
-		    ip->i_dlm_state == MXFS_DLM_ISTATE_CACHED) {
+		    ip->i_dlm_state == MXFS_DLM_ISTATE_CACHED &&
+		    !(mxfs_release_proof_enforce && mode == MXFS_LOCK_EX &&
+		      ip->i_mxfs_reldefer_started_j &&
+		      ip->i_dlm_pin_count == 0)) {
 			if (mode == MXFS_LOCK_EX) {
 				ip->i_dlm_ex_holders++; mxfs_exh_stamp_locked(ip); MXFS_DLMTR_H(ip);
 				mxfs_p71_hold(ip, "begin-postwait", 1, 0);
@@ -28699,6 +31650,14 @@ restart:
 			}
 		}
 
+		/* sess214 (incident474, RULE-5 b2): foreign-slice REPLAY is
+		 * buffer-level by design and must never enter ordinary inode
+		 * DLM acquisition — a replay task blocking here on a fenced
+		 * victim's grant is the proven cascade deadlock. */
+		WARN_ONCE(mxfs_task_recovery_phase() == MXFS_RECOV_PHASE_REPLAY,
+			  "mxfs: P-REPLAY-INODE-LOCK ino=%llu mode=%u comm=%s — replay context in inode DLM acquire\n",
+			  (unsigned long long)ip->i_ino, mode, current->comm);
+
 		t0 = ktime_get_ns();
 		for (attempt = 0; attempt < 3; attempt++) {
 			/*
@@ -28895,6 +31854,125 @@ restart:
 				current->comm);
 			return;
 		}
+		/*
+		 * sess214 (incident474, RULE-5 b3): a recovery-context task —
+		 * post-replay cleanup sweep on the elected replayer — must
+		 * NEVER escalate an acquire timeout to its own shutdown.  In
+		 * incident474 the survivor's sweep blocked on an EX grant
+		 * naming a still-unpurged fenced victim, whose purge was
+		 * queued BEHIND the blocked sweep; the timeout then shut the
+		 * last survivor down, completing the fleet-wide cascade.
+		 * Requeue and retry with backoff instead: progress arrives
+		 * when the recovery machinery purges the dead holder's
+		 * grants.  Ordinary threads keep the fail-fast shutdown.
+		 */
+		if (rc && mxfs_task_recovery_phase() &&
+		    !xfs_is_shutdown(ip->i_mount)) {
+			spin_lock(&ip->i_dlm_lock);
+			if (ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING)
+				{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
+				ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
+				mxfs_dlmtr_rec(ip, dtr_om, dtr_os, __LINE__); }
+			if (ip->i_dlm_acq_inflight)
+				ip->i_dlm_acq_inflight--;
+			spin_unlock(&ip->i_dlm_lock);
+			wake_up_all(&ip->i_dlm_wait);
+			recov_laps++;
+			pr_warn_ratelimited(
+			    "mxfs: P-RECOV-ACQ-REQUEUE ino=%llu mode=%u rc=%d laps=%d pending=%d comm=%s — recovery-context acquire timeout; requeueing, not shutting down\n",
+				(unsigned long long)ip->i_ino, mode, rc,
+				recov_laps,
+				!bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64),
+				current->comm);
+			msleep(min(500 * recov_laps, 5000));
+			goto restart;
+		}
+		/*
+		 * sess325 (D-513 enforcement point e): the timeout classifier.
+		 * Incident 513 proved the old unconditional escalation is the
+		 * all-32 suicide: ONE victim's refused replay froze its
+		 * grants, every survivor's acquire timed out here, and each
+		 * timeout was answered with a LOCAL shutdown — serial fleet
+		 * death.  Three-way split, in evidence order:
+		 *
+		 * (1) The inode's domain is QUARANTINED (terminal refusal
+		 *     already imported): the timeout is the quarantine doing
+		 *     its job.  Poison + fail the op with EIO; NO shutdown.
+		 */
+		if (rc && mxfs_quarantine_covers_ino(ip->i_mount, ip->i_ino)) {
+			xfs_iflags_set(ip, MXFS_IF_QUAR_EIO);
+			spin_lock(&ip->i_dlm_lock);
+			if (ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING)
+				{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
+				ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
+				mxfs_dlmtr_rec(ip, dtr_om, dtr_os, __LINE__); }
+			if (ip->i_dlm_acq_inflight)
+				ip->i_dlm_acq_inflight--;
+			spin_unlock(&ip->i_dlm_lock);
+			wake_up_all(&ip->i_dlm_wait);
+			pr_warn_ratelimited(
+			    "mxfs: P240-QUAR-EIO-ABORT ino=%llu mode=%u rc=%d comm=%s — acquire timed out inside quarantined victim domain; op fails EIO, NOT shutting down\n",
+				(unsigned long long)ip->i_ino, mode, rc,
+				current->comm);
+			return;
+		}
+		/*
+		 * (2) A dead peer's recovery is still PENDING (dead-slot bit
+		 *     set): the frozen grant may belong to the victim and the
+		 *     verdict — replayed OR refused — is not in yet.  Killing
+		 *     ourselves now is premature and repeating incident 513;
+		 *     park with backoff instead.  Self-releasing on every
+		 *     outcome: replay completes → purge frees the grant and
+		 *     the next lap acquires; refusal publishes → the import
+		 *     lands and the next lap refuses at the entry gate (c),
+		 *     failing the op with EIO; our own FS dies → the restart
+		 *     shutdown fence returns.  No lap cap by design — the
+		 *     bounded-ABBA and recovery-context cases already
+		 *     returned above, and an unbounded wait on a pending
+		 *     recovery is the ruling's chosen alternative to a
+		 *     cluster-wide cascade.
+		 *
+		 *     sess325 ruling item 6, both halves, verified sess328:
+		 *     (i) The predicate is deliberately BROAD — any dead slot
+		 *     parks this acquire, not only one whose victim domain
+		 *     covers this inode.  Impact attribution before the
+		 *     verdict lands is guesswork (the victim's frozen grants
+		 *     are not enumerable until replay or refusal resolves),
+		 *     and a false park costs seconds while a false shutdown
+		 *     costs the fleet: containment over diagnosis, accepted
+		 *     as a documented trade.
+		 *     (ii) Parking here leaves NO outstanding DLM request:
+		 *     the CAW acquire is synchronous polled CAS, and every
+		 *     -ETIMEDOUT exit (grant-wait, claim-exhaustion, convert)
+		 *     drops its own waiter bit via caw_drop_own_waiter with
+		 *     confirm-until-clear + the owed-obligation registry, so
+		 *     the restart lap re-enters acquire with a clean slate.
+		 */
+		if (rc &&
+		    !bitmap_empty(ip->i_mount->m_mxfs_foreign_dead_slots, 64) &&
+		    !xfs_is_shutdown(ip->i_mount)) {
+			spin_lock(&ip->i_dlm_lock);
+			if (ip->i_dlm_state == MXFS_DLM_ISTATE_ACQUIRING)
+				{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
+				ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
+				mxfs_dlmtr_rec(ip, dtr_om, dtr_os, __LINE__); }
+			if (ip->i_dlm_acq_inflight)
+				ip->i_dlm_acq_inflight--;
+			spin_unlock(&ip->i_dlm_lock);
+			wake_up_all(&ip->i_dlm_wait);
+			park_laps++;
+			pr_warn_ratelimited(
+			    "mxfs: P240-QUAR-PARK ino=%llu mode=%u rc=%d laps=%d comm=%s — acquire timed out with peer recovery pending; parking until a verdict (replay/refusal) lands, NOT shutting down\n",
+				(unsigned long long)ip->i_ino, mode, rc,
+				park_laps, current->comm);
+			msleep(min(500 * park_laps, 5000));
+			goto restart;
+		}
+		/*
+		 * (3) No quarantine, no pending recovery: the timeout is a
+		 *     genuine local coordination failure — keep the
+		 *     fail-fast shutdown.
+		 */
 		if (rc) {
 			mxfs_pal_log(MXFS_LOG_ERR,
 				"mxfs: DLM inode lock unrecoverable: ino=%llu mode=%u rc=%d comm=%s — shutting down filesystem",
@@ -28928,6 +32006,15 @@ restart:
 	 * branch (mode != NL → set state=BAST, return) is the intended
 	 * handling; setting the mode here makes that branch fire.
 	 */
+	/*
+	 * sess325 (D-513 enforcement point d): the quarantine may have been
+	 * imported while this acquire was polling — the grant itself came
+	 * back fine, but the domain it names is now terminally refused.
+	 * Poison only: the op fails EIO at the central gate, and the grant
+	 * is released normally on the regular path (no leaked holder bit).
+	 */
+	if (unlikely(mxfs_quarantine_covers_ino(ip->i_mount, ip->i_ino)))
+		xfs_iflags_set(ip, MXFS_IF_QUAR_EIO);
 	spin_lock(&ip->i_dlm_lock);
 	if (mode > ip->i_dlm_mode) {
 		{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
@@ -28951,6 +32038,7 @@ restart:
 			/* sess124: stamp fresh-EX acquire time for MHT batching */
 			ip->i_dlm_ex_acquire_ns = ktime_get_ns();
 			ip->i_dlm_tenure_ops = 0;
+			ip->i_dlm_tenure_firstop_ns = 0;
 		}
 	}
 	spin_unlock(&ip->i_dlm_lock);
@@ -29209,6 +32297,7 @@ restart:
 			/* sess124: stamp fresh-EX acquire time for MHT batching */
 			ip->i_dlm_ex_acquire_ns = ktime_get_ns();
 			ip->i_dlm_tenure_ops = 0;
+			ip->i_dlm_tenure_firstop_ns = 0;
 		}
 	}
 	if (ip->i_dlm_state == MXFS_DLM_ISTATE_NONE)
@@ -29480,6 +32569,10 @@ mxfs_dlm_ilock_end(
 		if (ip->i_dlm_ex_holders > 0) {
 			ip->i_dlm_ex_holders--; MXFS_DLMTR_H(ip);
 			mxfs_p71_hold(ip, "end", -1, 0);
+			/* sess296 (D-503): first op completed by this tenure */
+			if (ip->i_dlm_tenure_ops == 0)
+				ip->i_dlm_tenure_firstop_ns =
+					ip->i_dlm_tenure_lastop_ns;
 			/* sess6: ops served by this EX tenure (adaptive MHT) */
 			if (ip->i_dlm_tenure_ops < 0xffff)
 				ip->i_dlm_tenure_ops++;
@@ -29991,6 +33084,7 @@ mxfs_dlm_ilock_try(
 			/* sess124: stamp fresh-EX acquire time for MHT batching */
 			ip->i_dlm_ex_acquire_ns = ktime_get_ns();
 			ip->i_dlm_tenure_ops = 0;
+			ip->i_dlm_tenure_firstop_ns = 0;
 		}
 	}
 	if (ip->i_dlm_state == MXFS_DLM_ISTATE_NONE)
@@ -30099,6 +33193,7 @@ mxfs_dlm_grant_local_new(
 	/* sess124: stamp fresh-EX acquire time for MHT batching */
 	ip->i_dlm_ex_acquire_ns = ktime_get_ns();
 	ip->i_dlm_tenure_ops = 0;
+	ip->i_dlm_tenure_firstop_ns = 0;
 	/*
 	 * ccloop c7ee71c6 sess21 — BASELINE THE STALENESS TRACKERS AT CREATE.
 	 *
@@ -30220,6 +33315,7 @@ mxfs_dlm_rearm_unpublished(
 	ip->i_mxfs_ex_grant_seq = atomic64_inc_return(&mxfs_ex_epoch);
 	ip->i_dlm_ex_acquire_ns = ktime_get_ns();
 	ip->i_dlm_tenure_ops = 0;
+	ip->i_dlm_tenure_firstop_ns = 0;
 	/* Don't clobber a pending BAST downconvert on a real prior slot. */
 	if (ip->i_dlm_state == MXFS_DLM_ISTATE_NONE)
 		{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
@@ -31959,34 +35055,67 @@ static void mxfs_reap_worker(struct work_struct *work)
 	if (xfs_is_shutdown(mp) || xfs_is_unmounting(mp))
 		return;
 
-	/* sess41 C8: bounded retry of incomplete survivor sweeps (a failed
-	 * iget mid-walk leaves the slot pending; the bucket is the durable
-	 * record).  Runs before the entry batch so a sweep's own deferred
-	 * zombies join this pass's retries. */
-	for_each_set_bit(sp_slot, mp->m_mxfs_sweep_pending_slots, 64) {
-		if (mxfs_survivor_sweep_slot(mp, sp_slot) == 0)
-			clear_bit(sp_slot, mp->m_mxfs_sweep_pending_slots);
-	}
-
-	/* sess43 duties (see MXFS_REAPF_*): own-bucket rescan, then the
-	 * guarded unclaimed-bucket pass.  A bit stays set on failure and the
-	 * tail reschedule retries — the buckets are the durable record. */
-	if (test_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties) &&
-	    mxfs_own_bucket_rescan(mp) == 0)
-		clear_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties);
-	if (test_bit(MXFS_REAPF_UBSCAN, &mp->m_mxfs_reap_duties) &&
-	    mxfs_unclaimed_bucket_scan(mp) == 0)
-		clear_bit(MXFS_REAPF_UBSCAN, &mp->m_mxfs_reap_duties);
 	/* sess59: a foreign slice whose recovery could not be published
 	 * left its slot bit set.  Re-drive the replay worker (the replay
 	 * itself is LSN-gated and idempotent, so redoing it is free); the
-	 * duty clears once no dead slot remains outstanding. */
+	 * duty clears once no dead slot remains outstanding.
+	 *
+	 * sess214 (incident474, RULE-5 b2): runs FIRST, before any
+	 * lock-taking sweep below — a sweep blocked on an unpurged victim's
+	 * grant must never starve the replay retry that would purge it. */
 	if (test_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties)) {
-		if (bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64))
+		/* sess233 (#21): a TORN-latched slot is deterministically
+		 * unreplayable — re-driving the worker for it would refuse
+		 * again every pass (#11).  The duty is done when nothing
+		 * RETRYABLE remains; torn slots stay frozen behind their
+		 * dead bits until a new death event re-arms them. */
+		if (bitmap_subset(mp->m_mxfs_foreign_dead_slots,
+				  mp->m_mxfs_foreign_torn_slots, 64))
 			clear_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
 		else
 			queue_work(system_unbound_wq,
 				   &mp->m_mxfs_foreign_replay_work);
+	}
+
+	/*
+	 * sess214 b2: the sweep retry and the bucket-scan duties all take
+	 * inode EX grants; while ANY victim's slice replay is still pending
+	 * they must not run — that ordering is the proven 474 deadlock.
+	 * Skipped work stays recorded (pending bits / duty bits), and the
+	 * worker-tail reschedule below retries once recovery drains.  The
+	 * sweeps run as registered recovery context so an acquire timeout on
+	 * a victim certified mid-sweep requeues (b3) instead of escalating
+	 * to this survivor's shutdown.
+	 */
+	if (bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64)) {
+		struct mxfs_recovtask recov;
+
+		mxfs_recovtask_enter(&recov, MXFS_RECOV_PHASE_CLEANUP);
+		/* sess41 C8: bounded retry of incomplete survivor sweeps (a
+		 * failed iget mid-walk leaves the slot pending; the bucket is
+		 * the durable record).  Runs before the entry batch so a
+		 * sweep's own deferred zombies join this pass's retries. */
+		for_each_set_bit(sp_slot, mp->m_mxfs_sweep_pending_slots, 64) {
+			if (!bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) ||
+			    xfs_is_shutdown(mp))
+				break;
+			if (mxfs_survivor_sweep_slot(mp, sp_slot) == 0)
+				clear_bit(sp_slot, mp->m_mxfs_sweep_pending_slots);
+		}
+
+		/* sess43 duties (see MXFS_REAPF_*): own-bucket rescan, then
+		 * the guarded unclaimed-bucket pass.  A bit stays set on
+		 * failure and the tail reschedule retries — the buckets are
+		 * the durable record. */
+		if (test_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties) &&
+		    bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) &&
+		    mxfs_own_bucket_rescan(mp) == 0)
+			clear_bit(MXFS_REAPF_OWN_RESCAN, &mp->m_mxfs_reap_duties);
+		if (test_bit(MXFS_REAPF_UBSCAN, &mp->m_mxfs_reap_duties) &&
+		    bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) &&
+		    mxfs_unclaimed_bucket_scan(mp) == 0)
+			clear_bit(MXFS_REAPF_UBSCAN, &mp->m_mxfs_reap_duties);
+		mxfs_recovtask_exit(&recov);
 	}
 
 	spin_lock(&mp->m_mxfs_reap_lock);
@@ -32192,6 +35321,32 @@ void mxfs_iunl_store_query_print(struct xfs_mount *mp, uint64_t ino)
 			(unsigned long long)ino, mp->m_mxfs_iunl_count);
 }
 EXPORT_SYMBOL(mxfs_iunl_store_query_print);
+
+/*
+ * sess203 (GPT ruling, precommit backstop (b)): does a live record prove
+ * that @expect is the committed di_next_unlinked for exactly this slot?
+ * Full-proof predicate — ino, incarnation, cluster daddr and byte offset
+ * must all match; anything less stays a shutdown at the caller.
+ */
+bool mxfs_iunl_store_fossil_match(struct xfs_mount *mp, uint64_t ino,
+				  uint32_t gen, xfs_daddr_t daddr,
+				  uint16_t boffset, uint32_t expect)
+{
+	struct mxfs_iunl_rec *r;
+	bool match = false;
+
+	spin_lock(&mp->m_mxfs_iunl_lock);
+	list_for_each_entry(r, &mp->m_mxfs_iunl_list, l) {
+		if (r->ino != ino)
+			continue;
+		match = r->gen == gen && r->daddr == daddr &&
+			r->boffset == boffset && r->next_agino == expect;
+		break;
+	}
+	spin_unlock(&mp->m_mxfs_iunl_lock);
+	return match;
+}
+EXPORT_SYMBOL(mxfs_iunl_store_fossil_match);
 
 /*
  * sess48 v5 (GPT ruling): drop every record scoped to this AG.  Called at
@@ -32443,20 +35598,27 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 			continue;
 		}
 		if (be32_to_cpu(dip->di_next_unlinked) != r->next_agino) {
-			/* sess48 v5 (GPT ruling #4, c3-391 autopsy): a graft
-			 * against a LIVE in-core inode whose runtime edge
-			 * (i_next_unlinked) disagrees with the record would
-			 * impose an abandoned past over the runtime's current
-			 * graph — the exact inverted-P53 mechanism.  Peek the
-			 * icache (coherent here: all nu mutations and all
-			 * overlay sites hold this cluster buffer's lock) and
-			 * refuse.  No live inode, or live edge == record ⇒
-			 * pure fossil repair, graft proceeds. */
+			/* sess48 v5 (GPT ruling #4, c3-391 autopsy), refined
+			 * sess203 (0.11.471 test4 shutdown + GPT ruling): a
+			 * graft against a LIVE in-core inode whose runtime
+			 * edge (i_next_unlinked) disagrees with the record
+			 * could impose an abandoned past over the runtime's
+			 * current graph — the inverted-P53 mechanism.  BUT the
+			 * item-init-to-precommit window legitimately skews the
+			 * in-core edge AHEAD of the committed value; the
+			 * pending-transition certificate published at item
+			 * creation names that window.  Decision: skew that a
+			 * valid certificate explains (cert.old == record,
+			 * cert.next == incore) still grafts — unless the image
+			 * already holds the certified post-state, which is
+			 * accepted as-is.  Only UNEXPLAINED skew refuses. */
 			{
 				struct xfs_perag *lpag = xfs_perag_get(mp,
 					XFS_INO_TO_AGNO(mp, r->ino));
-				bool skew = false;
-				uint32_t incore = 0;
+				bool refuse = false, poststate = false;
+				bool pending = false;
+				uint32_t incore = 0, cold = 0, cnext = 0;
+				unsigned int cvalid = 0;
 
 				if (lpag) {
 					struct xfs_inode *lip;
@@ -32468,18 +35630,50 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 					if (lip && lip->i_ino == r->ino) {
 						incore = READ_ONCE(
 							lip->i_next_unlinked);
-						skew = incore != r->next_agino;
+						smp_rmb();
+						cvalid = READ_ONCE(
+						    lip->i_mxfs_nu_cert_valid);
+						smp_rmb();
+						cold = READ_ONCE(
+						    lip->i_mxfs_nu_cert_old);
+						cnext = READ_ONCE(
+						    lip->i_mxfs_nu_cert_next);
+						if (incore != r->next_agino) {
+							if (cvalid &&
+							    cold == r->next_agino &&
+							    cnext == incore) {
+								pending = true;
+								poststate =
+								  be32_to_cpu(dip->di_next_unlinked) == cnext;
+							} else {
+								refuse = true;
+							}
+						}
 					}
 					rcu_read_unlock();
 					xfs_perag_put(lpag);
 				}
-				if (skew) {
-					pr_warn_ratelimited("mxfs: P-IUNLSTORE-LIVESKEW ino=%llu incore=0x%x committed=0x%x img=0x%x — live in-core edge disagrees with record; graft refused\n",
+				if (poststate) {
+					pr_warn_ratelimited("mxfs: P-IUNLSTORE-POSTSTATE ino=%llu img=0x%x committed=0x%x cert={0x%x->0x%x} — image already holds certified post-state; accepted, no graft\n",
 						(unsigned long long)r->ino,
-						incore, r->next_agino,
-						be32_to_cpu(dip->di_next_unlinked));
+						be32_to_cpu(dip->di_next_unlinked),
+						r->next_agino, cold, cnext);
 					continue;
 				}
+				if (refuse) {
+					pr_warn_ratelimited("mxfs: P-IUNLSTORE-LIVESKEW ino=%llu incore=0x%x committed=0x%x img=0x%x cert_valid=%u cert={0x%x->0x%x} — unexplained live skew; graft refused\n",
+						(unsigned long long)r->ino,
+						incore, r->next_agino,
+						be32_to_cpu(dip->di_next_unlinked),
+						cvalid, cold, cnext);
+					continue;
+				}
+				if (pending)
+					pr_warn_ratelimited("mxfs: P-IUNLSTORE-PENDGRAFT ino=%llu incore=0x%x committed=0x%x img=0x%x cert={0x%x->0x%x} — skew explained by pending transition; grafting committed value\n",
+						(unsigned long long)r->ino,
+						incore, r->next_agino,
+						be32_to_cpu(dip->di_next_unlinked),
+						cold, cnext);
 			}
 			pr_warn("mxfs: P-IUNLSTORE-OVERLAY ino=%llu img_next=0x%x committed=0x%x daddr=%lld — platter image stale; overlaying committed value\n",
 				(unsigned long long)r->ino,
@@ -32506,6 +35700,101 @@ int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
 }
 EXPORT_SYMBOL(mxfs_iunl_store_overlay);
 
+/* ─── sess387 publication obligations ─────────────────────────────────────
+ *
+ * D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN, measured to the line: an AG
+ * release may publish an unlinked-list CHAIN whose members' home dinodes
+ * still read LINKED (the nlink=0 conversion has not been flushed), and the
+ * head-only P86 audit cannot see mid-chain members (test22's death: member
+ * agino 0x1a7, cached=0 nlink=1, killed the remove path 267s after its
+ * unlink).  Per the RULE-5 ruling, correctness is per-inode OBLIGATIONS, not
+ * a cluster-flush conversion rate: armed at xfs_iunlink (the entry's
+ * creation), discharged when the conversion's covering write COMPLETES
+ * (xfs_iflush_finish, via MXFS_IF_PUBOB_FLUSHED) or when the entry leaves
+ * the list (xfs_iunlink_remove), and ENFORCED at every AG release: each
+ * still-armed obligation for the AG is target-flushed and FUA-verified
+ * before the unlock may publish.  No inode reference is held: an obligation
+ * whose shell is gone (the inactivation-leak family) cannot be repaired and
+ * counts as an unrepaired split — fail-closed, surfaced to the refuse-unlock
+ * escalation, where self-shutdown is sound because our journal slice carries
+ * the committed unlink and replay converts the dinode.
+ */
+struct mxfs_pubob {
+	struct list_head	l;
+	uint64_t		ino;
+	xfs_agnumber_t		agno;
+	xfs_agino_t		agino;
+	uint32_t		gen;
+};
+
+void mxfs_pubob_arm(struct xfs_mount *mp, struct xfs_inode *ip)
+{
+	struct mxfs_pubob *ob, *n;
+
+	if (!mp->m_mxfs_dlm || mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+		return;
+	n = kzalloc(sizeof(*n), GFP_NOFS);
+	spin_lock(&mp->m_mxfs_pubob_lock);
+	list_for_each_entry(ob, &mp->m_mxfs_pubob_list, l) {
+		if (ob->ino == ip->i_ino) {
+			ob->gen = VFS_I(ip)->i_generation;
+			spin_unlock(&mp->m_mxfs_pubob_lock);
+			xfs_iflags_set(ip, MXFS_IF_PUBOB);
+			xfs_iflags_clear(ip, MXFS_IF_PUBOB_FLUSHED);
+			kfree(n);
+			return;
+		}
+	}
+	if (!n) {
+		spin_unlock(&mp->m_mxfs_pubob_lock);
+		/* A lost obligation is exactly the pre-sess387 exposure for
+		 * this one unlink; loud so allocation pressure is visible. */
+		pr_warn("mxfs: P88-PUBOB-ENOMEM ino=%llu\n",
+			(unsigned long long)ip->i_ino);
+		return;
+	}
+	n->ino = ip->i_ino;
+	n->agno = XFS_INO_TO_AGNO(mp, ip->i_ino);
+	n->agino = XFS_INO_TO_AGINO(mp, ip->i_ino);
+	n->gen = VFS_I(ip)->i_generation;
+	list_add_tail(&n->l, &mp->m_mxfs_pubob_list);
+	mp->m_mxfs_pubob_count++;
+	spin_unlock(&mp->m_mxfs_pubob_lock);
+	xfs_iflags_set(ip, MXFS_IF_PUBOB);
+	xfs_iflags_clear(ip, MXFS_IF_PUBOB_FLUSHED);
+}
+EXPORT_SYMBOL(mxfs_pubob_arm);
+
+/* Drop the store entry for @ino; returns true if one was found. */
+static bool mxfs_pubob_drop_ino(struct xfs_mount *mp, uint64_t ino)
+{
+	struct mxfs_pubob *ob, *tmp;
+	bool found = false;
+
+	if (!mp->m_mxfs_pubob_count)
+		return false;
+	spin_lock(&mp->m_mxfs_pubob_lock);
+	list_for_each_entry_safe(ob, tmp, &mp->m_mxfs_pubob_list, l) {
+		if (ob->ino != ino)
+			continue;
+		list_del(&ob->l);
+		mp->m_mxfs_pubob_count--;
+		kfree(ob);
+		found = true;
+		break;
+	}
+	spin_unlock(&mp->m_mxfs_pubob_lock);
+	return found;
+}
+
+void mxfs_pubob_discharge(struct xfs_mount *mp, struct xfs_inode *ip,
+			  const char *why)
+{
+	xfs_iflags_clear(ip, MXFS_IF_PUBOB | MXFS_IF_PUBOB_FLUSHED);
+	mxfs_pubob_drop_ino(mp, ip->i_ino);
+}
+EXPORT_SYMBOL(mxfs_pubob_discharge);
+
 void mxfs_defer_reap_init(struct xfs_mount *mp)
 {
 	spin_lock_init(&mp->m_mxfs_reap_lock);
@@ -32513,6 +35802,9 @@ void mxfs_defer_reap_init(struct xfs_mount *mp)
 	spin_lock_init(&mp->m_mxfs_iunl_lock);
 	INIT_LIST_HEAD(&mp->m_mxfs_iunl_list);
 	mp->m_mxfs_iunl_count = 0;
+	spin_lock_init(&mp->m_mxfs_pubob_lock);
+	INIT_LIST_HEAD(&mp->m_mxfs_pubob_list);
+	mp->m_mxfs_pubob_count = 0;
 	INIT_DELAYED_WORK(&mp->m_mxfs_reap_work, mxfs_reap_worker);
 	mp->m_mxfs_reap_count = 0;
 	/* sess43 mount-settle duties: drain residue on OUR bucket left by a
@@ -32543,6 +35835,22 @@ void mxfs_defer_reap_destroy(struct xfs_mount *mp)
 		}
 		mp->m_mxfs_iunl_count = 0;
 		spin_unlock(&mp->m_mxfs_iunl_lock);
+	}
+	{
+		struct mxfs_pubob *ob, *obt;
+		int undischarged = 0;
+
+		spin_lock(&mp->m_mxfs_pubob_lock);
+		list_for_each_entry_safe(ob, obt, &mp->m_mxfs_pubob_list, l) {
+			undischarged++;
+			list_del(&ob->l);
+			kfree(ob);
+		}
+		mp->m_mxfs_pubob_count = 0;
+		spin_unlock(&mp->m_mxfs_pubob_lock);
+		if (undischarged)
+			pr_warn("mxfs: P88-PUBOB-UNMOUNT-PENDING count=%d — obligations die with the mount; a dirty departure's journal slice carries the conversions for replay\n",
+				undischarged);
 	}
 	spin_lock(&mp->m_mxfs_reap_lock);
 	list_for_each_entry_safe(e, tmp, &mp->m_mxfs_reap_list, l) {
@@ -32577,6 +35885,7 @@ mxfs_dlm_inode_init(
 	ip->i_mxfs_auth_gen = 1;	/* 0 is never a live snapshot value */
 	ip->i_mxfs_auth_resource = 0;
 	ip->i_mxfs_auth_epoch = 0;
+	ip->i_mxfs_auth_lineage = 0;
 	ip->i_mxfs_auth_incarn = 0;
 	ip->i_mxfs_auth_line = __LINE__;
 
@@ -32591,6 +35900,7 @@ mxfs_dlm_inode_init(
 	ip->i_dlm_dir_want_ex = false;		/* ccloop 12e0d157: peer-wants-EX (modifier) BAST flag (Fable) */
 	ip->i_dlm_bast_during_acq = false;	/* sess35: deferred-during-ACQUIRING BAST */ ip->i_dlm_stale_src = 0; ip->i_dlm_bastq_src = 0;
 	ip->i_dlm_self_demote = false;		/* sess51: EDEADLK self-demote tag */
+	ip->i_dlm_bastq_qns = 0;		/* sess294: P296-BASTQLAT arm stamp */
 	ip->i_dlm_ex_acquire_ns = 0;
 	{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
 	ip->i_dlm_mode = MXFS_LOCK_NL;
@@ -32600,6 +35910,14 @@ mxfs_dlm_inode_init(
 	{ u8 dtr_om = ip->i_dlm_mode, dtr_os = ip->i_dlm_state;
 	ip->i_dlm_state = MXFS_DLM_ISTATE_NONE;
 	mxfs_dlmtr_rec(ip, dtr_om, dtr_os, __LINE__); }
+	/* sess207 #18: AFTER the two init transitions above — they pass a
+	 * recycled-slab om into mxfs_dlmtr_rec, which would garbage-stamp
+	 * these.  0 = no granted->NL lowering in THIS incarnation. */
+	ip->i_dlm_nl_line = 0;
+	ip->i_dlm_nl_pid = 0;
+	ip->i_dlm_nl_ns = 0;
+	ip->i_dlm_nl_om = 0;
+	ip->i_dlm_nl_comm[0] = '\0';
 	ip->i_dlm_ex_holders = 0; MXFS_DLMTR_H(ip);
 	ip->i_dlm_pr_holders = 0; MXFS_DLMTR_H(ip);
 	ip->i_dlm_pin_count = 0;
@@ -32627,6 +35945,15 @@ mxfs_dlm_inode_init(
 	ip->i_dlm_dir_gen = 0;	/* sess37: read-time block-dir invalidation gen */
 	ip->i_dlm_dir_loaded_gen = 0;	/* sess94: shortform-fork load gen */
 	ip->i_mxfs_iget_ns = ktime_get_ns();	/* sess3 (46efd8b6): cold-iget age for P14 */
+	/* sess314: recycled slab memory must not inherit the previous
+	 * occupant's defer episode (same class as the stranded-demoter-claim
+	 * root below) — a fresh in-core inode has no release in flight. */
+	ip->i_mxfs_reldefer_started_j = 0;
+	ip->i_mxfs_reldefer_progress_j = 0;
+	ip->i_mxfs_reldefer_causes = 0;
+	ip->i_mxfs_reldefer_badness = 0;
+	ip->i_mxfs_reldefer_tries = 0;
+	ip->i_mxfs_relwedge_shot = false;
 	ip->i_mxfs_dscan_clean_key = ~0ULL;	/* sess1 (46efd8b6): datascan gen-gate sentinel — first miss always scans */
 	ip->i_dlm_handoff_acted_gen = 0;	/* sess63: no handoff acted on yet */
 	ip->i_dlm_dir_valid_epoch = 0;	/* sess64: base predates any tracked handoff -> first dir grant refreshes */
@@ -32706,6 +36033,17 @@ mxfs_dlm_inode_init(
 	ip->i_mxfs_pub_pending_seq = 0;
 	ip->i_mxfs_pub_durable_seq = 0;
 	ip->i_mxfs_pub_flush_seq = 0;	/* sess18: no image in flight */
+	ip->i_mxfs_pub_durable_fepoch = 0;	/* sess257 F3: no discharge yet */
+	/*
+	 * sess382: MUST be reset with the counters above, for the reason the
+	 * comment below spells out — xfs_inode_alloc is kmem_cache_alloc, not
+	 * zalloc, so a recycled inode would otherwise inherit a stale
+	 * "a fence abandoned my publication" verdict and its reload budget,
+	 * and the release-side reload would fire (or refuse to) on evidence
+	 * belonging to a previous incarnation.
+	 */
+	ip->i_mxfs_pub_fenced = 0;
+	ip->i_mxfs_reldefer_reloads = 0;
 	/*
 	 * sess30: MUST be reset here.  xfs_inode_alloc uses kmem_cache_alloc,
 	 * NOT zalloc, so a recycled xfs_inode carries whatever the previous
@@ -32763,15 +36101,122 @@ static void
 mxfs_ag_dlm_wait_demote(
 	struct xfs_perag	*pag)
 {
+	u64			t0 = 0;
+	bool			waited = false;
+	bool			had_trans = false, had_dirty = false;
+
 	while (pag->pag_dlm_demoting) {
 		DEFINE_WAIT(wait);
+
+		if (!waited) {
+			struct xfs_trans *wtp = current->journal_info;
+
+			waited = true;
+			t0 = ktime_get_ns();
+			atomic64_inc(&mxfs_dlm_stat_demote_wait_n);
+			if (wtp) {
+				had_trans = true;
+				atomic64_inc(&mxfs_dlm_stat_demote_wait_trans);
+				if (wtp->t_flags & XFS_TRANS_DIRTY) {
+					had_dirty = true;
+					atomic64_inc(&mxfs_dlm_stat_demote_wait_dirty);
+				}
+			}
+			/*
+			 * sess391: publish the sleep as an in-flight AG wait so
+			 * the convoy-aware no-inode release fence attributes a
+			 * frozen AIL item owned by this sleeper to the handoff
+			 * instead of charging it as a wedge — the same class as
+			 * the blocking CAW wait in __mxfs_ag_dlm_lock (the
+			 * sleeper may hold an ILOCK on a dirty inode in this AG).
+			 */
+			if (atomic_inc_return(&pag->pag_mxfs_agwait_inflight) == 1)
+				WRITE_ONCE(pag->pag_mxfs_agwait_since_ns, t0);
+		}
 		prepare_to_wait(&pag->pag_dlm_demote_wq, &wait,
 				TASK_UNINTERRUPTIBLE);
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		schedule();
 		finish_wait(&pag->pag_dlm_demote_wq, &wait);
-		mutex_lock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
 	}
+	if (waited) {
+		s64 ms = (s64)((ktime_get_ns() - t0) / NSEC_PER_MSEC);
+
+		if (atomic_dec_return(&pag->pag_mxfs_agwait_inflight) == 0)
+			WRITE_ONCE(pag->pag_mxfs_agwait_since_ns, 0);
+		atomic64_add(ms, &mxfs_dlm_stat_demote_wait_ms);
+		mxfs_stat_max64(&mxfs_dlm_stat_demote_wait_max, ms);
+		if (ms >= 2000)
+			pr_warn_ratelimited("mxfs: P12-DEMOTE-WAIT-LONG ag=%u comm=%s pid=%d ms=%lld trans=%d dirty=%d — blocking acquirer slept through a local AG handoff\n",
+				pag_agno(pag), current->comm, current->pid,
+				(long long)ms, had_trans ? 1 : 0,
+				had_dirty ? 1 : 0);
+	}
+}
+
+/*
+ * sess391 handoff latch (RULE-5 ruling ccloop-c7ee71c6-sess391-GPT-ruling-
+ * ag-handoff-latch-closing-restartable).  Both helpers run under pag_dlm_lock.
+ *
+ * mxfs_ag_handoff_closing: is local admission closed for this BAST
+ * generation?  True once the worker's prepass has run (the publish pass does
+ * writeback that must acquire THIS AG — it can only run while admission is
+ * open) and either the grace since the BAST is spent or the post-BAST
+ * re-adoption count hit the cap.
+ *
+ * mxfs_ag_handoff_commit: THE release COMMIT — the single point that detaches
+ * the cached grant and invalidates in-core authority (sess82 step 5.1:
+ * epoch/lineage zeroed in the same critical section that publishes the
+ * decision).  Formerly reachable only from the worker's Phase 2; now also
+ * taken at the last-holder unlock and by a would-be re-adopter, which closes
+ * the worker/re-adopter race at the root (the worker lost it ~2 M times per
+ * lap at 25 AGs).  Preconditions: holders==0, cached, !demoting.  The caller
+ * queues the worker (idempotent) unless it IS the worker; the worker's
+ * pag_dlm_latched check then jumps straight to the post-COMMIT drains.
+ */
+static inline bool
+mxfs_ag_handoff_closing(
+	struct xfs_perag	*pag)
+{
+	if (!mxfs_ag_handoff_latch || !pag->pag_dlm_bast_pending ||
+	    !pag->pag_dlm_prepass_done)
+		return false;
+	if (mxfs_ag_handoff_admit_cap > 0 &&
+	    pag->pag_dlm_readopt_n >= (u32)mxfs_ag_handoff_admit_cap)
+		return true;
+	return jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since) >=
+	       (unsigned int)max(mxfs_ag_handoff_grace_ms, 0);
+}
+
+static void
+mxfs_ag_handoff_commit(
+	struct xfs_perag	*pag,
+	const char		*who,
+	atomic64_t		*stat)
+{
+	WARN_ON_ONCE(pag->pag_dlm_holders != 0 || pag->pag_dlm_demoting);
+	pag->pag_dlm_cached = false;
+	pag->pag_dlm_bast_pending = false;
+	/* Latched so a lost worker is re-queued by the rx watchdog
+	 * (P275-AG-STUCK-LATCH); cleared with demoting at completion. */
+	pag->pag_dlm_bast_scheduled = true;
+	/* sess291: a strand marker cannot outlive a release COMMIT. */
+	pag->pag_dlm_readopt_pending = false;
+	pag->pag_dlm_prepass_done = false;
+	pag->pag_dlm_demoting = true;
+	pag->pag_dlm_latched = true;
+	pag->pag_dlm_latch_ns = ktime_get_ns();
+	WRITE_ONCE(pag->pag_mxfs_grant_epoch, 0);
+	WRITE_ONCE(pag->pag_mxfs_grant_lineage, 0);
+	if (stat)
+		atomic64_inc(stat);
+	if (who)
+		pr_warn_ratelimited("mxfs: P12-LATCH ag=%u by=%s readopt=%u page_ms=%u comm=%s\n",
+			pag_agno(pag), who, pag->pag_dlm_readopt_n,
+			jiffies_to_msecs(jiffies -
+				pag->pag_dlm_bast_pending_since),
+			current->comm);
 }
 
 /*
@@ -34836,7 +38281,9 @@ static int
 __mxfs_ag_dlm_lock(
 	struct xfs_mount	*mp,
 	struct xfs_perag	*pag,
-	bool			nonblock)
+	bool			nonblock,
+	bool			demand,
+	bool			resfree)
 {
 	struct mxfs_v5_dlm	*dlm = mp->m_mxfs_dlm;
 	int			error;
@@ -34856,6 +38303,19 @@ __mxfs_ag_dlm_lock(
 		return 0;
 
 	/*
+	 * sess325 (D-513 enforcement point b): an AG inside a quarantined
+	 * victim domain must fail fast with EIO — never wait out the dead
+	 * holder's frozen grant into a timeout shutdown, never consume state
+	 * whose committed redo was suppressed by the refused replay.
+	 */
+	if (unlikely(mxfs_quarantine_covers_agno(mp, pag_agno(pag)))) {
+		pr_warn_ratelimited(
+		    "mxfs: P240-QUAR-AG-EIO agno=%u comm=%s — AG in quarantined victim domain; failing acquire with EIO\n",
+			pag_agno(pag), current->comm);
+		return -EIO;
+	}
+
+	/*
 	 * sess46 NOTE: a "force pag_dlm_meta_gen++ on every PEER-AG acquire"
 	 * fix was TRIED here (build B33AC3DD) to defeat the frozen-gen
 	 * stale-pristine bnobt reuse on cross-node free.  It was NET-NEGATIVE:
@@ -34871,19 +38331,118 @@ __mxfs_ag_dlm_lock(
 	 * Fast path: nested re-acquire, cached re-acquire, or cancel-
 	 * deferred-release.  None needs CAW I/O.
 	 */
-	mutex_lock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_lock(pag, __LINE__);
+	/*
+	 * sess390 (D-474 / D-AGI split-under-protest root, 25-AG lap 2-3,
+	 * stack-PROVEN on test17): a NONBLOCK acquire must not park in the
+	 * demote window either.  rsync's inline inactivation of a just-
+	 * unlinked inode (xfs_inactive_truncate -> defer_finish ->
+	 * __xfs_free_extent -> mxfs_ag_dlm_trylock) reached wait_demote
+	 * 9 ms after this AG's own "COMMIT demoting", and slept there
+	 * holding ILOCK_EXCL on the unlinked inode — while the demote's
+	 * publication stage needed exactly that ILOCK to land nlink=0
+	 * before handing the AGI bucket head to the peer: P87-TARGET-
+	 * TIMEOUT stage=ilock ocomm=rsync x2 per pass, P86 split published
+	 * under protest, peer's AG wait 11.4 s.  The -488 seam already
+	 * exists for -EAGAIN here (P271-AGWANT: relog the intent, roll,
+	 * drop the ILOCKs, block holding nothing); the demote window just
+	 * never reported it.  Same shape as the sess388 P-AGTRY-LOCALBUSY
+	 * fix: "AG mid-handoff" == peer-held for a nonblock caller.
+	 */
+	if (nonblock && pag->pag_dlm_demoting) {
+		static atomic_t p_trydemote_n = ATOMIC_INIT(0);
+
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		atomic64_inc(&mxfs_dlm_stat_ag_trydemoting);
+		if ((unsigned)atomic_inc_return(&p_trydemote_n) <= 64)
+			pr_warn("mxfs: P-AGTRY-DEMOTING ag=%u comm=%s pid=%d — AG mid-demote (handoff to peer in progress); nonblock acquire reports -EAGAIN instead of parking in wait_demote with the caller's ILOCKs held\n",
+				pag_agno(pag), current->comm, current->pid);
+		return -EAGAIN;
+	}
 	mxfs_ag_dlm_wait_demote(pag);
 	if (pag->pag_dlm_holders > 0) {
 		mxfs_idbg("mxfs: P102-ACQ ag=%u NESTED holders=%d gen=%llu\n",
 			pag_agno(pag), pag->pag_dlm_holders,
 			(unsigned long long)pag->pag_dlm_meta_gen);
 		pag->pag_dlm_holders++;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		atomic64_inc(&mxfs_dlm_stat_ag_nested);
 		mxfs_dlm_report_stats();
 		return 0;
 	}
+	/*
+	 * sess291 (D-488 leg 7 part 1b, sess289 ruling): P243 family — probe
+	 * (and fail closed on) EVERY writable-tenure entry path, not just the
+	 * fresh acquire.  A cached hint with NO published authority epoch is
+	 * not a tenure: adopting it hands out write authority whose logged
+	 * buffers a foreign replayer must refuse.  Every legitimate cached
+	 * retention keeps the epoch published (all the WRITE_ONCE(...,0)
+	 * clears sit at release-commit points, which also clear cached in the
+	 * same critical section), so on CAW this state should be unreachable
+	 * now that the rx strand detector no longer fabricates cached=true.
+	 * If it ever appears, drop the hint and fall through to the fresh
+	 * attested acquire below — with published epoch 0 the CAW already-
+	 * held arm re-mints (P294-READOPT-MINT) instead of resurrecting
+	 * whatever epoch the slot holds.  TCP mints no epochs; exempt.
+	 */
+	if (pag->pag_dlm_cached && mxfs_v5_dlm_is_caw(dlm) &&
+	    READ_ONCE(pag->pag_mxfs_grant_epoch) == 0) {
+		pag->pag_dlm_cached = false;
+		pr_warn("mxfs: P243-AGAUTH-UNBOUND ag=%u src=cached-fast — epochless cached hint dropped; forcing fresh attested acquire\n",
+			pag_agno(pag));
+	}
+	if (pag->pag_dlm_cached && unlikely(pag->pag_dlm_bast_pending) &&
+	    mxfs_ag_handoff_closing(pag)) {
+		/*
+		 * sess391 (RULE-5 ruling ccloop-c7ee71c6-sess391-GPT-ruling-
+		 * ag-handoff-latch-closing-restartable): the handoff latch,
+		 * ACQUIRE side.  A peer's BAST is pending, the worker's prepass
+		 * ran, the grace is spent — this would-be re-adoption is
+		 * exactly the race the worker kept losing (P12-READOPT-PINNED
+		 * every ~3 ms at 25 AGs, 1.5-2.2 M per lap).  Take the release
+		 * COMMIT here instead of adopting: nonblock callers report
+		 * -EAGAIN (the -488 seam / next-AG skip, same contract as
+		 * P-AGTRY-DEMOTING), blocking callers take the ordinary
+		 * bounded demote wait (bracketed as an AG wait for the convoy-
+		 * aware fence) and then queue behind the peer on a fresh
+		 * attested acquire.  sess390 arm 3 failed because it made
+		 * blocking callers wait for a handoff that had NOT been
+		 * committed (holders kept bouncing, the worker kept bailing,
+		 * ILOCK holders froze the fence); this wait is for a committed
+		 * demote whose pipeline needs no further local admission.
+		 */
+		mxfs_ag_handoff_commit(pag, nonblock ? "acq-nb" : "acq",
+				       nonblock ? &mxfs_dlm_stat_latch_acqnb :
+						  &mxfs_dlm_stat_latch_acq);
+		if (mp->m_mxfs_ag_bast_wq)
+			queue_work(mp->m_mxfs_ag_bast_wq,
+				   &pag->pag_dlm_bast_work);
+		else
+			schedule_work(&pag->pag_dlm_bast_work);
+		if (nonblock) {
+			mxfs_pag_dlm_unlock(pag, __LINE__);
+			atomic64_inc(&mxfs_dlm_stat_ag_trydemoting);
+			return -EAGAIN;
+		}
+		mxfs_ag_dlm_wait_demote(pag);
+		if (pag->pag_dlm_holders > 0) {
+			pag->pag_dlm_holders++;
+			mxfs_pag_dlm_unlock(pag, __LINE__);
+			atomic64_inc(&mxfs_dlm_stat_ag_nested);
+			return 0;
+		}
+		/* cached may have been re-established by a sibling's fresh
+		 * acquire+release during the wait: adopting it now is a
+		 * post-handoff adoption, not a cut-ahead. */
+	}
 	if (pag->pag_dlm_cached) {
+		/* sess391 invariant: the COMMIT clears cached in the same
+		 * critical section that sets latched — must stay 0. */
+		if (unlikely(pag->pag_dlm_latched)) {
+			atomic64_inc(&mxfs_dlm_stat_postlatch_adopt);
+			WARN_ONCE(1, "mxfs: P12-POSTLATCH-ADOPT ag=%u comm=%s — cached hint observed while latched\n",
+				  pag_agno(pag), current->comm);
+		}
 		/*
 		 * Cached AG re-acquire: last-holder unlock kept the DLM grant
 		 * on disk.  We still hold EX, so no peer has touched the AG.
@@ -34919,7 +38478,7 @@ __mxfs_ag_dlm_lock(
 				pag->pag_dlm_bast_scheduled ? 1 : 0,
 				current->comm);
 		}
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		mxfs_idbg("mxfs: P39-INSTR ag=%u FAST-PATH-ACQ cached=true→false holders=0→1 realns=%llu\n",
 			pag_agno(pag),
 			(unsigned long long)ktime_get_real_ns());
@@ -34928,6 +38487,19 @@ __mxfs_ag_dlm_lock(
 		return 0;
 	}
 	if (pag->pag_dlm_release_pending) {
+		/*
+		 * sess291 (P243 family, probe only): release_pending=true with
+		 * demoting=false is believed unreachable today (the only setter
+		 * is the unlock-quarantine arm, which keeps demoting held), and
+		 * any such reclaim would adopt tenure AFTER the release COMMIT
+		 * zeroed the epoch — an epochless writing tenure.  Detect
+		 * loudly; a behavior change here must wait for evidence (the
+		 * deferred-release iodone consults this flag).
+		 */
+		if (mxfs_v5_dlm_is_caw(dlm) &&
+		    READ_ONCE(pag->pag_mxfs_grant_epoch) == 0)
+			pr_warn("mxfs: P243-AGAUTH-UNBOUND ag=%u src=relpend-fast — release_pending reclaim adopting tenure with NO published epoch\n",
+				pag_agno(pag));
 		/*
 		 * Cached release in flight: BAST work fn committed (cleared
 		 * pag_dlm_cached) but is waiting on AG-meta writeback to
@@ -34960,7 +38532,7 @@ __mxfs_ag_dlm_lock(
 		pag->pag_dlm_holders = 1;
 		mxfs_ag_stamp_holder(pag);
 		pag->pag_dlm_meta_gen++;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		/* sess117: gen-independent acquire cold-read (peer may have
 		 * modified the AG in the release worker's unlock->clear-flag
 		 * window — sess93). */
@@ -34977,7 +38549,7 @@ __mxfs_ag_dlm_lock(
 		mxfs_dlm_report_stats();
 		return 0;
 	}
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 
 	/*
 	 * Slow path — fresh acquire requires a CAW grant.  We MUST NOT hold
@@ -34994,24 +38566,98 @@ __mxfs_ag_dlm_lock(
 	 * not take this lock, so it remains free to fire deferred releases
 	 * concurrently with our CAW poll.
 	 */
-	mutex_lock(&pag->pag_dlm_acquire_lock);
+	if (nonblock) {
+		/*
+		 * sess388 (D-474 AIL-freeze ROOT, stack-proven on test1/
+		 * test27/test16, 0.19.33-34): a NONBLOCK caller must never
+		 * park on pag_dlm_acquire_lock.  That mutex is held by a
+		 * sibling local thread across its ENTIRE CAW poll (seconds to
+		 * the deadline), so blocking here turned every
+		 * mxfs_ag_dlm_trylock — issued by __xfs_free_extent /
+		 * xfs_alloc_vextent_prepare_ag / dialloc with the caller's
+		 * ILOCK held — into a blocking wait: P-AILMIN dumps showed the
+		 * frozen AIL-min ILOCK owner (rsync in xfs_inactive_truncate →
+		 * xfs_extent_free_finish_item → mxfs_ag_dlm_trylock) sitting in
+		 * mutex_lock(pag_dlm_acquire_lock) for >5 s, the noino release
+		 * fence froze across 8 pushes, and the node shut down
+		 * (P-NOINO-RELFENCE-WEDGE).  The -488 post-roll seam exists so
+		 * the caller can drop its ILOCKs and wait holding nothing —
+		 * but only if trylock actually reports busy.  Report busy.
+		 * The sibling's grant becomes our cached/nested fast path on
+		 * retry; if its poll fails, our retry becomes the poller.
+		 */
+		if (!mutex_trylock(&pag->pag_dlm_acquire_lock)) {
+			static DEFINE_RATELIMIT_STATE(lb_rl, 30 * HZ, 6);
+
+			if (__ratelimit(&lb_rl))
+				pr_warn("mxfs: P-AGTRY-LOCALBUSY ag=%u comm=%s pid=%d — sibling thread mid-CAW-poll holds pag_dlm_acquire_lock; nonblock acquire reports -EAGAIN instead of parking\n",
+					pag_agno(pag), current->comm,
+					current->pid);
+			atomic64_inc(&mxfs_dlm_stat_agtry_localbusy);
+			return -EAGAIN;
+		}
+	} else {
+		mutex_lock(&pag->pag_dlm_acquire_lock);
+	}
 
 	/*
 	 * Re-check state after waiting on pag_dlm_acquire_lock — another
 	 * thread may have acquired (and possibly already released back to
 	 * release_pending) while we waited.
 	 */
-	mutex_lock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_lock(pag, __LINE__);
 	mxfs_ag_dlm_wait_demote(pag);
 	if (pag->pag_dlm_holders > 0) {
 		pag->pag_dlm_holders++;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		mutex_unlock(&pag->pag_dlm_acquire_lock);
 		atomic64_inc(&mxfs_dlm_stat_ag_nested);
 		mxfs_dlm_report_stats();
 		return 0;
 	}
+	/* sess291: same epochless-cached-hint guard as the fast path above
+	 * (P243 family) — another thread may have installed a cached state
+	 * while we waited on pag_dlm_acquire_lock. */
+	if (pag->pag_dlm_cached && mxfs_v5_dlm_is_caw(dlm) &&
+	    READ_ONCE(pag->pag_mxfs_grant_epoch) == 0) {
+		pag->pag_dlm_cached = false;
+		pr_warn("mxfs: P243-AGAUTH-UNBOUND ag=%u src=cached-slow — epochless cached hint dropped; forcing fresh attested acquire\n",
+			pag_agno(pag));
+	}
+	if (pag->pag_dlm_cached && unlikely(pag->pag_dlm_bast_pending) &&
+	    mxfs_ag_handoff_closing(pag)) {
+		/* sess391: same latch as the fast path — a sibling installed a
+		 * cached state while we waited on pag_dlm_acquire_lock, with a
+		 * peer's BAST pending and the grace spent. */
+		mxfs_ag_handoff_commit(pag, nonblock ? "acq-slow-nb" : "acq-slow",
+				       nonblock ? &mxfs_dlm_stat_latch_acqnb :
+						  &mxfs_dlm_stat_latch_acq);
+		if (mp->m_mxfs_ag_bast_wq)
+			queue_work(mp->m_mxfs_ag_bast_wq,
+				   &pag->pag_dlm_bast_work);
+		else
+			schedule_work(&pag->pag_dlm_bast_work);
+		if (nonblock) {
+			mxfs_pag_dlm_unlock(pag, __LINE__);
+			mutex_unlock(&pag->pag_dlm_acquire_lock);
+			atomic64_inc(&mxfs_dlm_stat_ag_trydemoting);
+			return -EAGAIN;
+		}
+		mxfs_ag_dlm_wait_demote(pag);
+		if (pag->pag_dlm_holders > 0) {
+			pag->pag_dlm_holders++;
+			mxfs_pag_dlm_unlock(pag, __LINE__);
+			mutex_unlock(&pag->pag_dlm_acquire_lock);
+			atomic64_inc(&mxfs_dlm_stat_ag_nested);
+			return 0;
+		}
+	}
 	if (pag->pag_dlm_cached) {
+		if (unlikely(pag->pag_dlm_latched)) {
+			atomic64_inc(&mxfs_dlm_stat_postlatch_adopt);
+			WARN_ONCE(1, "mxfs: P12-POSTLATCH-ADOPT ag=%u comm=%s src=slow — cached hint observed while latched\n",
+				  pag_agno(pag), current->comm);
+		}
 		pag->pag_dlm_cached = false;
 		pag->pag_dlm_holders = 1;
 		mxfs_ag_stamp_holder(pag);
@@ -35020,7 +38666,7 @@ __mxfs_ag_dlm_lock(
 		 * meta gen so the AG-meta read path FUA-re-reads stale cached
 		 * agf/bnobt/cntbt instead of double-allocating. */
 		pag->pag_dlm_meta_gen++;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		mutex_unlock(&pag->pag_dlm_acquire_lock);
 		/* sess117: gen-independent acquire cold-read (peer modified AG
 		 * while we weren't holding it; BAST cleared pag_dlm_cached). */
@@ -35032,6 +38678,11 @@ __mxfs_ag_dlm_lock(
 		return 0;
 	}
 	if (pag->pag_dlm_release_pending) {
+		/* sess291 (P243 family, probe only): see the fast-path arm. */
+		if (mxfs_v5_dlm_is_caw(dlm) &&
+		    READ_ONCE(pag->pag_mxfs_grant_epoch) == 0)
+			pr_warn("mxfs: P243-AGAUTH-UNBOUND ag=%u src=relpend-slow — release_pending reclaim adopting tenure with NO published epoch\n",
+				pag_agno(pag));
 		pag->pag_dlm_release_pending = false;
 		pag->pag_dlm_holders = 1;
 		mxfs_ag_stamp_holder(pag);
@@ -35044,7 +38695,7 @@ __mxfs_ag_dlm_lock(
 		 * alloc/free txn -> xfsaild stale-bnobt clobber -> double-free).
 		 */
 		pag->pag_dlm_meta_gen++;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		mutex_unlock(&pag->pag_dlm_acquire_lock);
 		/* sess117: gen-independent acquire cold-read (sess93 release
 		 * worker unlock->clear-flag race window). */
@@ -35055,124 +38706,70 @@ __mxfs_ag_dlm_lock(
 		mxfs_dlm_report_stats();
 		return 0;
 	}
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 
 	/*
-	 * v0.3.147 sess33 prescription G: COOPERATIVE PRE-CAW DRAIN.
+	 * v0.3.147 sess33 prescription G, REDUCED sess262 (-488 fix):
+	 * COOPERATIVE PRE-CAW KICK, no inline drain.
 	 *
 	 * Before issuing CAW for the AG we want, scan our cached AGs for
-	 * any with bast_pending (peer asked for them) and drain them
-	 * inline.  This breaks the lock-inversion deadlock for AGs whose
-	 * AIL items don't conflict with the ILOCK we currently hold:
+	 * any with bast_pending (a peer asked for them) whose BAST work
+	 * was never scheduled, and schedule it.  This is pure bookkeeping
+	 * recovery for a lost/unscheduled BAST; the drain itself always
+	 * runs in the ordered workqueue.
 	 *
-	 *   T1 user holds ILOCK(inode-X in AG_X), wants AG-DLM(AG_Y),
-	 *   waits in CAW poll for T2 to release AG_Y.  T2 holds AG_Y.
-	 *   T2 user holds ILOCK(inode-Z in AG_Z), wants AG-DLM(AG_W),
-	 *   waits for T1 to release AG_W.  T1 holds AG_W.
+	 * The old form ran mxfs_dlm_ag_bast_work_fn INLINE here, in the
+	 * caller's ILOCKed context.  That was the proven -488 livelock
+	 * burner: each restarted allocation attempt spent ~0.7s per AG in
+	 * a drain that could not complete (the drain stalls on exactly the
+	 * ILOCK our caller holds), so the retry loop starved forever while
+	 * burning host CPU.  Inline execution adds nothing the worker
+	 * doesn't already provide: the work fn self-requeues on stall, so
+	 * scheduled drains are never lost.
 	 *
-	 * Without this drain, both nodes wedge in CAW.  T1's bast_work_fn
-	 * for AG_W can't drain (xfsaild can't push AG_W AIL items because
-	 * T1's user holds ILOCK on inode in AG_W ⊆ trylock fails).  Same
-	 * for T2.  Mutual deadlock.
-	 *
-	 * With this drain: BEFORE polling CAW, T1 yields any cached AGs
-	 * that aren't AG_X (its own user's AG).  Drain runs in user
-	 * context with ILOCK(inode-X) held — succeeds for AGs whose items
-	 * don't reference inode-X.  Statistically that's most AGs.  T2
-	 * does the same.  Peer's CAW for AGs we just yielded succeeds.
-	 *
-	 * The drain uses xfs_ail_push_ag_sync_bounded with a SHORT
-	 * stall_iters (200 ≈ 2s).  On stall, leaves the AG cached for
-	 * the peer's normal bast_work_fn to handle on retry.  No
-	 * correctness impact — we either drain fully or skip.
-	 *
-	 * Invocation point: we hold pag_dlm_acquire_lock for our pag,
-	 * but no other pag's pag_dlm_lock.  Each scanned pag is
-	 * independently locked.  We don't recurse into our own pag.
+	 * Invocation point: we hold pag_dlm_acquire_lock for our pag, but
+	 * no other pag's pag_dlm_lock.  Each scanned pag is independently
+	 * locked.  We don't recurse into our own pag.
 	 */
 	{
-		struct xfs_perag	*scan = NULL;
+		struct xfs_perag	*scan;
 		xfs_agnumber_t		scan_agno;
-		struct xfs_mount	*scan_mp = mp;
-		extern int mxfs_ag_bast_stall_iters;
-		int		saved_stall = mxfs_ag_bast_stall_iters;
-		/*
-		 * Override stall threshold to 200 (~2s) just for these
-		 * inline drains so we don't hold up our CAW poll for too
-		 * long if a drain stalls.  Restore after.  This races with
-		 * concurrent module-param writes; that's acceptable since
-		 * the param is observed by all callers similarly.
-		 */
-		mxfs_ag_bast_stall_iters = 200;
-		for (scan_agno = 0; scan_agno < scan_mp->m_sb.sb_agcount;
+
+		for (scan_agno = 0; scan_agno < mp->m_sb.sb_agcount;
 		     scan_agno++) {
-			bool eligible;
+			bool kick = false;
+
 			if (scan_agno == pag_agno(pag))
 				continue;
-			scan = xfs_perag_get(scan_mp, scan_agno);
+			scan = xfs_perag_get(mp, scan_agno);
 			if (!scan)
 				continue;
-			mutex_lock(&scan->pag_dlm_lock);
-			eligible = scan->pag_dlm_cached &&
-				   scan->pag_dlm_bast_pending &&
-				   scan->pag_dlm_holders == 0 &&
-				   !scan->pag_dlm_demoting;
-			mutex_unlock(&scan->pag_dlm_lock);
-			if (eligible) {
-				/*
-				 * sess14 (ccloop c7ee71c6) D1 ROOT FIX: steal a
-				 * PENDING work with non-blocking cancel_work();
-				 * if the work is RUNNING, skip this AG — the
-				 * running worker already owns the drain.  The
-				 * old cancel_work_sync here is the PROVEN
-				 * sess12-E parking spot (P67-STALL-OWNER-STACK
-				 * ×2, lap-4 2026-07-26): this path runs with
-				 * the caller's ILOCK held (delalloc convert →
-				 * btalloc → here); the in-flight drain stalls
-				 * on exactly that ILOCK, stall-aborts, and
-				 * re-arms every BAST cycle, so the sync wait
-				 * never returns — bash parks silently (222s in
-				 * sess12) until the peer's BASTs stop (fence/
-				 * shutdown), which is why the park always ends
-				 * right after the spurious shutdown.  Skipping
-				 * loses nothing: the running work IS the
-				 * release we wanted to drive.  Re-check state
-				 * under lock after the steal, as before.
-				 */
-				if (!cancel_work(&scan->pag_dlm_bast_work) &&
-				    (work_busy(&scan->pag_dlm_bast_work) &
-				     WORK_BUSY_RUNNING)) {
-					pr_warn_ratelimited(
-					    "mxfs: P67-NOWAIT-SKIP ag=%u pre-caw — in-flight bast work owns drain; not waiting (ILOCK deadlock guard)\n",
-						scan_agno);
-					xfs_perag_put(scan);
-					continue;
-				}
-				mutex_lock(&scan->pag_dlm_lock);
-				eligible = scan->pag_dlm_cached &&
-					   scan->pag_dlm_bast_pending &&
-					   scan->pag_dlm_holders == 0 &&
-					   !scan->pag_dlm_demoting;
-				if (eligible)
-					scan->pag_dlm_bast_scheduled = true;
-				mutex_unlock(&scan->pag_dlm_lock);
+			/* lockless fast-skip: nothing pending, nothing to do */
+			if (!READ_ONCE(scan->pag_dlm_bast_pending)) {
+				xfs_perag_put(scan);
+				continue;
 			}
-			if (eligible) {
-				mxfs_idbg("mxfs: P68-INSTR PRE-CAW-INLINE-DRAIN want_agno=%u draining_agno=%u\n",
+			mxfs_pag_dlm_lock(scan, __LINE__);
+			if (scan->pag_dlm_cached &&
+			    scan->pag_dlm_bast_pending &&
+			    scan->pag_dlm_holders == 0 &&
+			    !scan->pag_dlm_demoting &&
+			    !scan->pag_dlm_bast_scheduled) {
+				scan->pag_dlm_bast_scheduled = true;
+				kick = true;
+			}
+			mxfs_pag_dlm_unlock(scan, __LINE__);
+			if (kick) {
+				mxfs_idbg("mxfs: P68-INSTR PRE-CAW-KICK want_agno=%u kicked_agno=%u\n",
 					pag_agno(pag), scan_agno);
-				/*
-				 * Reuse the existing bast_work_fn body — it
-				 * already handles bast_scheduled cleanup, the
-				 * stall-abort path, and on-disk unlock.
-				 * Invoking via container_of's work_struct field
-				 * gives identical semantics to ordered-wq
-				 * dispatch, just synchronous in our context.
-				 */
-				mxfs_dlm_ag_bast_work_fn(&scan->pag_dlm_bast_work);
+				if (mp->m_mxfs_ag_bast_wq)
+					queue_work(mp->m_mxfs_ag_bast_wq,
+						   &scan->pag_dlm_bast_work);
+				else
+					schedule_work(&scan->pag_dlm_bast_work);
 			}
 			xfs_perag_put(scan);
 		}
-		mxfs_ag_bast_stall_iters = saved_stall;
 	}
 
 	/* CAW round-trip — only pag_dlm_acquire_lock held here. */
@@ -35184,8 +38781,15 @@ __mxfs_ag_dlm_lock(
 		 * -EAGAIN so the dialloc / block-alloc iteration skips this AG
 		 * rather than blocking up to 120s with inode ILOCKs held
 		 * (the proven create/write-path deadlock).
+		 *
+		 * `demand` is what distinguishes the two nonblock callers:
+		 * the allocator's TRYLOCK probe is silent, the bounded
+		 * dirty-trans grow sweep leaves a sticky revoke behind
+		 * (D-AGLOCK-...-LIVELOCK-488).
 		 */
-		error = mxfs_v5_dlm_ag_lock_nb(dlm, pag_agno(pag), &ag_gres);
+		error = mxfs_v5_dlm_ag_lock_nb(dlm, pag_agno(pag),
+					       READ_ONCE(pag->pag_mxfs_grant_epoch),
+					       &ag_gres, demand);
 		if (error) {
 			mutex_unlock(&pag->pag_dlm_acquire_lock);
 			if (error == -EWOULDBLOCK)
@@ -35203,8 +38807,14 @@ __mxfs_ag_dlm_lock(
 		 * free we just acquired it (identical bookkeeping below); if a
 		 * peer holds it, name the caller path (first few per boot) then
 		 * fall into the blocking wait as before.
+		 *
+		 * Always SILENT: the blocking wait immediately below registers
+		 * a real on-disk waiter and multicasts, which is a strictly
+		 * stronger signal than a sticky revoke.
 		 */
-		error = mxfs_v5_dlm_ag_lock_nb(dlm, pag_agno(pag), &ag_gres);
+		error = mxfs_v5_dlm_ag_lock_nb(dlm, pag_agno(pag),
+					       READ_ONCE(pag->pag_mxfs_grant_epoch),
+					       &ag_gres, false);
 		if (error) {
 			if (error == -EAGAIN || error == -EWOULDBLOCK) {
 				static atomic_t p1_agwait_stacks = ATOMIC_INIT(0);
@@ -35285,9 +38895,40 @@ __mxfs_ag_dlm_lock(
 						pag_agno(pag), current->comm);
 					mxfs_trans_drain_inode_unlocks(dtp);
 				}
+				/*
+				 * sess286 (D-501 tripwire): the preacquire's
+				 * optional-AG skip bets that this op never
+				 * demands the skipped AG once dirty.  A DIRTY
+				 * trans blocking here is that bet lost —
+				 * count it (probe, not error: the wait can
+				 * still succeed; the danger is the dirty-
+				 * cancel if it times out).
+				 */
+				if (dtp && (dtp->t_flags & XFS_TRANS_DIRTY)) {
+					char p292_held[64];
+
+					mxfs_fmt_trans_held_ags(p292_held,
+							sizeof(p292_held));
+					pr_warn_ratelimited(
+						"mxfs: P292-DIRTY-AGWAIT ag=%u comm=%s pid=%d trans_held_ags=[%s] — dirty trans blocking on peer-held AG\n",
+						pag_agno(pag), current->comm,
+						current->pid, p292_held);
+				}
 			}
+			/*
+			 * sess390 (D-474 convoy-aware fence): publish this
+			 * blocking episode so the no-inode release fence can
+			 * attribute a frozen AIL min (an EFI whose extents
+			 * live in THIS AG, held by a peer) to a bounded wait
+			 * instead of charging it as a wedge.
+			 */
+			if (atomic_inc_return(&pag->pag_mxfs_agwait_inflight) == 1)
+				WRITE_ONCE(pag->pag_mxfs_agwait_since_ns, agt0);
 			error = mxfs_v5_dlm_ag_lock(dlm, pag_agno(pag),
+						    READ_ONCE(pag->pag_mxfs_grant_epoch),
 						    &ag_gres);
+			if (atomic_dec_return(&pag->pag_mxfs_agwait_inflight) == 0)
+				WRITE_ONCE(pag->pag_mxfs_agwait_since_ns, 0);
 		}
 		acn = atomic64_inc_return(&ag_caw_n);
 		atomic64_add(ktime_get_ns() - agt0, &ag_caw_ns);
@@ -35315,6 +38956,7 @@ __mxfs_ag_dlm_lock(
 	{
 		u64 disk_gen = 0;
 		u64 grant_epoch = 0;
+		u64 grant_lineage = 0;
 		int gen_rc = mxfs_v5_dlm_ag_read_generation(dlm, pag_agno(pag),
 							    &disk_gen);
 
@@ -35344,8 +38986,12 @@ __mxfs_ag_dlm_lock(
 		    ag_gres.kind == MXFS_LTYPE_AG &&
 		    ag_gres.resource == (u64)pag_agno(pag)) {
 			grant_epoch = ag_gres.grant_epoch;
+			/* sess176: lineage rides only with a proving epoch —
+			 * an unproven grant publishes neither. */
+			grant_lineage = ag_gres.resource_lineage;
 		} else {
 			grant_epoch = 0;
+			grant_lineage = 0;
 			/*
 			 * A fresh EX acquire that yields no provable epoch is
 			 * a real gap, not noise: every buffer this tenure
@@ -35367,7 +39013,7 @@ __mxfs_ag_dlm_lock(
 			}
 		}
 
-		mutex_lock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
 		/*
 		 * sess82 step 5.1 (grant-state lifecycle): PUBLISH the
 		 * in-core authority epoch.  This is the only site that makes
@@ -35379,6 +39025,7 @@ __mxfs_ag_dlm_lock(
 		 * xfs_buf_item_format_segment (READ_ONCE).
 		 */
 		WRITE_ONCE(pag->pag_mxfs_grant_epoch, grant_epoch);
+		WRITE_ONCE(pag->pag_mxfs_grant_lineage, grant_lineage);
 		pag->pag_dlm_holders = 1;
 		mxfs_ag_stamp_holder(pag);
 		/*
@@ -35478,7 +39125,7 @@ __mxfs_ag_dlm_lock(
 			dump_stack();
 	}
 	pag->pag_dlm_lineage_open = true;
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 	atomic64_inc(&mxfs_dlm_stat_ag_acquire);
 	fresh_acquire = true;
 
@@ -35548,7 +39195,32 @@ mxfs_ag_dlm_lock(
 	struct xfs_mount	*mp,
 	struct xfs_perag	*pag)
 {
-	return __mxfs_ag_dlm_lock(mp, pag, false);
+	return __mxfs_ag_dlm_lock(mp, pag, false, false, false);
+}
+
+/*
+ * sess390 (RULE-5 ruling ccloop-c7ee71c6-sess390-GPT-ruling-readopt-close-shape):
+ * RESOURCE_FREE blocking acquire — the caller provably holds NO inode lock
+ * and NO transaction (the -488 pregrant and the P271-AGWAIT seam, both of
+ * which dropped everything before calling).  Past the re-adoption admission
+ * window it WAITS for the pending handoff to complete and then queues behind
+ * the peer on a fresh attested acquire, instead of re-adopting the cached
+ * grant ahead of the waiter.  Measured why this class must exist: with the
+ * pinned rule applied to it, pregrant re-adopted, the restart's trylock was
+ * refused by the gate, and the restart protocol spun 2.2 M times in one lap
+ * (15 nodes blew the rsync budget on a FRESH fs).
+ */
+int
+mxfs_ag_dlm_lock_resfree(
+	struct xfs_mount	*mp,
+	struct xfs_perag	*pag)
+{
+	/* The class is the CALLER's explicit contract (ruling: never infer it
+	 * from ambient state).  The P271 seam arrives with a clean, rolled
+	 * defer trans still current (journal_info != NULL) and ILOCKs handed
+	 * off — resource-free by construction; a journal_info assertion here
+	 * fired on every seam entry (0.21.3 kernel_health FAIL, 6 nodes). */
+	return __mxfs_ag_dlm_lock(mp, pag, false, false, true);
 }
 
 /*
@@ -35563,7 +39235,7 @@ mxfs_ag_dlm_trylock(
 	struct xfs_mount	*mp,
 	struct xfs_perag	*pag)
 {
-	return __mxfs_ag_dlm_lock(mp, pag, true);
+	return __mxfs_ag_dlm_lock(mp, pag, true, false, false);
 }
 
 /*
@@ -35588,9 +39260,36 @@ mxfs_ag_dlm_lock_bounded(
 {
 	int	tries = 40;	/* 40 × 100ms ≈ 4s per AG worst case */
 	int	error;
+	/*
+	 * D-AGLOCK-...-LIVELOCK-488.  This loop is the caller that PROVED the
+	 * livelock: 40 silent NOQUEUE probes generate no waiter bit and no
+	 * BAST, so against peers that are merely CACHING their AGs (they
+	 * release only when BASTed, by design) every try returns -EAGAIN, the
+	 * sweep moves to the next AG, wraps, and repeats forever — measured at
+	 * >190 laps over all 25 AGs on the 32-node rig with every peer idle.
+	 *
+	 * So this caller demands revocation.  Cadence is deliberately by WALL
+	 * CLOCK rather than iteration count: the try interval is not the thing
+	 * we want to bound, the rate of BAST-storm pressure on the fleet is.
+	 * First try demands immediately (a real conflict should resolve in one
+	 * demote round-trip), then no more often than ~500ms, jittered so 32
+	 * nodes sweeping the same AG order do not synchronise their demands.
+	 *
+	 * Herd control lives here, at the requester, per the ruling: the sweep
+	 * is sequential (~4s per AG), so at most one AG is under demand from
+	 * this task at a time.
+	 */
+	u64	next_demand_ns = 0;
 
 	do {
-		error = __mxfs_ag_dlm_lock(mp, pag, true);
+		u64	now = ktime_get_ns();
+		bool	demand = (now >= next_demand_ns);
+
+		if (demand)
+			next_demand_ns = now + 500ULL * NSEC_PER_MSEC +
+				(u64)get_random_u32_below(128) * NSEC_PER_MSEC;
+
+		error = __mxfs_ag_dlm_lock(mp, pag, true, demand, false);
 		if (error != -EAGAIN && error != -EWOULDBLOCK)
 			return error;
 		msleep(100);
@@ -35599,6 +39298,57 @@ mxfs_ag_dlm_lock_bounded(
 		"mxfs: P5G-AGLOCK-BOUNDED-BUSY ag=%u comm=%s — peer-held past bound; skipping to next AG (dirty-trans grow path)\n",
 		pag_agno(pag), current->comm);
 	return -EAGAIN;
+}
+
+/*
+ * -488 restart protocol: blocking, lock-neutral AG-DLM acquire+release.
+ *
+ * Called after the allocation's clean transaction has been CANCELLED and
+ * every inode lock DROPPED — the caller holds NOTHING, so blocking here
+ * cannot form a cycle: this node's own cached AGs remain drainable for
+ * peers (their BAST workers only need locks we no longer hold).
+ *
+ * The blocking acquire registers a real waiter bit + demand multicast —
+ * unlike the silent NOQUEUE probes of the trylock sweep, it BASTs the
+ * idle cacher, which is the entire point.  On grant we immediately
+ * release: mxfs_ag_dlm_unlock at holders 1->0 leaves the grant CACHED on
+ * disk, so the caller's restarted allocation re-adopts this AG on the
+ * fast path without another CAW round-trip.
+ */
+atomic64_t mxfs_dlm_stat_ag_pregrant = ATOMIC64_INIT(0);
+int
+xfs_mxfs_ag_pregrant(
+	struct xfs_mount	*mp,
+	xfs_agnumber_t		agno)
+{
+	struct xfs_perag	*pag;
+	int			error;
+
+	/* Any live transaction here means the caller failed to cancel. */
+	if (WARN_ON_ONCE(current->journal_info != NULL))
+		return -EDEADLK;
+	if (WARN_ON_ONCE(agno >= mp->m_sb.sb_agcount))
+		return -EINVAL;
+
+	pag = xfs_perag_get(mp, agno);
+	if (!pag)
+		return -EINVAL;
+
+	error = mxfs_ag_dlm_lock_resfree(mp, pag);
+	if (!error) {
+		mxfs_ag_dlm_unlock(mp, pag);
+		atomic64_inc(&mxfs_dlm_stat_ag_pregrant);
+		pr_warn_ratelimited(
+			"mxfs: P270-AG-PREGRANT ag=%u comm=%s granted+cached (total=%lld)\n",
+			agno, current->comm,
+			(long long)atomic64_read(&mxfs_dlm_stat_ag_pregrant));
+	} else {
+		pr_warn_ratelimited(
+			"mxfs: P270-AG-PREGRANT-FAIL ag=%u comm=%s rc=%d\n",
+			agno, current->comm, error);
+	}
+	xfs_perag_put(pag);
+	return error;
 }
 
 /*
@@ -35738,24 +39488,594 @@ mxfs_dlm_ag_drain_alloc_buflist_nowait(
 }
 
 /*
+ * sess385 P85-INODE-DRAIN-SPLIT (RULE 4 instrumentation).
+ *
+ * mxfs_dlm_ag_drain_inode_buffers skips any inode-cluster buffer that is
+ * already on somebody else's delwri queue (_XBF_DELWRI_Q) and any buffer
+ * whose trylock fails.  BOTH skips were deliberately removed from the
+ * AG-META drain years ago — v0.3.27 replaced trylock with a blocking lock
+ * ("if xfsaild has the buf locked because it's mid-I/O, trylock would skip
+ * and we'd release the DLM grant before xfsaild's I/O finishes"), and
+ * v0.3.31 removed the delwri skip ("xfsaild runs asynchronously, may not
+ * submit for seconds, and we release AG immediately after this drain").
+ * They are still live in the INODE drain.
+ *
+ * That matters because the normal path by which a dinode's nlink=0 reaches
+ * its cluster buffer IS xfsaild: xfs_inode_item_push -> xfs_iflush ->
+ * xfs_buf_delwri_queue(bp, ail_buf_list).  At that instant _XBF_DELWRI_Q is
+ * set, so the skipped buffer is the COMMON case, not the rare one.  Phase 3
+ * then waits only on pag_dlm_meta_pending, which counts AG-META buffers
+ * (mxfs_ag_meta_track) — inode-cluster buffers are not tracked there, so
+ * nothing waits for them either.
+ *
+ * Meanwhile the AGI — carrying the new agi_unlinked bucket head — IS drained,
+ * because it is an AG-meta buffer.  So AG release can publish an unlinked-list
+ * head whose dinode home block still reads nlink!=0.  That is precisely the
+ * split transition that makes the ACQUIRER's xfs_iunlink_reload_next see
+ * i_nlink != 0 and return -EFSCORRUPTED inside an already-dirty rename
+ * transaction (defect #361 / D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN);
+ * see the sess384 RULE-5 ruling, interpretation "AGI new but dinode old on
+ * the releaser -> release exposes a SPLIT transition".
+ *
+ * The probe FUA-reads each SKIPPED DIRTY inode buffer straight off the shared
+ * LUN (piercing the iSCSI per-initiator cache) and reports every dinode in it
+ * whose in-core image says nlink==0 while the medium still says nlink!=0 —
+ * i.e. an inode this node has unlinked but whose home block has not yet been
+ * published.  Runs only on the skip path, only when a dirty inode buffer was
+ * actually skipped, and is gated by the `inode_drain_probe` module param.
+ */
+int mxfs_p85_drain_probe = 1;
+
+
+/*
+ * sess385 P86-AGI-UNLINKED-PUBLISH (RULE 4).
+ *
+ * THE publication-point measurement for D-AGI-UNLINKED-CROSSNODE-RECOVERY-
+ * SHUTDOWN / #361.  Run immediately before mxfs_v5_dlm_ag_unlock, i.e. at the
+ * instant this AG becomes another node's to read.
+ *
+ * P85 measures whether a dirty inode-cluster BUFFER reached the medium.  It
+ * cannot see the deeper hazard, because the two halves of xfs_iunlink travel
+ * to the medium by DIFFERENT mechanisms:
+ *
+ *   - agi_unlinked[bucket] and the victim's di_next_unlinked are BUFFER-logged
+ *     (xfs_trans_log_buf on the AGI buf / the inode cluster buf), so the
+ *     existing drains cover them;
+ *   - the victim's di_nlink = 0 comes from xfs_droplink, which dirties the
+ *     INODE LOG ITEM.  It reaches the cluster buffer only when xfs_iflush runs
+ *     — normally from xfsaild, asynchronously.  xfs_log_force(SYNC) at release
+ *     makes it durable in OUR journal, which no peer ever replays.
+ *
+ * So if xfsaild has not pushed the inode yet, the cluster buffer is not dirty
+ * at all: P85 records it as a clean skip, its in-core image and the medium
+ * agree, and BOTH still say LINKED.  We then publish an AGI whose unlinked
+ * bucket head points at an inode whose home dinode reads nlink != 0 — which is
+ * exactly what makes the ACQUIRER's xfs_iunlink_reload_next return
+ * -EFSCORRUPTED inside an already-dirty rename transaction.
+ *
+ * This probe therefore reads what the ACQUIRER will read: for every non-null
+ * AGI unlinked bucket head, FUA-read that inode's home dinode straight off the
+ * shared LUN and report its di_nlink.  It also reports the in-core inode's
+ * i_nlink (radix-tree lookup, no reference taken — same existence argument as
+ * xfs_iunlink_lookup) so the three views can be told apart:
+ *
+ *   disk_nlink != 0 && core_nlink == 0  -> SPLIT: we are publishing a linked
+ *                                         home dinode as an unlinked-list head
+ *   disk_nlink != 0 && core_nlink != 0  -> the AGI head itself is wrong
+ *   disk_nlink == 0                     -> joint transition, correct
+ *
+ * Cost is bounded by the number of NON-EMPTY unlinked buckets, which is 0 for
+ * an idle AG.  sess43 removed a release-time FUA readback that ran over every
+ * cached AG-meta buffer at every release and stalled peer grants past 120s;
+ * this is deliberately not that — it is gated, and it reads only the buckets a
+ * peer is guaranteed to dereference.
+ */
+int mxfs_p86_agi_audit = 1;
+/*
+ * sess385 P87 enforcement.  The conversion stage in drain_inode_buffers uses
+ * xfs_iflush_cluster, which is deliberately NON-blocking (xfs_ilock_nowait) so
+ * it cannot re-enter the whole-AG ail_push deadlock.  That leaves a residual:
+ * an inode whose ILOCK is held by another thread is skipped, and if it is still
+ * skipped when the pass-until-quiescent loop hits its cap, we would unlock and
+ * publish a split anyway.  Architectural Invariant 1 says a drain that did not
+ * complete must never be followed by an on-disk unlock, and the RULE-5 ruling
+ * is explicit: a timeout may diagnose, shut down or fence, but may NEVER be
+ * followed by unlock.
+ *
+ * So the publication audit is also a REPAIR: for a head we KNOW is unlinked
+ * (this node's in-core i_nlink == 0), retry the conversion for that one inode,
+ * bounded, immediately before the unlock.
+ */
+int mxfs_p87_publish_retries = 3;
+int mxfs_p87_refuse_unlock;	/* default OFF until the repair rate is measured */
+/*
+ * sess387: aggregate repair budget per AG release, in ms.  Derivation (RULE-5
+ * ruling): every measured blocker was transient — an ILOCK held by a local
+ * rm for ~tens of ms, a re-pin cleared by one log force — so 3000ms covers
+ * them with two orders of magnitude of headroom, while the whole release
+ * (drain + audit + repair) stays 40x under the 120s peer grant timeout the
+ * timeout hierarchy must respect.  The one hold this can NOT outwait is an
+ * ILOCK held across a CAW poll for a peer-held AG (up to 120s); waiting that
+ * out from inside a release would risk the distributed circular wait, so the
+ * deadline deliberately converts it into a refusal instead.
+ */
+int mxfs_p87_repair_budget_ms = 3000;
+static atomic64_t mxfs_p86_heads = ATOMIC64_INIT(0);
+static atomic64_t mxfs_p86_ok = ATOMIC64_INIT(0);
+static atomic64_t mxfs_p86_split = ATOMIC64_INIT(0);
+static atomic64_t mxfs_p86_badhead = ATOMIC64_INIT(0);
+static atomic64_t mxfs_p86_repaired = ATOMIC64_INIT(0);
+static unsigned long mxfs_p86_last;
+
+/*
+ * sess385: one bounded repair attempt for a single unlinked inode whose home
+ * dinode still reads LINKED.  Returns true if the cluster buffer was found and
+ * something was converted+written (caller re-reads the medium to decide).
+ *
+ * Only ever called for an inode this node holds in core with i_nlink == 0, i.e.
+ * one we KNOW is unlinked — never on a head another node created, where our
+ * in-core state carries no authority (see the SPLIT vs BADHEAD distinction).
+ */
+static bool
+mxfs_p87_publish_repair(
+	struct xfs_perag	*pag,
+	xfs_agino_t		agino,
+	unsigned long		deadline)
+{
+	struct xfs_mount	*mp = pag_mount(pag);
+	xfs_ino_t		ino = XFS_AGINO_TO_INO(mp, pag_agno(pag), agino);
+	int			rc;
+
+	/*
+	 * sess387 REWRITE (RULE-5 ruling): the old body took the cluster
+	 * buffer first and then let xfs_iflush_cluster TRYLOCK the target's
+	 * ILOCK — measured losing all 3 tries to a local rm's ILOCK hold, with
+	 * the flush landing 14ms after the third failure, post-unlock.  The
+	 * mandatory target flush inverts the lock order (ILOCK before buffer)
+	 * and makes every blocking stage deadline-aware, so a transient holder
+	 * is WAITED OUT instead of raced.
+	 */
+	do {
+		rc = mxfs_iflush_agino_target(pag, agino, deadline);
+		if (rc != -EAGAIN)
+			break;
+		msleep(2);
+	} while (time_before(jiffies, deadline));
+
+	if (rc) {
+		pr_warn_ratelimited("mxfs: P87-REPAIR-FAIL ino=%llu arm=target rc=%d\n",
+				    (unsigned long long)ino, rc);
+		return false;
+	}
+	mxfs_blkdev_flush_epoch(mp);
+	return true;
+}
+
+/*
+ * Read one inode's HOME dinode straight off the shared LUN, bypassing every
+ * cache — this is exactly the read the ACQUIRER will perform.
+ */
+static int
+mxfs_p87_read_home_dinode(
+	struct xfs_perag	*pag,
+	xfs_agino_t		agino,
+	uint32_t		*nlink,
+	uint32_t		*next_unl,
+	uint32_t		*gen,
+	uint16_t		*mode)
+{
+	struct xfs_mount	*mp = pag_mount(pag);
+	uint32_t		isize = mp->m_sb.sb_inodesize;
+	xfs_daddr_t		cdaddr;
+	uint32_t		byteoff, secoff, len;
+	uint64_t		lba;
+	void			*tmp;
+	struct xfs_dinode	*dp;
+	int			rc;
+
+	if (!isize)
+		return -EINVAL;
+	cdaddr = XFS_AGB_TO_DADDR(mp, pag_agno(pag),
+				  XFS_AGINO_TO_AGBNO(mp, agino));
+	byteoff = XFS_AGINO_TO_OFFSET(mp, agino) * isize;
+	lba = (uint64_t)cdaddr + (byteoff >> BBSHIFT);
+	secoff = byteoff & (BBSIZE - 1);
+	len = roundup(secoff + isize, BBSIZE);
+	lba += mp->m_ddev_targp->bt_sector_offset;
+
+	tmp = kmalloc(len, GFP_NOFS);
+	if (!tmp)
+		return -ENOMEM;
+	/*
+	 * sess387: read what the ACQUIRER reads.  Under mxfs_fua_disable
+	 * (fleet default since sess94) every peer read is a PLAIN read served
+	 * from the shared target cache, so a COMPLETED conversion write is
+	 * already visible cluster-wide; verifying with a FUA platter read here
+	 * manufactured false "still LINKED" verdicts for every repair whose
+	 * write sat in the target's write cache (the reread-linked loop then
+	 * burned the whole aggregate budget and later heads failed rc=-110
+	 * with tries=0).  Crash durability of the conversion is the journal's
+	 * job, not this read's.
+	 */
+	{
+		extern int mxfs_fua_disable;
+		extern int mxfs_pal_bdev_read_plain_bdev(struct block_device *,
+							 uint64_t, void *,
+							 uint32_t);
+
+		rc = mxfs_fua_disable ?
+			mxfs_pal_bdev_read_plain_bdev(mp->m_ddev_targp->bt_bdev,
+						      lba, tmp, len) :
+			mxfs_pal_scsi_read_fua_bdev(mp->m_ddev_targp->bt_bdev,
+						    lba, tmp, len);
+	}
+	if (rc) {
+		kfree(tmp);
+		return rc < 0 ? rc : -EIO;
+	}
+	dp = (struct xfs_dinode *)((char *)tmp + secoff);
+	if (be16_to_cpu(dp->di_magic) != XFS_DINODE_MAGIC) {
+		kfree(tmp);
+		return -EFSCORRUPTED;
+	}
+	*nlink    = be32_to_cpu(dp->di_nlink);
+	*next_unl = be32_to_cpu(dp->di_next_unlinked);
+	*gen      = be32_to_cpu(dp->di_gen);
+	*mode     = be16_to_cpu(dp->di_mode);
+	kfree(tmp);
+	return 0;
+}
+
+/*
+ * Returns the number of unlinked-list heads we are about to publish that this
+ * node KNOWS are unlinked but whose home dinode still reads LINKED, after
+ * bounded repair.  Non-zero means we are about to violate the publication
+ * invariant; the caller decides what to do about it.
+ */
+static int
+mxfs_p86_agi_unlinked_publish_audit(
+	struct xfs_perag	*pag)
+{
+	struct xfs_mount	*mp = pag_mount(pag);
+	struct xfs_buf		*agibp = NULL;
+	struct xfs_agi		*agi;
+	unsigned int		i, heads = 0, split = 0, badhead = 0, ok = 0;
+	unsigned int		repaired = 0;
+	xfs_agino_t		bucket[XFS_AGI_UNLINKED_BUCKETS];
+	bool			snapped = false;
+	unsigned long		deadline = jiffies +
+				msecs_to_jiffies(mxfs_p87_repair_budget_ms);
+
+	if (!mxfs_p86_agi_audit || mp->m_sb.sb_inodesize == 0)
+		return 0;
+	if (xfs_buf_incore(mp->m_ddev_targp,
+			   XFS_AG_DADDR(mp, pag_agno(pag), XFS_AGI_DADDR(mp)),
+			   XFS_FSS_TO_BB(mp, 1), XBF_TRYLOCK, &agibp) != 0 ||
+	    !agibp)
+		return 0;
+	agi = agibp->b_addr;
+	if (be32_to_cpu(agi->agi_magicnum) == XFS_AGI_MAGIC) {
+		for (i = 0; i < XFS_AGI_UNLINKED_BUCKETS; i++)
+			bucket[i] = be32_to_cpu(agi->agi_unlinked[i]);
+		snapped = true;
+	}
+	/*
+	 * sess385 LOCK ORDER: snapshot the buckets and DROP the AGI buffer
+	 * before doing anything else.  The repair path calls xfs_log_force and
+	 * xfs_imap; with flags=0 xfs_imap still falls through to
+	 * xfs_imap_lookup (an inobt btree read, which reads the AGI) whenever
+	 * blocks_per_cluster > 1 and inoalign_mask == 0, and a log force can
+	 * drive an AIL push that wants the AGI too.  Either one would deadlock
+	 * against the buffer lock we are holding.  Nothing can change the list
+	 * underneath us: we still hold the AG DLM EX and pag_dlm_demoting is
+	 * set, so no peer and no local acquirer can touch this AG.
+	 */
+	xfs_buf_unlock(agibp);
+	xfs_buf_rele(agibp);
+	if (!snapped)
+		return 0;
+
+	for (i = 0; i < XFS_AGI_UNLINKED_BUCKETS; i++) {
+		xfs_agino_t	agino = bucket[i];
+		struct xfs_inode *ip;
+		uint32_t	disk_nl = 0, disk_next = 0, dgen = 0;
+		uint16_t	dmode = 0;
+		int		core_nl = -1;
+		int		tries;
+
+		if (agino == NULLAGINO)
+			continue;
+		heads++;
+
+		if (mxfs_p87_read_home_dinode(pag, agino, &disk_nl, &disk_next,
+					      &dgen, &dmode) != 0)
+			continue;
+		if (disk_nl == 0) {
+			ok++;
+			continue;
+		}
+
+		/*
+		 * The medium says LINKED.  Does THIS node know otherwise?
+		 *
+		 * sess385 CAREFUL: xfs_iunlink_lookup can take no reference
+		 * because its caller holds the AGI buffer lock, which pins
+		 * unlinked-list membership.  The lock-order fix above RELEASED
+		 * the AGI, so that argument does NOT hold here and this cannot
+		 * be a straight copy of it.  RCU keeps the xfs_inode memory
+		 * alive (xfs_inode_free_callback frees it via call_rcu), but it
+		 * does NOT stop the inode being reclaimed and REUSED for a
+		 * different ino — and a reused inode that happens to read
+		 * i_nlink == 0 would make us misclassify a BADHEAD as a SPLIT
+		 * and "repair" on an authority we do not have.
+		 *
+		 * So re-check identity after the lookup and reject anything in
+		 * or heading for reclaim.  Failing these leaves core_nl at -1,
+		 * i.e. BADHEAD — report, do not touch.  Fail-safe direction:
+		 * the only cost of being wrong here is declining to repair.
+		 */
+		rcu_read_lock();
+		ip = radix_tree_lookup(&pag->pag_ici_root, agino);
+		if (ip &&
+		    ip->i_ino == XFS_AGINO_TO_INO(mp, pag_agno(pag), agino) &&
+		    !__xfs_iflags_test(ip, XFS_IRECLAIM | XFS_IRECLAIMABLE))
+			core_nl = (int)VFS_I(ip)->i_nlink;
+		rcu_read_unlock();
+
+		if (core_nl != 0) {
+			/*
+			 * BADHEAD: we never had this inode in core, so we have
+			 * no authority to "repair" it — most likely we did not
+			 * create this head and are merely re-publishing an AGI
+			 * another node left bad.  Report, do not touch.
+			 */
+			badhead++;
+			pr_warn("mxfs: P86-AGI-UNLINKED-BADHEAD ag=%u bucket=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x core_nlink=%d disk_gen=%u disk_mode=0x%x — unlinked-list head reads LINKED on the medium and is NOT in this node's cache; we did not create it\n",
+				pag_agno(pag), i, agino,
+				(unsigned long long)XFS_AGINO_TO_INO(mp,
+					pag_agno(pag), agino),
+				disk_nl, disk_next, core_nl, dgen, dmode);
+			continue;
+		}
+
+		/*
+		 * SPLIT: this node unlinked it and has not published it.  Ours
+		 * to fix, and Invariant 1 says we must not unlock until we do.
+		 * sess387: one AGGREGATE deadline per audit walk (RULE-5
+		 * ruling — per-head deadlines can stack past the DLM grant
+		 * timeout); the mandatory target flush inside waits out
+		 * transient ILOCK/pin holders instead of racing them.
+		 */
+		for (tries = 0; ; tries++) {
+			if (!mxfs_p87_publish_repair(pag, agino, deadline)) {
+				if (time_after(jiffies, deadline))
+					break;
+				msleep(2);
+				continue;
+			}
+			if (mxfs_p87_read_home_dinode(pag, agino, &disk_nl,
+						      &disk_next, &dgen,
+						      &dmode) == 0 &&
+			    disk_nl == 0)
+				break;
+			/* Wrote the cluster buffer, flushed, and the medium
+			 * STILL reads LINKED — the conversion wrote a stale
+			 * in-core image or the FUA re-read raced.  A distinct
+			 * arm from every repair-refused case above. */
+			pr_warn_ratelimited("mxfs: P87-REPAIR-FAIL ino=%llu arm=reread-linked nl=%u\n",
+					    (unsigned long long)XFS_AGINO_TO_INO(mp,
+						pag_agno(pag), agino), disk_nl);
+			if (time_after(jiffies, deadline))
+				break;
+			msleep(2);
+		}
+		if (disk_nl == 0) {
+			repaired++;
+			ok++;
+			pr_warn_ratelimited("mxfs: P87-PUBLISH-REPAIRED ag=%u bucket=%u agino=0x%x tries=%d — home dinode converted and written before unlock\n",
+				pag_agno(pag), i, agino, tries + 1);
+			continue;
+		}
+
+		split++;
+		pr_warn("mxfs: P86-AGI-UNLINKED-PUBLISH ag=%u bucket=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x core_nlink=0 disk_gen=%u disk_mode=0x%x tries=%d — publishing an unlinked-list head whose HOME dinode still reads LINKED; the acquirer's xfs_iunlink_reload_next will call this AGI corruption\n",
+			pag_agno(pag), i, agino,
+			(unsigned long long)XFS_AGINO_TO_INO(mp, pag_agno(pag),
+							     agino),
+			disk_nl, disk_next, dgen, dmode, tries);
+	}
+
+	/*
+	 * sess387: enforce publication obligations for THIS AG — the head walk
+	 * above cannot see mid-chain members (test22's killer was one).  Every
+	 * inode this node put on the on-disk list whose conversion has not been
+	 * verified written gets the mandatory target flush + FUA verify here;
+	 * one that cannot be converted (shell gone — the inactivation-leak
+	 * family — or repair timeout) counts as an unrepaired split so the
+	 * refuse-unlock escalation covers it.
+	 */
+	if (mp->m_mxfs_pubob_count) {
+		struct mxfs_pubob *ob;
+		xfs_agino_t	*oag;
+		uint64_t	*oino;
+		int		 nob = 0, cap, k;
+
+		spin_lock(&mp->m_mxfs_pubob_lock);
+		cap = mp->m_mxfs_pubob_count;
+		spin_unlock(&mp->m_mxfs_pubob_lock);
+		oag = kmalloc_array(cap, sizeof(*oag), GFP_NOFS);
+		oino = kmalloc_array(cap, sizeof(*oino), GFP_NOFS);
+		if (oag && oino) {
+			spin_lock(&mp->m_mxfs_pubob_lock);
+			list_for_each_entry(ob, &mp->m_mxfs_pubob_list, l) {
+				if (ob->agno != pag_agno(pag))
+					continue;
+				if (nob >= cap)
+					break;
+				oag[nob] = ob->agino;
+				oino[nob] = ob->ino;
+				nob++;
+			}
+			spin_unlock(&mp->m_mxfs_pubob_lock);
+		}
+		for (k = 0; k < nob; k++) {
+			uint32_t	onl = 0, onext = 0, ogen = 0;
+			uint16_t	omode = 0;
+			bool		shell;
+			struct xfs_inode *oip;
+
+			if (mxfs_p87_read_home_dinode(pag, oag[k], &onl,
+						      &onext, &ogen,
+						      &omode) != 0)
+				continue;
+			if (onl == 0) {
+				/* Conversion is home: discharge lazily. */
+				mxfs_pubob_drop_ino(mp, oino[k]);
+				rcu_read_lock();
+				oip = radix_tree_lookup(&pag->pag_ici_root,
+							oag[k]);
+				if (oip && oip->i_ino == oino[k])
+					xfs_iflags_clear(oip, MXFS_IF_PUBOB |
+							 MXFS_IF_PUBOB_FLUSHED);
+				rcu_read_unlock();
+				continue;
+			}
+			rcu_read_lock();
+			oip = radix_tree_lookup(&pag->pag_ici_root, oag[k]);
+			shell = oip && oip->i_ino == oino[k] &&
+				!__xfs_iflags_test(oip, XFS_IRECLAIM);
+			rcu_read_unlock();
+			if (!shell) {
+				split++;
+				pr_warn("mxfs: P88-PUBOB-NOSHELL ag=%u agino=0x%x ino=%llu disk_nlink=%u disk_next=0x%x — obligation with no in-core inode; conversion is unrepairable from this node (inactivation-leak family), refusing counts it as a split\n",
+					pag_agno(pag), oag[k],
+					(unsigned long long)oino[k], onl, onext);
+				continue;
+			}
+			if (mxfs_p87_publish_repair(pag, oag[k], deadline) &&
+			    mxfs_p87_read_home_dinode(pag, oag[k], &onl,
+						      &onext, &ogen,
+						      &omode) == 0 &&
+			    onl == 0) {
+				repaired++;
+				mxfs_pubob_drop_ino(mp, oino[k]);
+				pr_warn_ratelimited("mxfs: P88-PUBOB-REPAIRED ag=%u agino=0x%x ino=%llu — mid-chain conversion written before unlock\n",
+					pag_agno(pag), oag[k],
+					(unsigned long long)oino[k]);
+			} else {
+				split++;
+				pr_warn("mxfs: P88-PUBOB-UNREPAIRED ag=%u agino=0x%x ino=%llu disk_nlink=%u — obligation still LINKED on the medium after the mandatory target flush\n",
+					pag_agno(pag), oag[k],
+					(unsigned long long)oino[k], onl);
+			}
+		}
+		kfree(oag);
+		kfree(oino);
+	}
+
+	if (heads || split || repaired) {
+		atomic64_add(heads, &mxfs_p86_heads);
+		atomic64_add(ok, &mxfs_p86_ok);
+		atomic64_add(split, &mxfs_p86_split);
+		atomic64_add(badhead, &mxfs_p86_badhead);
+		atomic64_add(repaired, &mxfs_p86_repaired);
+		if (printk_timed_ratelimit(&mxfs_p86_last, 30 * 1000))
+			pr_warn("mxfs: P86-AGI-PUBLISH-TOTALS heads=%lld joint_ok=%lld REPAIRED=%lld SPLIT=%lld BADHEAD=%lld\n",
+				(long long)atomic64_read(&mxfs_p86_heads),
+				(long long)atomic64_read(&mxfs_p86_ok),
+				(long long)atomic64_read(&mxfs_p86_repaired),
+				(long long)atomic64_read(&mxfs_p86_split),
+				(long long)atomic64_read(&mxfs_p86_badhead));
+	}
+	return split;
+}
+
+/*
  * Walk pag_bcache for inode cluster buffers with pending iflush activity
  * (b_li_list non-empty, not already on a delwri queue) and submit them
  * synchronously.  Bounded by AG-resident buffers; closes the cross-node
  * cluster-buffer coherency window before we release the DLM AG grant.
  */
+int mxfs_p87_publish_inodes = 1;
+
+/*
+ * sess385: does this INODE cluster buffer have anything pending for the
+ * medium?  See the predicate note in mxfs_dlm_ag_drain_inode_buffers.
+ * Caller may hold the buffer lock or not; all three tests are single reads.
+ */
+static bool
+mxfs_inode_buf_needs_write(struct xfs_buf *bp)
+{
+	struct xfs_buf_log_item	*bip = bp->b_log_item;
+
+	return (bp->b_flags & _XBF_DELWRI_Q) || xfs_buf_ispinned(bp) || bip;
+}
+
 static void
 mxfs_dlm_ag_drain_inode_buffers(
 	struct xfs_perag	*pag)
 {
-	LIST_HEAD(inode_drain);
 	struct rhashtable_iter	iter;
 	struct xfs_buf		*bp;
 	unsigned int		qd = 0;
+	unsigned int		pass_writes, passes = 0;
+	/* sess385 P85 census — the verification instrument for this fix. */
+	unsigned int		p85_inode = 0, p85_clean = 0, p85_allocq = 0;
+	unsigned int		p85_delwri = 0, p85_locked = 0, p85_nohold = 0;
+	unsigned int		p85_pinned = 0, p85_werr = 0;
+	unsigned int		p85_iflushed = 0, p85_ferr = 0;
 
+	/*
+	 * sess385 FIX (HOLE 1) — this drain is now structurally identical to
+	 * mxfs_dlm_ag_drain_meta_buffers.  It previously skipped
+	 *
+	 *   (a) any buffer with _XBF_DELWRI_Q set,
+	 *   (b) any buffer whose trylock failed,
+	 *   (c) any buffer with an empty b_li_list, with no pinned/BLI
+	 *       fallthrough,
+	 *
+	 * all three of which were removed from the AG-META drain years ago
+	 * after they each caused cross-node corruption: (a) in v0.3.31
+	 * ("xfsaild runs asynchronously, may not submit for seconds, and we
+	 * release AG immediately after this drain"), (b) in v0.3.27 ("if
+	 * xfsaild has the buf locked because it's mid-I/O, trylock would skip
+	 * and we'd release the DLM grant before xfsaild's I/O finishes"), and
+	 * (c) in sess77 / ccloop-4dd7 sess4 (the committed-to-CIL-but-not-yet-
+	 * in-AIL window is PINNED or BLI-attached, not clean).
+	 *
+	 * They mattered more here than they did for AG-meta, because the normal
+	 * route by which a dinode reaches its cluster buffer IS xfsaild:
+	 * xfs_inode_item_push -> xfs_iflush -> xfs_buf_delwri_queue.  At that
+	 * instant _XBF_DELWRI_Q is set and the buffer is locked for submit, so
+	 * the skipped buffer was the COMMON case, not the rare one.  Nor did
+	 * anything else wait for it: Phase 3 waits only on pag_dlm_meta_pending,
+	 * which counts AG-META buffers registered via mxfs_ag_meta_track.
+	 *
+	 * MEASURED before this fix (P85, 32/caw, one all-PASS lap): 34 dirty
+	 * inode-cluster buffers skipped at AG release, and 10 of the 23 that
+	 * could be FUA-read back still differed from in-core at the instant of
+	 * release.  Architectural Invariant 1 violated on a green board.
+	 *
+	 * xfs_bwrite is synchronous (waits the bio) and already calls
+	 * xfs_force_shutdown(SHUTDOWN_META_IO_ERROR) on failure, so a write we
+	 * cannot complete can no longer be followed by a DLM unlock that
+	 * publishes stale metadata — the fail-closed property the previous
+	 * xfs_buf_delwri_submit path did not have (it only logged).
+	 *
+	 * NOTE this fixes only buffers that xfs_iflush has ALREADY populated.
+	 * The AG release path still has no inode-log-item -> cluster-buffer
+	 * conversion stage at all (HOLE 2, probe P86) — see
+	 * mxfs_p86_agi_unlinked_publish_audit.
+	 */
+	do {
+	pass_writes = 0;
 	rhashtable_walk_enter(&pag->pag_bcache.bc_hash, &iter);
 	do {
 		rhashtable_walk_start(&iter);
 		while ((bp = rhashtable_walk_next(&iter))) {
+			bool	got;
+			int	werr;
+
 			if (IS_ERR(bp)) {
 				if (PTR_ERR(bp) == -EAGAIN)
 					continue;
@@ -35764,45 +40084,212 @@ mxfs_dlm_ag_drain_inode_buffers(
 			if (bp->b_ops != &xfs_inode_buf_ops &&
 			    bp->b_ops != &xfs_inode_buf_ra_ops)
 				continue;
-			if (list_empty_careful(&bp->b_li_list))
+			p85_inode++;
+
+			/*
+			 * sess385 (ruling item 2c): _XBF_DELWRI_Q says "on some
+			 * delwri protocol", not WHICH list owns the b_list
+			 * linkage and its reference.  mxfs queues its own fresh
+			 * cluster buffers to pag_mxfs_alloc_buflist and marks
+			 * them _XBF_MXFS_ALLOC_QUEUED.  That list has its own
+			 * sanctioned drain, which ran immediately before us
+			 * (Phase 2b order); a partially initialised allocation
+			 * buffer must not be submitted from here, and one
+			 * b_list linkage must never be treated as belonging to
+			 * both queues.  Assert ownership via the mxfs flag —
+			 * never infer it from _XBF_DELWRI_Q.
+			 */
+			if (bp->b_flags & _XBF_MXFS_ALLOC_QUEUED) {
+				p85_allocq++;
 				continue;
+			}
 			if (bp->b_flags & _XBF_DELWRI_Q)
-				continue;
-			{
-				bool got = false;
-				spin_lock(&bp->b_lock);
-				if (bp->b_hold > 0) {
-					bp->b_hold++;
-					got = true;
-				}
-				spin_unlock(&bp->b_lock);
-				if (!got)
+				p85_delwri++;
+
+			/*
+			 * sess385 PREDICATE (measured, P85-LATEPASS): a
+			 * non-empty b_li_list does NOT mean an INODE cluster
+			 * buffer needs writing.  For an AG-meta buffer
+			 * b_li_list carries the buf log item, which iodone
+			 * releases — so the meta drain's predicate self-clears.
+			 * For an inode cluster buffer b_li_list carries the
+			 * INODE log items attached by xfs_iflush, and those
+			 * survive the write.  Copying the meta predicate here
+			 * made the write condition permanently true: the drain
+			 * rewrote the same buffer every pass and hit the pass
+			 * cap on 133 of 423 releases while the meta drain hit
+			 * it 0 times.  All 423 late-pass writes reported the
+			 * identical post-write state — pin=0 bip=0 inail=0,
+			 * li_empty=0 — i.e. nothing pending, list still there.
+			 *
+			 * XFS has no XBF_DIRTY flag; "needs writing" is
+			 * expressed by being on a delwri queue, being pinned
+			 * (committed to CIL, unwritten), or carrying a buf log
+			 * item.  All three are cleared by a completed
+			 * xfs_bwrite, so this predicate terminates.
+			 */
+			if (!mxfs_inode_buf_needs_write(bp)) {
+				/*
+				 * Cheap superset: keep looking at buffers that
+				 * merely carry inode log items, because the
+				 * precise test is re-applied under the lock
+				 * below and the flusher can set _XBF_DELWRI_Q
+				 * between our unlocked read and the lock.
+				 */
+				if (list_empty_careful(&bp->b_li_list)) {
+					p85_clean++;
 					continue;
+				}
 			}
-			if (!xfs_buf_trylock(bp)) {
-				xfs_buf_rele(bp);
+			if (xfs_buf_ispinned(bp))
+				p85_pinned++;
+
+			got = false;
+			spin_lock(&bp->b_lock);
+			if (bp->b_hold > 0) {
+				bp->b_hold++;
+				got = true;
+			}
+			spin_unlock(&bp->b_lock);
+			if (!got) {
+				p85_nohold++;
 				continue;
 			}
-			if (xfs_buf_delwri_queue(bp, &inode_drain))
+
+			/*
+			 * sess5 RCU rule: leave the RCU-protected walk before
+			 * the blocking lock + synchronous write, and re-enter
+			 * after the rele.  A stop/start resume can skip entries
+			 * that rehashed while stopped, which is why the whole
+			 * walk repeats until a pass writes nothing.
+			 */
+			rhashtable_walk_stop(&iter);
+			if (!xfs_buf_trylock(bp))
+				p85_locked++;	/* census only; we still wait */
+			else
+				xfs_buf_unlock(bp);
+			xfs_buf_lock(bp);
+
+			/*
+			 * sess385 FIX (HOLE 2) — THE MISSING STAGE.
+			 *
+			 * Until now the AG release path had no inode-log-item ->
+			 * cluster-buffer conversion step at all.  di_nlink=0 from
+			 * xfs_droplink lives in the INODE log item; it reaches the
+			 * dinode only when xfs_iflush runs, normally from xfsaild,
+			 * asynchronously.  xfs_log_force(SYNC) makes it durable in
+			 * OUR journal — which no peer ever replays, because peers
+			 * read only home blocks.  So we published an AGI whose
+			 * unlinked bucket head pointed at a dinode still reading
+			 * LINKED, and the acquirer's xfs_iunlink_reload_next called
+			 * that AGI corruption and shut down from inside an already
+			 * dirty rename transaction.
+			 *
+			 * MEASURED before this fix (P86, at the instant before
+			 * mxfs_v5_dlm_ag_unlock, on all-PASS laps): 11 of 65
+			 * published unlinked-list heads had disk_nlink!=0 while
+			 * this node's in-core inode read nlink==0.
+			 *
+			 * xfs_trans_log_inode attaches every dirty inode's log item
+			 * to its cluster buffer's b_li_list at first dirty, so a
+			 * non-empty b_li_list is exactly the set of inodes needing
+			 * conversion — no radix-tree walk required.
+			 * xfs_iflush_cluster is the non-blocking converter: it
+			 * takes ILOCK_SHARED with nowait and skips what it cannot
+			 * get, which is what keeps this out of the whole-AG
+			 * ail_push deadlock that killed the two previous attempts
+			 * (a sibling in this AG can be ILOCK-EXCL-held by a thread
+			 * blocked behind this very worker).  Anything it skips is
+			 * retried by the enclosing pass-until-quiescent loop.
+			 *
+			 * Contract: on failure it has ALREADY unlocked and released
+			 * the buffer and shut the filesystem down — we must not
+			 * touch bp again, and must not drop our reference, because
+			 * that failure path consumed it.
+			 */
+			if (mxfs_p87_publish_inodes &&
+			    !list_empty_careful(&bp->b_li_list)) {
+				int ferr = xfs_iflush_cluster(bp);
+
+				if (ferr && ferr != -EAGAIN) {
+					p85_ferr++;
+					pr_warn("mxfs: P87-PUBLISH-IFLUSH-FAIL ag=%u rc=%d — inode conversion failed; xfs_iflush_cluster has shut the filesystem down\n",
+						pag_agno(pag), ferr);
+					rhashtable_walk_start(&iter);
+					continue;
+				}
+				if (!ferr) {
+					p85_iflushed++;
+					/*
+					 * At least one inode was converted, so the
+					 * buffer now differs from the medium and
+					 * MUST be written regardless of what the
+					 * write predicate says.
+					 */
+					werr = xfs_bwrite(bp);
+					goto wrote;
+				}
+			}
+
+			/*
+			 * Ruling item 2: re-evaluate under the lock — the state
+			 * the unlocked scanner saw may have changed, in either
+			 * direction.  This is also what makes the cheap superset
+			 * above safe.
+			 */
+			if (!mxfs_inode_buf_needs_write(bp)) {
+				p85_clean++;
+				xfs_buf_unlock(bp);
+				xfs_buf_rele(bp);
+				rhashtable_walk_start(&iter);
+				continue;
+			}
+			werr = xfs_bwrite(bp);
+wrote:
+			if (werr) {
+				p85_werr++;
+				pr_warn("mxfs: P85-INODE-DRAIN-WRITE-FAIL ag=%u daddr=%lld rc=%d — AG release cannot publish this inode cluster; xfs_bwrite has forced a META_IO_ERROR shutdown\n",
+					pag_agno(pag),
+					(long long)bp->b_maps[0].bm_bn, werr);
+			} else {
 				qd++;
+				pass_writes++;
+			}
 			xfs_buf_unlock(bp);
 			xfs_buf_rele(bp);
+			rhashtable_walk_start(&iter);
 		}
 		rhashtable_walk_stop(&iter);
 	} while (bp == ERR_PTR(-EAGAIN));
 	rhashtable_walk_exit(&iter);
+	} while (pass_writes && ++passes < 8);
+
+	if (pass_writes && passes >= 8)
+		pr_warn("mxfs: P85-INODE-DRAIN-PASSCAP ag=%u passes=%u last_pass_writes=%u — inode drain did not quiesce within the pass cap; releasing (bounded Invariant-1 exposure)\n",
+			pag_agno(pag), passes, pass_writes);
 
 	if (qd) {
-		int werr = xfs_buf_delwri_submit(&inode_drain);
-		if (werr)
-			mxfs_pal_log(MXFS_LOG_WARN,
-				"mxfs: AG %u inode-buf delwri submit rc=%d "
-				"(qd=%u)", pag_agno(pag), werr, qd);
 		mxfs_blkdev_flush_epoch(pag_mount(pag));
 		mxfs_pal_log(MXFS_LOG_DEBUG,
-			"mxfs: AG %u BAST drain flushed %u inode bufs",
+			"mxfs: AG %u BAST drain bwrote %u inode bufs",
 			pag_agno(pag), qd);
 	}
+
+	/*
+	 * sess385: print ONLY on an anomaly.  A line per AG release is ~1000
+	 * lines per node per chunk; at 32 nodes that output goes out the guest
+	 * serial port, and qemu writes it to the HOST's ext4 with a buffered
+	 * pwrite.  During this session that wedged 12 guests with 63 qemu
+	 * worker threads each stuck in ext4_buffered_write_iter and took clyde
+	 * to loadavg 750.  Instrumentation that cannot be left on is not
+	 * instrumentation.
+	 */
+	if (mxfs_p85_drain_probe &&
+	    (p85_werr || p85_ferr || p85_nohold || p85_allocq || passes > 0))
+		pr_warn_ratelimited("mxfs: P85-INODE-DRAIN-CENSUS ag=%u inode_bufs=%u clean_skip=%u allocq_skip=%u nohold=%u delwri_seen=%u waited_lock=%u pinned_fallthru=%u iflushed=%u ferr=%u bwrote=%u werr=%u passes=%u\n",
+			pag_agno(pag), p85_inode, p85_clean, p85_allocq,
+			p85_nohold, p85_delwri, p85_locked, p85_pinned,
+			p85_iflushed, p85_ferr, qd, p85_werr, passes + 1);
 }
 
 /*
@@ -36576,14 +41063,54 @@ mxfs_dlm_close_release(struct xfs_inode *ip)
  *
  * Failure to establish a grant = failure to protect: the open FAILS (-EIO).
  */
+/* sess236/sess239: PLAIN laps re-run the acquisition+admission protocol
+ * bare; after that the admission gate arms (it defers releases that have
+ * not yet reached their terminal store).  There is no exhaustion budget
+ * any more — sess239's epoch-aware completion wait makes every lap wait
+ * out the release pipeline it lost to, so the loop converges and
+ * contention never becomes -EIO (sess238 RULE-5 ruling). */
+#define MXFS_OPEN_PROTECT_PLAIN_RESTARTS	2
 int mxfs_dlm_open_protect(struct xfs_inode *ip)
 {
 	struct xfs_mount	*mp = ip->i_mount;
 	bool			ok;
+	/* sess236 (sess235 RULE-5 ruling, D-OPEN-PROTECT-DEMOTE-RACE-
+	 * SPURIOUS-EIO): live-NL at the admission re-read is a benign race
+	 * with the release worker's terminal store (proven 0.11.482 cc
+	 * test23: nl_age_us=16 from xfs_mxfs_dlm.c terminal release), never
+	 * a reason to fail the open.  Treat it as a COLD OPEN: restart the
+	 * whole acquisition+admission protocol (the ilock ride's slow path
+	 * waits out the old release epoch on DEMOTING and re-acquires via
+	 * the routed protocol; tombstone/publication/route re-checked from
+	 * scratch each lap).  After OPEN_PROTECT_PLAIN_RESTARTS lost races,
+	 * arm the per-inode ADMISSION GATE (i_mxfs_open_admit_n) that the
+	 * release worker's terminal store honors, bounding the loop.  -EIO
+	 * remains only for real failures (shutdown fence / acquire that
+	 * cannot converge with releases held off). */
+	int			restarts = 0;
+	bool			gated = false;
+	int			ret = 0;
+	/* sess207 #18 forensics: state snapshot taken under i_dlm_lock at the
+	 * post-ride mode re-read; the fail print runs after xfs_iunlock, so it
+	 * must not re-read live fields. */
+	u8			sn_mode, sn_state, sn_ssrc, sn_nlom;
+	u16			sn_exh, sn_prh, sn_acq;
+	bool			sn_iclus, sn_unpub, sn_stale;
+	u32			sn_nlline, sn_arm;
+	pid_t			sn_nlpid;
+	u64			sn_nlns;
+	char			sn_nlcomm[16];
 
 	if (!mxfs_open_tracking || !mp->m_mxfs_dlm ||
 	    mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
 		return 0;
+	/* sess239 injection (see mxfs_openprotect_arm_gate decl): arm the
+	 * admission gate for this open's whole protocol; out: disarms. */
+	if (unlikely(mxfs_openprotect_arm_gate) && !gated) {
+		atomic_inc(&ip->i_mxfs_open_admit_n);
+		gated = true;
+	}
+restart:
 	/* Fast path: cached grant, no release/BAST in flight. */
 	spin_lock(&ip->i_dlm_lock);
 	ok = ip->i_dlm_mode != MXFS_LOCK_NL &&
@@ -36613,7 +41140,57 @@ int mxfs_dlm_open_protect(struct xfs_inode *ip)
 	if (ok && mxfs_dlm_iclus_covered(ip))
 		ok = mxfs_iclus_open_admit(mp, ip->i_ino);
 	if (ok)
-		return 0;
+		goto out;
+	/* sess238 build-1 forensics: stamp this task as the opener BEFORE the
+	 * ilock ride, so mxfs_dlmtr_rec records which ilock-path admit arm
+	 * granted us (every admit arm ends in a MXFS_DLMTR_H record; the last
+	 * stamp before the admission re-read below names the arm).  Cleared at
+	 * out:.  Second opener racing on the same inode just overwrites the
+	 * pid — the arm attribution then belongs to whichever rode last,
+	 * acceptable for a diagnostic. */
+	spin_lock(&ip->i_dlm_lock);
+	ip->i_mxfs_openprot_pid = current->pid;
+	ip->i_mxfs_openprot_arm = 0;
+	spin_unlock(&ip->i_dlm_lock);
+	/* sess238 fault injection (moved BEFORE the ilock ride — the sess237
+	 * placement AFTER the ride could not reproduce because the ride itself
+	 * must land in the release's post-terminal-store tail): with the knob
+	 * set and a demote in flight, hold the open HERE until the release
+	 * worker's terminal NL store lands while the flush tail is still
+	 * running ({mode==NL, RELFLUSH set} — the sess47 relflush-admit arm's
+	 * window), or the knob's ms budget expires.  Entering the ilock ride
+	 * inside that window is the 0.11.482 interleaving.  First pass only:
+	 * the restart loop under test runs at natural timing. */
+	if (unlikely(mxfs_openprotect_race_delay_ms) && restarts == 0) {
+		bool demote_inflight;
+
+		spin_lock(&ip->i_dlm_lock);
+		demote_inflight = ip->i_dlm_bast_pending ||
+				  ip->i_dlm_state != MXFS_DLM_ISTATE_NONE;
+		spin_unlock(&ip->i_dlm_lock);
+		if (demote_inflight) {
+			int	waited = 0;
+			bool	hit = false;
+
+			while (waited < mxfs_openprotect_race_delay_ms && !hit) {
+				usleep_range(1000, 1500);
+				waited++;
+				spin_lock(&ip->i_dlm_lock);
+				hit = ip->i_dlm_mode == MXFS_LOCK_NL &&
+				      xfs_iflags_test(ip, MXFS_IF_DLM_RELFLUSH);
+				spin_unlock(&ip->i_dlm_lock);
+			}
+			{
+				static atomic_t p95i_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&p95i_n) <= 200)
+					pr_warn("mxfs: P95-OPEN-INJECT ino=%llu waited_ms=%d landed_window=%d comm=%s — fault-injection hold before ilock ride\n",
+						(unsigned long long)ip->i_ino,
+						waited, hit ? 1 : 0,
+						current->comm);
+			}
+		}
+	}
 	xfs_ilock(ip, XFS_ILOCK_SHARED);
 	/* sess46 split-brain closure, part 2: the ilock hook does NOT
 	 * re-acquire over a sufficient cached mode, so a covered inode
@@ -36638,6 +41215,22 @@ int mxfs_dlm_open_protect(struct xfs_inode *ip)
 	}
 	spin_lock(&ip->i_dlm_lock);
 	ok = ip->i_dlm_mode != MXFS_LOCK_NL;
+	sn_arm = ip->i_mxfs_openprot_arm;
+	sn_mode = ip->i_dlm_mode;
+	sn_state = ip->i_dlm_state;
+	sn_exh = ip->i_dlm_ex_holders;
+	sn_prh = ip->i_dlm_pr_holders;
+	sn_acq = ip->i_dlm_acq_inflight;
+	sn_iclus = ip->i_dlm_routed_iclus;
+	sn_unpub = ip->i_dlm_unpublished;
+	sn_stale = ip->i_dlm_stale;
+	sn_ssrc = ip->i_dlm_stale_src;
+	sn_nlline = ip->i_dlm_nl_line;
+	sn_nlpid = ip->i_dlm_nl_pid;
+	sn_nlns = ip->i_dlm_nl_ns;
+	sn_nlom = ip->i_dlm_nl_om;
+	memcpy(sn_nlcomm, ip->i_dlm_nl_comm, sizeof(sn_nlcomm));
+	sn_nlcomm[sizeof(sn_nlcomm) - 1] = '\0';
 	spin_unlock(&ip->i_dlm_lock);
 	/* sess46 (iclus matrix `basic` race autopsy): the ilock ride's
 	 * coherent acquire can ADOPT A PEER-FREED INCARNATION (P116-ZOMBIE-
@@ -36654,16 +41247,104 @@ int mxfs_dlm_open_protect(struct xfs_inode *ip)
 		pr_warn_ratelimited(
 		    "mxfs: P95-OPEN-STALE-INCARNATION ino=%llu — acquire adopted a peer-freed image; -ESTALE for re-walk\n",
 			(unsigned long long)ip->i_ino);
-		return -ESTALE;
+		ret = -ESTALE;
+		goto out;
 	}
 	xfs_iunlock(ip, XFS_ILOCK_SHARED);
 	if (!ok) {
+		u64 nl_age_us = sn_nlns ?
+			(ktime_get_real_ns() - sn_nlns) / NSEC_PER_USEC : 0;
+
+		/* sess236 cold-open restart (sess235 ruling): live-NL is
+		 * contention, not failure.  sess239 (sess238 RULE-5 ruling,
+		 * RULE-4 proven on 0.11.486: arm=29008 relflush-admit, 5
+		 * restarts burning in µs inside a single release's post-
+		 * terminal-store tail, admit_defers=0): a bare restart loop
+		 * CANNOT converge — the ilock ride is re-admitted instantly
+		 * by the relflush arm for the whole ms-long tail, and the
+		 * admission gate only helps pipelines not yet at their
+		 * terminal store.  So each lost race now performs an
+		 * EPOCH-AWARE COMPLETION WAIT: capture the release epoch at
+		 * the NL re-read, and wait on i_dlm_wait until THAT release
+		 * pipeline fully exits (state leaves DEMOTING at the
+		 * pipeline's tail, AFTER device flush + wire unlock) or the
+		 * epoch moves (a newer cycle superseded it — ABA guard),
+		 * then re-run the whole protocol from scratch.  Unbounded
+		 * with capped STUCK warns: contention must NEVER become
+		 * -EIO; only the shutdown fence fails the open. The gate
+		 * still arms after the plain laps (it bounds pipelines that
+		 * have not yet reached their terminal store). */
+		if (!xfs_is_shutdown(mp)) {
+			unsigned long	wait_epoch;
+			bool		demoting;
+			int		stuck = 0;
+
+			restarts++;
+			if (restarts > MXFS_OPEN_PROTECT_PLAIN_RESTARTS &&
+			    !gated) {
+				atomic_inc(&ip->i_mxfs_open_admit_n);
+				gated = true;
+			}
+			spin_lock(&ip->i_dlm_lock);
+			wait_epoch = ip->i_dlm_epoch;
+			demoting = ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING;
+			spin_unlock(&ip->i_dlm_lock);
+			while (demoting && !xfs_is_shutdown(mp)) {
+				if (wait_event_timeout(ip->i_dlm_wait,
+				    READ_ONCE(ip->i_dlm_state) !=
+						MXFS_DLM_ISTATE_DEMOTING ||
+				    READ_ONCE(ip->i_dlm_epoch) != wait_epoch ||
+				    xfs_is_shutdown(mp), 30 * HZ))
+					break;
+				stuck++;
+				{
+					static atomic_t p95s_n = ATOMIC_INIT(0);
+
+					if (atomic_inc_return(&p95s_n) <= 500)
+						pr_warn("mxfs: P95-OPEN-PROTECT-STUCK ino=%llu waited_s=%d epoch=%lu state=%u mode=%u comm=%s — open admission still waiting for release pipeline exit\n",
+							(unsigned long long)ip->i_ino,
+							stuck * 30, wait_epoch,
+							ip->i_dlm_state,
+							ip->i_dlm_mode,
+							current->comm);
+				}
+			}
+			{
+				static atomic_t p95r_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&p95r_n) <= 2000)
+					pr_warn("mxfs: P95-OPEN-PROTECT-RESTART ino=%llu try=%d gated=%d nl_line=%u nl_om=%u nl_age_us=%llu arm=%u comm=%s — live-NL at admission; cold-open restart\n",
+						(unsigned long long)ip->i_ino,
+						restarts, gated ? 1 : 0,
+						sn_nlline, sn_nlom,
+						(unsigned long long)nl_age_us,
+						sn_arm, current->comm);
+			}
+			cond_resched();
+			goto restart;
+		}
+
 		pr_warn_ratelimited(
-		    "mxfs: P95-OPEN-PROTECT-FAIL ino=%llu — no DLM grant after ilock; failing the open (fail closed)\n",
-			(unsigned long long)ip->i_ino);
-		return -EIO;
+		    "mxfs: P95-OPEN-PROTECT-FAIL ino=%llu mode=%u state=%u exh=%u prh=%u acq=%u iclus=%u unpub=%u stale=%u ssrc=%u imode=%o gen=%u open_n=%d selfc=%u reusedc=%u nl_line=%u nl_om=%u nl_pid=%d nl_comm=%s nl_age_us=%llu restarts=%d gated=%d arm=%u — no DLM grant after ilock at shutdown fence; failing the open (fail closed)\n",
+			(unsigned long long)ip->i_ino, sn_mode, sn_state,
+			sn_exh, sn_prh, sn_acq, sn_iclus, sn_unpub,
+			sn_stale, sn_ssrc, VFS_I(ip)->i_mode,
+			VFS_I(ip)->i_generation,
+			atomic_read(&ip->i_mxfs_open_n),
+			ip->i_mxfs_self_created, ip->i_mxfs_reused_create,
+			sn_nlline, sn_nlom, sn_nlpid, sn_nlcomm,
+			(unsigned long long)nl_age_us, restarts,
+			gated ? 1 : 0, sn_arm);
+		ret = -EIO;
 	}
-	return 0;
+out:
+	spin_lock(&ip->i_dlm_lock);
+	if (ip->i_mxfs_openprot_pid == current->pid)
+		ip->i_mxfs_openprot_pid = 0;
+	spin_unlock(&ip->i_dlm_lock);
+	if (gated)
+		atomic_dec(&ip->i_mxfs_open_admit_n);
+	return ret;
 }
 
 /*
@@ -37987,7 +42668,43 @@ int mxfs_fua_disable = 1;	/* sess6(ccloop 12e0d157): DEFAULT 1 for the SCST CAW-
 				 * REQUIRED) — a DIFFERENT target. A LIO target needs fua_disable=0; future work =
 				 * auto-detect SCST vs LIO by SCSI vendor at mount. See ccmemory
 				 * caw-sess6-PIVOT-scst-confirmed-fua_disable-is-the-storm-fix. */
-module_param_named(fua_disable, mxfs_fua_disable, int, 0644);
+/*
+ * sess359 (#1 GPT review Q5): one lock serializes every setter that can
+ * change the foreign_replay_token_enforce prerequisite predicates with the
+ * enforce setter's check-then-write and with the recovery preflight's
+ * config sample — a prerequisite can then never flip between "validated"
+ * and "written", and an armed knob can never be invalidated underneath a
+ * concurrent validation.  release_proof_enforce is 0444 (immutable at
+ * runtime) so only the two F2-domain params below need the guard.
+ */
+DEFINE_MUTEX(mxfs_fr_cfg_lock);
+EXPORT_SYMBOL(mxfs_fr_cfg_lock);
+
+static int
+mxfs_fua_disable_set(const char *val, const struct kernel_param *kp)
+{
+	int v;
+	int rc = kstrtoint(val, 0, &v);
+
+	if (rc)
+		return rc;
+	mutex_lock(&mxfs_fr_cfg_lock);
+	if (v && READ_ONCE(mxfs_foreign_replay_token_enforce) &&
+	    !mxfs_target_cache_protected) {
+		mutex_unlock(&mxfs_fr_cfg_lock);
+		pr_err("mxfs: fua_disable=%d REFUSED while foreign_replay_token_enforce is armed without target_cache_protected — it would invalidate the F2 domain the enforcement arming was validated against.  Disarm foreign_replay_token_enforce first\n",
+		       v);
+		return -EBUSY;
+	}
+	WRITE_ONCE(mxfs_fua_disable, v);
+	mutex_unlock(&mxfs_fr_cfg_lock);
+	return 0;
+}
+static const struct kernel_param_ops mxfs_fua_disable_ops = {
+	.set = mxfs_fua_disable_set,
+	.get = param_get_int,
+};
+module_param_cb(fua_disable, &mxfs_fua_disable_ops, &mxfs_fua_disable, 0644);
 MODULE_PARM_DESC(fua_disable,
                  "Disable SCSI-FUA reads; use normal bio (SCST shared cache "
                  "is coherent): 1=disable-FUA-reads (default, SCST-required), "
@@ -38245,6 +42962,693 @@ MODULE_PARM_DESC(adopted_slice_full_replay,
                  "(0=suppress untagged images+intents default, 1=legacy full "
                  "replay — A/B control only)");
 
+/*
+ * sess198 — D-FOREIGN-REPLAY-UNGATED-IMAGES enforcement-gate prerequisites
+ * (sess197 RULE-5 ruling, build-order step 1).  The tenure-release invariant
+ * — "no new tenure becomes effective until the retiring tenure's dirty state
+ * completed home-location writeback plus the required persistence barrier,
+ * and only then does the resource go peer-claimable" — is UNMET today on
+ * four audited fronts:
+ *   F1 ICLUS make_durable gives up after a 250ms passive settle and
+ *      releases anyway with the cluster buffer still dirty;
+ *   F2 fua_disable=1 (default) turns every tenure-boundary flush_epoch into
+ *      a no-op, so nothing covers loss of the shared target's volatile
+ *      write cache — CAS may survive a cache loss that dropped the home
+ *      write it was supposed to certify;
+ *   F3 (proof landed sess256-258, telemetry-only) the release proof was
+ *      check-then-CAS: an async xfsaild destage between the check and the
+ *      CAS could promote durable_seq and certify a closed ledger without
+ *      any flush covering it.  The completion-driven proof — keyed
+ *      per-cluster write accounting (mxfs_icwr_*), durable-fepoch flush
+ *      tickets, post-flush generation verify, pre-CAS tripwire — now
+ *      RECORDS every such occurrence (proof_failed/ticket_stale/
+ *      tripwires), but a failed proof does not yet BLOCK the release:
+ *      that deferral is build-order step 6, so F3_READY stays 0;
+ *   F4 a committed-never-submitted dir buffer has no obligation registry —
+ *      m_mxfs_dir_wr_inflight fences submitted bios only, and the flush
+ *      passes that would catch the rest can race relog/CIL.
+ * A gate that trusts this unproven release predicate converts each unmet
+ * barrier into silent false-ACCEPT/false-REJECT replay verdicts, so the
+ * setter below FAILS CLOSED: enabling refuses with -EINVAL and one pr_err
+ * per unmet prerequisite.  Readiness consts flip as build-order steps 4-7
+ * land each barrier; readiness is a property of the BUILD, not of runtime
+ * state.
+ */
+#define MXFS_RELGATE_F1_ICLUS_DEFERRED_RELEASE_READY	0
+#define MXFS_RELGATE_F3_COMPLETION_PROOF_READY		0
+#define MXFS_RELGATE_F4_OBLIGATION_REGISTRY_READY	0
+
+/*
+ * Operator statement that the shared target's write cache is power-
+ * protected (or that target power loss is explicitly outside the
+ * deployment's durability scope), making coherence-only mode
+ * (fua_disable=1, flush_epoch no-op) a sound domain for the gate.  Ruled a
+ * SEPARATE knob — never overload mxfs_fua_disable (sess197).  0 = target
+ * cache loss is in scope and coherence-only mode cannot arm the gate.
+ */
+int mxfs_target_cache_protected;
+EXPORT_SYMBOL(mxfs_target_cache_protected);
+
+/* sess359 (#1 GPT review Q5): guarded like fua_disable — withdrawing the
+ * declaration while the token-enforce knob is armed under fua_disable=1
+ * would invalidate the F2 domain that arming was validated against. */
+static int
+mxfs_target_cache_protected_set(const char *val, const struct kernel_param *kp)
+{
+	int v;
+	int rc = kstrtoint(val, 0, &v);
+
+	if (rc)
+		return rc;
+	mutex_lock(&mxfs_fr_cfg_lock);
+	if (!v && READ_ONCE(mxfs_foreign_replay_token_enforce) &&
+	    READ_ONCE(mxfs_fua_disable)) {
+		mutex_unlock(&mxfs_fr_cfg_lock);
+		pr_err("mxfs: target_cache_protected=0 REFUSED while foreign_replay_token_enforce is armed under fua_disable=1 — the declaration is the F2 predicate that arming was validated against.  Disarm foreign_replay_token_enforce first\n");
+		return -EBUSY;
+	}
+	WRITE_ONCE(mxfs_target_cache_protected, v);
+	mutex_unlock(&mxfs_fr_cfg_lock);
+	return 0;
+}
+static const struct kernel_param_ops mxfs_target_cache_protected_ops = {
+	.set = mxfs_target_cache_protected_set,
+	.get = param_get_int,
+};
+module_param_cb(target_cache_protected, &mxfs_target_cache_protected_ops,
+		&mxfs_target_cache_protected, 0644);
+MODULE_PARM_DESC(target_cache_protected,
+                 "operator declares the shared target's write cache power-"
+                 "protected / target power loss out of durability scope "
+                 "(0=in scope default; prerequisite for replay_gate_enforce "
+                 "under fua_disable=1)");
+
+/*
+ * Per-class replay enforcement gate (sess197 build-order step 9 arms the
+ * classes in this order): bit0=AG, bit1=inode, bit2=ICLUS, bit3=dir.
+ * 0 = disabled (audit-only through build-order step 8).  Writable only
+ * through the fail-closed setter below.
+ */
+int mxfs_replay_gate_enforce;
+EXPORT_SYMBOL(mxfs_replay_gate_enforce);
+
+/* Read helper for the future gate/certificate sites: current enforcement
+ * bitmask, 0 while disabled or refused. */
+int mxfs_replay_gate_mode(void)
+{
+	return READ_ONCE(mxfs_replay_gate_enforce);
+}
+EXPORT_SYMBOL(mxfs_replay_gate_mode);
+
+static int
+mxfs_replay_gate_enforce_set(const char *val, const struct kernel_param *kp)
+{
+	int unmet = 0;
+	int v;
+	int rc = kstrtoint(val, 0, &v);
+
+	if (rc)
+		return rc;
+	if (!v) {
+		WRITE_ONCE(mxfs_replay_gate_enforce, 0);
+		return 0;
+	}
+	if (mxfs_fua_disable && !mxfs_target_cache_protected) {
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: fua_disable=1 with target_cache_protected=0 — tenure-boundary flushes are no-ops, so a target write-cache loss can persist the release CAS while dropping the home writes it certified (F2).  Run durable mode (fua_disable=0) or set mxfs.target_cache_protected=1 to declare target power loss out of scope\n",
+		       v);
+		unmet++;
+	}
+	if (!MXFS_RELGATE_F1_ICLUS_DEFERRED_RELEASE_READY) {
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F1 unmet — ICLUS make_durable still releases on 250ms settle timeout with a dirty cluster buffer; deferred-release drain worker (build-order step 6) not landed\n",
+		       v);
+		unmet++;
+	}
+	if (!MXFS_RELGATE_F3_COMPLETION_PROOF_READY) {
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F3 unmet — the completion-driven proof (keyed icwr accounting, flush tickets, pre-CAS tripwire) is built and RECORDING, but a failed proof does not yet BLOCK the release (deferral is build-order step 6); enforcement on a non-blocking proof would certify releases the proof itself flagged\n",
+		       v);
+		unmet++;
+	}
+	if (!MXFS_RELGATE_F4_OBLIGATION_REGISTRY_READY) {
+		pr_err("mxfs: replay_gate_enforce=%d REFUSED: F4 unmet — no per-tenure obligation registry for committed-never-submitted dir buffers (build-order step 4); inflight counts fence submitted bios only\n",
+		       v);
+		unmet++;
+	}
+	if (unmet) {
+		pr_err("mxfs: replay_gate_enforce stays 0 — %d prerequisite(s) unmet (fail closed, sess197 ruling)\n",
+		       unmet);
+		return -EINVAL;
+	}
+	WRITE_ONCE(mxfs_replay_gate_enforce, v);
+	pr_warn("mxfs: replay_gate_enforce=%d ARMED (bit0=AG bit1=inode bit2=ICLUS bit3=dir)\n",
+		v);
+	return 0;
+}
+static const struct kernel_param_ops mxfs_replay_gate_enforce_ops = {
+	.set = mxfs_replay_gate_enforce_set,
+	.get = param_get_int,
+};
+module_param_cb(replay_gate_enforce, &mxfs_replay_gate_enforce_ops,
+		&mxfs_replay_gate_enforce, 0644);
+MODULE_PARM_DESC(replay_gate_enforce,
+                 "per-class replay enforcement gate bitmask (bit0=AG "
+                 "bit1=inode bit2=ICLUS bit3=dir; 0=disabled default; "
+                 "setter fails closed while release-barrier prerequisites "
+                 "F1-F4 are unmet)");
+
+/*
+ * sess358 (#1 D-FOREIGN-REPLAY-UNGATED-IMAGES, sess357 ruling): recovery-
+ * time foreign-replay token enforcement.  Turns the shadow evaluator's
+ * whole-transaction verdict into an APPLY decision for fully-tokenized
+ * victim transactions during elected foreign-slice recovery.
+ *
+ * SEPARATE from replay_gate_enforce by design: that knob arms the live
+ * release-certificate gate and fails closed on the F1/F3/F4 release
+ * barriers, which are prerequisites of trusting the release predicate on
+ * the LIVE path — not of the recovery-time token gate ruled here.  This
+ * setter fails closed on the ruling's own set-time predicates:
+ *   - F2 domain admission: under fua_disable=1 the tenure-boundary
+ *     flush_epoch is a no-op, so the manifest hold/epoch state a token is
+ *     checked against may survive a target write-cache loss that dropped
+ *     the home writes it certifies.  Enforcement then requires the
+ *     operator's explicit target_cache_protected=1 declaration — never
+ *     inferred from fua_disable (sess197/sess357 rulings).
+ *   - release_proof_enforce=1: with the deferral OFF a failed completion
+ *     proof does not block the release CAS, so a manifest slot can read
+ *     released without the covering flush — the token gate would then
+ *     credit "not_held" verdicts the platter does not back.
+ * Per-mount predicates (proto_admitted, FENCED recovery descriptor) are
+ * enforced at use time in xfs_log_recover.c, which also re-checks the
+ * domain per replay because these params stay runtime-writable.
+ */
+int mxfs_foreign_replay_token_enforce;
+EXPORT_SYMBOL(mxfs_foreign_replay_token_enforce);
+
+static int
+mxfs_fr_token_enforce_set(const char *val, const struct kernel_param *kp)
+{
+	int unmet = 0;
+	bool b;
+	int v;
+	/* sess359 (GPT review): 0/1 only — an armed/disarmed switch has no
+	 * meaningful other values and accepting them invites typo-arming. */
+	int rc = kstrtobool(val, &b);
+
+	if (rc)
+		return rc;
+	v = b ? 1 : 0;
+	if (!v) {
+		/* Disarming affects FUTURE recovery attempts only: an attempt
+		 * that preflighted while armed runs to completion under its
+		 * attempt-local snapshot (l_mxfs_fr_enforce_mode). */
+		WRITE_ONCE(mxfs_foreign_replay_token_enforce, 0);
+		return 0;
+	}
+	/* sess359 (GPT review Q5): validate-and-write under the config lock
+	 * so a concurrent F2-param setter cannot interleave. */
+	mutex_lock(&mxfs_fr_cfg_lock);
+	if (mxfs_fua_disable && !mxfs_target_cache_protected) {
+		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: fua_disable=1 with target_cache_protected=0 — tenure-boundary flushes are no-ops, so the manifest state tokens are checked against may survive a target cache loss that dropped the writes it certifies (F2).  Run durable mode (fua_disable=0) or set mxfs.target_cache_protected=1 to declare target power loss out of scope\n",
+		       v);
+		unmet++;
+	}
+	if (!mxfs_release_proof_enforce) {
+		pr_err("mxfs: foreign_replay_token_enforce=%d REFUSED: release_proof_enforce=0 — a failed completion proof does not block the release CAS, so manifest hold/epoch state is not trustworthy release evidence for the token gate\n",
+		       v);
+		unmet++;
+	}
+	if (unmet) {
+		mutex_unlock(&mxfs_fr_cfg_lock);
+		pr_err("mxfs: foreign_replay_token_enforce stays 0 — %d prerequisite(s) unmet (fail closed, sess357 ruling)\n",
+		       unmet);
+		return -EINVAL;
+	}
+	WRITE_ONCE(mxfs_foreign_replay_token_enforce, v);
+	mutex_unlock(&mxfs_fr_cfg_lock);
+	pr_warn("mxfs: foreign_replay_token_enforce=%d ARMED — fully-tokenized victim transactions with enforceable v3 verdicts will be APPLIED during foreign-slice recovery\n",
+		v);
+	return 0;
+}
+static const struct kernel_param_ops mxfs_fr_token_enforce_ops = {
+	.set = mxfs_fr_token_enforce_set,
+	.get = param_get_int,
+};
+module_param_cb(foreign_replay_token_enforce, &mxfs_fr_token_enforce_ops,
+		&mxfs_foreign_replay_token_enforce, 0644);
+MODULE_PARM_DESC(foreign_replay_token_enforce,
+                 "apply fully-tokenized victim transactions during foreign-"
+                 "slice recovery (0=shadow-only default; setter fails closed "
+                 "on F2 domain admission and release_proof_enforce)");
+
+/*
+ * sess198 build-order step 2 — release certificates + aggregate counters
+ * + deterministic fault injection (sess197 ruling).  Observation only:
+ * no release path changes behavior this step.  The counter set is the
+ * ruling's, verbatim; cas_invalid_proof splits into its two observable
+ * causes so the F1 signal (dirty state at CAS — rare, per-release) is
+ * not drowned by the F2 signal (no covering flush ticket — config-wide
+ * under fua_disable=1 without target_cache_protected).
+ */
+static atomic64_t mxfs_relcert_attempts;
+static atomic64_t mxfs_relcert_success;
+static atomic64_t mxfs_relcert_defer_oblig;
+static atomic64_t mxfs_relcert_defer_io;
+static atomic64_t mxfs_relcert_defer_pincil;
+static atomic64_t mxfs_relcert_defer_flush;
+static atomic64_t mxfs_relcert_tripwire_retries;
+static atomic64_t mxfs_relcert_drain_timeouts;
+static atomic64_t mxfs_relcert_wedges;
+static atomic64_t mxfs_relcert_cas_invalid_proof;
+static atomic64_t mxfs_relcert_cas_dirty;	/* F1: obligations/inflight at CAS */
+static atomic64_t mxfs_relcert_cas_noticket;	/* F2: required flush ticket absent */
+static atomic64_t mxfs_relcert_cas_unproved;	/* DIAGNOSTIC (sess305): shared-scalar state != PROVED at CAS — aliased by legal concurrent releases */
+static atomic64_t mxfs_relcert_cas_noproof_v2;	/* sess305: CAS with THIS instance's proof incomplete (per-instance, alias-immune) — the steps 9-10 gate input */
+static atomic64_t mxfs_relcert_f4_open;		/* F4: cert saw committed-never-submitted open post-pass */
+static atomic64_t mxfs_relcert_f4_blocked;	/* F4: enforcement gate deferred the unlock */
+static atomic64_t mxfs_relcert_proof_failed;	/* F3: completion proof failed (unknown/timeout/gen-moved/no-ticket) */
+static atomic64_t mxfs_relcert_ticket_stale;	/* F3: ticket went stale in the proof→CAS window */
+static atomic64_t mxfs_relcert_tripwires;	/* F3: final pre-CAS keyed re-sample saw movement */
+static atomic64_t mxfs_relgate_fault_hits;
+
+/*
+ * sess309 step-6 F1 (sess307 ruling): deferral enforcement knob — see the
+ * header comment.  0444: load-time only, immutable once mounted so the
+ * admission predicate cannot flip under a live defer episode.
+ */
+int mxfs_release_proof_enforce = 1;
+EXPORT_SYMBOL(mxfs_release_proof_enforce);
+module_param_named(release_proof_enforce, mxfs_release_proof_enforce, int, 0444);
+MODULE_PARM_DESC(release_proof_enforce,
+                 "defer ICLUS release CAS while the completion proof is "
+                 "incomplete; bounded no-progress wedges the cluster "
+                 "(1=enforce default, 0=telemetry-only baseline; load-time)");
+
+/* sess309: proof_failed releases the enforcement DEFERRED (no CAS) — the
+ * ruling requires this counted separately from CAS-with-failed-proof,
+ * which must be 0 under enforcement. */
+static atomic64_t mxfs_relcert_deferred_proof_failed;
+
+/* 1 = print every certificate (P280); counters are always fed. */
+static int mxfs_release_cert_log;
+module_param_named(release_cert_log, mxfs_release_cert_log, int, 0644);
+MODULE_PARM_DESC(release_cert_log,
+                 "print a P280-RELEASE-CERT line per release attempt "
+                 "(0=counters only default)");
+
+void
+mxfs_release_cert_emit(const struct mxfs_release_cert *rc)
+{
+	bool dirty_at_cas, noticket;
+
+	atomic64_inc(&mxfs_relcert_attempts);
+	if (rc->timeout)
+		atomic64_inc(&mxfs_relcert_drain_timeouts);
+	switch (rc->defer_kind) {
+	case MXFS_RELDEFER_OBLIG:
+		atomic64_inc(&mxfs_relcert_defer_oblig);
+		break;
+	case MXFS_RELDEFER_IO:
+		atomic64_inc(&mxfs_relcert_defer_io);
+		break;
+	case MXFS_RELDEFER_PINCIL:
+		atomic64_inc(&mxfs_relcert_defer_pincil);
+		break;
+	case MXFS_RELDEFER_FLUSH:
+		atomic64_inc(&mxfs_relcert_defer_flush);
+		break;
+	case MXFS_RELDEFER_WEDGE:
+		atomic64_inc(&mxfs_relcert_wedges);
+		break;
+	}
+	/* sess227 F4: separate from the pending-durable oblig_* delta (ruling
+	 * item 10) — count certs that closed the ledger but still carried
+	 * committed-never-submitted obligations, and gate-blocked ones. */
+	if (rc->f4_flush || rc->f4_unknown)
+		atomic64_inc(&mxfs_relcert_f4_open);
+	if (rc->f4_blocked)
+		atomic64_inc(&mxfs_relcert_f4_blocked);
+	/* sess258 step-5 F3 signals (fed from the keyed completion proof) */
+	if (rc->proof_failed)
+		atomic64_inc(&mxfs_relcert_proof_failed);
+	/* sess309 F1 enforce: proof failed AND no CAS = the deferral worked */
+	if (rc->proof_failed && !rc->cas_attempted)
+		atomic64_inc(&mxfs_relcert_deferred_proof_failed);
+	if (rc->ticket_status == MXFS_TICKET_STALE)
+		atomic64_inc(&mxfs_relcert_ticket_stale);
+	if (rc->tripwire)
+		atomic64_inc(&mxfs_relcert_tripwires);
+	dirty_at_cas = rc->cas_attempted &&
+		       (rc->oblig_cas || rc->inflight_cas);
+	noticket = rc->cas_attempted &&
+		   rc->ticket_required && !rc->ticket_completed;
+	if (dirty_at_cas || noticket) {
+		atomic64_inc(&mxfs_relcert_cas_invalid_proof);
+		if (dirty_at_cas)
+			atomic64_inc(&mxfs_relcert_cas_dirty);
+		if (noticket)
+			atomic64_inc(&mxfs_relcert_cas_noticket);
+	}
+	if (rc->cas_attempted && rc->cas_result == 0 &&
+	    !dirty_at_cas && !noticket && !rc->proof_failed && !rc->tripwire)
+		atomic64_inc(&mxfs_relcert_success);
+	/*
+	 * sess201 step 3 / sess305 P283 fix: state-machine audit.  The
+	 * legacy cas_unproved count samples the SHARED per-resource scalar,
+	 * which two legal concurrent release pipelines (two-slot demoter)
+	 * alias in both directions — it stays as a diagnostic only.  The
+	 * sound audit is per-instance: cert->proved is stamped by THIS
+	 * attempt's proof body and cannot be aliased, so cas_attempted
+	 * without proved (cas_noproof_v2) is the count steps 9-10 require
+	 * to be ZERO before the gate may enable for that class.  Orthogonal
+	 * to dirty_at_cas: the ledger can read clean while the proof never
+	 * ran.
+	 */
+	if (rc->cas_attempted && rc->rel_state_cas != MXFS_RELSTATE_PROVED)
+		atomic64_inc(&mxfs_relcert_cas_unproved);
+	if (rc->cas_attempted && !rc->proved) {
+		atomic64_inc(&mxfs_relcert_cas_noproof_v2);
+		pr_warn_ratelimited(
+		    "mxfs: P283-RELCERT-CAS-UNPROVED class=%u res=%llu path=%s relstate=%u relgen=%u — wire CAS entered without a completed release proof (per-instance)\n",
+			rc->rclass, (unsigned long long)rc->res_id,
+			rc->path ? rc->path : "?", rc->rel_state_cas,
+			rc->rel_gen);
+	}
+	/*
+	 * F1 occurrence: the release went to CAS with unretired dirty
+	 * state.  High-severity by ruling ("normally impossible");
+	 * suppression arrives with the common proof helper (step 3+) —
+	 * this step observes.  The F2-only case is a domain property,
+	 * not a per-release event, so it never prints here.
+	 */
+	if (dirty_at_cas)
+		pr_err_ratelimited(
+		    "mxfs: P281-RELCERT-INVALID-PROOF class=%u res=%llu path=%s oblig=%u inflight=%u timeout=%u cas_rc=%d — release reached CAS with unretired dirty state (F1)\n",
+			rc->rclass, (unsigned long long)rc->res_id,
+			rc->path ? rc->path : "?", rc->oblig_cas,
+			rc->inflight_cas, rc->timeout, rc->cas_result);
+	if (mxfs_release_cert_log)
+		pr_warn("mxfs: P280-RELEASE-CERT class=%u res=%llu path=%s relstate=%u proved=%u relgen=%u handoff=%u cas=%u rc=%d oldep=%llu newep=%llu dseq=%llu/%llu/%llu oblig=%u/%u/%u infl=%u tkt=%u/%u adm=%llu/%llu drain_us=%llu timeout=%u defer=%u:%s f4=%u/%u unk=%u blk=%u tstat=%u pf=%u trip=%u tseq=%llu sep=%llu oep=%llu icwr=%llu/%u/%llu\n",
+			rc->rclass, (unsigned long long)rc->res_id,
+			rc->path ? rc->path : "?", rc->rel_state_cas,
+			rc->proved, rc->rel_gen,
+			rc->handoff,
+			rc->cas_attempted, rc->cas_result,
+			(unsigned long long)rc->old_epoch,
+			(unsigned long long)rc->new_epoch,
+			(unsigned long long)rc->dirty_seq_quiesce,
+			(unsigned long long)rc->dirty_seq_flush,
+			(unsigned long long)rc->dirty_seq_tripwire,
+			rc->oblig_quiesce, rc->oblig_flush, rc->oblig_cas,
+			rc->inflight_cas, rc->ticket_required,
+			rc->ticket_completed,
+			(unsigned long long)rc->admission_before,
+			(unsigned long long)rc->admission_after,
+			(unsigned long long)(rc->drain_ns / 1000),
+			rc->timeout, rc->defer_kind,
+			rc->defer_reason ? rc->defer_reason : "-",
+			rc->f4_quiesce, rc->f4_flush, rc->f4_unknown,
+			rc->f4_blocked,
+			rc->ticket_status, rc->proof_failed, rc->tripwire,
+			(unsigned long long)rc->ticket_seq,
+			(unsigned long long)rc->stamp_epoch,
+			(unsigned long long)rc->observed_epoch,
+			(unsigned long long)rc->icwr_daddr,
+			rc->icwr_inflight_final,
+			(unsigned long long)rc->icwr_gen_final);
+}
+
+/* External feeder for retry loops that do not build a full certificate
+ * (final-tripwire recheck bouncing a release back to drain). */
+void
+mxfs_relcert_count_tripwire_retry(void)
+{
+	atomic64_inc(&mxfs_relcert_tripwire_retries);
+}
+
+static int
+mxfs_relcert_dump_set(const char *val, const struct kernel_param *kp)
+{
+	(void)val; (void)kp;
+	pr_warn("mxfs: P280-RELEASE-CERT-TOTAL attempts=%lld success=%lld defer_oblig=%lld defer_io=%lld defer_pincil=%lld defer_flush=%lld tripwire_retries=%lld drain_timeouts=%lld wedges=%lld cas_invalid_proof=%lld cas_dirty=%lld cas_noticket=%lld cas_unproved=%lld cas_noproof_v2=%lld f4_open=%lld f4_blocked=%lld proof_failed=%lld deferred_proof_failed=%lld ticket_stale=%lld tripwires=%lld fault_hits=%lld\n",
+		(long long)atomic64_read(&mxfs_relcert_attempts),
+		(long long)atomic64_read(&mxfs_relcert_success),
+		(long long)atomic64_read(&mxfs_relcert_defer_oblig),
+		(long long)atomic64_read(&mxfs_relcert_defer_io),
+		(long long)atomic64_read(&mxfs_relcert_defer_pincil),
+		(long long)atomic64_read(&mxfs_relcert_defer_flush),
+		(long long)atomic64_read(&mxfs_relcert_tripwire_retries),
+		(long long)atomic64_read(&mxfs_relcert_drain_timeouts),
+		(long long)atomic64_read(&mxfs_relcert_wedges),
+		(long long)atomic64_read(&mxfs_relcert_cas_invalid_proof),
+		(long long)atomic64_read(&mxfs_relcert_cas_dirty),
+		(long long)atomic64_read(&mxfs_relcert_cas_noticket),
+		(long long)atomic64_read(&mxfs_relcert_cas_unproved),
+		(long long)atomic64_read(&mxfs_relcert_cas_noproof_v2),
+		(long long)atomic64_read(&mxfs_relcert_f4_open),
+		(long long)atomic64_read(&mxfs_relcert_f4_blocked),
+		(long long)atomic64_read(&mxfs_relcert_proof_failed),
+		(long long)atomic64_read(&mxfs_relcert_deferred_proof_failed),
+		(long long)atomic64_read(&mxfs_relcert_ticket_stale),
+		(long long)atomic64_read(&mxfs_relcert_tripwires),
+		(long long)atomic64_read(&mxfs_relgate_fault_hits));
+	return 0;
+}
+static const struct kernel_param_ops mxfs_relcert_dump_ops = {
+	.set = mxfs_relcert_dump_set,
+};
+module_param_cb(release_cert_dump, &mxfs_relcert_dump_ops, NULL, 0644);
+
+/*
+ * Fault engine (sess197 ruling): stage IDs are stable (header enum),
+ * default off behind a static key so armed-off cost is a NOP patch site.
+ * Arm by writing the stage number to mxfs.relgate_fault_stage; the hook
+ * fires only when the (optional) resource filter matches, applies the
+ * configured delay (sleepable context only — every placement site must
+ * tolerate msleep), and one-shots by default so a board exercises one
+ * deterministic boundary per arm.
+ */
+DEFINE_STATIC_KEY_FALSE(mxfs_relgate_fault_key);
+static int mxfs_relgate_fault_stage;		/* 0 = disarmed, 1-18 armed */
+static unsigned long long mxfs_relgate_fault_res; /* 0 = any resource */
+static int mxfs_relgate_fault_delay_ms = 100;
+static int mxfs_relgate_fault_oneshot = 1;
+/* sess314 (sess312 ruling item 10): when set, an armed stage's placement
+ * site FORCES the failure the stage models instead of only delaying —
+ * required for deterministic INODE-class defer/wedge legs. */
+static int mxfs_relgate_fault_force;
+
+/*
+ * sess382 — DETERMINISTIC FENCED-FLUSH FAULT (D-RELOG-BEHIND-DISK-OBLIGATION-
+ * DEADLOCK-WEDGE-380).
+ *
+ * xfs_iflush has eleven "safe skip" fences that abandon a flush with
+ * `error = 0; goto flush_out;` and DO NOT stamp i_mxfs_pub_flush_seq.  That
+ * leaves the publication obligation (pending_seq != durable_seq) permanently
+ * open, and the release drain then re-logs the clean-but-unlanded core
+ * (P146V) forever — each re-log bumping pending_seq via xfs_trans_log_inode —
+ * until the defer episode's no-progress bound fires P-INODE-WEDGE and force-
+ * shuts down the whole mount.
+ *
+ * That chain is proven from rig captures, but every natural trigger for it is
+ * luck-dependent: sess382 got ONE wedge in three attempts under the knob arms
+ * that were supposed to force it, and the third attempt did not fire the fence
+ * at all.  RULE 6 requires testing that EXERCISES THE CAUSE, so the cause needs
+ * a switch.  Arming this makes a chosen inode's flush take exactly the fence
+ * shape — no stamp, error 0, i_dlm_stale set — on demand.
+ *
+ * 0 = disarmed.  Set to an inode number to fence that inode's flushes; _n
+ * bounds how many are fenced (0 = unlimited while armed), so a test can model
+ * both "fenced until something reloads" and "fenced N times then recovers".
+ */
+/*
+ * sess382 — release-side reload of a fence-abandoned publication.
+ * A/B lever: 0 restores the pre-fix behaviour (i_dlm_stale has no release-path
+ * consumer, so the obligation can only be reconciled by a coincidental local
+ * reader) and is the negative control the fix is measured against.
+ */
+/* sess382 ruling-2 Q2: emit the canonical home-vs-owed comparison at every
+ * fence-abandoned publication.  Telemetry only — no code acts on the verdict
+ * until it has been validated against injected exact-match and single-field
+ * mismatch cases. */
+/* sess382 ruling-2 Q1: keep the drain's own gated re-log from advancing the
+ * logical version / di_changecount.  0 = pre-fix control. */
+/*
+ * sess382 — the release-defer episode bounds, in ms.  Knobs for TESTING only
+ * (see mxfs_inode_episode_expired_locked).  Defaults are the shipped 60s
+ * no-progress / 300s total.
+ */
+unsigned int mxfs_reldefer_noprogress_ms = 60000;
+unsigned int mxfs_reldefer_total_ms = 300000;
+module_param_named(reldefer_noprogress_ms, mxfs_reldefer_noprogress_ms, uint, 0644);
+MODULE_PARM_DESC(reldefer_noprogress_ms,
+                 "release-defer episode no-progress bound in ms (default "
+                 "60000).  Shrink to make naturally-transient fence-abandoned "
+                 "publications reach the wedge observably; never raise it to "
+                 "make a test pass");
+module_param_named(reldefer_total_ms, mxfs_reldefer_total_ms, uint, 0644);
+MODULE_PARM_DESC(reldefer_total_ms,
+                 "release-defer episode total bound in ms (default 300000)");
+
+/*
+ * sess382: the drain's own gated re-log does not create a NEW publication
+ * obligation (it re-logs an unchanged core purely to get it flushed).
+ * A/B lever, 0 = pre-fix.  Kept separate from relog_holds_version because the
+ * two counters answer different questions — this one is the obligation ledger,
+ * that one is the cross-node freshness stamp — and sess382 needed to attribute
+ * the disappearance of natural release deferrals to one of them.
+ */
+int mxfs_relog_holds_obligation = 1;
+module_param_named(relog_holds_obligation, mxfs_relog_holds_obligation, int, 0644);
+MODULE_PARM_DESC(relog_holds_obligation,
+                 "the release drain's gated re-log does not increment "
+                 "pub_pending_seq (a republication is not a new obligation); "
+                 "0=pre-fix control");
+
+/*
+ * sess389 FAULT INJECTION (RULE-5 ruling verification item): make xfs_iflush
+ * LAUNDER the next N PR-held owned-PUBOB conversions exactly the way the
+ * pre-0.19.40 P119 gate did (clean, no write), so the F2 repair writer
+ * (mxfs_iflush_agino_target -> mxfs_pubob_relog_core -> P245-RELOG) is
+ * exercised on demand instead of waiting for the natural race.  Decrements
+ * per injected launder; 0 (default) = off.  TESTING ONLY.
+ */
+int mxfs_pubob_launder_inject;
+module_param_named(pubob_launder_inject, mxfs_pubob_launder_inject, int, 0644);
+MODULE_PARM_DESC(pubob_launder_inject,
+                 "fault-inject: launder the next N PR-held owned-PUBOB unlink "
+                 "conversions at xfs_iflush (P55B-INJECT-LAUNDER) so the "
+                 "re-log repair (P245-RELOG) is exercised; 0=off");
+
+int mxfs_relog_holds_version = 1;
+module_param_named(relog_holds_version, mxfs_relog_holds_version, int, 0644);
+MODULE_PARM_DESC(relog_holds_version,
+                 "the release drain's gated re-log does not bump i_version / "
+                 "di_changecount (a republication is not a new logical "
+                 "modification); 0=pre-fix control");
+
+int mxfs_home_equals_owed_probe = 1;
+module_param_named(home_equals_owed_probe, mxfs_home_equals_owed_probe, int, 0644);
+MODULE_PARM_DESC(home_equals_owed_probe,
+                 "emit P383-HOME-VS-OWED, the canonical comparison of the home "
+                 "dinode against the image owed, at each fence-abandoned "
+                 "publication (telemetry only)");
+
+int mxfs_reldefer_reload = 1;
+module_param_named(reldefer_reload, mxfs_reldefer_reload, int, 0644);
+MODULE_PARM_DESC(reldefer_reload,
+                 "drive the reload a flush fence asked for from the release-side "
+                 "retry worker, so a fence-abandoned publication reconciles its "
+                 "obligation instead of wedging the mount; 0=pre-fix control");
+
+/*
+ * sess382 — see the P384 block in mxfs_dlm_bast_process.  Holds a chosen
+ * inode's grant forever while the node stays mounted and beating, so
+ * incident474 hole (c) — "HB alive" mistaken for "fs serviceable" — can be
+ * exercised.  0 = disarmed.
+ */
+unsigned long long mxfs_hold_grant_fault_ino;
+module_param_named(hold_grant_fault_ino, mxfs_hold_grant_fault_ino, ullong, 0644);
+MODULE_PARM_DESC(hold_grant_fault_ino,
+                 "refuse to release this inode's grant while staying mounted "
+                 "and heartbeating, to exercise the liveness oracle's "
+                 "alive-vs-serviceable hole; 0=disarmed");
+
+unsigned long long mxfs_iflush_fence_fault_ino;
+int mxfs_iflush_fence_fault_n;
+atomic_t mxfs_iflush_fence_fault_hits = ATOMIC_INIT(0);
+module_param_named(iflush_fence_fault_ino, mxfs_iflush_fence_fault_ino, ullong, 0644);
+MODULE_PARM_DESC(iflush_fence_fault_ino,
+                 "fence every xfs_iflush of this inode the way the real "
+                 "safe-skip fences do (error=0, no flush_seq stamp, i_dlm_stale "
+                 "set), to exercise the fenced-publication wedge chain "
+                 "deterministically; 0=disarmed");
+module_param_named(iflush_fence_fault_n, mxfs_iflush_fence_fault_n, int, 0644);
+MODULE_PARM_DESC(iflush_fence_fault_n,
+                 "bound the number of flushes iflush_fence_fault_ino fences "
+                 "(0=unlimited while armed)");
+
+module_param_named(relgate_fault_res, mxfs_relgate_fault_res, ullong, 0644);
+MODULE_PARM_DESC(relgate_fault_res,
+                 "restrict relgate fault injection to this resource id "
+                 "(0=any default)");
+module_param_named(relgate_fault_delay_ms, mxfs_relgate_fault_delay_ms, int, 0644);
+MODULE_PARM_DESC(relgate_fault_delay_ms,
+                 "delay injected at the armed relgate fault stage "
+                 "(default 100)");
+module_param_named(relgate_fault_oneshot, mxfs_relgate_fault_oneshot, int, 0644);
+MODULE_PARM_DESC(relgate_fault_oneshot,
+                 "disarm the relgate fault stage after its first hit "
+                 "(1=oneshot default)");
+module_param_named(relgate_fault_force, mxfs_relgate_fault_force, int, 0644);
+MODULE_PARM_DESC(relgate_fault_force,
+                 "FORCE the armed stage's modeled failure at force-capable "
+                 "placement sites (forced still-dirty/ticket-stale/proof-"
+                 "fail) instead of delay-only (0=delay-only default)");
+
+int
+mxfs_relgate_fault_slow(int stage, uint64_t res)
+{
+	unsigned long long want_res;
+	int delay;
+
+	if (READ_ONCE(mxfs_relgate_fault_stage) != stage)
+		return 0;
+	want_res = READ_ONCE(mxfs_relgate_fault_res);
+	if (want_res && want_res != (unsigned long long)res)
+		return 0;
+	if (READ_ONCE(mxfs_relgate_fault_oneshot) &&
+	    cmpxchg(&mxfs_relgate_fault_stage, stage, 0) != stage)
+		return 0;	/* lost the one-shot race to another hitter */
+	atomic64_inc(&mxfs_relgate_fault_hits);
+	delay = READ_ONCE(mxfs_relgate_fault_delay_ms);
+	pr_warn("mxfs: P282-RELGATE-FAULT stage=%d res=%llu delay=%dms force=%d comm=%s realns=%llu\n",
+		stage, (unsigned long long)res, delay,
+		READ_ONCE(mxfs_relgate_fault_force), current->comm,
+		(unsigned long long)ktime_get_real_ns());
+	if (delay > 0)
+		msleep(delay);
+	return 1;
+}
+
+/* sess314 (sess312 ruling item 10): the force variant fires the stage via
+ * the same matcher (respecting the resource filter and the one-shot) and
+ * reports whether the site must FORCE its modeled failure. */
+bool
+mxfs_relgate_fault_slow_forced(int stage, uint64_t res)
+{
+	bool force = READ_ONCE(mxfs_relgate_fault_force) != 0;
+
+	if (!mxfs_relgate_fault_slow(stage, res))
+		return false;
+	return force;
+}
+
+static int
+mxfs_relgate_fault_stage_set(const char *val, const struct kernel_param *kp)
+{
+	int v;
+	int rc = kstrtoint(val, 0, &v);
+
+	if (rc)
+		return rc;
+	if (v < 0 || v > MXFS_RGF_GATE_REJECTED)
+		return -EINVAL;
+	WRITE_ONCE(mxfs_relgate_fault_stage, v);
+	if (v)
+		static_branch_enable(&mxfs_relgate_fault_key);
+	else
+		static_branch_disable(&mxfs_relgate_fault_key);
+	return 0;
+}
+static const struct kernel_param_ops mxfs_relgate_fault_stage_ops = {
+	.set = mxfs_relgate_fault_stage_set,
+	.get = param_get_int,
+};
+module_param_cb(relgate_fault_stage, &mxfs_relgate_fault_stage_ops,
+		&mxfs_relgate_fault_stage, 0644);
+MODULE_PARM_DESC(relgate_fault_stage,
+                 "arm deterministic fault injection at this release/mint/"
+                 "gate stage (1-18 per sess197 ruling, 0=disarmed default)");
+
 int mxfs_pub_skip_rearm = 0;
 EXPORT_SYMBOL(mxfs_pub_skip_rearm);
 module_param_named(pub_skip_rearm, mxfs_pub_skip_rearm, int, 0644);
@@ -38407,11 +43811,12 @@ mxfs_ag_dlm_unlock(
 	bool			drain_alloc = false;
 	bool			schedule_bast = false;
 	bool			lazy_skip = false;
+	bool			do_latch = false;	/* sess391 */
 
 	if (!dlm)
 		return;
 
-	mutex_lock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_lock(pag, __LINE__);
 	WARN_ON(pag->pag_dlm_holders <= 0);
 	pag->pag_dlm_holders--;
 	if (pag->pag_dlm_holders == 0) {
@@ -38422,10 +43827,32 @@ mxfs_ag_dlm_unlock(
 		 * a fresh-acquire fast-path clears it (re-adopted by another
 		 * holder on this node).
 		 */
-		pag->pag_dlm_cached = true;
+		/* sess391 invariant: holders cannot reach 0 while a demote
+		 * is in flight (the COMMIT requires holders==0 and admission
+		 * is closed until completion) — a cached hint installed here
+		 * under demoting would be the post-latch adoption hazard. */
+		if (unlikely(pag->pag_dlm_demoting))
+			WARN_ONCE(1, "mxfs: P12-UNLOCK-WHILE-DEMOTING ag=%u comm=%s latched=%d\n",
+				  pag_agno(pag), current->comm,
+				  pag->pag_dlm_latched ? 1 : 0);
+		else
+			pag->pag_dlm_cached = true;
 		drain_alloc = pag->pag_mxfs_alloc_dirty;
 
-		if (pag->pag_dlm_bast_pending &&
+		if (pag->pag_dlm_bast_pending && !pag->pag_dlm_demoting &&
+		    !pag->pag_dlm_release_pending &&
+		    !pag->pag_dlm_readopt_pending &&
+		    mxfs_ag_handoff_closing(pag)) {
+			/*
+			 * sess391: the LAST-HOLDER UNLOCK takes the release
+			 * COMMIT itself (performed at the end of this critical
+			 * section so the drain/yield logic below still sees the
+			 * pending BAST) and queues the worker for the drains —
+			 * no 0->1 re-adoption can win the race any more.
+			 */
+			do_latch = true;
+			schedule_bast = true;
+		} else if (pag->pag_dlm_bast_pending &&
 		    !pag->pag_dlm_bast_scheduled) {
 			pag->pag_dlm_bast_scheduled = true;
 			schedule_bast = true;
@@ -38569,8 +43996,11 @@ mxfs_ag_dlm_unlock(
 					(unsigned long long)ktime_get_real_ns(),
 					(unsigned long long)n);
 		}
+		if (do_latch)
+			mxfs_ag_handoff_commit(pag, "unlock",
+					       &mxfs_dlm_stat_latch_unlock);
 	}
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 
 	if (drain_alloc) {
 		/*
@@ -38769,6 +44199,161 @@ mxfs_trans_drain_ag_unlocks(
 	}
 }
 
+/*
+ * -488 third face seam (sess267 RULE-5 ruling): post-roll ILOCK handoff.
+ *
+ * A defer finish_item found its AG peer-held (t_mxfs_ag_want) while the
+ * caller holds ILOCK_EXCL on the transaction's joined inode(s)
+ * (ili_lock_flags == 0: the caller, not the trans, owns the unlock).
+ * Blocking there wedges this node's own AGs: iflush of the caller's
+ * committed inode log item needs that ILOCK, so the inode's home-AG AIL
+ * drain — and with it the on-disk EX release a peer is waiting for — can
+ * never complete (proven cross-node Coffman cycle, test3/test25 truncate
+ * pair, zero retained grants).
+ *
+ * Called only at the post-roll clean seam (RELSAFE_SAFE, trans clean,
+ * every intent durably relogged).  Protocol:
+ *   1. drain retained AG grants (the sess263 hold-and-wait edge),
+ *   2. detach each caller-locked joined inode from the trans BEFORE
+ *      unlocking it (while unlocked, a third task may ijoin the inode to
+ *      its own trans — e.g. xattr-set takes ILOCK without IOLOCK — and
+ *      li_trans must be free for that), drop the ILOCK — the inode is
+ *      borrowed against the caller's own lifetime guarantee, NOT
+ *      refcounted (see the detach-loop comment),
+ *   3. block for the wanted AG holding nothing, then release the grant
+ *      to cached immediately (holding it across the ILOCK relock would
+ *      recreate the inverted AG-then-ILOCK edge while the
+ *      alloc-under-ILOCK face is still unfixed),
+ *   4. relock ascending-ino via the FIX-L3 Phase A/B protocol
+ *      (xfs_lock_inodes for 2+ inodes: all cross-node DLM grants first
+ *      with no rwsems held, then rwsems nowait-only), rejoin; the defer
+ *      loop's retry then lands on the cached grant.
+ * Error exits still relock + rejoin so the caller's unlock/cancel unwind
+ * stays valid; a failure escalates to shutdown in xfs_defer_finish_noroll
+ * and recovery replays the logged intents.
+ *
+ * sess269: the mechanics are shared with the rename/remove preacquire
+ * fourth face (mxfs_trans_preacquire_inode_ags) via
+ * mxfs_trans_agwait_handoff below.  `why` distinguishes the probes
+ * (P271-AGWAIT-SEAM / P271-AGWAIT-PREACQ); backoff_ms staggers competing
+ * nodes during the ILOCK-free window (0 = none) and MUST only ever be
+ * slept with every ILOCK already handed off.  Consumes the pag reference.
+ */
+static int
+mxfs_trans_agwait_handoff(
+	struct xfs_trans	*tp,
+	struct xfs_perag	*pag,
+	const char		*why,
+	unsigned int		backoff_ms)
+{
+	struct xfs_mount	*mp = tp->t_mountp;
+	struct xfs_inode	*ips[XFS_DEFER_OPS_NR_INODES];
+	struct xfs_log_item	*lip, *n;
+	int			nips = 0;
+	int			i, j;
+	int			error;
+
+	ASSERT(!(tp->t_flags & XFS_TRANS_DIRTY));
+
+	/* sess263 edge: nothing may stay granted while we block. */
+	mxfs_trans_drain_ag_unlocks(tp);
+
+	list_for_each_entry_safe(lip, n, &tp->t_items, li_trans) {
+		struct xfs_inode_log_item	*iip;
+		struct xfs_inode		*ip;
+
+		if (lip->li_type != XFS_LI_INODE) {
+			/*
+			 * A held buffer surviving the roll locked would be a
+			 * fourth poisoning face — audit only; the inode
+			 * handoff proceeds regardless.
+			 */
+			if (lip->li_type == XFS_LI_BUF)
+				pr_warn_ratelimited("mxfs: P271-AGWAIT-HELDBUF ag=%u comm=%s — buf item joined at seam (audit)\n",
+					pag_agno(pag), current->comm);
+			continue;
+		}
+		iip = container_of(lip, struct xfs_inode_log_item, ili_item);
+		if (iip->ili_lock_flags != 0)
+			continue;	/* trans-owned unlock: roll drops it */
+		ip = iip->ili_inode;
+		ASSERT(xfs_isilocked(ip, XFS_ILOCK_EXCL));
+		if (WARN_ON_ONCE(nips >= XFS_DEFER_OPS_NR_INODES))
+			break;
+		/*
+		 * Detached inodes are BORROWED, not refcounted: the synchronous
+		 * caller whose frame spans xfs_defer_finish owns each joined
+		 * inode's lifetime through detach/unlock/relock/rejoin (in the
+		 * inactivation path that owner is evict itself, with i_count==0
+		 * and I_FREEING set — an ihold/irele pair here re-enters
+		 * iput_final on an inode already inside evict: BUG).
+		 */
+		xfs_trans_del_item(lip);
+		ips[nips++] = ip;
+	}
+	for (i = 0; i < nips; i++)
+		xfs_iunlock(ips[i], XFS_ILOCK_EXCL);
+
+	pr_warn_ratelimited("mxfs: P271-AGWAIT-%s ag=%u inodes=%d comm=%s — blocking for peer-held AG with ILOCKs handed off\n",
+		why, pag_agno(pag), nips, current->comm);
+
+	if (backoff_ms)
+		msleep(backoff_ms);
+
+	/* sess390: RESOURCE_FREE class — ILOCKs handed off above, no trans. */
+	error = mxfs_ag_dlm_lock_resfree(mp, pag);
+	if (!error)
+		mxfs_ag_dlm_unlock(mp, pag);	/* pregrant: leave cached */
+	xfs_perag_put(pag);
+
+	/* Ascending-ino relock order. */
+	for (i = 1; i < nips; i++)
+		for (j = i; j > 0 && ips[j]->i_ino < ips[j - 1]->i_ino; j--)
+			swap(ips[j], ips[j - 1]);
+	/*
+	 * sess284 D-AGWAIT-RELOCK-ILOCK-HOLDWAIT-CONVOY-500: relocking a
+	 * multi-inode set with plain blocking xfs_ilock held earlier members'
+	 * rwsems across later members' UNBOUNDED cross-node DLM waits — the
+	 * FIX-L3 violation (see xfs_lock_inodes).  Proven 32/caw: mv relocked
+	 * inode[0], waited 480s on inode[1]'s dir EX (31 waiters), and the
+	 * held rwsem poisoned this node's home-AG AIL drain, so its cached AG
+	 * EX never released and the fleet convoyed until the CAW liveness cap
+	 * (rc=-110).  xfs_lock_inodes runs the Phase A/B protocol: every
+	 * cross-node DLM grant first, ascending, with NO rwsems held, then
+	 * rwsems nowait-only.  A single inode blocks holding nothing, so
+	 * plain xfs_ilock stays correct there.  Rejoin only after the whole
+	 * set is locked.  On shutdown the DLM begins are refused
+	 * (P-SHUTDOWN-FENCE) but every rwsem is still taken and the caller's
+	 * one xfs_iunlock per inode stays balanced (P71 tolerates the
+	 * unpaired end) — same postcondition as the old loop.
+	 */
+	if (nips == 1)
+		xfs_ilock(ips[0], XFS_ILOCK_EXCL);
+	else if (nips >= 2)
+		xfs_lock_inodes(ips, nips, XFS_ILOCK_EXCL);
+	for (i = 0; i < nips; i++)
+		xfs_trans_ijoin(tp, ips[i], 0);
+
+	if (!error && xfs_is_shutdown(mp))
+		error = -EIO;
+	return error;
+}
+
+int
+mxfs_defer_agwait(
+	struct xfs_trans	*tp)
+{
+	struct xfs_perag	*pag = tp->t_mxfs_ag_want;
+
+	if (!pag)
+		return 0;
+	tp->t_mxfs_ag_want = NULL;
+
+	ASSERT(tp->t_mxfs_ag_relsafe == MXFS_AG_RELSAFE_SAFE);
+
+	return mxfs_trans_agwait_handoff(tp, pag, "SEAM", 0);
+}
+
 /* Ceiling on AG numbers the roll-migration bitmap can track.  An agno at or
  * above this (absurd for any test geometry; agcount here is 16) falls back
  * to the safe behavior: retain the grant across the roll. */
@@ -38938,15 +44523,48 @@ mxfs_trans_migrate_ag_unlocks(
  * grant (P12-HOLDERTASK ladder-r16 stack), starving peers' dirty defer_finish
  * AG acquires into rc=-110 dirty-cancel shutdowns.  With the trans clean, a
  * (rare) acquire failure here is a clean xfs_trans_cancel with no shutdown.
+ *
+ * sess269 (-488 fourth face): entry-locks-first does NOT license blocking
+ * under them.  The acquire pass is trylock-only; a miss hands the ILOCKs
+ * off (detach/unlock/relock/rejoin, sess267 seam mechanics) and blocks
+ * holding nothing.  While a task blocks on an AG grant it holds neither
+ * an ILOCK nor another AG grant — the combined sess263/sess267 invariant.
+ * -EAGAIN means the bounded handoff budget ran out: the caller must
+ * clean-cancel and retry the whole operation (locks were relocked; the
+ * normal unwind is valid).
+ *
+ * sess286 (D-501, RULE-5 ruled): phase-aware mandatory/optional AG
+ * intent.  The blanket participating-inode preacquire falsely coupled
+ * rename's dir-EX with the dir's home AG: dlm_fairness (32-way hot-dir
+ * create/rename/delete) showed 1227 of ~1590 AG waits on the dir's home
+ * AG, ~600ms handoff + ~600ms dir-EX requeue per rename that touches NO
+ * AG metadata — makespan 32 × handoff ≈ 32s vs the 30s budget, while the
+ * dir EX itself rotated fairly (P291: 887 grants, 23ms median gap).
+ * The insurance was also never complete: a dir-grow/shrink can demand
+ * ANY AG via the allocator, not just a participant's home AG.
+ *
+ * So: only mand_inodes' AGs (demands past a non-restartable boundary —
+ * in-trans iunlink add/remove or difree: rename's existing target_ip,
+ * RENAME_WHITEOUT's wip, remove's victim ip) keep the miss->handoff->
+ * block protocol.  The remaining participants' home AGs are OPTIONAL: a
+ * trylock hit still registers the cached grant (deep acquires nest on
+ * the fast path, and the holder batches its loop), but a miss just
+ * PROCEEDS — no ILOCK handoff, no blocking, no -EAGAIN.  If a deep path
+ * then blocks on an AG with the trans already dirty, the P292-DIRTY-
+ * AGWAIT tripwire at the P1-AGWAIT site records how often the skipped
+ * insurance actually mattered.
  */
 int
 mxfs_trans_preacquire_inode_ags(
 	struct xfs_trans	*tp,
 	struct xfs_inode	**inodes,
-	int			num_inodes)
+	int			num_inodes,
+	struct xfs_inode	**mand_inodes,
+	int			num_mand)
 {
 	struct xfs_mount	*mp;
 	xfs_agnumber_t		ags[8];
+	bool			mand[8];
 	int			nags = 0;
 	int			i, j;
 	int			error = 0;
@@ -38957,46 +44575,114 @@ mxfs_trans_preacquire_inode_ags(
 	if (!mp || !mp->m_mxfs_dlm)
 		return 0;
 
-	/* Collect unique AG numbers from the participating inodes. */
-	for (i = 0; i < num_inodes; i++) {
+	/*
+	 * Collect unique AG numbers — mandatory inodes first so a shared
+	 * AG (optional participant living in a mandatory AG) dedupes onto
+	 * the mandatory entry and keeps the stronger protocol.
+	 */
+	for (i = 0; i < num_mand + num_inodes; i++) {
+		struct xfs_inode *ip = (i < num_mand) ?
+			mand_inodes[i] : inodes[i - num_mand];
 		xfs_agnumber_t	agno;
 		bool		dup = false;
 
-		if (!inodes[i])
+		if (!ip)
 			continue;
-		agno = XFS_INO_TO_AGNO(mp, inodes[i]->i_ino);
+		agno = XFS_INO_TO_AGNO(mp, ip->i_ino);
 		for (j = 0; j < nags; j++) {
 			if (ags[j] == agno) {
 				dup = true;
 				break;
 			}
 		}
-		if (!dup && nags < (int)ARRAY_SIZE(ags))
+		if (!dup && nags < (int)ARRAY_SIZE(ags)) {
+			mand[nags] = (i < num_mand);
 			ags[nags++] = agno;
+		}
 	}
 
 	/* Sort ascending (insertion sort; nags is tiny, <= 5). */
 	for (i = 1; i < nags; i++) {
 		xfs_agnumber_t	key = ags[i];
+		bool		mkey = mand[i];
 
-		for (j = i - 1; j >= 0 && ags[j] > key; j--)
+		for (j = i - 1; j >= 0 && ags[j] > key; j--) {
 			ags[j + 1] = ags[j];
+			mand[j + 1] = mand[j];
+		}
 		ags[j + 1] = key;
+		mand[j + 1] = mkey;
 	}
 
-	/* Acquire in ascending order; register deferred release on tp. */
-	for (i = 0; i < nags; i++) {
-		struct xfs_perag	*pag = xfs_perag_get(mp, ags[i]);
+	/*
+	 * sess269 (-488 fourth face, RULE-5 ruled): the acquire pass is
+	 * TRYLOCK-only.  The old blocking mxfs_ag_dlm_lock here ran with
+	 * every rename/remove ILOCK_EXCL held AND with earlier iterations'
+	 * grants registered on tp — both halves of the proven cross-node
+	 * Coffman cycle (test3 held ag=6 + ILOCKs waiting ag=7; test26's
+	 * ag=7 was cached-unreleasable because its drain needed an inode
+	 * ILOCKed by its own blocked rename waiting ag=6).  On a miss, hand
+	 * off: drain OUR registered grants, detach + unlock the joined
+	 * inodes, block for the missed AG holding NOTHING, pregrant it to
+	 * cached, relock + rejoin, and restart the sweep (which now lands
+	 * on cached fast-paths).  The handoff mechanics are the verified
+	 * sess267 seam (mxfs_trans_agwait_handoff).  A bounded number of
+	 * handoffs; exhaustion returns -EAGAIN so the caller does a CLEAN
+	 * cancel + full-operation retry (trans is still clean throughout).
+	 */
+	{
+		int	handoffs = 0;
 
-		if (!pag)
-			continue;
-		error = mxfs_ag_dlm_lock(mp, pag);
-		if (error) {
+restart:
+		for (i = 0; i < nags; i++) {
+			struct xfs_perag *pag = xfs_perag_get(mp, ags[i]);
+
+			if (!pag)
+				continue;
+			error = mxfs_ag_dlm_trylock(mp, pag);
+			if (error == -EAGAIN || error == -EWOULDBLOCK) {
+				unsigned int backoff = 0;
+
+				if (!mand[i]) {
+					/*
+					 * sess286 (D-501): optional insurance
+					 * AG is peer-held — proceed without
+					 * it rather than serialize this op
+					 * behind a cross-node AG handoff it
+					 * will likely never need.
+					 */
+					static atomic_t p293_n = ATOMIC_INIT(0);
+
+					if ((unsigned)atomic_inc_return(&p293_n) <= 256)
+						pr_info("mxfs: P293-PREACQ-OPTSKIP ag=%u comm=%s\n",
+							ags[i], current->comm);
+					xfs_perag_put(pag);
+					error = 0;
+					continue;
+				}
+				if (++handoffs > 8) {
+					xfs_perag_put(pag);
+					pr_warn_ratelimited("mxfs: P271-PREACQ-EXHAUST ag=%u handoffs=%d comm=%s — caller must clean-cancel and retry the operation\n",
+						ags[i], handoffs - 1,
+						current->comm);
+					return -EAGAIN;
+				}
+				if (handoffs > 2)
+					backoff = 2 + get_random_u32_below(
+							8 * handoffs);
+				error = mxfs_trans_agwait_handoff(tp, pag,
+						"PREACQ", backoff);
+				if (error)
+					return error;
+				goto restart;
+			}
+			if (error) {
+				xfs_perag_put(pag);
+				break;
+			}
+			mxfs_ag_dlm_unlock_deferred(tp, pag);
 			xfs_perag_put(pag);
-			break;
 		}
-		mxfs_ag_dlm_unlock_deferred(tp, pag);
-		xfs_perag_put(pag);
 	}
 	return error;
 }
@@ -39325,6 +45011,7 @@ mxfs_dlm_ag_bast_notify(
 	struct xfs_perag	*pag;
 	bool			schedule_bast = false;
 	bool			orphan_nak = false;
+	bool			stuck_requeue = false;
 
 	(void)mode;
 
@@ -39335,10 +45022,14 @@ mxfs_dlm_ag_bast_notify(
 	if (!pag)
 		return;
 
-	mutex_lock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_lock(pag, __LINE__);
 	if (!pag->pag_dlm_bast_pending) {
 		pag->pag_dlm_bast_pending_since = jiffies;
+		pag->pag_dlm_bast_rx_ns = ktime_get_ns();
 		pag->pag_dlm_readopt_n = 0;
+		/* sess391: new BAST generation — the latch re-arms only after
+		 * the worker's prepass has run for THIS generation. */
+		pag->pag_dlm_prepass_done = false;
 	}
 	pag->pag_dlm_bast_pending = true;
 	/*
@@ -39358,6 +45049,31 @@ mxfs_dlm_ag_bast_notify(
 		pag->pag_dlm_bast_scheduled = true;
 		schedule_bast = true;
 	}
+	/*
+	 * D-488 step 4 (sess273 ruling): rx-side watchdog.  bast_scheduled
+	 * is a latch — if the queued worker was lost (or died before its
+	 * bail paths cleared the latch), no future BAST can ever schedule
+	 * the release again and the peer starves silently.  A revocation
+	 * still pending >30s with the latch set gets the work requeued
+	 * (queue_work on an already-pending item is a no-op, and every
+	 * worker path either clears the latch or requeues itself, so a
+	 * spurious extra run is harmless).  demoting >60s is only probed:
+	 * it is either a slow drain or the deliberate UNKNOWN quarantine,
+	 * and neither may be force-cleared from rx context.
+	 */
+	if (pag->pag_dlm_bast_scheduled &&
+	    jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since)
+		    > 30000)
+		stuck_requeue = true;
+	if (pag->pag_dlm_demoting &&
+	    jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since)
+		    > 60000)
+		pr_warn_ratelimited(
+			"mxfs: P275-AG-DEMOTE-STUCK ag=%u page_ms=%u release_pending=%d — demote in flight (or quarantined) past 60s\n",
+			agno,
+			jiffies_to_msecs(jiffies -
+				pag->pag_dlm_bast_pending_since),
+			pag->pag_dlm_release_pending ? 1 : 0);
 	/*
 	 * ccloop c7ee71c6 sess6 — ORPHAN-GRANT NAK detection.  A bast for an
 	 * AG we provably do NOT hold (no holders, not cached, no release work
@@ -39417,7 +45133,7 @@ mxfs_dlm_ag_bast_notify(
 				put_pid(hp);
 		}
 	}
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 
 	/* ccloop c7ee71c6 sess6: orphan-grant NAK — outside pag_dlm_lock (the
 	 * send can sleep).  Fires at most once per incoming bast (~1/s from a
@@ -39443,7 +45159,7 @@ mxfs_dlm_ag_bast_notify(
 		if (mxfs_v5_dlm_is_caw(mp->m_mxfs_dlm)) {
 			held = mxfs_v5_dlm_ag_held(mp->m_mxfs_dlm, agno);
 
-			mutex_lock(&pag->pag_dlm_lock);
+			mxfs_pag_dlm_lock(pag, __LINE__);
 			dm = pag->pag_dlm_demoting;
 			rp = pag->pag_dlm_release_pending;
 			/*
@@ -39457,8 +45173,22 @@ mxfs_dlm_ag_bast_notify(
 			if (held == 1 && mxfs_ag_strand_repair &&
 			    pag->pag_dlm_holders == 0 &&
 			    !pag->pag_dlm_cached && !dm && !rp &&
-			    !pag->pag_dlm_bast_scheduled) {
-				pag->pag_dlm_cached = true;
+			    !pag->pag_dlm_bast_scheduled &&
+			    !pag->pag_dlm_readopt_pending) {
+				/*
+				 * sess291 (D-488 leg 7 part 1b, sess289 ruling):
+				 * do NOT fabricate a cached tenure here.  The old
+				 * pag_dlm_cached=true left the published authority
+				 * epoch at 0 (the release-commit that stranded the
+				 * bit zeroed it), so a local fast-path reclaim
+				 * adopted WRITE authority with no epoch — every
+				 * buffer that tenure logged was unauthorized and a
+				 * foreign replayer must refuse it.  Mark the
+				 * strand READOPT_PENDING instead; the bast worker
+				 * performs the verified P294 READOPT mint off the
+				 * rx path before any tenure or release proceeds.
+				 */
+				pag->pag_dlm_readopt_pending = true;
 				pag->pag_dlm_bast_scheduled = true;
 				pag->pag_dlm_bast_pending = true;
 				readopt = 1;
@@ -39477,7 +45207,7 @@ mxfs_dlm_ag_bast_notify(
 				 */
 				pag->pag_dlm_bast_pending = false;
 			}
-			mutex_unlock(&pag->pag_dlm_lock);
+			mxfs_pag_dlm_unlock(pag, __LINE__);
 		}
 
 		pr_warn_ratelimited(
@@ -39493,6 +45223,22 @@ mxfs_dlm_ag_bast_notify(
 		}
 	}
 
+	if (stuck_requeue && !schedule_bast) {
+		bool requeued;
+
+		if (mp->m_mxfs_ag_bast_wq)
+			requeued = queue_work(mp->m_mxfs_ag_bast_wq,
+					      &pag->pag_dlm_bast_work);
+		else
+			requeued = schedule_work(&pag->pag_dlm_bast_work);
+		pr_warn_ratelimited(
+			"mxfs: P275-AG-STUCK-LATCH ag=%u page_ms=%u requeued=%d — bast_scheduled latched >30s with revocation still pending\n",
+			agno,
+			jiffies_to_msecs(jiffies -
+				pag->pag_dlm_bast_pending_since),
+			requeued ? 1 : 0);
+	}
+
 	if (schedule_bast) {
 		/* v0.3.147 sess33: dedicated ordered wq — see other callsite. */
 		if (mp->m_mxfs_ag_bast_wq)
@@ -39503,6 +45249,73 @@ mxfs_dlm_ag_bast_notify(
 	}
 
 	xfs_perag_put(pag);
+}
+
+/*
+ * sess291 (D-488 leg 7 part 1b, sess289 ruling): resolve a READOPT_PENDING
+ * strand off the rx path.  Single-flight: only the bast worker calls this,
+ * and pag_dlm_bast_scheduled was latched in the same critical section that
+ * set the pending state, so no second instance can run concurrently.
+ *
+ * Re-read the slot first: bit gone means a peer's recovery (or our own
+ * late unlock completion) already resolved the strand — just clear the
+ * pending state.  Bit still ours: take the REAL acquire path.  It attests
+ * our published epoch (0 — no tenure survives a release commit) down to
+ * the CAW already-held arm, which refuses to reaffirm the surrendered
+ * epoch and CASes a fresh READOPT mint (P294-READOPT-MINT, sess290).
+ * Then release through the ordinary unlock so the drain/release pipeline —
+ * not this helper — services the peer's BAST.  The brief holders=1 window
+ * can admit a local writer, but only AFTER the mint published a fresh
+ * epoch, so any such tenure extension is ordinary and fully authorized.
+ *
+ * On mint failure nothing is published and the pending state is cleared:
+ * the rx strand detector is the retry cadence (a waiting master re-BASTs
+ * ~1/s), matching the pre-existing "rx readopt path is the backstop"
+ * recovery philosophy at the deferred-release site.
+ */
+static void
+mxfs_dlm_ag_rx_readopt_mint(
+	struct xfs_mount	*mp,
+	struct xfs_perag	*pag)
+{
+	struct mxfs_v5_dlm	*dlm = mp->m_mxfs_dlm;
+	int			held;
+	int			lrc;
+
+	held = mxfs_v5_dlm_ag_held(dlm, pag_agno(pag));
+	if (held != 1) {
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		pag->pag_dlm_readopt_pending = false;
+		pag->pag_dlm_bast_pending = false;
+		pag->pag_dlm_bast_scheduled = false;
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		pr_warn("mxfs: P295-RX-READOPT-GONE ag=%u held=%d — stranded bit no longer ours; pending cleared\n",
+			pag_agno(pag), held);
+		return;
+	}
+
+	lrc = mxfs_ag_dlm_lock(mp, pag);
+
+	mxfs_pag_dlm_lock(pag, __LINE__);
+	pag->pag_dlm_readopt_pending = false;
+	/*
+	 * bast_scheduled is OUR latch — release it before the unlock below
+	 * so the last-holder transition can reschedule the worker for the
+	 * real drain+release cycle (it only schedules on pending&&!scheduled).
+	 */
+	pag->pag_dlm_bast_scheduled = false;
+	pag->pag_dlm_bast_pending = true;
+	mxfs_pag_dlm_unlock(pag, __LINE__);
+
+	if (lrc == 0) {
+		pr_warn("mxfs: P295-RX-READOPT-MINTED ag=%u gep=%llu — strand re-minted through the attested acquire; unlock schedules the release\n",
+			pag_agno(pag),
+			(unsigned long long)READ_ONCE(pag->pag_mxfs_grant_epoch));
+		mxfs_ag_dlm_unlock(mp, pag);
+	} else {
+		pr_warn("mxfs: P295-RX-READOPT-FAIL ag=%u rc=%d — mint refused, nothing published; bit still on platter, rx watchdog re-arms on the next BAST\n",
+			pag_agno(pag), lrc);
+	}
 }
 
 /*
@@ -39531,6 +45344,7 @@ mxfs_dlm_ag_bast_work_fn(
 	struct xfs_mount	*mp = pag_mount(pag);
 	struct mxfs_v5_dlm	*dlm = mp->m_mxfs_dlm;
 	bool			do_release = false;
+	enum mxfs_unlock_state	us;
 
 	if (!dlm)
 		return;
@@ -39553,57 +45367,76 @@ mxfs_dlm_ag_bast_work_fn(
 	 * v0.5.6: scoped to inodes that LIVE in this AG (the peer's
 	 * AGI/inobt walk can only surface those) plus parent-unknown entries.
 	 */
+	/*
+	 * sess391 (RULE-5 ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
+	 * latch-closing-restartable): if the release COMMIT was already taken
+	 * outside this worker — by the last-holder unlock or by a would-be
+	 * re-adopter (P12-LATCH) — admission is closed, the grant is detached
+	 * and authority is invalidated.  Go straight to the post-COMMIT drains.
+	 * The publish/prepass below MUST NOT run here: its data writeback
+	 * allocates in this very AG and would sleep on our own demote.
+	 */
+	mxfs_pag_dlm_lock(pag, __LINE__);
+	if (pag->pag_dlm_latched) {
+		pr_warn_ratelimited("mxfs: P12-WORK ag=%u LATCHED-ENTER latch_ms=%llu page_ms=%u\n",
+			pag_agno(pag),
+			(unsigned long long)((ktime_get_ns() -
+				pag->pag_dlm_latch_ns) / NSEC_PER_MSEC),
+			jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since));
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		goto committed;
+	}
+	mxfs_pag_dlm_unlock(pag, __LINE__);
+
 	mxfs_dlm_publish_unpublished(mp, 0, pag_agno(pag));
 
 	/*
-	 * Phase 1: claim the demote slot under pag_dlm_lock.  Setting
-	 * cached=false + demoting=true atomically forces concurrent
-	 * acquires (fast or slow path) to wait on pag_dlm_demote_wq
-	 * instead of squeezing AG modifications between our drain and
-	 * the on-disk release.  v0.3.7 used pag_dlm_acquire_lock for
-	 * this; that mutex serialized too aggressively and exhausted
-	 * peers' CAW retries under sustained workloads.  The wait-queue
-	 * approach blocks only local re-acquires and does not extend
-	 * the disk grant beyond what bast_work_fn already needs.
-	 */
-	/*
-	 * Phase 1: pre-check eligibility under pag_dlm_lock, then DROP the
-	 * lock and push the AIL — but do NOT yet set demoting=true.  The
-	 * AIL push triggers writeback that will re-call mxfs_ag_dlm_lock for
-	 * block allocation; if demoting were set, that re-acquire would
-	 * sleep on pag_dlm_demote_wq while we're sleeping on the AIL drain
-	 * → circular-wait deadlock with the flush thread.
+	 * Phase 1 (PREPASS): publish + bounded AIL push, with admission OPEN.
+	 * The publish pass above does data writeback that re-calls
+	 * mxfs_ag_dlm_lock for block allocation in this AG; with the COMMIT
+	 * already taken that re-acquire would sleep on pag_dlm_demote_wq while
+	 * we sleep waiting for it → circular wait (the deadlock the original
+	 * "do NOT yet set demoting" comment described).  So the prepass runs
+	 * before any COMMIT and tolerates local re-adoption.
 	 *
-	 * Pushing without demoting set means a re-acquire could happen here
-	 * (cached fast-path: holders++ and cached=false).  That's OK — we
-	 * re-check holders in Phase 2 and abandon if a holder reappeared,
-	 * letting the next last-holder unlock reschedule us.  All this push
-	 * achieves is "make committed but not-yet-iflushed inode log items
-	 * land on their cluster buffers on disk" — a no-op if no such items
-	 * exist, and idempotent if redone.
+	 * sess391: the prepass no longer requires holders==0.  Only the COMMIT
+	 * does; a worker that bailed on holders>0 before its prepass could
+	 * never arm the handoff latch under load (the measured 3 ms local op
+	 * cadence beat every worker wakeup — P12-WORK bail1-holders on every
+	 * run, peer starved).  Bail here only when this node provably has no
+	 * tenure at all (holders==0 && !cached): strand mint or consumed
+	 * pending.
 	 */
-	mutex_lock(&pag->pag_dlm_lock);
-	if (pag->pag_dlm_holders > 0) {
-		pag->pag_dlm_bast_scheduled = false;
-		pr_warn_ratelimited(
-			"mxfs: P12-WORK ag=%u bail1-holders n=%d readopt=%u page_ms=%u\n",
-			pag_agno(pag), pag->pag_dlm_holders,
-			pag->pag_dlm_readopt_n,
-			jiffies_to_msecs(jiffies -
-				pag->pag_dlm_bast_pending_since));
-		mutex_unlock(&pag->pag_dlm_lock);
-		return;
-	}
-	if (!pag->pag_dlm_cached) {
+	mxfs_pag_dlm_lock(pag, __LINE__);
+	if (pag->pag_dlm_holders == 0 && !pag->pag_dlm_cached) {
+		/*
+		 * sess291 (D-488 leg 7 part 1b): a READOPT_PENDING strand
+		 * parks here — no tenure, no cached hint, our bit on the
+		 * platter.  Perform the verified mint outside pag_dlm_lock.
+		 * If a release cycle owns the AG (demoting/release_pending,
+		 * e.g. the quarantine arm), leave it to that machinery and
+		 * drop the pending state — minting would race the in-flight
+		 * platter unlock.
+		 */
+		bool mint = pag->pag_dlm_readopt_pending &&
+			    !pag->pag_dlm_demoting &&
+			    !pag->pag_dlm_release_pending;
+
+		if (mint) {
+			mxfs_pag_dlm_unlock(pag, __LINE__);
+			mxfs_dlm_ag_rx_readopt_mint(mp, pag);
+			return;
+		}
+		pag->pag_dlm_readopt_pending = false;
 		pag->pag_dlm_bast_pending = false;
 		pag->pag_dlm_bast_scheduled = false;
 		pr_warn_ratelimited(
 			"mxfs: P12-WORK ag=%u bail1-uncached (pending consumed)\n",
 			pag_agno(pag));
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		return;
 	}
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 
 	/*
 	 * v0.3.45 attempted xfs_inodegc_flush(mp) here to drain pending
@@ -39629,55 +45462,31 @@ mxfs_dlm_ag_bast_work_fn(
 	 * (BUF daddr or INODE number) is in this AG.  See spec §11.3.
 	 */
 	xfs_log_force(mp, XFS_LOG_SYNC);
-	{
+	if (mxfs_ag_prepass_push_iters > 0) {
 		/*
-		 * v0.3.147 sess33: bounded AIL drain with deadlock-stall
-		 * detection.  If the per-AG AIL items can't drain (rsync
-		 * holds ILOCK while waiting for peer's AG-DLM in CAW poll
-		 * → xfsaild can't iflush → drain wedges forever), abort
-		 * THIS bast_work_fn invocation WITHOUT releasing the grant.
-		 * Peer's CAW poll times out at 120s, peer drops ILOCK
-		 * via transaction-cancel error path, peer's next BAST cycle
-		 * (or our deferred-rerun via bast_pending sticky) drains.
-		 *
-		 * Stall threshold = mxfs_ag_bast_stall_iters (default 600 =
-		 * ~6 seconds at 10ms poll).  Set 0 to disable (unbounded
-		 * legacy behavior).
-		 *
-		 * On -EAGAIN: leave pag_dlm_cached=true, pag_dlm_bast_pending
-		 * stays true (caller of this fn already cleared
-		 * bast_scheduled before invoking us); next mxfs_ag_dlm_unlock
-		 * holders==0 transition will see bast_pending and reschedule.
-		 * Also kick a delayed retry via bast_work to ensure we don't
-		 * starve the peer entirely while waiting for the next local
-		 * unlock cycle.
+		 * v0.3.147 sess33 introduced this as a bounded drain with a
+		 * stall-and-ABORT (600 × 10 ms; on -EAGAIN keep the grant and
+		 * retry next cycle) — from the era when this push WAS the
+		 * drain.  sess391: the push is now OPPORTUNISTIC and non-fatal.
+		 * Invariant 1 is carried by the post-COMMIT drains below
+		 * (alloc buflist, inode clusters via xfs_iflush_cluster, AG
+		 * meta, device flush); this only gives xfsaild a head start
+		 * on committed-but-unflushed inode items.  With local holders
+		 * admitted during the prepass the AG's AIL set need never
+		 * reach zero, and an unbounded poll here would park the
+		 * ORDERED bast workqueue — every AG's handoff on this mount —
+		 * behind one busy AG.  Hard cap mxfs_ag_prepass_push_iters
+		 * (10 ms iterations, 0 = skip); the result is not acted on.
+		 * The latched entry above skips this whole prepass.
 		 */
 		extern int mxfs_ag_bast_stall_iters;
 		int aerr = xfs_ail_push_ag_sync_bounded(mp->m_ail,
 				pag_agno(pag),
-				mxfs_ag_bast_stall_iters, 64);
-		if (aerr == -EAGAIN) {
-			mutex_lock(&pag->pag_dlm_lock);
-			pag->pag_dlm_bast_scheduled = false;
-			pag->pag_dlm_bast_pending = true;
-			mutex_unlock(&pag->pag_dlm_lock);
-			/* Ungated (ratelimited): the holder-side livelock signature
-			 * of the AG<->dir hold-and-wait cycle.  Default runs must
-			 * show WHICH AG cannot drain (paired with the waiter's
-			 * P36-RETRY ag=). */
-			pr_warn_ratelimited("mxfs: P67-AG-BAST-STALL ag=%u — drain stalled, release deferred to next BAST cycle\n",
-				pag_agno(pag));
-			/*
-			 * Reschedule self after a short delay so we retry
-			 * even if no local unlock activity wakes us.  Use
-			 * the same dedicated workqueue so ordering with
-			 * other AG bast workers is preserved.
-			 */
-			if (mp->m_mxfs_ag_bast_wq)
-				queue_work(mp->m_mxfs_ag_bast_wq,
-					   &pag->pag_dlm_bast_work);
-			return;
-		}
+				mxfs_ag_bast_stall_iters, 4,
+				mxfs_ag_prepass_push_iters);
+		if (aerr == -EAGAIN)
+			pr_warn_ratelimited("mxfs: P67-AG-BAST-STALL ag=%u — prepass push hit its bound (%d iters); proceeding, post-COMMIT drains carry Invariant 1\n",
+				pag_agno(pag), mxfs_ag_prepass_push_iters);
 	}
 	mxfs_blkdev_flush_epoch(mp);
 
@@ -39687,55 +45496,77 @@ mxfs_dlm_ag_bast_work_fn(
 	 * and cleared cached, or cleared cached itself if the re-acquire
 	 * also released back to a different state.
 	 */
-	mutex_lock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_lock(pag, __LINE__);
+	pag->pag_dlm_prepass_done = true;	/* sess391: latch armed */
+	if (pag->pag_dlm_latched) {
+		/* sess391: the COMMIT was taken during our prepass
+		 * (P12-LATCH) — it is done; finish it. */
+		pr_warn_ratelimited("mxfs: P12-WORK ag=%u LATCHED-PHASE2 latch_ms=%llu\n",
+			pag_agno(pag),
+			(unsigned long long)((ktime_get_ns() -
+				pag->pag_dlm_latch_ns) / NSEC_PER_MSEC));
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		goto committed;
+	}
 	if (pag->pag_dlm_holders > 0) {
+		/*
+		 * sess391: ARMED, not abandoned.  prepass_done stays set; the
+		 * next holders==0 transition — the last-holder unlock or a
+		 * would-be re-adopter — takes the COMMIT once the grace is
+		 * spent (mxfs_ag_handoff_closing) and re-queues this worker,
+		 * which then enters via the LATCHED path above.  Only the
+		 * schedule latch is released here.
+		 */
+		pag->pag_dlm_readopt_pending = false;	/* sess291: see bail1 */
 		pag->pag_dlm_bast_scheduled = false;
 		pr_warn_ratelimited(
-			"mxfs: P12-WORK ag=%u bail2-holders n=%d readopt=%u page_ms=%u\n",
+			"mxfs: P12-WORK ag=%u bail2-holders n=%d readopt=%u page_ms=%u armed=%d\n",
 			pag_agno(pag), pag->pag_dlm_holders,
 			pag->pag_dlm_readopt_n,
 			jiffies_to_msecs(jiffies -
-				pag->pag_dlm_bast_pending_since));
-		mutex_unlock(&pag->pag_dlm_lock);
+				pag->pag_dlm_bast_pending_since),
+			mxfs_ag_handoff_closing(pag) ? 1 : 0);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		return;
 	}
 	if (!pag->pag_dlm_cached) {
+		pag->pag_dlm_readopt_pending = false;	/* sess291: defensive */
 		pag->pag_dlm_bast_pending = false;
 		pag->pag_dlm_bast_scheduled = false;
+		pag->pag_dlm_prepass_done = false;
 		pr_warn_ratelimited(
 			"mxfs: P12-WORK ag=%u bail2-uncached (pending consumed)\n",
 			pag_agno(pag));
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		return;
 	}
-	pag->pag_dlm_cached = false;
-	pag->pag_dlm_bast_pending = false;
-	pag->pag_dlm_bast_scheduled = false;
-	pag->pag_dlm_demoting = true;
 	/*
-	 * sess82 step 5.1: INVALIDATE the in-core authority epoch at the
-	 * release COMMIT point — this is the single site that sets
-	 * pag_dlm_demoting, and every flush / drain / mxfs_v5_dlm_ag_unlock
-	 * of this release happens strictly after it, under the same
-	 * pag_dlm_lock critical section that publishes the decision.
-	 *
-	 * Clearing at the unlock sites instead would leave a capture window:
-	 * an item formatting between "release decided" and "grant gone" would
-	 * stamp an epoch this node is in the act of surrendering, and the
-	 * peer that acquires next can legitimately overwrite that block.
-	 * Clearing here means any such item stamps class NONE => the
-	 * recovery side taints and skips it (status-quo behaviour for every
-	 * record today, so this is fail-closed, not a regression).
+	 * The release COMMIT (mxfs_ag_handoff_commit): cached=false,
+	 * bast_pending consumed, strand marker cleared (sess291), demoting=true,
+	 * and — sess82 step 5.1 — the in-core authority epoch/lineage
+	 * INVALIDATED in the same pag_dlm_lock critical section that publishes
+	 * the decision, so no item formatting between "release decided" and
+	 * "grant gone" can stamp an epoch this node is surrendering (such items
+	 * stamp class NONE and the recovery side taints/skips them; fail-closed).
+	 * sess391: the same helper is what the unlock/acquire latch paths run.
 	 */
-	WRITE_ONCE(pag->pag_mxfs_grant_epoch, 0);
+	mxfs_ag_handoff_commit(pag, NULL, NULL);
 	pr_warn_ratelimited(
 		"mxfs: P12-WORK ag=%u COMMIT demoting readopt=%u page_ms=%u\n",
 		pag_agno(pag), pag->pag_dlm_readopt_n,
 		jiffies_to_msecs(jiffies - pag->pag_dlm_bast_pending_since));
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 	mxfs_idbg("mxfs: P39-INSTR ag=%u BAST-WORK-PHASE2 cached=true→false demoting=true realns=%llu\n",
 		pag_agno(pag),
 		(unsigned long long)ktime_get_real_ns());
+
+committed:
+	/*
+	 * sess391: from here on this is a CLOSED-WORLD release path — admission
+	 * to this AG is shut until mxfs_ag_demote_clear below, so nothing
+	 * invoked here may try to re-acquire it.  (The latched entry above
+	 * skips the publish pass for exactly that reason.)
+	 */
 
 	/*
 	 * v0.3.23: SECOND flush AFTER demoting=true is set.  Closes the race
@@ -39800,18 +45631,32 @@ mxfs_dlm_ag_bast_work_fn(
 	 */
 	msleep(3);
 	xfs_log_force(mp, XFS_LOG_SYNC);
-	mxfs_dlm_ag_drain_meta_buffers(pag);
-	mxfs_blkdev_flush_epoch(mp);
 
 	/*
-	 * Phase 2b: drain alloc buflist + inode-cluster bufs.  Local
-	 * acquires now block on pag_dlm_demoting.  These drains are
+	 * Phase 2b: drain alloc buflist + convert/drain inode-cluster bufs.
+	 * Local acquires now block on pag_dlm_demoting.  These drains are
 	 * targeted (per-AG buffer cache walk) and never re-acquire the
 	 * AG, so the wait-demote-while-demoting deadlock above does not
 	 * apply.
+	 *
+	 * sess385 ORDERING — POINTEE BEFORE POINTER.  These two used to run
+	 * AFTER the first drain_meta_buffers.  That published the AGI (the
+	 * pointer) and flushed the device before the dinodes it points at (the
+	 * pointees) had been written, which is the worst possible order for the
+	 * AGI unlinked list: it maximises the window in which the medium holds
+	 * an unlinked-list head whose dinode still reads LINKED.  Nothing is
+	 * visible to a peer until the final unlock, so for the cooperative
+	 * handoff this is not observable — but it is exactly the state a crash
+	 * or a forced takeover would leave behind, and the reverse order costs
+	 * nothing.  The AGI is now written after the inode buffers, with a
+	 * device flush between them, and the second meta drain below still
+	 * picks up the AG-meta these drains dirty (the sess43 fix).
 	 */
 	mxfs_dlm_ag_drain_alloc_buflist(mp, pag);
 	mxfs_dlm_ag_drain_inode_buffers(pag);
+	mxfs_blkdev_flush_epoch(mp);
+	mxfs_dlm_ag_drain_meta_buffers(pag);
+	mxfs_blkdev_flush_epoch(mp);
 
 	/*
 	 * sess43 FIX: re-drain AG-meta AFTER the alloc-buflist + inode-cluster
@@ -40030,29 +45875,208 @@ mxfs_dlm_ag_bast_work_fn(
 	pag->pag_dlm_lineage_open = false;	/* P130: sanctioned release */
 	if (unlikely(mxfs_ag_strand_inject_hit(pag_agno(pag), "bast_work_fn"))) {
 		atomic64_inc(&mxfs_dlm_stat_ag_release);
-		mutex_lock(&pag->pag_dlm_lock);
-		pag->pag_dlm_demoting = false;
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		mxfs_ag_demote_clear(pag);
 		pag->pag_dlm_release_pending = false;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		wake_up_all(&pag->pag_dlm_demote_wq);
 		return;
 	}
 	/* sess48 v5: iunlink records are tenure-scoped — purge before the
 	 * grant leaves us (drain above has made them durably home). */
 	mxfs_iunl_store_purge_ag(pag_mount(pag), pag_agno(pag), "bast-inline");
-	mxfs_v5_dlm_ag_unlock(dlm, pag_agno(pag));
+	/*
+	 * sess385 P86/P87: what will the acquirer see?  Read it the way they
+	 * will, repair what is ours to repair, and refuse to publish a split we
+	 * could not fix.  Invariant 1: never unlock undrained.
+	 */
+	{
+		int p87_split = mxfs_p86_agi_unlinked_publish_audit(pag);
+
+		/*
+		 * sess387 RULE-5 ruling (refusal semantics): bounded DEFERRAL
+		 * before any escalation.  The dominant unrepaired-split cause
+		 * is a local thread holding the target's ILOCK across a DLM
+		 * poll (measured: rm/rsync held it for the whole 3s budget);
+		 * most such holds clear in seconds.  Two in-place retries with
+		 * a 2s gap raise the repair ceiling to ~13s per split-carrying
+		 * release — rare (1-4 per lap fleet-wide) and bounded well
+		 * under the 120s peer grant timeout.  Only then escalate.
+		 */
+		if (p87_split > 0 && !xfs_is_shutdown(mp)) {
+			int p87_retry;
+
+			for (p87_retry = 0; p87_retry < 2 && p87_split > 0;
+			     p87_retry++) {
+				msleep(2000);
+				p87_split =
+					mxfs_p86_agi_unlinked_publish_audit(pag);
+			}
+			if (p87_split > 0)
+				pr_warn("mxfs: P87-PUBLISH-DEFER-EXHAUSTED ag=%u unrepaired=%d — split survived deferred repair; %s\n",
+					pag_agno(pag), p87_split,
+					mxfs_p87_refuse_unlock ?
+					"escalating to refusal" :
+					"publishing under protest (refuse knob off)");
+		}
+		if (p87_split > 0 && mxfs_p87_refuse_unlock &&
+		    !xfs_is_shutdown(mp)) {
+			pr_warn("mxfs: P87-PUBLISH-REFUSED ag=%u unrepaired_splits=%d — refusing to publish an unlinked-list head whose home dinode reads LINKED; shutting down rather than handing a peer metadata that will make it call this AGI corruption\n",
+				pag_agno(pag), p87_split);
+			xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
+		}
+	}
+	us = mxfs_v5_dlm_ag_unlock(dlm, pag_agno(pag));
 	atomic64_inc(&mxfs_dlm_stat_ag_release);
 
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-		pr_warn("P10-INSTR realns=%llu slot=%d agno=%u REL-INLINE-V55\n",
+		pr_warn("P10-INSTR realns=%llu slot=%d agno=%u REL-INLINE-V55 us=%d\n",
 			(unsigned long long)ktime_get_real_ns(),
-			mxfs_v5_dlm_get_node_slot(dlm), pag_agno(pag));
+			mxfs_v5_dlm_get_node_slot(dlm), pag_agno(pag), us);
 
-	mutex_lock(&pag->pag_dlm_lock);
-	pag->pag_dlm_demoting = false;
-	pag->pag_dlm_release_pending = false;
-	mutex_unlock(&pag->pag_dlm_lock);
-	wake_up_all(&pag->pag_dlm_demote_wq);
+	/*
+	 * D-488 birth fix (sess273 ruling): the unlock outcome decides what
+	 * the in-core state may become.  Before this, every outcome fell
+	 * through to "demote complete" — an unlock that never cleared the
+	 * platter bit stranded it with no in-core tenure, and no peer BAST
+	 * could ever schedule the release again (the silent-orphan birth).
+	 */
+	if (us == MXFS_UNLOCK_UNKNOWN) {
+		/* The wrapper's own read-back failed.  One slot read per
+		 * second, bounded: almost any transient transport error
+		 * resolves here; only a persistently unreadable slot
+		 * quarantines below. */
+		int vtry;
+
+		for (vtry = 0; vtry < 10 && us == MXFS_UNLOCK_UNKNOWN;
+		     vtry++) {
+			int held;
+
+			msleep(1000);
+			held = mxfs_v5_dlm_ag_held(dlm, pag_agno(pag));
+			if (held == 1)
+				us = MXFS_UNLOCK_STILL_HELD;
+			else if (held == 0)
+				us = MXFS_UNLOCK_RELEASED;
+		}
+		pr_warn("mxfs: P275-AGUNLK-REVERIFY ag=%u tries=%d state=%d\n",
+			pag_agno(pag), vtry, us);
+	}
+
+	switch (us) {
+	case MXFS_UNLOCK_RELEASED: {
+		/*
+		 * sess391 handoff accounting (the ruling's acceptance numbers):
+		 * b2c = BAST rx -> COMMIT (grace + drain of admitted holders +
+		 * worker/latch latency), c2r = COMMIT -> on-disk release (the
+		 * drains/publication/flush/CAW unlock).  Sums, maxima and >50 /
+		 * >500 ms buckets land in the DLM stats line; P12-HANDOFF
+		 * samples individual releases (ratelimited).
+		 */
+		u64 now = ktime_get_ns();
+		s64 b2c = -1, c2r = -1;
+		u32 readopt;
+
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		if (pag->pag_dlm_latch_ns) {
+			c2r = (s64)((now - pag->pag_dlm_latch_ns) / NSEC_PER_MSEC);
+			if (pag->pag_dlm_bast_rx_ns &&
+			    pag->pag_dlm_latch_ns >= pag->pag_dlm_bast_rx_ns)
+				b2c = (s64)((pag->pag_dlm_latch_ns -
+					     pag->pag_dlm_bast_rx_ns) / NSEC_PER_MSEC);
+		}
+		readopt = pag->pag_dlm_readopt_n;
+		pag->pag_dlm_latch_ns = 0;
+		mxfs_ag_demote_clear(pag);
+		pag->pag_dlm_release_pending = false;
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		wake_up_all(&pag->pag_dlm_demote_wq);
+
+		if (c2r >= 0) {
+			atomic64_inc(&mxfs_dlm_stat_handoff_n);
+			atomic64_add(c2r, &mxfs_dlm_stat_handoff_c2r_ms);
+			mxfs_stat_max64(&mxfs_dlm_stat_handoff_c2r_max, c2r);
+			if (c2r > 50)
+				atomic64_inc(&mxfs_dlm_stat_handoff_c2r_gt50);
+			if (c2r > 500)
+				atomic64_inc(&mxfs_dlm_stat_handoff_c2r_gt500);
+			if (b2c >= 0) {
+				atomic64_add(b2c, &mxfs_dlm_stat_handoff_b2c_ms);
+				mxfs_stat_max64(&mxfs_dlm_stat_handoff_b2c_max, b2c);
+				if (b2c > 50)
+					atomic64_inc(&mxfs_dlm_stat_handoff_b2c_gt50);
+				if (b2c > 500)
+					atomic64_inc(&mxfs_dlm_stat_handoff_b2c_gt500);
+			}
+			pr_warn_ratelimited("mxfs: P12-HANDOFF ag=%u b2c_ms=%lld c2r_ms=%lld readopt=%u\n",
+				pag_agno(pag), (long long)b2c, (long long)c2r,
+				readopt);
+		}
+		break;
+	}
+
+	case MXFS_UNLOCK_STILL_HELD: {
+		/*
+		 * The bit is provably still ours: the grant never left this
+		 * node, but the COMMIT above already invalidated the epoch.
+		 * Re-arm tenure through the real acquire path.  sess290: the
+		 * acquire attests our published epoch (now 0) down to the
+		 * CAW already-held path, which refuses to reaffirm on it and
+		 * instead CASes a fresh READOPT mint (P294-READOPT-MINT,
+		 * Enew != the surrendered epoch — sess289 ruling; before
+		 * sess290 this comment claimed a mint that did NOT exist and
+		 * the re-arm silently republished the surrendered epoch).
+		 * Then unlock back to cached.  bast_pending is re-set first
+		 * so the last-holder unlock transition reschedules this
+		 * worker: the release retries on a bounded cadence instead
+		 * of stranding.
+		 */
+		int lrc;
+
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		mxfs_ag_demote_clear(pag);
+		pag->pag_dlm_release_pending = false;
+		pag->pag_dlm_bast_pending = true;	/* COMMIT cleared it */
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		wake_up_all(&pag->pag_dlm_demote_wq);
+
+		lrc = mxfs_ag_dlm_lock(mp, pag);
+		if (lrc == 0) {
+			pr_warn("mxfs: P275-AGUNLK-REARM ag=%u — unlock left bit set, tenure re-minted, release will retry\n",
+				pag_agno(pag));
+			mxfs_ag_dlm_unlock(mp, pag);
+		} else {
+			/* Re-acquire refused: no epoch, no cached flag.  The
+			 * rx readopt path is the backstop; requeue ourselves
+			 * so the retry does not depend on the next BAST. */
+			pr_warn("mxfs: P275-AGUNLK-REARM-FAIL ag=%u rc=%d — bit still set on platter with no in-core tenure, requeueing\n",
+				pag_agno(pag), lrc);
+			if (mp->m_mxfs_ag_bast_wq)
+				queue_work(mp->m_mxfs_ag_bast_wq,
+					   &pag->pag_dlm_bast_work);
+			else
+				schedule_work(&pag->pag_dlm_bast_work);
+		}
+		break;
+	}
+
+	case MXFS_UNLOCK_UNKNOWN:
+	default:
+		/*
+		 * Outcome unprovable after bounded re-verify: quarantine.
+		 * demoting stays set (local acquires keep blocking on
+		 * pag_dlm_demote_wq → no metadata authority can be issued
+		 * on an AG whose platter state is unknown), release_pending
+		 * marks the quarantine for unmount/force-release, and no
+		 * waiter is woken.  The rx-side watchdog keeps this loud.
+		 */
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		pag->pag_dlm_release_pending = true;
+		mxfs_pag_dlm_unlock(pag, __LINE__);
+		pr_warn("mxfs: P275-AGUNLK-QUARANTINE ag=%u — unlock outcome UNPROVABLE after re-verify; AG quarantined (demoting held, acquires blocked)\n",
+			pag_agno(pag));
+		break;
+	}
 	(void)do_release;
 }
 
@@ -40080,24 +46104,35 @@ mxfs_dlm_ag_force_release_all(
 
 		mxfs_dlm_ag_drain_alloc_buflist(mp, pag);
 
-		mutex_lock(&pag->pag_dlm_lock);
-		if (pag->pag_dlm_cached) {
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		/* sess391: a latched COMMIT whose worker was cancelled above
+		 * still owns the on-disk grant — release it here too. */
+		if (pag->pag_dlm_cached || pag->pag_dlm_latched) {
 			pag->pag_dlm_cached = false;
+			pag->pag_dlm_latched = false;
+			pag->pag_dlm_prepass_done = false;
 			pag->pag_dlm_bast_pending = false;
 			pag->pag_dlm_bast_scheduled = false;
 			pag->pag_dlm_release_pending = false;
+			pag->pag_dlm_readopt_pending = false;	/* sess291 */
 			/* sess82 step 5.1: unmount is a release-commit point
 			 * too — invalidate in-core authority before the
 			 * unlock below makes the grant transferable. */
 			WRITE_ONCE(pag->pag_mxfs_grant_epoch, 0);
+			WRITE_ONCE(pag->pag_mxfs_grant_lineage, 0);
 			release_now = true;
 		}
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 
 		if (release_now) {
+			enum mxfs_unlock_state us;
+
 			pag->pag_dlm_lineage_open = false;	/* P130 */
 			mxfs_iunl_store_purge_ag(mp, agno, "unmount");
-			mxfs_v5_dlm_ag_unlock(dlm, agno);
+			us = mxfs_v5_dlm_ag_unlock(dlm, agno);
+			if (us != MXFS_UNLOCK_RELEASED)
+				pr_warn("mxfs: P275-AGUNLK-UNMOUNT-NOTREL ag=%u state=%d — unmount release did not prove the bit clear; a dead-looking holder bit may survive this unmount\n",
+					agno, us);
 			atomic64_inc(&mxfs_dlm_stat_ag_release);
 
 			if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
@@ -40112,9 +46147,9 @@ mxfs_dlm_ag_force_release_all(
 		 * demoting=true is from a deferred release whose iodone may or
 		 * may not have fired.  Force-clear so unmount can proceed.
 		 */
-		mutex_lock(&pag->pag_dlm_lock);
-		pag->pag_dlm_demoting = false;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		mxfs_ag_demote_clear(pag);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		wake_up_all(&pag->pag_dlm_demote_wq);
 	}
 }
@@ -41582,9 +47617,9 @@ mxfs_dlm_ag_release_work_fn(
 
 	if (!dlm) {
 		/* Shouldn't happen; clear state and bail. */
-		mutex_lock(&pag->pag_dlm_lock);
-		pag->pag_dlm_demoting = false;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		mxfs_ag_demote_clear(pag);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		wake_up_all(&pag->pag_dlm_demote_wq);
 		return;
 	}
@@ -41596,15 +47631,21 @@ mxfs_dlm_ag_release_work_fn(
 	pag->pag_dlm_lineage_open = false;	/* P130: sanctioned release */
 	if (unlikely(mxfs_ag_strand_inject_hit(agno, "release_work_fn"))) {
 		atomic64_inc(&mxfs_dlm_stat_ag_release);
-		mutex_lock(&pag->pag_dlm_lock);
-		pag->pag_dlm_demoting = false;
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
+		mxfs_ag_demote_clear(pag);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 		wake_up_all(&pag->pag_dlm_demote_wq);
 		return;
 	}
 	/* sess48 v5: tenure-scoped iunlink records die with the grant. */
 	mxfs_iunl_store_purge_ag(mp, agno, "deferred");
-	mxfs_v5_dlm_ag_unlock(dlm, agno);
+	{
+		enum mxfs_unlock_state us = mxfs_v5_dlm_ag_unlock(dlm, agno);
+
+		if (us != MXFS_UNLOCK_RELEASED)
+			pr_warn("mxfs: P275-AGUNLK-DEFERRED-NOTREL ag=%u state=%d — deferred release did not prove the bit clear; rx watchdog/readopt is the recovery path\n",
+				agno, us);
+	}
 	atomic64_inc(&mxfs_dlm_stat_ag_release);
 
 	if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
@@ -41612,9 +47653,9 @@ mxfs_dlm_ag_release_work_fn(
 			(unsigned long long)ktime_get_real_ns(),
 			mxfs_v5_dlm_get_node_slot(dlm), agno);
 
-	mutex_lock(&pag->pag_dlm_lock);
-	pag->pag_dlm_demoting = false;
-	mutex_unlock(&pag->pag_dlm_lock);
+	mxfs_pag_dlm_lock(pag, __LINE__);
+	mxfs_ag_demote_clear(pag);
+	mxfs_pag_dlm_unlock(pag, __LINE__);
 	wake_up_all(&pag->pag_dlm_demote_wq);
 }
 
@@ -41661,13 +47702,13 @@ mxfs_dlm_ag_meta_iodone(
 		 * pag_dlm_lock and skip the release; the next unlock
 		 * will redo the deferral check.
 		 */
-		mutex_lock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
 		if (pag->pag_dlm_release_pending &&
 		    pag->pag_dlm_holders == 0) {
 			pag->pag_dlm_release_pending = false;
 			do_release = true;
 		}
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 
 		if (do_release) {
 			/*
@@ -41703,15 +47744,20 @@ mxfs_dlm_ag_meta_iodone(
 				pag->pag_dlm_lineage_open = false;	/* P130 */
 				if (!unlikely(mxfs_ag_strand_inject_hit(agno,
 							"ag_meta_iodone"))) {
+					enum mxfs_unlock_state us;
+
 					mxfs_iunl_store_purge_ag(
 						pag_mount(pag), agno,
 						"iodone-fallback");
-					mxfs_v5_dlm_ag_unlock(dlm, agno);
+					us = mxfs_v5_dlm_ag_unlock(dlm, agno);
+					if (us != MXFS_UNLOCK_RELEASED)
+						pr_warn("mxfs: P275-AGUNLK-IODONE-NOTREL ag=%u state=%d — fallback release did not prove the bit clear\n",
+							agno, us);
 				}
 				atomic64_inc(&mxfs_dlm_stat_ag_release);
-				mutex_lock(&pag->pag_dlm_lock);
-				pag->pag_dlm_demoting = false;
-				mutex_unlock(&pag->pag_dlm_lock);
+				mxfs_pag_dlm_lock(pag, __LINE__);
+				mxfs_ag_demote_clear(pag);
+				mxfs_pag_dlm_unlock(pag, __LINE__);
 				wake_up_all(&pag->pag_dlm_demote_wq);
 			}
 		}
@@ -42015,12 +48061,13 @@ mxfs_dlm_invalidate_cached_views(
 		 * path's Phase-2 drain destages it before the peer gets the AG,
 		 * and the caller is told the invalidation was incomplete.
 		 */
-		mutex_lock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_lock(pag, __LINE__);
 		if (pag->pag_dlm_holders == 0 && !pag->pag_dlm_demoting &&
 		    ag_pres == 0) {
 			pag->pag_dlm_cached = false;
 			pag->pag_dlm_bast_pending = false;
 			pag->pag_dlm_release_pending = false;
+			pag->pag_dlm_readopt_pending = false;	/* sess291 */
 			/* P130: administrative lineage reset at the single→
 			 * multi transition — the single-node era's cached
 			 * grants are being surrendered by design, not lost. */
@@ -42030,10 +48077,11 @@ mxfs_dlm_invalidate_cached_views(
 			 * cannot keep stamping tokens for an AG we have
 			 * administratively given up. */
 			WRITE_ONCE(pag->pag_mxfs_grant_epoch, 0);
+			WRITE_ONCE(pag->pag_mxfs_grant_lineage, 0);
 		} else if (pag->pag_dlm_holders || pag->pag_dlm_demoting) {
 			ags_held++;
 		}
-		mutex_unlock(&pag->pag_dlm_lock);
+		mxfs_pag_dlm_unlock(pag, __LINE__);
 
 		{
 			struct radix_tree_iter iter;
@@ -42814,6 +48862,694 @@ mxfs_dlm_fence_notify(
 }
 
 /*
+ * sess325 (D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, sess320
+ * RULE-5 ruling): fold a terminal recovery-refusal domain into this
+ * mount's quarantine map.  Monotonic under m_mxfs_quar_lock — entries
+ * are only ever added; quarantine is terminal until remount.  The
+ * (victim_epoch, publish_seq) TUPLE dedups the LOGGING per victim slot
+ * (the disklock monitor re-imports every pass, and seq alone is wrong
+ * across slot reuse — a new victim incarnation restarts publish_seq at
+ * 1; sess325 ruling item 3); the map itself is idempotent.  Called both
+ * by the publisher itself (immediately after a successful publish —
+ * enforcement must not wait a monitor lap) and by the monitor import
+ * callback for every survivor.
+ */
+static void
+mxfs_quarantine_import(
+	struct xfs_mount	*mp,
+	unsigned int		victim_slot,
+	bool			fswide,
+	uint64_t		ag_mask,
+	uint64_t		victim_epoch,
+	uint64_t		publish_seq)
+{
+	bool			fresh = false;
+	bool			admitting;
+
+	spin_lock(&mp->m_mxfs_quar_lock);
+	/*
+	 * sess383: which side of the admission transition this import landed
+	 * on.  Read under the SAME lock the transition flips it under, so the
+	 * answer is never "it depends" — an import that sees ADMITTING is
+	 * guaranteed to be visible to mxfs_dlm_admission_commit()'s test, and
+	 * one that does not is guaranteed to be running against a mount that
+	 * has already been admitted and can only be failed with runtime EIO.
+	 */
+	admitting = mp->m_mxfs_quar_admitting;
+	if (fswide && !mp->m_mxfs_quar_fswide) {
+		mp->m_mxfs_quar_fswide = true;
+		fresh = true;
+	}
+	if (ag_mask & ~mp->m_mxfs_quar_ag_mask) {
+		mp->m_mxfs_quar_ag_mask |= ag_mask;
+		fresh = true;
+	}
+	if (victim_slot < 64 &&
+	    (victim_epoch != mp->m_mxfs_quar_seen_epoch[victim_slot] ||
+	     publish_seq > mp->m_mxfs_quar_seen_seq[victim_slot])) {
+		mp->m_mxfs_quar_seen_epoch[victim_slot] = victim_epoch;
+		mp->m_mxfs_quar_seen_seq[victim_slot] = publish_seq;
+		fresh = true;
+	}
+	spin_unlock(&mp->m_mxfs_quar_lock);
+	if (fresh)
+		xfs_alert(mp,
+			"MXFS P240-QUAR-IMPORT victim_slot=%u fswide=%d "
+			"ag_mask=0x%llx vepoch=%llu seq=%llu phase=%s — victim "
+			"recovery domain QUARANTINED: operations touching it "
+			"fail with EIO until operator repair + remount",
+			victim_slot, fswide,
+			(unsigned long long)ag_mask,
+			(unsigned long long)victim_epoch,
+			(unsigned long long)publish_seq,
+			admitting ? "ADMITTING" : "ADMITTED");
+	if (fresh && fswide && admitting)
+		xfs_alert(mp,
+			"MXFS P240-QUAR-ADMIT-DENY victim_slot=%u — an FSWIDE "
+			"quarantine landed while this mount was still being "
+			"admitted; the admission transition will refuse it "
+			"rather than admit a mount whose every operation fails",
+			victim_slot);
+}
+
+/*
+ * sess327: single import chokepoint for a canonical outcome record.  An
+ * unknown domain_kind quarantines fswide — fail closed: a record we
+ * cannot interpret still proves a suppressed committed redo somewhere.
+ * oc == NULL is the ruling item-8 contract (QUARANTINED with unreadable
+ * verdict state): no domain evidence exists, so FSWIDE, with epoch/seq 0
+ * (nothing to dedup on; the map is idempotent).
+ */
+static void
+mxfs_quarantine_import_oc(
+	struct xfs_mount		*mp,
+	unsigned int			victim_slot,
+	const struct mxfs_recov_outcome	*oc)
+{
+	bool				fswide;
+	uint64_t			ag_mask = 0;
+
+	if (oc && oc->domain_kind == MXFS_RECOV_DOMAIN_AG_MASK &&
+	    oc->ag_mask) {
+		fswide = false;
+		ag_mask = oc->ag_mask;
+	} else {
+		fswide = true;
+	}
+	mxfs_quarantine_import(mp, victim_slot, fswide, ag_mask,
+			       oc ? oc->victim_epoch : 0,
+			       oc ? oc->publish_seq : 0);
+}
+
+/*
+ * sess334 (sess333 review item B): the ONE validating import for a
+ * canonical outcome record read back from the platter.  Three sites used
+ * to import with three different levels of scrutiny — the direct-read
+ * classifier arm checked only the outcome kind, the legacy-backfill
+ * return imported whatever record won the race unvalidated, and the
+ * publish-conflict readback checked the kind alone.  A raced record with
+ * a parseable AG-scoped domain but an unknown reason, an empty AG mask,
+ * or a victim identity that does not match the sector it was read from
+ * would import an enforcement domain nobody ever decided.  Everything a
+ * caller is about to ENFORCE validates here; any failure imports NULL =
+ * fail-closed FSWIDE, logging the ACTUAL record for forensics.
+ */
+static int
+mxfs_freplay_import_verdict(
+	struct xfs_mount		*mp,
+	unsigned int			slot,
+	const struct mxfs_recov_outcome	*oc,
+	const char			*src)
+{
+	uint64_t			ag_bits;
+
+	if (!oc) {
+		mxfs_quarantine_import_oc(mp, slot, NULL);
+		return MXFS_QUAR_INVALID_FSWIDE;
+	}
+	/*
+	 * sess383 (RULE-5 ruling Q5.2): "nonzero" is not a valid AG mask.  A
+	 * mask made only of bits for AGs this filesystem does not have
+	 * quarantines nothing — a fail-OPEN domain dressed as an AG-scoped
+	 * refusal.  Canonical form is FSWIDE => ag_mask == 0, AG_MASK => a
+	 * nonempty SUBSET of the AGs that exist.  Rejecting a noncanonical
+	 * FSWIDE mask also stops two consumers disagreeing about the domain;
+	 * every in-tree producer already publishes 0 for FSWIDE
+	 * (info.ag_mask = fv->fswide ? 0 : fv->ag_mask).  AGs >= 64 are not
+	 * representable in the mask at all and force FSWIDE at collection
+	 * time, so a 64-AG-wide filesystem simply has every bit legal.
+	 */
+	ag_bits = mp->m_sb.sb_agcount >= 64 ? ~0ULL :
+			((1ULL << mp->m_sb.sb_agcount) - 1);
+	if (oc->outcome != MXFS_RECOV_OUTCOME_TERMINAL_REFUSED ||
+	    (oc->reason != MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE &&
+	     oc->reason != MXFS_RECOV_REFUSAL_PHYSICALLY_TORN &&
+	     oc->reason != MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE) ||
+	    (oc->domain_kind != MXFS_RECOV_DOMAIN_FSWIDE &&
+	     oc->domain_kind != MXFS_RECOV_DOMAIN_AG_MASK) ||
+	    (oc->domain_kind == MXFS_RECOV_DOMAIN_FSWIDE && oc->ag_mask) ||
+	    (oc->domain_kind == MXFS_RECOV_DOMAIN_AG_MASK &&
+	     (!oc->ag_mask || (oc->ag_mask & ~ag_bits))) ||
+	    oc->victim_slot != slot) {
+		xfs_alert(mp,
+			"MXFS foreign replay slot=%u [%s]: outcome record "
+			"fails validation (outcome=%u reason=%u domain=%u "
+			"ag_mask=0x%llx victim_slot=%u owner=%u seq=%llu "
+			"agcount=%u) — failing closed FSWIDE",
+			slot, src, oc->outcome, oc->reason, oc->domain_kind,
+			(unsigned long long)oc->ag_mask, oc->victim_slot,
+			oc->owner_node,
+			(unsigned long long)oc->publish_seq,
+			mp->m_sb.sb_agcount);
+		mxfs_quarantine_import_oc(mp, slot, NULL);
+		return MXFS_QUAR_INVALID_FSWIDE;
+	}
+	xfs_alert(mp,
+		"MXFS foreign replay slot=%u [%s]: terminal verdict durable "
+		"(owner=%u reason=%u domain=%s ag_mask=0x%llx seq=%llu) — "
+		"imported; a refused slice is never replayed",
+		slot, src, oc->owner_node, oc->reason,
+		oc->domain_kind == MXFS_RECOV_DOMAIN_AG_MASK ?
+			"AG-MASK" : "FSWIDE",
+		(unsigned long long)oc->ag_mask,
+		(unsigned long long)oc->publish_seq);
+	mxfs_quarantine_import_oc(mp, slot, oc);
+	return oc->domain_kind == MXFS_RECOV_DOMAIN_AG_MASK ?
+			MXFS_QUAR_VALID_AG : MXFS_QUAR_VALID_FSWIDE;
+}
+
+/*
+ * Disklock monitor-thread consumer for imported terminal recovery
+ * outcomes (registered via mxfs_v5_dlm_set_quarantine_cb).
+ *
+ * sess327 (sess325 ruling item 9): importing a terminal verdict must
+ * ALSO stop this node's own replay churn — a non-publisher survivor
+ * that was elected replayer keeps re-arming replay+refusal cycles
+ * against a slice the cluster has already durably refused.  The torn
+ * latch is the existing per-slot "do not replay again" gate the reap
+ * worker honours; setting it here is race-safe (a new death notify for
+ * the slot clears it, and a stale set against a slot whose descriptor
+ * is gone only skips one replay attempt that acquire() would have
+ * refused anyway).
+ */
+static int
+mxfs_dlm_quarantine_cb(
+	void				*data,
+	int				victim_slot,
+	const struct mxfs_recov_outcome	*oc)
+{
+	struct xfs_mount		*mp = data;
+	int				disp;
+
+	if (victim_slot < 0 || victim_slot >= 64)
+		return MXFS_QUAR_NOT_TERMINAL;
+	/*
+	 * sess383 (RULE-5 ruling Q1): this used to import the record with NO
+	 * validation, which made it a second entry point past the one
+	 * validator — the monitor and the registration-time scan both arrive
+	 * here.  Every record now goes through mxfs_freplay_import_verdict,
+	 * which fails closed FSWIDE on anything it rejects and tells the
+	 * caller what it decided so the closure path cannot consume an
+	 * invalid record.
+	 */
+	disp = mxfs_freplay_import_verdict(mp, (unsigned int)victim_slot, oc,
+					   "import-cb");
+	set_bit(victim_slot, mp->m_mxfs_foreign_torn_slots);
+	return disp;
+}
+
+/*
+ * sess330 (RULE-5 ruling): the SHARED terminal classifier — the one
+ * routine that decides, from a stable descriptor+outcome snapshot and
+ * WITHOUT any recovery lease, whether a pending slot is terminally
+ * disposed.  Used by the reap loop and the mount admission barrier, both
+ * BEFORE acquire (no lease is ever obtainable over a quarantined
+ * descriptor — the claim path's certificate evaluator refuses it before
+ * the owner-reacquire check, verified sess330) and again when an acquire
+ * returns -EPERM (a quarantine may land between the read and the claim).
+ *
+ * Every terminal disposition imports the verdict into the quarantine
+ * map, latches the slot against replay re-arming, and drops any stale
+ * local lease state (release is an idempotent local mask clear):
+ *   - a valid TERMINAL_REFUSED outcome imports as-is;
+ *   - an unknown outcome kind or unreadable verdict state imports
+ *     fail-closed FSWIDE (sess325 ruling item 8);
+ *   - a LEGACY intent-path quarantine (QUARANTINED, outcome all-zero)
+ *     is first terminalized via the LEASELESS backfill and then imports
+ *     the canonical record (ours or a racing backfiller's — first
+ *     durable verdict wins).
+ *
+ * Returns 1 = terminally disposed (imported + latched; the caller marks
+ * the slot resolved in its own admission/reap accounting), 0 = not
+ * terminal (live descriptor or no descriptor at all — proceed to the
+ * ordinary acquire+replay path), -EAGAIN = transient (unreadable
+ * snapshot or the backfill raced out): re-arm and reclassify later.
+ */
+static int
+mxfs_freplay_classify_terminal(
+	struct xfs_mount	*mp,
+	unsigned int		slot)
+{
+	struct mxfs_recov_outcome	oc;
+	int				orc;
+
+	orc = mxfs_v5_dlm_recovery_read_outcome(mp->m_mxfs_dlm, slot, &oc);
+	switch (orc) {
+	case -ENOENT:	/* no recovery descriptor yet (fresh death) */
+	case -EAGAIN:	/* live descriptor, no verdict */
+		return 0;
+	case -ESTALE:
+		/*
+		 * sess383: a recovery object from a DIFFERENT mkfs generation
+		 * — a pre-mkfs ghost.  It is outside this filesystem's
+		 * recovery namespace, so it is neither terminal nor a reason
+		 * to fail closed; it authorizes nothing and must not be
+		 * backfilled, imported or retired.  The requires-recovery
+		 * sweep already skips such sectors, so this arm only fires if
+		 * a slot's generation changed under a classification.
+		 */
+		xfs_notice(mp,
+			"MXFS foreign replay slot=%u: recovery object belongs "
+			"to a different mkfs generation — ignored (pre-mkfs "
+			"ghost), nothing classified", slot);
+		return 0;
+	case 0:
+		mxfs_freplay_import_verdict(mp, slot, &oc, "classify");
+		break;
+	case -EBADMSG:
+	case -EPROTO:
+		/* sess325 ruling item 8: unreadable verdict state is
+		 * persistent corruption — fail closed FSWIDE, stop churning. */
+		xfs_alert(mp,
+			"MXFS foreign replay slot=%u: verdict state UNREADABLE "
+			"(%d) — PERSISTENT; failing closed FSWIDE until "
+			"operator action", slot, orc);
+		mxfs_quarantine_import_oc(mp, slot, NULL);
+		break;
+	case -ENODATA: {
+		/*
+		 * LEGACY intent-path quarantine: terminal but uncommunicated
+		 * (a pre-outcome build wrote the flag alone).  Terminalize
+		 * it LEASELESSLY — no auth can exist over a quarantined
+		 * descriptor — then import the canonical record.
+		 */
+		struct mxfs_recov_outcome ocb;
+		int brc = mxfs_v5_dlm_recovery_backfill_legacy(mp->m_mxfs_dlm,
+							       slot, &ocb);
+		if (brc == 0) {
+			/* sess334 (sess333 review item B): "first durable
+			 * verdict wins" can hand back a RACING publisher's
+			 * record, not our deterministic synthesis — it gets
+			 * the same validation as a direct read, and the log
+			 * shows the ACTUAL record that won. */
+			mxfs_freplay_import_verdict(mp, slot, &ocb,
+						    "legacy-backfill");
+			break;
+		}
+		if (brc == -EBADMSG || brc == -EPROTO) {
+			/* sess334 (sess333 review item 5): -EPROTO —
+			 * unparseable descriptor bytes or a victim identity
+			 * that does not match the sector — is persistent
+			 * state exactly like corrupt verdict bytes; retrying
+			 * it forever never converges.  Fail closed. */
+			xfs_alert(mp,
+				"MXFS foreign replay slot=%u: legacy backfill "
+				"found unusable descriptor/verdict state (%d) "
+				"— PERSISTENT; failing closed FSWIDE until "
+				"operator action", slot, brc);
+			mxfs_quarantine_import_oc(mp, slot, NULL);
+			break;
+		}
+		xfs_alert(mp,
+			"MXFS foreign replay slot=%u: legacy-quarantine "
+			"backfill did not land (%d) — will retry "
+			"TERMINALIZATION (never replay)", slot, brc);
+		return -EAGAIN;
+	}
+	default:
+		xfs_alert(mp,
+			"MXFS foreign replay slot=%u: verdict read failed (%d) "
+			"— reclassifying next pass; nothing latched",
+			slot, orc);
+		return -EAGAIN;
+	}
+	set_bit(slot, mp->m_mxfs_foreign_torn_slots);
+	mxfs_v5_dlm_recovery_release(mp->m_mxfs_dlm, slot);
+	return 1;
+}
+
+/*
+ * sess361 (sess357 ruling, D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356): the
+ * closure classifier for the selective grant purge that follows a terminal
+ * AG_MASK refusal.  Returns >0 only when the resource is PROVABLY outside
+ * the quarantined AG domain; everything ambiguous stays frozen:
+ *   - AG locks map by ag_number, inode/icluster locks by the AG their
+ *     inode number decodes to (an inode cluster never spans AGs, and the
+ *     ICLUSTER resource carries the cluster base ino);
+ *   - JOURNAL/SUPER/EXTENT/unknown types are not AG-scoped or not provably
+ *     classifiable — in closure, frozen (the refused slice's SB-counter
+ *     obligations live behind SUPER, so freezing it is required, not just
+ *     conservative);
+ *   - an AG the uint64 mask cannot represent (>= 64) or an inode decoding
+ *     past sb_agcount is unclassifiable garbage — frozen.
+ */
+struct mxfs_freplay_closure_arg {
+	struct xfs_mount	*mp;
+	uint64_t		ag_mask;
+};
+
+/*
+ * sess374 fault injection (sess363 ruling hazard 7: "publisher death
+ * post-publish").  Suppress the PUBLISHER half of the out-of-closure fix so a
+ * run exercises the SURVIVOR demand scrub in isolation — the half that has to
+ * work when the publisher dies mid-scan, or was itself the node that died.
+ * Without this the publisher always gets there first and the scrub never
+ * fires, so its only coverage would be accidental.  0 = off (default).
+ * Test-only.
+ */
+static int mxfs_closure_skip_publisher_purge;
+module_param_named(closure_skip_publisher_purge,
+		   mxfs_closure_skip_publisher_purge, int, 0644);
+MODULE_PARM_DESC(closure_skip_publisher_purge,
+	"Fault injection: skip the publisher-side out-of-closure purge so the survivor demand scrub is exercised alone (0=off default)");
+
+static int
+mxfs_freplay_res_out_of_closure(
+	void				*arg,
+	const struct mxfs_resource_id	*res)
+{
+	struct mxfs_freplay_closure_arg	*ca = arg;
+	struct xfs_mount		*mp = ca->mp;
+	xfs_agnumber_t			agno;
+
+	switch (res->type) {
+	case MXFS_LTYPE_AG:
+		agno = res->ag_number;
+		break;
+	case MXFS_LTYPE_INODE:
+	case MXFS_LTYPE_ICLUSTER:
+		if (!res->ino)
+			return 0;
+		agno = XFS_INO_TO_AGNO(mp, res->ino);
+		break;
+	default:
+		return 0;
+	}
+	if (agno >= mp->m_sb.sb_agcount || agno >= 64)
+		return 0;
+	return !(ca->ag_mask & (1ULL << agno));
+}
+
+/*
+ * sess374 (sess363 ruling item B): the same judgement, in the shape the
+ * survivor-side scrub needs.  The scrub has no publisher to pass a domain in
+ * — it reads the blocking node's own terminal verdict and hands us the mask
+ * from it — so the closure argument is built per call.  Same predicate, same
+ * conservative direction: anything not provably outside the mask stays frozen.
+ */
+/*
+ * sess374 (sess357 ruling part 1): "is this resource inside a quarantined
+ * victim domain?"  Consulted by the DLM on every poll lap of every blocking
+ * acquire, so it is deliberately the same lockless monotonic map test the
+ * acquire gates already use — two READ_ONCEs on a healthy filesystem.
+ *
+ * Only AG-scoped resource classes can be answered: an inode maps to its AG, an
+ * AG lock names its own.  JOURNAL/SUPER/EXTENT are not AG-scoped, so a waiter
+ * on one is left alone — the conservative direction, and identical to how the
+ * closure classifier treats them.
+ */
+static int
+mxfs_dlm_quar_covers_cb(
+	void				*data,
+	const struct mxfs_resource_id	*res)
+{
+	struct xfs_mount		*mp = data;
+
+	if (!mp || !res)
+		return 0;
+	switch (res->type) {
+	case MXFS_LTYPE_AG:
+		return mxfs_quarantine_covers_agno(mp, res->ag_number) ? 1 : 0;
+	case MXFS_LTYPE_INODE:
+	case MXFS_LTYPE_ICLUSTER:
+		if (!res->ino)
+			return 0;
+		return mxfs_quarantine_covers_ino(mp, res->ino) ? 1 : 0;
+	default:
+		return 0;
+	}
+}
+
+static int
+mxfs_dlm_closure_classify_cb(
+	void				*data,
+	const struct mxfs_resource_id	*res,
+	uint64_t			ag_mask)
+{
+	struct mxfs_freplay_closure_arg	ca = {
+		.mp		= (struct xfs_mount *)data,
+		.ag_mask	= ag_mask,
+	};
+
+	if (!ca.mp || !res || !ag_mask)
+		return 0;
+	return mxfs_freplay_res_out_of_closure(&ca, res);
+}
+
+/*
+ * sess334 (sess333 review item D): the terminal-refusal publish/conflict
+ * state machine, shared by the live reap path and the mount admission
+ * barrier.  Both hold the recovery lease from acquire() when a replay
+ * refuses, and both must drive the SAME durable publication: before this
+ * was shared, the barrier passed a NULL verdict and published nothing, so
+ * a lone survivor cold-starting against a torn slice looped -EBUSY mount
+ * restarts forever without ever writing the refusal the rest of the
+ * cluster (and the operator) converge on — the D-513 defect surviving on
+ * the mount path.
+ *
+ * sess320 (D-513) context: sess233 (#21) latched a TORN refusal locally;
+ * sess320 proved a LOCAL latch is the all-32 suicide — every other
+ * survivor still times out against the frozen grants and shuts down.  A
+ * terminal refusal (TORN or policy-refused-complete) is PUBLISHED as a
+ * durable outcome record in the victim's heartbeat sector — under the
+ * recovery lease the caller holds — so all survivors converge on the same
+ * quarantined victim domain and fail ops with EIO instead of suiciding.
+ *
+ * Returns 1 = the verdict is durably terminal (imported + latched + lease
+ * released; the caller marks the slot terminal in its own accounting and
+ * checks the quarantine scope for FSWIDE handling), 0 = transient
+ * (nothing latched, nothing enforced; the caller re-arms its own retry —
+ * the reap loop re-schedules, the barrier leaves the slot in the cut so
+ * later rounds / the admission poll retry and the wait bound fails the
+ * mount).
+ */
+static int
+mxfs_freplay_publish_refusal(
+	struct xfs_mount		*mp,
+	unsigned int			slot,
+	const struct mxfs_freplay_verdict *fv,
+	int				rrc)
+{
+	struct mxfs_recov_refusal_info	info;
+	struct mxfs_recov_outcome	ocanon;
+	int				prc;
+
+	/*
+	 * sess327 (sess325 ruling item 5): a failed forensic digest reread
+	 * must NOT gate the verdict — the refusal evidence is the gate
+	 * decision itself, the digest is forensics.  Publish with
+	 * digest_valid=false and a zero digest instead of retrying forever.
+	 */
+	memset(&info, 0, sizeof(info));
+	info.reason = (fv->reason == MXFS_FREPLAY_REASON_TORN) ?
+		MXFS_RECOV_REFUSAL_PHYSICALLY_TORN :
+		MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE;
+	info.domain_kind = fv->fswide ?
+		MXFS_RECOV_DOMAIN_FSWIDE :
+		MXFS_RECOV_DOMAIN_AG_MASK;
+	info.ag_mask = fv->fswide ? 0 : fv->ag_mask;
+	info.digest_valid = fv->digest_valid;
+	info.slice_digest = fv->digest_valid ? fv->slice_digest : 0;
+	info.refused = fv->refused_items;
+	info.malformed = fv->malformed_items;
+	prc = mxfs_v5_dlm_recovery_publish_refusal(mp->m_mxfs_dlm, slot,
+						   &info, &ocanon);
+	if (prc == 0) {
+		/*
+		 * Publisher enforces immediately — the monitor import lap is
+		 * for the OTHER survivors.  Import the CANONICAL record
+		 * publish handed back (idempotent case: what an earlier
+		 * publisher wrote), latch the slot against replay re-arming,
+		 * and release the recovery lease WITHOUT advancing the
+		 * descriptor (sess325 ruling item 1; the lease is cache-only
+		 * local state — no renewal churn, no unmount wait, and
+		 * reacquire re-proves against the platter, verified sess326).
+		 *
+		 * sess335 review: import VALIDATED, like every other consumer
+		 * of a canonical record — a lower-layer contract regression
+		 * that hands back an invalid ocanon then fails closed FSWIDE
+		 * instead of enforcing a domain nobody decided.
+		 */
+		mxfs_freplay_import_verdict(mp, slot, &ocanon, "publish");
+		set_bit(slot, mp->m_mxfs_foreign_torn_slots);
+		/*
+		 * sess361 (sess357 ruling): with the verdict durable and
+		 * imported, and while we STILL hold the recovery lease,
+		 * force-revoke the victim's provably-out-of-closure grants so
+		 * survivors' waits on out-of-domain resources (e.g. the root
+		 * inode's EX from an AG-scoped refusal) unblock instead of
+		 * timing out -110 into shutdown.  Classified against the
+		 * CANONICAL record — the domain the cluster enforces, not our
+		 * local draft.  A purge failure only leaves extra grants
+		 * frozen (the pre-fix state); the verdict's durability and the
+		 * lease release do not depend on it.
+		 */
+		if (unlikely(mxfs_closure_skip_publisher_purge)) {
+			xfs_alert(mp,
+				"MXFS foreign replay slot=%u: P299-CLOSURE-SKIP "
+				"— publisher purge suppressed by fault "
+				"injection; the survivor demand scrub is the "
+				"only repair path for this run",
+				slot);
+		} else if (ocanon.domain_kind == MXFS_RECOV_DOMAIN_AG_MASK &&
+		    ocanon.ag_mask) {
+			struct mxfs_freplay_closure_arg ca = {
+				.mp = mp,
+				.ag_mask = ocanon.ag_mask,
+			};
+			uint32_t cp = 0, ck = 0;
+			int crc;
+
+			crc = mxfs_v5_dlm_recovery_purge_out_of_closure(
+				mp->m_mxfs_dlm, slot,
+				ocanon.victim_node, ocanon.ag_mask,
+				mxfs_freplay_res_out_of_closure, &ca,
+				&cp, &ck);
+			/*
+			 * sess374 (ruling item C): a partial purge is NOT a
+			 * purge, and must never read as "complete".
+			 *
+			 * The lease IS still released below, on purpose.  The
+			 * sess363 ruling is explicit — "no retry loop, release
+			 * lease regardless" — because the retry protocol for
+			 * an incomplete purge is not a publisher-side loop at
+			 * all: it is the SURVIVOR-side demand scrub (ruling
+			 * item B), which needs no lease (none is obtainable
+			 * over a quarantined descriptor) and repairs exactly
+			 * the leftovers that actually block someone.  A
+			 * leftover that blocks nobody costs nobody anything.
+			 * The sess374 RULE-5 review argued for holding the
+			 * lease here; that argument assumes the leftovers can
+			 * only be cleared under a lease, which the leaseless
+			 * gate is precisely what removes.
+			 */
+			xfs_alert(mp,
+				"MXFS foreign replay slot=%u: out-of-closure "
+				"grant purge %s rc=%d purged=%u kept=%u "
+				"(victim=%u ag_mask=0x%llx)",
+				slot, crc ? "INCOMPLETE" : "complete", crc,
+				cp, ck, ocanon.victim_node,
+				(unsigned long long)ocanon.ag_mask);
+		}
+		mxfs_v5_dlm_recovery_release(mp->m_mxfs_dlm, slot);
+		xfs_alert(mp,
+			"MXFS foreign replay slot=%u: slice replay refused "
+			"(%s, rc=%d refused=%u malformed=%u dvalid=%d) — "
+			"terminal outcome PUBLISHED, victim domain (%s "
+			"ag_mask=0x%llx) quarantined cluster-wide; grants "
+			"stay frozen; needs repair + remount",
+			slot,
+			fv->reason == MXFS_FREPLAY_REASON_TORN ?
+				"TORN" : "POLICY-REFUSED",
+			rrc, fv->refused_items, fv->malformed_items,
+			(int)fv->digest_valid,
+			fv->fswide ? "FSWIDE" : "AG-MASK",
+			(unsigned long long)(fv->fswide ? 0 : fv->ag_mask));
+		return 1;
+	}
+	if (prc == -EPERM) {
+		/*
+		 * sess327 (sess325 ruling item 2): a conflicting verdict is
+		 * already durable — we lost the publish race (or an
+		 * intent-path quarantine got there first).  -EPERM is NEVER
+		 * terminal by itself: synchronously READ the canonical
+		 * outcome and import THAT.  Only a successful readback stops
+		 * the retry churn; a failed readback re-arms the
+		 * descriptor-read retry, not another full replay (the torn
+		 * latch stays unset so the next pass re-reads, but acquire()
+		 * will keep refusing a quarantined descriptor).
+		 *
+		 * sess335 (RULE-5 review): the local lease is released HERE,
+		 * before the readback — -EPERM means our publication is
+		 * defeated, the readback is leaseless anyway, and holding the
+		 * dead lease across a transient readback failure (the default
+		 * arm below) would keep the victim's grants frozen with no
+		 * publisher, recreating the containment gap this fix exists
+		 * to close.
+		 */
+		struct mxfs_recov_outcome oc2;
+		int orc;
+
+		mxfs_v5_dlm_recovery_release(mp->m_mxfs_dlm, slot);
+		orc = mxfs_v5_dlm_recovery_read_outcome(mp->m_mxfs_dlm,
+							slot, &oc2);
+		switch (orc) {
+		case 0:
+			/* Lost the refusal-publish race — import the
+			 * CANONICAL verdict, validated (sess333 item B). */
+			mxfs_freplay_import_verdict(mp, slot, &oc2,
+						    "publish-conflict");
+			set_bit(slot, mp->m_mxfs_foreign_torn_slots);
+			return 1;
+		case -EBADMSG:
+		case -EPROTO:
+			/* Ruling item 8: unreadable verdict state is
+			 * persistent corruption — fail closed FSWIDE, stop
+			 * churning. */
+			xfs_alert(mp,
+				"MXFS foreign replay slot=%u: conflicting "
+				"verdict is UNREADABLE (%d) — PERSISTENT; "
+				"failing closed FSWIDE until operator action",
+				slot, orc);
+			mxfs_quarantine_import_oc(mp, slot, NULL);
+			set_bit(slot, mp->m_mxfs_foreign_torn_slots);
+			return 1;
+		case -ENODATA:
+			/* sess330 ruling Q3: publish said "quarantined" but
+			 * the readback says "no outcome bytes" — an
+			 * inconsistent, unstable snapshot.  Never backfill
+			 * from inside a publish conflict: drop the
+			 * now-unusable lease and re-arm; the next pass's
+			 * pre-acquire classification terminalizes it
+			 * leaselessly if it is genuinely legacy state, and
+			 * never replays. */
+			xfs_alert(mp,
+				"MXFS foreign replay slot=%u: publish "
+				"conflict but readback shows no outcome "
+				"bytes — unstable snapshot; will reclassify "
+				"(never replay)", slot);
+			return 0;
+		default:
+			/* -EAGAIN / -ENOENT / I/O: the conflict we just hit
+			 * is not visible in this read — keep the caller's
+			 * retry armed and re-read next pass. */
+			xfs_alert(mp,
+				"MXFS foreign replay slot=%u: conflicting "
+				"verdict readback failed (%d) — will "
+				"re-read; nothing latched", slot, orc);
+			return 0;
+		}
+	}
+	/* Any other rc = the CAS write itself failed: OUR verdict is not the
+	 * published truth — do not enforce or latch it; the retry re-reads
+	 * disk state. */
+	xfs_alert(mp,
+		"MXFS foreign replay slot=%u: terminal refusal publish "
+		"FAILED (%d) — nothing latched; will retry", slot, prc);
+	return 0;
+}
+
+/*
  * v0.5.0 live foreign-slice replay of a dead peer's log slice.
  *
  * The dead node's fsync-acknowledged metadata may exist only in its
@@ -42832,13 +49568,51 @@ mxfs_dlm_foreign_replay_work_fn(
 {
 	struct xfs_mount	*mp = container_of(work, struct xfs_mount,
 						   m_mxfs_foreign_replay_work);
+	struct mxfs_recovtask	recov;
 	unsigned int		slot;
+
+	/*
+	 * sess214 (incident474, RULE-5 b2/b3): this whole function runs as
+	 * REGISTERED RECOVERY CONTEXT.  The inode DLM acquire path treats a
+	 * registered task specially — an acquire timeout requeues instead of
+	 * escalating to shutdown (b3), and the REPLAY phase asserts that
+	 * slice replay never enters inode DLM acquisition at all (b2).
+	 */
+	mxfs_recovtask_enter(&recov, MXFS_RECOV_PHASE_CLEANUP);
 
 	for_each_set_bit(slot, mp->m_mxfs_foreign_dead_slots, 64) {
 		int	auth;
+		int	crc;
 
-		if (xfs_is_shutdown(mp))
+		if (xfs_is_shutdown(mp)) {
+			mxfs_recovtask_exit(&recov);
 			return;
+		}
+		/*
+		 * sess233 (#21): a TORN refusal is deterministic — the same
+		 * slice replays to the same refusal.  The latch keeps the
+		 * slot frozen (dead bit stays set, nothing published) without
+		 * burning a replay+refusal cycle every 30s reap pass (#11).
+		 * A new death notify for the slot clears it.
+		 */
+		if (test_bit(slot, mp->m_mxfs_foreign_torn_slots)) {
+			pr_warn_ratelimited(
+	"mxfs: foreign replay slot=%u latched TORN — slice stays frozen and unpublished; needs repair or token-authorized redo\n",
+				slot);
+			continue;
+		}
+		/*
+		 * sess185: put_super NULLs m_mxfs_dlm and then frees the
+		 * ctx in v5_shutdown.  An instance queued after the NULL
+		 * (dead-node notify from the still-live heartbeat thread)
+		 * must bail here rather than call into a freed ctx.  The
+		 * dead-slot bit stays set — nothing is published, nothing
+		 * is consumed; the unmounted node has no recovery duty.
+		 */
+		if (!mp->m_mxfs_dlm) {
+			mxfs_recovtask_exit(&recov);
+			return;
+		}
 
 		/*
 		 * sess93 — THE REPLAY GATE, ahead of everything else.
@@ -42864,7 +49638,50 @@ mxfs_dlm_foreign_replay_work_fn(
 		 * after which an unproven slice becomes replayable (GPT RULE-5
 		 * ruling, sess93 Q1).
 		 */
+		/*
+		 * sess330 (RULE-5 ruling): classify BEFORE acquire.  No lease
+		 * is ever obtainable over a quarantined descriptor — the
+		 * claim path's certificate evaluator refuses it before the
+		 * owner-reacquire check — so a terminal slot must be
+		 * recognized and disposed from the platter snapshot, not
+		 * from a lease we cannot get.  (The sess329 shape checked
+		 * AFTER acquire and was unreachable for exactly the legacy
+		 * case it was built for.)
+		 */
+		crc = mxfs_freplay_classify_terminal(mp, slot);
+		if (crc > 0)
+			continue;	/* terminally disposed: imported+latched */
+		if (crc < 0) {
+			set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
+			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS,
+					"freplay-classify");
+			continue;
+		}
 		auth = mxfs_v5_dlm_recovery_acquire(mp->m_mxfs_dlm, slot);
+		if (auth == -EPERM) {
+			/*
+			 * sess330 ruling Q3: a quarantine may have landed
+			 * between our classification read and the claim —
+			 * reclassify ONCE; only a still-nonterminal slot
+			 * keeps the ordinary wait-state handling below.
+			 */
+			crc = mxfs_freplay_classify_terminal(mp, slot);
+			if (crc > 0)
+				continue;
+			/* sess335 review: a transient reclassify is classify
+			 * churn, not a missing fence — re-arm under the
+			 * classify label so the alert below doesn't
+			 * misdescribe it.  crc==0 (claim refused but platter
+			 * nonterminal) falls through to the fence re-arm,
+			 * which is the correct wait state for it. */
+			if (crc < 0) {
+				set_bit(MXFS_REAPF_FREPLAY,
+					&mp->m_mxfs_reap_duties);
+				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS,
+						"freplay-classify");
+				continue;
+			}
+		}
 		if (auth) {
 			xfs_alert(mp,
 				"MXFS foreign replay slot=%u: NOT replayed — "
@@ -42905,15 +49722,44 @@ mxfs_dlm_foreign_replay_work_fn(
 		 * false = unsliced FS: the peer shares our log, which our own
 		 * mount already recovered, so there is nothing to replay.)
 		 */
-		if (mxfs_has_log_slices(mp) &&
-		    mxfs_xlog_recover_foreign_slice(mp, slot)) {
-			xfs_alert(mp,
-				"MXFS foreign replay slot=%u: slice replay "
-				"FAILED — recovery NOT published; will retry",
-				slot);
-			set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
-			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
-			continue;
+		if (mxfs_has_log_slices(mp)) {
+			struct mxfs_freplay_verdict	fv;
+			int	rrc;
+
+			/* sess214 b2: slice replay is buffer-level ONLY —
+			 * stamp REPLAY so the inode DLM acquire path can
+			 * assert it never gets entered from here. */
+			mxfs_recovtask_set_phase(MXFS_RECOV_PHASE_REPLAY);
+			rrc = mxfs_xlog_recover_foreign_slice(mp, slot, &fv);
+			mxfs_recovtask_set_phase(MXFS_RECOV_PHASE_CLEANUP);
+			if (rrc && fv.reason != MXFS_FREPLAY_REASON_NONE) {
+				/*
+				 * sess334: the publish/conflict state machine
+				 * lives in mxfs_freplay_publish_refusal() so
+				 * the mount barrier drives the IDENTICAL
+				 * publication (sess333 review item D).  A
+				 * terminal return already imported, latched
+				 * and released inside the helper; a transient
+				 * return latched nothing, so re-arm the reap.
+				 */
+				if (mxfs_freplay_publish_refusal(mp, slot,
+								 &fv, rrc))
+					continue;
+				set_bit(MXFS_REAPF_FREPLAY,
+					&mp->m_mxfs_reap_duties);
+				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS,
+						"freplay-publish");
+				continue;
+			}
+			if (rrc) {
+				xfs_alert(mp,
+					"MXFS foreign replay slot=%u: slice replay "
+					"FAILED — recovery NOT published; will retry",
+					slot);
+				set_bit(MXFS_REAPF_FREPLAY, &mp->m_mxfs_reap_duties);
+				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "freplay-retry");
+				continue;
+			}
 		}
 		if (mxfs_dlm_peer_joined_flush(mp)) {
 			xfs_alert(mp,
@@ -42982,22 +49828,48 @@ mxfs_dlm_foreign_replay_work_fn(
 		 * no live node's mount recovery covers it until some future
 		 * mount claims slot `slot`.  Its zombies (deferred
 		 * open-unlink reaps, mid-flight unlinks) would leak
-		 * unbounded.  This elected survivor adopts the bucket:
-		 * sweep it now; on failure leave it pending for the reap
-		 * worker's bounded retry (the bucket itself is the durable
-		 * record — nothing new on disk).
+		 * unbounded.  This elected survivor adopts the bucket.
+		 *
+		 * sess214 (incident474, RULE-5 b2): but NOT here, between
+		 * slice replays.  The sweep takes inode EX grants; running
+		 * it while other victims' slices are still pending is the
+		 * proven 474 ordering deadlock (sweep blocks on an unpurged
+		 * victim's grant whose purge is queued behind this very work
+		 * item).  Record the duty and run every deferred sweep after
+		 * the batch, below.
 		 */
 		set_bit(slot, mp->m_mxfs_sweep_pending_slots);
-		if (mxfs_survivor_sweep_slot(mp, slot) == 0)
-			clear_bit(slot, mp->m_mxfs_sweep_pending_slots);
-		else
-			mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "batch-sweep-retry");
+	}
+	/*
+	 * sess214 b2 phase split: all pending victim slices are now replayed
+	 * and published (or re-armed for retry).  Only if NO victim remains
+	 * pending do the lock-taking bucket sweeps run — and they bail the
+	 * moment a new victim is certified mid-sweep, because a sweep
+	 * blocked on the new victim's grants would again sit AHEAD of that
+	 * victim's replay in this single work item.  Anything skipped stays
+	 * pending; the reap worker retries it.
+	 */
+	if (bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64)) {
+		for_each_set_bit(slot, mp->m_mxfs_sweep_pending_slots, 64) {
+			if (!bitmap_empty(mp->m_mxfs_foreign_dead_slots, 64) ||
+			    xfs_is_shutdown(mp) || !mp->m_mxfs_dlm) {
+				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS,
+						"batch-sweep-retry");
+				break;
+			}
+			if (mxfs_survivor_sweep_slot(mp, slot) == 0)
+				clear_bit(slot, mp->m_mxfs_sweep_pending_slots);
+			else
+				mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS,
+						"batch-sweep-retry");
+		}
 	}
 	/* sess43: a completed recovery batch is a trigger for the guarded
 	 * unclaimed-bucket pass — the batch may itself have left unclaimed
 	 * residue (and covers the "survivor died mid-reap" composition). */
 	set_bit(MXFS_REAPF_UBSCAN, &mp->m_mxfs_reap_duties);
 	mxfs_reap_sched(mp, MXFS_REAP_RETRY_MS, "batch-complete");
+	mxfs_recovtask_exit(&recov);
 }
 
 /*
@@ -43015,8 +49887,43 @@ mxfs_dlm_dead_node_notify(
 
 	if (dead_slot >= 64)
 		return;
+	/* sess233 (#21): a NEW death event means a new incarnation wrote the
+	 * slice — a torn latch from the previous tenant's refusal no longer
+	 * describes its content.  Clear before set so the work fn attempts
+	 * exactly one fresh replay. */
+	clear_bit(dead_slot, mp->m_mxfs_foreign_torn_slots);
 	set_bit(dead_slot, mp->m_mxfs_foreign_dead_slots);
 	queue_work(system_unbound_wq, &mp->m_mxfs_foreign_replay_work);
+}
+
+/*
+ * sess348 (#92): heartbeat-thread context (must not block).  The disklock
+ * monitor FUA-confirmed the slot cleanly released — the tenant unmounted;
+ * nothing died and its slice needs no replay.  Any dead/torn latch we hold
+ * for the slot describes a tenancy that no longer exists (the observed
+ * livelock: recovery-pending latched forever against a released slot), so
+ * drop both.  Clearing a dead bit can complete the no-victim-pending
+ * condition the deferred bucket sweeps wait on, and nothing else
+ * re-evaluates it — re-drive the replay worker, whose tail runs the
+ * deferred sweeps and re-arms the reap duties.
+ */
+static void
+mxfs_dlm_clean_depart_notify(
+	void			*data,
+	uint32_t		slot)
+{
+	struct xfs_mount	*mp = data;
+
+	if (slot >= 64)
+		return;
+	clear_bit(slot, mp->m_mxfs_foreign_torn_slots);
+	if (test_and_clear_bit(slot, mp->m_mxfs_foreign_dead_slots)) {
+		xfs_notice(mp,
+	"MXFS clean departure slot=%u: dead/torn latch dropped — peer released cleanly, no replay",
+			   slot);
+		queue_work(system_unbound_wq,
+			   &mp->m_mxfs_foreign_replay_work);
+	}
 }
 
 /*
@@ -43381,8 +50288,12 @@ mxfs_dlm_cache_init(
 	INIT_WORK(&mp->m_mxfs_foreign_replay_work,
 		  mxfs_dlm_foreign_replay_work_fn);
 	bitmap_zero(mp->m_mxfs_foreign_dead_slots, 64);
+	bitmap_zero(mp->m_mxfs_foreign_torn_slots, 64);
 	mxfs_v5_dlm_set_dead_node_notify(mp->m_mxfs_dlm,
 					 mxfs_dlm_dead_node_notify, mp);
+	/* sess348 (#92): clean-release latch unwind — see the notify body. */
+	mxfs_v5_dlm_set_clean_depart_notify(mp->m_mxfs_dlm,
+					    mxfs_dlm_clean_depart_notify, mp);
 
 	/* sess151: DLM-stuck escalation — see mxfs_dlm_stuck_work_fn.  Same
 	 * lifecycle as foreign_replay_work: INIT'd here iff m_mxfs_dlm was
@@ -43416,6 +50327,54 @@ mxfs_dlm_cache_init(
 	mxfs_v5_dlm_set_evict_cb(mp->m_mxfs_dlm,
 				   mxfs_dlm_evict_inode_cb, mp);
 
+	/*
+	 * sess325 (D-513): terminal recovery-refusal consumer.  The disklock
+	 * monitor fires this once per imported (victim_epoch, publish_seq)
+	 * outcome record so every survivor folds the refused victim domain
+	 * into its quarantine map instead of timing out into shutdown.
+	 */
+	/*
+	 * sess383 (RULE-5 ruling Q3): open the admission transaction BEFORE
+	 * the consumer can fire.  Everything imported from here until
+	 * mxfs_dlm_admission_commit() runs belongs to a mount that has not
+	 * been admitted yet and can still be refused.
+	 */
+	spin_lock(&mp->m_mxfs_quar_lock);
+	mp->m_mxfs_quar_admitting = true;
+	spin_unlock(&mp->m_mxfs_quar_lock);
+
+	mxfs_v5_dlm_set_quarantine_cb(mp->m_mxfs_dlm,
+				      mxfs_dlm_quarantine_cb, mp);
+
+	/*
+	 * sess374 (sess363 ruling item B): the AG-domain judgement the
+	 * survivor-side out-of-closure scrub asks before force-revoking a
+	 * quarantined victim's blocking CAW state.  Registered here because
+	 * only this layer knows the inode->AG mapping (invariant 4).
+	 */
+	mxfs_v5_dlm_set_closure_classify_fn(mp->m_mxfs_dlm,
+					    mxfs_dlm_closure_classify_cb, mp);
+
+	/*
+	 * sess374 (sess357 ruling part 1, second half): so that a blocking
+	 * acquire the quarantine OVERTAKES is cancelled with the same error a
+	 * fresh one gets, instead of waiting out the DLM timeout against a
+	 * grant that can never be released.
+	 */
+	mxfs_v5_dlm_set_quar_covers_fn(mp->m_mxfs_dlm,
+				       mxfs_dlm_quar_covers_cb, mp);
+
+	/*
+	 * sess327 (sess325 ruling item 4): the monitor only delivers outcomes
+	 * it sees AFTER this registration — a record already on the platter
+	 * (published before this mount, or already dedup'd by our own
+	 * monitor's earlier pass) would never import and this node would time
+	 * out into the incident-513 suicide.  Synchronously scan every slot's
+	 * descriptor NOW, before any filesystem ops are exposed, and replay
+	 * existing terminal verdicts into the quarantine map.
+	 */
+	mxfs_v5_dlm_recovery_scan_outcomes(mp->m_mxfs_dlm);
+
 	/* Reset stats */
 	atomic64_set(&mxfs_dlm_stat_cache_hit, 0);
 	atomic64_set(&mxfs_dlm_stat_cache_miss, 0);
@@ -43428,6 +50387,62 @@ mxfs_dlm_cache_init(
 	mxfs_dlm_stat_last_report = 0;
 
 	mxfs_pal_log(MXFS_LOG_INFO, "mxfs: DLM lock caching enabled");
+}
+
+/*
+ * sess383 (RULE-5 ruling Q3) — THE ADMISSION TRANSITION.
+ *
+ * The mount admission barrier gates on m_mxfs_quar_fswide twice, but both
+ * gates run inside xfs_mountfs, and the registration-time outcome scan runs
+ * ~0.5 s LATER (measured) from mxfs_dlm_cache_init.  So an FSWIDE quarantine
+ * that only the scan discovers — precisely the late-mount case the scan was
+ * built for — was never gated at all: measured sess383, mount rc=0 with
+ * fswide=1 imported, a zombie whose every operation fails with EIO.
+ *
+ * This closes the window at the other end.  It runs after every synchronous
+ * registration-phase import has happened, flips ADMITTING -> ADMITTED under
+ * the import lock so no import can slip between the test and the decision,
+ * and refuses the mount if the filesystem is known unusable.  A quarantine
+ * that arrives after this point meets an admitted mount and is handled the
+ * only way it still can be: runtime EIO.
+ *
+ * Returns 0 to admit, -EIO to refuse.  On refusal the caller must unwind
+ * through the post-cache_init path, which unregisters the DLM consumer and
+ * drains the workers before the mount is freed.
+ */
+int
+mxfs_dlm_admission_commit(
+	struct xfs_mount	*mp)
+{
+	bool			fswide;
+	uint64_t		ag_mask;
+
+	if (!mp)
+		return 0;
+
+	spin_lock(&mp->m_mxfs_quar_lock);
+	fswide = mp->m_mxfs_quar_fswide;
+	ag_mask = mp->m_mxfs_quar_ag_mask;
+	mp->m_mxfs_quar_admitting = false;
+	spin_unlock(&mp->m_mxfs_quar_lock);
+
+	if (fswide) {
+		xfs_alert(mp,
+			"MXFS mount ABORTED at admission: a terminal recovery "
+			"refusal quarantines the WHOLE filesystem (found "
+			"during DLM registration, after the recovery "
+			"barrier) — every operation this mount could admit "
+			"would fail with EIO.  Repair the refused slice "
+			"targets, clear the outcome record, and remount");
+		return -EIO;
+	}
+	if (ag_mask)
+		xfs_alert(mp,
+			"MXFS mount ADMITTED with AG mask 0x%llx quarantined "
+			"by a terminal recovery refusal — operations touching "
+			"those AGs fail with EIO until operator repair",
+			(unsigned long long)ag_mask);
+	return 0;
 }
 
 /*
@@ -43496,27 +50511,164 @@ mxfs_dlm_cache_init(
  */
 #define MXFS_BARRIER_REPLAY_ROUNDS	4
 
+/*
+ * sess190 (sess189 GPT ruling) — the admission gate's wait bound.  RULE-0
+ * derivation, not a safety net: a WITHDRAWN stamp is noticed by a peer's
+ * monitor within one poll interval (2 s), the fence pipeline
+ * (intent + PREEMPT AND ABORT + certify) completes in ~1 s on this rig,
+ * and an inline foreign-slice replay measures 1-3 s at 32/caw.  30 s
+ * therefore covers a chain of ~5 sequential slice recoveries at 2x
+ * slack; a recovery cut still dirty after that is not converging, and
+ * the mount FAILS rather than going live over it.
+ */
+#define MXFS_BARRIER_ADMISSION_WAIT_MS	30000
+#define MXFS_BARRIER_ADMISSION_POLL_MS	1000
+
+/*
+ * sess330 (D-513 RULE-5 ruling): the admission barrier's terminal
+ * classification.  A slice whose recovery was terminally REFUSED is not
+ * pending work — no lease is ever obtainable over its quarantined
+ * descriptor (the claim path's certificate evaluator refuses it), so
+ * without this the barrier would poll the wait bound down and fail the
+ * mount -EBUSY over a slot that is already disposed.  Classification
+ * imports the quarantine and latches the slot exactly as the live reap
+ * path does; the DISPOSITION then depends on the quarantine's scope:
+ *
+ *   1      terminal, AG-scoped — the mount may admit; operations
+ *          touching the quarantined AGs fail with EIO until operator
+ *          repair.  The caller retires the slot from the cut WITHOUT
+ *          adding it to `replayed`: cohort completion purges a replayed
+ *          slot's CAW manifest and zeroes its heartbeat sector, and
+ *          that sector now carries the durable outcome record every
+ *          peer converges on.
+ *   0      nonterminal — proceed to acquire/replay as before.
+ *   -EAGAIN transient classify state — retry in a later round.
+ *   1 with *fswide set — terminal, FSWIDE: every operation this mount
+ *          could ever admit would fail with EIO.  sess334 (sess333
+ *          review item A): the FSWIDE case returns 1 like any terminal
+ *          disposition — never a bare error — so the caller ALWAYS sets
+ *          the slot's terminal bit FIRST and only then jumps to the
+ *          common abort, which hands un-replayed late deaths back to the
+ *          mphase record.  (The old -EIO return skipped both.)
+ */
+static int
+mxfs_barrier_classify_slot(
+	struct xfs_mount	*mp,
+	unsigned int		slot,
+	bool			*fswide)
+{
+	int			crc;
+
+	*fswide = false;
+	crc = mxfs_freplay_classify_terminal(mp, slot);
+	if (crc <= 0)
+		return crc;
+	spin_lock(&mp->m_mxfs_quar_lock);
+	*fswide = mp->m_mxfs_quar_fswide;
+	spin_unlock(&mp->m_mxfs_quar_lock);
+	if (*fswide)
+		xfs_alert(mp,
+			"MXFS mount ABORTED: slice slot=%u carries a terminal "
+			"recovery refusal quarantining the WHOLE filesystem — "
+			"every operation would fail with EIO.  Repair the "
+			"victim's slice targets, clear the outcome record, "
+			"and remount", slot);
+	return 1;
+}
+
 int
 mxfs_dlm_mount_recovery_barrier(
 	struct xfs_mount	*mp)
 {
 	uint64_t		cohort = 0;
-	uint64_t		todo;
-	uint64_t		attempted = 0;
+	uint64_t		todo = 0;
+	uint64_t		seen = 0;
+	uint64_t		pend;
 	uint64_t		drained = 0;
 	uint64_t		late;
 	uint64_t		replayed = 0;
+	uint64_t		terminal = 0;
+	uint64_t		quarblocked = 0;
 	uint64_t		published = 0;
 	uint64_t		residue = 0;
 	unsigned int		slot;
-	int			round;
+	unsigned int		waited_ms = 0;
+	int			round = 0;
 	int			nreplayed = 0;
 	int			nres = 0, nex = 0;
 	int			blocking;
+	int			rc;
+	int			crc;
 	int			error;
+	bool			fswide;
 
-	if (!mp || !mp->m_mxfs_dlm)
+	if (!mp)
 		return 0;
+
+	/*
+	 * sess334 (sess333 review item 6): unconditional FSWIDE admission
+	 * gate at the barrier's START.  A preexisting fswide quarantine —
+	 * however it reached the map — must refuse the mount even when the
+	 * recovery cut below comes up empty; a mount with a known-fswide
+	 * quarantine that admits is a zombie whose every operation fails
+	 * with EIO.
+	 *
+	 * sess335 review stop-ship 2: this gate sits BEFORE the
+	 * !m_mxfs_dlm return below — that return used to precede it, a
+	 * fail-open success path.  m_mxfs_quar_lock is initialized in
+	 * xfs_init_mount_workqueues (fill_super), before this barrier can
+	 * run, so taking it here is safe with m_mxfs_dlm still NULL.  No
+	 * quarantine import can race in while m_mxfs_dlm is NULL — imports
+	 * arrive from the DLM monitor, which does not exist yet — so one
+	 * gate covers both returns.  abort_fswide is safe with a NULL
+	 * m_mxfs_dlm: drained==0 there, so defer_late_deaths is not
+	 * called.
+	 */
+	spin_lock(&mp->m_mxfs_quar_lock);
+	fswide = mp->m_mxfs_quar_fswide;
+	spin_unlock(&mp->m_mxfs_quar_lock);
+	if (fswide)
+		goto abort_fswide;
+
+	if (!mp->m_mxfs_dlm)
+		return 0;
+
+	/*
+	 * sess383 (RULE-5 ruling Q3, the structural half) — TERMINAL-GUARD
+	 * SWEEP, independent of the recovery cut.
+	 *
+	 * The cut below comes from mxfs_v5_dlm_mount_pending_recovery(), which
+	 * omits any slot whose descriptor has reached GRANTS_RELEASED
+	 * ("complete, awaiting slot zeroing").  That is a correct rule for
+	 * deciding what still needs REPLAY WORK.  It is the wrong rule for
+	 * deciding what this mount may be ADMITTED over: a terminal refusal on
+	 * such a slot is still the cluster's durable verdict, and its domain
+	 * still covers everything this mount would touch.
+	 *
+	 * Before sess383 that gap was invisible, because the only other reader
+	 * of those slots — the registration-time outcome scan — runs ~0.5 s
+	 * LATER, from mxfs_dlm_cache_init, after xfs_mountfs has returned.  So
+	 * a whole-filesystem refusal on a GRANTS_RELEASED slot was discovered
+	 * only once the mount was already built, and the refusal had to be
+	 * taken on the expensive unwind path, where tearing down a fully
+	 * mounted log against an FSWIDE quarantine trips a log-IO shutdown on
+	 * the way out (measured: "Filesystem has been shut down due to log
+	 * error (0x2)" on an otherwise correct refusal).
+	 *
+	 * Classifying every slot HERE moves that decision back to the cheap
+	 * exit.  The cost is one sector read per slot, which the sweep below
+	 * pays every round anyway, and the classification is exactly the one
+	 * the cut members get: it imports the verdict, latches the slot, and
+	 * fails closed on anything it cannot validate.
+	 */
+	for (slot = 0; slot < 64; slot++) {
+		crc = mxfs_barrier_classify_slot(mp, slot, &fswide);
+		if (crc > 0) {
+			terminal |= (1ULL << slot);
+			if (fswide)
+				goto abort_fswide;
+		}
+	}
 
 	/*
 	 * (a) Our own replay must be durable before any of its authority
@@ -43630,8 +50782,146 @@ mxfs_dlm_mount_recovery_barrier(
 	 *     the mount here forever.  Whatever is still outstanding at the
 	 *     cap is handed BACK, and the post-mount settle dispatches it.
 	 */
-	todo = cohort;
-	for (round = 0; todo && round < MXFS_BARRIER_REPLAY_ROUNDS; round++) {
+	/*
+	 * sess190 (sess189 GPT ruling): this loop is an ADMISSION barrier.
+	 * Invariant: before a mount may read shared metadata or transition
+	 * to LIVE it must establish a stable recovery cut and ensure every
+	 * applicable dirty/dead slice preceding the cut is replay-complete.
+	 * Pending / claimed / in-progress does not satisfy this.  The
+	 * round cap bounds inline replay discovery — it is NOT permission
+	 * to go live with leftovers; whatever remains holds the gate shut
+	 * until it completes or the bounded wait expires and the mount
+	 * fails.
+	 */
+	for (;;) {
+		/*
+		 * Shape A: drain the mount-phase death record at the TOP of
+		 * every pass — a zero cohort must not bypass the drain.
+		 * (sess189 measured root: the monitor consumed a WITHDRAWN
+		 * stamp during DLM init, recorded the death in the mphase
+		 * mask, and `for (round = 0; todo && ...)` with
+		 * todo = cohort = 0 never ran — the death was never taken
+		 * and its replay went async after the mount was live.)
+		 */
+		late = mxfs_v5_dlm_mount_take_late_deaths(mp->m_mxfs_dlm);
+		drained |= late;
+
+		/*
+		 * Shape B: sweep the platter's requires-recovery evidence —
+		 * WITHDRAWN stamps and sub-complete recovery descriptors.
+		 * The mphase record only sees deaths OUR monitor processed;
+		 * the durable evidence is what a peer's fence pipeline (or
+		 * our own, racing this mount) leaves on disk.
+		 */
+		pend = 0;
+		error = mxfs_v5_dlm_mount_pending_recovery(mp->m_mxfs_dlm,
+							   &pend);
+		if (error)
+			xfs_alert(mp,
+				"MXFS mount recovery: requires-recovery sweep "
+				"failed (%d) — treating the cut as dirty",
+				error);
+
+		/* sess330: a terminally-disposed slice is retired from the
+		 * cut but NOT `replayed` — completion below must never purge
+		 * the heartbeat sector now carrying its outcome record. */
+		todo = (cohort | drained | pend) & ~replayed & ~terminal;
+		seen |= todo;
+		if (!todo && !error)
+			break;		/* clean admission cut */
+		if (xfs_is_shutdown(mp))
+			break;
+
+		if (!todo || round >= MXFS_BARRIER_REPLAY_ROUNDS) {
+			/*
+			 * Past the inline rounds (or a sweep failure with
+			 * nothing actionable): whatever remains is owned by
+			 * another survivor, awaiting the monitor's fence, or
+			 * unresolvable.  Poll bounded for completion; a cut
+			 * still dirty at the bound fails the mount — the
+			 * same spirit as the (b2) residue gate.
+			 *
+			 * sess330: classify each remaining bit every poll
+			 * pass.  The recovery's owner may PUBLISH a terminal
+			 * refusal while we wait — without this, a quarantine
+			 * landing after the round cap would ride the poll to
+			 * the bound and fail the mount -EBUSY over a slice
+			 * that is not pending work at all.
+			 */
+			for (slot = 0; slot < 64; slot++) {
+				if (!(todo & (1ULL << slot)))
+					continue;
+				crc = mxfs_barrier_classify_slot(mp, slot,
+								 &fswide);
+				if (crc > 0) {
+					/* sess334 item A: terminal bit FIRST,
+					 * then the common abort — the abort's
+					 * late-death defer must not treat
+					 * this slot as an un-replayed death. */
+					terminal |= (1ULL << slot);
+					quarblocked &= ~(1ULL << slot);
+					if (fswide)
+						goto abort_fswide;
+				} else if (crc == -EAGAIN) {
+					quarblocked |= (1ULL << slot);
+				} else {
+					quarblocked &= ~(1ULL << slot);
+				}
+			}
+			/* Retired bits re-enter via the top-of-loop cut
+			 * recompute; only a genuinely dirty cut polls.  (A
+			 * zero-todo entry — sweep failure — must still pay
+			 * waited_ms or this branch would spin forever.) */
+			if (todo & terminal) {
+				todo &= ~terminal;
+				if (!todo)
+					continue;
+			}
+			if (waited_ms >= MXFS_BARRIER_ADMISSION_WAIT_MS) {
+				if (drained & ~replayed & ~terminal)
+					mxfs_v5_dlm_mount_defer_late_deaths(
+						mp->m_mxfs_dlm,
+						drained & ~replayed &
+						~terminal);
+				if (todo & quarblocked)
+					xfs_alert(mp,
+						"MXFS mount ABORTED: slot "
+						"mask 0x%llx has a refusal "
+						"verdict this node could not "
+						"classify (unreadable or "
+						"still landing) after %u ms "
+						"— neither replayable nor "
+						"provably quarantined.  "
+						"Inspect the victim's "
+						"heartbeat sector and retry "
+						"the mount",
+						(unsigned long long)
+						(todo & quarblocked),
+						waited_ms);
+				xfs_alert(mp,
+					"MXFS mount ABORTED: slot mask 0x%llx "
+					"still requires recovery after %d "
+					"inline replay round(s) and %u ms — "
+					"admitting this mount would let it "
+					"take locks over unreplayed slices.  "
+					"The slices stay frozen and pending; "
+					"fix the blocker (fence path, or the "
+					"recovery's owner) and retry",
+					(unsigned long long)todo, round,
+					waited_ms);
+				return -EBUSY;
+			}
+			msleep(MXFS_BARRIER_ADMISSION_POLL_MS);
+			waited_ms += MXFS_BARRIER_ADMISSION_POLL_MS;
+			continue;
+		}
+
+		round++;
+		if (round > 1)
+			xfs_notice(mp,
+				"MXFS mount recovery: slot mask 0x%llx still "
+				"requires recovery — replay round %d",
+				(unsigned long long)todo, round);
 		for (slot = 0; slot < 64; slot++) {
 			if (!(todo & (1ULL << slot)))
 				continue;
@@ -43647,14 +50937,82 @@ mxfs_dlm_mount_recovery_barrier(
 			 * kind that proves nothing.  Only the certificate in the
 			 * victim's own sector authorises the replay below.
 			 */
-			if (mxfs_v5_dlm_recovery_acquire(mp->m_mxfs_dlm, slot)) {
+			/*
+			 * sess330 (RULE-5 ruling): classify BEFORE acquire —
+			 * no lease is ever obtainable over a quarantined
+			 * descriptor, so a terminal slot must be recognized
+			 * and disposed from the platter snapshot, not from a
+			 * lease this mount cannot get.
+			 */
+			crc = mxfs_barrier_classify_slot(mp, slot, &fswide);
+			if (crc > 0) {
+				/* sess334 item A: terminal bit FIRST, then
+				 * the common abort. */
+				terminal |= (1ULL << slot);
+				quarblocked &= ~(1ULL << slot);
+				if (fswide)
+					goto abort_fswide;
+				continue;
+			}
+			if (crc == -EAGAIN) {
+				quarblocked |= (1ULL << slot);
+				continue;
+			}
+			quarblocked &= ~(1ULL << slot);
+			rc = mxfs_v5_dlm_recovery_acquire(mp->m_mxfs_dlm,
+							  slot);
+			if (rc == -EPERM) {
+				/*
+				 * sess330 ruling Q3: a quarantine may have
+				 * landed between the classification read and
+				 * the claim — reclassify ONCE; only a still-
+				 * nonterminal slot keeps the ordinary
+				 * wait-state handling below.
+				 */
+				crc = mxfs_barrier_classify_slot(mp, slot,
+								 &fswide);
+				if (crc > 0) {
+					terminal |= (1ULL << slot);
+					quarblocked &= ~(1ULL << slot);
+					if (fswide)
+						goto abort_fswide;
+					continue;
+				}
+				/* sess333 item C cleanup: a transient
+				 * reclassify here is the same "neither
+				 * replayable nor provably quarantined"
+				 * state the poll phase tracks.  sess335
+				 * review: it is NOT the generic wait state —
+				 * continue, so the "not provably excluded"
+				 * alert below doesn't misdescribe it.  A
+				 * crc==0 reclassify DOES fall through to
+				 * that alert (deliberate: the claim refused
+				 * -EPERM but the platter shows nonterminal —
+				 * ordinary wait-state handling applies). */
+				if (crc == -EAGAIN) {
+					quarblocked |= (1ULL << slot);
+					continue;
+				}
+			}
+			if (rc == -EBUSY) {
+				/* Owned by another survivor — EXPECTED, not
+				 * a fault (sess189 ruling): the admission
+				 * gate polls until the owner completes. */
+				xfs_notice(mp,
+					"MXFS mount recovery: slice slot=%u is "
+					"being recovered by another survivor — "
+					"waiting for completion", slot);
+				continue;
+			}
+			if (rc) {
 				xfs_alert(mp,
 					"MXFS mount recovery: slice slot=%u NOT "
-					"replayed — the dead node is not provably "
-					"excluded from the LUN.  Its grants stay "
-					"frozen; the post-mount settle retries "
-					"once a fence certificate exists",
-					slot);
+					"replayed (%d) — the dead node is not "
+					"provably excluded from the LUN.  Its "
+					"grants stay frozen; later rounds and "
+					"the admission gate retry once a fence "
+					"certificate exists",
+					slot, rc);
 				continue;
 			}
 
@@ -43697,9 +51055,78 @@ mxfs_dlm_mount_recovery_barrier(
 			 * than inferring it from an errno.
 			 */
 			if (mxfs_has_log_slices(mp)) {
-				error = mxfs_xlog_recover_foreign_slice(mp, slot);
+				struct mxfs_freplay_verdict	fv;
+
+				/*
+				 * sess334 (sess333 review item D): the
+				 * barrier holds the recovery lease from
+				 * acquire() above, so a refusal here is
+				 * PUBLISHED through the same state machine
+				 * as the live reap path.  The old shape
+				 * passed a NULL verdict and published
+				 * nothing: a lone survivor cold-starting
+				 * against a torn slice looped -EBUSY mount
+				 * restarts forever without an operator-
+				 * facing quarantine — the D-513 defect
+				 * surviving on the mount path.
+				 */
+				error = mxfs_xlog_recover_foreign_slice(mp, slot, &fv);
 				if (error) {
-					mxfs_dlm_invalidate_cached_views(mp);
+					/* A refused replay may have applied a
+					 * prefix before the gate tripped —
+					 * drop cached views BEFORE the
+					 * publish/continue so nothing reads
+					 * the partial images.
+					 *
+					 * sess335 review stop-ship 1: the
+					 * drop must SUCCEED before anything
+					 * is published.  A failed drop with
+					 * a published refusal would AG-admit
+					 * this mount while stale partial-
+					 * prefix images stay cached.  On
+					 * failure publish nothing: the slot
+					 * stays in the cut, later rounds
+					 * retry, and the admission wait
+					 * bound fails the mount -EBUSY. */
+					if (mxfs_dlm_invalidate_cached_views(mp)) {
+						xfs_alert(mp,
+							"MXFS mount recovery: slice slot=%u "
+							"replay refused but cached views could "
+							"not be invalidated — nothing published, "
+							"the slot stays in the cut",
+							slot);
+						continue;
+					}
+					if (fv.reason != MXFS_FREPLAY_REASON_NONE) {
+						if (mxfs_freplay_publish_refusal(
+								mp, slot, &fv,
+								error)) {
+							/* terminal bit FIRST
+							 * (item A ordering);
+							 * AG-scope admits,
+							 * FSWIDE aborts. */
+							terminal |= (1ULL << slot);
+							spin_lock(&mp->m_mxfs_quar_lock);
+							fswide = mp->m_mxfs_quar_fswide;
+							spin_unlock(&mp->m_mxfs_quar_lock);
+							if (fswide)
+								goto abort_fswide;
+							continue;
+						}
+						/* Transient publish state —
+						 * nothing latched.  The slot
+						 * stays in the cut; later
+						 * rounds and the admission
+						 * poll retry, and the wait
+						 * bound fails the mount. */
+						xfs_alert(mp,
+							"MXFS mount recovery: slice slot=%u "
+							"replay refused but the verdict could "
+							"not be published — the slot stays in "
+							"the cut and will be retried",
+							slot);
+						continue;
+					}
 					xfs_alert(mp,
 						"MXFS mount recovery: slice slot=%u "
 						"replay FAILED (%d) — the slot stays "
@@ -43757,24 +51184,33 @@ mxfs_dlm_mount_recovery_barrier(
 			replayed |= (1ULL << slot);
 			nreplayed++;
 		}
-		attempted |= todo;
-		if (xfs_is_shutdown(mp))
-			break;
+		/* Loop back: re-drain and re-sweep immediately.  A slot this
+		 * round could not replay is retried by later rounds (the
+		 * replay is LSN-gated and idempotent, and a fence certificate
+		 * may have landed meanwhile); the round cap plus the bounded
+		 * admission wait is what keeps a cap from becoming a spin. */
+	}
 
-		/*
-		 * sess62 item 6B: fold in whatever died while that round ran.
-		 * Slots we have already been through are excluded — a slot the
-		 * round could not replay is not made replayable by seeing it
-		 * again, and re-running it here is how a cap becomes a spin.
-		 */
-		late = mxfs_v5_dlm_mount_take_late_deaths(mp->m_mxfs_dlm);
-		drained |= late;
-		todo = drained & ~attempted;
-		if (todo)
-			xfs_notice(mp,
-				"MXFS mount recovery: peer slot mask 0x%llx died "
-				"during this mount — folding into replay round %d",
-				(unsigned long long)todo, round + 2);
+	/*
+	 * sess190: slices that were pending at some point but that WE did not
+	 * replay were completed by another survivor while we waited.  Our
+	 * cached views (read under xfs_log_mount, before those recoveries
+	 * finished) may hold pre-replay images — drop them before anything
+	 * downstream reads shared metadata.  A failed invalidation here is a
+	 * retained stale buffer over recovered metadata: the defect itself.
+	 */
+	if (seen & ~replayed) {
+		error = mxfs_dlm_invalidate_cached_views(mp);
+		if (error) {
+			xfs_alert(mp,
+				"MXFS mount ABORTED: slot mask 0x%llx was "
+				"recovered by another survivor during this "
+				"mount but our cached views could not be "
+				"dropped (%d) — a retained buffer would carry "
+				"pre-recovery images",
+				(unsigned long long)(seen & ~replayed), error);
+			return error;
+		}
 	}
 
 	/*
@@ -43784,16 +51220,17 @@ mxfs_dlm_mount_recovery_barrier(
 	 * it here would leave the slice fenced and pending on disk with no
 	 * live route to a replay — recoverable only by the next mount.
 	 */
-	if (drained & ~replayed) {
+	if (drained & ~replayed & ~terminal) {
 		xfs_alert(mp,
 			"MXFS mount recovery: peer slot mask 0x%llx died during "
 			"this mount but was not replayed in %d round(s) — "
 			"deferred to the post-mount settle; their grants stay "
 			"frozen and can stall log recovery below",
-			(unsigned long long)(drained & ~replayed),
+			(unsigned long long)(drained & ~replayed & ~terminal),
 			MXFS_BARRIER_REPLAY_ROUNDS);
 		mxfs_v5_dlm_mount_defer_late_deaths(mp->m_mxfs_dlm,
-						    drained & ~replayed);
+						    drained & ~replayed &
+						    ~terminal);
 	}
 
 	/*
@@ -43812,13 +51249,15 @@ mxfs_dlm_mount_recovery_barrier(
 	 * direction — and mxfs_disklock's pending marker keeps them
 	 * re-detectable by the survivors' re-election sweep.
 	 */
-	if (replayed != (cohort | drained))
+	if (todo)
 		xfs_alert(mp,
-			"MXFS mount recovery barrier INCOMPLETE: cohort=0x%llx "
-			"late=0x%llx replayed=0x%llx — unreplayed slices stay "
-			"frozen and unpublished",
+			"MXFS mount recovery barrier INCOMPLETE (shutdown): "
+			"cohort=0x%llx late=0x%llx pending=0x%llx "
+			"replayed=0x%llx — unreplayed slices stay frozen and "
+			"unpublished",
 			(unsigned long long)cohort,
 			(unsigned long long)drained,
+			(unsigned long long)todo,
 			(unsigned long long)replayed);
 	if (replayed) {
 		/*
@@ -43873,12 +51312,52 @@ mxfs_dlm_mount_recovery_barrier(
 			"reclaimed; peers may block on them until this node "
 			"unmounts", error);
 
+	/*
+	 * sess334 (sess333 review item 6): the unconditional FSWIDE gate at
+	 * the successful-admission boundary.  Every fswide import above
+	 * routes through an abort site already; this closes any path that
+	 * imported without routing — belt and suspenders on the invariant
+	 * that a known-fswide quarantine NEVER admits.
+	 */
+	spin_lock(&mp->m_mxfs_quar_lock);
+	fswide = mp->m_mxfs_quar_fswide;
+	spin_unlock(&mp->m_mxfs_quar_lock);
+	if (fswide)
+		goto abort_fswide;
+
 	xfs_notice(mp,
 		"MXFS mount recovery barrier complete: cohort=0x%llx "
-		"late=0x%llx replayed=%d published=0x%llx",
+		"late=0x%llx replayed=%d published=0x%llx quarantined=0x%llx",
 		(unsigned long long)cohort, (unsigned long long)drained,
-		nreplayed, (unsigned long long)published);
+		nreplayed, (unsigned long long)published,
+		(unsigned long long)terminal);
 	return 0;
+
+abort_fswide:
+	/*
+	 * Common FSWIDE abort (sess333 review item A): every barrier exit
+	 * after `drained` accumulates must hand un-replayed late deaths
+	 * back to the mphase record, or a death recorded during this
+	 * barrier is forgotten by the failing mount and its slice loses
+	 * its live route to a replay.  Callers set the aborting slot's
+	 * terminal bit BEFORE jumping here, so a slice whose heartbeat
+	 * sector now carries the durable outcome record is NOT re-deferred
+	 * as a pending death.  (defer_late_deaths ORs into the mphase
+	 * mask, so a mask a prior exit already deferred re-defers
+	 * idempotently.)
+	 */
+	if (drained & ~replayed & ~terminal)
+		mxfs_v5_dlm_mount_defer_late_deaths(mp->m_mxfs_dlm,
+						    drained & ~replayed &
+						    ~terminal);
+	xfs_alert(mp,
+		"MXFS mount ABORTED: a terminal recovery refusal quarantines "
+		"the WHOLE filesystem (terminal=0x%llx) — every operation "
+		"this mount could admit would fail with EIO.  Repair the "
+		"refused slice targets, clear the outcome record, and "
+		"remount",
+		(unsigned long long)terminal);
+	return -EIO;
 }
 
 void
@@ -44005,11 +51484,76 @@ struct mxfs_iclus {
 	 * ruling demanded and the hash bucket could not supply.
 	 */
 	uint64_t		auth_epoch;
+	/* sess201 step 3: per-cluster release state (enum mxfs_release_state).
+	 * Written only by the disk-release choke point (serialized by
+	 * ic->busy); sess309 step 6: DEMOTING/WEDGED now close admission
+	 * under mxfs_release_proof_enforce. */
+	uint8_t			rel_state;
 	wait_queue_head_t	wq;
+	/*
+	 * sess309 step-6 F1 (sess307 ruling): deferred-release episode.
+	 * All under ic->lock.  defer_started_j != 0 marks an open episode;
+	 * every completed release (any path) closes it and bumps
+	 * release_epoch (the ruling's ABA guard — a stale worker firing
+	 * into a NEW tenure sees DEMOTING false / episode closed and does
+	 * nothing).  badness orders defer causes (8*publish-fail + 4*dirty
+	 * + 2*proof + tripwire); a DECREASE is genuine progress and restamps
+	 * last_progress_j.  Bounds: 60s without progress or 300s total →
+	 * wedge (one-shot: pin the grant on disk, close admission forever,
+	 * force-shutdown the mount).  no_retry is the teardown latch: set
+	 * before cancel_delayed_work_sync so no retry can requeue after it.
+	 */
+	uint64_t		release_epoch;
+	unsigned long		defer_started_j;
+	unsigned long		last_progress_j;
+	unsigned int		defer_badness;
+	unsigned int		defer_tries;
+	bool			wedge_shot;
+	bool			no_retry;
+	struct delayed_work	dwork;	/* retry worker, m_mxfs_inode_bast_wq */
 };
 
 static DEFINE_SPINLOCK(mxfs_iclus_glock);
 static struct hlist_head mxfs_iclus_hash[MXFS_ICLUS_HASH_SIZE];
+
+static void mxfs_iclus_defer_worker(struct work_struct *work);
+
+/*
+ * sess309 step-6 admission predicate: may work be admitted under this
+ * cluster's grant?  Under enforcement, DEMOTING (a deferred release is
+ * owed) and WEDGED (unprovable release, grant pinned) close admission;
+ * every other state admits (the transient DRAINING/PROVED/RELEASING
+ * states only ever coexist with ic->busy, which the fast paths already
+ * refuse).  Knob off = always open, the true pre-step-6 baseline.
+ */
+static inline bool mxfs_iclus_admission_open(struct mxfs_iclus *ic)
+{
+	uint8_t rs;
+
+	if (!mxfs_release_proof_enforce)
+		return true;
+	rs = READ_ONCE(ic->rel_state);
+	return rs != MXFS_RELSTATE_DEMOTING && rs != MXFS_RELSTATE_WEDGED;
+}
+
+/*
+ * Close the release bookkeeping after a CONFIRMED disk clear (CAS rc 0).
+ * Caller holds ic->lock.  release_epoch++ is the ABA guard the ruling
+ * requires: any worker or waiter that captured state before this instant
+ * belongs to a finished episode and must no-op.
+ */
+static inline void mxfs_iclus_release_done_locked(struct mxfs_iclus *ic)
+{
+	ic->disk_mode = MXFS_LOCK_NL;
+	ic->auth_epoch = 0;	/* tenure over */
+	ic->bast_pending = false;
+	ic->release_epoch++;
+	ic->defer_started_j = 0;
+	ic->defer_badness = 0;
+	ic->defer_tries = 0;
+	if (READ_ONCE(ic->rel_state) != MXFS_RELSTATE_WEDGED)
+		WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_ACTIVE);
+}
 
 static inline uint64_t mxfs_iclus_base(struct xfs_mount *mp, uint64_t ino)
 {
@@ -44051,6 +51595,7 @@ again:
 	nic->base = base;
 	spin_lock_init(&nic->lock);
 	init_waitqueue_head(&nic->wq);
+	INIT_DELAYED_WORK(&nic->dwork, mxfs_iclus_defer_worker);
 	goto again;
 }
 
@@ -44060,9 +51605,20 @@ again:
  * skip_ino exempts the caller performing its own release (the evict path
  * releases BEFORE setting its mode NL).  Pure-memory: INCORE igets only.
  */
+/*
+ * sess309 step 6: granted_only=true is the DEFER-WORKER's variant — it
+ * ignores i_dlm_acq_inflight, counting only granted modes.  Sound at that
+ * call site alone: admission is closed (DEMOTING), so an inflight marker
+ * there can only be a PARKED slow acquirer waiting for this very release —
+ * counting it would deadlock the retry against its own waiters (the ruling's
+ * flagged drain-deadlock hazard).  No fast-admit window can be open at
+ * deferral time (the strict sweep ran under ic->busy before disk_release)
+ * and DEMOTING blocks new grant stamps, so granted-only loses no coverage.
+ * Every other caller MUST pass false.
+ */
 static bool
 mxfs_iclus_covered_active(struct xfs_mount *mp, uint64_t base,
-			  uint64_t skip_ino)
+			  uint64_t skip_ino, bool granted_only)
 {
 	unsigned int ipc = M_IGEO(mp)->inodes_per_cluster;
 	uint64_t ino;
@@ -44101,7 +51657,7 @@ mxfs_iclus_covered_active(struct xfs_mount *mp, uint64_t base,
 		 * cluster buffers make_durable drains. */
 		active = (ip->i_dlm_routed_iclus &&
 			  ip->i_dlm_mode != MXFS_LOCK_NL) ||
-			 (mxfs_iclus_routed(ip) &&
+			 (!granted_only && mxfs_iclus_routed(ip) &&
 			  ip->i_dlm_acq_inflight != 0);
 		spin_unlock(&ip->i_dlm_lock);
 		xfs_irele(ip);
@@ -44175,7 +51731,8 @@ mxfs_iclus_open_admit(struct xfs_mount *mp, uint64_t ino)
 	if (!ic)
 		return false;
 	spin_lock(&ic->lock);
-	ok = !ic->busy && ic->disk_mode != MXFS_LOCK_NL;
+	ok = !ic->busy && ic->disk_mode != MXFS_LOCK_NL &&
+	     mxfs_iclus_admission_open(ic);
 	spin_unlock(&ic->lock);
 	return ok;
 }
@@ -44284,23 +51841,274 @@ mxfs_iclus_publish_open_bits(struct xfs_mount *mp, uint64_t base)
 }
 
 /*
+ * sess309 step-6 WEDGE (sess307 ruling item 5): the bounded end of a defer
+ * episode that made no progress.  One-shot per cluster: pin the wedged
+ * grant on the DLM side so the unconditional teardown release_all cannot
+ * strip our bits without proof (peers then refuse our clean departure and
+ * their death-detection/recovery machinery fences and recovers us), close
+ * admission permanently (WEDGED), and force-shutdown the mount — skipped
+ * under teardown (no_retry), where the mount is already going away.
+ * NEVER CASes.  Waiters wake and observe WEDGED → terminal -EIO.
+ */
+static int
+mxfs_iclus_wedge(struct xfs_mount *mp, struct mxfs_iclus *ic,
+		 struct mxfs_release_cert *cert)
+{
+	bool shoot = false, teardown;
+
+	spin_lock(&ic->lock);
+	WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_WEDGED);
+	teardown = ic->no_retry;
+	if (!ic->wedge_shot) {
+		ic->wedge_shot = true;
+		shoot = true;
+	}
+	spin_unlock(&ic->lock);
+	if (shoot) {
+		mxfs_v5_dlm_iclus_pin(mp->m_mxfs_dlm, ic->base);
+		cert->cas_attempted = 0;
+		cert->defer_kind = MXFS_RELDEFER_WEDGE;
+		cert->defer_reason = "no-progress bound exceeded";
+		mxfs_release_cert_emit(cert);
+		pr_err("mxfs: P-ICLUS-WEDGE base=%llu tries=%u oblig=%u pf=%u trip=%u — release unprovable within bounds; grant PINNED on disk, admission closed%s\n",
+		       (unsigned long long)ic->base, ic->defer_tries,
+		       cert->oblig_cas, cert->proof_failed, cert->tripwire,
+		       teardown ? " (teardown: departure will not be clean)" :
+				  "; forcing shutdown");
+		if (!teardown)
+			xfs_force_shutdown(mp, SHUTDOWN_META_IO_ERROR);
+	}
+	wake_up_all(&ic->wq);
+	return -EIO;
+}
+
+/*
+ * sess309 step-6 DEFER (sess307 ruling items 1/3/5): the release proof did
+ * not complete — record the deferral on the certificate (cas_attempted=0),
+ * enter/extend the episode, and arm the per-cluster retry worker with
+ * exponential backoff + jitter.  Progress = badness DECREASE (a cause
+ * retired); mere retries, new BASTs and repeated failures are not
+ * progress.  Bounds: 60s without progress or 300s total → wedge.
+ * Returns -EAGAIN (defer) or -EIO (wedged); callers keep
+ * disk_mode/bast_pending on any nonzero rc, exactly as for a failed CAS.
+ */
+/*
+ * Enter/extend the defer episode and arm the retry worker (both under
+ * ic->lock — the queue-under-lock pairs with purge_all's no_retry-then-
+ * cancel_sync teardown order so no retry can be queued after the latch).
+ * Returns true when the bounds expired and the caller must WEDGE instead.
+ */
+static bool
+mxfs_iclus_defer_arm(struct xfs_mount *mp, struct mxfs_iclus *ic,
+		     unsigned int badness)
+{
+	bool wedge = false;
+
+	spin_lock(&ic->lock);
+	WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_DEMOTING);
+	if (!ic->defer_started_j) {
+		ic->defer_started_j = jiffies ?: 1;
+		ic->last_progress_j = jiffies;
+		ic->defer_badness = badness;
+	} else {
+		if (badness < ic->defer_badness) {
+			ic->last_progress_j = jiffies;
+			ic->defer_badness = badness;
+		}
+		if (time_after(jiffies, ic->last_progress_j + 60 * HZ) ||
+		    time_after(jiffies, ic->defer_started_j + 300 * HZ))
+			wedge = true;
+	}
+	if (!wedge) {
+		unsigned int tries = ic->defer_tries++;
+
+		if (!ic->no_retry) {
+			unsigned int ms = min(25u << min(tries, 5u), 1000u);
+
+			ms += get_random_u32_below(ms / 4 + 1);
+			queue_delayed_work(mp->m_mxfs_inode_bast_wq,
+					   &ic->dwork,
+					   msecs_to_jiffies(ms));
+		}
+	}
+	spin_unlock(&ic->lock);
+	return wedge;
+}
+
+static int
+mxfs_iclus_release_defer(struct xfs_mount *mp, struct mxfs_iclus *ic,
+			 struct mxfs_release_cert *cert, bool pub_fail)
+{
+	unsigned int badness = (pub_fail ? 8 : 0) +
+			       (cert->oblig_cas ? 4 : 0) +
+			       (cert->proof_failed ? 2 : 0) +
+			       (cert->tripwire ? 1 : 0);
+
+	if (mxfs_iclus_defer_arm(mp, ic, badness))
+		return mxfs_iclus_wedge(mp, ic, cert);
+	cert->cas_attempted = 0;
+	if (!cert->defer_kind) {
+		if (cert->oblig_cas)
+			cert->defer_kind = MXFS_RELDEFER_OBLIG;
+		else if (cert->proof_failed)
+			cert->defer_kind = MXFS_RELDEFER_FLUSH;
+		else
+			cert->defer_kind = MXFS_RELDEFER_IO;
+	}
+	if (!cert->defer_reason)
+		cert->defer_reason = "proof incomplete, release deferred";
+	mxfs_release_cert_emit(cert);
+	return -EAGAIN;
+}
+
+/*
  * sess46: THE choke point for the on-disk ICLUSTER release.  Every path
  * that drops the cluster's disk grant comes through here — normal last-ref
- * release, BAST-notify immediate release, and the -EDEADLK stale-self-hold
- * escape — so publication-before-release holds globally (GPT invariant 2:
+ * release, BAST-notify immediate release, the -EDEADLK stale-self-hold
+ * escape, the sess309 defer worker, and teardown — so
+ * publication-before-release holds globally (GPT invariant 2:
  * no cluster grant reaches NL while a required open-bit SET is pending or
  * failed).  A publish failure returns without touching the disk grant; the
  * caller's existing CAS-failure arm keeps disk_mode/bast_pending for retry.
+ *
+ * sess309 step 6: `ic` is passed by the caller (every caller holds it and
+ * ic->busy) — the old internal lookup raced teardown's unhash, and the
+ * defer gate must never silently disengage because a lookup missed.
+ * Under mxfs_release_proof_enforce an incomplete proof DEFERS (-EAGAIN,
+ * worker armed) instead of CASing, and a WEDGED cluster refuses instantly.
  */
 static int
-mxfs_iclus_disk_release(struct xfs_mount *mp, uint64_t base, bool is_free)
+mxfs_iclus_disk_release(struct xfs_mount *mp, struct mxfs_iclus *ic,
+			uint64_t base, bool is_free)
 {
-	int rc = mxfs_iclus_publish_open_bits(mp, base);
+	struct mxfs_release_cert cert = {
+		.res_id = base,
+		.rclass = MXFS_RELCLASS_ICLUS,
+		.path = "iclus_disk_release",
+	};
+	uint64_t t0;
+	int rc;
 
-	if (rc)
+	if (ic && mxfs_release_proof_enforce &&
+	    READ_ONCE(ic->rel_state) == MXFS_RELSTATE_WEDGED)
+		return -EIO;
+	if (ic) {
+		spin_lock(&ic->lock);
+		cert.old_epoch = ic->auth_epoch;
+		WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_DEMOTING);
+		spin_unlock(&ic->lock);
+	}
+	rc = mxfs_iclus_publish_open_bits(mp, base);
+	if (rc) {
+		/* Publish failure gates the release (caller retries) — a
+		 * deferral for an outstanding obligation, not a CAS.  State
+		 * stays DEMOTING: requested, unproven, grant retained. */
+		cert.defer_kind = MXFS_RELDEFER_OBLIG;
+		cert.defer_reason = "open-bit publish failed";
+		if (mxfs_release_proof_enforce && ic) {
+			int drc = mxfs_iclus_release_defer(mp, ic, &cert,
+							   true);
+			return drc == -EIO ? drc : rc;
+		}
+		mxfs_release_cert_emit(&cert);
 		return rc;
-	mxfs_iclus_make_durable(mp, base);
-	return mxfs_v5_dlm_iclus_unlock_gen(mp->m_mxfs_dlm, base, 0, is_free);
+	}
+	mxfs_relgate_fault(MXFS_RGF_DEMOTING, base);
+	if (ic)
+		WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_DRAINING);
+	t0 = ktime_get_ns();
+	/*
+	 * step 2 records, step 6 will enforce: a timed-out settle means the
+	 * cluster buffer is STILL DIRTY at the CAS below — one unretired
+	 * obligation (the F1 finding).  The release proceeds unchanged this
+	 * step; the certificate makes every occurrence countable.
+	 */
+	cert.oblig_cas = mxfs_iclus_make_durable(mp, base, &cert);
+	cert.timeout = cert.oblig_cas;
+	cert.drain_ns = ktime_get_ns() - t0;
+	/*
+	 * A tenure-boundary flush covering the settled writes is required
+	 * unless the operator declared the target-cache-loss domain out of
+	 * scope (F2 finding — counted as cas_noticket, never printed
+	 * per-release).  Completion comes from the proof's ticket status
+	 * (sess258): REAL_FLUSH = a real flush verified over the keyed
+	 * accounting; PROTECTED = operator-declared domain.
+	 */
+	cert.ticket_required = 1;
+	cert.ticket_completed =
+		cert.ticket_status == MXFS_TICKET_REAL_FLUSH ||
+		cert.ticket_status == MXFS_TICKET_PROTECTED;
+	/* a clean settle plus a clean keyed completion proof IS this path's
+	 * proof; a timed-out settle or a failed proof goes to CAS unproved
+	 * and P283/cas_noproof_v2 names it (F1/F3, same events cas_dirty
+	 * and proof_failed count).  sess305: cert.proved is the per-instance
+	 * attestation; ic->rel_state is diagnostic. */
+	if (!cert.oblig_cas && !cert.proof_failed) {
+		cert.proved = 1;
+		if (ic)
+			WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_PROVED);
+	}
+	/*
+	 * Final pre-CAS tripwire (sess253 ruling item B): re-sample the
+	 * keyed accounting captured by the proof.  Any movement — a write
+	 * submitted or completed after the verified flush — invalidates the
+	 * certificate: mark tripwire, drop back to DRAINING so the CAS
+	 * counts as unproved (telemetry while the gate is off).
+	 */
+	if (cert.icwr_daddr) {
+		struct mxfs_icwr_entry *twent =
+			mxfs_icwr_get(mp, (xfs_daddr_t)cert.icwr_daddr, false);
+
+		if (twent &&
+		    ((uint32_t)atomic_read(&twent->ie_inflight) !=
+		     cert.icwr_inflight_final ||
+		     (uint64_t)atomic64_read(&twent->ie_complete_gen) !=
+		     cert.icwr_gen_final)) {
+			cert.tripwire = 1;
+			/* sess305: tripwire invalidates THIS instance's
+			 * attestation too, not just the diagnostic state */
+			cert.proved = 0;
+			if (ic)
+				WRITE_ONCE(ic->rel_state,
+					   MXFS_RELSTATE_DRAINING);
+		}
+	}
+	/*
+	 * sess309 step-6 F1 ENFORCEMENT GATE (sess307 ruling item 1): an
+	 * incomplete proof — still-dirty settle (oblig_cas), failed keyed
+	 * completion proof, or a tripped pre-CAS re-sample — DEFERS the
+	 * release instead of CASing.  The F2-only ticket-absent case
+	 * (NO_DOMAIN under fua_disable=1) is a domain policy, step 7 —
+	 * it does NOT defer here.
+	 */
+	if (mxfs_release_proof_enforce && ic &&
+	    (cert.oblig_cas || cert.proof_failed || cert.tripwire))
+		return mxfs_iclus_release_defer(mp, ic, &cert, false);
+	cert.cas_attempted = 1;
+	cert.rel_state_cas = ic ? READ_ONCE(ic->rel_state) :
+				  MXFS_RELSTATE_DRAINING;
+	if (ic)
+		WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_RELEASING);
+	mxfs_relgate_fault(MXFS_RGF_PRE_CAS, base);
+	rc = mxfs_v5_dlm_iclus_unlock_gen(mp->m_mxfs_dlm, base, 0, is_free);
+	cert.cas_result = rc;
+	mxfs_relgate_fault(MXFS_RGF_POST_HANDOFF, base);
+	mxfs_release_cert_emit(&cert);
+	if (ic && mxfs_release_proof_enforce && rc) {
+		/*
+		 * sess309: a failed CAS under enforcement must NOT reopen
+		 * admission — the granted-only worker sweep is only sound
+		 * while DEMOTING blocks new grant stamps for the whole
+		 * episode, so a transport-failed CAS stays in the episode
+		 * (badness 16, worst class) and retries under the same
+		 * bounds instead of falling back to open-admission bast
+		 * machinery.
+		 */
+		if (mxfs_iclus_defer_arm(mp, ic, 16))
+			return mxfs_iclus_wedge(mp, ic, &cert);
+	} else if (ic)
+		WRITE_ONCE(ic->rel_state, MXFS_RELSTATE_ACTIVE);
+	return rc;
 }
 
 /*
@@ -44383,7 +52191,16 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 		return -ENOMEM;
 	for (;;) {
 		spin_lock(&ic->lock);
-		if (ic->disk_mode >= mode && !ic->busy) {
+		/* sess309 step 6: a WEDGED cluster is terminal — its grant
+		 * is pinned pending fence/recovery; admitting or acquiring
+		 * under it would reopen the unproven tenure. */
+		if (mxfs_release_proof_enforce &&
+		    READ_ONCE(ic->rel_state) == MXFS_RELSTATE_WEDGED) {
+			spin_unlock(&ic->lock);
+			return -EIO;
+		}
+		if (ic->disk_mode >= mode && !ic->busy &&
+		    mxfs_iclus_admission_open(ic)) {
 			/* Pure-memory admit under a tenure this ic has held
 			 * continuously since the CAS that stamped auth_epoch
 			 * (see the struct comment).  Synthesising the result
@@ -44393,9 +52210,17 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 			spin_unlock(&ic->lock);
 			return 0;
 		}
-		if (ic->busy) {
+		if (ic->busy || !mxfs_iclus_admission_open(ic)) {
 			spin_unlock(&ic->lock);
-			wait_event(ic->wq, !READ_ONCE(ic->busy));
+			/* Park until the transition/deferred release resolves
+			 * (worker success reopens admission) or wedges (loop
+			 * top returns -EIO).  The parked acquirer's
+			 * i_dlm_acq_inflight cannot deadlock the worker: its
+			 * sweep is granted-only. */
+			wait_event(ic->wq, !READ_ONCE(ic->busy) &&
+				   (mxfs_iclus_admission_open(ic) ||
+				    READ_ONCE(ic->rel_state) ==
+				    MXFS_RELSTATE_WEDGED));
 			continue;
 		}
 		ic->busy = true;
@@ -44492,15 +52317,12 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 			 * load-63 burst).  Its grant is exactly what this
 			 * acquire converts on success — never a reason to
 			 * hold the escape hostage. */
-			if (!mxfs_iclus_covered_active(mp, base, ino))
-				urc = mxfs_iclus_disk_release(mp, base,
+			if (!mxfs_iclus_covered_active(mp, base, ino, false))
+				urc = mxfs_iclus_disk_release(mp, ic, base,
 							      false);
 			spin_lock(&ic->lock);
-			if (urc == 0) {
-				ic->disk_mode = MXFS_LOCK_NL;
-				ic->auth_epoch = 0;	/* tenure over */
-				ic->bast_pending = false;
-			}
+			if (urc == 0)
+				mxfs_iclus_release_done_locked(ic);
 			ic->busy = false;
 			spin_unlock(&ic->lock);
 			wake_up_all(&ic->wq);
@@ -44526,28 +52348,59 @@ mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
  * log-force + AIL settle of the cluster buffer + device flush per actual
  * cluster release — the batched-drain economics the design wants.
  * Runs under ic->busy (no concurrent admits), sleepable context.
+ *
+ * sess198 (step 2): returns 1 when the settle timed out with the cluster
+ * buffer still dirty — the F1 invariant violation the certificate must
+ * record — else 0.  Behavior is unchanged this step: the caller still
+ * releases either way (the deferred-release worker is build-order step 6).
+ *
+ * sess258 (step 5 F3, sess253 ruling item B): the settle alone is
+ * check-then-CAS — an async xfsaild destage between the dirty check and
+ * the wire CAS could certify a proof no flush ever covered.  The proof is
+ * now completion-driven against the cluster's OWN keyed write accounting
+ * (mxfs_icwr_*): settle → keyed inflight 0 → capture generations → real
+ * flush → verify inflight still 0 and generations UNCHANGED (plus a dirty
+ * recheck for re-dirtied-not-yet-submitted state).  A generation change
+ * gets ONE bounce with a fresh flush; any unprovable step sets
+ * cert->proof_failed (telemetry release while the gate is off — the
+ * release still proceeds, but never certifies PROVED).  TRYLOCK failure
+ * in the settle is UNKNOWN, not clean (-EAGAIN vs -ENOENT — the sess257
+ * finding): bounded retry, then proof_failed.
  */
-static void
-mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base)
+static int
+mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base,
+			struct mxfs_release_cert *cert)
 {
 	extern int xfs_imap(struct xfs_perag *, struct xfs_trans *, xfs_ino_t,
 			    struct xfs_imap *, uint);
 	struct xfs_perag	*pag;
 	struct xfs_imap		imap;
+	struct mxfs_icwr_registry *reg = &mp->m_mxfs_icwr;
+	struct mxfs_icwr_entry	*ent = NULL;
+	uint64_t		sub_gen = 0, comp_gen = 0;
+	xfs_daddr_t		daddr = 0;
 	int			lap;
+	int			bounce;
+	int			still_dirty = 0;
+	int			unknown = 0;
+	int			proof_failed = 0;
+	int			frc = 0;
 
 	pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, base));
 	if (!pag)
-		return;
+		return 0;
 	/* CIL -> AIL: the covered dinodes' logged updates become pushable. */
 	xfs_log_force(mp, XFS_LOG_SYNC);
+	mxfs_relgate_fault(MXFS_RGF_LOGFORCED, base);
 	memset(&imap, 0, sizeof(imap));
 	if (xfs_imap(pag, NULL, base, &imap, 0) || !imap.im_len)
 		goto out;
+	daddr = imap.im_blkno;
 	for (lap = 0; lap < 125; lap++) {
 		struct xfs_buf		*bp = NULL;
 		struct xfs_buf_log_item	*bip;
 		bool			dirty;
+		int			irc;
 
 		/* PASSIVE settle by design (sess4→5): an ACTIVE variant here
 		 * (xfs_imap_to_bp blocking read + xfs_iflush_cluster + delwri
@@ -44558,11 +52411,34 @@ mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base)
 		 * pin the cluster buffer and sit on b_li_list until flushed,
 		 * so the dirty check below sees them and xfsaild (kicked by
 		 * ail_push_all) performs the actual iflush. */
-		if (xfs_buf_incore(mp->m_ddev_targp, imap.im_blkno,
-				   imap.im_len, XBF_TRYLOCK, &bp) || !bp)
-			break;	/* not incore, or write in flight (the
-				 * flush_epoch below covers a submitted
-				 * write's durability) */
+		irc = xfs_buf_incore(mp->m_ddev_targp, imap.im_blkno,
+				     imap.im_len, XBF_TRYLOCK, &bp);
+		if (irc == -ENOENT || (!irc && !bp)) {
+			unknown = 0;
+			break;	/* not incore: settled (a write in flight is
+				 * covered by the keyed proof below) */
+		}
+		if (irc) {
+			/* -EAGAIN: the buffer exists but the trylock lost —
+			 * its dirty state is UNKNOWN, which must never be
+			 * read as clean (sess253 ruling hazard).  Bounded
+			 * retry like a dirty lap. */
+			unknown = 1;
+			xfs_ail_push_all(mp->m_ail);
+			if (lap == 124) {
+				static atomic_t p_icu_n = ATOMIC_INIT(0);
+
+				proof_failed = 1;
+				if (atomic_inc_return(&p_icu_n) <= 200)
+					pr_warn("mxfs: P289-ICLUS-SETTLE-UNKNOWN base=%llu daddr=%lld rc=%d — cluster buffer lock unavailable for 250ms; settle state unknowable, proof fails conservative\n",
+						(unsigned long long)base,
+						(long long)imap.im_blkno,
+						irc);
+			}
+			msleep(2);
+			continue;
+		}
+		unknown = 0;
 		bip = bp->b_log_item;
 		dirty = (bp->b_flags & (_XBF_DELWRI_Q | XBF_WRITE)) ||
 			xfs_buf_ispinned(bp) ||
@@ -44585,6 +52461,7 @@ mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base)
 		if (lap == 124) {
 			static atomic_t p_icd_n = ATOMIC_INIT(0);
 
+			still_dirty = 1;
 			if (atomic_inc_return(&p_icd_n) <= 200)
 				pr_warn("mxfs: P-ICLUS-DUR-TIMEOUT base=%llu daddr=%lld — cluster buffer still dirty after 250ms; releasing anyway (peer may read a lagging dinode)\n",
 					(unsigned long long)base,
@@ -44594,7 +52471,106 @@ mxfs_iclus_make_durable(struct xfs_mount *mp, uint64_t base)
 	}
 out:
 	xfs_perag_put(pag);
-	mxfs_blkdev_flush_epoch(mp);
+	if (!still_dirty && !unknown)
+		mxfs_relgate_fault(MXFS_RGF_OBLIG_ZERO, base);
+	/*
+	 * Keyed completion proof (sess253 ruling item B).  The entry is
+	 * looked up WITHOUT create: no entry means no counted home write has
+	 * ever targeted this cluster since mount (entries are never freed),
+	 * UNLESS the sticky untracked counter says an entry allocation
+	 * failed — then an in-flight write may be invisible and the proof is
+	 * poisoned conservative.
+	 */
+	if (daddr) {
+		ent = mxfs_icwr_get(mp, daddr, false);
+		if (!ent && atomic64_read(&reg->icwr_untracked) > 0)
+			proof_failed = 1;
+	}
+	for (bounce = 0; bounce < 2; bounce++) {
+		if (ent) {
+			if (!wait_event_timeout(reg->icwr_wq,
+					atomic_read(&ent->ie_inflight) == 0,
+					msecs_to_jiffies(100))) {
+				static atomic_t p_icw_n = ATOMIC_INIT(0);
+
+				proof_failed = 1;
+				if (atomic_inc_return(&p_icw_n) <= 200)
+					pr_warn("mxfs: P289-ICLUS-INFLIGHT-TIMEOUT base=%llu daddr=%lld inflight=%d — counted cluster writes did not complete in 100ms; proof fails conservative\n",
+						(unsigned long long)base,
+						(long long)daddr,
+						atomic_read(&ent->ie_inflight));
+				/* still flush: the release proceeds and the
+				 * settled portion deserves its barrier */
+				frc = mxfs_blkdev_flush_epoch(mp);
+				mxfs_relgate_fault(MXFS_RGF_FLUSH_DONE, base);
+				break;
+			}
+			sub_gen = (uint64_t)atomic64_read(&ent->ie_submit_gen);
+			comp_gen = (uint64_t)atomic64_read(&ent->ie_complete_gen);
+		}
+		frc = mxfs_blkdev_flush_epoch(mp);
+		mxfs_relgate_fault(MXFS_RGF_FLUSH_DONE, base);
+		if (!ent)
+			break;
+		/* Post-flush verify: nothing submitted or completed since
+		 * the capture, so the flush covers every counted write. */
+		if (atomic_read(&ent->ie_inflight) == 0 &&
+		    (uint64_t)atomic64_read(&ent->ie_submit_gen) == sub_gen &&
+		    (uint64_t)atomic64_read(&ent->ie_complete_gen) == comp_gen) {
+			struct xfs_buf	*bp = NULL;
+			int		irc;
+
+			/* Dirty recheck: a re-dirtied-not-yet-submitted
+			 * buffer moves no generation; only the buffer state
+			 * shows it.  Trylock failure = unknown = fail. */
+			irc = xfs_buf_incore(mp->m_ddev_targp, imap.im_blkno,
+					     imap.im_len, XBF_TRYLOCK, &bp);
+			if (irc == -ENOENT || (!irc && !bp))
+				break;	/* proof holds */
+			if (!irc && bp) {
+				struct xfs_buf_log_item	*bip = bp->b_log_item;
+				bool redirty =
+				    (bp->b_flags & (_XBF_DELWRI_Q | XBF_WRITE)) ||
+				    xfs_buf_ispinned(bp) ||
+				    (bip &&
+				     (test_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags) ||
+				      test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags))) ||
+				    !list_empty_careful(&bp->b_li_list);
+				xfs_buf_relse(bp);
+				if (!redirty)
+					break;	/* clean incore: proof holds */
+			}
+			proof_failed = 1;
+			break;
+		}
+		if (bounce == 1) {
+			static atomic_t p_icb_n = ATOMIC_INIT(0);
+
+			proof_failed = 1;
+			if (atomic_inc_return(&p_icb_n) <= 200)
+				pr_warn("mxfs: P289-ICLUS-GEN-MOVED base=%llu daddr=%lld — cluster writes kept arriving across two flush proofs; proof fails conservative\n",
+					(unsigned long long)base,
+					(long long)daddr);
+		}
+		/* generation moved: one bounce with a fresh flush */
+	}
+	mxfs_relgate_fault(MXFS_RGF_PROOF, base);
+	if (cert) {
+		cert->icwr_daddr = (uint64_t)daddr;
+		cert->icwr_inflight_final =
+			ent ? (uint32_t)atomic_read(&ent->ie_inflight) : 0;
+		cert->icwr_gen_final =
+			ent ? (uint64_t)atomic64_read(&ent->ie_complete_gen) : 0;
+		cert->proof_failed = proof_failed ? 1 : 0;
+		if (!mxfs_fua_disable)
+			cert->ticket_status = (frc == 0) ?
+				MXFS_TICKET_REAL_FLUSH :
+				MXFS_TICKET_FLUSH_FAILED;
+		else
+			cert->ticket_status = mxfs_target_cache_protected ?
+				MXFS_TICKET_PROTECTED : MXFS_TICKET_NO_DOMAIN;
+	}
+	return still_dirty;
 }
 
 /*
@@ -44638,14 +52614,14 @@ mxfs_iclus_unlock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 		 * rc 0. */
 		return busy_gate ? -EBUSY : 0;
 
-	if (!mxfs_iclus_covered_active(mp, base, ino)) {
+	if (!mxfs_iclus_covered_active(mp, base, ino, false)) {
 		int urc;
 
 		/* sess46: mxfs_iclus_disk_release = publish-before-release
 		 * choke point.  A failed publish lands in the SAME failure
 		 * arm as a failed unlock CAS: disk_mode/bast_pending kept,
 		 * release_check retries, peers keep BASTing. */
-		urc = mxfs_iclus_disk_release(mp, base, is_free);
+		urc = mxfs_iclus_disk_release(mp, ic, base, is_free);
 		if (unlikely(mxfs_watch_ino && base == mxfs_watch_ino))
 			pr_warn("mxfs: P-ICLUS-UNLK base=%llu urc=%d comm=%s realns=%llu\n",
 				(unsigned long long)base, urc, current->comm,
@@ -44661,11 +52637,9 @@ mxfs_iclus_unlock(struct xfs_mount *mp, uint64_t ino, uint8_t mode,
 		 * NL when the disk actually cleared; on failure keep
 		 * disk_mode/bast_pending so the next release_check retries.
 		 */
-		if (urc == 0) {
-			ic->disk_mode = MXFS_LOCK_NL;
-			ic->auth_epoch = 0;	/* tenure over */
-			ic->bast_pending = false;
-		} else
+		if (urc == 0)
+			mxfs_iclus_release_done_locked(ic);
+		else
 			pr_warn_ratelimited(
 			    "mxfs: P-ICLUS-UNLK-FAIL base=%llu rc=%d — disk bit NOT cleared; keeping disk_mode=%u bast_pending for retry\n",
 				(unsigned long long)base, urc, ic->disk_mode);
@@ -44701,7 +52675,8 @@ mxfs_iclus_try_admit(struct xfs_mount *mp, uint64_t ino, uint8_t mode)
 	if (!ic)
 		return false;
 	spin_lock(&ic->lock);
-	ok = ic->disk_mode >= mode && !ic->busy;
+	ok = ic->disk_mode >= mode && !ic->busy &&
+	     mxfs_iclus_admission_open(ic);
 	spin_unlock(&ic->lock);
 	return ok;
 }
@@ -44771,10 +52746,10 @@ mxfs_iclus_bast_notify(void *data, uint64_t base_ino, uint8_t req_mode)
 	if (!sweep)
 		return;		/* in-flight acquire/release owns the next step */
 
-	if (!mxfs_iclus_covered_active(mp, base_ino, 0)) {
+	if (!mxfs_iclus_covered_active(mp, base_ino, 0, false)) {
 		int urc;
 
-		urc = mxfs_iclus_disk_release(mp, base_ino, false);
+		urc = mxfs_iclus_disk_release(mp, ic, base_ino, false);
 		if (unlikely(mxfs_watch_ino && base_ino == mxfs_watch_ino))
 			pr_warn("mxfs: P-ICLUS-UNLK-BN base=%llu urc=%d realns=%llu\n",
 				(unsigned long long)base_ino, urc,
@@ -44783,11 +52758,9 @@ mxfs_iclus_bast_notify(void *data, uint64_t base_ino, uint8_t req_mode)
 		/* sess6: same honesty rule as mxfs_iclus_unlock — a failed
 		 * disk clear must not zero disk_mode (that lie orphans the
 		 * bit AND gates future release_checks off). */
-		if (urc == 0) {
-			ic->disk_mode = MXFS_LOCK_NL;
-			ic->auth_epoch = 0;	/* tenure over */
-			ic->bast_pending = false;
-		} else
+		if (urc == 0)
+			mxfs_iclus_release_done_locked(ic);
+		else
 			pr_warn_ratelimited(
 			    "mxfs: P-ICLUS-UNLK-FAIL base=%llu rc=%d (bast_notify) — keeping disk_mode=%u for retry\n",
 				(unsigned long long)base_ino, urc,
@@ -44804,15 +52777,90 @@ mxfs_iclus_bast_notify(void *data, uint64_t base_ino, uint8_t req_mode)
 	mxfs_iclus_fan_out(mp, base_ino, req_mode);
 }
 
-/* Unmount teardown: drop every object for this mount.  Held disk grants
- * are released wholesale by the caw release_all at dlm destroy; only the
- * memory needs freeing here. */
+/*
+ * sess309 step-6 RETRY WORKER (sess307 ruling item 3): drives a deferred
+ * release to completion.  Enters the NORMAL busy-serialized release path —
+ * no second CAS path — and disarms ONLY on a confirmed clear (rc 0, via
+ * release_done_locked), wedge, or the teardown latch.  Never on apparent
+ * disk_mode/busy change: a busy collision just retries short.
+ */
+static void
+mxfs_iclus_defer_worker(struct work_struct *work)
+{
+	struct mxfs_iclus *ic = container_of(to_delayed_work(work),
+					     struct mxfs_iclus, dwork);
+	struct xfs_mount *mp = ic->mp;
+	int rc;
+
+	spin_lock(&ic->lock);
+	if (ic->no_retry ||
+	    READ_ONCE(ic->rel_state) == MXFS_RELSTATE_WEDGED) {
+		spin_unlock(&ic->lock);
+		return;
+	}
+	if (READ_ONCE(ic->rel_state) != MXFS_RELSTATE_DEMOTING ||
+	    ic->disk_mode == MXFS_LOCK_NL) {
+		/* episode closed by a competing sync release — done */
+		spin_unlock(&ic->lock);
+		return;
+	}
+	if (ic->busy) {
+		/* a sync acquire/release owns the cluster right now — it
+		 * either completes the release itself or re-defers (which
+		 * re-arms us); retry short to cover the neither case */
+		queue_delayed_work(mp->m_mxfs_inode_bast_wq, &ic->dwork,
+				   msecs_to_jiffies(100));
+		spin_unlock(&ic->lock);
+		return;
+	}
+	ic->busy = true;
+	spin_unlock(&ic->lock);
+
+	/* granted-only sweep — see the covered_active comment: parked slow
+	 * acquirers' inflight markers must not deadlock their own release */
+	if (mxfs_iclus_covered_active(mp, ic->base, 0, true)) {
+		/* shouldn't happen (DEMOTING blocks stamps) — arm the
+		 * covered inodes' demote pipeline and try again */
+		spin_lock(&ic->lock);
+		ic->busy = false;
+		if (!ic->no_retry)
+			queue_delayed_work(mp->m_mxfs_inode_bast_wq,
+					   &ic->dwork,
+					   msecs_to_jiffies(100));
+		spin_unlock(&ic->lock);
+		wake_up_all(&ic->wq);
+		mxfs_iclus_fan_out(mp, ic->base, MXFS_LOCK_EX);
+		return;
+	}
+	rc = mxfs_iclus_disk_release(mp, ic, ic->base, false);
+	spin_lock(&ic->lock);
+	if (rc == 0)
+		mxfs_iclus_release_done_locked(ic);
+	ic->busy = false;
+	spin_unlock(&ic->lock);
+	wake_up_all(&ic->wq);
+	/* nonzero rc: the defer/CAS-fail arms inside disk_release already
+	 * rescheduled or wedged; nothing further to drive here */
+}
+
+/*
+ * Unmount teardown.  sess309 (ruling item 7 checklist): unmount must not
+ * cancel-then-release-wholesale — each cluster still owing a deferred
+ * release gets its retries latched off (no_retry BEFORE cancel_sync, so
+ * nothing can requeue), then ONE final proof-gated release attempt; a
+ * cluster that still cannot prove is pinned on the DLM side so the caw
+ * release_all cannot strip its bits, and the departure is not clean
+ * (peers fence and recover us — the safe direction).  Runs BEFORE
+ * v5_shutdown/caw release_all (pal/linux/xfs_super.c teardown order), so
+ * the DLM transport is still alive for the final attempt and the pin.
+ */
 void
 mxfs_iclus_purge_all(struct xfs_mount *mp)
 {
 	unsigned int h;
 	struct mxfs_iclus *ic;
 	struct hlist_node *tmp;
+	HLIST_HEAD(purge);
 
 	spin_lock(&mxfs_iclus_glock);
 	for (h = 0; h < MXFS_ICLUS_HASH_SIZE; h++) {
@@ -44820,10 +52868,42 @@ mxfs_iclus_purge_all(struct xfs_mount *mp)
 					  hnode) {
 			if (ic->mp != mp)
 				continue;
-			WARN_ON_ONCE(ic->busy);
 			hlist_del(&ic->hnode);
-			kfree(ic);
+			hlist_add_head(&ic->hnode, &purge);
 		}
 	}
 	spin_unlock(&mxfs_iclus_glock);
+
+	hlist_for_each_entry_safe(ic, tmp, &purge, hnode) {
+		spin_lock(&ic->lock);
+		ic->no_retry = true;
+		spin_unlock(&ic->lock);
+		cancel_delayed_work_sync(&ic->dwork);
+		if (mxfs_release_proof_enforce &&
+		    READ_ONCE(ic->rel_state) == MXFS_RELSTATE_DEMOTING &&
+		    ic->disk_mode > MXFS_LOCK_NL) {
+			int rc;
+
+			spin_lock(&ic->lock);
+			WARN_ON_ONCE(ic->busy);
+			ic->busy = true;
+			spin_unlock(&ic->lock);
+			rc = mxfs_iclus_disk_release(mp, ic, ic->base,
+						     false);
+			spin_lock(&ic->lock);
+			if (rc == 0)
+				mxfs_iclus_release_done_locked(ic);
+			ic->busy = false;
+			spin_unlock(&ic->lock);
+			if (rc) {
+				mxfs_v5_dlm_iclus_pin(mp->m_mxfs_dlm,
+						      ic->base);
+				pr_err("mxfs: P-ICLUS-TEARDOWN-UNPROVEN base=%llu rc=%d — deferred release still unproven at unmount; grant pinned, departure NOT clean\n",
+				       (unsigned long long)ic->base, rc);
+			}
+		}
+		WARN_ON_ONCE(ic->busy);
+		hlist_del(&ic->hnode);
+		kfree(ic);
+	}
 }

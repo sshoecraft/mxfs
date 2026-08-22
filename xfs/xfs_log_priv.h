@@ -476,12 +476,81 @@ struct xlog {
 	uint32_t		l_mxfs_victim_slot;
 	struct mxfs_shadow_eval	*l_mxfs_shadow_eval;
 	/*
+	 * sess359 (#1 GPT review Q3): ATTEMPT-LOCAL token-enforcement mode,
+	 * established exactly once by mxfs_fr_enforce_preflight before
+	 * xlog_recover runs and never resampled from the global knob — a
+	 * knob armed after the preflight point cannot turn enforcement on
+	 * for an attempt whose preflight never ran (0 = off for this
+	 * attempt, 1 = armed and preflighted).  Zeroed by xlog_alloc_log's
+	 * kzalloc, so adopted-slice and ordinary mount logs are always off.
+	 */
+	int			l_mxfs_fr_enforce_mode;
+	/*
 	 * sess166: untrusted-replay transactions the report pass saw while no
 	 * evaluator state existed (allocation failed / dlm ctx absent) — lets
 	 * the P273-SHADOW-EVAL summary declare itself INCOMPLETE instead of
 	 * a partial count reading as a full one (RULE-5 sess166 review).
 	 */
 	uint32_t		l_mxfs_shadow_missed;
+	/*
+	 * sess187 (D-SHUTDOWN-UMOUNT, sess184 ruling): untagged-record replay
+	 * authority for a FOREIGN shadow xlog (never set on adopted-slice
+	 * mount logs).  Two predicates evaluated once at shadow-log creation
+	 * from the victim's recovery descriptor:
+	 *   l_mxfs_cert_single_node    the fence certificate is kind-17
+	 *                              (SINGLE_NODE_EXCLUSIVE, operator
+	 *                              assertion) — records WHAT the cert is.
+	 *   l_mxfs_untagged_authorized cert_single_node AND the victim's own
+	 *                              records carried the durable write-time
+	 *                              snlocal marker — the only state in
+	 *                              which the untagged-apply gates in
+	 *                              xfs_log_recover.c may pass untagged
+	 *                              images.
+	 * l_mxfs_untagged_skips counts untagged records the gates REFUSED on
+	 * this xlog; a kind-17 replay that skipped anything without the
+	 * marker must fail conspicuously rather than publish (the slice's
+	 * durable images were written by a log the operator called local,
+	 * so a partial replay is a torn image, not a recovery).
+	 */
+	bool			l_mxfs_untagged_authorized;
+	bool			l_mxfs_cert_single_node;
+	uint32_t		l_mxfs_untagged_skips;
+	/*
+	 * sess352 (#94 D-IDLE-SLICE-WSKIP-REFUSAL-AG-QUARANTINE-0130):
+	 * counter-only SB transactions the blanket ATOMIC-SKIP classified
+	 * CLEAN and skipped without refusal.  Lazy SB counters are
+	 * reconstructible from AGF/AGI (and mxfs mounts recompute them
+	 * unconditionally, xfs_check_summary_counts), so omitting them
+	 * cannot lose non-reconstructible state — these skips are counted
+	 * here and MUST NOT feed the terminal predicate or the quarantine
+	 * domain.  l_mxfs_sb_baseline caches the once-per-replay serialized
+	 * snapshot of the replayer's own m_sb that the classifier's masked
+	 * compare runs against; freed in xlog_dealloc_log.
+	 */
+	uint32_t		l_mxfs_sbclean_skips;
+	struct xfs_dsb		*l_mxfs_sb_baseline;
+	/*
+	 * sess323 (sess320 ruling, D-513): the quarantine domain accumulated
+	 * from REFUSED items on this shadow xlog — which AGs the refused
+	 * work would have modified.  Feeds the terminal outcome record when
+	 * a foreign replay is refused.  Any item that cannot be mapped to an
+	 * AG confidently (unmappable type, malformed format, agno >= 64)
+	 * forces the whole-filesystem domain: refusing too much is safe,
+	 * refusing too little re-creates the suppressed-work hazard.
+	 */
+	uint64_t		l_mxfs_refused_ag_mask;
+	bool			l_mxfs_refused_fswide;
+	uint32_t		l_mxfs_malformed_skips;
+	/*
+	 * sess332 (sess328 ruling Q2b): mid-replay TORN fault injection.
+	 * Nonzero = fail pass 2 with -EFSCORRUPTED before applying the Nth
+	 * item, leaving a deterministic applied prefix and taking the REAL
+	 * xlog_recover_cancel unwind — the genuine torn-slice shape, unlike
+	 * the post-success verdict forge.  Armed only on a foreign-replay
+	 * shadow xlog by the one-shot knob in mxfs_xlog_recover_foreign_slice;
+	 * never set on an owned mount's log.
+	 */
+	uint32_t		l_mxfs_force_torn_countdown;
 };
 
 #define MXFS_XLOG_VICTIM_NONE	((uint32_t)-1)
@@ -575,6 +644,10 @@ xlog_recover_cancel(struct xlog *);
 /* sess165: emit the shadow authority evaluator's summary (P273-SHADOW-EVAL)
  * and free its state; no-op when no evaluation ran on this xlog. */
 void	mxfs_shadow_eval_finish(struct xlog *log);
+/* sess358 (#1): token-enforcement preflight at foreign-slice entry —
+ * creates the shared evaluator; aborts elected recovery when enforcement
+ * is configured but the victim's FENCED descriptor is unproven. */
+int	mxfs_fr_enforce_preflight(struct xlog *log);
 
 __le32	 xlog_cksum(struct xlog *log, struct xlog_rec_header *rhead,
 		char *dp, unsigned int hdrsize, unsigned int size);

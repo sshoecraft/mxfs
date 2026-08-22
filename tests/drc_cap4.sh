@@ -25,7 +25,7 @@ reboot_clean() {
     sleep 3
   done
   sleep 20
-  for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_failrounds.txt /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg; dmesg -C" >/dev/null 2>&1; done
+  for n in $NODES; do timeout 8 $SSH $n $PASS "rm -f /root/drc_failrounds.txt /root/drc_fail_r*.dmesg /root/drc_failverify_r*.dmesg /root/drc_create_r*.dmesg /dev/shm/drc_create_r*.dmesg; dmesg -C" >/dev/null 2>&1; done
 }
 for i in $(seq 1 "$ITERS"); do
   echo "########## ITER $i/$ITERS reboot @ $(date -u +%T) ##########"
@@ -48,7 +48,7 @@ for i in $(seq 1 "$ITERS"); do
       echo '[failrounds]'; head -4 /root/drc_failrounds.txt 2>/dev/null
       FV=\$(ls -1 /root/drc_failverify_r*.dmesg 2>/dev/null | head -1)
       FF=\$(ls -1 /root/drc_fail_r*.dmesg 2>/dev/null | head -1)
-      CR=/root/drc_create_r${FRND}_rank*.dmesg
+      CR="/root/drc_create_r${FRND}_rank*.dmesg /dev/shm/drc_create_r${FRND}_rank*.dmesg"
       echo '[RDMISS/CLASS/FAIL in verify snapshot \$FV]'
       [ -n \"\$FV\" ] && grep -E 'drc-RDMISS|drc-CLASS|drc-FAIL' \"\$FV\" | tail -8
       echo '[P62-DATAINIT-BLK0 cached_has_n1f1=1 (the clobber) — verify+create]'

@@ -374,6 +374,18 @@ int mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms)
     return 0;
 }
 
+/* No stable task id for a pthread; callers treat 0 as "unavailable". */
+int mxfs_pal_thread_pid(mxfs_thread_t *t)
+{
+    (void)t;
+    return 0;
+}
+
+void mxfs_pal_dump_task_stack(int pid)
+{
+    (void)pid;
+}
+
 /* ─── Mutex ─── */
 
 struct mxfs_mutex {
@@ -1005,6 +1017,13 @@ void mxfs_pal_sleep_ms(uint32_t ms)
         ; /* retry on signal */
 }
 
+/* User-mode has no TASK_UNINTERRUPTIBLE distinction; the kernel backend's
+ * D-state hazard (see pal.h) does not exist here. */
+void mxfs_pal_sleep_ms_interruptible(uint32_t ms)
+{
+    mxfs_pal_sleep_ms(ms);
+}
+
 void mxfs_pal_cond_resched(void)
 {
     /* Userspace threads are preemptible — no-op */
@@ -1140,7 +1159,9 @@ void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
 #define PR_SA_REG_IGNORE 0x06
 #define PR_SA_READ_KEYS  0x00
 #define PR_SA_READ_RESV  0x01
+#define PR_SA_READ_FULL_STATUS 0x03
 #define PR_TYPE_WR_EX_RO 0x05
+#define PR_TYPE_WR_EX_AR 0x07
 
 static int scsi_pr_out(int fd, uint8_t sa, uint64_t key,
                        uint64_t sa_key, uint8_t type)
@@ -1154,7 +1175,12 @@ static int scsi_pr_out(int fd, uint8_t sa, uint64_t key,
     memset(cdb, 0, sizeof(cdb));
     cdb[0] = PR_OUT_CMD;
     cdb[1] = sa;
-    cdb[2] = (type & 0x0F) << 4;
+    /* SPC PROUT CDB byte 2 = SCOPE (bits 7-4) | TYPE (bits 3-0).  LU_SCOPE
+     * is 0, so the type belongs in the LOW nibble.  sess381: this backend
+     * shifted it into the SCOPE field, which sent scope=<type>, type=0 on
+     * every PROUT — the kernel backend and upstream sd_pr_out_command()
+     * (`cmd[2] = type`) both put it low. */
+    cdb[2] = type & 0x0F;
     /* Parameter list length = 24 */
     cdb[7] = 0;
     cdb[8] = 24;
@@ -1294,26 +1320,88 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
     return scsi_pr_out(dev->fd, PR_SA_REG_IGNORE, 0, key, 0);
 }
 
-int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key)
+int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
 {
-    int ret;
-
     if (!dev)
         return -EINVAL;
+    if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR)
+        return -EINVAL;
 
-    ret = scsi_pr_out(dev->fd, PR_SA_RESERVE, key, 0, PR_TYPE_WR_EX_RO);
-    if (ret == -EBUSY) {
-        /* Another node holds the reservation — with type 5, we only
-         * need to be registered to do I/O. */
-        return 0;
+    /* sess381: RESERVATION CONFLICT is returned VERBATIM as -EBUSY, not
+     * folded into 0.  See the contract in pal.h — under an all-registrants
+     * type a conflict from a registered requester is abnormal and means the
+     * reservation in force has the wrong type/scope, or our registration is
+     * gone.  Only the caller can read back and classify that. */
+    return scsi_pr_out(dev->fd, PR_SA_RESERVE, key, 0, (uint8_t)type);
+}
+
+int mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev,
+                                         struct mxfs_pal_pr_caps *out)
+{
+    uint8_t cdb[10];
+    uint8_t resp[8];
+    struct sg_io_hdr io;
+    uint8_t sense[32];
+    int ret;
+
+    if (!dev || !out)
+        return -EINVAL;
+
+    memset(out, 0, sizeof(*out));
+    /* User-mode talks to the device node directly, so if we can issue the
+     * CDB at all we can issue PREEMPT AND ABORT too. */
+    out->abort_capable = true;
+
+    memset(cdb, 0, sizeof(cdb));
+    memset(resp, 0, sizeof(resp));
+    cdb[0] = PR_IN_CMD;
+    cdb[1] = 0x02;                      /* REPORT CAPABILITIES */
+    cdb[7] = (uint8_t)((sizeof(resp) >> 8) & 0xFF);
+    cdb[8] = (uint8_t)(sizeof(resp) & 0xFF);
+
+    memset(&io, 0, sizeof(io));
+    memset(sense, 0, sizeof(sense));
+    io.interface_id = 'S';
+    io.dxfer_direction = SG_DXFER_FROM_DEV;
+    io.cmd_len = sizeof(cdb);
+    io.cmdp = cdb;
+    io.dxfer_len = sizeof(resp);
+    io.dxferp = resp;
+    io.sbp = sense;
+    io.mx_sb_len = sizeof(sense);
+    io.timeout = 30000;
+
+    if (ioctl(dev->fd, SG_IO, &io) < 0)
+        return -errno;
+    if (io.status == 0x02 /* CHECK CONDITION */) {
+        /* ILLEGAL REQUEST -> the target does not implement SA 0x02. */
+        if (io.sb_len_wr > 2 && (sense[2] & 0x0F) == 0x05)
+            return -EOPNOTSUPP;
+        return -EIO;
     }
-    return ret;
+    if (io.status != 0)
+        return -EIO;
+
+    out->ptpl_c    = !!(resp[2] & 0x01);
+    out->atp_c     = !!(resp[2] & 0x04);
+    out->sip_c     = !!(resp[2] & 0x08);
+    out->crh       = !!(resp[2] & 0x10);
+    out->ptpl_a    = !!(resp[3] & 0x01);
+    out->tmv       = !!(resp[3] & 0x80);
+    out->type_mask = ((uint16_t)resp[4] << 8) | (uint16_t)resp[5];
+    out->we_ro     = out->tmv && !!(resp[4] & 0x20);
+    /* WR_EX_AR is type 7h == byte 4 bit 7 (sess381). */
+    out->we_ar     = out->tmv && !!(resp[4] & 0x80);
+    (void)ret;
+    return 0;
 }
 
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
-                             uint64_t victim_key, bool abort)
+                             uint64_t victim_key, bool abort, uint32_t type)
 {
     if (!dev)
+        return -EINVAL;
+    if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR)
         return -EINVAL;
 
     /*
@@ -1322,7 +1410,7 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
      * contract in pal.h — collapsing it to 0 was the sess71 defect.
      */
     return scsi_pr_out(dev->fd, abort ? PR_SA_PREEMPT_ABORT : PR_SA_PREEMPT,
-                       my_key, victim_key, PR_TYPE_WR_EX_RO);
+                       my_key, victim_key, (uint8_t)type);
 }
 
 int mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key)
@@ -1419,6 +1507,111 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
     out->type = (uint32_t)(resp[21] & 0x0F);
     out->held = true;
 
+    return 0;
+}
+
+/*
+ * PERSISTENT RESERVE IN / READ FULL STATUS (service action 0x03).
+ * See the contract in pal.h.  Response: 4-byte PR GENERATION, 4-byte
+ * ADDITIONAL LENGTH, then full-status descriptors of 24 fixed bytes +
+ * ADDITIONAL DESCRIPTOR LENGTH (bytes 20-23) of TransportID each.
+ */
+int mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key,
+                                      int *present, uint32_t *generation)
+{
+    uint8_t cdb[10];
+    uint8_t *resp;
+    size_t resp_len = 4096;
+    struct sg_io_hdr io;
+    uint8_t sense[32];
+    uint32_t addl_len;
+    size_t off, end;
+    int resized = 0;
+    int ret;
+
+    if (!dev || dev->fd < 0 || !present)
+        return -EINVAL;
+
+    *present = 0;
+    if (generation)
+        *generation = 0;
+
+resize:
+    resp = calloc(1, resp_len);
+    if (!resp)
+        return -ENOMEM;
+
+    memset(cdb, 0, sizeof(cdb));
+    cdb[0] = PR_IN_CMD;
+    cdb[1] = PR_SA_READ_FULL_STATUS;
+    cdb[7] = (uint8_t)((resp_len >> 8) & 0xFF);
+    cdb[8] = (uint8_t)(resp_len & 0xFF);
+
+    memset(&io, 0, sizeof(io));
+    io.interface_id = 'S';
+    io.dxfer_direction = SG_DXFER_FROM_DEV;
+    io.cmd_len = sizeof(cdb);
+    io.cmdp = cdb;
+    io.dxfer_len = (unsigned int)resp_len;
+    io.dxferp = resp;
+    io.sbp = sense;
+    io.mx_sb_len = sizeof(sense);
+    io.timeout = 30000;
+
+    ret = ioctl(dev->fd, SG_IO, &io);
+    if (ret < 0) {
+        free(resp);
+        return -errno;
+    }
+    if (io.status != 0) {
+        /* ILLEGAL REQUEST sense → target lacks SA 0x03; caller falls
+         * back to READ KEYS. */
+        free(resp);
+        if (io.status == 0x02 && (sense[2] & 0x0F) == 0x05)
+            return -EOPNOTSUPP;
+        return -EIO;
+    }
+
+    if (generation)
+        *generation = ((uint32_t)resp[0] << 24) | ((uint32_t)resp[1] << 16) |
+                      ((uint32_t)resp[2] << 8) | (uint32_t)resp[3];
+    addl_len = ((uint32_t)resp[4] << 24) | ((uint32_t)resp[5] << 16) |
+               ((uint32_t)resp[6] << 8) | (uint32_t)resp[7];
+
+    /* Truncated view proves nothing about absence — resize once to the
+     * reported length and reissue. */
+    if (8 + (size_t)addl_len > resp_len) {
+        free(resp);
+        if (resized++ || addl_len > (1u << 20))
+            return -EPROTO;
+        resp_len = ((8 + (size_t)addl_len) + 511) & ~(size_t)511;
+        goto resize;
+    }
+
+    off = 8;
+    end = 8 + (size_t)addl_len;
+    while (off + 24 <= end) {
+        uint64_t dkey =
+            ((uint64_t)resp[off]     << 56) | ((uint64_t)resp[off + 1] << 48) |
+            ((uint64_t)resp[off + 2] << 40) | ((uint64_t)resp[off + 3] << 32) |
+            ((uint64_t)resp[off + 4] << 24) | ((uint64_t)resp[off + 5] << 16) |
+            ((uint64_t)resp[off + 6] << 8)  |  (uint64_t)resp[off + 7];
+        uint32_t tid_len =
+            ((uint32_t)resp[off + 20] << 24) | ((uint32_t)resp[off + 21] << 16) |
+            ((uint32_t)resp[off + 22] << 8)  |  (uint32_t)resp[off + 23];
+
+        if (dkey == key) {
+            *present = 1;
+            break;
+        }
+        if (off + 24 + (size_t)tid_len > end) {
+            free(resp);
+            return -EPROTO;         /* descriptor overruns payload */
+        }
+        off += 24 + tid_len;
+    }
+
+    free(resp);
     return 0;
 }
 

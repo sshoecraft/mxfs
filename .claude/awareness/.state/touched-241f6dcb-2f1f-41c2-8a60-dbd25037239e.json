@@ -1,0 +1,16 @@
+{
+  "source": [
+    "xfs/xfs_inode.c",
+    "xfs/xfs_mxfs_dlm.c",
+    "pal/linux/xfs_super.c",
+    "tools/mkfs_mxfs.c",
+    "tools/chk_mxfs.c"
+  ],
+  "docs": [
+    ".claude/awareness/subsystems/xfs.md",
+    ".claude/awareness/subsystems/tests.md",
+    ".claude/awareness/subsystems/tools.md"
+  ],
+  "regen_done": false,
+  "nudges": 0
+}

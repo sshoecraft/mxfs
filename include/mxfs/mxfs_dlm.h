@@ -119,6 +119,15 @@ enum mxfs_grant_auth_status {
 struct mxfs_grant_result {
 	uint64_t	resource;	/* exact resource id: ino, or cluster base ino */
 	uint64_t	grant_epoch;	/* ex_grant_epoch stamped by THIS CAS */
+	/*
+	 * sess176 (sess175 lineage ruling): the slot's resource_lineage in
+	 * the SAME image that carried grant_epoch — the binding identity the
+	 * token producer stamps beside the epoch.  Zero = binding predates
+	 * the lineage scheme (legacy slot granted by an old build); such
+	 * grants remain usable but their records are not enforceable under
+	 * the future v3 lineage gate.  EQUALITY semantics only.
+	 */
+	uint64_t	resource_lineage;
 	uint32_t	generation;	/* slot generation of the granting image */
 	uint8_t		kind;		/* enum mxfs_lock_type of the backing slot */
 	uint8_t		mode;		/* mode THIS NODE holds in that image */
@@ -138,6 +147,7 @@ static inline void mxfs_grant_result_init(struct mxfs_grant_result *g)
 	if (g) {
 		g->resource = 0;
 		g->grant_epoch = 0;
+		g->resource_lineage = 0;
 		g->generation = 0;
 		g->kind = 0;
 		g->mode = 0;
@@ -210,6 +220,21 @@ struct mxfs_forcerel_attest {
 	bool        writeback_drained;  /* this tenure's dirty state is destaged */
 };
 
+/*
+ * D-AGLOCK-ORPHAN-EX-TRACKING-LOSS-LIVELOCK-488 (sess273 ruling): the
+ * outcome of an on-disk lock release is TRI-STATE, not an errno.  A caller
+ * that surrendered in-core tenure before the release must know whether the
+ * platter bit is provably gone (RELEASED), provably still ours (STILL_HELD
+ * — re-arm tenure and retry the release), or unprovable (UNKNOWN — the
+ * release CAW may or may not have committed; quarantine, never guess).
+ * UNKNOWN is deliberately the zero value so an unset out-param fails closed.
+ */
+enum mxfs_unlock_state {
+	MXFS_UNLOCK_UNKNOWN = 0,   /* outcome unprovable — quarantine */
+	MXFS_UNLOCK_RELEASED,      /* bit provably clear on the platter */
+	MXFS_UNLOCK_STILL_HELD,    /* bit provably still ours — retry release */
+};
+
 /* Lock state machine */
 enum mxfs_lock_state {
 	MXFS_LSTATE_UNLOCKED = 0,
@@ -226,6 +251,16 @@ enum mxfs_lock_state {
 #define MXFS_LKF_ORPHAN     (1 << 3)  /* keep lock on process exit */
 #define MXFS_LKF_RECOVERY   (1 << 4)  /* lock acquired during recovery phase */
 #define MXFS_LKF_TRYLOCK    (1 << 5)  /* non-blocking attempt */
+/*
+ * D-AGLOCK-...-LIVELOCK-488: a NOQUEUE request that must leave PERSISTENT
+ * demand behind when it loses.  Plain NOQUEUE is a SILENT probe (dialloc's
+ * first pass relies on that -- its blocking second pass generates the
+ * demand); NOQUEUE|DEMAND is for callers that retry in a bounded loop and
+ * would otherwise never displace a lazily-cached remote holder.  The
+ * transport sets the on-disk sticky revoke bit and multicasts a BAST hint
+ * before returning -EAGAIN.
+ */
+#define MXFS_LKF_DEMAND     (1 << 6)  /* NOQUEUE: leave a sticky revoke behind */
 
 /* ─── Peer-to-peer DLM messages (daemon <-> daemon over TCP) ─── */
 

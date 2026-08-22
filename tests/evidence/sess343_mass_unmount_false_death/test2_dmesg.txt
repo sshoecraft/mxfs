@@ -1,0 +1,1449 @@
+[    0.000000] Linux version 6.8.0-101-generic (buildd@lcy02-amd64-051) (x86_64-linux-gnu-gcc-13 (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0, GNU ld (GNU Binutils for Ubuntu) 2.42) #101-Ubuntu SMP PREEMPT_DYNAMIC Mon Feb  9 10:15:05 UTC 2026 (Ubuntu 6.8.0-101.101-generic 6.8.12)
+[    0.000000] Command line: BOOT_IMAGE=/vmlinuz-6.8.0-101-generic root=/dev/mapper/ubuntu--vg-ubuntu--lv ro net.ifnames=0 biosdevname=0 log_buf_len=16M console=ttyS0,115200 loglevel=3
+[    0.000000] KERNEL supported cpus:
+[    0.000000]   Intel GenuineIntel
+[    0.000000]   AMD AuthenticAMD
+[    0.000000]   Hygon HygonGenuine
+[    0.000000]   Centaur CentaurHauls
+[    0.000000]   zhaoxin   Shanghai  
+[    0.000000] BIOS-provided physical RAM map:
+[    0.000000] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable
+[    0.000000] BIOS-e820: [mem 0x000000000009fc00-0x000000000009ffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000000f0000-0x00000000000fffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000000100000-0x00000000bfffafff] usable
+[    0.000000] BIOS-e820: [mem 0x00000000bfffb000-0x00000000bfffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000feffc000-0x00000000feffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x00000000fffc0000-0x00000000ffffffff] reserved
+[    0.000000] BIOS-e820: [mem 0x0000000100000000-0x000000013fffffff] usable
+[    0.000000] NX (Execute Disable) protection: active
+[    0.000000] APIC: Static calls initialized
+[    0.000000] SMBIOS 3.0.0 present.
+[    0.000000] DMI: QEMU Ubuntu 24.04 PC (i440FX + PIIX, 1996), BIOS 1.16.3-debian-1.16.3-2 04/01/2014
+[    0.000000] Hypervisor detected: KVM
+[    0.000000] kvm-clock: Using msrs 4b564d01 and 4b564d00
+[    0.000001] kvm-clock: using sched offset of 19132314010 cycles
+[    0.000004] clocksource: kvm-clock: mask: 0xffffffffffffffff max_cycles: 0x1cd42e4dffb, max_idle_ns: 881590591483 ns
+[    0.000008] tsc: Detected 2394.728 MHz processor
+[    0.001409] e820: update [mem 0x00000000-0x00000fff] usable ==> reserved
+[    0.001415] e820: remove [mem 0x000a0000-0x000fffff] usable
+[    0.001423] last_pfn = 0x140000 max_arch_pfn = 0x400000000
+[    0.001468] MTRR map: 4 entries (3 fixed + 1 variable; max 19), built from 8 variable MTRRs
+[    0.001472] x86/PAT: Configuration [0-7]: WB  WC  UC- UC  WB  WP  UC- WT  
+[    0.001528] last_pfn = 0xbfffb max_arch_pfn = 0x400000000
+[    0.011231] found SMP MP-table at [mem 0x000f5420-0x000f542f]
+[    0.011268] Using GB pages for direct mapping
+[    0.056860] printk: log_buf_len: 16777216 bytes
+[    0.056866] printk: early log buf free: 259840(99%)
+[    0.056869] RAMDISK: [mem 0x2ee5b000-0x33724fff]
+[    0.057400] ACPI: Early table checksum verification disabled
+[    0.057518] ACPI BIOS Error (bug): A valid RSDP was not found (20230628/tbxfroot-222)
+[    0.058472] No NUMA configuration found
+[    0.058475] Faking a node at [mem 0x0000000000000000-0x000000013fffffff]
+[    0.058488] NODE_DATA(0) allocated [mem 0x13b7d3000-0x13b7fdfff]
+[    0.058736] Zone ranges:
+[    0.058738]   DMA      [mem 0x0000000000001000-0x0000000000ffffff]
+[    0.058741]   DMA32    [mem 0x0000000001000000-0x00000000ffffffff]
+[    0.058743]   Normal   [mem 0x0000000100000000-0x000000013fffffff]
+[    0.058745]   Device   empty
+[    0.058746] Movable zone start for each node
+[    0.058750] Early memory node ranges
+[    0.058751]   node   0: [mem 0x0000000000001000-0x000000000009efff]
+[    0.058753]   node   0: [mem 0x0000000000100000-0x00000000bfffafff]
+[    0.058755]   node   0: [mem 0x0000000100000000-0x000000013fffffff]
+[    0.058757] Initmem setup node 0 [mem 0x0000000000001000-0x000000013fffffff]
+[    0.060124] On node 0, zone DMA: 1 pages in unavailable ranges
+[    0.060145] On node 0, zone DMA: 97 pages in unavailable ranges
+[    0.090231] On node 0, zone Normal: 5 pages in unavailable ranges
+[    0.091626] Intel MultiProcessor Specification v1.4
+[    0.091634] MPTABLE: OEM ID: BOCHSCPU
+[    0.091635] MPTABLE: Product ID: 0.1         
+[    0.091637] MPTABLE: APIC at: 0xFEE00000
+[    0.091650] Processor #0 (Bootup-CPU)
+[    0.091653] Processor #1
+[    0.091655] Processor #2
+[    0.091657] Processor #3
+[    0.091705] IOAPIC[0]: apic_id 0, version 17, address 0xfec00000, GSI 0-23
+[    0.091710] Processors: 4
+[    0.091712] TSC deadline timer available
+[    0.091714] smpboot: Allowing 4 CPUs, 0 hotplug CPUs
+[    0.091745] kvm-guest: APIC: eoi() replaced with kvm_guest_apic_eoi_write()
+[    0.091765] kvm-guest: KVM setup pv remote TLB flush
+[    0.091770] kvm-guest: setup PV sched yield
+[    0.091781] PM: hibernation: Registered nosave memory: [mem 0x00000000-0x00000fff]
+[    0.091784] PM: hibernation: Registered nosave memory: [mem 0x0009f000-0x000fffff]
+[    0.091787] PM: hibernation: Registered nosave memory: [mem 0xbfffb000-0xffffffff]
+[    0.091790] [mem 0xc0000000-0xfeffbfff] available for PCI devices
+[    0.091793] Booting paravirtualized kernel on KVM
+[    0.091796] clocksource: refined-jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1910969940391419 ns
+[    0.091807] setup_percpu: NR_CPUS:8192 nr_cpumask_bits:4 nr_cpu_ids:4 nr_node_ids:1
+[    0.092657] percpu: Embedded 86 pages/cpu s229376 r8192 d114688 u524288
+[    0.092664] pcpu-alloc: s229376 r8192 d114688 u524288 alloc=1*2097152
+[    0.092667] pcpu-alloc: [0] 0 1 2 3 
+[    0.092709] kvm-guest: PV spinlocks enabled
+[    0.092712] PV qspinlock hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.092716] Kernel command line: BOOT_IMAGE=/vmlinuz-6.8.0-101-generic root=/dev/mapper/ubuntu--vg-ubuntu--lv ro net.ifnames=0 biosdevname=0 log_buf_len=16M console=ttyS0,115200 loglevel=3
+[    0.092857] Unknown kernel command line parameters "BOOT_IMAGE=/vmlinuz-6.8.0-101-generic biosdevname=0", will be passed to user space.
+[    0.092869] random: crng init done
+[    0.094750] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.095597] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.095743] Fallback order for Node 0: 0 
+[    0.095749] Built 1 zonelists, mobility grouping on.  Total pages: 1031931
+[    0.095751] Policy zone: Normal
+[    0.095759] mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+[    0.095766] software IO TLB: area num 4.
+[    0.141904] Memory: 3851792K/4193892K available (22528K kernel code, 4439K rwdata, 14400K rodata, 4920K init, 4788K bss, 341840K reserved, 0K cma-reserved)
+[    0.143133] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.143170] Kernel/User page tables isolation: enabled
+[    0.143228] ftrace: allocating 58250 entries in 228 pages
+[    0.158502] ftrace: allocated 228 pages with 4 groups
+[    0.159748] Dynamic Preempt: voluntary
+[    0.160685] rcu: Preemptible hierarchical RCU implementation.
+[    0.160687] rcu: 	RCU restricting CPUs from NR_CPUS=8192 to nr_cpu_ids=4.
+[    0.160689] 	Trampoline variant of Tasks RCU enabled.
+[    0.160690] 	Rude variant of Tasks RCU enabled.
+[    0.160691] 	Tracing variant of Tasks RCU enabled.
+[    0.160692] rcu: RCU calculated value of scheduler-enlistment delay is 100 jiffies.
+[    0.160693] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.160710] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.160713] RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.160716] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.165564] NR_IRQS: 524544, nr_irqs: 456, preallocated irqs: 16
+[    0.165820] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.165949] Console: colour dummy device 80x25
+[    0.166093] printk: legacy console [ttyS0] enabled
+[    0.166158] APIC: Switch to symmetric I/O mode setup
+[    0.166535] x2apic enabled
+[    0.167004] APIC: Switched APIC routing to: physical x2apic
+[    0.167010] kvm-guest: APIC: send_IPI_mask() replaced with kvm_send_ipi_mask()
+[    0.167018] kvm-guest: APIC: send_IPI_mask_allbutself() replaced with kvm_send_ipi_mask_allbutself()
+[    0.167021] kvm-guest: setup PV IPIs
+[    0.168478] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x2284c357c05, max_idle_ns: 440795273457 ns
+[    0.168488] Calibrating delay loop (skipped) preset value.. 4789.45 BogoMIPS (lpj=2394728)
+[    0.168639] x86/cpu: User Mode Instruction Prevention (UMIP) activated
+[    0.168733] Last level iTLB entries: 4KB 0, 2MB 0, 4MB 0
+[    0.168735] Last level dTLB entries: 4KB 0, 2MB 0, 4MB 0, 1GB 0
+[    0.168744] Spectre V1 : Mitigation: usercopy/swapgs barriers and __user pointer sanitization
+[    0.168748] Spectre V2 : Mitigation: Retpolines
+[    0.168749] Spectre V2 : Spectre v2 / SpectreRSB: Filling RSB on context switch and VMEXIT
+[    0.168751] Spectre V2 : Enabling Restricted Speculation for firmware calls
+[    0.168753] Spectre V2 : mitigation: Enabling conditional Indirect Branch Prediction Barrier
+[    0.168756] Speculative Store Bypass: Mitigation: Speculative Store Bypass disabled via prctl
+[    0.168763] MDS: Mitigation: Clear CPU buffers
+[    0.168765] TAA: Mitigation: Clear CPU buffers
+[    0.168766] MMIO Stale Data: Mitigation: Clear CPU buffers
+[    0.168768] ITS: WARNING: ITS mitigation depends on retpoline and rethunk support
+[    0.168769] ITS: Vulnerable
+[    0.168786] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    0.168788] x86/fpu: Supporting XSAVE feature 0x002: 'SSE registers'
+[    0.168789] x86/fpu: Supporting XSAVE feature 0x004: 'AVX registers'
+[    0.168791] x86/fpu: xstate_offset[2]:  576, xstate_sizes[2]:  256
+[    0.168794] x86/fpu: Enabled xstate features 0x7, context size is 832 bytes, using 'standard' format.
+[    0.169484] Freeing SMP alternatives memory: 48K
+[    0.169484] pid_max: default: 32768 minimum: 301
+[    0.169484] LSM: initializing lsm=lockdown,capability,landlock,yama,apparmor,integrity
+[    0.169484] landlock: Up and running.
+[    0.169484] Yama: becoming mindful.
+[    0.169484] AppArmor: AppArmor initialized
+[    0.169484] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.169484] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.169484] smpboot: CPU0: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz (family: 0x6, model: 0x4f, stepping: 0x1)
+[    0.169764] Performance Events: Broadwell events, full-width counters, Intel PMU driver.
+[    0.169853] ... version:                2
+[    0.169855] ... bit width:              48
+[    0.169856] ... generic registers:      4
+[    0.169858] ... value mask:             0000ffffffffffff
+[    0.169859] ... max period:             00007fffffffffff
+[    0.169861] ... fixed-purpose events:   3
+[    0.169862] ... event mask:             000000070000000f
+[    0.170069] signal: max sigframe size: 1776
+[    0.170142] rcu: Hierarchical SRCU implementation.
+[    0.170144] rcu: 	Max phase no-delay instances is 400.
+[    0.170694] smp: Bringing up secondary CPUs ...
+[    0.170870] smpboot: x86: Booting SMP configuration:
+[    0.170872] .... node  #0, CPUs:      #1 #2 #3
+[    0.003653] smpboot: CPU 1 Converting physical 0 to logical die 1
+[    0.003653] smpboot: CPU 2 Converting physical 0 to logical die 2
+[    0.003653] smpboot: CPU 3 Converting physical 0 to logical die 3
+[    0.174572] smp: Brought up 1 node, 4 CPUs
+[    0.174582] smpboot: Max logical packages: 4
+[    0.174584] smpboot: Total of 4 processors activated (19157.82 BogoMIPS)
+[    0.175655] devtmpfs: initialized
+[    0.175655] x86/mm: Memory block size: 128MB
+[    0.176808] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 1911260446275000 ns
+[    0.177493] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.177618] pinctrl core: initialized pinctrl subsystem
+[    0.177950] PM: RTC time: 14:22:04, date: 2026-08-15
+[    0.178785] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.179566] DMA: preallocated 512 KiB GFP_KERNEL pool for atomic allocations
+[    0.179749] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.179864] DMA: preallocated 512 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.179908] audit: initializing netlink subsys (disabled)
+[    0.180024] audit: type=2000 audit(1786803724.365:1): state=initialized audit_enabled=0 res=1
+[    0.180024] thermal_sys: Registered thermal governor 'fair_share'
+[    0.180024] thermal_sys: Registered thermal governor 'bang_bang'
+[    0.180024] thermal_sys: Registered thermal governor 'step_wise'
+[    0.180024] thermal_sys: Registered thermal governor 'user_space'
+[    0.180024] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.180024] cpuidle: using governor ladder
+[    0.180024] cpuidle: using governor menu
+[    0.180965] PCI: Using configuration type 1 for base access
+[    0.181205] kprobes: kprobe jump-optimization is enabled. All kprobes are optimized if possible.
+[    0.193581] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.193590] HugeTLB: 16380 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.193592] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.193594] HugeTLB: 28 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.194700] ACPI: Interpreter disabled.
+[    0.194764] iommu: Default domain type: Translated
+[    0.194764] iommu: DMA domain TLB invalidation policy: lazy mode
+[    0.195788] SCSI subsystem initialized
+[    0.195811] libata version 3.00 loaded.
+[    0.195811] usbcore: registered new interface driver usbfs
+[    0.195811] usbcore: registered new interface driver hub
+[    0.195811] usbcore: registered new device driver usb
+[    0.195811] pps_core: LinuxPPS API ver. 1 registered
+[    0.195811] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.195811] PTP clock support registered
+[    0.196527] EDAC MC: Ver: 3.0.0
+[    0.196808] NetLabel: Initializing
+[    0.196811] NetLabel:  domain hash size = 128
+[    0.196813] NetLabel:  protocols = UNLABELED CIPSOv4 CALIPSO
+[    0.196872] NetLabel:  unlabeled traffic allowed by default
+[    0.197518] mctp: management component transport protocol core
+[    0.197523] NET: Registered PF_MCTP protocol family
+[    0.197537] PCI: Probing PCI hardware
+[    0.197539] PCI: root bus 00: using default resources
+[    0.197542] PCI: Probing PCI hardware (bus 00)
+[    0.197586] PCI host bridge to bus 0000:00
+[    0.197593] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    0.197606] pci_bus 0000:00: root bus resource [mem 0x00000000-0x3fffffffffff]
+[    0.197610] pci_bus 0000:00: No busn resource found for root bus, will use [bus 00-ff]
+[    0.197872] pci 0000:00:00.0: [8086:1237] type 00 class 0x060000 conventional PCI endpoint
+[    0.200081] pci 0000:00:01.0: [8086:7000] type 00 class 0x060100 conventional PCI endpoint
+[    0.201589] pci 0000:00:01.1: [8086:7010] type 00 class 0x010180 conventional PCI endpoint
+[    0.203609] pci 0000:00:01.1: BAR 4 [io  0xc140-0xc14f]
+[    0.203749] pci 0000:00:01.1: BAR 0 [io  0x01f0-0x01f7]: legacy IDE quirk
+[    0.203753] pci 0000:00:01.1: BAR 1 [io  0x03f6]: legacy IDE quirk
+[    0.203755] pci 0000:00:01.1: BAR 2 [io  0x0170-0x0177]: legacy IDE quirk
+[    0.203757] pci 0000:00:01.1: BAR 3 [io  0x0376]: legacy IDE quirk
+[    0.204245] pci 0000:00:01.2: [8086:7020] type 00 class 0x0c0300 conventional PCI endpoint
+[    0.205611] pci 0000:00:01.2: BAR 4 [io  0xc100-0xc11f]
+[    0.206497] pci 0000:00:02.0: [1013:00b8] type 00 class 0x030000 conventional PCI endpoint
+[    0.211614] pci 0000:00:02.0: BAR 0 [mem 0xfc000000-0xfdffffff pref]
+[    0.211779] pci 0000:00:02.0: BAR 1 [mem 0xfeb90000-0xfeb90fff]
+[    0.211951] pci 0000:00:02.0: ROM [mem 0xfeb80000-0xfeb8ffff pref]
+[    0.212247] pci 0000:00:02.0: Video device with shadowed ROM at [mem 0x000c0000-0x000dffff]
+[    0.213494] pci 0000:00:03.0: [1af4:1000] type 00 class 0x020000 conventional PCI endpoint
+[    0.218520] pci 0000:00:03.0: BAR 0 [io  0xc120-0xc13f]
+[    0.218553] pci 0000:00:03.0: BAR 1 [mem 0xfeb91000-0xfeb91fff]
+[    0.218687] pci 0000:00:03.0: BAR 4 [mem 0x380000000000-0x380000003fff 64bit pref]
+[    0.218731] pci 0000:00:03.0: ROM [mem 0xfeb00000-0xfeb7ffff pref]
+[    0.221079] pci 0000:00:04.0: [1af4:1001] type 00 class 0x010000 conventional PCI endpoint
+[    0.227540] pci 0000:00:04.0: BAR 0 [io  0xc000-0xc07f]
+[    0.227588] pci 0000:00:04.0: BAR 1 [mem 0xfeb92000-0xfeb92fff]
+[    0.227713] pci 0000:00:04.0: BAR 4 [mem 0x380000004000-0x380000007fff 64bit pref]
+[    0.230733] pci 0000:00:05.0: [1af4:1002] type 00 class 0x00ff00 conventional PCI endpoint
+[    0.233526] pci 0000:00:05.0: BAR 0 [io  0xc080-0xc0bf]
+[    0.233699] pci 0000:00:05.0: BAR 4 [mem 0x380000008000-0x38000000bfff 64bit pref]
+[    0.236436] pci 0000:00:06.0: [1af4:1004] type 00 class 0x010000 conventional PCI endpoint
+[    0.238848] pci 0000:00:06.0: BAR 0 [io  0xc0c0-0xc0ff]
+[    0.238881] pci 0000:00:06.0: BAR 1 [mem 0xfeb93000-0xfeb93fff]
+[    0.238977] pci 0000:00:06.0: BAR 4 [mem 0x38000000c000-0x38000000ffff 64bit pref]
+[    0.249787] pci_bus 0000:00: busn_res: [bus 00-ff] end is updated to 00
+[    0.249861] pci 0000:00:01.0: PIIX/ICH IRQ router [8086:7000]
+[    0.249871] PCI: pci_cache_line_size set to 64 bytes
+[    0.250361] e820: reserve RAM buffer [mem 0x0009fc00-0x0009ffff]
+[    0.250372] e820: reserve RAM buffer [mem 0xbfffb000-0xbfffffff]
+[    0.250545] pci 0000:00:02.0: vgaarb: setting as boot VGA device
+[    0.250547] pci 0000:00:02.0: vgaarb: bridge control possible
+[    0.250549] pci 0000:00:02.0: vgaarb: VGA device added: decodes=io+mem,owns=io+mem,locks=none
+[    0.250552] vgaarb: loaded
+[    0.251736] clocksource: Switched to clocksource kvm-clock
+[    0.252087] VFS: Disk quotas dquot_6.6.0
+[    0.252111] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.252373] AppArmor: AppArmor Filesystem Enabled
+[    0.252418] pnp: PnP ACPI: disabled
+[    0.256297] NET: Registered PF_INET protocol family
+[    0.256491] IP idents hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.278391] tcp_listen_portaddr_hash hash table entries: 2048 (order: 3, 32768 bytes, linear)
+[    0.278493] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.278573] TCP established hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.278877] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes, linear)
+[    0.279029] TCP: Hash tables configured (established 32768 bind 32768)
+[    0.279192] MPTCP token hash table entries: 4096 (order: 4, 98304 bytes, linear)
+[    0.279231] UDP hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.279257] UDP-Lite hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.279360] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.279387] NET: Registered PF_XDP protocol family
+[    0.279418] pci_bus 0000:00: resource 4 [io  0x0000-0xffff]
+[    0.279424] pci_bus 0000:00: resource 5 [mem 0x00000000-0x3fffffffffff]
+[    0.279503] pci 0000:00:01.0: PIIX3: Enabling Passive Release
+[    0.279537] pci 0000:00:00.0: Limiting direct PCI/PCI transfers
+[    0.279738] pci 0000:00:01.2: PCI->APIC IRQ transform: INT D -> IRQ 11
+[    0.280497] PCI: CLS 0 bytes, default 64
+[    0.280817] Trying to unpack rootfs image as initramfs...
+[    0.281846] PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+[    0.281851] software IO TLB: mapped [mem 0x00000000bbffb000-0x00000000bfffb000] (64MB)
+[    0.282054] clocksource: tsc: mask: 0xffffffffffffffff max_cycles: 0x2284c357c05, max_idle_ns: 440795273457 ns
+[    0.282173] platform rtc_cmos: registered platform RTC device (no PNP device found)
+[    0.284404] Initialise system trusted keyrings
+[    0.284517] Key type blacklist registered
+[    0.284788] workingset: timestamp_bits=36 max_order=20 bucket_order=0
+[    0.284832] zbud: loaded
+[    0.286449] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    0.286759] fuse: init (API version 7.39)
+[    0.287481] integrity: Platform Keyring initialized
+[    0.287496] integrity: Machine keyring initialized
+[    0.308772] Key type asymmetric registered
+[    0.308782] Asymmetric key parser 'x509' registered
+[    0.309472] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 243)
+[    0.309694] io scheduler mq-deadline registered
+[    0.311883] shpchp: Standard Hot Plug PCI Controller Driver version: 0.4
+[    0.312374] virtio-pci 0000:00:03.0: PCI->APIC IRQ transform: INT A -> IRQ 11
+[    0.315084] virtio-pci 0000:00:04.0: PCI->APIC IRQ transform: INT A -> IRQ 11
+[    0.317772] virtio-pci 0000:00:05.0: PCI->APIC IRQ transform: INT A -> IRQ 10
+[    0.320404] virtio-pci 0000:00:06.0: PCI->APIC IRQ transform: INT A -> IRQ 10
+[    0.326360] Serial: 8250/16550 driver, 32 ports, IRQ sharing enabled
+[    0.368833] serial8250: ttyS0 at I/O 0x3f8 (irq = 4, base_baud = 115200) is a 16550A
+[    0.383754] Linux agpgart interface v0.103
+[    0.391698] loop: module loaded
+[    0.394928] virtio_blk virtio1: 4/0/0 default/read/poll queues
+[    0.408329] virtio_blk virtio1: [vda] 58720256 512-byte logical blocks (30.1 GB/28.0 GiB)
+[    0.416581]  vda: vda1 vda2 vda3
+[    0.422152] virtio_scsi virtio3: 4/0/0 default/read/poll queues
+[    0.435225] scsi host0: Virtio SCSI HBA
+[    0.439384] ata_piix 0000:00:01.1: version 2.13
+[    0.444405] scsi host1: ata_piix
+[    0.444637] scsi host2: ata_piix
+[    0.444717] ata1: PATA max MWDMA2 cmd 0x1f0 ctl 0x3f6 bmdma 0xc140 irq 14 lpm-pol 0
+[    0.444723] ata2: PATA max MWDMA2 cmd 0x170 ctl 0x376 bmdma 0xc148 irq 15 lpm-pol 0
+[    0.445605] tun: Universal TUN/TAP device driver, 1.6
+[    0.469858] PPP generic driver version 2.4.2
+[    0.470288] uhci_hcd 0000:00:01.2: PCI->APIC IRQ transform: INT D -> IRQ 11
+[    0.474150] uhci_hcd 0000:00:01.2: UHCI Host Controller
+[    0.474183] uhci_hcd 0000:00:01.2: new USB bus registered, assigned bus number 1
+[    0.474275] uhci_hcd 0000:00:01.2: detected 2 ports
+[    0.474566] uhci_hcd 0000:00:01.2: irq 11, io port 0x0000c100
+[    0.474926] usb usb1: New USB device found, idVendor=1d6b, idProduct=0001, bcdDevice= 6.08
+[    0.474931] usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+[    0.474933] usb usb1: Product: UHCI Host Controller
+[    0.474935] usb usb1: Manufacturer: Linux 6.8.0-101-generic uhci_hcd
+[    0.474937] usb usb1: SerialNumber: 0000:00:01.2
+[    0.475151] hub 1-0:1.0: USB hub found
+[    0.475171] hub 1-0:1.0: 2 ports detected
+[    0.478646] i8042: PNP: No PS/2 controller found.
+[    0.478670] i8042: Probing ports directly.
+[    0.483156] serio: i8042 KBD port at 0x60,0x64 irq 1
+[    0.483219] serio: i8042 AUX port at 0x60,0x64 irq 12
+[    0.484264] mousedev: PS/2 mouse device common for all mice
+[    0.490784] input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input0
+[    0.494103] rtc_cmos rtc_cmos: registered as rtc0
+[    0.494409] rtc_cmos rtc_cmos: setting system clock to 2026-08-15T14:22:04 UTC (1786803724)
+[    0.494525] rtc_cmos rtc_cmos: alarms up to one day, 114 bytes nvram
+[    0.494564] i2c_dev: i2c /dev entries driver
+[    0.494675] device-mapper: core: CONFIG_IMA_DISABLE_HTABLE is disabled. Duplicate IMA measurements will not be recorded in the IMA log.
+[    0.494739] device-mapper: uevent: version 1.0.3
+[    0.494909] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@redhat.com
+[    0.494984] intel_pstate: CPU model not supported
+[    0.497638] ledtrig-cpu: registered to indicate activity on CPUs
+[    0.501200] [drm] Initialized simpledrm 1.0.0 20200625 for simple-framebuffer.0 on minor 0
+[    0.508007] fbcon: Deferring console take-over
+[    0.508024] simple-framebuffer simple-framebuffer.0: [drm] fb0: simpledrmdrmfb frame buffer device
+[    0.508294] drop_monitor: Initializing network drop monitor service
+[    0.508561] NET: Registered PF_INET6 protocol family
+[    0.871081] Freeing initrd memory: 74536K
+[    0.910851] Segment Routing with IPv6
+[    0.910897] In-situ OAM (IOAM) with IPv6
+[    0.910973] NET: Registered PF_PACKET protocol family
+[    0.911173] Key type dns_resolver registered
+[    0.914023] No MBM correction factor available
+[    0.914075] IPI shorthand broadcast: enabled
+[    0.922250] sched_clock: Marking stable (919004476, 2653816)->(1020158039, -98499747)
+[    0.923300] registered taskstats version 1
+[    0.924872] Loading compiled-in X.509 certificates
+[    0.927823] Loaded X.509 cert 'Build time autogenerated kernel key: 7f71bdefc17a4d88631555bf9efbb1c93d6f5260'
+[    0.928468] Loaded X.509 cert 'Canonical Ltd. Live Patch Signing 2025 Kmod: d541cef61dc7e793b7eb7e899970a2eef0b5dc8c'
+[    0.930817] Loaded X.509 cert 'Canonical Ltd. Live Patch Signing: 14df34d1a87cf37625abec039ef2bf521249b969'
+[    0.931472] Loaded X.509 cert 'Canonical Ltd. Kernel Module Signing: 88f752e560a1e0737e31163a466ad7b70a850c19'
+[    0.931475] blacklist: Loading compiled-in revocation X.509 certificates
+[    0.931516] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing: 61482aa2830d0ab2ad5af10b7250da9033ddcef0'
+[    0.931535] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2017): 242ade75ac4a15e50d50c84b0d45ff3eae707a03'
+[    0.931554] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (ESM 2018): 365188c1d374d6b07c3c8f240f8ef722433d6a8b'
+[    0.931574] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2019): c0746fd6c5da3ae827864651ad66ae47fe24b3e8'
+[    0.931592] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v1): a8d54bbb3825cfb94fa13c9f8a594a195c107b8d'
+[    0.931609] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v2): 4cf046892d6fd3c9a5b03f98d845f90851dc6a8c'
+[    0.931716] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (2021 v3): 100437bb6de6e469b581e61cd66bce3ef4ed53af'
+[    0.931872] Loaded X.509 cert 'Canonical Ltd. Secure Boot Signing (Ubuntu Core 2019): c1d57b8f6b743f23ee41f4f7ee292f06eecadfb9'
+[    0.945581] Key type .fscrypt registered
+[    0.945587] Key type fscrypt-provisioning registered
+[    0.978886] cryptd: max_cpu_qlen set to 1000
+[    0.998890] AVX2 version of gcm_enc/dec engaged.
+[    0.999045] AES CTR mode by8 optimization enabled
+[    1.039370] Key type encrypted registered
+[    1.039391] AppArmor: AppArmor sha256 policy hashing enabled
+[    1.039448] ima: No TPM chip found, activating TPM-bypass!
+[    1.039463] Loading compiled-in module X.509 certificates
+[    1.040777] Loaded X.509 cert 'Build time autogenerated kernel key: 7f71bdefc17a4d88631555bf9efbb1c93d6f5260'
+[    1.040795] ima: Allocated hash algorithm: sha256
+[    1.040858] ima: No architecture policies found
+[    1.040879] evm: Initialising EVM extended attributes:
+[    1.040881] evm: security.selinux
+[    1.040882] evm: security.SMACK64
+[    1.040883] evm: security.SMACK64EXEC
+[    1.040885] evm: security.SMACK64TRANSMUTE
+[    1.040886] evm: security.SMACK64MMAP
+[    1.040887] evm: security.apparmor
+[    1.040888] evm: security.ima
+[    1.040889] evm: security.capability
+[    1.040890] evm: HMAC attrs: 0x1
+[    1.041279] PM:   Magic number: 6:447:384
+[    1.052221] RAS: Correctable Errors collector initialized.
+[    1.052455] clk: Disabling unused clocks
+[    1.059193] Freeing unused decrypted memory: 2028K
+[    1.063191] Freeing unused kernel image (initmem) memory: 4920K
+[    1.064008] Write protecting the kernel read-only data: 38912k
+[    1.066645] Freeing unused kernel image (rodata/data gap) memory: 1984K
+[    1.201702] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+[    1.201712] x86/mm: Checking user space page tables
+[    1.409798] x86/mm: Checked W+X mappings: passed, no W+X pages found.
+[    1.409843] Run /init as init process
+[    1.409848]   with arguments:
+[    1.409851]     /init
+[    1.409853]   with environment:
+[    1.409855]     HOME=/
+[    1.409857]     TERM=linux
+[    1.409859]     BOOT_IMAGE=/vmlinuz-6.8.0-101-generic
+[    1.409861]     biosdevname=0
+[    1.936383] input: VirtualPS/2 VMware VMMouse as /devices/platform/i8042/serio1/input/input3
+[    1.940153] input: VirtualPS/2 VMware VMMouse as /devices/platform/i8042/serio1/input/input2
+[    1.956690] cirrus 0000:00:02.0: vgaarb: deactivate vga console
+[    1.957135] [drm] Initialized cirrus 2.0.0 2019 for 0000:00:02.0 on minor 0
+[    1.959182] fbcon: cirrusdrmfb (fb0) is primary device
+[    1.959213] fbcon: Deferring console take-over
+[    1.959238] cirrus 0000:00:02.0: [drm] fb0: cirrusdrmfb frame buffer device
+[    2.316012] raid6: avx2x4   gen() 12147 MB/s
+[    2.332751] raid6: avx2x2   gen() 11058 MB/s
+[    2.349662] raid6: avx2x1   gen() 11557 MB/s
+[    2.349672] raid6: using algorithm avx2x4 gen() 12147 MB/s
+[    2.367692] raid6: .... xor() 4613 MB/s, rmw enabled
+[    2.367706] raid6: using avx2x2 recovery algorithm
+[    2.374897] xor: automatically using best checksumming function   avx       
+[    2.378970] async_tx: api initialized (async)
+[    2.932580] Btrfs loaded, zoned=yes, fsverity=yes
+[    3.125917] EXT4-fs (dm-0): mounted filesystem 13155da9-78e0-43cd-8d44-482657a2d1b0 ro with ordered data mode. Quota mode: none.
+[    3.470617] systemd[1]: Inserted module 'autofs4'
+[    3.536635] systemd[1]: systemd 255.4-1ubuntu8.12 running in system mode (+PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    3.536685] systemd[1]: Detected virtualization kvm.
+[    3.536729] systemd[1]: Detected architecture x86-64.
+[    3.540791] systemd[1]: Hostname set to <test2>.
+[    4.202444] systemd[1]: Queued start job for default target graphical.target.
+[    4.239698] systemd[1]: Created slice system-modprobe.slice - Slice /system/modprobe.
+[    4.245557] systemd[1]: Created slice system-serial\x2dgetty.slice - Slice /system/serial-getty.
+[    4.249976] systemd[1]: Created slice system-systemd\x2dfsck.slice - Slice /system/systemd-fsck.
+[    4.255690] systemd[1]: Created slice user.slice - User and Session Slice.
+[    4.259222] systemd[1]: Started systemd-ask-password-wall.path - Forward Password Requests to Wall Directory Watch.
+[    4.263425] systemd[1]: Set up automount proc-sys-fs-binfmt_misc.automount - Arbitrary Executable File Formats File System Automount Point.
+[    4.267283] systemd[1]: Expecting device dev-disk-by\x2duuid-9a351a7f\x2d6396\x2d49b7\x2d8ec7\x2d306dba7d13e9.device - /dev/disk/by-uuid/9a351a7f-6396-49b7-8ec7-306dba7d13e9...
+[    4.270975] systemd[1]: Expecting device dev-ttyS0.device - /dev/ttyS0...
+[    4.273625] systemd[1]: Reached target integritysetup.target - Local Integrity Protected Volumes.
+[    4.278608] systemd[1]: Reached target slices.target - Slice Units.
+[    4.281352] systemd[1]: Reached target snapd.mounts-pre.target - Mounting snaps.
+[    4.287058] systemd[1]: Reached target snapd.mounts.target - Mounted snaps.
+[    4.290175] systemd[1]: Reached target swap.target - Swaps.
+[    4.292791] systemd[1]: Reached target veritysetup.target - Local Verity Protected Volumes.
+[    4.296691] systemd[1]: Listening on dm-event.socket - Device-mapper event daemon FIFOs.
+[    4.300343] systemd[1]: Listening on lvm2-lvmpolld.socket - LVM2 poll daemon socket.
+[    4.305282] systemd[1]: Listening on multipathd.socket - multipathd control socket.
+[    4.330290] systemd[1]: Listening on rpcbind.socket - RPCbind Server Activation Socket.
+[    4.334503] systemd[1]: Listening on systemd-fsckd.socket - fsck to fsckd communication Socket.
+[    4.338787] systemd[1]: Listening on systemd-initctl.socket - initctl Compatibility Named Pipe.
+[    4.342618] workqueue: update_balloon_size_func hogged CPU for >10000us 4 times, consider switching to WQ_UNBOUND
+[    4.345251] systemd[1]: Listening on systemd-journald-dev-log.socket - Journal Socket (/dev/log).
+[    4.349740] systemd[1]: Listening on systemd-journald.socket - Journal Socket.
+[    4.353353] systemd[1]: Listening on systemd-networkd.socket - Network Service Netlink Socket.
+[    4.357280] systemd[1]: systemd-pcrextend.socket - TPM2 PCR Extension (Varlink) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    4.359315] systemd[1]: Listening on systemd-udevd-control.socket - udev Control Socket.
+[    4.363109] systemd[1]: Listening on systemd-udevd-kernel.socket - udev Kernel Socket.
+[    4.381916] systemd[1]: Mounting dev-hugepages.mount - Huge Pages File System...
+[    4.388718] systemd[1]: Mounting dev-mqueue.mount - POSIX Message Queue File System...
+[    4.398639] systemd[1]: Mounting sys-kernel-debug.mount - Kernel Debug File System...
+[    4.409780] systemd[1]: Mounting sys-kernel-tracing.mount - Kernel Trace File System...
+[    4.420380] systemd[1]: Starting systemd-journald.service - Journal Service...
+[    4.423404] systemd[1]: auth-rpcgss-module.service - Kernel Module supporting RPCSEC_GSS was skipped because of an unmet condition check (ConditionPathExists=/etc/krb5.keytab).
+[    4.433650] systemd[1]: Starting keyboard-setup.service - Set the console keyboard layout...
+[    4.443531] systemd[1]: Starting kmod-static-nodes.service - Create List of Static Device Nodes...
+[    4.464086] systemd[1]: Starting lvm2-monitor.service - Monitoring of LVM2 mirrors, snapshots etc. using dmeventd or progress polling...
+[    4.482128] systemd[1]: Starting modprobe@configfs.service - Load Kernel Module configfs...
+[    4.508222] systemd[1]: Starting modprobe@dm_mod.service - Load Kernel Module dm_mod...
+[    4.512998] systemd-journald[334]: Collecting audit messages is disabled.
+[    4.524490] systemd[1]: Starting modprobe@drm.service - Load Kernel Module drm...
+[    4.539277] systemd[1]: Starting modprobe@efi_pstore.service - Load Kernel Module efi_pstore...
+[    4.572430] systemd[1]: Starting modprobe@fuse.service - Load Kernel Module fuse...
+[    4.609701] systemd[1]: Starting modprobe@loop.service - Load Kernel Module loop...
+[    4.614184] systemd[1]: netplan-ovs-cleanup.service - OpenVSwitch configuration for cleanup was skipped because of an unmet condition check (ConditionFileIsExecutable=/usr/bin/ovs-vsctl).
+[    4.614465] systemd[1]: systemd-fsck-root.service - File System Check on Root Device was skipped because of an unmet condition check (ConditionPathExists=!/run/initramfs/fsck-root).
+[    4.622725] systemd[1]: Starting systemd-modules-load.service - Load Kernel Modules...
+[    4.629678] systemd[1]: systemd-pcrmachine.service - TPM2 PCR Machine ID Measurement was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    4.652008] systemd[1]: Starting systemd-remount-fs.service - Remount Root and Kernel File Systems...
+[    4.657941] systemd[1]: systemd-tpm2-setup-early.service - TPM2 SRK Setup (Early) was skipped because of an unmet condition check (ConditionSecurity=measured-uki).
+[    4.668805] systemd[1]: Starting systemd-udev-trigger.service - Coldplug All udev Devices...
+[    4.683915] systemd[1]: Started systemd-journald.service - Journal Service.
+[    4.706793] EXT4-fs (dm-0): re-mounted 13155da9-78e0-43cd-8d44-482657a2d1b0 r/w.
+[    4.711960] workqueue: update_balloon_size_func hogged CPU for >10000us 8 times, consider switching to WQ_UNBOUND
+[    4.920284] systemd-journald[334]: Received client request to flush runtime journal.
+[    6.123862] EXT4-fs (vda2): mounted filesystem 9a351a7f-6396-49b7-8ec7-306dba7d13e9 r/w with ordered data mode. Quota mode: none.
+[    6.188468] RAPL PMU: API unit is 2^-32 Joules, 0 fixed counters, 10737418240 ms ovfl timer
+[    6.272911] audit: type=1400 audit(1786803730.278:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="QtWebEngineProcess" pid=516 comm="apparmor_parser"
+[    6.273442] audit: type=1400 audit(1786803730.278:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="1password" pid=513 comm="apparmor_parser"
+[    6.273506] audit: type=1400 audit(1786803730.278:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name=4D6F6E676F444220436F6D70617373 pid=515 comm="apparmor_parser"
+[    6.273835] audit: type=1400 audit(1786803730.279:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name="Discord" pid=514 comm="apparmor_parser"
+[    6.280884] audit: type=1400 audit(1786803730.283:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="balena-etcher" pid=524 comm="apparmor_parser"
+[    6.290904] audit: type=1400 audit(1786803730.293:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="brave" pid=525 comm="apparmor_parser"
+[    6.290958] audit: type=1400 audit(1786803730.296:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="buildah" pid=529 comm="apparmor_parser"
+[    6.293351] audit: type=1400 audit(1786803730.298:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="busybox" pid=530 comm="apparmor_parser"
+[    6.294477] audit: type=1400 audit(1786803730.299:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="cam" pid=531 comm="apparmor_parser"
+[    6.296723] audit: type=1400 audit(1786803730.302:11): apparmor="STATUS" operation="profile_load" profile="unconfined" name="ch-run" pid=535 comm="apparmor_parser"
+[    6.719691] RPC: Registered named UNIX socket transport module.
+[    6.719701] RPC: Registered udp transport module.
+[    6.719704] RPC: Registered tcp transport module.
+[    6.719706] RPC: Registered tcp-with-tls transport module.
+[    6.719708] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    6.725909] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    6.729261] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    6.729505] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    7.406137] NET: Registered PF_QIPCRTR protocol family
+[    7.494434] loop0: detected capacity change from 0 to 8
+[    8.466775] netpoll: netconsole: local port 6665
+[    8.466785] netpoll: netconsole: local IPv4 address 0.0.0.0
+[    8.466788] netpoll: netconsole: interface 'eth0'
+[    8.466790] netpoll: netconsole: remote port 6666
+[    8.466792] netpoll: netconsole: remote IPv4 address 192.168.120.1
+[    8.466794] netpoll: netconsole: remote ethernet address ff:ff:ff:ff:ff:ff
+[    8.466803] netpoll: netconsole: local IP 192.168.120.182
+[    8.475603] printk: legacy console [netcon0] enabled
+[    8.475803] netconsole: network logging started
+[    8.482125] Loading iSCSI transport class v2.0-870.
+[    8.517842] iscsi: registered transport (tcp)
+[    8.520408] scsi host3: iSCSI Initiator over TCP/IP
+[    8.526856] scsi host4: iSCSI Initiator over TCP/IP
+[    8.531873] scsi 3:0:0:0: Direct-Access     SCST_FIO mxfs             3110 PQ: 0 ANSI: 6
+[    8.532408] scsi 4:0:0:0: Direct-Access     SCST_FIO mxfs             3110 PQ: 0 ANSI: 6
+[    8.534776] sd 4:0:0:0: Power-on or device reset occurred
+[    8.534873] sd 4:0:0:0: Attached scsi generic sg0 type 0
+[    8.534921] sd 3:0:0:0: Power-on or device reset occurred
+[    8.535023] sd 4:0:0:0: [sda] 104857600 512-byte logical blocks: (53.7 GB/50.0 GiB)
+[    8.535027] sd 4:0:0:0: [sda] 4096-byte physical blocks
+[    8.535127] sd 4:0:0:0: [sda] Write Protect is off
+[    8.535131] sd 4:0:0:0: [sda] Mode Sense: 83 00 10 08
+[    8.535291] sd 4:0:0:0: [sda] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[    8.535360] sd 3:0:0:0: Attached scsi generic sg1 type 0
+[    8.535540] sd 3:0:0:0: [sdb] 104857600 512-byte logical blocks: (53.7 GB/50.0 GiB)
+[    8.535545] sd 3:0:0:0: [sdb] 4096-byte physical blocks
+[    8.536608] sd 3:0:0:0: [sdb] Write Protect is off
+[    8.536613] sd 3:0:0:0: [sdb] Mode Sense: 83 00 10 08
+[    8.537638] sd 4:0:0:0: [sda] Preferred minimum I/O size 4096 bytes
+[    8.537646] sd 4:0:0:0: [sda] Optimal transfer size 524288 bytes
+[    8.538206] sd 3:0:0:0: [sdb] Write cache: enabled, read cache: enabled, supports DPO and FUA
+[    8.538783] sd 3:0:0:0: [sdb] Preferred minimum I/O size 4096 bytes
+[    8.538788] sd 3:0:0:0: [sdb] Optimal transfer size 524288 bytes
+[    8.540306] sd 4:0:0:0: [sda] Attached SCSI disk
+[    8.550477] sd 3:0:0:0: [sdb] Attached SCSI disk
+[    8.656314] device-mapper: multipath service-time: version 0.3.0 loaded
+[    9.088447] fbcon: Taking over console
+[    9.094373] Console: switching to colour frame buffer device 128x48
+[   11.167232] netfs: FS-Cache loaded
+[   11.439042] NFS: Registering the id_resolver key type
+[   11.439066] Key type id_resolver registered
+[   11.439069] Key type id_legacy registered
+[   19.134112] sd 4:0:0:0: Parameters changed
+[   19.134907] sd 3:0:0:0: Parameters changed
+[   33.997387] mxfs: loading out-of-tree module taints kernel.
+[   33.997701] mxfs: module verification failed: signature and/or required key missing - tainting kernel
+[   34.686498] MXFS with security attributes, no debug enabled
+[   34.686505] mxfs: dead_timeout_ms=0 (0 = 62s default)
+[   34.686507] mxfs: cache sizing: ram=2307 MB pct=10% max=16384 MB budget=230 MB
+[   34.686511] mxfs: cache caps: inode=220519 dlm_lock=65536 dir=27564 block=11631
+[   34.686513] mxfs: cache memory estimate: 237 MB (inode 220519, dlm 65536, dir 27564, block 11631)
+[   34.973341] XFS (dm-1): MXFS envelope v1: XFS data at offset 100704256 (196688 sectors) proto_gen=3
+[   34.973913] mxfs: P-MPATH-RESOLVE stacked bdev 252:1 -> SCSI backing path 3:0:0:0
+[   34.976495] mxfs: mxfs: DLM init: node_id=3986792468 transport=caw
+[   35.004316] sd 4:0:0:0: reservation conflict
+[   35.004587] sd 3:0:0:0: reservation conflict
+[   35.005505] mxfs: scsipr: P-PR-PROBE 'mxfs': own key 0xeda1a014 visible, 42 key(s) registered — per-node PR active
+[   35.049742] mxfs: disklock: claimed heartbeat slot 20 for node 3986792468 (attempt 0, fresh claim — slice ADOPTED)
+[   35.049758] mxfs: mxfs: MDS-IDENTITY node_slot=20 is_mds=0 (asymmetric Phase1)
+[   35.052617] mxfs: mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x100000
+[   35.836271] mxfs: mxfs: P-H22-PURGE-MASK DONE mask=0x100000 flags=0x1 purged=0 retained_ex=0
+[   35.836994] mxfs: dlm_caw: single_node = true
+[   35.838977] mxfs: mxfs: P-EVICT-AUTOMON slot=0 node=3855575347 (CAW auto-monitor)
+[   35.839566] mxfs: mxfs: P-EVICT-AUTOMON slot=1 node=73950 (CAW auto-monitor)
+[   35.840193] mxfs: mxfs: P-EVICT-AUTOMON slot=2 node=1071829746 (CAW auto-monitor)
+[   35.841043] mxfs: mxfs: P-EVICT-AUTOMON slot=3 node=2867806060 (CAW auto-monitor)
+[   35.843498] mxfs: mxfs: P-EVICT-AUTOMON slot=4 node=3262812647 (CAW auto-monitor)
+[   35.847281] mxfs: mxfs: P-EVICT-AUTOMON slot=5 node=1351537904 (CAW auto-monitor)
+[   35.848975] mxfs: mxfs: P-EVICT-AUTOMON slot=6 node=2041203241 (CAW auto-monitor)
+[   35.849718] mxfs: mxfs: P-EVICT-AUTOMON slot=7 node=2049413980 (CAW auto-monitor)
+[   35.850407] mxfs: mxfs: P-EVICT-AUTOMON slot=8 node=3876847543 (CAW auto-monitor)
+[   35.852488] mxfs: mxfs: P-EVICT-AUTOMON slot=9 node=3290638303 (CAW auto-monitor)
+[   35.853030] mxfs: mxfs: P-EVICT-AUTOMON slot=10 node=3505048020 (CAW auto-monitor)
+[   35.853472] mxfs: mxfs: P-EVICT-AUTOMON slot=11 node=660479046 (CAW auto-monitor)
+[   35.853948] mxfs: mxfs: P-EVICT-AUTOMON slot=12 node=1295235186 (CAW auto-monitor)
+[   35.854595] mxfs: mxfs: P-EVICT-AUTOMON slot=13 node=46039088 (CAW auto-monitor)
+[   35.855177] mxfs: mxfs: P-EVICT-AUTOMON slot=14 node=1665079376 (CAW auto-monitor)
+[   35.855753] mxfs: mxfs: P-EVICT-AUTOMON slot=15 node=432087646 (CAW auto-monitor)
+[   35.856354] mxfs: mxfs: P-EVICT-AUTOMON slot=16 node=2968775057 (CAW auto-monitor)
+[   35.856923] mxfs: mxfs: P-EVICT-AUTOMON slot=17 node=1297180320 (CAW auto-monitor)
+[   35.859917] mxfs: mxfs: P-EVICT-AUTOMON slot=18 node=3227447293 (CAW auto-monitor)
+[   35.864403] mxfs: mxfs: P-EVICT-AUTOMON slot=19 node=3317911391 (CAW auto-monitor)
+[   35.869670] mxfs: mxfs: P-EVICT-AUTOMON slot=21 node=3988904026 (CAW auto-monitor)
+[   37.965138] mxfs: mxfs: P-EVICT-AUTOMON slot=22 node=910101799 (CAW auto-monitor)
+[   37.965284] mxfs: mxfs: P-EVICT-AUTOMON slot=23 node=2660200657 (CAW auto-monitor)
+[   37.965488] mxfs: mxfs: P-EVICT-AUTOMON slot=24 node=1189870114 (CAW auto-monitor)
+[   37.965697] mxfs: mxfs: P-EVICT-AUTOMON slot=25 node=539527939 (CAW auto-monitor)
+[   37.966080] mxfs: mxfs: P-EVICT-AUTOMON slot=26 node=3458226597 (CAW auto-monitor)
+[   37.966310] mxfs: mxfs: P-EVICT-AUTOMON slot=27 node=297203799 (CAW auto-monitor)
+[   37.966534] mxfs: mxfs: P-EVICT-AUTOMON slot=28 node=1686135596 (CAW auto-monitor)
+[   37.966738] mxfs: mxfs: P-EVICT-AUTOMON slot=29 node=3227595972 (CAW auto-monitor)
+[   37.966980] mxfs: mxfs: P-EVICT-AUTOMON slot=30 node=2595351064 (CAW auto-monitor)
+[   37.967291] mxfs: mxfs: P-EVICT-AUTOMON slot=31 node=1511882952 (CAW auto-monitor)
+[   38.005711] mxfs: mxfs: DLM initialized (CAW, slot=20, node_id=3986792468)
+[   38.005724] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=1
+[   38.018233] mxfs: heartbeat received from unknown node 3227447293 (may be joining or was recently removed)
+[   38.018390] mxfs: discovery: new peer -- node 3227447293 (192.168.120.117) tcp_port 7600
+[   38.018411] mxfs: mxfs: peer discovered: node_id=3227447293 hostname=192.168.120.117
+[   38.018416] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=2
+[   38.018421] mxfs: dlm_caw: single_node = false
+[   38.063964] mxfs: discovery: new peer -- node 1295235186 (192.168.120.171) tcp_port 7600
+[   38.063988] mxfs: heartbeat received from unknown node 1295235186 (may be joining or was recently removed)
+[   38.063989] mxfs: mxfs: peer discovered: node_id=1295235186 hostname=192.168.120.171
+[   38.063994] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=3
+[   38.074851] mxfs: discovery: new peer -- node 660479046 (192.168.120.148) tcp_port 7600
+[   38.074864] mxfs: mxfs: peer discovered: node_id=660479046 hostname=192.168.120.148
+[   38.074870] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=4
+[   38.075009] mxfs: lease: node 660479046 transitioned to ACTIVE (was JOINING)
+[   38.081249] mxfs: heartbeat received from unknown node 1351537904 (may be joining or was recently removed)
+[   38.081332] mxfs: discovery: new peer -- node 1351537904 (192.168.120.149) tcp_port 7600
+[   38.081339] mxfs: mxfs: peer discovered: node_id=1351537904 hostname=192.168.120.149
+[   38.081343] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=5
+[   38.140417] mxfs: discovery: new peer -- node 3262812647 (192.168.120.139) tcp_port 7600
+[   38.140434] mxfs: mxfs: peer discovered: node_id=3262812647 hostname=192.168.120.139
+[   38.140439] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=6
+[   38.140610] mxfs: lease: node 3262812647 transitioned to ACTIVE (was JOINING)
+[   38.147790] mxfs: heartbeat received from unknown node 3290638303 (may be joining or was recently removed)
+[   38.147917] mxfs: discovery: new peer -- node 3290638303 (192.168.120.130) tcp_port 7600
+[   38.147922] mxfs: mxfs: peer discovered: node_id=3290638303 hostname=192.168.120.130
+[   38.147926] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=7
+[   38.214750] mxfs: heartbeat received from unknown node 3876847543 (may be joining or was recently removed)
+[   38.214860] mxfs: discovery: new peer -- node 3876847543 (192.168.120.126) tcp_port 7600
+[   38.214868] mxfs: mxfs: peer discovered: node_id=3876847543 hostname=192.168.120.126
+[   38.214872] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=8
+[   38.227634] mxfs: heartbeat received from unknown node 73950 (may be joining or was recently removed)
+[   38.233123] mxfs: heartbeat received from unknown node 3505048020 (may be joining or was recently removed)
+[   38.233275] mxfs: discovery: new peer -- node 3505048020 (192.168.120.152) tcp_port 7600
+[   38.233281] mxfs: mxfs: peer discovered: node_id=3505048020 hostname=192.168.120.152
+[   38.233285] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=9
+[   38.239054] mxfs: discovery: new peer -- node 1665079376 (192.168.120.194) tcp_port 7600
+[   38.239062] mxfs: mxfs: peer discovered: node_id=1665079376 hostname=192.168.120.194
+[   38.239066] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=10
+[   38.239274] mxfs: lease: node 1665079376 transitioned to ACTIVE (was JOINING)
+[   38.294224] mxfs: discovery: new peer -- node 46039088 (192.168.120.123) tcp_port 7600
+[   38.294265] mxfs: mxfs: peer discovered: node_id=46039088 hostname=192.168.120.123
+[   38.294270] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=11
+[   38.294373] mxfs: lease: node 46039088 transitioned to ACTIVE (was JOINING)
+[   38.359356] mxfs: heartbeat received from unknown node 1071829746 (may be joining or was recently removed)
+[   38.362197] mxfs: heartbeat received from unknown node 2041203241 (may be joining or was recently removed)
+[   38.362331] mxfs: discovery: new peer -- node 2041203241 (192.168.120.184) tcp_port 7600
+[   38.362339] mxfs: mxfs: peer discovered: node_id=2041203241 hostname=192.168.120.184
+[   38.362344] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=12
+[   38.384372] mxfs: heartbeat received from unknown node 3855575347 (may be joining or was recently removed)
+[   38.393675] mxfs: discovery: new peer -- node 1297180320 (192.168.120.170) tcp_port 7600
+[   38.393684] mxfs: mxfs: peer discovered: node_id=1297180320 hostname=192.168.120.170
+[   38.393689] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=13
+[   38.476060] mxfs: discovery: new peer -- node 2049413980 (192.168.120.111) tcp_port 7600
+[   38.476071] mxfs: mxfs: peer discovered: node_id=2049413980 hostname=192.168.120.111
+[   38.476075] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=14
+[   38.476079] mxfs: lease: node 2049413980 transitioned to ACTIVE (was JOINING)
+[   38.500614] mxfs: discovery: new peer -- node 2968775057 (192.168.120.115) tcp_port 7600
+[   38.500628] mxfs: mxfs: peer discovered: node_id=2968775057 hostname=192.168.120.115
+[   38.500700] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=15
+[   38.500751] mxfs: lease: node 2968775057 transitioned to ACTIVE (was JOINING)
+[   38.506446] mxfs: discovery: new peer -- node 3317911391 (192.168.120.162) tcp_port 7600
+[   38.506455] mxfs: mxfs: peer discovered: node_id=3317911391 hostname=192.168.120.162
+[   38.506460] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=16
+[   38.507997] mxfs: discovery: new peer -- node 432087646 (192.168.120.102) tcp_port 7600
+[   38.508004] mxfs: mxfs: peer discovered: node_id=432087646 hostname=192.168.120.102
+[   38.508007] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=17
+[   38.508153] mxfs: lease: node 432087646 transitioned to ACTIVE (was JOINING)
+[   38.522349] mxfs: lease: node 3227447293 transitioned to ACTIVE (was JOINING)
+[   38.567966] mxfs: lease: node 1295235186 transitioned to ACTIVE (was JOINING)
+[   38.585300] mxfs: lease: node 1351537904 transitioned to ACTIVE (was JOINING)
+[   38.656613] mxfs: lease: node 3290638303 transitioned to ACTIVE (was JOINING)
+[   38.718199] mxfs: lease: node 3876847543 transitioned to ACTIVE (was JOINING)
+[   38.718373] mxfs: discovery: new peer -- node 3988904026 (192.168.120.124) tcp_port 7600
+[   38.718381] mxfs: mxfs: peer discovered: node_id=3988904026 hostname=192.168.120.124
+[   38.718386] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=18
+[   38.718585] mxfs: lease: node 3988904026 transitioned to ACTIVE (was JOINING)
+[   38.732942] mxfs: lease: node 3505048020 transitioned to ACTIVE (was JOINING)
+[   38.866339] mxfs: lease: node 2041203241 transitioned to ACTIVE (was JOINING)
+[   38.896877] mxfs: discovery: new peer -- node 910101799 (192.168.120.185) tcp_port 7600
+[   38.896895] mxfs: mxfs: peer discovered: node_id=910101799 hostname=192.168.120.185
+[   38.896900] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=19
+[   38.897006] mxfs: lease: node 910101799 transitioned to ACTIVE (was JOINING)
+[   38.897636] mxfs: lease: node 1297180320 transitioned to ACTIVE (was JOINING)
+[   39.010477] mxfs: lease: node 3317911391 transitioned to ACTIVE (was JOINING)
+[   39.058001] mxfs: discovery: new peer -- node 2660200657 (192.168.120.110) tcp_port 7600
+[   39.058016] mxfs: mxfs: peer discovered: node_id=2660200657 hostname=192.168.120.110
+[   39.058020] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=20
+[   39.058244] mxfs: lease: node 2660200657 transitioned to ACTIVE (was JOINING)
+[   39.336636] mxfs: discovery: new peer -- node 1189870114 (192.168.120.107) tcp_port 7600
+[   39.336653] mxfs: mxfs: peer discovered: node_id=1189870114 hostname=192.168.120.107
+[   39.336659] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=21
+[   39.336868] mxfs: lease: node 1189870114 transitioned to ACTIVE (was JOINING)
+[   39.359487] mxfs: discovery: new peer -- node 3458226597 (192.168.120.164) tcp_port 7600
+[   39.359502] mxfs: mxfs: peer discovered: node_id=3458226597 hostname=192.168.120.164
+[   39.359508] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=22
+[   39.359700] mxfs: lease: node 3458226597 transitioned to ACTIVE (was JOINING)
+[   39.379808] mxfs: discovery: new peer -- node 539527939 (192.168.120.106) tcp_port 7600
+[   39.379828] mxfs: mxfs: peer discovered: node_id=539527939 hostname=192.168.120.106
+[   39.379834] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=23
+[   39.380068] mxfs: lease: node 539527939 transitioned to ACTIVE (was JOINING)
+[   39.537167] mxfs: discovery: new peer -- node 297203799 (192.168.120.128) tcp_port 7600
+[   39.537181] mxfs: mxfs: peer discovered: node_id=297203799 hostname=192.168.120.128
+[   39.537186] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=24
+[   39.537446] mxfs: lease: node 297203799 transitioned to ACTIVE (was JOINING)
+[   39.608341] mxfs: discovery: new peer -- node 3855575347 (192.168.120.186) tcp_port 7600
+[   39.608358] mxfs: mxfs: peer discovered: node_id=3855575347 hostname=192.168.120.186
+[   39.608364] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=25
+[   39.623003] mxfs: discovery: new peer -- node 1686135596 (192.168.120.169) tcp_port 7600
+[   39.623079] mxfs: mxfs: peer discovered: node_id=1686135596 hostname=192.168.120.169
+[   39.623086] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=26
+[   39.623102] mxfs: lease: node 1686135596 transitioned to ACTIVE (was JOINING)
+[   39.747780] mxfs: discovery: new peer -- node 73950 (192.168.120.183) tcp_port 7600
+[   39.747798] mxfs: mxfs: peer discovered: node_id=73950 hostname=192.168.120.183
+[   39.747802] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=27
+[   39.872754] mxfs: discovery: new peer -- node 1071829746 (192.168.120.198) tcp_port 7600
+[   39.872772] mxfs: mxfs: peer discovered: node_id=1071829746 hostname=192.168.120.198
+[   39.872777] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=28
+[   39.896302] mxfs: lease: node 3855575347 transitioned to ACTIVE (was JOINING)
+[   39.913457] mxfs: discovery: new peer -- node 2867806060 (192.168.120.188) tcp_port 7600
+[   39.913469] mxfs: mxfs: peer discovered: node_id=2867806060 hostname=192.168.120.188
+[   39.913473] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=29
+[   40.243660] mxfs: lease: node 73950 transitioned to ACTIVE (was JOINING)
+[   40.291070] mxfs: discovery: new peer -- node 3227595972 (192.168.120.158) tcp_port 7600
+[   40.291087] mxfs: mxfs: peer discovered: node_id=3227595972 hostname=192.168.120.158
+[   40.291091] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=30
+[   40.291245] mxfs: lease: node 3227595972 transitioned to ACTIVE (was JOINING)
+[   40.312115] mxfs: discovery: new peer -- node 2595351064 (192.168.120.147) tcp_port 7600
+[   40.312133] mxfs: mxfs: peer discovered: node_id=2595351064 hostname=192.168.120.147
+[   40.312139] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=31
+[   40.312279] mxfs: lease: node 2595351064 transitioned to ACTIVE (was JOINING)
+[   40.366752] mxfs: lease: node 1071829746 transitioned to ACTIVE (was JOINING)
+[   40.383588] mxfs: discovery: new peer -- node 1511882952 (192.168.120.129) tcp_port 7600
+[   40.383603] mxfs: mxfs: peer discovered: node_id=1511882952 hostname=192.168.120.129
+[   40.383608] mxfs: mxfs: MXFS-MEMBERSHIP local=3986792468 active_count=32
+[   40.398256] mxfs: lease: node 2867806060 transitioned to ACTIVE (was JOINING)
+[   40.891236] mxfs: lease: node 1511882952 transitioned to ACTIVE (was JOINING)
+[   42.129849] mxfs: mxfs: membership settled at mount: 31 active slot(s) on LUN, lease sees 32 node(s) after 7000ms
+[   42.130267] XFS (dm-1): MXFS: per-node log slice 20/32 offset=52845960 bblks=130432
+[   42.130274] XFS (dm-1): Mounting V5 Filesystem e4b630c9-8f11-48dd-bbde-e0438029f2d1
+[   42.130565] XFS (dm-1): MXFS: adopted log slice (fresh disklock claim) — image records in prior dirty content will not be re-applied
+[   42.130995] XFS (dm-1): totally zeroed log
+[   42.145136] mxfs: mxfs: P-H22-PURGE-MASK ENTRY dead_mask=0x100000
+[   42.818646] mxfs: mxfs: P-H22-PURGE-MASK DONE mask=0x100000 flags=0x2 purged=0 retained_ex=0
+[   42.818660] mxfs: mxfs: P225-ADOPT-WINDOW closed
+[   42.818664] XFS (dm-1): MXFS mount recovery barrier complete: cohort=0x0 late=0x0 replayed=0 published=0x0 quarantined=0x0
+[   42.819304] mxfs: P144-RD inobt agno=0 daddr=24 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803766936892820
+[   42.846691] mxfs: P6H-ADOPT ino=128 mode=5 held=5 elapsed_ms=26 gen=9 reg_gen=5 handoff=1 reads=4 gep=28 reg_gep=26 st=1 realms=1786803766964
+[   42.846705] mxfs: P291-EXWIN ino=128 path=adopt mode=5 slot=20 waited_ms=26 yt=0 wex=0 realms=1786803766964
+[   42.846723] mxfs: P11-ACQSTALE-SELFBAST ino=128 mode=5 stale=1 src=7 acq_bast=0 en=1 comm=mount realns=1786803766964959536
+[   42.846736] mxfs: P71-HOLD ino=128 begin-slow d_ex=1 d_pr=0 now_ex=1 now_pr=0 mode=5 state=2 pin=0 comm=mount
+[   42.846741] mxfs: mxfs DLM cache: hit=0 miss=1 (0%) bast: imm=0 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+[   42.846839] mxfs: P142-BWORK-STALE ip=ffff8b043c3ea900 ino=128 rcu_cur=0000000000000000 locked_cur=0000000000000000 agno=0 agino=128 agcount=25 pag=ffff8b0441b7a000 pag_agno=0 src=7 i_count=2 i_state=0x0 — work fired on non-current inode object; bailing (ref not dropped)
+[   42.846864] CPU: 0 PID: 39 Comm: kworker/u9:0 Tainted: G           OE      6.8.0-101-generic #101-Ubuntu
+[   42.846869] Hardware name: QEMU Ubuntu 24.04 PC (i440FX + PIIX, 1996), BIOS 1.16.3-debian-1.16.3-2 04/01/2014
+[   42.846872] Workqueue: mxfs-ino-bast/dm-1 mxfs_dlm_bast_work_fn [mxfs]
+[   42.847262] Call Trace:
+[   42.847270]  <TASK>
+[   42.847283]  dump_stack_lvl+0x76/0xa0
+[   42.847292]  dump_stack+0x10/0x20
+[   42.847296]  mxfs_dlm_work_ident_ok+0x25f/0x280 [mxfs]
+[   42.847518]  mxfs_dlm_bast_work_fn+0x4d/0x1f90 [mxfs]
+[   42.847738]  ? finish_task_switch.isra.0+0x93/0x300
+[   42.847746]  process_one_work+0x184/0x3a0
+[   42.847752]  ? __pfx_mxfs_dlm_bast_work_fn+0x10/0x10 [mxfs]
+[   42.847950]  ? process_one_work+0x184/0x3a0
+[   42.847954]  worker_thread+0x306/0x440
+[   42.847957]  ? __pfx_worker_thread+0x10/0x10
+[   42.847960]  kthread+0xf2/0x120
+[   42.847967]  ? __pfx_kthread+0x10/0x10
+[   42.847971]  ret_from_fork+0x47/0x70
+[   42.847978]  ? __pfx_kthread+0x10/0x10
+[   42.847983]  ret_from_fork_asm+0x1b/0x30
+[   42.848004]  </TASK>
+[   42.848104] mxfs: P71-HOLD ino=128 end d_ex=-1 d_pr=0 now_ex=0 now_pr=0 mode=5 state=2 pin=0 comm=mount
+[   42.860347] mxfs: P144-RD finobt agno=0 daddr=32 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803766978904131
+[   42.860599] mxfs: P144-RD finobt agno=1 daddr=4186472 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766979163815
+[   42.860912] mxfs: P144-RD finobt agno=2 daddr=8372912 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766979484220
+[   42.861158] mxfs: P144-RD finobt agno=3 daddr=12559352 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766979735452
+[   42.861384] mxfs: P144-RD finobt agno=4 daddr=16745792 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766979966927
+[   42.861605] mxfs: P144-RD finobt agno=5 daddr=20932232 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766980193203
+[   42.861832] mxfs: P144-RD finobt agno=6 daddr=25118672 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766980425581
+[   42.862095] mxfs: P144-RD finobt agno=7 daddr=29305112 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766980694474
+[   42.862371] mxfs: P144-RD finobt agno=8 daddr=33491552 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766980977048
+[   42.862587] mxfs: P144-RD finobt agno=9 daddr=37677992 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766981199040
+[   42.862798] mxfs: P144-RD finobt agno=10 daddr=41864432 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766981414514
+[   42.863089] mxfs: P144-RD finobt agno=11 daddr=46050872 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766981712719
+[   42.863345] mxfs: P144-RD finobt agno=12 daddr=50237312 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766981974237
+[   42.863597] mxfs: P144-RD finobt agno=13 daddr=54423752 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766982231932
+[   42.863830] mxfs: P144-RD finobt agno=14 daddr=58610192 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766982470728
+[   42.864129] mxfs: P144-RD finobt agno=15 daddr=62796632 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766982777133
+[   42.864370] mxfs: P144-RD finobt agno=16 daddr=66983072 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766983023821
+[   42.864665] mxfs: P70-BP ino=128 ENTRY mode=5 state=3 ex=0 pr=0 pin=0 selfdem=0 qsrc=9 bpend=0 held_ms=18 tops=1 fo_ms=1 lo_ms=16 comm=kworker/u9:0 realns=1786803766983326140
+[   42.864681] mxfs: P137-PRSWEEP-ENTER
+[   42.864683] mxfs: P137-PRSWEEP-EXIT visited=1 seen=0 swept=0 (reached list head, no candidates)
+[   42.864692] mxfs: P144-RD finobt agno=17 daddr=71169512 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766983353815
+[   42.864723] mxfs: P35-DIRHONOR ino=128 realns=1786803766983385052 (bast_process drain+unlock)
+[   42.864980] mxfs: P144-RD finobt agno=18 daddr=75355952 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766983648515
+[   42.865207] mxfs: P146-RELDUR ino=128 nx=0 chg=2 size=6 dsize=6 flushed=1 wrote=0 rerr=-11 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u9:0 realns=1786803766983880904
+[   42.865215] mxfs: P51-REL ino=128 held_mode=5 selfdemote=0 sf=1 clean_skip=0 drain_ms=0
+[   42.865220] mxfs: P147-PREUNLOCK ino=128 nx=0 chg=2 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u9:0 realns=1786803766983894502
+[   42.865265] mxfs: P144-RD finobt agno=19 daddr=79542392 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766983939986
+[   42.865538] mxfs: P144-RD finobt agno=20 daddr=83728832 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766984219900
+[   42.865789] mxfs: P144-RD finobt agno=21 daddr=87915272 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766984476388
+[   42.866058] mxfs: P144-RD finobt agno=22 daddr=92101712 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766984752212
+[   42.866305] mxfs: P144-RD finobt agno=23 daddr=96288152 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766985004866
+[   42.866544] mxfs: P144-RD finobt agno=24 daddr=100474592 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766985249709
+[   42.866553] XFS (dm-1): Ending clean mount
+[   42.866626] XFS (dm-1): MXFS adopted replay: P273-SHADOW-EVAL victim_slot=20 state=no_txns
+[   42.867123] mxfs: P144-RD finobt agno=0 daddr=32 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=mount realns=1786803766985842146
+[   42.867775] mxfs: P144-RD finobt agno=1 daddr=4186472 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766986509279
+[   42.868079] mxfs: mxfs: P141-UNLK-EXCLR ino=128 expected=2 rel_seq0=2 seq_now=2 retry=0 gen=9
+[   42.868095] mxfs: P70-BP ino=128 EXIT=full rel_gen=2 ex=0 pr=0 comm=kworker/u9:0 realns=1786803766986837633
+[   42.868509] mxfs: P144-RD finobt agno=2 daddr=8372912 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766987260638
+[   42.869121] mxfs: P144-RD finobt agno=3 daddr=12559352 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766987887163
+[   42.869793] mxfs: P144-RD finobt agno=4 daddr=16745792 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766988575194
+[   42.870429] mxfs: P144-RD finobt agno=5 daddr=20932232 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766989226364
+[   42.871078] mxfs: P144-RD finobt agno=6 daddr=25118672 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766989890512
+[   42.871777] mxfs: P144-RD finobt agno=7 daddr=29305112 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766990605370
+[   42.872488] mxfs: P144-RD finobt agno=8 daddr=33491552 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766991333225
+[   42.873119] mxfs: P144-RD finobt agno=9 daddr=37677992 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766991979769
+[   42.873739] mxfs: P144-RD finobt agno=10 daddr=41864432 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766992614364
+[   42.874448] mxfs: P144-RD finobt agno=11 daddr=46050872 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766993339681
+[   42.875110] mxfs: P144-RD finobt agno=12 daddr=50237312 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766994017623
+[   42.875743] mxfs: P144-RD finobt agno=13 daddr=54423752 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766994665559
+[   42.876382] mxfs: P144-RD finobt agno=14 daddr=58610192 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766995319999
+[   42.877007] mxfs: P144-RD finobt agno=15 daddr=62796632 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766995959574
+[   42.877596] mxfs: P144-RD finobt agno=16 daddr=66983072 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766996562387
+[   42.878214] mxfs: P144-RD finobt agno=17 daddr=71169512 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766997194785
+[   42.878947] mxfs: P144-RD finobt agno=18 daddr=75355952 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766997945182
+[   42.879864] mxfs: P144-RD finobt agno=19 daddr=79542392 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766998883516
+[   42.880554] mxfs: P144-RD finobt agno=20 daddr=83728832 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803766999590294
+[   42.881311] mxfs: P144-RD finobt agno=21 daddr=87915272 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803767000364795
+[   42.882000] mxfs: P144-RD finobt agno=22 daddr=92101712 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803767001070523
+[   42.882679] mxfs: P144-RD finobt agno=23 daddr=96288152 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803767001764680
+[   42.883362] mxfs: P144-RD finobt agno=24 daddr=100474592 crc=00000000 nr=0 lvl=0 lsn=0 comm=mount realns=1786803767002461165
+[   42.883603] mxfs: mxfs: peer_joined cb registered post-multi — firing now to flush stale single-node state
+[   42.883607] mxfs: mxfs: peer joined — flushing XFS dirty state before single→multi transition
+[   42.904905] mxfs: mxfs: peer-joined ag=0 inode-cache walked=1 invalidated=1
+[   42.905067] mxfs: mxfs: cached-view invalidation complete (25 perags, 0 inode(s) skipped)
+[   42.920964] mxfs: mxfs: DLM lock caching enabled
+[   42.933795] mxfs: statfs perag baseline initialized (25 AGs)
+[   42.933837] mxfs filesystem being mounted at /mnt/shared supports timestamps until 2038-01-19 (0x7fffffff)
+[   42.937399] mxfs: P65-EPOCH-ADOPT ino=128 grant_epoch=27 acq_epoch=0 valid_epoch=0 post_release=1 fmt=1 adopt=1 clean=1 — epoch advanced (converges dir-block0 extent map)
+[   42.937928] mxfs: P62-RELOAD-FORK-SHRINK ino=128 incore_fmt=1 incore_nx=0 incore_size=6 disk_fmt=1 disk_nx=0 disk_size=6 shrink=0 in_ail=0 pin=0 incore_gen=0 disk_gen=0 post_release=1 self_created=0 pre_ms=0 bp_ms=0 tot_ms=0
+[   42.937935] mxfs: P-RELOAD-IDENTICAL ino=128 cc=2 gen=0 fmt=1 nx=0 size=6 — disk == in-core, keeping loaded fork (no destroy/adopt)
+[   42.938183] mxfs: P56-RELOAD-MERGE ino=128 merged=0 clean=1 in_ail=0 ili=0x0 pin=0 post_cnt=0 disk_cnt=0 ours_cnt=255 resurrect=0 disk=[] ours=[]
+[   42.938195] mxfs: mxfs DLM cache: hit=0 miss=1 (0%) bast: imm=0 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+[   43.100961] mxfs: P-DIRBAST ino=128 state=1 mode=3 ex=0 pr=0 pin=0 realns=1786803767224557917
+[   43.101012] mxfs: P7B-BASTNOTIFY ino=128 state=1 mode=3 ex=0 pr=0 pin=0
+[   43.101054] mxfs: P70-BP ino=128 ENTRY mode=3 state=3 ex=0 pr=0 pin=0 selfdem=0 qsrc=5 bpend=0 held_ms=259 tops=1 fo_ms=1 lo_ms=166 comm=kworker/u10:0 realns=1786803767224656453
+[   43.101069] mxfs: P35-DIRHONOR ino=128 realns=1786803767224672009 (bast_process drain+unlock)
+[   43.102313] mxfs: P-DIRBAST ino=128 state=3 mode=3 ex=0 pr=0 pin=0 realns=1786803767225941238
+[   43.102322] mxfs: P7B-BASTNOTIFY ino=128 state=3 mode=3 ex=0 pr=0 pin=0
+[   43.105609] mxfs: P146-RELDUR ino=128 nx=0 chg=2 size=6 dsize=6 flushed=1 wrote=0 rerr=-11 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u10:0 realns=1786803767229305985
+[   43.105620] mxfs: P51-REL ino=128 held_mode=3 selfdemote=0 sf=1 clean_skip=1 drain_ms=4
+[   43.105625] mxfs: P147-PREUNLOCK ino=128 nx=0 chg=2 in_ail=0 pin=0 ili_fields=0x0 comm=kworker/u10:0 realns=1786803767229322361
+[   43.109162] mxfs: P6H-HANDOFF ino=128 to_slot=29 gen=6 epoch=28 gep=29 handoff=1 realms=1786803767232
+[   43.109950] mxfs: P291-EXWIN ino=128 path=mint mode=5 slot=29 waited_ms=0 yt=20000000 wex=60000000 realms=1786803767233
+[   43.109974] mxfs: P138-BAST ino=128 dur_us=9107 dir=1 clean=0 sa=39 sb=721 b1=0 b2=2 sc=2498 sd=1406 su=4440 sw=6 sx=4430 realns=1786803767233761774
+[   43.109980] mxfs: P70-BP ino=128 EXIT=full rel_gen=4 ex=0 pr=0 comm=kworker/u10:0 realns=1786803767233767843
+[   43.125508] mxfs: P-DIRBAST ino=128 state=0 mode=0 ex=0 pr=0 pin=0 realns=1786803767249615433
+[   43.125521] mxfs: P7B-BASTNOTIFY ino=128 state=0 mode=0 ex=0 pr=0 pin=0
+[   43.126772] mxfs: P-ORPH-FORENSIC ino=128 site=1 incore_mode=0 state=0 ex=0 pr=0 pin=0 held_raw=0 scan_mine=0 nslots=1 hex_or=20000000
+[   46.046101] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[   58.056264] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[   62.334648] mxfs: P96-OWN-RESCAN slot=20 bucket=20 — own-bucket residue re-driven
+[   62.362559] mxfs: P144-RD inobt agno=0 daddr=24 crc=8a6ec4f4 nr=1 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786633397640
+[   62.362737] mxfs: P144-RD inobt agno=1 daddr=4186464 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786633576061
+[   62.362915] mxfs: P144-RD inobt agno=2 daddr=8372904 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786633755031
+[   62.363068] mxfs: P144-RD inobt agno=3 daddr=12559344 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786633907761
+[   62.363201] mxfs: P144-RD inobt agno=4 daddr=16745784 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634040851
+[   62.363332] mxfs: P144-RD inobt agno=5 daddr=20932224 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634172400
+[   62.363476] mxfs: P144-RD inobt agno=6 daddr=25118664 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634316204
+[   62.363622] mxfs: P144-RD inobt agno=7 daddr=29305104 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634462478
+[   62.363759] mxfs: P144-RD inobt agno=8 daddr=33491544 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634599777
+[   62.363917] mxfs: P144-RD inobt agno=9 daddr=37677984 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634758309
+[   62.364050] mxfs: P144-RD inobt agno=10 daddr=41864424 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786634891227
+[   62.364177] mxfs: P144-RD inobt agno=11 daddr=46050864 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635018209
+[   62.364309] mxfs: P144-RD inobt agno=12 daddr=50237304 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635151199
+[   62.364453] mxfs: P144-RD inobt agno=13 daddr=54423744 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635295109
+[   62.364607] mxfs: P144-RD inobt agno=14 daddr=58610184 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635449879
+[   62.364733] mxfs: P144-RD inobt agno=15 daddr=62796624 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635575499
+[   62.364890] mxfs: P144-RD inobt agno=16 daddr=66983064 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635732441
+[   62.365093] mxfs: P144-RD inobt agno=17 daddr=71169504 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786635936017
+[   62.365288] mxfs: P144-RD inobt agno=18 daddr=75355944 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636131333
+[   62.365422] mxfs: P144-RD inobt agno=19 daddr=79542384 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636266290
+[   62.365578] mxfs: P144-RD inobt agno=20 daddr=83728824 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636422125
+[   62.365690] mxfs: P144-RD inobt agno=21 daddr=87915264 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636534087
+[   62.365807] mxfs: P144-RD inobt agno=22 daddr=92101704 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636651447
+[   62.365925] mxfs: P144-RD inobt agno=23 daddr=96288144 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636769289
+[   62.366049] mxfs: P144-RD inobt agno=24 daddr=100474584 crc=00000000 nr=0 lvl=0 lsn=0 comm=kworker/0:2 realns=1786803786636893903
+[   70.134792] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[   82.224620] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[   94.317222] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  106.411268] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  118.505862] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  130.600747] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  142.696759] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  154.731529] mxfs: mxfs: node in slot 1 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.731538] mxfs: mxfs: node 73950 (slot 1 inc 12739327102022135839) lease expired/died — fencing; recovery starting
+[  154.731758] mxfs: mxfs: P238-FENCE-NOINTENT slot=1 node=73950 epoch=12739327102022135839 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.731763] mxfs: mxfs: P164-DEAD-NOTE node=73950 — identity retired; its announces/connects are ignored from now on
+[  154.737993] mxfs: mxfs: P163-RECOVERY-PENDING slot=1 node=73950 epoch=12739327102022135839 — purge deferred until slice replay completes
+[  154.737999] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.738690] mxfs: mxfs: node in slot 2 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.738694] mxfs: mxfs: node 1071829746 (slot 2 inc 14113284235986954369) lease expired/died — fencing; recovery starting
+[  154.738953] mxfs: mxfs: P238-FENCE-NOINTENT slot=2 node=1071829746 epoch=14113284235986954369 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.738958] mxfs: mxfs: P164-DEAD-NOTE node=1071829746 — identity retired; its announces/connects are ignored from now on
+[  154.745182] mxfs: mxfs: P163-RECOVERY-PENDING slot=2 node=1071829746 epoch=14113284235986954369 — purge deferred until slice replay completes
+[  154.745186] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.748547] mxfs: mxfs: node in slot 16 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.748553] mxfs: mxfs: node 2968775057 (slot 16 inc 17790329753121501144) lease expired/died — fencing; recovery starting
+[  154.748671] mxfs: mxfs: P238-FENCE-NOINTENT slot=16 node=2968775057 epoch=17790329753121501144 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.748676] mxfs: mxfs: P164-DEAD-NOTE node=2968775057 — identity retired; its announces/connects are ignored from now on
+[  154.754970] mxfs: mxfs: P163-RECOVERY-PENDING slot=16 node=2968775057 epoch=17790329753121501144 — purge deferred until slice replay completes
+[  154.754976] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.755687] mxfs: mxfs: node in slot 19 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.755691] mxfs: mxfs: node 3317911391 (slot 19 inc 2971992893550177666) lease expired/died — fencing; recovery starting
+[  154.755830] mxfs: mxfs: P238-FENCE-NOINTENT slot=19 node=3317911391 epoch=2971992893550177666 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.755834] mxfs: mxfs: P164-DEAD-NOTE node=3317911391 — identity retired; its announces/connects are ignored from now on
+[  154.762074] mxfs: mxfs: P163-RECOVERY-PENDING slot=19 node=3317911391 epoch=2971992893550177666 — purge deferred until slice replay completes
+[  154.762080] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.762801] mxfs: mxfs: node in slot 23 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.762806] mxfs: mxfs: node 2660200657 (slot 23 inc 5497936878802060180) lease expired/died — fencing; recovery starting
+[  154.762963] mxfs: mxfs: P238-FENCE-NOINTENT slot=23 node=2660200657 epoch=5497936878802060180 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.762968] mxfs: mxfs: P164-DEAD-NOTE node=2660200657 — identity retired; its announces/connects are ignored from now on
+[  154.769221] mxfs: mxfs: P163-RECOVERY-PENDING slot=23 node=2660200657 epoch=5497936878802060180 — purge deferred until slice replay completes
+[  154.769225] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.770306] mxfs: mxfs: node in slot 26 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.770310] mxfs: mxfs: node 3458226597 (slot 26 inc 15776456058719166486) lease expired/died — fencing; recovery starting
+[  154.770513] mxfs: mxfs: P238-FENCE-NOINTENT slot=26 node=3458226597 epoch=15776456058719166486 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.770517] mxfs: mxfs: P164-DEAD-NOTE node=3458226597 — identity retired; its announces/connects are ignored from now on
+[  154.776782] mxfs: mxfs: P163-RECOVERY-PENDING slot=26 node=3458226597 epoch=15776456058719166486 — purge deferred until slice replay completes
+[  154.776786] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.777823] mxfs: mxfs: node in slot 29 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.777827] mxfs: mxfs: node 3227595972 (slot 29 inc 12697859869972487182) lease expired/died — fencing; recovery starting
+[  154.778051] mxfs: mxfs: P238-FENCE-NOINTENT slot=29 node=3227595972 epoch=12697859869972487182 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.778056] mxfs: mxfs: P164-DEAD-NOTE node=3227595972 — identity retired; its announces/connects are ignored from now on
+[  154.784260] mxfs: mxfs: P163-RECOVERY-PENDING slot=29 node=3227595972 epoch=12697859869972487182 — purge deferred until slice replay completes
+[  154.784264] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.784841] mxfs: mxfs: node in slot 30 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.784844] mxfs: mxfs: node 2595351064 (slot 30 inc 9607414033531685815) lease expired/died — fencing; recovery starting
+[  154.785063] mxfs: mxfs: P238-FENCE-NOINTENT slot=30 node=2595351064 epoch=9607414033531685815 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.785067] mxfs: mxfs: P164-DEAD-NOTE node=2595351064 — identity retired; its announces/connects are ignored from now on
+[  154.791294] mxfs: mxfs: P163-RECOVERY-PENDING slot=30 node=2595351064 epoch=9607414033531685815 — purge deferred until slice replay completes
+[  154.791298] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.792033] mxfs: mxfs: node in slot 31 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  154.792037] mxfs: mxfs: node 1511882952 (slot 31 inc 11891373367613744389) lease expired/died — fencing; recovery starting
+[  154.792282] mxfs: mxfs: P238-FENCE-NOINTENT slot=31 node=1511882952 epoch=11891373367613744389 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  154.792286] mxfs: mxfs: P164-DEAD-NOTE node=1511882952 — identity retired; its announces/connects are ignored from now on
+[  154.798506] mxfs: mxfs: P163-RECOVERY-PENDING slot=31 node=1511882952 epoch=11891373367613744389 — purge deferred until slice replay completes
+[  154.798509] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  154.798538] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  166.889274] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  178.985039] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  181.818064] mxfs: P65-EPOCH-ADOPT ino=128 grant_epoch=30 acq_epoch=27 valid_epoch=27 post_release=1 fmt=1 adopt=1 clean=1 — epoch advanced (converges dir-block0 extent map)
+[  181.818075] mxfs: P63-HANDOFF ino=128 grant_gen=30 acted_gen=27 post_release=1 fmt=1 dir_gen=2 loaded_gen=1 — cross-node EX handoff; forcing disk-superset adopt
+[  181.819222] mxfs: P62-RELOAD-FORK-SHRINK ino=128 incore_fmt=1 incore_nx=0 incore_size=6 disk_fmt=1 disk_nx=0 disk_size=6 shrink=0 in_ail=0 pin=0 incore_gen=0 disk_gen=0 post_release=1 self_created=0 pre_ms=0 bp_ms=0 tot_ms=1
+[  181.819230] mxfs: P-RELOAD-IDENTICAL ino=128 cc=2 gen=0 fmt=1 nx=0 size=6 — disk == in-core, keeping loaded fork (no destroy/adopt)
+[  181.819471] mxfs: P56-RELOAD-MERGE ino=128 merged=0 clean=1 in_ail=0 ili=0x0 pin=0 post_cnt=0 disk_cnt=0 ours_cnt=0 resurrect=0 disk=[] ours=[]
+[  181.819484] mxfs: mxfs DLM cache: hit=0 miss=2 (0%) bast: imm=1 def=0 noino=0 ag: acq=0 nest=0 rel=0 fua: ino=0 dir=0 agm=0 ino_skip=0
+[  191.080725] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  193.838999] sd 4:0:0:0: Parameters changed
+[  195.176985] sd 3:0:0:0: Parameters changed
+[  195.177121] mxfs: P-FUA-READ-RETRY lba=191745 ret=0x2 resid=512 key=0x6 try=1
+[  203.240323] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  214.386597] mxfs: mxfs: node in slot 6 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  214.386606] mxfs: mxfs: node 2041203241 (slot 6 inc 4142186318699727604) lease expired/died — fencing; recovery starting
+[  214.386863] mxfs: mxfs: P238-FENCE-NOINTENT slot=6 node=2041203241 epoch=4142186318699727604 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  214.386869] mxfs: mxfs: P164-DEAD-NOTE node=2041203241 — identity retired; its announces/connects are ignored from now on
+[  214.393058] mxfs: mxfs: P163-RECOVERY-PENDING slot=6 node=2041203241 epoch=4142186318699727604 — purge deferred until slice replay completes
+[  214.393062] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  214.395195] mxfs: mxfs: node in slot 14 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  214.395200] mxfs: mxfs: node 1665079376 (slot 14 inc 10805127982965950574) lease expired/died — fencing; recovery starting
+[  214.395431] mxfs: mxfs: P238-FENCE-NOINTENT slot=14 node=1665079376 epoch=10805127982965950574 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  214.395435] mxfs: mxfs: P164-DEAD-NOTE node=1665079376 — identity retired; its announces/connects are ignored from now on
+[  214.401835] mxfs: mxfs: P163-RECOVERY-PENDING slot=14 node=1665079376 epoch=10805127982965950574 — purge deferred until slice replay completes
+[  214.401841] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  214.403052] mxfs: mxfs: node in slot 21 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  214.403059] mxfs: mxfs: node 3988904026 (slot 21 inc 458837382712053028) lease expired/died — fencing; recovery starting
+[  214.403176] mxfs: mxfs: P238-FENCE-NOINTENT slot=21 node=3988904026 epoch=458837382712053028 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  214.403180] mxfs: mxfs: P164-DEAD-NOTE node=3988904026 — identity retired; its announces/connects are ignored from now on
+[  214.409640] mxfs: mxfs: P163-RECOVERY-PENDING slot=21 node=3988904026 epoch=458837382712053028 — purge deferred until slice replay completes
+[  214.409646] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  214.410696] mxfs: mxfs: node in slot 25 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  214.410700] mxfs: mxfs: node 539527939 (slot 25 inc 12391913230745006165) lease expired/died — fencing; recovery starting
+[  214.410909] mxfs: mxfs: P238-FENCE-NOINTENT slot=25 node=539527939 epoch=12391913230745006165 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  214.410913] mxfs: mxfs: P164-DEAD-NOTE node=539527939 — identity retired; its announces/connects are ignored from now on
+[  214.417215] mxfs: mxfs: P163-RECOVERY-PENDING slot=25 node=539527939 epoch=12391913230745006165 — purge deferred until slice replay completes
+[  214.417224] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  214.418210] mxfs: mxfs: node in slot 28 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  214.418216] mxfs: mxfs: node 1686135596 (slot 28 inc 17310201864161289915) lease expired/died — fencing; recovery starting
+[  214.418406] mxfs: mxfs: P238-FENCE-NOINTENT slot=28 node=1686135596 epoch=17310201864161289915 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  214.418411] mxfs: mxfs: P164-DEAD-NOTE node=1686135596 — identity retired; its announces/connects are ignored from now on
+[  214.424604] mxfs: mxfs: P163-RECOVERY-PENDING slot=28 node=1686135596 epoch=17310201864161289915 — purge deferred until slice replay completes
+[  214.424611] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  215.335761] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  227.431145] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  239.526531] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  251.621989] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  255.401054] mxfs: mxfs: node in slot 3 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.401065] mxfs: mxfs: node 2867806060 (slot 3 inc 16097629618662672728) lease expired/died — fencing; recovery starting
+[  255.401243] mxfs: mxfs: P238-FENCE-NOINTENT slot=3 node=2867806060 epoch=16097629618662672728 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.401249] mxfs: mxfs: P164-DEAD-NOTE node=2867806060 — identity retired; its announces/connects are ignored from now on
+[  255.407473] mxfs: mxfs: P163-RECOVERY-PENDING slot=3 node=2867806060 epoch=16097629618662672728 — purge deferred until slice replay completes
+[  255.407477] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.408095] mxfs: mxfs: node in slot 4 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.408100] mxfs: mxfs: node 3262812647 (slot 4 inc 17141562505990441518) lease expired/died — fencing; recovery starting
+[  255.408303] mxfs: mxfs: P238-FENCE-NOINTENT slot=4 node=3262812647 epoch=17141562505990441518 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.408307] mxfs: mxfs: P164-DEAD-NOTE node=3262812647 — identity retired; its announces/connects are ignored from now on
+[  255.414636] mxfs: mxfs: P163-RECOVERY-PENDING slot=4 node=3262812647 epoch=17141562505990441518 — purge deferred until slice replay completes
+[  255.414640] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.415144] mxfs: mxfs: node in slot 5 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.415148] mxfs: mxfs: node 1351537904 (slot 5 inc 13927409700349470906) lease expired/died — fencing; recovery starting
+[  255.415334] mxfs: mxfs: P238-FENCE-NOINTENT slot=5 node=1351537904 epoch=13927409700349470906 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.415338] mxfs: mxfs: P164-DEAD-NOTE node=1351537904 — identity retired; its announces/connects are ignored from now on
+[  255.421705] mxfs: mxfs: P163-RECOVERY-PENDING slot=5 node=1351537904 epoch=13927409700349470906 — purge deferred until slice replay completes
+[  255.421709] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.422422] mxfs: mxfs: node in slot 7 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.422427] mxfs: mxfs: node 2049413980 (slot 7 inc 5251243072864409962) lease expired/died — fencing; recovery starting
+[  255.422599] mxfs: mxfs: P238-FENCE-NOINTENT slot=7 node=2049413980 epoch=5251243072864409962 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.422604] mxfs: mxfs: P164-DEAD-NOTE node=2049413980 — identity retired; its announces/connects are ignored from now on
+[  255.428924] mxfs: mxfs: P163-RECOVERY-PENDING slot=7 node=2049413980 epoch=5251243072864409962 — purge deferred until slice replay completes
+[  255.428927] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.429395] mxfs: mxfs: node in slot 8 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.429399] mxfs: mxfs: node 3876847543 (slot 8 inc 4919027382246780720) lease expired/died — fencing; recovery starting
+[  255.429589] mxfs: mxfs: P238-FENCE-NOINTENT slot=8 node=3876847543 epoch=4919027382246780720 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.429594] mxfs: mxfs: P164-DEAD-NOTE node=3876847543 — identity retired; its announces/connects are ignored from now on
+[  255.435908] mxfs: mxfs: P163-RECOVERY-PENDING slot=8 node=3876847543 epoch=4919027382246780720 — purge deferred until slice replay completes
+[  255.435912] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.436392] mxfs: mxfs: node in slot 9 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.436397] mxfs: mxfs: node 3290638303 (slot 9 inc 12256769578369398899) lease expired/died — fencing; recovery starting
+[  255.436572] mxfs: mxfs: P238-FENCE-NOINTENT slot=9 node=3290638303 epoch=12256769578369398899 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.436576] mxfs: mxfs: P164-DEAD-NOTE node=3290638303 — identity retired; its announces/connects are ignored from now on
+[  255.442951] mxfs: mxfs: P163-RECOVERY-PENDING slot=9 node=3290638303 epoch=12256769578369398899 — purge deferred until slice replay completes
+[  255.442955] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.443443] mxfs: mxfs: node in slot 10 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.443448] mxfs: mxfs: node 3505048020 (slot 10 inc 8741966908816585309) lease expired/died — fencing; recovery starting
+[  255.443623] mxfs: mxfs: P238-FENCE-NOINTENT slot=10 node=3505048020 epoch=8741966908816585309 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.443628] mxfs: mxfs: P164-DEAD-NOTE node=3505048020 — identity retired; its announces/connects are ignored from now on
+[  255.449849] mxfs: mxfs: P163-RECOVERY-PENDING slot=10 node=3505048020 epoch=8741966908816585309 — purge deferred until slice replay completes
+[  255.449853] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.450316] mxfs: mxfs: node in slot 11 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.450321] mxfs: mxfs: node 660479046 (slot 11 inc 2512707927681672299) lease expired/died — fencing; recovery starting
+[  255.450511] mxfs: mxfs: P238-FENCE-NOINTENT slot=11 node=660479046 epoch=2512707927681672299 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.450515] mxfs: mxfs: P164-DEAD-NOTE node=660479046 — identity retired; its announces/connects are ignored from now on
+[  255.456703] mxfs: mxfs: P163-RECOVERY-PENDING slot=11 node=660479046 epoch=2512707927681672299 — purge deferred until slice replay completes
+[  255.456706] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.457171] mxfs: mxfs: node in slot 12 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.457175] mxfs: mxfs: node 1295235186 (slot 12 inc 11375507892343922173) lease expired/died — fencing; recovery starting
+[  255.457337] mxfs: mxfs: P238-FENCE-NOINTENT slot=12 node=1295235186 epoch=11375507892343922173 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.457341] mxfs: mxfs: P164-DEAD-NOTE node=1295235186 — identity retired; its announces/connects are ignored from now on
+[  255.463675] mxfs: mxfs: P163-RECOVERY-PENDING slot=12 node=1295235186 epoch=11375507892343922173 — purge deferred until slice replay completes
+[  255.463678] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.464111] mxfs: mxfs: node in slot 13 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.464115] mxfs: mxfs: node 46039088 (slot 13 inc 6197554421784554668) lease expired/died — fencing; recovery starting
+[  255.464279] mxfs: mxfs: P238-FENCE-NOINTENT slot=13 node=46039088 epoch=6197554421784554668 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.464284] mxfs: mxfs: P164-DEAD-NOTE node=46039088 — identity retired; its announces/connects are ignored from now on
+[  255.470453] mxfs: mxfs: P163-RECOVERY-PENDING slot=13 node=46039088 epoch=6197554421784554668 — purge deferred until slice replay completes
+[  255.470457] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.471089] mxfs: mxfs: node in slot 15 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.471093] mxfs: mxfs: node 432087646 (slot 15 inc 12451769544860452776) lease expired/died — fencing; recovery starting
+[  255.471259] mxfs: mxfs: P238-FENCE-NOINTENT slot=15 node=432087646 epoch=12451769544860452776 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.471263] mxfs: mxfs: P164-DEAD-NOTE node=432087646 — identity retired; its announces/connects are ignored from now on
+[  255.477451] mxfs: mxfs: P163-RECOVERY-PENDING slot=15 node=432087646 epoch=12451769544860452776 — purge deferred until slice replay completes
+[  255.477455] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.477955] mxfs: mxfs: node in slot 17 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.477959] mxfs: mxfs: node 1297180320 (slot 17 inc 17037766177288904838) lease expired/died — fencing; recovery starting
+[  255.478112] mxfs: mxfs: P238-FENCE-NOINTENT slot=17 node=1297180320 epoch=17037766177288904838 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.478117] mxfs: mxfs: P164-DEAD-NOTE node=1297180320 — identity retired; its announces/connects are ignored from now on
+[  255.484468] mxfs: mxfs: P163-RECOVERY-PENDING slot=17 node=1297180320 epoch=17037766177288904838 — purge deferred until slice replay completes
+[  255.484472] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.484833] mxfs: mxfs: node in slot 18 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.484838] mxfs: mxfs: node 3227447293 (slot 18 inc 11703318719993026813) lease expired/died — fencing; recovery starting
+[  255.484947] mxfs: mxfs: P238-FENCE-NOINTENT slot=18 node=3227447293 epoch=11703318719993026813 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.484951] mxfs: mxfs: P164-DEAD-NOTE node=3227447293 — identity retired; its announces/connects are ignored from now on
+[  255.491399] mxfs: mxfs: P163-RECOVERY-PENDING slot=18 node=3227447293 epoch=11703318719993026813 — purge deferred until slice replay completes
+[  255.491402] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.492042] mxfs: mxfs: node in slot 22 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.492048] mxfs: mxfs: node 910101799 (slot 22 inc 16177143980226685788) lease expired/died — fencing; recovery starting
+[  255.492191] mxfs: mxfs: P238-FENCE-NOINTENT slot=22 node=910101799 epoch=16177143980226685788 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.492197] mxfs: mxfs: P164-DEAD-NOTE node=910101799 — identity retired; its announces/connects are ignored from now on
+[  255.498537] mxfs: mxfs: P163-RECOVERY-PENDING slot=22 node=910101799 epoch=16177143980226685788 — purge deferred until slice replay completes
+[  255.498540] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.499105] mxfs: mxfs: node in slot 24 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.499110] mxfs: mxfs: node 1189870114 (slot 24 inc 17914191997433901110) lease expired/died — fencing; recovery starting
+[  255.499279] mxfs: mxfs: P238-FENCE-NOINTENT slot=24 node=1189870114 epoch=17914191997433901110 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.499283] mxfs: mxfs: P164-DEAD-NOTE node=1189870114 — identity retired; its announces/connects are ignored from now on
+[  255.505688] mxfs: mxfs: P163-RECOVERY-PENDING slot=24 node=1189870114 epoch=17914191997433901110 — purge deferred until slice replay completes
+[  255.505692] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  255.506470] mxfs: mxfs: node in slot 27 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  255.506474] mxfs: mxfs: node 297203799 (slot 27 inc 4047711714972705723) lease expired/died — fencing; recovery starting
+[  255.506679] mxfs: mxfs: P238-FENCE-NOINTENT slot=27 node=297203799 epoch=4047711714972705723 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  255.506685] mxfs: mxfs: P164-DEAD-NOTE node=297203799 — identity retired; its announces/connects are ignored from now on
+[  255.512961] mxfs: mxfs: P163-RECOVERY-PENDING slot=27 node=297203799 epoch=4047711714972705723 — purge deferred until slice replay completes
+[  255.512965] mxfs: mxfs: not elected for dead-slice replay (lowest live slot 0, local 20) — deferring local purge until the slot is reclaimed
+[  257.576387] mxfs: mxfs: node in slot 0 is no longer responding (heartbeat expired after 31 checks), initiating recovery
+[  257.576398] mxfs: mxfs: node 3855575347 (slot 0 inc 4408445489132993284) lease expired/died — fencing; recovery starting
+[  257.576611] mxfs: mxfs: P238-FENCE-NOINTENT slot=0 node=3855575347 epoch=4408445489132993284 rc=-116 — the fencing intent is not durable, so no PREEMPT AND ABORT is issued (an unrecordable preempt consumes the victim key and leaves the slice provably unrecoverable)
+[  257.576616] mxfs: mxfs: P164-DEAD-NOTE node=3855575347 — identity retired; its announces/connects are ignored from now on
+[  257.582790] mxfs: mxfs: P163-RECOVERY-PENDING slot=0 node=3855575347 epoch=4408445489132993284 — purge deferred until slice replay completes
+[  257.582795] mxfs: mxfs: elected (slot 20) to replay dead node 3855575347's log slice 0
+[  257.582802] mxfs: mxfs: re-elected (slot 20) to replay pending slice 1 (node 73950) after replayer death
+[  257.582805] mxfs: mxfs: re-elected (slot 20) to replay pending slice 2 (node 1071829746) after replayer death
+[  257.582807] mxfs: mxfs: re-elected (slot 20) to replay pending slice 3 (node 2867806060) after replayer death
+[  257.582809] mxfs: mxfs: re-elected (slot 20) to replay pending slice 4 (node 3262812647) after replayer death
+[  257.582811] mxfs: mxfs: re-elected (slot 20) to replay pending slice 5 (node 1351537904) after replayer death
+[  257.582813] mxfs: mxfs: re-elected (slot 20) to replay pending slice 6 (node 2041203241) after replayer death
+[  257.582815] mxfs: mxfs: re-elected (slot 20) to replay pending slice 7 (node 2049413980) after replayer death
+[  257.582817] mxfs: mxfs: re-elected (slot 20) to replay pending slice 8 (node 3876847543) after replayer death
+[  257.582819] mxfs: mxfs: re-elected (slot 20) to replay pending slice 9 (node 3290638303) after replayer death
+[  257.582820] mxfs: mxfs: re-elected (slot 20) to replay pending slice 10 (node 3505048020) after replayer death
+[  257.582823] mxfs: mxfs: re-elected (slot 20) to replay pending slice 11 (node 660479046) after replayer death
+[  257.582826] mxfs: mxfs: re-elected (slot 20) to replay pending slice 12 (node 1295235186) after replayer death
+[  257.582830] mxfs: mxfs: re-elected (slot 20) to replay pending slice 13 (node 46039088) after replayer death
+[  257.582833] mxfs: mxfs: re-elected (slot 20) to replay pending slice 14 (node 1665079376) after replayer death
+[  257.582836] mxfs: mxfs: re-elected (slot 20) to replay pending slice 15 (node 432087646) after replayer death
+[  257.582844] mxfs: mxfs: re-elected (slot 20) to replay pending slice 16 (node 2968775057) after replayer death
+[  257.582848] mxfs: mxfs: re-elected (slot 20) to replay pending slice 17 (node 1297180320) after replayer death
+[  257.582851] mxfs: mxfs: re-elected (slot 20) to replay pending slice 18 (node 3227447293) after replayer death
+[  257.582854] mxfs: mxfs: re-elected (slot 20) to replay pending slice 19 (node 3317911391) after replayer death
+[  257.582857] mxfs: mxfs: re-elected (slot 20) to replay pending slice 21 (node 3988904026) after replayer death
+[  257.582860] mxfs: mxfs: re-elected (slot 20) to replay pending slice 22 (node 910101799) after replayer death
+[  257.582862] mxfs: mxfs: re-elected (slot 20) to replay pending slice 23 (node 2660200657) after replayer death
+[  257.582865] mxfs: mxfs: re-elected (slot 20) to replay pending slice 24 (node 1189870114) after replayer death
+[  257.582868] mxfs: mxfs: re-elected (slot 20) to replay pending slice 25 (node 539527939) after replayer death
+[  257.582871] mxfs: mxfs: re-elected (slot 20) to replay pending slice 26 (node 3458226597) after replayer death
+[  257.582873] mxfs: mxfs: re-elected (slot 20) to replay pending slice 27 (node 297203799) after replayer death
+[  257.582876] mxfs: mxfs: re-elected (slot 20) to replay pending slice 28 (node 1686135596) after replayer death
+[  257.582879] mxfs: mxfs: re-elected (slot 20) to replay pending slice 29 (node 3227595972) after replayer death
+[  257.582881] mxfs: mxfs: re-elected (slot 20) to replay pending slice 30 (node 2595351064) after replayer death
+[  257.582884] mxfs: mxfs: re-elected (slot 20) to replay pending slice 31 (node 1511882952) after replayer death
+[  257.585060] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.593242] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.600404] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.606898] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.615487] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.622098] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.628587] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.635262] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.644314] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.651594] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.657899] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.664282] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.670630] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.676904] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.683304] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.689733] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.696312] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.702761] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.712214] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.718836] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.727931] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.735218] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.744280] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.753793] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.763702] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.770251] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.777309] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.783846] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.790641] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.797315] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  257.804646] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  263.717243] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  275.813769] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  287.910075] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  288.102951] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.109253] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.115553] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.121779] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.128088] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.134312] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.140540] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.146743] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.153018] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.159273] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.165423] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.172067] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.178506] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.184707] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.190867] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.197081] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.203450] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.210012] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.216262] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.223443] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.229467] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.235706] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.241944] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.248181] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.254397] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.260599] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.266806] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.273033] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.279207] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.285375] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  288.291541] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  300.006314] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  312.102338] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  318.314107] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.322567] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.330118] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.339022] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.346264] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.353863] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.360041] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.366559] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.375785] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.384668] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.391582] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.398424] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.405911] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.413742] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.421950] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.432807] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.442004] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.452851] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.460138] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.466375] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.473779] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.480084] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.486335] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.493507] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.500792] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.507038] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.513175] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.519260] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.525345] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.531459] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  318.537527] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  324.198327] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  336.294125] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  348.389929] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  348.519778] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.526094] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.532192] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.538273] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.544360] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.550425] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.556486] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.562586] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.568592] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.574669] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.580871] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.587015] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.593173] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.599234] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.606776] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.614681] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.622780] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.630790] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.638767] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.646737] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.654690] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.662618] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.670593] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.678512] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.686442] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.694197] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.701534] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.707883] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.714119] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.720458] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  348.727181] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  360.485649] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  372.581357] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  378.728794] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.740106] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.748529] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.756553] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.762564] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.768666] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.774789] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.780848] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.787053] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.793336] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.800975] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.809406] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.817569] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.825838] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.834235] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.842517] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.850864] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.861235] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.869482] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.877757] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.886031] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.894327] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.904914] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.911136] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.917276] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.923410] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.929495] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.935704] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.941842] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.948024] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  378.954168] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  384.677027] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  396.772604] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  408.868178] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  408.933963] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.940439] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.946716] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.953216] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.959666] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.966047] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.972412] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.978621] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.984844] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.991167] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  408.997361] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.003800] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.010142] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.016504] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.022846] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.029166] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.035559] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.041881] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.048151] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.054300] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.060443] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.066613] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.072774] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.079065] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.085181] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.092127] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.099479] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.107441] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.115749] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.123218] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  409.129439] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  420.963724] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  433.059327] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  439.148164] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.155199] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.161986] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.168533] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.175182] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.181632] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.188006] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.194329] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.200801] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.207209] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.213579] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.219811] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.226192] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.232460] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.238748] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.245046] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.251453] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.257540] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.263687] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.269820] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.275940] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.282348] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.288687] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.295006] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.301436] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.308028] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.314179] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.320399] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.326605] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.332863] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  439.339801] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  445.154799] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  457.250337] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  457.506344] mxfs: mxfs: node 2968775057 may be unreachable (missed 150 heartbeats, 365595 ms since last contact)
+[  457.506357] mxfs: mxfs: node 3317911391 may be unreachable (missed 150 heartbeats, 365588 ms since last contact)
+[  457.506361] mxfs: mxfs: node 2660200657 may be unreachable (missed 150 heartbeats, 365545 ms since last contact)
+[  457.506364] mxfs: mxfs: node 3458226597 may be unreachable (missed 150 heartbeats, 365912 ms since last contact)
+[  457.506367] mxfs: mxfs: node 73950 may be unreachable (missed 150 heartbeats, 365868 ms since last contact)
+[  457.506370] mxfs: mxfs: node 1071829746 may be unreachable (missed 150 heartbeats, 365776 ms since last contact)
+[  457.506372] mxfs: mxfs: node 3227595972 may be unreachable (missed 150 heartbeats, 365820 ms since last contact)
+[  457.506375] mxfs: mxfs: node 2595351064 may be unreachable (missed 150 heartbeats, 365410 ms since last contact)
+[  457.506378] mxfs: mxfs: node 1511882952 may be unreachable (missed 150 heartbeats, 365723 ms since last contact)
+[  469.345857] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  469.347709] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.357517] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.366441] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.373472] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.379843] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.387741] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.396424] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.403596] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.409730] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.415906] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.422314] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.431505] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.438300] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.447329] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.453677] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.463780] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.471971] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.482903] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.491058] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.499098] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.507163] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.515140] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.523183] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.531240] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.541226] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.549341] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.557388] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.566824] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.574875] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.580958] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  469.587027] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  481.441327] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  493.536829] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0
+[  499.555266] XFS (dm-1): MXFS foreign replay slot=0: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.564464] XFS (dm-1): MXFS foreign replay slot=1: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.572210] XFS (dm-1): MXFS foreign replay slot=2: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.578498] XFS (dm-1): MXFS foreign replay slot=3: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.587008] XFS (dm-1): MXFS foreign replay slot=4: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.593101] XFS (dm-1): MXFS foreign replay slot=5: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.599232] XFS (dm-1): MXFS foreign replay slot=6: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.607346] XFS (dm-1): MXFS foreign replay slot=7: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.613453] XFS (dm-1): MXFS foreign replay slot=8: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.619688] XFS (dm-1): MXFS foreign replay slot=9: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.627643] XFS (dm-1): MXFS foreign replay slot=10: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.636257] XFS (dm-1): MXFS foreign replay slot=11: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.645582] XFS (dm-1): MXFS foreign replay slot=12: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.653585] XFS (dm-1): MXFS foreign replay slot=13: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.661041] XFS (dm-1): MXFS foreign replay slot=14: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.668511] XFS (dm-1): MXFS foreign replay slot=15: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.674565] XFS (dm-1): MXFS foreign replay slot=16: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.681905] XFS (dm-1): MXFS foreign replay slot=17: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.688677] XFS (dm-1): MXFS foreign replay slot=18: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.696018] XFS (dm-1): MXFS foreign replay slot=19: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.702093] XFS (dm-1): MXFS foreign replay slot=21: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.708167] XFS (dm-1): MXFS foreign replay slot=22: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.714252] XFS (dm-1): MXFS foreign replay slot=23: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.720360] XFS (dm-1): MXFS foreign replay slot=24: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.726610] XFS (dm-1): MXFS foreign replay slot=25: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.732729] XFS (dm-1): MXFS foreign replay slot=26: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.738802] XFS (dm-1): MXFS foreign replay slot=27: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.744871] XFS (dm-1): MXFS foreign replay slot=28: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.750958] XFS (dm-1): MXFS foreign replay slot=29: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.757011] XFS (dm-1): MXFS foreign replay slot=30: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  499.763062] XFS (dm-1): MXFS foreign replay slot=31: NOT replayed — no proven exclusion of the dead node (-2).  Its slice stays unreplayed and its grants stay frozen until a fence certificate exists; this is a refusal, not a retry-and-forget
+[  505.632314] mxfs: P265-BASTQ-STATS node=3986792468 at=periodic submitted=31 dispatched=31 merged=0 rearmed=0 overflow=0 inline=0 depth=0 hiwater=1 running=0

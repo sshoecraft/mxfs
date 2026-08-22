@@ -135,12 +135,15 @@ for K in $(seq 1 "$ROUNDS"); do
     # EEXIST.  The WINNER is the node whose in-core image is dirty and
     # epoch-0 — the state the loss needs.
     mkdir -p "$D" 2>/dev/null
-    if mkdir "$D/node$R" 2>/dev/null; then :; else
-        rc=$?
+    # sess386: keep mkdir's stderr — rc=1 alone hides the errno, and the
+    # diagnosis of a reported failure starts with WHICH error it was.
+    mkdir_err_txt=$(mkdir "$D/node$R" 2>&1)
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
         # A REPORTED failure is a different (and far less severe) defect than a
         # silent one.  Count it separately so the two are never conflated.
         mkdir_rc_fail=$((mkdir_rc_fail + 1))
-        echo "  DD-MKDIR-RC round=$K rank=$R rc=$rc"
+        echo "  DD-MKDIR-RC round=$K rank=$R rc=$rc err=[${mkdir_err_txt##*: }]"
     fi
 
     # Verify the round that finished two slots ago — quiesced, but not yet torn

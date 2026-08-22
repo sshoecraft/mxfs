@@ -23,6 +23,7 @@
 #include "xfs_health.h"
 #include "xfs_ag.h"
 #include "xfs_zone_alloc.h"
+#include "../dlm/v5_mount.h"	/* sess187: victim untagged-replay authority */
 
 /* mxfs log-wedge diagnostic gate (module param mxfs.instr, defined in xfs_mxfs_dlm.c) */
 extern int mxfs_instr_enabled;
@@ -572,6 +573,28 @@ xlog_state_release_iclog(
 }
 
 /*
+ * MXFS sess179 B1 (D-MIXED-VERSION-UNGATED-REPLAY): no log image may be
+ * applied before this node's cluster-protocol admission is decided.
+ * xfs_fs_fill_super sets m_mxfs_proto_admitted after the C7 gate admits
+ * (trivially for non-envelope mounts); every recovery entry point calls
+ * this first.  A replay reached without admission means a code path
+ * exists where an unadmitted (possibly protocol-mismatched) kernel could
+ * interpret and apply another generation's log images — refuse it.
+ */
+static int
+mxfs_assert_proto_admitted(
+	struct xfs_mount	*mp,
+	const char		*where)
+{
+	if (!mp->m_mxfs_has_envelope || mp->m_mxfs_proto_admitted)
+		return 0;
+	xfs_alert(mp,
+"MXFS: %s reached before C7 protocol admission — refusing log replay (fail closed)",
+		  where);
+	return -EPROTO;
+}
+
+/*
  * Mount a log filesystem
  *
  * mp		- ubiquitous xfs mount point structure
@@ -696,6 +719,10 @@ xfs_log_mount(
 	 * just worked.
 	 */
 	if (!xfs_has_norecovery(mp)) {
+		error = mxfs_assert_proto_admitted(mp,
+				"mount-time xlog_recover");
+		if (error)
+			goto out_destroy_ail;
 		error = xlog_recover(log);
 		if (error) {
 			xfs_warn(mp, "log mount/recovery failed: error %d",
@@ -749,21 +776,116 @@ out:
  * xlog_find_tail writes l_ailp->ail_head_lsn — sharing mp->m_ail would
  * clobber live log accounting.
  */
+
+/*
+ * sess324 (D-513): forensic identity of a REFUSED slice — reread the whole
+ * slice image from the shared LUN and crc32c it.  Runs only on the refusal
+ * path, so the extra IO never touches a successful replay.  A failed read
+ * leaves the digest invalid; the verdict still publishes terminally with
+ * digest_valid=false and a zero digest (sess325 ruling item 5: the digest is
+ * forensics, never a gate on containment).
+ */
+static int
+mxfs_freplay_slice_digest(
+	struct xfs_mount	*mp,
+	xfs_daddr_t		daddr,
+	int			bblks,
+	uint64_t		*digest)
+{
+	struct xfs_buftarg	*targ = mp->m_logdev_targp;
+	char			*buf;
+	uint32_t		crc = 0;
+	int			chunk_bb = min_t(int, bblks, 2048); /* 1 MiB */
+	int			done = 0;
+	int			error = 0;
+
+	if (bblks <= 0 || !targ || !targ->bt_bdev)
+		return -EINVAL;
+	buf = kvmalloc(BBTOB(chunk_bb), GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+	while (done < bblks) {
+		int	this_bb = min(chunk_bb, bblks - done);
+
+		error = xfs_rw_bdev(targ->bt_bdev,
+				    targ->bt_sector_offset + daddr + done,
+				    BBTOB(this_bb), buf, REQ_OP_READ);
+		if (error)
+			break;
+		crc = crc32c(crc, buf, BBTOB(this_bb));
+		done += this_bb;
+	}
+	kvfree(buf);
+	if (!error)
+		*digest = crc;
+	return error;
+}
+
+/*
+ * D-513 fault injection (sess325 ruling, Q7 rig plan; scope per the sess328
+ * ruling Q2): force a foreign-replay refusal.  Shapes 1-3 forge the verdict
+ * AFTER a clean replay — phase-A containment/plumbing coverage only (durable
+ * outcome publish, survivor import, quarantine EIO, PENDING park, lease
+ * release); the platter stays consistent.  Shape 4 is the GENUINE mid-replay
+ * TORN: pass 2 fails with -EFSCORRUPTED after applying a deterministic
+ * freplay_force_torn_items-1 item prefix and takes the real
+ * xlog_recover_cancel unwind.
+ *
+ * The knob is ONE-SHOT and slot-scoped: it is consumed (xchg to 0) by the
+ * first replay attempt whose victim slot passes freplay_force_slot, so it
+ * covers exactly one recovery attempt of one victim — a sticky global here
+ * would make every later recovery's verdict ambiguous.
+ * 0 = off (default).  1 = POLICY refusal, AG-mask (ag 0).  2 = POLICY
+ * refusal, fs-wide.  3 = TORN verdict forged post-success (whole-fs).
+ * 4 = genuine mid-replay TORN (whole-fs).  Test-only.
+ */
+static int mxfs_freplay_force_refusal;
+module_param_named(freplay_force_refusal, mxfs_freplay_force_refusal,
+		   int, 0644);
+MODULE_PARM_DESC(freplay_force_refusal,
+	"Fault injection, ONE-SHOT: force foreign-slice replay refusal (0=off, 1=POLICY ag0, 2=POLICY fswide, 3=TORN forged post-success, 4=TORN genuine mid-replay)");
+static int mxfs_freplay_force_slot = -1;
+module_param_named(freplay_force_slot, mxfs_freplay_force_slot, int, 0644);
+MODULE_PARM_DESC(freplay_force_slot,
+	"Fault injection: victim slot freplay_force_refusal fires on (-1 = first replay attempted)");
+static int mxfs_freplay_force_torn_items = 8;
+module_param_named(freplay_force_torn_items, mxfs_freplay_force_torn_items,
+		   int, 0644);
+MODULE_PARM_DESC(freplay_force_torn_items,
+	"Fault injection: shape-4 fails pass 2 before applying the Nth item (deterministic prefix = N-1)");
+/*
+ * sess374: which AG-mask shape 1 forges.  Default 1 (AG 0) keeps the
+ * pre-existing shape-1 semantics byte for byte.  The out-of-closure purge and
+ * scrub (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356) can only be exercised with
+ * a domain that EXCLUDES the AG the probe resources live in — with ag0 in the
+ * closure the root inode is in-domain and correctly stays frozen, so the fix
+ * has nothing to do.  Test-only.
+ */
+static unsigned long mxfs_freplay_force_ag_mask = 1;
+module_param_named(freplay_force_ag_mask, mxfs_freplay_force_ag_mask,
+		   ulong, 0644);
+MODULE_PARM_DESC(freplay_force_ag_mask,
+	"Fault injection: AG bitmask shape-1 forges as the refused domain (default 1 = ag0)");
+
 int
 mxfs_xlog_recover_foreign_slice(
 	struct xfs_mount	*mp,
-	uint32_t		dead_slot)
+	uint32_t		dead_slot,
+	struct mxfs_freplay_verdict *verdict)
 {
 	struct xlog		*shadow;
 	struct xfs_ail		*ailp;
 	xfs_daddr_t		daddr;
 	int			bblks;
 	int			error;
+	int			inject = 0;
 
 	uint32_t		slice;
 
-	if (mp->m_mxfs_log_node_count == 0 ||
-	    mp->m_mxfs_log_slice_bblks == 0) {
+	if (verdict)
+		memset(verdict, 0, sizeof(*verdict));
+
+	if (!mxfs_has_log_slices(mp)) {
 		xfs_warn(mp,
 	"MXFS: foreign replay of slot %u skipped — no per-node log slices",
 			 dead_slot);
@@ -772,12 +894,25 @@ mxfs_xlog_recover_foreign_slice(
 	if (xfs_is_shutdown(mp) || !mp->m_log)
 		return -EIO;
 
+	error = mxfs_assert_proto_admitted(mp, "foreign-slice replay");
+	if (error)
+		return error;
+
 	/*
 	 * dead_slot is the dead node's heartbeat slot (0-63); its XFS log
-	 * slice index is slot % node_count — the same mapping xfs_mountfs
-	 * applies for the node's own slice.
+	 * slice is the identically numbered slice — the same identity
+	 * mapping xfs_mountfs applies for the node's own slice.  A slot
+	 * beyond the slice count has no slice: replaying anything for it
+	 * would read (and worse, later stamp clean) a slice belonging to
+	 * a DIFFERENT slot.  Refuse without touching the disk.
 	 */
-	slice = dead_slot % mp->m_mxfs_log_node_count;
+	error = mxfs_log_slice_of_slot(mp, dead_slot, &slice);
+	if (error) {
+		xfs_alert(mp,
+	"MXFS: foreign replay refused — dead slot %u has no log slice (fs has %u slices)",
+			  dead_slot, mp->m_mxfs_log_node_count);
+		return error;
+	}
 	daddr = XFS_FSB_TO_DADDR(mp, mp->m_sb.sb_logstart) +
 		(xfs_daddr_t)slice * mp->m_mxfs_log_slice_bblks;
 	bblks = mp->m_mxfs_log_slice_bblks;
@@ -804,23 +939,217 @@ mxfs_xlog_recover_foreign_slice(
 	set_bit(XLOG_MXFS_FOREIGN_REPLAY, &shadow->l_opstate);
 	/* sess165: bind the shadow authority evaluator to the dead node */
 	shadow->l_mxfs_victim_slot = dead_slot;
+
+	/*
+	 * sess187 (sess184 ruling): untagged-record replay authority.  Both
+	 * predicates come from the victim's recovery descriptor — the kind-17
+	 * certificate (operator assertion, proven at fence time by the
+	 * membership gate) and the victim's own durable write-time snlocal
+	 * marker.  Only their CONJUNCTION authorizes applying untagged
+	 * images; any read failure leaves both false (fail closed —
+	 * xlog_alloc_log kzalloc'd the fields to 0/false already, this just
+	 * makes the evaluation explicit and logged).
+	 */
+	{
+		bool cert_sn = false, victim_sn = false;
+		int arc = mxfs_v5_dlm_victim_untagged_authority(
+				mp->m_mxfs_dlm, dead_slot,
+				&cert_sn, &victim_sn);
+
+		shadow->l_mxfs_cert_single_node = cert_sn;
+		shadow->l_mxfs_untagged_authorized = cert_sn && victim_sn;
+		if (arc)
+			xfs_warn(mp,
+	"MXFS: untagged-authority read for slot %u failed (%d) — untagged records will be refused",
+				 dead_slot, arc);
+		else if (cert_sn && !victim_sn)
+			xfs_warn(mp,
+	"MXFS: P227-SNLOCAL-DIVERGE slot %u: kind-17 certificate but victim never self-classified snlocal — untagged records will be refused",
+				 dead_slot);
+	}
 	ailp->ail_log = shadow;
 	shadow->l_ailp = ailp;
 
-	error = xlog_recover(shadow);
+	/*
+	 * sess358 (#1, sess357 ruling): enforcement preflight — one
+	 * descriptor read, cached on the shadow log for every per-txn
+	 * verdict.  A configured-but-uncapable recovery aborts HERE, before
+	 * any replay side effect; the plain (non -EFSCORRUPTED) error keeps
+	 * the verdict reason NONE, so no terminal outcome publishes and a
+	 * later election retries.
+	 */
+	error = mxfs_fr_enforce_preflight(shadow);
+	if (!error) {
+		/*
+		 * sess328 ruling Q2: consume the fault knob ONE-SHOT, scoped
+		 * to the configured victim slot — this replay attempt (and
+		 * only this one) carries the injection, so every other
+		 * recovery's verdict stays unambiguous.  sess359 (GPT review
+		 * Q1): consumed only AFTER a successful preflight, so a
+		 * preflight abort can never eat an armed injection — the
+		 * shape fires on the attempt that actually replays.
+		 */
+		if (unlikely(READ_ONCE(mxfs_freplay_force_refusal)) &&
+		    (mxfs_freplay_force_slot < 0 ||
+		     (uint32_t)mxfs_freplay_force_slot == dead_slot)) {
+			inject = xchg(&mxfs_freplay_force_refusal, 0);
+			if (inject)
+				xfs_alert(mp,
+	"MXFS: P227-FR-INJECT-ARMED slot=%u shape=%d torn_items=%d — one-shot knob consumed for this replay attempt",
+					  dead_slot, inject,
+					  mxfs_freplay_force_torn_items);
+		}
+		/*
+		 * Shape 4 (sess328 ruling Q2b): genuine mid-replay TORN — arm
+		 * the pass-2 countdown on the shadow log so the failure
+		 * happens INSIDE the replay, after a deterministic applied
+		 * prefix, with the real xlog_recover_cancel unwind below.
+		 */
+		if (unlikely(inject >= 4))
+			shadow->l_mxfs_force_torn_countdown =
+				mxfs_freplay_force_torn_items > 0 ?
+				mxfs_freplay_force_torn_items : 1;
+
+		error = xlog_recover(shadow);
+	}
+	/*
+	 * D-513 fault injection shapes 1-3: only a CLEAN replay is overridden
+	 * — a real failure keeps its own verdict.  Shape 3 (TORN) forces the
+	 * corrupt-image arm below, including the recover_cancel a real
+	 * mid-replay failure takes; the POLICY shapes forge refused-item
+	 * state so the policy-refusal arm fires with the chosen domain.
+	 */
+	if (unlikely(inject && inject < 4) && !error) {
+		xfs_alert(mp,
+	"MXFS: P227-FR-FORCED-REFUSAL slot %u shape=%d — fault injection, verdict is synthetic",
+			  dead_slot, inject);
+		if (inject >= 3) {
+			error = -EFSCORRUPTED;
+		} else {
+			shadow->l_mxfs_untagged_skips += 1;
+			if (inject == 2)
+				shadow->l_mxfs_refused_fswide = true;
+			else
+				/*
+				 * ASSIGN, not OR.  Shape 1's verdict is
+				 * explicitly synthetic ("fires with the chosen
+				 * domain"), and a real replay usually has
+				 * genuinely refused AGs of its own — sess374
+				 * measured 0x2 forged | 0x81 real = 0x83, which
+				 * silently put ag0 back INTO the closure and
+				 * made the out-of-closure test unable to
+				 * discriminate at all.  The chosen domain is
+				 * the whole point of the knob.
+				 */
+				shadow->l_mxfs_refused_ag_mask =
+					mxfs_freplay_force_ag_mask ?
+					mxfs_freplay_force_ag_mask : 1;
+		}
+	}
 	if (error)
 		xlog_recover_cancel(shadow);
 
-	mxfs_shadow_eval_finish(shadow);
-	xlog_dealloc_log(shadow);
-	kfree(ailp);
+	/*
+	 * sess324 (D-513, sess320 ruling): a corrupt/torn slice image is as
+	 * DETERMINISTIC a refusal as a policy one — replaying it again reads
+	 * the same broken bytes.  It carries no trustworthy per-item domain
+	 * information (the failure may precede item parsing entirely), so the
+	 * quarantine domain is forced whole-filesystem.
+	 */
+	if ((error == -EFSCORRUPTED || error == -EFSBADCRC) && verdict) {
+		verdict->reason          = MXFS_FREPLAY_REASON_TORN;
+		verdict->fswide          = true;
+		verdict->refused_items   = shadow->l_mxfs_untagged_skips;
+		verdict->malformed_items = shadow->l_mxfs_malformed_skips;
+	}
 
-	if (error)
-		xfs_warn(mp, "MXFS: foreign replay of slot %u failed: error %d",
-			 dead_slot, error);
-	else
-		xfs_notice(mp, "MXFS: foreign replay of slot %u complete",
-			   dead_slot);
+	/*
+	 * sess187: a kind-17 slice that had untagged records REFUSED cannot be
+	 * published as recovered — the operator called the victim's log local,
+	 * so those untagged images are part of the slice's durable state and a
+	 * replay that skipped them is a TORN image.  Fail the whole replay so
+	 * the caller keeps the slice frozen/unpublished (same containment path
+	 * as any other replay error).
+	 *
+	 * sess233 (#21 incident-481 RULE-5 ruling): generalized to EVERY
+	 * untrusted replay, not just kind-17.  An ATOMIC-SKIP abandons a
+	 * COMMITTED victim transaction, and skipping cannot undo the victim's
+	 * own partial AIL writeback of that transaction's buffers: incident
+	 * 481 had AGI+finobt home but not inobt when the victim withdrew, so
+	 * the skip left the platter torn (finobt freecount ahead of inobt,
+	 * orphaned nlink=0 inodes on no bucket) and replay was the only redo
+	 * path.  XFS atomicity is log-commit atomicity — redo restores it;
+	 * refusing the redo and then publishing the recovery manufactured a
+	 * state no node ever had.  Fail closed instead: the slice stays
+	 * frozen/unpublished and the victim's log slice is itself the
+	 * preserved evidence.  The per-record P227-FR-ATOMIC-SKIP /
+	 * P223-FR-UNTAGGED-SKIP notices already name the lsn/item detail.
+	 */
+	if (!error && shadow->l_mxfs_untagged_skips > 0) {
+		if (shadow->l_mxfs_cert_single_node &&
+		    !shadow->l_mxfs_untagged_authorized)
+			xfs_alert(mp,
+	"MXFS: P227-SNLOCAL-TORN slot %u: kind-17 replay refused %u untagged record(s) without the victim snlocal marker — slice stays unpublished",
+				  dead_slot, shadow->l_mxfs_untagged_skips);
+		else
+			xfs_alert(mp,
+	"MXFS: P227-FR-TORN-UNPUBLISHED slot %u: replay refused %u committed unauthorized image(s) (sbclean_skips=%u not counted) — the victim's partial home-writeback cannot be ruled out, so publishing would publish a torn platter; slice stays unpublished (needs repair or token-authorized redo)",
+				  dead_slot, shadow->l_mxfs_untagged_skips,
+				  shadow->l_mxfs_sbclean_skips);
+		error = -EFSCORRUPTED;
+		/*
+		 * sess324 (D-513): the gates refused every part of the slice
+		 * they could not authorize — a complete, deterministic policy
+		 * verdict.  The quarantine domain is the AG set the refused
+		 * items would have modified, collected per-item during the
+		 * replay; anything unmappable already forced fswide there.
+		 */
+		if (verdict) {
+			verdict->reason  = MXFS_FREPLAY_REASON_POLICY_REFUSED;
+			verdict->fswide  = shadow->l_mxfs_refused_fswide ||
+					   shadow->l_mxfs_refused_ag_mask == 0;
+			verdict->ag_mask = shadow->l_mxfs_refused_ag_mask;
+			verdict->refused_items   = shadow->l_mxfs_untagged_skips;
+			verdict->malformed_items = shadow->l_mxfs_malformed_skips;
+		}
+	}
+
+	/*
+	 * Capture the refused slice's forensic digest.  A failed reread keeps
+	 * digest_valid=false; the verdict STILL publishes terminally (sess325
+	 * ruling item 5) — the outcome record carries the DIGEST_VALID flag
+	 * clear and a zero digest, weakening forensics but never containment.
+	 */
+	if (verdict && verdict->reason != MXFS_FREPLAY_REASON_NONE) {
+		int	drc = mxfs_freplay_slice_digest(mp, daddr, bblks,
+						&verdict->slice_digest);
+		if (drc)
+			xfs_warn(mp,
+	"MXFS: refused slice slot %u digest reread failed (%d) — verdict publishes with digest_valid=false",
+				 dead_slot, drc);
+		else
+			verdict->digest_valid = true;
+	}
+
+	/* sess352 (#94): counted clean skips survive shadow teardown so the
+	 * outcome line reports them — a slice of ONLY routine SB-counter
+	 * logging now completes instead of arming the terminal verdict. */
+	{
+		uint32_t sbclean_skips = shadow->l_mxfs_sbclean_skips;
+
+		mxfs_shadow_eval_finish(shadow);
+		xlog_dealloc_log(shadow);
+		kfree(ailp);
+
+		if (error)
+			xfs_warn(mp,
+			"MXFS: foreign replay of slot %u failed: error %d",
+				 dead_slot, error);
+		else
+			xfs_notice(mp,
+			"MXFS: foreign replay of slot %u complete (sbclean_skips=%u)",
+				   dead_slot, sbclean_skips);
+	}
 	return error;
 }
 
@@ -868,8 +1197,12 @@ xfs_log_mount_finish(
 	 */
 	mp->m_super->s_flags |= SB_ACTIVE;
 	xfs_log_work_queue(mp);
-	if (xlog_recovery_needed(log))
-		error = xlog_recover_finish(log);
+	if (xlog_recovery_needed(log)) {
+		error = mxfs_assert_proto_admitted(mp,
+				"xlog_recover_finish");
+		if (!error)
+			error = xlog_recover_finish(log);
+	}
 	mp->m_super->s_flags &= ~SB_ACTIVE;
 	evict_inodes(mp->m_super);
 
@@ -2025,6 +2358,10 @@ xlog_dealloc_log(
 	if (log->l_mp->m_log == log)
 		log->l_mp->m_log = NULL;
 	destroy_workqueue(log->l_ioend_workqueue);
+	/* sess352 (#94): masked-compare baseline cached by the counter-only
+	 * SB clean-skip classifier (foreign shadow logs and adopted mount
+	 * logs alike). */
+	kfree(log->l_mxfs_sb_baseline);
 	kfree(log);
 }
 
