@@ -20,6 +20,8 @@
                          * mxfs_fence_kind_proves_exclusion() — the ONE
                          * predicate every replay gate must use */
 #include "../include/mxfs/mxfs_super.h"
+#include "../include/mxfs/mxfs_tauth.h"    /* ledger-manifest slot_idx bound */
+#include "recov_obl_done.h"                 /* 0.85.0: the completion proof */
 
 /*
  * Instr gate for diagnostic probes — mirrors caw_instr_on() in dlm_caw.c.
@@ -64,6 +66,104 @@ MODULE_PARM_DESC(dl_inject_closure_mask,
                  "REVALIDATIONS read, so the expected-vs-platter compare "
                  "fails and the purge must stop -ESTALE (consumable; 0=off)");
 
+/* sess409 (D-FENCED-VICTIM-NONCONTAINMENT-498 verification): pause THIS
+ * node's heartbeat thread ONCE for N ms while its data path keeps running —
+ * the sess276 false-death shape.  > the 62 s expiry makes the peers fence a
+ * LIVE node with a real certificate and replay its slice; the victim then
+ * must self-withdraw on its bounced writes (P277) and stop.  Consumed on
+ * use (one-shot).  TEST ONLY. */
+static int mxfs_dl_inject_hb_pause_ms;
+module_param_named(dl_inject_hb_pause_ms, mxfs_dl_inject_hb_pause_ms,
+                   int, 0644);
+MODULE_PARM_DESC(dl_inject_hb_pause_ms,
+                 "TEST ONLY: pause the disklock heartbeat thread once for N "
+                 "ms (false-death injection; one-shot, 0=off)");
+
+/* 0.89.20 TEST ONLY: skip the heartbeat's pre-issue AUTHORITY check for
+ * exactly one cycle, so a beat issued after this node's authority lease had
+ * already lapsed actually reaches mxfs_disklock_authority_renew.  That
+ * renewal guard — refuse, and close the epoch, when the anchor is already
+ * past the deadline — is defence in depth and no live path reaches it,
+ * because the pre-issue check stops the heartbeat first.  A guard that
+ * nothing can exercise is a guard nobody knows works.  One-shot. */
+static int mxfs_dbg_hb_skip_auth_check;
+module_param_named(dbg_hb_skip_auth_check, mxfs_dbg_hb_skip_auth_check,
+                   int, 0644);
+MODULE_PARM_DESC(dbg_hb_skip_auth_check,
+                 "TEST ONLY: skip the heartbeat's pre-issue authority check "
+                 "once, so a stale-anchored renewal reaches the guard that "
+                 "must refuse it (one-shot, 0=off)");
+
+/* 0.89.20 TEST ONLY: the beat reaches the target and its COMPLETION is then
+ * withheld for N ms.  The ordering the issue-time anchor exists for: the
+ * update is visible to peers, they age it while this node waits, and only
+ * afterwards is the success delivered.  A deadline anchored at completion
+ * would grant authority measured from an instant that had already passed for
+ * everyone else.  One-shot. */
+static int mxfs_dbg_hb_completion_delay_ms;
+module_param_named(dbg_hb_completion_delay_ms, mxfs_dbg_hb_completion_delay_ms,
+                   int, 0644);
+MODULE_PARM_DESC(dbg_hb_completion_delay_ms,
+                 "TEST ONLY: withhold a landed heartbeat's completion for N "
+                 "ms, so the renewal must still derive its deadline from when "
+                 "the beat was issued (one-shot, 0=off)");
+
+/*
+ * 0.75.90 TEST ONLY (D-0932, D-0933 part 2): hold this prover for N ms in the
+ * window where its fencing intent is DURABLE on the platter but no PREEMPT AND
+ * ABORT has been issued — i.e. a descriptor at stage FENCING naming this node
+ * as fence_prover_node and nothing done under it yet.
+ *
+ * That window is the entire premise of the attempt-takeover path: a peer may
+ * only take the attempt over once it can prove the holder's incarnation is
+ * REVOKED, and until then the slice waits.  Killing a prover parked here leaves
+ * exactly the on-disk state a prover that died mid-attempt leaves — a REAL
+ * descriptor written by a real prover, not a forged one.
+ *
+ * It exists because the window is otherwise unreachable on a two-node rig.
+ * Measured (chain s583f, both laps, all four journals): P238-FENCE-HOLDER-SLOT,
+ * verdict=REVOKED and P238-FENCE-TAKEOVER are all ZERO, because two symmetric
+ * survivors make every victim a previous boot of a live host and
+ * boot-succession proves exclusion before any attempt is left standing.
+ *
+ * Writable at 0644 so a harness can arm it on ONE node at runtime, via
+ * /sys/module/mxfs/parameters/, without reloading the module or giving the two
+ * nodes different insmod arguments.  Never set in production.
+ */
+static int mxfs_dl_fence_postintent_pause_ms;
+module_param_named(dl_fence_postintent_pause_ms,
+                   mxfs_dl_fence_postintent_pause_ms, int, 0644);
+MODULE_PARM_DESC(dl_fence_postintent_pause_ms,
+                 "TEST ONLY: hold the prover N ms after its fencing intent is "
+                 "durable and before the PREEMPT AND ABORT is issued (0=off)");
+
+/*
+ * 0.89.16 TEST ONLY: stamp this fence KIND on the durable certificate instead
+ * of the one the attempt actually proved.
+ *
+ * It exists to produce the one state this build cannot otherwise reach: a
+ * descriptor on the platter carrying a proof contract that has since been
+ * REVOKED — the certificate an older build wrote and a corrected build has to
+ * refuse.  This build refuses to MINT those kinds, so without an injection
+ * nothing ever puts one on a platter, and the refusal at the CONSUMING end is
+ * a branch nobody has seen fire.
+ *
+ * It is deliberately narrow and it cannot loosen anything.  Every check the
+ * constructor makes still runs, against the kind the attempt actually proved;
+ * only the value written into the descriptor is replaced, and the values worth
+ * injecting are exactly the ones the consuming side then refuses — so an
+ * injected lap is strictly more conservative than an uninjected one.  The
+ * substitution is printed with the certificate, so no lap can mistake an
+ * injected kind for a measured one.  Never set in production.
+ */
+static int mxfs_dl_fence_cert_kind_inject;
+module_param_named(dl_fence_cert_kind_inject, mxfs_dl_fence_cert_kind_inject,
+                   int, 0644);
+MODULE_PARM_DESC(dl_fence_cert_kind_inject,
+                 "TEST ONLY: write this fence kind into the durable "
+                 "certificate instead of the proved one, so the consuming side "
+                 "meets a revoked proof contract (0=off)");
+
 /* Consume one armed injection: true and decrement while the knob is >0. */
 static inline bool dl_inject_take(int *knob)
 {
@@ -76,11 +176,15 @@ static inline bool dl_inject_take(int *knob)
 #else
 #define dl_instr_on() (0)
 #define dl_inject_take(k) (false)
+static int mxfs_dl_inject_hb_pause_ms;	/* user-mode: never armed */
+static int mxfs_dbg_hb_skip_auth_check;	/* user-mode: never armed */
+static int mxfs_dbg_hb_completion_delay_ms;	/* user-mode: never armed */
+static int mxfs_dl_fence_cert_kind_inject;	/* user-mode: never armed */
 #endif
 
 /*
  * sess1 (ccloop 46efd8b6) ROOT FIX of the 32/caw budget-timeout family
- * (cache_coherency / crash_consistency / dir_reuse verify convoys) — RULE-4
+ * (cache_coherency / crash_consistency / dir_reuse verify convoys) — instrumented
  * PROVEN chain: the heartbeat monitor scan reads peer HB sectors with a
  * PLAIN, CACHEABLE read (see the sess69 note at the dead-detect confirm —
  * only DEAD detection got the FUA re-check).  Under storm load the block
@@ -202,7 +306,7 @@ static bool hb_gen_foreign(const struct mxfs_disklock_ctx *ctx,
  * ordered.  A larger value does not mean "newer": a resurrected older record
  * must fail closed, not be reasoned about numerically.
  *
- * Lifecycle (GPT sess83 RULE-5 ruling):
+ * Lifecycle (GPT sess83 design-consult ruling):
  *   - drawn BEFORE the first claim publication, so the first durable ACTIVE
  *     record, its feature CRC and every descriptor carry the same value;
  *   - immutable for the life of that published tenancy — transient rewrites
@@ -246,6 +350,38 @@ static mxfs_epoch_t hb_draw_incarnation(void)
 static inline bool inc_valid(mxfs_epoch_t e)
 {
     return e != 0;
+}
+
+/*
+ * sess426 (D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO, sess91 ruling item 1):
+ * rebase a tracked slot's cached incarnation from a sector we just read.
+ * A ZERO on the sector never overwrites a known nonzero incarnation — no
+ * member at this proto_gen writes one, so it is a torn/spliced sector or a
+ * foreign writer, and the slot is flagged inconsistent (P-HB-INC-ZERO)
+ * rather than silently re-baselined to "unknown" (which later published a
+ * recovery under an unobserved incarnation).
+ */
+static void hb_rebase_epoch(struct mxfs_disklock_ctx *ctx,
+                            struct mxfs_disklock_node_track *nt, int slot,
+                            const struct mxfs_disklock_heartbeat *rhb,
+                            const char *arm)
+{
+    if (inc_valid(rhb->epoch) || !inc_valid(nt->last_epoch)) {
+        nt->last_epoch = rhb->epoch;
+        nt->inc_zero_logged = false;
+        return;
+    }
+    ctx->hb_inc_zero_retained++;
+    if (nt->inc_zero_logged)
+        return;
+    nt->inc_zero_logged = true;
+    mxfs_pal_log(MXFS_LOG_ERR,
+                 "mxfs: P-HB-INC-ZERO slot=%d node=%u arm=%s flags=0x%x ts=%llu "
+                 "cached_inc=%llu — ACTIVE-looking record with a ZERO incarnation; "
+                 "retaining the cached incarnation, slot inconsistent",
+                 slot, rhb->node_id, arm, rhb->flags,
+                 (unsigned long long)rhb->timestamp_ms,
+                 (unsigned long long)nt->last_epoch);
 }
 
 /*
@@ -329,15 +465,466 @@ static void hb_feature_fill(const struct mxfs_disklock_ctx *ctx,
 {
     hb->feat.magic      = MXFS_HB_FEAT_MAGIC;
     hb->feat.proto_gen  = (uint16_t)MXFS_PROTO_GEN;
-    hb->feat.feat_flags = ctx->snlocal ? MXFS_HB_FEAT_SNLOCAL : 0;
+    hb->feat.feat_flags = (ctx->snlocal ? MXFS_HB_FEAT_SNLOCAL : 0) |
+                          (ctx->claim_fresh ? MXFS_HB_FEAT_ADOPTED : 0) |
+                          (ctx->bootstrap_pending ?
+                               MXFS_HB_FEAT_BOOTSTRAP_PENDING : 0) |  /* sess441 */
+                          (ctx->transport_tcp ? MXFS_HB_FEAT_TCP : 0); /* 0.75.0 */
     hb->feat.crc32c     = hb_feature_crc(hb->fs_gen, hb->node_id,
                                          hb->epoch, &hb->feat);
+}
+
+/*
+ * sess438: the identity block's crc binds it to the record it sits in —
+ * {slot, flags, fs_gen, node_id, epoch} — as well as to its own fields, so a
+ * block copied to another slot, another record role (ACTIVE → GUARD), another
+ * mkfs generation or another incarnation does not validate.  Corruption and
+ * transplant detection only; authenticity comes from the single-writer slot.
+ */
+static uint32_t hb_ident_crc(uint32_t slot, uint32_t flags, uint32_t fs_gen,
+                             mxfs_node_id_t node_id, mxfs_epoch_t epoch,
+                             const struct mxfs_hb_identity *id)
+{
+    struct {
+        uint32_t magic;
+        uint16_t ver;
+        uint16_t key_gen;
+        uint8_t  host_uuid[16];
+        uint8_t  boot_uuid[16];
+        uint64_t pr_key;
+        uint32_t host_src;
+        uint32_t slot;
+        uint32_t flags;
+        uint32_t fs_gen;
+        uint32_t node_id;
+        uint64_t epoch;
+    } __attribute__((packed)) b;
+
+    b.magic   = id->magic;
+    b.ver     = id->ver;
+    b.key_gen = id->key_gen;
+    memcpy(b.host_uuid, id->host_uuid, 16);
+    memcpy(b.boot_uuid, id->boot_uuid, 16);
+    b.pr_key  = id->pr_key;
+    b.host_src = id->host_src;
+    b.slot    = slot;
+    b.flags   = flags;
+    b.fs_gen  = fs_gen;
+    b.node_id = (uint32_t)node_id;
+    b.epoch   = (uint64_t)epoch;
+    return mxfs_pal_crc32c(~0U, &b, sizeof(b));
+}
+
+/* Stamp the outgoing record's identity block (flags/identity fields must be
+ * set).  A ctx without an installed identity (tools, legacy paths) writes a
+ * zeroed block, which never validates. */
+static void hb_ident_fill(const struct mxfs_disklock_ctx *ctx,
+                          struct mxfs_disklock_heartbeat *hb, uint32_t slot)
+{
+    if (!ctx->own_ident_set) {
+        memset(&hb->ident, 0, sizeof(hb->ident));
+        return;
+    }
+    hb->ident = ctx->own_ident;
+    hb->ident.crc32c = hb_ident_crc(slot, hb->flags, hb->fs_gen, hb->node_id,
+                                    hb->epoch, &hb->ident);
+}
+
+bool mxfs_hb_identity_valid(const struct mxfs_disklock_heartbeat *hb,
+                            uint32_t slot)
+{
+    if (hb->ident.magic != MXFS_HB_IDENT_MAGIC ||
+        hb->ident.ver != MXFS_HB_IDENT_VERSION ||
+        hb->ident.pr_key == 0)
+        return false;
+    return hb->ident.crc32c == hb_ident_crc(slot, hb->flags, hb->fs_gen,
+                                            hb->node_id, hb->epoch,
+                                            &hb->ident);
+}
+
+/*
+ * 0.75.77 (D-0933, measured s565): a RECOVERY_GUARD keeps the victim's
+ * identity block byte for byte, but the guard writers move `flags` without
+ * re-binding the identity crc (only the retirement paths re-bind), and the
+ * crc covers the flags — so the block of every guard record read
+ * 'identity block invalid' at admission (P-ADMIT-VICTIM-UNFROZEN x6 per
+ * node) although it was the victim's own, intact, and exactly what a fence
+ * of that victim needs.  Validate it under the state the victim's own writer
+ * could have bound it to: ACTIVE at claim, WITHDRAWN or RETIRE_PENDING at a
+ * departure.  Every other binding (slot, fs_gen, node, epoch, the block
+ * itself) is checked unchanged, so a block copied from another record or
+ * another incarnation still fails.  A non-guard record is judged as before.
+ */
+bool mxfs_hb_guard_identity_valid(const struct mxfs_disklock_heartbeat *hb,
+                                  uint32_t slot)
+{
+    static const uint32_t bound_as[] = { MXFS_DISKLOCK_FLAG_ACTIVE,
+                                         MXFS_DISKLOCK_FLAG_WITHDRAWN,
+                                         MXFS_DISKLOCK_FLAG_RETIRE_PENDING };
+    unsigned int i;
+
+    if (hb->flags != MXFS_DISKLOCK_FLAG_RECOVERY_GUARD)
+        return mxfs_hb_identity_valid(hb, slot);
+    if (hb->ident.magic != MXFS_HB_IDENT_MAGIC ||
+        hb->ident.ver != MXFS_HB_IDENT_VERSION ||
+        hb->ident.pr_key == 0)
+        return false;
+    for (i = 0; i < sizeof(bound_as) / sizeof(bound_as[0]); i++)
+        if (hb->ident.crc32c == hb_ident_crc(slot, bound_as[i], hb->fs_gen,
+                                             hb->node_id, hb->epoch,
+                                             &hb->ident))
+            return true;
+    return false;
+}
+
+/*
+ * sess438: OBSERVE a peer record's identity.  Only ACTIVE and WITHDRAWN
+ * records name their own writer as the slot's incarnation (a GUARD names the
+ * guard writer and is never consulted).  The observation is keyed by the
+ * exact (node_id, epoch); a different key for a tuple already frozen is a
+ * protocol violation and poisons the tuple: no fence by key will ever be
+ * issued for it from this node.
+ */
+static void hb_ident_observe(struct mxfs_disklock_ctx *ctx, uint32_t slot,
+                             const struct mxfs_disklock_heartbeat *rhb)
+{
+    struct mxfs_disklock_ident_obs *o = &ctx->ident_obs[slot];
+
+    /* sess450: a RETIRE_PENDING record is the writer's own final image
+     * (release_slot re-binds the identity crc to the new flags), so it
+     * names its incarnation's key exactly like ACTIVE/WITHDRAWN — and a
+     * peer that first sees the slot in that state must still be able to
+     * freeze the key for the expiry fence. */
+    if (rhb->magic != MXFS_DISKLOCK_MAGIC ||
+        (rhb->flags != MXFS_DISKLOCK_FLAG_ACTIVE &&
+         rhb->flags != MXFS_DISKLOCK_FLAG_WITHDRAWN &&
+         rhb->flags != MXFS_DISKLOCK_FLAG_RETIRE_PENDING) ||
+        hb_gen_foreign(ctx, rhb) || !inc_valid(rhb->epoch) ||
+        !mxfs_hb_identity_valid(rhb, slot))
+        return;
+    if (o->valid && o->node == rhb->node_id && inc_eq(o->epoch, rhb->epoch)) {
+        if (o->key != rhb->ident.pr_key || o->key_gen != rhb->ident.key_gen) {
+            if (!o->conflict)
+                mxfs_pal_log(MXFS_LOG_ERR,
+                    "mxfs: P-PRKEY-CONFLICT slot=%u node=%u inc=%llu "
+                    "frozen=0x%llx/gen%u now=0x%llx/gen%u — ONE incarnation "
+                    "published TWO PR keys; protocol violation.  No fence "
+                    "by key will be issued for this incarnation from here",
+                    slot, rhb->node_id, (unsigned long long)rhb->epoch,
+                    (unsigned long long)o->key, o->key_gen,
+                    (unsigned long long)rhb->ident.pr_key,
+                    rhb->ident.key_gen);
+            o->conflict = true;
+        }
+        return;
+    }
+    o->node = rhb->node_id;
+    o->epoch = rhb->epoch;
+    o->key = rhb->ident.pr_key;
+    o->key_gen = rhb->ident.key_gen;
+    memcpy(o->host_uuid, rhb->ident.host_uuid, 16);   /* sess439 */
+    memcpy(o->boot_uuid, rhb->ident.boot_uuid, 16);
+    o->valid = true;
+    o->conflict = false;
+}
+
+/* fire_dead: FREEZE the victim's key into the death snapshot for exactly the
+ * tuple being declared dead.  Done before expire_cb so the fencer reads the
+ * snapshot, never the (possibly successor-rebased) observation. */
+static void hb_ident_freeze_victim(struct mxfs_disklock_ctx *ctx,
+                                   uint32_t slot, mxfs_node_id_t node,
+                                   mxfs_epoch_t epoch)
+{
+    const struct mxfs_disklock_ident_obs *o = &ctx->ident_obs[slot];
+    bool match = o->valid && !o->conflict && o->node == node &&
+                 inc_eq(o->epoch, epoch);
+
+    ctx->pending_key_node[slot]  = node;
+    ctx->pending_key_epoch[slot] = epoch;
+    ctx->pending_key[slot]       = match ? o->key : 0;
+    ctx->pending_key_gen[slot]   = match ? o->key_gen : 0;
+    if (match) {
+        memcpy(ctx->pending_host[slot], o->host_uuid, 16);  /* sess439 */
+        memcpy(ctx->pending_boot[slot], o->boot_uuid, 16);
+    } else {
+        memset(ctx->pending_host[slot], 0, 16);
+        memset(ctx->pending_boot[slot], 0, 16);
+    }
+    if (!match)
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P-PRKEY-VICTIM-UNKNOWN slot=%u node=%u inc=%llu "
+                     "obs{valid=%d conflict=%d node=%u inc=%llu} — no PR "
+                     "key frozen for this exact incarnation; a fence of it "
+                     "from this node will be REFUSED (NO_VICTIM_KEY)",
+                     slot, node, (unsigned long long)epoch, o->valid,
+                     o->conflict, o->node, (unsigned long long)o->epoch);
+}
+
+bool mxfs_disklock_victim_identity(struct mxfs_disklock_ctx *ctx, int slot,
+                                   mxfs_node_id_t node, mxfs_epoch_t epoch,
+                                   uint8_t host_uuid[16], uint8_t boot_uuid[16])
+{
+    bool ok = false;
+
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return false;
+    mxfs_pal_mutex_lock(ctx->lock);
+    if (ctx->pending_key_node[slot] == node &&
+        inc_eq(ctx->pending_key_epoch[slot], epoch) &&
+        ctx->pending_key[slot]) {
+        if (host_uuid)
+            memcpy(host_uuid, ctx->pending_host[slot], 16);
+        if (boot_uuid)
+            memcpy(boot_uuid, ctx->pending_boot[slot], 16);
+        ok = true;
+    }
+    mxfs_pal_mutex_unlock(ctx->lock);
+    return ok;
+}
+
+bool mxfs_disklock_host_live_other_boot(struct mxfs_disklock_ctx *ctx,
+                                        const uint8_t host_uuid[16],
+                                        const uint8_t boot_uuid[16],
+                                        mxfs_node_id_t *live_node,
+                                        int *live_slot)
+{
+    bool found = false;
+    uint32_t slot;
+
+    if (!ctx || !host_uuid || !boot_uuid)
+        return false;
+    mxfs_pal_mutex_lock(ctx->lock);
+    if (ctx->own_ident_set &&
+        memcmp(ctx->own_ident.host_uuid, host_uuid, 16) == 0 &&
+        memcmp(ctx->own_ident.boot_uuid, boot_uuid, 16) != 0) {
+        if (live_node)
+            *live_node = ctx->local_node;
+        if (live_slot)
+            *live_slot = ctx->local_slot;
+        found = true;
+    }
+    for (slot = 0; !found && slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        const struct mxfs_disklock_ident_obs *o = &ctx->ident_obs[slot];
+
+        if ((int)slot == ctx->local_slot || !ctx->monitored[slot] ||
+            !ctx->node_track[slot].live || !o->valid || o->conflict ||
+            o->node != ctx->slot_node_id[slot])
+            continue;
+        if (memcmp(o->host_uuid, host_uuid, 16) == 0 &&
+            memcmp(o->boot_uuid, boot_uuid, 16) != 0) {
+            if (live_node)
+                *live_node = o->node;
+            if (live_slot)
+                *live_slot = (int)slot;
+            found = true;
+        }
+    }
+    mxfs_pal_mutex_unlock(ctx->lock);
+    return found;
+}
+
+int mxfs_disklock_key_live_elsewhere(struct mxfs_disklock_ctx *ctx,
+                                     uint64_t key, mxfs_node_id_t excl_node,
+                                     mxfs_node_id_t *live_node,
+                                     int *live_slot)
+{
+    int found = 0;
+    uint32_t slot;
+
+    if (!ctx || !key)
+        return -EINVAL;
+
+    mxfs_pal_mutex_lock(ctx->lock);
+
+    /*
+     * This node's own registration first.  A fencer preempting a key equal to
+     * its own would preempt itself; the DLM layer already refuses that case
+     * separately, but the primitive must not depend on the caller having done
+     * it.
+     */
+    if (ctx->own_ident_set && ctx->own_ident.pr_key == key &&
+        ctx->local_node != excl_node) {
+        if (live_node)
+            *live_node = ctx->local_node;
+        if (live_slot)
+            *live_slot = ctx->local_slot;
+        found = 1;
+    }
+
+    for (slot = 0; !found && slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        const struct mxfs_disklock_ident_obs *o = &ctx->ident_obs[slot];
+
+        if ((int)slot == ctx->local_slot || !ctx->monitored[slot] ||
+            !ctx->node_track[slot].live || !o->valid || o->conflict ||
+            o->node != ctx->slot_node_id[slot])
+            continue;
+        if (o->key != key)
+            continue;
+        /*
+         * Exclude the incarnation being fenced, by NODE.  A mount's node_id is
+         * derived from a per-mount uuid (uuid_to_node_id at DLM init), so a
+         * successor on the victim's host carries a DIFFERENT node_id while
+         * carrying the SAME per-boot PR key — it is therefore not excluded
+         * here and is correctly reported.  Excluding by node rather than by
+         * liveness alone also keeps a legitimate fence working if the victim's
+         * record has not yet been marked not-live, which matters because this
+         * guard fails closed and a false positive would stall recovery.
+         */
+        if (o->node == excl_node)
+            continue;
+        if (live_node)
+            *live_node = o->node;
+        if (live_slot)
+            *live_slot = (int)slot;
+        found = 1;
+    }
+
+    mxfs_pal_mutex_unlock(ctx->lock);
+    return found;
+}
+
+int mxfs_disklock_boot_advancing(struct mxfs_disklock_ctx *ctx,
+                                 const uint8_t boot_uuid[16], bool *advancing,
+                                 int *records)
+{
+    struct mxfs_disklock_heartbeat *a, *b;
+    uint32_t slot;
+    int rc = 0, n = 0;
+
+    if (!ctx || !ctx->dev || !boot_uuid || !advancing)
+        return -EINVAL;
+    *advancing = false;
+    a = mxfs_pal_alloc(sizeof(*a) * MXFS_DISKLOCK_HB_SLOTS);
+    b = mxfs_pal_alloc(sizeof(*b));
+    if (!a || !b) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+        mxfs_pal_mutex_lock(ctx->lock);
+        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, &a[slot], sizeof(a[slot]));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        if (rc < 0)
+            goto out;
+    }
+    mxfs_pal_sleep_ms(2500);            /* > one heartbeat interval (2 s) */
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        const struct mxfs_disklock_heartbeat *r = &a[slot];
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+        if (r->magic != MXFS_DISKLOCK_MAGIC ||
+            (r->flags != MXFS_DISKLOCK_FLAG_ACTIVE &&
+             r->flags != MXFS_DISKLOCK_FLAG_WITHDRAWN &&
+             r->flags != MXFS_DISKLOCK_FLAG_RETIRE_PENDING) ||
+            !mxfs_hb_identity_valid(r, slot) ||
+            memcmp(r->ident.boot_uuid, boot_uuid, 16) != 0)
+            continue;
+        n++;
+        mxfs_pal_mutex_lock(ctx->lock);
+        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, b, sizeof(*b));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        if (rc < 0)
+            goto out;
+        if (b->magic == MXFS_DISKLOCK_MAGIC && b->node_id == r->node_id &&
+            inc_eq(b->epoch, r->epoch) &&
+            b->timestamp_ms != r->timestamp_ms) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P238-BOOT-ADVANCING slot=%u node=%u inc=%llu — "
+                         "a record carrying the victim's boot_uuid is "
+                         "heartbeating (clone / snapshot-resumed copy); no boot "
+                         "boundary can be claimed for that boot",
+                         slot, r->node_id, (unsigned long long)r->epoch);
+            *advancing = true;
+        }
+    }
+    rc = 0;
+out:
+    if (records)
+        *records = n;
+    mxfs_pal_free(a);
+    mxfs_pal_free(b);
+    return rc;
+}
+
+int mxfs_disklock_deaths_undeclared(struct mxfs_disklock_ctx *ctx,
+                                    unsigned int *window_ms)
+{
+    int n = 0;
+    uint32_t slot;
+
+    if (window_ms)
+        *window_ms = 0;
+    if (!ctx)
+        return 0;
+    mxfs_pal_mutex_lock(ctx->lock);
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        const struct mxfs_disklock_node_track *nt = &ctx->node_track[slot];
+
+        if ((int)slot == ctx->local_slot || !ctx->monitored[slot] ||
+            nt->live || nt->last_timestamp == 0 ||
+            ctx->recovery_pending[slot])
+            continue;
+        n++;
+    }
+    if (window_ms)
+        *window_ms = (unsigned int)ctx->dead_threshold *
+                     MXFS_DISKLOCK_HB_INTERVAL_MS;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    return n;
+}
+
+uint64_t mxfs_disklock_victim_key(struct mxfs_disklock_ctx *ctx, int slot,
+                                  mxfs_node_id_t node, mxfs_epoch_t epoch,
+                                  uint32_t *key_gen)
+{
+    uint64_t key = 0;
+
+    if (key_gen)
+        *key_gen = 0;
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return 0;
+    mxfs_pal_mutex_lock(ctx->lock);
+    if (ctx->pending_key_node[slot] == node &&
+        inc_eq(ctx->pending_key_epoch[slot], epoch)) {
+        key = ctx->pending_key[slot];
+        if (key_gen)
+            *key_gen = ctx->pending_key_gen[slot];
+    }
+    mxfs_pal_mutex_unlock(ctx->lock);
+    return key;
+}
+
+int mxfs_disklock_set_identity(struct mxfs_disklock_ctx *ctx,
+                               const uint8_t host_uuid[16],
+                               const uint8_t boot_uuid[16],
+                               uint32_t host_src, uint64_t pr_key,
+                               uint32_t key_gen)
+{
+    if (!ctx || !host_uuid || !boot_uuid || !pr_key)
+        return -EINVAL;
+    if (ctx->local_slot >= 0)
+        return -EBUSY;
+    memset(&ctx->own_ident, 0, sizeof(ctx->own_ident));
+    ctx->own_ident.magic   = MXFS_HB_IDENT_MAGIC;
+    ctx->own_ident.ver     = MXFS_HB_IDENT_VERSION;
+    ctx->own_ident.key_gen = (uint16_t)key_gen;
+    memcpy(ctx->own_ident.host_uuid, host_uuid, 16);
+    memcpy(ctx->own_ident.boot_uuid, boot_uuid, 16);
+    ctx->own_ident.pr_key  = pr_key;
+    ctx->own_ident.host_src = host_src;
+    ctx->own_ident_set = true;
+    return 0;
 }
 
 #define MXFS_HBFEAT_OK        0
 #define MXFS_HBFEAT_LEGACY    1   /* pre-gate writer: all-zero tail */
 #define MXFS_HBFEAT_MISMATCH  2   /* gate-aware, different proto_gen */
 #define MXFS_HBFEAT_CORRUPT   3   /* bad magic or crc */
+#define MXFS_HBFEAT_TRANSPORT 4   /* 0.75.0: valid block, other DLM transport */
 
 static int hb_feature_state(const struct mxfs_disklock_heartbeat *hb)
 {
@@ -365,6 +952,78 @@ static bool hb_victim_snlocal(const struct mxfs_disklock_heartbeat *hb)
 {
     return hb_feature_state(hb) == MXFS_HBFEAT_OK &&
            (hb->feat.feat_flags & MXFS_HB_FEAT_SNLOCAL);
+}
+
+/*
+ * sess434: did this victim record durably classify its claim as a pass-2
+ * fresh claim (slice ADOPTED)?  Same fail-closed rule as snlocal: only a
+ * VALID feature block may assert it.
+ */
+static bool hb_victim_adopted(const struct mxfs_disklock_heartbeat *hb)
+{
+    return hb_feature_state(hb) == MXFS_HBFEAT_OK &&
+           (hb->feat.feat_flags & MXFS_HB_FEAT_ADOPTED);
+}
+
+/*
+ * 0.75.0: does this record's VALID feature block name the other DLM
+ * transport?  A record that cannot vote (LEGACY / CORRUPT / other proto_gen)
+ * is not a mismatch here — the version gate already owns those.
+ */
+static bool hb_transport_mismatch(const struct mxfs_disklock_ctx *ctx,
+                                  const struct mxfs_disklock_heartbeat *hb)
+{
+    if (hb_feature_state(hb) != MXFS_HBFEAT_OK)
+        return false;
+    return !!(hb->feat.feat_flags & MXFS_HB_FEAT_TCP) != ctx->transport_tcp;
+}
+
+int mxfs_disklock_scan_transport(mxfs_bdev_t *dev, uint64_t base_offset,
+                                 uint32_t fs_gen,
+                                 struct mxfs_disklock_transport_census *c)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    uint32_t slot;
+    int rc = 0;
+
+    if (!dev || !c)
+        return -EINVAL;
+    memset(c, 0, sizeof(*c));
+    c->first_tcp = -1;
+    c->first_caw = -1;
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb)
+        return -ENOMEM;
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+        rc = mxfs_pal_bdev_read(dev, off, hb, sizeof(*hb));
+        if (rc < 0)
+            break;          /* fail closed: the caller refuses on an unread table */
+        if (hb->magic != MXFS_DISKLOCK_MAGIC)
+            continue;
+        if (hb->flags != MXFS_DISKLOCK_FLAG_ACTIVE &&
+            hb->flags != MXFS_DISKLOCK_FLAG_WITHDRAWN)
+            continue;       /* empty, guard, retire-pending: not a tenure's own word */
+        if (hb->fs_gen == 0 || hb->fs_gen != fs_gen)
+            continue;       /* pre-mkfs ghost / legacy */
+        if (hb_feature_state(hb) != MXFS_HBFEAT_OK) {
+            c->n_unknown++;
+            continue;
+        }
+        if (hb->feat.feat_flags & MXFS_HB_FEAT_TCP) {
+            if (c->first_tcp < 0)
+                c->first_tcp = (int)slot;
+            c->n_tcp++;
+        } else {
+            if (c->first_caw < 0)
+                c->first_caw = (int)slot;
+            c->n_caw++;
+        }
+    }
+    mxfs_pal_free(hb);
+    return rc < 0 ? rc : 0;
 }
 
 /*
@@ -416,7 +1075,10 @@ static bool hb_prov_valid(const struct mxfs_disklock_heartbeat *hb)
  * sess346 (#92): does this record read as the CLEAN RELEASE STAMP of the
  * expected occupant?  mxfs_disklock_release_slot() CAS-writes the node's
  * own final ACTIVE image with flags flipped to EMPTY, so a clean departure
- * leaves {magic, node_id, epoch, fs_gen} intact under FLAG_EMPTY.  An
+ * leaves {magic, node_id, epoch, fs_gen} intact under FLAG_EMPTY.
+ * sess450: the release now writes RETIRE_PENDING and the EMPTY image is
+ * produced by whoever proves the PR key absent (hb_retire_settle on a peer,
+ * or retire_complete_self); the stamp's shape is unchanged.  An
  * expected epoch we never observed (0) degrades to the node-scoped test —
  * safe here because the ONLY consequence of a match is a clean retire
  * (no fence, no recovery, no slot write).  node == 0 never matches: a
@@ -437,6 +1099,450 @@ static bool hb_clean_empty_match(const struct mxfs_disklock_ctx *ctx,
     if (!inc_valid(epoch))
         return true;            /* degrade to node scope */
     return inc_eq(hb->epoch, epoch);
+}
+
+/*
+ * ── sess450: RETIRE_PENDING settlement ───────────────────────────────────
+ *
+ * See MXFS_DISKLOCK_FLAG_RETIRE_PENDING in disklock.h.  A record in this
+ * state is the departing node's own final image with the flag moved; the
+ * identity block (and its crc, re-bound to the flags) still names the key
+ * that must be gone before the slot may be consumed.
+ */
+
+/* Re-bind an identity block we are about to re-flag: the crc covers flags,
+ * and a peer completing (or expiring) the retirement keeps every other
+ * field byte for byte — same rule as a recovery GUARD: only `flags` moves. */
+static void hb_ident_rebind(struct mxfs_disklock_heartbeat *hb, uint32_t slot)
+{
+    if (hb->ident.magic != MXFS_HB_IDENT_MAGIC)
+        return;                 /* zeroed block never validates anyway */
+    hb->ident.crc32c = hb_ident_crc(slot, hb->flags, hb->fs_gen, hb->node_id,
+                                    hb->epoch, &hb->ident);
+}
+
+static bool hb_retire_pending(const struct mxfs_disklock_ctx *ctx,
+                              const struct mxfs_disklock_heartbeat *hb)
+{
+    return hb->magic == MXFS_DISKLOCK_MAGIC &&
+           hb->flags == MXFS_DISKLOCK_FLAG_RETIRE_PENDING &&
+           !hb_gen_foreign(ctx, hb);
+}
+
+/*
+ * sess453 (0.60.0, design-consult review #3 condition 8 / hazard H8): every
+ * settlement of a RETIRE_PENDING record — EMPTY, WITHDRAWN, the P305 own
+ * settle, the self-complete and the departing node's WITHDRAWN re-stamp —
+ * is an exact-image COMPARE AND WRITE.  Until 0.59.3 an -EOPNOTSUPP from the
+ * CAS fell back to a plain FUA write of the wanted image: an unconditional
+ * overwrite of a sector that may have moved since the confirming read (a
+ * claimant's ACTIVE record, a peer's settlement), which is precisely the race
+ * the CAS exists to lose safely.  Admission already refuses a device whose
+ * lock-slot CAS is not operational (P311-CAW-ADMISSION-REFUSED, D-0359), so
+ * this is reachable only on runtime CAW loss — and then the record must stay
+ * byte-for-byte unchanged.  Logged once per slot; the caller treats it as
+ * "not settled this lap".  The same rule covers every other exact-image
+ * record write (heartbeat, release, withdraw stamp, recovery milestone):
+ * the sess77/sess65 read-verify-write and FUA+read-back stand-ins for a
+ * missing CAW are gone (0.60.0, D7 companion).  claim_slot_noncaw stays:
+ * it writes only an EMPTY sector, before admission, and P311 then refuses
+ * the mount.
+ */
+static void hb_cas_nocaw_locked(struct mxfs_disklock_ctx *ctx, uint32_t slot,
+                                const char *what)
+{
+    bool first;
+
+    /* ctx->lock held by the caller */
+    first = slot < MXFS_DISKLOCK_HB_SLOTS && !ctx->retire_nocaw_logged[slot];
+    if (slot < MXFS_DISKLOCK_HB_SLOTS)
+        ctx->retire_nocaw_logged[slot] = true;
+    if (first)
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "mxfs: P304-CAS-NOCAW slot=%u op=%s — COMPARE AND WRITE "
+                     "reported unsupported on a record write that must be "
+                     "an exact-image CAS; refusing to emulate it with an "
+                     "unconditional write.  The record is left unchanged "
+                     "(fail closed) until CAW works again",
+                     slot, what);
+}
+
+static void hb_cas_nocaw(struct mxfs_disklock_ctx *ctx, uint32_t slot,
+                         const char *what)
+{
+    mxfs_pal_mutex_lock(ctx->lock);
+    hb_cas_nocaw_locked(ctx, slot, what);
+    mxfs_pal_mutex_unlock(ctx->lock);
+}
+
+/*
+ * sess460 (0.61.6, review #5 condition 4): every exact-image record CAS of
+ * the writer classes above goes through hb_caw(), so the runtime-CAW-loss
+ * arm (module param dbg_cas_nocaw_ops, a bitmask of HB_CAW_OP_*) can make
+ * ONE class report -EOPNOTSUPP on a healthy LUN without issuing the command
+ * — tests/cas_nocaw_arms.sh then asserts the fail-closed disposition of that
+ * class and that the sector stays byte-identical.  In production the mask
+ * reads 0 and this is exactly the PAL call.  The op names are the `what`
+ * strings P304-CAS-NOCAW already prints.
+ */
+enum {
+    HB_CAW_OP_HEARTBEAT     = 1u << 0,
+    HB_CAW_OP_RELEASE       = 1u << 1,
+    HB_CAW_OP_WITHDRAW      = 1u << 2,   /* voluntary own WITHDRAWN stamp */
+    HB_CAW_OP_WITHDRAWN     = 1u << 3,   /* peer expiry RETIRE_PENDING -> WITHDRAWN */
+    HB_CAW_OP_RESTAMP       = 1u << 4,
+    HB_CAW_OP_COMPLETE_SELF = 1u << 5,
+    HB_CAW_OP_EMPTY         = 1u << 6,   /* peer settle -> EMPTY */
+    HB_CAW_OP_SETTLE_OWN    = 1u << 7,   /* P305 own settle -> EMPTY */
+    HB_CAW_OP_MILESTONE     = 1u << 8,   /* recov_cas_durable */
+    HB_CAW_OP_GUARD         = 1u << 9,
+    HB_CAW_OP_GUARD_REFRESH = 1u << 10,
+    HB_CAW_OP_GUARD_ZERO    = 1u << 11,
+};
+
+static int hb_caw(struct mxfs_disklock_ctx *ctx, unsigned int op,
+                  const char *what, uint64_t off,
+                  const void *expect, const void *want)
+{
+    if (mxfs_pal_dbg_cas_nocaw(op, what))
+        return -EOPNOTSUPP;
+    return mxfs_pal_bdev_compare_and_write(ctx->dev, off, expect, want);
+}
+
+/* sess451: the settlement vocabulary is exported (disklock.h) so the mount
+ * thread can act on it; the short names stay for the monitor's arms. */
+#define HB_RETIRE_EMPTY     MXFS_DISKLOCK_RETIRE_EMPTY
+#define HB_RETIRE_WAITING   MXFS_DISKLOCK_RETIRE_WAITING
+#define HB_RETIRE_WITHDRAWN MXFS_DISKLOCK_RETIRE_WITHDRAWN
+#define HB_RETIRE_CHANGED   MXFS_DISKLOCK_RETIRE_CHANGED
+
+/*
+ * sess451 (design-consult STOP-SHIP blocker 1): after a CAS mismatch the caller may
+ * classify ONLY the sector's current image, never the stale RETIRE_PENDING
+ * one.  A peer that lost the CAS to another settler (record now EMPTY) or
+ * to a claimant (record now ACTIVE for a NEW incarnation) and then fell
+ * through with the pending image would run "WITHDRAWN/other → fire_dead":
+ * false death processing, a fence and a replay against a slot a new
+ * incarnation already owns.  So CHANGED always carries a fresh FUA image
+ * in *rhb, or a negative rc that no caller classifies.
+ */
+static int hb_retire_reread(struct mxfs_disklock_ctx *ctx, uint64_t off,
+                            struct mxfs_disklock_heartbeat *rhb)
+{
+    int rc;
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb, sizeof(*rhb));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    return rc ? rc : HB_RETIRE_CHANGED;
+}
+
+static const char *hb_key_state_name(int st)
+{
+    switch (st) {
+    case MXFS_DISKLOCK_KEY_ABSENT:  return "ABSENT";
+    case MXFS_DISKLOCK_KEY_PRESENT: return "PRESENT";
+    default:                        return "UNKNOWN";
+    }
+}
+
+/*
+ * Settle a RETIRE_PENDING record.  `rhb` holds the plain read that showed
+ * the flag; on return it holds the sector's current image (a FUA confirm,
+ * then whatever CAS landed, then a re-read if the CAS was lost).
+ * Heartbeat-thread context, or the mount thread via
+ * mxfs_disklock_retire_settle_slot (immediate = no grace).
+ *
+ * The key that must be gone is named by the record's own identity block,
+ * failing that by the frozen death-time observation of this EXACT
+ * incarnation.  Neither → UNKNOWN (blocker 3: an unnamed key is not "no
+ * key"; publishing EMPTY there would destroy the only fencing evidence).
+ * A valid identity that disagrees with a frozen observation of the same
+ * incarnation is a protocol violation: UNKNOWN, loudly.  sess452 (design-consult
+ * STOP-SHIP #2 blocker 2): a valid identity recording key 0 is NOT
+ * "nothing to retire" — a clustered incarnation must have registered a
+ * nonzero validated key, so key 0 is an invalid record: UNKNOWN, never
+ * ABSENT (0.59.1 published such a record EMPTY on no evidence).  The only
+ * settlements of a key-0 record are the departing mount's own
+ * retire_complete_self under a single-node/override admission, and P305's
+ * topology settle under single_node_exclusive.  Then the tri-state lookup
+ * decides (sess452: the ASYNC callback for the monitor, the SYNC one for
+ * an immediate settlement on the mount thread; there is no OWN):
+ *   ABSENT                → CAS to EMPTY (consumable)
+ *   PRESENT, in grace     → WAITING (monitor) / WITHDRAWN (immediate)
+ *   PRESENT, past grace   → CAS to WITHDRAWN (fence pipeline owns it)
+ *   UNKNOWN               → WAITING, forever if need be; escalate per grace
+ */
+static int hb_retire_settle(struct mxfs_disklock_ctx *ctx, uint32_t slot,
+                            uint64_t off, struct mxfs_disklock_heartbeat *rhb,
+                            bool immediate)
+{
+    struct mxfs_disklock_heartbeat *want;
+    uint64_t key = 0, now, seen, grace;
+    int kstate = MXFS_DISKLOCK_KEY_UNKNOWN;
+    bool key_known = false, first_sight;
+    const char *kreason;
+    int rc;
+
+    /* FUA confirm: the plain monitor read is cacheable (sess69). */
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb, sizeof(*rhb));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc)
+        return rc;
+    if (!hb_retire_pending(ctx, rhb))
+        return HB_RETIRE_CHANGED;
+
+    {
+        const struct mxfs_disklock_ident_obs *o = &ctx->ident_obs[slot];
+        bool ident_ok = mxfs_hb_identity_valid(rhb, slot);
+        bool obs_ok;
+
+        mxfs_pal_mutex_lock(ctx->lock);
+        obs_ok = o->valid && !o->conflict && o->node == rhb->node_id &&
+                 inc_eq(o->epoch, rhb->epoch);
+        if (ident_ok && obs_ok && o->key != rhb->ident.pr_key) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P304-RETIRE-KEY-CONFLICT slot=%u node=%u "
+                         "inc=%llu ident_key=0x%llx frozen_key=0x%llx — the "
+                         "release record and the frozen observation name "
+                         "different keys for one incarnation; the key is "
+                         "UNKNOWN (this record will never be published EMPTY "
+                         "on that evidence)",
+                         slot, rhb->node_id, (unsigned long long)rhb->epoch,
+                         (unsigned long long)rhb->ident.pr_key,
+                         (unsigned long long)o->key);
+            kreason = "key-conflict";
+        } else if (ident_ok) {
+            key = rhb->ident.pr_key;
+            key_known = true;
+            kreason = "ident";
+        } else if (obs_ok) {
+            key = o->key;
+            key_known = true;
+            kreason = "frozen-obs";
+        } else {
+            kreason = "unnamed";
+        }
+        mxfs_pal_mutex_unlock(ctx->lock);
+    }
+    if (key_known && key == 0) {
+        /* sess452 (blocker 2): the record's identity names key 0.  A
+         * clustered incarnation never has key 0 (fence-capability
+         * admission requires a registered key), so this is not "no key to
+         * retire" — it is a record nobody can prove anything about. */
+        kstate = MXFS_DISKLOCK_KEY_UNKNOWN;
+        kreason = "key0-invalid";
+    } else if (key_known && !immediate) {
+        /* monitor: the async table decides PRESENT (grace/WITHDRAWN);
+         * anything else goes to the settle worker below (sess454, D1). */
+        mxfs_disklock_key_state_fn fn = ctx->key_state_fn;
+
+        if (fn) {
+            kstate = fn(ctx->key_state_data, key);
+            if (kstate < MXFS_DISKLOCK_KEY_ABSENT ||
+                kstate > MXFS_DISKLOCK_KEY_UNKNOWN)
+                kstate = MXFS_DISKLOCK_KEY_UNKNOWN;
+        } else {
+            kreason = "no-key-state-fn";
+        }
+    }
+
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!want)
+        return -ENOMEM;
+    *want = *rhb;
+
+    now = mxfs_pal_time_ms();
+    mxfs_pal_mutex_lock(ctx->lock);
+    first_sight = ctx->retire_seen_ms[slot] == 0 ||
+                  ctx->retire_seen_node[slot] != rhb->node_id ||
+                  !inc_eq(ctx->retire_seen_epoch[slot], rhb->epoch);
+    if (first_sight) {
+        ctx->retire_seen_ms[slot]    = now;
+        ctx->retire_seen_node[slot]  = rhb->node_id;
+        ctx->retire_seen_epoch[slot] = rhb->epoch;
+        ctx->retire_unknown_log_ms[slot] = 0;
+    }
+    seen = ctx->retire_seen_ms[slot];
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (first_sight)
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P304-RETIRE-PENDING-SEEN slot=%u node=%u inc=%llu "
+                     "key=0x%llx state=%s via=%s immediate=%d — clean release "
+                     "awaiting proof that its PR key is retired",
+                     slot, rhb->node_id, (unsigned long long)rhb->epoch,
+                     (unsigned long long)key, hb_key_state_name(kstate),
+                     kreason, immediate);
+
+    /*
+     * sess454 (0.61.0, D1): the destructive EMPTY publication is never made
+     * here from a table answer.  A key the monitor's table does not show
+     * PRESENT (ABSENT candidate or UNKNOWN) is handed to the settle worker,
+     * which proves absence with a fresh bracket under the departure mutex
+     * and CASes inside that proof; the mount thread (immediate) does the
+     * same inline.  PRESENT from the table keeps the grace/WITHDRAWN rule.
+     */
+    if (key_known && key != 0 &&
+        (immediate || kstate != MXFS_DISKLOCK_KEY_PRESENT)) {
+        if (!ctx->settle_absent_fn) {
+            kreason = "no-settle-fn";
+            kstate = MXFS_DISKLOCK_KEY_UNKNOWN;
+        } else {
+            rc = ctx->settle_absent_fn(ctx->settle_absent_data, slot, key,
+                                       rhb, immediate);
+            if (rc == MXFS_DISKLOCK_RETIRE_PRESENT) {
+                kstate = MXFS_DISKLOCK_KEY_PRESENT;   /* fall to the rule */
+            } else if (rc == HB_RETIRE_WAITING && !immediate) {
+                kstate = MXFS_DISKLOCK_KEY_UNKNOWN;   /* enqueued: the
+                                                       * UNKNOWN arm below
+                                                       * keeps the stalled
+                                                       * escalation */
+            } else {
+                goto out;   /* EMPTY / CHANGED / WAITING (no proof) / <0 */
+            }
+        }
+    }
+
+    if (kstate == MXFS_DISKLOCK_KEY_UNKNOWN) {
+        /*
+         * No PR evidence either way: never EMPTY (would publish a
+         * consumable slot beside a possibly write-capable registration),
+         * never WITHDRAWN (would age a lack of evidence into a recovery
+         * action that assumes a usable PR context).  The record stays
+         * RETIRE_PENDING; the admission barrier holds on it; say so once
+         * per grace so a stalled departure is diagnosable.
+         */
+        if (now - seen >= MXFS_DISKLOCK_RETIRE_GRACE_MS &&
+            now - ctx->retire_unknown_log_ms[slot] >=
+                MXFS_DISKLOCK_RETIRE_GRACE_MS) {
+            ctx->retire_unknown_log_ms[slot] = now;
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P304-RETIRE-UNKNOWN-STALLED slot=%u node=%u "
+                         "inc=%llu key=0x%llx via=%s waited=%llu ms — the PR "
+                         "key cannot be classified from this node (no PR "
+                         "context, READ KEYS failing, truncated view, our own "
+                         "registration or the fencing reservation not in "
+                         "force, or an unnamed key); the record stays "
+                         "RETIRE_PENDING, this slot is NOT consumable and "
+                         "admission holds on it until a node with PR "
+                         "evidence settles it",
+                         slot, rhb->node_id, (unsigned long long)rhb->epoch,
+                         (unsigned long long)key, kreason,
+                         (unsigned long long)(now - seen));
+        }
+        rc = HB_RETIRE_WAITING;
+        goto out;
+    }
+
+    /* PRESENT */
+    grace = immediate ? MXFS_DISKLOCK_RETIRE_MOUNT_GRACE_MS :
+                        MXFS_DISKLOCK_RETIRE_GRACE_MS;
+    if (now - seen < grace) {
+        /*
+         * D-0965: the mount thread used to withdraw a PRESENT key at once
+         * ("settle NOW rather than admit and wait").  Measured 2/2 laps on
+         * the 2-node TCP rig (s49ctl): the key was PRESENT because the
+         * record's own host was remounting in the same boot and had just
+         * re-registered the identical per-boot key, 0.2-3 s before it
+         * could settle its predecessor's record; the peer stamped the
+         * record WITHDRAWN 817 ms after first sight, froze the predecessor
+         * as a victim and PREEMPT-AND-ABORTed the key, which removed the
+         * live successor's registration and refused its mount
+         * (P303-FENCECAP-SELFABSENT).  The target cannot tell "the
+         * departure never unregistered" from "the successor registered the
+         * same key", and the live-member guard cannot see a successor that
+         * has not claimed a slot yet.  What safety requires is only that
+         * this mount does not go writable beside the registration: hold
+         * admission (P-ADMIT-RETIRE-PENDING-HELD, the barrier re-sweeps)
+         * and give the same first-sight grace the monitor gives; a
+         * successor settles EMPTY within a second, a departure that truly
+         * never finished is withdrawn after the grace as before.  Ruled by
+         * design consult (Astra, 2026-09-18): expiry authorises recovery,
+         * it proves nothing; the grace starts at first sight and is never
+         * reset by a barrier round.  The mount thread's grace is the
+         * shorter MXFS_DISKLOCK_RETIRE_MOUNT_GRACE_MS: its wait, the
+         * withdraw's fence and the replay must all fit the admission
+         * barrier's bound (measured: the full grace expired at 29.3 s of
+         * the 30 s bound; see the constant).
+         */
+        if (immediate &&
+            now - ctx->retire_present_log_ms[slot] >= grace) {
+            ctx->retire_present_log_ms[slot] = now;
+            mxfs_pal_log(MXFS_LOG_WARN,
+                         "mxfs: P304-RETIRE-PRESENT-GRACE slot=%u node=%u "
+                         "inc=%llu key=0x%llx via=%s seen=%llu ms ago — the "
+                         "key is still registered after a clean release; a "
+                         "same-boot successor re-registers the identical key "
+                         "before it can settle this record, so admission is "
+                         "held for the grace instead of withdrawing and "
+                         "fencing at once",
+                         slot, rhb->node_id, (unsigned long long)rhb->epoch,
+                         (unsigned long long)key, kreason,
+                         (unsigned long long)(now - seen));
+        }
+        rc = HB_RETIRE_WAITING;
+        goto out;
+    }
+
+    /* Key still present past the grace (or the mount thread is not
+     * willing to wait beside it): the departure never finished.  Hand the
+     * record to the sess9 withdraw pipeline — fence the key, replay the
+     * (clean) slice, purge the slot.  Only `flags` moves. */
+    want->flags = MXFS_DISKLOCK_FLAG_WITHDRAWN;
+    hb_ident_rebind(want, slot);
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = hb_caw(ctx, HB_CAW_OP_WITHDRAWN, "withdrawn", off, rhb, want);
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == -EOPNOTSUPP) {
+        hb_cas_nocaw(ctx, slot, "withdrawn");
+        rc = HB_RETIRE_WAITING;
+    } else if (rc == 0) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "mxfs: P304-RETIRE-EXPIRED-WITHDRAWN slot=%u node=%u "
+                     "inc=%llu key=0x%llx via=%s immediate=%d after %llu ms — "
+                     "the PR key is still registered; stamping WITHDRAWN so "
+                     "the cluster fences the key and recovers the slot",
+                     slot, rhb->node_id, (unsigned long long)rhb->epoch,
+                     (unsigned long long)key, kreason, immediate,
+                     (unsigned long long)(now - seen));
+        *rhb = *want;
+        ctx->retire_seen_ms[slot] = 0;
+        rc = HB_RETIRE_WITHDRAWN;
+    } else if (rc == -EAGAIN) {
+        rc = hb_retire_reread(ctx, off, rhb);
+    } else {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P304-RETIRE-EXPIRE-WRITEFAIL slot=%u rc=%d — "
+                     "retrying next lap", slot, rc);
+    }
+out:
+    mxfs_pal_free(want);
+    return rc;
+}
+
+int mxfs_disklock_retire_settle_slot(struct mxfs_disklock_ctx *ctx,
+                                     uint32_t slot, bool immediate)
+{
+    struct mxfs_disklock_heartbeat *rhb;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    rhb = mxfs_pal_alloc(sizeof(*rhb));
+    if (!rhb)
+        return -ENOMEM;
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb, sizeof(*rhb));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == 0 && !hb_retire_pending(ctx, rhb))
+        rc = -ENOENT;
+    if (rc == 0)
+        rc = hb_retire_settle(ctx, slot, off, rhb, immediate);
+    mxfs_pal_free(rhb);
+    return rc;
 }
 
 /*
@@ -555,7 +1661,37 @@ recov_desc_of(const struct mxfs_disklock_heartbeat *hb)
         return NULL;            /* a generation we do not speak */
     if (d->crc32c != recov_desc_crc(hb->fs_gen, hb->node_id, hb->epoch, d))
         return NULL;
+    /*
+     * sess440 (§6.2): the owner kind and the owner slot must agree.  A
+     * bootstrap owner has NO slot (MXFS_RECOV_NO_SLOT); a member owner's
+     * slot is in range (0 = unowned / relinquished is in range too).  A
+     * descriptor that contradicts itself is not a descriptor we act on —
+     * it fails closed exactly like a bad crc.
+     */
+    if (d->flags & MXFS_RECOV_F_OWNER_BOOTSTRAP) {
+        if (d->owner_slot != MXFS_RECOV_NO_SLOT)
+            return NULL;
+    } else if (d->owner_slot >= MXFS_DISKLOCK_HB_SLOTS) {
+        return NULL;
+    }
     return d;
+}
+
+/*
+ * sess440: every owner-field write goes through here so the owner kind
+ * (MXFS_RECOV_F_OWNER_BOOTSTRAP) and owner_slot can never disagree, and an
+ * ordinary member taking a bootstrap owner's descriptor over clears the kind.
+ */
+static void recov_desc_set_owner_slot(const struct mxfs_disklock_ctx *ctx,
+                                      struct mxfs_recov_desc *d)
+{
+    if (ctx->owner_bootstrap) {
+        d->owner_slot = MXFS_RECOV_NO_SLOT;
+        d->flags |= MXFS_RECOV_F_OWNER_BOOTSTRAP;
+    } else {
+        d->owner_slot = (uint16_t)ctx->local_slot;
+        d->flags &= ~MXFS_RECOV_F_OWNER_BOOTSTRAP;
+    }
 }
 
 /*
@@ -624,7 +1760,100 @@ static bool recov_outcome_present(const struct mxfs_disklock_heartbeat *hb)
 }
 
 /*
- * sess383 (RULE-5 ruling Q2/Q5.1): the STRUCTURAL verdict of one already-read
+ * sess494 (D-0493): is this heartbeat record a TERMINAL RECOVERY GUARD — the
+ * recovery owner's durable "this slice will never be recovered" verdict that
+ * a live cluster runs beside until operator repair?  Contract in disklock.h.
+ *
+ * The same identity binding as closure_gate_predicate, without a disklock
+ * context (the survivor scan runs before one exists): the descriptor must be
+ * a RECOVERY_GUARD record of THIS filesystem generation, crc-bound to the
+ * sector's own {fs_gen, node, epoch}, naming this very slot and the record's
+ * own tuple as the victim, QUARANTINED, and carrying an outcome that either
+ * validates as a canonical TERMINAL_REFUSED verdict (0) or is the exact
+ * legacy all-zero region of the intent-path quarantine (-ENODATA; terminal,
+ * no domain evidence — the admission barrier terminalizes it FSWIDE).  A
+ * QUARANTINED descriptor whose outcome bytes are non-zero but do not
+ * validate is a torn verdict (-EBADMSG) and every consumer fails closed on
+ * it.  -EAGAIN is a live (sub-terminal) descriptor — a victim, not a
+ * verdict.
+ */
+int mxfs_hb_terminal_guard_classify(const struct mxfs_disklock_heartbeat *hb,
+                                    uint32_t slot, uint32_t fs_gen,
+                                    const struct mxfs_recov_outcome **oc_out)
+{
+    const struct mxfs_recov_desc *d;
+    const struct mxfs_recov_outcome *oc;
+
+    if (oc_out)
+        *oc_out = NULL;
+    if (!hb || !recov_desc_present(hb))
+        return -ENOENT;
+    if (hb->fs_gen != fs_gen)
+        return -ESTALE;
+    d = recov_desc_of(hb);
+    if (!d)
+        return -EPROTO;
+    if (d->victim_slot != (uint16_t)slot ||
+        d->victim_node != hb->node_id ||
+        !inc_eq(d->victim_epoch, hb->epoch) ||
+        d->victim_fs_gen != hb->fs_gen)
+        return -EPROTO;
+    if (!(d->flags & MXFS_RECOV_F_QUARANTINED))
+        return -EAGAIN;
+    oc = recov_outcome_of(hb);
+    if (!oc)
+        return recov_outcome_present(hb) ? -EBADMSG : -ENODATA;
+    if (oc->victim_slot != (uint16_t)slot ||
+        oc->outcome != MXFS_RECOV_OUTCOME_TERMINAL_REFUSED ||
+        (oc->domain_kind != MXFS_RECOV_DOMAIN_FSWIDE &&
+         oc->domain_kind != MXFS_RECOV_DOMAIN_AG_MASK) ||
+        (oc->domain_kind == MXFS_RECOV_DOMAIN_FSWIDE && oc->ag_mask != 0) ||
+        (oc->domain_kind == MXFS_RECOV_DOMAIN_AG_MASK && oc->ag_mask == 0))
+        return -EBADMSG;
+    if (oc_out)
+        *oc_out = oc;
+    return 0;
+}
+
+/*
+ * sess462 (item 5 increment 2): the STRICT obligation-record reader, same
+ * shape as recov_outcome_of — the record counts only on a descriptor sector,
+ * with our magic/version and a crc that validates against the sector's
+ * victim identity (recov_obl.h: mxfs_recov_obl_rec_check).  A sector written
+ * by a build that never had the record presents zeroes and reads as "no
+ * record"; anything else that fails is "present but invalid", which every
+ * consumer must treat as QUARANTINE, never as count 0 (ruling STOP-SHIP 4).
+ */
+static const struct mxfs_recov_obl *
+recov_obl_of(const struct mxfs_disklock_heartbeat *hb)
+{
+    const struct mxfs_recov_obl *ob = &hb->recov.obl;
+
+    if (!recov_desc_present(hb))
+        return NULL;
+    if (mxfs_recov_obl_rec_check(ob, hb->fs_gen, (uint32_t)hb->node_id,
+                                 (uint64_t)hb->epoch, NULL))
+        return NULL;
+    return ob;
+}
+
+static bool recov_obl_present(const struct mxfs_disklock_heartbeat *hb)
+{
+    const unsigned char *p = (const unsigned char *)&hb->recov.obl;
+    size_t i;
+
+    for (i = 0; i < sizeof(hb->recov.obl); i++)
+        if (p[i])
+            return true;
+    return false;
+}
+
+/* 0.85.0: the OPEN-obligation observer (defined with the proof code). */
+static void recov_obl_observe(struct mxfs_disklock_ctx *ctx, int slot,
+                              const struct mxfs_disklock_heartbeat *hb);
+
+/*
+ * sess383 (design-consult ruling Q2/Q5.1): the STRUCTURAL verdict of one already-read
  * heartbeat sector — the single place that decides what a sector's recovery
  * object structurally IS, so the monitor and the synchronous readers cannot
  * disagree about it.  Semantic validation (outcome kinds, reasons, AG-mask
@@ -773,6 +2002,20 @@ static bool hb_still_dead_stamp(const struct mxfs_disklock_heartbeat *hb,
      * became real once incarnations stopped being a constant zero.
      */
     if (hb->node_id == pn && inc_eq(hb->epoch, pe))
+        return true;
+    /*
+     * sess437 (D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN, chain-9
+     * s436i on 0.41.10): a same-node record whose incarnation is NOT VALID
+     * (zero) is not a successor tenancy — no claim ever publishes epoch 0
+     * (hb_draw_incarnation fails closed), so it is a torn/stale/pre-0.11.420
+     * image of OUR victim.  Reading it as "the node rejoined and replayed"
+     * released the deferred purge on all 31 survivors two seconds after the
+     * death (P163-RECOVERED with NO replay, pending marker cleared, every
+     * later acquire -ENODATA): the victim's slice was abandoned and its
+     * grants purged.  Keep the barrier armed; the successor arm below needs
+     * a VALID different incarnation.
+     */
+    if (hb->node_id == pn && !inc_valid(hb->epoch))
         return true;
     return recov_lease_covers_inc(hb, pn, pe); /* fenced, recovery in flight */
 }
@@ -933,6 +2176,10 @@ static const char *hb_foreign_kind(const struct mxfs_disklock_ctx *ctx,
                "is being replayed RIGHT NOW";
     if (cur->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN)
         return "our record was stamped WITHDRAWN by someone else";
+    if (cur->flags == MXFS_DISKLOCK_FLAG_RETIRE_PENDING)
+        return "our record reads RETIRE_PENDING (our own release stamp)";
+    if (cur->flags == MXFS_DISKLOCK_FLAG_EMPTY)
+        return "our record reads EMPTY (retirement already completed)";
     if (cur->epoch != ctx->epoch)
         return "a different incarnation of this node owns the slot";
     return "unrecognised foreign image";
@@ -973,23 +2220,22 @@ static int hb_cas_own_slot(struct mxfs_disklock_ctx *ctx, uint64_t off,
         ctx->hb_img_valid = true;
     }
 
-    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, &ctx->hb_img, want);
+    rc = hb_caw(ctx, HB_CAW_OP_HEARTBEAT, "heartbeat", off, &ctx->hb_img, want);
 
     if (rc == -EOPNOTSUPP) {
         /*
-         * No CAW on this transport.  Read-verify-write: strictly weaker than
-         * a CAW (a foreign write landing inside the window is still lost) but
-         * it closes the 2-second hole, which is where every real occurrence
-         * lives.  Targets without CAW cannot host a clustered RW mount that
-         * needs proven fencing anyway (sess77 ruling Q5).
+         * sess453 (0.60.0, review-#3 D7 companion): until 0.59.3 this arm
+         * read-verify-wrote the heartbeat — a CAS emulation with a window in
+         * which a peer's GUARD/settlement lands and is overwritten by our
+         * ACTIVE image.  A clustered RW mount is only admitted on a device
+         * whose lock-slot CAS is operational (P311, D-0359; the TCP
+         * transport is refused for clustered RW at the durability-domain
+         * admission), so this is runtime CAW loss, and the ruling is that
+         * it fails closed: no heartbeat lands, the lease runs out, and the
+         * peers fence us on the ordinary stale window.  Logged once.
          */
-        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, scratch, sizeof(*scratch));
-        if (rc < 0)
-            goto indeterminate;
-        if (memcmp(scratch, &ctx->hb_img, sizeof(*scratch)) != 0)
-            rc = -EAGAIN;
-        else
-            rc = write_sector_fua(ctx, off, want);
+        hb_cas_nocaw_locked(ctx, (uint32_t)ctx->local_slot, "heartbeat");
+        goto indeterminate;
     }
 
     if (rc == 0) {
@@ -1157,6 +2403,243 @@ static void hb_blind_clear(const char *reason)
 }
 
 /* Returns true when this cycle's peer scan must be suppressed. */
+/* ─── the local authority lease ───────────────────────────────────────────
+ *
+ * The gate a fenced-but-unaware node needs.  Everything here is deliberately
+ * unable to reach the LUN, unable to block, and unable to be reopened.
+ */
+
+struct mxfs_authority *mxfs_authority_alloc(void)
+{
+    struct mxfs_authority *auth = mxfs_pal_alloc(sizeof(*auth));
+
+    if (!auth)
+        return NULL;
+    memset(auth, 0, sizeof(*auth));
+    mxfs_atomic32_set(&auth->state, MXFS_AUTH_NOT_ADMITTED);
+    mxfs_atomic32_set(&auth->refcnt, 1);
+    auth->slot = -1;
+    return auth;
+}
+
+struct mxfs_authority *mxfs_authority_get(struct mxfs_authority *auth)
+{
+    if (auth)
+        mxfs_atomic32_inc(&auth->refcnt);
+    return auth;
+}
+
+void mxfs_authority_put(struct mxfs_authority *auth)
+{
+    if (auth && mxfs_atomic32_dec(&auth->refcnt) == 0)
+        mxfs_pal_free(auth);
+}
+
+static void auth_note_closed(struct mxfs_authority *auth, int reason,
+                             const char *why, uint64_t now, uint64_t deadline)
+{
+    auth->close_reason = reason;
+    auth->closed_at_ms = now;
+    mxfs_atomic32_set(&auth->withdraw_pending, 1);
+    mxfs_pal_log(MXFS_LOG_ERR,
+                 "mxfs: P290-AUTH-CLOSED node %u slot %d incarnation=%llu "
+                 "reason=%s deadline_ms=%llu now_ms=%llu overdue_ms=%lld "
+                 "last_ok_ms=%llu — %s.  This node's authority over the "
+                 "shared LUN is CLOSED: every further mutation is refused "
+                 "locally, without asking the target and without waiting to "
+                 "be told, and only a fresh coordinated admission under a new "
+                 "incarnation can restore it",
+                 auth->node, auth->slot,
+                 (unsigned long long)auth->incarnation,
+                 mxfs_self_fence_reason_name(reason),
+                 (unsigned long long)deadline, (unsigned long long)now,
+                 (long long)(deadline ? (int64_t)(now - deadline) : 0),
+                 (unsigned long long)auth->last_ok_ms, why);
+}
+
+bool mxfs_authority_ok(struct mxfs_authority *auth)
+{
+    uint64_t deadline, now;
+    int32_t was;
+
+    /*
+     * A CLUSTERED MOUNT ALWAYS HAS ONE.  Reaching this with no authority
+     * object means the caller could not establish which incarnation it was
+     * writing for, and there is no safe answer to that but no.
+     */
+    if (!auth)
+        return false;
+
+    /*
+     * The fast path is the whole point: this runs on every mutating
+     * submission, so it is one atomic read and, in the common case, one
+     * compare.  Never a lock, never an allocation, never the LUN.
+     */
+    switch (mxfs_atomic32_get(&auth->state)) {
+    case MXFS_AUTH_CLOSED:
+        return false;
+    case MXFS_AUTH_NOT_ADMITTED:
+        /*
+         * Mount is still establishing itself and no beat has landed yet.
+         * Refusing here would make the filesystem unmountable; the window is
+         * bounded by the mount, which either lands a beat or fails.  It is
+         * NOT the "unknown timestamp reads as fresh" case the ruling warns
+         * about: once a beat has landed this state is never returned to.
+         */
+        return true;
+    default:
+        break;
+    }
+
+    deadline = auth->deadline_ms;
+    now = mxfs_pal_time_ms();
+    if (now <= deadline)
+        return true;
+
+    /*
+     * EXPIRED, AND THE CALLER IS THE ONE WHO FOUND OUT.  Correctness must not
+     * depend on the pump having run — a timer and a heartbeat thread can be
+     * stalled along with the rest of the VM, which is exactly the state this
+     * gate exists for.  So close it here, from whatever context noticed.
+     * Exactly one caller wins the transition and logs.
+     */
+    was = mxfs_atomic32_cmpxchg(&auth->state, MXFS_AUTH_ADMITTED,
+                                MXFS_AUTH_CLOSED);
+    if (was == MXFS_AUTH_ADMITTED)
+        auth_note_closed(auth, MXFS_SELF_FENCE_AUTHORITY_LEASE_EXPIRED,
+                         "the authority lease expired before this operation "
+                         "reached the device", now, deadline);
+    return false;
+}
+
+void mxfs_authority_renew(struct mxfs_authority *auth, uint64_t anchor_ms,
+                          uint64_t last_ok_ms)
+{
+    uint64_t deadline;
+    int32_t state;
+
+    if (!auth)
+        return;
+    auth->last_ok_ms = last_ok_ms;
+    state = mxfs_atomic32_get(&auth->state);
+    if (state == MXFS_AUTH_CLOSED)
+        return;                 /* sticky: a working heartbeat is not a grant */
+
+    /*
+     * A RENEWAL IS ONLY ACCEPTED WHILE THE PREVIOUS AUTHORITY IS STILL VALID.
+     * The anchor is the instant this beat was ISSUED; if authority had already
+     * lapsed by then, the beat was sent by a node that no longer held the LUN
+     * and its success says nothing — a heartbeat CAS succeeds perfectly well
+     * against a target that has released its reservation and stopped refusing
+     * anyone, which is precisely the state the measured defect leaves behind.
+     */
+    if (state == MXFS_AUTH_ADMITTED && anchor_ms > auth->deadline_ms) {
+        if (mxfs_atomic32_cmpxchg(&auth->state, MXFS_AUTH_ADMITTED,
+                                  MXFS_AUTH_CLOSED) == MXFS_AUTH_ADMITTED)
+            auth_note_closed(auth, MXFS_SELF_FENCE_AUTHORITY_LEASE_EXPIRED,
+                             "a heartbeat landed, but it was ISSUED after "
+                             "this node's authority had already lapsed, so "
+                             "it renews nothing",
+                             mxfs_pal_time_ms(), auth->deadline_ms);
+        return;
+    }
+
+    deadline = anchor_ms + (uint64_t)MXFS_DISKLOCK_AUTH_LEASE_MS;
+    /* Never move a deadline backwards: a reordered renewal must not shorten
+     * authority a later one already extended. */
+    if (deadline > auth->deadline_ms) {
+        auth->deadline_ms = deadline;
+        auth->anchor_ms = anchor_ms;
+    }
+    if (state == MXFS_AUTH_NOT_ADMITTED &&
+        mxfs_atomic32_cmpxchg(&auth->state, MXFS_AUTH_NOT_ADMITTED,
+                              MXFS_AUTH_ADMITTED) == MXFS_AUTH_NOT_ADMITTED)
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P290-AUTH-ADMITTED node %u slot %d "
+                     "incarnation=%llu lease_ms=%d anchor_ms=%llu "
+                     "deadline_ms=%llu — this node's first heartbeat landed; "
+                     "it now holds authority over the shared LUN until that "
+                     "deadline, and must stop writing at it whether or not "
+                     "anything has told it to",
+                     auth->node, auth->slot,
+                     (unsigned long long)auth->incarnation,
+                     MXFS_DISKLOCK_AUTH_LEASE_MS,
+                     (unsigned long long)anchor_ms,
+                     (unsigned long long)deadline);
+}
+
+void mxfs_authority_close(struct mxfs_authority *auth, int reason,
+                          const char *why)
+{
+    if (!auth)
+        return;
+    if (mxfs_atomic32_cmpxchg(&auth->state, MXFS_AUTH_NOT_ADMITTED,
+                              MXFS_AUTH_CLOSED) == MXFS_AUTH_NOT_ADMITTED ||
+        mxfs_atomic32_cmpxchg(&auth->state, MXFS_AUTH_ADMITTED,
+                              MXFS_AUTH_CLOSED) == MXFS_AUTH_ADMITTED)
+        auth_note_closed(auth, reason, why, mxfs_pal_time_ms(),
+                         auth->deadline_ms);
+}
+
+bool mxfs_authority_take_withdraw(struct mxfs_authority *auth, int *reason_out)
+{
+    /*
+     * 0.89.67: two consumers may race for one withdrawal — the PR worker's
+     * pump and the dedicated withdraw thread — so the take is an exchange
+     * and exactly one of them notifies.
+     */
+    if (!auth || mxfs_atomic32_xchg(&auth->withdraw_pending, 0) == 0)
+        return false;
+    if (reason_out)
+        *reason_out = auth->close_reason;
+    return true;
+}
+
+/*
+ * The disklock-context face of the same object.  A context always has one —
+ * it is created with the context and outlives it — so these never have to
+ * answer for its absence; a NULL context is "this build has no disklock at
+ * all", which is the user-mode and single-node case.
+ */
+bool mxfs_disklock_authority_ok(struct mxfs_disklock_ctx *ctx)
+{
+    if (!ctx)
+        return true;            /* no disklock: nothing to own */
+    return mxfs_authority_ok(ctx->auth);
+}
+
+void mxfs_disklock_authority_renew(struct mxfs_disklock_ctx *ctx,
+                                   uint64_t anchor_ms)
+{
+    if (!ctx)
+        return;
+    ctx->auth->node = ctx->local_node;
+    ctx->auth->slot = ctx->local_slot;
+    ctx->auth->incarnation = (uint64_t)ctx->epoch;
+    mxfs_authority_renew(ctx->auth, anchor_ms, ctx->hb_last_ok_ms);
+}
+
+void mxfs_disklock_authority_close(struct mxfs_disklock_ctx *ctx, int reason,
+                                   const char *why)
+{
+    if (!ctx)
+        return;
+    mxfs_authority_close(ctx->auth, reason, why);
+}
+
+bool mxfs_disklock_authority_take_withdraw(struct mxfs_disklock_ctx *ctx,
+                                           int *reason_out)
+{
+    if (!ctx)
+        return false;
+    return mxfs_authority_take_withdraw(ctx->auth, reason_out);
+}
+
+struct mxfs_authority *mxfs_disklock_authority(struct mxfs_disklock_ctx *ctx)
+{
+    return ctx ? ctx->auth : NULL;
+}
+
 static bool hb_blind_gate(struct mxfs_disklock_ctx *ctx, int hb_rc)
 {
     if (!mxfs_monitor_blind) {
@@ -1186,6 +2669,139 @@ static bool hb_blind_gate(struct mxfs_disklock_ctx *ctx, int hb_rc)
 }
 
 /* Heartbeat thread: writes heartbeat, sleeps, repeats */
+/*
+ * 0.89.34 — THE HEARTBEAT PAYLOAD, IN ONE PLACE.
+ *
+ * Everything a peer reads out of our slot is built here, because there is now
+ * more than one thing that can issue a beat: the heartbeat loop, and the
+ * post-reset authority barrier, which must renew the lease from whatever
+ * thread it happens to be running on.  Two copies of this fill would diverge
+ * silently — a field left zeroed reads to a peer as "an older build wrote
+ * this" rather than as a bug — so the payload is shared and only the beat's
+ * mechanics are not.
+ */
+static void hb_payload_fill(struct mxfs_disklock_ctx *ctx,
+                            struct mxfs_disklock_heartbeat *hb)
+{
+    memset(hb, 0, sizeof(*hb));
+    hb->magic = MXFS_DISKLOCK_MAGIC;
+    hb->flags = MXFS_DISKLOCK_FLAG_ACTIVE;
+    hb->node_id = ctx->local_node;
+    hb->fs_gen = ctx->fs_gen;
+    hb->timestamp_ms = mxfs_pal_time_ms();
+    hb->epoch = ctx->epoch;
+    hb->lock_count = ctx->lock_count;
+    hb_feature_fill(ctx, hb);       /* sess42 C7 */
+    hb->prov = ctx->own_prov;       /* sess346 #92: constant per tenure */
+    hb_ident_fill(ctx, hb, (uint32_t)ctx->local_slot);   /* sess438 */
+
+    /*
+     * sess55: publish the inode-eviction ring.  Copy the staging ring in
+     * its physical circular layout; peers reconstruct the logically-recent
+     * entries from head_seq/count.  magic flags the ring as populated
+     * (a node running an older build leaves this zeroed → peers skip).
+     */
+    mxfs_pal_mutex_lock(ctx->evict_lock);
+    hb->evict.magic = MXFS_EVICT_RING_MAGIC;
+    hb->evict.head_seq = ctx->evict_head_seq;
+    hb->evict.count = ctx->evict_count;
+    hb->evict.pad = 0;
+    memcpy(hb->evict.entry, ctx->evict_stage, sizeof(ctx->evict_stage));
+    mxfs_pal_mutex_unlock(ctx->evict_lock);
+}
+
+/*
+ * 0.89.34 — ONE BEAT, ISSUED BY WHOEVER NEEDS IT, RIGHT NOW.
+ *
+ * WHY THIS EXISTS.  The post-reset authority barrier proves its half by
+ * observing a heartbeat ISSUED AFTER THE RESET LAND.  It used to wait for the
+ * heartbeat thread to produce one — and the production caller of that barrier
+ * IS the heartbeat thread: peer death is declared from the monitor stage of
+ * this very loop, and the fence runs inside that dispatch.  So the barrier
+ * waited for a beat only it could issue, no beat landed, the lease ran out at
+ * exactly its deadline, and the surviving node shut its filesystem down.
+ * Measured on the 2/tcp rig: P278-HB-STALL stage=MONITOR with the heartbeat
+ * task's own stack inside mxfs_v5_dlm_lu_reset_barrier, monitor_ms=30487,
+ * wait_ms=30241 against a 30000 ms lease.
+ *
+ * The proof the barrier needs does not require the beat to come from any
+ * particular thread.  It goes through the same single-outstanding
+ * compare-and-write under the same mutex, so it still cannot land until the
+ * beat the reset stranded has been resolved, and it still renews from an
+ * anchor taken before it was issued.  Issuing it here is therefore the same
+ * proof with one fewer dependency — on another thread's schedule.
+ *
+ * WHAT THIS DELIBERATELY DOES NOT DO.  It does not drive the heartbeat stage
+ * machine, and it runs neither the self-fence nor the conflict callback.
+ * Those are the loop's cycle policy, not properties of a beat; the loop sees
+ * the same condition on its next cycle and acts on it there.  A -EPERM here
+ * simply means no renewal happened, which leaves the caller's lease to expire
+ * on its own and refuse — the safe direction.
+ *
+ * Returns 0 when the beat landed and the lease was renewed.
+ */
+int mxfs_disklock_beat_now(struct mxfs_disklock_ctx *ctx)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    struct mxfs_disklock_heartbeat *rhb;
+    uint64_t offset, t0;
+    int rc;
+
+    if (!ctx || !ctx->running || ctx->fenced)
+        return -ENODEV;
+
+    /* Both buffers are 512 B and the kernel stack frame limit is 1024. */
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb)
+        return -ENOMEM;
+    rhb = mxfs_pal_alloc(sizeof(*rhb));
+    if (!rhb) {
+        mxfs_pal_free(hb);
+        return -ENOMEM;
+    }
+
+    hb_payload_fill(ctx, hb);
+    offset = ctx->base_offset +
+             (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+    /*
+     * The anchor, and the same pre-issue check the loop makes: the heartbeat
+     * sector is a mutation of the shared LUN like any other, and a node whose
+     * authority has already lapsed must not write it — a peer may already have
+     * fenced this node and laid a recovery guard on this very slot.
+     */
+    t0 = mxfs_pal_time_ms();
+    if (!mxfs_disklock_authority_ok(ctx)) {
+        mxfs_pal_free(rhb);
+        mxfs_pal_free(hb);
+        return -EPERM;
+    }
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = hb_cas_own_slot(ctx, offset, hb, rhb);
+    mxfs_pal_mutex_unlock(ctx->lock);
+
+    if (rc == 0) {
+        ctx->hb_last_ok_ms = mxfs_pal_time_ms();
+        /* Anchored at the ISSUE instant, never the completion: a
+         * completion-anchored deadline can be younger than the one this
+         * node's peers are able to observe. */
+        mxfs_disklock_authority_renew(ctx, t0);
+    }
+    mxfs_pal_log(rc == 0 ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+                 "mxfs: P278-BEAT-NOW node %u slot %d rc=%d issued_ms=%llu "
+                 "last_ok_ms=%llu — a beat issued directly by the caller "
+                 "rather than by the heartbeat thread%s",
+                 ctx->local_node, ctx->local_slot, rc,
+                 (unsigned long long)t0,
+                 (unsigned long long)ctx->hb_last_ok_ms,
+                 rc == 0 ? "; the lease is renewed from the issue instant" :
+                           "; NOTHING was renewed");
+    mxfs_pal_free(rhb);
+    mxfs_pal_free(hb);
+    return rc;
+}
+
 static void disklock_hb_fn(void *arg)
 {
     struct mxfs_disklock_ctx *ctx = arg;
@@ -1218,6 +2834,29 @@ static void disklock_hb_fn(void *arg)
 
     while (ctx->running) {
         hb_stage_set(ctx, MXFS_HB_STAGE_IDCHECK);
+        if (unlikely(mxfs_dl_inject_hb_pause_ms > 0)) {
+            int ms = mxfs_dl_inject_hb_pause_ms;
+
+            mxfs_dl_inject_hb_pause_ms = 0;     /* one-shot */
+            /* 0.89.66: the authority deadline the last landed beat set, so
+             * a lap whose victim never calls the gate (no writer, so no
+             * P290-AUTH-CLOSED line) still has the deadline to measure a
+             * peer's handoff against. */
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P-HB-INJECT-PAUSE node %u slot %d ms=%d "
+                         "deadline_ms=%llu last_ok_ms=%llu — "
+                         "heartbeat thread pausing (TEST ONLY, false-death "
+                         "injection)", ctx->local_node, ctx->local_slot, ms,
+                         (unsigned long long)(ctx->auth ? ctx->auth->deadline_ms : 0),
+                         (unsigned long long)(ctx->auth ? ctx->auth->last_ok_ms : 0));
+            while (ms > 0 && ctx->running) {
+                mxfs_pal_sleep_ms(ms > 1000 ? 1000 : ms);
+                ms -= 1000;
+            }
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P-HB-INJECT-PAUSE node %u slot %d resumed",
+                         ctx->local_node, ctx->local_slot);
+        }
         /*
          * sess131 self-fence: before writing anything, verify the device
          * still carries OUR volume's superblock.  If it was re-mkfs'd under
@@ -1243,41 +2882,58 @@ static void disklock_hb_fn(void *arg)
             }
         }
 
-        memset(hb, 0, sizeof(*hb));
-        hb->magic = MXFS_DISKLOCK_MAGIC;
-        hb->flags = MXFS_DISKLOCK_FLAG_ACTIVE;
-        hb->node_id = ctx->local_node;
-        hb->fs_gen = ctx->fs_gen;
-        hb->timestamp_ms = mxfs_pal_time_ms();
-        hb->epoch = ctx->epoch;
-        hb->lock_count = ctx->lock_count;
-        hb_feature_fill(ctx, hb);       /* sess42 C7 */
-        hb->prov = ctx->own_prov;       /* sess346 #92: constant per tenure */
-
-        /*
-         * sess55: publish the inode-eviction ring.  Copy the staging ring in
-         * its physical circular layout; peers reconstruct the logically-recent
-         * entries from head_seq/count.  magic flags the ring as populated
-         * (a node running an older build leaves this zeroed → peers skip).
-         */
-        mxfs_pal_mutex_lock(ctx->evict_lock);
-        hb->evict.magic = MXFS_EVICT_RING_MAGIC;
-        hb->evict.head_seq = ctx->evict_head_seq;
-        hb->evict.count = ctx->evict_count;
-        hb->evict.pad = 0;
-        memcpy(hb->evict.entry, ctx->evict_stage, sizeof(ctx->evict_stage));
-        mxfs_pal_mutex_unlock(ctx->evict_lock);
+        hb_payload_fill(ctx, hb);
 
         offset = ctx->base_offset +
                  (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
 
-        /* sess38 (D-RELABORT-...-SELFFENCE RULE-4): time every hb write and
+        /* sess38 (D-RELABORT-...-SELFFENCE instrumented): time every hb write and
          * track the age since the last SUCCESSFUL one.  test21 was fenced
          * after its hb failed to land for the FULL 62s lease while the node
          * looked alive — this names the outage as it grows (write stuck in
          * the saturated device queue vs mutex held vs hard failure), at zero
          * cost on the healthy path (one log only when late/slow/failed). */
         hb_t0 = mxfs_pal_time_ms();
+        /*
+         * CHECK THE LEASE BEFORE SENDING ANOTHER BEAT.  A thread that was
+         * stalled — parked, descheduled, stuck in a long device wait — comes
+         * back here first, and if its authority lapsed while it was away it
+         * must not go on writing to the shared LUN as though nothing had
+         * happened.  The heartbeat sector is a mutation of that LUN like any
+         * other and gets no "internal I/O" exemption: a peer may already have
+         * fenced this node and laid a recovery guard on this very slot.
+         *
+         * hb_t0 is also THE ANCHOR for the renewal below, captured here
+         * before the lock and before the CAS is issued, so the lease can only
+         * expire earlier than a peer's view of it, never later.
+         */
+        /*
+         * TEST ONLY, one-shot: skip the pre-issue check for exactly one
+         * cycle.  It exists to reach the guard inside authority_renew, which
+         * refuses a renewal whose beat was ISSUED after authority had already
+         * lapsed.  That guard is defence in depth and no live path can reach
+         * it — the check just below stops the heartbeat before such a beat
+         * can be sent — so the only way to exercise it is to take the primary
+         * check away for one cycle and let a stale-anchored renewal actually
+         * arrive.  Nothing else is weakened: the renewal still meets every
+         * test it would normally meet.
+         */
+        if (unlikely(mxfs_dbg_hb_skip_auth_check)) {
+            mxfs_dbg_hb_skip_auth_check = 0;    /* one-shot */
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P-DBG-HB-SKIP-AUTH node %u slot %d — TEST: "
+                         "the pre-issue authority check is skipped for this "
+                         "one cycle, so a beat issued after the lease lapsed "
+                         "reaches the renewal guard",
+                         ctx->local_node, ctx->local_slot);
+        } else if (!mxfs_disklock_authority_ok(ctx)) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P290-AUTH-HB-STOP node %u slot %d — authority "
+                         "is closed; stopping the heartbeat rather than "
+                         "refreshing a slot this node no longer owns",
+                         ctx->local_node, ctx->local_slot);
+            break;
+        }
         hb_stage_set(ctx, MXFS_HB_STAGE_LOCKWAIT);
         mxfs_pal_mutex_lock(ctx->lock);
         hb_stage_set(ctx, MXFS_HB_STAGE_CASWRITE);
@@ -1286,6 +2942,40 @@ static void disklock_hb_fn(void *arg)
          * free again here (the identity check above finished with it). */
         rc = hb_cas_own_slot(ctx, offset, hb, rhb);
         mxfs_pal_mutex_unlock(ctx->lock);
+        /*
+         * TEST ONLY, one-shot: the beat REACHED THE TARGET and its completion
+         * is then delayed.  This is the ordering the issue-time anchor exists
+         * for — the update is visible to peers, they age it while we wait, and
+         * only afterwards do we get told it succeeded.  An implementation that
+         * anchored the deadline at completion would hand this node authority
+         * it never proved, measured from an instant that had already passed
+         * for everyone else.  Delaying here, AFTER the CAS and BEFORE hb_t1,
+         * is what makes hb_t1 late while hb_t0 stays honest.
+         */
+        if (unlikely(mxfs_dbg_hb_completion_delay_ms > 0 && rc == 0)) {
+            int ms = mxfs_dbg_hb_completion_delay_ms;
+
+            mxfs_dbg_hb_completion_delay_ms = 0;        /* one-shot */
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P-DBG-HB-COMPLETION-DELAY node %u slot %d "
+                         "ms=%d issued_ms=%llu — TEST: this beat is ON THE "
+                         "TARGET and its completion is being withheld; peers "
+                         "can see it and age it while this node waits",
+                         ctx->local_node, ctx->local_slot, ms,
+                         (unsigned long long)hb_t0);
+            while (ms > 0 && ctx->running) {
+                mxfs_pal_sleep_ms(ms > 1000 ? 1000 : ms);
+                ms -= 1000;
+            }
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P-DBG-HB-COMPLETION-DELAY-END node %u slot %d "
+                         "issued_ms=%llu delivered_ms=%llu — TEST: the "
+                         "completion is delivered now; the renewal below must "
+                         "still derive its deadline from issued_ms",
+                         ctx->local_node, ctx->local_slot,
+                         (unsigned long long)hb_t0,
+                         (unsigned long long)mxfs_pal_time_ms());
+        }
         hb_t1 = mxfs_pal_time_ms();
 
         /*
@@ -1297,6 +2987,11 @@ static void disklock_hb_fn(void *arg)
          */
         if (rc == -EPERM) {
             ctx->fenced = true;
+            /* Close authority FIRST: the shutdown below is asynchronous, and
+             * between the two nothing else may be admitted to the LUN. */
+            mxfs_disklock_authority_close(ctx, MXFS_SELF_FENCE_SLOT_TAKEOVER,
+                "a survivor laid a recovery guard on this node's own "
+                "heartbeat slot");
             mxfs_pal_log(MXFS_LOG_ERR,
                          "mxfs: P236-SELF-FENCE node %u slot %d: our heartbeat "
                          "slot was taken over by a recovery — stopping "
@@ -1325,8 +3020,14 @@ static void disklock_hb_fn(void *arg)
                          "(age_since_last_ok_ms=%llu)", rc,
                          (unsigned long long)(hb_last_ok_ms ?
                              hb_t1 - hb_last_ok_ms : 0));
-        else
-            hb_last_ok_ms = hb_t1;
+        else {
+            hb_last_ok_ms = ctx->hb_last_ok_ms = hb_t1;
+            /* Renew from hb_t0 — the instant this beat was ISSUED — and not
+             * from hb_t1, its completion.  See the lease comment in
+             * disklock.h: a completion-anchored deadline can be younger than
+             * the one this node's peers are able to observe. */
+            mxfs_disklock_authority_renew(ctx, hb_t0);
+        }
         if (hb_t1 - hb_t0 > 2000 ||
             (hb_last_ok_ms && hb_t1 - hb_last_ok_ms >
              2 * MXFS_DISKLOCK_HB_INTERVAL_MS))
@@ -1352,6 +3053,14 @@ static void disklock_hb_fn(void *arg)
         hb_stage_set(ctx, MXFS_HB_STAGE_MONITOR);
         {
             uint32_t slot;
+            /* sess405: this pass's protected-victim mask (see disklock.h) */
+            uint64_t prot_mask = 0;
+            bool prot_complete = true;
+            uint64_t prot_gen0;
+
+            mxfs_pal_mutex_lock(ctx->prot_lock);
+            prot_gen0 = ctx->protected_gen;
+            mxfs_pal_mutex_unlock(ctx->prot_lock);
 
             for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
                 struct mxfs_disklock_node_track *nt;
@@ -1377,8 +3086,10 @@ static void disklock_hb_fn(void *arg)
                 uint64_t rebase_ts = 0;
                 mxfs_node_id_t rebase_node = 0;
 
-                if (!ctx->running)
+                if (!ctx->running) {
+                    prot_complete = false;
                     break;
+                }
 
                 if ((int)slot == ctx->local_slot)
                     continue;
@@ -1390,7 +3101,28 @@ static void disklock_hb_fn(void *arg)
                 mxfs_pal_mutex_lock(ctx->lock);
                 rr = mxfs_pal_bdev_read(ctx->dev, off,
                                          rhb, sizeof(*rhb));
+                /* sess438: observe the writer's PR key while the record is
+                 * fresh; frozen per exact incarnation (see hb_ident_observe). */
+                if (rr == 0)
+                    hb_ident_observe(ctx, slot, rhb);
                 mxfs_pal_mutex_unlock(ctx->lock);
+
+                /*
+                 * sess405: protected-victim mask.  Any validated descriptor
+                 * at stage >= SNAPSHOTTING protects this slot's CAW authority
+                 * bits; an unreadable record keeps last pass's answer.
+                 */
+                if (rr == 0) {
+                    const struct mxfs_recov_desc *pdsc = recov_desc_of(rhb);
+
+                    if (pdsc && pdsc->stage >= MXFS_RECOV_STAGE_FENCING)
+                        prot_mask |= 1ULL << slot;
+                    /* 0.85.0: the OPEN-obligation observer sees every
+                     * readable sector every pass (see recov_obl_observe) */
+                    recov_obl_observe(ctx, (int)slot, rhb);
+                } else {
+                    prot_mask |= ctx->protected_mask & (1ULL << slot);
+                }
 
                 /*
                  * sess9 (ccloop c7ee71c6) D2: a slot in recovery-pending
@@ -1443,6 +3175,31 @@ static void disklock_hb_fn(void *arg)
                          * purge path retires the identity, which a cleanly
                          * departed node must keep).
                          */
+                        /*
+                         * sess450: the pending victim's slot reads as its
+                         * own RETIRE_PENDING release stamp — settle it
+                         * first.  Key absent → the record becomes EMPTY and
+                         * the clean-departure arm below unlatches; key
+                         * present past grace → WITHDRAWN, and the recovery
+                         * pipeline (whose recovery_begin refused the
+                         * RETIRE_PENDING image with -ESTALE) proceeds on
+                         * its next attempt.
+                         */
+                        if (rr == 0 && still_dead_stamp &&
+                            hb_retire_pending(ctx, rhb) &&
+                            rhb->node_id == pn) {
+                            int rs = hb_retire_settle(ctx, slot, off, rhb,
+                                                      false);
+
+                            /* sess451: anything but EMPTY (WAITING,
+                             * WITHDRAWN, CHANGED, error) is left for the
+                             * next lap's plain read to classify — the
+                             * WITHDRAWN arm below picks a WITHDRAWN up
+                             * then (one-lap latency, by design). */
+                            if (rs != HB_RETIRE_EMPTY)
+                                continue;
+                        }
+
                         if (rr == 0 && still_dead_stamp &&
                             hb_clean_empty_match(ctx, rhb, pn, pe)) {
                             mxfs_pal_mutex_lock(ctx->lock);
@@ -1496,7 +3253,7 @@ static void disklock_hb_fn(void *arg)
                                                                (int)slot, &oc);
 
                             /*
-                             * sess383 (RULE-5 ruling Q1): the old arm fired
+                             * sess383 (design-consult ruling Q1): the old arm fired
                              * the import cb only when
                              * oc->outcome == TERMINAL_REFUSED.  That filter
                              * was itself a BYPASS of the one validator: a
@@ -1640,6 +3397,7 @@ static void disklock_hb_fn(void *arg)
                                 if (successor) {
                                     nt->last_epoch     = rhb->epoch;
                                     nt->last_timestamp = rhb->timestamp_ms;
+                                    nt->last_change_ms = mxfs_pal_time_ms();
                                     nt->live           = true;
                                     ctx->monitored[slot]    = true;
                                     ctx->slot_node_id[slot] = rhb->node_id;
@@ -1677,6 +3435,27 @@ static void disklock_hb_fn(void *arg)
                  * skips it).  The recovery_pending latch above prevents
                  * re-fire once recovery starts, and the WITHDRAWN record
                  * itself names the victim — no tracking state is needed. */
+                /*
+                 * sess450: RETIRE_PENDING on first sight, tracked or not
+                 * (same reasoning as the WITHDRAWN arm below: the record
+                 * names its own writer).  Settled to EMPTY → the clean-
+                 * departure arm below retires the tracking; expired to
+                 * WITHDRAWN → the WITHDRAWN arm below fires the death; still
+                 * within grace → nothing else may classify this slot this
+                 * lap (in particular it must not count toward the stale
+                 * window: the release stopped the heartbeat on purpose).
+                 */
+                if (rr == 0 && hb_retire_pending(ctx, rhb)) {
+                    int rs = hb_retire_settle(ctx, slot, off, rhb, false);
+
+                    if (rs < 0 || rs == HB_RETIRE_WAITING)
+                        continue;
+                    /* EMPTY / WITHDRAWN / CHANGED: rhb is the sector's
+                     * CURRENT image (sess451: CHANGED re-reads it after a
+                     * lost CAS — never the stale pending image); fall
+                     * through and classify it. */
+                }
+
                 if (rr == 0 && rhb->magic == MXFS_DISKLOCK_MAGIC &&
                     rhb->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN &&
                     !hb_gen_foreign(ctx, rhb)) {
@@ -1694,10 +3473,85 @@ static void disklock_hb_fn(void *arg)
                         /* The WITHDRAWN record is the victim's OWN final
                          * record, so its stamp names the victim directly —
                          * no successor is involved and nothing is rebased. */
-                        nt->last_epoch = rhb->epoch;
+                        hb_rebase_epoch(ctx, nt, slot, rhb, "withdrawn");
                         victim_node = rhb->node_id;
-                        victim_epoch = rhb->epoch;
+                        victim_epoch = nt->last_epoch;
                         goto fire_dead;
+                    }
+                }
+
+                /*
+                 * sess453 (D-0519): a CERTIFIED FENCE DESCRIPTOR on first
+                 * sight.  The node that expires a RETIRE_PENDING record (or
+                 * sees a WITHDRAWN stamp) fences within milliseconds and
+                 * rewrites the sector as a RECOVERY_GUARD carrying the
+                 * certificate — chain 72 unknown arm: EXPIRED-WITHDRAWN
+                 * 5169.000, WITHDRAW-SEEN .008, FENCE-INTENT .0084, so the
+                 * WITHDRAWN image existed for ~8 ms.  Every other peer's 2 s
+                 * lap missed it and, until now, classified the GUARD record
+                 * as "inactive" below: 31 equal samples, 62 s, then the
+                 * death — the elected replayer included ("heartbeat expired
+                 * after 31 checks" at 5230.6, recovery complete at 5262 —
+                 * 93 s after the fence, while the victim's own remount was
+                 * refused P300-CLAIM-EXHAUSTED for want of that slot).  The
+                 * certificate names the victim (node, incarnation) and
+                 * proves its exclusion; nothing is learned by waiting.
+                 * FUA-confirm, then fire the death exactly as the WITHDRAWN
+                 * arm does: expire_cb marks it pending, v5_handle_node_death
+                 * finds the certificate (P238-FENCE-DONE) and dispatches
+                 * the election.  Once per (victim, incarnation) per slot;
+                 * an attempt still at stage < FENCED is the prover's, and
+                 * carries no exclusion proof yet — the stale window remains
+                 * the backstop for that and for a refused pending mark.
+                 */
+                if (rr == 0 && rhb->magic == MXFS_DISKLOCK_MAGIC &&
+                    rhb->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD &&
+                    !hb_gen_foreign(ctx, rhb)) {
+                    const struct mxfs_recov_desc *fd = recov_desc_of(rhb);
+                    bool fresh = false;
+
+                    if (fd && fd->stage >= MXFS_RECOV_STAGE_FENCED &&
+                        fd->victim_node && fd->victim_slot == slot &&
+                        inc_valid(fd->victim_epoch)) {
+                        mxfs_pal_mutex_lock(ctx->lock);
+                        fresh = ctx->fenced_seen_node[slot] != fd->victim_node ||
+                                !inc_eq(ctx->fenced_seen_epoch[slot],
+                                        fd->victim_epoch);
+                        mxfs_pal_mutex_unlock(ctx->lock);
+                    }
+                    if (fresh) {
+                        mxfs_pal_mutex_lock(ctx->lock);
+                        crr = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb,
+                                                      sizeof(*rhb));
+                        mxfs_pal_mutex_unlock(ctx->lock);
+                        fd = crr == 0 ? recov_desc_of(rhb) : NULL;
+                        if (fd && fd->stage >= MXFS_RECOV_STAGE_FENCED &&
+                            fd->victim_node && fd->victim_slot == slot &&
+                            inc_valid(fd->victim_epoch)) {
+                            mxfs_node_id_t vn = fd->victim_node;
+                            mxfs_epoch_t ve = fd->victim_epoch;
+
+                            mxfs_pal_mutex_lock(ctx->lock);
+                            ctx->fenced_seen_node[slot]  = vn;
+                            ctx->fenced_seen_epoch[slot] = ve;
+                            mxfs_pal_mutex_unlock(ctx->lock);
+                            mxfs_pal_log(MXFS_LOG_WARN,
+                                "mxfs: P163-FENCED-SEEN slot=%u node=%u inc=%llu "
+                                "prover=%u stage=%u — a peer certified this "
+                                "incarnation's fence (FUA confirmed); declaring "
+                                "the death now instead of after %d silent samples",
+                                slot, vn, (unsigned long long)ve,
+                                fd->fence_prover_node, fd->stage,
+                                ctx->dead_threshold);
+                            /* The certificate is the authority on the
+                             * incarnation (its crc covers the victim
+                             * identity); no header rebase needed. */
+                            nt->last_epoch = ve;
+                            nt->inc_zero_logged = false;
+                            victim_node = vn;
+                            victim_epoch = ve;
+                            goto fire_dead;
+                        }
                     }
                 }
 
@@ -1847,7 +3701,7 @@ static void disklock_hb_fn(void *arg)
                          * fix note above).  Do NOT replay, do NOT move
                          * the cursor back — the next fresh read resumes
                          * exactly where we left off.  Counted for the
-                         * RULE-4 proof that stale HB reads occur.
+                         * Instrumented proof that stale HB reads occur.
                          */
                         static uint32_t dl_stale_hb_skips;
 
@@ -1875,7 +3729,28 @@ static void disklock_hb_fn(void *arg)
                  * successor is picked up again only after the death has been
                  * dispatched (see the rebase block at fire_dead).
                  */
-                if (nt->last_epoch != 0 &&
+                /*
+                 * sess436 (D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO, measured
+                 * by tests/d_recov_zero_epoch_verify.sh on 0.41.8): a ZERO
+                 * epoch on a slot whose incarnation we know is NOT a change
+                 * of hands.  inc_eq(0, X) is false, so this arm used to
+                 * declare the restart ('detected epoch change from X to 0'),
+                 * fire the death and REBASE the cache to 0 at rebase_only —
+                 * every detector then held inc 0, P238-FENCE-NOINC refused
+                 * fencing authority, and when the real epoch reappeared it
+                 * read as yet another restart: the slice stayed frozen
+                 * forever ('NOT replayed — no proven exclusion (-61)' every
+                 * 30 s).  A zero is an unreadable/spliced sector (no member
+                 * at this proto_gen writes one): retain the cached
+                 * incarnation (hb_rebase_epoch logs P-HB-INC-ZERO once) and
+                 * fall through to the timestamp arms — a record that no
+                 * longer advances expires on the CACHED incarnation and
+                 * keeps its fencing authority; a later valid read equal to
+                 * the cache is the same incarnation, not a successor.
+                 */
+                if (nt->last_epoch != 0 && !inc_valid(rhb->epoch)) {
+                    hb_rebase_epoch(ctx, nt, slot, rhb, "epoch-change");
+                } else if (nt->last_epoch != 0 &&
                     !inc_eq(rhb->epoch, nt->last_epoch)) {
                     bool already;
 
@@ -1977,7 +3852,8 @@ static void disklock_hb_fn(void *arg)
                     nt->changed_samples++;
                     nt->equal_samples = 0;
                     nt->last_timestamp = rhb->timestamp_ms;
-                    nt->last_epoch = rhb->epoch;
+                    nt->last_change_ms = mxfs_pal_time_ms();
+                    hb_rebase_epoch(ctx, nt, slot, rhb, "fresh");
                     /* sess346 #92: record the occupant's slot_seq once per
                      * tenancy (provenance is constant per incarnation, so
                      * the first valid sighting is the whole story).  Every
@@ -2018,7 +3894,8 @@ static void disklock_hb_fn(void *arg)
                     rhb->magic == MXFS_DISKLOCK_MAGIC &&
                     rhb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
                     !hb_gen_foreign(ctx, rhb) &&
-                    hb_feature_state(rhb) != MXFS_HBFEAT_OK &&
+                    (hb_feature_state(rhb) != MXFS_HBFEAT_OK ||
+                     hb_transport_mismatch(ctx, rhb)) &&   /* 0.75.0 */
                     !(ctx->vergate_fenced[slot] &&
                       ctx->vergate_fenced_epoch[slot] == rhb->epoch)) {
                     int vfst;
@@ -2028,6 +3905,12 @@ static void disklock_hb_fn(void *arg)
                                                   sizeof(*rhb));
                     mxfs_pal_mutex_unlock(ctx->lock);
                     vfst = (crr == 0) ? hb_feature_state(rhb) : MXFS_HBFEAT_OK;
+                    /* 0.75.0: a valid block on the other DLM transport is
+                     * as incompatible as a foreign proto_gen — the two lock
+                     * managers exclude nothing from each other. */
+                    if (crr == 0 && vfst == MXFS_HBFEAT_OK &&
+                        hb_transport_mismatch(ctx, rhb))
+                        vfst = MXFS_HBFEAT_TRANSPORT;
                     if (crr == 0 && vfst != MXFS_HBFEAT_OK &&
                         rhb->magic == MXFS_DISKLOCK_MAGIC &&
                         rhb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
@@ -2037,7 +3920,8 @@ static void disklock_hb_fn(void *arg)
                         ctx->vergate_fenced_epoch[slot] = rhb->epoch;
                         mxfs_pal_log(MXFS_LOG_ERR,
                             "mxfs: P-VERGATE slot=%u node=%u epoch=%llu "
-                            "state=%d (1=legacy 2=mismatch 3=corrupt) "
+                            "state=%d (1=legacy 2=mismatch 3=corrupt "
+                            "4=transport) "
                             "proto_gen=%u ours=%u — live protocol-"
                             "incompatible member, fencing",
                             slot, rhb->node_id,
@@ -2053,8 +3937,32 @@ check_dead:
                  * the occupant we were tracking simply stopped.  No successor
                  * is in play, so the victim IS what node_track still holds. */
                 victim_epoch = nt->last_epoch;
+                /*
+                 * 0.75.70: a record that was ALREADY frozen when this mount
+                 * began monitoring it never became live, and this arm used to
+                 * require live — so a crash leftover found at mount was
+                 * monitored forever and never declared dead.  Measured on the
+                 * two-node TCP rig after both nodes were reset with their
+                 * mounts in flight (tests/evidence/20260908T232151Z_restart_s558,
+                 * boot journals): four stale ACTIVE records auto-monitored at
+                 * mount, 'slot N stale ... will purge' for each, and 21
+                 * minutes later zero deaths, zero fences, no recovery, no
+                 * bootstrap node, every ledger page request parked.  A
+                 * record we have watched stay frozen for the whole dead
+                 * window is dead by the same standard as one we watched
+                 * stop; the baseline (last_timestamp) must exist, and the
+                 * FUA confirm below still applies.
+                 */
                 if (nt->equal_samples >= ctx->dead_threshold &&
-                    nt->live) {
+                    !nt->live && nt->last_timestamp != 0)
+                    mxfs_pal_log(MXFS_LOG_WARN,
+                        "mxfs: P-HB-GHOST-DEAD slot=%u node=%u inc=%llu eq=%d — "
+                        "frozen since first sight (never live); declaring the "
+                        "death on the ordinary path",
+                        slot, victim_node, (unsigned long long)victim_epoch,
+                        nt->equal_samples);
+                if (nt->equal_samples >= ctx->dead_threshold &&
+                    (nt->live || nt->last_timestamp != 0)) {
                     /*
                      * sess69: the monitor read above (mxfs_pal_bdev_read) is
                      * a plain, cacheable read.  Under heavy storm load the
@@ -2088,7 +3996,8 @@ check_dead:
                         nt->equal_samples = 0;
                         nt->changed_samples++;
                         nt->last_timestamp = rhb->timestamp_ms;
-                        nt->last_epoch = rhb->epoch;
+                        nt->last_change_ms = mxfs_pal_time_ms();
+                        hb_rebase_epoch(ctx, nt, slot, rhb, "fua-confirm");
                         continue;
                     }
                     /*
@@ -2101,6 +4010,31 @@ check_dead:
                      * clean retire as the monitor arm: no fence, no
                      * expire_cb, no pending latch.
                      */
+                    /* sess450: the confirm read found the victim's own
+                     * RETIRE_PENDING stamp (release landed inside the stale
+                     * window).  Settle: EMPTY → clean retire below; still
+                     * within grace → not a death, re-arm the window;
+                     * WITHDRAWN → fall through to fire_dead. */
+                    if (crr == 0 && hb_retire_pending(ctx, rhb) &&
+                        rhb->node_id == victim_node) {
+                        int rs = hb_retire_settle(ctx, slot, off, rhb,
+                                                  false);
+
+                        /* sess451 (blocker 1): CHANGED means the sector
+                         * moved under us — a peer settled it or a claimant
+                         * took it.  Whatever it holds now is by definition
+                         * not a stale-dead sector for victim_node: never
+                         * fire_dead on it from here; the next lap's plain
+                         * read classifies the new image (rebase / clean
+                         * depart / withdraw).  Only the EMPTY and WITHDRAWN
+                         * images WE produced for this exact victim fall
+                         * through. */
+                        if (rs < 0 || rs == HB_RETIRE_WAITING ||
+                            rs == HB_RETIRE_CHANGED) {
+                            nt->equal_samples = 0;
+                            continue;
+                        }
+                    }
                     if (crr == 0 &&
                         hb_clean_empty_match(ctx, rhb, victim_node,
                                              victim_epoch)) {
@@ -2126,11 +4060,28 @@ check_dead:
                         continue;
                     }
 fire_dead:
+                    /*
+                     * 0.89.66: the three clocks of the death, so the window
+                     * is measured rather than assumed.  last_stamp_ms is the
+                     * victim's own beat stamp (ITS clock) — its authority
+                     * deadline is that plus the lease.  last_seen_ms is OUR
+                     * pass that last saw the stamp change (our clock) — the
+                     * dead window starts there; now_ms is where it ended.  A
+                     * death reached by one of the gotos above (withdrawn
+                     * stamp, certificate, epoch change) prints the same
+                     * fields with checks well short of the threshold, which
+                     * is how a reader tells the cooperative path from the
+                     * silent one.
+                     */
                     mxfs_pal_log(MXFS_LOG_WARN,
                         "mxfs: node in slot %u is no longer responding "
                         "(heartbeat expired after %d checks), initiating "
-                        "recovery",
-                        slot, nt->equal_samples);
+                        "recovery [threshold=%u last_stamp_ms=%llu "
+                        "last_seen_ms=%llu now_ms=%llu]",
+                        slot, nt->equal_samples, ctx->dead_threshold,
+                        (unsigned long long)nt->last_timestamp,
+                        (unsigned long long)nt->last_change_ms,
+                        (unsigned long long)mxfs_pal_time_ms());
                     nt->live = false;
                     nt->changed_samples = 0;
                     nt->equal_samples = 0;
@@ -2150,6 +4101,13 @@ fire_dead:
                      * set — and, unlike slot_node_id[] itself, it cannot have
                      * been retargeted at a successor earlier in this pass
                      * (sess86). */
+                    /* sess438: freeze the victim's PR key into the death
+                     * snapshot for exactly this tuple BEFORE the callback
+                     * (and before rebase_only may adopt a successor). */
+                    mxfs_pal_mutex_lock(ctx->lock);
+                    hb_ident_freeze_victim(ctx, slot, victim_node,
+                                           victim_epoch);
+                    mxfs_pal_mutex_unlock(ctx->lock);
                     if (ctx->expire_cb)
                         ctx->expire_cb(ctx->expire_cb_data, victim_node,
                                        (int)slot, victim_epoch);
@@ -2179,6 +4137,7 @@ rebase_only:
                 if (rebase_inc) {
                     nt->last_epoch     = rebase_epoch;
                     nt->last_timestamp = rebase_ts;
+                    nt->last_change_ms = mxfs_pal_time_ms();
                     nt->equal_samples  = 0;
                     nt->changed_samples = 0;
                     nt->live           = true;
@@ -2187,6 +4146,30 @@ rebase_only:
                     ctx->slot_node_id[slot] = rebase_node;
                 }
                 continue;  /* after check_dead/fire_dead/rebase_only labels */
+            }
+
+            if (prot_complete) {
+                /* sess407: commit under prot_lock.  An out-of-pass
+                 * publication (local proof / sync refresh) that landed while
+                 * this pass was reading moved the gen — some of the sectors
+                 * above predate it, so the candidate is DISCARDED and the
+                 * next pass recomputes from the platter.  The check, the
+                 * install and the callback are one critical section. */
+                mxfs_pal_mutex_lock(ctx->prot_lock);
+                if (prot_gen0 == ctx->protected_gen &&
+                    prot_mask != ctx->protected_mask) {
+                    uint64_t was = ctx->protected_mask;
+
+                    ctx->protected_mask = prot_mask;
+                    mxfs_pal_log(MXFS_LOG_WARN,
+                        "mxfs: P-RMAN-PROTECT mask=0x%llx was=0x%llx — victim "
+                        "slots whose CAW EX/PW authority is write-protected "
+                        "(recovery descriptor present, stage >= FENCING) changed",
+                        (unsigned long long)prot_mask, (unsigned long long)was);
+                    if (ctx->protect_cb)
+                        ctx->protect_cb(ctx->protect_cb_data, prot_mask);
+                }
+                mxfs_pal_mutex_unlock(ctx->prot_lock);
             }
         }
 
@@ -2226,7 +4209,8 @@ hb_blind_sleep:
 
 struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
                                                 uint64_t disklock_offset,
-                                                mxfs_node_id_t local_node)
+                                                mxfs_node_id_t local_node,
+                                                struct mxfs_authority *auth)
 {
     struct mxfs_disklock_ctx *ctx;
     int rc;
@@ -2239,6 +4223,17 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
         return NULL;
 
     memset(ctx, 0, sizeof(*ctx));
+    /*
+     * Before anything else: without an authority object this context cannot
+     * answer the one question every mutating submission asks it, and the gate
+     * fails closed on a missing one rather than guessing.
+     */
+    ctx->auth = auth ? mxfs_authority_get(auth) : mxfs_authority_alloc();
+    if (!ctx->auth) {
+        mxfs_authority_put(ctx->auth);
+        mxfs_pal_free(ctx);
+        return NULL;
+    }
     ctx->dev = dev;
     ctx->base_offset = disklock_offset;
     ctx->local_node = local_node;
@@ -2258,6 +4253,7 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
                      "disklock: no entropy for a mount incarnation — "
                      "refusing to create a disklock context (failing closed; "
                      "a zero incarnation is not a valid identity)");
+        mxfs_authority_put(ctx->auth);
         mxfs_pal_free(ctx);
         return NULL;
     }
@@ -2277,6 +4273,7 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
 
     ctx->lock = mxfs_pal_mutex_create();
     if (!ctx->lock) {
+        mxfs_authority_put(ctx->auth);
         mxfs_pal_free(ctx);
         return NULL;
     }
@@ -2284,6 +4281,7 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
     ctx->shutdown_lock = mxfs_pal_mutex_create();
     if (!ctx->shutdown_lock) {
         mxfs_pal_mutex_destroy(ctx->lock);
+        mxfs_authority_put(ctx->auth);
         mxfs_pal_free(ctx);
         return NULL;
     }
@@ -2292,6 +4290,7 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
     if (!ctx->shutdown_cond) {
         mxfs_pal_mutex_destroy(ctx->shutdown_lock);
         mxfs_pal_mutex_destroy(ctx->lock);
+        mxfs_authority_put(ctx->auth);
         mxfs_pal_free(ctx);
         return NULL;
     }
@@ -2301,6 +4300,7 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
         mxfs_pal_cond_destroy(ctx->shutdown_cond);
         mxfs_pal_mutex_destroy(ctx->shutdown_lock);
         mxfs_pal_mutex_destroy(ctx->lock);
+        mxfs_authority_put(ctx->auth);
         mxfs_pal_free(ctx);
         return NULL;
     }
@@ -2311,6 +4311,19 @@ struct mxfs_disklock_ctx *mxfs_disklock_create(mxfs_bdev_t *dev,
         mxfs_pal_cond_destroy(ctx->shutdown_cond);
         mxfs_pal_mutex_destroy(ctx->shutdown_lock);
         mxfs_pal_mutex_destroy(ctx->lock);
+        mxfs_authority_put(ctx->auth);
+        mxfs_pal_free(ctx);
+        return NULL;
+    }
+
+    ctx->prot_lock = mxfs_pal_mutex_create();
+    if (!ctx->prot_lock) {
+        mxfs_pal_mutex_destroy(ctx->purge_lock);
+        mxfs_pal_mutex_destroy(ctx->evict_lock);
+        mxfs_pal_cond_destroy(ctx->shutdown_cond);
+        mxfs_pal_mutex_destroy(ctx->shutdown_lock);
+        mxfs_pal_mutex_destroy(ctx->lock);
+        mxfs_authority_put(ctx->auth);
         mxfs_pal_free(ctx);
         return NULL;
     }
@@ -2355,6 +4368,23 @@ void mxfs_disklock_set_snlocal(struct mxfs_disklock_ctx *ctx, bool snlocal)
     ctx->snlocal = snlocal;
 }
 
+void mxfs_disklock_set_transport_tcp(struct mxfs_disklock_ctx *ctx, bool tcp)
+{
+    if (!ctx)
+        return;
+    /* Write-time provenance like snlocal: uniform across the tenure, so it
+     * can only be set before the claim stamps the first record. */
+    if (ctx->local_slot >= 0) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: set_transport_tcp(%d) REFUSED — slot %d "
+                     "already claimed; the transport marker is write-time "
+                     "provenance and cannot change mid-tenure",
+                     tcp ? 1 : 0, ctx->local_slot);
+        return;
+    }
+    ctx->transport_tcp = tcp;
+}
+
 void mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit)
 {
     if (!ctx)
@@ -2390,7 +4420,15 @@ void mxfs_disklock_destroy(struct mxfs_disklock_ctx *ctx)
         mxfs_pal_mutex_destroy(ctx->evict_lock);
     if (ctx->purge_lock)
         mxfs_pal_mutex_destroy(ctx->purge_lock);
+    if (ctx->prot_lock)
+        mxfs_pal_mutex_destroy(ctx->prot_lock);
     mxfs_pal_mutex_destroy(ctx->lock);
+    /*
+     * The authority object is NOT freed with the context.  The mount holds
+     * its own reference and keeps it until every producer of this incarnation
+     * is gone, which is long after this point.
+     */
+    mxfs_authority_put(ctx->auth);
     mxfs_pal_free(ctx);
 
     mxfs_pal_log(MXFS_LOG_DEBUG, "disklock: shutdown complete");
@@ -2504,6 +4542,26 @@ int mxfs_disklock_release_slot(struct mxfs_disklock_ctx *ctx)
         return -EBUSY;      /* stop_heartbeat first — no racing rewrites */
     }
 
+    /*
+     * sess413 (D-532 ruling): the clean release retires this incarnation's
+     * only fenceable identity, so every recovery lease it owns must be
+     * durably given back FIRST.  If that cannot be proven, the slot is NOT
+     * cleanly released: it stays ACTIVE, the heartbeat has stopped, peers
+     * (or the next mount) prove death by expiry + fence and take the
+     * recovery over — recoverable.  The alternative — a descriptor owned
+     * by a retired incarnation — is the D-532 permanent-unmount state.
+     */
+    rc = mxfs_disklock_recovery_relinquish_owned(ctx);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "disklock: P236-RELEASE-DEFERRED-OWNED-RECOVERY slot=%d "
+                     "node=%u rc=%d — a recovery lease give-back did not "
+                     "land; leaving our member record ACTIVE so this "
+                     "incarnation stays provable-dead (D-532)",
+                     ctx->local_slot, ctx->local_node, rc);
+        return rc;
+    }
+
     cur  = mxfs_pal_alloc(sizeof(*cur));
     want = mxfs_pal_alloc(sizeof(*want));
     if (!cur || !want) {
@@ -2546,19 +4604,31 @@ int mxfs_disklock_release_slot(struct mxfs_disklock_ctx *ctx)
         goto out;
     }
 
+    /*
+     * sess450 (D-0356 / D-377): NOT EMPTY.  The slot is released as
+     * RETIRE_PENDING — our own final image, flag moved, identity crc
+     * re-bound — and becomes consumable only once our PR key is proven
+     * absent (a peer's READ KEYS, or our own retire_complete_self when no
+     * key exists).  Writing EMPTY here published a reusable slot BEFORE
+     * the key that still authorises this initiator was retired; a crash or
+     * a failed unregister in that window left a key nothing names.
+     */
     *want = *cur;
-    want->flags = MXFS_DISKLOCK_FLAG_EMPTY;
+    want->flags = MXFS_DISKLOCK_FLAG_RETIRE_PENDING;
+    hb_ident_fill(ctx, want, (uint32_t)ctx->local_slot);
 
     mxfs_pal_mutex_lock(ctx->lock);
-    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, cur, want);
-    if (rc == -EOPNOTSUPP)
-        rc = write_sector_fua(ctx, off, want);
+    rc = hb_caw(ctx, HB_CAW_OP_RELEASE, "release", off, cur, want);
+    if (rc == -EOPNOTSUPP)          /* sess453 (0.60.0, D7): fail closed */
+        hb_cas_nocaw_locked(ctx, (uint32_t)ctx->local_slot, "release");
     mxfs_pal_mutex_unlock(ctx->lock);
 
     if (rc == 0) {
         ctx->hb_img_valid = false;      /* the slot is no longer ours */
         mxfs_pal_log(MXFS_LOG_INFO,
-                     "disklock: released heartbeat slot %d (clean teardown)",
+                     "disklock: P304-RETIRE-PENDING-RELEASED heartbeat slot %d "
+                     "(clean teardown; consumable once the PR key is proven "
+                     "retired)",
                      ctx->local_slot);
     } else if (rc == -EAGAIN) {
         mxfs_pal_log(MXFS_LOG_WARN,
@@ -2759,8 +4829,17 @@ static int purge_cas_zero(struct mxfs_disklock_ctx *ctx, uint64_t off,
     int rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, expect, zerobuf);
 
     if (rc == -EOPNOTSUPP) {
-        (*nonatomic)++;
-        rc = write_sector(ctx, off, zerobuf);
+        /* sess419 (design-consult ruling, D-PURGE-NONATOMIC-PUBLICATION stop-ship
+         * 5): the plain read-then-write fallback IS the defect.  Without an
+         * atomic primitive nothing here can be proven a publication of the
+         * image we evaluated, so the purge is INCOMPLETE and nothing is
+         * published — counted, logged once per purge, never written. */
+        if ((*nonatomic)++ == 0)
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "disklock: P235-PURGE-NOCAW off=%llu — no SCSI "
+                         "COMPARE AND WRITE behind this device; refusing "
+                         "the non-atomic zero, purge stays INCOMPLETE",
+                         (unsigned long long)off);
     }
     return rc;
 }
@@ -2864,17 +4943,36 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
     uint32_t slot;
     int rc;
     int gate_found = 0;
+    int gate_slot = -1;
     uint64_t gate_off = 0;
     uint64_t gate_check_ms = 0;
+    /*
+     * sess444 (budget, chain 32 on 0.51.0): the record scan read the table
+     * ONE 512-byte sector at a time — 65536 synchronous reads, ~8 s per
+     * dead node, 265 s of a 545 s whole-cluster bootstrap (31 victims) and
+     * the same cost on every ordinary death.  The scan now reads
+     * PURGE_BATCH records per I/O (the seal-time manifest collector's
+     * pattern) and falls back to per-sector reads for a batch that fails,
+     * so the rd_fail accounting and the per-record CAS-zero are unchanged.
+     * scan_ms/total_ms are reported on the P-PURGE-DONE line.
+     */
+    enum { PURGE_BATCH = 128 };
+    uint8_t *batch;
+    uint32_t bslot = 0, bvalid = 0;         /* batch covers [bslot, bslot+bvalid) */
+    int batch_rc = -ENOMEM;
+    uint64_t t_start, t_scan0 = 0, t_scan1 = 0;
 
     if (!ctx || !ctx->dev)
         return -EINVAL;
 
+    t_start = mxfs_pal_time_ms();
     buf = mxfs_pal_alloc(512);
     zerobuf = mxfs_pal_alloc(512);
+    batch = mxfs_pal_alloc((size_t)PURGE_BATCH * MXFS_DISKLOCK_RECORD_SIZE);
     if (!buf || !zerobuf) {
         mxfs_pal_free(buf);
         mxfs_pal_free(zerobuf);
+        mxfs_pal_free(batch);
         return -ENOMEM;
     }
 
@@ -2929,11 +5027,11 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
 
                 mxfs_pal_log(MXFS_LOG_WARN,
                     "disklock: P234-PURGE-FROZEN node=%u slot=%u stage=%d "
-                    "owner=%d rc=%d — the victim's authority manifest is "
+                    "owner=%u rc=%d — the victim's authority manifest is "
                     "frozen by a live recovery descriptor; NOTHING purged "
                     "and nothing may be published",
                     node_id, s, d ? (int)d->stage : -1,
-                    d ? (int)d->owner_node : -1, rc);
+                    d ? (unsigned)d->owner_node : 0u, rc);   /* sess435: was %d (node ids >2^31 printed negative) */
                 mxfs_pal_mutex_unlock(ctx->purge_lock);
                 mxfs_pal_free(buf);
                 mxfs_pal_free(zerobuf);
@@ -2941,14 +5039,29 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
             }
             gate_found = 1;
             gate_off = hb_off;
+            gate_slot = (int)s;
             gate_check_ms = mxfs_pal_time_ms();
             break;
         }
     }
 
+    /* sess419 test hook, point 1: the freeze gate passed; nothing zeroed
+     * yet.  (A pause here is how the concurrent-purger arm parks the owner
+     * so a non-owner's attempt lands mid-scan.) */
+    if (ctx->dbg_purge_hook)
+        ctx->dbg_purge_hook(ctx->dbg_purge_hook_data, 1, gate_slot);
+
+    t_scan0 = mxfs_pal_time_ms();
     for (slot = 0; slot < MXFS_DISKLOCK_MAX_SLOTS; slot++) {
         uint64_t offset = lock_slot_offset(ctx, slot);
         struct mxfs_disklock_record *rec;
+
+        /* sess419 test hook, point 2: a nonzero return forces the first
+         * mid-scan authority re-derivation NOW (the descriptor was changed
+         * under us by the hook), instead of after the 2 s cadence. */
+        if (slot == 0 && gate_found && ctx->dbg_purge_hook &&
+            ctx->dbg_purge_hook(ctx->dbg_purge_hook_data, 2, gate_slot))
+            gate_check_ms = 0;
 
         /*
          * Amortized authority revalidation (~every 2s of scan): with
@@ -2977,19 +5090,39 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
                         "changed under the scan; purge STOPPED and recovery "
                         "is NOT published",
                         node_id, slot, purged, rc);
-                    mxfs_pal_mutex_unlock(ctx->purge_lock);
-                    mxfs_pal_free(buf);
-                    mxfs_pal_free(zerobuf);
-                    return rc;
+                    /* sess435 (D-PURGE-NONATOMIC midscan arm): report the
+                     * stop through the same P229-PURGE-INCOMPLETE path the
+                     * final-gate refreeze takes, so every non-published
+                     * purge carries the one INCOMPLETE line. */
+                    hb_wr_fail = rc;
+                    goto purge_done;
                 }
             }
             /* Unreadable gate sector: keep scanning; the zeroing pass
              * counts I/O failures for real and refuses publication. */
         }
 
-        mxfs_pal_mutex_lock(ctx->lock);
-        rc = read_sector(ctx, offset, buf);
-        mxfs_pal_mutex_unlock(ctx->lock);
+        /* sess444: batched read; a failed batch degrades to per-sector
+         * reads for its range so every unreadable record is still counted */
+        if (batch && slot >= bslot + bvalid) {
+            bslot = slot;
+            bvalid = MXFS_DISKLOCK_MAX_SLOTS - slot < PURGE_BATCH ?
+                     MXFS_DISKLOCK_MAX_SLOTS - slot : PURGE_BATCH;
+            mxfs_pal_mutex_lock(ctx->lock);
+            batch_rc = mxfs_pal_bdev_read(ctx->dev, lock_slot_offset(ctx, bslot),
+                                          batch,
+                                          bvalid * MXFS_DISKLOCK_RECORD_SIZE);
+            mxfs_pal_mutex_unlock(ctx->lock);
+        }
+        if (batch && batch_rc == 0) {
+            memcpy(buf, batch + (size_t)(slot - bslot) * MXFS_DISKLOCK_RECORD_SIZE,
+                   MXFS_DISKLOCK_RECORD_SIZE);
+            rc = 0;
+        } else {
+            mxfs_pal_mutex_lock(ctx->lock);
+            rc = read_sector(ctx, offset, buf);
+            mxfs_pal_mutex_unlock(ctx->lock);
+        }
         if (rc < 0) {
             /* Unreadable: may be an ACTIVE grant owned by the dead
              * node.  Keep scanning (one bad sector must not abandon
@@ -3057,6 +5190,12 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
             }
         }
     }
+
+    t_scan1 = mxfs_pal_time_ms();
+    /* sess419 test hook, point 3: record scan done, before the final
+     * heartbeat gate/CAS — the second historical hole's exact window. */
+    if (ctx->dbg_purge_hook)
+        ctx->dbg_purge_hook(ctx->dbg_purge_hook_data, 3, gate_slot);
 
     /* Clear the node's heartbeat record — scan for actual slot */
     {
@@ -3160,10 +5299,19 @@ int mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx,
         }
     }
 
+purge_done:
     mxfs_pal_mutex_unlock(ctx->purge_lock);
 
     mxfs_pal_free(buf);
     mxfs_pal_free(zerobuf);
+    mxfs_pal_free(batch);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "disklock: P-PURGE-DONE node=%u purged=%d scan_ms=%llu "
+                 "total_ms=%llu batched=%d rec_unread=%d",
+                 node_id, purged,
+                 (unsigned long long)(t_scan1 ? t_scan1 - t_scan0 : 0),
+                 (unsigned long long)(mxfs_pal_time_ms() - t_start),
+                 batch ? 1 : 0, rd_fail);
 
     if (rd_fail || wr_fail || hb_wr_fail || (!hb_found && hb_rd_fail)) {
         mxfs_pal_log(MXFS_LOG_ERR,
@@ -3309,12 +5457,17 @@ void mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx)
     hb->timestamp_ms = mxfs_pal_time_ms();
     hb->epoch = ctx->epoch;
     hb_feature_fill(ctx, hb);       /* sess42 C7 */
+    hb->prov = ctx->own_prov;
+    hb_ident_fill(ctx, hb, (uint32_t)ctx->local_slot);   /* sess438: the
+                                     * WITHDRAWN record may be the only one a
+                                     * late monitor sees; it must carry the key */
 
     mxfs_pal_mutex_lock(ctx->lock);
     if (rc == 0) {
-        rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, cur, hb);
-        if (rc == -EOPNOTSUPP)
-            rc = write_sector_fua(ctx, off, hb);
+        rc = hb_caw(ctx, HB_CAW_OP_WITHDRAW, "withdraw", off, cur, hb);
+        if (rc == -EOPNOTSUPP)      /* sess453 (0.60.0, D7): fail closed —
+                                     * peers declare us on the stale window */
+            hb_cas_nocaw_locked(ctx, (uint32_t)ctx->local_slot, "withdraw");
     } else {
         /* The read failed — we cannot see the slot, but a peer that never
          * gets a death signal waits the full 62 s stale window over a node
@@ -3331,6 +5484,326 @@ void mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx)
                  "slice, then purge",
                  ctx->local_slot, ctx->local_node, rc);
     mxfs_pal_free(hb);
+}
+
+/*
+ * sess449 (D-CLEAN-RELEASE-THEN-UNREGISTER-FAIL-LEAVES-UNFENCEABLE-STALE-
+ * REGISTRANT-0356 / D-PR-RETIREMENT-FAILURE-NOT-FAIL-CLOSED-377): the clean
+ * departure released this slot (record kept, flags=EMPTY) and THEN the late
+ * PR unregister could not prove the key gone.  slot=RELEASED + key=PRESENT
+ * is unfenceable: nothing names the incarnation the key belongs to, so no
+ * peer ever PREEMPTs it and this initiator keeps write privilege after the
+ * filesystem is gone.  Re-stamp our own released record WITHDRAWN (identity,
+ * epoch, fs_gen and the PR key via hb_ident_fill kept) so the peers'
+ * monitor takes the sess9 D2 path on first sight: fence the key with
+ * PREEMPT AND ABORT, replay the (clean) slice, purge the slot.  The record
+ * is the durable "storage authority retirement pending" handoff of the
+ * sess377 ruling's two-phase departure.
+ *
+ * CAS from the exact released image: if a joiner already claimed the slot
+ * (P236-RESTAMP-REFUSED), the key still names nobody — the caller alerts an
+ * INDETERMINATE departure and the operator remedy (sg_persist preempt-abort
+ * from a live peer, D-0356 item 3) stands.
+ */
+int mxfs_disklock_restamp_withdrawn_after_release(struct mxfs_disklock_ctx *ctx)
+{
+    struct mxfs_disklock_heartbeat *hb, *cur;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || ctx->local_slot < 0)
+        return -EINVAL;
+    if (ctx->running)
+        return -EBUSY;
+
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    if (!hb || !cur) {
+        mxfs_pal_free(hb);
+        mxfs_pal_free(cur);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset +
+          (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P303-RESTAMP-READFAIL slot=%d node=%u rc=%d — "
+                     "cannot read our released record back; not stamping",
+                     ctx->local_slot, ctx->local_node, rc);
+        goto out;
+    }
+    /* our own RELEASED record (mxfs_disklock_release_slot keeps identity and
+     * epoch, only flags -> RETIRE_PENDING, sess450) or, if the release never
+     * landed, our own ACTIVE record — anything else is someone else's story.
+     * An EMPTY image with our stamp means a peer already proved the key
+     * absent and completed the retirement: nothing left to fence. */
+    if (!(cur->magic == MXFS_DISKLOCK_MAGIC &&
+          (cur->flags == MXFS_DISKLOCK_FLAG_RETIRE_PENDING ||
+           cur->flags == MXFS_DISKLOCK_FLAG_ACTIVE) &&
+          cur->node_id == ctx->local_node &&
+          cur->epoch == ctx->epoch &&
+          !hb_gen_foreign(ctx, cur))) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P303-RESTAMP-REFUSED slot=%d node=%u — %s; the "
+                     "released slot is no longer ours to stamp; departure "
+                     "stays INDETERMINATE",
+                     ctx->local_slot, ctx->local_node,
+                     hb_foreign_kind(ctx, cur));
+        rc = -ESTALE;
+        goto out;
+    }
+
+    memset(hb, 0, sizeof(*hb));
+    hb->magic = MXFS_DISKLOCK_MAGIC;
+    hb->flags = MXFS_DISKLOCK_FLAG_WITHDRAWN;
+    hb->node_id = ctx->local_node;
+    hb->fs_gen = ctx->fs_gen;
+    hb->timestamp_ms = mxfs_pal_time_ms();
+    hb->epoch = ctx->epoch;
+    hb_feature_fill(ctx, hb);
+    hb->prov = ctx->own_prov;
+    hb_ident_fill(ctx, hb, (uint32_t)ctx->local_slot);
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = hb_caw(ctx, HB_CAW_OP_RESTAMP, "restamp", off, cur, hb);
+    ctx->hb_img_valid = false;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == -EOPNOTSUPP)          /* sess453: no plain-write emulation */
+        hb_cas_nocaw(ctx, (uint32_t)ctx->local_slot, "restamp");
+    mxfs_pal_log(rc ? MXFS_LOG_ERR : MXFS_LOG_WARN,
+                 "mxfs: P303-RETIRE-PENDING-RESTAMPED slot=%d node=%u epoch=%llu "
+                 "rc=%d — released slot re-stamped WITHDRAWN because the PR key "
+                 "could not be proven retired; peers fence the key, replay the "
+                 "clean slice and purge the slot",
+                 ctx->local_slot, ctx->local_node,
+                 (unsigned long long)ctx->epoch, rc);
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(hb);
+    return rc;
+}
+
+int mxfs_disklock_retire_complete_self(struct mxfs_disklock_ctx *ctx)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || ctx->local_slot < 0)
+        return -EINVAL;
+    if (ctx->running)
+        return -EBUSY;
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        mxfs_pal_free(cur);
+        mxfs_pal_free(want);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset +
+          (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    if (rc)
+        goto out;
+    if (!(hb_retire_pending(ctx, cur) &&
+          cur->node_id == ctx->local_node && cur->epoch == ctx->epoch)) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P304-RETIRE-SELF-REFUSED slot=%d node=%u — %s; "
+                     "leaving the sector untouched",
+                     ctx->local_slot, ctx->local_node,
+                     hb_foreign_kind(ctx, cur));
+        rc = -ESTALE;
+        goto out;
+    }
+    *want = *cur;
+    want->flags = MXFS_DISKLOCK_FLAG_EMPTY;
+    hb_ident_rebind(want, (uint32_t)ctx->local_slot);
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = hb_caw(ctx, HB_CAW_OP_COMPLETE_SELF, "complete-self", off, cur, want);
+    ctx->hb_img_valid = false;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == -EOPNOTSUPP)          /* sess453: no plain-write emulation */
+        hb_cas_nocaw(ctx, (uint32_t)ctx->local_slot, "complete-self");
+    mxfs_pal_log(rc ? MXFS_LOG_WARN : MXFS_LOG_INFO,
+                 "mxfs: P304-RETIRE-COMPLETED-SELF slot=%d node=%u rc=%d — "
+                 "no PR key to retire; released slot published EMPTY",
+                 ctx->local_slot, ctx->local_node, rc);
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return rc;
+}
+
+void mxfs_disklock_set_key_state_fn(struct mxfs_disklock_ctx *ctx,
+                                    mxfs_disklock_key_state_fn fn,
+                                    void *data)
+{
+    ctx->key_state_fn = fn;
+    ctx->key_state_data = data;
+}
+
+void mxfs_disklock_set_key_state_sync_fn(struct mxfs_disklock_ctx *ctx,
+                                         mxfs_disklock_key_state_fn fn)
+{
+    ctx->key_state_sync_fn = fn;
+}
+
+void mxfs_disklock_set_settle_absent_fn(struct mxfs_disklock_ctx *ctx,
+                                        mxfs_disklock_settle_absent_fn fn,
+                                        void *data)
+{
+    ctx->settle_absent_fn = fn;
+    ctx->settle_absent_data = data;
+}
+
+/* sess454 (0.61.0, D1/D6): see disklock.h.  Caller holds the departure
+ * mutex and the scsipr probe_lock (mxfs_scsipr_settle_absent's callback). */
+int mxfs_disklock_retire_cas_empty(struct mxfs_disklock_ctx *ctx, uint32_t slot,
+                                   struct mxfs_disklock_heartbeat *expect,
+                                   mxfs_disklock_validate_fn validate_fn,
+                                   void *validate_data)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || !expect || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        mxfs_pal_free(cur);
+        mxfs_pal_free(want);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc)
+        goto out;
+    if (memcmp(cur, expect, sizeof(*cur)) != 0 || !hb_retire_pending(ctx, cur)) {
+        *expect = *cur;
+        rc = HB_RETIRE_CHANGED;
+        goto out;
+    }
+    *want = *cur;
+    want->flags = MXFS_DISKLOCK_FLAG_EMPTY;
+    hb_ident_rebind(want, slot);
+
+    /* D6: the proof is validated ADJACENT to the write — nothing but the
+     * CAS itself between the consume and the platter. */
+    if (validate_fn && validate_fn(validate_data) != 0) {
+        rc = HB_RETIRE_WAITING;
+        goto out;
+    }
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = hb_caw(ctx, HB_CAW_OP_EMPTY, "empty", off, cur, want);
+    if (rc == 0)
+        ctx->retire_seen_ms[slot] = 0;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == -EOPNOTSUPP) {
+        hb_cas_nocaw(ctx, slot, "empty");
+        rc = HB_RETIRE_WAITING;
+    } else if (rc == 0) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P304-RETIRE-COMPLETED-BY-PEER slot=%u node=%u "
+                     "inc=%llu key=0x%llx — the key is proven retired inside "
+                     "one coherent bracket under the departure mutex; released "
+                     "slot published EMPTY (consumable)",
+                     slot, cur->node_id, (unsigned long long)cur->epoch,
+                     (unsigned long long)cur->ident.pr_key);
+        *expect = *want;
+        rc = HB_RETIRE_EMPTY;
+    } else if (rc == -EAGAIN) {
+        rc = hb_retire_reread(ctx, off, expect);
+    } else {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P304-RETIRE-COMPLETE-WRITEFAIL slot=%u rc=%d — "
+                     "retrying next lap", slot, rc);
+    }
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return rc;
+}
+
+/* sess452: see disklock.h.  Mount thread, under the departure lock. */
+int mxfs_disklock_retire_settle_own(struct mxfs_disklock_ctx *ctx,
+                                    uint32_t slot, mxfs_node_id_t node,
+                                    mxfs_epoch_t epoch, uint64_t key,
+                                    const char *proof)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot >= MXFS_DISKLOCK_HB_SLOTS || !proof)
+        return -EINVAL;
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        mxfs_pal_free(cur);
+        mxfs_pal_free(want);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc)
+        goto out;
+    if (!(hb_retire_pending(ctx, cur) && cur->node_id == node &&
+          inc_eq(cur->epoch, epoch) && mxfs_hb_identity_valid(cur, slot) &&
+          cur->ident.pr_key == key)) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P305-RETIRE-OWN-CHANGED slot=%u node=%u inc=%llu "
+                     "key=0x%llx — the sector no longer holds that exact "
+                     "RETIRE_PENDING record (%s; flags=0x%x node=%u inc=%llu "
+                     "ident_key=0x%llx); nothing written",
+                     slot, node, (unsigned long long)epoch,
+                     (unsigned long long)key, hb_foreign_kind(ctx, cur),
+                     cur->flags, cur->node_id, (unsigned long long)cur->epoch,
+                     (unsigned long long)cur->ident.pr_key);
+        rc = MXFS_DISKLOCK_RETIRE_CHANGED;
+        goto out;
+    }
+    *want = *cur;
+    want->flags = MXFS_DISKLOCK_FLAG_EMPTY;
+    hb_ident_rebind(want, slot);
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = hb_caw(ctx, HB_CAW_OP_SETTLE_OWN, "settle-own", off, cur, want);
+    ctx->retire_seen_ms[slot] = 0;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == -EOPNOTSUPP)          /* sess453: no plain-write emulation */
+        hb_cas_nocaw(ctx, slot, "settle-own");
+    if (rc == 0) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P305-RETIRE-SETTLED-OWN slot=%u node=%u inc=%llu "
+                     "key=0x%llx proof=%s — this boot's previous incarnation's "
+                     "clean release settled by its successor; record "
+                     "published EMPTY (consumable)",
+                     slot, node, (unsigned long long)epoch,
+                     (unsigned long long)key, proof);
+        rc = MXFS_DISKLOCK_RETIRE_EMPTY;
+    } else if (rc == -EAGAIN) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P305-RETIRE-OWN-CAS-LOST slot=%u node=%u inc=%llu "
+                     "— the sector moved under the settle; re-classify",
+                     slot, node, (unsigned long long)epoch);
+        rc = MXFS_DISKLOCK_RETIRE_CHANGED;
+    } else {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "mxfs: P305-RETIRE-OWN-WRITEFAIL slot=%u rc=%d", slot, rc);
+    }
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return rc;
 }
 
 void mxfs_disklock_set_recovered_cb(struct mxfs_disklock_ctx *ctx,
@@ -3361,6 +5834,95 @@ void mxfs_disklock_set_recov_outcome_cb(struct mxfs_disklock_ctx *ctx,
 {
     ctx->recov_outcome_cb = cb;
     ctx->recov_outcome_cb_data = data;
+}
+
+int mxfs_disklock_protected_mask_refresh(struct mxfs_disklock_ctx *ctx)
+{
+    struct mxfs_disklock_heartbeat *rhb;
+    uint64_t mask = 0;
+    uint32_t slot;
+    int rc = 0;
+
+    if (!ctx || !ctx->dev)
+        return -EINVAL;
+    rhb = mxfs_pal_alloc(sizeof(*rhb));
+    if (!rhb)
+        return -ENOMEM;
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+        int rr;
+
+        if ((int)slot == ctx->local_slot)
+            continue;
+        mxfs_pal_mutex_lock(ctx->lock);
+        rr = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb, sizeof(*rhb));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        if (rr == 0) {
+            const struct mxfs_recov_desc *d = recov_desc_of(rhb);
+
+            if (d && d->stage >= MXFS_RECOV_STAGE_FENCING)
+                mask |= 1ULL << slot;
+        } else {
+            mask |= ctx->protected_mask & (1ULL << slot);
+            rc = rr;
+        }
+    }
+    mxfs_pal_free(rhb);
+    mxfs_pal_mutex_lock(ctx->prot_lock);
+    if (mask != ctx->protected_mask) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "mxfs: P-RMAN-PROTECT mask=0x%llx was=0x%llx (synchronous refresh)",
+            (unsigned long long)mask, (unsigned long long)ctx->protected_mask);
+        ctx->protected_mask = mask;
+    }
+    ctx->protected_gen++;           /* invalidates any overlapping pass */
+    if (ctx->protect_cb)
+        ctx->protect_cb(ctx->protect_cb_data, ctx->protected_mask);
+    mxfs_pal_mutex_unlock(ctx->prot_lock);
+    return rc;
+}
+
+void mxfs_disklock_protected_mask_add(struct mxfs_disklock_ctx *ctx, int slot)
+{
+    uint64_t bit;
+
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return;
+    bit = 1ULL << slot;
+    mxfs_pal_mutex_lock(ctx->prot_lock);
+    ctx->protected_gen++;           /* invalidates any overlapping pass */
+    if (!(ctx->protected_mask & bit)) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "mxfs: P-RMAN-PROTECT mask=0x%llx was=0x%llx (local proof: slot %d "
+            "descriptor at stage >= FENCING is durable / lease claimed against "
+            "it; protected ahead of the monitor pass)",
+            (unsigned long long)(ctx->protected_mask | bit),
+            (unsigned long long)ctx->protected_mask, slot);
+        ctx->protected_mask |= bit;
+        if (ctx->protect_cb)
+            ctx->protect_cb(ctx->protect_cb_data, ctx->protected_mask);
+    }
+    mxfs_pal_mutex_unlock(ctx->prot_lock);
+}
+
+void mxfs_disklock_set_protect_cb(struct mxfs_disklock_ctx *ctx,
+                                  void (*cb)(void *data, uint64_t mask),
+                                  void *data)
+{
+    if (!ctx)
+        return;
+    ctx->protect_cb = cb;
+    ctx->protect_cb_data = data;
+    /* hand the consumer a FRESH view at once: a mount must be protected
+     * before its first CAW write, not one heartbeat interval later */
+    if (cb)
+        (void)mxfs_disklock_protected_mask_refresh(ctx);
+}
+
+uint64_t mxfs_disklock_protected_mask(const struct mxfs_disklock_ctx *ctx)
+{
+    return ctx ? ctx->protected_mask : 0;
 }
 
 /*
@@ -3417,6 +5979,11 @@ int mxfs_disklock_join_gate(struct mxfs_disklock_ctx *ctx,
             hb_gen_foreign(ctx, rhb))
             continue;           /* empty / withdrawn corpse / ghost */
         fst = hb_feature_state(rhb);
+        /* 0.75.0: a valid block on the other DLM transport is a suspect
+         * too — a live one makes this joiner withdraw exactly like a
+         * foreign proto_gen would. */
+        if (fst == MXFS_HBFEAT_OK && hb_transport_mismatch(ctx, rhb))
+            fst = MXFS_HBFEAT_TRANSPORT;
         if (fst == MXFS_HBFEAT_OK)
             continue;
         sus[slot] = 1;
@@ -3425,7 +5992,8 @@ int mxfs_disklock_join_gate(struct mxfs_disklock_ctx *ctx,
         nsus++;
         mxfs_pal_log(MXFS_LOG_WARN,
             "mxfs: P-VERGATE-JOIN-SUSPECT slot=%u node=%u epoch=%llu "
-            "state=%d — awaiting liveness verdict",
+            "state=%d (1=legacy 2=mismatch 3=corrupt 4=transport) — "
+            "awaiting liveness verdict",
             slot, rhb->node_id, (unsigned long long)rhb->epoch, fst);
     }
 
@@ -3457,6 +6025,8 @@ int mxfs_disklock_join_gate(struct mxfs_disklock_ctx *ctx,
                 continue;
             }
             fst = hb_feature_state(rhb);
+            if (fst == MXFS_HBFEAT_OK && hb_transport_mismatch(ctx, rhb))
+                fst = MXFS_HBFEAT_TRANSPORT;            /* 0.75.0 */
             if (fst == MXFS_HBFEAT_OK) {
                 sus[slot] = 0;  /* compatible incarnation took the slot */
                 nsus--;
@@ -3521,6 +6091,51 @@ void mxfs_disklock_mark_recovery_pending(struct mxfs_disklock_ctx *ctx,
                  slot, node, (unsigned long long)victim_epoch,
                  inc_valid(victim_epoch) ? "" :
                      " (incarnation UNOBSERVED — node-scoped)");
+}
+
+/*
+ * sess441 (docs/whole-cluster-restart.md §6.4): the whole-cluster bootstrap
+ * owner names its victims from the SEALED MANIFEST, not from a monitor death
+ * snapshot — no monitor ran (nobody was alive to run one).  The manifest entry
+ * was built by the survivor scan from the victim's own identity block, frozen
+ * across two full dead windows on the reader's clock; freezing it here as the
+ * pending-key snapshot is the same act hb_ident_freeze_victim performs at
+ * fire_dead, so the fencer (v5_pr_fence_prove) reads exactly the key the
+ * victim published.  A zero key freezes nothing: the fence is then REFUSED
+ * (NO_VICTIM_KEY), which is the fail-closed direction.
+ */
+void mxfs_disklock_mark_recovery_pending_ident(struct mxfs_disklock_ctx *ctx,
+                                               int slot, mxfs_node_id_t node,
+                                               mxfs_epoch_t victim_epoch,
+                                               uint64_t pr_key,
+                                               uint32_t key_gen,
+                                               const uint8_t host_uuid[16],
+                                               const uint8_t boot_uuid[16])
+{
+    if (!ctx || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return;
+    mxfs_pal_mutex_lock(ctx->lock);
+    ctx->pending_key_node[slot]  = node;
+    ctx->pending_key_epoch[slot] = victim_epoch;
+    ctx->pending_key[slot]       = pr_key;
+    ctx->pending_key_gen[slot]   = pr_key ? key_gen : 0;
+    if (pr_key && host_uuid && boot_uuid) {
+        memcpy(ctx->pending_host[slot], host_uuid, 16);
+        memcpy(ctx->pending_boot[slot], boot_uuid, 16);
+    } else {
+        memset(ctx->pending_host[slot], 0, 16);
+        memset(ctx->pending_boot[slot], 0, 16);
+    }
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "mxfs: P-BOOT-VICTIM-FROZEN slot=%d node=%u inc=%llu "
+                 "key=0x%llx gen=%u — victim identity frozen from its own "
+                 "published identity block (the sealed manifest after a total "
+                 "outage, or the record found at admission), not from a "
+                 "monitor death snapshot",
+                 slot, node, (unsigned long long)victim_epoch,
+                 (unsigned long long)pr_key, key_gen);
+    mxfs_disklock_mark_recovery_pending(ctx, slot, node, victim_epoch);
 }
 
 bool mxfs_disklock_recovery_is_pending(struct mxfs_disklock_ctx *ctx, int slot)
@@ -3636,36 +6251,19 @@ static int recov_cas_durable(struct mxfs_disklock_ctx *ctx, int slot,
                              const struct mxfs_disklock_heartbeat *expect,
                              const struct mxfs_disklock_heartbeat *want)
 {
-    struct mxfs_disklock_heartbeat *back;
     uint64_t off;
     int rc;
 
     off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
 
     mxfs_pal_mutex_lock(ctx->lock);
-    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, expect, want);
-    if (rc == -EOPNOTSUPP) {
-        rc = write_sector_fua(ctx, off, want);
-        if (rc == 0) {
-            back = mxfs_pal_alloc(sizeof(*back));
-            if (!back) {
-                rc = -ENOMEM;
-            } else {
-                mxfs_pal_sleep_ms(30);
-                rc = mxfs_pal_bdev_read_prio(ctx->dev, off, back,
-                                             sizeof(*back));
-                /* sess323: verify the descriptor AND the outcome record —
-                 * they are contiguous (asserted in disklock.h) and both
-                 * carry state a torn write must not be reported as having
-                 * landed. */
-                if (rc == 0 &&
-                    memcmp(&back->recov, &want->recov,
-                           offsetof(struct mxfs_recov_body, pad)) != 0)
-                    rc = -EAGAIN;
-                mxfs_pal_free(back);
-            }
-        }
-    }
+    rc = hb_caw(ctx, HB_CAW_OP_MILESTONE, "recovery-milestone", off, expect, want);
+    if (rc == -EOPNOTSUPP)
+        /* sess453 (0.60.0, D7 companion): the FUA-write + read-back
+         * stand-in (0.11.x-0.59.3) could land a milestone over a successor
+         * that had already advanced the descriptor; the recovery stays at
+         * its current stage (fail closed) and the caller re-decides. */
+        hb_cas_nocaw_locked(ctx, (uint32_t)slot, "recovery-milestone");
     mxfs_pal_mutex_unlock(ctx->lock);
 
     if (rc == 0)
@@ -3678,6 +6276,68 @@ static void recov_desc_seal(struct mxfs_disklock_heartbeat *want)
 {
     want->recov.desc.crc32c = recov_desc_crc(want->fs_gen, want->node_id,
                                              want->epoch, &want->recov.desc);
+}
+
+/*
+ * sess405: the manifest pointer record gets the SAME identity binding as the
+ * descriptor and the outcome — crc32c over its own bytes folded with the
+ * sector's {fs_gen, node_id, epoch} — so a pointer spliced next to a
+ * different victim's header never validates.
+ */
+static uint32_t recov_mptr_crc(uint32_t fs_gen, mxfs_node_id_t node_id,
+                               mxfs_epoch_t epoch,
+                               const struct mxfs_recov_manifest_ptr *mp)
+{
+    struct {
+        uint32_t fs_gen;
+        uint32_t node_id;
+        uint64_t epoch;
+    } __attribute__((packed)) id;
+    uint32_t crc;
+
+    id.fs_gen  = fs_gen;
+    id.node_id = (uint32_t)node_id;
+    id.epoch   = (uint64_t)epoch;
+    crc = mxfs_pal_crc32c(~0U, mp,
+                          offsetof(struct mxfs_recov_manifest_ptr, crc32c));
+    crc = mxfs_pal_crc32c(crc, &mp->writer_epoch, sizeof(mp->writer_epoch));
+    return mxfs_pal_crc32c(crc, &id, sizeof(id));
+}
+
+/* The STRICT manifest-pointer reader: RECOVERY_GUARD record, our magic, a
+ * version we speak, crc valid against the record's victim identity.  A
+ * descriptor from a build that never wrote a pointer presents zeroes here
+ * and reads as "no pointer", never as garbage. */
+static const struct mxfs_recov_manifest_ptr *
+recov_mptr_of(const struct mxfs_disklock_heartbeat *hb)
+{
+    const struct mxfs_recov_manifest_ptr *mp = &hb->recov.mptr;
+
+    if (!recov_desc_present(hb))
+        return NULL;
+    if (mp->magic != MXFS_RECOV_MPTR_MAGIC ||
+        mp->version != MXFS_RECOV_MPTR_VERSION)
+        return NULL;
+    if (mp->crc32c != recov_mptr_crc(hb->fs_gen, hb->node_id, hb->epoch, mp))
+        return NULL;
+    return mp;
+}
+
+static void recov_mptr_seal(struct mxfs_disklock_heartbeat *want)
+{
+    want->recov.mptr.crc32c = recov_mptr_crc(want->fs_gen, want->node_id,
+                                             want->epoch, &want->recov.mptr);
+}
+
+/* crc32c over the manifest header's sealed fields (bytes 0..83). */
+static uint32_t rman_hdr_crc(const struct mxfs_rman_hdr *h)
+{
+    return mxfs_pal_crc32c(~0U, h, offsetof(struct mxfs_rman_hdr, hdr_crc32c));
+}
+
+static uint64_t rman_slot_off(const struct mxfs_disklock_ctx *ctx, int slot)
+{
+    return ctx->rman_offset + (uint64_t)slot * MXFS_RMAN_SLOT_BYTES;
 }
 
 /* Monotonic owner liveness stamp: never equal to, never behind, the previous
@@ -3772,7 +6432,7 @@ int mxfs_disklock_recovery_begin(struct mxfs_disklock_ctx *ctx, int slot,
      *
      * FENCED is now reached only through fence_intent() -> the PREEMPT AND
      * ABORT -> fence_certify(), and the execution lease only through
-     * recovery_claim() / recovery_takeover().  GPT ruling (RULE 5, sess93,
+     * recovery_claim() / recovery_takeover().  GPT ruling (design-consult, sess93,
      * correction 3): "recovery_begin() must leave the live recovery path — do
      * not retain it as a fallback.  Once certified descriptors exist its
      * -EBUSY behaviour is incompatible, and its direct production of
@@ -3903,10 +6563,15 @@ int mxfs_disklock_recovery_begin(struct mxfs_disklock_ctx *ctx, int slot,
     if (!inc_valid(victim_epoch))
         mxfs_pal_log(MXFS_LOG_WARN,
             "disklock: P237-RECOV-INC-UNOBSERVED slot=%d victim=%u "
-            "on-disk=%llu — the caller never observed the victim's "
-            "incarnation; recording the SECTOR's (it is the authority for "
-            "which incarnation last owned this slice)",
-            slot, victim, (unsigned long long)cur->epoch);
+            "on-disk=%llu%s — the caller never observed the victim's "
+            "incarnation; the descriptor carries the SECTOR's value "
+            "byte for byte (rule 2)%s",
+            slot, victim, (unsigned long long)cur->epoch,
+            inc_valid(cur->epoch) ? "" : " (ZERO)",
+            inc_valid(cur->epoch) ? "" :
+            " — which is NOT an incarnation: no member at this proto_gen "
+            "writes a zero; a torn/spliced sector or a foreign writer "
+            "(D-MONITOR-INCARNATION-DOWNGRADE-TO-ZERO)");
 
     /*
      * Rule 2: the victim's identity is NEVER overwritten.  Everything the
@@ -3941,9 +6606,10 @@ int mxfs_disklock_recovery_begin(struct mxfs_disklock_ctx *ctx, int slot,
     want->recov.desc.flags          = flags |
         (cur->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN ?
              MXFS_RECOV_F_VICTIM_WITHDREW : 0) |
-        (hb_victim_snlocal(cur) ? MXFS_RECOV_F_VICTIM_SNLOCAL : 0);
+        (hb_victim_snlocal(cur) ? MXFS_RECOV_F_VICTIM_SNLOCAL : 0) |
+        (hb_victim_adopted(cur) ? MXFS_RECOV_F_VICTIM_ADOPTED : 0);   /* sess434 */
     want->recov.desc.victim_slot    = (uint16_t)slot;
-    want->recov.desc.owner_slot     = (uint16_t)ctx->local_slot;
+    recov_desc_set_owner_slot(ctx, &want->recov.desc);   /* sess440 */
     want->recov.desc.slice_idx      = slice_idx;
     want->recov.desc.slice_count    = slice_count;
     want->recov.desc.stage_seq      = 1;
@@ -3972,9 +6638,18 @@ out:
     return rc;
 }
 
-int mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot,
-                                   unsigned int stage,
-                                   const struct mxfs_recov_auth *auth)
+/*
+ * 0.85.0: the milestone advance, shared by the generic entry point and the
+ * IMAGES_REPLAYED+census entry point.  `rec` / `census_zero` are consulted
+ * only for stage == IMAGES_REPLAYED: the record (OPEN case) or the
+ * CENSUS_ZERO flag rides in the same compare-and-write as the milestone, so
+ * a descriptor can never be at IMAGES_REPLAYED with its census undecided.
+ */
+static int recov_advance_impl(struct mxfs_disklock_ctx *ctx, int slot,
+                              unsigned int stage,
+                              const struct mxfs_recov_auth *auth,
+                              const struct mxfs_recov_obl *rec,
+                              bool census_zero)
 {
     struct mxfs_disklock_heartbeat *cur, *want;
     const struct mxfs_recov_desc *d;
@@ -3983,6 +6658,11 @@ int mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot,
 
     if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
         stage == MXFS_RECOV_STAGE_NONE || stage > MXFS_RECOV_STAGE_MAX)
+        return -EINVAL;
+    if ((rec || census_zero) && stage != MXFS_RECOV_STAGE_IMAGES_REPLAYED)
+        return -EINVAL;
+    if (rec && (rec->flags & (MXFS_RECOV_OBL_F_TERMINAL |
+                              MXFS_RECOV_OBL_F_DONE)))
         return -EINVAL;
 
     cur = mxfs_pal_alloc(sizeof(*cur));
@@ -4019,6 +6699,18 @@ int mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot,
             "disklock: P236-RECOV-ADVANCE-PREFENCE slot=%d victim=%u %u->%u — "
             "the milestone ladder begins at a CERTIFIED FENCED descriptor; "
             "only mxfs_disklock_recovery_fence_certify() may reach it",
+            slot, d->victim_node, d->stage, stage);
+        rc = -EPERM;
+        goto out;
+    }
+    /* sess405 (GPT review item 15): the manifest pointer is part of the
+     * certificate at EVERY stage >= FENCED; a milestone may not advance
+     * over a descriptor that lost it. */
+    if (!recov_mptr_of(cur)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-RMAN-ADVANCE-NOPTR slot=%d victim=%u %u->%u — the "
+            "certified descriptor carries no valid fence-time manifest "
+            "pointer; refusing to advance",
             slot, d->victim_node, d->stage, stage);
         rc = -EPERM;
         goto out;
@@ -4068,23 +6760,127 @@ int mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot,
         rc = -EPERM;
         goto out;
     }
+    /*
+     * sess462 (item 5 increment 2, ruling STOP-SHIP 2 and 4): the
+     * obligation gates.  OBLIGATIONS_DONE is the authorization boundary of
+     * real completion; this build has no completion-proof API, so the
+     * generic advance can NEVER reach it (a later increment adds the proof-
+     * carrying entry point).  GRANTS_RELEASED — the purge milestone — is
+     * refused while a valid NON-terminal record still names open
+     * obligations, and refused outright over record bytes that fail to
+     * validate: an unreadable record is never "no obligations".
+     */
+    if (stage == MXFS_RECOV_STAGE_OBLIGATIONS_DONE) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-OBLIGATIONS-NOPROOF slot=%d victim=%u %u->%u "
+            "— OBLIGATIONS_DONE needs durable completion evidence and this "
+            "build carries no completion; refusing",
+            slot, d->victim_node, d->stage, stage);
+        rc = -EPERM;
+        goto out;
+    }
+    if (stage >= MXFS_RECOV_STAGE_GRANTS_RELEASED &&
+        d->stage < MXFS_RECOV_STAGE_OBLIGATIONS_DONE) {
+        const struct mxfs_recov_obl *ob = recov_obl_of(cur);
+
+        if (!ob && recov_obl_present(cur)) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P234-RECOV-OBL-CORRUPT slot=%d victim=%u %u->%u — "
+                "the obligation record does not validate; the purge "
+                "milestone is refused (fail closed)",
+                slot, d->victim_node, d->stage, stage);
+            rc = -EPROTO;
+            goto out;
+        }
+        if (ob && ob->count && !(ob->flags & MXFS_RECOV_OBL_F_TERMINAL)) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P234-RECOV-OBLIGATIONS-OPEN slot=%d victim=%u "
+                "%u->%u count=%u ag_mask=0x%llx seq=%u — the victim's "
+                "obligations are not completed; the purge milestone is "
+                "refused",
+                slot, d->victim_node, d->stage, stage, ob->count,
+                (unsigned long long)ob->obl_ag_mask, ob->pub_seq);
+            rc = -EPERM;
+            goto out;
+        }
+        /*
+         * 0.85.0: neither a record nor the CENSUS_ZERO discriminator — the
+         * census of this descriptor was never decided (an IMAGES_REPLAYED
+         * written by a path that carried no verdict).  "No record" is never
+         * "no obligations": refuse the purge milestone, fail closed.
+         */
+        if (!ob && !recov_obl_present(cur) &&
+            !(d->flags & MXFS_RECOV_F_CENSUS_ZERO)) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P234-RECOV-OBL-UNDECIDED slot=%d victim=%u %u->%u "
+                "— the descriptor carries neither an obligation record nor "
+                "the zero-census flag; its census was never decided, so the "
+                "purge milestone is refused (fail closed)",
+                slot, d->victim_node, d->stage, stage);
+            rc = -EPERM;
+            goto out;
+        }
+    }
     if (stage <= d->stage) {
         rc = 0;                 /* monotonic: already at or past this stage */
         goto out;
+    }
+    /*
+     * 0.85.0: the census verdict rides in the IMAGES_REPLAYED CAS.  A fresh
+     * advance to that stage must decide it; a record already in the sector
+     * below IMAGES_REPLAYED can only be terminal evidence, which the
+     * QUARANTINED gate above already refused — anything else is a protocol
+     * error, never silently overwritten.
+     */
+    if (stage == MXFS_RECOV_STAGE_IMAGES_REPLAYED) {
+        if (!rec && !census_zero) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P234-RECOV-REPLAYED-NOCENSUS slot=%d victim=%u — "
+                "IMAGES_REPLAYED requested without a census verdict; refusing "
+                "(the caller must use the census-carrying entry point)",
+                slot, d->victim_node);
+            rc = -EINVAL;
+            goto out;
+        }
+        if (recov_obl_of(cur)) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P234-RECOV-REPLAYED-RECORD-EXISTS slot=%d victim=%u "
+                "— the sector already carries a valid obligation record below "
+                "IMAGES_REPLAYED; refusing to overwrite it",
+                slot, d->victim_node);
+            rc = -EEXIST;
+            goto out;
+        }
     }
 
     *want = *cur;
     want->recov.desc.stage          = (uint16_t)stage;
     want->recov.desc.stage_seq      = d->stage_seq + 1;
     want->recov.desc.owner_stamp_ms = recov_stamp_after(d->owner_stamp_ms);
+    if (stage == MXFS_RECOV_STAGE_IMAGES_REPLAYED) {
+        if (rec) {
+            want->recov.obl = *rec;
+            want->recov.obl.crc32c = mxfs_recov_obl_rec_crc(want->fs_gen,
+                                                            want->node_id,
+                                                            want->epoch,
+                                                            &want->recov.obl);
+        } else {
+            /* the flag IS the verdict; stale bytes from a prior life of
+             * this sector must not read as a corrupt record later */
+            memset(&want->recov.obl, 0, sizeof(want->recov.obl));
+            want->recov.desc.flags |= MXFS_RECOV_F_CENSUS_ZERO;
+        }
+    }
     recov_desc_seal(want);
 
     rc = recov_cas_durable(ctx, slot, cur, want);
     if (rc == 0)
         mxfs_pal_log(MXFS_LOG_WARN,
-            "disklock: P234-RECOV-STAGE slot=%d victim=%u %u->%u seq=%llu",
+            "disklock: P234-RECOV-STAGE slot=%d victim=%u %u->%u seq=%llu%s",
             slot, d->victim_node, d->stage, stage,
-            (unsigned long long)want->recov.desc.stage_seq);
+            (unsigned long long)want->recov.desc.stage_seq,
+            stage != MXFS_RECOV_STAGE_IMAGES_REPLAYED ? "" :
+            rec ? " (OPEN obligation record published)" : " (census zero)");
     else
         mxfs_pal_log(MXFS_LOG_ERR,
             "disklock: P234-RECOV-STAGE-FAIL slot=%d victim=%u %u->%u rc=%d — "
@@ -4094,6 +6890,23 @@ out:
     mxfs_pal_free(cur);
     mxfs_pal_free(want);
     return rc;
+}
+
+int mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot,
+                                   unsigned int stage,
+                                   const struct mxfs_recov_auth *auth)
+{
+    return recov_advance_impl(ctx, slot, stage, auth, NULL, false);
+}
+
+int mxfs_disklock_recovery_advance_obl(struct mxfs_disklock_ctx *ctx, int slot,
+                                       const struct mxfs_recov_auth *auth,
+                                       const struct mxfs_recov_obl *rec)
+{
+    if (rec && rec->count == 0)
+        rec = NULL;             /* an empty record IS the zero census */
+    return recov_advance_impl(ctx, slot, MXFS_RECOV_STAGE_IMAGES_REPLAYED,
+                              auth, rec, rec == NULL);
 }
 
 /*
@@ -4149,10 +6962,11 @@ static void recov_outcome_fill(struct mxfs_disklock_heartbeat *want,
  * recovery_advance's; the write is quarantine-flag + outcome record in one
  * CAS, with the stage deliberately untouched.
  */
-int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
+static int recov_publish_refusal_body(struct mxfs_disklock_ctx *ctx,
                                     int slot,
                                     const struct mxfs_recov_auth *auth,
                                     const struct mxfs_recov_refusal_info *info,
+                                    const struct mxfs_recov_obl *obl,
                                     struct mxfs_recov_outcome *oc_out)
 {
     struct mxfs_disklock_heartbeat *cur, *want;
@@ -4165,6 +6979,11 @@ int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
     if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
         !info)
         return -EINVAL;
+    /* sess462: a record published next to a terminal outcome is evidence
+     * only and MUST say so — an ordinary open-obligation record here would
+     * block the very refusal path it rides on (ruling STOP-SHIP 9). */
+    if (obl && !(obl->flags & MXFS_RECOV_OBL_F_TERMINAL))
+        return -EINVAL;
     /* sess330 ruling: LEGACY_INTENT is NOT a publishable reason here.  No
      * recovery auth can ever exist over a QUARANTINED descriptor (the
      * claim path's certificate evaluator refuses it before the owner-
@@ -4172,7 +6991,13 @@ int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
      * construction and goes through
      * mxfs_disklock_recovery_backfill_legacy(), never this path. */
     if (info->reason != MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE &&
-        info->reason != MXFS_RECOV_REFUSAL_PHYSICALLY_TORN)
+        info->reason != MXFS_RECOV_REFUSAL_PHYSICALLY_TORN &&
+        info->reason != MXFS_RECOV_REFUSAL_AUTHORITY_MUTATED &&
+        info->reason != MXFS_RECOV_REFUSAL_MANIFEST_INVALID &&
+        info->reason != MXFS_RECOV_REFUSAL_ASSEMBLY_DISCONTINUITY &&
+        info->reason != MXFS_RECOV_REFUSAL_DBG_INJECTED &&
+        info->reason != MXFS_RECOV_REFUSAL_INTENTS_UNDISCHARGED &&
+        info->reason != MXFS_RECOV_REFUSAL_OBLIGATION_UNRECONCILABLE)
         return -EINVAL;
     if (info->domain_kind != MXFS_RECOV_DOMAIN_FSWIDE &&
         info->domain_kind != MXFS_RECOV_DOMAIN_AG_MASK)
@@ -4268,6 +7093,19 @@ int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
                        old_oc ? old_oc->publish_seq + 1 : 1,
                        info->refused, info->malformed);
     oc = &want->recov.outcome;
+    /*
+     * sess462: the obligation record rides in the SAME CAS as the verdict,
+     * re-sealed against this very sector's identity (the writer sealed it
+     * against the sector it read; the victim is dead, so the identity is
+     * the same — but the seal is recomputed rather than trusted).
+     */
+    if (obl) {
+        want->recov.obl = *obl;
+        want->recov.obl.crc32c = mxfs_recov_obl_rec_crc(want->fs_gen,
+                                                        want->node_id,
+                                                        want->epoch,
+                                                        &want->recov.obl);
+    }
 
     rc = recov_cas_durable(ctx, slot, cur, want);
     if (rc == 0 && oc_out)
@@ -4295,8 +7133,790 @@ out:
     return rc;
 }
 
+int mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx,
+                                    int slot,
+                                    const struct mxfs_recov_auth *auth,
+                                    const struct mxfs_recov_refusal_info *info,
+                                    struct mxfs_recov_outcome *oc_out)
+{
+    return recov_publish_refusal_body(ctx, slot, auth, info, NULL, oc_out);
+}
+
+int mxfs_disklock_recovery_publish_refusal_obl(struct mxfs_disklock_ctx *ctx,
+                                    int slot,
+                                    const struct mxfs_recov_auth *auth,
+                                    const struct mxfs_recov_refusal_info *info,
+                                    const struct mxfs_recov_obl *obl,
+                                    struct mxfs_recov_outcome *oc_out)
+{
+    return recov_publish_refusal_body(ctx, slot, auth, info, obl, oc_out);
+}
+
+/* slot-relative byte offset of the obligation zone (recov_obl.h) */
+static uint64_t rman_obl_off(const struct mxfs_disklock_ctx *ctx, int slot)
+{
+    return rman_slot_off(ctx, slot) + MXFS_RMAN_OBL_OFF;
+}
+
 /*
- * sess374 (sess363 RULE-5 ruling): the shared state+verdict predicate behind
+ * sess462 (item 5 increment 2): make the victim's RECOVER extent list durable
+ * in its rman slot zone and hand back the sealed record.  Contract in
+ * disklock.h; layout and write protocol in recov_obl.h.
+ */
+int mxfs_disklock_recovery_obl_write(struct mxfs_disklock_ctx *ctx, int slot,
+                                     const struct mxfs_recov_auth *auth,
+                                     struct mxfs_recov_obl_ext *ext,
+                                     uint32_t count,
+                                     const struct mxfs_recov_obl_geom *geom,
+                                     uint64_t census_digest, uint16_t flags,
+                                     struct mxfs_recov_obl *out_rec)
+{
+    struct mxfs_disklock_heartbeat *cur = NULL;
+    struct mxfs_rman_obl_hdr *hdr = NULL;
+    uint8_t *buf = NULL;
+    const struct mxfs_recov_desc *d;
+    const struct mxfs_recov_obl *old;
+    uint64_t base, off, seq, mask = 0;
+    uint32_t byte_len = 0, io_len = 0, ecrc = 0;
+    bool fsw = false;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !auth || !out_rec || !geom || (count && !ext) ||
+        (flags & ~MXFS_RECOV_OBL_F_ALL) || (flags & MXFS_RECOV_OBL_F_DONE))
+        return -EINVAL;     /* DONE is set only by advance_obl_done */
+    if (count > MXFS_RECOV_OBL_MAX_EXTENTS)
+        return -EOVERFLOW;
+    if (count && !ctx->rman_offset)
+        return -ENODEV;
+    memset(out_rec, 0, sizeof(*out_rec));
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    hdr = mxfs_pal_alloc(sizeof(*hdr));
+    if (!cur || !hdr) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0)
+        goto out;
+    d = recov_desc_of(cur);
+    if (!d) {
+        rc = recov_desc_present(cur) ? -EPROTO : -ESTALE;
+        goto out;
+    }
+    if (d->stage < MXFS_RECOV_STAGE_FENCED) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P226-OBL-WRITE-PREFENCE slot=%d victim=%u stage=%u — "
+            "an obligation list needs a CERTIFIED descriptor", slot,
+            d->victim_node, d->stage);
+        rc = -EPERM;
+        goto out;
+    }
+    if (!recov_auth_holds(ctx, d, auth)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-NOTOURS slot=%d victim=%u op=obl-write — "
+            "descriptor owner=%u/%llu gen=%llu term=%u; we are %u/%llu.  "
+            "NOTHING we did may be published",
+            slot, d->victim_node, d->owner_node,
+            (unsigned long long)d->owner_epoch,
+            (unsigned long long)d->recovery_gen, d->owner_term,
+            ctx->local_node, (unsigned long long)ctx->epoch);
+        rc = -EBUSY;
+        goto out;
+    }
+
+    /* canonical form + geometry + mask (in place; refusal => quarantine) */
+    rc = mxfs_recov_obl_canonicalize(ext, count, geom, &mask, &fsw);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P226-OBL-NONCANONICAL slot=%d victim=%u count=%u rc=%d "
+            "— the extent list is malformed/overlapping/oversized; nothing "
+            "written (the caller must quarantine)",
+            slot, d->victim_node, count, rc);
+        goto out;
+    }
+    flags &= ~(MXFS_RECOV_OBL_F_FSWIDE | MXFS_RECOV_OBL_F_LIST);
+    if (fsw)
+        flags |= MXFS_RECOV_OBL_F_FSWIDE;
+    if (count)
+        flags |= MXFS_RECOV_OBL_F_LIST;
+
+    /*
+     * Publication sequence: strictly greater than any record this sector
+     * carries and any sealed header this slot/victim carries — so a
+     * successor's rewrite is distinguishable from a dead owner's partial
+     * one (same discipline as the manifest writer).  Only a header that
+     * validates for THIS recovery case contributes.
+     */
+    seq = 1;
+    old = recov_obl_of(cur);
+    if (old && old->pub_seq >= seq)
+        seq = (uint64_t)old->pub_seq + 1;
+    base = rman_obl_off(ctx, slot);
+    if (count) {
+        rc = mxfs_pal_bdev_read_prio(ctx->dev, base, hdr, sizeof(*hdr));
+        if (rc == 0 && hdr->magic == MXFS_RMAN_OBL_MAGIC &&
+            hdr->version == MXFS_RMAN_OBL_VERSION &&
+            hdr->hdr_crc32c == mxfs_rman_obl_hdr_crc(hdr) &&
+            hdr->victim_slot == (uint16_t)slot &&
+            hdr->victim_node == d->victim_node &&
+            hdr->victim_fs_gen == d->victim_fs_gen && hdr->seq >= seq)
+            seq = hdr->seq + 1;
+        if (rc)
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P226-OBL-HDR-PREREAD slot=%d rc=%d — could not read "
+                "the old list header; seq continues from the record only",
+                slot, rc);
+        if (seq == 0 || seq > 0xFFFFFFFFULL) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P226-OBL-SEQ-EXHAUSTED slot=%d — publication "
+                "sequence wrapped; refusing to write (fail closed)", slot);
+            rc = -EOVERFLOW;
+            goto out;
+        }
+
+        /* 1. entries, zero-padded to whole 4 KiB blocks, + flush */
+        byte_len = count * (uint32_t)sizeof(*ext);
+        io_len = (byte_len + MXFS_RMAN_IO_ALIGN - 1) & ~(MXFS_RMAN_IO_ALIGN - 1);
+        buf = mxfs_pal_alloc(io_len);
+        if (!buf) {
+            rc = -ENOMEM;
+            goto out;
+        }
+        memset(buf, 0, io_len);
+        memcpy(buf, ext, byte_len);
+        ecrc = mxfs_recov_obl_list_crc(ext, count);
+        rc = mxfs_pal_bdev_write(ctx->dev,
+                                 base + (MXFS_RMAN_OBL_ENTRIES_OFF - MXFS_RMAN_OBL_OFF),
+                                 buf, io_len);
+        if (rc == 0)
+            rc = mxfs_pal_bdev_flush(ctx->dev);
+        if (rc) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P226-OBL-WRITE-FAIL slot=%d victim=%u step=entries "
+                "rc=%d", slot, d->victim_node, rc);
+            goto out;
+        }
+
+        /* 2. the header LAST, crc'd, FUA + flush */
+        memset(hdr, 0, sizeof(*hdr));
+        hdr->magic           = MXFS_RMAN_OBL_MAGIC;
+        hdr->version         = MXFS_RMAN_OBL_VERSION;
+        hdr->flags           = flags;
+        hdr->seq             = seq;
+        hdr->recovery_gen    = d->recovery_gen;
+        hdr->victim_epoch    = (uint64_t)d->victim_epoch;
+        hdr->victim_node     = d->victim_node;
+        hdr->victim_fs_gen   = d->victim_fs_gen;
+        hdr->victim_slot     = (uint16_t)slot;
+        hdr->slice_idx       = d->slice_idx;
+        hdr->slice_count     = d->slice_count;
+        hdr->entry_bytes     = (uint16_t)sizeof(*ext);
+        hdr->count           = count;
+        hdr->byte_len        = byte_len;
+        hdr->entries_crc32c  = ecrc;
+        hdr->publisher_node  = ctx->local_node;
+        hdr->publisher_epoch = (uint64_t)ctx->epoch;
+        hdr->publisher_term  = d->owner_term;
+        hdr->agcount         = geom->agcount;
+        hdr->census_digest   = census_digest;
+        hdr->obl_ag_mask     = mask;
+        hdr->stamp_ms        = mxfs_pal_time_ms();
+        hdr->agblocks        = geom->agblocks;
+        hdr->hdr_crc32c      = mxfs_rman_obl_hdr_crc(hdr);
+        rc = mxfs_pal_bdev_write_fua(ctx->dev, base, hdr, sizeof(*hdr));
+        if (rc == 0)
+            rc = mxfs_pal_bdev_flush(ctx->dev);
+        if (rc) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P226-OBL-WRITE-FAIL slot=%d victim=%u step=header "
+                "rc=%d", slot, d->victim_node, rc);
+            goto out;
+        }
+    }
+
+    /* the record the descriptor CAS will carry, sealed to this sector */
+    out_rec->magic         = MXFS_RECOV_OBL_MAGIC;
+    out_rec->version       = MXFS_RECOV_OBL_VERSION;
+    out_rec->flags         = flags;
+    out_rec->obl_ag_mask   = mask;
+    out_rec->count         = count;
+    out_rec->list_crc32c   = count ? ecrc : 0;
+    out_rec->census_digest = census_digest;
+    out_rec->pub_seq       = count ? (uint32_t)seq : 0;
+    out_rec->crc32c = mxfs_recov_obl_rec_crc(cur->fs_gen, (uint32_t)cur->node_id,
+                                             (uint64_t)cur->epoch, out_rec);
+    mxfs_pal_log(MXFS_LOG_WARN,
+        "disklock: P226-OBL-WRITE slot=%d victim=%u/%llu gen=%llu count=%u "
+        "ag_mask=0x%llx fswide=%d terminal=%d seq=%llu list_crc=0x%08x "
+        "census=0x%llx bytes=%u — obligation list durable (UNPUBLISHED until "
+        "a descriptor CAS carries the record)",
+        slot, d->victim_node, (unsigned long long)d->victim_epoch,
+        (unsigned long long)d->recovery_gen, count,
+        (unsigned long long)mask, (int)fsw,
+        (flags & MXFS_RECOV_OBL_F_TERMINAL) ? 1 : 0,
+        (unsigned long long)(count ? seq : 0), ecrc,
+        (unsigned long long)census_digest, byte_len);
+    rc = 0;
+out:
+    mxfs_pal_free(buf);
+    mxfs_pal_free(hdr);
+    mxfs_pal_free(cur);
+    return rc;
+}
+
+/*
+ * sess462: the consumer.  Contract in disklock.h.  Every failure after "a
+ * record is present" is -EPROTO = QUARANTINE for the caller; only an all-zero
+ * record region is -ENOENT.
+ */
+int mxfs_disklock_recovery_read_obl(struct mxfs_disklock_ctx *ctx, int slot,
+                                    struct mxfs_recov_obl *rec_out,
+                                    struct mxfs_recov_obl_ext *ext_out,
+                                    uint32_t *count_out)
+{
+    struct mxfs_disklock_heartbeat *cur = NULL;
+    struct mxfs_rman_obl_hdr *hdr = NULL;
+    struct mxfs_recov_obl_ext *ents = NULL;
+    const struct mxfs_recov_desc *d;
+    const struct mxfs_recov_obl *rec;
+    const char *why = "ok";
+    uint64_t base, off;
+    uint32_t io_len;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !rec_out)
+        return -EINVAL;
+    memset(rec_out, 0, sizeof(*rec_out));
+    if (count_out)
+        *count_out = 0;
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    hdr = mxfs_pal_alloc(sizeof(*hdr));
+    if (!cur || !hdr) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0)
+        goto out;
+    d = recov_desc_of(cur);
+    if (!d) {
+        rc = recov_desc_present(cur) ? -EPROTO : -ESTALE;
+        goto out;
+    }
+    rec = &cur->recov.obl;
+    rc = mxfs_recov_obl_rec_check(rec, cur->fs_gen, (uint32_t)cur->node_id,
+                                  (uint64_t)cur->epoch, &why);
+    if (rc) {
+        if (rc != -ENOENT)
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P226-OBL-READ-INVALID slot=%d victim=%u — record: "
+                "%s (rc=%d); treat as QUARANTINE", slot, d->victim_node,
+                why, rc);
+        goto out;
+    }
+    *rec_out = *rec;
+    if (rec->count == 0) {
+        rc = 0;
+        goto out;
+    }
+    if (!ctx->rman_offset) {
+        why = "record names a list but the device has no rman region";
+        rc = -EPROTO;
+        goto bad;
+    }
+    base = rman_obl_off(ctx, slot);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, base, hdr, sizeof(*hdr));
+    if (rc < 0) {
+        why = "list header unreadable";
+        goto bad;
+    }
+    rc = mxfs_rman_obl_hdr_check(hdr, rec, d->victim_node,
+                                 (uint64_t)d->victim_epoch, d->victim_fs_gen,
+                                 d->victim_slot, d->recovery_gen, &why);
+    if (rc) {
+        rc = -EPROTO;           /* a missing list under a record is corruption */
+        goto bad;
+    }
+    io_len = (hdr->byte_len + MXFS_RMAN_IO_ALIGN - 1) & ~(MXFS_RMAN_IO_ALIGN - 1);
+    ents = mxfs_pal_alloc(io_len);
+    if (!ents) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    rc = mxfs_pal_bdev_read(ctx->dev,
+                            base + (MXFS_RMAN_OBL_ENTRIES_OFF - MXFS_RMAN_OBL_OFF),
+                            ents, io_len);
+    if (rc < 0) {
+        why = "list entries unreadable";
+        goto bad;
+    }
+    rc = mxfs_recov_obl_list_check(ents, hdr->count, hdr, rec, &why);
+    if (rc) {
+        rc = -EPROTO;
+        goto bad;
+    }
+    if (ext_out)
+        memcpy(ext_out, ents, (size_t)hdr->count * sizeof(*ents));
+    if (count_out)
+        *count_out = hdr->count;
+    rc = 0;
+    goto out;
+bad:
+    mxfs_pal_log(MXFS_LOG_ERR,
+        "disklock: P226-OBL-READ-INVALID slot=%d victim=%u seq=%u count=%u — "
+        "list: %s (rc=%d); treat as QUARANTINE", slot, d->victim_node,
+        rec->pub_seq, rec->count, why, rc);
+out:
+    mxfs_pal_free(ents);
+    mxfs_pal_free(hdr);
+    mxfs_pal_free(cur);
+    return rc;
+}
+
+/*
+ * ── 0.85.0: the COMPLETION PROOF and OBLIGATIONS_DONE (recov_obl_done.h) ──
+ *
+ * D-FOREIGN-SLICE-INTENTS-ABANDONED, real EFI completion on the TCP
+ * transport.  The custodian (the recovery-lease owner at IMAGES_REPLAYED with
+ * an OPEN record) completes every listed extent in its own live
+ * transactions, forces its log, writes the allocation metadata home and
+ * flushes, then makes THIS proof durable and advances the descriptor in one
+ * compare-and-write.  Nothing here acquires a filesystem lock; the engine
+ * that does lives in the filesystem layer (xfs_mxfs_recov_obl.c).
+ */
+
+/* Read the sector and, for an OPEN record, its list header; both validated.
+ * Returns 0 with *d / *rec / hdr filled, or the read_obl-class error. */
+static int recov_obl_case_load(struct mxfs_disklock_ctx *ctx, int slot,
+                               struct mxfs_disklock_heartbeat *cur,
+                               struct mxfs_rman_obl_hdr *hdr,
+                               const struct mxfs_recov_desc **d_out,
+                               const struct mxfs_recov_obl **rec_out,
+                               const char **why)
+{
+    const struct mxfs_recov_desc *d;
+    const struct mxfs_recov_obl *rec;
+    uint64_t off;
+    int rc;
+
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0) {
+        *why = "sector unreadable";
+        return rc;
+    }
+    d = recov_desc_of(cur);
+    if (!d) {
+        *why = "not a recovery descriptor";
+        return recov_desc_present(cur) ? -EPROTO : -ESTALE;
+    }
+    rec = &cur->recov.obl;
+    rc = mxfs_recov_obl_rec_check(rec, cur->fs_gen, (uint32_t)cur->node_id,
+                                  (uint64_t)cur->epoch, why);
+    if (rc)
+        return rc == -ENOENT ? -ENOENT : -EPROTO;
+    if (!mxfs_recov_obl_is_open(rec)) {
+        *why = "record is not an OPEN case";
+        return -EPROTO;
+    }
+    if (rec->flags & MXFS_RECOV_OBL_F_FSWIDE) {
+        *why = "FSWIDE record never enters completion";
+        return -EPROTO;
+    }
+    if (!ctx->rman_offset) {
+        *why = "no rman region";
+        return -ENODEV;
+    }
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, rman_obl_off(ctx, slot), hdr,
+                                 sizeof(*hdr));
+    if (rc < 0) {
+        *why = "list header unreadable";
+        return rc;
+    }
+    rc = mxfs_rman_obl_hdr_check(hdr, rec, d->victim_node,
+                                 (uint64_t)d->victim_epoch, d->victim_fs_gen,
+                                 d->victim_slot, d->recovery_gen, why);
+    if (rc)
+        return -EPROTO;
+    *d_out = d;
+    *rec_out = rec;
+    return 0;
+}
+
+static uint64_t rman_obl_done_off(const struct mxfs_disklock_ctx *ctx, int slot)
+{
+    return rman_slot_off(ctx, slot) + MXFS_RMAN_OBL_DONE_OFF;
+}
+
+int mxfs_disklock_recovery_obl_done_write(struct mxfs_disklock_ctx *ctx,
+                                          int slot,
+                                          const struct mxfs_recov_auth *auth,
+                                          struct mxfs_rman_obl_done *proof)
+{
+    struct mxfs_disklock_heartbeat *cur = NULL;
+    struct mxfs_rman_obl_hdr *hdr = NULL;
+    struct mxfs_rman_obl_done *old = NULL, *back = NULL;
+    const struct mxfs_recov_desc *d = NULL;
+    const struct mxfs_recov_obl *rec = NULL;
+    const char *why = "ok";
+    uint64_t base, seq = 1;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !auth || !proof)
+        return -EINVAL;
+    if (proof->n_sparse) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-SPARSE slot=%d n_sparse=%u — a proof may "
+            "not carry a partially free extent; the case is terminal, not "
+            "done", slot, proof->n_sparse);
+        return -EINVAL;
+    }
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    hdr = mxfs_pal_alloc(sizeof(*hdr));
+    old = mxfs_pal_alloc(sizeof(*old));
+    back = mxfs_pal_alloc(sizeof(*back));
+    if (!cur || !hdr || !old || !back) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    rc = recov_obl_case_load(ctx, slot, cur, hdr, &d, &rec, &why);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-NOCASE slot=%d rc=%d — %s; no proof written",
+            slot, rc, why);
+        goto out;
+    }
+    if (!recov_auth_holds(ctx, d, auth)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-NOTOURS slot=%d victim=%u op=obl-done-write "
+            "— descriptor owner=%u/%llu gen=%llu term=%u; we are %u/%llu.  "
+            "NOTHING we did may be published",
+            slot, d->victim_node, d->owner_node,
+            (unsigned long long)d->owner_epoch,
+            (unsigned long long)d->recovery_gen, d->owner_term,
+            ctx->local_node, (unsigned long long)ctx->epoch);
+        rc = -EBUSY;
+        goto out;
+    }
+    if (d->stage != MXFS_RECOV_STAGE_IMAGES_REPLAYED ||
+        (d->flags & MXFS_RECOV_F_QUARANTINED)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-STAGE slot=%d victim=%u stage=%u flags=0x%x "
+            "— a proof is written only over IMAGES_REPLAYED; refusing",
+            slot, d->victim_node, d->stage, d->flags);
+        rc = -EPERM;
+        goto out;
+    }
+    if (proof->count != rec->count ||
+        proof->n_empty + proof->n_full != rec->count) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-COUNT slot=%d proof count=%u empty=%u "
+            "full=%u vs record count=%u — refusing",
+            slot, proof->count, proof->n_empty, proof->n_full, rec->count);
+        rc = -EINVAL;
+        goto out;
+    }
+
+    base = rman_obl_done_off(ctx, slot);
+    /* sequence: above any earlier proof block of this slot (a reused slot's
+     * old proof never matches a new case, but the ordering is still kept) */
+    if (mxfs_pal_bdev_read_prio(ctx->dev, base, old, sizeof(*old)) == 0 &&
+        old->magic == MXFS_RMAN_OBL_DONE_MAGIC && old->seq >= seq)
+        seq = old->seq + 1;
+
+    /* bind the identity; the caller filled the outcome, counters and uuid */
+    proof->magic         = MXFS_RMAN_OBL_DONE_MAGIC;
+    proof->version       = MXFS_RMAN_OBL_DONE_VERSION;
+    proof->flags         = 0;
+    proof->length        = MXFS_RMAN_OBL_DONE_BYTES;
+    proof->rman_slot     = (uint32_t)slot;
+    proof->recovery_gen  = d->recovery_gen;
+    proof->victim_epoch  = (uint64_t)d->victim_epoch;
+    proof->victim_node   = d->victim_node;
+    proof->victim_fs_gen = d->victim_fs_gen;
+    proof->pub_seq       = rec->pub_seq;
+    proof->list_crc32c   = rec->list_crc32c;
+    proof->hdr_crc32c    = hdr->hdr_crc32c;
+    proof->obl_ag_mask   = rec->obl_ag_mask;
+    proof->owner_term    = d->owner_term;
+    proof->stage_seq     = d->stage_seq;
+    proof->rcpt_digest   = 0;   /* retained custody: no transfer receipts */
+    proof->completer_node  = ctx->local_node;
+    proof->completer_slot  = (uint32_t)ctx->local_slot;
+    proof->completer_epoch = (uint64_t)ctx->epoch;
+    proof->stamp_ms      = mxfs_pal_time_ms();
+    proof->seq           = seq;
+    memset(proof->pad, 0, sizeof(proof->pad));
+
+    /* phase 1: the body, UNCOMMITTED, durable */
+    proof->crc32c = mxfs_rman_obl_done_crc(cur->fs_gen, (uint32_t)cur->node_id,
+                                           (uint64_t)cur->epoch, proof);
+    rc = mxfs_pal_bdev_write_fua(ctx->dev, base, proof, sizeof(*proof));
+    if (rc == 0)
+        rc = mxfs_pal_bdev_flush(ctx->dev);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-WRITE-FAIL slot=%d step=body rc=%d", slot, rc);
+        goto out;
+    }
+    /* phase 2: COMMITTED, durable, read back */
+    proof->flags = MXFS_RMAN_OBL_DONE_F_COMMITTED;
+    proof->crc32c = mxfs_rman_obl_done_crc(cur->fs_gen, (uint32_t)cur->node_id,
+                                           (uint64_t)cur->epoch, proof);
+    rc = mxfs_pal_bdev_write_fua(ctx->dev, base, proof, sizeof(*proof));
+    if (rc == 0)
+        rc = mxfs_pal_bdev_flush(ctx->dev);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-WRITE-FAIL slot=%d step=commit rc=%d", slot, rc);
+        goto out;
+    }
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, base, back, sizeof(*back));
+    if (rc == 0)
+        rc = mxfs_rman_obl_done_check(back, rec, hdr, cur->fs_gen,
+                                      (uint32_t)cur->node_id,
+                                      (uint64_t)cur->epoch, (uint32_t)slot,
+                                      d->recovery_gen, &why);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-OBL-DONE-READBACK slot=%d rc=%d — %s; the proof is "
+            "NOT evidence", slot, rc, why);
+        rc = rc > 0 ? -EIO : rc;
+        goto out;
+    }
+    mxfs_pal_log(MXFS_LOG_WARN,
+        "disklock: P-OBL-DONE-WRITE slot=%d victim=%u/%llu gen=%llu seq=%llu "
+        "count=%u n_empty=%u n_full=%u ag_mask=0x%llx term=%u stage_seq=%llu "
+        "— completion proof COMMITTED and read back",
+        slot, d->victim_node, (unsigned long long)d->victim_epoch,
+        (unsigned long long)d->recovery_gen, (unsigned long long)seq,
+        proof->count, proof->n_empty, proof->n_full,
+        (unsigned long long)proof->obl_ag_mask, proof->owner_term,
+        (unsigned long long)proof->stage_seq);
+    rc = 0;
+out:
+    mxfs_pal_free(back);
+    mxfs_pal_free(old);
+    mxfs_pal_free(hdr);
+    mxfs_pal_free(cur);
+    return rc;
+}
+
+int mxfs_disklock_recovery_advance_obl_done(struct mxfs_disklock_ctx *ctx,
+                                            int slot,
+                                            const struct mxfs_recov_auth *auth)
+{
+    struct mxfs_disklock_heartbeat *cur = NULL, *want = NULL;
+    struct mxfs_rman_obl_hdr *hdr = NULL;
+    struct mxfs_rman_obl_done *proof = NULL;
+    const struct mxfs_recov_desc *d = NULL;
+    const struct mxfs_recov_obl *rec = NULL;
+    const char *why = "ok";
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !auth)
+        return -EINVAL;
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    hdr = mxfs_pal_alloc(sizeof(*hdr));
+    proof = mxfs_pal_alloc(sizeof(*proof));
+    if (!cur || !want || !hdr || !proof) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    rc = recov_obl_case_load(ctx, slot, cur, hdr, &d, &rec, &why);
+    if (rc == -EPROTO) {
+        /* monotonic re-entry: a DONE record under a DONE descriptor */
+        const struct mxfs_recov_desc *dd = recov_desc_of(cur);
+        const struct mxfs_recov_obl *rr = recov_obl_of(cur);
+
+        if (dd && rr && dd->stage >= MXFS_RECOV_STAGE_OBLIGATIONS_DONE &&
+            (rr->flags & MXFS_RECOV_OBL_F_DONE) &&
+            recov_auth_holds(ctx, dd, auth)) {
+            rc = 0;
+            goto out;
+        }
+    }
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-OBL-DONE-NOCASE slot=%d rc=%d — %s; "
+            "OBLIGATIONS_DONE refused", slot, rc, why);
+        goto out;
+    }
+    if (!recov_auth_holds(ctx, d, auth)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-NOTOURS slot=%d victim=%u op=obl-done — "
+            "descriptor owner=%u/%llu gen=%llu term=%u; we are %u/%llu.  "
+            "NOTHING we did may be published",
+            slot, d->victim_node, d->owner_node,
+            (unsigned long long)d->owner_epoch,
+            (unsigned long long)d->recovery_gen, d->owner_term,
+            ctx->local_node, (unsigned long long)ctx->epoch);
+        rc = -EBUSY;
+        goto out;
+    }
+    if (d->flags & MXFS_RECOV_F_QUARANTINED) {
+        rc = -EPERM;
+        goto out;
+    }
+    if (d->stage != MXFS_RECOV_STAGE_IMAGES_REPLAYED) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-OBL-DONE-STAGE slot=%d victim=%u stage=%u — "
+            "OBLIGATIONS_DONE is reached only from IMAGES_REPLAYED; refusing",
+            slot, d->victim_node, d->stage);
+        rc = -EPERM;
+        goto out;
+    }
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, rman_obl_done_off(ctx, slot), proof,
+                                 sizeof(*proof));
+    if (rc < 0) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-OBL-DONE-NOPROOF slot=%d rc=%d — the proof "
+            "block is unreadable; OBLIGATIONS_DONE refused", slot, rc);
+        goto out;
+    }
+    rc = mxfs_rman_obl_done_check(proof, rec, hdr, cur->fs_gen,
+                                  (uint32_t)cur->node_id, (uint64_t)cur->epoch,
+                                  (uint32_t)slot, d->recovery_gen, &why);
+    if (rc == 0 && (proof->owner_term != d->owner_term ||
+                    proof->stage_seq != d->stage_seq)) {
+        why = "proof was authorized under another lease term / stage_seq";
+        rc = -EPROTO;
+    }
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-OBLIGATIONS-NOPROOF slot=%d victim=%u rc=%d "
+            "— %s; OBLIGATIONS_DONE refused (the custodian must complete and "
+            "prove again)", slot, d->victim_node, rc, why);
+        rc = (rc == -ENOENT || rc == -EINPROGRESS) ? -ENOENT : -EPROTO;
+        goto out;
+    }
+
+    *want = *cur;
+    want->recov.desc.stage          = MXFS_RECOV_STAGE_OBLIGATIONS_DONE;
+    want->recov.desc.stage_seq      = d->stage_seq + 1;
+    want->recov.desc.owner_stamp_ms = recov_stamp_after(d->owner_stamp_ms);
+    want->recov.obl.flags          |= MXFS_RECOV_OBL_F_DONE;
+    want->recov.obl.crc32c = mxfs_recov_obl_rec_crc(want->fs_gen,
+                                                    want->node_id,
+                                                    want->epoch,
+                                                    &want->recov.obl);
+    recov_desc_seal(want);
+    rc = recov_cas_durable(ctx, slot, cur, want);
+    if (rc == 0)
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P234-RECOV-OBLIGATIONS-DONE slot=%d victim=%u/%llu "
+            "count=%u n_empty=%u n_full=%u ag_mask=0x%llx seq=%llu — every "
+            "obligation completed and proven; the freeze may lift",
+            slot, d->victim_node, (unsigned long long)d->victim_epoch,
+            proof->count, proof->n_empty, proof->n_full,
+            (unsigned long long)rec->obl_ag_mask,
+            (unsigned long long)want->recov.desc.stage_seq);
+    else
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P234-RECOV-STAGE-FAIL slot=%d victim=%u %u->%u rc=%d — "
+            "the milestone is NOT durable; the caller must not act as if it is",
+            slot, d->victim_node, d->stage,
+            MXFS_RECOV_STAGE_OBLIGATIONS_DONE, rc);
+out:
+    mxfs_pal_free(proof);
+    mxfs_pal_free(hdr);
+    mxfs_pal_free(want);
+    mxfs_pal_free(cur);
+    return rc;
+}
+
+/*
+ * The per-sector OPEN-obligation verdict for the observer: what does this
+ * already-read sector owe?  Pure function of the bytes; shared by the monitor
+ * pass and the registration-time scan so the two cannot disagree.
+ */
+static void recov_obl_observe(struct mxfs_disklock_ctx *ctx, int slot,
+                              const struct mxfs_disklock_heartbeat *hb)
+{
+    const struct mxfs_recov_desc *d;
+    const struct mxfs_recov_obl *rec;
+    int state = MXFS_OBL_NONE;
+    uint32_t vnode = 0, seq = 0;
+    uint64_t vepoch = 0, mask = 0;
+    bool fsw = false;
+
+    if (!ctx->recov_obl_cb)
+        return;
+    d = recov_desc_of(hb);
+    if (d && d->stage >= MXFS_RECOV_STAGE_IMAGES_REPLAYED &&
+        d->stage < MXFS_RECOV_STAGE_OBLIGATIONS_DONE &&
+        !(d->flags & MXFS_RECOV_F_QUARANTINED)) {
+        vnode = d->victim_node;
+        vepoch = (uint64_t)d->victim_epoch;
+        rec = recov_obl_of(hb);
+        if (rec) {
+            if (mxfs_recov_obl_is_open(rec)) {
+                state = MXFS_OBL_OPEN;
+                seq = rec->pub_seq;
+                mask = rec->obl_ag_mask;
+                fsw = (rec->flags & MXFS_RECOV_OBL_F_FSWIDE) != 0;
+            }
+        } else if (recov_obl_present(hb) ||
+                   !(d->flags & MXFS_RECOV_F_CENSUS_ZERO)) {
+            state = MXFS_OBL_INVALID;
+            fsw = true;
+        }
+    }
+    ctx->recov_obl_cb(ctx->recov_obl_cb_data, slot, state, vnode, vepoch,
+                      seq, mask, fsw);
+}
+
+int mxfs_disklock_set_recov_obl_cb(struct mxfs_disklock_ctx *ctx,
+                                   mxfs_disklock_recov_obl_cb cb, void *data)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    int slot, rc = 0;
+
+    if (!ctx || !ctx->dev)
+        return -EINVAL;
+    ctx->recov_obl_cb = cb;
+    ctx->recov_obl_cb_data = data;
+    if (!cb)
+        return 0;
+    /* synchronous scan: the freeze must exist before the first allocation */
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb)
+        return -ENOMEM;
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+        int rr;
+
+        mxfs_pal_mutex_lock(ctx->lock);
+        rr = mxfs_pal_bdev_read_prio(ctx->dev, off, hb, sizeof(*hb));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        if (rr) {
+            rc = rr;            /* the consumer keeps fail-closed defaults */
+            continue;
+        }
+        recov_obl_observe(ctx, slot, hb);
+    }
+    mxfs_pal_free(hb);
+    return rc;
+}
+
+/*
+ * sess374 (sess363 design-consult ruling): the shared state+verdict predicate behind
  * every closure gate.  Evaluated on a freshly read image of the victim's
  * heartbeat sector — never on a cached or amortized copy.
  *
@@ -4327,7 +7947,7 @@ static int closure_gate_predicate(struct mxfs_disklock_ctx *ctx,
     const struct mxfs_recov_outcome *oc;
 
     /*
-     * sess374 (RULE-5 review items 4+5): the IDENTITY BINDING, and the reason
+     * sess374 (design-consult review items 4+5): the IDENTITY BINDING, and the reason
      * the leaseless form is sound at all.
      *
      * recov_desc_of() is the strict reader: it requires the sector to be a
@@ -4482,7 +8102,7 @@ int mxfs_disklock_terminal_gate_check(struct mxfs_disklock_ctx *ctx, int slot,
         !victim || !ag_mask)
         return -EINVAL;
     /*
-     * FAIL CLOSED on liveness, in TWO independent ways (RULE-5 review item 4:
+     * FAIL CLOSED on liveness, in TWO independent ways (design-consult review item 4:
      * an advisory tracker alone is not enough, because an UNMONITORED slot
      * reads as "not live" and that must never mean "known dead").
      *
@@ -4514,7 +8134,7 @@ int mxfs_disklock_terminal_gate_check(struct mxfs_disklock_ctx *ctx, int slot,
 }
 
 /*
- * sess330 (RULE-5 ruling): leaseless backfill of the LEGACY intent-path
+ * sess330 (design-consult ruling): leaseless backfill of the LEGACY intent-path
  * quarantine.  Contract in disklock.h.  A descriptor QUARANTINED with an
  * ALL-ZERO outcome region is terminal state from a pre-outcome build; no
  * recovery auth can ever exist over it (the claim path's certificate
@@ -4559,7 +8179,7 @@ int mxfs_disklock_recovery_backfill_legacy(struct mxfs_disklock_ctx *ctx,
             goto out;
         }
         if (hb_gen_foreign(ctx, cur)) {
-            /* sess383 (RULE-5 ruling Q2): a pre-mkfs ghost is not this
+            /* sess383 (design-consult ruling Q2): a pre-mkfs ghost is not this
              * filesystem's recovery object, so it is not "inherited
              * emptiness" to terminalize either.  Backfill is a WRITE; a
              * foreign generation may never authorize one.  The classifier
@@ -4779,6 +8399,41 @@ int mxfs_disklock_recovery_read(struct mxfs_disklock_ctx *ctx, int slot,
     return rc;
 }
 
+/*
+ * The abandonment observation both takeover primitives pay: a FULL
+ * MXFS_RECOV_ABANDON_MS of wall on this node's clock, after which the
+ * descriptor is re-read and compared.  Two properties, both load-bearing:
+ *
+ *   - It is never SHORTENED.  An interruptible sleep wakes on any pending
+ *     signal, and a proof taken over less than the interval would be a
+ *     proof of nothing; so the wait loops until the interval has elapsed
+ *     on the monotonic clock, whatever woke it.
+ *   - It is ABANDONED, never certified, when a fatal signal is pending on
+ *     the calling task (a mount(2) that `timeout` is terminating).  The
+ *     caller gets -EINTR and takes nothing over; the descriptor is
+ *     untouched and the next attempt starts its own observation.  A
+ *     worker thread has no signals and pays the interval in full, as
+ *     before.  Measured D-0980: the barrier's bound counted only its own
+ *     poll sleeps, so the 6 s inside each takeover was invisible to it,
+ *     and a mount(2) parked here could not be ended by SIGTERM.
+ */
+static int recov_abandon_wait(void)
+{
+    uint64_t t0 = mxfs_pal_time_ms();
+    uint64_t now;
+    uint32_t left = MXFS_RECOV_ABANDON_MS;
+
+    for (;;) {
+        mxfs_pal_sleep_ms_interruptible(left);
+        if (mxfs_pal_fatal_signal_pending())
+            return -EINTR;
+        now = mxfs_pal_time_ms();
+        if (now - t0 >= MXFS_RECOV_ABANDON_MS)
+            return 0;
+        left = MXFS_RECOV_ABANDON_MS - (uint32_t)(now - t0);
+    }
+}
+
 int mxfs_disklock_recovery_takeover(struct mxfs_disklock_ctx *ctx, int slot,
                                     struct mxfs_recov_auth *out_auth)
 {
@@ -4835,9 +8490,12 @@ int mxfs_disklock_recovery_takeover(struct mxfs_disklock_ctx *ctx, int slot,
      * observed no refresh"; the caller must already have confirmed the current
      * owner's session dead AND fenced from the LUN (header rule 5).  We sleep
      * MXFS_RECOV_ABANDON_MS here, which is why this call may never run on the
-     * heartbeat monitor thread.
+     * heartbeat monitor thread.  A fatal signal on the caller abandons the
+     * observation (see recov_abandon_wait): nothing is taken over.
      */
-    mxfs_pal_sleep_ms(MXFS_RECOV_ABANDON_MS);
+    rc = recov_abandon_wait();
+    if (rc)
+        goto out;
 
     mxfs_pal_mutex_lock(ctx->lock);
     rc = mxfs_pal_bdev_read_prio(ctx->dev, off, again, sizeof(*again));
@@ -4876,7 +8534,7 @@ int mxfs_disklock_recovery_takeover(struct mxfs_disklock_ctx *ctx, int slot,
     *want = *again;
     want->recov.desc.owner_node     = ctx->local_node;
     want->recov.desc.owner_epoch    = ctx->epoch;
-    want->recov.desc.owner_slot     = (uint16_t)ctx->local_slot;
+    recov_desc_set_owner_slot(ctx, &want->recov.desc);   /* sess440 */
     want->recov.desc.owner_term     = d1->owner_term + 1;
     want->recov.desc.stage_seq      = d1->stage_seq + 1;
     want->recov.desc.owner_stamp_ms = recov_stamp_after(d1->owner_stamp_ms);
@@ -4958,8 +8616,17 @@ static bool recov_fence_auth_holds(const struct mxfs_disklock_ctx *ctx,
     if (d->owner_node != ctx->local_node ||
         !inc_eq(d->owner_epoch, ctx->epoch))
         return false;
-    if (d->fence_prover_node != ctx->local_node ||
-        !inc_eq(d->fence_prover_epoch, ctx->epoch))
+    /*
+     * sess405: at SNAPSHOTTING the certificate's fence_prover_* bytes are
+     * already immutable (they name who PROVED exclusion) and a successor
+     * that took the attempt lease over after the prover died is the rightful
+     * holder without being the prover.  The lease there is owner_* +
+     * fence_term.  At FENCING a takeover rewrites fence_prover_* to the
+     * successor, so the prover test is the same as the owner test and stays.
+     */
+    if (d->stage != MXFS_RECOV_STAGE_SNAPSHOTTING &&
+        (d->fence_prover_node != ctx->local_node ||
+         !inc_eq(d->fence_prover_epoch, ctx->epoch)))
         return false;
     if (!auth)
         return false;           /* the attempt lease is never implicit */
@@ -5053,6 +8720,8 @@ bool mxfs_recov_cert_proves_exclusion(const struct mxfs_recov_desc *d,
     if (d->stage < MXFS_RECOV_STAGE_FENCED) {
         reason = d->stage == MXFS_RECOV_STAGE_FENCING ?
             "fencing ATTEMPT only — no exclusion has been proved yet" :
+            d->stage == MXFS_RECOV_STAGE_SNAPSHOTTING ?
+            "exclusion proved but the fence-time manifest is not sealed yet" :
             "descriptor carries no fence stage";
         goto no;
     }
@@ -5061,15 +8730,21 @@ bool mxfs_recov_cert_proves_exclusion(const struct mxfs_recov_desc *d,
         goto no;
     }
 
-    /* The certificate itself. */
-    if (!mxfs_fence_kind_proves_exclusion(
-                (enum mxfs_fence_kind)d->fence_kind)) {
-        reason = "fence_kind does not prove exclusion";
+    /*
+     * The certificate itself, and the question is CLASSIFICATION, not "did
+     * some attempt once prove exclusion".  A fence kind is a durable
+     * identifier of a construction contract; this build authorises replay only
+     * from a contract it still supports, because an older build having written
+     * the record is not evidence that the older build was right.  Every reader
+     * that did not mint the certificate asks the same function, so a revoked
+     * class cannot be honoured by whichever reader was not updated.
+     */
+    if (!mxfs_fence_durable_kind_supported(MXFS_FENCE_RECORD_RECOVERY_DESC,
+                                           d->fence_kind, &reason)) {
         goto no;
     }
-    if ((enum mxfs_fence_kind)d->fence_kind ==
-            MXFS_FENCE_KIND_PREEMPT_ABORT_DONE &&
-        !mxfs_pr_type_excludes_nonregistrants(d->fence_resv_type)) {
+    if (!mxfs_fence_kind_resv_type_ok((enum mxfs_fence_kind)d->fence_kind,
+                                      d->fence_resv_type)) {
         /*
          * Without a Write Exclusive reservation held at the verifying read,
          * removing the victim's registration excludes nobody: an unreserved LU
@@ -5077,13 +8752,15 @@ bool mxfs_recov_cert_proves_exclusion(const struct mxfs_recov_desc *d,
          * A SINGLE_NODE_EXCLUSIVE certificate's exclusion comes from topology
          * (operator-asserted exclusive bdev + single-node membership), not
          * from a reservation, so it carries no resv_type supporting fact.
+         * An EXCLUSIVE_WRITE_GATE certificate rests on exactly the
+         * single-holder Write Exclusive (1) it installed.
          *
          * sess381: this tested `== WR_EX_RO`, which rejected the
          * all-registrants form (0x07) MXFS reserves from proto-gen 5 on.  The
          * question the certificate rests on is whether the type excludes
          * NON-REGISTRANTS, and both Write Exclusive forms do.
          */
-        reason = "reservation type at the verify does not exclude non-registrants";
+        reason = "reservation type at the verify does not support this fence kind";
         goto no;
     }
     if (!d->fence_victim_key) {
@@ -5154,12 +8831,47 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
         }
         if (d->victim_node != victim ||
             !inc_eq(d->victim_epoch, victim_epoch)) {
+            /*
+             * sess456: this exit was silent, and the caller's
+             * P238-FENCE-NOINTENT rc=-116 line cannot say WHICH tuple the
+             * standing descriptor names.  Say it here, once per attempt.
+             */
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P237-FENCE-DESC-FOREIGN slot=%d victim=%u "
+                "victim_inc=%llu desc_node=%u desc_inc=%llu stage=%u — the "
+                "slot's standing descriptor names a different victim tuple; "
+                "not laying a second intent",
+                slot, victim, (unsigned long long)victim_epoch,
+                d->victim_node, (unsigned long long)d->victim_epoch,
+                (unsigned)d->stage);
             rc = -ESTALE;
             goto out;
         }
         if (d->stage >= MXFS_RECOV_STAGE_FENCED) {
             /* Someone already proved it.  Nothing for this prover to do. */
             rc = -EEXIST;
+            goto out;
+        }
+        if (d->stage == MXFS_RECOV_STAGE_SNAPSHOTTING) {
+            /*
+             * sess405: exclusion is PROVED and durable; what is missing is
+             * the sealed manifest.  Our own attempt lease (original prover
+             * or a SNAPSHOTTING takeover) resumes at the scan; anybody
+             * else's is busy exactly like a FENCING attempt.
+             */
+            if (d->owner_node == ctx->local_node &&
+                inc_eq(d->owner_epoch, ctx->epoch)) {
+                recov_fence_auth_issue(out_auth, d);
+                rc = MXFS_FENCE_INTENT_SNAPSHOT_PENDING;
+                goto out;
+            }
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P236-FENCE-ATTEMPT-BUSY slot=%d victim=%u owner=%u "
+                "term=%u stage=SNAPSHOTTING — another survivor holds the "
+                "attempt lease and is writing the fence-time manifest; not "
+                "issuing a PREEMPT AND ABORT (exclusion is already proved)",
+                slot, victim, d->owner_node, d->fence_term);
+            rc = -EBUSY;
             goto out;
         }
         /* stage == FENCING: an attempt is already recorded. */
@@ -5205,7 +8917,7 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
      * D-RECOV-ZERO-EPOCH-DESCRIPTOR-AUTHORITY-UNPROVEN: a descriptor that
      * cannot name its victim's incarnation cannot derive authority from
      * incarnation identity, and the slot/slice-level quarantine that would be
-     * the alternative is not established.  The sess91 RULE-5 ruling's item 3
+     * the alternative is not established.  The sess91 design-consult ruling's item 3
      * offered a choice — prove the seven quarantine invariants, or forbid
      * zero-epoch descriptors at CREATION.  This is the second.
      *
@@ -5227,6 +8939,57 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
         goto out;
     }
 
+    /*
+     * sess456 (D-FENCE-INTENT-ADOPTS-SECTOR-INCARNATION-0520, measured by
+     * tests/incarnation_mismatch_probe.sh nonzero on chain 61: a GUARD with
+     * victim_epoch=E2 appeared 0.5 s after the sector was rewritten E1->E2,
+     * while every survivor had declared E1 dead).  This function replaced
+     * recovery_begin() as the only descriptor creator but did NOT inherit
+     * its sess86 supersession predicate: it copied cur->epoch into the
+     * descriptor whatever the caller asked for, so a death declared for E1
+     * laid a fencing intent — and issued the PREEMPT AND ABORT of E1's
+     * frozen key — against whichever incarnation the sector carried.  On a
+     * LIVE same-node successor that is a guard on a healthy member (the
+     * exact hazard sess86 closed in begin()); on anything else it is a
+     * descriptor naming an incarnation nobody observed stop, with E1's
+     * pending recovery left standing forever behind it.
+     *
+     * Same predicate as recovery_slot_status(), deliberately no weaker: a
+     * valid feature block at the CURRENT proto_gen, flags == ACTIVE (a
+     * WITHDRAWN successor is itself dead and owes its own replay), both
+     * incarnations nonzero (cur->epoch is nonzero here; victim_epoch is
+     * nonzero because fence_prove refuses inc 0 at its entry), and the two
+     * differing.  SUPERSEDED retires the caller's pending recovery; the
+     * mismatch arm refuses without touching the sector.
+     */
+    if (!inc_eq(cur->epoch, victim_epoch)) {
+        int fst = hb_feature_state(cur);
+
+        if (cur->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+            fst == MXFS_HBFEAT_OK) {
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P237-FENCE-SUPERSEDED slot=%d victim=%u "
+                "victim_inc=%llu slot_inc=%llu — the slot carries a LATER "
+                "ACTIVE incarnation of the same node: the victim reclaimed it "
+                "and its own mount recovery owns the slice; laying no intent "
+                "and retiring the pending recovery instead of guarding a LIVE "
+                "member",
+                slot, victim, (unsigned long long)victim_epoch,
+                (unsigned long long)cur->epoch);
+            rc = MXFS_RECOVERY_SUPERSEDED;
+            goto out;
+        }
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P237-FENCE-INC-MISMATCH slot=%d victim=%u "
+            "victim_inc=%llu slot_inc=%llu flags=0x%x featstate=%d — the slot "
+            "no longer carries the incarnation this prover was asked to fence "
+            "and this is NOT a provable supersession; laying no intent",
+            slot, victim, (unsigned long long)victim_epoch,
+            (unsigned long long)cur->epoch, cur->flags, fst);
+        rc = -ESTALE;
+        goto out;
+    }
+
     *want = *cur;
     want->flags = MXFS_DISKLOCK_FLAG_RECOVERY_GUARD;
     memset(&want->recov, 0, sizeof(want->recov));
@@ -5245,9 +9008,10 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
     want->recov.desc.flags           = flags |
         (cur->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN ?
              MXFS_RECOV_F_VICTIM_WITHDREW : 0) |
-        (hb_victim_snlocal(cur) ? MXFS_RECOV_F_VICTIM_SNLOCAL : 0);
+        (hb_victim_snlocal(cur) ? MXFS_RECOV_F_VICTIM_SNLOCAL : 0) |
+        (hb_victim_adopted(cur) ? MXFS_RECOV_F_VICTIM_ADOPTED : 0);   /* sess434 */
     want->recov.desc.victim_slot     = (uint16_t)slot;
-    want->recov.desc.owner_slot      = (uint16_t)ctx->local_slot;
+    recov_desc_set_owner_slot(ctx, &want->recov.desc);    /* sess440 */
     want->recov.desc.slice_idx       = slice_idx;
     want->recov.desc.slice_count     = slice_count;
     want->recov.desc.stage_seq       = 1;
@@ -5282,6 +9046,26 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
             slot, victim, (unsigned long long)cur->epoch,
             (unsigned long long)victim_key, slice_idx, slice_count,
             ctx->local_node);
+        /* TEST ONLY, see dl_fence_postintent_pause_ms: park here so this
+         * prover can be killed with its attempt standing and nothing issued
+         * under it. */
+        if (mxfs_dl_fence_postintent_pause_ms > 0) {
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P236-FENCE-INTENT-HOLD slot=%d victim=%u prover=%u "
+                "ms=%d — TEST ONLY: the intent is durable and NOTHING has been "
+                "issued under it; holding here so this prover can die with the "
+                "fencing attempt still standing",
+                slot, victim, ctx->local_node,
+                mxfs_dl_fence_postintent_pause_ms);
+            /* INTERRUPTIBLE: an uninterruptible hold of this length would
+             * park a kernel task in D state for its whole duration. */
+            mxfs_pal_sleep_ms_interruptible(
+                (uint32_t)mxfs_dl_fence_postintent_pause_ms);
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P236-FENCE-INTENT-RESUME slot=%d victim=%u — "
+                "proceeding to issue the PREEMPT AND ABORT",
+                slot, victim);
+        }
     } else
         mxfs_pal_log(MXFS_LOG_ERR,
             "disklock: P236-FENCE-INTENT-FAIL slot=%d victim=%u rc=%d — the "
@@ -5290,6 +9074,81 @@ int mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot,
             "recovery: the victim key is consumed and no successor can prove "
             "exclusion)",
             slot, victim, rc);
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return rc;
+}
+
+int mxfs_disklock_recovery_fence_mark_blocked(struct mxfs_disklock_ctx *ctx,
+                                              int slot,
+                                              const struct mxfs_recov_fence_auth *auth)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    const struct mxfs_recov_desc *d;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS || !auth)
+        return -EINVAL;
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        mxfs_pal_free(cur);
+        mxfs_pal_free(want);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0)
+        goto out;
+
+    d = recov_desc_of(cur);
+    if (!d) {
+        rc = recov_desc_present(cur) ? -EPROTO : -ESTALE;
+        goto out;
+    }
+    if (d->stage >= MXFS_RECOV_STAGE_FENCED) {
+        rc = -EEXIST;
+        goto out;
+    }
+    if (d->stage != MXFS_RECOV_STAGE_FENCING) {
+        rc = -EPROTO;
+        goto out;
+    }
+    if (!recov_fence_auth_holds(ctx, d, auth)) {
+        rc = -EBUSY;
+        goto out;
+    }
+    if (d->flags & MXFS_RECOV_F_FENCE_BLOCKED) {
+        rc = 0;                 /* already published — idempotent, no write */
+        goto out;
+    }
+
+    *want = *cur;
+    want->recov.desc.flags          = d->flags | MXFS_RECOV_F_FENCE_BLOCKED;
+    want->recov.desc.fence_stamp_ms = mxfs_pal_time_ms();
+    recov_desc_seal(want);
+
+    rc = recov_cas_durable(ctx, slot, cur, want);
+    if (rc == 0)
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P304-FENCE-BLOCKED-DURABLE slot=%d victim=%u prover=%u "
+            "term=%u — RECOVERY_BLOCKED is on the platter: the standing "
+            "fencing attempt proved nothing across its bounded series and is "
+            "re-driven slowly from here; the intent stays FENCING under the "
+            "same lease",
+            slot, d->victim_node, ctx->local_node, d->fence_term);
+    else
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P304-FENCE-BLOCKED-DURABLE-FAIL slot=%d victim=%u "
+            "rc=%d — the blocked verdict could not be made durable; it stays "
+            "in this node's memory and debugfs only",
+            slot, d->victim_node, rc);
 out:
     mxfs_pal_free(cur);
     mxfs_pal_free(want);
@@ -5346,7 +9205,18 @@ int mxfs_disklock_recovery_fence_arm_submit(struct mxfs_disklock_ctx *ctx,
         goto out;
     }
     if (d->flags & MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN) {
-        rc = 0;                 /* already armed — idempotent, no write */
+        /*
+         * Already armed — idempotent, no write.  Said out loud since 0.89.63,
+         * because a command that completes a re-driven attempt must be
+         * shown to have a boundary of its own: this IS that boundary, the
+         * one this attempt made and was not told about.
+         */
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P304-FENCE-ARM-STANDING slot=%d victim=%u prover=%u "
+            "term=%u — the command-submission boundary of this attempt is "
+            "already durable; proceeding under it without a second write",
+            slot, d->victim_node, ctx->local_node, d->fence_term);
+        rc = 0;
         goto out;
     }
 
@@ -5380,7 +9250,8 @@ out:
 int mxfs_disklock_recovery_fence_retryable(struct mxfs_disklock_ctx *ctx,
                                            int slot,
                                            mxfs_node_id_t *out_victim,
-                                           mxfs_epoch_t *out_epoch)
+                                           mxfs_epoch_t *out_epoch,
+                                           uint32_t *out_term)
 {
     struct mxfs_disklock_heartbeat *cur;
     const struct mxfs_recov_desc *d;
@@ -5409,10 +9280,26 @@ int mxfs_disklock_recovery_fence_retryable(struct mxfs_disklock_ctx *ctx,
         goto out;
     }
     rc = 0;
+    if (d->stage == MXFS_RECOV_STAGE_SNAPSHOTTING) {
+        /*
+         * sess405: our own attempt lease at SNAPSHOTTING is ALWAYS
+         * re-drivable — nothing is submitted to the target there, only the
+         * idempotent scan+seal, and leaving it standing parks the slice
+         * forever.  (The fence-retry worker re-enters v5_pr_fence_prove,
+         * whose fence_intent resumes at the scan.)
+         */
+        if (d->owner_node != ctx->local_node ||
+            !inc_eq(d->owner_epoch, ctx->epoch))
+            goto out;
+        if (out_victim)
+            *out_victim = d->victim_node;
+        if (out_epoch)
+            *out_epoch = d->victim_epoch;
+        ans = 1;
+        goto out;
+    }
     if (d->stage != MXFS_RECOV_STAGE_FENCING)
         goto out;
-    if (d->flags & MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN)
-        goto out;               /* ambiguous — needs reconciliation, not retry */
     if (d->fence_prover_node != ctx->local_node ||
         !inc_eq(d->fence_prover_epoch, ctx->epoch))
         goto out;               /* somebody else's attempt; takeover, not retry */
@@ -5420,6 +9307,23 @@ int mxfs_disklock_recovery_fence_retryable(struct mxfs_disklock_ctx *ctx,
         *out_victim = d->victim_node;
     if (out_epoch)
         *out_epoch = d->victim_epoch;
+    if (out_term)
+        *out_term = d->fence_term;
+    /*
+     * 0.89.63: OUR attempt with the submission boundary durable.  The platter
+     * cannot say whether a command was issued under that arm — it is written
+     * before the command so that a crash reads conservatively — so the answer
+     * is neither "re-drive" nor "not ours": it is "ours, armed", and the caller
+     * owns the memory that says whether this incarnation ever crossed the
+     * boundary under it.  Answering 0 here was measured (s133c3, s138m): an
+     * arm whose CAS landed and was reported failed was disarmed as somebody
+     * else's ambiguity and never revisited, and the prover's own mount blocked
+     * behind the victim's frozen grants.
+     */
+    if (d->flags & MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN) {
+        ans = 2;
+        goto out;
+    }
     ans = 1;
 out:
     mxfs_pal_free(cur);
@@ -5431,10 +9335,14 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
                                          uint16_t fence_kind,
                                          uint16_t fence_resv_type,
                                          uint64_t fence_victim_key,
-                                         uint32_t fence_pr_gen)
+                                         uint32_t fence_pr_gen,
+                                         uint8_t retire_basis,
+                                         uint8_t retire_claim,
+                                         uint8_t retire_obs)
 {
     struct mxfs_disklock_heartbeat *cur, *want;
     const struct mxfs_recov_desc *d;
+    const char *kwhy = NULL;
     uint64_t off;
     int rc;
 
@@ -5442,24 +9350,83 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
         return -EINVAL;
 
     /*
-     * THE CERTIFICATE CAN ONLY EVER SAY THE TRUTH.  Refuse before touching the
+     * THE CERTIFICATE CAN ONLY EVER SAY THE TRUTH, AND IT HAS TO SAY IT IN A
+     * PROOF CONTRACT THIS BUILD STILL SUPPORTS.  Refuse before touching the
      * platter — a descriptor that claims an exclusion nobody proved is worse
      * than no descriptor at all, because every downstream gate trusts it.
+     *
+     * The question asked here is the DURABLE one, through the same classifier
+     * every consuming reader uses.  It used to be the fresh-result predicate
+     * mxfs_fence_kind_proves_exclusion(), which still answers "did this
+     * attempt prove something" for the callers that decide whether to certify
+     * at all — but that is a SECOND, hand-maintained list of code points, and
+     * it still admits classes consumption has revoked.  Two lists drift, and
+     * the drift is not symmetric: a build that can MINT a kind it would REFUSE
+     * to read seals a certificate nothing will ever act on, and a sealed
+     * descriptor answers -EEXIST to every later prover, so the slice it covers
+     * can never be certified by anybody again.  Minting is a subset of
+     * consumption by construction here, not by the two lists happening to
+     * agree.
      */
-    if (!mxfs_fence_kind_proves_exclusion((enum mxfs_fence_kind)fence_kind)) {
+    if (!mxfs_fence_durable_kind_supported(MXFS_FENCE_RECORD_RECOVERY_DESC,
+                                           fence_kind, &kwhy)) {
         mxfs_pal_log(MXFS_LOG_WARN,
-            "disklock: P236-FENCE-NOT-PROVED slot=%d victim=%u kind=%s — the "
-            "fence attempt did not prove exclusion; leaving the intent in "
-            "place uncertified.  The slice stays unreplayable, which is the "
+            "disklock: P236-FENCE-NOT-PROVED slot=%d victim=%u kind=%s — "
+            "refusing to make a certificate durable at a kind this build "
+            "would not accept back: %s.  The intent stays in place "
+            "uncertified and the slice stays unreplayable, which is the "
             "correct outcome",
             slot, auth->victim_node,
-            mxfs_fence_kind_name((enum mxfs_fence_kind)fence_kind));
+            mxfs_fence_kind_name((enum mxfs_fence_kind)fence_kind),
+            kwhy ? kwhy : "?");
         return -EPERM;
     }
-    if ((enum mxfs_fence_kind)fence_kind ==
-            MXFS_FENCE_KIND_PREEMPT_ABORT_DONE &&
-        !mxfs_pr_type_excludes_nonregistrants(fence_resv_type)) {
-        /* The resv-type supporting fact belongs to the preempt proof only;
+    /*
+     * AND IT CAN ONLY SAY THE WHOLE TRUTH.  Exclusion is the admission half:
+     * the victim cannot be given permission for a NEW write.  A certificate
+     * authorises REPLAY, and replay is only safe if the target is also done
+     * with the writes it had already accepted from that victim — a separate
+     * fact, established by a COMPLETED TARGET OPERATION whose own abort scope
+     * covered them, and by nothing else.
+     *
+     * 0.89.16 removed the second way in.  A deployment used to be able to
+     * assert the ordering for its exact target, firmware and LUN, and a
+     * matching assertion certified.  An assertion is not a witness — the
+     * module cannot detect a target that breaks it, and the shipped clause's
+     * whole support was four probe laps that saw no late write in a bounded
+     * window — so a qualified contract is refused here even if some path still
+     * offers one.  This is the choke point every replay-authorising kind
+     * crosses, so the refusal cannot be routed around.
+     *
+     * 0.89.18 removed the last exception.  It was the operator's single-node
+     * topology assertion, carried here on the grounds that its own retirement
+     * half was an open defect rather than a decided one.  It is decided now:
+     * an operator parameter may select an operating mode, and it may not
+     * create a retirement witness.  The assertion is about whether a second
+     * INITIATOR can be holding writes; the victim is a previous INCARNATION,
+     * whose own accepted commands the target may still be finishing, and no
+     * value of a parameter observes that.  So this gate now has no exception
+     * at all, which is the only shape in which it is a choke point.
+     */
+    if (retire_basis != MXFS_RETIRE_BASIS_TARGET_OP) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P236-FENCE-NO-RETIREMENT slot=%d victim=%u kind=%s "
+            "basis=%s obs=%s — REFUSING TO CERTIFY.  Exclusion was proved, "
+            "but only a completed target operation that aborted the "
+            "victim's tasks establishes that the target finished the "
+            "writes it had already accepted from it, and none ran.  A "
+            "replay authorised against surviving writes corrupts "
+            "silently, where a refusal only costs availability",
+            slot, auth->victim_node,
+            mxfs_fence_kind_name((enum mxfs_fence_kind)fence_kind),
+            mxfs_retire_basis_name(retire_basis),
+            mxfs_retire_observation_name(retire_obs));
+        return -EPERM;
+    }
+    if (!mxfs_fence_kind_resv_type_ok((enum mxfs_fence_kind)fence_kind,
+                                      fence_resv_type)) {
+        /* The resv-type supporting fact belongs to the preempt proof and to
+         * the exclusive-write gate (which needs exactly type 1);
          * SINGLE_NODE_EXCLUSIVE proves exclusion by topology, without a
          * reservation (see mxfs_recov_cert_proves_exclusion).
          *
@@ -5470,11 +9437,14 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
          * "P238-FENCE-UNRECORDED ... exclusion was PROVED but the certificate
          * is not durable ... this slice is BLOCKED". */
         mxfs_pal_log(MXFS_LOG_ERR,
-            "disklock: P236-FENCE-NO-RESV slot=%d victim=%u resv_type=0x%02x — "
-            "removing a registration only excludes while a Write Exclusive "
-            "reservation (0x%02x or 0x%02x) is held; refusing to certify",
-            slot, auth->victim_node, fence_resv_type,
-            MXFS_PAL_PR_TYPE_WR_EX_RO, MXFS_PAL_PR_TYPE_WR_EX_AR);
+            "disklock: P236-FENCE-NO-RESV slot=%d victim=%u kind=%s "
+            "resv_type=0x%02x — a key preempt only excludes while a Write "
+            "Exclusive reservation (0x%02x or 0x%02x) is held, and the "
+            "exclusive-write gate only under type 0x%02x; refusing to certify",
+            slot, auth->victim_node,
+            mxfs_fence_kind_name((enum mxfs_fence_kind)fence_kind),
+            fence_resv_type, MXFS_PAL_PR_TYPE_WR_EX_RO,
+            MXFS_PAL_PR_TYPE_WR_EX_AR, MXFS_PAL_PR_TYPE_WR_EX);
         return -EPERM;
     }
     if (!fence_victim_key)
@@ -5511,13 +9481,13 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
         goto out;
     }
     if (d->stage >= MXFS_RECOV_STAGE_FENCED) {
-        /* Already certified.  Idempotent only if it is OUR certificate. */
-        if (d->fence_prover_node == ctx->local_node &&
-            inc_eq(d->fence_prover_epoch, ctx->epoch) &&
-            d->fence_term == auth->fence_term)
-            rc = 0;
-        else
-            rc = -EEXIST;
+        /* Already certified AND sealed.  Nothing left for a prover. */
+        rc = -EEXIST;
+        goto out;
+    }
+    if (d->stage == MXFS_RECOV_STAGE_SNAPSHOTTING) {
+        /* Already certified; idempotent only for OUR attempt lease. */
+        rc = recov_fence_auth_holds(ctx, d, auth) ? 0 : -EEXIST;
         goto out;
     }
     if (!recov_fence_auth_holds(ctx, d, auth)) {
@@ -5532,23 +9502,52 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
         rc = -EBUSY;
         goto out;
     }
+    if (!ctx->rman_offset) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-RMAN-NOREGION slot=%d victim=%u — this node has no "
+            "recovery-manifest region installed, so it can never seal a "
+            "manifest; refusing to certify (the intent stands for a node that "
+            "can)",
+            slot, d->victim_node);
+        rc = -ENODEV;
+        goto out;
+    }
 
     /*
-     * FENCING -> FENCED and prover -> UNOWNED in ONE compare-and-write.  Two
-     * writes would leave a window in which the descriptor is certified but
-     * still owned by a prover that is not going to execute the recovery, and
-     * a prover death inside that window would need a takeover of an execution
-     * lease nobody ever used.
+     * sess405: FENCING -> SNAPSHOTTING.  The certificate bytes become durable
+     * NOW (the P&A result must never live only in volatile memory), but the
+     * descriptor stays OWNED by the prover's attempt lease: the manifest
+     * scan+seal is still to do, and only mxfs_disklock_recovery_fence_seal()
+     * publishes FENCED + UNOWNED + the manifest pointer in one CAS.  Every
+     * existing gate demands stage >= FENCED, so nothing downstream is
+     * authorised by this write; the writer guard's protection of the
+     * victim's CAW bits begins here.
      */
     *want = *cur;
-    want->recov.desc.stage           = MXFS_RECOV_STAGE_FENCED;
+    want->recov.desc.stage           = MXFS_RECOV_STAGE_SNAPSHOTTING;
     want->recov.desc.stage_seq       = d->stage_seq + 1;
     want->recov.desc.owner_stamp_ms  = recov_stamp_after(d->owner_stamp_ms);
-    want->recov.desc.owner_node      = MXFS_RECOV_OWNER_NONE;
-    want->recov.desc.owner_epoch     = 0;
-    want->recov.desc.owner_slot      = 0;
-    want->recov.desc.owner_term      = 0;
+    /* 0.74.0: the non-proving series ended in a proof — the blocked verdict
+     * is no longer true and must not outlive it on the platter. */
+    want->recov.desc.flags           = d->flags & ~MXFS_RECOV_F_FENCE_BLOCKED;
     want->recov.desc.fence_kind      = fence_kind;
+    if (mxfs_dl_fence_cert_kind_inject > 0 &&
+        mxfs_dl_fence_cert_kind_inject != (int)fence_kind) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P236-FENCE-CERT-KIND-INJECTED slot=%d victim=%u "
+            "proved=%s(%u) written=%s(%d) — TEST ONLY: the certificate about "
+            "to become durable carries an INJECTED fence kind, not the one "
+            "this attempt proved.  A lap reading this line is measuring a "
+            "revoked proof contract on purpose",
+            slot, auth->victim_node,
+            mxfs_fence_kind_name((enum mxfs_fence_kind)fence_kind),
+            fence_kind,
+            mxfs_fence_kind_name(
+                (enum mxfs_fence_kind)mxfs_dl_fence_cert_kind_inject),
+            mxfs_dl_fence_cert_kind_inject);
+        want->recov.desc.fence_kind =
+            (uint16_t)mxfs_dl_fence_cert_kind_inject;
+    }
     want->recov.desc.fence_resv_type = fence_resv_type;
     want->recov.desc.fence_victim_key = fence_victim_key;
     want->recov.desc.fence_stamp_ms  = mxfs_pal_time_ms();
@@ -5561,13 +9560,17 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
     if (rc == 0)
         mxfs_pal_log(MXFS_LOG_WARN,
             "disklock: P236-FENCE-CERTIFIED slot=%d victim=%u epoch=%llu "
-            "kind=%s resv=0x%02x key=%llu pr_gen=%u prover=%u term=%u — "
-            "exclusion is PROVED and durable.  The descriptor is now UNOWNED; "
-            "the elected replayer may claim it",
+            "kind=%s resv=0x%02x key=%llu pr_gen=%u prover=%u term=%u "
+            "retire_basis=%s claim=%s obs=%s — exclusion is PROVED and durable "
+            "(stage=SNAPSHOTTING).  The fence-time manifest is written next; "
+            "the descriptor becomes UNOWNED/FENCED only when it is sealed",
             slot, d->victim_node, (unsigned long long)d->victim_epoch,
             mxfs_fence_kind_name((enum mxfs_fence_kind)fence_kind),
             fence_resv_type, (unsigned long long)fence_victim_key,
-            fence_pr_gen, ctx->local_node, d->fence_term);
+            fence_pr_gen, ctx->local_node, d->fence_term,
+            mxfs_retire_basis_name(retire_basis),
+            mxfs_retire_claim_name(retire_claim),
+            mxfs_retire_observation_name(retire_obs));
     else
         mxfs_pal_log(MXFS_LOG_ERR,
             "disklock: P236-FENCE-CERTIFY-FAIL slot=%d victim=%u rc=%d — the "
@@ -5578,6 +9581,620 @@ int mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot
 out:
     mxfs_pal_free(cur);
     mxfs_pal_free(want);
+    return rc;
+}
+
+void mxfs_disklock_set_rman(struct mxfs_disklock_ctx *ctx, uint64_t rman_offset,
+                            uint64_t rman_size)
+{
+    if (!ctx)
+        return;
+    if (rman_size < (uint64_t)MXFS_DISKLOCK_HB_SLOTS * MXFS_RMAN_SLOT_BYTES) {
+        /* A short region cannot hold every slot's maximum manifest; treat
+         * it as absent so certify refuses rather than writing past it. */
+        if (rman_offset || rman_size)
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P-RMAN-REGION-SHORT offset=%llu size=%llu need=%llu "
+                "— recovery-manifest region ignored; this node cannot certify",
+                (unsigned long long)rman_offset,
+                (unsigned long long)rman_size,
+                (unsigned long long)MXFS_DISKLOCK_HB_SLOTS *
+                    MXFS_RMAN_SLOT_BYTES);
+        ctx->rman_offset = 0;
+        ctx->rman_size = 0;
+        return;
+    }
+    ctx->rman_offset = rman_offset;
+    ctx->rman_size = rman_size;
+}
+
+/*
+ * Reread the victim sector and confirm the descriptor is at SNAPSHOTTING
+ * under OUR attempt lease.  Returns the record in *cur (caller-allocated) so
+ * the caller can seal a pointer against the same victim identity.
+ */
+static int rman_check_lease(struct mxfs_disklock_ctx *ctx, int slot,
+                            const struct mxfs_recov_fence_auth *auth,
+                            struct mxfs_disklock_heartbeat *cur,
+                            const struct mxfs_recov_desc **out_d,
+                            const char *site)
+{
+    const struct mxfs_recov_desc *d;
+    uint64_t off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    int rc;
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0)
+        return rc;
+    d = recov_desc_of(cur);
+    if (!d)
+        return recov_desc_present(cur) ? -EPROTO : -ESTALE;
+    if (d->stage >= MXFS_RECOV_STAGE_FENCED)
+        return -EEXIST;
+    if (d->stage != MXFS_RECOV_STAGE_SNAPSHOTTING)
+        return -EPROTO;
+    if (!recov_fence_auth_holds(ctx, d, auth)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-RMAN-LEASE-LOST site=%s slot=%d victim=%u owner=%u "
+            "term=%u — the attempt lease is no longer ours (we hold node=%u "
+            "epoch=%llu term=%u); the manifest is not ours to write",
+            site, slot, d->victim_node, d->owner_node, d->fence_term,
+            ctx->local_node, (unsigned long long)ctx->epoch, auth->fence_term);
+        return -EBUSY;
+    }
+    *out_d = d;
+    return 0;
+}
+
+int mxfs_disklock_recovery_manifest_write(struct mxfs_disklock_ctx *ctx, int slot,
+                                          const struct mxfs_recov_fence_auth *auth,
+                                          const struct mxfs_rman_entry *ents,
+                                          uint32_t count, uint32_t scan_slots,
+                                          uint32_t flags,
+                                          struct mxfs_recov_manifest_ptr *out_ptr)
+{
+    struct mxfs_disklock_heartbeat *cur = NULL;
+    struct mxfs_rman_hdr *hdr = NULL;
+    const struct mxfs_recov_desc *d;
+    uint64_t base, seq, stamp;
+    uint32_t byte_len, ecrc;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !auth || !out_ptr || (count && !ents) || count > MXFS_RMAN_MAX_ENTRIES)
+        return -EINVAL;
+    if (!ctx->rman_offset)
+        return -ENODEV;
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    hdr = mxfs_pal_alloc(sizeof(*hdr));
+    if (!cur || !hdr) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    rc = rman_check_lease(ctx, slot, auth, cur, &d, "write");
+    if (rc)
+        goto out;
+
+    base = rman_slot_off(ctx, slot);
+    byte_len = count * (uint32_t)sizeof(struct mxfs_rman_entry);
+    stamp = mxfs_pal_time_ms();
+    /*
+     * seq: strictly greater than any seq this sector's pointer or the slot's
+     * current header carries, so a takeover's rewrite is distinguishable from
+     * the dead prover's partial one.  Start from the header on the platter.
+     */
+    seq = 1;
+    {
+        const struct mxfs_recov_manifest_ptr *old = recov_mptr_of(cur);
+
+        if (old && old->seq >= seq)
+            seq = old->seq + 1;
+    }
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, base, hdr, sizeof(*hdr));
+    /* GPT review item 13: take the old header's seq ONLY from a fully
+     * sealed, crc-valid header for this very slot/victim identity; a torn,
+     * zeroed or foreign header contributes nothing. */
+    if (rc == 0 && hdr->magic == MXFS_RMAN_MAGIC &&
+        hdr->version == MXFS_RMAN_VERSION && hdr->seal == MXFS_RMAN_SEAL &&
+        hdr->hdr_crc32c == rman_hdr_crc(hdr) &&
+        hdr->victim_slot == (uint16_t)slot &&
+        hdr->victim_node == d->victim_node &&
+        hdr->victim_fs_gen == d->victim_fs_gen && hdr->seq >= seq)
+        seq = hdr->seq + 1;
+    if (rc)
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P-RMAN-HDR-PREREAD slot=%d rc=%d — could not read the "
+            "old manifest header; seq continues from the pointer only", slot, rc);
+    if (seq == 0 || seq == ~0ULL) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-RMAN-SEQ-EXHAUSTED slot=%d — manifest sequence "
+            "wrapped; refusing to write (fail closed)", slot);
+        rc = -EOVERFLOW;
+        goto out;
+    }
+
+    /* 1. invalidate: zeroed header, durable, BEFORE any entry byte lands. */
+    memset(hdr, 0, sizeof(*hdr));
+    rc = mxfs_pal_bdev_write_fua(ctx->dev, base, hdr, sizeof(*hdr));
+    if (rc == 0)
+        rc = mxfs_pal_bdev_flush(ctx->dev);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-RMAN-WRITE-FAIL slot=%d victim=%u step=invalidate rc=%d",
+            slot, d->victim_node, rc);
+        goto out;
+    }
+
+    /* 2. entries + flush.  Block I/O must be whole 4 KiB blocks: the
+     * caller's buffer is zero-padded to MXFS_RMAN_IO_ALIGN (contract in
+     * disklock.h), the crc covers byte_len only. */
+    ecrc = ~0U;
+    if (byte_len) {
+        uint32_t io_len = (byte_len + MXFS_RMAN_IO_ALIGN - 1) &
+                          ~(MXFS_RMAN_IO_ALIGN - 1);
+
+        ecrc = mxfs_pal_crc32c(~0U, ents, byte_len);
+        rc = mxfs_pal_bdev_write(ctx->dev, base + MXFS_RMAN_ENTRIES_OFF,
+                                 ents, io_len);
+        if (rc == 0)
+            rc = mxfs_pal_bdev_flush(ctx->dev);
+        if (rc) {
+            mxfs_pal_log(MXFS_LOG_ERR,
+                "disklock: P-RMAN-WRITE-FAIL slot=%d victim=%u step=entries "
+                "count=%u bytes=%u rc=%d", slot, d->victim_node, count,
+                byte_len, rc);
+            goto out;
+        }
+    }
+    if (flags & MXFS_RECOV_MPTR_F_INJECT_TORN)
+        ecrc ^= 0xA5A5A5A5u;    /* test knob: the seal lies about the entries */
+
+    /* 3. sealed header (crc + seal in ONE 4 KiB write) + flush. */
+    memset(hdr, 0, sizeof(*hdr));
+    hdr->magic          = MXFS_RMAN_MAGIC;
+    hdr->version        = MXFS_RMAN_VERSION;
+    hdr->victim_slot    = (uint16_t)slot;
+    hdr->victim_node    = d->victim_node;
+    hdr->victim_fs_gen  = d->victim_fs_gen;
+    hdr->victim_epoch   = d->victim_epoch;
+    hdr->recovery_gen   = d->recovery_gen;
+    hdr->fence_term     = d->fence_term;
+    hdr->writer_node    = ctx->local_node;
+    hdr->writer_epoch   = ctx->epoch;
+    hdr->seq            = seq;
+    hdr->scan_stamp_ms  = stamp;
+    hdr->entry_count    = count;
+    hdr->byte_len       = byte_len;
+    hdr->entries_crc32c = ecrc;
+    hdr->scan_slots     = scan_slots;
+    hdr->flags          = flags;
+    hdr->hdr_crc32c     = rman_hdr_crc(hdr);
+    hdr->seal           = MXFS_RMAN_SEAL;
+    rc = mxfs_pal_bdev_write_fua(ctx->dev, base, hdr, sizeof(*hdr));
+    if (rc == 0)
+        rc = mxfs_pal_bdev_flush(ctx->dev);
+    if (rc) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P-RMAN-WRITE-FAIL slot=%d victim=%u step=seal rc=%d",
+            slot, d->victim_node, rc);
+        goto out;
+    }
+
+    /* The lease must STILL be ours after the last byte landed: a takeover
+     * mid-write means a successor is rewriting this slot and our header may
+     * be the one that loses; only the successor's seal CAS may publish. */
+    rc = rman_check_lease(ctx, slot, auth, cur, &d, "post-seal");
+    if (rc)
+        goto out;
+
+    memset(out_ptr, 0, sizeof(*out_ptr));
+    out_ptr->magic          = MXFS_RECOV_MPTR_MAGIC;
+    out_ptr->version        = MXFS_RECOV_MPTR_VERSION;
+    out_ptr->flags          = (uint16_t)flags;
+    out_ptr->seq            = seq;
+    out_ptr->scan_stamp_ms  = stamp;
+    out_ptr->entry_count    = count;
+    out_ptr->byte_len       = byte_len;
+    out_ptr->entries_crc32c = ecrc;
+    out_ptr->hdr_crc32c     = hdr->hdr_crc32c;
+    out_ptr->writer_node    = ctx->local_node;
+    out_ptr->writer_epoch   = ctx->epoch;
+    out_ptr->fence_term     = d->fence_term;
+    out_ptr->scan_slots     = scan_slots;
+    mxfs_pal_log(MXFS_LOG_WARN,
+        "disklock: P-RMAN-SEALED slot=%d victim=%u epoch=%llu term=%u seq=%llu "
+        "entries=%u bytes=%u scan_slots=%u flags=0x%x hdr_crc=0x%08x — the "
+        "fence-time manifest is durably sealed; publishing the pointer next",
+        slot, d->victim_node, (unsigned long long)d->victim_epoch,
+        d->fence_term, (unsigned long long)seq, count, byte_len, scan_slots,
+        flags, hdr->hdr_crc32c);
+    rc = 0;
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(hdr);
+    return rc;
+}
+
+int mxfs_disklock_recovery_fence_seal(struct mxfs_disklock_ctx *ctx, int slot,
+                                      const struct mxfs_recov_fence_auth *auth,
+                                      const struct mxfs_recov_manifest_ptr *mp)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    const struct mxfs_recov_desc *d;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !auth || !mp || mp->magic != MXFS_RECOV_MPTR_MAGIC)
+        return -EINVAL;
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    rc = rman_check_lease(ctx, slot, auth, cur, &d, "seal");
+    if (rc == -EEXIST) {
+        /* Already FENCED.  Idempotent only if it carries OUR pointer. */
+        const struct mxfs_recov_manifest_ptr *have = recov_mptr_of(cur);
+
+        rc = (have && have->seq == mp->seq &&
+              have->fence_term == mp->fence_term &&
+              have->writer_node == ctx->local_node &&
+              inc_eq(have->writer_epoch, ctx->epoch)) ? 0 : -EEXIST;
+        goto out;
+    }
+    if (rc)
+        goto out;
+    if (mp->fence_term != d->fence_term) {
+        rc = -ESTALE;           /* a pointer from a superseded term */
+        goto out;
+    }
+
+    /*
+     * SNAPSHOTTING -> FENCED, prover -> UNOWNED, and the manifest pointer,
+     * in ONE compare-and-write.  Two writes would leave a window in which
+     * the descriptor is certified but still owned by a prover that is not
+     * going to execute the recovery (the sess75 argument), or FENCED
+     * without a pointer (which no gate accepts).
+     */
+    *want = *cur;
+    want->recov.desc.stage           = MXFS_RECOV_STAGE_FENCED;
+    want->recov.desc.stage_seq       = d->stage_seq + 1;
+    want->recov.desc.owner_stamp_ms  = recov_stamp_after(d->owner_stamp_ms);
+    want->recov.desc.owner_node      = MXFS_RECOV_OWNER_NONE;
+    want->recov.desc.owner_epoch     = 0;
+    want->recov.desc.owner_slot      = 0;
+    want->recov.desc.flags          &= ~MXFS_RECOV_F_OWNER_BOOTSTRAP;  /* sess440: unowned */
+    want->recov.desc.owner_term      = 0;
+    recov_desc_seal(want);
+    want->recov.mptr = *mp;
+    recov_mptr_seal(want);
+
+    rc = recov_cas_durable(ctx, slot, cur, want);
+    if (rc == 0)
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P236-FENCE-SEALED slot=%d victim=%u epoch=%llu kind=%s "
+            "prover=%u term=%u manifest{seq=%llu entries=%u bytes=%u "
+            "flags=0x%x} — certificate + sealed fence-time manifest are "
+            "durable (stage=FENCED).  The descriptor is now UNOWNED; the "
+            "elected replayer may claim it",
+            slot, d->victim_node, (unsigned long long)d->victim_epoch,
+            mxfs_fence_kind_name((enum mxfs_fence_kind)d->fence_kind),
+            d->fence_prover_node, d->fence_term,
+            (unsigned long long)mp->seq, mp->entry_count, mp->byte_len,
+            mp->flags);
+    else
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P236-FENCE-SEAL-FAIL slot=%d victim=%u rc=%d — the "
+            "manifest is sealed but the pointer is NOT durable; the attempt "
+            "stays at SNAPSHOTTING and is re-driven (idempotent)",
+            slot, d->victim_node, rc);
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return rc;
+}
+
+/*
+ * sess442: the loader proper.  `xd`/`xmp` non-NULL = the ESCROWED descriptor
+ * and manifest pointer of the bootstrap owner's adopted slot K (its sector
+ * now holds the owner's ACTIVE record, so nothing can be read from it); the
+ * pointer's crc is re-verified against the victim identity it was sealed
+ * under, exactly as recov_mptr_of does from the sector.
+ */
+static int rman_manifest_read_impl(struct mxfs_disklock_ctx *ctx, int slot,
+                                   mxfs_node_id_t victim,
+                                   mxfs_epoch_t victim_epoch,
+                                   const struct mxfs_recov_desc *xd,
+                                   const struct mxfs_recov_manifest_ptr *xmp,
+                                   struct mxfs_recov_manifest_ptr *out_ptr,
+                                   struct mxfs_rman_entry **out_ents,
+                                   uint32_t *out_count,
+                                   bool *out_no_caw)
+{
+    struct mxfs_disklock_heartbeat *cur = NULL;
+    struct mxfs_rman_hdr *hdr = NULL;
+    struct mxfs_rman_entry *ents = NULL;
+    const struct mxfs_recov_desc *d;
+    const struct mxfs_recov_manifest_ptr *mp;
+    uint64_t base, off;
+    const char *why = "?";
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        !out_ents || !out_count || !out_no_caw || !victim)
+        return -EINVAL;
+    *out_ents = NULL;
+    *out_count = 0;
+    *out_no_caw = false;
+    if (!ctx->rman_offset)
+        return -ENODEV;
+
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    hdr = mxfs_pal_alloc(sizeof(*hdr));
+    if (!cur || !hdr) {
+        rc = -ENOMEM;
+        goto out;
+    }
+    if (xd) {
+        d = xd;
+        mp = xmp;
+        if (!mp || mp->magic != MXFS_RECOV_MPTR_MAGIC ||
+            mp->version != MXFS_RECOV_MPTR_VERSION ||
+            mp->crc32c != recov_mptr_crc(ctx->fs_gen, victim, victim_epoch, mp)) {
+            rc = -EPROTO;
+            why = "escrowed manifest pointer does not validate for the victim";
+            goto bad;
+        }
+    } else {
+        off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+        mxfs_pal_mutex_lock(ctx->lock);
+        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        if (rc < 0)
+            goto out;
+        d = recov_desc_of(cur);
+        if (!d) {
+            rc = recov_desc_present(cur) ? -EPROTO : -ENOENT;
+            why = "no valid descriptor";
+            goto bad;
+        }
+        mp = recov_mptr_of(cur);
+    }
+    if (d->victim_node != victim || !inc_eq(d->victim_epoch, victim_epoch)) {
+        rc = -ESTALE;
+        why = "descriptor names a different victim";
+        goto bad;
+    }
+    if (d->stage < MXFS_RECOV_STAGE_FENCED) {
+        rc = -EPERM;
+        why = "not FENCED";
+        goto bad;
+    }
+    if (!mp) {
+        rc = -EPROTO;
+        why = "certified descriptor carries no valid manifest pointer";
+        goto bad;
+    }
+    if (out_ptr)
+        *out_ptr = *mp;
+
+    base = rman_slot_off(ctx, slot);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, base, hdr, sizeof(*hdr));
+    if (rc < 0) {
+        why = "manifest header unreadable";
+        goto bad;
+    }
+    if (hdr->magic != MXFS_RMAN_MAGIC || hdr->version != MXFS_RMAN_VERSION) {
+        rc = -EPROTO; why = "manifest header magic/version"; goto bad;
+    }
+    if (hdr->seal != MXFS_RMAN_SEAL) {
+        rc = -EPROTO; why = "manifest not sealed"; goto bad;
+    }
+    if (hdr->hdr_crc32c != rman_hdr_crc(hdr)) {
+        rc = -EPROTO; why = "manifest header crc"; goto bad;
+    }
+    if (hdr->hdr_crc32c != mp->hdr_crc32c || hdr->seq != mp->seq ||
+        hdr->entry_count != mp->entry_count || hdr->byte_len != mp->byte_len ||
+        hdr->entries_crc32c != mp->entries_crc32c ||
+        hdr->fence_term != mp->fence_term ||
+        hdr->writer_node != mp->writer_node ||
+        !inc_eq(hdr->writer_epoch, mp->writer_epoch) ||
+        hdr->scan_slots != mp->scan_slots ||
+        (hdr->flags & (MXFS_RECOV_MPTR_F_NO_CAW_TABLE |
+                       MXFS_RECOV_MPTR_F_TAUTH_LEDGER)) !=
+            (mp->flags & (MXFS_RECOV_MPTR_F_NO_CAW_TABLE |
+                          MXFS_RECOV_MPTR_F_TAUTH_LEDGER)) ||
+        hdr->victim_slot != (uint16_t)slot || hdr->victim_node != victim ||
+        !inc_eq(hdr->victim_epoch, victim_epoch) ||
+        hdr->recovery_gen != d->recovery_gen ||
+        hdr->victim_fs_gen != d->victim_fs_gen ||
+        hdr->fence_term != d->fence_term) {
+        rc = -EPROTO; why = "manifest header does not match the pointer/descriptor"; goto bad;
+    }
+    /* GPT review item 12: semantic validation, not just crc. */
+    if (hdr->entry_count > MXFS_RMAN_MAX_ENTRIES ||
+        (uint64_t)hdr->byte_len !=
+            (uint64_t)hdr->entry_count * sizeof(struct mxfs_rman_entry) ||
+        (uint64_t)MXFS_RMAN_ENTRIES_OFF + hdr->byte_len > MXFS_RMAN_SLOT_BYTES) {
+        rc = -EPROTO; why = "manifest entry geometry"; goto bad;
+    }
+    if (hdr->flags & ~(MXFS_RECOV_MPTR_F_NO_CAW_TABLE |
+                       MXFS_RECOV_MPTR_F_INJECT_TORN |
+                       MXFS_RECOV_MPTR_F_TAUTH_LEDGER)) {
+        rc = -EPROTO; why = "manifest header flags"; goto bad;
+    }
+    if ((hdr->flags & MXFS_RECOV_MPTR_F_NO_CAW_TABLE) &&
+        (hdr->flags & MXFS_RECOV_MPTR_F_TAUTH_LEDGER)) {
+        rc = -EPROTO; why = "manifest claims both NO_CAW and a ledger source"; goto bad;
+    }
+    if (hdr->flags & MXFS_RECOV_MPTR_F_NO_CAW_TABLE) {
+        if (hdr->entry_count || hdr->scan_slots) {
+            rc = -EPROTO; why = "NO_CAW manifest is not empty"; goto bad;
+        }
+        *out_no_caw = true;
+    } else if (hdr->flags & MXFS_RECOV_MPTR_F_TAUTH_LEDGER) {
+        /* the ledger geometry is the consumer's to check (it has the
+         * region open); a scan of zero pages is never a complete manifest */
+        if (hdr->scan_slots == 0) {
+            rc = -EPROTO; why = "ledger manifest scanned no pages"; goto bad;
+        }
+    } else if (hdr->scan_slots != MXFS_RMAN_MAX_ENTRIES) {
+        rc = -EPROTO; why = "manifest did not scan the whole CAW table"; goto bad;
+    }
+    {
+        size_t i;
+
+        for (i = 0; i < sizeof(hdr->pad); i++)
+            if (hdr->pad[i]) {
+                rc = -EPROTO; why = "manifest header reserved bytes"; goto bad;
+            }
+    }
+    if (hdr->entry_count) {
+        uint32_t crc, i, io_len;
+
+        io_len = (hdr->byte_len + MXFS_RMAN_IO_ALIGN - 1) &
+                 ~(MXFS_RMAN_IO_ALIGN - 1);
+        ents = mxfs_pal_alloc(io_len);
+        if (!ents) {
+            rc = -ENOMEM;
+            goto out;
+        }
+        rc = mxfs_pal_bdev_read(ctx->dev, base + MXFS_RMAN_ENTRIES_OFF, ents,
+                                io_len);
+        if (rc < 0) {
+            why = "manifest entries unreadable";
+            goto bad;
+        }
+        crc = mxfs_pal_crc32c(~0U, ents, hdr->byte_len);
+        if (crc != hdr->entries_crc32c) {
+            rc = -EPROTO; why = "manifest entries crc"; goto bad;
+        }
+        /* entries are in strictly increasing slot order by construction;
+         * every field must be in range; no duplicate slot (and the
+         * {type,id} duplicate check is done by the index builder).
+         *
+         * The slot_idx space depends on the manifest's SOURCE: a CAW
+         * manifest indexes the fixed 65536-slot lock table; a ledger
+         * manifest (0.71.0) indexes the TCP authority ledger, page *
+         * entries-per-page + entry, over the scan_slots pages the collector
+         * read — a region sized for this volume, 26426 pages on the QNAP
+         * LUN, so its indexes run to ~819k.  Bounding both by the CAW table
+         * size refused every ledger manifest with an entry past page 2114
+         * (2026-09-04 s502a: P-RMAN-INVALID rc=-71 on a 90-entry manifest,
+         * replay refused, slice quarantined). */
+        uint32_t idx_bound = (hdr->flags & MXFS_RECOV_MPTR_F_TAUTH_LEDGER) ?
+            hdr->scan_slots * MXFS_TAUTH_ENTRIES_PER_PAGE : MXFS_RMAN_MAX_ENTRIES;
+        uint32_t idx_max = 0;
+
+        for (i = 0; i < hdr->entry_count; i++) {
+            const struct mxfs_rman_entry *e = &ents[i];
+
+            if (e->slot_idx >= idx_bound ||
+                (i && e->slot_idx <= ents[i - 1].slot_idx) ||
+                e->type < MXFS_LTYPE_INODE || e->type > MXFS_LTYPE_ICLUSTER ||
+                !e->mode || (e->mode & ~(MXFS_RMAN_MODE_EX | MXFS_RMAN_MODE_PW)) ||
+                e->flags) {
+                mxfs_pal_log(MXFS_LOG_ERR,
+                    "disklock: P-RMAN-INVALID-ENTRY slot=%d i=%u/%u slot_idx=%u "
+                    "prev=%u bound=%u type=%u mode=0x%x flags=0x%x flagsrc=0x%x "
+                    "scan=%u",
+                    slot, i, hdr->entry_count, e->slot_idx,
+                    i ? ents[i - 1].slot_idx : 0, idx_bound, e->type, e->mode,
+                    e->flags, hdr->flags, hdr->scan_slots);
+                rc = -EPROTO; why = "manifest entry out of range / order"; goto bad;
+            }
+            idx_max = e->slot_idx;
+        }
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P-RMAN-ENTRIES slot=%d entries=%u idx_max=%u bound=%u "
+            "flags=0x%x scan=%u",
+            slot, hdr->entry_count, idx_max, idx_bound, hdr->flags,
+            hdr->scan_slots);
+    }
+    *out_ents = ents;
+    ents = NULL;
+    *out_count = hdr->entry_count;
+    mxfs_pal_log(MXFS_LOG_WARN,
+        "disklock: P-RMAN-LOADED slot=%d victim=%u epoch=%llu seq=%llu "
+        "entries=%u flags=0x%x writer=%u/%llu term=%u — sealed fence-time "
+        "manifest validated against the certificate's pointer",
+        slot, victim, (unsigned long long)victim_epoch,
+        (unsigned long long)hdr->seq, hdr->entry_count, hdr->flags,
+        hdr->writer_node, (unsigned long long)hdr->writer_epoch,
+        hdr->fence_term);
+    rc = 0;
+    goto out;
+bad:
+    mxfs_pal_log(MXFS_LOG_ERR,
+        "disklock: P-RMAN-INVALID slot=%d victim=%u epoch=%llu rc=%d — %s; "
+        "no verdict may be taken from this manifest (the replay attempt must "
+        "abort, nothing purged, evidence preserved)",
+        slot, victim, (unsigned long long)victim_epoch, rc, why);
+out:
+    mxfs_pal_free(ents);
+    mxfs_pal_free(cur);
+    mxfs_pal_free(hdr);
+    return rc;
+}
+
+int mxfs_disklock_recovery_manifest_read(struct mxfs_disklock_ctx *ctx, int slot,
+                                         mxfs_node_id_t victim,
+                                         mxfs_epoch_t victim_epoch,
+                                         struct mxfs_recov_manifest_ptr *out_ptr,
+                                         struct mxfs_rman_entry **out_ents,
+                                         uint32_t *out_count,
+                                         bool *out_no_caw)
+{
+    return rman_manifest_read_impl(ctx, slot, victim, victim_epoch, NULL, NULL,
+                                   out_ptr, out_ents, out_count, out_no_caw);
+}
+
+int mxfs_disklock_recovery_manifest_read_escrow(struct mxfs_disklock_ctx *ctx,
+                                                int slot, mxfs_node_id_t victim,
+                                                mxfs_epoch_t victim_epoch,
+                                                const struct mxfs_recov_desc *d,
+                                                const struct mxfs_recov_manifest_ptr *mptr,
+                                                struct mxfs_recov_manifest_ptr *out_ptr,
+                                                struct mxfs_rman_entry **out_ents,
+                                                uint32_t *out_count,
+                                                bool *out_no_caw)
+{
+    if (!d || !mptr)
+        return -EINVAL;
+    return rman_manifest_read_impl(ctx, slot, victim, victim_epoch, d, mptr,
+                                   out_ptr, out_ents, out_count, out_no_caw);
+}
+
+int mxfs_disklock_recovery_mptr_read(struct mxfs_disklock_ctx *ctx, int slot,
+                                     struct mxfs_recov_manifest_ptr *out)
+{
+    struct mxfs_disklock_heartbeat *cur;
+    const struct mxfs_recov_manifest_ptr *mp;
+    int rc;
+
+    if (!ctx || !ctx->dev || !out || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    cur = mxfs_pal_alloc(sizeof(*cur));
+    if (!cur)
+        return -ENOMEM;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, ctx->base_offset +
+                                 (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE,
+                                 cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc == 0) {
+        mp = recov_mptr_of(cur);
+        if (mp)
+            *out = *mp;
+        else
+            rc = -ENOENT;
+    }
+    mxfs_pal_free(cur);
     return rc;
 }
 
@@ -5620,7 +10237,8 @@ int mxfs_disklock_recovery_fence_takeover(struct mxfs_disklock_ctx *ctx,
         rc = -EEXIST;           /* already certified; claim it instead */
         goto out;
     }
-    if (d0->stage != MXFS_RECOV_STAGE_FENCING) {
+    if (d0->stage != MXFS_RECOV_STAGE_FENCING &&
+        d0->stage != MXFS_RECOV_STAGE_SNAPSHOTTING) {
         rc = -EPROTO;
         goto out;
     }
@@ -5648,9 +10266,13 @@ int mxfs_disklock_recovery_fence_takeover(struct mxfs_disklock_ctx *ctx,
      * here, exactly one P&A wins and only that one can certify — the loser's
      * fence_kind is RACE_LOST and certify refuses it.
      *
-     * Blocks for MXFS_RECOV_ABANDON_MS; never call this on the HB thread.
+     * Blocks for MXFS_RECOV_ABANDON_MS; never call this on the HB thread.  A
+     * fatal signal on the caller abandons the observation (recov_abandon_wait):
+     * no attempt lease is taken.
      */
-    mxfs_pal_sleep_ms(MXFS_RECOV_ABANDON_MS);
+    rc = recov_abandon_wait();
+    if (rc)
+        goto out;
 
     mxfs_pal_mutex_lock(ctx->lock);
     rc = mxfs_pal_bdev_read_prio(ctx->dev, off, again, sizeof(*again));
@@ -5679,28 +10301,67 @@ int mxfs_disklock_recovery_fence_takeover(struct mxfs_disklock_ctx *ctx,
     *want = *again;
     want->recov.desc.owner_node        = ctx->local_node;
     want->recov.desc.owner_epoch       = ctx->epoch;
-    want->recov.desc.owner_slot        = (uint16_t)ctx->local_slot;
+    recov_desc_set_owner_slot(ctx, &want->recov.desc);      /* sess440 */
     want->recov.desc.stage_seq         = d1->stage_seq + 1;
     want->recov.desc.owner_stamp_ms    = recov_stamp_after(d1->owner_stamp_ms);
-    want->recov.desc.fence_term        = d1->fence_term + 1;
-    want->recov.desc.fence_prover_node = ctx->local_node;
-    want->recov.desc.fence_prover_epoch = ctx->epoch;
-    want->recov.desc.fence_victim_key  = victim_key;
-    want->recov.desc.fence_stamp_ms    = mxfs_pal_time_ms();
+    if (d1->stage == MXFS_RECOV_STAGE_FENCING) {
+        /* A NEW fencing attempt: new term, we become the prover of whatever
+         * we prove. */
+        want->recov.desc.fence_term        = d1->fence_term + 1;
+        want->recov.desc.fence_prover_node = ctx->local_node;
+        want->recov.desc.fence_prover_epoch = ctx->epoch;
+        want->recov.desc.fence_victim_key  = victim_key;
+        want->recov.desc.fence_stamp_ms    = mxfs_pal_time_ms();
+        /* 0.74.0: a new prover starts a new non-proving series; the dead
+         * prover's blocked verdict does not carry over. */
+        want->recov.desc.flags            &= ~MXFS_RECOV_F_FENCE_BLOCKED;
+        /* 0.89.9: the submission marker is per term.  The dead term's "a
+         * command may have run" becomes PRIOR-TERM history (it still forbids
+         * reading key absence as that command's success); the new term has
+         * submitted nothing, so its own marker starts clear and the retry
+         * worker may re-drive a pre-command non-proving attempt.  Before
+         * this the inherited bit left the taken-over attempt ineligible for
+         * retry for good (sweep s71a cuts 3 and 4). */
+        if (d1->flags & (MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN |
+                         MXFS_RECOV_F_FENCE_PRIOR_TERM_MAY_HAVE_RUN))
+            want->recov.desc.flags        |= MXFS_RECOV_F_FENCE_PRIOR_TERM_MAY_HAVE_RUN;
+        want->recov.desc.flags            &= ~MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN;
+    }
+    /* sess405 (GPT review item 3): at SNAPSHOTTING the certificate bytes —
+     * kind, resv, key, prover, pr_gen, stamp AND fence_term — are IMMUTABLE:
+     * they name the one fencing operation that was proved, and no fencing
+     * operation happens here.  The snapshot lease is owner_node/owner_epoch
+     * (+ stage_seq); the dead holder can never present that incarnation
+     * again, so no term bump is needed to close an ABA. */
     recov_desc_seal(want);
 
     rc = recov_cas_durable(ctx, slot, again, want);
     if (rc == 0) {
         recov_fence_auth_issue(out_auth, &want->recov.desc);
-        mxfs_pal_log(MXFS_LOG_WARN,
-            "disklock: P236-FENCE-ATTEMPT-TAKEOVER slot=%d victim=%u from "
-            "prover=%u term=%u->%u — the previous prover died with the intent "
-            "durable.  We may retry the PREEMPT AND ABORT and certify OUR "
-            "result; we may NEVER certify theirs.  If the victim key is "
-            "already gone, no exclusion can be proved and this slice stays "
-            "unreplayable",
-            slot, snap.victim_node, snap.fence_prover_node,
-            snap.fence_term, want->recov.desc.fence_term);
+        if (d1->stage == MXFS_RECOV_STAGE_FENCING)
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P236-FENCE-ATTEMPT-TAKEOVER slot=%d victim=%u from "
+                "prover=%u term=%u->%u dead_term_armed=%d prior_term_may_have_run=%d "
+                "— the previous prover died with the intent durable.  We may "
+                "retry the PREEMPT AND ABORT and certify OUR result; we may "
+                "NEVER certify theirs, and an absent victim key is never read "
+                "as the dead term's success: it needs a proof of this term "
+                "(self or boot succession, the sole-survivor gate)",
+                slot, snap.victim_node, snap.fence_prover_node,
+                snap.fence_term, want->recov.desc.fence_term,
+                (snap.flags & MXFS_RECOV_F_FENCE_CMD_MAY_HAVE_RUN) ? 1 : 0,
+                (want->recov.desc.flags &
+                 MXFS_RECOV_F_FENCE_PRIOR_TERM_MAY_HAVE_RUN) ? 1 : 0);
+        else
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P-RMAN-SNAPSHOT-TAKEOVER slot=%d victim=%u from "
+                "owner=%u term=%u->%u — the prover died AFTER proving "
+                "exclusion (certificate durable at SNAPSHOTTING) and before "
+                "sealing the fence-time manifest.  We redo the scan and seal "
+                "under the new term; the P&A is NOT repeated and the "
+                "certificate's prover bytes are unchanged",
+                slot, snap.victim_node, snap.owner_node,
+                snap.fence_term, want->recov.desc.fence_term);
     }
 out:
     mxfs_pal_free(first);
@@ -5759,7 +10420,9 @@ int mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot,
      */
     if (!mxfs_recov_cert_proves_exclusion(d,
                 ctx->have_fs_identity ? ctx->fs_gen : 0,
-                slot, victim, victim_epoch, &why)) {
+                slot, victim, victim_epoch, &why) ||
+        (!recov_mptr_of(cur) &&
+         (why = "certified but carries no valid fence-time manifest pointer"))) {
         mxfs_pal_log(MXFS_LOG_WARN,
             "disklock: P236-CLAIM-UNCERTIFIED slot=%d victim=%u stage=%u "
             "kind=%u — %s; refusing the claim.  Nothing on this slice may be "
@@ -5790,7 +10453,7 @@ int mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot,
     *want = *cur;
     want->recov.desc.owner_node     = ctx->local_node;
     want->recov.desc.owner_epoch    = ctx->epoch;
-    want->recov.desc.owner_slot     = (uint16_t)ctx->local_slot;
+    recov_desc_set_owner_slot(ctx, &want->recov.desc);   /* sess440 */
     want->recov.desc.owner_term     = 1;
     want->recov.desc.stage_seq      = d->stage_seq + 1;
     want->recov.desc.owner_stamp_ms = recov_stamp_after(d->owner_stamp_ms);
@@ -5809,6 +10472,186 @@ int mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot,
             d->fence_prover_node, d->fence_term);
         rc = (int)stage;
     }
+out:
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return rc;
+}
+
+/*
+ * sess413 (D-MOUNT-RECOV-LEASE-STRANDED-BY-DEPARTED-OWNER-UNMOUNTABLE-532,
+ * Design-consult ruling): durably GIVE BACK every recovery lease this incarnation
+ * still owns, BEFORE the clean member-slot release retires the identity.
+ * A mount whose cohort-barrier replay failed abandons its claim here; the
+ * descriptor returns to UNOWNED with its stage and certificate preserved,
+ * so the next claimant (this node's next incarnation included) proceeds
+ * immediately instead of waiting forever on an owner that can never be
+ * proved dead (a cleanly departed incarnation has no heartbeat to expire).
+ *
+ * Caller contract (the ruling's ordering): runs only after the incarnation
+ * has stopped submitting recovery work — release_slot already requires the
+ * heartbeat stopped and the DLM teardown has joined its workers by then;
+ * the mount barrier's replay is synchronous and has returned.
+ *
+ * Returns 0 iff it can PROVE this incarnation owns no descriptor (none
+ * found, or every found one durably given back).  Any read failure or
+ * failed give-back returns an error — the caller must then NOT write the
+ * clean member release: an owned descriptor with a fenceable owner is
+ * recoverable via HB expiry + fence; an unfenceable orphan owner is the
+ * D-532 permanent-unmount state.
+ */
+int mxfs_disklock_recovery_relinquish_owned(struct mxfs_disklock_ctx *ctx)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    int slot, rc, tries, owned = 0, given = 0, failed = 0;
+
+    if (!ctx || !ctx->dev)
+        return -EINVAL;
+    cur  = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        mxfs_pal_free(cur);
+        mxfs_pal_free(want);
+        return -ENOMEM;
+    }
+
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+        for (tries = 0; tries < 2; tries++) {
+            const struct mxfs_recov_desc *d;
+
+            mxfs_pal_mutex_lock(ctx->lock);
+            rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+            mxfs_pal_mutex_unlock(ctx->lock);
+            if (rc < 0) {
+                /* cannot PROVE we do not own this one */
+                failed++;
+                mxfs_pal_log(MXFS_LOG_WARN,
+                    "disklock: P236-RELINQ-READFAIL slot=%d rc=%d — cannot "
+                    "prove this incarnation owns no recovery here",
+                    slot, rc);
+                break;
+            }
+            d = recov_desc_of(cur);
+            if (!d || d->owner_node != ctx->local_node ||
+                !inc_eq(d->owner_epoch, ctx->epoch))
+                break;          /* not ours (any more) — nothing to do */
+
+            owned++;
+            *want = *cur;
+            want->recov.desc.owner_node     = MXFS_RECOV_OWNER_NONE;
+            want->recov.desc.owner_epoch    = 0;
+            want->recov.desc.owner_slot     = 0;
+            want->recov.desc.flags         &= ~MXFS_RECOV_F_OWNER_BOOTSTRAP;  /* sess440 */
+            want->recov.desc.owner_term     = 0;
+            want->recov.desc.stage_seq      = d->stage_seq + 1;
+            want->recov.desc.owner_stamp_ms =
+                recov_stamp_after(d->owner_stamp_ms);
+            recov_desc_seal(want);
+
+            rc = recov_cas_durable(ctx, slot, cur, want);
+            if (rc == 0) {
+                given++;
+                mxfs_pal_log(MXFS_LOG_WARN,
+                    "disklock: P236-RECOV-RELINQUISH slot=%d victim=%u "
+                    "stage=%u — this departing incarnation (node=%u) gave "
+                    "its recovery lease back UNOWNED (stage and certificate "
+                    "preserved); the next claimant proceeds without a "
+                    "death proof (D-532)",
+                    slot, d->victim_node, d->stage, ctx->local_node);
+                break;
+            }
+            if (rc == -EAGAIN && tries == 0) {
+                owned--;        /* re-read and re-judge once */
+                continue;
+            }
+            failed++;
+            mxfs_pal_log(MXFS_LOG_WARN,
+                "disklock: P236-RELINQ-FAIL slot=%d rc=%d — the give-back "
+                "did not land; the member slot must NOT be cleanly "
+                "released (identity must stay fenceable)",
+                slot, rc);
+            break;
+        }
+        if (failed)
+            break;
+    }
+
+    if (owned || failed)
+        mxfs_pal_log(MXFS_LOG_WARN,
+            "disklock: P236-RELINQ-SUMMARY node=%u owned=%d given_back=%d "
+            "failed=%d",
+            ctx->local_node, owned, given, failed);
+
+    mxfs_pal_free(cur);
+    mxfs_pal_free(want);
+    return failed ? -EIO : 0;
+}
+
+int mxfs_disklock_recovery_relinquish_slot(struct mxfs_disklock_ctx *ctx,
+                                           int slot,
+                                           const struct mxfs_recov_auth *auth)
+{
+    struct mxfs_disklock_heartbeat *cur, *want;
+    const struct mxfs_recov_desc *d;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || !auth || slot < 0 ||
+        slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    cur  = mxfs_pal_alloc(sizeof(*cur));
+    want = mxfs_pal_alloc(sizeof(*want));
+    if (!cur || !want) {
+        mxfs_pal_free(cur);
+        mxfs_pal_free(want);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0)
+        goto out;
+    d = recov_desc_of(cur);
+    if (!d || d->owner_node != ctx->local_node ||
+        !inc_eq(d->owner_epoch, ctx->epoch) ||
+        !recov_tok_eq(d->recovery_gen, auth->recovery_gen) ||
+        d->owner_term != auth->owner_term ||
+        d->victim_slot != auth->victim_slot ||
+        d->victim_node != auth->victim_node) {
+        rc = -ENOENT;
+        goto out;
+    }
+
+    *want = *cur;
+    want->recov.desc.owner_node     = MXFS_RECOV_OWNER_NONE;
+    want->recov.desc.owner_epoch    = 0;
+    want->recov.desc.owner_slot     = 0;
+    want->recov.desc.flags         &= ~MXFS_RECOV_F_OWNER_BOOTSTRAP;  /* sess440 */
+    want->recov.desc.owner_term     = 0;
+    want->recov.desc.stage_seq      = d->stage_seq + 1;
+    want->recov.desc.owner_stamp_ms = recov_stamp_after(d->owner_stamp_ms);
+    recov_desc_seal(want);
+
+    rc = recov_cas_durable(ctx, slot, cur, want);
+    if (rc == 0)
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P236-RECOV-RELINQUISH-SLOT slot=%d victim=%u stage=%u "
+            "gen=%llu term=%u — owner node=%u/%llu gave its recovery lease "
+            "back UNOWNED after the bounded completion deadline (stage and "
+            "certificate preserved); a successor may take it over",
+            slot, d->victim_node, d->stage,
+            (unsigned long long)d->recovery_gen, d->owner_term,
+            ctx->local_node, (unsigned long long)ctx->epoch);
+    else
+        mxfs_pal_log(MXFS_LOG_ERR,
+            "disklock: P236-RELINQ-SLOT-FAIL slot=%d victim=%u rc=%d — the "
+            "give-back did not land",
+            slot, d->victim_node, rc);
 out:
     mxfs_pal_free(cur);
     mxfs_pal_free(want);
@@ -5942,7 +10785,9 @@ int mxfs_disklock_recovery_replay_authorized(struct mxfs_disklock_ctx *ctx,
 
     if (!mxfs_recov_cert_proves_exclusion(d,
                 ctx->have_fs_identity ? ctx->fs_gen : 0,
-                slot, victim, victim_epoch, &why)) {
+                slot, victim, victim_epoch, &why) ||
+        (!recov_mptr_of(cur) &&
+         (why = "certified but carries no valid fence-time manifest pointer"))) {
         mxfs_pal_log(MXFS_LOG_ERR,
             "disklock: P236-REPLAY-REFUSED site=%s slot=%d victim=%u "
             "epoch=%llu stage=%u kind=%u resv=0x%02x — %s",
@@ -6003,6 +10848,20 @@ void mxfs_disklock_set_fs_identity(struct mxfs_disklock_ctx *ctx,
     ctx->have_fs_identity = true;
 }
 
+/* sess441: the same fold, for a caller that has no disklock yet (the bootstrap
+ * record is read BEFORE the PR REGISTER, §6.1 waiter rule). */
+uint32_t mxfs_disklock_fs_gen_of(const uint8_t *fs_uuid)
+{
+    mxfs_volume_id_t vid;
+    uint32_t gen;
+
+    if (!fs_uuid)
+        return 0;
+    vid = mxfs_uuid_to_volume_id(fs_uuid, 16);
+    gen = (uint32_t)(vid ^ (vid >> 32));
+    return gen ? gen : 1;
+}
+
 void mxfs_disklock_set_fence_cb(struct mxfs_disklock_ctx *ctx,
                                 mxfs_disklock_fence_cb cb, void *data)
 {
@@ -6019,6 +10878,16 @@ void mxfs_disklock_set_conflict_cb(struct mxfs_disklock_ctx *ctx,
         return;
     ctx->conflict_cb = cb;
     ctx->conflict_cb_data = data;
+}
+
+void mxfs_disklock_set_dbg_purge_hook(struct mxfs_disklock_ctx *ctx,
+                                      mxfs_disklock_dbg_purge_hook hook,
+                                      void *data)
+{
+    if (!ctx)
+        return;
+    ctx->dbg_purge_hook = hook;
+    ctx->dbg_purge_hook_data = data;
 }
 
 void mxfs_disklock_set_evict_cb(struct mxfs_disklock_ctx *ctx,
@@ -6201,6 +11070,65 @@ bool mxfs_disklock_slot_holds_incarnation(struct mxfs_disklock_ctx *ctx,
     return held;
 }
 
+/*
+ * sess424 (barrier resolved-elsewhere ruling, P0): is `slot`'s sector in an
+ * ENUMERATED terminal state for victim {node, epoch}?  Only two shapes
+ * count, from a FRESH read: (1) a recognized ZERO record (magic 0, flags
+ * EMPTY, no node — what recovery completion / clean release leave), or
+ * (2) a valid ACTIVE record of OUR mkfs generation naming a DIFFERENT
+ * incarnation (a successor can only claim after the predecessor's
+ * completion).  Everything else — the victim itself in any flag state,
+ * WITHDRAWN, a recovery descriptor, a foreign-generation ghost, bad magic,
+ * an unread sector — is NOT terminal (fail closed).  *why names the shape.
+ */
+bool mxfs_disklock_slot_terminal_for(struct mxfs_disklock_ctx *ctx, int slot,
+                                     mxfs_node_id_t node, mxfs_epoch_t epoch,
+                                     const char **why)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    uint64_t off;
+    bool term = false;
+    int rc;
+
+    if (why)
+        *why = "invalid";
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS || !node)
+        return false;
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb)
+        return false;
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, hb, sizeof(*hb));
+    mxfs_pal_mutex_unlock(ctx->lock);
+    if (rc < 0) {
+        if (why)
+            *why = "unread";
+        mxfs_pal_free(hb);
+        return false;
+    }
+    if (hb->magic == 0 && hb->flags == MXFS_DISKLOCK_FLAG_EMPTY &&
+        hb->node_id == 0 && hb->epoch == 0) {
+        term = true;
+        if (why)
+            *why = "zero";
+    } else if (hb->magic == MXFS_DISKLOCK_MAGIC && !hb_gen_foreign(ctx, hb) &&
+               hb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+               (hb->node_id != node || hb->epoch != epoch)) {
+        term = true;
+        if (why)
+            *why = "successor";
+    } else if (why) {
+        *why = (hb->magic != MXFS_DISKLOCK_MAGIC) ? "badmagic" :
+               hb_gen_foreign(ctx, hb) ? "foreign" :
+               (hb->flags == MXFS_DISKLOCK_FLAG_WITHDRAWN) ? "withdrawn" :
+               (hb->flags == MXFS_DISKLOCK_FLAG_ACTIVE) ? "victim-active" :
+               "descriptor-or-other";
+    }
+    mxfs_pal_free(hb);
+    return term;
+}
+
 int mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx,
                                    int skip_slot)
 {
@@ -6218,6 +11146,129 @@ int mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx,
             return slot;
     }
     return -1;
+}
+
+/*
+ * How many live slots sit BELOW ours — 0 means we are the lowest, i.e. the
+ * node mxfs_disklock_lowest_live_slot() elects.
+ *
+ * The election answers "am I the one", which is all a job needs when the
+ * elected node is always able to do it.  It is not enough when the job must
+ * still get done if that node is gone: every other node then reads "not me"
+ * and the work is simply never performed.  A RANK lets the others queue
+ * behind the elected node in a fixed, collision-free order instead, each
+ * waiting longer than the one below it before stepping in.
+ *
+ * Same liveness predicate as the election above, deliberately in the same
+ * place: a rank derived from a second, drifting copy of "is that slot live"
+ * would put two nodes at rank 0.
+ */
+int mxfs_disklock_live_slot_rank(struct mxfs_disklock_ctx *ctx)
+{
+    int slot, rank = 0;
+
+    if (!ctx || ctx->local_slot < 0)
+        return -1;      /* no slot claimed: we are not in the order at all */
+
+    for (slot = 0; slot < ctx->local_slot &&
+                   slot < MXFS_DISKLOCK_HB_SLOTS; slot++)
+        if (ctx->monitored[slot] && ctx->node_track[slot].live)
+            rank++;
+    return rank;
+}
+
+/*
+ * 0.75.26: retire a recovered incarnation's TRACKING with it, on the node
+ * that completed the recovery.  The monitor's P163-RECOVERED path (sess86)
+ * already does this for a survivor that learns of the completion by seeing
+ * the zeroed sector — but the ELECTED replayer clears the pending marker
+ * itself (mxfs_disklock_clear_recovery_pending) before its monitor's next
+ * pass, so that path never runs for it and node_track[slot].last_epoch /
+ * slot_node_id[slot] stay pinned to the dead incarnation.  The slot's next
+ * claimant then reads as an epoch change of the retired victim: measured
+ * s516f1 on the 2-node TCP rig (test1 always the elected node) — 'P-EVICT-
+ * AUTOMON slot=1 node=<successor>' immediately followed by 'node in slot 1
+ * has restarted (detected epoch change from <victim inc> to <successor
+ * inc>)', a second death of a node recovered four minutes earlier
+ * (NO_VICTIM_KEY, refused), the live successor's goodbye ignored as a
+ * recovery-pending identity, 40 s of view skew and a REMASTER storm; in
+ * s516b the same shape failed a rejoining mount outright (60 REMASTER
+ * retries on the root inode, filesystem shut down).
+ *
+ * Same policy as the monitor path: if a successor already holds the slot,
+ * it inherits the slot's membership standing (an ACTIVE record proves
+ * ownership, not liveness — it enters dead-detection immediately);
+ * otherwise the slot is forgotten and the auto-monitor re-baselines on
+ * whoever claims it next.  Only the exact incarnation that was recovered is
+ * retired; a slot already re-tracked for someone else is left alone.
+ */
+void mxfs_disklock_slot_tenancy_retire(struct mxfs_disklock_ctx *ctx, int slot,
+                                       mxfs_node_id_t node,
+                                       mxfs_epoch_t victim_epoch)
+{
+    struct mxfs_disklock_heartbeat *rhb;
+    struct mxfs_disklock_node_track *nt;
+    bool successor = false;
+    int rc = -ENOMEM;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS ||
+        slot == ctx->local_slot)
+        return;
+    nt = &ctx->node_track[slot];
+    if (ctx->slot_node_id[slot] != node ||
+        (inc_valid(victim_epoch) && inc_valid(nt->last_epoch) &&
+         !inc_eq(nt->last_epoch, victim_epoch))) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P-SLOT-TENANCY-KEPT slot=%d node=%u inc=%llu — "
+                     "tracking names node=%u inc=%llu, not the recovered "
+                     "incarnation; left alone",
+                     slot, node, (unsigned long long)victim_epoch,
+                     ctx->slot_node_id[slot],
+                     (unsigned long long)nt->last_epoch);
+        return;
+    }
+    rhb = mxfs_pal_alloc(sizeof(*rhb));
+    if (rhb) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+
+        mxfs_pal_mutex_lock(ctx->lock);
+        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, rhb, sizeof(*rhb));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        successor = rc == 0 && rhb->magic == MXFS_DISKLOCK_MAGIC &&
+                    rhb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+                    !hb_gen_foreign(ctx, rhb) && rhb->node_id != 0 &&
+                    rhb->node_id != node && inc_valid(rhb->epoch);
+    }
+    mxfs_pal_mutex_lock(ctx->lock);
+    nt->changed_samples = 0;
+    nt->equal_samples   = 0;
+    nt->evict_seen      = false;
+    nt->seq_seen        = false;
+    if (successor) {
+        nt->last_epoch     = rhb->epoch;
+        nt->last_timestamp = rhb->timestamp_ms;
+        nt->last_change_ms = mxfs_pal_time_ms();
+        nt->live           = true;
+        ctx->monitored[slot]    = true;
+        ctx->slot_node_id[slot] = rhb->node_id;
+    } else {
+        nt->last_epoch     = 0;
+        nt->last_timestamp = 0;
+        nt->live           = false;
+        ctx->monitored[slot]    = false;
+        ctx->slot_node_id[slot] = 0;
+    }
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "mxfs: P-SLOT-TENANCY-RETIRED slot=%d node=%u inc=%llu "
+                 "successor=%u/%llu — the recovered incarnation's tracking "
+                 "is retired with it; the slot's next claimant is a new "
+                 "tenancy, not a restart",
+                 slot, node, (unsigned long long)victim_epoch,
+                 successor ? rhb->node_id : 0,
+                 successor ? (unsigned long long)rhb->epoch : 0ULL);
+    mxfs_pal_free(rhb);
 }
 
 void mxfs_disklock_unmonitor_node(struct mxfs_disklock_ctx *ctx,
@@ -6343,7 +11394,7 @@ mxfs_node_id_t mxfs_disklock_get_slot_node_id(struct mxfs_disklock_ctx *ctx,
  * the first empty slot.  Returns the slot index or negative errno.
  */
 /*
- * sess130 (ccloop, RULE 4 PROVEN): the slot claim was a non-atomic
+ * sess130 (ccloop, PROVEN BY INSTRUMENT): the slot claim was a non-atomic
  * read-scan + plain FUA write.  Two nodes mounting concurrently (the
  * 4-node criterion harness mounts in parallel) both scanned, both saw
  * the same slot free, both wrote their heartbeat ~0.5s apart — test3
@@ -6379,7 +11430,7 @@ static uint32_t hb_claim_slot_bound(const struct mxfs_disklock_ctx *ctx)
 }
 
 /*
- * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, sess377 RULE-5 ruling
+ * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, sess377 design-consult ruling
  * item 1 ("correct the ENOSPC diagnostic; count and report guards").
  *
  * The old message said the cluster was FULL and told the operator to
@@ -6486,6 +11537,7 @@ static void hb_report_claim_exhausted(struct mxfs_disklock_ctx *ctx,
             break;
         }
         case MXFS_DISKLOCK_FLAG_WITHDRAWN:
+        case MXFS_DISKLOCK_FLAG_RETIRE_PENDING:     /* sess450 */
             n_withdrawn++;
             break;
         default:
@@ -6531,9 +11583,15 @@ static void hb_report_claim_exhausted(struct mxfs_disklock_ctx *ctx,
         mxfs_pal_log(MXFS_LOG_ERR,
                      "P300-CLAIM-WITHDRAWN %u slot(s) hold a dirty WITHDRAWN "
                      "slice awaiting fence+replay, %u hold a recovery lease in "
-                     "progress, %u hold a transient bucket-sweep guard.  All "
-                     "three are TRANSIENT — a live peer resolves them.  Retry "
-                     "the mount rather than reformatting.",
+                     "progress, %u hold a transient bucket-sweep guard.  A LIVE "
+                     "PEER resolves them (it PREEMPT AND ABORTs the departed "
+                     "incarnation's retained PR key, then replays): retry the "
+                     "mount from a mounted peer's cluster rather than "
+                     "reformatting.  With NO other node mounted this state is "
+                     "NOT transient: a same-host successor cannot fence its "
+                     "predecessor; if no other initiator can write this LUN, "
+                     "set single_node_exclusive=1 and retry (fence kind 17), "
+                     "otherwise mount a second node first.  See D-379/D-0355.",
                      n_withdrawn, n_recovering, n_sweepguard);
     else
         mxfs_pal_log(MXFS_LOG_ERR,
@@ -6628,6 +11686,16 @@ static int mxfs_disklock_claim_slot_noncaw(struct mxfs_disklock_ctx *ctx)
                         slot, rec->node_id);
                     continue;
                 }
+                /* sess450: a RETIRE_PENDING release is consumable only once
+                 * its PR key is proven absent — the monitor settles it. */
+                if (hb_retire_pending(ctx, rec)) {
+                    mxfs_pal_log(MXFS_LOG_WARN,
+                        "mxfs: P274-CLAIM-RETIRE-PENDING-SKIP slot=%u node=%u "
+                        "— released slot awaits PR-key retirement proof; "
+                        "claiming a different slot",
+                        slot, rec->node_id);
+                    continue;
+                }
                 if (rec->magic != MXFS_DISKLOCK_MAGIC ||
                     rec->flags != MXFS_DISKLOCK_FLAG_ACTIVE ||
                     hb_gen_foreign(ctx, rec)) {
@@ -6651,8 +11719,10 @@ static int mxfs_disklock_claim_slot_noncaw(struct mxfs_disklock_ctx *ctx)
         hb->fs_gen = ctx->fs_gen;
         hb->timestamp_ms = mxfs_pal_time_ms();
         hb->epoch = ctx->epoch;
+        ctx->claim_fresh = fresh_claim; /* sess434: before the first record */
         hb_feature_fill(ctx, hb);       /* sess42 C7 */
         hb->prov = ctx->own_prov;       /* sess346 #92 */
+        hb_ident_fill(ctx, hb, (uint32_t)found_slot);   /* sess438 */
 
         {
             uint64_t off = ctx->base_offset +
@@ -6701,10 +11771,219 @@ static int mxfs_disklock_claim_slot_noncaw(struct mxfs_disklock_ctx *ctx)
     return rc < 0 ? rc : -ENOSPC;
 }
 
+/*
+ * sess465 (D-0523): the claim WAIT.  See MXFS_DISKLOCK_CLAIM_WAIT_MS in
+ * disklock.h for the ruling and the measured budget.
+ *
+ * Called with ctx->lock held after a full pass-2 scan found no claimable
+ * slot.  Re-reads and classifies the whole table (an exact re-read after
+ * every sleep — never a decision carried across a sleep), then:
+ *   permanent           -> today's P300-CLAIM-* diagnostics, -ENOSPC
+ *                          (QUARANTINED verdict, out-of-range member,
+ *                          unreadable/other record, genuinely full, the
+ *                          operator's single_node_exclusive assertion);
+ *   no live OTHER member -> before the wait began: today's -ENOSPC (a
+ *                          same-host successor cannot fence; P300-CLAIM-
+ *                          WITHDRAWN says so); during the wait: every peer
+ *                          fell silent — P300-CLAIM-WAIT-PEERS-LOST,
+ *                          -ERESTART (v5_mount re-runs the whole-cluster
+ *                          bootstrap in this mount, bounded by
+ *                          MXFS_V5_CLAIM_BOOTSTRAP_RESTARTS; a second loss
+ *                          fails the mount truthfully);
+ *   waitable            -> start the ONE absolute deadline on the first
+ *                          call, sleep one scan interval with the lock
+ *                          dropped, return 0 = rescan (the caller's pass 1 /
+ *                          pass 2 run again and claim by exact-image CAW);
+ *   deadline            -> P300-CLAIM-WAIT-GAVE-UP, -ETIMEDOUT (transient —
+ *                          never -ENOSPC, which reads as permanent).
+ * Liveness is CHANGE: an ACTIVE peer counts as live while its stamp moved
+ * within the monitor's dead window (dead_threshold x HB interval); on the
+ * first scan every ACTIVE record is provisionally live and must re-stamp
+ * within that window.  A sweep guard that stops re-stamping is reported
+ * once (P300-CLAIM-WAIT-FROZEN-GUARD) and left to the live sweeper's
+ * guard_slot reclaim — never reclassified here.  WITHDRAWN and
+ * RETIRE_PENDING records stay byte-identical while a peer works on them, so
+ * their progress is only the deadline (ruling: no change-as-progress for
+ * them).  The wait consumes none of the MXFS_DISKLOCK_CLAIM_RETRIES, which
+ * remain for CAW races on a FOUND slot.
+ */
+struct hb_claim_wait {
+    bool     active;
+    uint64_t start_ms;
+    uint64_t deadline_ms;
+    uint32_t laps;
+    uint64_t stamp[MXFS_DISKLOCK_HB_SLOTS];
+    uint64_t changed_ms[MXFS_DISKLOCK_HB_SLOTS];
+    uint8_t  frozen_reported[MXFS_DISKLOCK_HB_SLOTS];
+};
+
+static int hb_claim_wait(struct mxfs_disklock_ctx *ctx, uint32_t slot_max,
+                         struct hb_claim_wait *w)
+{
+    struct mxfs_disklock_heartbeat *rec;
+    uint32_t slot;
+    uint32_t n_active = 0, n_live = 0, n_guard = 0, n_withdrawn = 0;
+    uint32_t n_retire = 0, n_recovering = 0, n_sweep = 0, n_other = 0;
+    uint32_t n_unread = 0, n_outofrange = 0, waitable;
+    uint64_t now = mxfs_pal_time_ms();
+    uint64_t dead_ms = (uint64_t)ctx->dead_threshold *
+                       MXFS_DISKLOCK_HB_INTERVAL_MS;
+    bool first = !w->active;
+
+    rec = mxfs_pal_alloc(sizeof(*rec));
+    if (!rec)
+        return -ENOMEM;
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+        bool occupied;
+
+        if (mxfs_pal_bdev_read(ctx->dev, off, rec, sizeof(*rec)) < 0) {
+            if (slot < slot_max)
+                n_unread++;
+            continue;
+        }
+        occupied = (rec->magic == MXFS_DISKLOCK_MAGIC) &&
+                   !hb_gen_foreign(ctx, rec);
+        if (slot >= slot_max) {
+            /* only the sweep's transient guard is legitimate up here */
+            if (occupied && rec->flags != 0 &&
+                !(rec->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD &&
+                  !recov_desc_present(rec)))
+                n_outofrange++;
+            continue;
+        }
+        if (!occupied)
+            continue;
+        switch (rec->flags) {
+        case MXFS_DISKLOCK_FLAG_ACTIVE:
+            n_active++;
+            if (rec->node_id == ctx->local_node)
+                break;          /* ours would have been reclaimed by pass 1 */
+            if (first || w->stamp[slot] != rec->timestamp_ms) {
+                w->stamp[slot] = rec->timestamp_ms;
+                w->changed_ms[slot] = now;
+            }
+            if (now - w->changed_ms[slot] <= dead_ms)
+                n_live++;
+            break;
+        case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD: {
+            const struct mxfs_recov_desc *d = recov_desc_of(rec);
+
+            if (d && (d->flags & MXFS_RECOV_F_QUARANTINED)) {
+                n_guard++;
+            } else if (d) {
+                n_recovering++;
+            } else {
+                n_sweep++;
+                if (first || w->stamp[slot] != rec->timestamp_ms) {
+                    w->stamp[slot] = rec->timestamp_ms;
+                    w->changed_ms[slot] = now;
+                } else if (now - w->changed_ms[slot] >
+                           3 * MXFS_DISKLOCK_GUARD_REFRESH_MS &&
+                           !w->frozen_reported[slot]) {
+                    w->frozen_reported[slot] = 1;
+                    mxfs_pal_log(MXFS_LOG_WARN,
+                                 "disklock: P300-CLAIM-WAIT-FROZEN-GUARD "
+                                 "slot=%u holder=%u age_ms=%llu — the "
+                                 "bucket-sweep guard stopped re-stamping; "
+                                 "a live sweeper reclaims it (hb_guard_"
+                                 "abandoned); still waiting on the deadline",
+                                 slot, rec->node_id,
+                                 (unsigned long long)(now - w->changed_ms[slot]));
+                }
+            }
+            break;
+        }
+        case MXFS_DISKLOCK_FLAG_WITHDRAWN:
+            n_withdrawn++;
+            break;
+        case MXFS_DISKLOCK_FLAG_RETIRE_PENDING:
+            n_retire++;
+            break;
+        default:
+            n_other++;
+            break;
+        }
+    }
+    mxfs_pal_free(rec);
+
+    waitable = n_sweep + n_recovering + n_withdrawn + n_retire;
+    if (n_guard || n_outofrange || n_other || n_unread || !waitable ||
+        ctx->snlocal) {
+        if (w->active)
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "disklock: P300-CLAIM-WAIT-PERMANENT after %llu ms "
+                         "(laps=%u): quarantined=%u outofrange=%u other=%u "
+                         "unreadable=%u waitable=%u snlocal=%d — the table "
+                         "became permanently unclaimable while waiting",
+                         (unsigned long long)(now - w->start_ms), w->laps,
+                         n_guard, n_outofrange, n_other, n_unread, waitable,
+                         ctx->snlocal ? 1 : 0);
+        hb_report_claim_exhausted(ctx, slot_max);
+        return -ENOSPC;
+    }
+    if (!n_live) {
+        if (first) {
+            hb_report_claim_exhausted(ctx, slot_max);
+            return -ENOSPC;
+        }
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P300-CLAIM-WAIT-PEERS-LOST after %llu ms "
+                     "(laps=%u): %u ACTIVE record(s), none re-stamped within "
+                     "the %llu ms dead window — no live peer can resolve the "
+                     "%u transient record(s); the mount re-runs the "
+                     "whole-cluster bootstrap (P300-CLAIM-WAIT-RESTART-BOOTSTRAP)",
+                     (unsigned long long)(now - w->start_ms), w->laps,
+                     n_active, (unsigned long long)dead_ms, waitable);
+        return -ERESTART;
+    }
+    if (first) {
+        w->active = true;
+        w->start_ms = now;
+        w->deadline_ms = now + MXFS_DISKLOCK_CLAIM_WAIT_MS;
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "disklock: P300-CLAIM-WAIT-START no free heartbeat slot "
+                     "in 0..%u: %u live member(s), %u bucket-sweep guard(s), "
+                     "%u recovery lease(s), %u withdrawn slice(s), %u "
+                     "retire-pending record(s) — all transient and resolved "
+                     "by a live peer; waiting up to %u ms (scan every %u ms) "
+                     "instead of failing -28 (D-0523)",
+                     slot_max - 1, n_active, n_sweep, n_recovering,
+                     n_withdrawn, n_retire, MXFS_DISKLOCK_CLAIM_WAIT_MS,
+                     MXFS_DISKLOCK_CLAIM_SCAN_MS);
+    } else if (now >= w->deadline_ms) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P300-CLAIM-WAIT-GAVE-UP after %llu ms "
+                     "(laps=%u): still %u live member(s), %u sweep guard(s), "
+                     "%u lease(s), %u withdrawn, %u retire-pending — the "
+                     "transient occupants outlived the measured budget "
+                     "(%u ms); failing this mount attempt -110 (transient: "
+                     "retry the mount; the peers' recovery is stalled — see "
+                     "their P163/P236/P305 lines)",
+                     (unsigned long long)(now - w->start_ms), w->laps,
+                     n_active, n_sweep, n_recovering, n_withdrawn, n_retire,
+                     MXFS_DISKLOCK_CLAIM_WAIT_MS);
+        return -ETIMEDOUT;
+    } else if ((w->laps % 5) == 0) {
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "disklock: P300-CLAIM-WAIT-SCAN %llu ms (laps=%u): live=%u "
+                     "sweep=%u lease=%u withdrawn=%u retire_pending=%u",
+                     (unsigned long long)(now - w->start_ms), w->laps,
+                     n_live, n_sweep, n_recovering, n_withdrawn, n_retire);
+    }
+    w->laps++;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_sleep_ms_interruptible(MXFS_DISKLOCK_CLAIM_SCAN_MS);
+    mxfs_pal_mutex_lock(ctx->lock);
+    return 0;
+}
+
 int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
 {
     struct mxfs_disklock_heartbeat *hb;
     struct mxfs_disklock_heartbeat *expected;
+    struct hb_claim_wait *cw;
     uint32_t slot;
     uint32_t slot_max;
     int attempt;
@@ -6729,7 +12008,20 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
      * claim, whose adopted-slice gate suppresses image replay — silently
      * abandoning that node's own unreplayed journal slice.
      */
-    ctx->epoch = hb_draw_incarnation();
+    /*
+     * sess440 (§6.2, design-consult ruling Q2): a whole-cluster bootstrap owner
+     * drew its incarnation ONCE when it claimed the bootstrap record, owned
+     * fence intents and recovery descriptors under it, and must become
+     * ACTIVE under the SAME epoch — a second incarnation here would let a
+     * delayed observer see the provisional owner "die" and a stranger
+     * appear.  The pre-drawn value is consumed exactly once.
+     */
+    if (inc_valid(ctx->epoch_predrawn)) {
+        ctx->epoch = ctx->epoch_predrawn;
+        ctx->epoch_predrawn = 0;
+    } else {
+        ctx->epoch = hb_draw_incarnation();
+    }
     if (!inc_valid(ctx->epoch)) {
         mxfs_pal_log(MXFS_LOG_ERR,
                      "disklock: no entropy for a mount incarnation — "
@@ -6739,15 +12031,20 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
 
     hb = mxfs_pal_alloc(sizeof(*hb));
     expected = mxfs_pal_alloc(sizeof(*expected));
-    if (!hb || !expected) {
+    cw = mxfs_pal_alloc(sizeof(*cw));
+    if (!hb || !expected || !cw) {
         mxfs_pal_free(hb);
         mxfs_pal_free(expected);
+        mxfs_pal_free(cw);
         return -ENOMEM;
     }
+    memset(cw, 0, sizeof(*cw));
 
     mxfs_pal_mutex_lock(ctx->lock);
 
-    for (attempt = 0; attempt < MXFS_DISKLOCK_CLAIM_RETRIES; attempt++) {
+    /* sess465 (D-0523): `attempt` counts CAW races on a FOUND slot only;
+     * a wait lap rescans without consuming one. */
+    for (attempt = 0; attempt < MXFS_DISKLOCK_CLAIM_RETRIES; ) {
         int found_slot = -1;
         bool fresh_claim = false;   /* sess32: pass-2 = adopted slice */
 
@@ -6805,6 +12102,17 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
                         slot, expected->node_id);
                     continue;
                 }
+                /* sess450: same rule for RETIRE_PENDING — the key that
+                 * authorises the previous occupant may still be registered;
+                 * the monitor settles the record after READ KEYS. */
+                if (hb_retire_pending(ctx, expected)) {
+                    mxfs_pal_log(MXFS_LOG_WARN,
+                        "mxfs: P274-CLAIM-RETIRE-PENDING-SKIP slot=%u node=%u "
+                        "— released slot awaits PR-key retirement proof; "
+                        "claiming a different slot",
+                        slot, expected->node_id);
+                    continue;
+                }
                 if (expected->magic != MXFS_DISKLOCK_MAGIC ||
                     expected->flags != MXFS_DISKLOCK_FLAG_ACTIVE ||
                     hb_gen_foreign(ctx, expected)) {
@@ -6817,11 +12125,16 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
         }
 
         if (found_slot < 0) {
+            /* sess465 (D-0523): wait for transient occupants (one
+             * absolute deadline), or fail with the truthful reason. */
+            rc = hb_claim_wait(ctx, slot_max, cw);
+            if (rc == 0)
+                continue;
             mxfs_pal_mutex_unlock(ctx->lock);
             mxfs_pal_free(hb);
             mxfs_pal_free(expected);
-            hb_report_claim_exhausted(ctx, slot_max);
-            return -ENOSPC;
+            mxfs_pal_free(cw);
+            return rc;
         }
 
         /* Atomically claim: CAW from the observed image to our record. */
@@ -6833,8 +12146,10 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
         hb->fs_gen = ctx->fs_gen;
         hb->timestamp_ms = mxfs_pal_time_ms();
         hb->epoch = ctx->epoch;
+        ctx->claim_fresh = fresh_claim; /* sess434: before the first record */
         hb_feature_fill(ctx, hb);       /* sess42 C7 */
         hb->prov = ctx->own_prov;       /* sess346 #92 */
+        hb_ident_fill(ctx, hb, (uint32_t)found_slot);   /* sess438 */
 
         {
             uint64_t off = ctx->base_offset +
@@ -6845,6 +12160,7 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
         if (rc == 0) {
             ctx->local_slot = found_slot;
             ctx->slice_adopted = fresh_claim;
+            ctx->claim_via_caw = true;      /* sess435 D-0359 */
             /* sess78: the CAW just made `hb` the exact on-disk image — it is
              * the compare source for every later own-slot write. */
             ctx->hb_img = *hb;
@@ -6852,6 +12168,16 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
             mxfs_pal_mutex_unlock(ctx->lock);
             mxfs_pal_free(hb);
             mxfs_pal_free(expected);
+            if (cw->active)
+                mxfs_pal_log(MXFS_LOG_WARN,
+                             "disklock: P300-CLAIM-WAIT-DONE slot=%d after "
+                             "%llu ms (laps=%u) — the transient occupant "
+                             "cleared and the claim landed (D-0523)",
+                             found_slot,
+                             (unsigned long long)(mxfs_pal_time_ms() -
+                                                  cw->start_ms),
+                             cw->laps);
+            mxfs_pal_free(cw);
             mxfs_pal_log(MXFS_LOG_WARN,
                          "disklock: claimed heartbeat slot %d for node %u "
                          "(attempt %d, %s)",
@@ -6869,6 +12195,7 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
                          "disklock: P130-CLAIM-RACE slot %d (node %u, "
                          "attempt %d) — rescanning",
                          found_slot, ctx->local_node, attempt);
+            attempt++;
             continue;
         }
 
@@ -6878,6 +12205,7 @@ int mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx)
     mxfs_pal_mutex_unlock(ctx->lock);
     mxfs_pal_free(hb);
     mxfs_pal_free(expected);
+    mxfs_pal_free(cw);
 
     /* CAW claim unavailable on this target — fall back to the verified
      * non-CAW claim so we still get a UNIQUE slot (never default to 0). */
@@ -6897,6 +12225,95 @@ int mxfs_disklock_get_slot(struct mxfs_disklock_ctx *ctx)
     if (!ctx)
         return -1;
     return ctx->local_slot;
+}
+
+const char *mxfs_caw_cap_name(enum mxfs_caw_cap cap)
+{
+    switch (cap) {
+    case MXFS_CAW_CAP_OK:          return "OK";
+    case MXFS_CAW_CAP_UNSUPPORTED: return "UNSUPPORTED";
+    case MXFS_CAW_CAP_TRANSIENT:   return "TRANSIENT";
+    case MXFS_CAW_CAP_VIOLATION:   return "VIOLATION";
+    }
+    return "?";
+}
+
+/*
+ * sess435 (D-0359 step 1).  See disklock.h.  The negative probe CAWs our own
+ * heartbeat slot with a compare image that differs from the on-disk record
+ * in one field and a write image IDENTICAL to the on-disk record: a correct
+ * target answers MISCOMPARE (-EAGAIN) and writes nothing; a target that
+ * reports success installed nothing new either (write == disk), so even the
+ * violation case cannot damage the record — but it proves the compare is
+ * not enforced, which is disqualifying for a lock table.  The read-back
+ * afterwards is the second witness: the record must be byte-identical to
+ * the image the claim left.
+ */
+enum mxfs_caw_cap mxfs_disklock_caw_capability(struct mxfs_disklock_ctx *ctx,
+                                               int *rc_out)
+{
+    struct mxfs_disklock_heartbeat *wrong, *back;
+    uint64_t off;
+    int rc, rrc;
+    enum mxfs_caw_cap cap;
+
+    if (rc_out)
+        *rc_out = 0;
+    if (!ctx || ctx->local_slot < 0 || !ctx->hb_img_valid)
+        return MXFS_CAW_CAP_TRANSIENT;
+    if (!ctx->claim_via_caw) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P311-CAW-CAP slot=%d UNSUPPORTED — the slot "
+                     "claim needed the verified non-CAW fallback: this "
+                     "device does not execute COMPARE AND WRITE",
+                     ctx->local_slot);
+        return MXFS_CAW_CAP_UNSUPPORTED;
+    }
+
+    wrong = mxfs_pal_alloc(sizeof(*wrong));
+    back = mxfs_pal_alloc(sizeof(*back));
+    if (!wrong || !back) {
+        mxfs_pal_free(wrong);
+        mxfs_pal_free(back);
+        return MXFS_CAW_CAP_TRANSIENT;
+    }
+
+    mxfs_pal_mutex_lock(ctx->lock);
+    off = ctx->base_offset +
+          (uint64_t)ctx->local_slot * MXFS_DISKLOCK_RECORD_SIZE;
+    *wrong = ctx->hb_img;
+    wrong->timestamp_ms ^= 0x5A5A5A5AULL;   /* compare image differs */
+    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, wrong, &ctx->hb_img);
+    rrc = mxfs_pal_bdev_read_prio(ctx->dev, off, back, sizeof(*back));
+
+    if (rc == -EOPNOTSUPP)
+        cap = MXFS_CAW_CAP_UNSUPPORTED;
+    else if (rc == 0)
+        cap = MXFS_CAW_CAP_VIOLATION;       /* mismatch reported success */
+    else if (rc == -EAGAIN)
+        cap = MXFS_CAW_CAP_OK;
+    else
+        cap = MXFS_CAW_CAP_TRANSIENT;
+    if (cap == MXFS_CAW_CAP_OK) {
+        if (rrc < 0)
+            cap = MXFS_CAW_CAP_TRANSIENT;
+        else if (memcmp(back, &ctx->hb_img, sizeof(*back)) != 0)
+            cap = MXFS_CAW_CAP_VIOLATION;   /* miscompare changed the record */
+    }
+    mxfs_pal_mutex_unlock(ctx->lock);
+
+    mxfs_pal_log(cap == MXFS_CAW_CAP_OK ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+                 "disklock: P311-CAW-CAP slot=%d %s — negative probe rc=%d "
+                 "(expect -11 MISCOMPARE) readback rc=%d identical=%d "
+                 "(claim landed via CAW)",
+                 ctx->local_slot, mxfs_caw_cap_name(cap), rc, rrc,
+                 rrc < 0 ? -1 :
+                 (memcmp(back, &ctx->hb_img, sizeof(*back)) == 0));
+    if (rc_out)
+        *rc_out = rc;
+    mxfs_pal_free(wrong);
+    mxfs_pal_free(back);
+    return cap;
 }
 
 /*
@@ -7072,22 +12489,15 @@ int mxfs_disklock_guard_slot(struct mxfs_disklock_ctx *ctx, int slot)
     g->timestamp_ms = mxfs_pal_time_ms();
     g->epoch = ctx->epoch;
     hb_feature_fill(ctx, g);
+    hb_ident_fill(ctx, g, slot);    /* sess438: names the GUARD WRITER */
 
     mxfs_pal_mutex_lock(ctx->lock);
-    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, cur, g);
+    rc = hb_caw(ctx, HB_CAW_OP_GUARD, "guard", off, cur, g);
     if (rc == -EOPNOTSUPP) {
-        /* Non-CAW transport: write + settle + FUA read-back confirm, the
-         * claim_slot_noncaw discipline (node_id + timestamp tiebreak). */
-        rc = write_sector_fua(ctx, off, g);
-        if (rc == 0) {
-            mxfs_pal_sleep_ms(30);
-            rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
-            if (rc == 0 &&
-                !(cur->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD &&
-                  cur->node_id == ctx->local_node &&
-                  cur->timestamp_ms == g->timestamp_ms))
-                rc = -EAGAIN;
-        }
+        /* sess453 (0.60.0, D7 companion): the non-CAW write + settle +
+         * read-back stand-in is gone; a GUARD is laid only by an exact-image
+         * CAS over the victim's record.  Fail closed (no recovery starts). */
+        hb_cas_nocaw_locked(ctx, (uint32_t)slot, "guard");
     }
     mxfs_pal_mutex_unlock(ctx->lock);
 
@@ -7130,18 +12540,9 @@ int mxfs_disklock_guard_refresh(struct mxfs_disklock_ctx *ctx)
         g2->timestamp_ms = ctx->guard_img.timestamp_ms + 1;
 
     mxfs_pal_mutex_lock(ctx->lock);
-    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, &ctx->guard_img, g2);
-    if (rc == -EOPNOTSUPP) {
-        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
-        if (rc == 0) {
-            if (cur->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD &&
-                cur->node_id == ctx->local_node &&
-                cur->timestamp_ms == ctx->guard_img.timestamp_ms)
-                rc = write_sector_fua(ctx, off, g2);
-            else
-                rc = -EAGAIN;
-        }
-    }
+    rc = hb_caw(ctx, HB_CAW_OP_GUARD_REFRESH, "guard-refresh", off, &ctx->guard_img, g2);
+    if (rc == -EOPNOTSUPP)          /* sess453 (0.60.0, D7): fail closed */
+        hb_cas_nocaw_locked(ctx, (uint32_t)ctx->guard_slot, "guard-refresh");
     mxfs_pal_mutex_unlock(ctx->lock);
 
     if (rc == 0) {
@@ -7185,18 +12586,9 @@ void mxfs_disklock_unguard(struct mxfs_disklock_ctx *ctx)
     memset(z, 0, sizeof(*z));
 
     mxfs_pal_mutex_lock(ctx->lock);
-    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, &ctx->guard_img, z);
-    if (rc == -EOPNOTSUPP) {
-        rc = mxfs_pal_bdev_read_prio(ctx->dev, off, cur, sizeof(*cur));
-        if (rc == 0) {
-            if (cur->flags == MXFS_DISKLOCK_FLAG_RECOVERY_GUARD &&
-                cur->node_id == ctx->local_node &&
-                cur->timestamp_ms == ctx->guard_img.timestamp_ms)
-                rc = write_sector_fua(ctx, off, z);
-            else
-                rc = -EAGAIN;
-        }
-    }
+    rc = hb_caw(ctx, HB_CAW_OP_GUARD_ZERO, "guard-zero", off, &ctx->guard_img, z);
+    if (rc == -EOPNOTSUPP)          /* sess453 (0.60.0, D7): fail closed */
+        hb_cas_nocaw_locked(ctx, (uint32_t)ctx->guard_slot, "guard-zero");
     mxfs_pal_mutex_unlock(ctx->lock);
 
     if (rc == -EAGAIN)
@@ -7482,7 +12874,8 @@ int mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx,
                                              int skip_slot,
                                              uint64_t *out_mask,
                                              mxfs_node_id_t *out_node,
-                                             mxfs_epoch_t *out_epoch)
+                                             mxfs_epoch_t *out_epoch,
+                                             uint64_t *out_retire_mask)
 {
     struct mxfs_disklock_heartbeat *hb;
     uint64_t mask = 0;
@@ -7491,6 +12884,8 @@ int mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx,
     if (!ctx || !out_mask || !ctx->dev)
         return -EINVAL;
     *out_mask = 0;
+    if (out_retire_mask)
+        *out_retire_mask = 0;
 
     hb = mxfs_pal_alloc(sizeof(*hb));
     if (!hb)
@@ -7525,6 +12920,26 @@ int mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx,
                 out_epoch[slot] = hb->epoch;
             continue;
         }
+        /*
+         * sess451 (design-consult STOP-SHIP blocker 2): a RETIRE_PENDING stamp is
+         * requires-recovery evidence too.  Sequence it guards: a node
+         * writes RETIRE_PENDING, crashes (or its unregister fails) before
+         * its key is gone; a new node mounts on another slot; the old
+         * registration is still write-capable.  Admission must hold until
+         * the record is settled EMPTY under PR proof or converted to
+         * WITHDRAWN and fenced/replayed/purged — the caller settles it via
+         * mxfs_disklock_retire_settle_slot(immediate).
+         */
+        if (hb->flags == MXFS_DISKLOCK_FLAG_RETIRE_PENDING) {
+            mask |= (1ULL << slot);
+            if (out_retire_mask)
+                *out_retire_mask |= (1ULL << slot);
+            if (out_node)
+                out_node[slot] = hb->node_id;
+            if (out_epoch)
+                out_epoch[slot] = hb->epoch;
+            continue;
+        }
         if (!recov_desc_present(hb))
             continue;               /* ACTIVE / EMPTY shapes */
         d = recov_desc_of(hb);
@@ -7549,6 +12964,92 @@ int mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx,
     return 0;
 }
 
+/* Contract in disklock.h.  Deliberately NOT the admission sweep above with a
+ * kind filter: that one skips the caller's own slot and folds WITHDRAWN and
+ * RETIRE_PENDING shapes in, which are scheduling concerns.  This answers one
+ * question only — which certified gate-kind recoveries are not finished. */
+int mxfs_disklock_gate_owed_sweep(struct mxfs_disklock_ctx *ctx,
+                                  uint64_t *out_owed,
+                                  uint64_t *out_unreadable,
+                                  uint64_t *out_malformed,
+                                  uint64_t *out_terminal,
+                                  uint64_t *out_terminal_key)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    uint64_t owed = 0, unreadable = 0, malformed = 0, terminal = 0;
+    uint32_t slot;
+    int examined = 0;
+
+    if (out_owed)
+        *out_owed = 0;
+    if (out_unreadable)
+        *out_unreadable = 0;
+    if (out_malformed)
+        *out_malformed = 0;
+    if (out_terminal)
+        *out_terminal = 0;
+    if (out_terminal_key)
+        memset(out_terminal_key, 0,
+               sizeof(*out_terminal_key) * MXFS_DISKLOCK_HB_SLOTS);
+    if (!ctx || !ctx->dev || !out_owed || !out_unreadable)
+        return -EINVAL;
+
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb)
+        return -ENOMEM;
+
+    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS && slot < 64; slot++) {
+        uint64_t off = ctx->base_offset +
+                       (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+        const struct mxfs_recov_desc *d;
+        int rc;
+
+        mxfs_pal_mutex_lock(ctx->lock);
+        rc = mxfs_pal_bdev_read(ctx->dev, off, hb, sizeof(*hb));
+        mxfs_pal_mutex_unlock(ctx->lock);
+        if (rc < 0) {
+            unreadable |= (1ULL << slot);
+            continue;
+        }
+        examined++;
+        if (hb->magic != MXFS_DISKLOCK_MAGIC || hb_gen_foreign(ctx, hb))
+            continue;
+        if (!recov_desc_present(hb))
+            continue;
+        d = recov_desc_of(hb);
+        if (!d) {
+            /* A recovery lease this build cannot validate: the slice under
+             * it may be mid-recovery under the gate.  Cannot tell. */
+            unreadable |= (1ULL << slot);
+            continue;
+        }
+        if (d->fence_kind != MXFS_FENCE_KIND_EXCLUSIVE_WRITE_GATE)
+            continue;
+        if (d->flags & MXFS_RECOV_F_QUARANTINED) {
+            /* terminal refusal published: owes nothing, but its victim key
+             * must still be absent when the gate is lifted */
+            terminal |= (1ULL << slot);
+            if (out_terminal_key)
+                out_terminal_key[slot] = d->fence_victim_key;
+            continue;
+        }
+        if (d->stage >= MXFS_RECOV_STAGE_GRANTS_RELEASED)
+            continue;               /* complete, awaiting slot zeroing */
+        if (d->stage < MXFS_RECOV_STAGE_SNAPSHOTTING)
+            malformed |= (1ULL << slot);
+        owed |= (1ULL << slot);
+    }
+
+    mxfs_pal_free(hb);
+    *out_owed = owed;
+    *out_unreadable = unreadable;
+    if (out_malformed)
+        *out_malformed = malformed;
+    if (out_terminal)
+        *out_terminal = terminal;
+    return examined ? 0 : -EIO;
+}
+
 /*
  * sess54 (D-FOREIGN-REPLAY step 4a) — CONTINUOUS, CANCELLABLE DEAD CONFIRM.
  *
@@ -7560,7 +13061,7 @@ int mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx,
  * between call N's last poll and call N+1's baseline read is invisible to
  * both — N never sees it, N+1 adopts it as its own baseline — so a node
  * whose heartbeat is merely slow can be declared dead by the chain even
- * though it advanced inside the nominal window.  (GPT RULE-5 review, sess54
+ * though it advanced inside the nominal window.  (design-consult review, sess54
  * item 3.)
  *
  * This entry point keeps ONE baseline for the whole window and samples
@@ -7716,4 +13217,221 @@ int mxfs_disklock_confirm_dead_mask(struct mxfs_disklock_ctx *ctx,
 
     *out_confirmed = live;
     return 0;
+}
+
+/* sess440 (§6.2): bootstrap-owner identity plumbing — see disklock.h. */
+void mxfs_disklock_set_owner_bootstrap(struct mxfs_disklock_ctx *ctx, bool on)
+{
+    if (!ctx)
+        return;
+    ctx->owner_bootstrap = on;
+}
+
+void mxfs_disklock_predraw_epoch(struct mxfs_disklock_ctx *ctx)
+{
+    if (!ctx)
+        return;
+    ctx->epoch_predrawn = ctx->epoch;
+}
+
+/* ── sess442 (§6.7): same-boot RESUME support ── */
+
+int mxfs_disklock_adopt_epoch(struct mxfs_disklock_ctx *ctx, mxfs_epoch_t epoch)
+{
+    if (!ctx || !inc_valid(epoch))
+        return -EINVAL;
+    mxfs_pal_mutex_lock(ctx->lock);
+    if (ctx->local_slot >= 0) {
+        mxfs_pal_mutex_unlock(ctx->lock);
+        return -EBUSY;
+    }
+    ctx->epoch = epoch;
+    ctx->epoch_predrawn = epoch;
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "disklock: P-BOOT-EPOCH-ADOPTED node=%u epoch=%llu — the "
+                 "resumed bootstrap term's incarnation is this ctx's own",
+                 ctx->local_node, (unsigned long long)epoch);
+    return 0;
+}
+
+int mxfs_disklock_read_record(struct mxfs_disklock_ctx *ctx, int slot,
+                              struct mxfs_disklock_heartbeat *out)
+{
+    if (!ctx || !ctx->dev || !out || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    return mxfs_pal_bdev_read_prio(ctx->dev, ctx->base_offset +
+                                   (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE,
+                                   out, sizeof(*out));
+}
+
+int mxfs_disklock_reclaim_own_slot(struct mxfs_disklock_ctx *ctx, int slot)
+{
+    struct mxfs_disklock_heartbeat *hb;
+    int rc;
+
+    if (!ctx || !ctx->dev || slot < 0 || slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    if (ctx->local_slot >= 0)
+        return -EBUSY;
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    if (!hb)
+        return -ENOMEM;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, ctx->base_offset +
+                                 (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE,
+                                 hb, sizeof(*hb));
+    if (rc < 0)
+        goto out;
+    if (!mxfs_hb_feature_bootstrap_pending(hb) || hb_gen_foreign(ctx, hb) ||
+        hb->node_id != ctx->local_node || !inc_eq(hb->epoch, ctx->epoch)) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P-BOOT-RECLAIM-STALE slot=%d flags=%u node=%u "
+                     "epoch=%llu pending=%d — not our ACTIVE|BOOTSTRAP_PENDING "
+                     "record under the resumed incarnation (%u/%llu); nothing "
+                     "taken", slot, hb->flags, hb->node_id,
+                     (unsigned long long)hb->epoch,
+                     mxfs_hb_feature_bootstrap_pending(hb) ? 1 : 0,
+                     ctx->local_node, (unsigned long long)ctx->epoch);
+        rc = -ESTALE;
+        goto out;
+    }
+    ctx->epoch_predrawn = 0;            /* consumed, as the claim would */
+    ctx->claim_fresh = false;           /* FULL replay of our own log */
+    ctx->bootstrap_pending = true;
+    ctx->own_prov = hb->prov;           /* the same tenancy continues */
+    ctx->local_slot = slot;
+    ctx->slice_adopted = false;
+    ctx->claim_via_caw = true;
+    ctx->hb_img = *hb;
+    ctx->hb_img_valid = true;
+    mxfs_pal_log(MXFS_LOG_WARN,
+                 "disklock: P-BOOT-RECLAIMED slot %d for node %u epoch=%llu — "
+                 "our own adopted record re-taken for the same-boot resume; "
+                 "its slice is FULLY replayed again as our own log",
+                 slot, ctx->local_node, (unsigned long long)ctx->epoch);
+    rc = slot;
+out:
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_free(hb);
+    return rc;
+}
+
+/* ── sess441 (§6.5 shape B): adopt a certified victim slot ── */
+
+bool mxfs_hb_feature_bootstrap_pending(const struct mxfs_disklock_heartbeat *hb)
+{
+    return hb && hb->magic == MXFS_DISKLOCK_MAGIC &&
+           hb->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
+           hb->feat.magic == MXFS_HB_FEAT_MAGIC &&
+           (hb->feat.feat_flags & MXFS_HB_FEAT_BOOTSTRAP_PENDING) &&
+           hb->feat.crc32c == hb_feature_crc(hb->fs_gen, hb->node_id,
+                                             hb->epoch, &hb->feat);
+}
+
+void mxfs_disklock_clear_bootstrap_pending(struct mxfs_disklock_ctx *ctx)
+{
+    if (!ctx)
+        return;
+    mxfs_pal_mutex_lock(ctx->lock);
+    ctx->bootstrap_pending = false;
+    mxfs_pal_mutex_unlock(ctx->lock);
+}
+
+int mxfs_disklock_claim_victim_slot(struct mxfs_disklock_ctx *ctx, int slot,
+                                    const struct mxfs_recov_desc *expect_desc,
+                                    uint32_t *old_crc)
+{
+    struct mxfs_disklock_heartbeat *hb, *expected;
+    const struct mxfs_recov_desc *d;
+    uint64_t off;
+    int rc;
+
+    if (!ctx || !ctx->dev || !expect_desc || slot < 0 ||
+        slot >= MXFS_DISKLOCK_HB_SLOTS)
+        return -EINVAL;
+    if (ctx->local_slot >= 0)
+        return -EBUSY;
+    if (!inc_valid(ctx->epoch_predrawn) || ctx->epoch_predrawn != ctx->epoch) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P-BOOT-ADOPT-NO-EPOCH slot=%d — the adoption "
+                     "must run under the pre-drawn bootstrap epoch (ruling "
+                     "STOP-SHIP 8); refusing", slot);
+        return -EINVAL;
+    }
+    hb = mxfs_pal_alloc(sizeof(*hb));
+    expected = mxfs_pal_alloc(sizeof(*expected));
+    if (!hb || !expected) {
+        mxfs_pal_free(hb);
+        mxfs_pal_free(expected);
+        return -ENOMEM;
+    }
+    off = ctx->base_offset + (uint64_t)slot * MXFS_DISKLOCK_RECORD_SIZE;
+    mxfs_pal_mutex_lock(ctx->lock);
+    rc = mxfs_pal_bdev_read_prio(ctx->dev, off, expected, sizeof(*expected));
+    if (rc < 0)
+        goto out;
+    d = recov_desc_of(expected);
+    if (expected->flags != MXFS_DISKLOCK_FLAG_RECOVERY_GUARD ||
+        hb_gen_foreign(ctx, expected) || !d ||
+        d->owner_node != ctx->local_node ||
+        !inc_eq(d->owner_epoch, ctx->epoch) ||
+        d->stage < MXFS_RECOV_STAGE_FENCED ||
+        !(d->flags & MXFS_RECOV_F_OWNER_BOOTSTRAP) ||
+        memcmp(d, expect_desc, sizeof(*d)) != 0) {
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P-BOOT-ADOPT-STALE slot=%d flags=%u desc=%s "
+                     "owner=%u/%llu stage=%u — the sector is not the exact "
+                     "guarded image the escrow holds; nothing written",
+                     slot, expected->flags, d ? "valid" : "none",
+                     d ? d->owner_node : 0,
+                     d ? (unsigned long long)d->owner_epoch : 0ULL,
+                     d ? d->stage : 0);
+        rc = -ESTALE;
+        goto out;
+    }
+    if (old_crc)
+        *old_crc = mxfs_pal_crc32c(~0U, expected, sizeof(*expected));
+
+    /* the epoch is consumed exactly once (claim_slot does the same) */
+    ctx->epoch_predrawn = 0;
+    ctx->claim_fresh = false;           /* FULL replay of the slice */
+    ctx->bootstrap_pending = true;
+    hb_prov_derive(ctx, expected, false);
+    memset(hb, 0, sizeof(*hb));
+    hb->magic = MXFS_DISKLOCK_MAGIC;
+    hb->flags = MXFS_DISKLOCK_FLAG_ACTIVE;
+    hb->node_id = ctx->local_node;
+    hb->fs_gen = ctx->fs_gen;
+    hb->timestamp_ms = mxfs_pal_time_ms();
+    hb->epoch = ctx->epoch;
+    hb_feature_fill(ctx, hb);
+    hb->prov = ctx->own_prov;
+    hb_ident_fill(ctx, hb, (uint32_t)slot);
+    rc = mxfs_pal_bdev_compare_and_write(ctx->dev, off, expected, hb);
+    if (rc == 0) {
+        ctx->local_slot = slot;
+        ctx->slice_adopted = false;
+        ctx->claim_via_caw = true;
+        ctx->hb_img = *hb;
+        ctx->hb_img_valid = true;
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "disklock: P-BOOT-ADOPTED slot %d for node %u epoch=%llu "
+                     "— certified victim slot adopted as this bootstrap "
+                     "owner's ACTIVE|BOOTSTRAP_PENDING record; its slice "
+                     "will be FULLY replayed as our own log",
+                     slot, ctx->local_node, (unsigned long long)ctx->epoch);
+        rc = slot;
+    } else {
+        ctx->bootstrap_pending = false;
+        ctx->epoch_predrawn = ctx->epoch;   /* not consumed */
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "disklock: P-BOOT-ADOPT-CAS slot=%d rc=%d — the claim "
+                     "CAW did not land; nothing adopted", slot, rc);
+    }
+out:
+    mxfs_pal_mutex_unlock(ctx->lock);
+    mxfs_pal_free(hb);
+    mxfs_pal_free(expected);
+    return rc;
 }

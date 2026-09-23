@@ -3,7 +3,7 @@
 #
 # Problem this solves (sess4 ccloop 186320ae): test1 wedged mid-run, the
 # harness virsh-destroyed it, and its runtime-only journald lost the entire
-# wedge-era kernel log — the primary evidence for a RULE-4 diagnosis.
+# wedge-era kernel log — the primary evidence for a instrumented diagnosis.
 # journald persistence alone is not enough: its async flush loses the last
 # seconds before a hard destroy.  A clyde-side `dmesg -w` over ssh captures
 # every line up to the instant of death, stored on clyde.

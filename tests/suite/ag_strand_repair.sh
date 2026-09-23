@@ -12,7 +12,7 @@
 #
 # WHY THIS CRITERION INJECTS A FAULT INSTEAD OF WATCHING FOR ONE
 #   `mxfs.ag_strand_repair` was written to recover that state, and the state
-#   then never recurred — so the repair path NEVER EXECUTED.  RULE 6 does not
+#   then never recurred — so the repair path NEVER EXECUTED.  the zero-defect bar does not
 #   accept "cannot reproduce" as a disposition, and a recovery path that has
 #   never run is not a verified fix.  A criterion that merely watched for a
 #   natural strand would sit green forever while proving nothing about the

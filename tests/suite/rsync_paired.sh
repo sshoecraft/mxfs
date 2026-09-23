@@ -6,7 +6,7 @@
 # This is the multi-node metadata-heavy workload (many small files = the rsync
 # create/stat/rename pattern).  PASS iff every node's tree transfers with zero
 # rsync errors, the destination matches the source exactly, and it completes
-# inside the budget (RULE 0: a clustered FS that can't keep up is a FAIL).
+# inside the budget (budget: a clustered FS that can't keep up is a FAIL).
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/lib.sh"
 

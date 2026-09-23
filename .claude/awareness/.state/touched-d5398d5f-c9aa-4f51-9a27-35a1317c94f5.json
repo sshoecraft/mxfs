@@ -1,9 +1,0 @@
-{
-  "source": [
-    "tools/mkfs_mxfs.c",
-    "xfs/xfs_mount.h"
-  ],
-  "docs": [],
-  "regen_done": false,
-  "nudges": 0
-}

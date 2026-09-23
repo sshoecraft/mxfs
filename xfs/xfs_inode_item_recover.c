@@ -356,6 +356,19 @@ xlog_recover_inode_commit_pass2(
 	if (error)
 		goto error;
 	ASSERT(in_f->ilf_fields & XFS_ILOG_CORE);
+	/*
+	 * A foreign replay reads the cluster through the survivor's cache;
+	 * before the first image of this recovery is applied to the slot, take
+	 * the dead node's last durable image of it as the baseline, so the
+	 * fields this image does not carry are current and the changecount
+	 * gate below compares against the platter (D-0976).
+	 */
+	if (xlog_is_mxfs_foreign_replay(log) && mp->m_sb.sb_inodelog) {
+		error = mxfs_recov_slot_refresh(bp,
+				in_f->ilf_boffset >> mp->m_sb.sb_inodelog);
+		if (error)
+			goto out_release;
+	}
 	dip = xfs_buf_offset(bp, in_f->ilf_boffset);
 
 	/*
@@ -414,15 +427,40 @@ xlog_recover_inode_commit_pass2(
 			uint64_t	disk_cc = be64_to_cpu(dip->di_changecount);
 			uint64_t	log_cc  = ldip->di_changecount;
 
+			/*
+			 * Every verdict of this gate is named, with both sides'
+			 * data-fork extent counts: a dead peer's slice can carry
+			 * an inode image whose changecount did not move while its
+			 * extent tree did (the extent-tree root in the inode is
+			 * logged without the core flag, so the first log of the
+			 * inode in such a transaction does not bump the count),
+			 * and a SKIP here then leaves the dinode behind leaves
+			 * that the buffer replay applied.  Budgeted per load;
+			 * unbounded under the instr knob.
+			 */
 			{ extern int mxfs_instr_enabled;
-			  if (unlikely(mxfs_instr_enabled))
-				pr_warn("P77-FRINODE ino=%lld disk_di_lsn=0x%llx cur_lsn=0x%llx lsn_cmp=%d disk_cc=%llu log_cc=%llu verdict=%s\n",
+			  static atomic_t p77_n = ATOMIC_INIT(0);
+			  if (unlikely(mxfs_instr_enabled) ||
+			      atomic_inc_return(&p77_n) <= 6000)
+				pr_warn("P77-FRINODE %s ino=%lld txn_lsn=0x%llx disk_di_lsn=0x%llx lsn_cmp=%d disk_cc=%llu log_cc=%llu disk_nx=%llu log_nx=%llu disk_fmt=%u log_fmt=%u disk_size=%llu log_size=%llu fields=0x%x disk_mode=0%o log_mode=0%o disk_gen=%u log_gen=%u verdict=%s\n",
+					xlog_is_mxfs_foreign_replay(log) ?
+						"foreign" : "adopted",
 					(long long)in_f->ilf_ino,
-					(unsigned long long)lsn,
 					(unsigned long long)current_lsn,
-					(lsn && lsn != -1) ? XFS_LSN_CMP(lsn, current_lsn) : -99,
+					(unsigned long long)lsn,
+					(lsn && lsn != -1) ? (int)XFS_LSN_CMP(lsn, current_lsn) : -99,
 					(unsigned long long)disk_cc,
 					(unsigned long long)log_cc,
+					(unsigned long long)xfs_dfork_data_extents(dip),
+					(unsigned long long)(xfs_log_dinode_has_large_extent_counts(ldip) ?
+						ldip->di_big_nextents : ldip->di_nextents),
+					(unsigned int)dip->di_format,
+					(unsigned int)ldip->di_format,
+					(unsigned long long)be64_to_cpu(dip->di_size),
+					(unsigned long long)ldip->di_size,
+					(unsigned int)in_f->ilf_fields,
+					be16_to_cpu(dip->di_mode), ldip->di_mode,
+					be32_to_cpu(dip->di_gen), ldip->di_gen,
 					(disk_cc >= log_cc) ? "SKIP" : "APPLY"); }
 
 			if (disk_cc >= log_cc) {
@@ -431,6 +469,25 @@ xlog_recover_inode_commit_pass2(
 				goto out_owner_change;
 			}
 		} else if (lsn && lsn != -1 && XFS_LSN_CMP(lsn, current_lsn) > 0) {
+			/*
+			 * sess459 (D-0521): on a clustered mount a TRUSTED
+			 * recovery (PASS-1 own-stamp reclaim) still lands here,
+			 * comparing this slice's LSN with a stamp another slice
+			 * may have written.  Observability only until that path
+			 * runs the changecount gate above.
+			 */
+			if (mp->m_mxfs_dlm_was_active) {
+				static atomic_t own_inolsn_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&own_inolsn_n) <= 2000)
+					xfs_notice(mp,
+	"MXFS own recovery: P-OWN-INODE-LSN ino=%lld txn_lsn=0x%llx disk_di_lsn=0x%llx disk_cc=%llu log_cc=%llu verdict=SKIP — on-disk di_lsn vetoed this node's own slice image on a clustered mount (D-0521)",
+						   (long long)in_f->ilf_ino,
+						   (unsigned long long)current_lsn,
+						   (unsigned long long)lsn,
+						   (unsigned long long)be64_to_cpu(dip->di_changecount),
+						   (unsigned long long)ldip->di_changecount);
+			}
 			trace_xfs_log_recover_inode_skip(log, in_f);
 			error = 0;
 			goto out_owner_change;
@@ -624,6 +681,17 @@ out_owner_change:
 
 	ASSERT(bp->b_mount == mp);
 	bp->b_flags |= _XBF_LOGRECOVERY;
+	/*
+	 * This slot now carries the recovery's image of the dinode.  Own it
+	 * on the buffer so the inode-cluster write publishes it: the writer's
+	 * authority mask knows nothing of recovery and would otherwise drop
+	 * the slot as a passenger this node neither logged nor holds
+	 * (D-0976: the dead peer's leaves landed, its dinode never did).
+	 */
+	if (mp->m_sb.sb_inodelog &&
+	    (in_f->ilf_boffset >> mp->m_sb.sb_inodelog) < 64)
+		bp->b_mxfs_recov_slots |=
+			1ULL << (in_f->ilf_boffset >> mp->m_sb.sb_inodelog);
 	/* sess340 513B: ownership-safe foreign provenance + queue */
 	error = xfs_buf_delwri_queue_recovery(bp, buffer_list,
 			xlog_is_mxfs_foreign_replay(log));

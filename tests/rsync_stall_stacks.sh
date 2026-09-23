@@ -27,7 +27,7 @@ STAMP=$(date -u +%H%M%S)
 OUT=$(mktemp -d)
 LOG="/tmp/rss_${STAMP}.log"
 
-# Detached in-node sampler.  pgrep -x matches comm only (safe per RULE 2c).
+# Detached in-node sampler.  pgrep -x matches comm only (safe per the unkillable-wedge rule).
 SAMPLER=$(cat <<EOS
 nohup setsid bash -c '
 end=\$(( \$(date +%s) + $DUR ))

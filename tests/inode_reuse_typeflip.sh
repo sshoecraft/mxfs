@@ -35,7 +35,7 @@
 # EXIT: 0 = every file correct on every node.  1 = defect reproduced.
 #       2 = INFRASTRUCTURE failure (a node did not complete its work).
 #
-# RULE 0 budget: a round is per_node creates + per_node dir churn cycles in one
+# derived time budget: a round is per_node creates + per_node dir churn cycles in one
 # directory; native XFS does that in milliseconds.  Total wall =
 # 10s setup + rounds*slot + ~25s verify.
 set -u

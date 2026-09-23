@@ -23,7 +23,7 @@
 #   repairs.  An arm with punt=0 proved NOTHING and must be re-run with more
 #   aging -- exactly the trap sess28's creator_baseline arm fell into.
 #
-# RULE 0
+# the budget rule
 #   sustained_load's budget is 180 s (tests/suite/manifest) and run.sh enforces
 #   it.  Measured healthy wall on this build is 6-8 s; measured run.sh wrapper
 #   overhead at 32 nodes is ~25-30 s.  Per-iteration timeout is therefore

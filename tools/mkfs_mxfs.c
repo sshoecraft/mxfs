@@ -38,7 +38,9 @@
 #include <linux/fs.h>
 
 #include <mxfs/mxfs_super.h>
+#include <mxfs/mxfs_dirshard.h>  /* sess466: MXFS_DIRSHARD_SB_INCOMPAT, MXFS_FORMAT_F_DIRSHARD */
 #include <mxfs/mxfs_common.h>
+#include <mxfs/mxfs_tauth.h>     /* sess421: TCP authority ledger region */
 
 /* ─── Constants from libmxfs headers (duplicated to stay standalone) ─── */
 
@@ -121,6 +123,8 @@
  * incompat bit makes every pre-gate mxfs kernel REFUSE the mount outright
  * (inherited upstream unknown-incompat check) — the preventative half of
  * the C7 version gate; see include/mxfs/mxfs_super.h. */
+/* MXFS_DIRSHARD (bit 29, include/mxfs/mxfs_dirshard.h), the directory-sharding
+ * gate, is added only under -D; see format_dirshard. */
 #define XFS_SB_FEAT_INCOMPAT   (0x03 | (1u << 30))
 
 /* Null filesystem inode */
@@ -208,6 +212,27 @@ static void xfs_set_crc(void *buf, size_t len, size_t crc_off)
 
 /* ─── UUID generation ─── */
 
+/* sess427 (D-0348 step 2): draw @len bytes from /dev/urandom (the
+ * authority-ledger hash seed).  Returns 0 or -1 (message printed). */
+static int read_random_bytes(void *buf, size_t len)
+{
+    int fd = open("/dev/urandom", O_RDONLY);
+    ssize_t ret;
+
+    if (fd < 0) {
+        fprintf(stderr, "mkfs.mxfs: cannot open /dev/urandom: %s\n",
+                strerror(errno));
+        return -1;
+    }
+    ret = read(fd, buf, len);
+    close(fd);
+    if (ret != (ssize_t)len) {
+        fprintf(stderr, "mkfs.mxfs: short read from /dev/urandom\n");
+        return -1;
+    }
+    return 0;
+}
+
 static int gen_uuid(uint8_t *uuid)
 {
     int fd = open("/dev/urandom", O_RDONLY);
@@ -290,6 +315,19 @@ static uint32_t ceil_log2(uint32_t v)
     }
     return r;
 }
+
+/* TEST ONLY (-Z): skip the XFS log-region zero.  See the log zeroing block. */
+static bool skip_log_zero;
+
+/* -D: format with directory sharding available (docs/dir-sharding.md).  Sets
+ * both on-disk gates together, the XFS sb incompat bit 29 and the envelope
+ * MXFS_FORMAT_F_DIRSHARD; without it neither is set and the kernel never
+ * shards a directory on this filesystem.  Experimental, off by default. */
+static bool format_dirshard;
+
+/* -c NAME: the cluster this filesystem belongs to (MXFS_FORMAT_F_CLUSTER_NAME);
+ * every mount must then pass -o cluster=NAME.  NULL = unnamed. */
+static const char *format_cluster_name;
 
 /*
  * Write a buffer to fd at the given offset.
@@ -443,12 +481,40 @@ verify:
         p = (const unsigned char *)vbuf;
         for (i = 0; i < bytes_to_check; i++) {
             if (p[i] != 0) {
-                pr_err("mkfs.mxfs: zero_region verify FAIL @%llu byte %zu = "
-                       "0x%02x (storage silently dropped writes — try "
-                       "'blkdiscard --zeroout %s' first or use a different "
-                       "backend)\n",
-                       (unsigned long long)(offset + verify_off + i),
-                       i, p[i], "/dev/<device>");
+                /*
+                 * A non-zero readback at a disklock slot record is not a
+                 * storage that dropped the write: it is a node that wrote
+                 * its heartbeat AFTER the zeroing (measured s62e: byte 1024
+                 * of the region read 0x4b, the 'K' of the MXLK slot magic
+                 * 0x4d584c4b, from a node the harness had left mounted).
+                 * Name that suspect when the bytes are the magic, and name
+                 * it as a possibility otherwise: a live writer is the common
+                 * case on a shared LUN, a dropping target the rare one.
+                 */
+                size_t a = i & ~(size_t)3;
+                uint32_t w = 0;
+
+                if (a + 4 <= bytes_to_check)
+                    memcpy(&w, p + a, 4);
+                if (w == 0x4d584c4bu)
+                    pr_err("mkfs.mxfs: zero_region verify FAIL @%llu byte %zu = "
+                           "0x%02x — that is the MXLK heartbeat slot magic: a "
+                           "node is still mounted and heartbeating into this "
+                           "device (check tools/disklock_hb_dump.py <device> "
+                           "for a record whose ts_ms advances); unmount it or "
+                           "power it off, then retry\n",
+                           (unsigned long long)(offset + verify_off + i),
+                           i, p[i]);
+                else
+                    pr_err("mkfs.mxfs: zero_region verify FAIL @%llu byte %zu = "
+                           "0x%02x — a node still writing to the device "
+                           "(check tools/disklock_hb_dump.py <device> for a "
+                           "record whose ts_ms advances), or storage that "
+                           "silently dropped the write (try 'blkdiscard "
+                           "--zeroout <device>' first or use a different "
+                           "backend)\n",
+                           (unsigned long long)(offset + verify_off + i),
+                           i, p[i]);
                 rc = -1;
                 goto out;
             }
@@ -559,6 +625,11 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
                              uint64_t device_size, uint64_t xfs_data_size,
                              uint64_t journal_offset, uint64_t journal_size,
                              uint64_t disklock_offset, uint64_t disklock_size,
+                             uint64_t rman_offset, uint64_t rman_size,
+                             uint64_t tauth_offset, uint64_t tauth_size,
+                             uint64_t prkey_offset, uint64_t prkey_size,
+                             uint64_t bootstrap_offset, uint64_t bootstrap_size,
+                             uint64_t slife_offset, uint64_t slife_size,
                              uint64_t xfs_data_offset,
                              uint32_t max_nodes,
                              uint32_t log_node_count,
@@ -572,8 +643,32 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
     sup.version = MXFS_FORMAT_VERSION;
     /* sess42 C7 version gate: every new format is protocol-gated — members
      * must run code speaking exactly cluster_proto_gen (see mxfs_super.h). */
-    sup.flags = MXFS_FORMAT_F_PROTOGATE;
+    sup.flags = MXFS_FORMAT_F_PROTOGATE | MXFS_FORMAT_F_RMAN |
+                MXFS_FORMAT_F_TAUTH | MXFS_FORMAT_F_PRKEY64 |
+                MXFS_FORMAT_F_BOOTSTRAP | MXFS_FORMAT_F_SLIFE;
+    if (format_dirshard)
+        sup.flags |= MXFS_FORMAT_F_DIRSHARD;
+    if (format_cluster_name) {
+        sup.flags |= MXFS_FORMAT_F_CLUSTER_NAME;
+        snprintf(sup.cluster_name, sizeof(sup.cluster_name), "%s",
+                 format_cluster_name);
+    }
     sup.cluster_proto_gen = MXFS_PROTO_GEN;
+    /* 0.88.0: the slice lifecycle region (mxfs_super.h, MXFS_FORMAT_F_SLIFE). */
+    sup.slife_offset = slife_offset;
+    sup.slife_size = slife_size;
+    /* sess404: the recovery manifest region (docs/recovery-manifest.md). */
+    sup.rman_offset = rman_offset;
+    sup.rman_size = rman_size;
+    /* sess421: the TCP authority ledger region (docs/tcp-authority-ledger.md). */
+    sup.tauth_offset = tauth_offset;
+    sup.tauth_size = tauth_size;
+    /* sess438: the PR registrant ledger region (docs/whole-cluster-restart.md). */
+    sup.prkey_offset = prkey_offset;
+    sup.prkey_size = prkey_size;
+    /* sess439: the whole-cluster bootstrap record (docs/whole-cluster-restart.md §5). */
+    sup.bootstrap_offset = bootstrap_offset;
+    sup.bootstrap_size = bootstrap_size;
     memcpy(sup.fs_uuid, uuid, 16);
     sup.device_size = device_size;
     sup.xfs_data_size = xfs_data_size;
@@ -595,6 +690,176 @@ static int write_mxfs_super(int fd, uint64_t super_offset,
                (unsigned long long)super_offset, sup.crc);
 
     return write_sectors(fd, super_offset, &sup, MXFS_SUPER_SIZE);
+}
+
+/* ─── Bootstrap record region (sess439, docs/whole-cluster-restart.md §5) ───
+ *
+ * Mirrors struct mxfs_bootstrap_rec (dlm/bootstrap.h) byte for byte: mkfs
+ * writes the one IDLE record the kernel requires (an all-zero sector is
+ * UNFORMATTED and the kernel fails closed on it).  crc32c over the record
+ * with crc32c = 0, seed ~0, no final inversion — the same formula
+ * mxfs_bootstrap_rec_crc uses.
+ */
+struct mkfs_bootstrap_rec {
+    uint32_t magic; uint16_t ver; uint16_t state;
+    uint64_t term; uint64_t seq; uint64_t stamp_ms;
+    uint32_t owner_node; uint32_t owner_key_gen;
+    uint64_t owner_epoch; uint64_t owner_pr_key; uint64_t owner_nonce;
+    uint8_t owner_host_uuid[16]; uint8_t owner_boot_uuid[16];
+    uint8_t fs_uuid[16];
+    uint32_t fs_gen; uint32_t host_src;
+    uint64_t victim_bitmap; uint64_t complete_bitmap;
+    uint64_t ledger_gen; uint64_t manifest_hash;
+    uint32_t registrants; uint32_t registrants_done;
+    uint64_t claim_stamp_ms; uint64_t seal_stamp_ms; uint64_t complete_stamp_ms;
+    uint32_t prev_owner_node; uint32_t prev_fence_kind;
+    uint64_t prev_owner_epoch; uint64_t prev_owner_pr_key;
+    uint32_t crc32c;
+    uint32_t refused_slot; uint32_t refused_reason;    /* sess440 v2 */
+    uint32_t escrow_pad; uint8_t escrow[264];          /* sess441 v3, sess442 mptr */
+    uint64_t episode_term; uint16_t lineage_count; uint16_t takeover_gen; /* sess443 v5 */
+    uint8_t reserved[12];
+};
+_Static_assert(sizeof(struct mkfs_bootstrap_rec) == 512, "bootstrap record");
+#define MKFS_BOOTSTRAP_MAGIC    0x5342584Du     /* "MXBS" */
+
+static int write_bootstrap_record(int fd, uint64_t offset, const uint8_t *uuid)
+{
+    struct mkfs_bootstrap_rec r;
+
+    memset(&r, 0, sizeof(r));
+    r.magic = MKFS_BOOTSTRAP_MAGIC;
+    r.ver = 5;                              /* sess443: MXFS_BOOTSTRAP_VERSION */
+    r.state = 0;                            /* IDLE */
+    memcpy(r.fs_uuid, uuid, 16);
+    r.crc32c = crc32c(~0U, &r, sizeof(r));
+    pr_verbose("  Writing bootstrap record at offset %llu (CRC=0x%08x)\n",
+               (unsigned long long)offset, r.crc32c);
+    return write_sectors(fd, offset, &r, sizeof(r));
+}
+
+/* ─── Slice lifecycle records (0.88.0) ───
+ *
+ * struct mxfs_slife_record comes straight from mxfs_super.h (it is the
+ * kernel's on-disk definition; the size is asserted there).  One record per
+ * log slice, INIT_REQUIRED, bound to this filesystem's uuid; owner fields 0
+ * and generation 0 until a claimant brings the slice to READY.  crc32c over
+ * the record with crc = 0, seed ~0, the formula the kernel's reader uses.
+ * The rest of the region stays zero: a zero record is UNFORMATTED and the
+ * kernel fails closed on it, and no slot beyond the slice count is admitted.
+ */
+static int write_slife_records(int fd, uint64_t offset, uint64_t size,
+                               const uint8_t *uuid, uint32_t count)
+{
+    struct mxfs_slife_record r;
+    uint32_t i;
+
+    if ((uint64_t)count * MXFS_SLIFE_RECORD_SIZE > size) {
+        pr_err("mkfs.mxfs: %u log slices do not fit the %llu-byte lifecycle region\n",
+               count, (unsigned long long)size);
+        return -1;
+    }
+    for (i = 0; i < count; i++) {
+        memset(&r, 0, sizeof(r));
+        r.magic = MXFS_SLIFE_MAGIC;
+        r.version = MXFS_SLIFE_VERSION;
+        r.state = MXFS_SLIFE_INIT_REQUIRED;
+        r.slice = i;
+        memcpy(r.fs_uuid, uuid, 16);
+        r.crc = crc32c(~0U, &r, sizeof(r));
+        pr_verbose("  Writing slice lifecycle record %u at offset %llu (INIT_REQUIRED, CRC=0x%08x)\n",
+                   i, (unsigned long long)(offset + (uint64_t)i * sizeof(r)),
+                   r.crc);
+        if (write_sectors(fd, offset + (uint64_t)i * sizeof(r), &r,
+                          sizeof(r)) < 0)
+            return -1;
+    }
+    return 0;
+}
+
+/* ─── TCP authority ledger region (sess421) ───
+ *
+ * Complete valid coverage from the first mount: every page is written as a
+ * committed EMPTY page (seq 1) in copy A; copy B and the spare header copy
+ * are zero (zero never validates, so the reader always picks A).  A
+ * shadow-page store whose pages all validate is what lets "absence == FREE"
+ * hold (docs/tcp-authority-ledger.md invariant: complete negative
+ * authority).  One sequential write per copy array keeps this fast
+ * (2115 pages = 8.3 MiB each). */
+/* sess427 (D-0348 step 2): the ledger's page count is an mkfs-time
+ * parameter.  Default: one record per 64 KiB of device (a generous peak
+ * tenure count — mean occupancy stays far below 31/page), clamped to the
+ * format's [MIN, MAX]; -t ENTRIES overrides.  128 GiB -> 67,650 pages ->
+ * 2.1M records, 528 MiB dual-copy (0.4 % of the device). */
+static uint32_t tauth_npages_for_device(uint64_t device_size)
+{
+    uint64_t entries = device_size / (64ULL * 1024);
+    uint64_t npages = (entries + MXFS_TAUTH_ENTRIES_PER_PAGE - 1) /
+                      MXFS_TAUTH_ENTRIES_PER_PAGE;
+
+    if (npages < MXFS_TAUTH_NPAGES_MIN)
+        npages = MXFS_TAUTH_NPAGES_MIN;
+    if (npages > MXFS_TAUTH_NPAGES_MAX)
+        npages = MXFS_TAUTH_NPAGES_MAX;
+    return (uint32_t)npages;
+}
+
+static int format_tauth_region(int fd, uint64_t tauth_offset, uint64_t tauth_size,
+                               const uint8_t *uuid, uint32_t npages,
+                               uint64_t hash_seed)
+{
+    struct mxfs_tauth_region_hdr *rh;
+    struct mxfs_tauth_page *pg;
+    uint32_t fs_gen = mxfs_tauth_fs_gen(uuid);
+    uint64_t stamp = (uint64_t)time(NULL) * 1000ULL;
+    uint32_t p;
+
+    if (tauth_size < MXFS_TAUTH_REGION_BYTES_FOR(npages)) {
+        pr_err("mkfs.mxfs: tauth region too small (%llu < %llu for %u pages)\n",
+               (unsigned long long)tauth_size,
+               (unsigned long long)MXFS_TAUTH_REGION_BYTES_FOR(npages), npages);
+        return -1;
+    }
+    if (zero_region(fd, tauth_offset, tauth_size) < 0)
+        return -1;
+    rh = calloc(1, sizeof(*rh));
+    pg = calloc(1, sizeof(*pg));
+    if (!rh || !pg) {
+        free(rh); free(pg);
+        pr_err("mkfs.mxfs: out of memory\n");
+        return -1;
+    }
+    mxfs_tauth_region_init(rh, fs_gen, uuid, npages, hash_seed, stamp, crc32c);
+    if (write_sectors(fd, tauth_offset + mxfs_tauth_hdr_off(0), rh,
+                      sizeof(*rh)) < 0)
+        goto fail;
+    for (p = 0; p < npages; p++) {
+        mxfs_tauth_page_init_empty(pg, p, fs_gen, uuid, 1, stamp, crc32c);
+        if (write_sectors(fd, tauth_offset +
+                          mxfs_tauth_page_off(npages, p, 0),
+                          pg, sizeof(*pg)) < 0)
+            goto fail;
+    }
+    /* sess428 (docs/tauth-view-table.md §13, build step 1): the control
+     * pages.  View slots A/B stay all-zero (= empty, validated as such by
+     * mxfs_tauth_ctrl_validate); the ROOT is the mkfs image — no committed
+     * view, ballot 0, nonce {0,1} — occupying the first 512 B of its page
+     * (the CAW unit); the rest of the page is zero and validated zero. */
+    {
+        struct mxfs_tauth_root *root = (struct mxfs_tauth_root *)pg;
+
+        memset(pg, 0, sizeof(*pg));
+        mxfs_tauth_root_init_empty(root, fs_gen, uuid, stamp, crc32c);
+        if (write_sectors(fd, tauth_offset +
+                          mxfs_tauth_ctrl_off(MXFS_TAUTH_CTRL_ROOT),
+                          pg, sizeof(*pg)) < 0)
+            goto fail;
+    }
+    free(rh); free(pg);
+    return 0;
+fail:
+    free(rh); free(pg);
+    return -1;
 }
 
 /* ─── Native XFS formatting ─── */
@@ -796,7 +1061,8 @@ static void write_sb_sector(uint8_t *sec, const struct xfs_geom *geom,
     /* [212] features_ro_compat = FINOBT */
     put_be32(sec + 212, XFS_SB_FEAT_RO_COMPAT_FINOBT);
     /* [216] features_incompat */
-    put_be32(sec + 216, XFS_SB_FEAT_INCOMPAT);
+    put_be32(sec + 216, XFS_SB_FEAT_INCOMPAT |
+                        (format_dirshard ? MXFS_DIRSHARD_SB_INCOMPAT : 0));
     /* [220] features_log_incompat = 0 */
     put_be32(sec + 220, 0);
     /* [224] crc — computed below (native uint32_t) */
@@ -1227,7 +1493,7 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
     }
 
     /*
-     * sess389 (D-RSYNC-LAP-PACE-AG-SHARING-388, RULE-5 ruling): the kernel
+     * sess389 (D-RSYNC-LAP-PACE-AG-SHARING-388, design-consult ruling): the kernel
      * gives every node the home AG (node_slot % agcount), so with fewer AGs
      * than nodes, slots >= agcount share a home AG pairwise and their dirops
      * ping-pong the AG EX grant.  Measured 25 AGs / 32 nodes: the 14 shared-AG
@@ -1525,7 +1791,16 @@ static int format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset,
                    geom.logblocks, geom.log_ag,
                    (unsigned long long)log_phys_byte);
 
-        if (zero_region(fd, log_phys_byte,
+        if (skip_log_zero) {
+            /* TEST ONLY (-Z): leave whatever the previous filesystem
+             * incarnation wrote in the log slices.  Exists to measure what
+             * recovery does with a slice that was never zeroed
+             * (tests/d0531_stale_slice_recovery.sh); never for a real
+             * format. */
+            pr_err("mkfs.mxfs: TEST ONLY -Z: log region NOT zeroed (%u blocks "
+                   "at byte %llu keep their previous contents)\n",
+                   geom.logblocks, (unsigned long long)log_phys_byte);
+        } else if (zero_region(fd, log_phys_byte,
                         (uint64_t)geom.logblocks * XFS_BLOCKSIZE) < 0)
             goto out;
     }
@@ -1546,11 +1821,17 @@ out:
 static void usage(const char *prog)
 {
     fprintf(stderr,
-            "Usage: %s [-f] [-n count] [-d size] [-v] [-V] DEVICE\n"
+            "Usage: %s [-f] [-c name] [-D] [-n count] [-d size] [-t entries] [-v] [-V] [-Z] DEVICE\n"
             "\n"
             "Format a block device for MXFS (Multinode XFS).\n"
             "\n"
             "  -f          Force — skip confirmation prompt\n"
+            "  -c NAME     Record the cluster this filesystem belongs to\n"
+            "              (1-63 of A-Z a-z 0-9 . _ -); every mount must then\n"
+            "              pass -o cluster=NAME.  Change it later with mxfs_admin\n"
+            "  -D          EXPERIMENTAL: allow directory sharding on this\n"
+            "              filesystem (also needs the mxfs module parameter\n"
+            "              dirshard_mkdir_enable=1); off by default\n"
             "  -n COUNT    Per-node XFS log slices = max cluster nodes for\n"
             "              this FS (1-32; default: auto-sized from device)\n"
             "  -d SIZE     Cap the XFS data area at SIZE bytes (K/M/G/T suffix;\n"
@@ -1559,6 +1840,9 @@ static void usage(const char *prog)
             "              on a larger LUN.\n"
             "  -v          Verbose output\n"
             "  -V          Print version and exit\n"
+            "  -Z          TEST ONLY: do not zero the XFS log region (keeps a\n"
+            "              previous incarnation's slice contents for recovery\n"
+            "              measurements; never for a real format)\n"
             "\n"
             "Creates: [super 4KB] [journal 64MB] [disklock 32MB] [XFS data to end]\n",
             prog);
@@ -1574,6 +1858,11 @@ int main(int argc, char *argv[])
     uint64_t device_size;
     uint64_t disklock_offset, journal_offset, xfs_data_offset;
     uint64_t journal_size, disklock_size, xfs_data_size;
+    uint64_t rman_offset, rman_size;    /* sess404 recovery manifests */
+    uint64_t tauth_offset, tauth_size;  /* sess421 TCP authority ledger */
+    uint64_t prkey_offset, prkey_size;  /* sess438 PR registrant ledger */
+    uint64_t bootstrap_offset, bootstrap_size;  /* sess439 bootstrap record */
+    uint64_t slife_offset, slife_size;  /* 0.88.0 slice lifecycle records */
     uint32_t max_nodes = MXFS_MAX_NODES;
     uint32_t log_node_count = 0;    /* 0 = auto-size from the device;
                                      * D-LOG-SLICE-SHARED-MULTIWRITER: the
@@ -1584,12 +1873,50 @@ int main(int argc, char *argv[])
     char hbuf[64], hbuf2[64];
     struct stat st;
     uint64_t data_cap = 0;              /* -d: XFS data-area cap, 0 = whole device */
+    uint32_t tauth_npages = 0;          /* -t: authority-ledger records, 0 = derive */
+    uint64_t tauth_seed = 0;            /* sess427: per-format routing-hash seed */
 
-    while ((opt = getopt(argc, argv, "fn:d:vV")) != -1) {
+    while ((opt = getopt(argc, argv, "fc:Dn:d:t:vVZ")) != -1) {
         switch (opt) {
         case 'f':
             force = true;
             break;
+        case 'c':
+            if (!mxfs_cluster_name_valid(optarg)) {
+                pr_err("mkfs.mxfs: -c: a cluster name is 1-%d characters "
+                       "of A-Z a-z 0-9 . _ -\n", MXFS_CLUSTER_NAME_LEN - 1);
+                return 1;
+            }
+            format_cluster_name = optarg;
+            break;
+        case 'D':
+            format_dirshard = true;
+            break;
+        case 'Z':
+            skip_log_zero = true;
+            break;
+        case 't': {
+            /* sess427 (D-0348 step 2): authority-ledger capacity in
+             * RECORDS (rounded up to whole 31-record pages). */
+            char *end = NULL;
+            unsigned long long v = strtoull(optarg, &end, 10);
+            unsigned long long np;
+
+            if (end == optarg || *end != '\0' || v == 0) {
+                pr_err("mkfs.mxfs: -t ENTRIES must be a positive record count\n");
+                return 1;
+            }
+            np = (v + MXFS_TAUTH_ENTRIES_PER_PAGE - 1) / MXFS_TAUTH_ENTRIES_PER_PAGE;
+            if (np < MXFS_TAUTH_NPAGES_MIN || np > MXFS_TAUTH_NPAGES_MAX) {
+                pr_err("mkfs.mxfs: -t %llu: the ledger holds %llu-%llu records\n",
+                       v,
+                       (unsigned long long)MXFS_TAUTH_NPAGES_MIN * MXFS_TAUTH_ENTRIES_PER_PAGE,
+                       (unsigned long long)MXFS_TAUTH_NPAGES_MAX * MXFS_TAUTH_ENTRIES_PER_PAGE);
+                return 1;
+            }
+            tauth_npages = (uint32_t)np;
+            break;
+        }
         case 'd': {
             /* sess389: data-area cap (geometry reproduction).  Accepts a
              * plain byte count or K/M/G/T suffix. */
@@ -1690,10 +2017,40 @@ int main(int argc, char *argv[])
 
     disklock_size = MXFS_DISKLOCK_REGION_SIZE;
 
-    /* New layout: [MXFS super 4KB] [journal] [disklock] [XFS data to end] */
+    /* New layout: [MXFS super 4KB] [journal] [disklock] [rman] [XFS data to end]
+     * sess404: the recovery manifest region — one 2 MiB + 64 KiB slot per
+     * heartbeat slot (docs/recovery-manifest.md). */
+    rman_size = MXFS_RMAN_REGION_BYTES;
+    /* sess421: the TCP authority ledger region follows the manifests
+     * (docs/tcp-authority-ledger.md): 2 header + 2 x npages page copies.
+     * sess427 (D-0348 step 2): npages is sized from the device (or -t). */
+    if (!tauth_npages)
+        tauth_npages = tauth_npages_for_device(device_size);
+    tauth_size = MXFS_TAUTH_REGION_BYTES_FOR(tauth_npages);
+    if (read_random_bytes(&tauth_seed, sizeof(tauth_seed)) < 0 || tauth_seed == 0) {
+        pr_err("mkfs.mxfs: cannot draw the authority-ledger hash seed\n");
+        return 1;
+    }
     journal_offset = MXFS_SUPER_SIZE;
     disklock_offset = ALIGN_UP_4K(journal_offset + journal_size);
-    xfs_data_offset = ALIGN_UP_4K(disklock_offset + disklock_size);
+    rman_offset = ALIGN_UP_4K(disklock_offset + disklock_size);
+    tauth_offset = ALIGN_UP_4K(rman_offset + rman_size);
+    /* sess438: the PR registrant ledger (docs/whole-cluster-restart.md
+     * item 2): 256 x 512 B CAW-written entries, zero-filled (FREE). */
+    prkey_size = MXFS_PRLEDGER_BYTES;
+    prkey_offset = ALIGN_UP_4K(tauth_offset + tauth_size);
+    /* sess439: the whole-cluster bootstrap record (§5): one CAW sector in a
+     * 4 KiB region, written IDLE (an all-zero sector is UNFORMATTED and the
+     * kernel fails closed on it). */
+    bootstrap_size = MXFS_BOOTSTRAP_BYTES;
+    bootstrap_offset = ALIGN_UP_4K(prkey_offset + prkey_size);
+    /* 0.88.0: the slice lifecycle records (D-SLICE-CLAIM-TIME-INIT-UNTRUSTED-
+     * ZERO-531): one 512 B record per log slice, written INIT_REQUIRED once
+     * the native format has settled the slice count (step 4a).  The region
+     * is sized for every heartbeat slot so its offset is known here. */
+    slife_size = MXFS_SLIFE_BYTES;
+    slife_offset = ALIGN_UP_4K(bootstrap_offset + bootstrap_size);
+    xfs_data_offset = ALIGN_UP_4K(slife_offset + slife_size);
     xfs_data_size = device_size - xfs_data_offset;
     if (data_cap) {
         if (data_cap > xfs_data_size) {
@@ -1729,8 +2086,31 @@ int main(int argc, char *argv[])
             max_nodes);
     pr_info("  Disklock:   %llu - %llu (%s)\n",
             (unsigned long long)disklock_offset,
-            (unsigned long long)(xfs_data_offset - 1),
+            (unsigned long long)(rman_offset - 1),
             human_size(disklock_size, hbuf, sizeof(hbuf)));
+    pr_info("  Manifests:  %llu - %llu (%s, %u slots)\n",
+            (unsigned long long)rman_offset,
+            (unsigned long long)(tauth_offset - 1),
+            human_size(rman_size, hbuf, sizeof(hbuf)), MXFS_RMAN_SLOTS);
+    pr_info("  Authority:  %llu - %llu (%s, %u pages x 2 copies, %llu records, seed %016llx)\n",
+            (unsigned long long)tauth_offset,
+            (unsigned long long)(prkey_offset - 1),
+            human_size(tauth_size, hbuf, sizeof(hbuf)), tauth_npages,
+            (unsigned long long)tauth_npages * MXFS_TAUTH_ENTRIES_PER_PAGE,
+            (unsigned long long)tauth_seed);
+    pr_info("  Registrants: %llu - %llu (%s, %u PR-key entries)\n",
+            (unsigned long long)prkey_offset,
+            (unsigned long long)(bootstrap_offset - 1),
+            human_size(prkey_size, hbuf, sizeof(hbuf)),
+            (unsigned)MXFS_PRLEDGER_ENTRIES);
+    pr_info("  Bootstrap:  %llu - %llu (%s, 1 record)\n",
+            (unsigned long long)bootstrap_offset,
+            (unsigned long long)(slife_offset - 1),
+            human_size(bootstrap_size, hbuf, sizeof(hbuf)));
+    pr_info("  Lifecycle:  %llu - %llu (%s, one record per log slice)\n",
+            (unsigned long long)slife_offset,
+            (unsigned long long)(xfs_data_offset - 1),
+            human_size(slife_size, hbuf, sizeof(hbuf)));
     pr_info("  XFS data:   %llu - %llu (%s)\n",
             (unsigned long long)xfs_data_offset,
             (unsigned long long)(device_size - 1),
@@ -1752,15 +2132,28 @@ int main(int argc, char *argv[])
 
     /* ─── Step 1: Open device for formatting ─── */
 
-    fd = open(device, O_RDWR | O_DIRECT | O_SYNC);
+    /*
+     * 0.89.6 (ledger D-A-TEST-HARNESS-CAN-REPORT-A-VERDICT-ABOUT-MXFS,
+     * buffered-reader class): the target is a block device (checked above)
+     * and the format is written AND verified through this descriptor.  A
+     * buffered fallback would verify the page cache's copy of the bytes
+     * rather than a fresh read of the device, and on a node where any
+     * other opener holds the device that copy is what a later buffered
+     * reader is fed; O_SYNC does not change what a read returns.  So there
+     * is no fallback: a device that cannot be opened direct is not
+     * formatted.  O_EXCL keeps a mount from starting under the format (the
+     * size probe above already took it once; the window between the two
+     * opens is closed here).
+     */
+    fd = open(device, O_RDWR | O_EXCL | O_DIRECT | O_SYNC);
     if (fd < 0) {
-        /* Fallback without O_DIRECT */
-        fd = open(device, O_RDWR | O_SYNC);
-        if (fd < 0) {
-            pr_err("mkfs.mxfs: cannot open %s: %s\n",
-                   device, strerror(errno));
-            return 1;
-        }
+        if (errno == EBUSY)
+            pr_err("mkfs.mxfs: %s: device is busy (mounted?)\n", device);
+        else
+            pr_err("mkfs.mxfs: cannot open %s direct (O_DIRECT|O_SYNC): %s; "
+                   "a format is not written or verified through the page "
+                   "cache\n", device, strerror(errno));
+        return 1;
     }
 
     /* Generate filesystem UUID upfront (used by journal, XFS, and MXFS super) */
@@ -1785,6 +2178,47 @@ int main(int argc, char *argv[])
                (unsigned long long)disklock_offset);
 
     if (zero_region(fd, disklock_offset, disklock_size) < 0) {
+        close(fd);
+        return 1;
+    }
+
+    /* ─── Step 3a: Zero the recovery manifest region (sess404) ───
+     * A manifest slot is valid only with its own header magic + seal, so a
+     * zeroed region reads as "no manifest" on every path. */
+    pr_info("Zeroing recovery manifest region...\n");
+    if (zero_region(fd, rman_offset, rman_size) < 0) {
+        close(fd);
+        return 1;
+    }
+
+    /* ─── Step 3a': Format the TCP authority ledger region (sess421) ─── */
+    pr_info("Formatting TCP authority ledger region (%u pages)...\n",
+            tauth_npages);
+    if (format_tauth_region(fd, tauth_offset, tauth_size, uuid, tauth_npages,
+                            tauth_seed) < 0) {
+        close(fd);
+        return 1;
+    }
+    /* ─── Step 3a'': the PR registrant ledger (sess438): all entries FREE ─── */
+    pr_info("Formatting PR registrant ledger region (%u entries)...\n",
+            (unsigned)MXFS_PRLEDGER_ENTRIES);
+    if (zero_region(fd, prkey_offset, prkey_size) < 0) {
+        close(fd);
+        return 1;
+    }
+
+    /* ─── Step 3a''': the bootstrap record (sess439): IDLE, crc-sealed ─── */
+    pr_info("Formatting bootstrap record region (IDLE)...\n");
+    if (zero_region(fd, bootstrap_offset, bootstrap_size) < 0 ||
+        write_bootstrap_record(fd, bootstrap_offset, uuid) < 0) {
+        close(fd);
+        return 1;
+    }
+
+    /* ─── Step 3a'''': the slice lifecycle region (0.88.0): all zero now;
+     * the records are written in step 4a, once the slice count is known ─── */
+    pr_info("Formatting slice lifecycle region...\n");
+    if (zero_region(fd, slife_offset, slife_size) < 0) {
         close(fd);
         return 1;
     }
@@ -1825,6 +2259,22 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* ─── Step 4a: the slice lifecycle records (0.88.0): INIT_REQUIRED ───
+     *
+     * The log region was just written by the native format through the same
+     * userspace path whose durability the target stack does not promise, so
+     * every slice's payload is UNTRUSTED until the node that claims its slot
+     * zeroes it through the kernel FUA path and persists READY.  Written here
+     * because format_xfs_native is what settles log_node_count.
+     */
+    pr_info("Writing %u slice lifecycle records (INIT_REQUIRED)...\n",
+            log_node_count);
+    if (write_slife_records(fd, slife_offset, slife_size, uuid,
+                            log_node_count) < 0) {
+        close(fd);
+        return 1;
+    }
+
     /* ─── Step 5: Write MXFS superblock at offset 0 ─── */
 
     pr_info("Writing MXFS superblock...\n");
@@ -1841,6 +2291,11 @@ int main(int argc, char *argv[])
     if (write_mxfs_super(fd, 0, device_size, xfs_data_size,
                           journal_offset, journal_size,
                           disklock_offset, disklock_size,
+                          rman_offset, rman_size,
+                          tauth_offset, tauth_size,
+                          prkey_offset, prkey_size,
+                          bootstrap_offset, bootstrap_size,
+                          slife_offset, slife_size,
                           xfs_data_offset,
                           max_nodes,
                           log_node_count, log_slice_bblks,

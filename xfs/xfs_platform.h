@@ -206,12 +206,19 @@ static inline unsigned long mapping_max_folio_size_supported(void)
 #define FS_LBS 0
 #endif
 
-/* kvrealloc changed from 4-arg to 3-arg in ~6.13 */
+/* kvrealloc changed from 4-arg to 3-arg in ~6.13.  The compat MUST carry
+ * the true old size: 4-arg kvrealloc copies exactly oldsize bytes and
+ * frees the old buffer, so the old alias passing oldsize=0 DISCARDED the
+ * existing content of every realloc'd buffer — in recovery's
+ * add_to_cont_trans that vaporized the head of every log region that
+ * straddles a record boundary (D-530: the entire churn-slice -117
+ * family — garbage di_magic, type-0 items — on every <6.13 kernel,
+ * foreign AND own-crash recovery alike). */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
-#define mxfs_kvrealloc(p, newsize, gfp) \
-	kvrealloc(p, 0, newsize, gfp)
+#define mxfs_kvrealloc(p, oldsize, newsize, gfp) \
+	kvrealloc(p, oldsize, newsize, gfp)
 #else
-#define mxfs_kvrealloc(p, newsize, gfp) \
+#define mxfs_kvrealloc(p, oldsize, newsize, gfp) \
 	kvrealloc(p, newsize, gfp)
 #endif
 
@@ -220,22 +227,40 @@ static inline unsigned long mapping_max_folio_size_supported(void)
 #define WQ_PERCPU 0
 #endif
 
-/* bio_add_vmalloc/bio_add_virt_nofail added in v6.16 */
+/* bio_add_vmalloc/bio_add_vmalloc_chunk/bio_add_virt_nofail added in v6.16.
+ * Return contracts mirror upstream block/bio.c EXACTLY:
+ *   bio_add_vmalloc_chunk -> bytes added (<= PAGE_SIZE - offset), 0 = bio full
+ *   bio_add_vmalloc       -> bool, true = whole region added
+ * xfs_rw_bdev's chaining loop depends on the chunk contract: a shim that
+ * returned 0-on-success made every fully-fitting add read as "bio full",
+ * spinning an unbounded chain of real reads marching past end-of-device
+ * (D-BIO-VMALLOC-CHUNK-COMPAT-INVERTED-RUNAWAY-528). */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 #include <linux/bio.h>
-static inline int bio_add_vmalloc(struct bio *bio, void *data, unsigned int len)
+static inline unsigned int bio_add_vmalloc_chunk(struct bio *bio, void *vaddr,
+						 unsigned int len)
 {
-	unsigned int offset = offset_in_page(data);
-	while (len > 0) {
-		struct page *page = vmalloc_to_page(data);
-		unsigned int bytes = min(len, (unsigned int)PAGE_SIZE - offset);
-		if (!bio_add_page(bio, page, bytes, offset))
-			return -EIO;
-		data += bytes;
-		len -= bytes;
-		offset = 0;
-	}
-	return 0;
+	unsigned int offset = offset_in_page(vaddr);
+
+	len = min(len, (unsigned int)PAGE_SIZE - offset);
+	if (bio_add_page(bio, vmalloc_to_page(vaddr), len, offset) < len)
+		return 0;
+	if (op_is_write(bio_op(bio)))
+		flush_kernel_vmap_range(vaddr, len);
+	return len;
+}
+static inline bool bio_add_vmalloc(struct bio *bio, void *vaddr,
+				   unsigned int len)
+{
+	do {
+		unsigned int added = bio_add_vmalloc_chunk(bio, vaddr, len);
+
+		if (!added)
+			return false;
+		vaddr += added;
+		len -= added;
+	} while (len);
+	return true;
 }
 static inline void bio_add_virt_nofail(struct bio *bio, void *data,
 				       unsigned int len)
@@ -284,10 +309,9 @@ static inline unsigned int bio_add_max_vecs(void *data, unsigned int len) {
 /* bdev_rw_virt — new in v6.16 */
 /* Compat provided after xfs_rw_bdev declaration (see bottom of this file) */
 
-/* bio_add_vmalloc_chunk — new in v6.16, differs from bio_add_vmalloc */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
-#define bio_add_vmalloc_chunk bio_add_vmalloc
-#endif
+/* bio_add_vmalloc_chunk compat lives with bio_add_vmalloc above — it is a
+ * DIFFERENT function with a DIFFERENT return contract (bytes added, not
+ * bool); the old alias to bio_add_vmalloc is what caused -528. */
 
 /* super_set_sysfs_name_id — added in v6.10 (commit ae8c51175730, "fs: add
  * FS_IOC_GETFSSYSFSPATH") */
@@ -367,6 +391,8 @@ static inline void generic_fill_statx_atomic_writes(struct kstat *stat,
 /* struct iomap_write_ops — new in ~6.15 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
 #include <linux/types.h>
+/* named in the prototypes below before any iomap header has been seen */
+struct iomap;
 struct iomap_write_ops {
 	bool (*iomap_valid)(struct inode *inode, const struct iomap *iomap);
 };
@@ -381,8 +407,111 @@ static inline loff_t iomap_last_written_block(struct inode *inode,
 		return round_down(pos, i_blocksize(inode));
 	return round_up(pos + written, i_blocksize(inode));
 }
-#define iomap_write_delalloc_release(inode, start, end, flags, iomap, punch) \
-	do { if (punch) (punch)(inode, start, (end) - (start), iomap); } while (0)
+/*
+ * THE RANGE HANDED TO THIS FUNCTION IS THE TAIL OF A SHORT WRITE, AND PART OF
+ * IT MAY STILL BE DIRTY.  Punching all of it is not a simplification — it takes
+ * the space reservation out from under dirty folios that writeback is still
+ * going to write, and a dirty page with nothing reserved for it is either
+ * discarded or fails the writeback that would have persisted it.
+ *
+ * Dirty folios get there by racing: a buffered write can stop part way through
+ * (an unfaultable source page) while an mmap write fault dirties another folio
+ * inside the same newly allocated delalloc extent.  The write's tail is then
+ * "unwritten" from the write's point of view and dirty from the page cache's.
+ *
+ * So the range is scanned and only the gaps BETWEEN dirty folios are punched.
+ * Clean folios are punchable whatever they hold: either their data is already
+ * written back, in which case punching the delalloc over it does nothing, or
+ * they are read faults holding zeroes and a later write will fill the hole
+ * normally.
+ *
+ * This is upstream's iomap_write_delalloc_release()/_scan() (v6.12+), with two
+ * deliberate differences, both stated here because neither is visible from the
+ * code:
+ *
+ *   * The outer mapping_seek_hole_data() loop is gone.  It is an optimisation
+ *     for skipping stretches the page cache does not cover, it is not exported
+ *     to modules, and the scan below already steps over an absent folio a page
+ *     at a time — so dropping it costs walk time on a sparse range and changes
+ *     no answer.
+ *
+ *   * The sub-folio pass that punches CLEAN blocks inside a DIRTY folio is
+ *     gone.  It reads folio->private as iomap's own folio state, which a module
+ *     cannot reach.  Keeping delalloc over those blocks is the conservative
+ *     direction: writeback allocates them for real instead of leaving them
+ *     reserved, which spends space and never loses data, and it is what
+ *     upstream itself did before that refinement was added.
+ *
+ * Lock order is the caller's and is unchanged: invalidate_lock (held by
+ * xfs_buffered_write_iomap_end across this call) then folio_lock then punch.
+ */
+#include <linux/pagemap.h>
+static inline void iomap_write_delalloc_release(struct inode *inode,
+		loff_t start_byte, loff_t end_byte, unsigned int flags,
+		struct iomap *iomap,
+		void (*punch)(struct inode *inode, loff_t pos, loff_t length,
+			      struct iomap *iomap))
+{
+	loff_t	punch_start_byte = start_byte;
+	loff_t	scan_end_byte = min_t(loff_t, i_size_read(inode), end_byte);
+	loff_t	pos = start_byte;
+
+	(void)flags;
+
+	while (pos < scan_end_byte) {
+		struct folio	*folio;
+		loff_t		folio_end;
+
+		folio = filemap_lock_folio(inode->i_mapping, pos >> PAGE_SHIFT);
+		if (IS_ERR(folio)) {
+			/* nothing cached here, so nothing to preserve */
+			pos = ALIGN_DOWN(pos, PAGE_SIZE) + PAGE_SIZE;
+			continue;
+		}
+		folio_end = folio_pos(folio) + folio_size(folio);
+
+		if (folio_test_dirty(folio)) {
+			/*
+			 * Punch what precedes this folio, then resume after it.
+			 * `pos`, not folio_pos(), is the left edge: anything in
+			 * the folio before it is outside the range this write
+			 * is allowed to punch at all.
+			 */
+			if (pos > punch_start_byte)
+				punch(inode, punch_start_byte,
+				      pos - punch_start_byte, iomap);
+			punch_start_byte = min_t(loff_t, scan_end_byte,
+						 folio_end);
+			/*
+			 * THE ONLY WAY THIS DECISION IS VISIBLE FROM OUTSIDE.
+			 * Before this scan existed the whole range was punched
+			 * blind, and a dirty folio losing its reservation left
+			 * no trace at all until writeback failed on it later,
+			 * somewhere else.  Counting the skip is what lets a lap
+			 * assert that the reservation was KEPT rather than
+			 * inferring it from the absence of a later symptom.
+			 */
+			pr_info_ratelimited(
+			    "mxfs: P313-DELALLOC-KEEP ino=%lu folio=[%lld,%lld) range=[%lld,%lld) — this folio is DIRTY, so its delalloc reservation is kept for writeback instead of being punched with the rest of the short write's tail\n",
+			    inode->i_ino, (long long)folio_pos(folio),
+			    (long long)folio_end, (long long)start_byte,
+			    (long long)end_byte);
+		}
+
+		pos = folio_end;
+		folio_unlock(folio);
+		folio_put(folio);
+	}
+
+	/*
+	 * Whatever is left, including everything past i_size that the scan
+	 * deliberately stopped short of — delalloc beyond EOF is never written
+	 * back, so it must always be punched.
+	 */
+	if (punch_start_byte < end_byte)
+		punch(inode, punch_start_byte, end_byte - punch_start_byte,
+		      iomap);
+}
 #endif
 
 /* iomap_fill_dirty_folios — new in v6.19 (commit ed61378b4dc6, real
@@ -797,6 +926,9 @@ static inline int bdev_rw_virt(struct block_device *bdev, sector_t sector,
 	struct bio	bio;
 	int		error;
 
+	if (WARN_ON_ONCE(is_vmalloc_addr(data)))
+		return -EIO;
+
 	bio_init(&bio, bdev, &bv, 1, op);
 	bio.bi_iter.bi_sector = sector;
 	bio_add_virt_nofail(&bio, data, len);
@@ -805,5 +937,19 @@ static inline int bdev_rw_virt(struct block_device *bdev, sector_t sector,
 	return error;
 }
 #endif
+
+/*
+ * Every slab cache this module creates goes through this (pal/linux/xfs_super.c).
+ * By default the cache is created unmergeable, so a "Slab cache still has
+ * objects" report at module unload names THIS load's leak: a mergeable cache
+ * whose destroy failed stays on the slab list and the next load's create of
+ * the same shape adopts it, stranded objects and all, and re-reports them at
+ * every later unload of the boot (test1's 2026-09-08 boot reported the same
+ * six mxfs_buf objects after three different builds).  slab_merge=1 restores
+ * the mergeable shape for that control.
+ */
+struct kmem_cache *mxfs_cache_create(const char *name, unsigned int size,
+				     unsigned int align, slab_flags_t flags,
+				     void (*ctor)(void *));
 
 #endif /* _XFS_PLATFORM_H */

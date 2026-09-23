@@ -1,4 +1,5 @@
 #!/bin/bash
+# device-adjudicated: host-side LIO backstore experiment: the target's backing device on the dev host is the subject, not an MXFS measurement
 # Sess36 E1: cross-initiator durability test (no mxfs).
 #
 # Two VMs (test1, test2) each have /dev/sda mapped to the same shared
@@ -6,7 +7,7 @@
 # read it back. If the pattern appears, the storage stack is sound. If
 # zeros, the cliff is real.
 #
-# Per RULE 3: persistent script lives in source tree.
+# Per the source-tree rule: persistent script lives in source tree.
 #
 # WARNING: writes to /dev/sda directly. Picks an LBA at the end of the
 # disk that's unlikely to collide with mxfs's structures, but ALWAYS

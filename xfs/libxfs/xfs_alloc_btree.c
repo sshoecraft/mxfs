@@ -602,7 +602,7 @@ xfs_allocbt_calc_size(
 int __init
 xfs_allocbt_init_cur_cache(void)
 {
-	xfs_allocbt_cur_cache = kmem_cache_create("mxfs_bnobt_cur",
+	xfs_allocbt_cur_cache = mxfs_cache_create("mxfs_bnobt_cur",
 			xfs_btree_cur_sizeof(xfs_allocbt_maxlevels_ondisk()),
 			0, 0, NULL);
 

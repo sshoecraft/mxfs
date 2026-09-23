@@ -70,7 +70,7 @@ fi
 #    keeps 100% of the true-positive rate for the failure mode this check
 #    exists for (an unchanged-PID wedge trivially survives a 10 s dwell) while
 #    removing a false positive that fires on a healthy busy cluster.  A task
-#    blocked for 10 s straight is itself a RULE 0 problem, so the assertion
+#    blocked for 10 s straight is itself a budget rule problem, so the assertion
 #    still bites.  Costs nothing when nothing is in D state.
 DWELL="${MXFS_DSTATE_DWELL_S:-10}"
 dsnap() { ps -eo stat=,pid=,comm= 2>/dev/null | awk '$1 ~ /^D/ && $3 != "mxfs-worker" {print $2}'; }

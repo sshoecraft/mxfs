@@ -24,7 +24,7 @@
 # locking ops this criterion exists to stress) but only 93 MB of data
 # per node (1.5 GB aggregate ≈ 0.5 s device time — far below
 # saturation), so the 1.5x gate genuinely detects super-linear FS
-# contention again.  RULE-4 discriminator that proved this: at 16
+# contention again.  discriminator that proved this: at 16
 # nodes the capped workload's per-node walls collapse to ~the warm
 # single-node wall (~2 s) while the full-volume walls sat at ~5.5-10 s
 # tracking the bandwidth crossover between the 8- and 16-node stages.

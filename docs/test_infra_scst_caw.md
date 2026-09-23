@@ -4,8 +4,7 @@
 (the LIO/tcm_loop stack for condition 1, TCP DLM). This doc covers the two
 **CAW** deploy conditions on the SCST shared LUN.
 
-MXFS must validate three deployment shapes (see memory
-`caw-test-3-conditions-and-script-inventory`):
+MXFS must validate three deployment shapes (see `docs/history/docs/history/caw-test-3-conditions-and-script-inventory.md`):
 
 | # | Real deployment | Transport | Rig |
 |---|---|---|---|
@@ -32,7 +31,7 @@ shared target serves both CAW conditions; the difference is *who logs in*.
                              per-nexus PR fencing, sess26)
 ```
 
-## Scripts (all in `scripts/`, RULE 3)
+## Scripts (all in `scripts/`, the source-tree rule)
 
 ### `scst_setup.sh {setup|status|teardown}` — HOST target (foundation for 2 & 3)
 Loads SCST (`scst`, `scst_vdisk`, `iscsi_scst`) + starts `iscsi-scstd`, creates
@@ -133,7 +132,7 @@ is still FS work — but the substrate is proven to support it.
   ABORT_TASK → nexus loss → leaked D-state `iscsi_conn_cleanup` → permanent LUN
   wedge. Mitigation = the 180s guest SCSI timeout (in `prep_tcm_node_scst.sh`).
   This is an SCST software artifact, not how a real FC array behaves. Recover a
-  live wedge with `scripts/scst_unwedge/` (no host reboot — RULE 2).
+  live wedge with `scripts/scst_unwedge/` (no host reboot — the never-reboot-the-host rule).
 - Condition 2's clyde loopback initiator is the same iSCSI-loopback path the
   project moved *away* from onto LIO; it is inherent to simulating FC passthrough
   and only used for the CAW conditions.

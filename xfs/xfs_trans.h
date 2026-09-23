@@ -211,7 +211,7 @@ typedef struct xfs_trans {
 						       * + Free-inode-has-blocks). */
 	unsigned long		t_pflags;	/* saved process flags state */
 	/*
-	 * sess103 step 5.3 (P1 of the sess102 RULE-5 ruling): globally unique
+	 * sess103 step 5.3 (P1 of the sess102 design-consult ruling): globally unique
 	 * id of this transaction's authority-CAPTURE WINDOW.
 	 *
 	 * The authority proof for a logged buffer image must name the grant
@@ -248,6 +248,11 @@ int		xfs_trans_reserve_more(struct xfs_trans *tp,
 struct xfs_trans *xfs_trans_alloc_empty(struct xfs_mount *mp);
 void		xfs_trans_mod_sb(xfs_trans_t *, uint, int64_t);
 
+/* sess409 (MXFS): non-static so xfs_icache.c can ask "does tp already hold
+ * this cluster buffer?" before taking a blocking buffer lock. */
+struct xfs_buf	*xfs_trans_buf_item_match(struct xfs_trans *tp,
+			struct xfs_buftarg *target, struct xfs_buf_map *map,
+			int nmaps);
 int xfs_trans_get_buf_map(struct xfs_trans *tp, struct xfs_buftarg *target,
 		struct xfs_buf_map *map, int nmaps, xfs_buf_flags_t flags,
 		struct xfs_buf **bpp);

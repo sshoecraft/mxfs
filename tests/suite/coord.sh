@@ -36,7 +36,7 @@ coord_enabled() { [ "${MXFS_NODES:-1}" -ge 2 ]; }
 # use, = min(requested, time left until the REPORTING deadline).
 #
 # D-374 (sess384): COORD_TIMEOUT defaulted to 120s while run.sh SIGKILLs the
-# ssh at the criterion's RULE-0 budget (30-90s for most of the board).  So a
+# ssh at the criterion's derived time budget (30-90s for most of the board).  So a
 # genuine barrier stall was killed before the timeout that would have REPORTED
 # it — every node produced NO_TERMINAL_RECORD and the board said nothing about
 # what stalled.  run.sh had the correct clamp, but only for dir_reuse_coherency.
@@ -82,12 +82,19 @@ coord_barrier() {
     # keeps the instant -C exit but verifies DISTINCT topics; on a dup
     # shortfall it falls back to short re-polls of the retained set until
     # all N ranks are genuinely present.
-    local eff
+    # The two failure strings below are the ONLY thing that separates "my own
+    # reporting budget was already spent, so I never waited at all" from "I
+    # waited the whole window and my peer never arrived" — two different
+    # defects that present identically as BARRIER_TIMEOUT.  Both carry the
+    # numbers needed to settle it without a reproduction, and
+    # coord_barrier_or_abort forwards them to the caller for the record.
+    local eff bar_t0=$(date +%s)
     if ! eff=$(coord_eff_timeout); then
-        echo "coord_barrier '$tag' NO_REPORTING_TIME (rank $MXFS_RANK)" >&2
+        echo "coord_barrier '$tag' NO_REPORTING_TIME (rank $MXFS_RANK) eff=0" \
+             "elapsed=$(( bar_t0 - ${SUITE_T0_S:-bar_t0} ))s report_s=${SUITE_REPORT_S:-unset}" >&2
         return 1
     fi
-    local deadline=$(( $(date +%s) + eff ))
+    local deadline=$(( bar_t0 + eff ))
     local uniq cnt
     cnt=$(timeout $(( eff + 3 )) mosquitto_sub -h "$COORD_B" \
             -t "$base/r/+" -C "$MXFS_NODES" -W "$eff" -v -q 1 2>/dev/null \
@@ -100,7 +107,9 @@ coord_barrier() {
         [ "$uniq" -ge "$MXFS_NODES" ] && return 0
         [ "$(date +%s)" -ge "$deadline" ] && break
     done
-    echo "coord_barrier '$tag' TIMEOUT (saw ${uniq:-0}/$MXFS_NODES on rank $MXFS_RANK)" >&2
+    echo "coord_barrier '$tag' TIMEOUT (saw ${uniq:-0}/$MXFS_NODES on rank $MXFS_RANK)" \
+         "eff=${eff}s waited=$(( $(date +%s) - bar_t0 ))s" \
+         "elapsed=$(( bar_t0 - ${SUITE_T0_S:-bar_t0} ))s report_s=${SUITE_REPORT_S:-unset}" >&2
     return 1
 }
 
@@ -149,7 +158,7 @@ coord_done() {
 # coord_wait, just non-blocking so it can be polled from inside another
 # wait loop instead of committing to a single event.
 #
-# sess1 (ccloop 0220f43f) RULE-4 PROVEN: mosquitto_sub's -W only accepts
+# sess1 (ccloop 0220f43f) PROVEN BY INSTRUMENT: mosquitto_sub's -W only accepts
 # INTEGER seconds (a fractional value like "0.3" silently truncates to 0
 # via its atoi-style parse); -W 0 returns near-instantly but UNRELIABLY
 # misses even an already-retained message (measured: 0/1 delivered across
@@ -193,7 +202,7 @@ coord_signal_abort() {
 # internal timing; does not otherwise touch coord_barrier's (carefully
 # tuned, see its own comments) internals.
 #
-# sess1 (ccloop 0220f43f) RULE-4: a FIRST decoupled-watcher attempt had the
+# sess1 (ccloop 0220f43f) instrumented: a FIRST decoupled-watcher attempt had the
 # background subshell independently poll `kill -0 "$bpid"` to know when to
 # stop — REVERTED, live-reproduced: caused a full cluster-wide hang
 # (NO_TERMINAL_RECORD=32) on cache_coherency/dlm_fairness/
@@ -216,9 +225,16 @@ coord_signal_abort() {
 # then a full 32-node regression batch (cache_coherency/dlm_fairness/
 # crash_consistency/posix_multi/dir_reuse_coherency) before trusting it.
 coord_barrier_or_abort() {
-    local tag="$1" reason rc abf
+    local tag="$1" reason rc abf dgf diag
     coord_enabled || return 0
-    coord_barrier "$tag" >/dev/null 2>&1 &
+    # coord_barrier's stderr is its self-diagnosis (NO_REPORTING_TIME vs
+    # TIMEOUT saw n/N, with the window and elapsed numbers).  It used to go to
+    # /dev/null along with its stdout, which left every barrier failure in the
+    # defect ledger as an undifferentiated symptom with no way to tell a spent
+    # reporting budget from a peer that never arrived.  Keep stdout discarded
+    # (it is noise) and hand stderr back to the caller on the failure path.
+    dgf=$(mktemp "/tmp/.coord_bardiag.XXXXXX")
+    coord_barrier "$tag" >/dev/null 2>"$dgf" &
     local bpid=$!
     abf=$(mktemp "/tmp/.coord_abort.XXXXXX")
     ( while true; do
@@ -231,6 +247,8 @@ coord_barrier_or_abort() {
     wait "$bpid" 2>/dev/null; rc=$?
     kill "$apid" 2>/dev/null
     wait "$apid" 2>/dev/null
+    diag=$(tr '\n' ' ' < "$dgf" 2>/dev/null)
+    rm -f "$dgf"
     if [ -s "$abf" ]; then
         reason=$(cat "$abf")
         rm -f "$abf"
@@ -238,5 +256,8 @@ coord_barrier_or_abort() {
         return 2
     fi
     rm -f "$abf"
+    # Only on the failure path: a successful barrier prints nothing, so callers
+    # that ignore stdout on rc=0 are unaffected.
+    [ "$rc" = 0 ] || [ -z "$diag" ] || printf '%s\n' "$diag"
     return "$rc"
 }

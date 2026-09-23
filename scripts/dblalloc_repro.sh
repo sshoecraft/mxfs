@@ -26,9 +26,14 @@ REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$REPO"
 
 ITER="${1:?usage: dblalloc_repro.sh <iter-label>}"
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/../tests/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 N="${DBLALLOC_NODES:-32}"
-BACKING="${DBLALLOC_BACKING:-/home/steve/disk.img}"
+BACKING=$(tools/mxfs_host_image.sh) || { echo "$BACKING"; exit 2; }
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 LOGROOT="$REPO/tests/logs/dblalloc_repro"

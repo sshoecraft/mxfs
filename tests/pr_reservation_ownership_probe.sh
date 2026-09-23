@@ -17,10 +17,36 @@
 #
 set -u
 OBS="${1:-test1}"
-DEV="${2:-/dev/mapper/mpatha}"
 SSH="$(dirname "$0")/../tools/mxfs_sshpass.sh"
 
+# The shared LUN is a DIFFERENT device on each of the four rig conditions
+# (/dev/sda on the TCP/LIO and SCST rigs, /dev/mapper/mpatha only on the
+# multipath one).  Hardcoding one of them does not fail loudly: sg_persist
+# errors on the absent device, the parse below finds no reservation stanza,
+# and the probe prints "NONE HELD" — an assertion about MXFS's state — from a
+# capture that observed nothing at all.  Take the device from the observer's
+# own live mount, which cannot be wrong about which LUN MXFS is using.
+DEV="${2:-${MXFS_DEV:-}}"
+if [ -z "$DEV" ]; then
+    DEV=$(timeout 25 "$SSH" "$OBS" \
+        "awk '\$3==\"mxfs\" {print \$1; exit}' /proc/mounts" 2>/dev/null | tr -d '\r\n')
+fi
+if [ -z "$DEV" ]; then
+    echo "RESERVATION: UNKNOWN   no mxfs mount on $OBS and no device given   (observer=$OBS)"
+    exit 3
+fi
+
 out=$(timeout 40 "$SSH" "$OBS" "sg_persist --in --read-reservation $DEV 2>&1; sg_persist --in --read-full-status $DEV 2>&1; echo '###KEYS###'; sg_persist --in --read-keys $DEV 2>&1" 2>/dev/null)
+
+# Did the target ANSWER?  Every successful PR IN carries a "PR generation="
+# header.  Without one the commands did not reach a PR-capable device, and
+# every conclusion below would be manufactured from an error message.
+case "$out" in
+  *"PR generation"*) ;;
+  *) echo "RESERVATION: UNKNOWN   dev=$DEV did not answer PERSISTENT RESERVE IN   (observer=$OBS)"
+     echo "$out" | head -3 | sed 's/^/           | /'
+     exit 3 ;;
+esac
 
 # Count only the key lines themselves.  Anchoring on "^ *0x...$" excludes the
 # "PR generation=0x8a4" header, which an unanchored hex match would count as a

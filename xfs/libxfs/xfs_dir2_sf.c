@@ -419,7 +419,7 @@ xfs_dir2_sf_addname(
 	trace_xfs_dir2_sf_addname(args);
 
 	/*
-	 * sess58 RULE-4 ALWAYS-ON modify-time detector for the concurrent
+	 * sess58 instrumented ALWAYS-ON modify-time detector for the concurrent
 	 * shortform-dir LOST-UPDATE (cache_coherency / cross_visibility H2).
 	 * Logs THIS node's view AT THE MOMENT IT ADDS its entry: the base
 	 * entry list it is building on, the name being added, and the CAW
@@ -947,7 +947,7 @@ xfs_dir2_sf_lookup(
 	trace_xfs_dir2_sf_lookup(args);
 
 	/*
-	 * sess110 DIAGNOSTIC (RULE 4): the cache_coherency NULL-pointer Oops is
+	 * sess110 DIAGNOSTIC (instrumented): the cache_coherency NULL-pointer Oops is
 	 * a shortform-dir lookup where dp->i_df.if_data == NULL while if_format
 	 * still reads LOCAL — a directory inode left half-built (fork destroyed
 	 * but not repopulated) by some concurrent reload/conversion path.  The

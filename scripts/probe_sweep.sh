@@ -1,7 +1,7 @@
 #!/bin/bash
 # probe_sweep.sh — post-run cluster-wide sweep of the 0.10.65+ xfs_buf
 # integrity probes and fatal kernel signatures.  Run after every criteria
-# run (RULE 4 evidence step): a PASS with any probe hit is NOT clean —
+# run (instrumented evidence step): a PASS with any probe hit is NOT clean —
 # the probe stack names the residual poisoner.
 #
 # Usage: scripts/probe_sweep.sh <N>

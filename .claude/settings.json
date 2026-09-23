@@ -5,7 +5,8 @@
       "Bash(modinfo:*)",
       "Bash(./run.sh:*)",
       "Bash(MXFS_FORCE_PREP=1 ./run.sh:*)",
-      "Bash(./showstat.sh:*)",
+      "Bash(tools/defects.py:*)",
+      "Bash(tools/criteria.py:*)",
       "Bash(tests/:*)",
       "Bash(scripts/:*)",
       "Bash(bench/:*)",
@@ -69,5 +70,8 @@
       "Bash(rm -rf /:*)",
       "Bash(rm -rf /*)"
     ]
+  },
+  "env": {
+    "CCMEMORY_LIST_TOKEN_BUDGET": "20000"
   }
 }

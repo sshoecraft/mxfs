@@ -6,7 +6,7 @@
 # in ~150s). Captures full chronology including pre-test mount + iget +
 # first-acquire of every inode.
 #
-# Per RULE 3: persistent script lives in source tree.
+# Per the source-tree rule: persistent script lives in source tree.
 #
 # Usage: sess35_capture.sh <N>   — defaults to N=2.
 # Output: /src/mxfs/notes/sess35_dmesg/test{N}.log on the dev host

@@ -1,7 +1,7 @@
 #!/bin/bash
 # closure_footprint_shapes.sh — the last three Hazards-§7 fault shapes of the
 # sess363 ruling for D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356, per the sess375
-# RULE-5 review of this test's own design.
+# Design-consult review of this test's own design.
 #
 # The selective closure purge strips NINE fields of a dead victim's footprint
 # from a CAW lock slot: holders_ex/pw/pr/cw/cr, waiters, waiters_ex, yield_to,
@@ -81,13 +81,19 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 DUMP=/src/mxfs/tools/caw_slotdump
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 
 N="${1:?usage: closure_footprint_shapes.sh <N> <victim> <arm>}"
 VICTIM="${2:?usage: closure_footprint_shapes.sh <N> <victim> <arm>}"
 ARM="${3:?usage: closure_footprint_shapes.sh <N> <victim> <arm>}"
 AUDIT_HOST="${AUDIT_HOST:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$AUDIT_HOST"; DEV=$MXFS_DEV_RESOLVED
 RECOVERY_WAIT="${RECOVERY_WAIT:-150}"
 PROBE_BUDGET="${PROBE_BUDGET:-20}"
 OPEN_FILES="${OPEN_FILES:-12}"
@@ -123,12 +129,16 @@ echo "victim $VICTIM holds heartbeat slot $VSLOT (CAW node bit $VSLOT)"
 # agblklog + inopblog, read from the on-disk XFS superblock (xfs_dsb bytes
 # 124 and 123).  Nothing else in this test may use the printed ag= field for
 # an inode resource — see tests/closure_foot_parse.py for why.
-CHK=$("$SSH" "$AUDIT_HOST" "/src/mxfs/tools/chk_mxfs -v $DEV 2>/dev/null" 2>/dev/null)
+# --geometry, not -v: the audit host may be mounted, and the full check is
+# refused there (0.89.6, O_EXCL); the offsets are mkfs-time constants
+CHK=$("$SSH" "$AUDIT_HOST" "/src/mxfs/tools/chk_mxfs --geometry $DEV 2>/dev/null" 2>/dev/null)
 XOFF=$(echo "$CHK" | grep -oE 'xfs_data_offset=[0-9]+' | head -1 | cut -d= -f2)
 AGCOUNT=$(echo "$CHK" | grep -oE 'agcount=[0-9]+' | head -1 | cut -d= -f2)
 AGCOUNT=${AGCOUNT:-25}
 [ -n "${XOFF:-}" ] || { echo "FAIL: could not read xfs_data_offset"; exit 1; }
-LOGS=$("$SSH" "$AUDIT_HOST" "dd if=$DEV bs=1 skip=$(( XOFF + 123 )) count=2 2>/dev/null | od -An -tu1" 2>/dev/null |
+# O_DIRECT (a buffered read on a node whose module holds the device open is
+# served from the device's page cache, 0.89.4): whole sector, then offset in od
+LOGS=$("$SSH" "$AUDIT_HOST" "dd if=$DEV bs=512 skip=$(( (XOFF + 123) / 512 )) count=1 iflag=direct 2>/dev/null | od -An -tu1 -j $(( (XOFF + 123) % 512 )) -N2" 2>/dev/null |
        grep -vE 'known hosts|Unauthorized|authorized user' | tr -s ' ' | sed 's/^ //')
 INOPBLOG=$(echo "$LOGS" | awk '{print $1}')
 AGBLKLOG=$(echo "$LOGS" | awk '{print $2}')
@@ -195,7 +205,7 @@ arm_refusal() {   # arm_refusal [extra-shell]
     echo "refusal CONFIRMED armed on all $armed survivors"
 }
 
-# Baseline pace for the functional progress assertion (RULE 0: the post-repair
+# Baseline pace for the functional progress assertion (budget: the post-repair
 # number is judged against a number measured on THIS rig, not a constant).
 root_pace() {   # root_pace <host> <tag> ; echoes elapsed ms, or -1 on failure
     "$SSH" "$1" "s=\$(date +%s%N)

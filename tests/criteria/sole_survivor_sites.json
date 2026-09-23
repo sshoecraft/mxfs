@@ -1,0 +1,405 @@
+{
+ "classes": {
+  "durable": "leaves state a future or rejoining peer can observe; maintain regardless of membership",
+  "epoch": "transient coordination, elidable only under a HELD exclusion against peer admission",
+  "instrument": "a probe; skipping costs measurement, not correctness",
+  "recovery": "depends on the departed peer's disposition, not on member count",
+  "unclassified": "nobody has decided yet"
+ },
+ "generated": "tools/sole_survivor_audit.py --baseline",
+ "note": "Reviewed inventory of single-node fast paths that SKIP WORK. A guard here is not thereby safe; it is thereby KNOWN. Regenerate ONLY after classifying the new sites -- re-baselining to clear a red is the same act as widening a timeout to make a test pass.",
+ "sites": {
+  "dlm/v5_mount.c::v5_boot_k_lineage": {
+   "class": "durable",
+   "guards": 1,
+   "note": "not guards: the bodies of mxfs_v5_dlm_sole_survivor and mxfs_v5_dlm_never_multi (0.83.3), the predicate definitions every ownership guard keys on; attributed here because their return type shares the definition line"
+  },
+  "pal/linux/xfs_buf.c::mxfs_buf_is_multinode_dir_meta": {
+   "class": "durable",
+   "guards": 1,
+   "note": "A classifier, not an action: answers whether a buffer is multi-node directory metadata, and returns FALSE for a sole survivor. Everything downstream that keys off it therefore stops treating the survivor's dir buffers as shared. Classify the CONSUMERS before deciding this one - a predicate that goes false is only as dangerous as what it gates."
+  },
+  "pal/linux/xfs_buf.c::mxfs_dir3_data_drain_merge": {
+   "class": "durable",
+   "guards": 1,
+   "note": "Re-reads the dir3 DATA block off the platter and merges the PEER'S dirent additions into this node's in-core image before the drain writes it, so our write cannot drop an entry the peer added. Disabled for a sole survivor by the same dynamic-membership test. HYPOTHESIS, unmeasured: a survivor holding an in-core dir block that predates the departed peer's last additions now writes its own older image whole and drops those dirents. Reachability is the open question - after a CLEAN unmount the survivor was BAST'd and should hold a current image; after a DEATH, replay reconstructs and the cached image may predate it. Measure with MXFS_D0946_SOLE=death and a dirent workload."
+  },
+  "pal/linux/xfs_buf.c::mxfs_dir3_data_writemerge": {
+   "class": "durable",
+   "guards": 1,
+   "note": "Write-side twin of drain_merge: same platter re-read and merge of the peer's dirent additions, on the ordinary write path rather than the BAST drain. Same predicate, same hypothesis, same open reachability question."
+  },
+  "pal/linux/xfs_buf.c::mxfs_submit_partial_inode_write": {
+   "class": "durable",
+   "guards": 0,
+   "note": "D-0955, MEASURED: 6 unauthorised passenger slots on a sole survivor after a CLEAN peer unmount. Skipping omits the sectors of in-core inodes this node released to a peer; whole-writing publishes a stale prior-tenure image over the peer's durable inode. The always-on detector P218-CLUSTER-AUTHORITY sits below the same test, so the shipped arm's zero is the instrument's silence, not a clean result. Converted 0.75.126 to a nested decision behind partial_iwrite_sole (default 0) - still UNFIXED, only measurable."
+  },
+  "xfs/libxfs/xfs_dir2_data.c::mxfs_dir_addname_coherent_refresh": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/libxfs/xfs_dir2_leaf.c::mxfs_dir2_leafless_removename": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/libxfs/xfs_ialloc.c::mxfs_ag_inode_owned": {
+   "class": "recovery",
+   "guards": 1,
+   "note": "Returns true for EVERY allocation group when alone, so a sole survivor immediately begins allocating inodes in the departed peer's AGs. Safety depends on the peer's disposition and on per-AG recovery being complete, not on member count. Pairs badly with mxfs_dialloc_two_phase in the same instant: the validator switches off exactly as these AGs open."
+  },
+  "xfs/libxfs/xfs_ialloc.c::mxfs_agifc_audit": {
+   "class": "instrument",
+   "guards": 1,
+   "note": "P-AGIFC always-on AGI-vs-btree free-count audit. Skipping costs a cross-check, not correctness - but it IS an audit, so a sole survivor runs unaudited and a zero from it means nothing."
+  },
+  "xfs/libxfs/xfs_ialloc.c::mxfs_agifc_mod": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/libxfs/xfs_ialloc.c::mxfs_dialloc_two_phase": {
+   "class": "durable",
+   "guards": 0,
+   "note": "The D-0351/D-0946 containment: reads a picked inode's platter home before anything is dirtied and refuses a number whose home still carries a live dinode - validation of durable state a departed peer wrote. Converted 0.75.126 to a nested decision behind dialloc_validate_sole (default 0) plus probe P951-VALIDATE-OFF-SOLE. Forcing it on for a sole survivor STORMS while D-0947 is open, so that arm cannot yet separate real residue from D-0947's false positive."
+  },
+  "xfs/libxfs/xfs_ialloc.c::mxfs_inode_chunk_may_delete": {
+   "class": "durable",
+   "guards": 0,
+   "note": "D-0949. Was is_single_node, then sole_survivor, and in 0.75.128 the membership test was removed entirely: the durable fact 'has any node ever written this volume' is recorded nowhere that survives a clean shutdown, so the guard fails closed and a clustered volume always keeps fully-free inode chunks. The worked example of the durable class."
+  },
+  "xfs/libxfs/xfs_ialloc.c::mxfs_p150_inorec": {
+   "class": "instrument",
+   "guards": 1,
+   "note": "P150 record-level inobt/finobt RMW trace, capped at 20000."
+  },
+  "xfs/libxfs/xfs_inode_buf.c::mxfs_inode_buf_write_dirlog": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_inode.c::mxfs_iflush_cluster_merge_dirs": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dentry.c::mxfs_drevalidate": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::EXPORT_SYMBOL": {
+   "class": "unclassified",
+   "guards": 4,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::__mxfs_dlm_dir_inode_durable": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_ag_meta_coldread_discard": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_bmbt_tenure_end_evict": {
+   "class": "epoch",
+   "guards": 1,
+   "note": "D-0975 tenure-end bmbt eviction. While alone no peer can free or reuse a block of this inode's tree, and the single-to-multi join (mxfs_dlm_join_prepare under freeze_super -> mxfs_dlm_invalidate_cached_views -> mxfs_dlm_drop_clean_cached_blocks) drops every clean cached block and keeps the peer unadmitted while any is retained. Unproven residual: a reader tenure that caches a bmbt block after prepare's drop and ends before the view flip is skipped here and survives the join - tracked in D-BMBT-TENURE-END-EVICT-SKIP-WINDOW-BETWEEN-JOIN-DROP-AND-FLIP"
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_bmbt_write_probe": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_buf_xfsaild_skip_agmeta_write": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_buf_xfsaild_skip_bmbt_write": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_buf_xfsaild_skip_dir_write": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_danode_crcfail_probe": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_destage_kick": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_ail_push_defer": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_bmbt_track": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_choke_merge_remset": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_data_owner_scan": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_data_track": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_evict_owned_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_merge_peer_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_merge_peer_into_tp": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_modify_adopt_disk_format": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_noino_land_scan": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_pending_add": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_pending_replay": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_postrmw_probe": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_reconcile_stale_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_record_removed": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_refresh_stale_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_release_invalidate_data_blocks": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_sf_premerge_for_release": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_should_force_block": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dir_zombie_push_retire": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_close_release": {
+   "class": "unclassified",
+   "guards": 2,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_creator_baseline_query": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_durable_signal": {
+   "class": "epoch",
+   "guards": 1,
+   "note": "MEASURED reachable by a sole survivor (P952). Stages a DIR_MODIFY signal for LIVE peers to consume; a rejoining peer remounts with a cold cache and has nothing stale to invalidate, so the signal has no future reader. Also gated CAW-only downstream. Revisit if a rejoining peer is ever allowed to reuse pre-departure cached state."
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_hold_ex": {
+   "class": "unclassified",
+   "guards": 0,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_modify_refresh": {
+   "class": "recovery",
+   "guards": 1,
+   "note": "Sibling of dir_modify_reload_prelock on the modify path; same pending-peer-invalidation consumer shape, same dynamic-membership test, same D-0904 relationship. Read both together and fix both or neither - D-0949 showed what fixing one of a sibling pair costs when the two btrees then disagree."
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_dir_modify_reload_prelock": {
+   "class": "recovery",
+   "guards": 1,
+   "note": "A CONSUMER OF A PENDING PEER INVALIDATION, and that is D-0904's defect statement verbatim: 'every consumer of a pending peer-invalidation signal returns early on the single-node bypass before consulting the signal'. D-0904 was closed FIXED AND VERIFIED after fixing ONE such consumer; this is another one and it still tests dynamic membership. It consumes a DIR_MODIFY reload signal before taking the dir lock, so a survivor with an invalidation the departed peer issued and never had serviced skips the reload and keeps serving the pre-invalidation fork. Recovery class, not epoch: whether the signal still matters depends on whether the departed peer's outstanding invalidations were drained, not on member count."
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_force_peer_flush": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_iget_miss_reload": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_iget_shell_reload": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_iget_visibility_nudge": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_ilock_demote": {
+   "class": "unclassified",
+   "guards": 0,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_ilock_try": {
+   "class": "unclassified",
+   "guards": 0,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_note_dir_modified": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_note_inode_freed": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_open_clear_ride": {
+   "class": "durable",
+   "guards": 1,
+   "note": "The guard is in mxfs_dlm_open_last_close (attributed to the neighbouring ride). A lone node's last close skips clearing a published open mark (set by P90 while multi-node); the mark stays in this node's slot on disk and a later peer reads the file as open here. Durable: must be maintained regardless of membership - tracked in D-OPEN-LAST-CLOSE-SKIPS-THE-CLEAR-WHEN-ALONE-LEAVING-A-DURABLE-OPEN-MARK"
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_pr_sweep_trigger": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_publish_dirs_work": {
+   "class": "durable",
+   "guards": 0,
+   "note": "converted 0.83.3 (D-0955): keyed on mxfs_v5_dlm_never_multi, so a sole survivor publishes its unpublished inodes to the master (itself) and a rejoining peer BASTs it"
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_publish_inode": {
+   "class": "durable",
+   "guards": 0,
+   "note": "converted 0.83.3 (D-0955): keyed on mxfs_v5_dlm_never_multi; a sole survivor publishes like any member"
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_rearm_unpublished": {
+   "class": "durable",
+   "guards": 0,
+   "note": "converted 0.83.3 (D-0955): keyed on mxfs_v5_dlm_never_multi; the early-out left a survivor recycled-number create at NL with the dead peer stale mark (s583c ESTALE directory)"
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_recycle_grant_check": {
+   "class": "instrument",
+   "guards": 1,
+   "note": "D-0532 item (c) phantom-grant counter on xfs_iget_recycle; measurement only, changes no inode or DLM state, so skipping it alone costs a count and nothing else"
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_dlm_relog_authorized": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_f4_commit": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_getattr_dlm_lock": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_iclus_publish_open_bits": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_iflush_force_bmbt_durable": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_ilock_admit_ioend": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_init_all_perag_data": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_inode_is_peer_ag": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_p98_getattr_check": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_read_coherency_envelope": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_sfconv_disk_check": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  },
+  "xfs/xfs_mxfs_dlm.c::mxfs_statfs_perag_sums": {
+   "class": "unclassified",
+   "guards": 1,
+   "note": ""
+  }
+ },
+ "total_guards": 73,
+ "unclassified_sites": 56
+}

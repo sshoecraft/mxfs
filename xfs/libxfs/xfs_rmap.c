@@ -3127,7 +3127,7 @@ const struct xfs_owner_info XFS_RMAP_OINFO_COW = {
 int __init
 xfs_rmap_intent_init_cache(void)
 {
-	xfs_rmap_intent_cache = kmem_cache_create("mxfs_rmap_intent",
+	xfs_rmap_intent_cache = mxfs_cache_create("mxfs_rmap_intent",
 			sizeof(struct xfs_rmap_intent),
 			0, 0, NULL);
 

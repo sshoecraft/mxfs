@@ -26,7 +26,7 @@
 #              halt flag + evidence, then bound-pause the guests so they stop
 #              driving I/O into a kernel that is already damaged.
 #
-# Deliberately NOT done, and why (RULE 2 / RULE 2c):
+# Deliberately NOT done, and why (the never-reboot-the-host rule / the unkillable-wedge rule):
 #   - never reboots or sysrqs clyde: host recovery is the user's call;
 #   - never `virsh destroy`: it blocks in QMP/__fput/fs teardown on exactly the
 #     domains that matter (measured 2026-08-20: every one timed out);
@@ -53,12 +53,21 @@ VIRSH_TIMEOUT="${MXFS_GUARD_VIRSH_TIMEOUT:-15}"
 #
 # Short windows with a consecutive-window requirement, not one long window: a
 # fixed window that a flood starts in the middle of dilutes the measured rate
-# below the threshold and the flood escapes (observed while testing this).  Two
-# consecutive hot 5s windows catches a sustained flood in ~10s while ignoring a
-# one-off burst.
+# below the threshold and the flood escapes (observed while testing this).
+#
+# Sustain requirement (2026-08-23, sess410): the flood must stay hot for
+# FLOOD_SUSTAIN_S consecutive seconds of hot windows, not just two windows.
+# Measured: a 32-node prep power-cycle is 64 iSCSI sessions tearing down and
+# logging in at once = ~2270 host kernel lines in ~40 s (peak 228 lines/s
+# over 5 s; identical shape at 13:52Z, 16:14Z, 16:20Z that day; tally in
+# .evidence/guard_20260823_162103_5326) and it tripped the old two-window
+# rule once in three (arrival-pattern dependent).  Sixty seconds excludes that
+# bounded burst entirely while a wedge-class flood (182 lines/s for 98 min)
+# still halts the rig within a minute having logged ~11k lines — about 1% of
+# the 1.07M that wedged the host.  The RATE is unchanged.
 FLOOD_RATE="${MXFS_GUARD_FLOOD_RATE:-60}"
 FLOOD_WINDOW="${MXFS_GUARD_FLOOD_WINDOW:-5}"
-FLOOD_WINDOWS_HOT="${MXFS_GUARD_FLOOD_WINDOWS_HOT:-2}"
+FLOOD_SUSTAIN_S="${MXFS_GUARD_FLOOD_SUSTAIN_S:-60}"
 
 # Anything here means "the host is telling us it is damaged".  Keep this list
 # short and specific: a noisy guard gets disabled, and a disabled guard is how
@@ -81,7 +90,7 @@ snapshot() {
         echo "uptime:  $(uptime)"
         echo "tainted: $(cat /proc/sys/kernel/tainted 2>/dev/null)"
     } > "$dir/trigger.txt" 2>/dev/null
-    # Cheap and RULE-2c-safe.  No cmdline, no maps, no pgrep -f, no ps aux.
+    # Cheap and wedge-safe.  No cmdline, no maps, no pgrep -f, no ps aux.
     cat /proc/loadavg               > "$dir/loadavg"  2>/dev/null
     grep -E 'MemTotal|MemAvailable|Dirty|Writeback' /proc/meminfo \
                                     > "$dir/meminfo"  2>/dev/null
@@ -109,7 +118,7 @@ halt_rig() {
         echo "evidence: ${dir:-<none>}"
         echo
         echo "The host reported damage.  Do NOT start a fleet run until the"
-        echo "cause is understood.  RULE 2: only the user reboots clyde."
+        echo "cause is understood.  the never-reboot-the-host rule: only the user reboots clyde."
         echo "Clear deliberately with: tools/clyde_kmsg_guard.sh clear"
     } > "$HALT" 2>/dev/null
     # Mirror host-locally, so the halt survives /src (NFS) being unreachable.
@@ -127,7 +136,7 @@ pause_guests() {
         # virsh suspend is QMP "stop": it freezes vCPUs without touching the
         # domain's file descriptors or block layer.  Bounded, never retried —
         # a domain that will not suspend is already wedged, and hammering it
-        # only adds another stuck task (RULE 2c).
+        # only adds another stuck task (the unkillable-wedge rule).
         timeout "$VIRSH_TIMEOUT" sudo virsh -c qemu:///system suspend "$d" \
             >/dev/null 2>&1 &
     done
@@ -141,7 +150,7 @@ run() {
     fi
     mkdir -p "$EVID" 2>/dev/null
     echo "[$(now)] clyde_kmsg_guard watching (halt flag: $HALT)" >&2
-    local win_start=$SECONDS count=0 elapsed rate hot=0
+    local win_start=$SECONDS count=0 elapsed rate hot=0 hot_start=-1
     # Matching is done with bash's own =~ and $SECONDS, never `grep`/`date`
     # subshells: under the very flood this is meant to catch (measured
     # 2026-08-20 at 182 lines/s) a fork-per-line watcher would add hundreds of
@@ -167,12 +176,13 @@ run() {
             rate=$((count / elapsed))
             if [ "$rate" -gt "$FLOOD_RATE" ]; then
                 hot=$((hot + 1))
-                if [ "$hot" -ge "$FLOOD_WINDOWS_HOT" ]; then
-                    halt_rig FLOOD "kernel log at ~${rate} lines/s for ${hot} consecutive ${elapsed}s windows (max $FLOOD_RATE) — last: $line"
-                    hot=0
+                [ "$hot_start" -ge 0 ] || hot_start=$win_start
+                if [ $((SECONDS - hot_start)) -ge "$FLOOD_SUSTAIN_S" ]; then
+                    halt_rig FLOOD "kernel log above ${FLOOD_RATE} lines/s for $((SECONDS - hot_start))s (${hot} consecutive hot windows, last ~${rate} lines/s over ${elapsed}s) — last: $line"
+                    hot=0; hot_start=-1
                 fi
             else
-                hot=0
+                hot=0; hot_start=-1
             fi
             win_start=$SECONDS
             count=0
@@ -197,7 +207,14 @@ clear)
     for h in "$HALT" /var/lib/mxfs/rig_halt; do
         [ -f "$h" ] || continue
         echo "clearing $h; it said:"; sed 's/^/  /' "$h"
-        rm -f "$h" && cleared=1
+        # sess395: the host-local flag is written by the guard service as
+        # root; an unprivileged clear left it behind and the preflight kept
+        # failing.  Fall back to non-interactive sudo for that one path.
+        if rm -f "$h" 2>/dev/null || sudo -n rm -f "$h"; then
+            cleared=1
+        else
+            echo "  could not remove $h (need: sudo rm -f $h)"
+        fi
     done
     [ "$cleared" -eq 1 ] && echo "cleared." || echo "no halt flag to clear."
     ;;

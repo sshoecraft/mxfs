@@ -1,8 +1,8 @@
 # Structural Map — mxfs
 
-**Generated**: 2026-08-21
-**Source files scanned**: 483
-**Approximate token count**: 70751
+**Generated**: 2026-09-10
+**Source files scanned**: 597
+**Approximate token count**: 96635
 **Parser**: regex
 
 ## Notation
@@ -27,6 +27,243 @@
 [compat/linux/fserror.h]
   enum fserror_type { FSERR_BUFFERED_READ, FSERR_BUFFERED_WRITE, FSERR_DIRECTIO_READ, FSERR_DIRECTIO_WRITE, FSERR_DATA_LOST, FSERR_METADATA }
   struct fserror_event { work, sb, inode, pos, len, type, error }
+
+[dlm/bootstrap.c]
+  fn mxfs_bootstrap_state_name(uint16_t state) -> const char
+    called_by: bs_reload_ours_locked, mxfs_bootstrap_claim, mxfs_bootstrap_lineage_write, mxfs_bootstrap_reseal, v5_bootstrap_setup, v5_bootstrap_unwind
+  fn mxfs_bootstrap_refuse_name(uint32_t reason) -> const char
+    called_by: mxfs_bootstrap_refuse, mxfs_v5_dlm_bootstrap_finish
+  fn mxfs_bootstrap_rec_crc(const struct mxfs_bootstrap_rec *r) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: bs_cas_locked, bs_read_locked, mxfs_bootstrap_rec_init_idle, mxfs_bootstrap_rec_valid
+  fn mxfs_bootstrap_rec_valid(const struct mxfs_bootstrap_rec *r) -> bool
+    calls: mxfs_bootstrap_rec_crc, mxfs_pal_log
+    called_by: bs_read_locked
+  fn mxfs_bootstrap_rec_init_idle(struct mxfs_bootstrap_rec *r, const uint8_t fs_uuid[16], uint32_t fs_gen) -> void
+    calls: mxfs_bootstrap_rec_crc
+  fn mxfs_bootstrap_open(mxfs_bdev_t *dev, uint64_t offset, uint64_t size, const uint8_t fs_uuid[16], uint32_t fs_gen) -> struct mxfs_bootstrap
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_create
+    called_by: v5_bootstrap_setup
+  fn mxfs_bootstrap_close(struct mxfs_bootstrap *b) -> void
+    calls: mxfs_pal_free, mxfs_pal_mutex_destroy
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, v5_bootstrap_setup
+  fn static bs_read_locked(struct mxfs_bootstrap *b, struct mxfs_bootstrap_rec *r) -> int
+    calls: mxfs_bootstrap_rec_crc, mxfs_bootstrap_rec_valid, mxfs_pal_bdev_read_prio, mxfs_pal_log
+    called_by: bs_reload_ours_locked, mxfs_bootstrap_claim, mxfs_bootstrap_escrow_prepare, mxfs_bootstrap_owner_is, mxfs_bootstrap_read, mxfs_bootstrap_reseal
+  fn mxfs_bootstrap_read(struct mxfs_bootstrap *b, struct mxfs_bootstrap_rec *out) -> int
+    calls: bs_read_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_bootstrap_setup
+  fn static bs_cas_locked(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_rec *cur, struct mxfs_bootstrap_rec *want) -> int
+    calls: mxfs_bootstrap_rec_crc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_write_fua, mxfs_pal_time_ms
+    called_by: bs_own_cas_locked, mxfs_bootstrap_claim, mxfs_bootstrap_reseal
+  fn static bs_fill_owner(struct mxfs_bootstrap_rec *r, const struct mxfs_bootstrap_identity *id, uint64_t nonce) -> void
+    called_by: mxfs_bootstrap_claim, mxfs_bootstrap_reseal
+  fn static bs_id_ok(const struct mxfs_bootstrap_identity *id) -> bool
+    called_by: mxfs_bootstrap_claim, mxfs_bootstrap_reseal
+  fn mxfs_bootstrap_claim(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_identity *id) -> int
+    calls: bs_cas_locked, bs_fill_owner, bs_id_ok, bs_read_locked, mxfs_bootstrap_state_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_get_random_bytes, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_reseal(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_rec *prev, const struct mxfs_bootstrap_identity *id, const struct mxfs_bootstrap_reseal_args *a) -> int
+    calls: bs_cas_locked, bs_fill_owner, bs_id_ok, bs_read_locked, mxfs_bootstrap_state_name, mxfs_fence_kind_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_get_random_bytes, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+  fn static bs_reload_ours_locked(struct mxfs_bootstrap *b, struct mxfs_bootstrap_rec *cur, const char *tag) -> int
+    calls: bs_read_locked, mxfs_bootstrap_state_name, mxfs_pal_log
+    called_by: mxfs_bootstrap_heartbeat
+  fn static bs_own_cas_locked(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_rec *cur, struct mxfs_bootstrap_rec *want, const char *tag) -> int
+    calls: bs_cas_locked, mxfs_pal_log
+    called_by: mxfs_bootstrap_heartbeat
+  fn mxfs_bootstrap_heartbeat(struct mxfs_bootstrap *b) -> int
+    calls: bs_own_cas_locked, bs_reload_ours_locked, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_boot_hb_fn
+  fn static bs_seal_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+    calls: mxfs_pal_time_ms
+  fn mxfs_bootstrap_seal(struct mxfs_bootstrap *b, uint64_t victim_bitmap, uint64_t ledger_gen, uint32_t registrants, uint64_t manifest_hash) -> int
+    called_by: v5_bootstrap_run
+  fn static bs_release_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+  fn mxfs_bootstrap_release_claim(struct mxfs_bootstrap *b) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_set_recovering(struct mxfs_bootstrap *b) -> int
+    called_by: v5_bootstrap_run
+  fn static bs_slot_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+  fn mxfs_bootstrap_slot_complete(struct mxfs_bootstrap *b, int slot) -> int
+    calls: mxfs_pal_log
+    called_by: v5_recovery_complete_ladder
+  fn static bs_reg_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+  fn mxfs_bootstrap_registrant_done(struct mxfs_bootstrap *b) -> int
+    called_by: v5_bootstrap_run
+  fn static bs_complete_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+    calls: mxfs_pal_time_ms
+  fn mxfs_bootstrap_complete(struct mxfs_bootstrap *b) -> int
+    calls: mxfs_pal_log, xfs_log_mount
+    called_by: mxfs_v5_dlm_bootstrap_finish
+  fn mxfs_bootstrap_escrow_name(uint8_t state) -> const char
+    called_by: mxfs_bootstrap_escrow_advance, mxfs_bootstrap_escrow_prepare, mxfs_bootstrap_lineage_write, v5_bootstrap_adopt_resume, v5_bootstrap_unwind
+  fn static bs_escrow_prepare_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+  fn mxfs_bootstrap_escrow_prepare(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_escrow *e) -> int
+    calls: bs_read_locked, mxfs_bootstrap_escrow_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  fn static bs_escrow_adv_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+  fn mxfs_bootstrap_escrow_advance(struct mxfs_bootstrap *b, uint8_t state, int32_t replay_rc) -> int
+    calls: mxfs_bootstrap_escrow_name, mxfs_pal_log
+    called_by: mxfs_v5_dlm_bootstrap_finish, mxfs_v5_dlm_bootstrap_k_refused, v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  fn mxfs_bootstrap_owner_is(struct mxfs_bootstrap *b, uint32_t node, uint64_t epoch, uint64_t *seq) -> int
+    calls: bs_read_locked, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_incarnation_state
+  fn static bs_refuse_edit(struct mxfs_bootstrap_rec *r, void *arg) -> void
+    calls: mxfs_pal_time_ms
+  fn mxfs_bootstrap_refuse(struct mxfs_bootstrap *b, uint32_t slot, uint32_t reason) -> int
+    calls: mxfs_bootstrap_refuse_name, mxfs_pal_log
+    called_by: mxfs_v5_dlm_bootstrap_finish, mxfs_v5_dlm_bootstrap_k_refused, mxfs_v5_dlm_bootstrap_terminal, v5_bootstrap_run
+  fn mxfs_bootstrap_resume(struct mxfs_bootstrap *b, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], uint64_t pr_key, uint32_t key_gen, uint32_t *node_out, uint64_t *epoch_out) -> int
+  fn mxfs_bootstrap_manifest_hash(const struct mxfs_bootstrap_mf_entry *e, unsigned int n) -> uint64_t
+    calls: mxfs_pal_log
+    called_by: mxfs_bootstrap_manifest_read, mxfs_bootstrap_manifest_write_term
+  fn static bs_mf_sector_crc(const struct mxfs_bootstrap_mf_sector *s) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: mxfs_bootstrap_manifest_read, mxfs_bootstrap_manifest_write_term
+  fn mxfs_bootstrap_manifest_write(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_mf_entry *e, unsigned int n, uint64_t *hash_out) -> int
+    calls: mxfs_bootstrap_manifest_write_term
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_manifest_write_term(struct mxfs_bootstrap *b, uint64_t term, const struct mxfs_bootstrap_mf_entry *e, unsigned int n, uint64_t *hash_out) -> int
+    calls: bs_mf_sector_crc, mxfs_bootstrap_manifest_hash, mxfs_pal_alloc, mxfs_pal_bdev_write_fua, mxfs_pal_free, mxfs_pal_log
+    called_by: mxfs_bootstrap_manifest_write
+  fn mxfs_bootstrap_manifest_read(struct mxfs_bootstrap *b, uint64_t term, uint64_t hash, struct mxfs_bootstrap_mf_entry *e, unsigned int max, unsigned int *n_out) -> int
+    calls: bs_mf_sector_crc, mxfs_bootstrap_manifest_hash, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log
+  fn mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset, uint32_t fs_gen, uint32_t slice_count, uint32_t window_ms, uint32_t early_ms, struct mxfs_bootstrap_mf_entry *e, unsigned int max, unsigned int *n_out, uint64_t *victims_out, unsigned int *moved_out, unsigned int *unread_out, unsigned int *noident_out) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_tomb_kind_name(uint8_t kind) -> const char
+    called_by: mxfs_bootstrap_tomb_write_term
+  fn mxfs_bootstrap_tomb_crc(const struct mxfs_bootstrap_tomb *t) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: bs_tomb_valid, mxfs_bootstrap_tomb_write_term
+  fn mxfs_bootstrap_mf_entry_crc(const struct mxfs_bootstrap_mf_entry *e) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: v5_recovery_complete_ladder
+  fn static bs_tomb_sector_off(const struct mxfs_bootstrap *b, unsigned int slot) -> uint64_t
+    called_by: mxfs_bootstrap_tomb_read, mxfs_bootstrap_tomb_write_term
+  fn static bs_tomb_valid(const struct mxfs_bootstrap_tomb *t, unsigned int slot, uint64_t episode_term) -> bool
+    calls: mxfs_bootstrap_tomb_crc
+    called_by: mxfs_bootstrap_tomb_read
+  fn mxfs_bootstrap_tomb_write(struct mxfs_bootstrap *b, struct mxfs_bootstrap_tomb *t) -> int
+    calls: mxfs_bootstrap_tomb_write_term
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_bootstrap_tomb_write_term(struct mxfs_bootstrap *b, uint64_t term, struct mxfs_bootstrap_tomb *t) -> int
+    calls: bs_tomb_sector_off, mxfs_bootstrap_tomb_crc, mxfs_bootstrap_tomb_kind_name, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_bdev_write_fua, mxfs_pal_free, mxfs_pal_log
+    called_by: mxfs_bootstrap_tomb_write
+  fn mxfs_bootstrap_tomb_read(struct mxfs_bootstrap *b, unsigned int slot, uint64_t episode_term, struct mxfs_bootstrap_tomb *out) -> int
+    calls: bs_tomb_sector_off, bs_tomb_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_bootstrap_lineage_crc(const struct mxfs_bootstrap_lineage *l) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: mxfs_bootstrap_lineage_read, mxfs_bootstrap_lineage_write
+  fn mxfs_bootstrap_lineage_write(struct mxfs_bootstrap *b, unsigned int idx, struct mxfs_bootstrap_lineage *l) -> int
+    calls: mxfs_bootstrap_escrow_name, mxfs_bootstrap_lineage_crc, mxfs_bootstrap_state_name, mxfs_fence_kind_name, mxfs_pal_bdev_write_fua, mxfs_pal_log
+  fn mxfs_bootstrap_lineage_read(struct mxfs_bootstrap *b, unsigned int idx, uint64_t term, uint64_t episode_term, struct mxfs_bootstrap_lineage *out) -> int
+    calls: mxfs_bootstrap_lineage_crc, mxfs_pal_bdev_read_prio
+    called_by: v5_boot_lineage_load
+  fn mxfs_bootstrap_takeover_stage_name(uint16_t stage) -> const char
+  fn mxfs_bootstrap_takeover_crc(const struct mxfs_bootstrap_takeover *t) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_read
+  fn static bs_tk_off(const struct mxfs_bootstrap *b) -> uint64_t
+    called_by: mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_takeover_read
+  fn mxfs_bootstrap_takeover_read(struct mxfs_bootstrap *b, struct mxfs_bootstrap_takeover *out, bool *valid) -> int
+    calls: bs_tk_off, mxfs_bootstrap_takeover_crc, mxfs_pal_bdev_read_prio
+  fn mxfs_bootstrap_takeover_cas(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_takeover *cur, struct mxfs_bootstrap_takeover *want) -> int
+    calls: bs_tk_off, mxfs_bootstrap_takeover_crc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_write_fua, mxfs_pal_time_ms
+  fn mxfs_bootstrap_takeover_clear(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_takeover *cur) -> int
+    calls: bs_tk_off, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_write_fua, mxfs_pal_free
+  struct bs_seal_args { victim_bitmap, ledger_gen, registrants, manifest_hash }
+  struct bs_escrow_adv_args { state, replay_rc }
+  struct bs_refuse_args { slot, reason }
+
+[dlm/bootstrap.h]
+  fn mxfs_bootstrap_open(mxfs_bdev_t *dev, uint64_t offset, uint64_t size, const uint8_t fs_uuid[16], uint32_t fs_gen) -> struct mxfs_bootstrap
+    called_by: v5_bootstrap_setup
+  fn mxfs_bootstrap_close(struct mxfs_bootstrap *b) -> void
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, v5_bootstrap_setup
+  fn mxfs_bootstrap_read(struct mxfs_bootstrap *b, struct mxfs_bootstrap_rec *out) -> int
+    called_by: v5_bootstrap_setup
+  fn mxfs_bootstrap_claim(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_identity *id) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_reseal(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_rec *prev, const struct mxfs_bootstrap_identity *id, const struct mxfs_bootstrap_reseal_args *a) -> int
+  fn mxfs_bootstrap_heartbeat(struct mxfs_bootstrap *b) -> int
+    called_by: v5_boot_hb_fn
+  fn mxfs_bootstrap_seal(struct mxfs_bootstrap *b, uint64_t victim_bitmap, uint64_t ledger_gen, uint32_t registrants, uint64_t manifest_hash) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_release_claim(struct mxfs_bootstrap *b) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_set_recovering(struct mxfs_bootstrap *b) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_slot_complete(struct mxfs_bootstrap *b, int slot) -> int
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_bootstrap_registrant_done(struct mxfs_bootstrap *b) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_complete(struct mxfs_bootstrap *b) -> int
+    called_by: mxfs_v5_dlm_bootstrap_finish
+  fn mxfs_bootstrap_owner_is(struct mxfs_bootstrap *b, uint32_t node, uint64_t epoch, uint64_t *seq) -> int
+    called_by: v5_incarnation_state
+  fn mxfs_bootstrap_resume(struct mxfs_bootstrap *b, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], uint64_t pr_key, uint32_t key_gen, uint32_t *node_out, uint64_t *epoch_out) -> int
+  fn mxfs_bootstrap_refuse(struct mxfs_bootstrap *b, uint32_t slot, uint32_t reason) -> int
+    called_by: mxfs_v5_dlm_bootstrap_finish, mxfs_v5_dlm_bootstrap_k_refused, mxfs_v5_dlm_bootstrap_terminal, v5_bootstrap_run
+  fn mxfs_bootstrap_escrow_prepare(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_escrow *e) -> int
+    called_by: v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  fn mxfs_bootstrap_escrow_advance(struct mxfs_bootstrap *b, uint8_t state, int32_t replay_rc) -> int
+    called_by: mxfs_v5_dlm_bootstrap_finish, mxfs_v5_dlm_bootstrap_k_refused, v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  fn mxfs_bootstrap_escrow_name(uint8_t state) -> const char
+    called_by: mxfs_bootstrap_escrow_advance, mxfs_bootstrap_escrow_prepare, mxfs_bootstrap_lineage_write, v5_bootstrap_adopt_resume, v5_bootstrap_unwind
+  fn mxfs_bootstrap_manifest_write(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_mf_entry *e, unsigned int n, uint64_t *hash_out) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_manifest_write_term(struct mxfs_bootstrap *b, uint64_t term, const struct mxfs_bootstrap_mf_entry *e, unsigned int n, uint64_t *hash_out) -> int
+    called_by: mxfs_bootstrap_manifest_write
+  fn mxfs_bootstrap_manifest_read(struct mxfs_bootstrap *b, uint64_t term, uint64_t hash, struct mxfs_bootstrap_mf_entry *e, unsigned int max, unsigned int *n_out) -> int
+  fn mxfs_bootstrap_manifest_hash(const struct mxfs_bootstrap_mf_entry *e, unsigned int n) -> uint64_t
+    called_by: mxfs_bootstrap_manifest_read, mxfs_bootstrap_manifest_write_term
+  fn mxfs_bootstrap_refuse_name(uint32_t reason) -> const char
+    called_by: mxfs_bootstrap_refuse, mxfs_v5_dlm_bootstrap_finish
+  fn mxfs_bootstrap_survivor_scan(mxfs_bdev_t *dev, uint64_t disklock_offset, uint32_t fs_gen, uint32_t slice_count, uint32_t window_ms, uint32_t early_ms, struct mxfs_bootstrap_mf_entry *e, unsigned int max, unsigned int *n_out, uint64_t *victims_out, unsigned int *moved_out, unsigned int *unread_out, unsigned int *noident_out) -> int
+    called_by: v5_bootstrap_run
+  fn mxfs_bootstrap_tomb_write(struct mxfs_bootstrap *b, struct mxfs_bootstrap_tomb *t) -> int
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_bootstrap_tomb_write_term(struct mxfs_bootstrap *b, uint64_t term, struct mxfs_bootstrap_tomb *t) -> int
+    called_by: mxfs_bootstrap_tomb_write
+  fn mxfs_bootstrap_tomb_read(struct mxfs_bootstrap *b, unsigned int slot, uint64_t episode_term, struct mxfs_bootstrap_tomb *out) -> int
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_bootstrap_tomb_crc(const struct mxfs_bootstrap_tomb *t) -> uint32_t
+    called_by: bs_tomb_valid, mxfs_bootstrap_tomb_write_term
+  fn mxfs_bootstrap_mf_entry_crc(const struct mxfs_bootstrap_mf_entry *e) -> uint32_t
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_bootstrap_tomb_kind_name(uint8_t kind) -> const char
+    called_by: mxfs_bootstrap_tomb_write_term
+  fn mxfs_bootstrap_lineage_write(struct mxfs_bootstrap *b, unsigned int idx, struct mxfs_bootstrap_lineage *l) -> int
+  fn mxfs_bootstrap_lineage_read(struct mxfs_bootstrap *b, unsigned int idx, uint64_t term, uint64_t episode_term, struct mxfs_bootstrap_lineage *out) -> int
+    called_by: v5_boot_lineage_load
+  fn mxfs_bootstrap_lineage_crc(const struct mxfs_bootstrap_lineage *l) -> uint32_t
+    called_by: mxfs_bootstrap_lineage_read, mxfs_bootstrap_lineage_write
+  fn mxfs_bootstrap_takeover_read(struct mxfs_bootstrap *b, struct mxfs_bootstrap_takeover *out, bool *valid) -> int
+  fn mxfs_bootstrap_takeover_cas(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_takeover *cur, struct mxfs_bootstrap_takeover *want) -> int
+  fn mxfs_bootstrap_takeover_clear(struct mxfs_bootstrap *b, const struct mxfs_bootstrap_takeover *cur) -> int
+  fn mxfs_bootstrap_takeover_crc(const struct mxfs_bootstrap_takeover *t) -> uint32_t
+    called_by: mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_read
+  fn mxfs_bootstrap_takeover_stage_name(uint16_t stage) -> const char
+  fn mxfs_bootstrap_rec_crc(const struct mxfs_bootstrap_rec *r) -> uint32_t
+    called_by: bs_cas_locked, bs_read_locked, mxfs_bootstrap_rec_init_idle, mxfs_bootstrap_rec_valid
+  fn mxfs_bootstrap_rec_valid(const struct mxfs_bootstrap_rec *r) -> bool
+    called_by: bs_read_locked
+  fn mxfs_bootstrap_state_name(uint16_t state) -> const char
+    called_by: bs_reload_ours_locked, mxfs_bootstrap_claim, mxfs_bootstrap_lineage_write, mxfs_bootstrap_reseal, v5_bootstrap_setup, v5_bootstrap_unwind
+  fn mxfs_bootstrap_rec_init_idle(struct mxfs_bootstrap_rec *r, const uint8_t fs_uuid[16], uint32_t fs_gen) -> void
+  struct mxfs_bootstrap_escrow { state, cls, slot, victim_node, victim_epoch, victim_key, victim_key_gen, old_sector_crc, victim_host, victim_boot }
+  struct mxfs_bootstrap_mf_entry { slot, cls, rec_flags, node_id, epoch, pr_key, key_gen, succ_of, host_uuid, boot_uuid }
+  struct mxfs_bootstrap_mf_sector { magic, ver, count, term, idx, crc32c, e }
+  struct mxfs_bootstrap_rec { magic, ver, state, term, seq, stamp_ms, owner_node, owner_key_gen, owner_epoch, owner_pr_key }
+  struct mxfs_bootstrap_tomb { magic, kind, stage, slot, victim_node, victim_key_gen, victim_epoch, victim_key, term, obligation }
+  struct mxfs_bootstrap_tomb_sector { t }
+  struct mxfs_bootstrap_lineage { magic, ver, idx, term, episode_term, owner_node, owner_key_gen, owner_epoch, owner_pr_key, owner_host_uuid }
+  struct mxfs_bootstrap_takeover_id { node_id, key_gen, epoch, pr_key, host_uuid, boot_uuid }
+  struct mxfs_bootstrap_takeover { magic, ver, stage, seq, stamp_ms, nonce, target_term, target_nonce, target_seq, target_state }
+  struct mxfs_bootstrap_identity { host_uuid, boot_uuid, node_id, key_gen, epoch, pr_key, host_src }
+  struct mxfs_bootstrap { dev, offset, lock, fs_uuid, fs_gen, owned, img, nonce }
+  struct mxfs_bootstrap_reseal_args { state, prev_fence_kind, victim_bitmap, complete_bitmap, ledger_gen, manifest_hash, registrants, registrants_done, refused_slot, refused_reason }
 
 [dlm/discovery.c]
   fn static seen_find(struct mxfs_discovery_ctx *ctx, mxfs_node_id_t node_id) -> int
@@ -82,9 +319,9 @@
     calls: mxfs_pal_log
     called_by: closure_read_gate_sector
   fn static resource_hash(const struct mxfs_resource_id *res) -> uint32_t
-    called_by: dg_grant_ex, dlm_lock_impl, find_lock_slot, mxfs_disklock_write_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_unlock_gen
+    called_by: dg_grant_ex, dlm_lock_impl, dlm_promote_txn, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_txn_finalize, find_lock_slot, mxfs_disklock_write_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_id, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb
   fn static resource_equal(const struct mxfs_resource_id *a, const struct mxfs_resource_id *b) -> bool
-    called_by: collect_post_promotion_basts, dg_grant_ex, dg_release, dlm_lock_impl, find_conflicting_waiter, find_lock_slot, held_insert, held_remove, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb
+    called_by: collect_post_promotion_basts, demand_collect_holders, dg_grant_ex, dg_release, dlm_lock_impl, dlm_pending_exists, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, find_conflicting_waiter, find_lock_slot, held_insert, held_remove, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch
   fn static lock_slot_offset(struct mxfs_disklock_ctx *ctx, uint32_t slot) -> uint64_t
     called_by: find_lock_slot, mxfs_disklock_clear_grant, mxfs_disklock_purge_node, mxfs_disklock_read_all, mxfs_disklock_write_grant, validate_lockstate
   fn static hb_slot_offset(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node) -> uint64_t
@@ -94,32 +331,79 @@
     called_by: closure_read_gate_sector, find_lock_slot, mxfs_disklock_purge_node, mxfs_disklock_read_all, mxfs_disklock_write_grant, mxfs_journal_open, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty, mxfs_journal_slot_open, read_entry_at, scan_disk_for_node_slot, validate_lockstate
   fn static write_sector(struct mxfs_disklock_ctx *ctx, uint64_t offset, const void *buf) -> int
     calls: mxfs_pal_bdev_write
-    called_by: flush_slot_header, mxfs_disklock_clear_grant, mxfs_disklock_write_grant, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty, purge_cas_zero
+    called_by: flush_slot_header, mxfs_disklock_clear_grant, mxfs_disklock_write_grant, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty
   fn static write_sector_fua(struct mxfs_disklock_ctx *ctx, uint64_t offset, const void *buf) -> int
     calls: mxfs_pal_bdev_write_fua
-    called_by: hb_cas_own_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_unguard, mxfs_disklock_withdraw, recov_cas_durable
+    called_by: mxfs_disklock_claim_slot_noncaw, mxfs_disklock_withdraw
   fn static hb_gen_foreign(const struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb) -> bool
-    called_by: disklock_hb_fn, hb_clean_empty_match, hb_foreign_kind, hb_prov_derive, hb_report_claim_exhausted, hb_still_dead_stamp, mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_guard_slot, mxfs_disklock_join_gate, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_slot_status, mxfs_disklock_slot_holds_incarnation
+    calls: inc_eq, mxfs_hb_feature_bootstrap_pending, mxfs_pal_log
+    called_by: disklock_hb_fn, hb_claim_wait, hb_clean_empty_match, hb_feature_state, hb_foreign_kind, hb_ident_observe, hb_prov_derive, hb_report_claim_exhausted, hb_still_dead_stamp, mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_claim_victim_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_guard_slot
   fn static hb_draw_incarnation(void) -> mxfs_epoch_t
     calls: mxfs_pal_get_random_bytes
     called_by: mxfs_disklock_claim_slot, mxfs_disklock_create
   fn static inc_valid(mxfs_epoch_t e) -> bool
     calls: mxfs_pal_log
-    called_by: hb_clean_empty_match, mxfs_disklock_claim_slot, mxfs_disklock_clear_recovery_pending, mxfs_disklock_create, mxfs_disklock_mark_recovery_pending, mxfs_disklock_mount_identity, mxfs_disklock_recovery_slot_status, mxfs_disklock_slot_holds_incarnation
+    called_by: disklock_hb_fn, hb_clean_empty_match, hb_ident_observe, hb_rebase_epoch, mxfs_disklock_adopt_epoch, mxfs_disklock_claim_slot, mxfs_disklock_claim_victim_slot, mxfs_disklock_clear_recovery_pending, mxfs_disklock_create, mxfs_disklock_mark_recovery_pending, mxfs_disklock_mount_identity, mxfs_disklock_recovery_slot_status, mxfs_disklock_slot_holds_incarnation, mxfs_disklock_slot_tenancy_retire
+  fn static hb_rebase_epoch(struct mxfs_disklock_ctx *ctx, struct mxfs_disklock_node_track *nt, int slot, const struct mxfs_disklock_heartbeat *rhb, const char *arm) -> void
+    calls: inc_valid, mxfs_pal_log
+    called_by: disklock_hb_fn
   fn static inc_eq(mxfs_epoch_t a, mxfs_epoch_t b) -> bool
-    called_by: disklock_hb_fn, hb_clean_empty_match, mxfs_disklock_clear_recovery_pending, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_slot_status, purge_recov_gate, recov_desc_names_inc
+    calls: mxfs_pal_log
+    called_by: disklock_hb_fn, hb_clean_empty_match, hb_gen_foreign, hb_ident_freeze_victim, hb_ident_observe, hb_retire_settle, mxfs_disklock_boot_advancing, mxfs_disklock_claim_victim_slot, mxfs_disklock_clear_recovery_pending, mxfs_disklock_reclaim_own_slot, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_seal, mxfs_disklock_recovery_fence_takeover
   fn static recov_tok_eq(uint64_t a, uint64_t b) -> bool
+    called_by: mxfs_disklock_recovery_relinquish_slot
   fn static hb_feature_crc(uint32_t fs_gen, mxfs_node_id_t node_id, mxfs_epoch_t epoch, const struct mxfs_hb_feature *ft) -> uint32_t
     calls: mxfs_pal_crc32c
-    called_by: hb_feature_fill, hb_feature_state
+    called_by: hb_feature_fill, mxfs_hb_feature_bootstrap_pending
   fn static hb_feature_fill(const struct mxfs_disklock_ctx *ctx, struct mxfs_disklock_heartbeat *hb) -> void
     calls: hb_feature_crc
-    called_by: disklock_hb_fn, mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_guard_slot, mxfs_disklock_withdraw
+    called_by: disklock_hb_fn, mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_claim_victim_slot, mxfs_disklock_guard_slot, mxfs_disklock_restamp_withdrawn_after_release, mxfs_disklock_withdraw
+  fn static hb_ident_crc(uint32_t slot, uint32_t flags, uint32_t fs_gen, mxfs_node_id_t node_id, mxfs_epoch_t epoch, const struct mxfs_hb_identity *id) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: hb_ident_fill, hb_ident_rebind, mxfs_hb_guard_identity_valid
+  fn static hb_ident_fill(const struct mxfs_disklock_ctx *ctx, struct mxfs_disklock_heartbeat *hb, uint32_t slot) -> void
+    calls: hb_ident_crc
+    called_by: disklock_hb_fn, mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_claim_victim_slot, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_restamp_withdrawn_after_release, mxfs_disklock_withdraw
+  fn mxfs_hb_identity_valid(const struct mxfs_disklock_heartbeat *hb, uint32_t slot) -> bool
+    calls: hb_foreign_kind, mxfs_pal_log
+    called_by: hb_ident_observe, hb_retire_settle, mxfs_disklock_boot_advancing, mxfs_disklock_retire_settle_own, mxfs_hb_guard_identity_valid, v5_same_boot_scan, v5_self_succession_clone_scan
+  fn mxfs_hb_guard_identity_valid(const struct mxfs_disklock_heartbeat *hb, uint32_t slot) -> bool
+    calls: hb_ident_crc, mxfs_hb_identity_valid
+    called_by: v5_mark_pending_from_record
+  fn static hb_ident_observe(struct mxfs_disklock_ctx *ctx, uint32_t slot, const struct mxfs_disklock_heartbeat *rhb) -> void
+    calls: hb_gen_foreign, inc_eq, inc_valid, mxfs_hb_identity_valid, mxfs_pal_log
+    called_by: disklock_hb_fn
+  fn static hb_ident_freeze_victim(struct mxfs_disklock_ctx *ctx, uint32_t slot, mxfs_node_id_t node, mxfs_epoch_t epoch) -> void
+    calls: inc_eq, mxfs_pal_log
+    called_by: disklock_hb_fn
+  fn mxfs_disklock_victim_identity(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, uint8_t host_uuid[16], uint8_t boot_uuid[16]) -> bool
+    calls: inc_eq, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_boot_succession_consume, v5_self_succession_consume
+  fn mxfs_disklock_host_live_other_boot(struct mxfs_disklock_ctx *ctx, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], mxfs_node_id_t *live_node, int *live_slot) -> bool
+    called_by: v5_boot_succession_consume
+  fn mxfs_disklock_boot_advancing(struct mxfs_disklock_ctx *ctx, const uint8_t boot_uuid[16], bool *advancing, int *records) -> int
+    calls: inc_eq, mxfs_hb_identity_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms
+    called_by: v5_boot_succession_consume
+  fn mxfs_disklock_deaths_undeclared(struct mxfs_disklock_ctx *ctx, unsigned int *window_ms) -> int
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_deaths_undeclared
+  fn mxfs_disklock_victim_key(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, uint32_t *key_gen) -> uint64_t
+    calls: inc_eq, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_fence_kind_contradicts_single_node
+  fn mxfs_disklock_set_identity(struct mxfs_disklock_ctx *ctx, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], uint32_t host_src, uint64_t pr_key, uint32_t key_gen) -> int
+    called_by: mxfs_v5_dlm_init
   fn static hb_feature_state(const struct mxfs_disklock_heartbeat *hb) -> int
-    calls: hb_feature_crc
-    called_by: disklock_hb_fn, hb_victim_snlocal, mxfs_disklock_join_gate, mxfs_disklock_recovery_slot_status
+    calls: hb_gen_foreign, hb_transport_mismatch, mxfs_pal_bdev_read_prio, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: disklock_hb_fn, hb_victim_adopted, hb_victim_snlocal, mxfs_disklock_join_gate, mxfs_disklock_recovery_slot_status, mxfs_disklock_scan_transport
   fn static hb_victim_snlocal(const struct mxfs_disklock_heartbeat *hb) -> bool
     calls: hb_feature_state
+  fn static hb_victim_adopted(const struct mxfs_disklock_heartbeat *hb) -> bool
+    calls: hb_feature_state
+  fn static hb_transport_mismatch(const struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb) -> bool
+    called_by: disklock_hb_fn, hb_feature_state, mxfs_disklock_join_gate
+  fn mxfs_disklock_scan_transport(mxfs_bdev_t *dev, uint64_t base_offset, uint32_t fs_gen, struct mxfs_disklock_transport_census *c) -> int
+    calls: hb_feature_state, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free
+    called_by: mxfs_v5_dlm_init
   fn static hb_prov_crc(uint32_t fs_gen, mxfs_node_id_t node_id, mxfs_epoch_t epoch, const struct mxfs_hb_provenance *pv) -> uint32_t
     calls: mxfs_pal_crc32c
     called_by: hb_prov_derive
@@ -128,18 +412,50 @@
   fn static hb_clean_empty_match(const struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb, mxfs_node_id_t node, mxfs_epoch_t epoch) -> bool
     calls: hb_gen_foreign, inc_eq, inc_valid
     called_by: disklock_hb_fn
+  fn static hb_ident_rebind(struct mxfs_disklock_heartbeat *hb, uint32_t slot) -> void
+    calls: hb_ident_crc
+    called_by: hb_retire_settle, mxfs_disklock_retire_cas_empty, mxfs_disklock_retire_complete_self, mxfs_disklock_retire_settle_own
+  fn static hb_retire_pending(const struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb) -> bool
+    calls: mxfs_pal_log
+    called_by: disklock_hb_fn, hb_retire_settle, mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_retire_cas_empty, mxfs_disklock_retire_complete_self, mxfs_disklock_retire_settle_own
+  fn static hb_cas_nocaw_locked(struct mxfs_disklock_ctx *ctx, uint32_t slot, const char *what) -> void
+    calls: mxfs_pal_log
+    called_by: hb_cas_nocaw, hb_cas_own_slot, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_unguard, mxfs_disklock_withdraw, recov_cas_durable
+  fn static hb_cas_nocaw(struct mxfs_disklock_ctx *ctx, uint32_t slot, const char *what) -> void
+    calls: hb_cas_nocaw_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: hb_retire_settle, mxfs_disklock_restamp_withdrawn_after_release, mxfs_disklock_retire_cas_empty, mxfs_disklock_retire_complete_self, mxfs_disklock_retire_settle_own
+  fn static hb_caw(struct mxfs_disklock_ctx *ctx, unsigned int op, const char *what, uint64_t off, const void *expect, const void *want) -> int
+    calls: mxfs_pal_bdev_compare_and_write, mxfs_pal_dbg_cas_nocaw
+    called_by: hb_cas_own_slot, hb_retire_settle, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_restamp_withdrawn_after_release, mxfs_disklock_retire_cas_empty, mxfs_disklock_retire_complete_self, mxfs_disklock_retire_settle_own, mxfs_disklock_unguard, mxfs_disklock_withdraw, recov_cas_durable
+  fn static hb_retire_reread(struct mxfs_disklock_ctx *ctx, uint64_t off, struct mxfs_disklock_heartbeat *rhb) -> int
+    calls: mxfs_pal_bdev_read_prio, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: hb_retire_settle, mxfs_disklock_retire_cas_empty
+  fn static hb_key_state_name(int st) -> const char
+    called_by: hb_retire_settle
+  fn static hb_retire_settle(struct mxfs_disklock_ctx *ctx, uint32_t slot, uint64_t off, struct mxfs_disklock_heartbeat *rhb, bool immediate) -> int
+    calls: hb_cas_nocaw, hb_caw, hb_ident_rebind, hb_key_state_name, hb_retire_pending, hb_retire_reread, inc_eq, mxfs_hb_identity_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: disklock_hb_fn
+  fn mxfs_disklock_retire_settle_slot(struct mxfs_disklock_ctx *ctx, uint32_t slot, bool immediate) -> int
+    called_by: mxfs_v5_dlm_mount_pending_recovery, v5_p305_settle_retire_pending
   fn static hb_prov_derive(struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *consumed, bool fresh_claim) -> void
     calls: hb_gen_foreign, hb_prov_crc, hb_prov_valid, mxfs_pal_get_random_bytes
-    called_by: mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw
+    called_by: mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_claim_victim_slot
   fn static recov_desc_crc(uint32_t fs_gen, mxfs_node_id_t node_id, mxfs_epoch_t epoch, const struct mxfs_recov_desc *d) -> uint32_t
     called_by: recov_desc_seal
   fn static recov_desc_present(const struct mxfs_disklock_heartbeat *hb) -> bool
-    called_by: hb_report_claim_exhausted, mxfs_disklock_guard_slot, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_read, mxfs_disklock_recovery_refresh, mxfs_disklock_recovery_slot_status, mxfs_disklock_recovery_takeover, recov_lease_covers_inc, recov_lease_covers_node, recov_outcome_structural
+    called_by: hb_claim_wait, hb_report_claim_exhausted, mxfs_disklock_guard_slot, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_mark_blocked, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_read, mxfs_disklock_recovery_read_obl, mxfs_disklock_recovery_refresh, mxfs_disklock_recovery_slot_status, mxfs_disklock_recovery_takeover
+  fn static recov_desc_set_owner_slot(const struct mxfs_disklock_ctx *ctx, struct mxfs_recov_desc *d) -> void
+    called_by: mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_takeover
   fn static recov_outcome_crc(uint32_t fs_gen, mxfs_node_id_t node_id, mxfs_epoch_t epoch, const struct mxfs_recov_outcome *oc) -> uint32_t
     calls: mxfs_pal_crc32c
   fn static recov_outcome_present(const struct mxfs_disklock_heartbeat *hb) -> bool
     calls: mxfs_pal_log
-    called_by: mxfs_disklock_recovery_backfill_legacy, recov_outcome_structural
+    called_by: mxfs_disklock_recovery_backfill_legacy, mxfs_hb_terminal_guard_classify, recov_outcome_structural
+  fn mxfs_hb_terminal_guard_classify(const struct mxfs_disklock_heartbeat *hb, uint32_t slot, uint32_t fs_gen, const struct mxfs_recov_outcome **oc_out) -> int
+    calls: inc_eq, recov_desc_present, recov_outcome_present
+  fn static recov_obl_present(const struct mxfs_disklock_heartbeat *hb) -> bool
+    calls: mxfs_pal_log
+    called_by: mxfs_disklock_recovery_advance
   fn static recov_outcome_structural(const struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb, int slot, const struct mxfs_recov_outcome **oc_out) -> int
     calls: hb_gen_foreign, recov_desc_present, recov_outcome_present
     called_by: disklock_hb_fn, mxfs_disklock_recovery_read_outcome
@@ -170,9 +486,9 @@
     called_by: hb_cas_own_slot, mxfs_disklock_release_slot, mxfs_disklock_withdraw
   fn static hb_foreign_kind(const struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *cur) -> const char
     calls: hb_gen_foreign
-    called_by: hb_cas_own_slot, hb_own_record, mxfs_disklock_release_slot, mxfs_disklock_withdraw
+    called_by: hb_cas_own_slot, hb_own_record, mxfs_disklock_release_slot, mxfs_disklock_restamp_withdrawn_after_release, mxfs_disklock_retire_complete_self, mxfs_disklock_retire_settle_own, mxfs_disklock_withdraw, mxfs_hb_identity_valid
   fn static hb_cas_own_slot(struct mxfs_disklock_ctx *ctx, uint64_t off, const struct mxfs_disklock_heartbeat *want, struct mxfs_disklock_heartbeat *scratch) -> int
-    calls: hb_foreign_kind, hb_own_record, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_log, write_sector_fua
+    calls: hb_cas_nocaw_locked, hb_caw, hb_foreign_kind, hb_own_record, mxfs_pal_bdev_read_prio, mxfs_pal_log
     called_by: disklock_hb_fn
   fn static hb_stage_set(struct mxfs_disklock_ctx *ctx, int stage) -> void
     calls: mxfs_pal_time_ms
@@ -187,11 +503,14 @@
   fn static hb_blind_gate(struct mxfs_disklock_ctx *ctx, int hb_rc) -> bool
     called_by: disklock_hb_fn
   fn static disklock_hb_fn(void *arg) -> void
-    calls: fs_identity_changed, hb_blind_clear, hb_blind_gate, hb_cas_own_slot, hb_clean_empty_match, hb_feature_fill, hb_feature_state, hb_gen_foreign, hb_prov_valid, hb_stage_set, hb_still_dead_stamp, inc_eq, mxfs_disklock_clear_recovery_pending, mxfs_disklock_monitor_node, mxfs_disklock_stop_heartbeat
+    calls: fs_identity_changed, hb_blind_clear, hb_blind_gate, hb_cas_own_slot, hb_clean_empty_match, hb_feature_fill, hb_feature_state, hb_gen_foreign, hb_ident_fill, hb_ident_freeze_victim, hb_ident_observe, hb_prov_valid, hb_rebase_epoch, hb_retire_pending, hb_retire_settle
   fn mxfs_disklock_create(mxfs_bdev_t *dev, uint64_t disklock_offset, mxfs_node_id_t local_node) -> struct mxfs_disklock_ctx
     calls: hb_draw_incarnation, inc_valid, mxfs_pal_alloc, mxfs_pal_cond_create, mxfs_pal_cond_destroy, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_create, mxfs_pal_mutex_destroy, validate_lockstate
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_disklock_set_snlocal(struct mxfs_disklock_ctx *ctx, bool snlocal) -> void
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_transport_tcp(struct mxfs_disklock_ctx *ctx, bool tcp) -> void
     calls: mxfs_pal_log
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit) -> void
@@ -199,7 +518,7 @@
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_destroy(struct mxfs_disklock_ctx *ctx) -> void
     calls: mxfs_disklock_stop_heartbeat, mxfs_pal_cond_destroy, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_destroy
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_commit
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_finish, v5_quarantine_free
   fn mxfs_disklock_start_heartbeat(struct mxfs_disklock_ctx *ctx) -> int
     calls: mxfs_pal_log, mxfs_pal_thread_pid
     called_by: mxfs_mount, mxfs_v5_dlm_init
@@ -207,14 +526,14 @@
     calls: mxfs_pal_cond_broadcast, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_thread_join, mxfs_pal_thread_join_timeout
     called_by: disklock_hb_fn, mxfs_disklock_destroy, mxfs_disklock_withdraw, mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_disklock_release_slot(struct mxfs_disklock_ctx *ctx) -> int
-    calls: hb_foreign_kind, hb_own_record, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, write_sector_fua
+    calls: hb_cas_nocaw_locked, hb_caw, hb_foreign_kind, hb_ident_fill, hb_own_record, mxfs_disklock_recovery_relinquish_owned, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_commit
   fn mxfs_disklock_write_grant(struct mxfs_disklock_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t mode, mxfs_epoch_t epoch) -> int
     calls: find_lock_slot, lock_slot_offset, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, read_sector, resource_hash, write_sector
   fn mxfs_disklock_clear_grant(struct mxfs_disklock_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner) -> int
     calls: find_lock_slot, lock_slot_offset, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, write_sector
   fn static purge_cas_zero(struct mxfs_disklock_ctx *ctx, uint64_t off, const void *expect, const void *zerobuf, int *nonatomic) -> int
-    calls: mxfs_pal_bdev_compare_and_write, write_sector
+    calls: mxfs_pal_bdev_compare_and_write, mxfs_pal_log
     called_by: mxfs_disklock_purge_node
   fn static purge_recov_gate(struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb, mxfs_node_id_t node_id) -> int
     calls: inc_eq, recov_lease_covers_node
@@ -223,13 +542,31 @@
     calls: purge_recov_gate
     called_by: mxfs_disklock_purge_node
   fn mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> int
-    calls: lock_slot_offset, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, purge_cas_zero, purge_hb_zeroable, purge_recov_gate, read_sector
-    called_by: disklock_expire_cb, lease_expire_cb, mxfs_v5_dlm_recovery_complete, peer_disconnect_cb, v5_handle_node_death
+    calls: lock_slot_offset, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, purge_cas_zero, purge_hb_zeroable, purge_recov_gate, read_sector
+    called_by: disklock_expire_cb, lease_expire_cb, mxfs_v5_dlm_dbg_purge_node, peer_disconnect_cb, v5_handle_node_death, v5_recovery_complete_ladder
   fn mxfs_disklock_read_all(struct mxfs_disklock_ctx *ctx, struct mxfs_disklock_record *records, int max, int *count) -> int
     calls: lock_slot_offset, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, read_sector
   fn mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx) -> void
-    calls: hb_feature_fill, hb_foreign_kind, hb_own_record, mxfs_disklock_stop_heartbeat, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, write_sector_fua
+    calls: hb_cas_nocaw_locked, hb_caw, hb_feature_fill, hb_foreign_kind, hb_ident_fill, hb_own_record, mxfs_disklock_stop_heartbeat, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, write_sector_fua
     called_by: mxfs_v5_dlm_shutdown_withdraw
+  fn mxfs_disklock_restamp_withdrawn_after_release(struct mxfs_disklock_ctx *ctx) -> int
+    calls: hb_cas_nocaw, hb_caw, hb_feature_fill, hb_foreign_kind, hb_gen_foreign, hb_ident_fill, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: mxfs_v5_dlm_slot_restamp_unretired
+  fn mxfs_disklock_retire_complete_self(struct mxfs_disklock_ctx *ctx) -> int
+    calls: hb_cas_nocaw, hb_caw, hb_foreign_kind, hb_ident_rebind, hb_retire_pending, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_slot_retire_complete
+  fn mxfs_disklock_set_key_state_fn(struct mxfs_disklock_ctx *ctx, mxfs_disklock_key_state_fn fn, void *data) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_key_state_sync_fn(struct mxfs_disklock_ctx *ctx, mxfs_disklock_key_state_fn fn) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_settle_absent_fn(struct mxfs_disklock_ctx *ctx, mxfs_disklock_settle_absent_fn fn, void *data) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_retire_cas_empty(struct mxfs_disklock_ctx *ctx, uint32_t slot, struct mxfs_disklock_heartbeat *expect, mxfs_disklock_validate_fn validate_fn, void *validate_data) -> int
+    calls: hb_cas_nocaw, hb_caw, hb_ident_rebind, hb_retire_pending, hb_retire_reread, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_retire_cas
+  fn mxfs_disklock_retire_settle_own(struct mxfs_disklock_ctx *ctx, uint32_t slot, mxfs_node_id_t node, mxfs_epoch_t epoch, uint64_t key, const char *proof) -> int
+    calls: hb_cas_nocaw, hb_caw, hb_foreign_kind, hb_ident_rebind, hb_retire_pending, inc_eq, mxfs_hb_identity_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_p305_settle_retire_pending
   fn mxfs_disklock_set_recovered_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_recovered_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_clean_depart_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_clean_depart_cb cb, void *data) -> void
@@ -238,45 +575,71 @@
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_recov_outcome_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_recov_outcome_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_protected_mask_refresh(struct mxfs_disklock_ctx *ctx) -> int
+  fn mxfs_disklock_protected_mask_add(struct mxfs_disklock_ctx *ctx, int slot) -> void
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_recovery_acquire
+  fn mxfs_disklock_protected_mask(const struct mxfs_disklock_ctx *ctx) -> uint64_t
   fn mxfs_disklock_join_gate(struct mxfs_disklock_ctx *ctx, uint32_t timeout_ms) -> int
-    calls: hb_feature_state, hb_gen_foreign, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms
+    calls: hb_feature_state, hb_gen_foreign, hb_transport_mismatch, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_mark_recovery_pending(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch) -> void
     calls: inc_valid, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: mxfs_v5_dlm_mount_pending_recovery, v5_defer_slice_recovery, v5_settle_resolve, v5_start_slice_recovery
+    called_by: v5_mark_pending_from_record, v5_mark_recovery_pending_serialized, v5_settle_resolve
+  fn mxfs_disklock_mark_recovery_pending_ident(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch, uint64_t pr_key, uint32_t key_gen, const uint8_t host_uuid[16], const uint8_t boot_uuid[16]) -> void
+    called_by: v5_bootstrap_run, v5_mark_pending_from_record
   fn mxfs_disklock_recovery_is_pending(struct mxfs_disklock_ctx *ctx, int slot) -> bool
-    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_recovery_complete, v5_defer_slice_recovery, v5_dispatch_late_deaths, v5_settle_resolve, v5_start_slice_recovery
+    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_mount_resolved_elsewhere, mxfs_v5_dlm_recovery_acquire, v5_dispatch_late_deaths, v5_mark_recovery_pending_serialized, v5_peer_msg_cb_tcp, v5_recovery_complete_ladder, v5_settle_resolve
   fn mxfs_disklock_clear_recovery_pending(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch) -> int
     calls: inc_eq, inc_valid, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: disklock_hb_fn, hb_still_dead_stamp, mxfs_v5_dlm_recovery_complete
+    called_by: disklock_hb_fn, hb_still_dead_stamp, v5_bootstrap_adopt, v5_bootstrap_adopt_resume, v5_complete_classify, v5_recovery_complete_ladder
   fn mxfs_disklock_pending_node(struct mxfs_disklock_ctx *ctx, int slot) -> mxfs_node_id_t
-    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_dispatch_late_deaths
+    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete2, v5_dispatch_late_deaths, v5_recovery_complete_ladder
   fn mxfs_disklock_recovery_pending_iter(struct mxfs_disklock_ctx *ctx, int prev, mxfs_node_id_t *node) -> int
     called_by: v5_dispatch_slice_recovery
   fn mxfs_disklock_pending_epoch(struct mxfs_disklock_ctx *ctx, int slot) -> mxfs_epoch_t
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_exclusion_recheck
+    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete2, v5_exclusion_recheck, v5_recovery_complete_ladder
   fn static recov_cas_durable(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_disklock_heartbeat *expect, const struct mxfs_disklock_heartbeat *want) -> int
-    calls: mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_flush, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, write_sector_fua
-    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_refresh
+    calls: hb_cas_nocaw_locked, hb_caw, mxfs_pal_bdev_flush, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_mark_blocked, mxfs_disklock_recovery_fence_seal, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_refresh, mxfs_disklock_recovery_relinquish_owned, mxfs_disklock_recovery_relinquish_slot
   fn static recov_desc_seal(struct mxfs_disklock_heartbeat *want) -> void
     calls: recov_desc_crc
-    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_refresh
+    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_mark_blocked, mxfs_disklock_recovery_fence_seal, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_refresh, mxfs_disklock_recovery_relinquish_owned, mxfs_disklock_recovery_relinquish_slot
+  fn static recov_mptr_crc(uint32_t fs_gen, mxfs_node_id_t node_id, mxfs_epoch_t epoch, const struct mxfs_recov_manifest_ptr *mp) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: recov_mptr_seal
+  fn static recov_mptr_seal(struct mxfs_disklock_heartbeat *want) -> void
+    calls: recov_mptr_crc
+    called_by: mxfs_disklock_recovery_fence_seal
+  fn static rman_hdr_crc(const struct mxfs_rman_hdr *h) -> uint32_t
+    calls: mxfs_pal_crc32c
+  fn static rman_slot_off(const struct mxfs_disklock_ctx *ctx, int slot) -> uint64_t
+    called_by: rman_obl_off
   fn static recov_stamp_after(uint64_t prev) -> uint64_t
     calls: mxfs_pal_time_ms
-    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_refresh
+    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_seal, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_refresh, mxfs_disklock_recovery_relinquish_owned, mxfs_disklock_recovery_relinquish_slot
   fn static recov_auth_issue(struct mxfs_recov_auth *auth, const struct mxfs_recov_desc *d) -> void
     called_by: mxfs_disklock_recovery_claim
   fn static recov_auth_holds(const struct mxfs_disklock_ctx *ctx, const struct mxfs_recov_desc *d, const struct mxfs_recov_auth *auth) -> bool
     calls: mxfs_pal_log
-    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_refresh
+    called_by: mxfs_disklock_recovery_advance, mxfs_disklock_recovery_refresh, v5_complete_classify
   fn mxfs_disklock_recovery_begin(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, uint16_t slice_idx, uint16_t slice_count, uint32_t flags, struct mxfs_recov_auth *out_auth) -> int
   fn mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot, unsigned int stage, const struct mxfs_recov_auth *auth) -> int
-    calls: inc_eq, mxfs_disklock_recovery_fence_certify, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_auth_holds, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_stamp_after
-    called_by: mxfs_v5_dlm_recovery_complete
+    calls: inc_eq, mxfs_disklock_recovery_fence_certify, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_auth_holds, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_obl_present, recov_stamp_after
+    called_by: v5_recovery_complete_ladder
   fn static recov_outcome_fill(struct mxfs_disklock_heartbeat *want, const struct mxfs_recov_desc *d, uint16_t reason, uint16_t domain_kind, uint64_t ag_mask, bool digest_valid, uint64_t slice_digest, uint64_t publish_seq, uint32_t refused, uint32_t malformed) -> void
     called_by: mxfs_disklock_recovery_backfill_legacy
+  fn static recov_publish_refusal_body(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, const struct mxfs_recov_refusal_info *info, const struct mxfs_recov_obl *obl, struct mxfs_recov_outcome *oc_out) -> int
   fn mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, const struct mxfs_recov_refusal_info *info, struct mxfs_recov_outcome *oc_out) -> int
     called_by: mxfs_v5_dlm_recovery_publish_refusal
+  fn mxfs_disklock_recovery_publish_refusal_obl(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, const struct mxfs_recov_refusal_info *info, const struct mxfs_recov_obl *obl, struct mxfs_recov_outcome *oc_out) -> int
+  fn static rman_obl_off(const struct mxfs_disklock_ctx *ctx, int slot) -> uint64_t
+    calls: rman_slot_off
+    called_by: mxfs_disklock_recovery_read_obl
+  fn mxfs_disklock_recovery_obl_write(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, struct mxfs_recov_obl_ext *ext, uint32_t count, const struct mxfs_recov_obl_geom *geom, uint64_t census_digest, uint16_t flags, struct mxfs_recov_obl *out_rec) -> int
+  fn mxfs_disklock_recovery_read_obl(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_obl *rec_out, struct mxfs_recov_obl_ext *ext_out, uint32_t *count_out) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_recov_obl_list_check, mxfs_recov_obl_rec_check, mxfs_rman_obl_hdr_check, recov_desc_present, rman_obl_off
+    called_by: mxfs_v5_dlm_recovery_read_obl
   fn static closure_gate_predicate(struct mxfs_disklock_ctx *ctx, const struct mxfs_disklock_heartbeat *hb, int slot, const struct mxfs_recov_auth *auth, bool check_auth, mxfs_node_id_t *victim, uint64_t *ag_mask) -> int
     called_by: mxfs_disklock_closure_gate_snapshot, mxfs_disklock_terminal_gate_check
   fn static closure_read_gate_sector(struct mxfs_disklock_ctx *ctx, int slot, uint8_t *buf) -> int
@@ -299,7 +662,7 @@
     calls: mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_auth_holds, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_stamp_after
   fn mxfs_disklock_recovery_read(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_desc *out) -> int
     calls: mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_desc_present
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_victim_recovery_read, mxfs_v5_dlm_victim_untagged_authority
+    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_stage, v5_bootstrap_adopt, v5_bootstrap_adopt_resume, v5_complete_classify, v5_recovery_complete_ladder, v5_victim_desc_read
   fn mxfs_disklock_recovery_takeover(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_auth *out_auth) -> int
     calls: mxfs_pal_log, recov_desc_present
     called_by: mxfs_disklock_guard_slot, mxfs_v5_dlm_recovery_acquire
@@ -307,11 +670,13 @@
     called_by: mxfs_disklock_recovery_fence_takeover
   fn static recov_fence_auth_holds(const struct mxfs_disklock_ctx *ctx, const struct mxfs_recov_desc *d, const struct mxfs_recov_fence_auth *auth) -> bool
     calls: mxfs_pal_log
-    called_by: mxfs_disklock_recovery_fence_arm_submit
+    called_by: mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_mark_blocked
   fn mxfs_recov_cert_proves_exclusion(const struct mxfs_recov_desc *d, uint32_t fs_gen, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const char **why) -> bool
     calls: mxfs_pal_log
     called_by: mxfs_disklock_recovery_claim
   fn mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, uint64_t victim_key, uint16_t slice_idx, uint16_t slice_count, uint32_t flags, struct mxfs_recov_fence_auth *out_auth) -> int
+  fn mxfs_disklock_recovery_fence_mark_blocked(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_fence_auth_holds
   fn mxfs_disklock_recovery_fence_arm_submit(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth) -> int
     calls: mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_fence_auth_holds
     called_by: v5_fence_arm_submit_cb
@@ -320,24 +685,51 @@
     called_by: v5_fence_retry_one, v5_fence_retry_worker_fn
   fn mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, uint16_t fence_kind, uint16_t fence_resv_type, uint64_t fence_victim_key, uint32_t fence_pr_gen) -> int
     called_by: mxfs_disklock_recovery_advance
+  fn mxfs_disklock_set_rman(struct mxfs_disklock_ctx *ctx, uint64_t rman_offset, uint64_t rman_size) -> void
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_init
+  fn static rman_check_lease(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, struct mxfs_disklock_heartbeat *cur, const struct mxfs_recov_desc **out_d, const char *site) -> int
+    called_by: mxfs_disklock_recovery_fence_seal
+  fn mxfs_disklock_recovery_manifest_write(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, const struct mxfs_rman_entry *ents, uint32_t count, uint32_t scan_slots, uint32_t flags, struct mxfs_recov_manifest_ptr *out_ptr) -> int
+    called_by: v5_rman_snapshot
+  fn mxfs_disklock_recovery_fence_seal(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, const struct mxfs_recov_manifest_ptr *mp) -> int
+    calls: inc_eq, mxfs_fence_kind_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, recov_cas_durable, recov_desc_seal, recov_mptr_seal, recov_stamp_after, rman_check_lease
+    called_by: v5_rman_snapshot
+  fn static rman_manifest_read_impl(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const struct mxfs_recov_desc *xd, const struct mxfs_recov_manifest_ptr *xmp, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+  fn mxfs_disklock_recovery_manifest_read(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+    called_by: mxfs_v5_dlm_rman_verify_live
+  fn mxfs_disklock_recovery_manifest_read_escrow(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const struct mxfs_recov_desc *d, const struct mxfs_recov_manifest_ptr *mptr, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+  fn mxfs_disklock_recovery_mptr_read(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_manifest_ptr *out) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_bootstrap_adopt, v5_bootstrap_adopt_resume
   fn mxfs_disklock_recovery_fence_takeover(struct mxfs_disklock_ctx *ctx, int slot, uint64_t victim_key, struct mxfs_recov_fence_auth *out_auth) -> int
-    calls: inc_eq, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_fence_auth_issue, recov_stamp_after
+    calls: inc_eq, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_desc_set_owner_slot, recov_fence_auth_issue, recov_stamp_after
     called_by: mxfs_v5_dlm_recovery_acquire
   fn mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, struct mxfs_recov_auth *out_auth) -> int
-    calls: inc_eq, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_recov_cert_proves_exclusion, recov_auth_issue, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_stamp_after
+    calls: inc_eq, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_recov_cert_proves_exclusion, recov_auth_issue, recov_cas_durable, recov_desc_present, recov_desc_seal, recov_desc_set_owner_slot, recov_stamp_after
     called_by: mxfs_v5_dlm_recovery_acquire
+  fn mxfs_disklock_recovery_relinquish_owned(struct mxfs_disklock_ctx *ctx) -> int
+    calls: inc_eq, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_cas_durable, recov_desc_seal, recov_stamp_after
+    called_by: mxfs_disklock_release_slot
+  fn mxfs_disklock_recovery_relinquish_slot(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth) -> int
+    calls: inc_eq, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_cas_durable, recov_desc_seal, recov_stamp_after, recov_tok_eq
+    called_by: v5_complete_classify
   fn mxfs_disklock_recovery_slot_status(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch) -> int
     calls: hb_feature_state, hb_gen_foreign, inc_eq, inc_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_desc_present
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_complete_classify, v5_recovery_complete_ladder
   fn mxfs_disklock_recovery_replay_authorized(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const struct mxfs_recov_auth *auth, const char *site, uint16_t *out_fence_kind) -> int
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_exclusion_recheck
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_exclusion_recheck, v5_recovery_complete_ladder
   fn mxfs_disklock_set_expire_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_expire_cb cb, void *data) -> void
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_disklock_set_fs_identity(struct mxfs_disklock_ctx *ctx, const uint8_t *fs_uuid) -> void
     called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_fs_gen_of(const uint8_t *fs_uuid) -> uint32_t
+    called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_fence_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_fence_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_conflict_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_conflict_cb cb, void *data) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_dbg_purge_hook(struct mxfs_disklock_ctx *ctx, mxfs_disklock_dbg_purge_hook hook, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_evict_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_evict_cb cb, void *data) -> void
   fn mxfs_disklock_note_freed(struct mxfs_disklock_ctx *ctx, uint64_t ino, uint32_t gen, uint32_t type) -> void
@@ -347,20 +739,26 @@
     calls: mxfs_disklock_find_node_slot, mxfs_pal_log
     called_by: discovery_peer_cb, disklock_hb_fn, peer_connect_cb
   fn mxfs_disklock_set_dead_timeout_ms(struct mxfs_disklock_ctx *ctx, uint32_t timeout_ms) -> void
-    calls: mxfs_pal_log
+    calls: ms, mxfs_pal_log
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_slot_live(struct mxfs_disklock_ctx *ctx, int slot) -> bool
-    called_by: mxfs_disklock_terminal_gate_check, v5_caw_holders_alive
+    called_by: mxfs_disklock_terminal_gate_check, v5_caw_holders_alive, v5_incarnation_state
   fn mxfs_disklock_slot_holds_incarnation(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, bool *out_read_ok) -> bool
     calls: hb_gen_foreign, inc_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+  fn mxfs_disklock_slot_terminal_for(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, const char **why) -> bool
+    calls: hb_gen_foreign, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_mount_resolved_elsewhere
   fn mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx, int skip_slot) -> int
-    called_by: v5_dispatch_slice_recovery, v5_exclusion_recheck, v5_resv_health_tick
+    called_by: v5_bootstrap_cb, v5_bootstrap_node_cb, v5_dispatch_slice_recovery, v5_exclusion_recheck, v5_resv_health_tick
+  fn mxfs_disklock_slot_tenancy_retire(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch) -> void
+    calls: hb_gen_foreign, inc_eq, inc_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_recovery_complete_ladder
   fn mxfs_disklock_unmonitor_node(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> void
     calls: mxfs_pal_log
     called_by: purge_node_dlm, remove_node
   fn mxfs_disklock_find_node_slot(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> int
     calls: first, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free, recov_desc_names_node
-    called_by: mxfs_disklock_monitor_node, v5_handle_node_death
+    called_by: mxfs_disklock_monitor_node, v5_handle_node_death, v5_incarnation_state, v5_node_inc_cb, v5_peer_msg_cb_tcp, v5_tcp_declare_dead
   fn mxfs_disklock_get_slot_node_id(struct mxfs_disklock_ctx *ctx, int slot) -> mxfs_node_id_t
     calls: hb_gen_foreign, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free
     called_by: mxfs_v5_dlm_init
@@ -368,53 +766,107 @@
     called_by: mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw
   fn static hb_report_claim_exhausted(struct mxfs_disklock_ctx *ctx, uint32_t slot_max) -> void
     calls: hb_gen_foreign, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free, mxfs_pal_log, mxfs_unclaimed_bucket_scan, recov_desc_present
-    called_by: mxfs_disklock_claim_slot, mxfs_disklock_claim_slot_noncaw
+    called_by: hb_claim_wait, mxfs_disklock_claim_slot_noncaw
   fn static mxfs_disklock_claim_slot_noncaw(struct mxfs_disklock_ctx *ctx) -> int
-    calls: hb_claim_slot_bound, hb_feature_fill, hb_gen_foreign, hb_prov_derive, hb_report_claim_exhausted, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, write_sector_fua
+    calls: hb_claim_slot_bound, hb_feature_fill, hb_gen_foreign, hb_ident_fill, hb_prov_derive, hb_report_claim_exhausted, hb_retire_pending, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms
+    called_by: mxfs_disklock_claim_slot
+  fn static hb_claim_wait(struct mxfs_disklock_ctx *ctx, uint32_t slot_max, struct hb_claim_wait *w) -> int
+    calls: hb_gen_foreign, hb_report_claim_exhausted, ms, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms_interruptible, mxfs_pal_time_ms, recov_desc_present
     called_by: mxfs_disklock_claim_slot
   fn mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx) -> int
-    calls: claim, hb_claim_slot_bound, hb_draw_incarnation, hb_feature_fill, hb_gen_foreign, hb_prov_derive, hb_report_claim_exhausted, inc_valid, mxfs_disklock_claim_slot_noncaw, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock
+    calls: claim, hb_claim_slot_bound, hb_claim_wait, hb_draw_incarnation, hb_feature_fill, hb_gen_foreign, hb_ident_fill, hb_prov_derive, hb_retire_pending, inc_valid, ms, mxfs_disklock_claim_slot_noncaw, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_disklock_get_slot(struct mxfs_disklock_ctx *ctx) -> int
     called_by: mxfs_v5_dlm_local_slot
+  fn mxfs_caw_cap_name(enum mxfs_caw_cap cap) -> const char
+    called_by: mxfs_disklock_caw_capability, mxfs_v5_dlm_init
+  fn mxfs_disklock_caw_capability(struct mxfs_disklock_ctx *ctx, int *rc_out) -> enum mxfs_caw_cap
+    calls: mxfs_caw_cap_name, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_mount_identity(struct mxfs_disklock_ctx *ctx, uint32_t *slot, mxfs_node_id_t *node, mxfs_epoch_t *epoch) -> bool
     calls: inc_valid
     called_by: mxfs_v5_dlm_mount_identity
   fn static hb_guard_abandoned(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_disklock_heartbeat *first) -> bool
     called_by: mxfs_disklock_guard_slot, mxfs_disklock_slot_unclaimed
   fn mxfs_disklock_guard_slot(struct mxfs_disklock_ctx *ctx, int slot) -> int
-    calls: hb_feature_fill, hb_gen_foreign, hb_guard_abandoned, mxfs_disklock_recovery_takeover, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, recov_desc_present, write_sector_fua
+    calls: hb_cas_nocaw_locked, hb_caw, hb_feature_fill, hb_gen_foreign, hb_guard_abandoned, hb_ident_fill, mxfs_disklock_recovery_takeover, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, recov_desc_present
     called_by: mxfs_v5_dlm_guard_slot
   fn mxfs_disklock_guard_refresh(struct mxfs_disklock_ctx *ctx) -> int
-    calls: mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, write_sector_fua
+    calls: hb_cas_nocaw_locked, hb_caw, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
     called_by: mxfs_v5_dlm_guard_refresh
   fn mxfs_disklock_unguard(struct mxfs_disklock_ctx *ctx) -> void
-    calls: mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, write_sector_fua
+    calls: hb_cas_nocaw_locked, hb_caw, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: mxfs_v5_dlm_unguard_slot
   fn mxfs_disklock_slot_unclaimed(struct mxfs_disklock_ctx *ctx, int slot) -> int
     calls: hb_gen_foreign, hb_guard_abandoned, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, recov_lease_covers_node
     called_by: mxfs_v5_dlm_slot_unclaimed
   fn mxfs_disklock_slice_adopted(struct mxfs_disklock_ctx *ctx) -> bool
-    called_by: mxfs_v5_dlm_slice_adopted
+    called_by: mxfs_v5_dlm_settle_own_slot, mxfs_v5_dlm_slice_adopted
   fn mxfs_disklock_get_stale_slot_mask(struct mxfs_disklock_ctx *ctx, uint64_t threshold_ms, int skip_slot, uint64_t *out_mask) -> int
     calls: hb_gen_foreign, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_get_withdrawn_slots(struct mxfs_disklock_ctx *ctx, int skip_slot, uint64_t *out_mask, mxfs_node_id_t *out_node, mxfs_epoch_t *out_epoch) -> int
     called_by: mxfs_v5_dlm_init
-  fn mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx, int skip_slot, uint64_t *out_mask, mxfs_node_id_t *out_node, mxfs_epoch_t *out_epoch) -> int
+  fn mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx, int skip_slot, uint64_t *out_mask, mxfs_node_id_t *out_node, mxfs_epoch_t *out_epoch, uint64_t *out_retire_mask) -> int
     called_by: mxfs_v5_dlm_mount_pending_recovery
   fn mxfs_disklock_confirm_dead_mask(struct mxfs_disklock_ctx *ctx, uint64_t candidate_mask, const mxfs_node_id_t *expect_node, uint32_t samples, const volatile int *cancel, uint64_t *out_confirmed, mxfs_epoch_t *out_epoch) -> int
     called_by: v5_settle_resolve
+  fn mxfs_disklock_set_owner_bootstrap(struct mxfs_disklock_ctx *ctx, bool on) -> void
+    called_by: mxfs_v5_dlm_bootstrap_finish, v5_bootstrap_run
+  fn mxfs_disklock_predraw_epoch(struct mxfs_disklock_ctx *ctx) -> void
+    called_by: v5_bootstrap_run
+  fn mxfs_disklock_adopt_epoch(struct mxfs_disklock_ctx *ctx, mxfs_epoch_t epoch) -> int
+    calls: inc_valid, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+  fn mxfs_disklock_read_record(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_disklock_heartbeat *out) -> int
+    calls: mxfs_pal_bdev_read_prio
+    called_by: v5_bootstrap_adopt_resume, v5_mark_pending_from_record
+  fn mxfs_disklock_reclaim_own_slot(struct mxfs_disklock_ctx *ctx, int slot) -> int
+    calls: hb_gen_foreign, inc_eq, mxfs_hb_feature_bootstrap_pending, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_bootstrap_adopt_resume
+  fn mxfs_hb_feature_bootstrap_pending(const struct mxfs_disklock_heartbeat *hb) -> bool
+    calls: hb_feature_crc
+    called_by: hb_gen_foreign, mxfs_disklock_reclaim_own_slot, v5_same_boot_scan
+  fn mxfs_disklock_clear_bootstrap_pending(struct mxfs_disklock_ctx *ctx) -> void
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_bootstrap_finish
+  fn mxfs_disklock_claim_victim_slot(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_desc *expect_desc, uint32_t *old_crc) -> int
+    calls: hb_feature_fill, hb_gen_foreign, hb_ident_fill, hb_prov_derive, inc_eq, inc_valid, mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_crc32c, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  struct hb_claim_wait { active, start_ms, deadline_ms, laps, stamp, changed_ms, frozen_reported }
 
 [dlm/disklock.h]
   fn mxfs_disklock_create(mxfs_bdev_t *dev, uint64_t disklock_offset, mxfs_node_id_t local_node) -> struct mxfs_disklock_ctx
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_disklock_destroy(struct mxfs_disklock_ctx *ctx) -> void
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_commit
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_finish, v5_quarantine_free
   fn mxfs_disklock_set_snlocal(struct mxfs_disklock_ctx *ctx, bool snlocal) -> void
     called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_transport_tcp(struct mxfs_disklock_ctx *ctx, bool tcp) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_scan_transport(mxfs_bdev_t *dev, uint64_t base_offset, uint32_t fs_gen, struct mxfs_disklock_transport_census *c) -> int
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_identity(struct mxfs_disklock_ctx *ctx, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], uint32_t host_src, uint64_t pr_key, uint32_t key_gen) -> int
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_victim_identity(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, uint8_t host_uuid[16], uint8_t boot_uuid[16]) -> bool
+    called_by: v5_boot_succession_consume, v5_self_succession_consume
+  fn mxfs_disklock_victim_key(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, uint32_t *key_gen) -> uint64_t
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_fence_kind_contradicts_single_node
+  fn mxfs_disklock_host_live_other_boot(struct mxfs_disklock_ctx *ctx, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], mxfs_node_id_t *live_node, int *live_slot) -> bool
+    called_by: v5_boot_succession_consume
+  fn mxfs_disklock_boot_advancing(struct mxfs_disklock_ctx *ctx, const uint8_t boot_uuid[16], bool *advancing, int *records) -> int
+    called_by: v5_boot_succession_consume
+  fn mxfs_disklock_deaths_undeclared(struct mxfs_disklock_ctx *ctx, unsigned int *window_ms) -> int
+    called_by: mxfs_v5_dlm_deaths_undeclared
+  fn mxfs_hb_guard_identity_valid(const struct mxfs_disklock_heartbeat *hb, uint32_t slot) -> bool
+    called_by: v5_mark_pending_from_record
+  fn mxfs_hb_identity_valid(const struct mxfs_disklock_heartbeat *hb, uint32_t slot) -> bool
+    called_by: hb_ident_observe, hb_retire_settle, mxfs_disklock_boot_advancing, mxfs_disklock_retire_settle_own, mxfs_hb_guard_identity_valid, v5_same_boot_scan, v5_self_succession_clone_scan
   fn mxfs_disklock_set_slot_limit(struct mxfs_disklock_ctx *ctx, uint32_t limit) -> void
     called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_caw_capability(struct mxfs_disklock_ctx *ctx, int *rc_out) -> enum mxfs_caw_cap
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_caw_cap_name(enum mxfs_caw_cap cap) -> const char
+    called_by: mxfs_disklock_caw_capability, mxfs_v5_dlm_init
   fn mxfs_disklock_start_heartbeat(struct mxfs_disklock_ctx *ctx) -> int
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_disklock_stop_heartbeat(struct mxfs_disklock_ctx *ctx) -> void
@@ -424,56 +876,92 @@
   fn mxfs_disklock_write_grant(struct mxfs_disklock_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t mode, mxfs_epoch_t epoch) -> int
   fn mxfs_disklock_clear_grant(struct mxfs_disklock_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner) -> int
   fn mxfs_disklock_purge_node(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> int
-    called_by: disklock_expire_cb, lease_expire_cb, mxfs_v5_dlm_recovery_complete, peer_disconnect_cb, v5_handle_node_death
+    called_by: disklock_expire_cb, lease_expire_cb, mxfs_v5_dlm_dbg_purge_node, peer_disconnect_cb, v5_handle_node_death, v5_recovery_complete_ladder
   fn mxfs_disklock_read_all(struct mxfs_disklock_ctx *ctx, struct mxfs_disklock_record *records, int max, int *count) -> int
   fn mxfs_disklock_set_expire_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_expire_cb cb, void *data) -> void
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_disklock_withdraw(struct mxfs_disklock_ctx *ctx) -> void
     called_by: mxfs_v5_dlm_shutdown_withdraw
+  fn mxfs_disklock_restamp_withdrawn_after_release(struct mxfs_disklock_ctx *ctx) -> int
+    called_by: mxfs_v5_dlm_slot_restamp_unretired
+  fn mxfs_disklock_retire_complete_self(struct mxfs_disklock_ctx *ctx) -> int
+    called_by: mxfs_v5_dlm_slot_retire_complete
+  fn mxfs_disklock_retire_settle_own(struct mxfs_disklock_ctx *ctx, uint32_t slot, mxfs_node_id_t node, mxfs_epoch_t epoch, uint64_t key, const char *proof) -> int
+    called_by: v5_p305_settle_retire_pending
+  fn mxfs_disklock_set_key_state_sync_fn(struct mxfs_disklock_ctx *ctx, mxfs_disklock_key_state_fn fn) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_key_state_fn(struct mxfs_disklock_ctx *ctx, mxfs_disklock_key_state_fn fn, void *data) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_settle_absent_fn(struct mxfs_disklock_ctx *ctx, mxfs_disklock_settle_absent_fn fn, void *data) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_retire_cas_empty(struct mxfs_disklock_ctx *ctx, uint32_t slot, struct mxfs_disklock_heartbeat *expect, mxfs_disklock_validate_fn validate_fn, void *validate_data) -> int
+    called_by: v5_retire_cas
+  fn mxfs_disklock_retire_settle_slot(struct mxfs_disklock_ctx *ctx, uint32_t slot, bool immediate) -> int
+    called_by: mxfs_v5_dlm_mount_pending_recovery, v5_p305_settle_retire_pending
   fn mxfs_disklock_set_recovered_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_recovered_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_clean_depart_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_clean_depart_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_mark_recovery_pending(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch) -> void
-    called_by: mxfs_v5_dlm_mount_pending_recovery, v5_defer_slice_recovery, v5_settle_resolve, v5_start_slice_recovery
+    called_by: v5_mark_pending_from_record, v5_mark_recovery_pending_serialized, v5_settle_resolve
   fn mxfs_disklock_recovery_is_pending(struct mxfs_disklock_ctx *ctx, int slot) -> bool
-    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_recovery_complete, v5_defer_slice_recovery, v5_dispatch_late_deaths, v5_settle_resolve, v5_start_slice_recovery
+    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_mount_resolved_elsewhere, mxfs_v5_dlm_recovery_acquire, v5_dispatch_late_deaths, v5_mark_recovery_pending_serialized, v5_peer_msg_cb_tcp, v5_recovery_complete_ladder, v5_settle_resolve
+  fn mxfs_disklock_mark_recovery_pending_ident(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch, uint64_t pr_key, uint32_t key_gen, const uint8_t host_uuid[16], const uint8_t boot_uuid[16]) -> void
+    called_by: v5_bootstrap_run, v5_mark_pending_from_record
   fn mxfs_disklock_clear_recovery_pending(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch) -> int
-    called_by: disklock_hb_fn, hb_still_dead_stamp, mxfs_v5_dlm_recovery_complete
+    called_by: disklock_hb_fn, hb_still_dead_stamp, v5_bootstrap_adopt, v5_bootstrap_adopt_resume, v5_complete_classify, v5_recovery_complete_ladder
   fn mxfs_disklock_pending_node(struct mxfs_disklock_ctx *ctx, int slot) -> mxfs_node_id_t
-    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_dispatch_late_deaths
+    called_by: mxfs_v5_dlm_mount_pending_recovery, mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete2, v5_dispatch_late_deaths, v5_recovery_complete_ladder
   fn mxfs_disklock_pending_epoch(struct mxfs_disklock_ctx *ctx, int slot) -> mxfs_epoch_t
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_exclusion_recheck
+    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete2, v5_exclusion_recheck, v5_recovery_complete_ladder
   fn mxfs_disklock_recovery_pending_iter(struct mxfs_disklock_ctx *ctx, int prev, mxfs_node_id_t *node) -> int
     called_by: v5_dispatch_slice_recovery
   fn mxfs_disklock_recovery_begin(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, uint16_t slice_idx, uint16_t slice_count, uint32_t flags, struct mxfs_recov_auth *out_auth) -> int
   fn mxfs_disklock_recovery_advance(struct mxfs_disklock_ctx *ctx, int slot, unsigned int stage, const struct mxfs_recov_auth *auth) -> int
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: v5_recovery_complete_ladder
   fn mxfs_disklock_recovery_refresh(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth) -> int
   fn mxfs_disklock_recovery_read(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_desc *out) -> int
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_victim_recovery_read, mxfs_v5_dlm_victim_untagged_authority
+    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_stage, v5_bootstrap_adopt, v5_bootstrap_adopt_resume, v5_complete_classify, v5_recovery_complete_ladder, v5_victim_desc_read
+  fn mxfs_disklock_recovery_relinquish_slot(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth) -> int
+    called_by: v5_complete_classify
   fn mxfs_disklock_recovery_takeover(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_auth *out_auth) -> int
     called_by: mxfs_disklock_guard_slot, mxfs_v5_dlm_recovery_acquire
   fn mxfs_disklock_recovery_fence_intent(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, uint64_t victim_key, uint16_t slice_idx, uint16_t slice_count, uint32_t flags, struct mxfs_recov_fence_auth *out_auth) -> int
+  fn mxfs_disklock_recovery_fence_mark_blocked(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth) -> int
   fn mxfs_disklock_recovery_fence_arm_submit(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth) -> int
     called_by: v5_fence_arm_submit_cb
   fn mxfs_disklock_recovery_fence_retryable(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t *out_victim, mxfs_epoch_t *out_epoch) -> int
     called_by: v5_fence_retry_one, v5_fence_retry_worker_fn
   fn mxfs_disklock_recovery_fence_certify(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, uint16_t fence_kind, uint16_t fence_resv_type, uint64_t fence_victim_key, uint32_t fence_pr_gen) -> int
     called_by: mxfs_disklock_recovery_advance
+  fn mxfs_disklock_set_rman(struct mxfs_disklock_ctx *ctx, uint64_t rman_offset, uint64_t rman_size) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_recovery_manifest_write(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, const struct mxfs_rman_entry *ents, uint32_t count, uint32_t scan_slots, uint32_t flags, struct mxfs_recov_manifest_ptr *out_ptr) -> int
+    called_by: v5_rman_snapshot
+  fn mxfs_disklock_recovery_fence_seal(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_fence_auth *auth, const struct mxfs_recov_manifest_ptr *mp) -> int
+    called_by: v5_rman_snapshot
+  fn mxfs_disklock_recovery_manifest_read_escrow(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const struct mxfs_recov_desc *d, const struct mxfs_recov_manifest_ptr *mptr, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+  fn mxfs_disklock_recovery_mptr_read(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_manifest_ptr *out) -> int
+    called_by: v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  fn mxfs_disklock_recovery_manifest_read(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+    called_by: mxfs_v5_dlm_rman_verify_live
   fn mxfs_disklock_recovery_fence_takeover(struct mxfs_disklock_ctx *ctx, int slot, uint64_t victim_key, struct mxfs_recov_fence_auth *out_auth) -> int
     called_by: mxfs_v5_dlm_recovery_acquire
   fn mxfs_disklock_recovery_claim(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, struct mxfs_recov_auth *out_auth) -> int
     called_by: mxfs_v5_dlm_recovery_acquire
   fn mxfs_disklock_recovery_replay_authorized(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const struct mxfs_recov_auth *auth, const char *site, uint16_t *out_fence_kind) -> int
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_exclusion_recheck
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_exclusion_recheck, v5_recovery_complete_ladder
   fn mxfs_disklock_recovery_slot_status(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch) -> int
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_complete_classify, v5_recovery_complete_ladder
+  fn mxfs_disklock_recovery_relinquish_owned(struct mxfs_disklock_ctx *ctx) -> int
+    called_by: mxfs_disklock_release_slot
   fn mxfs_recov_cert_proves_exclusion(const struct mxfs_recov_desc *d, uint32_t fs_gen, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const char **why) -> bool
     called_by: mxfs_disklock_recovery_claim
   fn mxfs_disklock_set_fs_identity(struct mxfs_disklock_ctx *ctx, const uint8_t *fs_uuid) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_fence_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_fence_cb cb, void *data) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_set_dbg_purge_hook(struct mxfs_disklock_ctx *ctx, mxfs_disklock_dbg_purge_hook hook, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_set_conflict_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_conflict_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
@@ -482,6 +970,8 @@
   fn mxfs_disklock_set_evict_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_evict_cb cb, void *data) -> void
   fn mxfs_disklock_monitor_node(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> void
     called_by: discovery_peer_cb, disklock_hb_fn, peer_connect_cb
+  fn mxfs_disklock_slot_tenancy_retire(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t victim_epoch) -> void
+    called_by: v5_recovery_complete_ladder
   fn mxfs_disklock_unmonitor_node(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> void
     called_by: purge_node_dlm, remove_node
   fn mxfs_disklock_claim_slot(struct mxfs_disklock_ctx *ctx) -> int
@@ -502,40 +992,68 @@
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_recovery_publish_refusal(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, const struct mxfs_recov_refusal_info *info, struct mxfs_recov_outcome *oc_out) -> int
     called_by: mxfs_v5_dlm_recovery_publish_refusal
+  fn mxfs_disklock_recovery_obl_write(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, struct mxfs_recov_obl_ext *ext, uint32_t count, const struct mxfs_recov_obl_geom *geom, uint64_t census_digest, uint16_t flags, struct mxfs_recov_obl *out_rec) -> int
+  fn mxfs_disklock_recovery_publish_refusal_obl(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, const struct mxfs_recov_refusal_info *info, const struct mxfs_recov_obl *obl, struct mxfs_recov_outcome *oc_out) -> int
+  fn mxfs_disklock_recovery_read_obl(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_obl *rec_out, struct mxfs_recov_obl_ext *ext_out, uint32_t *count_out) -> int
+    called_by: mxfs_v5_dlm_recovery_read_obl
   fn mxfs_disklock_closure_gate_snapshot(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, mxfs_node_id_t *victim, uint64_t *ag_mask) -> int
   fn mxfs_disklock_closure_gate_revalidate(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_auth *auth, mxfs_node_id_t victim, uint64_t ag_mask) -> int
     called_by: v5_closure_gate
   fn mxfs_disklock_terminal_gate_check(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t *victim, uint64_t *ag_mask) -> int
     called_by: v5_closure_scrub
+  fn mxfs_hb_terminal_guard_classify(const struct mxfs_disklock_heartbeat *hb, uint32_t slot, uint32_t fs_gen, const struct mxfs_recov_outcome **oc_out) -> int
   fn mxfs_disklock_recovery_backfill_legacy(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_outcome *oc_out) -> int
     called_by: mxfs_v5_dlm_recovery_backfill_legacy
   fn mxfs_disklock_recovery_read_outcome(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_recov_outcome *oc_out) -> int
     called_by: mxfs_v5_dlm_recovery_read_outcome, mxfs_v5_dlm_recovery_scan_outcomes
+  fn mxfs_disklock_protected_mask(const struct mxfs_disklock_ctx *ctx) -> uint64_t
+  fn mxfs_disklock_protected_mask_refresh(struct mxfs_disklock_ctx *ctx) -> int
+  fn mxfs_disklock_protected_mask_add(struct mxfs_disklock_ctx *ctx, int slot) -> void
+    called_by: mxfs_v5_dlm_recovery_acquire
   fn mxfs_disklock_set_recov_outcome_cb(struct mxfs_disklock_ctx *ctx, mxfs_disklock_recov_outcome_cb cb, void *data) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_join_gate(struct mxfs_disklock_ctx *ctx, uint32_t timeout_ms) -> int
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_slice_adopted(struct mxfs_disklock_ctx *ctx) -> bool
-    called_by: mxfs_v5_dlm_slice_adopted
+    called_by: mxfs_v5_dlm_settle_own_slot, mxfs_v5_dlm_slice_adopted
   fn mxfs_disklock_find_node_slot(struct mxfs_disklock_ctx *ctx, mxfs_node_id_t node_id) -> int
-    called_by: mxfs_disklock_monitor_node, v5_handle_node_death
+    called_by: mxfs_disklock_monitor_node, v5_handle_node_death, v5_incarnation_state, v5_node_inc_cb, v5_peer_msg_cb_tcp, v5_tcp_declare_dead
   fn mxfs_disklock_get_slot_node_id(struct mxfs_disklock_ctx *ctx, int slot) -> mxfs_node_id_t
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_slot_live(struct mxfs_disklock_ctx *ctx, int slot) -> bool
-    called_by: mxfs_disklock_terminal_gate_check, v5_caw_holders_alive
+    called_by: mxfs_disklock_terminal_gate_check, v5_caw_holders_alive, v5_incarnation_state
   fn mxfs_disklock_slot_holds_incarnation(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, bool *out_read_ok) -> bool
+  fn mxfs_disklock_slot_terminal_for(struct mxfs_disklock_ctx *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch, const char **why) -> bool
+    called_by: mxfs_v5_dlm_mount_resolved_elsewhere
   fn mxfs_disklock_lowest_live_slot(struct mxfs_disklock_ctx *ctx, int skip_slot) -> int
-    called_by: v5_dispatch_slice_recovery, v5_exclusion_recheck, v5_resv_health_tick
+    called_by: v5_bootstrap_cb, v5_bootstrap_node_cb, v5_dispatch_slice_recovery, v5_exclusion_recheck, v5_resv_health_tick
   fn mxfs_disklock_set_dead_timeout_ms(struct mxfs_disklock_ctx *ctx, uint32_t timeout_ms) -> void
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_get_stale_slot_mask(struct mxfs_disklock_ctx *ctx, uint64_t threshold_ms, int skip_slot, uint64_t *out_mask) -> int
     called_by: mxfs_v5_dlm_init
   fn mxfs_disklock_get_withdrawn_slots(struct mxfs_disklock_ctx *ctx, int skip_slot, uint64_t *out_mask, mxfs_node_id_t *out_node, mxfs_epoch_t *out_epoch) -> int
     called_by: mxfs_v5_dlm_init
-  fn mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx, int skip_slot, uint64_t *out_mask, mxfs_node_id_t *out_node, mxfs_epoch_t *out_epoch) -> int
+  fn mxfs_disklock_get_recovery_pending_slots(struct mxfs_disklock_ctx *ctx, int skip_slot, uint64_t *out_mask, mxfs_node_id_t *out_node, mxfs_epoch_t *out_epoch, uint64_t *out_retire_mask) -> int
     called_by: mxfs_v5_dlm_mount_pending_recovery
   fn mxfs_disklock_confirm_dead_mask(struct mxfs_disklock_ctx *ctx, uint64_t candidate_mask, const mxfs_node_id_t *expect_node, uint32_t samples, const volatile int *cancel, uint64_t *out_confirmed, mxfs_epoch_t *out_epoch) -> int
     called_by: v5_settle_resolve
+  fn mxfs_disklock_set_owner_bootstrap(struct mxfs_disklock_ctx *ctx, bool on) -> void
+    called_by: mxfs_v5_dlm_bootstrap_finish, v5_bootstrap_run
+  fn mxfs_disklock_fs_gen_of(const uint8_t *fs_uuid) -> uint32_t
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_disklock_claim_victim_slot(struct mxfs_disklock_ctx *ctx, int slot, const struct mxfs_recov_desc *expect_desc, uint32_t *old_crc) -> int
+    called_by: v5_bootstrap_adopt, v5_bootstrap_adopt_resume
+  fn mxfs_disklock_clear_bootstrap_pending(struct mxfs_disklock_ctx *ctx) -> void
+    called_by: mxfs_v5_dlm_bootstrap_finish
+  fn mxfs_hb_feature_bootstrap_pending(const struct mxfs_disklock_heartbeat *hb) -> bool
+    called_by: hb_gen_foreign, mxfs_disklock_reclaim_own_slot, v5_same_boot_scan
+  fn mxfs_disklock_predraw_epoch(struct mxfs_disklock_ctx *ctx) -> void
+    called_by: v5_bootstrap_run
+  fn mxfs_disklock_adopt_epoch(struct mxfs_disklock_ctx *ctx, mxfs_epoch_t epoch) -> int
+  fn mxfs_disklock_reclaim_own_slot(struct mxfs_disklock_ctx *ctx, int slot) -> int
+    called_by: v5_bootstrap_adopt_resume
+  fn mxfs_disklock_read_record(struct mxfs_disklock_ctx *ctx, int slot, struct mxfs_disklock_heartbeat *out) -> int
+    called_by: v5_bootstrap_adopt_resume, v5_mark_pending_from_record
   struct mxfs_disklock_record { magic, flags, resource, owner, mode, state, pad, granted_at_ms, epoch, reserved }
   struct mxfs_evict_entry { ino, gen, type }
   struct mxfs_evict_ring { magic, head_seq, count, pad, entry }
@@ -545,35 +1063,52 @@
   struct mxfs_recov_fence_auth { victim_node, victim_epoch, recovery_gen, victim_key, fence_term, victim_slot }
   struct mxfs_recov_outcome { magic, version, outcome, reason, domain_kind, victim_slot, owner_slot, victim_epoch, owner_epoch, recovery_gen }
   struct mxfs_recov_refusal_info { reason, domain_kind, ag_mask, slice_digest, refused, malformed, digest_valid }
-  struct mxfs_recov_body { desc, outcome, pad }
+  struct mxfs_recov_manifest_ptr { magic, version, flags, seq, scan_stamp_ms, entry_count, byte_len, entries_crc32c, hdr_crc32c, writer_node }
+  struct mxfs_recov_body { desc, outcome, mptr, obl }
+  struct mxfs_rman_entry { type, mode, flags, slot_idx, id, lineage, grant_epoch }
+  struct mxfs_rman_hdr { magic, version, victim_slot, victim_node, victim_fs_gen, victim_epoch, recovery_gen, fence_term, writer_node, writer_epoch }
   struct mxfs_hb_feature { magic, proto_gen, feat_flags, crc32c }
   struct mxfs_hb_provenance { magic, prev_node, prev_epoch, slot_seq, chain_len, crc32c }
-  struct mxfs_disklock_heartbeat { magic, flags, node_id, fs_gen, timestamp_ms, epoch, lock_count, evict, recov, prov }
-  struct mxfs_disklock_node_track { last_timestamp, last_epoch, changed_samples, equal_samples, live, last_evict_seq, evict_seen, last_seq, seq_seen }
+  struct mxfs_hb_identity { magic, ver, key_gen, host_uuid, boot_uuid, pr_key, host_src, crc32c, reserved }
+  struct mxfs_disklock_heartbeat { magic, flags, node_id, fs_gen, timestamp_ms, epoch, lock_count, evict, recov, ident }
+  struct mxfs_disklock_node_track { last_timestamp, last_epoch, changed_samples, equal_samples, live, last_evict_seq, evict_seen, last_seq, seq_seen, inc_zero_logged }
   typedef_fn mxfs_disklock_expire_cb
   typedef_fn mxfs_disklock_recovered_cb
   typedef_fn mxfs_disklock_clean_depart_cb
+  enum mxfs_disklock_key_state { MXFS_DISKLOCK_KEY_ABSENT, MXFS_DISKLOCK_KEY_PRESENT, MXFS_DISKLOCK_KEY_UNKNOWN }
+  typedef_fn mxfs_disklock_key_state_fn
+  typedef_fn mxfs_disklock_settle_absent_fn
   typedef_fn mxfs_disklock_fence_cb
   typedef_fn mxfs_disklock_conflict_cb
+  typedef_fn mxfs_disklock_dbg_purge_hook
   typedef_fn mxfs_disklock_evict_cb
   typedef_fn mxfs_disklock_vergate_cb
   enum mxfs_quar_disposition { MXFS_QUAR_NOT_TERMINAL, nothing, terminal, here, MXFS_QUAR_VALID_AG, validated, TERMINAL_REFUSED, AG, scoped, MXFS_QUAR_VALID_FSWIDE }
   typedef_fn mxfs_disklock_recov_outcome_cb
   enum mxfs_hb_stage { MXFS_HB_STAGE_SLEEP, MXFS_HB_STAGE_IDCHECK, MXFS_HB_STAGE_LOCKWAIT, MXFS_HB_STAGE_CASWRITE, MXFS_HB_STAGE_MONITOR }
-  struct mxfs_disklock_ctx { dev, base_offset, local_node, local_slot, slot_limit, slice_adopted, snlocal, hb_thread, hb_stage, hb_stage_ms }
+  struct mxfs_disklock_ctx { dev, base_offset, rman_offset, rman_size, local_node, local_slot, owner_bootstrap, epoch_predrawn, slot_limit, slice_adopted }
+  struct mxfs_disklock_ident_obs { node, epoch, key, key_gen, host_uuid, boot_uuid, valid, conflict }
+  struct mxfs_disklock_transport_census { n_tcp, n_caw, n_unknown, first_tcp, first_caw }
+  enum mxfs_caw_cap { MXFS_CAW_CAP_OK, MXFS_CAW_CAP_UNSUPPORTED, MXFS_CAW_CAP_TRANSIENT, MXFS_CAW_CAP_VIOLATION }
+  enum mxfs_disklock_retire_result { MXFS_DISKLOCK_RETIRE_EMPTY, key, ABSENT, OWN, record, now, EMPTY, MXFS_DISKLOCK_RETIRE_WAITING, PRESENT, inside }
+  typedef_fn mxfs_disklock_validate_fn
 
 [dlm/dlm.c]
+  fn static lk_is_holder(const struct mxfs_lock *lk) -> bool
+    calls: mode_name, mxfs_pal_rwlock_unlock, send_grant
+    called_by: dlm_lock_impl, dlm_retry, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_request, mxfs_dlm_release_all, mxfs_dlm_resource_held_by_blocked, mxfs_dlm_resource_wait_is_live, mxfs_dlm_wait_release_acks, promote_waiters
+  fn static lk_is_live_holder(const struct mxfs_lock *lk) -> bool
   fn static mode_name(uint8_t mode) -> const char
-    called_by: dg_grant_ex, dlm_lock_impl, do_scsi_read_fua, fire_bast_records, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen, promote_waiters
+    called_by: dg_grant_ex, dlm_ledger_import_page, dlm_local_entry_any, dlm_lock_impl, dlm_retry, do_scsi_read_fua, fire_bast_records, lk_is_holder, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_purge_stale_for_resource
   fn static dlm_view_confirmed(struct mxfs_dlm_ctx *ctx) -> bool
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: dlm_lock_impl
   fn static dlm_membership_settling(struct mxfs_dlm_ctx *ctx) -> bool
     calls: mxfs_pal_sleep_ms
-    called_by: dlm_lock_impl, mxfs_dlm_is_single_node
+    called_by: dlm_lock_impl, mxfs_dlm_is_single_node, mxfs_dlm_takeover_orphans
   fn mxfs_dlm_get_view_sig(struct mxfs_dlm_ctx *ctx, uint32_t *count) -> uint64_t
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: v5_view_sig_provider
+    called_by: dlm_lock_impl, mxfs_dlm_process_remote_request, v5_view_sig_provider
   fn mxfs_dlm_report_peer_view(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint32_t count, uint64_t hash) -> void
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
     called_by: v5_view_report_cb
@@ -583,30 +1118,30 @@
     calls: mxfs_pal_log
     called_by: mxfs_lktdump_set
   fn static state_name(uint8_t state) -> const char
-    called_by: mxfs_dlm_process_remote_release, mxfs_dlm_unlock_gen
+    called_by: mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_unlock_gen
   fn static resource_hash(const struct mxfs_resource_id *res, uint32_t bucket_count) -> uint32_t
     calls: resource_hash_raw
-    called_by: dg_grant_ex, dlm_lock_impl, find_lock_slot, mxfs_disklock_write_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_unlock_gen
+    called_by: dg_grant_ex, dlm_lock_impl, dlm_promote_txn, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_txn_finalize, find_lock_slot, mxfs_disklock_write_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_id, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb
   fn static pending_hash(const struct mxfs_resource_id *res) -> uint32_t
-    calls: resource_hash_raw
-    called_by: pending_insert, pending_remove
+    calls: resource_equal
+    called_by: dlm_pending_exists, pending_insert, pending_remove
   fn static lock_alloc(const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t mode, uint8_t state, uint32_t flags) -> struct mxfs_lock
-    calls: atomic_inc_return, lock_free, mxfs_pal_alloc, mxfs_pal_log, mxfs_pal_time_ms
-    called_by: dlm_lock_impl
+    calls: mxfs_pal_free, mxfs_pal_rwlock_unlock
+    called_by: dlm_lock_impl, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_request
   fn static lock_free(struct mxfs_lock *lk) -> void
     calls: atomic_inc_return, mxfs_pal_free, mxfs_pal_log
-    called_by: dlm_lock_impl, lock_alloc, mxfs_dlm_destroy, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_unlock_gen
+    called_by: dlm_lock_impl, dlm_mode_exclusive, dlm_purge_pending, dlm_retry, dlm_txn_finalize, mxfs_dlm_destroy, mxfs_dlm_ledger_purge_owner, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_request, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_unlock_gen
   fn static pending_alloc(const struct mxfs_resource_id *resource) -> struct mxfs_dlm_pending
     calls: mxfs_pal_alloc, mxfs_pal_cond_create, mxfs_pal_cond_destroy, mxfs_pal_free, mxfs_pal_mutex_create, mxfs_pal_mutex_destroy
     called_by: dlm_lock_impl
   fn static pending_free(struct mxfs_dlm_pending *p) -> void
     calls: mxfs_pal_cond_destroy, mxfs_pal_free, mxfs_pal_mutex_destroy
-    called_by: dlm_lock_impl
+    called_by: dlm_lock_impl, dlm_retry
   fn static pending_complete(struct mxfs_dlm_pending *p, uint8_t mode, int status) -> void
     called_by: fail_all_pending
   fn static pending_wait(struct mxfs_dlm_pending *p, uint64_t timeout_ms) -> int
     calls: mxfs_pal_cond_timedwait, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: dlm_lock_impl, mxfs_dlm_purge_node, mxfs_dlm_update_active_nodes
+    called_by: dlm_lock_impl, mxfs_dlm_update_active_nodes
   fn static pending_insert(struct mxfs_dlm_ctx *ctx, struct mxfs_dlm_pending *p) -> void
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, pending_hash
     called_by: dlm_lock_impl
@@ -614,94 +1149,318 @@
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, pending_hash
     called_by: dlm_lock_impl
   fn static pending_signal_resource(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, int status, mxfs_epoch_t epoch) -> bool
-    called_by: fail_all_pending, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+    called_by: dlm_txn_finalize, fail_all_pending, mxfs_dlm_process_remote_grant
   fn static fail_all_pending(struct mxfs_dlm_ctx *ctx) -> void
     calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, pending_complete, pending_signal_resource
-    called_by: mxfs_dlm_lock_retries, mxfs_dlm_purge_node, mxfs_dlm_update_active_nodes
+    called_by: mxfs_dlm_lock_retries, mxfs_dlm_update_active_nodes, v5_peer_msg_cb_tcp
+  fn static demand_collect_holders(struct mxfs_dlm_ctx *ctx, int bucket, const struct mxfs_resource_id *resource, uint8_t mode, struct mxfs_bast_record *recs) -> int
+    calls: resource_equal
+    called_by: dlm_lock_impl, mxfs_dlm_process_remote_request
+  fn static demand_fire(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t requester, struct mxfs_bast_record *recs, int count) -> void
+    calls: fire_bast_records
+    called_by: dlm_lock_impl, mxfs_dlm_process_remote_request
   fn static fire_bast_records(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, struct mxfs_bast_record *recs, int count) -> void
     calls: atomic_inc_return, mode_name, mxfs_pal_log
-    called_by: dlm_lock_impl, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+    called_by: demand_fire, dlm_lock_impl, dlm_promote_txn, dlm_txn_finalize, mxfs_dlm_process_remote_request
   fn static collect_grantee_bast_if_waiters(struct mxfs_lock *chain, const struct mxfs_resource_id *resource, mxfs_node_id_t grantee, uint8_t grantee_mode, struct mxfs_bast_record *rec) -> int
-    called_by: dlm_lock_impl
+    called_by: dlm_txn_finalize, mxfs_dlm_process_remote_request
   fn static mxfs_dlm_audit_double_grant(struct mxfs_lock *chain, const struct mxfs_resource_id *resource) -> int
     calls: atomic_inc_return, mode_name, resource_equal
-    called_by: dlm_lock_impl, promote_waiters
+    called_by: dlm_txn_finalize, promote_waiters
   fn static waiter_cmp(const void *a, const void *b) -> int
   fn static find_conflicting_waiter(struct mxfs_lock *chain, const struct mxfs_resource_id *resource, mxfs_node_id_t requester, uint8_t mode) -> struct mxfs_lock
     calls: resource_equal
-    called_by: dlm_lock_impl
-  fn static promote_waiters(struct mxfs_dlm_ctx *ctx, struct mxfs_lock *chain, const struct mxfs_resource_id *resource) -> struct mxfs_lock
-    calls: atomic_inc_return, dlm_next_gen, first, mode_name, mxfs_dlm_audit_double_grant, mxfs_pal_log, mxfs_pal_time_ms, resource_equal
-    called_by: mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+    called_by: dlm_lock_impl, mxfs_dlm_process_remote_request
+  fn static promote_waiters(struct mxfs_dlm_ctx *ctx, struct mxfs_lock *chain, const struct mxfs_resource_id *resource, const struct dlm_txn *txn) -> struct mxfs_lock
+    calls: atomic_inc_return, dlm_next_gen, dlm_txn_retires, first, lk_is_holder, mode_name, mxfs_dlm_audit_double_grant, mxfs_pal_log, mxfs_pal_time_ms, resource_equal
+    called_by: dlm_promote_txn
   fn static collect_post_promotion_basts(struct mxfs_lock *chain, const struct mxfs_resource_id *resource, uint8_t *blocked_mode_out) -> struct mxfs_lock
     calls: resource_equal
-    called_by: mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+    called_by: dlm_promote_txn, dlm_txn_finalize
   fn static dlm_next_gen(struct mxfs_dlm_ctx *ctx) -> uint32_t
-    called_by: dlm_lock_impl, promote_waiters
-  fn static send_grant(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t target, const struct mxfs_resource_id *resource, uint8_t mode, uint8_t status_code, uint16_t msg_type, mxfs_epoch_t epoch, uint32_t grant_gen, uint8_t handoff, uint32_t dir_epoch) -> void
-    called_by: mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+    called_by: dlm_lock_impl, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_request, promote_waiters
+  fn static send_grant(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t target, const struct mxfs_resource_id *resource, uint8_t mode, uint8_t status_code, uint16_t msg_type, mxfs_epoch_t epoch, uint32_t grant_gen, uint8_t handoff, uint32_t dir_epoch, const struct dlm_grant_ids *ids) -> void
+    called_by: dlm_txn_finalize, lk_is_holder, mxfs_dlm_process_remote_request
+  fn static dlm_ledger_active(struct mxfs_dlm_ctx *ctx) -> bool
+    calls: dlm_ledger_prepare, send_release_ack
+    called_by: dlm_ledger_prepare, dlm_txn_commit, mxfs_dlm_handoff_depart, mxfs_dlm_handoff_takeover, mxfs_dlm_handoff_tick, mxfs_dlm_ledger_purge_owner, mxfs_dlm_ledger_purge_owner_selective, mxfs_dlm_process_page_handoff, mxfs_dlm_process_remote_release, mxfs_dlm_takeover_orphans
+  fn static dlm_ledger_refuses(struct mxfs_dlm_ctx *ctx) -> bool
+    calls: atomic_inc_return, mxfs_pal_log
+    called_by: dlm_ledger_prepare
+  fn static dlm_mode_exclusive(uint8_t mode) -> bool
+    calls: lock_free
+    called_by: dlm_txn_commit, mxfs_dlm_ledger_purge_owner
+  fn static dlm_res_page(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res) -> uint32_t
+    calls: mxfs_pal_log
+    called_by: dg_grant_ex, dlm_ledger_prepare, dlm_txn_commit, dlm_txn_finalize, mxfs_dlm_page_pending_count, mxfs_dlm_process_remote_request
+  fn static dlm_page_master_locked(struct mxfs_dlm_ctx *ctx, uint32_t page) -> mxfs_node_id_t
+    called_by: dlm_owns_page_cb
+  fn static dlm_owns_page_cb(void *data, uint32_t page) -> bool
+    calls: dlm_page_master_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+  fn static send_release_ack(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t target, const struct mxfs_resource_id *resource, uint32_t grant_gen, uint32_t rel_id, uint64_t auth_epoch, uint64_t grant_seq, uint8_t status) -> void
+    called_by: dlm_ledger_active, dlm_txn_finalize, mxfs_dlm_process_remote_release, mxfs_dlm_resource_master
+  fn static dlm_import_scan_cb(void *data, uint32_t slot, const struct mxfs_tauth_entry *e) -> void
+  fn static dlm_purge_pending(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> bool
+    calls: lock_free
+  fn static dlm_owner_purged(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, int slot) -> bool
+    calls: dlm_node_in_view, dlm_page_now_mine, dlm_send_handoff, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_prepare
+    called_by: dlm_authority_dead, dlm_ledger_import_page, dlm_owner_mark_purged, dlm_store_fenced_cb, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, mxfs_dlm_takeover_orphans
+  fn static dlm_slot_purged_owner(struct mxfs_dlm_ctx *ctx, int slot) -> mxfs_node_id_t
+    called_by: dlm_ledger_import_page
+  fn static dlm_owner_mark_purged(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, int slot) -> bool
+    calls: dlm_owner_purged, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock
+    called_by: dlm_page_departed_authority, mxfs_dlm_ledger_purge_owner
+  fn static dlm_owner_refused(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t owner, int *slot_out) -> bool
+    calls: mxfs_pal_log
+    called_by: dlm_page_departed_authority, dlm_takeover_page, mxfs_dlm_ledger_purge_owner_selective
+  fn static dlm_refused_keep_entry(void *data, const struct mxfs_tauth_entry *e) -> int
+    calls: mxfs_tauth_entry_res
+  fn static dlm_page_departed_authority(struct mxfs_dlm_ctx *ctx, uint32_t page, mxfs_node_id_t auth_node, uint64_t auth_inc, mxfs_node_id_t writer, const char *how) -> void
+    calls: dlm_node_in_view, dlm_owner_mark_purged, dlm_owner_refused, mxfs_pal_log
+    called_by: mxfs_dlm_process_page_handoff
+  fn static dlm_owner_sealed(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> bool
+    calls: mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_unlock
+    called_by: dlm_master_sealed, mxfs_dlm_process_remote_release, mxfs_dlm_seal_owner
+  fn static dlm_master_sealed(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t master) -> bool
+    calls: dlm_owner_sealed, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock
+    called_by: mxfs_dlm_unlock_gen
+  fn static dlm_owner_unseal(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> void
+  fn mxfs_dlm_seal_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint64_t inc) -> int
+    calls: dlm_owner_sealed, mxfs_pal_log, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms
+    called_by: v5_rman_snapshot
+  fn static dlm_import_holder(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res, mxfs_node_id_t owner, uint64_t inc, uint16_t slot, uint8_t mode, const struct mxfs_tauth_entry *e, bool exclusive) -> void
+    called_by: dlm_ledger_import_page
+  fn static dlm_local_entry_any(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res) -> bool
+    calls: dlm_pending_exists, mode_name, mxfs_pal_log
+    called_by: dlm_ledger_import_page
+  fn static dlm_pending_exists(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res) -> bool
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, pending_hash, resource_equal
+    called_by: dlm_ledger_import_page, dlm_local_entry_any
+  fn static dlm_ledger_import_page(struct mxfs_dlm_ctx *ctx, uint32_t page_id, uint64_t gen) -> int
+    calls: dlm_import_holder, dlm_local_entry_any, dlm_owner_purged, dlm_pending_exists, dlm_slot_purged_owner, mode_name, mxfs_dlm_ledger_purge_owner, mxfs_dlm_unlock, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_tauth_entry_res, mxfs_tauth_ledger_ensure
+    called_by: dlm_ledger_prepare, dlm_takeover_page
+  fn static dlm_page_owner(struct mxfs_dlm_ctx *ctx, uint32_t page) -> mxfs_node_id_t
+    calls: dlm_set_page_state
+    called_by: dlm_page_ensure_mine, dlm_takeover_page, mxfs_dlm_process_page_handoff
+  fn static dlm_node_in_view(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> bool
+    calls: dlm_page_now_mine, dlm_send_handoff, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_prepare
+    called_by: dlm_authority_dead, dlm_node_departing, dlm_owner_purged, dlm_page_departed_authority, dlm_page_hand_to, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, mxfs_dlm_takeover_orphans
+  fn static dlm_authority_dead(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint64_t inc) -> bool
+    calls: dlm_node_in_view, dlm_owner_purged
+    called_by: dlm_bootstrap_node, dlm_orphan_scan_cb, dlm_takeover_page, mxfs_dlm_process_page_handoff
+  fn static dlm_node_departing_locked(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> bool
+    called_by: dlm_node_mark_departing
+  fn static dlm_node_departing(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> bool
+    calls: dlm_node_in_view, dlm_page_handoff_owner, mxfs_pal_log
+    called_by: dlm_page_hand_to
+  fn static dlm_node_mark_departing(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint64_t inc) -> bool
+    calls: dlm_node_departing_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_dlm_process_page_handoff
+  fn static dlm_departing_prune_locked(struct mxfs_dlm_ctx *ctx, const mxfs_node_id_t *nodes, int count) -> void
+    called_by: mxfs_dlm_update_active_nodes
+  fn static dlm_page_handoff_owner(struct mxfs_dlm_ctx *ctx, uint32_t page) -> mxfs_node_id_t
+    calls: dlm_set_page_state, mxfs_tauth_ledger_activate
+    called_by: dlm_node_departing, dlm_page_hand_to, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff
+  fn static dlm_page_state(struct mxfs_dlm_ctx *ctx, uint32_t page) -> uint8_t
+  fn static dlm_set_page_state(struct mxfs_dlm_ctx *ctx, uint32_t page, uint8_t st) -> void
+    calls: mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock
+    called_by: dlm_page_ensure_mine, dlm_page_freeze_drain, dlm_page_handoff_owner, dlm_page_now_mine, dlm_page_owner, mxfs_dlm_process_page_handoff
+  fn static dlm_page_has_pending(struct mxfs_dlm_ctx *ctx, uint32_t page) -> bool
+    calls: mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_time_ms
+    called_by: dlm_page_freeze_drain
+  fn mxfs_dlm_page_pending_count(struct mxfs_dlm_ctx *ctx, uint32_t page) -> int
+    calls: dlm_res_page, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock
+    called_by: main
+  fn static dlm_page_freeze_drain(struct mxfs_dlm_ctx *ctx, uint32_t page) -> bool
+    calls: dlm_page_has_pending, dlm_set_page_state, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_time_ms
+    called_by: dlm_page_hand_to, mxfs_dlm_process_page_handoff
+  fn static dlm_send_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t to, uint32_t page, uint8_t kind, mxfs_node_id_t target_node, uint64_t target_inc, uint64_t prepared_seq, mxfs_node_id_t auth_node, uint64_t auth_inc) -> void
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_page_hand_to, dlm_takeover_page, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff
+  fn static dlm_page_now_mine(struct mxfs_dlm_ctx *ctx, uint32_t page, const char *how) -> void
+    calls: dlm_set_page_state, mxfs_pal_log
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_takeover_page, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff
+  fn static dlm_bootstrap_node(struct mxfs_dlm_ctx *ctx) -> mxfs_node_id_t
+    calls: dlm_authority_dead, dlm_takeover_page
+    called_by: mxfs_dlm_handoff_takeover, mxfs_dlm_process_page_handoff, mxfs_dlm_takeover_orphans
+  fn static dlm_page_acquire(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t gen) -> int
+    called_by: dlm_page_ensure_mine
+  fn static dlm_page_ensure_mine(struct mxfs_dlm_ctx *ctx, uint32_t page, uint64_t gen) -> int
+    calls: dlm_page_acquire, dlm_page_owner, dlm_set_page_state, mxfs_tauth_ledger_page_mine
+    called_by: dlm_ledger_prepare
+  fn static dlm_page_hand_to(struct mxfs_dlm_ctx *ctx, uint32_t page, mxfs_node_id_t target, uint64_t target_inc, const char *why, bool departing) -> int
+    calls: dlm_node_departing, dlm_node_in_view, dlm_page_freeze_drain, dlm_page_handoff_owner, dlm_send_handoff, mxfs_pal_log, mxfs_tauth_ledger_prepare
+    called_by: mxfs_dlm_handoff_depart, mxfs_dlm_handoff_tick
+  fn mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_dlm_page_handoff *msg) -> int
+    calls: dlm_authority_dead, dlm_bootstrap_node, dlm_ledger_active, dlm_node_in_view, dlm_node_mark_departing, dlm_owner_purged, dlm_page_departed_authority, dlm_page_freeze_drain, dlm_page_handoff_owner, dlm_page_now_mine, dlm_page_owner, dlm_send_handoff, dlm_set_page_state, dlm_takeover_page, mxfs_pal_log
+    called_by: v5_peer_msg_cb_tcp
+  fn mxfs_dlm_handoff_tick(struct mxfs_dlm_ctx *ctx) -> void
+    calls: dlm_ledger_active, dlm_node_in_view, dlm_owner_purged, dlm_page_hand_to, dlm_page_handoff_owner, dlm_page_now_mine, dlm_send_handoff, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_prepare
+    called_by: v5_tcp_death_worker_fn
+  fn static dlm_takeover_scan_cb(void *data, uint32_t page_id, const struct mxfs_tauth_page_auth *a, int rc) -> void
+  fn static dlm_takeover_page(struct mxfs_dlm_ctx *ctx, uint32_t p, mxfs_node_id_t node, uint64_t inc, const char *how, mxfs_node_id_t hint_node, uint64_t hint_inc) -> int
+    calls: dlm_authority_dead, dlm_ledger_import_page, dlm_owner_refused, dlm_page_now_mine, dlm_page_owner, dlm_send_handoff, mxfs_pal_log, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_prepare, mxfs_tauth_ledger_purge_owner_page, mxfs_tauth_ledger_purge_owner_page_keep
+    called_by: dlm_bootstrap_node, mxfs_dlm_handoff_takeover, mxfs_dlm_process_page_handoff, mxfs_dlm_takeover_orphans
+  fn mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint64_t inc) -> int
+    calls: dlm_bootstrap_node, dlm_ledger_active, dlm_takeover_page, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_time_ms, mxfs_tauth_ledger_scan_auth
+    called_by: main, v5_handoff_takeover
+  fn static dlm_orphan_scan_cb(void *data, uint32_t page_id, const struct mxfs_tauth_page_auth *a, int rc) -> void
+    calls: dlm_authority_dead
+  fn mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx) -> int
+    calls: dlm_bootstrap_node, dlm_ledger_active, dlm_membership_settling, dlm_node_in_view, dlm_owner_purged, dlm_takeover_page, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_time_ms, mxfs_tauth_ledger_scan_auth
+    called_by: v5_depart_run
+  fn mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx) -> int
+    calls: dlm_ledger_active, dlm_page_hand_to, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_tauth_ledger_page_mine
+    called_by: mxfs_v5_dlm_shutdown_defer_release
+  fn static dlm_ledger_prepare(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *gen_out) -> int
+    calls: atomic_inc_return, dlm_ledger_active, dlm_ledger_import_page, dlm_ledger_refuses, dlm_page_ensure_mine, dlm_res_page, mxfs_pal_log
+    called_by: dlm_ledger_active, dlm_lock_impl, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request
+  fn static dlm_txn_init(struct dlm_txn *txn, const struct mxfs_resource_id *res, uint64_t gen) -> void
+    called_by: dlm_lock_impl, dlm_release_local_orphan, dlm_release_redrive_tick, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+  fn static dlm_txn_retires(const struct dlm_txn *txn, const struct mxfs_lock *lk) -> bool
+    called_by: promote_waiters
+  fn static dlm_txn_add_grant(struct dlm_txn *txn, struct mxfs_lock *lk, uint8_t prev_mode, uint32_t prev_gen, bool signal_local) -> struct dlm_txn_item
+    called_by: dlm_lock_impl, dlm_promote_txn, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_request
+  fn static dlm_txn_add_release(struct dlm_txn *txn, struct mxfs_lock *lk, uint32_t rel_id, bool remote_rel) -> struct dlm_txn_item
+    called_by: dlm_release_local_orphan, dlm_release_redrive_tick, mxfs_dlm_process_remote_release, mxfs_dlm_unlock_gen
+  fn static dlm_txn_commit(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn) -> int
+    calls: dlm_ledger_active, dlm_mode_exclusive, dlm_res_page, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_tauth_ledger_commit, mxfs_tauth_ledger_ensure
+    called_by: dlm_grant_txn, dlm_promote_txn, dlm_txn_recommit_releases
+  fn static dlm_release_local_orphan(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res, uint32_t gen) -> void
+    calls: dg_release, dlm_promote_txn, dlm_txn_add_release, dlm_txn_init, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, resource_equal, resource_hash
+    called_by: dlm_txn_finalize
+  fn static dlm_txn_finalize(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn, int commit_rc) -> int
+    calls: collect_grantee_bast_if_waiters, collect_post_promotion_basts, dlm_release_local_orphan, dlm_res_page, fire_bast_records, lock_free, mxfs_dlm_audit_double_grant, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, pending_signal_resource, resource_hash
+    called_by: dlm_grant_txn, dlm_promote_txn, dlm_txn_recommit_releases
+  fn static dlm_txn_recommit_releases(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn) -> int
+    calls: dlm_txn_commit, dlm_txn_finalize
+    called_by: dlm_promote_txn
+  fn static dlm_mark_release_stuck(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn) -> void
+    calls: mxfs_pal_log, mxfs_pal_time_ms
+    called_by: dlm_promote_txn
+  fn static dlm_promote_txn(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn) -> int
+    calls: collect_post_promotion_basts, dg_grant_ex, dlm_mark_release_stuck, dlm_txn_add_grant, dlm_txn_commit, dlm_txn_finalize, dlm_txn_recommit_releases, fire_bast_records, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, promote_waiters, resource_hash
+    called_by: dlm_release_local_orphan, dlm_release_redrive_tick, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+  fn static dlm_grant_txn(struct mxfs_dlm_ctx *ctx, struct dlm_txn *txn) -> int
+    calls: dlm_txn_commit, dlm_txn_finalize
+    called_by: dlm_lock_impl, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_request
+  fn static dlm_rel_pending_add(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res, uint32_t rel_id, uint32_t gen, uint64_t auth, uint64_t seq, uint64_t lineage, uint8_t mode) -> void
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: mxfs_dlm_process_remote_grant, mxfs_dlm_unlock_gen
+  fn static dlm_send_release_msg(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t master, const struct mxfs_resource_id *res, uint32_t gen, uint32_t rel_id, uint64_t auth, uint64_t seq, uint64_t lineage, uint8_t mode) -> int
+    called_by: mxfs_dlm_process_remote_grant, mxfs_dlm_release_retry_tick, mxfs_dlm_unlock_gen
+  fn mxfs_dlm_process_release_ack(struct mxfs_dlm_ctx *ctx, const struct mxfs_dlm_release_ack *ack) -> int
+    calls: mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, resource_equal
+    called_by: peer_msg_cb, v5_peer_msg_cb_tcp
+  fn static dlm_release_redrive_tick(struct mxfs_dlm_ctx *ctx, uint64_t now) -> void
+    calls: dlm_promote_txn, dlm_txn_add_release, dlm_txn_init, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, resource_equal, resource_hash
+    called_by: mxfs_dlm_release_retry_tick
+  fn static dlm_purge_redrive_tick(struct mxfs_dlm_ctx *ctx, uint64_t now) -> void
+    calls: mxfs_dlm_ledger_purge_owner, mxfs_dlm_purge_node, mxfs_pal_log, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock
+    called_by: mxfs_dlm_release_retry_tick
+  fn mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx) -> void
+    calls: dlm_purge_redrive_tick, dlm_release_redrive_tick, dlm_send_release_msg, mxfs_dlm_process_remote_release, mxfs_dlm_resource_master, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: v5_tcp_death_worker_fn
+  fn mxfs_dlm_wait_release_acks(struct mxfs_dlm_ctx *ctx, uint64_t timeout_ms) -> int
+    calls: lk_is_holder
+    called_by: mxfs_dlm_release_all
+  fn static dlm_store_fenced_cb(void *data, uint32_t node, uint64_t inc) -> bool
+    calls: dlm_owner_purged
+  fn mxfs_dlm_set_ledger_geometry(struct mxfs_dlm_ctx *ctx, uint32_t npages, uint64_t hash_seed) -> void
+  fn mxfs_dlm_attach_ledger(struct mxfs_dlm_ctx *ctx, struct mxfs_tauth_ledger *ledger, uint64_t local_inc, uint16_t local_slot) -> void
+    calls: mxfs_pal_alloc, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_tauth_ledger_set_config_id, mxfs_tauth_ledger_set_owner_gen
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_dlm_ledger_purge_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, int slot) -> int
+    calls: dlm_ledger_active, dlm_mode_exclusive, dlm_owner_mark_purged, lock_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, mxfs_tauth_ledger_purge_owner
+    called_by: dlm_ledger_import_page, dlm_purge_redrive_tick, main, v5_depart_run, v5_handle_node_death, v5_recovery_complete_ladder, v5_tcp_declare_dead
+  fn mxfs_dlm_ledger_purge_owner_selective(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, int slot) -> int
+    calls: dlm_ledger_active, dlm_owner_refused, mxfs_pal_log, mxfs_tauth_ledger_purge_owner_keep
+    called_by: v5_depart_run
   fn mxfs_dlm_modes_compatible(uint8_t held, uint8_t requested) -> int
   fn mxfs_dlm_create(mxfs_node_id_t local_node) -> struct mxfs_dlm_ctx
     calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_create, mxfs_pal_rwlock_create
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_dlm_destroy(struct mxfs_dlm_ctx *ctx) -> void
     calls: lock_free, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_destroy, mxfs_pal_rwlock_destroy, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, v5_tcp_transport_unwind
+  fn static dlm_retry(struct mxfs_dlm_ctx *ctx, int why) -> int
+    calls: lk_is_holder, lock_free, mode_name, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, pending_free, resource_equal
+    called_by: dlm_lock_impl
   fn static dlm_lock_impl(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode) -> int
-    calls: atomic_inc_return, collect_grantee_bast_if_waiters, deny, dg_grant_ex, dlm_membership_settling, dlm_next_gen, dlm_view_confirmed, find_conflicting_waiter, fire_bast_records, lock_alloc, lock_free, mode_name, mxfs_dlm_audit_double_grant, mxfs_dlm_resource_master, mxfs_pal_log
+    calls: atomic_inc_return, demand_collect_holders, demand_fire, deny, dg_grant_ex, dlm_grant_txn, dlm_ledger_prepare, dlm_membership_settling, dlm_next_gen, dlm_retry, dlm_txn_add_grant, dlm_txn_init, dlm_view_confirmed, find_conflicting_waiter, fire_bast_records
     called_by: mxfs_dlm_lock_retries
+  fn mxfs_dlm_resource_held_by_blocked(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
+    calls: lk_is_holder, mxfs_dlm_resource_master, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
+    called_by: mxfs_v5_dlm_inode_held_by_blocked
+  fn mxfs_dlm_resource_wait_is_live(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
+    calls: lk_is_holder, mxfs_dlm_resource_master, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
+    called_by: mxfs_v5_dlm_inode_wait_is_live
   fn mxfs_dlm_lock(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode) -> int
     calls: mxfs_dlm_lock_retries
-    called_by: dlm_lock_tcp_wrapper, mxfs_dlm_purge_node, mxfs_dlm_update_active_nodes, mxfs_unmount, mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_try
+    called_by: dlm_lock_tcp_wrapper, mxfs_dlm_process_remote_request, mxfs_dlm_update_active_nodes, mxfs_unmount, mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_try, mxfs_v5_dlm_inode_reserve_try
   fn mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode, int max_retries) -> int
     calls: atomic_inc_return, dlm_lock_impl, fail_all_pending, mode_name, mxfs_pal_dump_stack, mxfs_pal_log, mxfs_pal_sleep_ms
-    called_by: mxfs_dlm_lock, mxfs_v5_dlm_inode_lock_retries
+    called_by: main, mxfs_dlm_lock, mxfs_v5_dlm_inode_lock_retries, take_ex, worker_fn
+  fn static dlm_note_release_while_poisoned(struct mxfs_dlm_ctx *ctx, const char *fn, const struct mxfs_resource_id *res, void *caller) -> void
+    calls: mxfs_pal_log
+    called_by: mxfs_dlm_send_unconditional_release, mxfs_dlm_unlock_gen
   fn mxfs_dlm_unlock_gen(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t expected_gen) -> int
-    calls: atomic_inc_return, collect_post_promotion_basts, dg_grant_ex, dg_release, fire_bast_records, lock_free, mode_name, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_resource_master, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_sleep_ms, pending_signal_resource, promote_waiters
+    calls: atomic_inc_return, dg_release, dlm_master_sealed, dlm_note_release_while_poisoned, dlm_promote_txn, dlm_rel_pending_add, dlm_send_release_msg, dlm_txn_add_release, dlm_txn_init, lock_free, mode_name, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_resource_master, mxfs_pal_alloc, mxfs_pal_free
     called_by: mxfs_dlm_unlock, mxfs_v5_dlm_iclus_unlock_gen, mxfs_v5_dlm_inode_unlock_free, mxfs_v5_dlm_inode_unlock_open
   fn mxfs_dlm_unlock(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
     calls: mxfs_dlm_unlock_gen
-    called_by: dlm_unlock_tcp_wrapper, mxfs_dlm_withdraw_release_all, mxfs_v5_dlm_ag_unlock
+    called_by: dlm_ledger_import_page, dlm_unlock_tcp_wrapper, dlm_wire_release_all, main, mxfs_dlm_process_remote_request, mxfs_v5_dlm_ag_unlock, take_ex, unlock_job_fn, worker_fn
   fn mxfs_dlm_send_unconditional_release(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
-    calls: mxfs_dlm_resource_master
+    calls: dlm_note_release_while_poisoned, mxfs_dlm_resource_master
     called_by: mxfs_dlm_release_orphan_if_unheld, mxfs_v5_dlm_inode_release_unconditional
   fn mxfs_dlm_release_orphan_if_unheld(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
     calls: mxfs_dlm_send_unconditional_release, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
-    called_by: mxfs_dlm_unlock_gen, mxfs_v5_dlm_ag_orphan_nak
+    called_by: mxfs_dlm_unlock_gen, mxfs_v5_dlm_ag_orphan_nak, mxfs_v5_dlm_inode_orphan_nak
   fn mxfs_dlm_lock_convert(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t new_mode) -> int
-    calls: collect_post_promotion_basts, dg_grant_ex, fire_bast_records, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, pending_signal_resource, promote_waiters, resource_equal, resource_hash, send_grant
+    calls: dg_grant_ex, dlm_grant_txn, dlm_next_gen, dlm_promote_txn, dlm_txn_add_grant, dlm_txn_init, lk_is_holder, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, resource_equal, resource_hash
     called_by: dlm_convert_tcp_wrapper
+  fn static dlm_purge_node_impl(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, bool selective) -> int
+    called_by: mxfs_dlm_purge_node, mxfs_dlm_purge_node_selective
   fn mxfs_dlm_purge_node(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> int
-    calls: fail_all_pending, lock_free, mxfs_dlm_lock, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, pending_signal_resource, pending_wait, resource_equal
-    called_by: mxfs_v5_dlm_recovery_complete, v5_clean_depart_cb, v5_handle_node_death, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_tcp_declare_dead
+    calls: dlm_purge_node_impl
+    called_by: dlm_purge_redrive_tick, main, v5_depart_run, v5_handle_node_death, v5_recovery_complete_ladder, v5_tcp_declare_dead
+  fn mxfs_dlm_purge_node_selective(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> int
+    calls: dlm_purge_node_impl
+    called_by: v5_depart_run
   fn mxfs_dlm_purge_stale_for_resource(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
-    calls: collect_post_promotion_basts, dg_grant_ex, fire_bast_records, lock_free, mode_name, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, pending_signal_resource, promote_waiters, resource_equal, resource_hash, send_grant
-  fn mxfs_dlm_withdraw_release_all(struct mxfs_dlm_ctx *ctx) -> void
+    calls: dlm_promote_txn, dlm_txn_init, lock_free, mode_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, resource_equal, resource_hash
+  fn static dlm_wire_release_all(struct mxfs_dlm_ctx *ctx) -> int
     calls: mxfs_dlm_unlock, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock
+    called_by: mxfs_dlm_release_all, mxfs_dlm_withdraw_release_all
+  fn mxfs_dlm_withdraw_release_all(struct mxfs_dlm_ctx *ctx) -> void
+    calls: dlm_wire_release_all, mxfs_pal_log
   fn mxfs_dlm_release_all(struct mxfs_dlm_ctx *ctx) -> void
-    calls: lock_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock
-    called_by: mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release
+    calls: dlm_wire_release_all, lk_is_holder, lock_free, mode_name, mxfs_dlm_resource_master, mxfs_dlm_wait_release_acks, mxfs_pal_log, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock
+    called_by: main, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release
   fn static node_id_cmp(const void *a, const void *b) -> int
   fn mxfs_dlm_resource_master(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> mxfs_node_id_t
-    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, resource_hash_raw
-    called_by: dlm_lock_impl, mxfs_dlm_is_resource_master, mxfs_dlm_send_unconditional_release, mxfs_dlm_unlock_gen
+    calls: send_release_ack
+    called_by: dlm_lock_impl, main, mxfs_dlm_is_resource_master, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_release_all, mxfs_dlm_release_retry_tick, mxfs_dlm_resource_held_by_blocked, mxfs_dlm_resource_wait_is_live, mxfs_dlm_send_unconditional_release, mxfs_dlm_unlock_gen, v5_tcp_grant_result_fill
   fn mxfs_dlm_is_resource_master(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> bool
     calls: mxfs_dlm_resource_master
     called_by: mxfs_v5_dlm_inode_master_self
   fn mxfs_dlm_update_active_nodes(struct mxfs_dlm_ctx *ctx, const mxfs_node_id_t *nodes, int count) -> int
-    calls: fail_all_pending, mxfs_dlm_advance_epoch, mxfs_dlm_lock, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, pending_wait
-    called_by: membership_stab_worker_fn, mxfs_dlm_is_single_node, queue_membership_update, v5_refresh_active_nodes
+    calls: dlm_departing_prune_locked, fail_all_pending, mxfs_dlm_advance_epoch, mxfs_dlm_lock, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_pal_time_ms, mxfs_tauth_ledger_set_config_id, mxfs_tauth_ledger_set_owner_gen, pending_wait
+    called_by: main, membership_stab_worker_fn, mxfs_dlm_is_single_node, queue_membership_update, v5_refresh_active_nodes
   fn mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx) -> bool
     calls: dlm_membership_settling, mxfs_dlm_update_active_nodes
-    called_by: mxfs_v5_dlm_is_single_node, mxfs_v5_dlm_set_peer_joined_notify, v5_discovery_peer_cb, v5_peer_connect_cb_tcp
+    called_by: mxfs_v5_dlm_set_peer_joined_notify, v5_discovery_peer_cb, v5_peer_connect_cb_tcp
   fn mxfs_dlm_held_mode_nb(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t *out_mode) -> int
     calls: mxfs_pal_rwlock_tryrdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
     called_by: mxfs_v5_dlm_inode_held_nb
   fn mxfs_dlm_held_mode(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint8_t
     calls: mxfs_pal_may_sleep, mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
+    called_by: main
   fn mxfs_dlm_grant_gen(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint32_t
     calls: mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
-    called_by: mxfs_v5_dlm_inode_grant_gen
+    called_by: mxfs_v5_dlm_inode_grant_gen, v5_tcp_grant_result_fill
+  fn mxfs_dlm_grant_id(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *auth_epoch, uint64_t *grant_seq, uint64_t *lineage) -> bool
+    calls: mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
+    called_by: main, v5_tcp_grant_result_fill
   fn mxfs_dlm_granted_mode(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint8_t
     calls: mxfs_pal_rwlock_rdlock, mxfs_pal_rwlock_unlock, resource_equal, resource_hash
     called_by: mxfs_v5_dlm_inode_granted_mode
@@ -718,66 +1477,85 @@
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release
   fn static dg_grant_ex(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *res, mxfs_node_id_t owner, uint32_t gen, uint32_t *epoch_out) -> bool
-    calls: atomic_inc_return, mode_name, resource_equal, resource_hash, resource_hash_raw
-    called_by: dlm_lock_impl, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen
+    calls: atomic_inc_return, dlm_res_page, mode_name, resource_equal, resource_hash
+    called_by: dlm_lock_impl, dlm_promote_txn, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_request
   fn static dg_release(const struct mxfs_resource_id *res, mxfs_node_id_t owner) -> void
     calls: resource_equal
-    called_by: mxfs_dlm_process_remote_release, mxfs_dlm_unlock_gen
-  fn mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, mxfs_epoch_t request_epoch) -> int
+    called_by: dlm_release_local_orphan, mxfs_dlm_process_remote_release, mxfs_dlm_unlock_gen
+  fn mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_dlm_lock_req *req) -> int
+    calls: atomic_inc_return, collect_grantee_bast_if_waiters, demand_collect_holders, demand_fire, dg_grant_ex, dlm_grant_txn, dlm_ledger_prepare, dlm_next_gen, dlm_res_page, dlm_txn_add_grant, dlm_txn_init, entries, find_conflicting_waiter, fire_bast_records, lk_is_holder
     called_by: peer_msg_cb, v5_peer_msg_cb_tcp
-  fn mxfs_dlm_process_remote_grant(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, int status, mxfs_epoch_t grant_epoch, uint32_t grant_gen, uint8_t handoff, uint32_t dir_epoch) -> int
+  fn mxfs_dlm_process_remote_grant(struct mxfs_dlm_ctx *ctx, const struct mxfs_dlm_lock_resp *resp) -> int
+    calls: atomic_inc_return, dlm_rel_pending_add, dlm_send_release_msg, lock_alloc, lock_free, mode_name, mxfs_dlm_resource_master, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, mxfs_v5_dlm_inode_dir_epoch, pending_signal_resource, resource_equal, resource_hash
     called_by: peer_msg_cb, v5_peer_msg_cb_tcp
-  fn mxfs_dlm_process_remote_release(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_resource_id *resource, uint32_t grant_gen) -> int
-    calls: collect_post_promotion_basts, dg_grant_ex, dg_release, fire_bast_records, lock_free, mode_name, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, pending_signal_resource, promote_waiters, resource_equal, resource_hash, send_grant, state_name
-    called_by: peer_msg_cb, v5_peer_msg_cb_tcp
+  fn mxfs_dlm_process_remote_release(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_dlm_lock_release *rel) -> int
+    calls: dg_release, dlm_ledger_active, dlm_ledger_prepare, dlm_owner_sealed, dlm_promote_txn, dlm_txn_add_release, dlm_txn_init, mode_name, mxfs_dlm_resource_master, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_rwlock_unlock, mxfs_pal_rwlock_wrlock, resource_equal
+    called_by: mxfs_dlm_release_retry_tick, peer_msg_cb, v5_peer_msg_cb_tcp
   struct mxfs_lkt_ev { seq, ts_ms, ino, act, owner, mode, rtype }
   struct mxfs_bast_record { owner, requested_mode }
+  struct dlm_grant_ids { auth_epoch, grant_seq, lineage, req_id }
+  struct dlm_import_acc { ent, n }
+  struct dlm_refused_keep_arg { ctx, owner, kept }
+  struct dlm_takeover_scan { node, inc, cand }
+  struct dlm_orphan_scan { ctx, node, inc, dead, pages, nauth, idx }
+  struct dlm_txn_item { owner, inc, slot, mode, prev_mode, prev_gen, gen, request_epoch, req_id, handoff }
+  struct dlm_txn { resource, gen, n, it }
+  struct dlm_txn_basts { basts, post_basts }
   struct dg_shadow_ent { res, owner, last_owner, gen, epoch, active, used, last_grant_seq, grant_count }
 
 [dlm/dlm.h]
   fn mxfs_dlm_create(mxfs_node_id_t local_node) -> struct mxfs_dlm_ctx
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_dlm_destroy(struct mxfs_dlm_ctx *ctx) -> void
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, v5_tcp_transport_unwind
   fn mxfs_dlm_lock(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode) -> int
-    called_by: dlm_lock_tcp_wrapper, mxfs_dlm_purge_node, mxfs_dlm_update_active_nodes, mxfs_unmount, mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_try
+    called_by: dlm_lock_tcp_wrapper, mxfs_dlm_process_remote_request, mxfs_dlm_update_active_nodes, mxfs_unmount, mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_try, mxfs_v5_dlm_inode_reserve_try
   fn mxfs_dlm_lock_retries(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode, int max_retries) -> int
-    called_by: mxfs_dlm_lock, mxfs_v5_dlm_inode_lock_retries
+    called_by: main, mxfs_dlm_lock, mxfs_v5_dlm_inode_lock_retries, take_ex, worker_fn
+  fn mxfs_dlm_resource_held_by_blocked(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
+    called_by: mxfs_v5_dlm_inode_held_by_blocked
+  fn mxfs_dlm_resource_wait_is_live(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
+    called_by: mxfs_v5_dlm_inode_wait_is_live
   fn mxfs_dlm_unlock(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
-    called_by: dlm_unlock_tcp_wrapper, mxfs_dlm_withdraw_release_all, mxfs_v5_dlm_ag_unlock
+    called_by: dlm_ledger_import_page, dlm_unlock_tcp_wrapper, dlm_wire_release_all, main, mxfs_dlm_process_remote_request, mxfs_v5_dlm_ag_unlock, take_ex, unlock_job_fn, worker_fn
   fn mxfs_dlm_send_unconditional_release(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
     called_by: mxfs_dlm_release_orphan_if_unheld, mxfs_v5_dlm_inode_release_unconditional
   fn mxfs_dlm_release_orphan_if_unheld(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
-    called_by: mxfs_dlm_unlock_gen, mxfs_v5_dlm_ag_orphan_nak
+    called_by: mxfs_dlm_unlock_gen, mxfs_v5_dlm_ag_orphan_nak, mxfs_v5_dlm_inode_orphan_nak
   fn mxfs_dlm_unlock_gen(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t expected_gen) -> int
     called_by: mxfs_dlm_unlock, mxfs_v5_dlm_iclus_unlock_gen, mxfs_v5_dlm_inode_unlock_free, mxfs_v5_dlm_inode_unlock_open
   fn mxfs_dlm_lock_convert(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t new_mode) -> int
     called_by: dlm_convert_tcp_wrapper
   fn mxfs_dlm_release_all(struct mxfs_dlm_ctx *ctx) -> void
-    called_by: mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release
+    called_by: main, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_dlm_withdraw_release_all(struct mxfs_dlm_ctx *ctx) -> void
   fn mxfs_dlm_purge_node(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> int
-    called_by: mxfs_v5_dlm_recovery_complete, v5_clean_depart_cb, v5_handle_node_death, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_tcp_declare_dead
+    called_by: dlm_purge_redrive_tick, main, v5_depart_run, v5_handle_node_death, v5_recovery_complete_ladder, v5_tcp_declare_dead
   fn mxfs_dlm_purge_stale_for_resource(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> int
   fn mxfs_dlm_resource_master(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> mxfs_node_id_t
-    called_by: dlm_lock_impl, mxfs_dlm_is_resource_master, mxfs_dlm_send_unconditional_release, mxfs_dlm_unlock_gen
+    called_by: dlm_lock_impl, main, mxfs_dlm_is_resource_master, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_release_all, mxfs_dlm_release_retry_tick, mxfs_dlm_resource_held_by_blocked, mxfs_dlm_resource_wait_is_live, mxfs_dlm_send_unconditional_release, mxfs_dlm_unlock_gen, v5_tcp_grant_result_fill
   fn mxfs_dlm_is_resource_master(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> bool
     called_by: mxfs_v5_dlm_inode_master_self
   fn mxfs_dlm_get_view_sig(struct mxfs_dlm_ctx *ctx, uint32_t *count) -> uint64_t
-    called_by: v5_view_sig_provider
+    called_by: dlm_lock_impl, mxfs_dlm_process_remote_request, v5_view_sig_provider
   fn mxfs_dlm_report_peer_view(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint32_t count, uint64_t hash) -> void
     called_by: v5_view_report_cb
   fn mxfs_dlm_update_active_nodes(struct mxfs_dlm_ctx *ctx, const mxfs_node_id_t *nodes, int count) -> int
-    called_by: membership_stab_worker_fn, mxfs_dlm_is_single_node, queue_membership_update, v5_refresh_active_nodes
+    called_by: main, membership_stab_worker_fn, mxfs_dlm_is_single_node, queue_membership_update, v5_refresh_active_nodes
   fn mxfs_dlm_is_single_node(struct mxfs_dlm_ctx *ctx) -> bool
-    called_by: mxfs_v5_dlm_is_single_node, mxfs_v5_dlm_set_peer_joined_notify, v5_discovery_peer_cb, v5_peer_connect_cb_tcp
+    called_by: mxfs_v5_dlm_set_peer_joined_notify, v5_discovery_peer_cb, v5_peer_connect_cb_tcp
   fn mxfs_dlm_held_mode(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint8_t
+    called_by: main
+  fn mxfs_dlm_page_pending_count(struct mxfs_dlm_ctx *ctx, uint32_t page) -> int
+    called_by: main
   fn mxfs_dlm_held_mode_nb(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t *out_mode) -> int
     called_by: mxfs_v5_dlm_inode_held_nb
   fn mxfs_dlm_granted_mode(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint8_t
     called_by: mxfs_v5_dlm_inode_granted_mode
   fn mxfs_dlm_grant_gen(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint32_t
-    called_by: mxfs_v5_dlm_inode_grant_gen
+    called_by: mxfs_v5_dlm_inode_grant_gen, v5_tcp_grant_result_fill
+  fn mxfs_dlm_grant_id(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *auth_epoch, uint64_t *grant_seq, uint64_t *lineage) -> bool
+    called_by: main, v5_tcp_grant_result_fill
   fn mxfs_dlm_grant_was_handoff(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *gen_out) -> bool
     called_by: mxfs_v5_dlm_inode_grant_handoff
   fn mxfs_dlm_grant_dir_epoch(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource) -> uint32_t
@@ -786,15 +1564,43 @@
     called_by: mxfs_dlm_update_active_nodes
   fn mxfs_dlm_get_epoch(struct mxfs_dlm_ctx *ctx) -> mxfs_epoch_t
     called_by: mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release
-  fn mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, mxfs_epoch_t request_epoch) -> int
+  fn mxfs_dlm_process_remote_request(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_dlm_lock_req *req) -> int
     called_by: peer_msg_cb, v5_peer_msg_cb_tcp
-  fn mxfs_dlm_process_remote_grant(struct mxfs_dlm_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, int status, mxfs_epoch_t grant_epoch, uint32_t grant_gen, uint8_t handoff, uint32_t dir_epoch) -> int
+  fn mxfs_dlm_process_remote_grant(struct mxfs_dlm_ctx *ctx, const struct mxfs_dlm_lock_resp *resp) -> int
     called_by: peer_msg_cb, v5_peer_msg_cb_tcp
-  fn mxfs_dlm_process_remote_release(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_resource_id *resource, uint32_t grant_gen) -> int
+  fn mxfs_dlm_process_remote_release(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_dlm_lock_release *rel) -> int
+    called_by: mxfs_dlm_release_retry_tick, peer_msg_cb, v5_peer_msg_cb_tcp
+  fn mxfs_dlm_process_release_ack(struct mxfs_dlm_ctx *ctx, const struct mxfs_dlm_release_ack *ack) -> int
     called_by: peer_msg_cb, v5_peer_msg_cb_tcp
+  fn mxfs_dlm_set_ledger_geometry(struct mxfs_dlm_ctx *ctx, uint32_t npages, uint64_t hash_seed) -> void
+  fn mxfs_dlm_attach_ledger(struct mxfs_dlm_ctx *ctx, struct mxfs_tauth_ledger *ledger, uint64_t local_inc, uint16_t local_slot) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_dlm_ledger_purge_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, int slot) -> int
+    called_by: dlm_ledger_import_page, dlm_purge_redrive_tick, main, v5_depart_run, v5_handle_node_death, v5_recovery_complete_ladder, v5_tcp_declare_dead
+  fn mxfs_dlm_ledger_purge_owner_selective(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, int slot) -> int
+    called_by: v5_depart_run
+  fn mxfs_dlm_purge_node_selective(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node) -> int
+    called_by: v5_depart_run
+  fn mxfs_dlm_seal_owner(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint64_t inc) -> int
+    called_by: v5_rman_snapshot
+  fn mxfs_dlm_process_page_handoff(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t sender, const struct mxfs_dlm_page_handoff *msg) -> int
+    called_by: v5_peer_msg_cb_tcp
+  fn mxfs_dlm_handoff_tick(struct mxfs_dlm_ctx *ctx) -> void
+    called_by: v5_tcp_death_worker_fn
+  fn mxfs_dlm_handoff_takeover(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t node, uint64_t inc) -> int
+    called_by: main, v5_handoff_takeover
+  fn mxfs_dlm_handoff_depart(struct mxfs_dlm_ctx *ctx) -> int
+    called_by: mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_dlm_takeover_orphans(struct mxfs_dlm_ctx *ctx) -> int
+    called_by: v5_depart_run
+  fn mxfs_dlm_release_retry_tick(struct mxfs_dlm_ctx *ctx) -> void
+    called_by: v5_tcp_death_worker_fn
+  fn mxfs_dlm_wait_release_acks(struct mxfs_dlm_ctx *ctx, uint64_t timeout_ms) -> int
+    called_by: mxfs_dlm_release_all
   fn mxfs_dlm_modes_compatible(uint8_t held, uint8_t requested) -> int
   struct mxfs_lock { resource, owner, mode, state, flags, queued_at, granted_at, grant_gen, handoff, dir_epoch }
-  struct mxfs_dlm_pending { next, resource, lock, cond, done, granted_mode, status, request_epoch }
+  struct mxfs_dlm_pending { next, resource, lock, cond, done, granted_mode, status, request_epoch, req_id }
+  struct mxfs_dlm_pending_release { next, resource, rel_id, grant_gen, auth_epoch, grant_seq, lineage, mode, sends, sent_ms }
   typedef_fn mxfs_dlm_grant_cb
   typedef_fn mxfs_dlm_bast_cb
   typedef_fn mxfs_dlm_send_cb
@@ -806,21 +1612,21 @@
 
 [dlm/dlm_caw.c]
   fn static caw_inject_take(int *knob) -> bool
-    calls: caw_slot, mxfs_pal_log
+    calls: caw_slot_ex, mxfs_pal_log
     called_by: caw_grant_epoch_update, caw_owed_dispatch, caw_owed_worker_fn, caw_release_all_body
   fn static caw_watch_armed(uint32_t slot_index) -> bool
     calls: caw_watch_note, mxfs_pal_bdev_compare_and_write, mxfs_pal_time_ms, slot_offset
-    called_by: caw_slot
+    called_by: caw_resolve_note, caw_slot_ex
   fn static caw_watch_span_armed(uint32_t start_idx, uint32_t nslots) -> bool
   fn static caw_watch_note(bool is_caw, uint64_t ms, int rc) -> void
-    called_by: caw_slot, caw_watch_armed
+    called_by: caw_slot_ex, caw_watch_armed
   fn static caw_watch_span_note(void) -> void
   fn static caw_watch_note(bool is_caw, uint64_t ms, int rc) -> void
-    called_by: caw_slot, caw_watch_armed
+    called_by: caw_slot_ex, caw_watch_armed
   fn static caw_failstop_grace_ms(void) -> uint32_t
     called_by: caw_join_bounded, mxfs_dlm_caw_stop
   fn static mode_name(uint8_t mode) -> const char
-    called_by: dg_grant_ex, dlm_lock_impl, do_scsi_read_fua, fire_bast_records, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen, promote_waiters
+    called_by: dg_grant_ex, dlm_ledger_import_page, dlm_local_entry_any, dlm_lock_impl, dlm_retry, do_scsi_read_fua, fire_bast_records, lk_is_holder, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_purge_stale_for_resource
   fn static holders_for_mode(struct mxfs_caw_lock_slot *slot, uint8_t mode) -> uint64_t
     called_by: caw_convert_body, compatible_excluding_self
   fn static compatible_excluding_self(const struct mxfs_caw_lock_slot *slot, uint8_t mode, uint64_t node_bit) -> bool
@@ -843,18 +1649,25 @@
     called_by: caw_unlk_delta_is_registration
   fn static caw_grant_streak_note(struct mxfs_caw_lock_slot *slot, uint8_t mode) -> void
   fn static slot_offset(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index) -> uint64_t
-    called_by: caw_purge_dead_nodes_body, caw_repair_slot, caw_slot, caw_watch_armed, mxfs_dlm_caw_footprint_scan, mxfs_journal_replay, mxfs_journal_slot_open, scan_disk_for_node_slot
+    called_by: caw_purge_dead_nodes_body, caw_repair_slot, caw_slot_ex, caw_watch_armed, mxfs_dlm_caw_footprint_scan, mxfs_journal_replay, mxfs_journal_slot_open, scan_disk_for_node_slot
   fn static slot_appears_corrupt(const struct mxfs_caw_lock_slot *s) -> bool
     calls: mxfs_pal_free, read_slot
   fn static caw_repair_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index, const struct mxfs_caw_lock_slot *corrupt, struct mxfs_caw_lock_slot *repaired_out) -> int
     calls: mxfs_pal_bdev_compare_and_write, mxfs_pal_log, mxfs_pal_time_ms, recompute_granted_mode, slot_offset
   fn static read_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index, struct mxfs_caw_lock_slot *out) -> int
-    called_by: bast_poll_fn, caw_convert_body, caw_count_resource_slots, caw_force_release_self_body, caw_open_set_body, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, is_tracked_held, mxfs_dlm_caw_footprint_scan, slot_appears_corrupt, slot_hint_get
+    called_by: bast_poll_fn, caw_convert_body, caw_force_release_self_body, caw_open_set_body, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, is_tracked_held, mxfs_dlm_caw_footprint_scan, mxfs_dlm_caw_test_mutate_protected, slot_appears_corrupt, slot_hint_get
   fn static read_slot_span(struct mxfs_dlm_caw_ctx *ctx, uint32_t start_idx, uint32_t nslots, struct mxfs_caw_lock_slot *buf) -> int
     calls: mxfs_pal_free
+  fn mxfs_dlm_caw_set_protected_mask(struct mxfs_dlm_caw_ctx *ctx, uint64_t mask) -> void
+    called_by: v5_protect_cb
+  fn static caw_guard_refuses(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_caw_lock_slot *compare, const struct mxfs_caw_lock_slot *write, uint64_t pm, bool purge, uint64_t purge_mask, const char **why) -> bool
+    called_by: caw_slot_ex
   fn static caw_slot(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index, const struct mxfs_caw_lock_slot *compare, const struct mxfs_caw_lock_slot *write) -> int
-    calls: caw_watch_armed, caw_watch_note, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_time_ms, slot_offset
-    called_by: caw_convert_body, caw_force_release_self_body, caw_inject_take, caw_open_clear_body, caw_open_set_body, caw_purge_dead_nodes_body, caw_release_all_body, compatible_excluding_self, mxfs_dlm_caw_set_dir_block0
+    calls: mxfs_pal_time_ms
+    called_by: caw_convert_body, caw_force_release_self_body, caw_grant_meta_seq, caw_open_clear_body, caw_open_set_body, caw_release_all_body, compatible_excluding_self, mxfs_dlm_caw_set_dir_block0
+  fn static caw_slot_ex(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index, const struct mxfs_caw_lock_slot *compare, const struct mxfs_caw_lock_slot *write, unsigned int cas_flags, uint64_t purge_mask) -> int
+    calls: atomic_inc_return, caw_guard_refuses, caw_watch_armed, caw_watch_note, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_read_prio, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_time_ms, rule, slot_offset
+    called_by: caw_inject_take, caw_purge_dead_nodes_body, mxfs_dlm_caw_test_mutate_protected
   fn static caw_may_have_written(int rc) -> bool
     calls: lreq_release_all, mxfs_pal_log, untrack_held
     called_by: caw_force_release_self_body
@@ -862,7 +1675,7 @@
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, resource_hash_raw
     called_by: caw_open_set_body
   fn static slot_hint_get(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *slot_idx_out) -> bool
-    calls: mxfs_pal_free, read_slot
+    calls: caw_resolve_note, mxfs_pal_free, read_slot
     called_by: mxfs_dlm_caw_dump_slot
   fn static caw_next_grant_epoch(uint64_t prev) -> uint64_t
     called_by: caw_grant_epoch_update
@@ -890,7 +1703,7 @@
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, resource_hash_raw
     called_by: caw_convert_body, compatible_excluding_self
   fn static caw_grant_meta_seq(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> uint64_t
-    calls: mxfs_pal_log, mxfs_pal_time_ms
+    calls: caw_slot, mxfs_pal_log
     called_by: mxfs_dlm_caw_grant_seq32
   fn static caw_release_mark(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, bool on) -> void
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, resource_hash_raw
@@ -920,9 +1733,9 @@
     called_by: caw_owe_residue, lreq_find, lreq_gc, lreq_join
   fn static lreq_find(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> struct mxfs_caw_lreq
     calls: lreq_bucket
-    called_by: caw_owe_residue, lreq_clr_snap, lreq_join, lreq_pub_seq_peek, lreq_release_all
+    called_by: caw_owe_residue, lreq_clr_snap, lreq_join, lreq_pub_seq_peek, lreq_release_all, mxfs_dlm_caw_test_lreq_state
   fn static lreq_owed_pending(const struct mxfs_caw_lreq *e) -> bool
-    called_by: caw_owed_count_locked, caw_owed_release, lreq_finish, lreq_gc, lreq_oq_sync, lreq_owed_merge, lreq_owed_retract, mxfs_dlm_caw_destroy
+    called_by: caw_owed_count_locked, caw_owed_release, lreq_finish, lreq_gc, lreq_oq_sync, lreq_owed_merge, lreq_owed_retract, mxfs_dlm_caw_destroy, mxfs_dlm_caw_test_lreq_state
   fn static lreq_oq_remove(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e) -> void
     called_by: caw_owed_sweep, lreq_oq_rotate, lreq_oq_sync
   fn static lreq_oq_push_tail(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e) -> void
@@ -971,23 +1784,26 @@
     calls: mxfs_pal_sleep_ms
   fn static caw_slot_clearing(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t slot_idx, const struct mxfs_caw_lock_slot *cur, struct mxfs_caw_lock_slot *new, const char *site, uint8_t owed_mode) -> int
     called_by: caw_convert_body
-  fn static find_slot_skip(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *slot_out, struct mxfs_caw_lock_slot *data_out, uint32_t *empty_out, uint32_t skip_idx, uint32_t *last_read_out, uint64_t deadline) -> int
+  fn static caw_resolve_note(uint32_t base, const char *via, int rc, uint32_t idx, const void *who) -> void
+    calls: caw_watch_armed
+    called_by: slot_hint_get
+  fn static find_slot_skip(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *slot_out, struct mxfs_caw_lock_slot *data_out, uint32_t *empty_out, uint32_t skip_idx, uint32_t *last_read_out, uint64_t deadline, const void *who) -> int
     called_by: find_slot
   fn static find_slot(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *slot_out, struct mxfs_caw_lock_slot *data_out, uint32_t *empty_out) -> int
     calls: find_slot_skip
-    called_by: caw_convert_body, caw_open_clear_body, caw_open_set_body, mxfs_dlm_caw_dump_slot, mxfs_dlm_caw_granted_mode, mxfs_dlm_caw_held, mxfs_dlm_caw_open_holders, mxfs_dlm_caw_open_probe, mxfs_dlm_caw_read_generation, mxfs_dlm_caw_set_dir_block0
+    called_by: caw_convert_body, caw_open_clear_body, caw_open_set_body, mxfs_dlm_caw_dump_slot, mxfs_dlm_caw_granted_mode, mxfs_dlm_caw_held, mxfs_dlm_caw_open_holders, mxfs_dlm_caw_open_probe, mxfs_dlm_caw_read_generation, mxfs_dlm_caw_set_dir_block0, mxfs_dlm_caw_test_slot_bits
   fn static find_slot_deadline(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *slot_out, struct mxfs_caw_lock_slot *data_out, uint32_t *empty_out, uint64_t deadline) -> int
     called_by: caw_owed_resolve
   fn mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *out_gen) -> int
     calls: find_slot
     called_by: mxfs_v5_dlm_ag_read_generation
   fn mxfs_dlm_caw_victim_manifest_read(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage) -> int
+  fn mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage, uint8_t *out_mode, uint32_t *out_slot_idx) -> int
   fn mxfs_dlm_caw_set_dir_block0(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t fsb, uint32_t gen) -> void
     calls: caw_slot, find_slot
     called_by: mxfs_v5_dlm_inode_set_dir_block0
-  fn static caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *dup_slots, int dupmax, uint64_t *holders_ex_or) -> int
-    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, read_slot, resource_hash_raw
-    called_by: mxfs_dlm_caw_ex_count, mxfs_dlm_caw_self_held_scan
+  fn static caw_count_resource_slots(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *dup_slots, int dupmax, uint64_t *holders_ex_or, uint64_t *holders_all_or) -> int
+    called_by: mxfs_dlm_caw_ex_count, mxfs_dlm_caw_resource_holders_live, mxfs_dlm_caw_self_held_scan
   fn static track_held(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index) -> bool
   fn static is_tracked_held(struct mxfs_dlm_caw_ctx *ctx, uint32_t slot_index) -> bool
     calls: read_slot
@@ -1017,7 +1833,7 @@
     calls: find_slot_deadline, mxfs_pal_alloc, mxfs_pal_free
     called_by: caw_owed_dispatch
   fn static caw_owed_dispatch(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e, uint64_t deadline) -> bool
-    calls: caw_drop_own_waiter, caw_inject_take, caw_owed_resolve, lreq_owed_retract, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    calls: caw_drop_own_waiter, caw_inject_take, caw_owed_resolve, lreq_owed_retract, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms
     called_by: caw_owed_sweep
   fn static caw_owed_release(struct mxfs_dlm_caw_ctx *ctx, struct mxfs_caw_lreq *e, bool attempted) -> uint64_t
     calls: lreq_gc, lreq_oq_sync, lreq_owed_pending, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, stop
@@ -1079,7 +1895,6 @@
     called_by: caw_convert_body
   fn static mem_lock_track(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode) -> void
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: caw_convert_body, caw_unlock_gen_body
   fn static mem_lock_untrack(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> void
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
   fn static caw_inode_backoff(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, int retry) -> void
@@ -1090,17 +1905,17 @@
   fn static caw_verify_grant_persisted(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t slot_idx, uint8_t mode) -> void
     calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, read_slot
   fn static caw_lock_body(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, bool attested, uint64_t local_epoch, uint8_t *granted_mode, struct mxfs_grant_result *gres, uint64_t deadline_ms) -> int
+  fn static caw_lock_body_inner(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, bool attested, uint64_t local_epoch, uint8_t *granted_mode, struct mxfs_grant_result *gres, uint64_t deadline_ms) -> int
   fn mxfs_dlm_caw_lock(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode, struct mxfs_grant_result *gres) -> int
-    called_by: dlm_lock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try
+    called_by: dlm_lock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_caw_samenode_selftest, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try, mxfs_v5_dlm_inode_reserve_try, v5_samenode_attempt_fn
   fn mxfs_dlm_caw_lock_deadline(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode, struct mxfs_grant_result *gres, uint64_t deadline_ms) -> int
     called_by: mxfs_v5_dlm_inode_lock_retries
   fn mxfs_dlm_caw_lock_attested(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint64_t local_epoch, uint8_t *granted_mode, struct mxfs_grant_result *gres) -> int
     called_by: mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb
   fn mxfs_dlm_caw_unlock(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> int
     calls: mxfs_dlm_caw_unlock_gen
-    called_by: dlm_unlock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest
+    called_by: dlm_unlock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_caw_samenode_selftest
   fn static caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t expected_gen32, bool is_free, int open_op, enum mxfs_unlock_state *state_out) -> int
-    calls: mem_lock_track
     called_by: caw_convert_body, mxfs_dlm_caw_unlock_gen, mxfs_dlm_caw_unlock_state
   fn mxfs_dlm_caw_unlock_gen(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t expected_gen32, bool is_free, int open_op) -> int
     calls: caw_op_enter, caw_op_leave, caw_unlock_gen_body
@@ -1113,7 +1928,21 @@
     called_by: mxfs_v5_dlm_ag_held, mxfs_v5_dlm_ag_unlock
   fn mxfs_dlm_caw_granted_mode(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> uint8_t
     calls: find_slot, mxfs_pal_alloc, mxfs_pal_free, node_held_mode
-    called_by: mxfs_v5_dlm_iclus_held_rawmode, mxfs_v5_dlm_inode_granted_mode
+    called_by: mxfs_v5_dlm_caw_samenode_selftest, mxfs_v5_dlm_iclus_held_rawmode, mxfs_v5_dlm_inode_granted_mode
+  fn mxfs_dlm_caw_test_slot_bits(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, struct mxfs_caw_test_bits *out) -> int
+    calls: find_slot, mxfs_pal_alloc, mxfs_pal_free
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn mxfs_dlm_caw_test_lreq_state(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *attempts, uint32_t *tenure_ex, bool *owed_pending) -> int
+    calls: lreq_find, lreq_owed_pending, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn static caw_test_knob(enum mxfs_caw_test_knob which) -> int
+    called_by: mxfs_dlm_caw_test_arm, mxfs_dlm_caw_test_knob_left
+  fn mxfs_dlm_caw_test_arm(enum mxfs_caw_test_knob which, int value) -> void
+    calls: caw_test_knob
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn mxfs_dlm_caw_test_knob_left(enum mxfs_caw_test_knob which) -> int
+    calls: caw_test_knob
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
   fn mxfs_dlm_caw_open_holders(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *oh_out) -> int
     calls: find_slot, mxfs_pal_alloc, mxfs_pal_free
     called_by: mxfs_v5_dlm_inode_open_holders
@@ -1143,7 +1972,11 @@
   fn mxfs_dlm_caw_self_held_scan(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, int *nslots_out, uint64_t *hex_or_out) -> int
     calls: caw_count_resource_slots
     called_by: mxfs_v5_dlm_inode_self_held_scan
+  fn mxfs_dlm_caw_resource_holders_live(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> int
+    calls: caw_count_resource_slots
+    called_by: mxfs_v5_dlm_inode_wait_is_live
   fn static caw_forcerel_precondition(const struct mxfs_resource_id *resource, const struct mxfs_forcerel_attest *att) -> int
+    calls: mxfs_pal_free
     called_by: caw_force_release_self_body
   fn static caw_force_release_self_body(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, const struct mxfs_forcerel_attest *att) -> int
     calls: caw_forcerel_precondition, caw_may_have_written, caw_slot, lreq_clr_begin_wait, lreq_clr_end, lreq_release_all, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_time_ms, read_slot, recompute_granted_mode, resource_hash_raw, untrack_held
@@ -1173,7 +2006,7 @@
     called_by: mxfs_unmount
   fn mxfs_dlm_caw_purge_node(struct mxfs_dlm_caw_ctx *ctx, uint8_t dead_slot) -> int
     calls: mxfs_dlm_caw_purge_dead_nodes, mxfs_pal_log
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: v5_recovery_complete_ladder
   fn static caw_strip_node_state(struct mxfs_caw_lock_slot *ns, uint64_t mask, bool keep_ex) -> bool
     calls: mxfs_pal_time_ms, recompute_granted_mode, recompute_waiter_mode
     called_by: caw_purge_dead_nodes_body
@@ -1191,7 +2024,7 @@
   fn mxfs_dlm_caw_retained_count(struct mxfs_dlm_caw_ctx *ctx) -> int
     called_by: mxfs_v5_dlm_init
   fn static caw_purge_dead_nodes_body(struct mxfs_dlm_caw_ctx *ctx, uint64_t dead_mask, uint32_t flags) -> int
-    calls: caw_purge_candidate, caw_slot, caw_strip_node_state, caw_tombstone_slot, is_tracked_held, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_cond_resched, mxfs_pal_free, mxfs_pal_log, read_slot, slot_has_holders, slot_offset
+    calls: caw_purge_candidate, caw_slot_ex, caw_strip_node_state, caw_tombstone_slot, is_tracked_held, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_cond_resched, mxfs_pal_free, mxfs_pal_log, read_slot, slot_has_holders, slot_offset
     called_by: mxfs_dlm_caw_purge_dead_nodes_ex
   fn mxfs_dlm_caw_purge_dead_nodes_ex(struct mxfs_dlm_caw_ctx *ctx, uint64_t dead_mask, uint32_t flags) -> int
     calls: caw_op_enter, caw_op_leave, caw_purge_dead_nodes_body
@@ -1201,6 +2034,14 @@
   fn mxfs_dlm_caw_footprint_scan(struct mxfs_dlm_caw_ctx *ctx, uint64_t node_mask, int *out_ex) -> int
     calls: caw_purge_candidate, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_cond_resched, mxfs_pal_free, mxfs_pal_log, read_slot, slot_offset
     called_by: mxfs_v5_dlm_mount_residue_blocking
+  fn mxfs_dlm_caw_manifest_collect(struct mxfs_dlm_caw_ctx *ctx, uint32_t victim_slot, struct mxfs_rman_entry *ents, uint32_t max, uint32_t *out_count, uint32_t *out_scanned) -> int
+    calls: mxfs_dlm_caw_manifest_collect_dev
+    called_by: v5_rman_snapshot
+  fn mxfs_dlm_caw_manifest_collect_dev(mxfs_bdev_t *dev, uint64_t lock_region_offset, uint32_t victim_slot, struct mxfs_rman_entry *ents, uint32_t max, uint32_t *out_count, uint32_t *out_scanned) -> int
+    called_by: mxfs_dlm_caw_manifest_collect, v5_rman_snapshot
+  fn mxfs_dlm_caw_test_mutate_protected(struct mxfs_dlm_caw_ctx *ctx, uint64_t mask, int mode) -> int
+    calls: caw_slot_ex, mxfs_pal_log, read_slot
+    called_by: v5_rman_test_mutate_hook
   fn static caw_bast_mode_join(uint8_t a, uint8_t b) -> uint8_t
   fn static caw_bastq_free(struct mxfs_dlm_caw_ctx *ctx) -> void
     calls: mxfs_pal_cond_destroy, mxfs_pal_free, mxfs_pal_mutex_destroy
@@ -1291,7 +2132,7 @@
   fn mxfs_dlm_caw_set_membership(struct mxfs_dlm_caw_ctx *ctx, uint64_t view, uint32_t members) -> void
     called_by: v5_membership_beacon_caw
   fn mxfs_dlm_caw_lock(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode, struct mxfs_grant_result *gres) -> int
-    called_by: dlm_lock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try
+    called_by: dlm_lock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_caw_samenode_selftest, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try, mxfs_v5_dlm_inode_reserve_try, v5_samenode_attempt_fn
   fn mxfs_dlm_caw_lock_deadline(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint8_t *granted_mode, struct mxfs_grant_result *gres, uint64_t deadline_ms) -> int
     called_by: mxfs_v5_dlm_inode_lock_retries
   fn mxfs_dlm_caw_lock_attested(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint8_t mode, uint32_t flags, uint64_t local_epoch, uint8_t *granted_mode, struct mxfs_grant_result *gres) -> int
@@ -1299,7 +2140,7 @@
   fn mxfs_dlm_caw_unlock_gen(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t expected_gen32, bool is_free, int open_op) -> int
     called_by: mxfs_dlm_caw_unlock, mxfs_v5_dlm_iclus_unlock_gen, mxfs_v5_dlm_inode_unlock_free, mxfs_v5_dlm_inode_unlock_open
   fn mxfs_dlm_caw_unlock(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> int
-    called_by: dlm_unlock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest
+    called_by: dlm_unlock_caw_wrapper, mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_caw_samenode_selftest
   fn mxfs_dlm_caw_unlock_state(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, enum mxfs_unlock_state *state_out) -> int
     called_by: mxfs_v5_dlm_ag_unlock
   fn mxfs_dlm_caw_dump_slot(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> void
@@ -1315,12 +2156,22 @@
   fn mxfs_dlm_caw_open_probe(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *oh_out, bool *authoritative) -> int
     called_by: mxfs_v5_dlm_inode_open_probe
   fn mxfs_dlm_caw_granted_mode(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> uint8_t
-    called_by: mxfs_v5_dlm_iclus_held_rawmode, mxfs_v5_dlm_inode_granted_mode
+    called_by: mxfs_v5_dlm_caw_samenode_selftest, mxfs_v5_dlm_iclus_held_rawmode, mxfs_v5_dlm_inode_granted_mode
+  fn mxfs_dlm_caw_test_slot_bits(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, struct mxfs_caw_test_bits *out) -> int
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn mxfs_dlm_caw_test_lreq_state(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t *attempts, uint32_t *tenure_ex, bool *owed_pending) -> int
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn mxfs_dlm_caw_test_arm(enum mxfs_caw_test_knob which, int value) -> void
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn mxfs_dlm_caw_test_knob_left(enum mxfs_caw_test_knob which) -> int
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
   fn mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint64_t *out_gen) -> int
     called_by: mxfs_v5_dlm_ag_read_generation
   fn mxfs_dlm_caw_victim_manifest_read(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage) -> int
   fn mxfs_dlm_caw_ex_count(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, int *nslots_out) -> int
     called_by: mxfs_v5_dlm_ag_ex_count, mxfs_v5_dlm_inode_ex_count
+  fn mxfs_dlm_caw_resource_holders_live(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource) -> int
+    called_by: mxfs_v5_dlm_inode_wait_is_live
   fn mxfs_dlm_caw_self_held_scan(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, int *nslots_out, uint64_t *hex_or_out) -> int
     called_by: mxfs_v5_dlm_inode_self_held_scan
   fn mxfs_dlm_caw_force_release_self(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, const struct mxfs_forcerel_attest *att) -> int
@@ -1346,11 +2197,20 @@
   fn mxfs_dlm_caw_pin_resource(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *res) -> int
     called_by: mxfs_v5_dlm_iclus_pin, mxfs_v5_dlm_inode_pin
   fn mxfs_dlm_caw_purge_node(struct mxfs_dlm_caw_ctx *ctx, uint8_t dead_slot) -> int
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: v5_recovery_complete_ladder
   fn mxfs_dlm_caw_purge_dead_nodes(struct mxfs_dlm_caw_ctx *ctx, uint64_t dead_mask) -> int
     called_by: mxfs_dlm_caw_purge_node, mxfs_mount
   fn mxfs_dlm_caw_purge_dead_nodes_ex(struct mxfs_dlm_caw_ctx *ctx, uint64_t dead_mask, uint32_t flags) -> int
     called_by: mxfs_dlm_caw_purge_dead_nodes, mxfs_v5_dlm_init, mxfs_v5_dlm_settle_own_slot
+  fn mxfs_dlm_caw_set_protected_mask(struct mxfs_dlm_caw_ctx *ctx, uint64_t mask) -> void
+    called_by: v5_protect_cb
+  fn mxfs_dlm_caw_test_mutate_protected(struct mxfs_dlm_caw_ctx *ctx, uint64_t mask, int mode) -> int
+    called_by: v5_rman_test_mutate_hook
+  fn mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx, const struct mxfs_resource_id *resource, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage, uint8_t *out_mode, uint32_t *out_slot_idx) -> int
+  fn mxfs_dlm_caw_manifest_collect_dev(mxfs_bdev_t *dev, uint64_t lock_region_offset, uint32_t victim_slot, struct mxfs_rman_entry *ents, uint32_t max, uint32_t *out_count, uint32_t *out_scanned) -> int
+    called_by: mxfs_dlm_caw_manifest_collect, v5_rman_snapshot
+  fn mxfs_dlm_caw_manifest_collect(struct mxfs_dlm_caw_ctx *ctx, uint32_t victim_slot, struct mxfs_rman_entry *ents, uint32_t max, uint32_t *out_count, uint32_t *out_scanned) -> int
+    called_by: v5_rman_snapshot
   fn mxfs_dlm_caw_footprint_scan(struct mxfs_dlm_caw_ctx *ctx, uint64_t node_mask, int *out_ex) -> int
     called_by: mxfs_v5_dlm_mount_residue_blocking
   fn mxfs_dlm_caw_set_adopt_window(struct mxfs_dlm_caw_ctx *ctx, bool on) -> void
@@ -1376,12 +2236,14 @@
   struct mxfs_caw_slot_hint { resource, slot_idx, valid }
   struct mxfs_caw_grant_meta { resource, dir_epoch, handoff, valid, dir_block0_fsb, dir_block0_gen, releasing, grant_seq }
   struct mxfs_caw_orphan_clock { resource, valid, orphan_since_ns, bast_starve_since_ns }
+  struct mxfs_caw_test_bits { found, slot_idx, generation, holders_ex, holders_pw, holders_pr, waiters, waiters_ex }
+  enum mxfs_caw_test_knob { MXFS_CAW_TK_WAIT_EXPIRE, K6, next, registered, wait, gives, up, MXFS_CAW_TK_DOW_CASFAIL, K5, next }
 
 [dlm/dlm_shared.c]
   fn resource_hash_raw(const struct mxfs_resource_id *res) -> uint32_t
-    called_by: caw_bast_disp_fn, caw_count_resource_slots, caw_force_release_self_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_open_set_body, caw_release_mark, dg_grant_ex, held_bucket, mxfs_dlm_caw_grant_dir_block0, mxfs_dlm_caw_orphan_clock_get, mxfs_dlm_caw_orphan_clock_set, mxfs_dlm_resource_master
+    called_by: caw_bast_disp_fn, caw_force_release_self_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_open_set_body, caw_release_mark, held_bucket, mxfs_dlm_caw_grant_dir_block0, mxfs_dlm_caw_orphan_clock_get, mxfs_dlm_caw_orphan_clock_set, net2_rec_get, resource_hash, slot_hint_store
   fn resource_equal(const struct mxfs_resource_id *a, const struct mxfs_resource_id *b) -> bool
-    called_by: collect_post_promotion_basts, dg_grant_ex, dg_release, dlm_lock_impl, find_conflicting_waiter, find_lock_slot, held_insert, held_remove, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb
+    called_by: collect_post_promotion_basts, demand_collect_holders, dg_grant_ex, dg_release, dlm_lock_impl, dlm_pending_exists, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, find_conflicting_waiter, find_lock_slot, held_insert, held_remove, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch
   fn holders_for_mode_const(const struct mxfs_caw_lock_slot *slot, uint8_t mode) -> uint64_t
     called_by: is_compatible, net2_lock_apply_entry
   fn is_compatible(const struct mxfs_caw_lock_slot *slot, uint8_t mode) -> bool
@@ -1393,9 +2255,9 @@
 [dlm/dlm_shared.h]
   fn hweight64(x) -> return
   fn resource_hash_raw(const struct mxfs_resource_id *res) -> uint32_t
-    called_by: caw_bast_disp_fn, caw_count_resource_slots, caw_force_release_self_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_open_set_body, caw_release_mark, dg_grant_ex, held_bucket, mxfs_dlm_caw_grant_dir_block0, mxfs_dlm_caw_orphan_clock_get, mxfs_dlm_caw_orphan_clock_set, mxfs_dlm_resource_master
+    called_by: caw_bast_disp_fn, caw_force_release_self_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_open_set_body, caw_release_mark, held_bucket, mxfs_dlm_caw_grant_dir_block0, mxfs_dlm_caw_orphan_clock_get, mxfs_dlm_caw_orphan_clock_set, net2_rec_get, resource_hash, slot_hint_store
   fn resource_equal(const struct mxfs_resource_id *a, const struct mxfs_resource_id *b) -> bool
-    called_by: collect_post_promotion_basts, dg_grant_ex, dg_release, dlm_lock_impl, find_conflicting_waiter, find_lock_slot, held_insert, held_remove, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb
+    called_by: collect_post_promotion_basts, demand_collect_holders, dg_grant_ex, dg_release, dlm_lock_impl, dlm_pending_exists, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, find_conflicting_waiter, find_lock_slot, held_insert, held_remove, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch
   fn holders_for_mode_const(const struct mxfs_caw_lock_slot *slot, uint8_t mode) -> uint64_t
     called_by: is_compatible, net2_lock_apply_entry
   fn is_compatible(const struct mxfs_caw_lock_slot *slot, uint8_t mode) -> bool
@@ -1403,11 +2265,40 @@
     called_by: caw_convert_body, caw_force_release_self_body, caw_release_all_body, caw_repair_slot, caw_strip_node_state, compatible_excluding_self
   fn caw_slot_holders_popcount_ok(const struct mxfs_caw_lock_slot *s) -> bool
 
+[dlm/dlm_user_compat.h]
+  fn __sync_add_and_fetch(&v->counter, 1) -> return
+
+[dlm/hostid.c]
+  fn static hexval(char c) -> int
+    called_by: do_open
+  fn mxfs_uuid_parse(const char *s, size_t len, uint8_t u[16]) -> int
+    calls: hostid_hash16, hostid_read_uuid_file, mxfs_pal_log, mxfs_pal_read_file, mxfs_uuid_format
+  fn mxfs_uuid_format(const uint8_t u[16], char out[37]) -> void
+    called_by: mxfs_host_identity_init, mxfs_uuid_parse
+  fn static hostid_hash16(const char *s, size_t len, uint8_t out[16]) -> void
+    called_by: hostid_read_uuid_file, mxfs_host_identity_init, mxfs_uuid_parse
+  fn static hostid_read_uuid_file(const char *path, uint8_t u[16]) -> int
+    calls: hostid_hash16, mxfs_pal_read_file
+    called_by: mxfs_host_identity_init, mxfs_uuid_parse
+  fn mxfs_host_identity_init(void) -> int
+    calls: hostid_hash16, hostid_read_uuid_file, mxfs_pal_log, mxfs_pal_read_file, mxfs_uuid_format
+  fn mxfs_host_identity(void) -> const struct mxfs_host_identity
+    called_by: mxfs_v5_dlm_init, v5_boot_fill_identity, v5_bootstrap_run, v5_p305_settle_retire_pending, v5_self_succeed
+
+[dlm/hostid.h]
+  fn mxfs_host_identity_init(void) -> int
+  fn mxfs_host_identity(void) -> const struct mxfs_host_identity
+    called_by: mxfs_v5_dlm_init, v5_boot_fill_identity, v5_bootstrap_run, v5_p305_settle_retire_pending, v5_self_succeed
+  fn mxfs_uuid_format(const uint8_t u[16], char out[37]) -> void
+    called_by: mxfs_host_identity_init, mxfs_uuid_parse
+  fn mxfs_uuid_parse(const char *s, size_t len, uint8_t u[16]) -> int
+  struct mxfs_host_identity { host_uuid, boot_uuid, host_valid, boot_valid, host_src, initialised }
+
 [dlm/journal.c]
   fn static round_up_sector(uint32_t bytes) -> uint32_t
     called_by: compute_entry_size
   fn static slot_offset(struct mxfs_journal_ctx *ctx, int slot) -> uint64_t
-    called_by: caw_purge_dead_nodes_body, caw_repair_slot, caw_slot, caw_watch_armed, mxfs_dlm_caw_footprint_scan, mxfs_journal_replay, mxfs_journal_slot_open, scan_disk_for_node_slot
+    called_by: caw_purge_dead_nodes_body, caw_repair_slot, caw_slot_ex, caw_watch_armed, mxfs_dlm_caw_footprint_scan, mxfs_journal_replay, mxfs_journal_slot_open, scan_disk_for_node_slot
   fn static sector_crc(const void *buf, size_t crc_offset) -> uint32_t
     calls: mxfs_pal_crc32c
     called_by: flush_slot_header, mxfs_journal_format, mxfs_journal_open, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty, mxfs_journal_slot_open
@@ -1416,7 +2307,7 @@
     called_by: closure_read_gate_sector, find_lock_slot, mxfs_disklock_purge_node, mxfs_disklock_read_all, mxfs_disklock_write_grant, mxfs_journal_open, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty, mxfs_journal_slot_open, read_entry_at, scan_disk_for_node_slot, validate_lockstate
   fn static write_sector(mxfs_bdev_t *dev, uint64_t offset, const void *buf) -> int
     calls: mxfs_pal_bdev_write
-    called_by: flush_slot_header, mxfs_disklock_clear_grant, mxfs_disklock_write_grant, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty, purge_cas_zero
+    called_by: flush_slot_header, mxfs_disklock_clear_grant, mxfs_disklock_write_grant, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_slot_mark_clean, mxfs_journal_slot_mark_dirty
   fn static entry_sector_offset(struct mxfs_journal_ctx *ctx, uint32_t rel_sector) -> uint64_t
     called_by: mxfs_journal_txn_commit, read_entry_at
   fn static advance_sector(struct mxfs_journal_ctx *ctx, uint32_t pos, uint32_t count) -> uint32_t
@@ -1607,7 +2498,7 @@
     called_by: discovery_peer_cb, peer_connect_cb, v5_discovery_peer_cb, v5_peer_connect_cb_tcp
   fn mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id) -> int
     calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: mxfs_v5_dlm_recovery_complete, purge_node_dlm, remove_node, v5_clean_depart_cb, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_tcp_declare_dead
+    called_by: mxfs_v5_dlm_recovery_refused, purge_node_dlm, remove_node, v5_clean_depart_cb, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_recovery_complete_ladder, v5_tcp_declare_dead
   fn mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id, mxfs_epoch_t epoch) -> int
     calls: lease_find, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
     called_by: mxfs_lease_udp_recv_fn
@@ -1616,9 +2507,10 @@
     called_by: discovery_peer_cb, v5_discovery_peer_cb, v5_peer_connect_cb_tcp, v5_peer_disconnect_cb_tcp
   fn mxfs_lease_is_valid(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id) -> bool
     calls: lease_find, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: v5_node_live_cb
   fn mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx, mxfs_node_id_t *out, int max_count) -> int
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
-    called_by: membership_stab_worker_fn, mxfs_v5_dlm_init, queue_membership_update, v5_membership_beacon_caw, v5_refresh_active_nodes, v5_tcp_death_worker_fn
+    called_by: membership_stab_worker_fn, mxfs_v5_dlm_init, queue_membership_update, v5_membership_beacon_caw, v5_pr_fence_dead_node_rc, v5_refresh_active_nodes, v5_tcp_death_worker_fn
   fn mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx, mxfs_lease_expire_cb cb, void *data) -> void
     called_by: mxfs_mount, mxfs_v5_dlm_init
 
@@ -1634,14 +2526,15 @@
   fn mxfs_lease_register_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id) -> int
     called_by: discovery_peer_cb, peer_connect_cb, v5_discovery_peer_cb, v5_peer_connect_cb_tcp
   fn mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id) -> int
-    called_by: mxfs_v5_dlm_recovery_complete, purge_node_dlm, remove_node, v5_clean_depart_cb, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_tcp_declare_dead
+    called_by: mxfs_v5_dlm_recovery_refused, purge_node_dlm, remove_node, v5_clean_depart_cb, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_recovery_complete_ladder, v5_tcp_declare_dead
   fn mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id, mxfs_epoch_t epoch) -> int
     called_by: mxfs_lease_udp_recv_fn
   fn mxfs_lease_is_valid(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id) -> bool
+    called_by: v5_node_live_cb
   fn mxfs_lease_has_node(struct mxfs_lease_ctx *ctx, mxfs_node_id_t node_id) -> bool
     called_by: discovery_peer_cb, v5_discovery_peer_cb, v5_peer_connect_cb_tcp, v5_peer_disconnect_cb_tcp
   fn mxfs_lease_get_active_nodes(struct mxfs_lease_ctx *ctx, mxfs_node_id_t *out, int max_count) -> int
-    called_by: membership_stab_worker_fn, mxfs_v5_dlm_init, queue_membership_update, v5_membership_beacon_caw, v5_refresh_active_nodes, v5_tcp_death_worker_fn
+    called_by: membership_stab_worker_fn, mxfs_v5_dlm_init, queue_membership_update, v5_membership_beacon_caw, v5_pr_fence_dead_node_rc, v5_refresh_active_nodes, v5_tcp_death_worker_fn
   fn mxfs_lease_set_expire_cb(struct mxfs_lease_ctx *ctx, mxfs_lease_expire_cb cb, void *data) -> void
     called_by: mxfs_mount, mxfs_v5_dlm_init
   struct mxfs_lease_udp_msg { magic, version, pad, node_id, volume_uuid, lease_duration_ms, view_count, pad2, view_hash }
@@ -1678,7 +2571,7 @@
   fn static dlm_send_cb(struct mxfs_dlm_ctx *ctx, mxfs_node_id_t target, const void *msg, size_t len) -> int
     calls: mxfs_peer_send
   fn static peer_msg_cb(void *data, mxfs_node_id_t sender, void *msg, size_t len) -> void
-    calls: mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_pal_log, queue_bast_to_worker, remove_node
+    calls: mxfs_dlm_process_release_ack, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_pal_log, queue_bast_to_worker, remove_node
   fn static check_tcp_scale_warning(struct mxfs_mount *mnt) -> void
     calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: discovery_peer_cb, peer_connect_cb
@@ -1720,7 +2613,7 @@
   fn static dlm_convert_caw_wrapper(void *ctx, const struct mxfs_resource_id *resource, uint8_t new_mode) -> int
     calls: mxfs_dlm_caw_convert
   fn static cache_flush_worker_fn(void *arg) -> void
-    calls: mxfs_pal_cond_timedwait, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    calls: blocks, entries, mxfs_pal_cond_timedwait, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
   fn static dlm_membership_cb(struct mxfs_dlm_ctx *ctx) -> void
     calls: mxfs_pal_cond_signal, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
   fn mxfs_mount(const struct mxfs_mount_opts *opts, struct mxfs_mount **mnt_out) -> int
@@ -1751,7 +2644,7 @@
   fn mxfs_trim_eof_blocks(struct mxfs_mount *mnt, uint64_t ino) -> int
     calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log
   fn mxfs_fsync(struct mxfs_mount *mnt, uint64_t ino) -> int
-    calls: mxfs_journal_flush, mxfs_pal_bdev_flush, mxfs_write_direct
+    calls: blocks, mxfs_journal_flush, mxfs_pal_bdev_flush, mxfs_write_direct
   fn static fallocate_prealloc(struct mxfs_mount *mnt, struct mxfs_cached_inode *ci, uint64_t offset, uint64_t len, bool keep_size) -> int
     calls: mxfs_pal_log, mxfs_pal_time_real_sec
     called_by: mxfs_fallocate
@@ -1808,7 +2701,7 @@
   fn mxfs_update_inode_size(struct mxfs_mount *mnt, uint64_t ino, uint64_t new_size) -> int
     calls: mxfs_pal_log
   fn mxfs_alloc_file_block(struct mxfs_mount *mnt, uint64_t ino, uint64_t logical_block, uint64_t *phys_block_out) -> int
-    calls: mxfs_pal_log
+    calls: blocks, mxfs_pal_log
   fn mxfs_seek_data(struct mxfs_mount *mnt, uint64_t ino, int64_t offset) -> int64_t
     calls: extents
   fn mxfs_seek_hole(struct mxfs_mount *mnt, uint64_t ino, int64_t offset) -> int64_t
@@ -2578,7 +3471,7 @@
     calls: log_slot, net2_shard_append
     called_by: net2_lock_leader_validate
   fn static shard_become_leader(struct net2_lockspace *ls, struct net2_shard *sh) -> void
-    calls: net2_shard_append
+    calls: entries, net2_shard_append
     called_by: shard_rx_vote, shard_solicit_votes
   fn static shard_solicit_votes(struct net2_lockspace *ls, struct net2_shard *sh) -> void
     calls: ls_prng, mxfs_pal_time_ms, net2_ls_stat_bump, net2_shard_send, quorum_of, shard_become_leader
@@ -2767,7 +3660,7 @@
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_peer_shutdown(struct mxfs_peer_ctx *ctx) -> void
     calls: first, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_destroy, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_tcp_close, mxfs_pal_tcp_recv, mxfs_pal_tcp_shutdown, mxfs_pal_thread_join
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, v5_depart_worker_stop, v5_tcp_transport_unwind
   fn mxfs_peer_add(struct mxfs_peer_ctx *ctx, mxfs_node_id_t node_id, const uint8_t *uuid, const char *host, uint16_t port) -> int
     calls: mxfs_pal_log, mxfs_pal_mutex_create, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: discovery_peer_cb, v5_discovery_peer_cb
@@ -2804,7 +3697,7 @@
   fn mxfs_peer_start(struct mxfs_peer_ctx *ctx) -> int
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_peer_shutdown(struct mxfs_peer_ctx *ctx) -> void
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, v5_depart_worker_stop, v5_tcp_transport_unwind
   fn mxfs_peer_add(struct mxfs_peer_ctx *ctx, mxfs_node_id_t node_id, const uint8_t *uuid, const char *host, uint16_t port) -> int
     called_by: discovery_peer_cb, v5_discovery_peer_cb
   fn mxfs_peer_connect(struct mxfs_peer_ctx *ctx, mxfs_node_id_t node_id) -> int
@@ -2831,76 +3724,387 @@
   typedef_fn mxfs_peer_connect_cb
   struct mxfs_peer_ctx { peers, peer_count, listen_sock, accept_thread, local_node_id, local_node_uuid, local_port, local_volume_id, running, peer_lock }
 
+[dlm/prledger.c]
+  fn mxfs_prledger_state_name(uint16_t state) -> const char
+    called_by: prl_entry_ours, prl_own_transition
+  fn mxfs_prledger_entry_crc(const struct mxfs_prledger_entry *e, uint32_t idx) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: prl_cas
+  fn mxfs_prledger_entry_valid(const struct mxfs_prledger_entry *e, uint32_t idx) -> bool
+    called_by: mxfs_prledger_find_by_key, mxfs_prledger_find_successor, mxfs_prledger_key_of_node, mxfs_prledger_mark_fenced, mxfs_prledger_publish, prl_entry_ours, prl_own_transition
+  fn static prl_entry_owned(const struct mxfs_prledger_entry *e) -> bool
+    calls: mxfs_pal_log
+    called_by: mxfs_prledger_find_by_key, mxfs_prledger_key_of_node, mxfs_prledger_mark_fenced, mxfs_prledger_publish
+  fn static prl_entry_ours(const struct mxfs_prledger *l, const struct mxfs_prledger_entry *e) -> bool
+    calls: mxfs_pal_log, mxfs_prledger_entry_valid, mxfs_prledger_state_name
+    called_by: prl_own_transition
+  fn static prl_off(const struct mxfs_prledger *l, uint32_t idx) -> uint64_t
+    called_by: prl_cas
+  fn static prl_read(struct mxfs_prledger *l, uint32_t idx, struct mxfs_prledger_entry *e) -> int
+    called_by: mxfs_prledger_find_by_key, mxfs_prledger_find_successor, mxfs_prledger_key_of_node, mxfs_prledger_mark_fenced, mxfs_prledger_publish, prl_own_transition
+  fn static prl_cas(struct mxfs_prledger *l, uint32_t idx, const struct mxfs_prledger_entry *cur, struct mxfs_prledger_entry *want) -> int
+    calls: mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_write_fua, mxfs_pal_time_ms, mxfs_prledger_entry_crc, prl_off
+    called_by: mxfs_prledger_mark_fenced, mxfs_prledger_publish, prl_own_transition
+  fn mxfs_prledger_open(mxfs_bdev_t *dev, uint64_t offset, uint64_t size, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], uint32_t host_src, const uint8_t fs_uuid[16]) -> struct mxfs_prledger
+  fn mxfs_prledger_close(struct mxfs_prledger *l) -> void
+    calls: mxfs_pal_free, mxfs_pal_mutex_destroy
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_prledger_derive_key(const uint8_t host_uuid[16], const uint8_t boot_uuid[16], const uint8_t fs_uuid[16]) -> uint64_t
+    calls: mxfs_pal_crc32c
+  fn mxfs_prledger_publish(struct mxfs_prledger *l, uint32_t node_id, bool nexus_reused, const struct mxfs_prledger_succ *succ) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_prledger_entry_valid, mxfs_prledger_set_registered, prl_cas, prl_entry_owned, prl_read
+    called_by: mxfs_v5_dlm_init
+  fn static prl_own_transition(struct mxfs_prledger *l, uint16_t state, uint32_t node_id, const char *tag) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_prledger_entry_valid, mxfs_prledger_state_name, prl_cas, prl_entry_ours, prl_read
+    called_by: mxfs_prledger_set_registered, mxfs_prledger_set_retired
+  fn mxfs_prledger_set_registered(struct mxfs_prledger *l, uint32_t node_id) -> int
+    calls: prl_own_transition
+    called_by: mxfs_prledger_publish
+  fn mxfs_prledger_set_retired(struct mxfs_prledger *l) -> int
+    calls: prl_own_transition
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_prledger_mark_fenced(struct mxfs_prledger *l, uint64_t victim_key, uint32_t fencer_node) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_prledger_entry_valid, prl_cas, prl_entry_owned, prl_read
+    called_by: v5_boot_fence_registrant, v5_boot_tk_fence_key
+  fn mxfs_prledger_find_by_key(struct mxfs_prledger *l, uint64_t key, struct mxfs_prledger_entry *out) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_prledger_entry_valid, prl_entry_owned, prl_read
+    called_by: v5_boot_tk_fence_key
+  fn mxfs_prledger_key_of_node(struct mxfs_prledger *l, uint32_t node_id) -> uint64_t
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_prledger_entry_valid, prl_entry_owned, prl_read
+    called_by: v5_prkey_of_node
+  fn mxfs_prledger_find_successor(struct mxfs_prledger *l, uint64_t old_key, const uint8_t old_boot[16], const uint8_t victim_host[16], uint64_t *new_key, uint32_t *new_node) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_prledger_entry_valid, prl_read
+    called_by: v5_self_succession_consume
+
+[dlm/prledger.h]
+  fn mxfs_prledger_open(mxfs_bdev_t *dev, uint64_t offset, uint64_t size, const uint8_t host_uuid[16], const uint8_t boot_uuid[16], uint32_t host_src, const uint8_t fs_uuid[16]) -> struct mxfs_prledger
+  fn mxfs_prledger_close(struct mxfs_prledger *l) -> void
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_prledger_derive_key(const uint8_t host_uuid[16], const uint8_t boot_uuid[16], const uint8_t fs_uuid[16]) -> uint64_t
+  fn mxfs_prledger_publish(struct mxfs_prledger *l, uint32_t node_id, bool nexus_reused, const struct mxfs_prledger_succ *succ) -> int
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_prledger_find_successor(struct mxfs_prledger *l, uint64_t old_key, const uint8_t old_boot[16], const uint8_t victim_host[16], uint64_t *new_key, uint32_t *new_node) -> int
+    called_by: v5_self_succession_consume
+  fn mxfs_prledger_set_registered(struct mxfs_prledger *l, uint32_t node_id) -> int
+    called_by: mxfs_prledger_publish
+  fn mxfs_prledger_set_retired(struct mxfs_prledger *l) -> int
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_prledger_mark_fenced(struct mxfs_prledger *l, uint64_t victim_key, uint32_t fencer_node) -> int
+    called_by: v5_boot_fence_registrant, v5_boot_tk_fence_key
+  fn mxfs_prledger_key_of_node(struct mxfs_prledger *l, uint32_t node_id) -> uint64_t
+    called_by: v5_prkey_of_node
+  fn mxfs_prledger_find_by_key(struct mxfs_prledger *l, uint64_t key, struct mxfs_prledger_entry *out) -> int
+    called_by: v5_boot_tk_fence_key
+  fn mxfs_prledger_entry_crc(const struct mxfs_prledger_entry *e, uint32_t idx) -> uint32_t
+    called_by: prl_cas
+  fn mxfs_prledger_entry_valid(const struct mxfs_prledger_entry *e, uint32_t idx) -> bool
+    called_by: mxfs_prledger_find_by_key, mxfs_prledger_find_successor, mxfs_prledger_key_of_node, mxfs_prledger_mark_fenced, mxfs_prledger_publish, prl_entry_ours, prl_own_transition
+  fn mxfs_prledger_state_name(uint16_t state) -> const char
+    called_by: prl_entry_ours, prl_own_transition
+  struct mxfs_prledger_entry { magic, ver, state, key_gen, node_id, pr_key, host_uuid, boot_uuid, fs_uuid, stamp_ms }
+  struct mxfs_prledger_succ { old_key, old_key_gen, old_boot }
+  struct mxfs_prledger { dev, offset, entries, lock, own_idx, own, host_uuid, boot_uuid, fs_uuid, host_src }
+
+[dlm/recov_obl.c]
+  fn static obl_ext_cmp(const void *pa, const void *pb) -> int
+  fn mxfs_recov_obl_canonicalize(struct mxfs_recov_obl_ext *ext, uint32_t n, const struct mxfs_recov_obl_geom *geom, uint64_t *ag_mask, bool *fswide) -> int
+    called_by: mxfs_recov_obl_list_check
+  fn mxfs_recov_obl_list_crc(const struct mxfs_recov_obl_ext *ext, uint32_t n) -> uint32_t
+    called_by: mxfs_recov_obl_list_check
+  fn mxfs_recov_obl_rec_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const struct mxfs_recov_obl *rec) -> uint32_t
+    calls: mxfs_pal_crc32c
+    called_by: mxfs_recov_obl_rec_check
+  fn mxfs_rman_obl_hdr_crc(const struct mxfs_rman_obl_hdr *h) -> uint32_t
+    calls: mxfs_pal_crc32c
+  fn static obl_all_zero(const void *p, size_t len) -> bool
+    called_by: mxfs_recov_obl_rec_check
+  fn mxfs_recov_obl_rec_check(const struct mxfs_recov_obl *rec, uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const char **why) -> int
+    calls: mxfs_recov_obl_rec_crc, obl_all_zero
+    called_by: mxfs_disklock_recovery_read_obl
+  fn mxfs_rman_obl_hdr_check(const struct mxfs_rman_obl_hdr *h, const struct mxfs_recov_obl *rec, uint32_t victim_node, uint64_t victim_epoch, uint32_t victim_fs_gen, uint16_t victim_slot, uint64_t recovery_gen, const char **why) -> int
+    called_by: mxfs_disklock_recovery_read_obl
+  fn mxfs_recov_obl_list_check(struct mxfs_recov_obl_ext *ext, uint32_t n, const struct mxfs_rman_obl_hdr *h, const struct mxfs_recov_obl *rec, const char **why) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_recov_obl_canonicalize, mxfs_recov_obl_list_crc
+    called_by: mxfs_disklock_recovery_read_obl
+
+[dlm/recov_obl.h]
+  fn mxfs_recov_obl_canonicalize(struct mxfs_recov_obl_ext *ext, uint32_t n, const struct mxfs_recov_obl_geom *geom, uint64_t *ag_mask, bool *fswide) -> int
+    called_by: mxfs_recov_obl_list_check
+  fn mxfs_recov_obl_list_crc(const struct mxfs_recov_obl_ext *ext, uint32_t n) -> uint32_t
+    called_by: mxfs_recov_obl_list_check
+  fn mxfs_recov_obl_rec_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const struct mxfs_recov_obl *rec) -> uint32_t
+    called_by: mxfs_recov_obl_rec_check
+  fn mxfs_rman_obl_hdr_crc(const struct mxfs_rman_obl_hdr *h) -> uint32_t
+  fn mxfs_recov_obl_rec_check(const struct mxfs_recov_obl *rec, uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const char **why) -> int
+    called_by: mxfs_disklock_recovery_read_obl
+  fn mxfs_rman_obl_hdr_check(const struct mxfs_rman_obl_hdr *h, const struct mxfs_recov_obl *rec, uint32_t victim_node, uint64_t victim_epoch, uint32_t victim_fs_gen, uint16_t victim_slot, uint64_t recovery_gen, const char **why) -> int
+    called_by: mxfs_disklock_recovery_read_obl
+  fn mxfs_recov_obl_list_check(struct mxfs_recov_obl_ext *ext, uint32_t n, const struct mxfs_rman_obl_hdr *h, const struct mxfs_recov_obl *rec, const char **why) -> int
+    called_by: mxfs_disklock_recovery_read_obl
+  struct mxfs_recov_obl { magic, version, flags, obl_ag_mask, count, list_crc32c, census_digest, pub_seq, crc32c }
+  struct mxfs_recov_obl_ext { fsbno, agno, len }
+  struct mxfs_rman_obl_hdr { magic, version, flags, seq, recovery_gen, victim_epoch, victim_node, victim_fs_gen, victim_slot, slice_idx }
+  struct mxfs_recov_obl_geom { agcount, agblocks, agblklog }
+
+[dlm/recov_obl_done.c]
+  fn static done_all_zero(const void *p, size_t len) -> bool
+  fn mxfs_rman_obl_rcpt_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const struct mxfs_rman_obl_rcpt *r) -> uint32_t
+    calls: mxfs_pal_crc32c
+  fn mxfs_rman_obl_rcpt_check(const struct mxfs_rman_obl_rcpt *r, uint32_t fs_gen, uint32_t node_id, uint64_t epoch, uint64_t recovery_gen, uint32_t pub_seq, uint32_t agno, const char **why) -> int
+  fn mxfs_rman_obl_rcpt_digest(const struct mxfs_rman_obl_rcpt *tab, uint64_t ag_mask) -> uint64_t
+    calls: mxfs_pal_crc32c
+  fn mxfs_rman_obl_done_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const struct mxfs_rman_obl_done *p) -> uint32_t
+    calls: mxfs_pal_crc32c
+  fn static done_popcount(const uint8_t *b, size_t len) -> uint32_t
+  fn mxfs_rman_obl_done_check(const struct mxfs_rman_obl_done *p, const struct mxfs_recov_obl *rec, const struct mxfs_rman_obl_hdr *hdr, uint32_t fs_gen, uint32_t node_id, uint64_t epoch, uint32_t rman_slot, uint64_t recovery_gen, const char **why) -> int
+  struct obl_done_ident { fs_gen, node_id, epoch }
+
+[dlm/recov_obl_done.h]
+  fn mxfs_rman_obl_rcpt_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const struct mxfs_rman_obl_rcpt *r) -> uint32_t
+  fn mxfs_rman_obl_rcpt_check(const struct mxfs_rman_obl_rcpt *r, uint32_t fs_gen, uint32_t node_id, uint64_t epoch, uint64_t recovery_gen, uint32_t pub_seq, uint32_t agno, const char **why) -> int
+  fn mxfs_rman_obl_rcpt_digest(const struct mxfs_rman_obl_rcpt *tab, uint64_t ag_mask) -> uint64_t
+  fn mxfs_rman_obl_done_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const struct mxfs_rman_obl_done *p) -> uint32_t
+  fn mxfs_rman_obl_done_check(const struct mxfs_rman_obl_done *p, const struct mxfs_recov_obl *rec, const struct mxfs_rman_obl_hdr *hdr, uint32_t fs_gen, uint32_t node_id, uint64_t epoch, uint32_t rman_slot, uint64_t recovery_gen, const char **why) -> int
+  struct mxfs_rman_obl_rcpt { magic, version, agno, recovery_gen, victim_epoch, victim_node, victim_fs_gen, pub_seq, seq, from_slot }
+  struct mxfs_rman_obl_done { magic, version, flags, length, rman_slot, recovery_gen, victim_epoch, victim_node, victim_fs_gen, fs_uuid }
+
 [dlm/scsipr.c]
-  fn mxfs_scsipr_create(mxfs_bdev_t *dev, const char *dev_name, mxfs_node_id_t node_id) -> struct mxfs_scsipr_ctx
-    calls: mxfs_pal_alloc, mxfs_pal_log
+  fn static scsipr_free_now(struct mxfs_scsipr_ctx *ctx) -> void
+    calls: mxfs_pal_free, mxfs_pal_module_unpin, mxfs_pal_mutex_destroy
+    called_by: mxfs_scsipr_quarantine_reap, scsipr_free
+  fn static scsipr_free(struct mxfs_scsipr_ctx *ctx) -> void
+    calls: mxfs_scsipr_probe_stop, scsipr_free_now
+    called_by: mxfs_scsipr_abandon, mxfs_scsipr_destroy
+  fn mxfs_scsipr_departure_init(void) -> int
+    calls: mxfs_pal_mutex_create
+    called_by: mxfs_v5_dlm_global_init
+  fn mxfs_scsipr_departure_exit(void) -> void
+    calls: mxfs_pal_mutex_destroy
+    called_by: mxfs_v5_dlm_global_exit
+  fn mxfs_scsipr_departure_held(void) -> bool
+    calls: mxfs_pal_current_pid, mxfs_pal_log
+    called_by: mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_settle_absent, scsipr_answerable, scsipr_dep_enter, v5_disklock_settle_absent
+  fn mxfs_scsipr_departure_lock(void) -> void
+    calls: mxfs_pal_current_pid, mxfs_pal_flag_set, mxfs_pal_mutex_lock, mxfs_scsipr_departure_held
+    called_by: mxfs_v5_dlm_departure_lock, scsipr_dep_enter, v5_disklock_settle_absent
+  fn mxfs_scsipr_departure_trylock(void) -> int
+    calls: mxfs_pal_current_pid, mxfs_pal_flag_set, mxfs_pal_mutex_trylock, mxfs_scsipr_departure_held
+    called_by: v5_retire_worker_fn
+  fn mxfs_scsipr_departure_unlock(void) -> void
+    calls: mxfs_pal_current_pid, mxfs_pal_flag_get, mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_mutex_unlock, mxfs_scsipr_departure_held
+    called_by: mxfs_scsipr_gate_restore, mxfs_scsipr_preempt, mxfs_scsipr_register, mxfs_scsipr_register_succeed, mxfs_scsipr_reserve, mxfs_scsipr_unregister, mxfs_v5_dlm_departure_unlock, v5_disklock_settle_absent, v5_retire_worker_fn
+  fn static scsipr_dep_enter(struct mxfs_scsipr_ctx *ctx, const char *op) -> void
+    calls: mxfs_pal_current_pid, mxfs_pal_log, mxfs_scsipr_departure_held, mxfs_scsipr_departure_lock
+    called_by: mxfs_scsipr_gate_restore, mxfs_scsipr_preempt, mxfs_scsipr_register, mxfs_scsipr_register_succeed, mxfs_scsipr_reserve, mxfs_scsipr_unregister
+  fn mxfs_scsipr_register(struct mxfs_scsipr_ctx *ctx, bool replace_predecessor) -> int
+    calls: mxfs_scsipr_departure_unlock, scsipr_dep_enter, scsipr_register_locked
     called_by: mxfs_mount, mxfs_v5_dlm_init
+  fn mxfs_scsipr_register_succeed(struct mxfs_scsipr_ctx *ctx, uint64_t old_key) -> int
+    calls: mxfs_scsipr_departure_unlock, scsipr_dep_enter, scsipr_register_succeed_locked
+    called_by: v5_self_succeed
+  fn mxfs_scsipr_reserve(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_scsipr_departure_unlock, scsipr_dep_enter, scsipr_reserve_locked
+    called_by: mxfs_mount, mxfs_v5_dlm_init
+  fn mxfs_scsipr_preempt(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, bool abort) -> int
+    calls: mxfs_scsipr_departure_unlock, scsipr_dep_enter, scsipr_preempt_locked
+    called_by: disklock_expire_cb, lease_expire_cb, peer_disconnect_cb
+  fn mxfs_scsipr_unregister(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_scsipr_departure_unlock, scsipr_dep_enter, scsipr_unregister_locked
+    called_by: mxfs_mount, mxfs_scsipr_destroy, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_scsipr_create(mxfs_bdev_t *dev, const char *dev_name, uint64_t local_key) -> struct mxfs_scsipr_ctx
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_create, mxfs_pal_mutex_destroy
+    called_by: mxfs_mount
   fn mxfs_scsipr_destroy(struct mxfs_scsipr_ctx *ctx) -> void
-    calls: mxfs_pal_free, mxfs_pal_log, mxfs_scsipr_unregister
+    calls: mxfs_pal_log, mxfs_scsipr_unregister, scsipr_free
     called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_scsipr_key(struct mxfs_scsipr_ctx *ctx) -> uint64_t
-    called_by: mxfs_v5_dlm_detach_pr_key
+    called_by: mxfs_v5_dlm_detach_pr_key, mxfs_v5_dlm_shutdown_defer_release, v5_p305_settle_retire_pending
+  fn mxfs_scsipr_set_key(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> int
   fn mxfs_scsipr_abandon(struct mxfs_scsipr_ctx *ctx) -> void
-    calls: mxfs_pal_free, mxfs_pal_log
-    called_by: mxfs_v5_dlm_detach_pr_key
-  fn mxfs_scsipr_register(struct mxfs_scsipr_ctx *ctx) -> int
-    calls: mxfs_pal_log, mxfs_pal_scsi_pr_register
-    called_by: mxfs_mount, mxfs_v5_dlm_init
-  fn mxfs_scsipr_reserve(struct mxfs_scsipr_ctx *ctx) -> int
-    calls: mxfs_pal_log, mxfs_pal_scsi_pr_reserve, mxfs_scsipr_read_reservation
-    called_by: mxfs_mount, mxfs_v5_dlm_init
+    calls: mxfs_pal_log, scsipr_free
+    called_by: mxfs_v5_dlm_detach_pr_key, v5_quarantine_free
+  fn static scsipr_register_locked(struct mxfs_scsipr_ctx *ctx, bool replace_predecessor) -> int
+    calls: key, mxfs_pal_log, mxfs_pal_scsi_pr_register, mxfs_pal_scsi_pr_register_replace, mxfs_pal_scsi_pr_register_swap, mxfs_scsipr_snap_invalidate, scsipr_verify_registered
+    called_by: mxfs_scsipr_register
+  fn static scsipr_verify_registered(struct mxfs_scsipr_ctx *ctx) -> int
+    called_by: scsipr_register_locked, scsipr_register_succeed_locked
+  fn static scsipr_register_succeed_locked(struct mxfs_scsipr_ctx *ctx, uint64_t old_key) -> int
+    calls: key, mxfs_pal_log, mxfs_pal_scsi_pr_register_swap, mxfs_scsipr_snap_invalidate, scsipr_verify_registered
+    called_by: mxfs_scsipr_register_succeed
+  fn mxfs_scsipr_nexus_reused(struct mxfs_scsipr_ctx *ctx) -> bool
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_scsipr_retain_key(struct mxfs_scsipr_ctx *ctx) -> void
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_init, v5_bootstrap_run, v5_bootstrap_unwind
+  fn mxfs_scsipr_key_present(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> bool
+    calls: mxfs_scsipr_probe_keys
+    called_by: v5_boot_fence_registrant, v5_boot_tk_fence_key, v5_prkey_present_cb
+  fn static scsipr_read_keys_complete(struct mxfs_scsipr_ctx *ctx, uint64_t *keys, int *n, uint32_t *gen, const char *leg) -> int
+    calls: mxfs_pal_log, mxfs_scsipr_read_keys
+    called_by: scsipr_bracket_run
+  fn static scsipr_keys_contain(const uint64_t *keys, int n, uint64_t key) -> bool
+    called_by: mxfs_scsipr_settle_absent, scsipr_answer, scsipr_bracket_run
+  fn static scsipr_bracket_run(struct mxfs_scsipr_ctx *ctx, struct scsipr_view *v) -> int
+    calls: mxfs_pal_dbg_pr_bracket_fail_take, mxfs_scsipr_read_reservation, scsipr_keys_contain, scsipr_read_keys_complete
+    called_by: mxfs_scsipr_settle_absent, scsipr_bracket_and_commit
+  fn static scsipr_bracket_and_commit(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, scsipr_bracket_run
+    called_by: mxfs_scsipr_key_state_sync, mxfs_scsipr_own_registration_proven, scsipr_probe_fn
+  fn static scsipr_absent_consumed(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> bool
+    called_by: scsipr_answer
+  fn static scsipr_answer(struct mxfs_scsipr_ctx *ctx, uint64_t key, const char **why) -> int
+    calls: mxfs_pal_log, mxfs_pal_time_ms, scsipr_absent_consumed, scsipr_keys_contain
+    called_by: mxfs_scsipr_key_state, mxfs_scsipr_key_state_sync
+  fn static scsipr_answerable(const struct mxfs_scsipr_ctx *ctx, uint64_t key) -> bool
+    calls: mxfs_pal_current_pid, mxfs_pal_log, mxfs_scsipr_departure_held
+    called_by: mxfs_scsipr_key_state, mxfs_scsipr_key_state_sync, mxfs_scsipr_settle_absent
+  fn mxfs_scsipr_key_state(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> int
+    calls: mxfs_pal_flag_set, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, scsipr_answer, scsipr_answerable
+    called_by: v5_disklock_key_state
+  fn mxfs_scsipr_key_state_sync(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> int
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, scsipr_answer, scsipr_answerable, scsipr_bracket_and_commit
+    called_by: v5_disklock_key_state_sync
+  fn mxfs_scsipr_own_registration_proven(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, scsipr_bracket_and_commit
+    called_by: v5_p305_settle_retire_pending
+  fn mxfs_scsipr_snap_invalidate(struct mxfs_scsipr_ctx *ctx, const char *why) -> void
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_gate_restore, mxfs_scsipr_settle_absent, scsipr_preempt_locked, scsipr_register_locked, scsipr_register_succeed_locked, scsipr_reserve_locked, scsipr_unregister_locked, v5_resv_conflict_cb
+  fn static scsipr_probe_fn(void *arg) -> void
+    calls: mxfs_pal_dbg_probe_hang_take, mxfs_pal_flag_get, mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_sleep_ms_interruptible, mxfs_pal_time_ms, scsipr_bracket_and_commit
+  fn mxfs_scsipr_probe_start(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_pal_flag_set, mxfs_pal_log, mxfs_scsipr_quarantine_reap
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_scsipr_probe_stop(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: ms, mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_module_pin, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_thread_join_timeout, mxfs_pal_thread_pid
+    called_by: mxfs_v5_dlm_detach_pr_key, scsipr_free
+  fn mxfs_scsipr_quarantine_active(void) -> bool
+    calls: mxfs_pal_flag_get, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_scsipr_quarantine_reap(void) -> int
+    calls: mxfs_pal_flag_get, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_thread_join, scsipr_free_now
+    called_by: mxfs_scsipr_probe_start, mxfs_v5_dlm_init
+  fn static scsipr_proof_mint(struct mxfs_scsipr_ctx *ctx, uint64_t key, uint64_t *token) -> int
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_scsipr_proof_consume(struct mxfs_scsipr_ctx *ctx, uint64_t token) -> int
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_retire_validate
+  fn mxfs_scsipr_settle_absent(struct mxfs_scsipr_ctx *ctx, uint64_t key, mxfs_scsipr_settle_cas_fn cas_fn, void *cas_data, enum mxfs_scsipr_settle *out) -> int
+    calls: mxfs_pal_current_pid, mxfs_pal_dbg_settle_inval_after_mint_take, mxfs_pal_dbg_settle_pause_ms, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, mxfs_scsipr_departure_held, mxfs_scsipr_snap_invalidate, scsipr_answerable, scsipr_bracket_run, scsipr_keys_contain, scsipr_proof_mint
+    called_by: v5_retire_settle_run
+  fn static scsipr_reserve_locked(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_pal_log, mxfs_pal_scsi_pr_reserve, mxfs_scsipr_read_reservation, mxfs_scsipr_snap_invalidate
+    called_by: mxfs_scsipr_reserve
   fn mxfs_scsipr_observe_reservation(struct mxfs_scsipr_ctx *ctx, struct mxfs_pal_pr_reservation *out) -> int
     calls: mxfs_pal_log, mxfs_scsipr_read_reservation
     called_by: mxfs_mount, mxfs_scsipr_validate_admission, mxfs_v5_dlm_init
   fn mxfs_scsipr_read_reservation(struct mxfs_scsipr_ctx *ctx, struct mxfs_pal_pr_reservation *out) -> int
-    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_exclusion_holds, mxfs_scsipr_observe_reservation, mxfs_scsipr_reserve, mxfs_scsipr_validate_admission
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_exclusion_holds, mxfs_scsipr_gate_holds, mxfs_scsipr_gate_restore, mxfs_scsipr_observe_reservation, mxfs_scsipr_validate_admission, scsipr_bracket_run, scsipr_reserve_locked
   fn mxfs_scsipr_check_reservation_health(struct mxfs_scsipr_ctx *ctx, bool repair, uint32_t *out_gen, int *out_count) -> int
-    calls: mxfs_pal_scsi_pr_reserve, mxfs_scsipr_probe_keys, mxfs_scsipr_read_reservation
+    calls: mxfs_pal_scsi_pr_reserve, mxfs_scsipr_probe_keys, mxfs_scsipr_read_reservation, mxfs_scsipr_snap_invalidate
     called_by: v5_resv_health_tick
   fn mxfs_resv_health_name(int h) -> const char
     called_by: v5_resv_health_tick
   fn mxfs_fence_kind_name(enum mxfs_fence_kind k) -> const char
-    called_by: v5_exclusion_recheck, v5_fence_kind_contradicts_single_node
-  fn mxfs_scsipr_preempt(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, bool abort) -> int
-    calls: mxfs_pal_log, mxfs_pal_scsi_pr_preempt
-    called_by: disklock_expire_cb, lease_expire_cb, peer_disconnect_cb
+    called_by: mxfs_bootstrap_lineage_write, mxfs_bootstrap_reseal, mxfs_disklock_recovery_fence_seal, v5_boot_fence_registrant, v5_boot_succession_consume, v5_boot_tk_fence_key, v5_exclusion_recheck, v5_fence_kind_contradicts_single_node, v5_fence_retry_arm, v5_pr_fence_dead_node_rc
+  fn static scsipr_preempt_locked(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, bool abort) -> int
+    calls: mxfs_pal_log, mxfs_pal_scsi_pr_preempt, mxfs_scsipr_snap_invalidate
+    called_by: mxfs_scsipr_preempt
   fn static mxfs_scsipr_probe_keys(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, bool *victim_present, bool *own_present, int *count, uint32_t *generation) -> int
     calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_scsipr_read_keys
-    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_exclusion_holds, mxfs_scsipr_fenced_check, mxfs_scsipr_probe, mxfs_scsipr_self_check, mxfs_scsipr_validate_admission
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_exclusion_holds, mxfs_scsipr_fenced_check, mxfs_scsipr_gate_holds, mxfs_scsipr_key_present, mxfs_scsipr_probe, mxfs_scsipr_self_check, mxfs_scsipr_validate_admission
   fn mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx) -> int
     calls: mxfs_pal_log, mxfs_pal_scsi_pr_report_capabilities, mxfs_scsipr_observe_reservation, mxfs_scsipr_probe_keys, mxfs_scsipr_read_reservation
-    called_by: mxfs_v5_dlm_init
+    called_by: v5_fence_capability_admit
   fn mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, struct mxfs_fence_result *out) -> int
-    calls: mxfs_pal_log, mxfs_scsipr_probe_keys, mxfs_scsipr_read_reservation
+    calls: mxfs_pal_log, mxfs_pr_type_excludes_nonregistrants, mxfs_scsipr_probe_keys, mxfs_scsipr_read_reservation
+    called_by: v5_boot_succession_consume, v5_exclusion_recheck
+  fn static scsipr_gate_view(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, uint64_t *keys, int *own_n, int *other_n, bool *victim_present, uint32_t *gen) -> int
+    calls: mxfs_pal_log, mxfs_scsipr_read_keys
+    called_by: mxfs_scsipr_gate_restore
+  fn static scsipr_gate_resv_is_ours(const struct mxfs_scsipr_ctx *ctx, const struct mxfs_pal_pr_reservation *r) -> bool
+    called_by: mxfs_scsipr_gate_holds, mxfs_scsipr_gate_restore
+  fn mxfs_scsipr_gate_is_held(struct mxfs_scsipr_ctx *ctx) -> bool
+    called_by: v5_fence_retry_worker_fn, v5_recovery_complete_ladder
+  fn mxfs_scsipr_gate_holds(struct mxfs_scsipr_ctx *ctx, struct mxfs_fence_result *out) -> int
+    calls: mxfs_pal_log, mxfs_scsipr_probe_keys, mxfs_scsipr_read_reservation, scsipr_gate_resv_is_ours
     called_by: v5_exclusion_recheck
+  fn mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_reserve, mxfs_scsipr_departure_unlock, mxfs_scsipr_read_reservation, mxfs_scsipr_snap_invalidate, scsipr_dep_enter, scsipr_gate_resv_is_ours, scsipr_gate_view
+    called_by: v5_gate_restore
   fn mxfs_scsipr_self_check(struct mxfs_scsipr_ctx *ctx, int live_members) -> int
-    calls: mxfs_pal_log, mxfs_scsipr_probe_keys
+    calls: key, mxfs_pal_log, mxfs_scsipr_probe_keys
     called_by: v5_tcp_death_worker_fn
   fn mxfs_scsipr_fenced_check(struct mxfs_scsipr_ctx *ctx) -> int
-    calls: mxfs_pal_log, mxfs_pal_scsi_pr_read_full_status, mxfs_scsipr_probe_keys
+    calls: key, mxfs_pal_log, mxfs_pal_scsi_pr_read_full_status, mxfs_scsipr_probe_keys
     called_by: v5_resv_inspect_worker
   fn mxfs_scsipr_probe(struct mxfs_scsipr_ctx *ctx) -> int
-    calls: mxfs_pal_log, mxfs_scsipr_probe_keys
+    calls: key, mxfs_pal_log, mxfs_scsipr_probe_keys
     called_by: mxfs_v5_dlm_init
-  fn mxfs_scsipr_unregister(struct mxfs_scsipr_ctx *ctx) -> int
-    calls: mxfs_pal_log, mxfs_pal_scsi_pr_unregister
-    called_by: mxfs_mount, mxfs_scsipr_destroy, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn static scsipr_unregister_locked(struct mxfs_scsipr_ctx *ctx) -> int
+    calls: mxfs_pal_log, mxfs_pal_scsi_pr_unregister, mxfs_scsipr_snap_invalidate
+    called_by: mxfs_scsipr_unregister
   fn mxfs_scsipr_read_keys(struct mxfs_scsipr_ctx *ctx, uint64_t *keys, int max_keys, int *count, uint32_t *generation, int *total) -> int
     calls: mxfs_pal_log, mxfs_pal_scsi_pr_read_keys
-    called_by: mxfs_scsipr_probe_keys
+    called_by: mxfs_scsipr_probe_keys, mxfs_v5_dlm_bootstrap_finish, scsipr_gate_view, scsipr_read_keys_complete, v5_bootstrap_run
+  struct scsipr_view { state, gen, own_present, resv_ok, gen_coherent, proof, n, why }
 
 [dlm/scsipr.h]
+  fn mxfs_pr_type_excludes_nonregistrants(resv_type) -> return
+    called_by: mxfs_scsipr_exclusion_holds
+  fn mxfs_scsipr_register_succeed(struct mxfs_scsipr_ctx *ctx, uint64_t old_key) -> int
+    called_by: v5_self_succeed
   fn mxfs_fence_kind_name(enum mxfs_fence_kind k) -> const char
-    called_by: v5_exclusion_recheck, v5_fence_kind_contradicts_single_node
-  fn mxfs_scsipr_create(mxfs_bdev_t *dev, const char *dev_name, mxfs_node_id_t node_id) -> struct mxfs_scsipr_ctx
-    called_by: mxfs_mount, mxfs_v5_dlm_init
+    called_by: mxfs_bootstrap_lineage_write, mxfs_bootstrap_reseal, mxfs_disklock_recovery_fence_seal, v5_boot_fence_registrant, v5_boot_succession_consume, v5_boot_tk_fence_key, v5_exclusion_recheck, v5_fence_kind_contradicts_single_node, v5_fence_retry_arm, v5_pr_fence_dead_node_rc
+  fn mxfs_scsipr_nexus_reused(struct mxfs_scsipr_ctx *ctx) -> bool
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_scsipr_retain_key(struct mxfs_scsipr_ctx *ctx) -> void
+    called_by: mxfs_v5_dlm_init, v5_bootstrap_run, v5_bootstrap_unwind
+  fn mxfs_scsipr_create(mxfs_bdev_t *dev, const char *dev_name, uint64_t local_key) -> struct mxfs_scsipr_ctx
+    called_by: mxfs_mount
+  fn mxfs_scsipr_key_present(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> bool
+    called_by: v5_boot_fence_registrant, v5_boot_tk_fence_key, v5_prkey_present_cb
+  fn mxfs_scsipr_key_state(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> int
+    called_by: v5_disklock_key_state
+  fn mxfs_scsipr_key_state_sync(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> int
+    called_by: v5_disklock_key_state_sync
+  fn mxfs_scsipr_own_registration_proven(struct mxfs_scsipr_ctx *ctx) -> int
+    called_by: v5_p305_settle_retire_pending
+  fn mxfs_scsipr_snap_invalidate(struct mxfs_scsipr_ctx *ctx, const char *why) -> void
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_gate_restore, mxfs_scsipr_settle_absent, scsipr_preempt_locked, scsipr_register_locked, scsipr_register_succeed_locked, scsipr_reserve_locked, scsipr_unregister_locked, v5_resv_conflict_cb
+  fn mxfs_scsipr_settle_absent(struct mxfs_scsipr_ctx *ctx, uint64_t key, mxfs_scsipr_settle_cas_fn cas_fn, void *cas_data, enum mxfs_scsipr_settle *out) -> int
+    called_by: v5_retire_settle_run
+  fn mxfs_scsipr_proof_consume(struct mxfs_scsipr_ctx *ctx, uint64_t token) -> int
+    called_by: v5_retire_validate
+  fn mxfs_scsipr_departure_init(void) -> int
+    called_by: mxfs_v5_dlm_global_init
+  fn mxfs_scsipr_departure_exit(void) -> void
+    called_by: mxfs_v5_dlm_global_exit
+  fn mxfs_scsipr_departure_lock(void) -> void
+    called_by: mxfs_v5_dlm_departure_lock, scsipr_dep_enter, v5_disklock_settle_absent
+  fn mxfs_scsipr_departure_trylock(void) -> int
+    called_by: v5_retire_worker_fn
+  fn mxfs_scsipr_departure_unlock(void) -> void
+    called_by: mxfs_scsipr_gate_restore, mxfs_scsipr_preempt, mxfs_scsipr_register, mxfs_scsipr_register_succeed, mxfs_scsipr_reserve, mxfs_scsipr_unregister, mxfs_v5_dlm_departure_unlock, v5_disklock_settle_absent, v5_retire_worker_fn
+  fn mxfs_scsipr_departure_held(void) -> bool
+    called_by: mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_settle_absent, scsipr_answerable, scsipr_dep_enter, v5_disklock_settle_absent
+  fn mxfs_scsipr_probe_stop(struct mxfs_scsipr_ctx *ctx) -> int
+    called_by: mxfs_v5_dlm_detach_pr_key, scsipr_free
+  fn mxfs_scsipr_quarantine_active(void) -> bool
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_scsipr_quarantine_reap(void) -> int
+    called_by: mxfs_scsipr_probe_start, mxfs_v5_dlm_init
+  fn mxfs_scsipr_probe_start(struct mxfs_scsipr_ctx *ctx) -> int
+    called_by: mxfs_v5_dlm_init
   fn mxfs_scsipr_destroy(struct mxfs_scsipr_ctx *ctx) -> void
     called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_scsipr_key(struct mxfs_scsipr_ctx *ctx) -> uint64_t
-    called_by: mxfs_v5_dlm_detach_pr_key
+    called_by: mxfs_v5_dlm_detach_pr_key, mxfs_v5_dlm_shutdown_defer_release, v5_p305_settle_retire_pending
+  fn mxfs_scsipr_set_key(struct mxfs_scsipr_ctx *ctx, uint64_t key) -> int
   fn mxfs_scsipr_abandon(struct mxfs_scsipr_ctx *ctx) -> void
-    called_by: mxfs_v5_dlm_detach_pr_key
-  fn mxfs_scsipr_register(struct mxfs_scsipr_ctx *ctx) -> int
+    called_by: mxfs_v5_dlm_detach_pr_key, v5_quarantine_free
+  fn mxfs_scsipr_register(struct mxfs_scsipr_ctx *ctx, bool replace_predecessor) -> int
     called_by: mxfs_mount, mxfs_v5_dlm_init
   fn mxfs_scsipr_reserve(struct mxfs_scsipr_ctx *ctx) -> int
     called_by: mxfs_mount, mxfs_v5_dlm_init
@@ -2912,14 +4116,20 @@
     called_by: v5_resv_health_tick
   fn mxfs_scsipr_preempt(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, bool abort) -> int
     called_by: disklock_expire_cb, lease_expire_cb, peer_disconnect_cb
-  fn mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, struct mxfs_fence_result *out) -> int
+  fn mxfs_scsipr_gate_holds(struct mxfs_scsipr_ctx *ctx, struct mxfs_fence_result *out) -> int
     called_by: v5_exclusion_recheck
+  fn mxfs_scsipr_gate_restore(struct mxfs_scsipr_ctx *ctx) -> int
+    called_by: v5_gate_restore
+  fn mxfs_scsipr_gate_is_held(struct mxfs_scsipr_ctx *ctx) -> bool
+    called_by: v5_fence_retry_worker_fn, v5_recovery_complete_ladder
+  fn mxfs_scsipr_exclusion_holds(struct mxfs_scsipr_ctx *ctx, uint64_t victim_key, struct mxfs_fence_result *out) -> int
+    called_by: v5_boot_succession_consume, v5_exclusion_recheck
   fn mxfs_scsipr_unregister(struct mxfs_scsipr_ctx *ctx) -> int
     called_by: mxfs_mount, mxfs_scsipr_destroy, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_scsipr_read_keys(struct mxfs_scsipr_ctx *ctx, uint64_t *keys, int max_keys, int *count, uint32_t *generation, int *total) -> int
-    called_by: mxfs_scsipr_probe_keys
+    called_by: mxfs_scsipr_probe_keys, mxfs_v5_dlm_bootstrap_finish, scsipr_gate_view, scsipr_read_keys_complete, v5_bootstrap_run
   fn mxfs_scsipr_read_reservation(struct mxfs_scsipr_ctx *ctx, struct mxfs_pal_pr_reservation *out) -> int
-    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_exclusion_holds, mxfs_scsipr_observe_reservation, mxfs_scsipr_reserve, mxfs_scsipr_validate_admission
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_exclusion_holds, mxfs_scsipr_gate_holds, mxfs_scsipr_gate_restore, mxfs_scsipr_observe_reservation, mxfs_scsipr_validate_admission, scsipr_bracket_run, scsipr_reserve_locked
   fn mxfs_scsipr_self_check(struct mxfs_scsipr_ctx *ctx, int live_members) -> int
     called_by: v5_tcp_death_worker_fn
   fn mxfs_scsipr_fenced_check(struct mxfs_scsipr_ctx *ctx) -> int
@@ -2927,83 +4137,520 @@
   fn mxfs_scsipr_probe(struct mxfs_scsipr_ctx *ctx) -> int
     called_by: mxfs_v5_dlm_init
   fn mxfs_scsipr_validate_admission(struct mxfs_scsipr_ctx *ctx) -> int
-    called_by: mxfs_v5_dlm_init
-  struct mxfs_scsipr_ctx { dev, dev_name, local_key, reserved, resv_type_seen, registered, advisory_logged }
+    called_by: v5_fence_capability_admit
+  struct mxfs_scsipr_ctx { dev, dev_name, local_key, reserved, resv_type_seen, registered, nexus_reused, gate_held, snap_lock, probe_lock }
   enum mxfs_fence_kind { nothing, was, proved, replay, is, NOT, authorised, MXFS_FENCE_KIND_NONE, not, attempted }
   enum mxfs_fence_phase { No, state, changing, command, was, submitted, Safe, to, retry, a }
   struct mxfs_fence_result { kind, victim_key, pr_generation, resv_type, rc, phase }
+  enum mxfs_scsipr_key_state { MXFS_SCSIPR_KEY_ABSENT, MXFS_SCSIPR_KEY_PRESENT, MXFS_SCSIPR_KEY_UNKNOWN }
+  enum mxfs_scsipr_settle { MXFS_SCSIPR_SETTLE_UNKNOWN, no, proof, why, logged, consume, refused, MXFS_SCSIPR_SETTLE_PRESENT, key, registered }
+  enum mxfs_scsipr_cas_result { MXFS_SCSIPR_CAS_DONE, MXFS_SCSIPR_CAS_MOVED, MXFS_SCSIPR_CAS_DEFERRED }
+  typedef_fn mxfs_scsipr_settle_cas_fn
   enum mxfs_resv_health { MXFS_RESV_HEALTH_OK, the, expected, reservation, is, in, force, MXFS_RESV_HEALTH_ABSENT, NO, reservation }
 
+[dlm/tauth_ledger.c]
+  fn mxfs_tauth_ledger_hash(const struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res) -> uint32_t
+    called_by: apply_op, mxfs_tauth_ledger_home
+  fn mxfs_tauth_ledger_page(const struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res) -> uint32_t
+    calls: mxfs_pal_sleep_ms
+    called_by: mxfs_tauth_ledger_commit, mxfs_tauth_ledger_lookup, mxfs_tauth_ledger_read_fresh
+  fn mxfs_tauth_ledger_home(const struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res) -> uint32_t
+    calls: mxfs_tauth_ledger_hash
+    called_by: page_find_entry
+  fn mxfs_tauth_entry_is_res(const struct mxfs_tauth_entry *e, const struct mxfs_resource_id *res) -> bool
+    called_by: apply_op, page_find_entry
+  fn static entry_set_res(struct mxfs_tauth_entry *e, const struct mxfs_resource_id *res) -> void
+    called_by: apply_op
+  fn mxfs_tauth_entry_res(const struct mxfs_tauth_entry *e, struct mxfs_resource_id *res) -> void
+    called_by: dlm_ledger_import_page, dlm_refused_keep_entry
+  fn static mode_is_exclusive(uint8_t mode) -> bool
+    called_by: apply_op
+  fn mxfs_tauth_ledger_open(struct mxfs_tauth_ledger *l, mxfs_bdev_t *dev, uint64_t base, uint64_t size, const uint8_t fs_uuid[16], uint32_t local_node, uint64_t local_inc, uint16_t local_slot) -> int
+    called_by: main, mxfs_v5_dlm_init
+  fn mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why) -> void
+    calls: mxfs_pal_log
+    called_by: lpage_commit_locked, mxfs_tauth_ledger_close
+  fn mxfs_tauth_ledger_close(struct mxfs_tauth_ledger *l) -> void
+    calls: mxfs_pal_free, mxfs_pal_mutex_destroy, mxfs_tauth_ledger_stats
+    called_by: main, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_tauth_ledger_set_owner_gen(struct mxfs_tauth_ledger *l, uint64_t gen) -> void
+    called_by: main, mxfs_dlm_attach_ledger, mxfs_dlm_update_active_nodes
+  fn static lpage_load_locked(struct mxfs_tauth_ledger *l, uint32_t page_id, struct mxfs_tauth_lpage *pg, uint64_t gen) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_tauth_page_read
+    called_by: lpage_commit_locked, lpage_write_fresh_locked, mxfs_tauth_ledger_ensure
+  fn static lpage_reconcile_locked(struct mxfs_tauth_ledger *l, uint32_t page_id, struct mxfs_tauth_lpage *pg) -> int
+    called_by: lpage_commit_locked, lpage_write_fresh_locked, mxfs_tauth_ledger_ensure
+  fn mxfs_tauth_ledger_ensure(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen) -> int
+    calls: lpage_load_locked, lpage_reconcile_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: dlm_ledger_import_page, dlm_txn_commit, main, page_bootstrap, page_takeover, tauth_purge_page
+  fn static page_find_entry(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img, const struct mxfs_resource_id *res, bool alloc, int *idx_out) -> struct mxfs_tauth_entry
+    calls: mxfs_tauth_entry_is_res, mxfs_tauth_ledger_home
+    called_by: apply_op, mxfs_tauth_ledger_commit, mxfs_tauth_ledger_lookup, mxfs_tauth_ledger_read_fresh
+  fn mxfs_tauth_ledger_lookup(struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res, uint64_t gen, struct mxfs_tauth_entry *out) -> int
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_tauth_ledger_page, page_find_entry
+    called_by: main
+  fn mxfs_tauth_ledger_scan_active(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, mxfs_tauth_scan_cb cb, void *data) -> int
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: dlm_ledger_import_page, main
+  fn static tauth_collect_page(void *data, uint32_t page_id, const struct mxfs_tauth_page *pg, int rc) -> void
+  fn mxfs_tauth_ledger_collect_ex_holder(struct mxfs_tauth_ledger *l, uint32_t node, uint64_t inc, uint16_t slot, mxfs_tauth_holder_cb cb, void *data, uint32_t *scanned, uint32_t *inc_mismatch) -> int
+    calls: mxfs_pal_log, mxfs_tauth_store_scan
+    called_by: main, v5_rman_snapshot
+  fn mxfs_tauth_ledger_read_fresh(struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res, struct mxfs_tauth_entry *out, uint32_t *slot_idx) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_tauth_ledger_page, mxfs_tauth_page_read, page_find_entry
+    called_by: main
+  fn static lpage_mine_locked(const struct mxfs_tauth_ledger *l, const struct mxfs_tauth_lpage *pg) -> bool
+    calls: mxfs_pal_mutex_unlock
+    called_by: mxfs_tauth_ledger_commit, mxfs_tauth_ledger_page_mine, tauth_purge_page
+  fn static page_auth_from(const struct mxfs_tauth_page *img, struct mxfs_tauth_page_auth *out) -> void
+    called_by: mxfs_tauth_ledger_page_auth, tauth_auth_scan_page
+  fn mxfs_tauth_ledger_set_config_id(struct mxfs_tauth_ledger *l, uint64_t id) -> void
+    called_by: mxfs_dlm_attach_ledger, mxfs_dlm_update_active_nodes
+  fn mxfs_tauth_ledger_page_mine(struct mxfs_tauth_ledger *l, uint32_t page_id) -> bool
+    calls: lpage_mine_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: dlm_page_ensure_mine, main, mxfs_dlm_handoff_depart
+  fn static tauth_auth_scan_page(void *data, uint32_t page_id, const struct mxfs_tauth_page *pg, int rc) -> void
+    calls: page_auth_from
+  fn mxfs_tauth_ledger_scan_auth(struct mxfs_tauth_ledger *l, mxfs_tauth_auth_cb cb, void *data, uint32_t *scanned) -> int
+    calls: mxfs_tauth_store_scan
+    called_by: mxfs_dlm_handoff_takeover, mxfs_dlm_takeover_orphans
+  fn mxfs_tauth_ledger_page_auth(struct mxfs_tauth_ledger *l, uint32_t page_id, bool fresh, struct mxfs_tauth_page_auth *out) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_tauth_page_read, page_auth_from
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_takeover_page, main, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, mxfs_dlm_process_remote_request
+  fn static lpage_write_fresh_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lpage *pg, struct mxfs_tauth_page *img, uint64_t gen) -> int
+    calls: lpage_load_locked, lpage_reconcile_locked, mxfs_pal_alloc, mxfs_tauth_page_write
+    called_by: mxfs_tauth_ledger_activate, mxfs_tauth_ledger_prepare_unowned
+  fn mxfs_tauth_ledger_prepare(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, uint32_t target_node, uint64_t target_inc, uint32_t victim_node, uint64_t victim_inc, bool retarget, uint64_t *prepared_seq) -> int
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_page_hand_to, dlm_takeover_page, main, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, page_takeover
+  fn mxfs_tauth_ledger_prepare_unowned(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, uint32_t target_node, uint64_t target_inc, uint64_t *prepared_seq) -> int
+    calls: lpage_write_fresh_locked, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_tauth_page_read
+    called_by: mxfs_dlm_process_page_handoff
+  fn mxfs_tauth_ledger_activate(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, uint64_t expect_seq, bool bootstrap) -> int
+    calls: lpage_write_fresh_locked, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_tauth_page_read
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_page_handoff_owner, dlm_takeover_page, main, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, page_bootstrap, page_takeover
+  fn static apply_op(struct mxfs_tauth_ledger *l, struct mxfs_tauth_page *img, struct mxfs_tauth_op *op, uint64_t config_epoch, uint64_t stamp_ms) -> int
+    calls: entry_set_res, mode_is_exclusive, mxfs_pal_log, mxfs_tauth_entry_is_res, mxfs_tauth_ledger_hash, page_find_entry
+    called_by: mxfs_tauth_ledger_commit
+  fn static lpage_commit_locked(struct mxfs_tauth_ledger *l, struct mxfs_tauth_lpage *pg, struct mxfs_tauth_page *img, uint64_t config_epoch) -> int
+    calls: lpage_load_locked, lpage_reconcile_locked, mxfs_pal_log, mxfs_pal_time_ms, mxfs_tauth_ledger_stats, mxfs_tauth_page_write
+    called_by: mxfs_tauth_ledger_commit, tauth_purge_page
+  fn mxfs_tauth_ledger_commit(struct mxfs_tauth_ledger *l, struct mxfs_tauth_op *ops, int nops, uint64_t gen, uint64_t config_epoch) -> int
+    calls: apply_op, lpage_commit_locked, lpage_mine_locked, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, mxfs_tauth_ledger_page, page_find_entry
+    called_by: dlm_txn_commit, main
+  fn static tauth_purge_scan_page(void *data, uint32_t page_id, const struct mxfs_tauth_page *pg, int rc) -> void
+    called_by: mxfs_tauth_ledger_purge_owner_keep
+  fn static tauth_purge_page(struct mxfs_tauth_ledger *l, uint32_t p, uint32_t node, uint64_t bit, uint64_t gen, uint64_t config_epoch, struct mxfs_tauth_page *img, mxfs_tauth_purge_keep_fn keep, void *keep_data) -> int
+    calls: lpage_commit_locked, lpage_mine_locked, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, mxfs_tauth_ledger_ensure
+    called_by: mxfs_tauth_ledger_purge_owner_keep, mxfs_tauth_ledger_purge_owner_page_keep
+  fn mxfs_tauth_ledger_purge_owner_page_keep(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, uint32_t page, mxfs_tauth_purge_keep_fn keep, void *keep_data) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, tauth_purge_page
+    called_by: dlm_takeover_page, mxfs_tauth_ledger_purge_owner_page
+  fn mxfs_tauth_ledger_purge_owner_page(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, uint32_t page) -> int
+    calls: mxfs_tauth_ledger_purge_owner_page_keep
+    called_by: dlm_takeover_page
+  fn mxfs_tauth_ledger_purge_owner(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, mxfs_tauth_owns_page_fn owns_page, void *data) -> int
+    calls: mxfs_tauth_ledger_purge_owner_keep
+    called_by: main, mxfs_dlm_ledger_purge_owner
+  fn mxfs_tauth_ledger_purge_owner_keep(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, mxfs_tauth_owns_page_fn owns_page, void *data, mxfs_tauth_purge_keep_fn keep, void *keep_data) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, tauth_purge_page, tauth_purge_scan_page
+    called_by: mxfs_dlm_ledger_purge_owner_selective, mxfs_tauth_ledger_purge_owner
+  struct tauth_collect { node, inc, slot, cb, data, first_bad }
+  struct tauth_auth_scan { cb, data, scanned }
+  struct tauth_purge_scan { l, node, bit, cand }
+
+[dlm/tauth_ledger.h]
+  fn mxfs_tauth_ledger_stats(struct mxfs_tauth_ledger *l, const char *why) -> void
+    called_by: lpage_commit_locked, mxfs_tauth_ledger_close
+  fn mxfs_tauth_ledger_open(struct mxfs_tauth_ledger *l, mxfs_bdev_t *dev, uint64_t base, uint64_t size, const uint8_t fs_uuid[16], uint32_t local_node, uint64_t local_inc, uint16_t local_slot) -> int
+    called_by: main, mxfs_v5_dlm_init
+  fn mxfs_tauth_ledger_close(struct mxfs_tauth_ledger *l) -> void
+    called_by: main, mxfs_v5_dlm_shutdown_defer_release
+  fn mxfs_tauth_ledger_set_owner_gen(struct mxfs_tauth_ledger *l, uint64_t gen) -> void
+    called_by: main, mxfs_dlm_attach_ledger, mxfs_dlm_update_active_nodes
+  fn mxfs_tauth_ledger_hash(const struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res) -> uint32_t
+    called_by: apply_op, mxfs_tauth_ledger_home
+  fn mxfs_tauth_ledger_page(const struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res) -> uint32_t
+    called_by: mxfs_tauth_ledger_commit, mxfs_tauth_ledger_lookup, mxfs_tauth_ledger_read_fresh
+  fn mxfs_tauth_ledger_home(const struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res) -> uint32_t
+    called_by: page_find_entry
+  fn mxfs_tauth_ledger_ensure(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen) -> int
+    called_by: dlm_ledger_import_page, dlm_txn_commit, main, page_bootstrap, page_takeover, tauth_purge_page
+  fn mxfs_tauth_ledger_lookup(struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res, uint64_t gen, struct mxfs_tauth_entry *out) -> int
+    called_by: main
+  fn mxfs_tauth_ledger_scan_active(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, mxfs_tauth_scan_cb cb, void *data) -> int
+    called_by: dlm_ledger_import_page, main
+  fn mxfs_tauth_ledger_collect_ex_holder(struct mxfs_tauth_ledger *l, uint32_t node, uint64_t inc, uint16_t slot, mxfs_tauth_holder_cb cb, void *data, uint32_t *scanned, uint32_t *inc_mismatch) -> int
+    called_by: main, v5_rman_snapshot
+  fn mxfs_tauth_ledger_read_fresh(struct mxfs_tauth_ledger *l, const struct mxfs_resource_id *res, struct mxfs_tauth_entry *out, uint32_t *slot_idx) -> int
+    called_by: main
+  fn mxfs_tauth_ledger_commit(struct mxfs_tauth_ledger *l, struct mxfs_tauth_op *ops, int nops, uint64_t gen, uint64_t config_epoch) -> int
+    called_by: dlm_txn_commit, main
+  fn mxfs_tauth_ledger_purge_owner(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, mxfs_tauth_owns_page_fn owns_page, void *data) -> int
+    called_by: main, mxfs_dlm_ledger_purge_owner
+  fn mxfs_tauth_ledger_purge_owner_page(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, uint32_t page) -> int
+    called_by: dlm_takeover_page
+  fn mxfs_tauth_ledger_purge_owner_keep(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, mxfs_tauth_owns_page_fn owns_page, void *data, mxfs_tauth_purge_keep_fn keep, void *keep_data) -> int
+    called_by: mxfs_dlm_ledger_purge_owner_selective, mxfs_tauth_ledger_purge_owner
+  fn mxfs_tauth_ledger_purge_owner_page_keep(struct mxfs_tauth_ledger *l, uint32_t node, int slot, uint64_t gen, uint64_t config_epoch, uint32_t page, mxfs_tauth_purge_keep_fn keep, void *keep_data) -> int
+    called_by: dlm_takeover_page, mxfs_tauth_ledger_purge_owner_page
+  fn mxfs_tauth_ledger_set_config_id(struct mxfs_tauth_ledger *l, uint64_t id) -> void
+    called_by: mxfs_dlm_attach_ledger, mxfs_dlm_update_active_nodes
+  fn mxfs_tauth_ledger_page_auth(struct mxfs_tauth_ledger *l, uint32_t page_id, bool fresh, struct mxfs_tauth_page_auth *out) -> int
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_takeover_page, main, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, mxfs_dlm_process_remote_request
+  fn mxfs_tauth_ledger_page_mine(struct mxfs_tauth_ledger *l, uint32_t page_id) -> bool
+    called_by: dlm_page_ensure_mine, main, mxfs_dlm_handoff_depart
+  fn mxfs_tauth_ledger_scan_auth(struct mxfs_tauth_ledger *l, mxfs_tauth_auth_cb cb, void *data, uint32_t *scanned) -> int
+    called_by: mxfs_dlm_handoff_takeover, mxfs_dlm_takeover_orphans
+  fn mxfs_tauth_ledger_prepare(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, uint32_t target_node, uint64_t target_inc, uint32_t victim_node, uint64_t victim_inc, bool retarget, uint64_t *prepared_seq) -> int
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_page_hand_to, dlm_takeover_page, main, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, page_takeover
+  fn mxfs_tauth_ledger_prepare_unowned(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, uint32_t target_node, uint64_t target_inc, uint64_t *prepared_seq) -> int
+    called_by: mxfs_dlm_process_page_handoff
+  fn mxfs_tauth_ledger_activate(struct mxfs_tauth_ledger *l, uint32_t page_id, uint64_t gen, uint64_t expect_seq, bool bootstrap) -> int
+    called_by: dlm_node_in_view, dlm_owner_purged, dlm_page_handoff_owner, dlm_takeover_page, main, mxfs_dlm_handoff_tick, mxfs_dlm_process_page_handoff, page_bootstrap, page_takeover
+  fn mxfs_tauth_entry_is_res(const struct mxfs_tauth_entry *e, const struct mxfs_resource_id *res) -> bool
+    called_by: apply_op, page_find_entry
+  fn mxfs_tauth_entry_res(const struct mxfs_tauth_entry *e, struct mxfs_resource_id *res) -> void
+    called_by: dlm_ledger_import_page, dlm_refused_keep_entry
+  struct mxfs_tauth_lpage { lock, img, load_gen, poisoned, dropped, uncertain_seq, loads }
+  struct mxfs_tauth_ledger { store, pages, npages, local_node, local_inc, local_slot, authority_epoch, owner_gen, config_id, torn_after_bytes }
+  struct mxfs_tauth_page_auth { state, auth_node, auth_inc, target_node, target_inc, seq, config_id, writer_node, writer_inc }
+  enum mxfs_tauth_op_kind { MXFS_TAUTH_OP_GRANT_EX, mode, PW, EX, explicit, exclusive, holder, MXFS_TAUTH_OP_GRANT_PR, mode, CR }
+  struct mxfs_tauth_op { kind, mode, slot, node, inc, res, lineage, dir_epoch, authority_epoch, grant_seq64 }
+  typedef_fn mxfs_tauth_scan_cb
+  typedef_fn mxfs_tauth_holder_cb
+  typedef_fn mxfs_tauth_owns_page_fn
+  typedef_fn mxfs_tauth_purge_keep_fn
+  typedef_fn mxfs_tauth_auth_cb
+
+[dlm/tauth_store.c]
+  fn static tauth_crc(uint32_t seed, const void *data, size_t len) -> uint32_t
+    calls: mxfs_pal_crc32c
+  fn static tauth_read_block(struct mxfs_tauth_store *s, uint64_t off, void *buf) -> int
+    calls: mxfs_pal_bdev_read_prio
+    called_by: mxfs_tauth_page_write, mxfs_tauth_store_open, tauth_page_read_both, tauth_read_run
+  fn mxfs_tauth_store_open(struct mxfs_tauth_store *s, mxfs_bdev_t *dev, uint64_t base, uint64_t size, const uint8_t fs_uuid[16], uint32_t local_node, uint64_t local_inc) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_get_random_bytes, mxfs_pal_log, tauth_read_block
+    called_by: main
+  fn static tauth_page_read_both(struct mxfs_tauth_store *s, uint32_t page_id, struct mxfs_tauth_page *pg, struct mxfs_tauth_page *scratch, uint64_t *seq_a, uint64_t *seq_b, int *copy_out) -> int
+    calls: mxfs_pal_log, tauth_read_block
+    called_by: mxfs_tauth_page_read, mxfs_tauth_store_verify
+  fn mxfs_tauth_page_read(struct mxfs_tauth_store *s, uint32_t page_id, struct mxfs_tauth_page *pg, int *copy_out) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, tauth_page_read_both
+    called_by: lpage_load_locked, main, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_prepare_unowned, mxfs_tauth_ledger_read_fresh
+  fn static ph_add(uint64_t *tot, uint64_t *mx, uint64_t t0) -> void
+    calls: mxfs_pal_time_ms
+    called_by: mxfs_tauth_page_write
+  fn static tauth_next_nonce(struct mxfs_tauth_store *s, uint32_t *out) -> void
+    called_by: mxfs_tauth_page_write
+  fn mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg, uint64_t authority_epoch, uint64_t config_epoch, uint32_t torn_after_bytes) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_bdev_compare_and_write, mxfs_pal_bdev_flush, mxfs_pal_bdev_write, mxfs_pal_bdev_write_fua, mxfs_pal_free, mxfs_pal_log, mxfs_pal_time_ms, ph_add, tauth_next_nonce, tauth_read_block
+    called_by: lpage_commit_locked, lpage_write_fresh_locked, main
+  fn mxfs_tauth_store_verify(struct mxfs_tauth_store *s, uint32_t *two, uint32_t *one, uint32_t *none) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_free, tauth_page_read_both
+    called_by: main
+  fn static tauth_read_run(struct mxfs_tauth_store *s, uint32_t first, uint32_t n, unsigned copy, struct mxfs_tauth_page *buf, int *rcs) -> void
+    calls: mxfs_pal_bdev_read_prio, tauth_read_block
+    called_by: mxfs_tauth_store_scan
+  fn mxfs_tauth_store_scan(struct mxfs_tauth_store *s, uint32_t first, uint32_t count, mxfs_tauth_page_cb cb, void *data) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_alloc_io, mxfs_pal_cond_resched, mxfs_pal_free, mxfs_pal_free_io, mxfs_pal_log, tauth_read_run
+    called_by: mxfs_tauth_ledger_collect_ex_holder, mxfs_tauth_ledger_scan_auth
+
+[dlm/tauth_store.h]
+  fn mxfs_tauth_store_open(struct mxfs_tauth_store *s, mxfs_bdev_t *dev, uint64_t base, uint64_t size, const uint8_t fs_uuid[16], uint32_t local_node, uint64_t local_inc) -> int
+    called_by: main
+  fn mxfs_tauth_page_read(struct mxfs_tauth_store *s, uint32_t page_id, struct mxfs_tauth_page *pg, int *copy_out) -> int
+    called_by: lpage_load_locked, main, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_prepare_unowned, mxfs_tauth_ledger_read_fresh
+  fn mxfs_tauth_page_write(struct mxfs_tauth_store *s, struct mxfs_tauth_page *pg, uint64_t authority_epoch, uint64_t config_epoch, uint32_t torn_after_bytes) -> int
+    called_by: lpage_commit_locked, lpage_write_fresh_locked, main
+  fn mxfs_tauth_store_verify(struct mxfs_tauth_store *s, uint32_t *two, uint32_t *one, uint32_t *none) -> int
+    called_by: main
+  fn mxfs_tauth_store_scan(struct mxfs_tauth_store *s, uint32_t first, uint32_t count, mxfs_tauth_page_cb cb, void *data) -> int
+    called_by: mxfs_tauth_ledger_collect_ex_holder, mxfs_tauth_ledger_scan_auth
+  struct mxfs_tauth_store { dev, base, size, npages, hash_seed, fs_gen, fs_uuid, local_node, local_inc, nonce_state }
+  typedef_fn mxfs_tauth_page_cb
+
+[dlm/tauth_view.c]
+  fn mxfs_tauth_root_read(mxfs_bdev_t *dev, uint64_t base, struct mxfs_tauth_root *img) -> int
+    calls: mxfs_pal_bdev_read_prio
+  fn mxfs_tauth_root_caw(mxfs_bdev_t *dev, uint64_t base, const struct mxfs_tauth_root *expect, const struct mxfs_tauth_root *next) -> int
+    calls: mxfs_pal_bdev_compare_and_write
+  fn mxfs_tauth_view_read(mxfs_bdev_t *dev, uint64_t base, unsigned slot, struct mxfs_tauth_view *v) -> int
+    calls: mxfs_pal_bdev_read_prio
+  fn mxfs_tauth_view_write(mxfs_bdev_t *dev, uint64_t base, unsigned slot, const struct mxfs_tauth_view *v) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_bdev_flush, mxfs_pal_bdev_read_prio, mxfs_pal_bdev_write_fua, mxfs_pal_free
+
+[dlm/tauth_view.h]
+  fn mxfs_tauth_root_read(mxfs_bdev_t *dev, uint64_t base, struct mxfs_tauth_root *img) -> int
+  fn mxfs_tauth_root_caw(mxfs_bdev_t *dev, uint64_t base, const struct mxfs_tauth_root *expect, const struct mxfs_tauth_root *next) -> int
+  fn mxfs_tauth_view_read(mxfs_bdev_t *dev, uint64_t base, unsigned slot, struct mxfs_tauth_view *v) -> int
+  fn mxfs_tauth_view_write(mxfs_bdev_t *dev, uint64_t base, unsigned slot, const struct mxfs_tauth_view *v) -> int
+
 [dlm/v5_mount.c]
+  fn static v5_bootstrap_inject_fire(int point) -> bool
+    called_by: v5_bootstrap_adopt, v5_bootstrap_run, v5_recovery_complete_ladder
   fn static uuid_to_node_id(const uint8_t *uuid) -> mxfs_node_id_t
     called_by: mxfs_v5_dlm_init
   fn static v5_dlm_send_cb_tcp(struct mxfs_dlm_ctx *dlm_ctx, mxfs_node_id_t target, const void *msg, size_t len) -> int
     calls: mxfs_peer_send
   fn static v5_peer_msg_cb_tcp(void *data, mxfs_node_id_t sender, void *msg, size_t len) -> void
-    calls: mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_purge_node, mxfs_lease_unregister_node, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, v5_note_dead_node, v5_refresh_active_nodes
+    calls: fail_all_pending, mxfs_disklock_find_node_slot, mxfs_disklock_recovery_is_pending, mxfs_dlm_process_page_handoff, mxfs_dlm_process_release_ack, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_lease_unregister_node, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, v5_depart_queue, v5_node_is_dead, v5_note_dead_node_locked
   fn static v5_node_is_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> bool
-    called_by: mxfs_v5_dlm_recovery_acquire, v5_discovery_peer_cb, v5_note_dead_node, v5_peer_connect_cb_tcp
-  fn static v5_note_dead_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> void
+    called_by: v5_discovery_peer_cb, v5_node_live_cb, v5_note_dead_node_locked, v5_peer_connect_cb_tcp, v5_peer_msg_cb_tcp
+  fn static v5_inc_is_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, mxfs_epoch_t epoch) -> bool
+    called_by: v5_incarnation_state, v5_note_dead_inc
+  fn static v5_note_dead_inc(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, mxfs_epoch_t epoch) -> void
+    calls: mxfs_pal_log, v5_inc_is_dead
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_bootstrap_run, v5_recovered_cb, v5_recovery_complete_ladder
+  fn static v5_incarnation_state(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, mxfs_epoch_t epoch, const char **why) -> enum v5_inc_state
+    calls: mxfs_bootstrap_owner_is, mxfs_disklock_find_node_slot, mxfs_disklock_slot_live, mxfs_pal_time_ms, v5_inc_is_dead
+    called_by: mxfs_v5_dlm_recovery_acquire
+  fn static v5_note_dead_node_locked(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> void
     calls: mxfs_pal_log, v5_node_is_dead
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete, v5_handle_node_death, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_settle_resolve, v5_tcp_declare_dead
+    called_by: v5_note_dead_node, v5_peer_msg_cb_tcp
+  fn static v5_note_dead_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> void
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, v5_note_dead_node_locked
+    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_refused, v5_bootstrap_run, v5_handle_node_death, v5_recovered_cb, v5_recovery_complete_ladder, v5_settle_resolve, v5_tcp_declare_dead
   fn static v5_refresh_active_nodes(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_dlm_update_active_nodes, mxfs_lease_get_active_nodes
-    called_by: mxfs_v5_dlm_recovery_complete, v5_clean_depart_cb, v5_discovery_peer_cb, v5_handle_node_death, v5_peer_connect_cb_tcp, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_tcp_declare_dead
+    called_by: mxfs_v5_dlm_recovery_refused, v5_clean_depart_cb, v5_depart_run, v5_discovery_peer_cb, v5_handle_node_death, v5_peer_connect_cb_tcp, v5_peer_msg_cb_tcp, v5_recovered_cb, v5_recovery_complete_ladder, v5_tcp_declare_dead
   fn static v5_membership_beacon_caw(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_dlm_caw_set_membership, mxfs_lease_get_active_nodes, mxfs_pal_log, read
-    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_recovery_complete, v5_clean_depart_cb, v5_discovery_peer_cb, v5_handle_node_death, v5_recovered_cb
+    called_by: mxfs_v5_dlm_init, v5_clean_depart_cb, v5_discovery_peer_cb, v5_handle_node_death, v5_recovered_cb, v5_recovery_complete_ladder
   fn static v5_bast_cb_tcp(struct mxfs_dlm_ctx *dlm_ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t requested_mode) -> void
     calls: mxfs_pal_sleep_ms, mxfs_peer_send
   fn static v5_membership_cb_tcp(struct mxfs_dlm_ctx *dlm_ctx) -> void
-  fn static v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx, mxfs_node_id_t dead_node) -> int
-    called_by: v5_pr_fence_dead_node
+  fn static v5_slot_node_cb(void *data, int slot, uint64_t *inc_out) -> mxfs_node_id_t
+    called_by: v5_bootstrap_node_cb, v5_node_inc_cb, v5_occupant_cb, v5_peer_msg_cb_tcp
+  fn static v5_bootstrap_ready(struct mxfs_v5_dlm *ctx) -> bool
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms
+    called_by: v5_bootstrap_cb
+  fn static v5_bootstrap_cb(void *data) -> bool
+    calls: mxfs_disklock_lowest_live_slot, v5_bootstrap_ready
+  fn static v5_bootstrap_node_cb(void *data, uint64_t *inc_out) -> mxfs_node_id_t
+    calls: mxfs_disklock_lowest_live_slot, v5_slot_node_cb
+  fn static v5_node_inc_cb(void *data, mxfs_node_id_t node) -> uint64_t
+    calls: mxfs_disklock_find_node_slot, v5_slot_node_cb
+  fn static v5_occupant_cb(void *data, mxfs_node_id_t node, uint64_t inc) -> bool
+    calls: v5_slot_node_cb
+  fn static v5_handoff_takeover(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, uint64_t inc, const char *why, bool settled) -> void
+    calls: mxfs_dlm_handoff_takeover, mxfs_pal_log
+    called_by: v5_depart_run, v5_recovery_complete_ladder
+  fn static v5_depart_run(struct mxfs_v5_dlm *ctx, const struct v5_depart_req *r) -> void
+    calls: mxfs_dlm_ledger_purge_owner, mxfs_dlm_ledger_purge_owner_selective, mxfs_dlm_purge_node, mxfs_dlm_purge_node_selective, mxfs_dlm_takeover_orphans, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, v5_handoff_takeover, v5_refresh_active_nodes
+    called_by: v5_depart_queue2, v5_depart_worker_fn, v5_orphan_sweep_queue
+  fn static v5_depart_worker_fn(void *arg) -> void
+    calls: mxfs_pal_flag_get, mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms_interruptible, v5_depart_run
+  fn static v5_depart_queue2(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, uint64_t inc, int slot, const char *why, bool takeover_only, bool settled, bool refused) -> int
+    calls: mxfs_pal_flag_get, mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, v5_depart_run
+    called_by: mxfs_v5_dlm_recovery_refused, v5_depart_queue, v5_settled_flush, v5_settled_incarnation
+  fn static v5_depart_queue(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, uint64_t inc, int slot, const char *why) -> int
+    calls: v5_depart_queue2
+    called_by: v5_clean_depart_cb, v5_peer_msg_cb_tcp, v5_recovered_cb
+  fn static v5_settled_incarnation(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node, uint64_t inc, int slot, const char *why) -> void
+    calls: mxfs_pal_log, v5_depart_queue2
+    called_by: mxfs_v5_dlm_mount_pending_recovery, v5_p305_settle_retire_pending, v5_retire_worker_fn
+  fn static v5_settled_flush(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_log, v5_depart_queue2
+    called_by: mxfs_v5_dlm_init
+  fn static v5_orphan_sweep_queue(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_flag_get, mxfs_pal_flag_set, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, v5_depart_run
+    called_by: mxfs_v5_dlm_init
+  fn static v5_depart_worker_start(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_mutex_create
+    called_by: mxfs_v5_dlm_init
+  fn static v5_depart_worker_stop(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_peer_shutdown
+    called_by: mxfs_v5_dlm_shutdown_defer_release, v5_tcp_transport_unwind
+  fn static v5_prkey_present_cb(void *arg, uint64_t key) -> bool
+    calls: mxfs_scsipr_key_present
+  fn static v5_key_state_map(int st) -> int
+    called_by: v5_disklock_key_state, v5_disklock_key_state_sync
+  fn static v5_retire_validate(void *data) -> int
+    calls: mxfs_pal_dbg_settle_double_consume_take, mxfs_pal_log, mxfs_scsipr_proof_consume
+  fn static v5_retire_cas(void *data, uint64_t token) -> int
+    calls: mxfs_disklock_retire_cas_empty
+  fn static v5_retire_settle_run(struct mxfs_v5_dlm *ctx, uint32_t slot, uint64_t key, struct mxfs_disklock_heartbeat *img) -> int
+    calls: mxfs_scsipr_settle_absent
+    called_by: v5_disklock_settle_absent, v5_retire_worker_fn
+  fn static v5_disklock_settle_absent(void *arg, uint32_t slot, uint64_t key, struct mxfs_disklock_heartbeat *pending, bool immediate) -> int
+    calls: mxfs_pal_flag_set, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_scsipr_departure_held, mxfs_scsipr_departure_lock, mxfs_scsipr_departure_unlock, v5_retire_settle_run
+  fn static v5_retire_worker_fn(void *arg) -> void
+    calls: mxfs_pal_alloc, mxfs_pal_dbg_retire_hang_take, mxfs_pal_flag_get, mxfs_pal_flag_set, mxfs_pal_free, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_sleep_ms_interruptible, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, v5_retire_settle_run, v5_settled_incarnation
+  fn static v5_retire_worker_start(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_pal_alloc, mxfs_pal_flag_set, mxfs_pal_log, mxfs_pal_mutex_create
+    called_by: mxfs_v5_dlm_init
+  fn static v5_quarantine_add(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+  fn static v5_quarantine_free(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_disklock_destroy, mxfs_pal_bdev_close_clone, mxfs_pal_free, mxfs_pal_module_unpin, mxfs_pal_mutex_destroy, mxfs_scsipr_abandon
+    called_by: v5_quarantine_reap
+  fn static v5_quarantine_reap(void) -> int
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_thread_join_timeout, v5_quarantine_free
+    called_by: mxfs_v5_dlm_global_exit, mxfs_v5_dlm_init
+  fn static v5_retire_worker_stop(struct mxfs_v5_dlm *ctx) -> int
+    called_by: mxfs_v5_dlm_detach_pr_key, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn static v5_disklock_key_state(void *arg, uint64_t key) -> int
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_scsipr_key_state, v5_key_state_map
+  fn static v5_disklock_key_state_sync(void *arg, uint64_t key) -> int
+    calls: mxfs_scsipr_key_state_sync, v5_key_state_map
+  fn static v5_p305_settle_retire_pending(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_disklock_retire_settle_own, mxfs_disklock_retire_settle_slot, mxfs_host_identity, mxfs_pal_log, mxfs_scsipr_key, mxfs_scsipr_own_registration_proven, v5_same_boot_scan, v5_settled_incarnation
+    called_by: mxfs_v5_dlm_init
+  fn static v5_bootstrap_setup(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_bootstrap_close, mxfs_bootstrap_open, mxfs_bootstrap_read, mxfs_bootstrap_state_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log
+    called_by: mxfs_v5_dlm_init
+  fn static v5_boot_hb_fn(void *arg) -> void
+    calls: mxfs_bootstrap_heartbeat, mxfs_pal_log, mxfs_pal_sleep_ms
+  fn static v5_boot_tk_stop(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_thread_join
+    called_by: v5_boot_tk_free, v5_bootstrap_owner_stop
+  fn static v5_bootstrap_owner_stop(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_free, mxfs_pal_thread_join, v5_boot_tk_stop
+    called_by: mxfs_v5_dlm_bootstrap_finish, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, v5_bootstrap_run
+  fn static v5_bootstrap_unwind(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_bootstrap_escrow_name, mxfs_bootstrap_state_name, mxfs_pal_log, mxfs_scsipr_retain_key, xfs_log_mount
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn static v5_bootstrap_peek(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_init
+  fn static v5_boot_classify_keys(struct mxfs_v5_dlm *ctx, struct mxfs_bootstrap_mf_entry *e, unsigned int *n, unsigned int max, uint32_t *prgen_out, unsigned int *nreg, unsigned int *nabsent) -> int
+    called_by: v5_bootstrap_run
+  fn static v5_boot_fence_registrant(struct mxfs_v5_dlm *ctx, struct mxfs_bootstrap_mf_entry *e, unsigned int n, unsigned int i) -> int
+    calls: mxfs_fence_kind_name, mxfs_pal_log, mxfs_prledger_mark_fenced, mxfs_scsipr_key_present
+    called_by: v5_bootstrap_run
+  fn static v5_bootstrap_adopt(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_bootstrap_escrow_advance, mxfs_bootstrap_escrow_prepare, mxfs_disklock_claim_victim_slot, mxfs_disklock_clear_recovery_pending, mxfs_disklock_recovery_mptr_read, mxfs_disklock_recovery_read, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, v5_bootstrap_inject_fire
+    called_by: v5_bootstrap_run
+  fn static v5_bootstrap_adopt_resume(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_bootstrap_escrow_advance, mxfs_bootstrap_escrow_name, mxfs_bootstrap_escrow_prepare, mxfs_disklock_claim_victim_slot, mxfs_disklock_clear_recovery_pending, mxfs_disklock_read_record, mxfs_disklock_reclaim_own_slot, mxfs_disklock_recovery_mptr_read, mxfs_disklock_recovery_read, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log
+    called_by: v5_bootstrap_run
+  fn static v5_bootstrap_resume_prepare(struct mxfs_v5_dlm *ctx, struct mxfs_bootstrap_mf_entry *e, unsigned int *n_out, uint8_t *done, unsigned int *ncert, unsigned int *nregdone, unsigned int *nreg, bool *k_resumed) -> int
+    called_by: v5_bootstrap_run
+  fn static v5_boot_tk_free(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_free, mxfs_pal_mutex_destroy, v5_boot_tk_stop
+    called_by: v5_bootstrap_tk_free
+  fn static v5_bootstrap_tk_free(struct mxfs_v5_dlm *ctx) -> void
+    calls: v5_boot_tk_free
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release
+  fn static v5_boot_lineage_load(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_bootstrap_lineage_read, mxfs_pal_alloc, mxfs_pal_log
+  fn static v5_tk_edit_apply(struct mxfs_bootstrap_takeover *w, void *arg) -> void
+  fn static v5_boot_tk_hb_fn(void *arg) -> void
+    calls: mxfs_pal_sleep_ms
+  fn static v5_tk_stage(struct mxfs_v5_dlm *ctx, struct v5_tk_edit *ed, uint16_t stage, const char *tag) -> int
+  fn static v5_boot_fill_identity(struct mxfs_v5_dlm *ctx, struct mxfs_bootstrap_identity *id) -> void
+    calls: mxfs_host_identity
+  fn static v5_tk_id_from_rec(struct mxfs_bootstrap_takeover_id *o, const struct mxfs_bootstrap_rec *r) -> void
+  fn static v5_tk_id_from_identity(struct mxfs_bootstrap_takeover_id *o, const struct mxfs_bootstrap_identity *id) -> void
+  fn static v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx, const struct mxfs_bootstrap_takeover_id *who, bool contender, const char *what, uint32_t *kind_out, uint32_t *gen_out) -> int
+    calls: mxfs_fence_kind_name, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_prledger_find_by_key, mxfs_prledger_mark_fenced, mxfs_scsipr_key_present
+  fn static v5_boot_tk_refuse(struct mxfs_v5_dlm *ctx, const struct mxfs_bootstrap_rec *r1, const struct mxfs_bootstrap_identity *id, uint32_t fence_kind, uint32_t slot, uint32_t reason) -> void
+  fn static v5_bootstrap_takeover_run(struct mxfs_v5_dlm *ctx, struct mxfs_bootstrap_mf_entry *e, unsigned int *n_out, uint8_t *done, unsigned int *ncert, unsigned int *nregdone, unsigned int *nreg, uint64_t *victims_out) -> int
+    called_by: v5_bootstrap_run
+  fn static v5_bootstrap_run(struct mxfs_v5_dlm *ctx) -> int
+    calls: claim, key, mxfs_bootstrap_claim, mxfs_bootstrap_manifest_write, mxfs_bootstrap_refuse, mxfs_bootstrap_registrant_done, mxfs_bootstrap_release_claim, mxfs_bootstrap_seal, mxfs_bootstrap_set_recovering, mxfs_bootstrap_survivor_scan, mxfs_disklock_mark_recovery_pending_ident, mxfs_disklock_predraw_epoch, mxfs_disklock_set_owner_bootstrap, mxfs_host_identity, mxfs_pal_alloc
+    called_by: mxfs_v5_dlm_init
+  fn static v5_prkey_setup(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_init
+  fn static v5_self_succession_clone_scan(struct mxfs_v5_dlm *ctx, const struct mxfs_host_identity *hid) -> int
+    calls: mxfs_hb_identity_valid, mxfs_pal_alloc, mxfs_pal_bdev_read, mxfs_pal_free, mxfs_pal_log, mxfs_pal_sleep_ms
+    called_by: v5_self_succeed
+  fn static v5_same_boot_scan(struct mxfs_v5_dlm *ctx, const struct mxfs_host_identity *hid, bool refuse_dirty) -> int
+    calls: mxfs_hb_feature_bootstrap_pending, mxfs_hb_identity_valid, mxfs_pal_alloc, mxfs_pal_bdev_read_prio, mxfs_pal_free, mxfs_pal_log
+    called_by: mxfs_v5_dlm_init, v5_p305_settle_retire_pending
+  fn static v5_self_succeed(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_host_identity, mxfs_pal_log, mxfs_scsipr_register_succeed, v5_self_succession_clone_scan
+    called_by: mxfs_v5_dlm_init
+  fn static v5_self_succession_consume(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, struct mxfs_fence_result *fres) -> void
+    calls: mxfs_disklock_victim_identity, mxfs_pal_log, mxfs_pal_scsi_pr_read_full_status, mxfs_prledger_find_successor
+  fn static v5_boot_succession_consume(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, struct mxfs_fence_result *fres) -> void
+    calls: mxfs_disklock_boot_advancing, mxfs_disklock_host_live_other_boot, mxfs_disklock_victim_identity, mxfs_fence_kind_name, mxfs_pal_log, mxfs_scsipr_exclusion_holds
+  fn static v5_prkey_of_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node) -> uint64_t
+    calls: mxfs_prledger_key_of_node
+    called_by: v5_pr_fence_dead_node, v5_vergate_cb
+  fn static v5_pr_fence_dead_node_rc(struct mxfs_v5_dlm *ctx, mxfs_node_id_t dead_node, uint64_t victim_key) -> int
+    calls: mxfs_fence_kind_name, mxfs_lease_get_active_nodes, mxfs_pal_log
+    called_by: v5_pr_fence_dead_node, v5_vergate_cb
   fn static v5_pr_fence_dead_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t dead_node) -> bool
-    calls: v5_pr_fence_dead_node_rc
-    called_by: v5_handle_node_death, v5_tcp_declare_dead, v5_vergate_cb
+    calls: v5_pr_fence_dead_node_rc, v5_prkey_of_node
+    called_by: v5_handle_node_death, v5_tcp_declare_dead
   fn mxfs_recov_blocked_reason(uint32_t reason) -> const char
+    called_by: v5_complete_terminal_for, v5_dispatch_slice_recovery, v5_recovery_complete_ladder
   fn static v5_fence_arm_submit_cb(void *data) -> int
     calls: mxfs_disklock_recovery_fence_arm_submit
+  fn static v5_gate_restore(struct mxfs_v5_dlm *ctx, const char *site) -> void
+    calls: mxfs_pal_log, mxfs_scsipr_gate_restore
+    called_by: v5_fence_retry_worker_fn, v5_recovery_complete_ladder
   fn static v5_pr_worker_start(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_pal_log
     called_by: mxfs_v5_dlm_init, v5_fence_retry_arm
   fn static v5_fence_retry_disarm(struct mxfs_v5_dlm *ctx, int slot) -> void
+    calls: mxfs_pal_log, mxfs_pal_time_ms
     called_by: v5_fence_retry_one
-  fn static v5_fence_retry_arm(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t epoch) -> void
-    calls: mxfs_pal_log, mxfs_pal_time_ms, v5_pr_worker_start
+  fn static v5_fence_retry_arm(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t epoch, bool nonproving, uint16_t kind) -> int
+    calls: mxfs_fence_kind_name, mxfs_pal_log, mxfs_pal_time_ms, v5_pr_worker_start
     called_by: v5_fence_retry_one, v5_fence_retry_worker_fn
+  fn mxfs_v5_dlm_node_recovery_blocked(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node) -> int
+    called_by: v5_node_live_cb, v5_recovery_blocked_cb
+  fn mxfs_v5_dlm_recovery_refused(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, uint64_t victim_inc, int fswide, uint64_t ag_mask) -> void
+    calls: mxfs_lease_unregister_node, mxfs_pal_log, v5_depart_queue2, v5_note_dead_node, v5_refresh_active_nodes
+  fn static v5_refused_owner_cb(void *data, mxfs_node_id_t owner, const struct mxfs_resource_id *res, int *slot_out) -> int
+  fn mxfs_v5_dlm_any_recovery_blocked(struct mxfs_v5_dlm *ctx) -> int
+    called_by: mxfs_v5_dlm_inode_held_by_blocked
+  fn static v5_recovery_blocked_cb(void *data, mxfs_node_id_t node) -> int
+    calls: mxfs_v5_dlm_node_recovery_blocked
+  fn static v5_local_poisoned_cb(void *data) -> int
+    calls: mxfs_v5_dlm_is_poisoned
+  fn static v5_node_live_cb(void *data, mxfs_node_id_t node) -> int
+    calls: mxfs_lease_is_valid, mxfs_v5_dlm_node_recovery_blocked, v5_node_is_dead
   fn static v5_fence_retry_one(struct mxfs_v5_dlm *ctx, int slot) -> void
-    calls: mxfs_disklock_recovery_fence_retryable, mxfs_pal_log, v5_dispatch_slice_recovery, v5_fence_retry_arm, v5_fence_retry_disarm, v5_pr_fence_prove
+    calls: mxfs_disklock_recovery_fence_retryable, mxfs_pal_log, mxfs_pal_time_ms, mxfs_v5_dlm_mount_defer_late_deaths, v5_dispatch_slice_recovery, v5_fence_retry_arm, v5_fence_retry_disarm, v5_pr_fence_prove
     called_by: v5_fence_retry_worker_fn
   fn static v5_resv_health_tick(struct mxfs_v5_dlm *ctx, uint64_t now) -> bool
-    calls: mxfs_disklock_lowest_live_slot, mxfs_pal_log, mxfs_resv_health_name, mxfs_scsipr_check_reservation_health
+    calls: mxfs_disklock_lowest_live_slot, mxfs_pal_log, mxfs_resv_health_name, mxfs_scsipr_check_reservation_health, v5_resv_inspect_launch
     called_by: v5_fence_retry_worker_fn
   fn static v5_fence_retry_worker_fn(void *arg) -> void
-    calls: mxfs_disklock_recovery_fence_retryable, mxfs_pal_log, mxfs_pal_sleep_ms_interruptible, mxfs_pal_time_ms, v5_fence_retry_arm, v5_fence_retry_one, v5_resv_health_tick
+    calls: mxfs_disklock_recovery_fence_retryable, mxfs_pal_log, mxfs_pal_sleep_ms_interruptible, mxfs_pal_time_ms, mxfs_scsipr_gate_is_held, v5_fence_retry_arm, v5_fence_retry_one, v5_gate_restore, v5_resv_health_tick, v5_resv_inspect_launch
   fn static v5_blocked_set(struct mxfs_v5_dlm *ctx, int slot, uint32_t reason, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, int rc, const struct mxfs_fence_result *fres) -> void
     calls: mxfs_pal_time_ms
-    called_by: mxfs_v5_dlm_recovery_acquire, v5_exclusion_recheck, v5_single_node_fence_gate
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_complete_classify, v5_exclusion_recheck, v5_single_node_fence_gate
   fn static v5_blocked_clear(struct mxfs_v5_dlm *ctx, int slot) -> void
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: v5_recovery_complete_ladder
+  fn static v5_complete_retry_reset(struct mxfs_v5_dlm *ctx, uint32_t slot, const struct mxfs_recov_auth *auth) -> void
+    calls: mxfs_pal_time_ms
+    called_by: mxfs_v5_dlm_recovery_acquire
+  fn static v5_complete_terminal_for(const struct mxfs_v5_dlm *ctx, int slot, const struct mxfs_recov_auth *auth) -> bool
+    calls: mxfs_pal_log, mxfs_recov_blocked_reason
+    called_by: v5_dispatch_slice_recovery, v5_recovery_complete_ladder
+  fn static v5_complete_backoff_ms(const struct mxfs_v5_dlm *ctx, uint32_t slot, uint64_t now) -> unsigned int
+    called_by: v5_complete_classify
+  fn static v5_complete_classify(struct mxfs_v5_dlm *ctx, uint32_t slot, mxfs_node_id_t victim, mxfs_epoch_t vepoch, unsigned int intended_stage, bool auth_site, struct mxfs_recov_complete_res *res) -> void
+    calls: mxfs_disklock_clear_recovery_pending, mxfs_disklock_recovery_read, mxfs_disklock_recovery_relinquish_slot, mxfs_disklock_recovery_slot_status, mxfs_pal_log, mxfs_pal_time_ms, mxfs_v5_dlm_recovery_release, recov_auth_holds, v5_blocked_set, v5_complete_backoff_ms, v5_recovered_cb
+    called_by: mxfs_v5_dlm_recovery_complete2
   fn mxfs_v5_dlm_blocked_iter(struct mxfs_v5_dlm *ctx, int prev, struct mxfs_recov_blocked *out) -> int
   fn static v5_single_node_fence_gate(struct mxfs_v5_dlm *ctx) -> bool
     calls: mxfs_pal_log, v5_blocked_set
   fn static v5_fence_kind_contradicts_single_node(enum mxfs_fence_kind k) -> bool
-    calls: mxfs_fence_kind_name, mxfs_pal_log
+    calls: mxfs_disklock_victim_key, mxfs_fence_kind_name, mxfs_pal_log
+  fn static v5_tauth_collect_cb(void *data, uint32_t slot_idx, const struct mxfs_tauth_entry *e) -> void
+  fn static v5_rman_snapshot(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, mxfs_epoch_t victim_epoch, const struct mxfs_recov_fence_auth *fauth) -> int
+    calls: mxfs_disklock_recovery_fence_seal, mxfs_disklock_recovery_manifest_write, mxfs_dlm_caw_manifest_collect, mxfs_dlm_caw_manifest_collect_dev, mxfs_dlm_seal_owner, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_time_ms, mxfs_tauth_ledger_collect_ex_holder
   fn static v5_pr_fence_prove_locked(struct mxfs_v5_dlm *ctx, mxfs_node_id_t dead_node, int dead_slot, mxfs_epoch_t dead_epoch) -> int
     calls: mxfs_pal_log
   fn static v5_pr_fence_prove(struct mxfs_v5_dlm *ctx, mxfs_node_id_t dead_node, int dead_slot, mxfs_epoch_t dead_epoch) -> int
     called_by: mxfs_v5_dlm_recovery_acquire, v5_fence_retry_one, v5_handle_node_death, v5_settle_resolve
   fn static v5_tcp_declare_dead(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> void
-    calls: mxfs_dlm_purge_node, mxfs_lease_unregister_node, v5_note_dead_node, v5_pr_fence_dead_node, v5_refresh_active_nodes
+    calls: mxfs_disklock_find_node_slot, mxfs_dlm_ledger_purge_owner, mxfs_dlm_purge_node, mxfs_lease_unregister_node, mxfs_pal_log, v5_note_dead_node, v5_pr_fence_dead_node, v5_refresh_active_nodes
     called_by: v5_peer_disconnect_cb_tcp, v5_tcp_death_worker_fn
   fn static v5_vergate_cb(void *data, int slot, mxfs_node_id_t node_id, mxfs_epoch_t epoch, int state) -> void
-    calls: mxfs_pal_log, v5_pr_fence_dead_node
+    calls: mxfs_pal_log, v5_pr_fence_dead_node_rc, v5_prkey_of_node
   fn static v5_peer_connect_cb_tcp(void *data, mxfs_node_id_t node_id) -> void
     calls: mxfs_dlm_is_single_node, mxfs_lease_has_node, mxfs_lease_register_node, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, v5_node_is_dead, v5_refresh_active_nodes
   fn static v5_peer_disconnect_cb_tcp(void *data, mxfs_node_id_t node_id) -> void
-    calls: mxfs_lease_has_node, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, v5_tcp_declare_dead
+    calls: ms, mxfs_lease_has_node, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_time_ms, v5_tcp_declare_dead
   fn static v5_tcp_death_worker_fn(void *arg) -> void
-    calls: mxfs_lease_get_active_nodes, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms, mxfs_pal_time_ms, mxfs_peer_is_connected, mxfs_scsipr_self_check, v5_tcp_declare_dead
+    calls: check, mxfs_dlm_handoff_tick, mxfs_dlm_release_retry_tick, mxfs_lease_get_active_nodes, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_pal_sleep_ms_interruptible, mxfs_pal_time_ms, mxfs_peer_is_connected, mxfs_scsipr_self_check, v5_tcp_declare_dead
   fn static v5_caw_holders_alive(void *data, uint64_t slot_mask) -> bool
     calls: mxfs_disklock_slot_live
   fn static v5_bast_cb(struct mxfs_dlm_ctx *dlm_ctx, const struct mxfs_resource_id *resource, mxfs_node_id_t owner, uint8_t requested_mode) -> void
@@ -3017,26 +4664,34 @@
     called_by: v5_resv_inspect_worker
   fn static v5_resv_inspect_worker(void *arg) -> void
     calls: mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_scsipr_fenced_check, v5_resv_conflict_withdraw
-  fn mxfs_v5_dlm_note_resv_conflict(struct mxfs_v5_dlm *ctx) -> void
+  fn static v5_resv_inspect_launch(struct mxfs_v5_dlm *ctx, const char *why) -> void
     calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_note_resv_conflict, v5_fence_retry_worker_fn, v5_resv_health_tick
+  fn mxfs_v5_dlm_note_resv_conflict(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_log, v5_resv_inspect_launch
     called_by: mxfs_v5_dlm_ag_unlock, mxfs_v5_dlm_inode_unlock_open, v5_resv_conflict_cb
+  fn static v5_dbg_purge_hook(void *data, int point, int victim_slot) -> int
+    calls: mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_v5_dlm_recovery_publish_refusal
   fn static v5_resv_conflict_cb(void *data) -> void
-    calls: mxfs_v5_dlm_note_resv_conflict
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_scsipr_snap_invalidate, mxfs_v5_dlm_note_resv_conflict
   fn static v5_view_sig_provider(void *data, uint32_t *count) -> uint64_t
     calls: mxfs_dlm_get_view_sig
   fn static v5_view_report_cb(void *data, mxfs_node_id_t node, uint32_t count, uint64_t hash) -> void
     calls: mxfs_dlm_report_peer_view
   fn static v5_dispatch_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot, mxfs_node_id_t dead_node) -> void
-    calls: mxfs_disklock_lowest_live_slot, mxfs_disklock_recovery_pending_iter, mxfs_pal_log
+    calls: mxfs_disklock_lowest_live_slot, mxfs_disklock_recovery_pending_iter, mxfs_pal_log, mxfs_recov_blocked_reason, v5_complete_terminal_for
     called_by: v5_dispatch_late_deaths, v5_fence_retry_one, v5_start_slice_recovery
+  fn static v5_mark_recovery_pending_serialized(struct mxfs_v5_dlm *ctx, int dead_slot, mxfs_node_id_t dead_node, mxfs_epoch_t victim_epoch) -> bool
+    calls: mxfs_disklock_mark_recovery_pending, mxfs_disklock_recovery_is_pending, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_defer_slice_recovery, v5_start_slice_recovery
   fn static v5_start_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot, mxfs_node_id_t dead_node, mxfs_epoch_t victim_epoch) -> void
-    calls: mxfs_disklock_mark_recovery_pending, mxfs_disklock_recovery_is_pending, v5_dispatch_slice_recovery
+    calls: v5_dispatch_slice_recovery, v5_mark_recovery_pending_serialized
     called_by: v5_handle_node_death, v5_settle_resolve
   fn static v5_defer_slice_recovery(struct mxfs_v5_dlm *ctx, int dead_slot, mxfs_node_id_t dead_node, mxfs_epoch_t victim_epoch) -> void
-    calls: mxfs_disklock_mark_recovery_pending, mxfs_disklock_recovery_is_pending, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    calls: mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, v5_mark_recovery_pending_serialized
     called_by: v5_handle_node_death
   fn static v5_handle_node_death(struct mxfs_v5_dlm *ctx, mxfs_node_id_t dead_node, int dead_slot, mxfs_epoch_t dead_epoch) -> void
-    calls: mxfs_disklock_find_node_slot, mxfs_disklock_purge_node, mxfs_dlm_purge_node, mxfs_pal_log, mxfs_v5_dlm_recovery_complete, v5_defer_slice_recovery, v5_membership_beacon_caw, v5_note_dead_node, v5_pr_fence_dead_node, v5_pr_fence_prove, v5_refresh_active_nodes, v5_start_slice_recovery
+    calls: mxfs_disklock_find_node_slot, mxfs_disklock_purge_node, mxfs_dlm_ledger_purge_owner, mxfs_dlm_purge_node, mxfs_pal_log, mxfs_v5_dlm_recovery_complete, v5_defer_slice_recovery, v5_membership_beacon_caw, v5_note_dead_node, v5_pr_fence_dead_node, v5_pr_fence_prove, v5_refresh_active_nodes, v5_start_slice_recovery
     called_by: v5_disklock_expire_cb, v5_lease_expire_cb
   fn static v5_lease_expire_cb(void *data, mxfs_node_id_t dead_node) -> void
     calls: v5_handle_node_death
@@ -3044,12 +4699,18 @@
   fn static v5_disklock_expire_cb(void *data, mxfs_node_id_t dead_node, int dead_slot, mxfs_epoch_t dead_epoch) -> void
     calls: v5_handle_node_death
   fn static v5_recovered_cb(void *data, int slot, mxfs_node_id_t dead_node) -> void
-    calls: mxfs_dlm_purge_node, mxfs_lease_unregister_node, v5_membership_beacon_caw, v5_note_dead_node, v5_refresh_active_nodes
+    calls: mxfs_lease_unregister_node, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, v5_depart_queue, v5_membership_beacon_caw, v5_note_dead_inc, v5_note_dead_node, v5_refresh_active_nodes
+    called_by: v5_complete_classify
   fn static v5_clean_depart_cb(void *data, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch) -> void
-    calls: mxfs_dlm_purge_node, mxfs_lease_unregister_node, v5_membership_beacon_caw, v5_refresh_active_nodes
+    calls: mxfs_lease_unregister_node, v5_depart_queue, v5_membership_beacon_caw, v5_refresh_active_nodes
   fn static v5_closure_note_terminal(struct mxfs_v5_dlm *ctx, int slot, const struct mxfs_recov_outcome *oc) -> void
     calls: mxfs_dlm_caw_set_closure_cand_mask, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: mxfs_v5_dlm_recovery_scan_outcomes, v5_recov_outcome_cb
+  fn static v5_protect_cb(void *data, uint64_t mask) -> void
+    calls: mxfs_dlm_caw_set_protected_mask
+  fn static v5_rman_test_mutate_hook(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> void
+    calls: mxfs_dlm_caw_test_mutate_protected
+    called_by: mxfs_v5_dlm_recovery_acquire
   fn static v5_recov_outcome_cb(void *data, int slot, const struct mxfs_recov_outcome *oc) -> int
     calls: v5_closure_note_terminal
   fn static v5_settle_resolve(struct mxfs_v5_dlm *ctx, bool dispatch) -> uint64_t
@@ -3058,20 +4719,28 @@
   fn static v5_settle_worker_fn(void *arg) -> void
     calls: v5_settle_resolve
   fn mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx) -> int
-    calls: mxfs_dlm_caw_purge_dead_nodes_ex, mxfs_dlm_caw_set_adopt_window, mxfs_pal_log
+    calls: claim, mxfs_disklock_slice_adopted, mxfs_dlm_caw_purge_dead_nodes_ex, mxfs_dlm_caw_set_adopt_window, mxfs_pal_log
   fn mxfs_v5_dlm_mount_recovery_cohort(struct mxfs_v5_dlm *ctx, uint64_t *out_slots) -> int
     calls: v5_settle_resolve
   fn mxfs_v5_dlm_mount_residue_blocking(struct mxfs_v5_dlm *ctx, uint64_t *out_residue, int *out_nslots, int *out_nex) -> int
     calls: mxfs_dlm_caw_footprint_scan
+  fn mxfs_v5_dlm_mount_peek_late_deaths(struct mxfs_v5_dlm *ctx) -> uint64_t
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
   fn static v5_take_late_deaths(struct mxfs_v5_dlm *ctx, mxfs_node_id_t *nodes) -> uint64_t
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
     called_by: mxfs_v5_dlm_mount_take_late_deaths, v5_dispatch_late_deaths
   fn mxfs_v5_dlm_mount_take_late_deaths(struct mxfs_v5_dlm *ctx) -> uint64_t
     calls: v5_take_late_deaths
+  fn mxfs_v5_dlm_mount_resolved_elsewhere(struct mxfs_v5_dlm *ctx, uint64_t mask) -> uint64_t
+    calls: mxfs_disklock_recovery_is_pending, mxfs_disklock_slot_terminal_for, mxfs_pal_log, mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
   fn mxfs_v5_dlm_mount_defer_late_deaths(struct mxfs_v5_dlm *ctx, uint64_t slots) -> void
     calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock
+    called_by: v5_fence_retry_one
+  fn static v5_mark_pending_from_record(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t node, mxfs_epoch_t epoch) -> void
+    calls: mxfs_disklock_mark_recovery_pending, mxfs_disklock_mark_recovery_pending_ident, mxfs_disklock_read_record, mxfs_hb_guard_identity_valid, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log
+    called_by: mxfs_v5_dlm_mount_pending_recovery
   fn mxfs_v5_dlm_mount_pending_recovery(struct mxfs_v5_dlm *ctx, uint64_t *out_mask) -> int
-    calls: mxfs_disklock_get_recovery_pending_slots, mxfs_disklock_mark_recovery_pending, mxfs_disklock_pending_node, mxfs_disklock_recovery_is_pending
+    calls: mxfs_disklock_get_recovery_pending_slots, mxfs_disklock_pending_node, mxfs_disklock_recovery_is_pending, mxfs_disklock_retire_settle_slot, mxfs_pal_log, v5_mark_pending_from_record, v5_settled_incarnation
   fn static v5_dispatch_late_deaths(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_disklock_pending_node, mxfs_disklock_recovery_is_pending, mxfs_pal_log, v5_dispatch_slice_recovery, v5_take_late_deaths
     called_by: mxfs_v5_dlm_mount_settle
@@ -3079,18 +4748,35 @@
     calls: mxfs_pal_log, v5_dispatch_late_deaths
     called_by: mxfs_v5_dlm_init
   fn static v5_exclusion_recheck(struct mxfs_v5_dlm *ctx, mxfs_node_id_t victim, uint32_t dead_slot, const char *site) -> int
-    calls: mxfs_disklock_lowest_live_slot, mxfs_disklock_pending_epoch, mxfs_disklock_recovery_replay_authorized, mxfs_fence_kind_name, mxfs_pal_log, mxfs_scsipr_exclusion_holds, mxfs_v5_dlm_is_single_node, v5_blocked_set
-    called_by: mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_complete
+    calls: mxfs_disklock_lowest_live_slot, mxfs_disklock_pending_epoch, mxfs_disklock_recovery_replay_authorized, mxfs_fence_kind_name, mxfs_pal_log, mxfs_scsipr_exclusion_holds, mxfs_scsipr_gate_holds, mxfs_v5_dlm_is_single_node, v5_blocked_set
+    called_by: mxfs_v5_dlm_recovery_acquire, v5_recovery_complete_ladder
+  fn static v5_holder_slot_state(struct mxfs_v5_dlm *ctx, uint32_t dead_slot, const struct mxfs_recov_desc *desc, mxfs_node_id_t holder, mxfs_epoch_t hepoch, const char **why) -> enum v5_inc_state
+    called_by: mxfs_v5_dlm_recovery_acquire
   fn mxfs_v5_dlm_recovery_acquire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> int
-    calls: mxfs_disklock_pending_epoch, mxfs_disklock_pending_node, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_read, mxfs_disklock_recovery_replay_authorized, mxfs_disklock_recovery_takeover, mxfs_pal_log, v5_blocked_set, v5_exclusion_recheck, v5_node_is_dead, v5_note_dead_node, v5_pr_fence_prove
-    called_by: mxfs_v5_dlm_recovery_complete
+    calls: mxfs_disklock_pending_epoch, mxfs_disklock_pending_node, mxfs_disklock_protected_mask_add, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_is_pending, mxfs_disklock_recovery_read, mxfs_disklock_recovery_replay_authorized, mxfs_disklock_recovery_slot_status, mxfs_disklock_recovery_takeover, mxfs_disklock_victim_key, mxfs_pal_log, stop, v5_blocked_set, v5_complete_retry_reset
+    called_by: v5_bootstrap_run, v5_recovery_complete_ladder
   fn mxfs_v5_dlm_recovery_release(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> void
+    called_by: v5_complete_classify, v5_recovery_complete_ladder
+  fn static v5_recovery_complete_ladder(struct mxfs_v5_dlm *ctx, uint32_t dead_slot, struct mxfs_recov_complete_res *res) -> int
+    calls: mxfs_bootstrap_mf_entry_crc, mxfs_bootstrap_slot_complete, mxfs_bootstrap_tomb_read, mxfs_bootstrap_tomb_write, mxfs_disklock_clear_recovery_pending, mxfs_disklock_pending_epoch, mxfs_disklock_pending_node, mxfs_disklock_purge_node, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_is_pending, mxfs_disklock_recovery_read, mxfs_disklock_recovery_replay_authorized, mxfs_disklock_recovery_slot_status, mxfs_disklock_slot_tenancy_retire, mxfs_dlm_caw_purge_node
+    called_by: mxfs_v5_dlm_recovery_complete2
+  fn mxfs_v5_dlm_recovery_complete2(struct mxfs_v5_dlm *ctx, uint32_t dead_slot, struct mxfs_recov_complete_res *res) -> int
+    calls: mxfs_disklock_pending_epoch, mxfs_disklock_pending_node, v5_complete_classify, v5_recovery_complete_ladder
     called_by: mxfs_v5_dlm_recovery_complete
   fn mxfs_v5_dlm_recovery_complete(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> int
-    calls: mxfs_disklock_clear_recovery_pending, mxfs_disklock_pending_epoch, mxfs_disklock_pending_node, mxfs_disklock_purge_node, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_is_pending, mxfs_disklock_recovery_replay_authorized, mxfs_disklock_recovery_slot_status, mxfs_dlm_caw_purge_node, mxfs_dlm_purge_node, mxfs_lease_unregister_node, mxfs_pal_bdev_flush, mxfs_pal_log, mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_recovery_release
+    calls: mxfs_v5_dlm_recovery_complete2
     called_by: mxfs_v5_dlm_mount_cohort_complete, v5_handle_node_death
+  fn mxfs_v5_dlm_recovery_stage(struct mxfs_v5_dlm *ctx, uint32_t dead_slot, unsigned int *stage) -> int
+    calls: mxfs_disklock_recovery_read
   fn mxfs_v5_dlm_mount_cohort_complete(struct mxfs_v5_dlm *ctx, uint64_t slots, uint64_t *out_published) -> int
     calls: mxfs_pal_log, mxfs_v5_dlm_recovery_complete
+  fn mxfs_v5_dlm_bootstrap_adopted(struct mxfs_v5_dlm *ctx) -> bool
+  fn mxfs_v5_dlm_bootstrap_terminal(struct mxfs_v5_dlm *ctx, uint32_t slot) -> void
+    calls: mxfs_bootstrap_refuse, mxfs_pal_log
+  fn mxfs_v5_dlm_bootstrap_k_refused(struct mxfs_v5_dlm *ctx, int rc) -> void
+    calls: mxfs_bootstrap_escrow_advance, mxfs_bootstrap_refuse, mxfs_pal_log
+  fn mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx) -> int
+    calls: mxfs_bootstrap_complete, mxfs_bootstrap_escrow_advance, mxfs_bootstrap_refuse, mxfs_bootstrap_refuse_name, mxfs_disklock_clear_bootstrap_pending, mxfs_disklock_set_owner_bootstrap, mxfs_pal_alloc, mxfs_pal_free, mxfs_pal_log, mxfs_scsipr_read_keys, v5_bootstrap_owner_stop
   fn mxfs_v5_dlm_local_slot(struct mxfs_v5_dlm *ctx) -> int
     calls: mxfs_disklock_get_slot
   fn mxfs_v5_dlm_slot_unclaimed(struct mxfs_v5_dlm *ctx, int slot) -> int
@@ -3101,49 +4787,107 @@
     calls: mxfs_disklock_guard_refresh
   fn mxfs_v5_dlm_unguard_slot(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_disklock_unguard
+  fn static v5_fence_capability_admit(struct mxfs_v5_dlm *ctx, const char *transport) -> int
+    calls: mxfs_pal_log, mxfs_scsipr_validate_admission
+    called_by: mxfs_v5_dlm_init
+  fn static v5_tcp_transport_unwind(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_dlm_destroy, mxfs_pal_thread_join, mxfs_peer_shutdown, v5_depart_worker_stop
+    called_by: mxfs_v5_dlm_init
+  fn static v5_mount_postregister_hold(struct mxfs_v5_dlm *ctx) -> void
+    calls: mxfs_pal_log, mxfs_pal_sleep_ms_interruptible
+    called_by: mxfs_v5_dlm_init
   fn mxfs_v5_dlm_init(const struct mxfs_v5_dlm_opts *opts) -> struct mxfs_v5_dlm
-    calls: claim, mxfs_discovery_create, mxfs_discovery_set_peer_cb, mxfs_discovery_set_transport, mxfs_discovery_start, mxfs_disklock_claim_slot, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_get_withdrawn_slots, mxfs_disklock_join_gate, mxfs_disklock_release_slot, mxfs_disklock_set_clean_depart_cb, mxfs_disklock_set_conflict_cb
+    calls: claim, mxfs_bootstrap_close, mxfs_caw_cap_name, mxfs_discovery_create, mxfs_discovery_set_peer_cb, mxfs_discovery_set_transport, mxfs_discovery_start, mxfs_disklock_caw_capability, mxfs_disklock_claim_slot, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_disklock_fs_gen_of, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_get_withdrawn_slots
+  fn mxfs_v5_dlm_poison(struct mxfs_v5_dlm *ctx, const char *why) -> bool
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_shutdown_withdraw, v5_depart_race_inject
+  fn static v5_tcp_release_gate(struct mxfs_v5_dlm *ctx, const char *what, unsigned long long id) -> int
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_ag_unlock, mxfs_v5_dlm_iclus_unlock_gen, mxfs_v5_dlm_inode_release_unconditional, mxfs_v5_dlm_inode_unlock_free, mxfs_v5_dlm_inode_unlock_open
+  fn static v5_caw_release_gate(struct mxfs_v5_dlm *ctx, const char *what, unsigned long long id) -> int
+    calls: mxfs_pal_log
+    called_by: mxfs_v5_dlm_ag_unlock, mxfs_v5_dlm_iclus_unlock_gen, mxfs_v5_dlm_inode_unlock_free, mxfs_v5_dlm_inode_unlock_open
+  fn mxfs_v5_dlm_is_poisoned(struct mxfs_v5_dlm *ctx) -> bool
+    called_by: v5_local_poisoned_cb
+  fn static v5_depart_race_inject(struct mxfs_v5_dlm *ctx, int point) -> void
+    calls: mxfs_pal_log, mxfs_v5_dlm_poison
+    called_by: mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_v5_dlm_shutdown_withdraw(struct mxfs_v5_dlm *ctx) -> void
-    calls: mxfs_discovery_stop, mxfs_disklock_withdraw, mxfs_pal_log, scan
+    calls: mxfs_discovery_stop, mxfs_disklock_withdraw, mxfs_pal_log, mxfs_v5_dlm_poison, scan
   fn mxfs_v5_dlm_is_withdrawn(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_v5_dlm_shutdown_defer_release
   fn mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx, struct mxfs_v5_dlm_slot_release *late) -> void
-    calls: mxfs_discovery_destroy, mxfs_discovery_stop, mxfs_disklock_destroy, mxfs_disklock_release_slot, mxfs_disklock_stop_heartbeat, mxfs_dlm_caw_departed_clean, mxfs_dlm_caw_destroy, mxfs_dlm_caw_set_closure_cand_mask, mxfs_dlm_caw_set_release_on_stop, mxfs_dlm_caw_stop, mxfs_dlm_destroy, mxfs_dlm_get_epoch, mxfs_dlm_release_all, mxfs_journal_destroy, mxfs_journal_release_slot
+    calls: mxfs_bootstrap_close, mxfs_discovery_destroy, mxfs_discovery_stop, mxfs_disklock_destroy, mxfs_disklock_release_slot, mxfs_disklock_stop_heartbeat, mxfs_dlm_caw_departed_clean, mxfs_dlm_caw_destroy, mxfs_dlm_caw_set_closure_cand_mask, mxfs_dlm_caw_set_release_on_stop, mxfs_dlm_caw_stop, mxfs_dlm_destroy, mxfs_dlm_get_epoch, mxfs_dlm_handoff_depart, mxfs_dlm_release_all
     called_by: mxfs_v5_dlm_shutdown
-  fn mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx) -> uint64_t
-    calls: mxfs_scsipr_abandon, mxfs_scsipr_key
-  fn mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late, bool unmount_clean) -> void
-    calls: mxfs_disklock_destroy, mxfs_disklock_release_slot, mxfs_pal_bdev_close_clone, mxfs_pal_log
+  fn mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx, bool *quarantined) -> uint64_t
+    calls: mxfs_pal_mutex_lock, mxfs_pal_mutex_unlock, mxfs_scsipr_abandon, mxfs_scsipr_key, mxfs_scsipr_probe_stop, v5_retire_worker_stop
+  fn mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late, bool unmount_clean) -> bool
+    calls: mxfs_disklock_release_slot, mxfs_pal_log
+  fn mxfs_v5_dlm_slot_restamp_unretired(struct mxfs_v5_dlm_slot_release *late) -> int
+    calls: mxfs_disklock_restamp_withdrawn_after_release
+  fn mxfs_v5_dlm_slot_retire_complete(struct mxfs_v5_dlm_slot_release *late) -> int
+    calls: mxfs_disklock_retire_complete_self, mxfs_pal_log
+  fn mxfs_v5_dlm_slot_release_finish(struct mxfs_v5_dlm_slot_release *late) -> void
+    calls: mxfs_disklock_destroy, mxfs_pal_bdev_close_clone
+  fn mxfs_v5_dlm_global_init(void) -> int
+    calls: mxfs_pal_mutex_create, mxfs_scsipr_departure_init
+  fn mxfs_v5_dlm_global_exit(void) -> void
+    calls: mxfs_pal_mutex_destroy, mxfs_scsipr_departure_exit, v5_quarantine_reap
+  fn mxfs_v5_dlm_departure_lock(void) -> void
+    calls: mxfs_scsipr_departure_lock
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_v5_dlm_departure_unlock(void) -> void
+    calls: mxfs_scsipr_departure_unlock
+    called_by: mxfs_v5_dlm_init
   fn static make_inode_resource(struct mxfs_resource_id *res, mxfs_volume_id_t volume_id, uint64_t ino) -> void
-    called_by: mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_inode_dir_block0, mxfs_v5_dlm_inode_dir_epoch, mxfs_v5_dlm_inode_dump_slot, mxfs_v5_dlm_inode_ex_count, mxfs_v5_dlm_inode_force_release_self, mxfs_v5_dlm_inode_grant_gen, mxfs_v5_dlm_inode_grant_handoff, mxfs_v5_dlm_inode_granted_mode, mxfs_v5_dlm_inode_held_nb, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try, mxfs_v5_dlm_inode_master_self, mxfs_v5_dlm_inode_open_clear
+    called_by: mxfs_v5_dlm_caw_pw_selftest, mxfs_v5_dlm_caw_samenode_selftest, mxfs_v5_dlm_inode_dir_block0, mxfs_v5_dlm_inode_dir_epoch, mxfs_v5_dlm_inode_dump_slot, mxfs_v5_dlm_inode_ex_count, mxfs_v5_dlm_inode_force_release_self, mxfs_v5_dlm_inode_grant_gen, mxfs_v5_dlm_inode_grant_handoff, mxfs_v5_dlm_inode_granted_mode, mxfs_v5_dlm_inode_held_by_blocked, mxfs_v5_dlm_inode_held_nb, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try
   fn static make_iclus_resource(struct mxfs_resource_id *res, mxfs_volume_id_t volume_id, uint64_t base_ino) -> void
     called_by: mxfs_v5_dlm_iclus_held_rawmode, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_iclus_pin, mxfs_v5_dlm_iclus_unlock_gen
   fn static make_ag_resource(struct mxfs_resource_id *res, mxfs_volume_id_t volume_id, uint32_t agno) -> void
     called_by: mxfs_v5_dlm_ag_ex_count, mxfs_v5_dlm_ag_held, mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb, mxfs_v5_dlm_ag_orphan_nak, mxfs_v5_dlm_ag_read_generation, mxfs_v5_dlm_ag_unlock
+  fn static v5_tcp_grant_result_fill(struct mxfs_v5_dlm *ctx, const struct mxfs_resource_id *res, uint8_t granted, struct mxfs_grant_result *gres) -> void
+    calls: mxfs_dlm_grant_gen, mxfs_dlm_grant_id, mxfs_dlm_resource_master
+    called_by: mxfs_v5_dlm_ag_lock, mxfs_v5_dlm_ag_lock_nb, mxfs_v5_dlm_iclus_lock, mxfs_v5_dlm_inode_lock, mxfs_v5_dlm_inode_lock_retries, mxfs_v5_dlm_inode_lock_try, mxfs_v5_dlm_inode_reserve_try
   fn mxfs_v5_dlm_inode_lock(struct mxfs_v5_dlm *ctx, uint64_t ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
-    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock, mxfs_pal_log, mxfs_pal_sleep_ms
+    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock, mxfs_pal_log, mxfs_pal_sleep_ms, v5_tcp_grant_result_fill
     called_by: mxfs_v5_dlm_iclus_lock
   fn mxfs_v5_dlm_inode_lock_retries(struct mxfs_v5_dlm *ctx, uint64_t ino, uint8_t mode, int retries, struct mxfs_grant_result *gres) -> int
-    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_caw_lock_deadline, mxfs_dlm_lock_retries, mxfs_pal_time_ms
+    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_caw_lock_deadline, mxfs_dlm_lock_retries, mxfs_pal_time_ms, v5_tcp_grant_result_fill
   fn mxfs_v5_dlm_inode_unlock(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
     calls: mxfs_v5_dlm_inode_unlock_gen
+  fn mxfs_v5_dlm_inode_held_by_blocked(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
+    calls: make_inode_resource, mxfs_dlm_resource_held_by_blocked, mxfs_v5_dlm_any_recovery_blocked
+  fn mxfs_v5_dlm_inode_wait_is_live(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
+    calls: make_inode_resource, mxfs_dlm_caw_resource_holders_live, mxfs_dlm_resource_wait_is_live
   fn mxfs_v5_dlm_inode_unlock_free(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
-    calls: make_inode_resource, mxfs_dlm_caw_unlock_gen, mxfs_dlm_unlock_gen
+    calls: make_inode_resource, mxfs_dlm_caw_unlock_gen, mxfs_dlm_unlock_gen, mxfs_pal_log, v5_caw_release_gate, v5_tcp_release_gate
   fn mxfs_v5_dlm_inode_release_unconditional(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
-    calls: make_inode_resource, mxfs_dlm_send_unconditional_release
+    calls: make_inode_resource, mxfs_dlm_send_unconditional_release, v5_tcp_release_gate
   fn mxfs_v5_dlm_inode_unlock_gen(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t expected_gen) -> int
     calls: mxfs_v5_dlm_inode_unlock_open
-    called_by: mxfs_v5_dlm_inode_unlock
+    called_by: mxfs_dbg_p106_inject_take, mxfs_v5_dlm_inode_unlock
   fn mxfs_v5_dlm_inode_unlock_open(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t expected_gen, int open_op) -> int
-    calls: make_inode_resource, mxfs_dlm_caw_unlock_gen, mxfs_dlm_unlock_gen, mxfs_pal_log, mxfs_v5_dlm_note_resv_conflict
+    calls: make_inode_resource, mxfs_dlm_caw_unlock_gen, mxfs_dlm_unlock_gen, mxfs_pal_log, mxfs_v5_dlm_note_resv_conflict, v5_caw_release_gate, v5_tcp_release_gate
     called_by: mxfs_v5_dlm_inode_unlock_gen
   fn mxfs_v5_dlm_caw_pw_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
     calls: make_inode_resource, mxfs_dlm_caw_convert, mxfs_dlm_caw_lock, mxfs_dlm_caw_unlock, mxfs_pal_log
+  fn static v5_samenode_attempt_fn(void *arg) -> void
+    calls: mxfs_dlm_caw_lock
+  fn static v5_samenode_wait_attempts(struct mxfs_v5_dlm *ctx, const struct mxfs_resource_id *res, uint32_t want, uint32_t ms) -> bool
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn static v5_samenode_wait_waiter_bit(struct mxfs_v5_dlm *ctx, const struct mxfs_resource_id *res, bool want_set, uint32_t ms, struct mxfs_caw_test_bits *last) -> bool
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn static v5_samenode_wait_knob_zero(enum mxfs_caw_test_knob which, uint32_t ms) -> bool
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn static v5_samenode_wait_discharged(struct mxfs_v5_dlm *ctx, const struct mxfs_resource_id *res, uint32_t ms) -> bool
+    called_by: mxfs_v5_dlm_caw_samenode_selftest
+  fn mxfs_v5_dlm_caw_samenode_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino, unsigned int mode) -> int
+    calls: make_inode_resource, mxfs_dlm_caw_granted_mode, mxfs_dlm_caw_lock, mxfs_dlm_caw_test_arm, mxfs_dlm_caw_test_knob_left, mxfs_dlm_caw_test_lreq_state, mxfs_dlm_caw_test_slot_bits, mxfs_dlm_caw_unlock, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_pal_thread_join_timeout, mxfs_pal_time_ms, v5_samenode_wait_attempts, v5_samenode_wait_discharged, v5_samenode_wait_knob_zero
   fn mxfs_v5_dlm_iclus_lock(struct mxfs_v5_dlm *ctx, uint64_t base_ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
-    calls: make_iclus_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_v5_dlm_inode_lock
+    calls: make_iclus_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock, mxfs_pal_log, mxfs_pal_sleep_ms, mxfs_v5_dlm_inode_lock, v5_tcp_grant_result_fill
   fn mxfs_v5_dlm_iclus_unlock_gen(struct mxfs_v5_dlm *ctx, uint64_t base_ino, uint32_t expected_gen, bool is_free) -> int
-    calls: make_iclus_resource, mxfs_dlm_caw_unlock_gen, mxfs_dlm_unlock_gen
+    calls: make_iclus_resource, mxfs_dlm_caw_unlock_gen, mxfs_dlm_unlock_gen, v5_caw_release_gate, v5_tcp_release_gate
   fn mxfs_v5_dlm_iclus_pin(struct mxfs_v5_dlm *ctx, uint64_t base_ino) -> int
     calls: make_iclus_resource, mxfs_dlm_caw_pin_resource
   fn mxfs_v5_dlm_inode_pin(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
@@ -3180,17 +4924,27 @@
     calls: make_inode_resource, mxfs_dlm_caw_grant_handoff, mxfs_dlm_grant_was_handoff
   fn mxfs_v5_dlm_inode_dir_epoch(struct mxfs_v5_dlm *ctx, uint64_t ino) -> uint32_t
     calls: make_inode_resource, mxfs_dlm_caw_grant_dir_epoch, mxfs_dlm_grant_dir_epoch
+    called_by: mxfs_dlm_process_remote_grant
   fn mxfs_v5_dlm_inode_dir_block0(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t gen, uint64_t *fsb_out) -> bool
     calls: make_inode_resource, mxfs_dlm_caw_grant_dir_block0
   fn mxfs_v5_dlm_inode_set_dir_block0(struct mxfs_v5_dlm *ctx, uint64_t ino, uint64_t fsb, uint32_t gen) -> void
     calls: make_inode_resource, mxfs_dlm_caw_set_dir_block0
   fn mxfs_v5_dlm_transport_caw(struct mxfs_v5_dlm *ctx) -> bool
+    called_by: mxfs_v5_dlm_inode_orphan_nak
+  fn mxfs_v5_dlm_transport_tcp(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_note_inode_freed(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t gen) -> void
     calls: mxfs_disklock_note_freed
   fn mxfs_v5_dlm_note_dir_modified(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
     calls: mxfs_disklock_note_freed
   fn mxfs_v5_dlm_recovery_publish_refusal(struct mxfs_v5_dlm *ctx, int dead_slot, const struct mxfs_recov_refusal_info *info, struct mxfs_recov_outcome *oc_out) -> int
     calls: mxfs_disklock_recovery_publish_refusal, mxfs_pal_log
+    called_by: v5_dbg_purge_hook, v5_recovery_complete_ladder
+  fn mxfs_v5_dlm_recovery_obl_write(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_obl_ext *ext, uint32_t count, const struct mxfs_recov_obl_geom *geom, uint64_t census_digest, uint16_t flags, struct mxfs_recov_obl *out_rec) -> int
+  fn mxfs_v5_dlm_recovery_publish_refusal_obl(struct mxfs_v5_dlm *ctx, int dead_slot, const struct mxfs_recov_refusal_info *info, const struct mxfs_recov_obl *obl, struct mxfs_recov_outcome *oc_out) -> int
+  fn mxfs_v5_dlm_recovery_read_obl(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_obl *rec_out, struct mxfs_recov_obl_ext *ext_out, uint32_t *count_out) -> int
+    calls: mxfs_disklock_recovery_read_obl
+  fn mxfs_v5_dlm_dbg_purge_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> int
+    calls: mxfs_disklock_purge_node, mxfs_pal_log
   fn mxfs_v5_dlm_recovery_read_outcome(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_outcome *oc_out) -> int
     calls: mxfs_disklock_recovery_read_outcome
   fn static v5_closure_classify(void *arg, const struct mxfs_resource_id *res) -> int
@@ -3204,7 +4958,9 @@
   fn mxfs_v5_dlm_recovery_scan_outcomes(struct mxfs_v5_dlm *ctx) -> void
     calls: mxfs_disklock_recovery_read_outcome, mxfs_pal_log, v5_closure_note_terminal
   fn mxfs_v5_dlm_inode_lock_try(struct mxfs_v5_dlm *ctx, uint64_t ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
-    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock
+    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock, v5_tcp_grant_result_fill
+  fn mxfs_v5_dlm_inode_reserve_try(struct mxfs_v5_dlm *ctx, uint64_t ino, int demand, struct mxfs_grant_result *gres) -> int
+    calls: make_inode_resource, mxfs_dlm_caw_lock, mxfs_dlm_lock, v5_tcp_grant_result_fill
   fn mxfs_v5_dlm_set_bast_notify(struct mxfs_v5_dlm *ctx, mxfs_v5_bast_notify_fn fn, void *data) -> void
   fn mxfs_v5_dlm_set_ag_bast_notify(struct mxfs_v5_dlm *ctx, mxfs_v5_ag_bast_notify_fn fn, void *data) -> void
   fn mxfs_v5_dlm_set_fence_notify(struct mxfs_v5_dlm *ctx, mxfs_v5_fence_notify_fn fn, void *data) -> void
@@ -3214,21 +4970,38 @@
   fn mxfs_v5_dlm_set_dlm_stuck_notify(struct mxfs_v5_dlm *ctx, mxfs_v5_dlm_stuck_notify_fn fn, void *data) -> void
   fn mxfs_v5_dlm_set_peer_joined_notify(struct mxfs_v5_dlm *ctx, mxfs_v5_peer_joined_notify_fn fn, void *data) -> void
     calls: mxfs_dlm_is_single_node, mxfs_pal_log
+  fn mxfs_v5_dlm_deaths_undeclared(struct mxfs_v5_dlm *ctx, unsigned int *window_ms) -> int
+    calls: mxfs_disklock_deaths_undeclared
   fn mxfs_v5_dlm_ag_lock(struct mxfs_v5_dlm *ctx, uint32_t agno, uint64_t local_epoch, struct mxfs_grant_result *gres) -> int
-    calls: make_ag_resource, mxfs_dlm_caw_lock_attested, mxfs_dlm_lock, mxfs_pal_log
+    calls: make_ag_resource, mxfs_dlm_caw_lock_attested, mxfs_dlm_lock, mxfs_pal_log, v5_tcp_grant_result_fill
   fn mxfs_v5_dlm_ag_read_generation(struct mxfs_v5_dlm *ctx, uint32_t agno, uint64_t *out_gen) -> int
     calls: make_ag_resource, mxfs_dlm_caw_read_generation
   fn mxfs_v5_dlm_victim_ag_manifest_read(struct mxfs_v5_dlm *ctx, uint32_t agno, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage) -> int
   fn mxfs_v5_dlm_victim_inode_manifest_read(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage) -> int
+  fn mxfs_v5_dlm_victim_live_read(struct mxfs_v5_dlm *ctx, uint8_t ltype, uint64_t resource, uint32_t victim_slot, bool *out_holds, uint64_t *out_epoch, uint64_t *out_lineage, uint8_t *out_mode, uint32_t *out_slot_idx) -> int
+    called_by: mxfs_v5_dlm_rman_verify_live
+  fn mxfs_v5_dlm_rman_verify_live(struct mxfs_v5_dlm *ctx, uint32_t slot, uint32_t victim_node, uint64_t victim_epoch, uint32_t *out_checked) -> int
+    calls: mxfs_disklock_recovery_manifest_read, mxfs_pal_free, mxfs_pal_log, mxfs_v5_dlm_victim_live_read
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_v5_dlm_victim_manifest_load(struct mxfs_v5_dlm *ctx, uint32_t slot, uint32_t victim_node, uint64_t victim_epoch, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+  fn mxfs_v5_dlm_victim_lineage_count(struct mxfs_v5_dlm *ctx, uint32_t slot) -> unsigned int
+  fn mxfs_v5_dlm_victim_lineage_load(struct mxfs_v5_dlm *ctx, uint32_t slot, unsigned int idx, uint32_t *out_node, uint64_t *out_epoch, uint16_t *out_stage, uint64_t *out_term, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+  fn static v5_victim_desc_read(struct mxfs_v5_dlm *ctx, uint32_t slot, struct mxfs_recov_desc *desc) -> int
+    calls: mxfs_disklock_recovery_read
+    called_by: mxfs_v5_dlm_victim_adopted, mxfs_v5_dlm_victim_recovery_read, mxfs_v5_dlm_victim_untagged_authority
   fn mxfs_v5_dlm_victim_recovery_read(struct mxfs_v5_dlm *ctx, uint32_t slot, uint16_t *out_stage, uint64_t *out_victim_epoch, uint32_t *out_victim_node) -> int
-    calls: mxfs_disklock_recovery_read
+    calls: v5_victim_desc_read
   fn mxfs_v5_dlm_victim_untagged_authority(struct mxfs_v5_dlm *ctx, uint32_t slot, bool *out_cert_sn_excl, bool *out_victim_snlocal) -> int
-    calls: mxfs_disklock_recovery_read
+    calls: v5_victim_desc_read
+  fn mxfs_v5_dlm_victim_adopted(struct mxfs_v5_dlm *ctx, uint32_t slot) -> bool
+    calls: v5_victim_desc_read
   fn mxfs_v5_dlm_ag_lock_nb(struct mxfs_v5_dlm *ctx, uint32_t agno, uint64_t local_epoch, struct mxfs_grant_result *gres, bool demand) -> int
-    calls: make_ag_resource, mxfs_dlm_caw_lock_attested, mxfs_dlm_lock
+    calls: make_ag_resource, mxfs_dlm_caw_lock_attested, mxfs_dlm_lock, v5_tcp_grant_result_fill
     called_by: dlm_lock_impl
   fn mxfs_v5_dlm_ag_orphan_nak(struct mxfs_v5_dlm *ctx, uint32_t agno) -> int
     calls: make_ag_resource, mxfs_dlm_release_orphan_if_unheld
+  fn mxfs_v5_dlm_inode_orphan_nak(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
+    calls: make_inode_resource, mxfs_dlm_release_orphan_if_unheld, mxfs_v5_dlm_transport_caw
   fn mxfs_v5_dlm_is_caw(struct mxfs_v5_dlm *ctx) -> int
   fn mxfs_v5_dlm_inode_held_nb(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
     calls: make_inode_resource, mxfs_dlm_held_mode_nb
@@ -3246,10 +5019,11 @@
   fn mxfs_v5_dlm_ag_ex_count(struct mxfs_v5_dlm *ctx, uint32_t agno, int *nslots_out) -> int
     calls: make_ag_resource, mxfs_dlm_caw_ex_count
   fn mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx, uint32_t agno) -> enum mxfs_unlock_state
-    calls: make_ag_resource, mxfs_dlm_caw_held, mxfs_dlm_caw_unlock_state, mxfs_dlm_unlock, mxfs_v5_dlm_note_resv_conflict
+    calls: make_ag_resource, mxfs_dlm_caw_held, mxfs_dlm_caw_unlock_state, mxfs_dlm_unlock, mxfs_v5_dlm_note_resv_conflict, v5_caw_release_gate, v5_tcp_release_gate
   fn mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx) -> bool
-    calls: mxfs_dlm_is_single_node
-    called_by: mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_v5_dlm_is_mds, v5_exclusion_recheck
+    called_by: mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_pubob_arm, mxfs_pubob_free_abort, mxfs_pubob_free_commit, mxfs_pubob_free_pending, mxfs_pubob_recycle, mxfs_pubob_stage_flush, mxfs_v5_dlm_is_mds, mxfs_v5_dlm_sole_survivor, v5_exclusion_recheck
+  fn mxfs_v5_dlm_sole_survivor(struct mxfs_v5_dlm *ctx) -> bool
+    calls: mxfs_v5_dlm_is_single_node
   fn mxfs_v5_dlm_get_node_slot(struct mxfs_v5_dlm *ctx) -> int
     called_by: mxfs_v5_dlm_node_bit
   fn mxfs_v5_dlm_mount_identity(struct mxfs_v5_dlm *ctx, uint32_t *slot, uint32_t *node, uint64_t *epoch) -> bool
@@ -3259,9 +5033,15 @@
   fn mxfs_v5_dlm_is_mds(struct mxfs_v5_dlm *ctx) -> bool
     calls: mxfs_v5_dlm_is_single_node
   fn mxfs_v5_dlm_get_mds_node_slot(struct mxfs_v5_dlm *ctx) -> int
+  struct v5_depart_req { node, inc, slot, why, queued_ms, takeover_only, settled, refused, orphan_sweep }
   struct mxfs_v5_dlm { node_id, node_uuid, volume_id, volume_uuid, transport, dlm_caw, dlm, peer, dlm_port, discovery_port }
   struct mxfs_md_pending { in_use, done, seq, reply }
+  enum v5_inc_state { V5_INC_LIVE, V5_INC_REVOKED, V5_INC_UNKNOWN }
+  struct v5_retire_cas_arg { ctx, slot, token, img, rc }
+  struct v5_tk_edit { stage, k_desc_crc, k_slot }
   struct v5_fence_arm_ctx { ctx, slot, auth }
+  struct v5_tauth_collect { ents, rc }
+  struct v5_samenode_attempt { ctx, res, rc, done, granted }
   struct v5_closure_shim { arg, volume_id }
   struct v5_closure_gate_arg { ctx, slot, victim, ag_mask }
 
@@ -3270,9 +5050,22 @@
   fn mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx) -> void
   fn mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx, struct mxfs_v5_dlm_slot_release *late) -> void
     called_by: mxfs_v5_dlm_shutdown
-  fn mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late, bool unmount_clean) -> void
-  fn mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx) -> uint64_t
+  fn mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late, bool unmount_clean) -> bool
+  fn mxfs_v5_dlm_slot_restamp_unretired(struct mxfs_v5_dlm_slot_release *late) -> int
+  fn mxfs_v5_dlm_slot_retire_complete(struct mxfs_v5_dlm_slot_release *late) -> int
+  fn mxfs_v5_dlm_slot_release_finish(struct mxfs_v5_dlm_slot_release *late) -> void
+  fn mxfs_v5_dlm_global_init(void) -> int
+  fn mxfs_v5_dlm_global_exit(void) -> void
+  fn mxfs_v5_dlm_departure_lock(void) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_v5_dlm_departure_unlock(void) -> void
+    called_by: mxfs_v5_dlm_init
+  fn mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx, bool *quarantined) -> uint64_t
   fn mxfs_v5_dlm_shutdown_withdraw(struct mxfs_v5_dlm *ctx) -> void
+  fn mxfs_v5_dlm_poison(struct mxfs_v5_dlm *ctx, const char *why) -> bool
+    called_by: mxfs_v5_dlm_shutdown_withdraw, v5_depart_race_inject
+  fn mxfs_v5_dlm_is_poisoned(struct mxfs_v5_dlm *ctx) -> bool
+    called_by: v5_local_poisoned_cb
   fn mxfs_v5_dlm_local_slot(struct mxfs_v5_dlm *ctx) -> int
   fn mxfs_v5_dlm_slot_unclaimed(struct mxfs_v5_dlm *ctx, int slot) -> int
   fn mxfs_v5_dlm_guard_slot(struct mxfs_v5_dlm *ctx, int slot) -> int
@@ -3281,39 +5074,64 @@
   fn mxfs_v5_dlm_recovery_complete(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> int
     called_by: mxfs_v5_dlm_mount_cohort_complete, v5_handle_node_death
   fn mxfs_v5_dlm_recovery_acquire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> int
+    called_by: v5_bootstrap_run, v5_recovery_complete_ladder
+  fn mxfs_v5_dlm_recovery_complete2(struct mxfs_v5_dlm *ctx, uint32_t dead_slot, struct mxfs_recov_complete_res *res) -> int
     called_by: mxfs_v5_dlm_recovery_complete
+  fn mxfs_v5_dlm_recovery_stage(struct mxfs_v5_dlm *ctx, uint32_t dead_slot, unsigned int *stage) -> int
   fn mxfs_v5_dlm_recovery_release(struct mxfs_v5_dlm *ctx, uint32_t dead_slot) -> void
-    called_by: mxfs_v5_dlm_recovery_complete
+    called_by: v5_complete_classify, v5_recovery_complete_ladder
   fn mxfs_recov_blocked_reason(uint32_t reason) -> const char
+    called_by: v5_complete_terminal_for, v5_dispatch_slice_recovery, v5_recovery_complete_ladder
   fn mxfs_v5_dlm_blocked_iter(struct mxfs_v5_dlm *ctx, int prev, struct mxfs_recov_blocked *out) -> int
+  fn mxfs_v5_dlm_any_recovery_blocked(struct mxfs_v5_dlm *ctx) -> int
+    called_by: mxfs_v5_dlm_inode_held_by_blocked
+  fn mxfs_v5_dlm_node_recovery_blocked(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node) -> int
+    called_by: v5_node_live_cb, v5_recovery_blocked_cb
+  fn mxfs_v5_dlm_recovery_refused(struct mxfs_v5_dlm *ctx, int slot, mxfs_node_id_t victim, uint64_t victim_inc, int fswide, uint64_t ag_mask) -> void
+  fn mxfs_v5_dlm_inode_held_by_blocked(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
+  fn mxfs_v5_dlm_inode_wait_is_live(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
   fn mxfs_v5_dlm_mount_settle(struct mxfs_v5_dlm *ctx) -> int
     called_by: mxfs_v5_dlm_init
+  fn mxfs_v5_dlm_deaths_undeclared(struct mxfs_v5_dlm *ctx, unsigned int *window_ms) -> int
   fn mxfs_v5_dlm_mount_residue_blocking(struct mxfs_v5_dlm *ctx, uint64_t *out_residue, int *out_nslots, int *out_nex) -> int
   fn mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx) -> int
   fn mxfs_v5_dlm_mount_recovery_cohort(struct mxfs_v5_dlm *ctx, uint64_t *out_slots) -> int
   fn mxfs_v5_dlm_mount_cohort_complete(struct mxfs_v5_dlm *ctx, uint64_t slots, uint64_t *out_published) -> int
+  fn mxfs_v5_dlm_bootstrap_adopted(struct mxfs_v5_dlm *ctx) -> bool
+  fn mxfs_v5_dlm_bootstrap_terminal(struct mxfs_v5_dlm *ctx, uint32_t slot) -> void
+  fn mxfs_v5_dlm_bootstrap_k_refused(struct mxfs_v5_dlm *ctx, int rc) -> void
+  fn mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx) -> int
   fn mxfs_v5_dlm_mount_take_late_deaths(struct mxfs_v5_dlm *ctx) -> uint64_t
+  fn mxfs_v5_dlm_mount_peek_late_deaths(struct mxfs_v5_dlm *ctx) -> uint64_t
   fn mxfs_v5_dlm_mount_pending_recovery(struct mxfs_v5_dlm *ctx, uint64_t *out_mask) -> int
   fn mxfs_v5_dlm_mount_defer_late_deaths(struct mxfs_v5_dlm *ctx, uint64_t slots) -> void
+    called_by: v5_fence_retry_one
+  fn mxfs_v5_dlm_mount_resolved_elsewhere(struct mxfs_v5_dlm *ctx, uint64_t mask) -> uint64_t
   fn mxfs_v5_dlm_is_withdrawn(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_inode_lock(struct mxfs_v5_dlm *ctx, uint64_t ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
     called_by: mxfs_v5_dlm_iclus_lock
   fn mxfs_v5_dlm_inode_lock_retries(struct mxfs_v5_dlm *ctx, uint64_t ino, uint8_t mode, int retries, struct mxfs_grant_result *gres) -> int
   fn mxfs_v5_dlm_inode_unlock(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
   fn mxfs_v5_dlm_caw_pw_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
+  fn mxfs_v5_dlm_caw_samenode_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino, unsigned int mode) -> int
   fn mxfs_v5_dlm_inode_unlock_free(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
   fn mxfs_v5_dlm_inode_release_unconditional(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
   fn mxfs_v5_dlm_inode_unlock_open(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t expected_gen, int open_op) -> int
     called_by: mxfs_v5_dlm_inode_unlock_gen
   fn mxfs_v5_dlm_inode_unlock_gen(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t expected_gen) -> int
-    called_by: mxfs_v5_dlm_inode_unlock
+    called_by: mxfs_dbg_p106_inject_take, mxfs_v5_dlm_inode_unlock
   fn mxfs_v5_dlm_inode_dump_slot(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
   fn mxfs_v5_dlm_inode_ex_count(struct mxfs_v5_dlm *ctx, uint64_t ino, int *nslots_out) -> int
   fn mxfs_v5_dlm_inode_self_held_scan(struct mxfs_v5_dlm *ctx, uint64_t ino, int *nslots_out, uint64_t *hex_or_out) -> int
   fn mxfs_v5_dlm_inode_force_release_self(struct mxfs_v5_dlm *ctx, uint64_t ino, const struct mxfs_forcerel_attest *att) -> int
   fn mxfs_v5_dlm_note_inode_freed(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t gen) -> void
   fn mxfs_v5_dlm_note_dir_modified(struct mxfs_v5_dlm *ctx, uint64_t ino) -> void
+  fn mxfs_v5_dlm_dbg_purge_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id) -> int
   fn mxfs_v5_dlm_recovery_publish_refusal(struct mxfs_v5_dlm *ctx, int dead_slot, const struct mxfs_recov_refusal_info *info, struct mxfs_recov_outcome *oc_out) -> int
+    called_by: v5_dbg_purge_hook, v5_recovery_complete_ladder
+  fn mxfs_v5_dlm_recovery_obl_write(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_obl_ext *ext, uint32_t count, const struct mxfs_recov_obl_geom *geom, uint64_t census_digest, uint16_t flags, struct mxfs_recov_obl *out_rec) -> int
+  fn mxfs_v5_dlm_recovery_publish_refusal_obl(struct mxfs_v5_dlm *ctx, int dead_slot, const struct mxfs_recov_refusal_info *info, const struct mxfs_recov_obl *obl, struct mxfs_recov_outcome *oc_out) -> int
+  fn mxfs_v5_dlm_recovery_read_obl(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_obl *rec_out, struct mxfs_recov_obl_ext *ext_out, uint32_t *count_out) -> int
   fn mxfs_v5_dlm_recovery_read_outcome(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_outcome *oc_out) -> int
   fn mxfs_v5_dlm_recovery_backfill_legacy(struct mxfs_v5_dlm *ctx, int dead_slot, struct mxfs_recov_outcome *oc_out) -> int
   fn mxfs_v5_dlm_recovery_scan_outcomes(struct mxfs_v5_dlm *ctx) -> void
@@ -3323,13 +5141,22 @@
   fn mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx, uint32_t agno) -> enum mxfs_unlock_state
   fn mxfs_v5_dlm_ag_held(struct mxfs_v5_dlm *ctx, uint32_t agno) -> int
   fn mxfs_v5_dlm_ag_orphan_nak(struct mxfs_v5_dlm *ctx, uint32_t agno) -> int
+  fn mxfs_v5_dlm_inode_orphan_nak(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
   fn mxfs_v5_dlm_is_caw(struct mxfs_v5_dlm *ctx) -> int
   fn mxfs_v5_dlm_inode_held_nb(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
   fn mxfs_v5_dlm_ag_read_generation(struct mxfs_v5_dlm *ctx, uint32_t agno, uint64_t *out_gen) -> int
   fn mxfs_v5_dlm_victim_ag_manifest_read(struct mxfs_v5_dlm *ctx, uint32_t agno, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage) -> int
   fn mxfs_v5_dlm_victim_inode_manifest_read(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t victim_slot, bool *out_holds_ex, uint64_t *out_ex_grant_epoch, uint64_t *out_lineage) -> int
+  fn mxfs_v5_dlm_victim_live_read(struct mxfs_v5_dlm *ctx, uint8_t ltype, uint64_t resource, uint32_t victim_slot, bool *out_holds, uint64_t *out_epoch, uint64_t *out_lineage, uint8_t *out_mode, uint32_t *out_slot_idx) -> int
+    called_by: mxfs_v5_dlm_rman_verify_live
+  fn mxfs_v5_dlm_rman_verify_live(struct mxfs_v5_dlm *ctx, uint32_t slot, uint32_t victim_node, uint64_t victim_epoch, uint32_t *out_checked) -> int
+    called_by: v5_recovery_complete_ladder
+  fn mxfs_v5_dlm_victim_lineage_count(struct mxfs_v5_dlm *ctx, uint32_t slot) -> unsigned int
+  fn mxfs_v5_dlm_victim_lineage_load(struct mxfs_v5_dlm *ctx, uint32_t slot, unsigned int idx, uint32_t *out_node, uint64_t *out_epoch, uint16_t *out_stage, uint64_t *out_term, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
+  fn mxfs_v5_dlm_victim_manifest_load(struct mxfs_v5_dlm *ctx, uint32_t slot, uint32_t victim_node, uint64_t victim_epoch, struct mxfs_recov_manifest_ptr *out_ptr, struct mxfs_rman_entry **out_ents, uint32_t *out_count, bool *out_no_caw) -> int
   fn mxfs_v5_dlm_victim_recovery_read(struct mxfs_v5_dlm *ctx, uint32_t slot, uint16_t *out_stage, uint64_t *out_victim_epoch, uint32_t *out_victim_node) -> int
   fn mxfs_v5_dlm_victim_untagged_authority(struct mxfs_v5_dlm *ctx, uint32_t slot, bool *out_cert_sn_excl, bool *out_victim_snlocal) -> int
+  fn mxfs_v5_dlm_victim_adopted(struct mxfs_v5_dlm *ctx, uint32_t slot) -> bool
   fn mxfs_v5_dlm_inode_held(struct mxfs_v5_dlm *ctx, uint64_t ino) -> int
   fn mxfs_v5_dlm_inode_held_rawmode(struct mxfs_v5_dlm *ctx, uint64_t ino) -> uint8_t
     called_by: mxfs_v5_dlm_inode_held
@@ -3346,12 +5173,16 @@
   fn mxfs_v5_dlm_node_bit(struct mxfs_v5_dlm *ctx) -> uint64_t
   fn mxfs_v5_dlm_inode_grant_handoff(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t *gen_out) -> bool
   fn mxfs_v5_dlm_inode_dir_epoch(struct mxfs_v5_dlm *ctx, uint64_t ino) -> uint32_t
+    called_by: mxfs_dlm_process_remote_grant
   fn mxfs_v5_dlm_inode_dir_block0(struct mxfs_v5_dlm *ctx, uint64_t ino, uint32_t gen, uint64_t *fsb_out) -> bool
   fn mxfs_v5_dlm_inode_set_dir_block0(struct mxfs_v5_dlm *ctx, uint64_t ino, uint64_t fsb, uint32_t gen) -> void
   fn mxfs_v5_dlm_transport_caw(struct mxfs_v5_dlm *ctx) -> bool
+    called_by: mxfs_v5_dlm_inode_orphan_nak
+  fn mxfs_v5_dlm_transport_tcp(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_is_tcp(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_ag_ex_count(struct mxfs_v5_dlm *ctx, uint32_t agno, int *nslots_out) -> int
   fn mxfs_v5_dlm_inode_lock_try(struct mxfs_v5_dlm *ctx, uint64_t ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
+  fn mxfs_v5_dlm_inode_reserve_try(struct mxfs_v5_dlm *ctx, uint64_t ino, int demand, struct mxfs_grant_result *gres) -> int
   fn mxfs_v5_dlm_set_bast_notify(struct mxfs_v5_dlm *ctx, mxfs_v5_bast_notify_fn fn, void *data) -> void
   fn mxfs_v5_dlm_iclus_lock(struct mxfs_v5_dlm *ctx, uint64_t base_ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
   fn mxfs_v5_dlm_iclus_unlock_gen(struct mxfs_v5_dlm *ctx, uint64_t base_ino, uint32_t expected_gen, bool is_free) -> int
@@ -3371,15 +5202,17 @@
   fn mxfs_v5_dlm_md_request(struct mxfs_v5_dlm *ctx, uint16_t type, const struct mxfs_md_req *req, const char *name1, const char *name2, struct mxfs_md_reply *reply) -> int
   fn mxfs_v5_dlm_mds_node_id(struct mxfs_v5_dlm *ctx) -> mxfs_node_id_t
   fn mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx) -> bool
-    called_by: mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_v5_dlm_is_mds, v5_exclusion_recheck
+    called_by: mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_pubob_arm, mxfs_pubob_free_abort, mxfs_pubob_free_commit, mxfs_pubob_free_pending, mxfs_pubob_recycle, mxfs_pubob_stage_flush, mxfs_v5_dlm_is_mds, mxfs_v5_dlm_sole_survivor, v5_exclusion_recheck
+  fn mxfs_v5_dlm_sole_survivor(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_get_node_slot(struct mxfs_v5_dlm *ctx) -> int
     called_by: mxfs_v5_dlm_node_bit
   fn mxfs_v5_dlm_mount_identity(struct mxfs_v5_dlm *ctx, uint32_t *slot, uint32_t *node, uint64_t *epoch) -> bool
   fn mxfs_v5_dlm_slice_adopted(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_is_mds(struct mxfs_v5_dlm *ctx) -> bool
   fn mxfs_v5_dlm_get_mds_node_slot(struct mxfs_v5_dlm *ctx) -> int
-  struct mxfs_v5_dlm_opts { transport, dlm_port, discovery_port, journal_offset, disklock_offset, max_nodes, bdev, volume_uuid, max_dlm_lock_caw, lease_timeout_ms }
-  struct mxfs_v5_dlm_slot_release { disklock, dev }
+  struct mxfs_v5_dlm_opts { transport, dlm_port, discovery_port, journal_offset, rman_offset, rman_size, tauth_offset, tauth_size, prkey_offset, prkey_size }
+  struct mxfs_v5_dlm_slot_release { disklock, dev, self_retire_ok }
+  struct mxfs_recov_complete_res { outcome, rc, retry_ms, attempts, site }
   struct mxfs_recov_blocked { reason, last_rc, victim_node, victim_epoch, victim_key, victim_slot, fence_kind, resv_type, fence_term, prover_node }
   typedef_fn mxfs_v5_bast_notify_fn
   typedef_fn mxfs_v5_ag_bast_notify_fn
@@ -3396,6 +5229,16 @@
   enum mxfs_node_state { MXFS_NODE_UNKNOWN, MXFS_NODE_JOINING, MXFS_NODE_ACTIVE, MXFS_NODE_SUSPECT, missed, lease, renewal, not, yet, dead }
   enum mxfs_self_fence_reason { disklock, HB, on, disk, MXFS, super, fs_uuid, no, longer, matches }
 
+[include/mxfs/mxfs_dirshard.h]
+  struct mxfs_dirshard_locator { manifest_ino, manifest_gen }
+  struct mxfs_dirshard_blk { magic, offset, bytes, crc32c, uuid, owner, blkno, lsn, parent_ino, parent_gen }
+  struct mxfs_dirshard_entry { ino, gen, reserved }
+  struct mxfs_dirshard_manifest { magic, version, hash_id, length, mgen, nshards, state, name_canon_version, nentries, hash_key }
+  enum mxfs_dirshard_check { MXFS_DSC_OK, MXFS_DSC_SHORT, value, shorter, than, the, fixed, header, MXFS_DSC_MAGIC, MXFS_DSC_VERSION }
+  struct mxfs_dirshard_view { nshards, state, nentries, mgen, hash_id, name_canon_version, valid_mask, parent_ino, parent_gen, hash_key }
+  struct mxfs_ioc_dirshard_mkdir { nshards, mode, flags, reserved, name }
+  struct mxfs_ioc_dirshard_info { name, state, nshards, nentries, hash_id, valid_mask, name_hash, name_shard, reserved, set_uuid }
+
 [include/mxfs/mxfs_dlm.h]
   enum mxfs_lock_mode { MXFS_LOCK_NL, null, placeholder, no, access, MXFS_LOCK_CR, concurrent, read, MXFS_LOCK_CW, concurrent }
   enum mxfs_lock_type { MXFS_LTYPE_INODE, MXFS_LTYPE_EXTENT, MXFS_LTYPE_AG, MXFS_LTYPE_JOURNAL, MXFS_LTYPE_SUPER, superblock, lock, mount, unmount, coordination }
@@ -3407,24 +5250,42 @@
   enum mxfs_lock_state { MXFS_LSTATE_UNLOCKED, MXFS_LSTATE_WAITING, request, sent, awaiting, grant, MXFS_LSTATE_GRANTED, MXFS_LSTATE_CONVERTING, mode, upgrade }
   enum mxfs_dlm_msg_type { MXFS_MSG_LOCK_REQ, MXFS_MSG_LOCK_GRANT, MXFS_MSG_LOCK_DENY, MXFS_MSG_LOCK_RELEASE, MXFS_MSG_LOCK_CONVERT, MXFS_MSG_LOCK_BAST, blocking, AST, request, holder }
   struct mxfs_dlm_msg_hdr { magic, version, type, length, seq, sender, target, epoch }
-  struct mxfs_dlm_lock_req { hdr, resource, mode, pad, flags }
-  struct mxfs_dlm_lock_resp { hdr, resource, mode, status, handoff, pad, grant_gen, dir_epoch }
-  struct mxfs_dlm_lock_release { hdr, resource, grant_gen, pad }
+  struct mxfs_dlm_lock_req { hdr, resource, mode, pad, flags, owner_inc, req_id, owner_slot, pad2 }
+  struct mxfs_dlm_lock_resp { hdr, resource, mode, status, handoff, pad, grant_gen, dir_epoch, authority_epoch, grant_seq64 }
+  struct mxfs_dlm_lock_release { hdr, resource, grant_gen, rel_id, authority_epoch, grant_seq64, owner_inc, lineage, owner_slot, mode }
+  struct mxfs_dlm_release_ack { hdr, resource, grant_gen, rel_id, authority_epoch, grant_seq64, status, pad }
+  enum mxfs_dlm_handoff_kind { MXFS_HANDOFF_FREEZE_REQ, MXFS_HANDOFF_FROZEN, MXFS_HANDOFF_DEFER, MXFS_HANDOFF_NOT_OWNER }
+  struct mxfs_dlm_page_handoff { hdr, page, kind, flags, pad, target_node, auth_node, target_inc, config_id, prepared_seq }
   struct mxfs_dlm_bast { hdr, resource, requested_mode, pad }
   struct mxfs_dlm_lease_msg { hdr, lease_duration_ms, lock_count, pad }
   struct mxfs_dlm_cache_inval { hdr, resource, range_start, range_len }
   struct mxfs_md_req { hdr, parent_ino, parent_gen, newparent_ino, newparent_gen, link_ino, mode, rdev, uid, gid }
   struct mxfs_md_reply { hdr, rc, pad, child_ino, child_gen, parent_gen, newparent_gen, child_mode, child_nlink, child_size }
   struct mxfs_dlm_journal_msg { hdr, dead_node, journal_slot }
-  struct mxfs_dlm_node_msg { hdr, name, port, pad, volume_id }
+  struct mxfs_dlm_node_msg { hdr, name, port, pad, volume_id, incarnation }
 
 [include/mxfs/mxfs_netlink.h]
   enum mxfs_nl_cmd { MXFS_NL_CMD_UNSPEC, MXFS_NL_CMD_LOCK_REQ, kernel, daemon, request, distributed, lock, MXFS_NL_CMD_LOCK_GRANT, daemon, kernel }
   enum mxfs_nl_attr { MXFS_NL_ATTR_UNSPEC, MXFS_NL_ATTR_NODE_ID, u32, node, ID, MXFS_NL_ATTR_NODE_STATE, u8, mxfs_node_state, MXFS_NL_ATTR_LOCK_TYPE, u8 }
   enum mxfs_nl_mcast_groups { MXFS_NL_MCAST_LOCKS, lock, state, changes, MXFS_NL_MCAST_STATUS, node, volume, status, changes }
 
+[include/mxfs/mxfs_sha256.h]
+  struct mxfs_sha256_ctx { h, nbytes, buf, buflen }
+
 [include/mxfs/mxfs_super.h]
   struct mxfs_ondisk_super { magic, version, flags, crc, fs_uuid, device_size, xfs_data_size, journal_offset, journal_size, disklock_offset }
+
+[include/mxfs/mxfs_tauth.h]
+  struct mxfs_tauth_entry { state, res_type, shared_mode, ag_number, ino, offset, holders, resource_lineage, ex_node, ex_slot }
+  struct mxfs_tauth_page_hdr { magic, version, nentries, page_id, fs_gen, seq, authority_epoch, config_epoch, writer_node, write_nonce }
+  struct mxfs_tauth_page { hdr, ent }
+  struct mxfs_tauth_ticket { magic, version, pad0, page_id, fs_gen, proposed_seq, base_seq, base_nonce, ticket_nonce, writer_node }
+  struct mxfs_tauth_region_hdr { magic, version, entries_per_page, npages, entry_bytes, page_bytes, fs_gen, fs_uuid, seq, format_stamp_ms }
+  struct mxfs_tauth_member { node, slot, pad, inc }
+  struct mxfs_tauth_removed { node, slot, stage, inc, recovery_gen, fence_term, manifest_seq, manifest_crc32c, manifest_count, pad }
+  struct mxfs_tauth_view { magic, version, count, gen, prev_gen, prev_digest, coord_node, pad0, coord_inc, coord_ballot }
+  struct mxfs_tauth_root { magic, version, slot, gen, digest, coord_node, pad0, coord_inc, coord_ballot, fs_gen }
+  typedef_fn mxfs_tauth_crc_fn
 
 [mxfs_clayer/acquire.h]
   fn mxfs_clayer_acquire_token(struct mxfs_clayer_token *t) -> int
@@ -3456,31 +5317,40 @@
 
 [pal/linux/kern.c]
   fn mxfs_pal_bdev_open(const char *path) -> mxfs_bdev_t
-    called_by: mxfs_mount
+    called_by: main, mxfs_mount
   fn mxfs_pal_bdev_close(mxfs_bdev_t *dev) -> void
-    called_by: mxfs_mount, mxfs_unmount
+    called_by: main, mxfs_mount, mxfs_unmount
   fn mxfs_pal_bdev_clone_with_offset(mxfs_bdev_t *dev, uint64_t base_offset) -> mxfs_bdev_t
     called_by: mxfs_mount
   fn mxfs_pal_bdev_close_clone(mxfs_bdev_t *dev) -> void
     calls: pr_info
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_commit
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_finish, v5_quarantine_free
   fn mxfs_pal_bdev_wrap(struct block_device *bdev) -> mxfs_bdev_t
     called_by: mxfs_v5_dlm_init
   fn static kaddr_to_page(void *addr) -> struct page
     calls: virt_to_page, vmalloc_to_page
     called_by: build_bio, mxfs_pal_bdev_read_plain_bdev, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua
-  fn static build_bio(struct mxfs_bdev *dev, uint64_t offset, void *buf, uint32_t len, unsigned int op, unsigned int *batch_len) -> struct bio
+  fn static build_bio(struct block_device *bdev, uint64_t abs_offset, void *buf, uint32_t len, unsigned int op, unsigned int *batch_len) -> struct bio
     calls: kaddr_to_page
-    called_by: bdev_pipelined_write, bdev_sync_io
+    called_by: bdev_pipelined_write, bdev_sync_io, mxfs_pal_bio_sync_bdev
   fn static bdev_sync_io(struct mxfs_bdev *dev, uint64_t offset, void *buf, uint32_t len, unsigned int op) -> int
     calls: build_bio
     called_by: bdev_pipelined_write, mxfs_pal_bdev_read_prio, mxfs_pal_bdev_write_fua
+  fn static mxfs_pal_bio_sync_bdev(struct block_device *bdev, uint64_t lba_512, void *buf, uint32_t len, unsigned int op) -> int
+    calls: build_bio
+    called_by: mxfs_pal_bio_read_bdev, mxfs_pal_bio_write_fua_bdev
+  fn mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512, const void *buf, uint32_t len) -> int
+    calls: mxfs_pal_bio_sync_bdev
+  fn mxfs_pal_bio_read_bdev(struct block_device *bdev, uint64_t lba_512, void *buf, uint32_t len) -> int
+    calls: mxfs_pal_bio_sync_bdev
   fn static mxfs_bio_end_io(struct bio *bio) -> void
   fn static bdev_pipelined_read(struct mxfs_bdev *dev, uint64_t offset, void *buf, uint32_t len) -> int
     called_by: mxfs_pal_bdev_read, mxfs_pal_bdev_read_async
   fn mxfs_pal_bdev_read(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
     calls: bdev_pipelined_read
-    called_by: disklock_hb_fn, fs_identity_changed, hb_report_claim_exhausted, mxfs_disklock_claim_slot, mxfs_disklock_find_node_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_mount, mxfs_pal_bdev_read_async, mxfs_pal_bdev_read_prio, mxfs_write_direct, read_sector, readlink_remote
+    called_by: disklock_hb_fn, fs_identity_changed, hb_claim_wait, hb_report_claim_exhausted, mxfs_disklock_claim_slot, mxfs_disklock_find_node_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_purge_node, mxfs_disklock_recovery_read_obl, mxfs_disklock_scan_transport, mxfs_mount, mxfs_pal_bdev_read_async, mxfs_pal_bdev_read_prio, mxfs_write_direct
+  fn static mxfs_pal_cdb_fua(void) -> unsigned char
+    called_by: caw_manual_bio, mxfs_pal_bdev_compare_and_write, mxfs_pal_scsi_read_fua_bdev_body, mxfs_pal_scsi_write_fua_bdev
   fn static mxfs_sdev_read_lba(struct scsi_device *sdev, u64 lba, void *buf) -> int
     called_by: mxfs_sdev_resolve_by_content
   fn static mxfs_sdev_resolve_by_content(struct block_device *bdev) -> struct scsi_device
@@ -3488,32 +5358,35 @@
     called_by: mxfs_bdev_to_sdev
   fn static mxfs_bdev_to_sdev(struct block_device *bdev) -> struct scsi_device
     calls: mxfs_sdev_resolve_by_content, pr_info
-    called_by: mxfs_pal_bdev_compare_and_write, mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_read_full_status, mxfs_pal_scsi_pr_report_capabilities, mxfs_pal_scsi_read_fua_bdev, mxfs_pal_scsi_write_fua_bdev
+    called_by: mxfs_pal_bdev_compare_and_write, mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_read_full_status, mxfs_pal_scsi_pr_report_capabilities, mxfs_pal_scsi_read_fua_bdev_body, mxfs_pal_scsi_write_fua_bdev
   fn mxfs_pal_sdev_cache_release(void) -> void
   fn mxfs_pal_io_budget_enter(struct mxfs_pal_io_budget *b, uint32_t ms) -> void
   fn mxfs_pal_io_budget_exit(struct mxfs_pal_io_budget *b) -> void
   fn static mxfs_pal_io_budget_remaining_ms(void) -> long
-    called_by: mxfs_pal_scsi_read_fua_bdev
+    called_by: mxfs_pal_scsi_read_fua_bdev_body
   fn mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512, void *buf, uint32_t len) -> int
-    calls: atomic_inc_return, mxfs_bdev_to_sdev, mxfs_pal_bdev_read_plain_bdev, mxfs_pal_io_budget_remaining_ms, read
+    calls: atomic_inc_return, mxfs_pal_scsi_read_fua_bdev_body
     called_by: mxfs_iunl_discrim, mxfs_scsi_read16_fua
+  fn static mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev, uint64_t lba_512, void *buf, uint32_t len) -> int
+    calls: atomic_inc_return, mxfs_bdev_to_sdev, mxfs_pal_bdev_read_plain_bdev, mxfs_pal_cdb_fua, mxfs_pal_io_budget_remaining_ms, read
+    called_by: mxfs_pal_scsi_read_fua_bdev
   fn mxfs_pal_bdev_read_plain_bdev(struct block_device *bdev, uint64_t lba_512, void *buf, uint32_t len) -> int
     calls: kaddr_to_page
-    called_by: mxfs_iunl_discrim, mxfs_pal_scsi_read_fua_bdev, mxfs_sdev_resolve_by_content
+    called_by: mxfs_iunl_discrim, mxfs_pal_scsi_read_fua_bdev_body, mxfs_sdev_resolve_by_content
   fn static mxfs_scsi_read16_fua(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
     calls: mxfs_pal_scsi_read_fua_bdev
     called_by: mxfs_pal_bdev_read_prio
   fn mxfs_pal_scsi_write_fua_bdev(struct block_device *bdev, uint64_t lba_512, const void *buf, uint32_t len) -> int
-    calls: mxfs_bdev_to_sdev
+    calls: mxfs_bdev_to_sdev, mxfs_pal_cdb_fua
   fn mxfs_pal_bdev_read_prio(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
     calls: bdev_sync_io, mxfs_scsi_read16_fua
-    called_by: caw_purge_dead_nodes_body, caw_slot, disklock_hb_fn, hb_cas_own_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_join_gate, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_read
+    called_by: bs_read_locked, caw_purge_dead_nodes_body, caw_slot_ex, disklock_hb_fn, hb_cas_own_slot, hb_feature_state, hb_retire_reread, hb_retire_settle, mxfs_bootstrap_lineage_read, mxfs_bootstrap_manifest_read, mxfs_bootstrap_takeover_read, mxfs_bootstrap_tomb_read, mxfs_bootstrap_tomb_write_term, mxfs_disklock_boot_advancing, mxfs_disklock_caw_capability
   fn mxfs_pal_bdev_write(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
     calls: mxfs_pal_bdev_write_gather
-    called_by: is_revoked, mxfs_journal_replay, mxfs_journal_txn_commit, mxfs_pal_bdev_write_async, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua, mxfs_write_direct, write_sector
+    called_by: is_revoked, mxfs_journal_replay, mxfs_journal_txn_commit, mxfs_pal_bdev_write_async, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua, mxfs_tauth_page_write, mxfs_write_direct, write_sector
   fn mxfs_pal_bdev_write_fua(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
     calls: bdev_sync_io
-    called_by: mxfs_pal_bdev_write_gather_fua, write_sector_fua
+    called_by: bs_cas_locked, mxfs_bootstrap_lineage_write, mxfs_bootstrap_manifest_write_term, mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_tomb_write_term, mxfs_pal_bdev_write_gather_fua, mxfs_tauth_page_write, mxfs_tauth_view_write, prl_cas, write_sector_fua
   fn static bdev_pipelined_write(struct mxfs_bdev *dev, uint64_t offset, const void *buf, uint32_t len) -> int
     calls: bdev_sync_io, build_bio
     called_by: mxfs_pal_bdev_write_async
@@ -3524,7 +5397,7 @@
   fn mxfs_pal_bdev_read_async(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
     calls: bdev_pipelined_read
   fn mxfs_pal_bdev_flush(mxfs_bdev_t *dev) -> int
-    called_by: checkpoint_locked, mxfs_fsync, mxfs_journal_checkpoint, mxfs_journal_flush, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_write_unmount, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather_fua, mxfs_sync_fs, mxfs_v5_dlm_recovery_complete, recov_cas_durable
+    called_by: checkpoint_locked, mxfs_fsync, mxfs_journal_checkpoint, mxfs_journal_flush, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_write_unmount, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather_fua, mxfs_sync_fs, mxfs_tauth_page_write, mxfs_tauth_view_write, recov_cas_durable, v5_recovery_complete_ladder
   fn mxfs_pal_bdev_size(mxfs_bdev_t *dev, uint64_t *size_out) -> int
     called_by: mxfs_mount
   fn mxfs_pal_bdev_write_gather(mxfs_bdev_t *dev, uint64_t offset, void **bufs, int nbufs, uint32_t blocksize) -> int
@@ -3534,26 +5407,42 @@
     calls: kaddr_to_page, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather
   fn mxfs_pal_alloc(size_t size) -> void
     calls: mxfs_pal_free
-    called_by: bast_poll_fn, caw_bastq_init, caw_convert_body, caw_count_resource_slots, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, fallocate_punch_hole, fallocate_zero_range, flush_superblock_counters
+    called_by: bast_poll_fn, caw_bastq_init, caw_convert_body, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, dlm_ledger_import_page, dlm_lock_impl, dlm_rel_pending_add, dlm_release_local_orphan
+  fn mxfs_pal_alloc_io(size_t size) -> void
+    called_by: mxfs_tauth_store_scan
+  fn mxfs_pal_free_io(void *ptr) -> void
+    called_by: mxfs_tauth_store_scan
   fn mxfs_pal_free(void *ptr) -> void
-    called_by: bast_poll_fn, bast_worker_fn, caw_bastq_free, caw_convert_body, caw_count_resource_slots, caw_create_unwind, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, fallocate_punch_hole
+    called_by: bast_poll_fn, bast_worker_fn, caw_bastq_free, caw_convert_body, caw_create_unwind, caw_force_release_self_body, caw_forcerel_precondition, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, dlm_ledger_import_page
   fn mxfs_pal_realloc(void *ptr, size_t new_size) -> void
     calls: mxfs_pal_alloc, mxfs_pal_free
   fn static kthread_fn_wrapper(void *data) -> int
   fn mxfs_pal_thread_join(mxfs_thread_t *t) -> void
-    called_by: mxfs_discovery_start, mxfs_discovery_stop, mxfs_disklock_stop_heartbeat, mxfs_lease_start, mxfs_lease_stop, mxfs_mount, mxfs_net2_selftest_stop, mxfs_net2_stop, mxfs_peer_accept_fn, mxfs_peer_shutdown, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_link_reap, net2_link_shutdown_all, net2_lockspace_stop
+    called_by: main, mxfs_discovery_start, mxfs_discovery_stop, mxfs_disklock_stop_heartbeat, mxfs_lease_start, mxfs_lease_stop, mxfs_mount, mxfs_net2_selftest_stop, mxfs_net2_stop, mxfs_peer_accept_fn, mxfs_peer_shutdown, mxfs_scsipr_quarantine_reap, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_link_reap
   fn mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms) -> int
-    called_by: caw_join_bounded, mxfs_disklock_stop_heartbeat
+    called_by: caw_join_bounded, mxfs_disklock_stop_heartbeat, mxfs_scsipr_probe_stop, mxfs_v5_dlm_caw_samenode_selftest, v5_quarantine_reap
   fn mxfs_pal_thread_pid(mxfs_thread_t *t) -> int
-    called_by: mxfs_disklock_start_heartbeat
+    called_by: mxfs_disklock_start_heartbeat, mxfs_scsipr_probe_stop
   fn mxfs_pal_mutex_create(void) -> mxfs_mutex_t
-    called_by: caw_bastq_init, mep_env_start, mxfs_disklock_create, mxfs_dlm_create, mxfs_journal_create, mxfs_mount, mxfs_net2_create, mxfs_peer_accept_fn, mxfs_peer_add, mxfs_peer_init, mxfs_v5_dlm_init, net2_lockspace_create, net2_membership_create, net2_mepoch_create, net2_selftest_fn
+    called_by: caw_bastq_init, mep_env_start, mxfs_bootstrap_open, mxfs_disklock_create, mxfs_dlm_create, mxfs_journal_create, mxfs_mount, mxfs_net2_create, mxfs_peer_accept_fn, mxfs_peer_add, mxfs_peer_init, mxfs_scsipr_create, mxfs_scsipr_departure_init, mxfs_v5_dlm_global_init, mxfs_v5_dlm_init
   fn mxfs_pal_mutex_destroy(mxfs_mutex_t *m) -> void
-    called_by: caw_bastq_free, caw_create_unwind, mep_env_stop, mxfs_discovery_destroy, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_dlm_caw_destroy, mxfs_dlm_destroy, mxfs_journal_destroy, mxfs_lease_destroy, mxfs_mount, mxfs_net2_create, mxfs_net2_destroy, mxfs_peer_init, mxfs_peer_shutdown
+    called_by: caw_bastq_free, caw_create_unwind, mep_env_stop, mxfs_bootstrap_close, mxfs_discovery_destroy, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_dlm_caw_destroy, mxfs_dlm_destroy, mxfs_journal_destroy, mxfs_lease_destroy, mxfs_mount, mxfs_net2_create, mxfs_net2_destroy, mxfs_peer_init
   fn mxfs_pal_mutex_lock(mxfs_mutex_t *m) -> void
     called_by: bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bastq_join_workers, caw_convert_body, caw_flush_held_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_join_bounded, caw_nudge_check, caw_nudge_prepare
   fn mxfs_pal_mutex_unlock(mxfs_mutex_t *m) -> void
     called_by: bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bastq_join_workers, caw_convert_body, caw_flush_held_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_join_bounded, caw_nudge_check, caw_nudge_prepare
+  fn mxfs_pal_mutex_trylock(mxfs_mutex_t *m) -> int
+    called_by: mxfs_scsipr_departure_trylock
+  fn mxfs_pal_current_pid(void) -> int
+    called_by: mxfs_scsipr_departure_held, mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_settle_absent, scsipr_answerable, scsipr_dep_enter
+  fn mxfs_pal_module_pin(void) -> bool
+    called_by: mxfs_scsipr_probe_stop
+  fn mxfs_pal_module_unpin(void) -> void
+    called_by: scsipr_free_now, v5_quarantine_free
+  fn mxfs_pal_flag_get(const int *p) -> int
+    called_by: mxfs_scsipr_departure_unlock, mxfs_scsipr_quarantine_active, mxfs_scsipr_quarantine_reap, scsipr_probe_fn, v5_depart_queue2, v5_depart_worker_fn, v5_orphan_sweep_queue, v5_retire_worker_fn
+  fn mxfs_pal_flag_set(int *p, int v) -> void
+    called_by: mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_key_state, mxfs_scsipr_probe_start, mxfs_scsipr_probe_stop, scsipr_probe_fn, v5_depart_queue2, v5_depart_worker_fn, v5_depart_worker_start, v5_disklock_settle_absent, v5_orphan_sweep_queue, v5_retire_worker_fn, v5_retire_worker_start
   fn mxfs_pal_spinlock_create(void) -> mxfs_spinlock_t
   fn mxfs_pal_spinlock_destroy(mxfs_spinlock_t *s) -> void
     called_by: caw_create_unwind, mxfs_dlm_caw_destroy
@@ -3566,15 +5455,15 @@
   fn mxfs_pal_rwlock_destroy(mxfs_rwlock_t *rw) -> void
     called_by: mxfs_dlm_destroy
   fn mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw) -> void
-    called_by: mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_withdraw_release_all
+    called_by: dlm_master_sealed, dlm_purge_redrive_tick, dlm_release_redrive_tick, dlm_wire_release_all, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_id, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_page_pending_count, mxfs_dlm_release_all, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_resource_held_by_blocked, mxfs_dlm_resource_wait_is_live
   fn mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw) -> int
     called_by: mxfs_dlm_held_mode_nb
   fn mxfs_pal_may_sleep(void) -> int
     called_by: mxfs_dlm_held_mode
   fn mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw) -> void
-    called_by: dlm_lock_impl, mxfs_dlm_destroy, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_unlock_gen, mxfs_dlm_update_active_nodes
+    called_by: dlm_ledger_import_page, dlm_lock_impl, dlm_owner_mark_purged, dlm_promote_txn, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, dlm_set_page_state, dlm_txn_finalize, mxfs_dlm_destroy, mxfs_dlm_ledger_purge_owner, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request
   fn mxfs_pal_rwlock_unlock(mxfs_rwlock_t *rw) -> void
-    called_by: dlm_lock_impl, mxfs_dlm_destroy, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_unlock_gen
+    called_by: dlm_ledger_import_page, dlm_lock_impl, dlm_master_sealed, dlm_owner_mark_purged, dlm_owner_sealed, dlm_promote_txn, dlm_purge_redrive_tick, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, dlm_set_page_state, dlm_txn_finalize, dlm_wire_release_all, lk_is_holder, lock_alloc
   fn mxfs_pal_cond_create(void) -> mxfs_cond_t
     called_by: caw_bastq_init, mxfs_disklock_create, mxfs_mount, mxfs_net2_create, net2_lockspace_create, pending_alloc
   fn mxfs_pal_cond_destroy(mxfs_cond_t *c) -> void
@@ -3597,6 +5486,7 @@
   fn mxfs_pal_tcp_accept(mxfs_sock_t *listener) -> mxfs_sock_t
     called_by: mxfs_peer_accept_fn, net2_link_accept_fn
   fn mxfs_pal_tcp_send(mxfs_sock_t *s, const void *buf, uint32_t len) -> int
+    calls: first
     called_by: mxfs_peer_accept_fn, mxfs_peer_send, net2_link_accept_fn, net2_link_conn_fn, net2_link_send_bytes, scen_mc_malformed_cross
   fn mxfs_pal_tcp_recv(mxfs_sock_t *s, void *buf, uint32_t len) -> int
     called_by: mxfs_peer_accept_fn, mxfs_peer_recv_fn, mxfs_peer_shutdown, net2_read_frame
@@ -3625,17 +5515,17 @@
   fn mxfs_pal_udp_set_recv_timeout(mxfs_sock_t *s, uint32_t timeout_ms) -> int
     called_by: mxfs_dlm_caw_start
   fn mxfs_pal_time_ms(void) -> uint64_t
-    called_by: bast_poll_fn, bast_worker_fn, caw_acquire_poll_sleep, caw_bast_disp_fn, caw_convert_body, caw_force_release_self_body, caw_grant_meta_seq, caw_join_bounded, caw_nudge_ring_wants_wake, caw_open_clear_body, caw_open_set_body, caw_owed_dispatch, caw_owed_fail_latch, caw_owed_release, caw_owed_sweep
+    called_by: bast_poll_fn, bast_worker_fn, bs_cas_locked, bs_complete_edit, bs_refuse_edit, bs_seal_edit, caw_acquire_poll_sleep, caw_bast_disp_fn, caw_convert_body, caw_force_release_self_body, caw_join_bounded, caw_nudge_ring_wants_wake, caw_open_clear_body, caw_open_set_body, caw_owed_dispatch
   fn mxfs_pal_time_real_sec(void) -> uint64_t
     called_by: fallocate_prealloc, fallocate_punch_hole, fallocate_zero_range, mxfs_chmod, mxfs_chown, mxfs_utimes, mxfs_write
   fn mxfs_pal_time_real_ms(void) -> uint64_t
     called_by: caw_exwin_log, caw_yield_stamp
   fn mxfs_pal_sleep_ms(uint32_t ms) -> void
-    called_by: caw_grant_meta_store_unless_releasing, caw_grant_seq_prebump, caw_inode_backoff, caw_nudge_ring_wants_wake, caw_open_set_body, caw_owed_worker_fn, caw_release_mark, caw_slot, dlm_bast_cb, dlm_lock_impl, dlm_membership_settling, killpoint_run, lreq_clr_still_good, ls_rt_fn, membership_stab_worker_fn
+    called_by: caw_grant_meta_store_unless_releasing, caw_grant_seq_prebump, caw_inode_backoff, caw_nudge_ring_wants_wake, caw_open_set_body, caw_owed_dispatch, caw_owed_worker_fn, caw_release_mark, caw_slot_ex, disklock_hb_fn, dlm_bast_cb, dlm_lock_impl, dlm_membership_settling, dlm_page_freeze_drain, dlm_page_has_pending
   fn mxfs_pal_sleep_ms_interruptible(uint32_t ms) -> void
-    called_by: v5_fence_retry_worker_fn
+    called_by: hb_claim_wait, scsipr_probe_fn, v5_depart_worker_fn, v5_fence_retry_worker_fn, v5_mount_postregister_hold, v5_retire_worker_fn, v5_tcp_death_worker_fn
   fn mxfs_pal_cond_resched(void) -> void
-    called_by: caw_purge_dead_nodes_body, caw_release_all_body, mxfs_dlm_caw_footprint_scan
+    called_by: caw_purge_dead_nodes_body, caw_release_all_body, mxfs_dlm_caw_footprint_scan, mxfs_tauth_store_scan
   fn mxfs_pal_dump_stack(void) -> void
     called_by: mxfs_dlm_lock_retries
   fn mxfs_pal_failstop_fn(const char *fmt, ...) -> void
@@ -3645,54 +5535,88 @@
     called_by: disklock_hb_watchdog_fn
   fn mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
     calls: crc32c
-    called_by: build_symlink_hdr_v5, flush_superblock_counters, hb_feature_crc, hb_prov_crc, mxfs_journal_txn_commit, mxfs_mepoch_rec_seal, mxfs_mepoch_rec_valid, mxfs_mount, read_entry_at, recov_outcome_crc, sector_crc, serialize_entry
+    called_by: bs_mf_sector_crc, build_symlink_hdr_v5, flush_superblock_counters, hb_feature_crc, hb_ident_crc, hb_prov_crc, mxfs_bootstrap_lineage_crc, mxfs_bootstrap_mf_entry_crc, mxfs_bootstrap_rec_crc, mxfs_bootstrap_takeover_crc, mxfs_bootstrap_tomb_crc, mxfs_disklock_claim_victim_slot, mxfs_journal_txn_commit, mxfs_mepoch_rec_seal, mxfs_mepoch_rec_valid
   fn mxfs_pal_log(int level, const char *fmt, ...) -> void
     calls: pr_err, pr_info
-    called_by: ack_process, bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bast_submit, caw_bastq_init, caw_check_exclusion, caw_convert_body, caw_count_resource_slots, caw_flush_held_body, caw_force_release_self_body, caw_grant_epoch_update, caw_grant_meta_seq
+    called_by: ack_process, apply_op, bast_poll_fn, bast_recv_fn, bast_worker_fn, bs_own_cas_locked, bs_read_locked, bs_reload_ours_locked, cache_flush_worker_fn, caw_bast_disp_fn, caw_bast_submit, caw_bastq_init, caw_check_exclusion, caw_convert_body, caw_flush_held_body
   fn static get_pr_ops(struct mxfs_bdev *dev) -> const struct pr_ops
-    called_by: mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_read_keys, mxfs_pal_scsi_pr_read_reservation, mxfs_pal_scsi_pr_register, mxfs_pal_scsi_pr_reserve, mxfs_pal_scsi_pr_unregister
+    called_by: mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_read_keys, mxfs_pal_scsi_pr_read_reservation, mxfs_pal_scsi_pr_register, mxfs_pal_scsi_pr_register_replace, mxfs_pal_scsi_pr_register_swap, mxfs_pal_scsi_pr_reserve, mxfs_pal_scsi_pr_unregister
+  fn mxfs_pal_dbg_pr_bracket_fail_take(void) -> bool
+    calls: mxfs_pal_log
+    called_by: scsipr_bracket_run
+  fn mxfs_pal_dbg_settle_pause_ms(void) -> uint32_t
+    calls: mxfs_pal_log
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_pal_dbg_settle_inval_after_mint_take(void) -> bool
+    calls: mint, mxfs_pal_log
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_pal_dbg_settle_double_consume_take(void) -> bool
+    calls: mxfs_pal_log
+    called_by: v5_retire_validate
+  fn mxfs_pal_dbg_probe_hang_take(void) -> uint32_t
+    calls: ms, mxfs_pal_log
+    called_by: scsipr_probe_fn
+  fn mxfs_pal_dbg_depart_late_token_take(void) -> uint32_t
+  fn mxfs_pal_dbg_depart_inject_take(void) -> int
+  fn mxfs_pal_dbg_depart_crash_cut_take(void) -> int
+  fn mxfs_pal_dbg_depart_crash_hold_ms(void) -> uint32_t
+  fn mxfs_pal_dbg_retire_hang_take(void) -> uint32_t
+    calls: ms, mxfs_pal_log
+    called_by: v5_retire_worker_fn
+  fn mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what) -> bool
+    calls: mxfs_pal_log
+    called_by: hb_caw
   fn mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key) -> int
     calls: get_pr_ops, mxfs_pal_log
-    called_by: mxfs_scsipr_register
+    called_by: scsipr_register_locked
+  fn mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key) -> int
+    calls: get_pr_ops, mxfs_pal_log
+    called_by: scsipr_register_locked
+  fn mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key, uint64_t new_key) -> int
+    calls: get_pr_ops, mxfs_pal_log
+    called_by: scsipr_register_locked, scsipr_register_succeed_locked
   fn mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type) -> int
     calls: get_pr_ops
-    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_reserve
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_gate_restore, scsipr_reserve_locked
   fn static mxfs_pal_prout_preempt_abort(struct scsi_device *sdev, uint64_t my_key, uint64_t victim_key, uint32_t type) -> int
     called_by: mxfs_pal_scsi_pr_preempt
   fn mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev, struct mxfs_pal_pr_caps *out) -> int
     calls: mxfs_bdev_to_sdev
     called_by: mxfs_scsipr_validate_admission
   fn mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key, uint64_t victim_key, bool abort, uint32_t type) -> int
-    calls: get_pr_ops, mxfs_bdev_to_sdev, mxfs_pal_prout_preempt_abort
-    called_by: mxfs_scsipr_preempt
+    calls: get_pr_ops, key, mxfs_bdev_to_sdev, mxfs_pal_prout_preempt_abort
+    called_by: mxfs_scsipr_gate_restore, scsipr_preempt_locked
   fn mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev, struct mxfs_pal_pr_reservation *out) -> int
-    calls: get_pr_ops
+    calls: get_pr_ops, mxfs_pal_log
   fn static mxfs_pr_key_present_bdev(struct block_device *bdev, uint64_t key, bool *present) -> int
     called_by: mxfs_pal_scsi_pr_unregister_bdev
+  fn mxfs_pal_dbg_retire_skip_restamp_take(void) -> bool
+    calls: mxfs_pal_log
   fn mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key) -> int
     calls: mxfs_pal_log, mxfs_pr_key_present_bdev
     called_by: mxfs_pal_scsi_pr_unregister
   fn mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key) -> int
     calls: get_pr_ops, mxfs_pal_scsi_pr_unregister_bdev
-    called_by: mxfs_scsipr_unregister
+    called_by: scsipr_unregister_locked
   fn mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys, int max_keys, int *count, uint32_t *generation, int *total) -> int
-    calls: get_pr_ops
+    calls: get_pr_ops, ms, mxfs_pal_log
     called_by: mxfs_scsipr_read_keys
   fn mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key, int *present, uint32_t *generation) -> int
     calls: mxfs_bdev_to_sdev, round_up
-    called_by: mxfs_scsipr_fenced_check
+    called_by: mxfs_scsipr_fenced_check, v5_self_succession_consume
   fn static caw_manual_bio(struct scsi_device *sdev, u64 lba, const void *compare_buf, const void *write_buf, struct scsi_sense_hdr *sshdr_out, int *resid_out) -> int
+    calls: mxfs_pal_cdb_fua
     called_by: mxfs_pal_bdev_compare_and_write
   fn mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset, const void *compare_buf, const void *write_buf) -> int
-    calls: caw_manual_bio, mxfs_bdev_to_sdev, mxfs_pal_bdev_read_prio
-    called_by: caw_repair_slot, caw_slot, caw_watch_armed, hb_cas_own_slot, mxfs_disklock_claim_slot, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_unguard, mxfs_disklock_withdraw, mxfs_mount, purge_cas_zero, recov_cas_durable
+    calls: caw_manual_bio, mxfs_bdev_to_sdev, mxfs_pal_bdev_read_prio, mxfs_pal_cdb_fua
+    called_by: bs_cas_locked, caw_repair_slot, caw_slot_ex, caw_watch_armed, hb_caw, mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_tomb_write_term, mxfs_disklock_caw_capability, mxfs_disklock_claim_slot, mxfs_disklock_claim_victim_slot, mxfs_mount, mxfs_tauth_page_write, mxfs_tauth_root_caw, prl_cas
   fn mxfs_pal_bdev_get_bdev(mxfs_bdev_t *dev) -> struct block_device
   fn mxfs_pal_bdev_get_base_offset(mxfs_bdev_t *dev) -> uint64_t
   fn mxfs_pal_get_hostname(char *buf, size_t len) -> int
   fn mxfs_pal_read_file(const char *path, void *buf, size_t buf_size) -> int
-    called_by: load_node_uuid
+    called_by: hostid_read_uuid_file, load_node_uuid, mxfs_host_identity_init, mxfs_uuid_parse
   fn mxfs_pal_get_random_bytes(void *buf, size_t len) -> void
-    called_by: caw_inode_backoff, caw_mint_lineage, hb_draw_incarnation, hb_prov_derive, mxfs_generate_random_uuid, mxfs_v5_dlm_init, net2_membership_boot_nonce, net2_selftest_fn
+    called_by: caw_inode_backoff, caw_mint_lineage, hb_draw_incarnation, hb_prov_derive, mxfs_bootstrap_claim, mxfs_bootstrap_reseal, mxfs_generate_random_uuid, mxfs_tauth_store_open, mxfs_v5_dlm_init, net2_membership_boot_nonce, net2_selftest_fn
   fn mxfs_pal_bdev_get_write_stats(mxfs_bdev_t *dev, uint64_t *writes, uint64_t *write_bytes, uint64_t *writes_fua, uint64_t *write_fua_bytes, uint64_t *flushes) -> void
   struct mxfs_bdev { bdev, bdev_file, handle, base_offset, is_clone, path, stat_writes, stat_write_bytes, stat_write_ns, stat_writes_fua }
   struct mxfs_bio_ctx { done, status }
@@ -3708,24 +5632,24 @@
 
 [pal/linux/user.c]
   fn mxfs_pal_bdev_open(const char *path) -> mxfs_bdev_t
-    called_by: mxfs_mount
+    called_by: main, mxfs_mount
   fn mxfs_pal_bdev_close(mxfs_bdev_t *dev) -> void
-    called_by: mxfs_mount, mxfs_unmount
+    called_by: main, mxfs_mount, mxfs_unmount
   fn mxfs_pal_bdev_clone_with_offset(mxfs_bdev_t *dev, uint64_t base_offset) -> mxfs_bdev_t
     called_by: mxfs_mount
   fn mxfs_pal_bdev_close_clone(mxfs_bdev_t *dev) -> void
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_commit
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_finish, v5_quarantine_free
   fn mxfs_pal_bdev_get_write_stats(mxfs_bdev_t *dev, uint64_t *writes, uint64_t *write_bytes, uint64_t *writes_fua, uint64_t *write_fua_bytes, uint64_t *flushes) -> void
   fn mxfs_pal_bdev_read(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
-    called_by: disklock_hb_fn, fs_identity_changed, hb_report_claim_exhausted, mxfs_disklock_claim_slot, mxfs_disklock_find_node_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_mount, mxfs_pal_bdev_read_async, mxfs_pal_bdev_read_prio, mxfs_write_direct, read_sector, readlink_remote
+    called_by: disklock_hb_fn, fs_identity_changed, hb_claim_wait, hb_report_claim_exhausted, mxfs_disklock_claim_slot, mxfs_disklock_find_node_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_purge_node, mxfs_disklock_recovery_read_obl, mxfs_disklock_scan_transport, mxfs_mount, mxfs_pal_bdev_read_async, mxfs_pal_bdev_read_prio, mxfs_write_direct
   fn mxfs_pal_bdev_read_prio(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
     calls: mxfs_pal_bdev_read
-    called_by: caw_purge_dead_nodes_body, caw_slot, disklock_hb_fn, hb_cas_own_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_join_gate, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_read
+    called_by: bs_read_locked, caw_purge_dead_nodes_body, caw_slot_ex, disklock_hb_fn, hb_cas_own_slot, hb_feature_state, hb_retire_reread, hb_retire_settle, mxfs_bootstrap_lineage_read, mxfs_bootstrap_manifest_read, mxfs_bootstrap_takeover_read, mxfs_bootstrap_tomb_read, mxfs_bootstrap_tomb_write_term, mxfs_disklock_boot_advancing, mxfs_disklock_caw_capability
   fn mxfs_pal_bdev_write(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
-    called_by: is_revoked, mxfs_journal_replay, mxfs_journal_txn_commit, mxfs_pal_bdev_write_async, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua, mxfs_write_direct, write_sector
+    called_by: is_revoked, mxfs_journal_replay, mxfs_journal_txn_commit, mxfs_pal_bdev_write_async, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua, mxfs_tauth_page_write, mxfs_write_direct, write_sector
   fn mxfs_pal_bdev_write_fua(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
     calls: mxfs_pal_bdev_flush, mxfs_pal_bdev_write
-    called_by: mxfs_pal_bdev_write_gather_fua, write_sector_fua
+    called_by: bs_cas_locked, mxfs_bootstrap_lineage_write, mxfs_bootstrap_manifest_write_term, mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_tomb_write_term, mxfs_pal_bdev_write_gather_fua, mxfs_tauth_page_write, mxfs_tauth_view_write, prl_cas, write_sector_fua
   fn mxfs_pal_bdev_write_async(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
     calls: mxfs_pal_bdev_write
     called_by: mxfs_write_direct
@@ -3735,31 +5659,50 @@
   fn mxfs_pal_bdev_write_gather_fua(mxfs_bdev_t *dev, uint64_t offset, void **bufs, int nbufs, uint32_t blocksize) -> int
     calls: mxfs_pal_bdev_flush, mxfs_pal_bdev_write
   fn mxfs_pal_bdev_flush(mxfs_bdev_t *dev) -> int
-    called_by: checkpoint_locked, mxfs_fsync, mxfs_journal_checkpoint, mxfs_journal_flush, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_write_unmount, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather_fua, mxfs_sync_fs, mxfs_v5_dlm_recovery_complete, recov_cas_durable
+    called_by: checkpoint_locked, mxfs_fsync, mxfs_journal_checkpoint, mxfs_journal_flush, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_write_unmount, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather_fua, mxfs_sync_fs, mxfs_tauth_page_write, mxfs_tauth_view_write, recov_cas_durable, v5_recovery_complete_ladder
   fn mxfs_pal_bdev_size(mxfs_bdev_t *dev, uint64_t *size_out) -> int
     called_by: mxfs_mount
   fn mxfs_pal_alloc(size_t size) -> void
-    called_by: bast_poll_fn, caw_bastq_init, caw_convert_body, caw_count_resource_slots, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, fallocate_punch_hole, fallocate_zero_range, flush_superblock_counters
+    called_by: bast_poll_fn, caw_bastq_init, caw_convert_body, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, dlm_ledger_import_page, dlm_lock_impl, dlm_rel_pending_add, dlm_release_local_orphan
   fn mxfs_pal_free(void *ptr) -> void
-    called_by: bast_poll_fn, bast_worker_fn, caw_bastq_free, caw_convert_body, caw_count_resource_slots, caw_create_unwind, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, fallocate_punch_hole
+    called_by: bast_poll_fn, bast_worker_fn, caw_bastq_free, caw_convert_body, caw_create_unwind, caw_force_release_self_body, caw_forcerel_precondition, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, dlm_ledger_import_page
+  fn mxfs_pal_alloc_io(size_t size) -> void
+    called_by: mxfs_tauth_store_scan
+  fn mxfs_pal_free_io(void *ptr) -> void
+    called_by: mxfs_tauth_store_scan
   fn mxfs_pal_realloc(void *ptr, size_t new_size) -> void
   fn static thread_wrapper(void *arg) -> void
   fn mxfs_pal_thread_join(mxfs_thread_t *t) -> void
-    called_by: mxfs_discovery_start, mxfs_discovery_stop, mxfs_disklock_stop_heartbeat, mxfs_lease_start, mxfs_lease_stop, mxfs_mount, mxfs_net2_selftest_stop, mxfs_net2_stop, mxfs_peer_accept_fn, mxfs_peer_shutdown, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_link_reap, net2_link_shutdown_all, net2_lockspace_stop
+    called_by: main, mxfs_discovery_start, mxfs_discovery_stop, mxfs_disklock_stop_heartbeat, mxfs_lease_start, mxfs_lease_stop, mxfs_mount, mxfs_net2_selftest_stop, mxfs_net2_stop, mxfs_peer_accept_fn, mxfs_peer_shutdown, mxfs_scsipr_quarantine_reap, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_link_reap
   fn mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms) -> int
-    called_by: caw_join_bounded, mxfs_disklock_stop_heartbeat
+    called_by: caw_join_bounded, mxfs_disklock_stop_heartbeat, mxfs_scsipr_probe_stop, mxfs_v5_dlm_caw_samenode_selftest, v5_quarantine_reap
   fn mxfs_pal_thread_pid(mxfs_thread_t *t) -> int
-    called_by: mxfs_disklock_start_heartbeat
+    called_by: mxfs_disklock_start_heartbeat, mxfs_scsipr_probe_stop
   fn mxfs_pal_dump_task_stack(int pid) -> void
     called_by: disklock_hb_watchdog_fn
+  fn mxfs_pal_dump_stack(void) -> void
+    called_by: mxfs_dlm_lock_retries
   fn mxfs_pal_mutex_create(void) -> mxfs_mutex_t
-    called_by: caw_bastq_init, mep_env_start, mxfs_disklock_create, mxfs_dlm_create, mxfs_journal_create, mxfs_mount, mxfs_net2_create, mxfs_peer_accept_fn, mxfs_peer_add, mxfs_peer_init, mxfs_v5_dlm_init, net2_lockspace_create, net2_membership_create, net2_mepoch_create, net2_selftest_fn
+    called_by: caw_bastq_init, mep_env_start, mxfs_bootstrap_open, mxfs_disklock_create, mxfs_dlm_create, mxfs_journal_create, mxfs_mount, mxfs_net2_create, mxfs_peer_accept_fn, mxfs_peer_add, mxfs_peer_init, mxfs_scsipr_create, mxfs_scsipr_departure_init, mxfs_v5_dlm_global_init, mxfs_v5_dlm_init
   fn mxfs_pal_mutex_destroy(mxfs_mutex_t *m) -> void
-    called_by: caw_bastq_free, caw_create_unwind, mep_env_stop, mxfs_discovery_destroy, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_dlm_caw_destroy, mxfs_dlm_destroy, mxfs_journal_destroy, mxfs_lease_destroy, mxfs_mount, mxfs_net2_create, mxfs_net2_destroy, mxfs_peer_init, mxfs_peer_shutdown
+    called_by: caw_bastq_free, caw_create_unwind, mep_env_stop, mxfs_bootstrap_close, mxfs_discovery_destroy, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_dlm_caw_destroy, mxfs_dlm_destroy, mxfs_journal_destroy, mxfs_lease_destroy, mxfs_mount, mxfs_net2_create, mxfs_net2_destroy, mxfs_peer_init
   fn mxfs_pal_mutex_lock(mxfs_mutex_t *m) -> void
     called_by: bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bastq_join_workers, caw_convert_body, caw_flush_held_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_join_bounded, caw_nudge_check, caw_nudge_prepare
   fn mxfs_pal_mutex_unlock(mxfs_mutex_t *m) -> void
     called_by: bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bastq_join_workers, caw_convert_body, caw_flush_held_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_join_bounded, caw_nudge_check, caw_nudge_prepare
+  fn mxfs_pal_mutex_trylock(mxfs_mutex_t *m) -> int
+    called_by: mxfs_scsipr_departure_trylock
+  fn mxfs_pal_current_pid(void) -> int
+    called_by: mxfs_scsipr_departure_held, mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_settle_absent, scsipr_answerable, scsipr_dep_enter
+  fn mxfs_pal_module_pin(void) -> bool
+    called_by: mxfs_scsipr_probe_stop
+  fn mxfs_pal_module_unpin(void) -> void
+    called_by: scsipr_free_now, v5_quarantine_free
+  fn mxfs_pal_flag_get(const int *p) -> int
+    calls: __atomic_load_n
+    called_by: mxfs_scsipr_departure_unlock, mxfs_scsipr_quarantine_active, mxfs_scsipr_quarantine_reap, scsipr_probe_fn, v5_depart_queue2, v5_depart_worker_fn, v5_orphan_sweep_queue, v5_retire_worker_fn
+  fn mxfs_pal_flag_set(int *p, int v) -> void
+    called_by: mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_key_state, mxfs_scsipr_probe_start, mxfs_scsipr_probe_stop, scsipr_probe_fn, v5_depart_queue2, v5_depart_worker_fn, v5_depart_worker_start, v5_disklock_settle_absent, v5_orphan_sweep_queue, v5_retire_worker_fn, v5_retire_worker_start
   fn mxfs_pal_spinlock_create(void) -> mxfs_spinlock_t
   fn mxfs_pal_spinlock_destroy(mxfs_spinlock_t *s) -> void
     called_by: caw_create_unwind, mxfs_dlm_caw_destroy
@@ -3772,15 +5715,15 @@
   fn mxfs_pal_rwlock_destroy(mxfs_rwlock_t *rw) -> void
     called_by: mxfs_dlm_destroy
   fn mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw) -> void
-    called_by: mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_withdraw_release_all
+    called_by: dlm_master_sealed, dlm_purge_redrive_tick, dlm_release_redrive_tick, dlm_wire_release_all, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_id, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_page_pending_count, mxfs_dlm_release_all, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_resource_held_by_blocked, mxfs_dlm_resource_wait_is_live
   fn mxfs_pal_may_sleep(void) -> int
     called_by: mxfs_dlm_held_mode
   fn mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw) -> int
     called_by: mxfs_dlm_held_mode_nb
   fn mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw) -> void
-    called_by: dlm_lock_impl, mxfs_dlm_destroy, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_unlock_gen, mxfs_dlm_update_active_nodes
+    called_by: dlm_ledger_import_page, dlm_lock_impl, dlm_owner_mark_purged, dlm_promote_txn, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, dlm_set_page_state, dlm_txn_finalize, mxfs_dlm_destroy, mxfs_dlm_ledger_purge_owner, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request
   fn mxfs_pal_rwlock_unlock(mxfs_rwlock_t *rw) -> void
-    called_by: dlm_lock_impl, mxfs_dlm_destroy, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_unlock_gen
+    called_by: dlm_ledger_import_page, dlm_lock_impl, dlm_master_sealed, dlm_owner_mark_purged, dlm_owner_sealed, dlm_promote_txn, dlm_purge_redrive_tick, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, dlm_set_page_state, dlm_txn_finalize, dlm_wire_release_all, lk_is_holder, lock_alloc
   fn mxfs_pal_cond_create(void) -> mxfs_cond_t
     called_by: caw_bastq_init, mxfs_disklock_create, mxfs_mount, mxfs_net2_create, net2_lockspace_create, pending_alloc
   fn mxfs_pal_cond_destroy(mxfs_cond_t *c) -> void
@@ -3828,56 +5771,81 @@
   fn mxfs_pal_udp_set_recv_timeout(mxfs_sock_t *s, uint32_t timeout_ms) -> int
     called_by: mxfs_dlm_caw_start
   fn mxfs_pal_time_ms(void) -> uint64_t
-    called_by: bast_poll_fn, bast_worker_fn, caw_acquire_poll_sleep, caw_bast_disp_fn, caw_convert_body, caw_force_release_self_body, caw_grant_meta_seq, caw_join_bounded, caw_nudge_ring_wants_wake, caw_open_clear_body, caw_open_set_body, caw_owed_dispatch, caw_owed_fail_latch, caw_owed_release, caw_owed_sweep
+    called_by: bast_poll_fn, bast_worker_fn, bs_cas_locked, bs_complete_edit, bs_refuse_edit, bs_seal_edit, caw_acquire_poll_sleep, caw_bast_disp_fn, caw_convert_body, caw_force_release_self_body, caw_join_bounded, caw_nudge_ring_wants_wake, caw_open_clear_body, caw_open_set_body, caw_owed_dispatch
   fn mxfs_pal_time_real_ms(void) -> uint64_t
     called_by: caw_exwin_log, caw_yield_stamp
   fn mxfs_pal_sleep_ms(uint32_t ms) -> void
-    called_by: caw_grant_meta_store_unless_releasing, caw_grant_seq_prebump, caw_inode_backoff, caw_nudge_ring_wants_wake, caw_open_set_body, caw_owed_worker_fn, caw_release_mark, caw_slot, dlm_bast_cb, dlm_lock_impl, dlm_membership_settling, killpoint_run, lreq_clr_still_good, ls_rt_fn, membership_stab_worker_fn
+    called_by: caw_grant_meta_store_unless_releasing, caw_grant_seq_prebump, caw_inode_backoff, caw_nudge_ring_wants_wake, caw_open_set_body, caw_owed_dispatch, caw_owed_worker_fn, caw_release_mark, caw_slot_ex, disklock_hb_fn, dlm_bast_cb, dlm_lock_impl, dlm_membership_settling, dlm_page_freeze_drain, dlm_page_has_pending
   fn mxfs_pal_sleep_ms_interruptible(uint32_t ms) -> void
     calls: mxfs_pal_sleep_ms
-    called_by: v5_fence_retry_worker_fn
+    called_by: hb_claim_wait, scsipr_probe_fn, v5_depart_worker_fn, v5_fence_retry_worker_fn, v5_mount_postregister_hold, v5_retire_worker_fn, v5_tcp_death_worker_fn
   fn mxfs_pal_cond_resched(void) -> void
-    called_by: caw_purge_dead_nodes_body, caw_release_all_body, mxfs_dlm_caw_footprint_scan
+    called_by: caw_purge_dead_nodes_body, caw_release_all_body, mxfs_dlm_caw_footprint_scan, mxfs_tauth_store_scan
   fn mxfs_pal_log(int level, const char *fmt, ...) -> void
-    called_by: ack_process, bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bast_submit, caw_bastq_init, caw_check_exclusion, caw_convert_body, caw_count_resource_slots, caw_flush_held_body, caw_force_release_self_body, caw_grant_epoch_update, caw_grant_meta_seq
+    called_by: ack_process, apply_op, bast_poll_fn, bast_recv_fn, bast_worker_fn, bs_own_cas_locked, bs_read_locked, bs_reload_ours_locked, cache_flush_worker_fn, caw_bast_disp_fn, caw_bast_submit, caw_bastq_init, caw_check_exclusion, caw_convert_body, caw_flush_held_body
   fn mxfs_pal_failstop_fn(const char *fmt, ...) -> void
   fn static mxfs_defer_thread(void *p) -> void
   fn static scsi_pr_out(int fd, uint8_t sa, uint64_t key, uint64_t sa_key, uint8_t type) -> int
-    called_by: mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_register, mxfs_pal_scsi_pr_reserve, mxfs_pal_scsi_pr_unregister
+    calls: key
+    called_by: mxfs_pal_scsi_pr_preempt, mxfs_pal_scsi_pr_register, mxfs_pal_scsi_pr_register_replace, mxfs_pal_scsi_pr_register_swap, mxfs_pal_scsi_pr_reserve, mxfs_pal_scsi_pr_unregister
   fn static scsi_pr_in_read_keys(int fd, uint64_t *keys, int max_keys, int *count, uint32_t *generation, int *total) -> int
     called_by: mxfs_pal_scsi_pr_read_keys
   fn mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key) -> int
     calls: scsi_pr_out
-    called_by: mxfs_scsipr_register
+    called_by: scsipr_register_locked
+  fn mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key) -> int
+    calls: scsi_pr_out
+    called_by: scsipr_register_locked
+  fn mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key, uint64_t new_key) -> int
+    calls: scsi_pr_out
+    called_by: scsipr_register_locked, scsipr_register_succeed_locked
   fn mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type) -> int
     calls: scsi_pr_out
-    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_reserve
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_gate_restore, scsipr_reserve_locked
   fn mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev, struct mxfs_pal_pr_caps *out) -> int
     called_by: mxfs_scsipr_validate_admission
   fn mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key, uint64_t victim_key, bool abort, uint32_t type) -> int
-    calls: scsi_pr_out
-    called_by: mxfs_scsipr_preempt
+    calls: key, scsi_pr_out
+    called_by: mxfs_scsipr_gate_restore, scsipr_preempt_locked
   fn mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key) -> int
     calls: scsi_pr_out
-    called_by: mxfs_scsipr_unregister
+    called_by: scsipr_unregister_locked
   fn mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys, int max_keys, int *count, uint32_t *generation, int *total) -> int
     calls: scsi_pr_in_read_keys
     called_by: mxfs_scsipr_read_keys
+  fn mxfs_pal_dbg_pr_bracket_fail_take(void) -> bool
+    called_by: scsipr_bracket_run
+  fn mxfs_pal_dbg_settle_pause_ms(void) -> uint32_t
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_pal_dbg_settle_inval_after_mint_take(void) -> bool
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_pal_dbg_settle_double_consume_take(void) -> bool
+    called_by: v5_retire_validate
+  fn mxfs_pal_dbg_probe_hang_take(void) -> uint32_t
+    called_by: scsipr_probe_fn
+  fn mxfs_pal_dbg_depart_late_token_take(void) -> uint32_t
+  fn mxfs_pal_dbg_depart_inject_take(void) -> int
+  fn mxfs_pal_dbg_depart_crash_cut_take(void) -> int
+  fn mxfs_pal_dbg_depart_crash_hold_ms(void) -> uint32_t
+  fn mxfs_pal_dbg_retire_hang_take(void) -> uint32_t
+    called_by: v5_retire_worker_fn
+  fn mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what) -> bool
+    called_by: hb_caw
   fn mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev, struct mxfs_pal_pr_reservation *out) -> int
   fn mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key, int *present, uint32_t *generation) -> int
-    called_by: mxfs_scsipr_fenced_check
+    called_by: mxfs_scsipr_fenced_check, v5_self_succession_consume
   fn mxfs_pal_sdev_cache_release(void) -> void
   fn mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset, const void *compare_buf, const void *write_buf) -> int
-    called_by: caw_repair_slot, caw_slot, caw_watch_armed, hb_cas_own_slot, mxfs_disklock_claim_slot, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_unguard, mxfs_disklock_withdraw, mxfs_mount, purge_cas_zero, recov_cas_durable
+    called_by: bs_cas_locked, caw_repair_slot, caw_slot_ex, caw_watch_armed, hb_caw, mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_tomb_write_term, mxfs_disklock_caw_capability, mxfs_disklock_claim_slot, mxfs_disklock_claim_victim_slot, mxfs_mount, mxfs_tauth_page_write, mxfs_tauth_root_caw, prl_cas
   fn mxfs_pal_get_hostname(char *buf, size_t len) -> int
   fn mxfs_pal_read_file(const char *path, void *buf, size_t buf_size) -> int
-    called_by: load_node_uuid
+    called_by: hostid_read_uuid_file, load_node_uuid, mxfs_host_identity_init, mxfs_uuid_parse
   fn mxfs_pal_get_random_bytes(void *buf, size_t len) -> void
     calls: read
-    called_by: caw_inode_backoff, caw_mint_lineage, hb_draw_incarnation, hb_prov_derive, mxfs_generate_random_uuid, mxfs_v5_dlm_init, net2_membership_boot_nonce, net2_selftest_fn
+    called_by: caw_inode_backoff, caw_mint_lineage, hb_draw_incarnation, hb_prov_derive, mxfs_bootstrap_claim, mxfs_bootstrap_reseal, mxfs_generate_random_uuid, mxfs_tauth_store_open, mxfs_v5_dlm_init, net2_membership_boot_nonce, net2_selftest_fn
   fn static crc32c_table_init(void) -> void
   fn mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
-    called_by: build_symlink_hdr_v5, flush_superblock_counters, hb_feature_crc, hb_prov_crc, mxfs_journal_txn_commit, mxfs_mepoch_rec_seal, mxfs_mepoch_rec_valid, mxfs_mount, read_entry_at, recov_outcome_crc, sector_crc, serialize_entry
+    called_by: bs_mf_sector_crc, build_symlink_hdr_v5, flush_superblock_counters, hb_feature_crc, hb_ident_crc, hb_prov_crc, mxfs_bootstrap_lineage_crc, mxfs_bootstrap_mf_entry_crc, mxfs_bootstrap_rec_crc, mxfs_bootstrap_takeover_crc, mxfs_bootstrap_tomb_crc, mxfs_disklock_claim_victim_slot, mxfs_journal_txn_commit, mxfs_mepoch_rec_seal, mxfs_mepoch_rec_valid
   struct mxfs_bdev { fd, base_offset, is_clone, path }
   struct mxfs_thread { tid, arg }
   struct mxfs_mutex { mtx }
@@ -3900,7 +5868,9 @@
 
 [pal/linux/xfs_buf.c]
   fn static xfs_buf_is_uncached(struct xfs_buf *bp) -> bool
+  fn static mxfs_buf_inject_take(int *knob) -> bool
   fn xfs_buf_set_ref(struct xfs_buf *bp, int lru_ref) -> void
+  struct mxfs_depart_dbg_carry { work, bp }
   struct mxfs_wrtr_ent { ns, daddr, owner, mask, crc, cnt, pid, flags, type, gmode }
 
 [pal/linux/xfs_buf_item.c]
@@ -3957,10 +5927,12 @@
 
 [pal/linux/xfs_super.c]
   fn static mxfs_resolve_dead_timeout_ms(void) -> unsigned int
+  fn static mxfs_affine_audit_stats_get(char *buf, const struct kernel_param *kp) -> int
   fn static mxfs_compute_cache_caps(void) -> void
     calls: pr_info
   enum xfs_dax_mode { XFS_DAX_INODE, XFS_DAX_ALWAYS, XFS_DAX_NEVER }
   struct proc_xfs_info { flag, str }
+  struct mxfs_depart_late_token { work, node, acct, ms }
   struct mxfs_cache_caps { inode, dlm_lock, dir, block }
 
 [pal/linux/xfs_sysfs.c]
@@ -3974,19 +5946,19 @@
 
 [pal/pal.h]
   fn mxfs_pal_bdev_open(const char *path) -> mxfs_bdev_t
-    called_by: mxfs_mount
+    called_by: main, mxfs_mount
   fn mxfs_pal_bdev_close(mxfs_bdev_t *dev) -> void
-    called_by: mxfs_mount, mxfs_unmount
+    called_by: main, mxfs_mount, mxfs_unmount
   fn mxfs_pal_bdev_read(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
-    called_by: disklock_hb_fn, fs_identity_changed, hb_report_claim_exhausted, mxfs_disklock_claim_slot, mxfs_disklock_find_node_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_mount, mxfs_pal_bdev_read_async, mxfs_pal_bdev_read_prio, mxfs_write_direct, read_sector, readlink_remote
+    called_by: disklock_hb_fn, fs_identity_changed, hb_claim_wait, hb_report_claim_exhausted, mxfs_disklock_claim_slot, mxfs_disklock_find_node_slot, mxfs_disklock_get_slot_node_id, mxfs_disklock_get_stale_slot_mask, mxfs_disklock_purge_node, mxfs_disklock_recovery_read_obl, mxfs_disklock_scan_transport, mxfs_mount, mxfs_pal_bdev_read_async, mxfs_pal_bdev_read_prio, mxfs_write_direct
   fn mxfs_pal_bdev_read_prio(mxfs_bdev_t *dev, uint64_t offset, void *buf, uint32_t len) -> int
-    called_by: caw_purge_dead_nodes_body, caw_slot, disklock_hb_fn, hb_cas_own_slot, mxfs_disklock_claim_slot_noncaw, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_join_gate, mxfs_disklock_recovery_advance, mxfs_disklock_recovery_backfill_legacy, mxfs_disklock_recovery_claim, mxfs_disklock_recovery_fence_arm_submit, mxfs_disklock_recovery_fence_retryable, mxfs_disklock_recovery_fence_takeover, mxfs_disklock_recovery_read
+    called_by: bs_read_locked, caw_purge_dead_nodes_body, caw_slot_ex, disklock_hb_fn, hb_cas_own_slot, hb_feature_state, hb_retire_reread, hb_retire_settle, mxfs_bootstrap_lineage_read, mxfs_bootstrap_manifest_read, mxfs_bootstrap_takeover_read, mxfs_bootstrap_tomb_read, mxfs_bootstrap_tomb_write_term, mxfs_disklock_boot_advancing, mxfs_disklock_caw_capability
   fn mxfs_pal_bdev_write(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
-    called_by: is_revoked, mxfs_journal_replay, mxfs_journal_txn_commit, mxfs_pal_bdev_write_async, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua, mxfs_write_direct, write_sector
+    called_by: is_revoked, mxfs_journal_replay, mxfs_journal_txn_commit, mxfs_pal_bdev_write_async, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather, mxfs_pal_bdev_write_gather_fua, mxfs_tauth_page_write, mxfs_write_direct, write_sector
   fn mxfs_pal_bdev_write_fua(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
-    called_by: mxfs_pal_bdev_write_gather_fua, write_sector_fua
+    called_by: bs_cas_locked, mxfs_bootstrap_lineage_write, mxfs_bootstrap_manifest_write_term, mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_tomb_write_term, mxfs_pal_bdev_write_gather_fua, mxfs_tauth_page_write, mxfs_tauth_view_write, prl_cas, write_sector_fua
   fn mxfs_pal_bdev_flush(mxfs_bdev_t *dev) -> int
-    called_by: checkpoint_locked, mxfs_fsync, mxfs_journal_checkpoint, mxfs_journal_flush, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_write_unmount, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather_fua, mxfs_sync_fs, mxfs_v5_dlm_recovery_complete, recov_cas_durable
+    called_by: checkpoint_locked, mxfs_fsync, mxfs_journal_checkpoint, mxfs_journal_flush, mxfs_journal_format, mxfs_journal_replay, mxfs_journal_write_unmount, mxfs_pal_bdev_write_fua, mxfs_pal_bdev_write_gather_fua, mxfs_sync_fs, mxfs_tauth_page_write, mxfs_tauth_view_write, recov_cas_durable, v5_recovery_complete_ladder
   fn mxfs_pal_bdev_size(mxfs_bdev_t *dev, uint64_t *size_out) -> int
     called_by: mxfs_mount
   fn mxfs_pal_bdev_write_async(mxfs_bdev_t *dev, uint64_t offset, const void *buf, uint32_t len) -> int
@@ -3999,29 +5971,45 @@
   fn mxfs_pal_bdev_clone_with_offset(mxfs_bdev_t *dev, uint64_t base_offset) -> mxfs_bdev_t
     called_by: mxfs_mount
   fn mxfs_pal_bdev_close_clone(mxfs_bdev_t *dev) -> void
-    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_commit
+    called_by: mxfs_mount, mxfs_unmount, mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_defer_release, mxfs_v5_dlm_slot_release_finish, v5_quarantine_free
   fn mxfs_pal_bdev_wrap(struct block_device *bdev) -> mxfs_bdev_t
     called_by: mxfs_v5_dlm_init
   fn mxfs_pal_bdev_get_write_stats(mxfs_bdev_t *dev, uint64_t *writes, uint64_t *write_bytes, uint64_t *writes_fua, uint64_t *write_fua_bytes, uint64_t *flushes) -> void
   fn mxfs_pal_alloc(size_t size) -> void
-    called_by: bast_poll_fn, caw_bastq_init, caw_convert_body, caw_count_resource_slots, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, fallocate_punch_hole, fallocate_zero_range, flush_superblock_counters
+    called_by: bast_poll_fn, caw_bastq_init, caw_convert_body, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, dlm_ledger_import_page, dlm_lock_impl, dlm_rel_pending_add, dlm_release_local_orphan
   fn mxfs_pal_free(void *ptr) -> void
-    called_by: bast_poll_fn, bast_worker_fn, caw_bastq_free, caw_convert_body, caw_count_resource_slots, caw_create_unwind, caw_force_release_self_body, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, fallocate_punch_hole
+    called_by: bast_poll_fn, bast_worker_fn, caw_bastq_free, caw_convert_body, caw_create_unwind, caw_force_release_self_body, caw_forcerel_precondition, caw_open_clear_body, caw_open_set_body, caw_owed_resolve, caw_purge_dead_nodes_body, caw_release_all_body, caw_verify_grant_persisted, disklock_hb_fn, dlm_ledger_import_page
+  fn mxfs_pal_alloc_io(size_t size) -> void
+    called_by: mxfs_tauth_store_scan
+  fn mxfs_pal_free_io(void *ptr) -> void
+    called_by: mxfs_tauth_store_scan
   fn mxfs_pal_realloc(void *ptr, size_t new_size) -> void
   fn mxfs_pal_thread_join(mxfs_thread_t *t) -> void
-    called_by: mxfs_discovery_start, mxfs_discovery_stop, mxfs_disklock_stop_heartbeat, mxfs_lease_start, mxfs_lease_stop, mxfs_mount, mxfs_net2_selftest_stop, mxfs_net2_stop, mxfs_peer_accept_fn, mxfs_peer_shutdown, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_link_reap, net2_link_shutdown_all, net2_lockspace_stop
+    called_by: main, mxfs_discovery_start, mxfs_discovery_stop, mxfs_disklock_stop_heartbeat, mxfs_lease_start, mxfs_lease_stop, mxfs_mount, mxfs_net2_selftest_stop, mxfs_net2_stop, mxfs_peer_accept_fn, mxfs_peer_shutdown, mxfs_scsipr_quarantine_reap, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_link_reap
   fn mxfs_pal_thread_join_timeout(mxfs_thread_t *t, uint32_t timeout_ms) -> int
-    called_by: caw_join_bounded, mxfs_disklock_stop_heartbeat
+    called_by: caw_join_bounded, mxfs_disklock_stop_heartbeat, mxfs_scsipr_probe_stop, mxfs_v5_dlm_caw_samenode_selftest, v5_quarantine_reap
   fn mxfs_pal_thread_pid(mxfs_thread_t *t) -> int
-    called_by: mxfs_disklock_start_heartbeat
+    called_by: mxfs_disklock_start_heartbeat, mxfs_scsipr_probe_stop
   fn mxfs_pal_mutex_create(void) -> mxfs_mutex_t
-    called_by: caw_bastq_init, mep_env_start, mxfs_disklock_create, mxfs_dlm_create, mxfs_journal_create, mxfs_mount, mxfs_net2_create, mxfs_peer_accept_fn, mxfs_peer_add, mxfs_peer_init, mxfs_v5_dlm_init, net2_lockspace_create, net2_membership_create, net2_mepoch_create, net2_selftest_fn
+    called_by: caw_bastq_init, mep_env_start, mxfs_bootstrap_open, mxfs_disklock_create, mxfs_dlm_create, mxfs_journal_create, mxfs_mount, mxfs_net2_create, mxfs_peer_accept_fn, mxfs_peer_add, mxfs_peer_init, mxfs_scsipr_create, mxfs_scsipr_departure_init, mxfs_v5_dlm_global_init, mxfs_v5_dlm_init
   fn mxfs_pal_mutex_destroy(mxfs_mutex_t *m) -> void
-    called_by: caw_bastq_free, caw_create_unwind, mep_env_stop, mxfs_discovery_destroy, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_dlm_caw_destroy, mxfs_dlm_destroy, mxfs_journal_destroy, mxfs_lease_destroy, mxfs_mount, mxfs_net2_create, mxfs_net2_destroy, mxfs_peer_init, mxfs_peer_shutdown
+    called_by: caw_bastq_free, caw_create_unwind, mep_env_stop, mxfs_bootstrap_close, mxfs_discovery_destroy, mxfs_disklock_create, mxfs_disklock_destroy, mxfs_dlm_caw_destroy, mxfs_dlm_destroy, mxfs_journal_destroy, mxfs_lease_destroy, mxfs_mount, mxfs_net2_create, mxfs_net2_destroy, mxfs_peer_init
   fn mxfs_pal_mutex_lock(mxfs_mutex_t *m) -> void
     called_by: bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bastq_join_workers, caw_convert_body, caw_flush_held_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_join_bounded, caw_nudge_check, caw_nudge_prepare
   fn mxfs_pal_mutex_unlock(mxfs_mutex_t *m) -> void
     called_by: bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bastq_join_workers, caw_convert_body, caw_flush_held_body, caw_grant_meta_get, caw_grant_meta_get_epoch, caw_grant_meta_store, caw_grant_seq_prebump, caw_join_bounded, caw_nudge_check, caw_nudge_prepare
+  fn mxfs_pal_mutex_trylock(mxfs_mutex_t *m) -> int
+    called_by: mxfs_scsipr_departure_trylock
+  fn mxfs_pal_current_pid(void) -> int
+    called_by: mxfs_scsipr_departure_held, mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_settle_absent, scsipr_answerable, scsipr_dep_enter
+  fn mxfs_pal_module_pin(void) -> bool
+    called_by: mxfs_scsipr_probe_stop
+  fn mxfs_pal_module_unpin(void) -> void
+    called_by: scsipr_free_now, v5_quarantine_free
+  fn mxfs_pal_flag_get(const int *p) -> int
+    called_by: mxfs_scsipr_departure_unlock, mxfs_scsipr_quarantine_active, mxfs_scsipr_quarantine_reap, scsipr_probe_fn, v5_depart_queue2, v5_depart_worker_fn, v5_orphan_sweep_queue, v5_retire_worker_fn
+  fn mxfs_pal_flag_set(int *p, int v) -> void
+    called_by: mxfs_scsipr_departure_lock, mxfs_scsipr_departure_trylock, mxfs_scsipr_departure_unlock, mxfs_scsipr_key_state, mxfs_scsipr_probe_start, mxfs_scsipr_probe_stop, scsipr_probe_fn, v5_depart_queue2, v5_depart_worker_fn, v5_depart_worker_start, v5_disklock_settle_absent, v5_orphan_sweep_queue, v5_retire_worker_fn, v5_retire_worker_start
   fn mxfs_pal_spinlock_create(void) -> mxfs_spinlock_t
   fn mxfs_pal_spinlock_destroy(mxfs_spinlock_t *s) -> void
     called_by: caw_create_unwind, mxfs_dlm_caw_destroy
@@ -4034,15 +6022,15 @@
   fn mxfs_pal_rwlock_destroy(mxfs_rwlock_t *rw) -> void
     called_by: mxfs_dlm_destroy
   fn mxfs_pal_rwlock_rdlock(mxfs_rwlock_t *rw) -> void
-    called_by: mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_withdraw_release_all
+    called_by: dlm_master_sealed, dlm_purge_redrive_tick, dlm_release_redrive_tick, dlm_wire_release_all, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_id, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_page_pending_count, mxfs_dlm_release_all, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_resource_held_by_blocked, mxfs_dlm_resource_wait_is_live
   fn mxfs_pal_rwlock_tryrdlock(mxfs_rwlock_t *rw) -> int
     called_by: mxfs_dlm_held_mode_nb
   fn mxfs_pal_may_sleep(void) -> int
     called_by: mxfs_dlm_held_mode
   fn mxfs_pal_rwlock_wrlock(mxfs_rwlock_t *rw) -> void
-    called_by: dlm_lock_impl, mxfs_dlm_destroy, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_unlock_gen, mxfs_dlm_update_active_nodes
+    called_by: dlm_ledger_import_page, dlm_lock_impl, dlm_owner_mark_purged, dlm_promote_txn, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, dlm_set_page_state, dlm_txn_finalize, mxfs_dlm_destroy, mxfs_dlm_ledger_purge_owner, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request
   fn mxfs_pal_rwlock_unlock(mxfs_rwlock_t *rw) -> void
-    called_by: dlm_lock_impl, mxfs_dlm_destroy, mxfs_dlm_grant_dir_epoch, mxfs_dlm_grant_gen, mxfs_dlm_grant_was_handoff, mxfs_dlm_granted_mode, mxfs_dlm_held_mode, mxfs_dlm_held_mode_nb, mxfs_dlm_lock_convert, mxfs_dlm_process_remote_release, mxfs_dlm_purge_node, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_release_all, mxfs_dlm_release_orphan_if_unheld, mxfs_dlm_unlock_gen
+    called_by: dlm_ledger_import_page, dlm_lock_impl, dlm_master_sealed, dlm_owner_mark_purged, dlm_owner_sealed, dlm_promote_txn, dlm_purge_redrive_tick, dlm_release_local_orphan, dlm_release_redrive_tick, dlm_retry, dlm_set_page_state, dlm_txn_finalize, dlm_wire_release_all, lk_is_holder, lock_alloc
   fn mxfs_pal_cond_create(void) -> mxfs_cond_t
     called_by: caw_bastq_init, mxfs_disklock_create, mxfs_mount, mxfs_net2_create, net2_lockspace_create, pending_alloc
   fn mxfs_pal_cond_destroy(mxfs_cond_t *c) -> void
@@ -4089,43 +6077,65 @@
   fn mxfs_pal_udp_set_recv_timeout(mxfs_sock_t *s, uint32_t timeout_ms) -> int
     called_by: mxfs_dlm_caw_start
   fn mxfs_pal_time_ms(void) -> uint64_t
-    called_by: bast_poll_fn, bast_worker_fn, caw_acquire_poll_sleep, caw_bast_disp_fn, caw_convert_body, caw_force_release_self_body, caw_grant_meta_seq, caw_join_bounded, caw_nudge_ring_wants_wake, caw_open_clear_body, caw_open_set_body, caw_owed_dispatch, caw_owed_fail_latch, caw_owed_release, caw_owed_sweep
+    called_by: bast_poll_fn, bast_worker_fn, bs_cas_locked, bs_complete_edit, bs_refuse_edit, bs_seal_edit, caw_acquire_poll_sleep, caw_bast_disp_fn, caw_convert_body, caw_force_release_self_body, caw_join_bounded, caw_nudge_ring_wants_wake, caw_open_clear_body, caw_open_set_body, caw_owed_dispatch
   fn mxfs_pal_time_real_sec(void) -> uint64_t
     called_by: fallocate_prealloc, fallocate_punch_hole, fallocate_zero_range, mxfs_chmod, mxfs_chown, mxfs_utimes, mxfs_write
   fn mxfs_pal_time_real_ms(void) -> uint64_t
     called_by: caw_exwin_log, caw_yield_stamp
   fn mxfs_pal_sleep_ms(uint32_t ms) -> void
-    called_by: caw_grant_meta_store_unless_releasing, caw_grant_seq_prebump, caw_inode_backoff, caw_nudge_ring_wants_wake, caw_open_set_body, caw_owed_worker_fn, caw_release_mark, caw_slot, dlm_bast_cb, dlm_lock_impl, dlm_membership_settling, killpoint_run, lreq_clr_still_good, ls_rt_fn, membership_stab_worker_fn
+    called_by: caw_grant_meta_store_unless_releasing, caw_grant_seq_prebump, caw_inode_backoff, caw_nudge_ring_wants_wake, caw_open_set_body, caw_owed_dispatch, caw_owed_worker_fn, caw_release_mark, caw_slot_ex, disklock_hb_fn, dlm_bast_cb, dlm_lock_impl, dlm_membership_settling, dlm_page_freeze_drain, dlm_page_has_pending
   fn mxfs_pal_sleep_ms_interruptible(uint32_t ms) -> void
-    called_by: v5_fence_retry_worker_fn
+    called_by: hb_claim_wait, scsipr_probe_fn, v5_depart_worker_fn, v5_fence_retry_worker_fn, v5_mount_postregister_hold, v5_retire_worker_fn, v5_tcp_death_worker_fn
   fn mxfs_pal_cond_resched(void) -> void
-    called_by: caw_purge_dead_nodes_body, caw_release_all_body, mxfs_dlm_caw_footprint_scan
+    called_by: caw_purge_dead_nodes_body, caw_release_all_body, mxfs_dlm_caw_footprint_scan, mxfs_tauth_store_scan
   fn mxfs_pal_log(int level, const char *fmt, ...) -> void
-    called_by: ack_process, bast_poll_fn, bast_recv_fn, bast_worker_fn, cache_flush_worker_fn, caw_bast_disp_fn, caw_bast_submit, caw_bastq_init, caw_check_exclusion, caw_convert_body, caw_count_resource_slots, caw_flush_held_body, caw_force_release_self_body, caw_grant_epoch_update, caw_grant_meta_seq
+    called_by: ack_process, apply_op, bast_poll_fn, bast_recv_fn, bast_worker_fn, bs_own_cas_locked, bs_read_locked, bs_reload_ours_locked, cache_flush_worker_fn, caw_bast_disp_fn, caw_bast_submit, caw_bastq_init, caw_check_exclusion, caw_convert_body, caw_flush_held_body
   fn mxfs_pal_dump_stack(void) -> void
     called_by: mxfs_dlm_lock_retries
   fn mxfs_pal_dump_task_stack(int pid) -> void
     called_by: disklock_hb_watchdog_fn
   fn mxfs_pal_failstop_fn(const char *fmt, ...) -> void
   fn mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
-    called_by: build_symlink_hdr_v5, flush_superblock_counters, hb_feature_crc, hb_prov_crc, mxfs_journal_txn_commit, mxfs_mepoch_rec_seal, mxfs_mepoch_rec_valid, mxfs_mount, read_entry_at, recov_outcome_crc, sector_crc, serialize_entry
+    called_by: bs_mf_sector_crc, build_symlink_hdr_v5, flush_superblock_counters, hb_feature_crc, hb_ident_crc, hb_prov_crc, mxfs_bootstrap_lineage_crc, mxfs_bootstrap_mf_entry_crc, mxfs_bootstrap_rec_crc, mxfs_bootstrap_takeover_crc, mxfs_bootstrap_tomb_crc, mxfs_disklock_claim_victim_slot, mxfs_journal_txn_commit, mxfs_mepoch_rec_seal, mxfs_mepoch_rec_valid
   fn mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key) -> int
-    called_by: mxfs_scsipr_register
+    called_by: scsipr_register_locked
+  fn mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key) -> int
+    called_by: scsipr_register_locked
+  fn mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key, uint64_t new_key) -> int
+    called_by: scsipr_register_locked, scsipr_register_succeed_locked
   fn mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type) -> int
-    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_reserve
+    called_by: mxfs_scsipr_check_reservation_health, mxfs_scsipr_gate_restore, scsipr_reserve_locked
   fn mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key, uint64_t victim_key, bool abort, uint32_t type) -> int
-    called_by: mxfs_scsipr_preempt
+    called_by: mxfs_scsipr_gate_restore, scsipr_preempt_locked
   fn mxfs_pal_scsi_pr_unregister(mxfs_bdev_t *dev, uint64_t key) -> int
-    called_by: mxfs_scsipr_unregister
+    called_by: scsipr_unregister_locked
   fn mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys, int max_keys, int *count, uint32_t *generation, int *total) -> int
     called_by: mxfs_scsipr_read_keys
   fn mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key, int *present, uint32_t *generation) -> int
-    called_by: mxfs_scsipr_fenced_check
+    called_by: mxfs_scsipr_fenced_check, v5_self_succession_consume
   fn mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev, struct mxfs_pal_pr_reservation *out) -> int
+  fn mxfs_pal_dbg_pr_bracket_fail_take(void) -> bool
+    called_by: scsipr_bracket_run
+  fn mxfs_pal_dbg_settle_pause_ms(void) -> uint32_t
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_pal_dbg_settle_inval_after_mint_take(void) -> bool
+    called_by: mxfs_scsipr_settle_absent
+  fn mxfs_pal_dbg_settle_double_consume_take(void) -> bool
+    called_by: v5_retire_validate
+  fn mxfs_pal_dbg_probe_hang_take(void) -> uint32_t
+    called_by: scsipr_probe_fn
+  fn mxfs_pal_dbg_depart_late_token_take(void) -> uint32_t
+  fn mxfs_pal_dbg_depart_inject_take(void) -> int
+  fn mxfs_pal_dbg_depart_crash_cut_take(void) -> int
+  fn mxfs_pal_dbg_depart_crash_hold_ms(void) -> uint32_t
+  fn mxfs_pal_dbg_retire_hang_take(void) -> uint32_t
+    called_by: v5_retire_worker_fn
+  fn mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what) -> bool
+    called_by: hb_caw
   fn mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev, struct mxfs_pal_pr_caps *out) -> int
     called_by: mxfs_scsipr_validate_admission
   fn mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset, const void *compare_buf, const void *write_buf) -> int
-    called_by: caw_repair_slot, caw_slot, caw_watch_armed, hb_cas_own_slot, mxfs_disklock_claim_slot, mxfs_disklock_guard_refresh, mxfs_disklock_guard_slot, mxfs_disklock_release_slot, mxfs_disklock_unguard, mxfs_disklock_withdraw, mxfs_mount, purge_cas_zero, recov_cas_durable
+    called_by: bs_cas_locked, caw_repair_slot, caw_slot_ex, caw_watch_armed, hb_caw, mxfs_bootstrap_takeover_cas, mxfs_bootstrap_takeover_clear, mxfs_bootstrap_tomb_write_term, mxfs_disklock_caw_capability, mxfs_disklock_claim_slot, mxfs_disklock_claim_victim_slot, mxfs_mount, mxfs_tauth_page_write, mxfs_tauth_root_caw, prl_cas
   fn mxfs_pal_sdev_cache_release(void) -> void
   fn mxfs_pal_bdev_get_bdev(mxfs_bdev_t *dev) -> struct block_device
   fn mxfs_pal_bdev_get_base_offset(mxfs_bdev_t *dev) -> uint64_t
@@ -4133,17 +6143,22 @@
   fn mxfs_pal_io_budget_exit(struct mxfs_pal_io_budget *b) -> void
   fn mxfs_pal_get_hostname(char *buf, size_t len) -> int
   fn mxfs_pal_read_file(const char *path, void *buf, size_t buf_size) -> int
-    called_by: load_node_uuid
+    called_by: hostid_read_uuid_file, load_node_uuid, mxfs_host_identity_init, mxfs_uuid_parse
   fn mxfs_pal_get_random_bytes(void *buf, size_t len) -> void
-    called_by: caw_inode_backoff, caw_mint_lineage, hb_draw_incarnation, hb_prov_derive, mxfs_generate_random_uuid, mxfs_v5_dlm_init, net2_membership_boot_nonce, net2_selftest_fn
+    called_by: caw_inode_backoff, caw_mint_lineage, hb_draw_incarnation, hb_prov_derive, mxfs_bootstrap_claim, mxfs_bootstrap_reseal, mxfs_generate_random_uuid, mxfs_tauth_store_open, mxfs_v5_dlm_init, net2_membership_boot_nonce, net2_selftest_fn
   fn atomic_read(&a->val) -> return
-    called_by: inode_dio_probe_init, inode_dio_release_init, mxfs_ailstuck_probe_param_get, mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_lru_sweep_fn, mxfs_pin_census_set, xfs_defer_drain_busy
+    called_by: inode_dio_probe_init, inode_dio_release_init, mxfs_ailstuck_probe_param_get, mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_lru_sweep_fn, mxfs_pin_census_set, mxfs_pubob_settle_home_free, xfs_defer_drain_busy
   fn atomic_inc_return(&a->val) -> return
-    called_by: dg_grant_ex, dlm_lock_impl, fire_bast_records, lock_alloc, lock_free, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_lock_retries, mxfs_dlm_open_protect, mxfs_dlm_unlock_gen, mxfs_iunl_discrim, mxfs_iunl_store_purge_ag, mxfs_pal_scsi_read_fua_bdev, promote_waiters
+    called_by: caw_slot_ex, dg_grant_ex, dlm_ledger_prepare, dlm_ledger_refuses, dlm_lock_impl, fire_bast_records, lock_free, mxfs_dlm_audit_double_grant, mxfs_dlm_grant_dir_epoch, mxfs_dlm_lock_retries, mxfs_dlm_open_protect, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_request, mxfs_dlm_unlock_gen, mxfs_freepub_claim_clear
   fn atomic_dec_return(&a->val) -> return
+  fn atomic_cmpxchg(&a->val, expect, desired) -> return
+    called_by: inode_dio_release_init, mxfs_pubob_free_strike
+  fn atomic_xchg(&a->val, v) -> return
   fn __atomic_load_n(&a->val, __ATOMIC_SEQ_CST) -> return
+    called_by: mxfs_pal_flag_get
   fn __atomic_add_fetch(&a->val, 1, __ATOMIC_SEQ_CST) -> return
   fn __atomic_sub_fetch(&a->val, 1, __ATOMIC_SEQ_CST) -> return
+  fn __atomic_exchange_n(&a->val, v, __ATOMIC_SEQ_CST) -> return
   fn bswap_16(v) -> return
   fn bswap_32(v) -> return
   fn bswap_64(v) -> return
@@ -4156,12 +6171,16 @@
   struct mxfs_atomic32 { val }
   struct mxfs_atomic32 { val }
 
+[scripts/analyze_p_diskslive_p55c.py]
+  fn parse_line(line)
+  fn to_wall(node, t)
+
 [scripts/caw_slot_dump.py]
   fn main()
 
 [scripts/caw_slot_sampler.py]
   fn find_slot(dev, offset, ino, args_ltype=1)
-    called_by: caw_convert_body, caw_open_clear_body, caw_open_set_body, mxfs_dlm_caw_dump_slot, mxfs_dlm_caw_granted_mode, mxfs_dlm_caw_held, mxfs_dlm_caw_open_holders, mxfs_dlm_caw_open_probe, mxfs_dlm_caw_read_generation, mxfs_dlm_caw_set_dir_block0
+    called_by: caw_convert_body, caw_open_clear_body, caw_open_set_body, mxfs_dlm_caw_dump_slot, mxfs_dlm_caw_granted_mode, mxfs_dlm_caw_held, mxfs_dlm_caw_open_holders, mxfs_dlm_caw_open_probe, mxfs_dlm_caw_read_generation, mxfs_dlm_caw_set_dir_block0, mxfs_dlm_caw_test_slot_bits
   fn main()
 
 [scripts/ccloop_behavior_audit.py]
@@ -4171,8 +6190,15 @@
   fn classify(name, inp)
   fn main()
 
+[scripts/ccloop_delegation_audit.py]
+  fn classify(name, inp)
+  fn session_files_for_run(run_id, frm, to)
+  fn audit_session(path, model)
+  fn main()
+
 [scripts/ccloop_quota_probe.py]
   fn parse_ts(rec)
+  fn family(model)
   fn collect(projects_dir, exclude)
   fn weeks(turns, n_weeks)
   fn totals(turns, lo, hi)
@@ -4185,13 +6211,13 @@
     called_by: mxfs_dlm_caw_orphan_clock_set
   fn family(model)
   fn scan(path)
-    called_by: mxfs_v5_dlm_shutdown_withdraw
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_withdraw
   fn main()
   fn parse(s)
 
 [scripts/ccloop_subagent_billing_check.py]
   fn scan(path)
-    called_by: mxfs_v5_dlm_shutdown_withdraw
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_withdraw
   fn main()
 
 [scripts/ccloop_token_audit.py]
@@ -4200,6 +6226,12 @@
   fn fmt(n)
   fn main()
   fn parse_bound(s, default)
+
+[scripts/d0496_census.py]
+  fn scan(path)
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_withdraw
+  fn merge(dst, src)
+  fn blank()
 
 [scripts/decode_bufev.py]
   fn flags_str(f)
@@ -4216,6 +6248,13 @@
   fn main()
   fn fsb_to_byte(fsb)
 
+[scripts/evidence_marker_report.py]
+  fn mt(d)
+
+[scripts/freepub_claim_chain.py]
+  fn parse(path)
+  fn main(paths)
+
 [scripts/gen_criteria.py]
   fn default_max_nodes(category, name)
   fn load_json(path)
@@ -4231,13 +6270,13 @@
   fn static wake_dio_waiters(struct inode *inode) -> void
     called_by: inode_dio_release_init
   fn static inode_dio_release_init(void) -> int __init
-    calls: atomic_read, owner_task_live_pid, pr_err, pr_info, wake_dio_waiters
+    calls: atomic_cmpxchg, atomic_read, owner_task_live_pid, pr_err, pr_info, wake_dio_waiters
   fn static inode_dio_release_exit(void) -> void __exit
 
 [scripts/loop_unwedge/kcore_walk.py]
   fn __init__(self, path="/proc/kcore")
   fn read(self, addr, size)
-    called_by: bast_recv_fn, disklock_hb_fn, main, mxfs_disklock_claim_slot, mxfs_pal_get_random_bytes, mxfs_pal_scsi_read_fua_bdev, run_child, v5_membership_beacon_caw
+    called_by: bast_recv_fn, disklock_hb_fn, main, mxfs_disklock_claim_slot, mxfs_pal_get_random_bytes, mxfs_pal_scsi_read_fua_bdev_body, run_child, v5_membership_beacon_caw
   fn u64(self, a)
   fn u32(self, a)
   fn s32(self, a)
@@ -4289,6 +6328,12 @@
   fn main()
   class Img
 
+[scripts/p244_psfs_histogram.py]
+  fn delta_bucket(ms)
+  fn c1_bucket(v)
+  fn analyze(path)
+  fn main()
+
 [scripts/p291_aggregate.py]
   fn parse(d)
   fn main()
@@ -4297,6 +6342,12 @@
   fn parse(paths)
   fn fmt(r, t0)
   fn main()
+
+[scripts/p304_stack_scan.py]
+  fn extract(path)
+  fn norm_comm(c)
+  fn report(listfile)
+    called_by: do_prin, do_prout, do_write
 
 [scripts/scst_atomic_edges.py]
   fn offsetof(struct, member)
@@ -4328,7 +6379,7 @@
   fn cstr(a)
   fn blkcnt(lh)
   fn stop(*a)
-    called_by: caw_owed_release, caw_owed_worker_fn, caw_release_all_body, lreq_finish, mxfs_dlm_caw_destroy, mxfs_unmount, mxfs_v5_dlm_shutdown_defer_release, net2_midcomms_bind
+    called_by: caw_owed_release, caw_owed_worker_fn, caw_release_all_body, lreq_finish, mxfs_dlm_caw_destroy, mxfs_unmount, mxfs_v5_dlm_recovery_acquire, mxfs_v5_dlm_shutdown_defer_release, net2_midcomms_bind
 
 [scripts/scst_unwedge/scst_unwedge.c]
   fn static scst_unwedge_init(void) -> int __init
@@ -4359,7 +6410,7 @@
   fn fsb_split(fsb)
   fn rawfsb(agno, agbno)
   fn claim(agno, agbno, count, tag)
-    called_by: mxfs_disklock_claim_slot, mxfs_v5_dlm_init
+    called_by: mxfs_disklock_claim_slot, mxfs_v5_dlm_init, mxfs_v5_dlm_settle_own_slot, v5_bootstrap_run
   fn walk_inobt(agbno, lvl)
     called_by: check_inode_btrees
 
@@ -4370,6 +6421,35 @@
     called_by: main
   fn main(int argc, char **argv) -> int
     calls: read16_fua, sgio
+
+[tests/cc_phase_walls.py]
+  fn parse_ts(s)
+
+[tests/cc_tenure_modesplit.py]
+  fn pick_target_ino(evdir, explicit=None)
+  fn pct(sorted_vals, p)
+  fn dist(vals)
+  fn fmt_dist(d, label="")
+  fn fmt_dist5(d, label="")
+  fn main()
+
+[tests/cc_tenure_timeline.py]
+  fn pctl(sorted_vals, p)
+  fn dist(vals)
+  fn parse_journal_ts(line, year)
+  fn main()
+
+[tests/classify_free_foreign.py]
+  fn u32(x)
+  fn s32(x)
+  fn mode_class(mode_octal_int)
+  fn load_meta(node)
+  fn main()
+  fn abs_time(node, ts)
+  fn pick_reps(bucket, k=2)
+  fn sort_key(ev)
+  fn flush_run()
+  fn is_alloc_tag(tag)
 
 [tests/closure_foot_parse.py]
   fn res_agno(typename, ag_field, ino, inoshift)
@@ -4382,6 +6462,20 @@
   fn analyze_daddr(recs, daddr, slot=None)
   fn bits_of(v)
   fn auto_scan(recs, p26s, show_all)
+  fn main()
+
+[tests/dinode_inject.py]
+  fn crc32c(crc, data)
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn dinode_crc(img)
+  fn main()
+  fn show(tag, im)
+
+[tests/dirshard_ioctl.py]
+  fn ioc(direction, nr, size)
+  fn fail(e, what)
+  fn cmd_mkdir(args)
+  fn cmd_info(args)
   fn main()
 
 [tests/drc_analyze.py]
@@ -4397,6 +6491,686 @@
   fn parse(path)
   fn main()
 
+[tests/evidence/sess400_agifc/parse_ag23_iter_timing.py]
+  fn probe_name(probe, rest)
+  fn find_after(seg, probe, after_idx)
+  fn ms(ns)
+    called_by: hb_claim_wait, mxfs_disklock_claim_slot, mxfs_disklock_set_dead_timeout_ms, mxfs_pal_dbg_probe_hang_take, mxfs_pal_dbg_retire_hang_take, mxfs_pal_scsi_pr_read_keys, mxfs_scsipr_probe_stop, v5_peer_disconnect_cb_tcp
+  fn pct(vals, p)
+
+[tests/evidence/sess402_cc401/parse_phases.py]
+  fn t(s)
+  fn key(r)
+    called_by: do_show_quarantine, mxfs_pal_scsi_pr_preempt, mxfs_scsipr_fenced_check, mxfs_scsipr_probe, mxfs_scsipr_self_check, scsi_pr_out, scsipr_register_locked, scsipr_register_succeed_locked, v5_bootstrap_run
+
+[tests/evidence/sess498_frozen_07018/tools/caw_slot_census.py]
+  fn fnv1a(b)
+  fn home(volume, ino, offset, ag, rtype)
+  fn base_from_chk(img)
+  fn find_base(fh, scan_mib)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/caw_slot_hash.py]
+  fn fnv1a(b)
+  fn res_bytes(volume, ino, offset, ag, rtype)
+  fn home(volume, rtype, ino, ag, offset=0)
+  fn parse_dump(path)
+  fn cmd_verify(path)
+  fn cmd_collide(dumppath, inolist, shift)
+  fn cmd_pick(dumppath, inolist, shift)
+
+[tests/evidence/sess498_frozen_07018/tools/caw_slotdump.c]
+  fn static type_name(uint8_t t) -> const char
+    called_by: do_scsi_read_fua, main
+  fn static mode_name(uint8_t m) -> const char
+    called_by: dg_grant_ex, dlm_ledger_import_page, dlm_local_entry_any, dlm_lock_impl, dlm_retry, do_scsi_read_fua, fire_bast_records, lk_is_holder, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_purge_stale_for_resource
+  fn static do_scsi_read_fua(int fd, uint64_t lba, void *buf, uint32_t blocks) -> int
+    calls: mode_name, print_bits, type_name
+    called_by: main
+  fn static print_bits(const char *label, uint64_t v) -> void
+    called_by: do_scsi_read_fua, main
+  fn main(int argc, char **argv) -> int
+    calls: do_scsi_read_fua, mode_name, print_bits, type_name
+  struct resid { volume, ino, offset, ag_number, type, pad }
+  struct caw_slot { magic, generation, resource, holders_ex, holders_pw, holders_pr, holders_cw, holders_cr, waiters, granted_mode }
+
+[tests/evidence/sess498_frozen_07018/tools/caw_unlock_audit.py]
+  fn opener(path)
+  fn expand(arg)
+  fn collect(paths)
+  fn stats(vals)
+  fn summarise(label, rows, node_seconds=None)
+  fn pc(x)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/caw_verify.c]
+  fn static do_scsi_io(int fd, unsigned char *cdb, int cdb_len, void *buf, int len, int dxfer_dir, int *miscompare) -> int
+  fn static scsi_read16_fua(int fd, uint64_t lba, void *buf, uint32_t blocks) -> int
+    called_by: do_scsi_io, main
+  fn static scsi_compare_and_write(int fd, uint64_t lba, void *cmp_buf, void *write_buf, int *miscompare) -> int
+    called_by: main
+  fn static usage(const char *prog) -> void
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: scsi_compare_and_write, scsi_read16_fua, usage
+
+[tests/evidence/sess498_frozen_07018/tools/ccloop_refusal_audit.py]
+  fn ts(s)
+
+[tests/evidence/sess498_frozen_07018/tools/ccph_timeline.py]
+  fn stamp(m)
+    called_by: disklock_hb_fn
+  fn node_num(path)
+  fn read_lines(path)
+  fn main()
+  fn dist(name, xs)
+
+[tests/evidence/sess498_frozen_07018/tools/chk_mxfs.c]
+  fn static crc32c_init(void) -> void
+    called_by: crc32c
+  fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn static get_be16(const void *p) -> uint16_t
+    calls: err, get_be32, get_be64
+    called_by: check_inode_spotcheck, check_one_inode, do_ino_offset, ds_check_parent, ds_collect_leaf, ds_locator_get, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, validate_inobt_leaf
+  fn static get_be32(const void *p) -> uint32_t
+    called_by: check_dirshard, check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_ino_offset, do_prin, do_upgrade_protogate, ds_check_parent, ds_collect_leaf, ds_read_dinode, ds_single_extent, get_be16, orphan_collect_leaf, orphan_walk_chain
+  fn static get_be64(const void *p) -> uint64_t
+    called_by: check_inode_spotcheck, check_one_inode, do_prin, ds_collect_leaf, get_be16, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
+  fn static put_be32(void *p, uint32_t v) -> void
+    called_by: build_xfs_sb_sector, check_freespace_btrees, check_inode_btrees, do_prout, do_upgrade_protogate, do_write, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
+  fn static put_be64(void *p, uint64_t v) -> void
+    called_by: build_xfs_sb_sector, can_repair, do_prout, do_write, print_summary, write_inode, write_sb_sector
+  fn static popcount64(uint64_t v) -> int
+    called_by: validate_inobt_leaf
+  fn static err(const char *fmt, ...) -> void
+    called_by: check_bootstrap, check_dirshard, check_disklock, check_freespace_btrees, check_inode_btrees, check_journal, check_one_inode, check_orphan_inodes, check_prledger, check_tauth, check_tauth_ctrl, check_xfs_ag_headers, chk_print_guard, chk_print_obl_list, chk_print_obl_record
+  fn static info(const char *fmt, ...) -> void
+    called_by: check_bootstrap, check_dirshard, check_disklock, check_journal, check_one_inode, check_orphan_inodes, check_prledger, check_xfs_ag_headers, decode_hb_identity, decode_mepoch, ds_check_parent, ds_read_dinode, orphan_walk_chain, validate_inobt_leaf
+  fn static format_size(uint64_t bytes, char *buf, size_t buflen) -> void
+  fn static format_uuid(const uint8_t *uuid, char *buf, size_t buflen) -> void
+  fn static read_at(int fd, void *buf, size_t len, off_t offset) -> int
+    called_by: can_repair, check_bootstrap, check_dirshard, check_disklock, check_freespace_btrees, check_inode_btrees, check_inode_spotcheck, check_journal, check_one_inode, check_orphan_inodes, check_prledger, check_tauth, check_tauth_ctrl, check_xfs_ag_headers, do_clear_bootstrap
+  fn static write_at(int fd, const void *buf, size_t len, off_t offset) -> int
+    called_by: check_journal, do_clear_bootstrap
+  fn static can_repair(void) -> bool
+    calls: put_be64, read_at, xfs_fix_crc_and_write
+    called_by: check_freespace_btrees, check_inode_btrees, check_journal, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, main, print_summary, xfs_verify_crc
+  fn static xfs_fix_crc_and_write(int fd, void *buf, size_t len, size_t crc_off, off_t disk_offset) -> int
+    called_by: can_repair, check_freespace_btrees, check_inode_btrees, check_one_inode, check_xfs_ag_headers, do_upgrade_protogate, print_summary, xfs_verify_crc
+  fn static mxfs_fix_crc_and_write(int fd, void *buf, size_t len, size_t crc_off, off_t disk_offset) -> int
+    called_by: check_journal, do_upgrade_protogate
+  fn static xfs_verify_crc(void *buf, size_t len, size_t crc_off) -> bool
+    calls: can_repair, err, xfs_fix_crc_and_write
+    called_by: check_one_inode, check_xfs_ag_headers, ds_check_parent
+  fn static read_ag_block(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, void *buf) -> int
+    calls: get_be32
+    called_by: check_inode_spotcheck
+  fn static check_mxfs_super(int fd, struct mxfs_ondisk_super *super) -> int
+    called_by: main
+  fn static tview_errname(int rc) -> const char
+    called_by: check_tauth_ctrl
+  fn static check_tauth_ctrl(int fd, const struct mxfs_ondisk_super *s, uint32_t fs_gen) -> void
+    calls: err, read_at, tview_errname
+    called_by: check_tauth
+  fn static prl_state(uint16_t st) -> const char
+    called_by: check_prledger
+  fn static bs_tk_stage(uint16_t st) -> const char
+    called_by: check_bootstrap
+  fn static bs_escrow_name(uint8_t st) -> const char
+    called_by: check_bootstrap, do_clear_bootstrap
+  fn static bs_state(uint16_t st) -> const char
+    called_by: check_bootstrap, do_clear_bootstrap
+  fn static check_bootstrap(int fd, const struct mxfs_ondisk_super *s) -> void
+    calls: bs_escrow_name, bs_state, bs_tk_stage, crc32c, err, hex_uuid, info, read_at
+    called_by: main
+  fn static do_clear_bootstrap(const char *device) -> int
+    calls: bs_escrow_name, bs_state, crc32c, first, read_at, write_at
+    called_by: main
+  fn static check_prledger(int fd, const struct mxfs_ondisk_super *s) -> void
+    calls: crc32c, err, hex_uuid, info, prl_state, read_at
+    called_by: main
+  fn static check_tauth(int fd, const struct mxfs_ondisk_super *s) -> void
+    calls: check_tauth_ctrl, err, read_at
+    called_by: main
+  fn static check_journal(int fd, const struct mxfs_ondisk_super *super) -> void
+    calls: can_repair, crc32c, err, info, mxfs_fix_crc_and_write, order, read_at, write_at
+    called_by: main
+  fn static crc32c_raw(uint32_t crc, const void *data, size_t len) -> uint32_t
+    called_by: chk_print_obl_list, chk_recov_body_crc, chk_verdict_digest, decode_mepoch
+  fn static chk_recov_body_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const void *rec, size_t len) -> uint32_t
+    calls: crc32c_raw
+    called_by: chk_print_guard, chk_print_obl_record
+  fn static chk_verdict_digest(const uint8_t *uuid16, uint32_t slot, const uint8_t *sector512) -> uint64_t
+    calls: crc32c_raw
+    called_by: chk_print_guard
+  fn static chk_refusal_reason_name(uint16_t r) -> const char
+    called_by: chk_print_guard
+  fn static chk_print_obl_record(uint32_t slot, const uint8_t *sec, struct chk_recov_obl *out) -> int
+    calls: chk_recov_body_crc, err
+    called_by: chk_print_guard, do_show_quarantine
+  fn static chk_print_obl_list(int dfd, uint64_t rman_offset, uint32_t slot, const uint8_t *sec, const struct chk_recov_obl *ob) -> void
+    calls: crc32c_raw, err
+    called_by: do_show_quarantine
+  fn static chk_print_guard(uint32_t slot, const uint8_t *sec, const uint8_t *fsuuid, uint16_t slice_count_hint) -> int
+    calls: chk_print_obl_record, chk_recov_body_crc, chk_refusal_reason_name, chk_verdict_digest, err, mxfs_unclaimed_bucket_scan
+    called_by: do_show_quarantine
+  fn static hex_uuid(const uint8_t *u, char out[37]) -> void
+    called_by: check_bootstrap, check_prledger, decode_hb_identity
+  fn static decode_hb_identity(const uint8_t *r, int slot) -> void
+    calls: crc32c, err, hex_uuid, info
+    called_by: check_disklock
+  fn static decode_mepoch(const uint8_t *slot_buf, int slot, uint64_t *members_out) -> uint64_t
+    calls: crc32c_raw, err, info
+    called_by: check_disklock
+  fn static check_disklock(int fd, const struct mxfs_ondisk_super *super) -> void
+    calls: decode_hb_identity, decode_mepoch, err, info, read_at
+    called_by: main
+  fn static check_xfs_superblock(int fd, const struct mxfs_ondisk_super *super, struct xfs_geo *geo) -> int
+    called_by: main
+  fn static check_xfs_ag_headers(int fd, const struct xfs_geo *geo, uint32_t agno, struct ag_info *agi_out) -> void
+    calls: can_repair, err, get_be32, info, read_at, xfs_fix_crc_and_write, xfs_verify_crc
+    called_by: main
+  fn static validate_btree_sblock(uint8_t *blk, uint32_t blocksize, uint32_t expected_magic, uint32_t agno, const char *name, int fd, off_t disk_offset) -> int
+  fn static validate_freespace_leaf(const uint8_t *blk, uint16_t numrecs, uint32_t agno, const char *name, bool sort_by_bno, uint32_t ag_length) -> uint64_t
+    calls: err, get_be32
+  fn static walk_freespace_btree(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, uint32_t expected_magic, const char *name, bool sort_by_bno, uint32_t expected_level, uint32_t ag_length) -> uint64_t
+    called_by: check_freespace_btrees
+  fn static rebuild_freespace_btrees(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agf_length) -> int
+    called_by: check_freespace_btrees
+  fn static check_freespace_btrees(int fd, const struct xfs_geo *geo, uint32_t agno, const struct ag_info *agi, struct ag_summary *summary) -> void
+    calls: can_repair, err, put_be32, read_at, rebuild_freespace_btrees, walk_freespace_btree, xfs_fix_crc_and_write
+    called_by: main
+  fn static validate_inobt_leaf(const uint8_t *blk, uint16_t numrecs, uint32_t agno, const char *name, const struct xfs_geo *geo, struct inobt_totals *totals) -> void
+    calls: err, get_be16, get_be32, get_be64, info, popcount64, totals
+  fn static walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, uint32_t expected_magic, const char *name, uint32_t expected_level, uint32_t ag_length, struct inobt_totals *totals) -> void
+    calls: err
+    called_by: check_inode_btrees
+  fn static reset_inobt_root(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t root_agbno, uint32_t magic) -> int
+    called_by: check_inode_btrees
+  fn static reset_agi_level(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agi_level_off) -> int
+    called_by: check_inode_btrees
+  fn static check_inode_btrees(int fd, const struct xfs_geo *geo, uint32_t agno, const struct ag_info *agi, struct ag_summary *summary) -> void
+    calls: can_repair, err, put_be32, read_at, reset_agi_level, reset_inobt_root, walk_inobt, xfs_fix_crc_and_write
+    called_by: main
+  fn static check_one_inode(int fd, const struct xfs_geo *geo, uint64_t ino, const char *label) -> int
+    calls: can_repair, err, get_be16, get_be32, get_be64, info, read_at, xfs_fix_crc_and_write, xfs_verify_crc
+    called_by: check_inode_spotcheck
+  fn static check_inode_spotcheck(int fd, const struct xfs_geo *geo) -> void
+    calls: check_one_inode, get_be16, get_be32, get_be64, read_ag_block, read_at
+    called_by: main
+  fn static orphan_push(struct orphan_list *l, uint64_t val) -> void
+    called_by: orphan_collect_leaf, orphan_walk_chain
+  fn static orphan_cmp_u64(const void *a, const void *b) -> int
+  fn static inode_disk_offset(const struct xfs_geo *geo, uint32_t agno, uint32_t agino) -> uint64_t
+    called_by: ds_collect_leaf, orphan_collect_leaf, orphan_walk_chain
+  fn static orphan_walk_chain(int fd, const struct xfs_geo *geo, uint32_t agno, int bucket, uint32_t head, struct orphan_list *members) -> void
+    calls: entries, err, get_be16, get_be32, info, inode_disk_offset, orphan_push, read_at
+    called_by: check_orphan_inodes
+  fn static orphan_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno, const uint8_t *blk, uint16_t numrecs, struct orphan_list *cand, uint64_t *scanned) -> void
+    calls: err, get_be16, get_be32, get_be64, inode_disk_offset, orphan_push, read_at
+  fn static orphan_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, int depth, struct orphan_list *cand, uint64_t *scanned) -> void
+    called_by: check_orphan_inodes
+  fn static orphan_repair_insert(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agino, uint32_t heads[XFS_AGI_UNLINKED_BUCKETS]) -> int
+    calls: err
+    called_by: check_orphan_inodes
+  fn static check_orphan_inodes(int fd, const struct xfs_geo *geo) -> void
+    calls: can_repair, err, get_be32, info, orphan_repair_insert, orphan_walk_chain, orphan_walk_inobt, read_at
+    called_by: main
+  fn static print_summary(int fd, const struct xfs_geo *geo, const struct ag_summary *ag_summaries) -> void
+    calls: blocks, can_repair, err, put_be64, read_at, xfs_fix_crc_and_write
+    called_by: main
+  fn static ds_rotl64(uint64_t x, int b) -> uint64_t
+  fn static ds_le64(const uint8_t *p) -> uint64_t
+    called_by: ds_siphash24
+  fn static ds_siphash24(const uint8_t key[16], const uint8_t *in, size_t len) -> uint64_t
+    calls: ds_le64
+  fn static ds_hexval(int c) -> int
+  fn static ds_parse_hex(const char *s, uint8_t *out, size_t max, size_t *lenp) -> int
+  fn static dirshard_hash_cmd(const char *keyhex, const char *name) -> int
+    called_by: main
+  fn static ds_push(struct ds_list *l, const struct ds_ino *e) -> void
+    called_by: ds_collect_leaf
+  fn static ds_find(struct ds_list *l, uint64_t ino) -> struct ds_ino
+    called_by: ds_check_parent
+  fn static ds_read_dinode(int fd, const struct xfs_geo *geo, uint64_t ino, uint8_t *dip) -> int
+    calls: err, get_be32, info
+    called_by: ds_check_parent
+  fn static ds_locator_get(const struct xfs_geo *geo, const uint8_t *dip, uint64_t *hino, uint32_t *hgen) -> int
+    calls: get_be16
+    called_by: ds_check_parent
+  fn static ds_single_extent(const uint8_t *dip, uint64_t *startoff, uint64_t *startblock, uint32_t *blockcount) -> int
+    calls: err, get_be32
+    called_by: ds_check_parent
+  fn static ds_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno, const uint8_t *blk, uint16_t numrecs, struct ds_list *parents, struct ds_list *containers, uint64_t *scanned) -> void
+    calls: ds_push, get_be16, get_be32, get_be64, inode_disk_offset, read_at
+  fn static ds_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, int depth, struct ds_list *parents, struct ds_list *containers, uint64_t *scanned) -> void
+    called_by: check_dirshard
+  fn static ds_check_parent(int fd, const struct xfs_geo *geo, struct ds_ino *pe, struct ds_list *containers, uint64_t *published, uint64_t *unlinked_sets, uint64_t *skipped) -> int
+    calls: ds_find, ds_locator_get, ds_read_dinode, ds_single_extent, err, get_be16, get_be32, info, read_at, xfs_verify_crc
+    called_by: check_dirshard
+  fn static check_dirshard(int fd, const struct xfs_geo *geo) -> void
+    calls: ds_check_parent, ds_walk_inobt, err, get_be32, info, read_at
+    called_by: main
+  fn static sha256_block(struct sha256_ctx *c, const uint8_t *p) -> void
+  fn static sha256_init(struct sha256_ctx *c) -> void
+  fn static sha256_update(struct sha256_ctx *c, const void *data, size_t len) -> void
+    called_by: sha256_final
+  fn static sha256_final(struct sha256_ctx *c, uint8_t out[32]) -> void
+    calls: sha256_update
+  fn static sha256_hex(const uint8_t d[32], char out[65]) -> void
+  fn static do_show_quarantine(const char *device) -> int
+    calls: chk_print_guard, chk_print_obl_list, chk_print_obl_record, err, key, read_at
+    called_by: main
+  fn static chk_pr_read_keys(int fd, uint64_t *keys, int max, int *unsupported) -> int
+    called_by: do_pr_keys
+  fn static chk_leaf_add(struct chk_leafset *s, const char *name) -> void
+    called_by: chk_collect_leaves
+  fn static chk_collect_leaves(const char *devname, struct chk_leafset *s, int depth) -> void
+    calls: chk_leaf_add
+    called_by: chk_archive_dest_disjoint
+  fn static chk_devname_of(dev_t rdev, char *out, size_t outsz) -> int
+    called_by: chk_archive_dest_disjoint
+  fn static chk_dest_backing_dev(dev_t st_dev, char *out, size_t outsz, char *fstype, size_t ftsz) -> int
+    called_by: chk_archive_dest_disjoint
+  fn static chk_archive_dest_disjoint(const char *device, int destdirfd, const char *destdirpath) -> int
+    calls: chk_collect_leaves, chk_dest_backing_dev, chk_devname_of
+  fn static chk_read_sector_direct(int dfd, uint64_t off, uint8_t *out512) -> int
+    called_by: chk_repair_table_clear
+  fn static chk_repair_table_clear(int dfd, const struct mxfs_ondisk_super *sup, uint32_t keep_slot) -> int
+    calls: chk_read_sector_direct
+  fn static chk_write_archive(const char *archive_path, const char *device, const struct chk_quar_ctx *q) -> int
+  fn static do_pr_keys(const char *device) -> int
+    calls: chk_pr_read_keys
+    called_by: main
+  fn static do_accept_quarantine_loss(const char *device, long slice_arg, const char *confirm, const char *archive) -> int
+    calls: do_upgrade_protogate
+    called_by: main
+  fn static do_upgrade_protogate(int fd) -> int
+    calls: get_be32, mxfs_fix_crc_and_write, put_be32, read_at, xfs_fix_crc_and_write
+    called_by: do_accept_quarantine_loss, main
+  fn static do_ino_offset(const char *device, unsigned long long ino) -> int
+    calls: get_be16, get_be32, read_at
+    called_by: main
+  fn static usage(const char *prog) -> void
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: can_repair, check_bootstrap, check_dirshard, check_disklock, check_freespace_btrees, check_inode_btrees, check_inode_spotcheck, check_journal, check_mxfs_super, check_orphan_inodes, check_prledger, check_tauth, check_xfs_ag_headers, check_xfs_superblock, dirshard_hash_cmd
+  enum repair_mode { REPAIR_NONE, n, check, only, no, writes, REPAIR_AUTO, a, p, auto }
+  struct xfs_geo { blocksize, agcount, agblocks, inodesize, inopblock, inopblog, agblklog, dblocks, rootino, icount }
+  struct ag_summary { bno_freeblks, agf_freeblks, agi_count, agi_freecount, inobt_total, inobt_free }
+  struct chk_prledger_entry { magic, key_gen, pr_key, host_uuid, stamp_ms, host_src, succ_pad0, succ_old_key, succ_old_boot, reserved }
+  struct chk_bootstrap_rec { magic, term, owner_node, owner_epoch, owner_host_uuid, fs_uuid, fs_gen, victim_bitmap, ledger_gen, registrants }
+  struct chk_bootstrap_tomb { magic, victim_node, victim_epoch, obligation, pad }
+  struct chk_bootstrap_lineage { magic, term, owner_node, owner_epoch, owner_host_uuid, manifest_hash, fence_kind, state, escrow, reserved }
+  struct chk_bootstrap_takeover { magic, seq, target_term, target_state, old_fence_kind, pred_fence_kind, k_desc_crc, reserved }
+  struct hb_hdr
+  struct chk_recov_desc { magic, victim_epoch, owner_stamp_ms, victim_node, flags, victim_slot, slice_idx, stage_seq, fence_kind, fence_victim_key }
+  struct chk_recov_outcome { magic, reason, victim_slot, victim_epoch, ag_mask, victim_node, owner_node, refused_items, crc32c }
+  struct chk_recov_obl { magic, obl_ag_mask, count, census_digest, pub_seq }
+  struct chk_recov_obl_ext { fsbno }
+  struct chk_rman_obl_hdr { magic, seq, victim_node, victim_slot, entry_bytes, count, publisher_node, publisher_epoch, publisher_term, census_digest }
+  struct chk_hb_hdr
+  struct ag_info { bno_root, cnt_root, bno_level, cnt_level, agf_freeblks, agf_longest, agf_length, ino_root, ino_level, agi_count }
+  struct inobt_totals { total_inodes, total_free, num_records }
+  struct orphan_list { v, oom }
+  struct ds_ino { ino, gen, mode, nlink, flags2, refs }
+  struct ds_list { v, oom }
+  struct sha256_ctx { h, len, buf, n }
+  struct chk_leafset { n, overflow }
+  struct chk_quar_ctx { sup, sector, superblk, slot, sector_off, digest, d, oc }
+  struct mxfs_disklock_heartbeat_hdr
+  struct mxfs_disklock_heartbeat_hdr
+
+[tests/evidence/sess498_frozen_07018/tools/closure_evidence_audit.py]
+  fn load_records()
+  fn cited_logs(rec)
+  fn cited_dirs(rec)
+  fn scan_log(path)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/dirtenure_summary.py]
+  fn node_name_from_path(path)
+  fn iter_kernlog_files(args)
+  fn open_maybe_gz(path)
+  fn parse_file(path, records, stats)
+  fn pctl(sorted_vals, p)
+  fn fmt_stats(vals)
+  fn main(argv)
+
+[tests/evidence/sess498_frozen_07018/tools/fua_verify.c]
+  fn static do_scsi_io(int fd, unsigned char *cdb, int cdb_len, void *buf, int len, int dxfer_dir) -> int
+    calls: scsi_read16_fua, scsi_synchronize_cache16, scsi_write16_fua
+  fn static scsi_write16_fua(int fd, uint64_t lba, void *buf, uint32_t blocks) -> int
+    called_by: do_scsi_io, main
+  fn static scsi_read16_fua(int fd, uint64_t lba, void *buf, uint32_t blocks) -> int
+    called_by: do_scsi_io, main
+  fn static scsi_synchronize_cache16(int fd) -> int
+    called_by: do_scsi_io, main
+  fn main(int argc, char **argv) -> int
+    calls: scsi_read16_fua, scsi_synchronize_cache16, scsi_write16_fua
+
+[tests/evidence/sess498_frozen_07018/tools/handle_probe.c]
+  fn static hexval(int c) -> int
+    called_by: do_open
+  fn static do_encode(const char *path) -> int
+    called_by: main
+  fn static do_open(const char *mnt, int type, const char *hex, int repeat, int sleep_ms) -> int
+    calls: hexval
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: do_encode, do_open
+
+[tests/evidence/sess498_frozen_07018/tools/harness_lint.py]
+  fn rule(code, why)
+    called_by: caw_slot_ex
+  fn deco(fn)
+  fn hl001(line)
+  fn hl002(line)
+  fn hl003(line)
+  fn hl004(line, in_dquote=False)
+  fn scan()
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_withdraw
+  fn key(f)
+    called_by: do_show_quarantine, mxfs_pal_scsi_pr_preempt, mxfs_scsipr_fenced_check, mxfs_scsipr_probe, mxfs_scsipr_self_check, scsi_pr_out, scsipr_register_locked, scsipr_register_succeed_locked, v5_bootstrap_run
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/ledger_backfill_dates.py]
+  fn exact(value)
+  fn prefix(value)
+  fn backfill(records)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/ledger_owed_work.py]
+  fn sort_key(d)
+
+[tests/evidence/sess498_frozen_07018/tools/ledger_session_dates.py]
+  fn session_date(n)
+  fn text_of(r)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/ledger_set.py]
+  fn load()
+  fn find(doc, rid)
+  fn violations()
+  fn save(doc, before)
+  fn main(argv)
+
+[tests/evidence/sess498_frozen_07018/tools/ledger_validate.py]
+  fn load(path)
+  fn isodate(value)
+  fn check(records, today=None)
+    called_by: mxfs_dbg_p106_inject_take, v5_tcp_death_worker_fn
+  fn fail(field, msg)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/mkfs_mxfs.c]
+  fn static crc32c_init(void) -> void
+    called_by: crc32c
+  fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
+    calls: crc32c_init
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn static put_be16(void *p, uint16_t v) -> void
+    called_by: build_xfs_sb_sector, write_inode, write_sb_sector
+  fn static put_be32(void *p, uint32_t v) -> void
+    called_by: build_xfs_sb_sector, check_freespace_btrees, check_inode_btrees, do_prout, do_upgrade_protogate, do_write, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
+  fn static put_be64(void *p, uint64_t v) -> void
+    called_by: build_xfs_sb_sector, can_repair, do_prout, do_write, print_summary, write_inode, write_sb_sector
+  fn static xfs_set_crc(void *buf, size_t len, size_t crc_off) -> void
+    calls: crc32c
+    called_by: build_xfs_sb_sector, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
+  fn static read_random_bytes(void *buf, size_t len) -> int
+    calls: pr_err
+    called_by: main
+  fn static gen_uuid(uint8_t *uuid) -> int
+    called_by: main
+  fn static pr_info(const char *fmt, ...) -> void
+    called_by: caw_bastq_report, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, lu_iter, main, mxfs_bdev_to_sdev, mxfs_compute_cache_caps, mxfs_iunl_store_purge_ag, mxfs_lru_sweep_fn, mxfs_pal_bdev_close_clone, mxfs_pal_log, scst_unwedge_init
+  fn static pr_verbose(const char *fmt, ...) -> void
+    called_by: main, write_bootstrap_record
+  fn static pr_err(const char *fmt, ...) -> void
+    called_by: caw_join_bounded, caw_release_all_body, caw_teardown_escalate_queue, format_xfs_native, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, main, mxfs_dlm_caw_destroy, mxfs_dlm_caw_pin_resource, mxfs_dlm_caw_stop, mxfs_dlm_caw_unsafe_to_free, mxfs_pal_log, mxfs_pubob_free_commit, read_random_bytes
+  fn static human_size(uint64_t bytes, char *buf, size_t buflen) -> const char
+    called_by: main
+  fn static ceil_log2(uint32_t v) -> uint32_t
+  fn static write_sectors(int fd, uint64_t offset, const void *buf, uint64_t len) -> int
+    called_by: main, write_bootstrap_record
+  fn static zero_region(int fd, uint64_t offset, uint64_t len) -> int
+    calls: write_bootstrap_record
+    called_by: main
+  fn static format_journal(int fd, uint64_t journal_offset, uint32_t max_nodes, const uint8_t *uuid) -> int
+    called_by: main
+  fn static write_mxfs_super(int fd, uint64_t super_offset, uint64_t device_size, uint64_t xfs_data_size, uint64_t journal_offset, uint64_t journal_size, uint64_t disklock_offset, uint64_t disklock_size, uint64_t rman_offset, uint64_t rman_size, uint64_t tauth_offset, uint64_t tauth_size, uint64_t prkey_offset, uint64_t prkey_size, uint64_t bootstrap_offset, uint64_t bootstrap_size, uint64_t xfs_data_offset, uint32_t max_nodes, uint32_t log_node_count, uint32_t log_slice_bblks, const uint8_t *uuid) -> int
+    called_by: main
+  fn static write_bootstrap_record(int fd, uint64_t offset, const uint8_t *uuid) -> int
+    calls: crc32c, pr_verbose, write_sectors
+    called_by: main, zero_region
+  fn static tauth_npages_for_device(uint64_t device_size) -> uint32_t
+    called_by: main
+  fn static format_tauth_region(int fd, uint64_t tauth_offset, uint64_t tauth_size, const uint8_t *uuid, uint32_t npages, uint64_t hash_seed) -> int
+    called_by: main
+  fn static calc_ag_layout(const struct xfs_geom *geom, uint32_t agno, uint32_t *out_aglen, uint32_t *out_freeblks, uint32_t *out_free_start, uint32_t *out_free_len, uint32_t *out_free2_start, uint32_t *out_free2_len, uint32_t agfl_blocks[4]) -> void
+  fn static write_sb_sector(uint8_t *sec, const struct xfs_geom *geom, uint32_t agno) -> void
+    calls: put_be16, put_be32, put_be64, xfs_set_crc
+  fn static write_agf_sector(uint8_t *sec, const struct xfs_geom *geom, uint32_t agno, uint32_t aglen, uint32_t freeblks, uint32_t longest) -> void
+    calls: put_be32, xfs_set_crc
+  fn static write_agi_sector(uint8_t *sec, const struct xfs_geom *geom, uint32_t agno, uint32_t aglen) -> void
+    calls: put_be32, xfs_set_crc
+  fn static write_agfl_sector(uint8_t *sec, const struct xfs_geom *geom, uint32_t agno, const uint32_t agfl_blocks[4]) -> void
+    calls: put_be32, xfs_set_crc
+  fn static write_btree_block(uint8_t *blk, uint32_t magic, uint32_t agno, uint64_t blkno_abs, uint16_t numrecs, const uint8_t *rec_data, size_t rec_len, const uint8_t *uuid) -> void
+  fn static write_inode(uint8_t *buf, uint64_t ino, const uint8_t *uuid, int itype, time_t now) -> void
+    calls: put_be16, put_be32, put_be64, xfs_set_crc
+  fn static format_xfs_native(int fd, uint64_t data_size, uint64_t base_offset, const uint8_t *uuid, uint32_t *log_node_count_io, uint32_t *logblocks_out) -> int
+    calls: pr_err
+    called_by: main
+  fn static usage(const char *prog) -> void
+    called_by: main
+  fn main(int argc, char *argv[]) -> int
+    calls: blocks, format_journal, format_tauth_region, format_xfs_native, gen_uuid, human_size, pr_err, pr_info, pr_verbose, read_random_bytes, tauth_npages_for_device, usage, write_bootstrap_record, write_mxfs_super, write_sectors
+  struct journal_super { magic, version, slot_count, slot_size_sectors, sector_size, crc, fs_uuid, reserved }
+  struct journal_slot_hdr { magic, flags, owner, head_sector, tail_sector, crc, seq_head, seq_tail, reserved }
+  struct mkfs_bootstrap_rec { magic, term, owner_node, owner_epoch, owner_host_uuid, fs_uuid, fs_gen, victim_bitmap, ledger_gen, registrants }
+  struct xfs_geom { dblocks, agcount, agblocks, last_agblocks, agblklog, log_ag, logblocks, logstart, rootino, rbmino }
+
+[tests/evidence/sess498_frozen_07018/tools/mxfs_agi_dump.py]
+  fn be32(b, o)
+  fn be64(b, o)
+  fn lsn(v)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/mxfs_bench.c]
+  fn static stats_init(struct bench_stats *s) -> void
+    called_by: main
+  fn static stats_add(struct bench_stats *s, double us) -> void
+    called_by: main
+  fn static stats_avg(struct bench_stats *s) -> double
+    called_by: dlm_op, main, print_comparison, print_stats
+  fn static now_us(void) -> double
+    called_by: main
+  fn static read_full(int fd, void *buf, size_t len) -> int
+    called_by: main
+  fn static write_full(int fd, const void *buf, size_t len) -> int
+    called_by: dlm_lock, main
+  fn static dlm_op(uint8_t cmd, uint8_t mode, uint64_t volume, uint64_t ino) -> int
+    calls: stats_avg
+    called_by: dlm_unlock
+  fn static dlm_lock(uint64_t volume, uint64_t ino, uint8_t mode) -> int
+    calls: write_full
+    called_by: main
+  fn static dlm_unlock(uint64_t volume, uint64_t ino) -> int
+    calls: dlm_op
+    called_by: main
+  fn static print_stats(const char *label, struct bench_stats *s) -> void
+    calls: stats_avg
+    called_by: main
+  fn static print_comparison(const char *label, struct bench_stats *base, struct bench_stats *locked) -> void
+    calls: stats_avg
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: dlm_lock, dlm_unlock, now_us, print_comparison, print_stats, read, stats_add, stats_avg, stats_init, write_full
+  struct ctrl_req { cmd, mode, pad, flags, resource }
+  struct ctrl_resp { status, mode, pad }
+  struct bench_stats { min_us, max_us, total_us, count }
+
+[tests/evidence/sess498_frozen_07018/tools/mxfs_lock.c]
+  fn static read_full(int fd, void *buf, size_t len) -> int
+    called_by: main
+  fn static write_full(int fd, const void *buf, size_t len) -> int
+    called_by: dlm_lock, main
+  fn static usage(const char *prog) -> void
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: read_full, usage, write_full
+  struct ctrl_req { cmd, mode, pad, flags, resource }
+  struct ctrl_resp { status, mode, pad }
+
+[tests/evidence/sess498_frozen_07018/tools/mxfs_logslice.py]
+  fn direct_read(path, offset, length)
+  fn read_geom(path)
+  fn fsb_to_daddr(g, fsb)
+  fn agb_to_daddr(g, agno, agbno)
+  fn daddr_to_ag(g, daddr)
+  fn ino_split(g, ino)
+  fn print_geom(g)
+  fn lsn_str(lsn)
+  fn parse_records(slice_bytes)
+  fn __init__(self, tid, lsn, rec)
+  fn assemble_transactions(recs, valid_only=None)
+  fn split_items(regions)
+  fn describe_item(g, name, t, regs)
+  fn txn_matches(g, t, args)
+  fn main()
+  class Geom
+  class Rec
+  class Txn
+
+[tests/evidence/sess498_frozen_07018/tools/mxfs_mmapio.c]
+  fn static on_sig(int sig) -> void
+  fn main(int argc, char **argv) -> int
+
+[tests/evidence/sess498_frozen_07018/tools/p132_attribute.py]
+  fn opener(path)
+  fn collect(paths)
+  fn pct(sorted_vals, q)
+  fn report(label, rows)
+    called_by: do_prin, do_prout, do_write
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/p132_phase_summary.py]
+  fn add_post_other(rows)
+  fn field_stats(rows, field)
+  fn print_table(label, rows)
+  fn parse_comm(paths)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/p13_release_shape.py]
+  fn extract_fields(line, names)
+  fn nearest_preceding(idx_list, event_idx, window)
+  fn any_preceding_in_window(idx_list, event_idx, window)
+  fn nearest_following(idx_list, event_idx, window)
+  fn any_following_in_window(idx_list, event_idx, window)
+  fn process_file(relpath)
+  fn main()
+
+[tests/evidence/sess498_frozen_07018/tools/recov_forge.c]
+  fn static crc_init(void) -> void
+  fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn static desc_crc(const struct hb_rec *hb, const struct recov_desc *d) -> uint32_t
+    calls: crc32c
+    called_by: dump_slot, main
+  fn static oc_crc(const struct hb_rec *hb, const struct recov_outcome *oc) -> uint32_t
+    calls: crc32c
+    called_by: dump_slot, main
+  fn static sg_rw(int fd, int write, uint64_t lba, void *buf, uint32_t blocks) -> int
+    called_by: main, slot_write
+  fn static slot_read(int fd, int slot, struct hb_rec *hb) -> int
+    called_by: main
+  fn static slot_write(int fd, int slot, const struct hb_rec *hb) -> int
+    calls: sg_rw
+    called_by: main
+  fn static flag_name(uint32_t f) -> const char
+    called_by: dump_slot
+  fn static desc_present(const struct hb_rec *hb) -> bool
+    called_by: dump_slot
+  fn static oc_present(const struct hb_rec *hb) -> bool
+    called_by: dump_slot, main
+  fn static dump_slot(int slot, const struct hb_rec *hb) -> void
+    calls: crc32c, desc_crc, desc_present, flag_name, oc_crc, oc_present
+    called_by: main
+  fn static usage(void) -> void
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: crc32c, desc_crc, dump_slot, oc_crc, oc_present, sg_rw, slot_read, slot_write, usage
+  struct recov_desc { magic, version, stage, victim_epoch, owner_epoch, recovery_gen, owner_stamp_ms, victim_node, owner_node, victim_fs_gen }
+  struct recov_outcome { magic, version, outcome, reason, domain_kind, victim_slot, owner_slot, victim_epoch, owner_epoch, recovery_gen }
+  struct hb_rec { magic, flags, node_id, fs_gen, timestamp_ms, epoch, lock_count, desc, outcome, pad }
+  struct ident { fs_gen, node_id, epoch }
+
+[tests/evidence/sess498_frozen_07018/tools/resize_mxfs.c]
+  fn static crc32c_init(void) -> void
+    called_by: crc32c
+  fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn static get_be16(const void *p) -> uint16_t
+    called_by: check_inode_spotcheck, check_one_inode, do_ino_offset, ds_check_parent, ds_collect_leaf, ds_locator_get, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, validate_inobt_leaf
+  fn static get_be32(const void *p) -> uint32_t
+    called_by: check_dirshard, check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_ino_offset, do_prin, do_upgrade_protogate, ds_check_parent, ds_collect_leaf, ds_read_dinode, ds_single_extent, get_be16, orphan_collect_leaf, orphan_walk_chain
+  fn static get_be64(const void *p) -> uint64_t
+    called_by: check_inode_spotcheck, check_one_inode, do_prin, ds_collect_leaf, get_be16, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
+  fn static put_be16(void *p, uint16_t v) -> void
+    called_by: build_xfs_sb_sector, write_inode, write_sb_sector
+  fn static put_be32(void *p, uint32_t v) -> void
+    called_by: build_xfs_sb_sector, check_freespace_btrees, check_inode_btrees, do_prout, do_upgrade_protogate, do_write, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
+  fn static put_be64(void *p, uint64_t v) -> void
+    called_by: build_xfs_sb_sector, can_repair, do_prout, do_write, print_summary, write_inode, write_sb_sector
+  fn static xfs_set_crc(void *buf, size_t len, size_t crc_off) -> void
+    calls: crc32c
+    called_by: build_xfs_sb_sector, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
+  fn static pr_info(const char *fmt, ...) -> void
+    called_by: caw_bastq_report, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, lu_iter, main, mxfs_bdev_to_sdev, mxfs_compute_cache_caps, mxfs_iunl_store_purge_ag, mxfs_lru_sweep_fn, mxfs_pal_bdev_close_clone, mxfs_pal_log, scst_unwedge_init
+  fn static pr_verbose(const char *fmt, ...) -> void
+    called_by: main, write_bootstrap_record
+  fn static pr_err(const char *fmt, ...) -> void
+    called_by: caw_join_bounded, caw_release_all_body, caw_teardown_escalate_queue, format_xfs_native, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, main, mxfs_dlm_caw_destroy, mxfs_dlm_caw_pin_resource, mxfs_dlm_caw_stop, mxfs_dlm_caw_unsafe_to_free, mxfs_pal_log, mxfs_pubob_free_commit, read_random_bytes
+  fn static human_size(uint64_t bytes, char *buf, size_t buflen) -> const char
+    called_by: main
+  fn static read_sectors(int fd, uint64_t offset, void *buf, uint64_t len) -> int
+    called_by: main
+  fn static write_sectors(int fd, uint64_t offset, const void *buf, uint64_t len) -> int
+    calls: pr_err
+    called_by: main, write_bootstrap_record
+  fn static parse_xfs_sb(const uint8_t *sec, struct xfs_sb_info *sb) -> void
+    calls: get_be16, get_be32, get_be64
+    called_by: main
+  fn static build_xfs_sb_sector(uint8_t *sec, const struct xfs_sb_info *sb, bool primary) -> void
+    calls: put_be16, put_be32, put_be64, xfs_set_crc
+    called_by: main
+  fn static write_agf_sector(uint8_t *sec, uint32_t agno, uint32_t aglen, uint32_t freeblks, const uint8_t *uuid) -> void
+    calls: put_be32, xfs_set_crc
+  fn static write_agi_sector(uint8_t *sec, uint32_t agno, uint32_t aglen, const uint8_t *uuid) -> void
+    calls: put_be32, xfs_set_crc
+  fn static write_agfl_sector(uint8_t *sec, uint32_t agno, const uint8_t *uuid) -> void
+    calls: put_be32, xfs_set_crc
+  fn static write_btree_block(uint8_t *blk, uint32_t magic, uint32_t agno, uint64_t blkno_abs, uint16_t numrecs, const uint8_t *rec_data, size_t rec_len, const uint8_t *uuid) -> void
+  fn static write_new_ag(int fd, uint32_t agno, uint32_t aglen, uint64_t xfs_data_offset, const struct xfs_sb_info *sb, const uint8_t *uuid) -> int
+    calls: pr_err
+    called_by: main
+  fn static mxfs_super_crc(const struct mxfs_ondisk_super *sup) -> uint32_t
+    calls: crc32c
+    called_by: main
+  fn static usage(const char *prog) -> void
+    called_by: main
+  fn main(int argc, char *argv[]) -> int
+    calls: build_xfs_sb_sector, first, human_size, mxfs_super_crc, parse_xfs_sb, pr_err, pr_info, pr_verbose, read_sectors, usage, write_new_ag, write_sectors
+  struct xfs_sb_info { magic, blocksize, dblocks, uuid, logstart, rootino, rbmino, rsumino, agblocks, agcount }
+
+[tests/evidence/sess498_frozen_07018/tools/xfs_dahash_collisions.py]
+  fn rol32(x, n)
+  fn dahash(name)
+  fn main()
+
 [tests/fence_inflight/prprobe.c]
   fn static mono(void) -> double
     called_by: do_clearua, do_dread, do_dwrite, do_poll, do_prin, do_prout, do_write, report
@@ -4405,9 +7179,9 @@
   fn static put_be32(uint8_t *p, uint32_t v) -> void
     called_by: build_xfs_sb_sector, check_freespace_btrees, check_inode_btrees, do_prout, do_upgrade_protogate, do_write, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
   fn static get_be64(const uint8_t *p) -> uint64_t
-    called_by: check_inode_spotcheck, check_one_inode, do_prin, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
+    called_by: check_inode_spotcheck, check_one_inode, do_prin, ds_collect_leaf, get_be16, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
   fn static get_be32(const uint8_t *p) -> uint32_t
-    called_by: check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_prin, do_upgrade_protogate, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, read_ag_block, read_at, report, validate_freespace_leaf, validate_inobt_leaf
+    called_by: check_dirshard, check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_ino_offset, do_prin, do_upgrade_protogate, ds_check_parent, ds_collect_leaf, ds_read_dinode, ds_single_extent, get_be16, orphan_collect_leaf, orphan_walk_chain
   fn static report(const char *tag, struct sg_io_hdr *io, int rc, int saved_errno, double t0, double t1, const uint8_t *sense) -> int
     calls: get_be32, get_be64, mono
     called_by: do_prin, do_prout, do_write
@@ -4444,12 +7218,45 @@
   fn find_line(path, prefix)
   fn parse_trace(path, majmin_loop, majmin_dm, lba, nsect)
   fn first(lst)
-    called_by: main, mxfs_disklock_find_node_slot, mxfs_peer_shutdown, mxfs_unmount, net2_midcomms_rx, promote_waiters
+    called_by: do_clear_bootstrap, main, mxfs_disklock_find_node_slot, mxfs_freeob_recover_fn, mxfs_pal_tcp_send, mxfs_peer_shutdown, mxfs_unmount, net2_midcomms_rx, promote_waiters
   fn last(lst)
   fn fmt(t, base)
   fn main()
   fn majmin(devno)
   fn blk_ts(ev, dev, rw_has="W")
+
+[tests/handoff_anatomy.py]
+  fn pct(v, p)
+  fn dist(name, v, unit='')
+  fn main(d)
+
+[tests/handoff_transfer_attrib.py]
+  fn line_ms(line, year=2026, month=8)
+  fn pct(v, p)
+  fn dist(name, v, unit='')
+  fn main(d)
+  fn nearest_wake(hnode, t_rel)
+  fn dump(tag, m)
+  fn line_time_ms(line)
+  fn build_node_index(files)
+  fn get_all_hops(files, ino)
+  fn nearest_wake_line(wake_lines_for_node, t_rel, tol_ms=8.0)
+  fn taker_report(d)
+  fn classify(h)
+
+[tests/hb_epoch_inject.py]
+  fn crc32c(crc, data)
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn feat_crc(fs_gen, node_id, epoch, magic, proto_gen, feat_flags)
+  fn prov_crc(fs_gen, node_id, epoch, magic, prev_node, prev_epoch, slot_seq,
+             chain_len)
+  fn ident_crc(slot, flags, fs_gen, node_id, epoch, r)
+  fn ident_reseal(r, slot)
+  fn desc_crc(r, fs_gen, nid, epoch)
+    called_by: dump_slot, main
+  fn describe(r, slot=None)
+  fn main()
+  fn dread(off, n)
 
 [tests/mxfs_stackprof.py]
   fn frames(pid, tid)
@@ -4834,6 +7641,105 @@
   struct log_entry { operation, nr_args, args, flags }
   struct hugepages_collapse_info { orig_good_buf, good_buf_size, orig_temp_buf, temp_buf_size }
 
+[tests/tauth/bootstrap_race_test.c]
+  fn main(int argc, char **argv) -> int
+    calls: format_region, mxfs_dlm_release_all, mxfs_dlm_unlock, mxfs_dlm_update_active_nodes, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_pal_sleep_ms, mxfs_tauth_ledger_close, mxfs_tauth_ledger_open, mxfs_tauth_ledger_page_auth, mxfs_tauth_ledger_page_mine
+
+[tests/tauth/concurrent_release_test.c]
+  fn static unlock_job_fn(void *arg) -> void
+    calls: mxfs_dlm_unlock
+  fn main(int argc, char **argv) -> int
+    calls: format_region, mxfs_dlm_held_mode, mxfs_dlm_page_pending_count, mxfs_dlm_release_all, mxfs_dlm_unlock, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_pal_sleep_ms, mxfs_pal_thread_join, mxfs_pal_time_ms, mxfs_tauth_ledger_close, mxfs_tauth_ledger_open
+  struct unlock_job { n, res, rc, done, t }
+
+[tests/tauth/dlm_ledger_test.c]
+  fn main(int argc, char **argv) -> int
+    calls: format_region, mxfs_dlm_grant_id, mxfs_dlm_handoff_takeover, mxfs_dlm_held_mode, mxfs_dlm_ledger_purge_owner, mxfs_dlm_lock_retries, mxfs_dlm_purge_node, mxfs_dlm_release_all, mxfs_dlm_resource_master, mxfs_dlm_unlock, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_pal_sleep_ms, mxfs_pal_time_ms, mxfs_tauth_ledger_close
+
+[tests/tauth/dlm_mesh.h]
+  fn mxfs_tauth_ledger_lookup(&probe, res, pgen, e) -> return
+    called_by: main
+  fn mxfs_dlm_lock_retries(n->dlm, res, mode, 0, granted, 5) -> return
+    called_by: main, mxfs_dlm_lock, mxfs_v5_dlm_inode_lock_retries, take_ex, worker_fn
+  struct vmsg { next, len, buf }
+  struct vnode { used, id, inc, slot, dlm, ledger, ledger_open, qlock, qcond, rx }
+  struct lock_job { n, res, mode, flags, max_retries, done, rc, granted, t }
+
+[tests/tauth/formation_test.c]
+  fn static worker_fn(void *arg) -> void
+    calls: mxfs_dlm_lock_retries, mxfs_dlm_unlock, mxfs_pal_sleep_ms
+  fn main(int argc, char **argv) -> int
+    calls: format_region, mxfs_dlm_held_mode, mxfs_dlm_lock_retries, mxfs_dlm_release_all, mxfs_dlm_unlock, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_pal_sleep_ms, mxfs_pal_thread_join, mxfs_tauth_ledger_close, mxfs_tauth_ledger_open
+  struct worker { n, res, stop, done, t }
+
+[tests/tauth/ledger_test.c]
+  fn static mkres(uint64_t ino, uint8_t type, uint32_t ag) -> struct mxfs_resource_id
+    called_by: find_res, main
+  fn static mkop(uint8_t kind, const struct mxfs_resource_id *r, uint32_t node, uint64_t inc, uint16_t slot, uint8_t mode) -> struct mxfs_tauth_op
+    called_by: main
+  fn static enc_slot(const struct mxfs_resource_id *r) -> uint32_t
+    called_by: find_res, main
+  fn static find_res(uint32_t want_slot, int same_page_only) -> struct mxfs_resource_id
+    calls: enc_slot, mkres
+    called_by: main
+  fn static page_bootstrap(struct mxfs_tauth_ledger *L, uint32_t page, uint64_t gen) -> int
+    calls: mxfs_tauth_ledger_activate, mxfs_tauth_ledger_ensure
+    called_by: main
+  fn static page_takeover(struct mxfs_tauth_ledger *L, uint32_t page, uint64_t gen, uint32_t vnode, uint64_t vinc) -> int
+    calls: mxfs_tauth_ledger_activate, mxfs_tauth_ledger_ensure, mxfs_tauth_ledger_prepare
+    called_by: main
+  fn static scan_cb(void *data, uint32_t slot, const struct mxfs_tauth_entry *e) -> void
+  fn main(int argc, char **argv) -> int
+    calls: enc_slot, entries, find_res, format_region, mkop, mkres, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_tauth_ledger_activate, mxfs_tauth_ledger_close, mxfs_tauth_ledger_collect_ex_holder, mxfs_tauth_ledger_commit, mxfs_tauth_ledger_ensure, mxfs_tauth_ledger_lookup, mxfs_tauth_ledger_open
+  struct scan_acc { n }
+
+[tests/tauth/pageof.c]
+  fn main(int argc, char **argv) -> int
+
+[tests/tauth/tauth_test.c]
+  fn static raw_write(uint64_t off, const void *buf, size_t len) -> void
+    called_by: format_region, main
+  fn static raw_read(uint64_t off, void *buf, size_t len) -> void
+    called_by: main
+  fn static format_region(uint64_t base, const uint8_t uuid[16]) -> void
+    calls: raw_write
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: format_region, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_tauth_page_read, mxfs_tauth_page_write, mxfs_tauth_store_open, mxfs_tauth_store_verify, raw_read, raw_write
+
+[tests/tauth/unowned_page_test.c]
+  fn static take_ex(struct vnode *n, const struct mxfs_resource_id *r, const char *who) -> int
+    calls: mxfs_dlm_lock_retries, mxfs_dlm_unlock, mxfs_pal_time_ms
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: format_region, mxfs_dlm_release_all, mxfs_pal_bdev_close, mxfs_pal_bdev_open, mxfs_pal_sleep_ms, mxfs_tauth_ledger_close, mxfs_tauth_ledger_open, mxfs_tauth_ledger_page_auth, take_ex
+
+[tests/tauth/view_format_test.c]
+  fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
+  fn static read_file(const char *path, void *buf, size_t len) -> int
+    called_by: main
+  fn static hex(const uint8_t *p, size_t n, char *out) -> void
+    called_by: main
+  fn static build_view(struct mxfs_tauth_view *v) -> void
+    called_by: main
+  fn static build_root(struct mxfs_tauth_root *r, const struct mxfs_tauth_view *v) -> void
+    called_by: main
+  fn main(void) -> int
+    calls: build_root, build_view, crc32c, hex, read_file
+
+[tests/tmp_parsers/sess436_ino_parse.py]
+  fn pct(lst, p)
+  fn kv_parse(line)
+  fn numfield(lst, key, cast=int)
+
+[tools/caw_slot_census.py]
+  fn fnv1a(b)
+  fn home(volume, ino, offset, ag, rtype)
+  fn base_from_chk(img)
+  fn find_base(fh, scan_mib)
+  fn main()
+
 [tools/caw_slot_hash.py]
   fn fnv1a(b)
   fn res_bytes(volume, ino, offset, ag, rtype)
@@ -4847,7 +7753,7 @@
   fn static type_name(uint8_t t) -> const char
     called_by: do_scsi_read_fua, main
   fn static mode_name(uint8_t m) -> const char
-    called_by: dg_grant_ex, dlm_lock_impl, do_scsi_read_fua, fire_bast_records, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_release, mxfs_dlm_purge_stale_for_resource, mxfs_dlm_unlock_gen, promote_waiters
+    called_by: dg_grant_ex, dlm_ledger_import_page, dlm_local_entry_any, dlm_lock_impl, dlm_retry, do_scsi_read_fua, fire_bast_records, lk_is_holder, main, mxfs_dlm_audit_double_grant, mxfs_dlm_lock_retries, mxfs_dlm_process_remote_grant, mxfs_dlm_process_remote_release, mxfs_dlm_process_remote_request, mxfs_dlm_purge_stale_for_resource
   fn static do_scsi_read_fua(int fd, uint64_t lba, void *buf, uint32_t blocks) -> int
     calls: mode_name, print_bits, type_name
     called_by: main
@@ -4857,6 +7763,15 @@
     calls: do_scsi_read_fua, mode_name, print_bits, type_name
   struct resid { volume, ino, offset, ag_number, type, pad }
   struct caw_slot { magic, generation, resource, holders_ex, holders_pw, holders_pr, holders_cw, holders_cr, waiters, granted_mode }
+
+[tools/caw_unlock_audit.py]
+  fn opener(path)
+  fn expand(arg)
+  fn collect(paths)
+  fn stats(vals)
+  fn summarise(label, rows, node_seconds=None)
+  fn pc(x)
+  fn main()
 
 [tools/caw_verify.c]
   fn static do_scsi_io(int fd, unsigned char *cdb, int cdb_len, void *buf, int len, int dxfer_dir, int *miscompare) -> int
@@ -4869,18 +7784,29 @@
   fn main(int argc, char **argv) -> int
     calls: scsi_compare_and_write, scsi_read16_fua, usage
 
+[tools/ccloop_refusal_audit.py]
+  fn ts(s)
+
+[tools/ccph_timeline.py]
+  fn stamp(m)
+    called_by: disklock_hb_fn
+  fn node_num(path)
+  fn read_lines(path)
+  fn main()
+  fn dist(name, xs)
+
 [tools/chk_mxfs.c]
   fn static crc32c_init(void) -> void
     called_by: crc32c
   fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
-    called_by: check_journal, desc_crc, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, xfs_set_crc
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
   fn static get_be16(const void *p) -> uint16_t
-    calls: err
-    called_by: check_inode_spotcheck, check_one_inode, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, validate_inobt_leaf
+    calls: err, get_be32, get_be64
+    called_by: check_inode_spotcheck, check_one_inode, do_ino_offset, ds_check_parent, ds_collect_leaf, ds_locator_get, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, validate_inobt_leaf
   fn static get_be32(const void *p) -> uint32_t
-    called_by: check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_prin, do_upgrade_protogate, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, read_ag_block, read_at, report, validate_freespace_leaf, validate_inobt_leaf
+    called_by: check_dirshard, check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_ino_offset, do_prin, do_upgrade_protogate, ds_check_parent, ds_collect_leaf, ds_read_dinode, ds_single_extent, get_be16, orphan_collect_leaf, orphan_walk_chain
   fn static get_be64(const void *p) -> uint64_t
-    called_by: check_inode_spotcheck, check_one_inode, do_prin, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
+    called_by: check_inode_spotcheck, check_one_inode, do_prin, ds_collect_leaf, get_be16, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
   fn static put_be32(void *p, uint32_t v) -> void
     called_by: build_xfs_sb_sector, check_freespace_btrees, check_inode_btrees, do_prout, do_upgrade_protogate, do_write, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
   fn static put_be64(void *p, uint64_t v) -> void
@@ -4888,16 +7814,15 @@
   fn static popcount64(uint64_t v) -> int
     called_by: validate_inobt_leaf
   fn static err(const char *fmt, ...) -> void
-    called_by: check_disklock, check_freespace_btrees, check_inode_btrees, check_journal, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, chk_print_guard, decode_mepoch, do_show_quarantine, get_be16, orphan_collect_leaf, orphan_repair_insert, orphan_walk_chain, print_summary
+    called_by: check_bootstrap, check_dirshard, check_disklock, check_freespace_btrees, check_inode_btrees, check_journal, check_one_inode, check_orphan_inodes, check_prledger, check_tauth, check_tauth_ctrl, check_xfs_ag_headers, chk_print_guard, chk_print_obl_list, chk_print_obl_record
   fn static info(const char *fmt, ...) -> void
-    called_by: check_disklock, check_journal, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, decode_mepoch, validate_inobt_leaf
+    called_by: check_bootstrap, check_dirshard, check_disklock, check_journal, check_one_inode, check_orphan_inodes, check_prledger, check_xfs_ag_headers, decode_hb_identity, decode_mepoch, ds_check_parent, ds_read_dinode, orphan_walk_chain, validate_inobt_leaf
   fn static format_size(uint64_t bytes, char *buf, size_t buflen) -> void
   fn static format_uuid(const uint8_t *uuid, char *buf, size_t buflen) -> void
   fn static read_at(int fd, void *buf, size_t len, off_t offset) -> int
-    calls: get_be32
-    called_by: can_repair, check_disklock, check_freespace_btrees, check_inode_btrees, check_inode_spotcheck, check_journal, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_show_quarantine, do_upgrade_protogate, orphan_collect_leaf, orphan_walk_chain, print_summary
+    called_by: can_repair, check_bootstrap, check_dirshard, check_disklock, check_freespace_btrees, check_inode_btrees, check_inode_spotcheck, check_journal, check_one_inode, check_orphan_inodes, check_prledger, check_tauth, check_tauth_ctrl, check_xfs_ag_headers, do_clear_bootstrap
   fn static write_at(int fd, const void *buf, size_t len, off_t offset) -> int
-    called_by: check_journal
+    called_by: check_journal, do_clear_bootstrap
   fn static can_repair(void) -> bool
     calls: put_be64, read_at, xfs_fix_crc_and_write
     called_by: check_freespace_btrees, check_inode_btrees, check_journal, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, main, print_summary, xfs_verify_crc
@@ -4907,33 +7832,69 @@
     called_by: check_journal, do_upgrade_protogate
   fn static xfs_verify_crc(void *buf, size_t len, size_t crc_off) -> bool
     calls: can_repair, err, xfs_fix_crc_and_write
-    called_by: check_one_inode, check_xfs_ag_headers
+    called_by: check_one_inode, check_xfs_ag_headers, ds_check_parent
   fn static read_ag_block(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, void *buf) -> int
     calls: get_be32
     called_by: check_inode_spotcheck
   fn static check_mxfs_super(int fd, struct mxfs_ondisk_super *super) -> int
     called_by: main
+  fn static tview_errname(int rc) -> const char
+    called_by: check_tauth_ctrl
+  fn static check_tauth_ctrl(int fd, const struct mxfs_ondisk_super *s, uint32_t fs_gen) -> void
+    calls: err, read_at, tview_errname
+    called_by: check_tauth
+  fn static prl_state(uint16_t st) -> const char
+    called_by: check_prledger
+  fn static bs_tk_stage(uint16_t st) -> const char
+    called_by: check_bootstrap
+  fn static bs_escrow_name(uint8_t st) -> const char
+    called_by: check_bootstrap, do_clear_bootstrap
+  fn static bs_state(uint16_t st) -> const char
+    called_by: check_bootstrap, do_clear_bootstrap
+  fn static check_bootstrap(int fd, const struct mxfs_ondisk_super *s) -> void
+    calls: bs_escrow_name, bs_state, bs_tk_stage, crc32c, err, hex_uuid, info, read_at
+    called_by: main
+  fn static do_clear_bootstrap(const char *device) -> int
+    calls: bs_escrow_name, bs_state, crc32c, first, read_at, write_at
+    called_by: main
+  fn static check_prledger(int fd, const struct mxfs_ondisk_super *s) -> void
+    calls: crc32c, err, hex_uuid, info, prl_state, read_at
+    called_by: main
+  fn static check_tauth(int fd, const struct mxfs_ondisk_super *s) -> void
+    calls: check_tauth_ctrl, err, read_at
+    called_by: main
   fn static check_journal(int fd, const struct mxfs_ondisk_super *super) -> void
     calls: can_repair, crc32c, err, info, mxfs_fix_crc_and_write, order, read_at, write_at
     called_by: main
   fn static crc32c_raw(uint32_t crc, const void *data, size_t len) -> uint32_t
-    called_by: chk_recov_body_crc, chk_verdict_digest, decode_mepoch
+    called_by: chk_print_obl_list, chk_recov_body_crc, chk_verdict_digest, decode_mepoch
   fn static chk_recov_body_crc(uint32_t fs_gen, uint32_t node_id, uint64_t epoch, const void *rec, size_t len) -> uint32_t
     calls: crc32c_raw
-    called_by: chk_print_guard
+    called_by: chk_print_guard, chk_print_obl_record
   fn static chk_verdict_digest(const uint8_t *uuid16, uint32_t slot, const uint8_t *sector512) -> uint64_t
     calls: crc32c_raw
     called_by: chk_print_guard
   fn static chk_refusal_reason_name(uint16_t r) -> const char
     called_by: chk_print_guard
-  fn static chk_print_guard(uint32_t slot, const uint8_t *sec, const uint8_t *fsuuid, uint16_t slice_count_hint) -> int
-    calls: chk_recov_body_crc, chk_refusal_reason_name, chk_verdict_digest, err, mxfs_unclaimed_bucket_scan
+  fn static chk_print_obl_record(uint32_t slot, const uint8_t *sec, struct chk_recov_obl *out) -> int
+    calls: chk_recov_body_crc, err
+    called_by: chk_print_guard, do_show_quarantine
+  fn static chk_print_obl_list(int dfd, uint64_t rman_offset, uint32_t slot, const uint8_t *sec, const struct chk_recov_obl *ob) -> void
+    calls: crc32c_raw, err
     called_by: do_show_quarantine
+  fn static chk_print_guard(uint32_t slot, const uint8_t *sec, const uint8_t *fsuuid, uint16_t slice_count_hint) -> int
+    calls: chk_print_obl_record, chk_recov_body_crc, chk_refusal_reason_name, chk_verdict_digest, err, mxfs_unclaimed_bucket_scan
+    called_by: do_show_quarantine
+  fn static hex_uuid(const uint8_t *u, char out[37]) -> void
+    called_by: check_bootstrap, check_prledger, decode_hb_identity
+  fn static decode_hb_identity(const uint8_t *r, int slot) -> void
+    calls: crc32c, err, hex_uuid, info
+    called_by: check_disklock
   fn static decode_mepoch(const uint8_t *slot_buf, int slot, uint64_t *members_out) -> uint64_t
     calls: crc32c_raw, err, info
     called_by: check_disklock
   fn static check_disklock(int fd, const struct mxfs_ondisk_super *super) -> void
-    calls: decode_mepoch, err, info, read_at
+    calls: decode_hb_identity, decode_mepoch, err, info, read_at
     called_by: main
   fn static check_xfs_superblock(int fd, const struct mxfs_ondisk_super *super, struct xfs_geo *geo) -> int
     called_by: main
@@ -4941,8 +7902,18 @@
     calls: can_repair, err, get_be32, info, read_at, xfs_fix_crc_and_write, xfs_verify_crc
     called_by: main
   fn static validate_btree_sblock(uint8_t *blk, uint32_t blocksize, uint32_t expected_magic, uint32_t agno, const char *name, int fd, off_t disk_offset) -> int
+  fn static xtree_init(const struct xfs_geo *geo) -> void
+    called_by: main
+  fn static xtree_mark(uint8_t *map, uint32_t agno, uint32_t agbno, uint32_t len) -> void
+    called_by: validate_freespace_leaf, xtree_mark_chunk
+  fn static xtree_mark_chunk(const struct xfs_geo *geo, uint32_t agno, uint32_t startino, uint8_t count, uint16_t holemask) -> void
+    calls: xtree_mark
+    called_by: validate_inobt_leaf
+  fn static xtree_report(const struct xfs_geo *geo) -> void
+    calls: err
+    called_by: main
   fn static validate_freespace_leaf(const uint8_t *blk, uint16_t numrecs, uint32_t agno, const char *name, bool sort_by_bno, uint32_t ag_length) -> uint64_t
-    calls: err, get_be32
+    calls: err, get_be32, xtree_mark
   fn static walk_freespace_btree(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, uint32_t expected_magic, const char *name, bool sort_by_bno, uint32_t expected_level, uint32_t ag_length) -> uint64_t
     called_by: check_freespace_btrees
   fn static rebuild_freespace_btrees(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agf_length) -> int
@@ -4951,7 +7922,7 @@
     calls: can_repair, err, put_be32, read_at, rebuild_freespace_btrees, walk_freespace_btree, xfs_fix_crc_and_write
     called_by: main
   fn static validate_inobt_leaf(const uint8_t *blk, uint16_t numrecs, uint32_t agno, const char *name, const struct xfs_geo *geo, struct inobt_totals *totals) -> void
-    calls: err, get_be16, get_be32, get_be64, info, popcount64, totals
+    calls: err, get_be16, get_be32, get_be64, info, popcount64, totals, xtree_mark_chunk
   fn static walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, uint32_t expected_magic, const char *name, uint32_t expected_level, uint32_t ag_length, struct inobt_totals *totals) -> void
     calls: err
     called_by: check_inode_btrees
@@ -4972,9 +7943,9 @@
     called_by: orphan_collect_leaf, orphan_walk_chain
   fn static orphan_cmp_u64(const void *a, const void *b) -> int
   fn static inode_disk_offset(const struct xfs_geo *geo, uint32_t agno, uint32_t agino) -> uint64_t
-    called_by: orphan_collect_leaf, orphan_walk_chain
+    called_by: ds_collect_leaf, orphan_collect_leaf, orphan_walk_chain
   fn static orphan_walk_chain(int fd, const struct xfs_geo *geo, uint32_t agno, int bucket, uint32_t head, struct orphan_list *members) -> void
-    calls: err, get_be16, get_be32, inode_disk_offset, orphan_push, read_at
+    calls: entries, err, get_be16, get_be32, info, inode_disk_offset, orphan_push, read_at
     called_by: check_orphan_inodes
   fn static orphan_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno, const uint8_t *blk, uint16_t numrecs, struct orphan_list *cand, uint64_t *scanned) -> void
     calls: err, get_be16, get_be32, get_be64, inode_disk_offset, orphan_push, read_at
@@ -4987,7 +7958,39 @@
     calls: can_repair, err, get_be32, info, orphan_repair_insert, orphan_walk_chain, orphan_walk_inobt, read_at
     called_by: main
   fn static print_summary(int fd, const struct xfs_geo *geo, const struct ag_summary *ag_summaries) -> void
-    calls: can_repair, err, put_be64, read_at, xfs_fix_crc_and_write
+    calls: blocks, can_repair, err, put_be64, read_at, xfs_fix_crc_and_write
+    called_by: main
+  fn static ds_rotl64(uint64_t x, int b) -> uint64_t
+  fn static ds_le64(const uint8_t *p) -> uint64_t
+    called_by: ds_siphash24
+  fn static ds_siphash24(const uint8_t key[16], const uint8_t *in, size_t len) -> uint64_t
+    calls: ds_le64
+  fn static ds_hexval(int c) -> int
+  fn static ds_parse_hex(const char *s, uint8_t *out, size_t max, size_t *lenp) -> int
+  fn static dirshard_hash_cmd(const char *keyhex, const char *name) -> int
+    called_by: main
+  fn static ds_push(struct ds_list *l, const struct ds_ino *e) -> void
+    called_by: ds_collect_leaf
+  fn static ds_find(struct ds_list *l, uint64_t ino) -> struct ds_ino
+    called_by: ds_check_parent
+  fn static ds_read_dinode(int fd, const struct xfs_geo *geo, uint64_t ino, uint8_t *dip) -> int
+    calls: err, get_be32, info
+    called_by: ds_check_parent
+  fn static ds_locator_get(const struct xfs_geo *geo, const uint8_t *dip, uint64_t *hino, uint32_t *hgen) -> int
+    calls: get_be16
+    called_by: ds_check_parent
+  fn static ds_single_extent(const uint8_t *dip, uint64_t *startoff, uint64_t *startblock, uint32_t *blockcount) -> int
+    calls: err, get_be32
+    called_by: ds_check_parent
+  fn static ds_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno, const uint8_t *blk, uint16_t numrecs, struct ds_list *parents, struct ds_list *containers, uint64_t *scanned) -> void
+    calls: ds_push, get_be16, get_be32, get_be64, inode_disk_offset, read_at
+  fn static ds_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno, uint32_t agbno, int depth, struct ds_list *parents, struct ds_list *containers, uint64_t *scanned) -> void
+    called_by: check_dirshard
+  fn static ds_check_parent(int fd, const struct xfs_geo *geo, struct ds_ino *pe, struct ds_list *containers, uint64_t *published, uint64_t *unlinked_sets, uint64_t *skipped) -> int
+    calls: ds_find, ds_locator_get, ds_read_dinode, ds_single_extent, err, get_be16, get_be32, info, read_at, xfs_verify_crc
+    called_by: check_dirshard
+  fn static check_dirshard(int fd, const struct xfs_geo *geo) -> void
+    calls: ds_check_parent, ds_walk_inobt, err, get_be32, info, read_at
     called_by: main
   fn static sha256_block(struct sha256_ctx *c, const uint8_t *p) -> void
   fn static sha256_init(struct sha256_ctx *c) -> void
@@ -4997,7 +8000,7 @@
     calls: sha256_update
   fn static sha256_hex(const uint8_t d[32], char out[65]) -> void
   fn static do_show_quarantine(const char *device) -> int
-    calls: chk_print_guard, err, read_at
+    calls: chk_print_guard, chk_print_obl_list, chk_print_obl_record, err, key, read_at
     called_by: main
   fn static chk_pr_read_keys(int fd, uint64_t *keys, int max, int *unsupported) -> int
     called_by: do_pr_keys
@@ -5026,24 +8029,115 @@
   fn static do_upgrade_protogate(int fd) -> int
     calls: get_be32, mxfs_fix_crc_and_write, put_be32, read_at, xfs_fix_crc_and_write
     called_by: do_accept_quarantine_loss, main
+  fn static do_ino_offset(const char *device, unsigned long long ino) -> int
+    calls: get_be16, get_be32, read_at
+    called_by: main
   fn static usage(const char *prog) -> void
     called_by: main
   fn main(int argc, char **argv) -> int
-    calls: can_repair, check_disklock, check_freespace_btrees, check_inode_btrees, check_inode_spotcheck, check_journal, check_mxfs_super, check_orphan_inodes, check_xfs_ag_headers, check_xfs_superblock, do_accept_quarantine_loss, do_pr_keys, do_show_quarantine, do_upgrade_protogate, print_summary
+    calls: can_repair, check_bootstrap, check_dirshard, check_disklock, check_freespace_btrees, check_inode_btrees, check_inode_spotcheck, check_journal, check_mxfs_super, check_orphan_inodes, check_prledger, check_tauth, check_xfs_ag_headers, check_xfs_superblock, dirshard_hash_cmd
   enum repair_mode { REPAIR_NONE, n, check, only, no, writes, REPAIR_AUTO, a, p, auto }
   struct xfs_geo { blocksize, agcount, agblocks, inodesize, inopblock, inopblog, agblklog, dblocks, rootino, icount }
   struct ag_summary { bno_freeblks, agf_freeblks, agi_count, agi_freecount, inobt_total, inobt_free }
+  struct chk_prledger_entry { magic, key_gen, pr_key, host_uuid, stamp_ms, host_src, succ_pad0, succ_old_key, succ_old_boot, reserved }
+  struct chk_bootstrap_rec { magic, term, owner_node, owner_epoch, owner_host_uuid, fs_uuid, fs_gen, victim_bitmap, ledger_gen, registrants }
+  struct chk_bootstrap_tomb { magic, victim_node, victim_epoch, obligation, pad }
+  struct chk_bootstrap_lineage { magic, term, owner_node, owner_epoch, owner_host_uuid, manifest_hash, fence_kind, state, escrow, reserved }
+  struct chk_bootstrap_takeover { magic, seq, target_term, target_state, old_fence_kind, pred_fence_kind, k_desc_crc, reserved }
+  struct hb_hdr
   struct chk_recov_desc { magic, victim_epoch, owner_stamp_ms, victim_node, flags, victim_slot, slice_idx, stage_seq, fence_kind, fence_victim_key }
   struct chk_recov_outcome { magic, reason, victim_slot, victim_epoch, ag_mask, victim_node, owner_node, refused_items, crc32c }
+  struct chk_recov_obl { magic, obl_ag_mask, count, census_digest, pub_seq }
+  struct chk_recov_obl_ext { fsbno }
+  struct chk_rman_obl_hdr { magic, seq, victim_node, victim_slot, entry_bytes, count, publisher_node, publisher_epoch, publisher_term, census_digest }
   struct chk_hb_hdr
   struct ag_info { bno_root, cnt_root, bno_level, cnt_level, agf_freeblks, agf_longest, agf_length, ino_root, ino_level, agi_count }
   struct inobt_totals { total_inodes, total_free, num_records }
   struct orphan_list { v, oom }
+  struct ds_ino { ino, gen, mode, nlink, flags2, refs }
+  struct ds_list { v, oom }
   struct sha256_ctx { h, len, buf, n }
   struct chk_leafset { n, overflow }
   struct chk_quar_ctx { sup, sector, superblk, slot, sector_off, digest, d, oc }
   struct mxfs_disklock_heartbeat_hdr
   struct mxfs_disklock_heartbeat_hdr
+
+[tools/closure_evidence_audit.py]
+  fn load_records()
+  fn cited_logs(rec)
+  fn cited_dirs(rec)
+  fn scan_log(path)
+  fn main()
+
+[tools/criteria.py]
+  fn flat(value, width: int | None = None) -> str
+  fn wrap(text, width: int, indent: str) -> str
+  fn __init__(self, on: bool)
+  fn __call__(self, text, code) -> str
+  fn status_of(entry: dict) -> str
+  fn parse_at(text: str) -> str
+  fn lift_config(argv: list) -> list
+  fn load() -> dict
+  fn save(data: dict) -> None
+  fn find(data: dict, wanted: str) -> dict
+  fn cell_of(entry: dict, config: str) -> dict
+  fn flake_count(entry: dict, config: str) -> tuple
+  fn applies(entry: dict, config: str) -> bool
+  fn cell_status(entry: dict, config: str, build: str = "") -> str
+  fn roll_up(entry: dict, build: str = "") -> str
+  fn show_one(entry: dict, paint: Paint, build: str) -> int
+  fn board(criteria: list, paint: Paint, verbose: bool, at: str, build: str) -> int
+  fn detector_script(detector: str) -> str
+  fn cmd_gaps(criteria: list, paint: Paint, build: str) -> int
+  fn cmd_add(data: dict, args) -> int
+  fn cmd_update(data: dict, args) -> int
+  fn cmd_remove(data: dict, args) -> int
+  fn main() -> int
+  class Paint
+
+[tools/defects.py]
+  fn load() -> dict
+  fn save(data: dict) -> None
+  fn rank(entry: dict) -> tuple
+  fn reach(entry: dict) -> tuple
+  fn blocks(entry: dict, nodes: int, dlm) -> bool
+    called_by: cache_flush_worker_fn, main, mxfs_alloc_file_block, mxfs_fsync, print_summary
+  fn parse_at(text: str) -> tuple
+  fn gate_label(gate: tuple) -> str
+  fn lift_config(argv: list) -> list
+  fn tally(entries: list) -> str
+  fn source_of(entry: dict) -> str
+  fn config_of(entry: dict) -> str
+  fn mint(summary: str, taken) -> str
+    called_by: mxfs_pal_dbg_settle_inval_after_mint_take
+  fn find(data: dict, wanted: str) -> dict
+  fn flat(text, width: int) -> str
+  fn wrap(text: str, width: int, indent: str) -> str
+  fn show_one(entry: dict) -> None
+  fn cmd_list(data: dict, args) -> int
+  fn cmd_show(data: dict, args) -> int
+  fn cmd_add(data: dict, args) -> int
+  fn cmd_update(data: dict, args) -> int
+  fn cmd_remove(data: dict, args) -> int
+  fn main() -> int
+
+[tools/defects_classify.py]
+  fn blob(record: dict) -> str
+  fn classify(record: dict) -> tuple
+  fn main() -> int
+
+[tools/dirtenure_summary.py]
+  fn node_name_from_path(path)
+  fn iter_kernlog_files(args)
+  fn open_maybe_gz(path)
+  fn parse_file(path, records, stats)
+  fn pctl(sorted_vals, p)
+  fn fmt_stats(vals)
+  fn main(argv)
+
+[tools/disklock_hb_dump.py]
+  fn desc_line(rec)
+  fn main()
 
 [tools/fua_verify.c]
   fn static do_scsi_io(int fd, unsigned char *cdb, int cdb_len, void *buf, int len, int dxfer_dir) -> int
@@ -5057,12 +8151,37 @@
   fn main(int argc, char **argv) -> int
     calls: scsi_read16_fua, scsi_synchronize_cache16, scsi_write16_fua
 
+[tools/handle_probe.c]
+  fn static hexval(int c) -> int
+    called_by: do_open
+  fn static do_encode(const char *path) -> int
+    called_by: main
+  fn static do_open(const char *mnt, int type, const char *hex, int repeat, int sleep_ms) -> int
+    calls: hexval
+    called_by: main
+  fn main(int argc, char **argv) -> int
+    calls: do_encode, do_open
+
+[tools/harness_lint.py]
+  fn rule(code, why)
+    called_by: caw_slot_ex
+  fn deco(fn)
+  fn hl001(line)
+  fn hl002(line)
+  fn hl003(line)
+  fn hl004(line, in_dquote=False)
+  fn scan()
+    called_by: mxfs_v5_dlm_init, mxfs_v5_dlm_shutdown_withdraw
+  fn key(f)
+    called_by: do_show_quarantine, mxfs_pal_scsi_pr_preempt, mxfs_scsipr_fenced_check, mxfs_scsipr_probe, mxfs_scsipr_self_check, scsi_pr_out, scsipr_register_locked, scsipr_register_succeed_locked, v5_bootstrap_run
+  fn main()
+
 [tools/mkfs_mxfs.c]
   fn static crc32c_init(void) -> void
     called_by: crc32c
   fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
     calls: crc32c_init
-    called_by: check_journal, desc_crc, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, xfs_set_crc
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
   fn static put_be16(void *p, uint16_t v) -> void
     called_by: build_xfs_sb_sector, write_inode, write_sb_sector
   fn static put_be32(void *p, uint32_t v) -> void
@@ -5072,24 +8191,35 @@
   fn static xfs_set_crc(void *buf, size_t len, size_t crc_off) -> void
     calls: crc32c
     called_by: build_xfs_sb_sector, write_agf_sector, write_agfl_sector, write_agi_sector, write_inode, write_sb_sector
+  fn static read_random_bytes(void *buf, size_t len) -> int
+    calls: pr_err
+    called_by: main
   fn static gen_uuid(uint8_t *uuid) -> int
     called_by: main
   fn static pr_info(const char *fmt, ...) -> void
     called_by: caw_bastq_report, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, lu_iter, main, mxfs_bdev_to_sdev, mxfs_compute_cache_caps, mxfs_iunl_store_purge_ag, mxfs_lru_sweep_fn, mxfs_pal_bdev_close_clone, mxfs_pal_log, scst_unwedge_init
   fn static pr_verbose(const char *fmt, ...) -> void
-    called_by: main
+    called_by: main, write_bootstrap_record
   fn static pr_err(const char *fmt, ...) -> void
-    called_by: caw_join_bounded, caw_release_all_body, caw_teardown_escalate_queue, format_xfs_native, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, main, mxfs_dlm_caw_destroy, mxfs_dlm_caw_pin_resource, mxfs_dlm_caw_stop, mxfs_dlm_caw_unsafe_to_free, mxfs_pal_log, scst_unwedge_init, write_new_ag
+    called_by: caw_join_bounded, caw_release_all_body, caw_teardown_escalate_queue, format_xfs_native, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, main, mxfs_dlm_caw_destroy, mxfs_dlm_caw_pin_resource, mxfs_dlm_caw_stop, mxfs_dlm_caw_unsafe_to_free, mxfs_pal_log, mxfs_pubob_free_commit, read_random_bytes
   fn static human_size(uint64_t bytes, char *buf, size_t buflen) -> const char
     called_by: main
   fn static ceil_log2(uint32_t v) -> uint32_t
   fn static write_sectors(int fd, uint64_t offset, const void *buf, uint64_t len) -> int
-    called_by: main
+    called_by: main, write_bootstrap_record
   fn static zero_region(int fd, uint64_t offset, uint64_t len) -> int
+    calls: write_bootstrap_record
     called_by: main
   fn static format_journal(int fd, uint64_t journal_offset, uint32_t max_nodes, const uint8_t *uuid) -> int
     called_by: main
-  fn static write_mxfs_super(int fd, uint64_t super_offset, uint64_t device_size, uint64_t xfs_data_size, uint64_t journal_offset, uint64_t journal_size, uint64_t disklock_offset, uint64_t disklock_size, uint64_t xfs_data_offset, uint32_t max_nodes, uint32_t log_node_count, uint32_t log_slice_bblks, const uint8_t *uuid) -> int
+  fn static write_mxfs_super(int fd, uint64_t super_offset, uint64_t device_size, uint64_t xfs_data_size, uint64_t journal_offset, uint64_t journal_size, uint64_t disklock_offset, uint64_t disklock_size, uint64_t rman_offset, uint64_t rman_size, uint64_t tauth_offset, uint64_t tauth_size, uint64_t prkey_offset, uint64_t prkey_size, uint64_t bootstrap_offset, uint64_t bootstrap_size, uint64_t xfs_data_offset, uint32_t max_nodes, uint32_t log_node_count, uint32_t log_slice_bblks, const uint8_t *uuid) -> int
+    called_by: main
+  fn static write_bootstrap_record(int fd, uint64_t offset, const uint8_t *uuid) -> int
+    calls: crc32c, pr_verbose, write_sectors
+    called_by: main, zero_region
+  fn static tauth_npages_for_device(uint64_t device_size) -> uint32_t
+    called_by: main
+  fn static format_tauth_region(int fd, uint64_t tauth_offset, uint64_t tauth_size, const uint8_t *uuid, uint32_t npages, uint64_t hash_seed) -> int
     called_by: main
   fn static calc_ag_layout(const struct xfs_geom *geom, uint32_t agno, uint32_t *out_aglen, uint32_t *out_freeblks, uint32_t *out_free_start, uint32_t *out_free_len, uint32_t *out_free2_start, uint32_t *out_free2_len, uint32_t agfl_blocks[4]) -> void
   fn static write_sb_sector(uint8_t *sec, const struct xfs_geom *geom, uint32_t agno) -> void
@@ -5109,10 +8239,17 @@
   fn static usage(const char *prog) -> void
     called_by: main
   fn main(int argc, char *argv[]) -> int
-    calls: format_journal, format_xfs_native, gen_uuid, human_size, pr_err, pr_info, pr_verbose, usage, write_mxfs_super, write_sectors, zero_region
+    calls: blocks, format_journal, format_tauth_region, format_xfs_native, gen_uuid, human_size, pr_err, pr_info, pr_verbose, read_random_bytes, tauth_npages_for_device, usage, write_bootstrap_record, write_mxfs_super, write_sectors
   struct journal_super { magic, version, slot_count, slot_size_sectors, sector_size, crc, fs_uuid, reserved }
   struct journal_slot_hdr { magic, flags, owner, head_sector, tail_sector, crc, seq_head, seq_tail, reserved }
+  struct mkfs_bootstrap_rec { magic, term, owner_node, owner_epoch, owner_host_uuid, fs_uuid, fs_gen, victim_bitmap, ledger_gen, registrants }
   struct xfs_geom { dblocks, agcount, agblocks, last_agblocks, agblklog, log_ag, logblocks, logstart, rootino, rbmino }
+
+[tools/mxfs_agi_dump.py]
+  fn be32(b, o)
+  fn be64(b, o)
+  fn lsn(v)
+  fn main()
 
 [tools/mxfs_bench.c]
   fn static stats_init(struct bench_stats *s) -> void
@@ -5160,10 +8297,58 @@
   struct ctrl_req { cmd, mode, pad, flags, resource }
   struct ctrl_resp { status, mode, pad }
 
+[tools/mxfs_logslice.py]
+  fn direct_read(path, offset, length)
+  fn read_geom(path)
+  fn fsb_to_daddr(g, fsb)
+  fn agb_to_daddr(g, agno, agbno)
+  fn daddr_to_ag(g, daddr)
+  fn ino_split(g, ino)
+  fn print_geom(g)
+  fn lsn_str(lsn)
+  fn parse_records(slice_bytes)
+  fn __init__(self, tid, lsn, rec)
+  fn assemble_transactions(recs, valid_only=None)
+  fn split_items(regions)
+  fn describe_item(g, name, t, regs)
+  fn txn_matches(g, t, args)
+  fn main()
+  class Geom
+  class Rec
+  class Txn
+
+[tools/mxfs_mmapio.c]
+  fn static on_sig(int sig) -> void
+  fn main(int argc, char **argv) -> int
+
+[tools/p132_attribute.py]
+  fn opener(path)
+  fn collect(paths)
+  fn pct(sorted_vals, q)
+  fn report(label, rows)
+    called_by: do_prin, do_prout, do_write
+  fn main()
+
+[tools/p132_phase_summary.py]
+  fn add_post_other(rows)
+  fn field_stats(rows, field)
+  fn print_table(label, rows)
+  fn parse_comm(paths)
+  fn main()
+
+[tools/p13_release_shape.py]
+  fn extract_fields(line, names)
+  fn nearest_preceding(idx_list, event_idx, window)
+  fn any_preceding_in_window(idx_list, event_idx, window)
+  fn nearest_following(idx_list, event_idx, window)
+  fn any_following_in_window(idx_list, event_idx, window)
+  fn process_file(relpath)
+  fn main()
+
 [tools/recov_forge.c]
   fn static crc_init(void) -> void
   fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
-    called_by: check_journal, desc_crc, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, xfs_set_crc
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
   fn static desc_crc(const struct hb_rec *hb, const struct recov_desc *d) -> uint32_t
     calls: crc32c
     called_by: dump_slot, main
@@ -5199,13 +8384,13 @@
   fn static crc32c_init(void) -> void
     called_by: crc32c
   fn static crc32c(uint32_t crc, const void *data, size_t len) -> uint32_t
-    called_by: check_journal, desc_crc, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, xfs_set_crc
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
   fn static get_be16(const void *p) -> uint16_t
-    called_by: check_inode_spotcheck, check_one_inode, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, validate_inobt_leaf
+    called_by: check_inode_spotcheck, check_one_inode, do_ino_offset, ds_check_parent, ds_collect_leaf, ds_locator_get, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, validate_inobt_leaf
   fn static get_be32(const void *p) -> uint32_t
-    called_by: check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_prin, do_upgrade_protogate, orphan_collect_leaf, orphan_walk_chain, parse_xfs_sb, read_ag_block, read_at, report, validate_freespace_leaf, validate_inobt_leaf
+    called_by: check_dirshard, check_inode_spotcheck, check_one_inode, check_orphan_inodes, check_xfs_ag_headers, do_ino_offset, do_prin, do_upgrade_protogate, ds_check_parent, ds_collect_leaf, ds_read_dinode, ds_single_extent, get_be16, orphan_collect_leaf, orphan_walk_chain
   fn static get_be64(const void *p) -> uint64_t
-    called_by: check_inode_spotcheck, check_one_inode, do_prin, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
+    called_by: check_inode_spotcheck, check_one_inode, do_prin, ds_collect_leaf, get_be16, orphan_collect_leaf, parse_xfs_sb, report, validate_inobt_leaf
   fn static put_be16(void *p, uint16_t v) -> void
     called_by: build_xfs_sb_sector, write_inode, write_sb_sector
   fn static put_be32(void *p, uint32_t v) -> void
@@ -5218,16 +8403,16 @@
   fn static pr_info(const char *fmt, ...) -> void
     called_by: caw_bastq_report, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, lu_iter, main, mxfs_bdev_to_sdev, mxfs_compute_cache_caps, mxfs_iunl_store_purge_ag, mxfs_lru_sweep_fn, mxfs_pal_bdev_close_clone, mxfs_pal_log, scst_unwedge_init
   fn static pr_verbose(const char *fmt, ...) -> void
-    called_by: main
+    called_by: main, write_bootstrap_record
   fn static pr_err(const char *fmt, ...) -> void
-    called_by: caw_join_bounded, caw_release_all_body, caw_teardown_escalate_queue, format_xfs_native, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, main, mxfs_dlm_caw_destroy, mxfs_dlm_caw_pin_resource, mxfs_dlm_caw_stop, mxfs_dlm_caw_unsafe_to_free, mxfs_pal_log, scst_unwedge_init, write_new_ag
+    called_by: caw_join_bounded, caw_release_all_body, caw_teardown_escalate_queue, format_xfs_native, inode_dio_probe_init, inode_dio_release_init, loop_unwedge_init, main, mxfs_dlm_caw_destroy, mxfs_dlm_caw_pin_resource, mxfs_dlm_caw_stop, mxfs_dlm_caw_unsafe_to_free, mxfs_pal_log, mxfs_pubob_free_commit, read_random_bytes
   fn static human_size(uint64_t bytes, char *buf, size_t buflen) -> const char
     called_by: main
   fn static read_sectors(int fd, uint64_t offset, void *buf, uint64_t len) -> int
     called_by: main
   fn static write_sectors(int fd, uint64_t offset, const void *buf, uint64_t len) -> int
     calls: pr_err
-    called_by: main
+    called_by: main, write_bootstrap_record
   fn static parse_xfs_sb(const uint8_t *sec, struct xfs_sb_info *sb) -> void
     calls: get_be16, get_be32, get_be64
     called_by: main
@@ -5253,6 +8438,32 @@
     calls: build_xfs_sb_sector, first, human_size, mxfs_super_crc, parse_xfs_sb, pr_err, pr_info, pr_verbose, read_sectors, usage, write_new_ag, write_sectors
   struct xfs_sb_info { magic, blocksize, dblocks, uuid, logstart, rootino, rbmino, rsumino, agblocks, agcount }
 
+[tools/sole_survivor_audit.py]
+  fn enclosing_functions(lines)
+  fn source_files(root)
+  fn classify(line)
+  fn follows_with_exit(lines, i)
+  fn main()
+  fn merged(counts)
+  fn basecount(v)
+
+[tools/tauth_page_auth.py]
+  fn region_npages(f, base)
+  fn decode(buf, page_id)
+  fn entries(buf)
+    called_by: cache_flush_worker_fn, main, mxfs_dlm_process_remote_request, orphan_walk_chain, shard_become_leader
+  fn main()
+
+[tools/timeline_2node.py]
+  fn load(path)
+  fn fit_offset(rows)
+  fn main()
+
+[tools/xfs_dahash_collisions.py]
+  fn rol32(x, n)
+  fn dahash(name)
+  fn main()
+
 [worker.py]
   fn load_system_prompt()
   fn main()
@@ -5263,7 +8474,7 @@
 
 [xfs/libxfs/xfs_ag.h]
   fn container_of(xg, struct xfs_perag, pag_group) -> return
-    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_reap_worker, zoned_to_mp
+    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_freeob_recover_fn, mxfs_reap_worker, zoned_to_mp
   fn test_bit(XFS_AGSTATE_ ## NAME, &pag->pag_opstate) -> return
     called_by: mxfs_reap_worker
   fn xfs_initialize_perag(struct xfs_mount *mp, xfs_agnumber_t orig_agcount, xfs_agnumber_t new_agcount, xfs_rfsblock_t dcount, xfs_agnumber_t *maxagi) -> int
@@ -5547,9 +8758,9 @@
   fn xfs_btree_log_block(struct xfs_btree_cur *, struct xfs_buf *, uint32_t) -> void
   fn xfs_btree_log_recs(struct xfs_btree_cur *, struct xfs_buf *, int, int) -> void
   fn be16_to_cpu(block->bb_numrecs) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range, xfs_attr_sf_totsize
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range, xfs_attr_sf_totsize
   fn be16_to_cpu(block->bb_level) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range, xfs_attr_sf_totsize
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range, xfs_attr_sf_totsize
   fn xfs_btree_agblock_v5hdr_verify(struct xfs_buf *bp) -> xfs_failaddr_t
   fn xfs_btree_agblock_verify(struct xfs_buf *bp, unsigned int max_recs) -> xfs_failaddr_t
   fn xfs_btree_fsblock_v5hdr_verify(struct xfs_buf *bp, uint64_t owner) -> xfs_failaddr_t
@@ -5631,7 +8842,7 @@
 
 [xfs/libxfs/xfs_cksum.h]
   fn crc32c(XFS_CRC_SEED, buffer, length) -> return
-    called_by: check_journal, desc_crc, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, xfs_set_crc
+    called_by: check_bootstrap, check_journal, check_prledger, decode_hb_identity, desc_crc, do_clear_bootstrap, dump_slot, main, mxfs_pal_crc32c, mxfs_super_crc, oc_crc, write_bootstrap_record, xfs_set_crc
 
 [xfs/libxfs/xfs_da_btree.c]
   fn static xfs_dabuf_nfsb(struct xfs_mount *mp, int whichfork) -> int
@@ -5749,6 +8960,7 @@
   fn xfs_dir_startup(void) -> void
   fn xfs_da_mount(struct xfs_mount *mp) -> int
   fn xfs_da_unmount(struct xfs_mount *mp) -> void
+  fn xfs_dir_isempty(struct xfs_inode *dp) -> bool
   fn xfs_dir_init(struct xfs_trans *tp, struct xfs_inode *dp, struct xfs_inode *pdp) -> int
   fn xfs_dir_createname(struct xfs_trans *tp, struct xfs_inode *dp, const struct xfs_name *name, xfs_ino_t inum, xfs_extlen_t tot) -> int
   fn xfs_dir_lookup(struct xfs_trans *tp, struct xfs_inode *dp, const struct xfs_name *name, xfs_ino_t *inum, struct xfs_name *ci_name, uint8_t *ftypep) -> int
@@ -6032,11 +9244,14 @@
   fn xfs_healthmon_fs_mask(unsigned int sick_mask) -> unsigned int
 
 [xfs/libxfs/xfs_ialloc.c]
+  struct mxfs_dialloc_resv { demand, contended, cool_skips, probes, visit_t0, budget_exhausted, swept, validated, quarantined, disklive }
+  struct mxfs_dialloc_resv { demand, contended, cool_skips, probes, visit_t0, budget_exhausted, swept, validated, quarantined, disklive }
   struct xfs_ialloc_count_inodes { count, freecount }
 
 [xfs/libxfs/xfs_ialloc.h]
   fn xfs_dialloc(struct xfs_trans **tpp, const struct xfs_icreate_args *args, xfs_ino_t *new_ino) -> int
   fn xfs_difree(struct xfs_trans *tp, struct xfs_perag *pag, xfs_ino_t ino, struct xfs_icluster *ifree) -> int
+  fn mxfs_agifc_audit(struct xfs_perag *pag, struct xfs_trans *tp, struct xfs_buf *agbp, const char *site) -> void
   fn xfs_read_agi(struct xfs_perag *pag, struct xfs_trans *tp, xfs_buf_flags_t flags, struct xfs_buf **agibpp) -> int
   fn xfs_ialloc_read_agi(struct xfs_perag *pag, struct xfs_trans *tp, int flags, struct xfs_buf **agibpp) -> int
   fn xfs_inobt_lookup(struct xfs_btree_cur *cur, xfs_agino_t ino, xfs_lookup_t dir, int *stat) -> int
@@ -6101,11 +9316,11 @@
 [xfs/libxfs/xfs_inode_fork.h]
   fn be64_to_cpu(dip->di_big_nextents) -> return
   fn be32_to_cpu(dip->di_nextents) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
   fn be32_to_cpu(dip->di_big_anextents) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
   fn be16_to_cpu(dip->di_anextents) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range, xfs_attr_sf_totsize
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range, xfs_attr_sf_totsize
   fn xfs_dfork_data_extents(dip) -> return
   fn xfs_dfork_attr_extents(dip) -> return
   fn xfs_ifork_zap_attr(struct xfs_inode *ip) -> void
@@ -6166,6 +9381,7 @@
   struct xlog_rec_ext_header { xh_cycle, xh_cycle_data, xh_reserved }
   struct xlog_rec_header { h_magicno, h_cycle, h_version, h_len, h_lsn, h_tail_lsn, h_crc, h_prev_block, h_num_logops, h_cycle_data }
   struct xfs_trans_header { th_magic, th_type, th_tid, th_num_items }
+  struct mxfs_relmark_log_format { mrl_type, mrl_size, mrl_version, mrl_class, mrl_owner_slot, mrl_owner_node, mrl_resource, mrl_lineage, mrl_grant_epoch, mrl_owner_epoch }
   struct xfs_inode_log_format { ilf_type, ilf_size, ilf_fields, ilf_asize, ilf_dsize, ilf_pad, ilf_ino, ilfu_rdev, __pad, ilf_blkno }
   struct xfs_inode_log_format_32 { ilf_type, ilf_size, ilf_fields, ilf_asize, ilf_dsize, ilf_ino, ilfu_rdev, __pad, ilf_blkno, ilf_len }
   struct xfs_log_legacy_timestamp { t_sec, t_nsec }
@@ -6199,12 +9415,14 @@
   struct xfs_dq_logformat { qlf_type, qlf_size, qlf_id, qlf_blkno, qlf_len, qlf_boffset }
   struct xfs_qoff_logformat { qf_type, qf_size, qf_flags, qf_pad }
   struct xfs_icreate_log { icl_type, icl_size, icl_ag, icl_agbno, icl_count, icl_isize, icl_length, icl_gen }
+  struct mxfs_icreate_trailer { magic, flags }
   struct xfs_attri_log_format { alfi_type, alfi_size, alfi_igen, alfi_id, alfi_ino, alfi_op_flags, alfi_name_len, alfi_old_name_len, alfi_new_name_len, alfi_value_len }
   struct xfs_attrd_log_format { alfd_type, alfd_size, __pad, alfd_alf_id }
 
 [xfs/libxfs/xfs_log_recover.h]
   fn xlog_buf_readahead(struct xlog *log, xfs_daddr_t blkno, uint len, const struct xfs_buf_ops *ops) -> void
   fn xlog_is_buffer_cancelled(struct xlog *log, xfs_daddr_t blkno, uint len) -> bool
+  fn xlog_put_buffer_cancelled(struct xlog *log, xfs_daddr_t blkno, uint len) -> bool
   fn xlog_recover_iget(struct xfs_mount *mp, xfs_ino_t ino, struct xfs_inode **ipp) -> int
   fn xlog_recover_iget_handle(struct xfs_mount *mp, xfs_ino_t ino, uint32_t gen, struct xfs_inode **ipp) -> int
   fn xlog_recover_release_intent(struct xlog *log, unsigned short intent_type, uint64_t intent_id) -> void
@@ -6215,8 +9433,8 @@
   fn xlog_recover_finish_intent(struct xfs_trans *tp, struct xfs_defer_pending *dfp) -> int
   enum xlog_recover_reorder { XLOG_REORDER_BUFFER_LIST, XLOG_REORDER_ITEM_LIST, XLOG_REORDER_INODE_BUFFER_LIST, XLOG_REORDER_CANCEL_LIST }
   struct xlog_recover_item_ops { item_type }
-  struct xlog_recover_item { ri_list, ri_cnt, ri_total, ri_buf, ri_ops }
-  struct xlog_recover { r_list, r_log_tid, r_theader, r_state, r_lsn, r_itemq }
+  struct xlog_recover_item { ri_list, ri_cnt, ri_total, ri_buf, ri_ops, ri_mxfs_verdict, ri_mxfs_class }
+  struct xlog_recover { r_list, r_log_tid, r_theader, r_state, r_lsn, r_itemq, r_mxfs_verdict, r_mxfs_defer, r_mxfs_deferred, r_mxfs_ncancel }
 
 [xfs/libxfs/xfs_metadir.h]
   fn xfs_metadir_load(struct xfs_trans *tp, struct xfs_inode *dp, const char *path, enum xfs_metafile_type metafile_type, struct xfs_inode **ipp) -> int
@@ -6385,11 +9603,11 @@
   fn rounddown_64(off, mp->m_sb.sb_rextsize) -> return
   fn div_u64(rtx, mp->m_rtx_per_rbmblock) -> return
   fn be32_to_cpu(word->rtg) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
   fn be32_to_cpu(info->rtg) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
   fn be32_to_cpu(info->rtg) -> return
-    called_by: mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
+    called_by: mxfs_freepub_claim_valid, mxfs_iunl_discrim, mxfs_iunl_store_overlay, mxfs_iunl_store_retire_range
   fn xfs_rtbuf_cache_relse(struct xfs_rtalloc_args *args) -> void
   fn xfs_rtbitmap_read_buf(struct xfs_rtalloc_args *args, xfs_fileoff_t block) -> int
   fn xfs_rtsummary_read_buf(struct xfs_rtalloc_args *args, xfs_fileoff_t block) -> int
@@ -6421,7 +9639,7 @@
 
 [xfs/libxfs/xfs_rtgroup.h]
   fn container_of(xg, struct xfs_rtgroup, rtg_group) -> return
-    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_reap_worker, zoned_to_mp
+    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_freeob_recover_fn, mxfs_reap_worker, zoned_to_mp
   fn xfs_rtgroup_next_range(mp, rtg, 0, mp->m_sb.sb_rgcount - 1) -> return
   fn xfs_fsb_to_gno(mp, rtbno, XG_TYPE_RTG) -> return
   fn xfs_fsb_to_gbno(mp, rtbno, XG_TYPE_RTG) -> return
@@ -7371,6 +10589,7 @@
 [xfs/xfs_buf.h]
   fn xfs_buf_cache_init(struct xfs_buf_cache *bch) -> int
   fn xfs_buf_cache_destroy(struct xfs_buf_cache *bch) -> void
+  fn mxfs_report_leaked_buffers(const char *stage) -> void
   fn xfs_buf_get_map(struct xfs_buftarg *target, struct xfs_buf_map *map, int nmaps, xfs_buf_flags_t flags, struct xfs_buf **bpp) -> int
   fn xfs_buf_read_map(struct xfs_buftarg *target, struct xfs_buf_map *map, int nmaps, xfs_buf_flags_t flags, struct xfs_buf **bpp, const struct xfs_buf_ops *ops, xfs_failaddr_t fa) -> int
   fn xfs_buf_readahead_map(struct xfs_buftarg *target, struct xfs_buf_map *map, int nmaps, const struct xfs_buf_ops *ops) -> void
@@ -7390,10 +10609,13 @@
   fn __xfs_buf_ioerror(struct xfs_buf *bp, int error, xfs_failaddr_t failaddr) -> void
   fn xfs_buf_ioerror_alert(struct xfs_buf *bp, xfs_failaddr_t fa) -> void
   fn xfs_buf_ioend_fail(struct xfs_buf *) -> void
+  fn xfs_buf_ioend_fail_unsubmitted(struct xfs_buf *) -> void
+  fn mxfs_depart_dbg_inject(struct xfs_mount *mp, int which, const char *phase) -> void
   fn __xfs_buf_mark_corrupt(struct xfs_buf *bp, xfs_failaddr_t fa) -> void
   fn xfs_buf_stale(struct xfs_buf *bp) -> void
   fn xfs_buf_delwri_cancel(struct list_head *) -> void
   fn xfs_buf_delwri_queue(struct xfs_buf *, struct list_head *) -> bool
+  fn mxfs_buf_diag_dump(const char *tag, uint64_t ino, struct xfs_buf *bp) -> void
   fn xfs_buf_delwri_queue_recovery(struct xfs_buf *bp, struct list_head *buffer_list, bool foreign) -> int
   fn xfs_buf_delwri_queue_here(struct xfs_buf *bp, struct list_head *bl) -> void
   fn xfs_buf_delwri_submit(struct list_head *) -> int
@@ -7402,7 +10624,7 @@
   fn xfs_buf_delwri_submit_nopinwait(struct xfs_mount *, struct list_head *) -> int
   fn xfs_buf_set_ref(struct xfs_buf *bp, int lru_ref) -> void
   fn atomic_read(&bp->b_pin_count) -> return
-    called_by: inode_dio_probe_init, inode_dio_release_init, mxfs_ailstuck_probe_param_get, mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_lru_sweep_fn, mxfs_pin_census_set, xfs_defer_drain_busy
+    called_by: inode_dio_probe_init, inode_dio_release_init, mxfs_ailstuck_probe_param_get, mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_lru_sweep_fn, mxfs_pin_census_set, mxfs_pubob_settle_home_free, xfs_defer_drain_busy
   fn xfs_alloc_buftarg(struct xfs_mount *mp, struct file *bdev_file) -> struct xfs_buftarg
   fn xfs_free_buftarg(struct xfs_buftarg *) -> void
   fn xfs_buftarg_wait(struct xfs_buftarg *) -> void
@@ -7422,7 +10644,10 @@
   struct xfs_buf { b_rhash_head, b_rhash_key, b_length, b_hold, b_lru_ref, b_flags, b_sema, b_lru, b_lock, b_state }
 
 [xfs/xfs_buf_item.h]
+  fn mxfs_ailpin_work_fn(struct work_struct *work) -> void
   fn mxfs_bli_auth_capture(struct xfs_trans *tp, struct xfs_buf *bp) -> void
+  fn mxfs_dbg_cancel_token_forge_apply(struct xfs_buf *bp) -> void
+  fn mxfs_bli_auth_note_retype(struct xfs_trans *tp, struct xfs_buf *bp, uint16_t new_blft) -> void
   fn xfs_buf_item_init(struct xfs_buf *, struct xfs_mount *) -> int
   fn xfs_buf_item_done(struct xfs_buf *bp) -> void
   fn xfs_buf_item_put(struct xfs_buf_log_item *bip) -> void
@@ -7434,7 +10659,7 @@
   fn xfs_buf_log_check_iovec(struct kvec *iovec) -> bool
   fn xfs_buf_inval_log_space(unsigned int map_count, unsigned int blocksize) -> unsigned int
   struct mxfs_bli_auth { mba_capseq, mba_owner_ino, mba_resource, mba_epoch, mba_lineage, mba_auth_gen, mba_class, mba_blft, mba_status, mba_outcome }
-  struct xfs_buf_log_item { bli_item, bli_buf, bli_flags, bli_recur, bli_refcount, bli_format_count, bli_formats, bli_mxfs_auth, __bli_format }
+  struct xfs_buf_log_item { bli_item, bli_buf, bli_flags, bli_recur, bli_refcount, bli_format_count, bli_formats, bli_mxfs_auth, bli_mxfs_refuse_first, bli_mxfs_refuse_count }
 
 [xfs/xfs_buf_mem.h]
   fn xmbuf_alloc(struct xfs_mount *mp, const char *descr, struct xfs_buftarg **btpp) -> int
@@ -7689,18 +10914,23 @@
   fn xfs_blockgc_start(struct xfs_mount *mp) -> void
   fn xfs_inodegc_worker(struct work_struct *work) -> void
   fn xfs_inodegc_push(struct xfs_mount *mp) -> void
+  fn xfs_icache_ino_lifecycle(struct xfs_mount *mp, xfs_ino_t ino, unsigned long *iflags_out, unsigned int *nlink_out, unsigned long *istate_out) -> enum xfs_ino_lifecycle
+  fn xfs_ino_lifecycle_name(enum xfs_ino_lifecycle lc) -> const char
   fn xfs_inodegc_flush(struct xfs_mount *mp) -> int
   fn xfs_inodegc_stop(struct xfs_mount *mp) -> void
   fn xfs_inodegc_start(struct xfs_mount *mp) -> void
   fn xfs_inodegc_register_shrinker(struct xfs_mount *mp) -> int
   struct xfs_icwalk { icw_flags, icw_uid, icw_gid, icw_prid, icw_min_file_size, icw_scan_limit }
+  enum xfs_ino_lifecycle { XFS_ILC_ABSENT, XFS_ILC_LIVE, XFS_ILC_RECLAIMABLE, XFS_ILC_INEW, XFS_ILC_IRECLAIM, XFS_ILC_INACTIVATING, XFS_ILC_NEED_INACTIVE, XFS_ILC_VFS_TEARDOWN, XFS_ILC_NR }
 
 [xfs/xfs_icreate_item.c]
   fn static ICR_ITEM(struct xfs_log_item *lip) -> struct xfs_icreate_item
 
 [xfs/xfs_icreate_item.h]
-  fn xfs_icreate_log(struct xfs_trans *tp, xfs_agnumber_t agno, xfs_agblock_t agbno, unsigned int count, unsigned int inode_size, xfs_agblock_t length, unsigned int generation) -> void
-  struct xfs_icreate_item { ic_item, ic_format }
+  fn xfs_icreate_log(struct xfs_trans *tp, xfs_agnumber_t agno, xfs_agblock_t agbno, unsigned int count, unsigned int inode_size, xfs_agblock_t length, unsigned int generation) -> struct xfs_icreate_item
+  fn xfs_icreate_mark_syncinit(struct xfs_icreate_item *icp) -> void
+  fn mxfs_icreate_record_flags(const void *iov_base, size_t iov_len) -> uint32_t
+  struct xfs_icreate_item { ic_item, ic_format, ic_mxfs }
 
 [xfs/xfs_inode.c]
   struct mxfs_createint_ent { node, task, dirino }
@@ -7712,10 +10942,13 @@
   fn xfs_inode_data_fork_size(ip) -> return
   fn xfs_inode_attr_fork_size(ip) -> return
   fn container_of(inode, struct xfs_inode, i_vnode) -> return
-    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_reap_worker, zoned_to_mp
+    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_freeob_recover_fn, mxfs_reap_worker, zoned_to_mp
   fn xfs_is_metadir_inode(ip) -> return
   fn xfs_is_always_cow_inode(const struct xfs_inode *ip) -> bool
   fn xfs_can_sw_atomic_write(ip->i_mount) -> return
+  fn mxfs_recovery_blocked_covers_ino(struct xfs_mount *mp, uint64_t ino) -> bool
+  fn mxfs_dlm_mount_is_single_node(const struct xfs_mount *mp) -> bool
+  fn mxfs_iunlink_find_bucket(struct xfs_perag *pag, struct xfs_trans *tp, xfs_agino_t target, short *bucket) -> int
   fn mxfs_createint_dir_armed(struct xfs_inode *ip) -> bool
   fn xfs_inactive(struct xfs_inode *ip) -> int
   fn xfs_lookup(struct xfs_inode *dp, const struct xfs_name *name, struct xfs_inode **ipp, struct xfs_name *ci_name, bool create_intent) -> int
@@ -7729,6 +10962,7 @@
   fn xfs_ilock_nowait(xfs_inode_t *, uint) -> int
   fn xfs_iunlock(xfs_inode_t *, uint) -> void
     called_by: mxfs_dlm_open_protect, mxfs_reap_worker
+  fn xfs_iunlock_nodlm(struct xfs_inode *, uint) -> void
   fn mxfs_ilk_note_lock(struct xfs_inode *ip, uint lock_flags, unsigned long ret_ip) -> void
   fn mxfs_ilk_note_unlock(struct xfs_inode *ip, uint lock_flags, unsigned long ret_ip) -> void
   fn xfs_ilock_demote(xfs_inode_t *, uint) -> void
@@ -7764,6 +10998,7 @@
   fn xfs_inode_alloc_unitsize(struct xfs_inode *ip) -> unsigned int
   fn xfs_icreate_dqalloc(const struct xfs_icreate_args *args, struct xfs_dquot **udqpp, struct xfs_dquot **gdqpp, struct xfs_dquot **pdqpp) -> int
   struct xfs_inode { i_mount, i_udquot, i_gdquot, i_pdquot, i_ino, i_imap, i_cowfp, i_df, i_af, i_itemp }
+  struct mxfs_inact_cert_id { resource, epoch, lineage, kind }
   enum layout_break_reason { BREAK_WRITE, BREAK_UNMAP }
 
 [xfs/xfs_inode_item.c]
@@ -7840,7 +11075,8 @@
 
 [xfs/xfs_iunlink_item.h]
   fn xfs_iunlink_log_inode(struct xfs_trans *tp, struct xfs_inode *ip, struct xfs_perag *pag, xfs_agino_t next_agino) -> int
-  struct xfs_iunlink_item { item, ip, pag, next_agino, old_agino }
+  fn xfs_iunlink_log_inode_insert(struct xfs_trans *tp, struct xfs_inode *ip, struct xfs_perag *pag, xfs_agino_t next_agino, unsigned int site) -> int
+  struct xfs_iunlink_item { item, ip, pag, next_agino, old_agino, insert }
 
 [xfs/xfs_iwalk.c]
   struct xfs_iwalk_ag { pwork, mp, tp, pag, startino, lastino, recs, sz_recs, nr_recs, iwalk_fn }
@@ -7860,11 +11096,15 @@
   fn xlog_format_start(struct xlog_format_buf *lfb, uint16_t type) -> void
   fn xlog_format_commit(struct xlog_format_buf *lfb, unsigned int data_len) -> void
   fn xfs_log_force(struct xfs_mount *mp, uint flags) -> int
-    called_by: mxfs_invalidate_inode
+    called_by: mxfs_invalidate_inode, mxfs_pubob_flush_owed
   fn xfs_log_force_seq(struct xfs_mount *mp, xfs_csn_t seq, uint flags, int *log_forced) -> int
   fn xfs_log_mount(struct xfs_mount	*mp, struct xfs_buftarg	*log_target, xfs_daddr_t		start_block, int		 	num_bblocks) -> int
+    called_by: mxfs_bootstrap_complete, v5_bootstrap_unwind
   fn xfs_log_mount_finish(struct xfs_mount *mp) -> int
   fn xfs_log_mount_cancel(struct xfs_mount *) -> void
+  fn mxfs_freplay_verdict_free(struct mxfs_freplay_verdict *verdict) -> void
+  fn mxfs_xlog_snap_prefetch(struct xfs_mount *mp, uint32_t slot) -> void
+  fn mxfs_xlog_snap_prefetch_cancel(struct xfs_mount *mp) -> void
   fn mxfs_xlog_recover_foreign_slice(struct xfs_mount *mp, uint32_t dead_slot, struct mxfs_freplay_verdict *verdict) -> int
   fn xlog_assign_tail_lsn(struct xfs_mount *mp) -> xfs_lsn_t
   fn xlog_assign_tail_lsn_locked(struct xfs_mount *mp) -> xfs_lsn_t
@@ -7882,7 +11122,7 @@
   fn xfs_log_clean(struct xfs_mount *mp) -> void
   fn xfs_log_check_lsn(struct xfs_mount *, xfs_lsn_t) -> bool
   fn xlog_force_shutdown(struct xlog *log, uint32_t shutdown_flags) -> bool
-  struct mxfs_freplay_verdict { reason, fswide, digest_valid, ag_mask, slice_digest, refused_items, malformed_items }
+  struct mxfs_freplay_verdict { reason, fswide, digest_valid, ag_mask, slice_digest, refused_items, malformed_items, obl_count, q_count, obl_ag_mask }
 
 [xfs/xfs_log_cil.c]
   struct xlog_format_buf { lv, idx }
@@ -7890,6 +11130,9 @@
   struct xlog_cil_trans_hdr { oph, thdr, lhdr }
 
 [xfs/xfs_log_priv.h]
+  fn mxfs_xlog_slice_snapshot(struct xlog *log) -> int
+  fn mxfs_xlog_snap_prefetch(struct xfs_mount *mp, uint32_t slot) -> void
+  fn mxfs_xlog_snap_prefetch_cancel(struct xfs_mount *mp) -> void
   fn test_bit(XLOG_RECOVERY_NEEDED, &log->l_opstate) -> return
     called_by: mxfs_reap_worker
   fn test_bit(XLOG_ACTIVE_RECOVERY, &log->l_opstate) -> return
@@ -7900,8 +11143,11 @@
     called_by: mxfs_reap_worker
   fn test_bit(XLOG_MXFS_ADOPTED_SLICE, &log->l_opstate) -> return
     called_by: mxfs_reap_worker
+  fn test_bit(XLOG_MXFS_BOOTSTRAP_ADOPTED, &log->l_opstate) -> return
+    called_by: mxfs_reap_worker
   fn mxfs_shadow_eval_finish(struct xlog *log) -> void
   fn mxfs_fr_enforce_preflight(struct xlog *log) -> int
+  fn mxfs_fr_shadow_mutated(struct xlog *log) -> bool
   fn xlog_cksum(struct xlog *log, struct xlog_rec_header *rhead, char *dp, unsigned int hdrsize, unsigned int size) -> __le32
   fn xlog_ticket_alloc(struct xlog *log, int unit_bytes, int count, bool permanent) -> struct xlog_ticket
   fn xlog_print_tic_res(struct xfs_mount *mp, struct xlog_ticket *ticket) -> void
@@ -7934,8 +11180,11 @@
   struct xlog { l_mp, l_ailp, l_cilp, l_targ, l_ioend_workqueue, l_work, l_opstate, l_quotaoffs_flag, l_buf_cancel_table, r_dfops }
 
 [xfs/xfs_log_recover.c]
-  struct mxfs_shadow_eval { desc_rc, desc_stage, desc_victim_epoch, desc_victim_node, capable, enforce_cfg, resource, epoch, lineage, rc }
-  struct mxfs_shadow_man_ent { resource, epoch, lineage, rc, kind, holds }
+  struct mxfs_snap_pf { work, mp, targ, slot, logBBstart, bytes, snap, unstable_seen, passes, wall_ms }
+  struct mxfs_shadow_eval { desc_rc, desc_stage, desc_victim_epoch, desc_victim_node, capable, victim_adopted, enforce_cfg, resource, epoch, lineage }
+  struct mxfs_shadow_man_ent { resource, epoch, lineage, rc, kind, pidx, holds }
+  struct mxfs_shadow_lin { victim_node, victim_epoch, stage, term, manifest_rc, no_caw, ents, n, idx, mask }
+  struct mxfs_cdefer_ent { node, lsn, tid, verdict }
 
 [xfs/xfs_message.h]
   fn xfs_printk_level(const char *kern_level, const struct xfs_mount *mp, const char *fmt, ...) -> void
@@ -7952,6 +11201,8 @@
   fn static xfs_calc_atomic_write_max(struct xfs_mount *mp) -> xfs_extlen_t
 
 [xfs/xfs_mount.h]
+  fn mxfs_depart_acct_alloc(void) -> struct mxfs_depart_acct
+  fn mxfs_depart_acct_put(struct mxfs_depart_acct *acct) -> void
   fn xfs_has_metadir(mp) -> return
   fn xfs_has_reflink(mp) -> return
   fn test_bit(XFS_OPSTATE_ ## NAME, &mp->m_opstate) -> return
@@ -7963,6 +11214,8 @@
   fn xfs_default_resblks(struct xfs_mount *mp, enum xfs_free_counter ctr) -> uint64_t
   fn xfs_mountfs(xfs_mount_t *mp) -> int
   fn xfs_unmountfs(xfs_mount_t *) -> void
+  fn xfs_unmountfs_prepare(xfs_mount_t *) -> void
+  fn xfs_unmountfs_finish(xfs_mount_t *) -> void
   fn xfs_freecounter_unavailable(struct xfs_mount *mp, enum xfs_free_counter ctr) -> uint64_t
   fn percpu_counter_sum_positive(&mp->m_free[ctr].count) -> return
   fn percpu_counter_sum(&mp->m_free[ctr].count) -> return
@@ -7983,6 +11236,7 @@
   fn xfs_force_summary_recalc(struct xfs_mount *mp) -> void
   fn xfs_add_incompat_log_feature(struct xfs_mount *mp, uint32_t feature) -> int
   fn xfs_clear_incompat_log_features(struct xfs_mount *mp) -> bool
+  fn mxfs_sb_mutation_refuse(struct xfs_mount *mp, const char *what) -> int
   fn xfs_mod_delalloc(struct xfs_inode *ip, int64_t data_delta, int64_t ind_delta) -> void
   fn xfs_set_max_atomic_write_opt(struct xfs_mount *mp, unsigned long long new_max_bytes) -> int
   struct xfs_error_cfg { kobj, max_retries, retry_timeout }
@@ -7990,6 +11244,7 @@
   struct xfs_groups { xa, blocks, blklog, has_daddr_gaps, blkmask, start_fsb, awu_max }
   struct xfs_freecounter { count, res_total, res_avail, res_saved }
   struct mxfs_f4_registry { f4_lock, f4_hash, f4_opens, f4_recommits, f4_retires, f4_stale_cancels, f4_shutdown_cancels, f4_abort_keeps, f4_orphans, f4_suppress_skips }
+  struct mxfs_depart_acct { ref, lock, stage, inflight, rejected_pending, submitted, rejected, stalls, untokened, soft }
   struct mxfs_icwr_registry { icwr_lock, icwr_hash, icwr_wq, icwr_submits, icwr_completes, icwr_resubmit_keeps, icwr_orphans, icwr_underflows, icwr_untracked, icwr_entries }
   struct xfs_mount { m_sb, m_super, m_ail, m_sb_bp, m_rtsb_bp, m_rtname, m_logname, m_dir_geo, m_attr_geo, m_log }
 
@@ -8004,16 +11259,50 @@
   struct xfs_mru_cache_elem { list_node, key }
   typedef_fn xfs_mru_cache_free_func_t
 
+[xfs/xfs_mxfs_dirshard.c]
+  struct mxfs_dirshard_rdctx { sub, outer, slot, full }
+
+[xfs/xfs_mxfs_dirshard.h]
+  fn mxfs_dirshard_enabled(struct xfs_mount *mp) -> bool
+  fn mxfs_dirshard_cache_drop(struct xfs_inode *dp) -> void
+  fn mxfs_dirshard_isempty(struct xfs_inode *dp) -> int
+  fn mxfs_dirshard_lookup_ino(struct xfs_inode *dp, const struct xfs_name *name, xfs_ino_t *inop) -> int
+  fn mxfs_dirshard_manifest_load(struct xfs_inode *dp, struct mxfs_dirshard_view *view) -> int
+  fn mxfs_dirshard_iget(struct xfs_mount *mp, struct xfs_inode *owner, uint64_t ino, uint32_t gen, uint8_t expect_ftype, struct xfs_inode **ipp) -> int
+  fn mxfs_dirshard_resolve(struct xfs_inode *dp, const struct xfs_name *name, struct xfs_inode **shardp, unsigned int *indexp) -> int
+  fn mxfs_dirshard_hash(const struct mxfs_dirshard_view *v, const unsigned char *name, unsigned int len) -> uint64_t
+  fn mxfs_dirshard_mkdir(struct mnt_idmap *idmap, struct xfs_inode *dp, const struct xfs_name *name, umode_t mode, unsigned int nshards, struct xfs_inode **ipp) -> int
+  fn mxfs_dirshard_inactive_parent(struct xfs_inode *dp) -> int
+  fn mxfs_dirshard_lookup(struct xfs_inode *dp, const struct xfs_name *name, struct xfs_inode **ipp, bool create_intent) -> int
+  fn mxfs_dirshard_create(struct mnt_idmap *idmap, struct xfs_inode *dp, struct xfs_name *name, umode_t mode, dev_t rdev, unsigned int icreate_flags, struct xfs_inode **ipp) -> int
+  fn mxfs_dirshard_remove(struct xfs_inode *dp, struct xfs_name *name, struct xfs_inode *ip) -> int
+  fn mxfs_dirshard_readdir(struct xfs_inode *dp, struct dir_context *ctx, size_t bufsize) -> int
+  fn mxfs_dirshard_stat(struct xfs_inode *dp, struct mxfs_dirshard_stat *out) -> int
+  fn mxfs_dirshard_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) -> long
+    called_by: xfs_file_ioctl
+  struct mxfs_dirshard_cache { view, gen, dlm_epoch, holder_ino, daddr, valid }
+  struct mxfs_dirshard_stat { nlink, size, blocks, mtime, ctime }
+
 [xfs/xfs_mxfs_dlm.c]
+  fn static mxfs_ag_demote_clear(struct xfs_perag *pag) -> void
+  fn static mxfs_ag_bast_queue(struct xfs_mount *mp, struct xfs_perag *pag) -> void
+  fn static mxfs_stat_max64(atomic64_t *v, s64 n) -> void
+  fn static mxfs_dbg_p106_inject_take(uint64_t ino) -> bool
+    calls: check, mxfs_v5_dlm_inode_unlock_gen
+  fn static mxfs_dbg_ino_take(unsigned long long *knob, uint64_t ino) -> bool
+  fn static mxfs_dbg_sliced_sleep(int ms) -> void
   fn static mxfs_dlm_report_stats(void) -> void
     calls: mxfs_pal_log, mxfs_pal_time_ms
   fn mxfs_defer_reap_add(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket) -> void
     calls: mxfs_defer_reap_add_mode
+    called_by: mxfs_defer_reap_cert_refused
   fn static mxfs_reap_sched(struct xfs_mount *mp, unsigned int delay_ms, const char *why) -> void
     called_by: mxfs_defer_reap_add_mode, mxfs_defer_reap_init, mxfs_reap_worker
   fn mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket, uint8_t kind) -> void
     calls: mxfs_reap_sched
     called_by: mxfs_defer_reap_add, mxfs_dlm_open_last_close
+  fn mxfs_defer_reap_cert_refused(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket) -> int
+    calls: mxfs_defer_reap_add
   fn mxfs_defer_reap_done(struct xfs_mount *mp, uint64_t ino) -> void
   fn static mxfs_reap_worker(struct work_struct *work) -> void
     calls: container_of, mxfs_own_bucket_rescan, mxfs_reap_sched, mxfs_survivor_sweep_slot, mxfs_unclaimed_bucket_scan, test_bit, xfs_iget, xfs_ilock, xfs_irele, xfs_iunlock
@@ -8029,11 +11318,54 @@
     called_by: mxfs_iunl_store_overlay
   fn mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr, int bblen, void *base, unsigned int len) -> int
     calls: be16_to_cpu, be32_to_cpu, mxfs_iunl_discrim, xfs_dinode_calc_crc
+  fn mxfs_pubob_arm(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+    calls: mxfs_v5_dlm_is_single_node
+  fn static mxfs_pubob_drop_ino(struct xfs_mount *mp, uint64_t ino) -> bool
+  fn static mxfs_pubob_find_locked(struct xfs_mount *mp, uint64_t ino) -> struct mxfs_pubob
+    called_by: mxfs_freeob_recover_fn, mxfs_pubob_discharge, mxfs_pubob_flush_abort, mxfs_pubob_free_abort, mxfs_pubob_free_commit, mxfs_pubob_free_pending, mxfs_pubob_recycle, mxfs_pubob_stage_flush
+  fn mxfs_pubob_free_pending(struct xfs_mount *mp, struct xfs_inode *ip, uint64_t epoch) -> void
+    calls: mxfs_pubob_find_locked, mxfs_v5_dlm_is_single_node
+  fn mxfs_pubob_free_commit(struct xfs_mount *mp, struct xfs_inode *ip, uint64_t epoch) -> void
+    calls: mxfs_pubob_find_locked, mxfs_v5_dlm_is_single_node, pr_err
+  fn mxfs_pubob_free_abort(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+    calls: mxfs_pubob_find_locked, mxfs_v5_dlm_is_single_node
+  fn mxfs_pubob_stage_flush(struct xfs_mount *mp, struct xfs_inode *ip) -> bool
+    calls: mxfs_pubob_find_locked, mxfs_v5_dlm_is_single_node
+  fn mxfs_pubob_flush_abort(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+    calls: mxfs_pubob_find_locked
+  fn mxfs_pubob_recycle(struct xfs_mount *mp, struct xfs_inode *ip, bool deadshell) -> void
+    calls: atomic_inc_return, mxfs_ag_grant_epoch_of, mxfs_freepub_claim_clear, mxfs_pubob_find_locked, mxfs_v5_dlm_is_single_node
+  fn mxfs_pubob_lookup(struct xfs_mount *mp, uint64_t ino, uint8_t *kind, uint32_t *gen, uint64_t *epoch, uint16_t *chain) -> bool
+    called_by: mxfs_pubob_drive_publication
+  fn mxfs_pubob_settle_home_free(struct xfs_mount *mp, struct xfs_inode *ip, const char *site) -> bool
+    calls: atomic_inc_return, atomic_read
+    called_by: mxfs_freeob_recover_fn
+  fn mxfs_pubob_discharge(struct xfs_mount *mp, struct xfs_inode *ip, const char *why) -> void
+    calls: atomic_inc_return, mxfs_freepub_claim_clear, mxfs_pubob_find_locked
+    called_by: mxfs_freeob_recover_fn
+  fn mxfs_ag_grant_epoch_of(struct xfs_mount *mp, uint64_t ino) -> uint64_t
+    called_by: mxfs_pubob_recycle
+  fn static mxfs_freeob_recover_fn(struct work_struct *w) -> void
+    calls: container_of, first, mxfs_ag_dlm_lock, mxfs_ag_dlm_unlock, mxfs_pubob_discharge, mxfs_pubob_find_locked, mxfs_pubob_settle_home_free
+  fn mxfs_pubob_flush_owed(struct xfs_mount *mp) -> void
+    calls: xfs_log_force
+    called_by: mxfs_pubob_drive_publication
+  fn mxfs_pubob_drive_publication(struct xfs_mount *mp, uint64_t ino, unsigned int ms) -> bool
+    calls: mxfs_pubob_flush_owed, mxfs_pubob_lookup
+  fn mxfs_pubob_free_strike(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+    calls: atomic_cmpxchg
   fn mxfs_defer_reap_init(struct xfs_mount *mp) -> void
     calls: mxfs_reap_sched
   fn mxfs_defer_reap_destroy(struct xfs_mount *mp) -> void
+  fn mxfs_ag_pubwrite_begin(struct xfs_perag *pag, uint64_t epoch) -> bool
+  fn mxfs_ag_pubwrite_end(struct xfs_perag *pag) -> void
+  fn mxfs_freepub_claim_valid(struct xfs_inode *ip, struct xfs_buf *bp, struct xfs_perag *pag, const struct xfs_dinode *img, const char **why) -> bool
+    calls: be16_to_cpu, be32_to_cpu
+  fn mxfs_freepub_claim_clear(struct xfs_inode *ip, const char *why) -> void
+    calls: atomic_inc_return
+    called_by: mxfs_pubob_discharge, mxfs_pubob_recycle
   fn static mxfs_dirring_dump_set(const char *val, const struct kernel_param *kp) -> int
-  fn mxfs_dlm_open_protect(struct xfs_inode *ip) -> int
+  fn mxfs_dlm_open_protect(struct xfs_inode *ip, bool want_ex) -> int
     calls: atomic_inc_return, atomic_read, mxfs_dlm_iclus_covered, mxfs_iclus_open_admit, mxfs_v5_dlm_is_single_node, xfs_ilock, xfs_iunlock
   fn mxfs_dlm_open_last_close(struct xfs_inode *ip) -> void
     calls: atomic_read, mxfs_defer_reap_add_mode, mxfs_v5_dlm_inode_open_clear, mxfs_v5_dlm_is_single_node
@@ -8046,29 +11378,35 @@
   fn mxfs_lru_sweep_start(void) -> void
   fn mxfs_lru_sweep_stop(void) -> void
   fn mxfs_replay_gate_mode(void) -> int
+  fn mxfs_sb_mutation_refuse(struct xfs_mount *mp, const char *what) -> int
   fn static mxfs_iclus_admission_open(struct mxfs_iclus *ic) -> bool
   fn static mxfs_iclus_release_done_locked(struct mxfs_iclus *ic) -> void
   fn static mxfs_iclus_base(struct xfs_mount *mp, uint64_t ino) -> uint64_t
   fn static mxfs_iclus_hashfn(uint64_t base) -> unsigned int
   struct mxfs_dlmtr_ent { ns, ino, line, pid, comm }
   struct mxfs_pending_ag_unlock { list, pag }
+  struct mxfs_dir_undest_census { undest, inail, locked, cached, first_daddr, first_lseq, first_wseq, first_has_bli, first_done }
   struct mxfs_merge_ent { inum, ftype, namelen, name }
   struct mxfs_pend_ent { cino, cgen, ftype, namelen, name }
   struct mxfs_dirdrain_task { node, task, mode }
   struct mxfs_recovtask { node, task, phase }
   struct mxfs_f4_record { f4_node, f4_ino, f4_daddr, f4_length, f4_gen, f4_buffer_gone, f4_aborted }
   struct mxfs_icwr_entry { ie_node, ie_daddr, ie_inflight, ie_submit_gen, ie_complete_gen }
+  struct mxfs_drain_watch { timer, pid, ino, t0, site, fires, armed }
   struct mxfs_noino_bast_work { work, mp, ino, rel_gen }
   struct mxfs_noino_inflight { hnode, mp, ino }
+  struct mxfs_noino_lc_work { dw, mp, ino, mode, first_ns, n, hnode }
+  struct mxfs_incarn_revoke { work, ip }
   struct mxfs_pub_drain_worker { work, mp, parent_ino, agno, batch, published }
   struct mxfs_pub_drain_batch { w, refs, pending, done, nworkers }
-  struct mxfs_reap_entry { l, ino, gen, bucket, kind }
+  struct mxfs_reap_entry { l, ino, gen, bucket, kind, cert_refusals }
   struct mxfs_iunl_rec { l, ino, gen, next_agino, daddr, boffset, agno, wr_epoch }
+  struct mxfs_pubob { l, ino, agno, agino, gen, kind, chain, epoch, inflight, pred }
   struct mxfs_dland_ent { daddr, owner, realns, incarn, sum, cnt, comm, ops }
   struct mxfs_pending_inode_unlock { list, ip }
   struct mxfs_orphan_scan_ctx { cand, n, overflow }
   struct mxfs_freplay_closure_arg { mp, ag_mask }
-  struct mxfs_iclus { hnode, mp, base, lock, disk_mode, busy, bast_pending, grant_seq, auth_epoch, rel_state }
+  struct mxfs_iclus { hnode, mp, base, lock, disk_mode, busy, bast_pending, grant_seq, auth_epoch, auth_lineage }
 
 [xfs/xfs_mxfs_dlm.h]
   fn mxfs_destage_kick(struct xfs_mount *mp) -> void
@@ -8100,7 +11438,7 @@
   fn mxfs_unclaimed_bucket_scan(struct xfs_mount *mp) -> int
     called_by: chk_print_guard, hb_report_claim_exhausted, mxfs_reap_worker
   fn mxfs_orphan_scan(struct xfs_mount *mp) -> int
-  fn mxfs_dlm_open_protect(struct xfs_inode *ip) -> int
+  fn mxfs_dlm_open_protect(struct xfs_inode *ip, bool want_ex) -> int
   fn mxfs_dlm_open_last_close(struct xfs_inode *ip) -> void
   fn mxfs_dlm_pr_sweep_work_fn(struct work_struct *work) -> void
   fn mxfs_dlm_publish_inode(struct xfs_inode *ip) -> void
@@ -8112,6 +11450,8 @@
   fn mxfs_dlm_invalidate_cached_views(struct xfs_mount *mp) -> int
   fn mxfs_dlm_inode_init(struct xfs_inode *ip) -> void
   fn mxfs_dlm_inode_final_release(struct xfs_inode *ip) -> void
+  fn mxfs_incarn_poison(struct xfs_inode *ip) -> void
+  fn mxfs_dbg_incarn_racewin(struct xfs_inode *ip, const char *site) -> void
   fn mxfs_dlm_reload_inode(struct xfs_inode *ip, uint8_t expect_ftype, bool post_release) -> void
   fn mxfs_dir_delalloc_tripwire(struct xfs_inode *ip, const char *site) -> int
   fn mxfs_dir_evict_owned_dir_blocks(struct xfs_inode *ip, bool leaf_only) -> void
@@ -8147,13 +11487,41 @@
   fn mxfs_dir_buf_is_undestaged(struct xfs_buf *bp) -> bool
   fn mxfs_ag_buf_disk_bnobt(struct xfs_buf *bp, uint16_t *disk_nr, uint32_t *disk_s0, uint32_t *disk_l0) -> int
   fn mxfs_agi_disk_bucket_head(struct xfs_buf *agibp, int bucket) -> uint32_t
+  fn mxfs_pubob_free_pending(struct xfs_mount *mp, struct xfs_inode *ip, uint64_t epoch) -> void
+  fn mxfs_pubob_free_commit(struct xfs_mount *mp, struct xfs_inode *ip, uint64_t epoch) -> void
+  fn mxfs_pubob_free_abort(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+  fn mxfs_pubob_stage_flush(struct xfs_mount *mp, struct xfs_inode *ip) -> bool
+  fn mxfs_pubob_flush_abort(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+  fn mxfs_pubob_lookup(struct xfs_mount *mp, uint64_t ino, uint8_t *kind, uint32_t *gen, uint64_t *epoch, uint16_t *chain) -> bool
+    called_by: mxfs_pubob_drive_publication
+  fn mxfs_pubob_recycle(struct xfs_mount *mp, struct xfs_inode *ip, bool deadshell) -> void
+  fn mxfs_pubob_free_strike(struct xfs_mount *mp, struct xfs_inode *ip) -> void
+  fn mxfs_pubob_drive_publication(struct xfs_mount *mp, uint64_t ino, unsigned int ms) -> bool
+  fn mxfs_pubob_flush_owed(struct xfs_mount *mp) -> void
+    called_by: mxfs_pubob_drive_publication
+  fn mxfs_dbg_disk_di_read_coherent(struct xfs_mount *mp, uint64_t ino, uint16_t *modep, uint32_t *genp, bool *magicp) -> int
+  fn mxfs_ag_grant_epoch_of(struct xfs_mount *mp, uint64_t ino) -> uint64_t
+    called_by: mxfs_pubob_recycle
+  fn mxfs_pubob_discharge(struct xfs_mount *mp, struct xfs_inode *ip, const char *why) -> void
+    called_by: mxfs_freeob_recover_fn
+  fn mxfs_pubob_settle_home_free(struct xfs_mount *mp, struct xfs_inode *ip, const char *site) -> bool
+    called_by: mxfs_freeob_recover_fn
+  fn mxfs_ag_pubwrite_begin(struct xfs_perag *pag, uint64_t epoch) -> bool
+  fn mxfs_ag_pubwrite_end(struct xfs_perag *pag) -> void
+  fn mxfs_freepub_claim_valid(struct xfs_inode *ip, struct xfs_buf *bp, struct xfs_perag *pag, const struct xfs_dinode *img, const char **why) -> bool
+  fn mxfs_freepub_claim_clear(struct xfs_inode *ip, const char *why) -> void
+    called_by: mxfs_pubob_discharge, mxfs_pubob_recycle
+  fn mxfs_iflush_agino_target(struct xfs_perag *pag, xfs_agino_t agino, unsigned long deadline) -> int
   fn mxfs_inode_disk_mode(struct xfs_inode *ip, uint32_t *nlink_out) -> int
   fn mxfs_inode_disk_unlinked(struct xfs_inode *ip, uint32_t *nlink_out, uint32_t *next_out) -> int
   fn mxfs_dlm_reset_inode_for_create(struct xfs_inode *ip) -> void
   fn mxfs_ag_dlm_lock(struct xfs_mount *mp, struct xfs_perag *pag) -> int
+    called_by: mxfs_freeob_recover_fn
+  fn mxfs_ag_dlm_lock_resfree(struct xfs_mount *mp, struct xfs_perag *pag) -> int
   fn mxfs_ag_dlm_trylock(struct xfs_mount *mp, struct xfs_perag *pag) -> int
   fn mxfs_ag_dlm_lock_bounded(struct xfs_mount *mp, struct xfs_perag *pag) -> int
   fn mxfs_ag_dlm_unlock(struct xfs_mount *mp, struct xfs_perag *pag) -> void
+    called_by: mxfs_freeob_recover_fn
   fn xfs_mxfs_ag_pregrant(struct xfs_mount *mp, xfs_agnumber_t agno) -> int
   fn mxfs_ag_dlm_unlock_deferred(struct xfs_trans *tp, struct xfs_perag *pag) -> void
   fn mxfs_trans_drain_ag_unlocks(struct xfs_trans *tp) -> void
@@ -8193,10 +11561,13 @@
   fn mxfs_icwr_submit(struct xfs_buf *bp) -> void
   fn mxfs_icwr_complete(struct xfs_buf *bp) -> void
   fn mxfs_icwr_buf_free(struct xfs_buf *bp) -> void
+  fn mxfs_depart_token_take(struct xfs_buf *bp) -> bool
+  fn mxfs_depart_token_retire(struct xfs_buf *bp) -> void
+  fn mxfs_depart_buf_free(struct xfs_buf *bp) -> void
   fn mxfs_f4_open_for_dir(struct xfs_mount *mp, uint64_t dir_ino, int *unknown_out) -> long
   fn mxfs_ag_meta_track(struct xfs_buf *bp) -> void
   fn mxfs_dlm_ag_meta_iodone(struct xfs_buf *bp) -> void
-  fn mxfs_ag_meta_reclaim_abort(struct xfs_buf *bp) -> void
+  fn mxfs_ag_meta_reclaim(struct xfs_buf *bp, const char *why) -> void
   fn mxfs_note_fork_tear(struct xfs_inode *ip, const char *site) -> void
   fn mxfs_sfconv_disk_check(struct xfs_inode *ip) -> void
   fn mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip) -> void
@@ -8211,6 +11582,7 @@
   fn mxfs_pal_scsi_write_fua_bdev(struct block_device *bdev, uint64_t lba_512, const void *buf, uint32_t len) -> int
   fn mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key) -> int
     called_by: mxfs_pal_scsi_pr_unregister
+  fn mxfs_pal_dbg_retire_skip_restamp_take(void) -> bool
   fn mxfs_dbg_disk_di_mode(struct xfs_mount *mp, uint64_t ino, uint32_t *genp) -> uint16_t
   fn mxfs_dlm_claim_demoter(struct xfs_inode *ip) -> void
   fn mxfs_dlm_release_demoter(struct xfs_inode *ip) -> void
@@ -8221,11 +11593,18 @@
   fn mxfs_defer_reap_add_mode(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket, uint8_t kind) -> void
     called_by: mxfs_defer_reap_add, mxfs_dlm_open_last_close
   fn mxfs_defer_reap_add(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket) -> void
+    called_by: mxfs_defer_reap_cert_refused
   fn mxfs_defer_reap_done(struct xfs_mount *mp, uint64_t ino) -> void
   fn mxfs_defer_reap_init(struct xfs_mount *mp) -> void
   fn mxfs_defer_reap_destroy(struct xfs_mount *mp) -> void
   fn mxfs_iclus_lock(struct xfs_mount *mp, uint64_t ino, uint8_t mode, struct mxfs_grant_result *gres) -> int
   fn mxfs_iclus_unlock(struct xfs_mount *mp, uint64_t ino, uint8_t mode, bool is_free) -> int
+  fn mxfs_dlm_authority_gen_snapshot(struct xfs_inode *ip) -> uint64_t
+  fn mxfs_dlm_inactive_authority_install(struct xfs_inode *ip, const struct mxfs_grant_result *gres, uint64_t gen_snap, bool routed_iclus, uint8_t *why, struct mxfs_inact_cert_id *id) -> bool
+  fn mxfs_dlm_inactive_authority_revoke(struct xfs_inode *ip, const struct mxfs_inact_cert_id *id, uint8_t *state_seen, uint64_t *epoch_seen) -> int
+  fn mxfs_dlm_inactive_authority_defer(struct xfs_inode *ip) -> void
+  fn mxfs_defer_reap_cert_refused(struct xfs_mount *mp, uint64_t ino, uint32_t gen, int16_t bucket) -> int
+  fn mxfs_inact_cert_report(void) -> void
   fn mxfs_iclus_bast_notify(void *data, uint64_t base_ino, uint8_t req_mode) -> void
   fn mxfs_iclus_try_admit(struct xfs_mount *mp, uint64_t ino, uint8_t mode) -> bool
   fn mxfs_iclus_open_admit(struct xfs_mount *mp, uint64_t ino) -> bool
@@ -8244,11 +11623,22 @@
   struct mxfs_release_cert { res_id, rclass, handoff, cas_attempted, timeout, path, old_epoch, new_epoch, dirty_seq_quiesce, dirty_seq_flush }
   enum mxfs_f4_cancel_why { MXFS_F4_CANCEL_STALE, xfs_buf_item_finish_stale, committed, XFS_BLF_CANCEL, MXFS_F4_CANCEL_SHUTDOWN, abort, with, xlog_is_shutdown, terminal, nothing }
 
+[xfs/xfs_mxfs_icensus.c]
+  struct mxfs_icensus_ent { list, id, ag_mask, lsn, type, verdict, done_verdict, cls, fswide, malformed }
+  struct mxfs_icensus { open, nopen, nextents, intents, dones, unmatched_dones, ambiguous_dones, malformed, overflow, notices }
+
+[xfs/xfs_mxfs_icensus.h]
+  fn mxfs_icensus_note(struct xlog *log, struct xlog_recover_item *item, uint64_t lsn, uint8_t verdict) -> void
+  fn mxfs_icensus_undischarged(struct xlog *log, const char *src, uint64_t *ag_mask, bool *fswide, uint32_t *malformed) -> uint32_t
+  fn mxfs_icensus_classify(struct xlog *log, const char *src, uint32_t *recover, uint64_t *recover_mask, uint32_t *quarantine, uint64_t *q_mask, bool *q_fswide) -> void
+  fn mxfs_icensus_free(struct xlog *log) -> void
+  fn mxfs_icensus_export_recover(struct xlog *log, struct mxfs_recov_obl_ext **ext, uint32_t *n) -> int
+
 [xfs/xfs_platform.h]
   fn READ_ONCE(inode->i_state) -> return
   fn ERR_CAST(handle) -> return
   fn atomic_read(&inode->i_count) -> return
-    called_by: inode_dio_probe_init, inode_dio_release_init, mxfs_ailstuck_probe_param_get, mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_lru_sweep_fn, mxfs_pin_census_set, xfs_defer_drain_busy
+    called_by: inode_dio_probe_init, inode_dio_release_init, mxfs_ailstuck_probe_param_get, mxfs_dlm_open_last_close, mxfs_dlm_open_protect, mxfs_lru_sweep_fn, mxfs_pin_census_set, mxfs_pubob_settle_home_free, xfs_defer_drain_busy
   fn sysv_encode_dev(dev) -> return
   fn xfs_rw_bdev(struct block_device *bdev, sector_t sector, unsigned int count, char *data, enum req_op op) -> int
   fn vmalloc_to_page(addr) -> return
@@ -8368,6 +11758,21 @@
   fn xfs_reflink_supports_rextsize(struct xfs_mount *mp, unsigned int rextsize) -> bool
   fn xfs_reflink_max_atomic_cow(struct xfs_mount *mp) -> xfs_extlen_t
 
+[xfs/xfs_relmark_item.c]
+  fn static RELMARK_ITEM(struct xfs_log_item *lip) -> struct xfs_relmark_item
+  struct mxfs_relmark_ent { resource, lineage, grant_epoch, owner_epoch, owner_slot, auth_class, pad }
+  struct mxfs_relmark_tbl { ent, n, overflow, dup, malformed }
+
+[xfs/xfs_relmark_item.h]
+  fn mxfs_relmark_publish(struct xfs_mount *mp, uint16_t auth_class, uint64_t resource, uint64_t lineage, uint64_t grant_epoch, const char *who) -> int
+  fn mxfs_relmark_counters(uint64_t *published, uint64_t *failed, uint64_t *skipped_noid) -> void
+  fn mxfs_relmark_site_counters(uint64_t *ino_marked, uint64_t *ino_failed, uint64_t *ag_marked, uint64_t *ag_failed, uint64_t *iclus_unmarked) -> void
+  fn mxfs_relmark_iclus_counters(uint64_t *marked, uint64_t *failed, uint64_t *reinstall_refused) -> void
+  fn mxfs_relmark_lookup(struct xlog *log, uint16_t auth_class, uint64_t resource, uint64_t lineage, uint64_t grant_epoch, uint32_t owner_slot, uint64_t owner_epoch) -> bool
+  fn mxfs_relmark_tbl_free(struct xlog *log) -> void
+  fn mxfs_relmark_tbl_count(struct xlog *log, uint32_t *overflow) -> uint32_t
+  struct xfs_relmark_item { mr_item, mr_format }
+
 [xfs/xfs_rmap_item.c]
   fn static RUI_ITEM(struct xfs_log_item *lip) -> struct xfs_rui_log_item
   fn xfs_rui_log_space(unsigned int nr) -> unsigned int
@@ -8399,7 +11804,7 @@
 
 [xfs/xfs_stubs.c]
   fn xfs_file_ioctl(struct file *f, unsigned int cmd, unsigned long arg) -> long
-    calls: xfs_fs_goingdown
+    calls: mxfs_dirshard_ioctl, xfs_fs_goingdown
   fn xfs_break_leased_layouts(struct inode *inode, uint *iolock, bool *retry) -> int
   fn bio_add_folio_nofail(struct bio *bio, struct folio *folio, size_t len, size_t off) -> void
 
@@ -8425,7 +11830,7 @@
 
 [xfs/xfs_sysfs.h]
   fn container_of(kobject, struct xfs_kobj, kobject) -> return
-    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_reap_worker, zoned_to_mp
+    called_by: ATTRD_ITEM, ATTRI_ITEM, BUF_ITEM, DQUOT_ITEM, INODE_ITEM, IUL_ITEM, mxfs_defer_work_fn, mxfs_freeob_recover_fn, mxfs_reap_worker, zoned_to_mp
   fn xfs_mount_sysfs_init(struct xfs_mount *mp) -> int
   fn xfs_mount_sysfs_del(struct xfs_mount *mp) -> void
 
@@ -8435,6 +11840,7 @@
   fn xfs_trans_reserve_more(struct xfs_trans *tp, unsigned int blocks, unsigned int rtextents) -> int
   fn xfs_trans_alloc_empty(struct xfs_mount *mp) -> struct xfs_trans
   fn xfs_trans_mod_sb(xfs_trans_t *, uint, int64_t) -> void
+  fn xfs_trans_buf_item_match(struct xfs_trans *tp, struct xfs_buftarg *target, struct xfs_buf_map *map, int nmaps) -> struct xfs_buf
   fn xfs_trans_get_buf_map(struct xfs_trans *tp, struct xfs_buftarg *target, struct xfs_buf_map *map, int nmaps, xfs_buf_flags_t flags, struct xfs_buf **bpp) -> int
   fn xfs_trans_get_buf_map(tp, target, &map, 1, flags, bpp) -> return
   fn xfs_trans_read_buf_map(struct xfs_mount *mp, struct xfs_trans *tp, struct xfs_buftarg *target, struct xfs_buf_map *map, int nmaps, xfs_buf_flags_t flags, struct xfs_buf **bpp, const struct xfs_buf_ops *ops) -> int
@@ -8490,7 +11896,7 @@
   fn xfs_ail_push_upto_sync_bounded(struct xfs_ail *ailp, unsigned int max_ms, xfs_lsn_t *out_target) -> bool
   fn xfs_ail_max_lsn(struct xfs_ail *ailp) -> xfs_lsn_t
   fn xfs_ail_push_ag_sync(struct xfs_ail *ailp, xfs_agnumber_t agno) -> void
-  fn xfs_ail_push_ag_sync_bounded(struct xfs_ail *ailp, xfs_agnumber_t agno, unsigned int stall_iters, unsigned int min_iters) -> int
+  fn xfs_ail_push_ag_sync_bounded(struct xfs_ail *ailp, xfs_agnumber_t agno, unsigned int stall_iters, unsigned int min_iters, unsigned int max_iters) -> int
   fn xfs_ail_min_lsn(struct xfs_ail *ailp) -> xfs_lsn_t
   fn xfs_trans_ail_cursor_first(struct xfs_ail *ailp, struct xfs_ail_cursor *cur, xfs_lsn_t lsn) -> struct xfs_log_item *
   fn xfs_trans_ail_cursor_last(struct xfs_ail *ailp, struct xfs_ail_cursor *cur, xfs_lsn_t lsn) -> struct xfs_log_item *
@@ -8556,13 +11962,15 @@
 ## Cross-File Dependency Summary
 
 ```
+dlm/bootstrap.c -> dlm/scsipr.h, pal/linux/user.c, xfs/xfs_log.h
 dlm/discovery.c -> dlm/discovery.h, dlm/net2_wire.h, pal/linux/user.c
-dlm/disklock.c -> dlm/disklock.h, dlm/dlm_shared.c, dlm/journal.c, pal/linux/user.c, scripts/loop_unwedge/kcore_walk.py, scripts/xref_owners.py, tests/fence_inflight/verdict.py, xfs/xfs_mxfs_dlm.h
-dlm/dlm.c -> dlm/disklock.c, dlm/dlm.h, dlm/dlm_shared.c, dlm/net2_lock.c, dlm/v5_mount.c, pal/linux/kern.c, pal/linux/user.c, pal/pal.h, tests/fence_inflight/verdict.py, tools/caw_slotdump.c
-dlm/dlm_caw.c -> dlm/dlm_caw.h, dlm/dlm_shared.c, dlm/journal.c, pal/linux/user.c, scripts/caw_slot_sampler.py, scripts/ccloop_request_audit.py, scripts/loop_unwedge/kcore_walk.py, scripts/scst_mon.py, tools/resize_mxfs.c
+dlm/disklock.c -> dlm/disklock.h, dlm/dlm_shared.c, dlm/journal.c, dlm/recov_obl.c, dlm/scsipr.h, pal/linux/user.c, scripts/loop_unwedge/kcore_walk.py, scripts/xref_owners.py, tests/evidence/sess400_agifc/parse_ag23_iter_timing.py, tests/fence_inflight/verdict.py, tools/ccph_timeline.py, xfs/xfs_mxfs_dlm.h
+dlm/dlm.c -> dlm/disklock.c, dlm/dlm.h, dlm/dlm_shared.c, dlm/net2_lock.c, dlm/tauth_ledger.c, dlm/v5_mount.c, pal/linux/user.c, pal/pal.h, tests/fence_inflight/verdict.py, tests/tauth/dlm_mesh.h, tools/caw_slotdump.c, tools/tauth_page_auth.py
+dlm/dlm_caw.c -> dlm/dlm_caw.h, dlm/dlm_shared.c, dlm/journal.c, pal/linux/user.c, pal/pal.h, scripts/caw_slot_sampler.py, scripts/ccloop_request_audit.py, scripts/loop_unwedge/kcore_walk.py, scripts/scst_mon.py, tools/harness_lint.py, tools/resize_mxfs.c
+dlm/hostid.c -> pal/linux/user.c
 dlm/journal.c -> dlm/journal.h, pal/linux/user.c
 dlm/lease.c -> dlm/lease.h, dlm/net2_wire.h, pal/linux/user.c, tests/mxfs_stackprof.py
-dlm/mount.c -> dlm/discovery.h, dlm/disklock.h, dlm/dlm.h, dlm/dlm_caw.h, dlm/journal.h, dlm/lease.h, dlm/net2_wire.h, dlm/peer.h, dlm/scsipr.h, pal/linux/kern.c, pal/linux/user.c, scripts/mxfs_dirdump.py, scripts/scst_mon.py, tests/fence_inflight/verdict.py
+dlm/mount.c -> dlm/discovery.h, dlm/disklock.h, dlm/dlm.h, dlm/dlm_caw.h, dlm/journal.h, dlm/lease.h, dlm/net2_wire.h, dlm/peer.h, dlm/scsipr.h, pal/linux/kern.c, pal/linux/user.c, scripts/mxfs_dirdump.py, scripts/scst_mon.py, tests/fence_inflight/verdict.py, tools/defects.py, tools/tauth_page_auth.py
 dlm/net2.c -> dlm/net2_fault.c, dlm/net2_link.c, dlm/net2_midcomms.c, dlm/net2_overlay.c, pal/linux/user.c
 dlm/net2_epoch.c -> dlm/net2.c, pal/linux/user.c
 dlm/net2_link.c -> dlm/net2_ctx.h, dlm/net2_midcomms.c, pal/linux/user.c
@@ -8570,13 +11978,19 @@ dlm/net2_lock.c -> dlm/dlm_shared.c, dlm/net2_shard.c, pal/linux/user.c
 dlm/net2_membership.c -> dlm/net2_epoch.c, pal/linux/user.c
 dlm/net2_midcomms.c -> dlm/net2_ctx.h, dlm/net2_link.c, pal/linux/user.c, scripts/scst_mon.py, tests/fence_inflight/verdict.py
 dlm/net2_overlay.c -> pal/linux/user.c
-dlm/net2_shard.c -> dlm/net2.c, dlm/net2_lock.c, pal/linux/user.c
+dlm/net2_shard.c -> dlm/net2.c, dlm/net2_lock.c, pal/linux/user.c, tools/tauth_page_auth.py
 dlm/peer.c -> dlm/peer.h, pal/linux/user.c, tests/fence_inflight/verdict.py
-dlm/scsipr.c -> dlm/scsipr.h, pal/linux/user.c
-dlm/v5_mount.c -> dlm/discovery.h, dlm/disklock.h, dlm/dlm.h, dlm/dlm_caw.h, dlm/journal.h, dlm/lease.h, dlm/peer.h, dlm/scsipr.h, pal/linux/kern.c, pal/linux/user.c, scripts/ccloop_request_audit.py, scripts/loop_unwedge/kcore_walk.py, scripts/scst_mon.py, scripts/xref_owners.py
+dlm/prledger.c -> pal/linux/user.c
+dlm/recov_obl.c -> pal/linux/user.c
+dlm/recov_obl_done.c -> pal/linux/user.c
+dlm/scsipr.c -> dlm/scsipr.h, pal/linux/user.c, tests/evidence/sess400_agifc/parse_ag23_iter_timing.py, tools/harness_lint.py
+dlm/tauth_ledger.c -> dlm/tauth_store.c, pal/linux/user.c
+dlm/tauth_store.c -> pal/linux/user.c
+dlm/tauth_view.c -> pal/linux/user.c
+dlm/v5_mount.c -> dlm/bootstrap.c, dlm/discovery.h, dlm/disklock.c, dlm/disklock.h, dlm/dlm.c, dlm/dlm.h, dlm/dlm_caw.h, dlm/hostid.c, dlm/journal.h, dlm/lease.h, dlm/peer.h, dlm/prledger.c, dlm/scsipr.h, dlm/tauth_ledger.c, pal/linux/kern.c, pal/linux/user.c, scripts/loop_unwedge/kcore_walk.py, scripts/scst_mon.py, scripts/xref_owners.py, tests/evidence/sess400_agifc/parse_ag23_iter_timing.py, tests/evidence/sess498_frozen_07018/tools/ledger_validate.py, tests/tauth/dlm_mesh.h, tools/harness_lint.py, xfs/xfs_log.h
 mxfs_clayer/invalidate.c -> xfs/xfs_buf.h, xfs/xfs_log.h
-pal/linux/kern.c -> pal/linux/user.c, pal/pal.h, scripts/loop_unwedge/kcore_walk.py, tools/resize_mxfs.c, xfs/libxfs/xfs_ag.h, xfs/libxfs/xfs_cksum.h, xfs/libxfs/xfs_dir2_priv.h, xfs/xfs_mxfs_dlm.h, xfs/xfs_platform.h
-pal/linux/user.c -> scripts/loop_unwedge/kcore_walk.py, scripts/vm_console_type.py
+pal/linux/kern.c -> pal/linux/user.c, pal/pal.h, scripts/loop_unwedge/kcore_walk.py, tests/evidence/sess400_agifc/parse_ag23_iter_timing.py, tests/fence_inflight/verdict.py, tools/defects.py, tools/harness_lint.py, tools/resize_mxfs.c, xfs/libxfs/xfs_ag.h, xfs/libxfs/xfs_cksum.h, xfs/libxfs/xfs_dir2_priv.h, xfs/xfs_mxfs_dlm.h, xfs/xfs_platform.h
+pal/linux/user.c -> pal/pal.h, scripts/loop_unwedge/kcore_walk.py, scripts/vm_console_type.py, tools/harness_lint.py
 pal/linux/xfs_aops.c -> xfs/xfs_buf.h
 pal/linux/xfs_buf_item.c -> xfs/libxfs/xfs_ag.h
 pal/linux/xfs_drain.c -> xfs/xfs_buf.h
@@ -8584,10 +11998,20 @@ pal/linux/xfs_export.c -> xfs/xfs_export.h
 pal/linux/xfs_super.c -> tools/resize_mxfs.c
 pal/linux/xfs_sysfs.c -> xfs/libxfs/xfs_ag.h
 scripts/inode_dio_probe/inode_dio_probe.c -> tools/resize_mxfs.c, xfs/xfs_buf.h
-scripts/inode_dio_release/inode_dio_release.c -> tools/resize_mxfs.c, xfs/xfs_buf.h
+scripts/inode_dio_release/inode_dio_release.c -> pal/pal.h, tools/resize_mxfs.c, xfs/xfs_buf.h
 scripts/loop_unwedge/loop_unwedge.c -> tools/resize_mxfs.c
 scripts/scst_unwedge/scst_unwedge.c -> tools/resize_mxfs.c
-tests/fence_inflight/prprobe.c -> tools/resize_mxfs.c
+tests/evidence/sess498_frozen_07018/tools/caw_slotdump.c -> tools/caw_slotdump.c
+tests/evidence/sess498_frozen_07018/tools/caw_verify.c -> tools/caw_verify.c, tools/fua_verify.c, tools/recov_forge.c
+tests/evidence/sess498_frozen_07018/tools/chk_mxfs.c -> scripts/ccloop_quota_probe.py, tests/fence_inflight/verdict.py, tests/sf_storm_ledger.py, tools/chk_mxfs.c, tools/defects.py, tools/harness_lint.py, tools/recov_forge.c, tools/resize_mxfs.c, tools/tauth_page_auth.py, xfs/libxfs/xfs_cksum.h, xfs/xfs_mxfs_dlm.h
+tests/evidence/sess498_frozen_07018/tools/fua_verify.c -> tools/fua_verify.c
+tests/evidence/sess498_frozen_07018/tools/handle_probe.c -> tools/handle_probe.c
+tests/evidence/sess498_frozen_07018/tools/mkfs_mxfs.c -> tools/defects.py, tools/mkfs_mxfs.c, tools/recov_forge.c, tools/resize_mxfs.c, xfs/libxfs/xfs_cksum.h
+tests/evidence/sess498_frozen_07018/tools/mxfs_bench.c -> scripts/loop_unwedge/kcore_walk.py, tools/mxfs_bench.c, tools/mxfs_lock.c
+tests/evidence/sess498_frozen_07018/tools/mxfs_lock.c -> tools/mxfs_lock.c, tools/recov_forge.c
+tests/evidence/sess498_frozen_07018/tools/recov_forge.c -> tools/recov_forge.c, xfs/libxfs/xfs_cksum.h
+tests/evidence/sess498_frozen_07018/tools/resize_mxfs.c -> tests/fence_inflight/verdict.py, tools/recov_forge.c, tools/resize_mxfs.c, xfs/libxfs/xfs_cksum.h
+tests/fence_inflight/prprobe.c -> tools/p132_attribute.py, tools/resize_mxfs.c
 tests/net2/harness/net2_harness.c -> dlm/net2_fault.c, tools/recov_forge.c
 tests/net2/harness/scen_mepoch.c -> dlm/net2.c, dlm/net2_epoch.c, dlm/net2_membership.c, pal/linux/user.c, tests/net2/harness/harness.h
 tests/net2/harness/scen_midcomms.c -> dlm/net2.c, dlm/net2_fault.c, pal/linux/user.c, tests/net2/harness/harness.h
@@ -8595,9 +12019,17 @@ tests/net2/harness/scen_shard.c -> dlm/net2.c, dlm/net2_lock.c, dlm/net2_shard.c
 tests/net2/harness/vcluster.c -> dlm/net2.c, pal/linux/user.c, tests/net2/harness/harness.h
 tests/scst_pr_fullstatus_bounds.c -> scripts/loop_unwedge/kcore_walk.py
 tests/suite/tools/fsx.c -> xfs/libxfs/xfs_rtbitmap.h
+tests/tauth/bootstrap_race_test.c -> dlm/dlm.h, dlm/tauth_ledger.c, pal/linux/user.c, tests/tauth/tauth_test.c
+tests/tauth/concurrent_release_test.c -> dlm/dlm.h, dlm/tauth_ledger.c, pal/linux/user.c, tests/tauth/tauth_test.c
+tests/tauth/dlm_ledger_test.c -> dlm/dlm.h, dlm/tauth_ledger.c, dlm/tauth_store.c, pal/linux/user.c, tests/tauth/dlm_mesh.h, tests/tauth/tauth_test.c
+tests/tauth/formation_test.c -> dlm/dlm.h, dlm/tauth_ledger.c, pal/linux/user.c, tests/tauth/dlm_mesh.h, tests/tauth/tauth_test.c
+tests/tauth/ledger_test.c -> dlm/tauth_ledger.c, dlm/tauth_store.c, pal/linux/user.c, tests/tauth/dlm_mesh.h, tests/tauth/tauth_test.c, tools/tauth_page_auth.py
+tests/tauth/tauth_test.c -> dlm/tauth_store.c, pal/linux/user.c
+tests/tauth/unowned_page_test.c -> dlm/dlm.h, dlm/tauth_ledger.c, pal/linux/user.c, tests/tauth/dlm_mesh.h, tests/tauth/tauth_test.c
+tests/tauth/view_format_test.c -> xfs/libxfs/xfs_cksum.h
 tools/caw_verify.c -> tools/fua_verify.c, tools/recov_forge.c
-tools/chk_mxfs.c -> scripts/ccloop_quota_probe.py, tests/sf_storm_ledger.py, tools/recov_forge.c, tools/resize_mxfs.c, xfs/libxfs/xfs_cksum.h, xfs/xfs_mxfs_dlm.h
-tools/mkfs_mxfs.c -> tools/recov_forge.c, tools/resize_mxfs.c, xfs/libxfs/xfs_cksum.h
+tools/chk_mxfs.c -> scripts/ccloop_quota_probe.py, tests/fence_inflight/verdict.py, tests/sf_storm_ledger.py, tools/defects.py, tools/harness_lint.py, tools/recov_forge.c, tools/resize_mxfs.c, tools/tauth_page_auth.py, xfs/libxfs/xfs_cksum.h, xfs/xfs_mxfs_dlm.h
+tools/mkfs_mxfs.c -> tools/defects.py, tools/recov_forge.c, tools/resize_mxfs.c, xfs/libxfs/xfs_cksum.h
 tools/mxfs_bench.c -> scripts/loop_unwedge/kcore_walk.py, tools/mxfs_lock.c
 tools/mxfs_lock.c -> tools/recov_forge.c
 tools/recov_forge.c -> xfs/libxfs/xfs_cksum.h
@@ -8608,6 +12040,6 @@ xfs/xfs_attr_item.c -> xfs/libxfs/xfs_ag.h
 xfs/xfs_dquot_item.c -> xfs/libxfs/xfs_ag.h
 xfs/xfs_inode_item.c -> xfs/libxfs/xfs_ag.h
 xfs/xfs_iunlink_item.c -> xfs/libxfs/xfs_ag.h
-xfs/xfs_mxfs_dlm.c -> dlm/dlm.c, dlm/v5_mount.c, pal/linux/kern.c, pal/linux/user.c, pal/pal.h, tools/resize_mxfs.c, xfs/libxfs/xfs_ag.h, xfs/libxfs/xfs_inode_buf.h, xfs/libxfs/xfs_inode_fork.h, xfs/scrub/iscan.h, xfs/xfs_buf.h, xfs/xfs_icache.h, xfs/xfs_inode.h, xfs/xfs_mxfs_dlm.h
-xfs/xfs_stubs.c -> xfs/xfs_fsops.h
+xfs/xfs_mxfs_dlm.c -> dlm/dlm.c, dlm/v5_mount.c, pal/linux/kern.c, pal/linux/user.c, pal/pal.h, tests/evidence/sess498_frozen_07018/tools/ledger_validate.py, tests/fence_inflight/verdict.py, tools/resize_mxfs.c, xfs/libxfs/xfs_ag.h, xfs/libxfs/xfs_inode_buf.h, xfs/libxfs/xfs_inode_fork.h, xfs/scrub/iscan.h, xfs/xfs_buf.h, xfs/xfs_icache.h, xfs/xfs_inode.h, xfs/xfs_log.h, xfs/xfs_mxfs_dlm.h
+xfs/xfs_stubs.c -> xfs/xfs_fsops.h, xfs/xfs_mxfs_dirshard.h
 ```

@@ -1963,6 +1963,21 @@ xfs_btree_lookup_get_block(
 	return 0;
 
 out_bad:
+	/*
+	 * D-0975 detector: on a clustered mount, name the image a bmbt
+	 * lookup refused — the cached block's owner and level against the
+	 * same address read at the coherence point — so a stale cached
+	 * image of another file's tree (a reused block) is told apart from
+	 * a bad block on disk.
+	 */
+	if (cur->bc_ops->type == XFS_BTREE_TYPE_INODE &&
+	    cur->bc_mp->m_mxfs_dlm) {
+		extern void mxfs_bmbt_lookup_bad_probe(struct xfs_mount *,
+				struct xfs_buf *, xfs_ino_t, int);
+
+		mxfs_bmbt_lookup_bad_probe(cur->bc_mp, bp,
+				cur->bc_ino.ip->i_ino, level);
+	}
 	*blkp = NULL;
 	xfs_buf_mark_corrupt(bp);
 	xfs_trans_brelse(cur->bc_tp, bp);

@@ -9,7 +9,7 @@
 #   WE-RO reservation held".  That is a statement about a POINT IN TIME.  The
 #   replay it authorises runs for seconds afterwards.
 #
-#   GPT (RULE-5 ruling sess93, release-blocking requirement B): "A successful
+#   GPT (design-consult ruling sess93, release-blocking requirement B): "A successful
 #   P&A proves the old registration was excluded at a point in time.  It does
 #   not necessarily prevent a still-running victim from registering again...
 #   If a partitioned old node can simply register its key again, the
@@ -49,7 +49,12 @@
 set -u
 VICTIM="${1:-test32}"
 PRE="${2:-test1}"
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 SCRATCH_LBA="${MXFS_SCRATCH_LBA:-131087}"
 
 cd "$(dirname "$0")/.." || exit 2
@@ -63,7 +68,14 @@ nodeid_of() {
 VID=$(nodeid_of "$VICTIM"); PID=$(nodeid_of "$PRE")
 [ -n "${VID:-}" ] && [ -n "${PID:-}" ] || {
     echo "probe: could not learn node ids (victim='$VID' preemptor='$PID')" >&2; exit 2; }
-VKEY=$(printf '0x%x' "$VID"); PKEY=$(printf '0x%x' "$PID")
+# sess439: the PR key is the 64-bit per-boot key (P-PRKEY-PUBLISHED) since
+# 0.43.0; node_id only for a pre-0.43.0 module.
+key_of() {
+    $SSH "$1" "(journalctl -k -o cat --since -30min 2>/dev/null; dmesg) | grep -a 'P-PRKEY-PUBLISHED\|P-PRKEY-REGISTERED' | tail -1 | sed -n 's/.*key=\(0x[0-9a-f]*\).*/\1/p'" 2>/dev/null | grep -av '^Unauthorized\|^Warning:\|^If you' | tail -1
+}
+VKEY=$(key_of "$VICTIM"); PKEY=$(key_of "$PRE")
+[ -n "${VKEY:-}" ] || VKEY=$(printf '0x%x' "$VID")
+[ -n "${PKEY:-}" ] || PKEY=$(printf '0x%x' "$PID")
 echo "probe: victim=$VICTIM key=$VKEY   preemptor=$PRE key=$PKEY   dev=$DEV lba=$SCRATCH_LBA"
 
 echo

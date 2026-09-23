@@ -263,6 +263,70 @@ xfs_icreate_want_attrfork(
 	return false;
 }
 
+/*
+ * mxfs: clear a non-NULLAGINO di_next_unlinked on the in-buffer dinode of
+ * an inode that is PROVABLY not on any unlinked list, logging the 4-byte
+ * range (+CRC) in the caller's transaction — the exact iunlink-item write
+ * idiom.  Two provable points use it: the create transaction (sess48,
+ * P-CREATE-NUFIX: xfs_dialloc just returned the number free) and the
+ * EMPTY-bucket insert (sess395, P-IUNL-NUFIX: the inode is being added to a
+ * list it is not on, and upstream's empty-bucket path never touches the
+ * dinode, so a platter fossil there would otherwise survive to be re-imported
+ * by the next cache-miss/reload and to read as [ours -> fossil] on disk).
+ * The slot is ours by construction (the number is allocated to this inode),
+ * so any image there is a dead incarnation of ours and its chain pointer
+ * has no meaning; the write is a no-op when the buffer already reads
+ * NULLAGINO.  Silent on a stale/unreadable buffer (the create path's
+ * existing behaviour).  Returns 1 when it cleared something, 0 otherwise.
+ * (mxfs_dinode_nu_write is the general form: it is also how the sess395
+ * fault injector STAMPS a fossil into the buffer so the clear arm can be
+ * exercised on demand — never call it with want != NULLAGINO otherwise.)
+ */
+static int
+mxfs_dinode_nu_write(
+	struct xfs_trans	*tp,
+	struct xfs_inode	*ip,
+	xfs_agino_t		want,
+	const char		*probe,
+	const char		*why)
+{
+	struct xfs_mount	*mp = ip->i_mount;
+	struct xfs_buf		*nubp;
+	struct xfs_dinode	*nudip;
+	int			nuoff;
+
+	if (xfs_imap_to_bp(mp, tp, &ip->i_imap, &nubp))
+		return 0;
+	nudip = xfs_buf_offset(nubp, ip->i_imap.im_boffset);
+	if ((nubp->b_flags & XBF_STALE) ||
+	    be16_to_cpu(nudip->di_magic) != XFS_DINODE_MAGIC ||
+	    nudip->di_next_unlinked == cpu_to_be32(want)) {
+		xfs_trans_brelse(tp, nubp);
+		return 0;
+	}
+	nuoff = ip->i_imap.im_boffset +
+		offsetof(struct xfs_dinode, di_next_unlinked);
+	pr_warn("mxfs: %s ino=0x%llx fossil_next=0x%x new=0x%x disk_gen=%u incore_gen=%u — %s\n",
+		probe, (unsigned long long)ip->i_ino,
+		be32_to_cpu(nudip->di_next_unlinked), want,
+		be32_to_cpu(nudip->di_gen), VFS_I(ip)->i_generation, why);
+	nudip->di_next_unlinked = cpu_to_be32(want);
+	xfs_dinode_calc_crc(mp, nudip);
+	xfs_trans_inode_buf(tp, nubp);
+	xfs_trans_log_buf(tp, nubp, nuoff, nuoff + sizeof(xfs_agino_t) - 1);
+	return 1;
+}
+
+static inline int
+mxfs_dinode_nu_clear(
+	struct xfs_trans	*tp,
+	struct xfs_inode	*ip,
+	const char		*probe,
+	const char		*why)
+{
+	return mxfs_dinode_nu_write(tp, ip, NULLAGINO, probe, why);
+}
+
 /* Initialise an inode's attributes. */
 void
 xfs_inode_init(
@@ -312,7 +376,15 @@ xfs_inode_init(
 	ip->i_diflags = 0;
 
 	if (xfs_has_v3inodes(mp)) {
-		inode_set_iversion(inode, 1);
+		/*
+		 * sess408: continue di_changecount from the freed core this
+		 * allocation reincarnates (fresh read at iget CREATE, multi-node;
+		 * 0 on single-node / new chunk), so it stays monotonic across
+		 * incarnations — foreign replay's apply/skip rule needs that.
+		 * A restart at 1 made the reincarnation's creation image look
+		 * older than the previous incarnation's freed image.
+		 */
+		inode_set_iversion(inode, ip->i_mxfs_prev_changecount + 1);
 		/* also covers the di_used_blocks union arm: */
 		ip->i_cowextsize = 0;
 		times |= XFS_ICHGTIME_CREATE;
@@ -358,7 +430,7 @@ xfs_inode_init(
 	}
 
 	/*
-	 * sess48 (393-c3 fatal root, RULE 4): a just-allocated inode CANNOT
+	 * sess48 (393-c3 fatal root, instrumented): a just-allocated inode CANNOT
 	 * be on any unlinked list — xfs_dialloc returned it free, and a free
 	 * ino's remove already committed di_next_unlinked = NULLAGINO.  In
 	 * multi-node operation that remove's home write can be lost (the
@@ -371,34 +443,44 @@ xfs_inode_init(
 	 * Enforce the invariant at the one point it is PROVABLE: clear a
 	 * non-NULLAGINO dinode nu in the create transaction (the exact
 	 * iunlink-item write idiom: value + CRC + 4-byte buffer log).
+	 * sess395: idiom factored into mxfs_dinode_nu_clear() and shared
+	 * with the empty-bucket insert path (the second provable point).
+	 *
+	 * sess396 (design-consult ruling ccmemory ccloop-c7ee71c6-sess396-GPT-ruling-
+	 * insert-mode-iunlink-item): the early xfs_imap_to_bp(tp) + log here
+	 * took the new inode's cluster buffer DIRTY before the sorted
+	 * precommit — an unordered prefix that is a real ABBA against a peer
+	 * transaction whose sorted iunlink precommit holds the parent dir's
+	 * cluster and waits for ours.  The clear now travels as a forced
+	 * INSERT-mode iunlink item (NULL -> NULL, old_agino==NULLAGINO by
+	 * construction: a CREATE never reads the platter dinode into core):
+	 * its precommit locks the cluster buffer in sorted order and, if the
+	 * buffer carries a fossil, overwrites it with NULLAGINO
+	 * (P-IUNL-PRECOMMIT-INSERT-FOSSIL comm=<creator>); a clean buffer
+	 * costs a lock/brelse and no log traffic.  Same transaction, same
+	 * reservation as the old 4-byte log.  Non-membership is proven here
+	 * (xfs_dialloc just returned the number free), so INSERT mode is
+	 * legitimate.  mxfs_dinode_nu_clear stays for the fault injector.
 	 */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
-		struct xfs_buf		*nubp;
-		struct xfs_dinode	*nudip;
+		struct xfs_perag *cpag = xfs_perag_get(mp,
+					XFS_INO_TO_AGNO(mp, ip->i_ino));
 
-		if (!xfs_imap_to_bp(mp, tp, &ip->i_imap, &nubp)) {
-			nudip = xfs_buf_offset(nubp, ip->i_imap.im_boffset);
-			if (!(nubp->b_flags & XBF_STALE) &&
-			    be16_to_cpu(nudip->di_magic) == XFS_DINODE_MAGIC &&
-			    nudip->di_next_unlinked !=
-						cpu_to_be32(NULLAGINO)) {
-				int nuoff = ip->i_imap.im_boffset +
-					offsetof(struct xfs_dinode,
-						 di_next_unlinked);
+		if (cpag) {
+			int cerr;
 
-				pr_warn("mxfs: P-CREATE-NUFIX ino=0x%llx fossil_next=0x%x disk_gen=%u — freshly allocated ino carried a dead chain value; cleared to NULLAGINO in the create transaction\n",
+			if (ip->i_next_unlinked != NULLAGINO) {
+				pr_warn("mxfs: P-CREATE-NUFIX-CORE ino=0x%llx core_next=0x%x — freshly allocated ino carried an in-core chain value; reset to NULLAGINO\n",
 					(unsigned long long)ip->i_ino,
-					be32_to_cpu(nudip->di_next_unlinked),
-					be32_to_cpu(nudip->di_gen));
-				nudip->di_next_unlinked =
-						cpu_to_be32(NULLAGINO);
-				xfs_dinode_calc_crc(mp, nudip);
-				xfs_trans_inode_buf(tp, nubp);
-				xfs_trans_log_buf(tp, nubp, nuoff,
-					nuoff + sizeof(xfs_agino_t) - 1);
-			} else {
-				xfs_trans_brelse(tp, nubp);
+					ip->i_next_unlinked);
+				ip->i_next_unlinked = NULLAGINO;
 			}
+			cerr = xfs_iunlink_log_inode_insert(tp, ip, cpag,
+							    NULLAGINO, 2);
+			if (cerr)
+				pr_warn("mxfs: P-CREATE-NUFIX-ITEMFAIL ino=0x%llx rc=%d\n",
+					(unsigned long long)ip->i_ino, cerr);
+			xfs_perag_put(cpag);
 		}
 	}
 
@@ -468,13 +550,22 @@ xfs_inode_init(
  */
 unsigned int mxfs_iunlink_slot_buckets = 1;
 
+/*
+ * sess469 (D-0525, design-consult ruling): the bucket LAYOUT is a property of the
+ * filesystem, not of live membership.  It used to be gated on
+ * !mxfs_v5_dlm_is_single_node(): a lone survivor (or an operator mounting one
+ * node after a cluster death) silently flipped to agino%64 inserts while the
+ * platter's lists were slot-partitioned, and the NEXT recovery of that slot
+ * by a peer (which walks only the slot bucket) would leak those zombies.
+ * Every clustered MXFS mount owns a disklock slot, so it always inserts into
+ * its slot bucket; the knob (=0) remains the same-build A/B control.
+ */
 static inline short
 xfs_iunlink_pick_bucket(
 	struct xfs_mount	*mp,
 	xfs_agino_t		agino)
 {
-	if (mxfs_iunlink_slot_buckets && mp->m_mxfs_dlm &&
-	    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+	if (mxfs_iunlink_slot_buckets && mp->m_mxfs_dlm)
 		return (short)(mp->m_mxfs_node_slot %
 			       XFS_AGI_UNLINKED_BUCKETS);
 	return (short)(agino % XFS_AGI_UNLINKED_BUCKETS);
@@ -586,6 +677,119 @@ xfs_iunlink_insert_inode(
 	 * isn't already on the list.
 	 */
 	next_agino = be32_to_cpu(agi->agi_unlinked[bucket_index]);
+
+	/*
+	 * sess395 F1 (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN, lap-3 test10
+	 * AG10 bucket 10, 0.23.1; design-consult ruling ccmemory
+	 * docs/rulings/iunlink-insert-fossil-reset-f1-f4.md):
+	 * the inode being inserted is by construction not on any unlinked list
+	 * — every caller proves it: xfs_droplink's fresh nlink->0 under ILOCK +
+	 * AG DLM, O_TMPFILE / EEXIST-loser creates, and the orphan scan only
+	 * after its 64-bucket membership walk under AG EX — so its in-core
+	 * i_next_unlinked MUST be NULLAGINO here.  A non-NULL value is a FOSSIL
+	 * imported from a prior life's platter image (xfs_inode_from_disk is
+	 * the only writer).  The sess388 reset below fires only when the fossil
+	 * EQUALS the bucket head; with an EMPTY bucket (head == NULLAGINO) the
+	 * fossil was kept, upstream's empty-bucket path logged no dinode, and
+	 * the next head-remove of this inode repointed the bucket at the fossil
+	 * (measured: P82-REM 0x134 head=0x134 next=0x133 65 ms after 0x133 was
+	 * removed+freed; 0x133 then re-allocated as a live file; bucket 10
+	 * head = a LINKED inode for the rest of the lap; P86 BADHEAD; the next
+	 * insert's reload_next read nlink=1 -> -117 dirty cancel -> shutdown).
+	 * Reset it BEFORE xfs_iunlink_log_inode so that function's
+	 * "i_next_unlinked == next_agino" corruption check is reached with the
+	 * true pre-state (the equality it guards against is exactly this
+	 * fossil, not real membership).  Loud: every hit is an ingress leak to
+	 * chase (P-IUNL-FOSSIL-INGRESS names the importer).  Multinode only.
+	 */
+	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+		extern int mxfs_iunl_fossil_inject;
+		extern int mxfs_iunl_fossil_fix;
+		int inj = READ_ONCE(mxfs_iunl_fossil_inject);
+
+		/*
+		 * sess395 fault injection (design-consult ruling modes 1/2, TESTING
+		 * ONLY, iunl_fossil_inject=N): plant a prior-life-style fossil
+		 * (agino-1, a neighbour that is usually a live file — the
+		 * dangerous case) in core at an EMPTY-bucket insert, and on odd
+		 * counts stamp it into the buffer dinode too (logged), so F1/F2
+		 * below are exercised on demand.  With iunl_fossil_fix=0 the
+		 * same injection must reproduce the measured chain (head
+		 * repointed at a freed/live inode at the next head-remove).
+		 */
+		/*
+		 * sess396: the injector now fires on EMPTY and NON-EMPTY
+		 * inserts alike (the 0.23.5 test25 kill was the non-empty
+		 * case), and on odd counts also stamps the buffer dinode so all
+		 * four core/buffer fossil combinations of the ruling's matrix
+		 * are exercised.  TEST ONLY — the buffer stamp is itself an
+		 * early dirty cluster-buffer lock (the lock-order hazard the
+		 * ruling removed from the fix path); never enable on a
+		 * production mount.
+		 */
+		/*
+		 * sess398: the injector walks the design-consult ruling's matrix by
+		 * inj % 5: 0 core fossil only; 1 core == buffer fossil;
+		 * 2 buffer fossil only (core NULL — the 0.23.5 test25 natural
+		 * shape); 3 core fossil A != buffer fossil B; 4 buffer already
+		 * == the new head (non-empty bucket; falls back to mode 2 on an
+		 * empty one).  Each planted value is reported so the sweep can
+		 * demand one P-IUNL-FOSSIL-ENTRY per core plant and one
+		 * P-IUNL-PRECOMMIT-INSERT-FOSSIL per buffer plant (mode 4 plants
+		 * the post-state, which precommit must accept silently).
+		 */
+		if (unlikely(inj > 0) && ip->i_next_unlinked == NULLAGINO) {
+			xfs_agino_t fossil = agino > 1 ? agino - 1 : agino + 1;
+			xfs_agino_t fossil_b = agino + 1;
+			int mode = inj % 5;
+
+			if (fossil_b == fossil || !xfs_verify_agino(pag, fossil_b))
+				fossil_b = agino > 2 ? agino - 2 : fossil;
+			if (mode == 4 && next_agino == NULLAGINO)
+				mode = 2;
+			if (xfs_verify_agino(pag, fossil) &&
+			    fossil != next_agino) {
+				xfs_agino_t core = (mode == 2 || mode == 4) ?
+						NULLAGINO : fossil;
+				xfs_agino_t bufv = mode == 0 ? NULLAGINO :
+						   mode == 3 ? fossil_b :
+						   mode == 4 ? next_agino : fossil;
+				int buf = bufv != NULLAGINO ?
+					mxfs_dinode_nu_write(tp, ip, bufv,
+						"P-IUNL-FOSSIL-INJECT-BUF",
+						"fault injection: stamping a fossil into the buffer dinode") : 0;
+
+				WRITE_ONCE(mxfs_iunl_fossil_inject, inj - 1);
+				ip->i_next_unlinked = core;
+				pr_warn("mxfs: P-IUNL-FOSSIL-INJECT ino=%llu agino=0x%x bucket=%d head=0x%x mode=%d core=0x%x bufv=0x%x buf=%d fix=%d left=%d comm=%s\n",
+					(unsigned long long)ip->i_ino, agino,
+					(int)bucket_index, next_agino, mode, core,
+					bufv, buf,
+					READ_ONCE(mxfs_iunl_fossil_fix), inj - 1,
+					current->comm);
+			}
+		}
+
+		if (ip->i_next_unlinked != NULLAGINO) {
+			int fix = READ_ONCE(mxfs_iunl_fossil_fix);
+
+			pr_warn("mxfs: P-IUNL-FOSSIL-ENTRY ino=%llu agino=0x%x bucket=%d fossil_next=0x%x head=0x%x gen=%u nlink=%u prev=0x%x ub=%d lu=%d au=%d cert=%u fix=%d comm=%s — insert-path inode carried an in-core next pointer%s\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index, ip->i_next_unlinked,
+				next_agino, VFS_I(ip)->i_generation,
+				VFS_I(ip)->i_nlink, ip->i_prev_unlinked,
+				(int)ip->i_unlinked_bucket,
+				xfs_iflags_test(ip, MXFS_IF_LOCAL_UNLINK) ? 1 : 0,
+				xfs_iflags_test(ip, MXFS_IF_ADOPTED_UNLINK) ? 1 : 0,
+				READ_ONCE(ip->i_mxfs_nu_cert_valid), fix,
+				current->comm,
+				fix ? "; reset to NULLAGINO" :
+				      "; FIX DISABLED (control arm) — kept");
+			if (fix)
+				ip->i_next_unlinked = NULLAGINO;
+		}
+	}
+
 	if (next_agino == agino ||
 	    !xfs_verify_agino_or_null(pag, next_agino)) {
 		pr_warn("mxfs: MX-INSTR agi-recycle ino=0x%llx agino=0x%x next_agino=0x%x bucket=%d agno=%u nlink=%u mode=0x%x recycled=%s verify_ok=%d",
@@ -728,7 +932,26 @@ xfs_iunlink_insert_inode(
 				current->comm);
 			ip->i_next_unlinked = NULLAGINO;
 		}
-		error = xfs_iunlink_log_inode(tp, ip, pag, next_agino);
+		/*
+		 * sess396 (0.23.5 test25 kill; design-consult ruling ccmemory
+		 * docs/rulings/insert-mode-iunlink-item.md):
+		 * F1 above reset a fossil in core, but the cluster BUFFER still
+		 * carried it (0x9dc), so upstream's strict precommit
+		 * (buffer == old_agino == NULL) returned -EFSCORRUPTED from a
+		 * dirty rename transaction.  The insert path proves the inode
+		 * is on no list, so use the INSERT-mode item: at sorted
+		 * precommit any buffer value is a fossil and is overwritten by
+		 * the transition (P-IUNL-PRECOMMIT-INSERT-FOSSIL).  Multinode
+		 * + fix knob only; single-node keeps upstream's strict item.
+		 */
+		if (mp->m_mxfs_dlm &&
+		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+		    ({ extern int mxfs_iunl_fossil_fix;
+		       READ_ONCE(mxfs_iunl_fossil_fix); }))
+			error = xfs_iunlink_log_inode_insert(tp, ip, pag,
+							     next_agino, 1);
+		else
+			error = xfs_iunlink_log_inode(tp, ip, pag, next_agino);
 		if (error) {
 			/* sess387: xfs_iunlink_log_inode's i_next_unlinked ==
 			 * next_agino check is the other silent -EFSCORRUPTED. */
@@ -743,6 +966,43 @@ xfs_iunlink_insert_inode(
 			return error;
 		}
 		ip->i_next_unlinked = next_agino;
+	} else if (mp->m_mxfs_dlm &&
+		   !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
+		   ({ extern int mxfs_iunl_fossil_fix;
+		      READ_ONCE(mxfs_iunl_fossil_fix); })) {
+		/*
+		 * sess395 F2 / sess396 rework: EMPTY bucket.  Upstream leaves
+		 * the dinode alone here because di_next_unlinked is assumed to
+		 * already read NULLAGINO; in multinode that assumption is
+		 * exactly what the fossil family breaks (the platter slot can
+		 * still carry a prior life's chain value: xfs_iflush never
+		 * rewrites nu, cluster writes skip un-logged passenger slots,
+		 * the gen-keyed store gives no graft across incarnations).
+		 * Left alone, the on-disk chain reads [ours -> fossil] and the
+		 * next cache-miss or reload of this inode re-imports the
+		 * fossil into core (the F1 ingress).
+		 *
+		 * 0.23.3-0.23.5 cleared it HERE with an early xfs_imap_to_bp +
+		 * log (P-IUNL-NUFIX).  sess396 design-consult ruling: that is an
+		 * unordered dirty cluster-buffer acquisition BEFORE the sorted
+		 * precommit — a real ABBA against a peer transaction whose
+		 * sorted iunlink precommit holds our dir inode's cluster and
+		 * waits for ours.  So the clear now travels as a forced
+		 * INSERT-mode iunlink item (NULL -> NULL): its precommit locks
+		 * the cluster buffer in sorted order, and if the buffer carries
+		 * a fossil it is overwritten there (P-IUNL-PRECOMMIT-INSERT-
+		 * FOSSIL) and the committed NULL recorded in the iunl store by
+		 * the apply path; a clean buffer costs a lock/brelse and no log
+		 * traffic.  Still BEFORE the AGI head update below.
+		 */
+		error = xfs_iunlink_log_inode_insert(tp, ip, pag, NULLAGINO, 1);
+		if (error) {
+			pr_warn("mxfs: P-IUNL-INSFAIL ino=%llu agino=0x%x bucket=%d next=0x%x rc=%d comm=%s (empty-bucket INSERT item)\n",
+				(unsigned long long)ip->i_ino, agino,
+				(int)bucket_index, next_agino, error,
+				current->comm);
+			return error;
+		}
 	}
 
 	/* Point the head of the list to point to this inode. */
@@ -787,11 +1047,11 @@ xfs_iunlink(
 	 * lands.  Symptom seen at v0.3.21 15-iter soak iter-4:
 	 *   Metadata corruption at xfs_iunlink, agi block 0x2
 	 *   xfs_droplink rc=-117 EFSCORRUPTED
-	 * Sister path xfs_iunlink_remove is called under
-	 * xfs_inactive_ifree which already holds the AG DLM (xfs_inode.c
-	 * :1299), so the REMOVE side is already coordinated; only the
-	 * INSERT side (this function, called from xfs_remove via
-	 * xfs_droplink) was missing.
+	 * Sister path xfs_iunlink_remove has three callers: xfs_inode_uninit
+	 * (under xfs_ifree's AG DLM), and — since sess399 — xfs_dir_add_child
+	 * (O_TMPFILE linkat) and the rename whiteout path, which bracket it
+	 * with this same lock/unlock_deferred shape.  Until sess399 those two
+	 * ran with NO tenure (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399).
 	 */
 	error = mxfs_ag_dlm_lock(mp, pag);
 	if (error)
@@ -803,6 +1063,7 @@ xfs_iunlink(
 	error = xfs_read_agi(pag, tp, 0, &agibp);
 	if (error)
 		goto out;
+	mxfs_agifc_audit(pag, tp, agibp, "iunlink-entry");
 
 	stage = "insert";
 	error = xfs_iunlink_insert_inode(tp, pag, agibp, ip);
@@ -896,7 +1157,7 @@ xfs_iunlink_remove_inode(
 	 * entry predates the stamp (legacy insert) — legal during a knob
 	 * transition, but loud so an unexpected population is visible. */
 	if (mxfs_iunlink_slot_buckets && ip->i_unlinked_bucket < 0 &&
-	    mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm)) {
+	    mp->m_mxfs_dlm) {
 		static atomic_t p84_n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p84_n) <= 100)
@@ -937,7 +1198,7 @@ xfs_iunlink_remove_inode(
 
 	/*
 	 * sess38 P83-UNL-REMCHK (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN
-	 * RULE-4 discriminator, instr-gated: one FUA dinode read per remove):
+	 * discriminator, instr-gated: one FUA dinode read per remove):
 	 * compare the ON-DISK di_next_unlinked with the in-core value we are
 	 * about to stitch the shared bucket with.  A peer's mid-bucket remove
 	 * legally rewires OUR unlinked inode's disk next pointer; nothing
@@ -1062,6 +1323,33 @@ xfs_iunlink_remove(
 	error = xfs_read_agi(pag, tp, 0, &agibp);
 	if (error)
 		return error;
+	mxfs_agifc_audit(pag, tp, agibp, "iunlink-rm-entry");
+#ifdef __KERNEL__
+	/*
+	 * sess399 precondition alarm: an AGI modification with NO local AG-DLM
+	 * holder.  Every caller must hold the AG DLM across this call —
+	 * xfs_inode_uninit (under xfs_ifree), xfs_dir_add_child (O_TMPFILE
+	 * linkat) and the rename whiteout path (both bracketed sess399).
+	 * This was the instrumented probe that proved D-...-399 (150/350 removes per
+	 * node un-tenured); it stays as the alarm for any future caller.
+	 */
+	if (pag_mount(pag)->m_mxfs_dlm &&
+	    !mxfs_v5_dlm_is_single_node(pag_mount(pag)->m_mxfs_dlm) &&
+	    READ_ONCE(pag->pag_dlm_holders) == 0) {
+		static atomic_t nt_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&nt_n) <= 2000)
+			pr_warn("mxfs: P-IUNL-RM-NOTENURE ino=%llu agno=%u holders=%d cached=%d demoting=%d tenure=%llu agi_btenure=%llu nlink=%u comm=%s realns=%llu — AGI unlinked-list REMOVE with no local AG-DLM holder\n",
+				(unsigned long long)ip->i_ino, pag_agno(pag),
+				READ_ONCE(pag->pag_dlm_holders),
+				pag->pag_dlm_cached ? 1 : 0,
+				pag->pag_dlm_demoting ? 1 : 0,
+				(unsigned long long)pag->ag_dlm_tenure_id,
+				(unsigned long long)agibp->b_tenure_id,
+				VFS_I(ip)->i_nlink, current->comm,
+				(unsigned long long)ktime_get_real_ns());
+	}
+#endif
 
 	return xfs_iunlink_remove_inode(tp, pag, agibp, ip);
 }
@@ -1145,7 +1433,7 @@ xfs_bumplink(
 		mxfs_inc_nlink(ip);
 
 	/*
-	 * ccloop c7ee71c6 sess19 nlink LEDGER (RULE 4).  tests/sf_mkdir_storm.sh
+	 * ccloop c7ee71c6 sess19 nlink LEDGER (instrumented).  tests/sf_mkdir_storm.sh
 	 * reproduces a DURABLE lost update of a shared parent's link count under
 	 * concurrent cross-node mkdir (32 nodes, one shortform parent: nlink
 	 * settles at 29 with 32 visible subdirectories, still 29 minutes later on

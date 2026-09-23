@@ -13,7 +13,7 @@ corruption** (the separate defect that TRIGGERS the shutdown).
 ## What was accomplished — AGI umount-wedge FIXED AND VERIFIED
 
 Root cause PROVEN, fix implemented + verified with a deterministic causal A/B.
-Full detail in ccmemory `pve-agi-wedge-FIXED-AND-VERIFIED-agmeta-reclaim` (and the
+Full detail in `docs/history/pve-agi-wedge-fixed-and-verified-agmeta-reclaim.md` (and the
 earlier `...-ROOT-agmeta-track-hold-leak-FIX-and-pve1-hung`). Summary:
 
 - **Root cause**: `mxfs_ag_meta_track` (xfs/xfs_mxfs_dlm.c) takes an extra
@@ -72,7 +72,7 @@ its downstream consequence). It is a real data-coherency bug, still OPEN.
   holds a STALE cached inode-cluster buffer (dlm_stale=1) showing the inode
   allocated. dialloc reads the stale cluster → sees a "free" inode still marked
   used → EFSCORRUPTED. Same family as ccmemory `compiled-agi-unlinked-list-
-  corruption`, `sess123-tenure-id-*`, `compiled-ccloop-cache-coherency-visibility`.
+  corruption`, `sess123-tenure-id-*`, `docs/history/docs/history/docs/history/compiled-ccloop-cache-coherency-visibility.md`.
   The inode-cluster read-side coherency (invalidate-on-acquire / tenure_id) is the
   place to look — a stale inode-cluster buffer must be re-read on acquire.
 - **Repro**: `scripts/agi_wedge_repro.sh 180 24` (heavy 2-node shared-dir churn) —
@@ -107,7 +107,7 @@ its downstream consequence). It is a real data-coherency bug, still OPEN.
 3. **dir_reuse create-visibility race** (original handoff bug #2, UNTOUCHED this
    session) — P-IGET-ENOENT dead-shell: reader iget-hits a stale reclaimable mode-0
    reused inode and ENOENTs. Rare, timing-sensitive; needs a deterministic repro.
-   Dossier ccmemory `pve-timestamp-update-ex-iflush-breaks-create-visibility`.
+   Dossier `docs/history/docs/history/docs/history/pve-timestamp-update-ex-iflush-breaks-create-visibility.md`.
 
 ## Next steps (priority order)
 

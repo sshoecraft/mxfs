@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_inodelock_callers.sh — RULE 4 instrumentation for the scaling_curve
+# diag_inodelock_callers.sh — instrumentation for the scaling_curve
 # 16-node penalty (sess28 of run 14d31183).  The ftrace function profiler
 # showed mxfs_v5_dlm_inode_lock is the dominant per-node wall contributor
 # at 16 nodes (~850 calls x ~2.7 ms avg, all-slow — the fast path never

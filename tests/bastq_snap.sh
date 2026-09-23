@@ -13,7 +13,7 @@
 # Usage:  tests/bastq_snap.sh <outdir> [nodecount]
 #         tests/bastq_snap.sh --delta <predir> <postdir>
 #
-# RULE 3: lives in the tree, not /tmp — this gets re-run every measurement.
+# the source-tree rule: lives in the tree, not /tmp — this gets re-run every measurement.
 
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)

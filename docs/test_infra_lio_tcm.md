@@ -36,7 +36,7 @@ UUID). VMs reference the fixed symlink so their definitions never need editing
 when the host renumbers or the LIO stack is rebuilt. Re-run setup after any host
 reboot to re-point it. (Guest-side the device is still `/dev/sda`.)
 
-## Scripts (all in `scripts/`, RULE 3)
+## Scripts (all in `scripts/`, the source-tree rule)
 
 ### `lio_tcm_setup.sh {setup|status|teardown}`
 Host-side LIO/tcm_loop export.

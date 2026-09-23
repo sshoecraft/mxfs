@@ -38,7 +38,7 @@ ROUNDS="${3:-60}"
 N="${4:-32}"
 TALLY="${5:-$REPO/tests/logs/storm_fresh_tally.txt}"
 
-# RULE 0: prep is infrastructure, not workload.  Measured 48-126s at 32 nodes;
+# budget: prep is infrastructure, not workload.  Measured 48-126s at 32 nodes;
 # 400s is ~3x the worst observed, and a prep that needs more than that is
 # itself a failure worth seeing rather than waiting out.
 if ! MXFS_FORCE_PREP=1 timeout 400 "$REPO/run.sh" "$N" caw prep_cluster >/dev/null 2>&1; then

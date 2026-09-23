@@ -62,7 +62,12 @@ set -u
 VICTIM="${1:-test32}"
 READER="${2:-test1}"
 NFILES="${3:-100}"
-DEV="${4:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+DEV=${4:-}; [ -n "$DEV" ] || { mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED; }
 MNT=/mnt/shared
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -74,7 +79,7 @@ MARK="WSRP-$RUN"
 PAYLOAD="wsrp_$RUN"
 OUT=$(mktemp -d)
 
-# RULE 0 budgets, derived (not round numbers):
+# derived time budgets, derived (not round numbers):
 #   payload: NFILES fsync'd creates; native XFS ~1s, mxfs cluster pace x2 -> 60s
 #   unmount after force-shutdown: fs already down, teardown only          -> 90s
 #   mount: measured mxfs mount ~5-15s; pre-mountfs recovery barrier can
@@ -184,7 +189,7 @@ PYEOF" 2>&1 | tail -3
 t1=$(date +%s); PAY=$((t1-t0))
 echo "payload wall=${PAY}s budget=${BUDGET_PAYLOAD}s"
 if [ "$PAY" -gt "$BUDGET_PAYLOAD" ]; then
-    echo "RULE0-FAIL: payload exceeded its derived budget (${PAY}s > ${BUDGET_PAYLOAD}s)"
+    echo "the budget rule-FAIL: payload exceeded its derived budget (${PAY}s > ${BUDGET_PAYLOAD}s)"
 fi
 
 # The reader-side timeline must be running BEFORE the shutdown so it captures
@@ -213,7 +218,7 @@ t0=$(date +%s)
 t1=$(date +%s); MNTW=$((t1-t0))
 echo "mount wall=${MNTW}s budget=${BUDGET_MOUNT}s"
 if [ "$MNTW" -gt "$BUDGET_MOUNT" ]; then
-    echo "RULE0-FAIL: mount exceeded its derived budget (${MNTW}s > ${BUDGET_MOUNT}s)"
+    echo "the budget rule-FAIL: mount exceeded its derived budget (${MNTW}s > ${BUDGET_MOUNT}s)"
 fi
 
 say "CLAIM: which slot did the remount take?"

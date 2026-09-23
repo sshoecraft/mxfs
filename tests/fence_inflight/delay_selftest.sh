@@ -1,7 +1,7 @@
 #!/bin/bash
 # delay_selftest.sh — validate the delayed LUN stack STANDALONE, before any arm.
 #
-# The sess133 RULE-5 ruling makes this a precondition of every A/B run:
+# The sess133 design-consult ruling makes this a precondition of every A/B run:
 #
 #   "validate the delay stack standalone first (single write, no P&A, nothing
 #    below before ~W, landing after ~W)"

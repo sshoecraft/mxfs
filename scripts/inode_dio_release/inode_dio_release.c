@@ -224,7 +224,7 @@ static int __init inode_dio_release_init(void)
 	 * act=3: perform the dead reader's missing up_read().  Reader
 	 * releases are not owner-enforced, and __up_read()'s own wake path
 	 * (rwsem_wake) grants the queued writer with correct handoff
-	 * semantics — never hand-roll the count arithmetic (GPT RULE-5
+	 * semantics — never hand-roll the count arithmetic (design-consult
 	 * ruling, sess146).  up_read_non_owner() is the intent-correct
 	 * primitive; on this CONFIG_DEBUG_LOCK_ALLOC=n kernel the header
 	 * maps it to plain up_read(), whose lockdep/debug bookkeeping is

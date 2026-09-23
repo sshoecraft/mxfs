@@ -1155,7 +1155,7 @@ xfs_iread_bmbt_block(
 	num_recs = xfs_btree_get_numrecs(block);
 
 	/*
-	 * sess34 (ccloop 14d31183) P34B DECISIVE PROBE (RULE 4 step 2):
+	 * sess34 (ccloop 14d31183) P34B DECISIVE PROBE (instrument step 2):
 	 * hypothesis — after a DLM reload of a BTREE-format dir, this
 	 * extent re-read is served a STALE CACHED bmbt child buffer (the
 	 * reload stales the inode cluster + dir DATA blocks, but nothing
@@ -1170,7 +1170,7 @@ xfs_iread_bmbt_block(
 	 * buffer (no uncheckpointed local mods) = proven stale serve.
 	 */
 	/*
-	 * sess68 (ccloop 14d31183) zero_silent_loss FIX — RULE 4 step 2b,
+	 * sess68 (ccloop 14d31183) zero_silent_loss FIX — instrument step 2b,
 	 * patch at the PROVEN cause.  The FUA read + compare here is no longer
 	 * a dirwr-gated probe: it RUNS ALWAYS for multi-node dir data-fork bmbt
 	 * consume, because sess67's P34B probe PROVED the harm is real and clean:
@@ -1210,7 +1210,7 @@ xfs_iread_bmbt_block(
 				bool	stale = (p34_drecs != num_recs ||
 					memcmp(p34_buf, bp->b_addr, p34_len));
 				/*
-				 * sess6 (ccloop 46efd8b6) RULE-4 PROVEN (runs
+				 * sess6 (ccloop 46efd8b6) PROVEN BY INSTRUMENT (runs
 				 * 120345Z + 122308Z): "ahead" must also cover
 				 * a leaf whose last WRITE completed into the
 				 * target's volatile write cache with no device
@@ -1284,7 +1284,7 @@ xfs_iread_bmbt_block(
 	}
 	/*
 	 * sess70 (ccloop 14d31183) zero_silent_loss FIX — symmetric completion
-	 * of the sess68 leaf refresh (RULE 4 step 2b, proven cause).  The sess68
+	 * of the sess68 leaf refresh (instrument step 2b, proven cause).  The sess68
 	 * fix refreshes a STALE cached bmbt LEAF from its FUA on-disk image so the
 	 * reader consumes the peer's committed map.  That repairs ONE half of the
 	 * (dinode, leaf) pair; the OTHER half — the in-core di_nextents
@@ -1344,8 +1344,49 @@ xfs_iread_bmbt_block(
 		}
 	}
 	if (unlikely(ir->loaded + num_recs > ifp->if_nextents)) {
-		xfs_warn(ip->i_mount, "corrupt dinode %llu, (btree extents).",
-				(unsigned long long)ip->i_ino);
+		/*
+		 * Name the torn pair before the shutdown: the block's header
+		 * (owner, level, record count, LSN stamp), the in-core count,
+		 * and a platter read of this inode's dinode, so the report
+		 * says whether the on-disk dinode agrees with the leaves (a
+		 * stale in-core count) or lags them (an on-disk torn pair,
+		 * which a dead peer's slice replay leaves behind when it
+		 * applies the leaves but skips the inode image).
+		 */
+		unsigned long long	pl_nx = ~0ULL, pl_cc = ~0ULL, pl_lsn = ~0ULL;
+		unsigned int		pl_fmt = ~0U;
+
+		if (mp->m_mxfs_dlm) {
+			uint32_t	pl_len = BBTOB(ip->i_imap.im_len);
+			void		*pl_buf = pl_len ? kmalloc(pl_len, GFP_NOFS) : NULL;
+
+			if (pl_buf && mxfs_pal_scsi_read_fua_bdev(
+					mp->m_ddev_targp->bt_bdev,
+					(uint64_t)ip->i_imap.im_blkno +
+						mp->m_ddev_targp->bt_sector_offset,
+					pl_buf, pl_len) == 0) {
+				struct xfs_dinode *pl_dip =
+					pl_buf + ip->i_imap.im_boffset;
+
+				if (pl_dip->di_magic == cpu_to_be16(XFS_DINODE_MAGIC)) {
+					pl_nx = xfs_dfork_data_extents(pl_dip);
+					pl_cc = be64_to_cpu(pl_dip->di_changecount);
+					pl_lsn = be64_to_cpu(pl_dip->di_lsn);
+					pl_fmt = pl_dip->di_format;
+				}
+			}
+			kfree(pl_buf);
+		}
+		xfs_warn(ip->i_mount,
+	"corrupt dinode %llu, (btree extents). P-BMBT-OVERCOUNT fork=%d level=%d daddr=%lld blk_owner=%llu blk_recs=%u blk_lsn=0x%llx loaded=%llu if_nextents=%llu platter_nx=%llu platter_cc=%llu platter_fmt=%u platter_di_lsn=0x%llx",
+				(unsigned long long)ip->i_ino, whichfork, level,
+				bp ? (long long)bp->b_maps[0].bm_bn : -1LL,
+				(unsigned long long)be64_to_cpu(block->bb_u.l.bb_owner),
+				(unsigned int)num_recs,
+				(unsigned long long)be64_to_cpu(block->bb_u.l.bb_lsn),
+				(unsigned long long)ir->loaded,
+				(unsigned long long)ifp->if_nextents,
+				pl_nx, pl_cc, pl_fmt, pl_lsn);
 		xfs_inode_verifier_error(ip, -EFSCORRUPTED, __func__, block,
 				sizeof(*block), __this_address);
 		xfs_bmap_mark_sick(ip, whichfork);
@@ -1408,7 +1449,7 @@ xfs_iread_extents(
 		goto out;
 
 	if (ir.loaded != ifp->if_nextents) {
-		/* sess59 RULE-4: quantify the dinode-vs-bmbt-leaf disk
+		/* sess59 instrumented: quantify the dinode-vs-bmbt-leaf disk
 		 * inconsistency that shuts the FS down under the 16-node
 		 * shared-dir storm.  ir.loaded = records walked from the
 		 * if_broot root through the (cold-read) child blocks;
@@ -3058,8 +3099,16 @@ xfs_bmap_add_extent_hole_real(
 			 * dropped the record on a stale leaf; pre_lnr < if_nextents-1
 			 * => the cursor's leaf was ALREADY stale before this insert.
 			 */
+			/*
+			 * One leaf only when the in-inode root is level 1: a
+			 * level-2 root with one pointer names an interior node,
+			 * and every insert into that tree printed here
+			 * (measured: 5791 lines in 90 s on a two-level
+			 * regular-file tree).
+			 */
 			if (whichfork == XFS_DATA_FORK && cur->bc_levels[0].bp &&
 			    ifp->if_broot &&
+			    be16_to_cpu(ifp->if_broot->bb_level) == 1 &&
 			    be16_to_cpu(ifp->if_broot->bb_numrecs) == 1 &&
 			    be16_to_cpu(XFS_BUF_TO_BLOCK(
 				cur->bc_levels[0].bp)->bb_level) == 0) {
@@ -5328,7 +5377,7 @@ xfs_bmap_del_extent_real(
 #ifdef __KERNEL__
 			/*
 			 * sess5 (ccloop 46efd8b6) P75 DECISIVE DISCRIMINATOR
-			 * (RULE 4): the in-core iext record `got` is NOT in
+			 * (instrumented): the in-core iext record `got` is NOT in
 			 * the bmbt the cursor walked (the rename-storm dir
 			 * i!=1 → dirty trans_cancel → shutdown).  Which side
 			 * is stale?  Compare the cursor's leaf buffer against
@@ -6633,7 +6682,7 @@ xfs_bmap_validate_extent_raw(
 int __init
 xfs_bmap_intent_init_cache(void)
 {
-	xfs_bmap_intent_cache = kmem_cache_create("mxfs_bmap_intent",
+	xfs_bmap_intent_cache = mxfs_cache_create("mxfs_bmap_intent",
 			sizeof(struct xfs_bmap_intent),
 			0, 0, NULL);
 

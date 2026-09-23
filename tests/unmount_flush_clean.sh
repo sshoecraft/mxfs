@@ -18,7 +18,7 @@
 # Bar: >= CYCLES clean umount/mount cycles per node across N nodes with zero
 # failed-I/O lines.  Default 3 cycles x 8 nodes = 24 unmounts.
 #
-# Budget (RULE 0): a umount+prep_node cycle is ~10-15s/node; 3 cycles across
+# Budget (budget): a umount+prep_node cycle is ~10-15s/node; 3 cycles across
 # 8 nodes run in parallel ~= 2.5 min.
 #
 # usage: unmount_flush_clean.sh [N=8] [cycles=3]
@@ -26,7 +26,12 @@ set -u
 N="${1:-8}"
 CYCLES="${2:-3}"
 SSH=tools/mxfs_sshpass.sh
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 KOMD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}')
 RID="ufc_$(date +%s)"
 say() { echo "[$(date +%H:%M:%S)] $*"; }

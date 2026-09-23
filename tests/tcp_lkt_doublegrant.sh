@@ -1,5 +1,5 @@
 #!/bin/bash
-# RULE-4 decisive test: is the tcp_dlm_scaling MODE-B resurrection a TCP dir-EX
+# Instrumented decisive test: is the tcp_dlm_scaling MODE-B resurrection a TCP dir-EX
 # DOUBLE-GRANT (two nodes hold the shared-dir inode EX overlapping) or a
 # serialized-but-stale modify-reload?  Uses the non-perturbing lock-free P-LKT
 # ring (mxfs.lockwr=1 via module load param) dumped post-mortem via lktdump.

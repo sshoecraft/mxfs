@@ -26,6 +26,7 @@
 #include "../include/mxfs/mxfs_common.h"
 #include "../include/mxfs/mxfs_dlm.h"
 #include "../include/mxfs/mxfs_ports.h"
+#include "static_peers.h"
 
 /* ─── Constants ─── */
 
@@ -160,7 +161,7 @@ struct mxfs_caw_lock_slot {
     uint8_t                 granted_mode;   /* highest mode currently held */
     uint8_t                 waiter_mode;    /* highest mode waiters need */
     /*
-     * D-AGLOCK-...-LIVELOCK-488 (sess243 RULE-5 ruling, Option B'): sticky
+     * D-AGLOCK-...-LIVELOCK-488 (sess243 design-consult ruling, Option B'): sticky
      * ANONYMOUS revoke request.  A NOQUEUE contender exits caw_lock BEFORE
      * waiter registration and BEFORE the UDP BAST multicast, so against a
      * LAZILY-CACHED holder (which by design only demotes on a BAST) it
@@ -289,7 +290,7 @@ struct mxfs_caw_lock_slot {
      */
     uint64_t                ex_grant_epoch;
     /*
-     * sess176 (D-FOREIGN-REPLAY lineage discriminator, sess175 RULE-5
+     * sess176 (D-FOREIGN-REPLAY lineage discriminator, sess175 design-consult
      * ruling): random nonzero 64-bit id minted when a slot is bound to a
      * resource by a FRESH image (empty slot or different-resource
      * tombstone); INHERITED unchanged on a same-resource tombstone
@@ -369,7 +370,7 @@ struct mxfs_caw_nudge_rec {
 };
 
 /*
- * ─── sess128 BAST DISPATCH QUEUE (RULE-4 rooted, GPT RULE-5 reviewed) ───
+ * ─── sess128 BAST DISPATCH QUEUE (instrumented rooted, design-consult reviewed) ───
  *
  * THE DEFECT.  bast_recv_fn is ONE thread per node and it called ctx->bast_cb
  * SYNCHRONOUSLY inside its recvfrom loop.  That callback reaches
@@ -537,6 +538,22 @@ struct mxfs_dlm_caw_ctx {
     struct mxfs_resource_id pinned_res[MXFS_CAW_MAX_PINNED];
     int                     pinned_n;
 
+    /*
+     * sess405 (docs/recovery-manifest.md, writer guard S4): victim slots
+     * whose EX/PW authority is WRITE-PROTECTED — pushed by the disklock
+     * monitor (mxfs_disklock_set_protect_cb -> mxfs_dlm_caw_set_protected_mask)
+     * whenever a slot's recovery descriptor is observed at stage >=
+     * SNAPSHOTTING.  caw_slot_ex() refuses (-EPERM, P-RMAN-GUARD-REFUSED)
+     * any CAS that would clear a protected node's EX/PW bit, change the
+     * ex_grant_epoch / resource_lineage / binding of a slot while a
+     * protected bit is set, or grant EX/PW to another node there — unless
+     * the caller is the recovery owner's purge (MXFS_CAW_CAS_F_PURGE).  The
+     * audit says no such path exists; the guard makes that an invariant.
+     * Volatile: written by the monitor thread, read on every CAS.
+     */
+    volatile uint64_t       protected_mask;
+    uint64_t                guard_refused;      /* diagnostic counter */
+
     /* BAST poll thread */
     mxfs_thread_t           *bast_poll_thread;
     mxfs_cond_t             *stop_cond;
@@ -545,6 +562,9 @@ struct mxfs_dlm_caw_ctx {
     /* UDP multicast BAST */
     mxfs_sock_t             *bast_mcast_sock;
     mxfs_thread_t           *bast_recv_thread;
+    /* peers=: nudges go by unicast to each listed address instead of the
+     * group, and only listed senders are heard.  count 0 = multicast. */
+    struct mxfs_static_peers bast_peers;
 
     /*
      * sess128 BAST dispatch queue — see the block comment above
@@ -631,7 +651,7 @@ struct mxfs_dlm_caw_ctx {
     int                     (*wait_refuse_fn)(void *data,
                                               const struct mxfs_resource_id *res);
     void                    *wait_refuse_data;
-    /* sess374 (RULE-5 review items 2+3): SKIP-ONLY candidate hint — bit i set
+    /* sess374 (design-consult review items 2+3): SKIP-ONLY candidate hint — bit i set
      * iff this mount has imported a terminal AG_MASK refusal for heartbeat
      * slot i.  Published by v5 on every outcome import; read with no I/O.
      * Without it, one scrub attempt costs a heartbeat platter read per
@@ -771,7 +791,7 @@ struct mxfs_dlm_caw_ctx {
      * table with its OWN spinlock (mxfs_pal_spinlock_*, not the mutex above)
      * because the reader/writer (mxfs_dlm_bast_process, xfs_mxfs_dlm.c) runs
      * with ip->i_dlm_lock (a real kernel spinlock) held and must not sleep —
-     * sharing grant_meta's mutex would be scheduling-while-atomic.  RULE-4
+     * sharing grant_meta's mutex would be scheduling-while-atomic.  Instrumented
      * PROVEN (P15-REL-ABORT init_seq instrumentation, ino=131/8caw): the
      * per-inode versions of these fields (xfs_inode.h
      * i_dlm_orphan_since_ns / i_dlm_bast_starve_since_ns) get silently reset
@@ -1216,7 +1236,7 @@ struct mxfs_dlm_caw_ctx {
 #define MXFS_CAW_OWED_BACKOFF_MAX_MS 500
 /* Failed dispatches after which an obligation is reported as stuck. */
 #define MXFS_CAW_OWED_ESCALATE     32
-/* Teardown drain budget.  Unmount is not a RULE-0 workload path, but this
+/* Teardown drain budget.  Unmount is not a budget rule workload path, but this
  * cannot be unbounded either: a genuinely dead LUN would hang the unmount.  On
  * expiry the residue is reported (P254) and membership withdrawal is what makes
  * the bits reclaimable by peers. */
@@ -1280,7 +1300,7 @@ struct mxfs_dlm_caw_ctx {
  *
  * In the ordinary case this costs nothing: ops_active reaches zero in
  * microseconds and the wait returns on the first predicate test.  This is a
- * safety deadline, not a RULE-0 performance budget.
+ * safety deadline, not a budget rule performance budget.
  */
 #define MXFS_CAW_QUIESCE_MS  (MXFS_CAW_WAIT_TIMEOUT_MS + \
 			      MXFS_CAW_UNLOCK_DEADLINE_MS + 30000)
@@ -1390,6 +1410,9 @@ void mxfs_dlm_caw_stop(struct mxfs_dlm_caw_ctx *ctx);
  * that thread's conclusion, not a racing re-read of intermediate state.
  */
 void mxfs_dlm_caw_set_release_on_stop(struct mxfs_dlm_caw_ctx *ctx, bool on);
+/* peers=: set before mxfs_dlm_caw_start; NULL or empty keeps multicast */
+void mxfs_dlm_caw_set_static_peers(struct mxfs_dlm_caw_ctx *ctx,
+                                   const struct mxfs_static_peers *peers);
 bool mxfs_dlm_caw_departed_clean(struct mxfs_dlm_caw_ctx *ctx);
 bool mxfs_dlm_caw_unsafe_to_free(struct mxfs_dlm_caw_ctx *ctx);
 
@@ -1517,6 +1540,41 @@ int mxfs_dlm_caw_open_probe(struct mxfs_dlm_caw_ctx *ctx,
 uint8_t mxfs_dlm_caw_granted_mode(struct mxfs_dlm_caw_ctx *ctx,
 				  const struct mxfs_resource_id *resource);
 
+/*
+ * sess449 — TEST-ONLY observation helpers for the same-node reconcile
+ * exerciser (D-SAMENODE-WAITER-CANCEL-COLLISION closure vehicle,
+ * mxfs_v5_dlm_caw_samenode_selftest).  Read-only: a slot image by find_slot
+ * (no CAS) and the local request registry's state for one resource under
+ * lreq_lock.  Never call from a lock/unlock path.
+ */
+struct mxfs_caw_test_bits {
+	bool		found;		/* live slot located */
+	uint32_t	slot_idx;
+	uint32_t	generation;
+	uint64_t	holders_ex;
+	uint64_t	holders_pw;
+	uint64_t	holders_pr;
+	uint64_t	waiters;
+	uint64_t	waiters_ex;
+};
+int mxfs_dlm_caw_test_slot_bits(struct mxfs_dlm_caw_ctx *ctx,
+				const struct mxfs_resource_id *resource,
+				struct mxfs_caw_test_bits *out);
+/* attempts/pending for the resource's registry entry; -ENOENT = no entry */
+int mxfs_dlm_caw_test_lreq_state(struct mxfs_dlm_caw_ctx *ctx,
+				 const struct mxfs_resource_id *resource,
+				 uint32_t *attempts, uint32_t *tenure_ex,
+				 bool *owed_pending);
+/* arm / read back the consumable injection knobs the exerciser drives */
+enum mxfs_caw_test_knob {
+	MXFS_CAW_TK_WAIT_EXPIRE,	/* K6: next registered wait gives up */
+	MXFS_CAW_TK_DOW_CASFAIL,	/* K5: next give-up CAS -> -EIO */
+	MXFS_CAW_TK_DOW_PAUSE_MS,	/* hook B: plan->CAS gap pause */
+	MXFS_CAW_TK_OWED_PAUSE_MS,	/* hook C: worker pre-pass pause */
+};
+void mxfs_dlm_caw_test_arm(enum mxfs_caw_test_knob which, int value);
+int  mxfs_dlm_caw_test_knob_left(enum mxfs_caw_test_knob which);
+
 /* sess19: read the shared on-disk slot generation (cross-node AG epoch). */
 int mxfs_dlm_caw_read_generation(struct mxfs_dlm_caw_ctx *ctx,
                                  const struct mxfs_resource_id *resource,
@@ -1567,6 +1625,12 @@ int mxfs_dlm_caw_victim_manifest_read(struct mxfs_dlm_caw_ctx *ctx,
 int mxfs_dlm_caw_ex_count(struct mxfs_dlm_caw_ctx *ctx,
                           const struct mxfs_resource_id *resource,
                           int *nslots_out);
+
+/* 0.75.28: are all on-disk holders of `resource` (any class, our bit excluded)
+ * heartbeating per holders_alive_fn?  1 = yes; 0 = no holder, a dead holder,
+ * or no oracle.  Read-only. */
+int mxfs_dlm_caw_resource_holders_live(struct mxfs_dlm_caw_ctx *ctx,
+                                       const struct mxfs_resource_id *resource);
 
 /* ccloop a864 sess3: duplicate-immune self-EX check (full-chain scan).  1 if
  * our node_bit is set in holders_ex over any live slot for `resource`, else 0.
@@ -1693,6 +1757,51 @@ int mxfs_dlm_caw_purge_dead_nodes_ex(struct mxfs_dlm_caw_ctx *ctx,
  * owns things", never as zero).  See the definition for why the mount
  * recovery barrier needs it.
  */
+/*
+ * sess405 (docs/recovery-manifest.md) — the PROVER-side fence-time manifest
+ * collection.  Read-only census of every slot whose EX or PW bitmap carries
+ * victim_slot's bit, emitted in slot-index order as mxfs_rman_entry records
+ * into `ents` (capacity `max`, MXFS_RMAN_MAX_ENTRIES for the full table).
+ * Like footprint_scan, an incomplete read is an ERROR (-EIO), never a short
+ * manifest: an unread slot may hold authority and a manifest that omits it
+ * would refuse valid images (or, worse, the writer guard would not protect
+ * it).  Returns 0 with *out_count, or a negative errno.  *out_scanned is the
+ * number of slots read (== MXFS_CAW_MAX_SLOTS on success).
+ */
+void mxfs_dlm_caw_set_protected_mask(struct mxfs_dlm_caw_ctx *ctx,
+				     uint64_t mask);
+/* sess405 TEST ONLY (knob mxfs.rman_test_mutate): find the first CAW slot
+ * holding EX/PW authority of a node in `mask` and CAS an image that clears
+ * that bit.  mode 1 = through the guarded path (the guard MUST refuse:
+ * P-RMAN-GUARD-REFUSED); mode 2 = with the purge exemption (bypasses the
+ * guard; the replayer/pre-purge revalidation MUST then detect the mutation).
+ * Returns the caw_slot rc, -ENOENT if no such slot, -EINVAL on bad args. */
+int mxfs_dlm_caw_test_mutate_protected(struct mxfs_dlm_caw_ctx *ctx,
+				       uint64_t mask, int mode);
+/* sess405: the current-safety reader — same as mxfs_dlm_caw_victim_manifest_read
+ * plus the victim's exact mode bits (MXFS_RMAN_MODE_*) and the slot index, so
+ * a manifest entry can be compared field for field against the live slot. */
+int mxfs_dlm_caw_victim_manifest_read_ex(struct mxfs_dlm_caw_ctx *ctx,
+					 const struct mxfs_resource_id *resource,
+					 uint32_t victim_slot,
+					 bool *out_holds_ex,
+					 uint64_t *out_ex_grant_epoch,
+					 uint64_t *out_lineage,
+					 uint8_t *out_mode,
+					 uint32_t *out_slot_idx);
+struct mxfs_rman_entry;
+/* sess442: the same collection on a bare device (the whole-cluster bootstrap
+ * owner fences before it has an engine); lock_region_offset =
+ * disklock_offset + MXFS_DISKLOCK_HB_SIZE. */
+int mxfs_dlm_caw_manifest_collect_dev(mxfs_bdev_t *dev,
+				      uint64_t lock_region_offset,
+				      uint32_t victim_slot,
+				      struct mxfs_rman_entry *ents, uint32_t max,
+				      uint32_t *out_count, uint32_t *out_scanned);
+int mxfs_dlm_caw_manifest_collect(struct mxfs_dlm_caw_ctx *ctx,
+				  uint32_t victim_slot,
+				  struct mxfs_rman_entry *ents, uint32_t max,
+				  uint32_t *out_count, uint32_t *out_scanned);
 int mxfs_dlm_caw_footprint_scan(struct mxfs_dlm_caw_ctx *ctx,
                                 uint64_t node_mask, int *out_ex);
 
@@ -1729,7 +1838,7 @@ void mxfs_dlm_caw_set_holders_alive_fn(struct mxfs_dlm_caw_ctx *ctx,
                                         void *data);
 
 /*
- * sess374 (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356, sess363 RULE-5 ruling).
+ * sess374 (D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356, sess363 design-consult ruling).
  *
  * mxfs_dlm_caw_set_closure_scrub_fn registers the survivor-side scrub oracle
  * (see closure_scrub_fn in the ctx).  Registered by v5_mount alongside the

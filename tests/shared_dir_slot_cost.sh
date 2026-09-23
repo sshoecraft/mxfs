@@ -32,7 +32,7 @@
 #
 # Usage: tests/shared_dir_slot_cost.sh [participants] [creates_per_node]
 #
-# RULE 0: this is a measurement harness, not a criterion. It asserts nothing.
+# budget: this is a measurement harness, not a criterion. It asserts nothing.
 # The create burst's own budget is whatever create_scale_curve measures for the
 # same shape; a wildly longer wall here means the cluster is unhealthy, not that
 # the measurement is interesting.
@@ -43,7 +43,12 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 P="${1:-32}"
 F="${2:-8}"
 MNT=/mnt/shared
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 PARM=/sys/module/mxfs/parameters
 COUNTERS="caw_watch_reads caw_watch_read_totms caw_watch_read_maxms \
 caw_watch_spans caw_watch_caws caw_watch_caw_totms caw_watch_caw_maxms \
@@ -81,6 +86,7 @@ for i in $(seq 1 "$P"); do
     ( "$SSH" "test$i" "
         [ -w $PARM/caw_watch_slot ] || { echo NOKNOB; exit 0; }
         for c in $COUNTERS; do echo 0 > $PARM/\$c; done
+        dmesg --clear
         echo $SLOT > $PARM/caw_watch_slot
         cat $PARM/caw_watch_slot" > "$OUT/arm.$i" 2>&1 ) &
 done
@@ -148,6 +154,23 @@ awk -v tot="$((P * F))" '
     printf "  worst single cmd: read %dms  CAW %dms\n", rdmx, cwmx;
     printf "  summed service time on the sector: %.1fs across the fleet\n", (rdt+cwt)/1000.0;
   }' "$OUT/sum"
+
+# sess460 (D-401 step 1): who asked for each slot RESOLUTION of the watched
+# resource?  P383-RESOLVE (mxfs 0.61.7+) names the caller of find_slot for the
+# hot slot; histogram it per caller and per path (hint / walk / absent).
+for i in $(seq 1 "$P"); do
+    ( "$SSH" "test$i" "dmesg | grep -a 'P383-RESOLVE'" > "$OUT/resolve.$i" 2>/dev/null ) &
+done
+wait
+nres=$(cat "$OUT"/resolve.* 2>/dev/null | grep -ac 'P383-RESOLVE')
+echo
+echo "=== slot RESOLUTIONS of slot $SLOT: $nres total ($(awk -v n="$nres" -v t="$((P * F))" 'BEGIN{printf "%.2f", n/(t?t:1)}') per create) ==="
+if [ "$nres" -gt 0 ]; then
+    echo "  by caller (who=):"
+    cat "$OUT"/resolve.* | grep -ao 'who=[A-Za-z0-9_.]*' | sed 's/who=//; s/\.[a-z0-9]*$//' | sort | uniq -c | sort -rn | awk -v t="$((P * F))" '{printf "    %6d  %-40s %.2f/create\n", $1, $2, $1/t}'
+    echo "  by path (via=):"
+    cat "$OUT"/resolve.* | grep -ao 'via=[a-z-]*' | sort | uniq -c | sort -rn | awk '{printf "    %6d  %s\n", $1, $2}'
+fi
 
 "$SSH" test1 "rm -rf '$DIR'" >/dev/null 2>&1
 echo

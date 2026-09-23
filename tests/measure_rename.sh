@@ -14,7 +14,7 @@ for r in $(seq 1 $RUNS); do
   for n in $NODES; do timeout 15 $SSH $n $PASS 'rm -rf /mnt/shared/.mxfs_test/rename_visibility 2>/dev/null' >/dev/null 2>&1 & done; wait
   t0=$(date +%s)
   out=$(timeout 120 tests/run_tests.sh --nodes 4 --phase cluster --test test_rename_visibility \
-        --pass-file $PASS --device /dev/sda --mount-point /mnt/shared 2>&1)
+        --pass-file $PASS --mount-point /mnt/shared 2>&1)
   wall=$(($(date +%s)-t0))
   f=$(echo "$out" | grep -oE '[0-9]+ failure\(s\)' | grep -oE '^[0-9]+' | sort -rn | head -1)
   f=${f:-NA}

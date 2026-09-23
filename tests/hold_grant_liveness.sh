@@ -24,7 +24,7 @@
 #                     distinguishes the two, or the waiter never got far
 #                     enough.  Check waiter_errs before concluding.
 #
-# RULE 0: the wait window is derived from the thing being measured -- the base
+# budget: the wait window is derived from the thing being measured -- the base
 # CAW acquire timeout, not a round number.  Default 200s covers the base
 # timeout plus room to SEE an extension past it; it is a measurement window,
 # not a pass/fail budget.

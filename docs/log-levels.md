@@ -1,5 +1,25 @@
 # MXFS Log Level Policy
 
+## Trailing newline — the kernel PAL appends it (0.59.3, sess452)
+
+`mxfs_pal_log()` formats may omit the trailing `\n`; the kernel PAL
+(`pal/linux/kern.c`) appends one when it is missing, exactly as the
+user-mode PAL (`pal/linux/user.c`) always did.  Until 0.59.3 the kernel
+side printed `"mxfs: %pV"` verbatim, and a printk whose text does not end
+in a newline is stored `LOG_CONT` with its ringbuffer record committed but
+**not finalized** (`kernel/printk/printk.c` `vprintk_store`: `prb_commit`
+vs `prb_final_commit`).  `dmesg`, `/dev/kmsg` and journald cannot read an
+unfinalized record; it becomes visible only when the *next* printk on the
+system reserves a record.  Every PAL marker that ended a quiet period —
+the last line of a departure, of a fence, of a settlement — was therefore
+invisible to a `umount; sleep 1; dmesg` capture and read as "absent" by
+the harness (ledger D-0518: chain 71's crash-model arms all reported the
+crash knob "vacuous" while the peers' behaviour proved it had fired).
+`xfs_alert`/`xfs_warn` were never affected (`xfs_printk_level` appends the
+newline itself).  Do not "fix" individual formats by adding `\n` at call
+sites; the chokepoint handles it and a double newline would split the
+record.
+
 ## Overview
 
 MXFS uses four log levels via `mxfs_pal_log()`:

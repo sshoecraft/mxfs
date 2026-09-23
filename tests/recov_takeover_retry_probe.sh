@@ -52,7 +52,7 @@
 #   node and the descriptor is unowned-by-anyone-live.  A re-prep is REQUIRED
 #   afterwards:  MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
 #
-# TIMING (RULE 0 — derived, not chosen)
+# TIMING (the budget rule — derived, not chosen)
 #   guard appears : DEAD_THRESHOLD(31)*HB_INTERVAL_MS(2000) declare  = 62s
 #                 + the confirm sweep                                = 62s
 #                 + fence/dispatch/replay                            = 15s
@@ -69,7 +69,12 @@ VICTIM="${1:-test32}"
 WRITER="${2:-test1}"
 GUARD_S="${3:-180}"
 OBSERVE_S="${4:-120}"
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 NODES_N="${MXFS_NODES:-32}"
 
 cd "$(dirname "$0")/.." || exit 2

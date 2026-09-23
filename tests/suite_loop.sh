@@ -4,7 +4,7 @@
 # historically-flaky dir_reuse_coherency).  Production config: pass NO
 # MXFS_EXTRA_MODARGS (module defaults) unless the caller exports it.
 # run.sh prep asserts the build srcversion on every node, so all runs use the
-# local .ko.  RULE 0: a full 2/tcp suite is ~15-25 min (17 tests; dir_reuse
+# local .ko.  budget: a full 2/tcp suite is ~15-25 min (17 tests; dir_reuse
 # alone ~284s) => K runs ~ K*20min.
 #
 # Usage: tests/suite_loop.sh <N> <dlm> <iters>

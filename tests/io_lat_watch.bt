@@ -1,0 +1,53 @@
+// io_lat_watch.bt — per-node witness for the two things that can freeze a
+// two-node TCP DLM exchange from OUTSIDE mxfs: a slow block completion on the
+// shared LUN (every durable ledger commit, log write and AG-metadata flush
+// waits on it) and a TCP retransmission on the DLM link (an RTO stall is
+// 200 ms at minimum and doubles; three of them exceed the 1 s request
+// deadline).  Runs under tests/io_lat_watch.sh; timestamps are the node's
+// monotonic clock, the same base dmesg prints, so a SLOWIO or TCPRETX line
+// joins directly to the mxfs probe lines around it.
+//
+// SLOWIO  lines: a request whose issue-to-complete latency was >= 100 ms.
+// TCPRETX lines: every retransmitted segment (dport 3260 = iSCSI to the LUN,
+//                the DLM port otherwise).
+// At exit (SIGTERM from the stop action) the latency histogram (ms) and the
+// counts are printed.
+
+tracepoint:block:block_rq_issue
+{
+	@issue[args->dev, args->sector] = nsecs;
+	@issued = count();
+}
+
+tracepoint:block:block_rq_complete
+/@issue[args->dev, args->sector] != 0/
+{
+	$d = nsecs - @issue[args->dev, args->sector];
+	delete(@issue[args->dev, args->sector]);
+	// A completion can pair with a stale issue stamp for the same
+	// (dev, sector) whose own completion was never seen (merged or
+	// requeued requests); the s544 run reported one such 23686 s "latency".
+	// Anything past 60 s is that artifact, not an I/O: drop it.
+	if ($d < 60000000000) {
+	@lat_ms = hist($d / 1000000);
+	if ($d >= 100000000) {
+		printf("SLOWIO t=%llu.%03llu dev=%u sector=%llu lat_ms=%llu rwbs=%s\n",
+		       nsecs / 1000000000, (nsecs / 1000000) % 1000,
+		       args->dev, args->sector, $d / 1000000, args->rwbs);
+		@slow = count();
+	}
+	}
+}
+
+tracepoint:tcp:tcp_retransmit_skb
+{
+	printf("TCPRETX t=%llu.%03llu sport=%u dport=%u\n",
+	       nsecs / 1000000000, (nsecs / 1000000) % 1000,
+	       args->sport, args->dport);
+	@retx[args->dport] = count();
+}
+
+END
+{
+	clear(@issue);
+}

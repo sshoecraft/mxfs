@@ -44,7 +44,8 @@ struct xfs_cil_ctx;
 #define XLOG_REG_TYPE_XMD_FORMAT	32
 #define XLOG_REG_TYPE_ATTR_NEWNAME	33
 #define XLOG_REG_TYPE_ATTR_NEWVALUE	34
-#define XLOG_REG_TYPE_MAX		34
+#define XLOG_REG_TYPE_MXFS_RELMARK	35	/* mxfs clean-release marker */
+#define XLOG_REG_TYPE_MAX		35
 
 #define XFS_LOG_VEC_ORDERED	(-1)
 
@@ -140,6 +141,18 @@ void	xfs_log_mount_cancel(struct xfs_mount *);
 #define MXFS_FREPLAY_REASON_NONE		0
 #define MXFS_FREPLAY_REASON_POLICY_REFUSED	1
 #define MXFS_FREPLAY_REASON_TORN		2
+#define MXFS_FREPLAY_REASON_AUTHORITY_MUTATED	3	/* sess405: manifest vs live */
+#define MXFS_FREPLAY_REASON_MANIFEST_INVALID	4	/* sess405: sealed manifest corrupt */
+#define MXFS_FREPLAY_REASON_ASSEMBLY_DISCONTINUITY 5	/* sess412: item assembly crossed
+							 * an ophdr discontinuity (stale
+							 * foreign records inside the span);
+							 * bytes are stable, NOT a tear */
+#define MXFS_FREPLAY_REASON_INTENTS_UNDISCHARGED 6	/* sess421: the slice's intent
+							 * census is open at the end
+							 * of the replay — fail before
+							 * purge (wire reason 8) */
+
+struct mxfs_recov_obl_ext;
 
 struct mxfs_freplay_verdict {
 	uint16_t	reason;		/* MXFS_FREPLAY_REASON_* */
@@ -149,8 +162,28 @@ struct mxfs_freplay_verdict {
 	uint64_t	slice_digest;	/* crc32c of the refused slice image */
 	uint32_t	refused_items;	/* log items the gates refused */
 	uint32_t	malformed_items;/* log items that failed to parse */
+	/*
+	 * sess462 (item 5 increment 2): the census split of the open intents
+	 * (xfs_mxfs_icensus.h).  obl_* = the RECOVER entries — admitted EFIs
+	 * whose extents a completion would free; the list (recov_obl.h
+	 * entries, kvmalloc'd, freed by mxfs_freplay_verdict_free()) outlives
+	 * the shadow log.  q_* = the QUARANTINE entries.  obl_lost = the list
+	 * could not be built (allocation/overflow): never "no obligations".
+	 */
+	uint32_t	obl_count;
+	uint32_t	q_count;
+	uint64_t	obl_ag_mask;
+	uint64_t	q_mask;
+	bool		q_fswide;
+	bool		obl_lost;
+	struct mxfs_recov_obl_ext *obl_list;
 };
 
+void	mxfs_freplay_verdict_free(struct mxfs_freplay_verdict *verdict);
+
+/* sess444: barrier-side prefetch of the next victim's slice stability proof */
+void	mxfs_xlog_snap_prefetch(struct xfs_mount *mp, uint32_t slot);
+void	mxfs_xlog_snap_prefetch_cancel(struct xfs_mount *mp);
 int	mxfs_xlog_recover_foreign_slice(struct xfs_mount *mp,
 				uint32_t dead_slot,
 				struct mxfs_freplay_verdict *verdict);

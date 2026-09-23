@@ -32,7 +32,7 @@
 #                           `ssh ... "dmesg | grep"` in this project can lie.
 #   any MISS             -> HYPOTHESIS REFUTED and something worse is true: the
 #                           kernel log itself is non-monotonic across sessions.
-#                           Capture the poll index and escalate (RULE 5).
+#                           Capture the poll index and escalate (design consult).
 #   all HIT              -> not reproduced at this rate; report the count
 #                           honestly rather than declaring the thread closed.
 #

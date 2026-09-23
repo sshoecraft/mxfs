@@ -1,6 +1,6 @@
 #!/bin/bash
 # closure_hb_slot_reuse.sh — the NODE-SLOT INCARNATION REUSE interlock, for
-# D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356 (sess376 RULE-5 review, question 2).
+# D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356 (sess376 design-consult review, question 2).
 #
 # THE HAZARD THE REVIEW NAMED.  The CAW slot table addresses nodes by BITMAP
 # INDEX, and that index is the node's disklock heartbeat slot — a REUSABLE
@@ -60,13 +60,19 @@
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 
 N="${1:?usage: closure_hb_slot_reuse.sh <N> <victim> [ag_mask_hex]}"
 VICTIM="${2:?usage: closure_hb_slot_reuse.sh <N> <victim> [ag_mask_hex]}"
 AGMASK="${3:-0x2}"
 AUDIT_HOST="${AUDIT_HOST:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$AUDIT_HOST"; DEV=$MXFS_DEV_RESOLVED
 RECOVERY_WAIT="${RECOVERY_WAIT:-150}"
 REJOIN_WAIT="${REJOIN_WAIT:-240}"
 

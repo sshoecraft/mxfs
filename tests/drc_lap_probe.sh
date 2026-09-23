@@ -4,7 +4,7 @@
 # Captures, per node: /proc/fs/mxfs/stat, /sys/fs/mxfs/*/log/*, meminfo
 # (Dirty/Writeback/Slab), PSI (cpu/io/mem some), /proc/stat steal, uptime.
 # One ssh round per node, all nodes in parallel. Written for the sess39
-# dir_reuse run-over-run degradation RULE-4 loop: diff consecutive tags to
+# dir_reuse run-over-run degradation troubleshooting loop: diff consecutive tags to
 # see which backlog grows across runs and drains across idle.
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"

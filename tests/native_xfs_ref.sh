@@ -1,5 +1,5 @@
 #!/bin/bash
-# tests/native_xfs_ref.sh — native-XFS reference numbers for the RULE-0 pace
+# tests/native_xfs_ref.sh — native-XFS reference numbers for the budget rule pace
 # ratios, taken on the SAME LUN via run.sh's `1 xfs` mode (test1, no mxfs.ko).
 # Mirrors the mxfs measurement shapes so the pairing is honest:
 #   - create: N sequential creates into one dir (create_scale_curve shape)

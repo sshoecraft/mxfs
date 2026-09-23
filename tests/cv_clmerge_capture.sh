@@ -13,7 +13,7 @@ for it in $(seq 1 "$ITERS"); do
     echo "===== capture iter $it ====="
     MXFS_TESTS_DIR=/src/mxfs/tests timeout 120 ./tests/run_tests.sh \
         --nodes 4 --phase cluster --test test_cv_disc --pass-file "$PASS" \
-        --device /dev/sda --mount-point /mnt/shared 2>&1 | grep -aE "=> H2|PASS:|FAIL:" | tail -3
+        --mount-point /mnt/shared 2>&1 | grep -aE "=> H2|PASS:|FAIL:" | tail -3
 done
 echo "===== P-CLMERGE restored (all nodes, regular-file dmode) ====="
 for n in $NODES; do

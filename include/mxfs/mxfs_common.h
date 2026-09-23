@@ -90,6 +90,52 @@ enum mxfs_error {
 	 * via clean FIFO — no double-grant, no conversion deadlock).
 	 */
 	MXFS_ERR_UPGRADE_CONFLICT,
+	/*
+	 * sess422 (tcp-authority-ledger step 3d): the master could not make the
+	 * grant DURABLE (ledger refused: collision / conflicting record /
+	 * exhaustion / unknown page / proven-uncommitted write / not mastered
+	 * under the current ownership generation).  Never granted around: the
+	 * requester gets -EIO (or retries on RETRY-class causes).
+	 */
+	MXFS_ERR_LEDGER,
+	/* sess422: the master is not (or no longer) the page owner under the
+	 * generation the request was decided in — retry against the master the
+	 * current membership names. */
+	MXFS_ERR_REMASTER,
+	/* sess425: the ledger refused the grant because the record still
+	 * carries another holder whose retirement is in flight (the master's
+	 * decision raced a concurrent release).  Transient: the requester
+	 * retries; the master re-commits the release alone. */
+	MXFS_ERR_LEDGER_BUSY,
+	/* sess426 (D-0348): the resource's home page has no free entry for a
+	 * new record (31 live tenures per page).  Retryable with backoff —
+	 * never an error to the file operation; a persistent full page is a
+	 * capacity health event (P-TAUTH-PAGE-FULL). */
+	MXFS_ERR_LEDGER_FULL,
+	/* 0.74.0: the resource is held by a DEAD node whose journal-slice
+	 * recovery is terminally blocked (its fence cannot be proved and the
+	 * bounded non-proving retry series has expired).  The grant will not
+	 * be released until a later re-drive proves exclusion, so the master
+	 * denies instead of queueing the requester behind it for the whole
+	 * acquire budget; the requester maps it to -EHOSTDOWN and the file
+	 * operation fails fast with a named probe. */
+	MXFS_ERR_RECOVERY_BLOCKED,
+	/*
+	 * The request names a logical acquisition its sender has already
+	 * abandoned (a LOCK_CANCEL for it reached this master).  A late
+	 * re-send of an abandoned wait must not recreate the waiter.
+	 */
+	MXFS_ERR_CANCELLED,
+	/*
+	 * 0.84.5 (D-...-0960): the resource's ledger page is under a DEAD
+	 * authority that a live bootstrap node is taking over — a transition
+	 * in flight, not a routing disagreement.  Retryable without consuming
+	 * the requester's retry budget while the bootstrap's page-takeover
+	 * count (carried in the reply's grant_gen) keeps advancing; a stall
+	 * of that count is a retryable failure of THIS operation, never a
+	 * shutdown.
+	 */
+	MXFS_ERR_AUTH_TRANSITION,
 };
 
 /* Node state as seen by the DLM */
@@ -131,6 +177,13 @@ enum mxfs_self_fence_reason {
 	 * this node's key is no longer registered — a peer fenced us while
 	 * our own media reads were stale (sess276 fenced-victim ruling). */
 	MXFS_SELF_FENCE_PR_CONFLICT_FENCED,
+	/* Local authority lease: this node's own heartbeat has not landed for
+	 * longer than the lease a landed beat buys, so a peer may already have
+	 * declared it dead and fenced it.  The ONLY detector that needs neither
+	 * the LUN nor a peer to answer — it is what contains a node that has
+	 * been fenced, has noticed nothing, and finds a LUN that has since lost
+	 * its last reservation and refuses nobody. */
+	MXFS_SELF_FENCE_AUTHORITY_LEASE_EXPIRED,
 };
 
 static inline const char *mxfs_self_fence_reason_name(int reason)
@@ -146,6 +199,8 @@ static inline const char *mxfs_self_fence_reason_name(int reason)
 		return "PR_KEY_PREEMPTED";
 	case MXFS_SELF_FENCE_PR_CONFLICT_FENCED:
 		return "PR_CONFLICT_FENCED";
+	case MXFS_SELF_FENCE_AUTHORITY_LEASE_EXPIRED:
+		return "AUTHORITY_LEASE_EXPIRED";
 	default:
 		return "UNKNOWN";
 	}
@@ -176,6 +231,12 @@ static inline const char *mxfs_self_fence_reason_desc(int reason)
 		       "and PR IN confirmed this node's key is unregistered — "
 		       "this mount has been fenced by the cluster, the device "
 		       "is intact";
+	case MXFS_SELF_FENCE_AUTHORITY_LEASE_EXPIRED:
+		return "this node's own heartbeat has not landed for longer "
+		       "than the authority a landed heartbeat buys, so a peer "
+		       "may already have declared it dead and fenced it — this "
+		       "mount stops writing without waiting to be told, and "
+		       "the device is intact";
 	default:
 		return "unknown self-fence detector";
 	}

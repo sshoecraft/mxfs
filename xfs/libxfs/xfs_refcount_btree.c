@@ -526,7 +526,7 @@ xfs_refcountbt_calc_reserves(
 int __init
 xfs_refcountbt_init_cur_cache(void)
 {
-	xfs_refcountbt_cur_cache = kmem_cache_create("mxfs_refcbt_cur",
+	xfs_refcountbt_cur_cache = mxfs_cache_create("mxfs_refcbt_cur",
 			xfs_btree_cur_sizeof(xfs_refcountbt_maxlevels_ondisk()),
 			0, 0, NULL);
 

@@ -83,11 +83,35 @@ xfs_iomap_valid(
 	if (iomap->type == IOMAP_HOLE)
 		return true;
 
+	/*
+	 * THE PROBE IS HOW WE KNOW THIS RUNS AT ALL.  Until 0.89.60 this function
+	 * was in the source and not in the module: it was installed only in the
+	 * 6.15+ iomap_write_ops, so on this build nothing referenced it and the
+	 * compiler dropped it.  A hook that is merely REFERENCED is still not a
+	 * hook that is CALLED, and the only way to tell those apart is to watch
+	 * one fire on a live buffered write.  Rate-limited: this is on the write
+	 * path and the interesting event is the refusal, not the census.
+	 */
 	if (iomap->validity_cookie !=
 			xfs_iomap_inode_sequence(ip, iomap->flags)) {
 		trace_xfs_iomap_invalid(ip, iomap);
+		pr_warn_ratelimited(
+		    "mxfs: P312-IOMAP-STALE ino=%llu pos=%lld len=%llu type=%u flags=0x%x cookie=0x%llx now=0x%llx — the cached mapping no longer describes this inode's extents; iomap must remap before writing\n",
+		    (unsigned long long)ip->i_ino, (long long)iomap->offset,
+		    (unsigned long long)iomap->length, iomap->type, iomap->flags,
+		    (unsigned long long)iomap->validity_cookie,
+		    (unsigned long long)xfs_iomap_inode_sequence(ip, iomap->flags));
 		return false;
 	}
+	/*
+	 * Once per module load, at a level dmesg keeps: it answers "is this hook
+	 * reached on this kernel" and nothing else, which is the one question a
+	 * lap cannot ask any other way.  Not rate-limited but ONCE — a per-write
+	 * census of a passing check is noise on the write path.
+	 */
+	pr_info_once("mxfs: P312-IOMAP-REVALIDATED ino=%llu pos=%lld cookie=0x%llx — the mapping revalidation hook is installed and iomap is calling it\n",
+		     (unsigned long long)ip->i_ino, (long long)iomap->offset,
+		     (unsigned long long)iomap->validity_cookie);
 
 	XFS_ERRORTAG_DELAY(ip->i_mount, XFS_ERRTAG_WRITE_DELAY_MS);
 	return true;
@@ -98,7 +122,29 @@ const struct iomap_write_ops xfs_iomap_write_ops = {
 	.iomap_valid		= xfs_iomap_valid,
 };
 #else
-/* On < 6.15, iomap_write_ops is our compat struct — just carry the function pointer */
+/*
+ * BELOW 6.15 THE HOOK GOES SOMEWHERE ELSE ENTIRELY, AND PUTTING IT ONLY IN
+ * iomap_write_ops MEANT NO BUFFERED WRITE EVER REVALIDATED ITS MAPPING.
+ *
+ * iomap_write_ops does not exist before ~6.15 — xfs_platform.h defines a compat
+ * struct of that name purely so this fork compiles, and the macro that calls
+ * iomap_file_buffered_write() drops the argument on the way through, because
+ * the older prototype has nowhere to put it.  So the object below is both empty
+ * and undelivered: nothing referenced xfs_iomap_valid, and the compiler said so
+ * ("defined but not used") before deleting it.
+ *
+ * What THIS kernel consults is struct iomap_folio_ops, reached through
+ * iomap->folio_ops, which xfs_bmbt_to_iomap now sets beside the
+ * validity_cookie the hook reads.  Both halves of the mechanism travel with the
+ * mapping or neither of them does; a cookie stamped on every iomap and read by
+ * nobody is what this looked like from the source.
+ *
+ * get_folio and put_folio stay unset: iomap tests each member separately and
+ * falls back to its own handling for the two we do not supply.
+ */
+static const struct iomap_folio_ops xfs_iomap_folio_ops = {
+	.iomap_valid		= xfs_iomap_valid,
+};
 const struct iomap_write_ops xfs_iomap_write_ops = { NULL };
 #endif
 
@@ -172,6 +218,17 @@ xfs_bmbt_to_iomap(
 	}
 
 	iomap->validity_cookie = sequence_cookie;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+	/*
+	 * The cookie above is only half the mechanism, and until now it was the
+	 * only half this kernel got: iomap re-checks a cached mapping through
+	 * folio_ops->iomap_valid(), with the folio locked, so a long buffered
+	 * write notices that the extent map moved under it instead of writing
+	 * where the mapping used to point.  Above 6.15 the same function is
+	 * delivered as iomap_write_ops by the write call itself.
+	 */
+	iomap->folio_ops = &xfs_iomap_folio_ops;
+#endif
 	return 0;
 }
 
@@ -734,7 +791,7 @@ xfs_iomap_write_unwritten(
 			ip->i_disk_size = i_size;
 			xfs_trans_log_inode(tp, ip, XFS_ILOG_CORE);
 		} else if (offset + count > ip->i_disk_size) {
-			/* P-WU-CLAMP (sess10 ccloop 72513a13, RULE-4 drc size=0):
+			/* P-WU-CLAMP (sess10 ccloop 72513a13, instrumented drc size=0):
 			 * this conversion covers bytes beyond di_size yet
 			 * xfs_new_eof refused the advance — VFS i_size was
 			 * reverted below the written range (reload sever),
@@ -827,6 +884,21 @@ imap_needs_cow(
  *
  * This is basically an opencoded xfs_ilock_data_map_shared() call, but with
  * support for IOMAP_NOWAIT.
+ *
+ * D-0532: every caller releases what this returns with plain xfs_iunlock,
+ * which always runs the cluster DLM end, so it must only ever return an
+ * ILOCK that took a DLM begin.  The nowait arm cannot: xfs_ilock_nowait
+ * takes none for ILOCK flags.  Its end then consumed the holder count of
+ * the IOLOCK the direct-I/O path already held, leaving the count at zero
+ * under a live holder for the rest of the I/O — so a peer's BAST could take
+ * the grant mid-read or mid-write — and the IOLOCK's own end underflowed
+ * (184 of 200 io_uring O_DIRECT reads on an O_NONBLOCK fd, 2-node TCP).
+ * MXFS never advertises nowait I/O (no FMODE_NOWAIT); io_uring reaches this
+ * only because it treats any O_NONBLOCK file as nowait-capable.  So on a
+ * clustered mount the nowait mapping is refused before anything is taken:
+ * -EAGAIN is the documented IOMAP_NOWAIT answer, the first mapping of the
+ * request has submitted nothing, and io_uring reissues from a worker
+ * through the blocking, counted arm below.
  */
 static int
 xfs_ilock_for_iomap(
@@ -835,13 +907,39 @@ xfs_ilock_for_iomap(
 	unsigned		*lockmode)
 {
 	if (flags & IOMAP_NOWAIT) {
+		extern atomic_t mxfs_iomap_nowait_refused;
+
 		if (xfs_need_iread_extents(&ip->i_df))
 			return -EAGAIN;
+		if (ip->i_mount->m_mxfs_dlm) {
+			atomic_inc(&mxfs_iomap_nowait_refused);
+			return -EAGAIN;
+		}
+		/* nowait-nodlm-mount-only: no cluster DLM, so xfs_iunlock
+		 * runs no end and the raw nowait ILOCK pairs. */
 		if (!xfs_ilock_nowait(ip, *lockmode))
 			return -EAGAIN;
+	} else if (*lockmode == XFS_ILOCK_SHARED) {
+		/*
+		 * D-0972: a shared mapping goes through the data-map helper, not
+		 * a copy of it.  The copy that stood here took plain ILOCK_EXCL
+		 * when the extent map was unloaded, which is a cluster EX, asked
+		 * while this same task's IOLOCK_SHARED ride is a counted PR on
+		 * the inode.  A peer's EX then waits for that PR to drain, the
+		 * drain waits for the task, and the task's EX queues behind the
+		 * peer's: measured 2 of 2, a buffered read wedged in readahead
+		 * and a peer's open() behind it, neither node's direct writers
+		 * progressing for 90 s.  The helper tags the load so the cluster
+		 * is asked for PR (the load only reads what a PR grant keeps
+		 * stable), and re-checks the fork after the acquire, since the
+		 * acquire's own reload can unload it after a SHARED was chosen.
+		 */
+		extern atomic_t mxfs_iomap_iread_pr;
+
+		*lockmode = xfs_ilock_data_map_shared(ip);
+		if (*lockmode & XFS_ILOCK_MXFS_PRIREAD)
+			atomic_inc(&mxfs_iomap_iread_pr);
 	} else {
-		if (xfs_need_iread_extents(&ip->i_df))
-			*lockmode = XFS_ILOCK_EXCL;
 		xfs_ilock(ip, *lockmode);
 	}
 
@@ -913,6 +1011,14 @@ xfs_direct_write_iomap_begin(
 	xfs_fileoff_t		end_fsb = xfs_iomap_end_fsb(mp, offset, length);
 	xfs_fileoff_t		orig_end_fsb = end_fsb;
 	int			nimaps = 1, error = 0;
+
+	/* sess414 (D-512 ruling): mapping-layer recheck — the file-op entry
+	 * gate can race a poison publishing between its test and this map;
+	 * here we are past the op's IOLOCK acquisition, so a poison that
+	 * published before the revocation drain is visible */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
 	bool			shared = false;
 	u16			iomap_flags = 0;
 	bool			needs_alloc;
@@ -953,8 +1059,17 @@ relock:
 	/*
 	 * The reflink iflag could have changed since the earlier unlocked
 	 * check, check if it again and relock if needed.
+	 *
+	 * D-0972: a shared request can come back EXCL|PRIREAD — the local
+	 * lock exclusive for an extent load, the cluster asked only for PR —
+	 * so "not SHARED" no longer means "cluster EX".  A reload inside the
+	 * acquire can turn the inode CoW after the unlocked check chose
+	 * SHARED; the CoW path modifies, so it relocks unless the lock held
+	 * is a true EX.
 	 */
-	if (xfs_is_cow_inode(ip) && lockmode == XFS_ILOCK_SHARED) {
+	if (xfs_is_cow_inode(ip) &&
+	    (!(lockmode & XFS_ILOCK_EXCL) ||
+	     (lockmode & XFS_ILOCK_MXFS_PRIREAD))) {
 		xfs_iunlock(ip, lockmode);
 		lockmode = XFS_ILOCK_EXCL;
 		goto relock;
@@ -1852,6 +1967,12 @@ xfs_buffered_write_iomap_begin(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
+	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	 * xfs_direct_write_iomap_begin */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
+
 	if (xfs_is_zoned_inode(ip))
 		return xfs_zoned_buffered_write_iomap_begin(inode, offset,
 				count, flags, iomap, srcmap);
@@ -2191,6 +2312,12 @@ xfs_read_iomap_begin(
 	if (xfs_is_shutdown(mp))
 		return -EIO;
 
+	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	 * xfs_direct_write_iomap_begin */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
+
 	error = xfs_ilock_for_iomap(ip, flags, &lockmode);
 	if (error)
 		return error;
@@ -2268,6 +2395,12 @@ xfs_seek_iomap_begin(
 
 	if (xfs_is_shutdown(mp))
 		return -EIO;
+
+	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	 * xfs_direct_write_iomap_begin */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
 
 	lockmode = xfs_ilock_data_map_shared(ip);
 	error = xfs_iread_extents(NULL, ip, XFS_DATA_FORK);
@@ -2354,6 +2487,12 @@ xfs_xattr_iomap_begin(
 
 	if (xfs_is_shutdown(mp))
 		return -EIO;
+
+	/* sess414 (D-512 ruling): mapping-layer recheck, see
+	 * xfs_direct_write_iomap_begin */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
 
 	lockmode = xfs_ilock_attr_map_shared(ip);
 

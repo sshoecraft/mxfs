@@ -4,8 +4,8 @@
 #
 # WHY THIS EXISTS (mxfs sess142).  A GPF in an earlier session left
 # /dev/loop0 with a permanently parked worker (see loop_flush_probe.sh and
-# ccmemory ccloop-c7ee71c6-sess141-fence-stage-ii-blocker-ROOT-CAUSED-leaked-i_dio_count).
-# The RULE-5 ruling on how to proceed requires empirical proof, before
+# docs/history/fence-stage-ii-blocker-root-caused-leaked-i-dio-count.md).
+# The design-consult ruling on how to proceed requires empirical proof, before
 # relying on isolation from that quarantined stack, that:
 #
 #   * new loop devices can read, write, flush and tear down;
@@ -21,7 +21,7 @@
 # Usage:  sudo tests/fence_inflight/blocklayer_selftest.sh
 # Exit 0 = the chain is healthy, 1 = a step exceeded its budget.
 #
-# RULE 0 budgets, derived from what each step should cost on NVMe, not
+# derived time budgets, derived from what each step should cost on NVMe, not
 # from "long enough that it probably finishes":
 #   losetup attach            1 s
 #   4 KiB O_DIRECT write+sync 5 s   (native: single-digit ms)

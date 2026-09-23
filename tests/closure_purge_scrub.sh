@@ -1,6 +1,6 @@
 #!/bin/bash
 # closure_purge_scrub.sh — D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356
-# verification (sess363 RULE-5 ruling, landed sess374 / 0.14.3).
+# verification (sess363 design-consult ruling, landed sess374 / 0.14.3).
 #
 # THE DEFECT (measured sess356, live-reproduced sess360 on 0.14.1): when a
 # foreign-slice replay is REFUSED, the victim's domain is quarantined
@@ -49,7 +49,7 @@
 #                  its grants away, and then the run proves only that the
 #                  machinery is reachable, not that it repairs a live block.
 #
-# RULE 0 budget: the probe is one `touch` in the root dir.  Native XFS does
+# derived time budget: the probe is one `touch` in the root dir.  Native XFS does
 # that in milliseconds; MXFS pays one DLM round trip.  PROBE_BUDGET (default
 # 20s) is the assertion — a probe that takes longer has NOT been unblocked,
 # and the test FAILS even if it eventually completes.
@@ -278,7 +278,7 @@ if [ "${PROBE_FANOUT:-0}" -gt 0 ]; then
 fi
 
 # 5b. A FRESH probe, after the repair.  Bounded by PROBE_BUDGET; a timeout is
-#     a FAIL, not a retry (RULE 0).
+#     a FAIL, not a retry (budget).
 echo "--- fresh probe: root-dir write on $PROBE_HOST, budget ${PROBE_BUDGET}s"
 p0=$(date +%s)
 if "$SSH" "$PROBE_HOST" "timeout $PROBE_BUDGET touch $MNT/.closure374-probe" >/dev/null 2>&1; then

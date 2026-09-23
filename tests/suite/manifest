@@ -10,7 +10,7 @@
 #     COORD    : none | barrier | ordered | fault  (harness coordination needed)
 #     MINNODES : minimum nodes the test needs. The runner SKIPS (status SKIPPED)
 #                any test whose MINNODES > the run's node count.
-#     BUDGET_S : per-CLAUDE.md RULE 0 time budget in seconds — the harness uses
+#     BUDGET_S : derived time budget in seconds — the harness uses
 #                this as the test's hard timeout AND records elapsed_s/budget_s
 #                into criteria.json; elapsed_s > budget_s flips a PASS to FAIL
 #                even with zero correctness errors. Values sourced from
@@ -36,7 +36,7 @@
 # -- run.sh intercepts it specially, before the main test loop, and calls
 # prep_cluster()/prep_cluster_xfs() directly. This manifest line exists only
 # so criteria.json has a slot for record() to write into: prep's own
-# elapsed_s/budget_s, tracked with the same RULE 0 discipline as every real
+# elapsed_s/budget_s, tracked with the same budget discipline as every real
 # test instead of being an invisible, unbudgeted side effect (see
 # ccmemory/session notes 2026-07-14 -- a hung 100s convergence gate was
 # previously invisible to showstat entirely). Placeholder budget pending
@@ -44,12 +44,12 @@
 # (the membership convergence gate alone is 90+5*N).
 P0  prep_cluster          none      1   300
 # --- P0 per-node readiness gate ---
-# precond_readiness..fault_enospc: budgets below are REAL RULE 0 numbers, not
+# precond_readiness..fault_enospc: budgets below are REAL derived numbers, not
 # estimates -- measured against native XFS on this exact LUN via
 # `./run.sh 1 xfs` (2026-07-14): precond_readiness=1s, posix_single=1s,
 # fsx=10s, fio_verify=4s, integrity_filetypes=2s, fio_perf=10s,
 # fault_enospc=1s. Budget = 2x that measured native wall, floored at 10s to
-# absorb ssh-dispatch jitter (see ./showstat.sh 1 xfs to reproduce/refresh).
+# absorb ssh-dispatch jitter (see tools/criteria.py 1 xfs to reproduce/refresh).
 # 2026-07-19 refresh (ccloop 72513a13 sess10): host under sustained load
 # (loadavg ~6-22) runs the SAME native yardstick at fsx=44s fio_verify=21s
 # (native fio seqW 525 vs 1116 MiB/s on 07-14) -- native XFS itself failed
@@ -88,7 +88,7 @@ P1  fio_perf              barrier   1   120
 P1  fio_perf_vs_xfs       none      1   10
 
 # --- P2 coherency / consistency (multi-node) ---
-# REAL RULE 0 numbers below, measured via RULE0_CALIBRATE=1 ./run.sh 2 caw
+# REAL derived numbers below, measured via RULE0_CALIBRATE=1 ./run.sh 2 caw
 # (2026-07-14): cache_coherency=4s, strong_consistency=1s, posix_multi=3s,
 # mmap_coherency=1s, zero_silent_loss=1s -- all at N=2. Budgets are ~7-10x the
 # measured wall (generous first-calibration margin; only one N sampled so
@@ -200,4 +200,14 @@ P8  dirent_publish_integrity barrier 2   60
 P8  dirent_type_integrity barrier   2   60
 P8  ag_strand_repair      barrier   2   240
 P8  sustained_load        barrier   1   180
-P9  open_defects          none      1   30
+# open_defects was retired 2026-09-10.  It was the defect queue wearing a
+# criterion's clothes: it failed the board while any ledger record was open,
+# whatever configuration that record described, so it could never read green
+# and told you nothing about the configuration under test.  The queue is now
+# tools/defects.py over data/defects.json, and it answers the release question
+# per configuration: `tools/defects.py 2 tcp --release`.
+# node_death_replay is NOT in this file's dispatch order: it is coord=host
+# (runs ON clyde, virsh-kills nodes mid-churn, survivors must foreign-replay)
+# and lives in criteria.json's terminal "death" category so it runs LAST —
+# each lap ends with the fleet unmounted (script: tests/death/node_death_replay.sh,
+# budget 300 s derived from sess404 measured tck walls).

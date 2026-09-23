@@ -631,7 +631,7 @@ xfs_lookup(
 	error = xfs_dir_lookup(NULL, dp, name, &inum, ci_name, &dirent_ftype);
 
 	/*
-	 * sess127 (RULE 4, ungated, miss-only): the unlink_visibility loser's
+	 * sess127 (instrumented, ungated, miss-only): the unlink_visibility loser's
 	 * P-SFDIR-RELOAD shows the parent's in-core shortform WITH the child
 	 * entry, yet a real lookup 3ms later returns ENOENT.  Dump the in-core
 	 * shortform content AT THE MISS so we can tell (A) content reverted
@@ -793,7 +793,7 @@ retry_iget:
 			   (VFS_I(*ipp)->i_mode & S_IFMT) ==
 				   (s91_dmode & S_IFMT)) {
 			/*
-			 * sess95 FIX (Gemini-confirmed, RULE 4 step 2b): SAME-TYPE
+			 * sess95 FIX (Gemini-confirmed, instrument step 2b): SAME-TYPE
 			 * inode-number REUSE.  The cached inode is a valid
 			 * incarnation of the SAME type (dir->dir / reg->reg) but a
 			 * STALE generation — a peer freed inode `inum` and reused
@@ -920,7 +920,7 @@ retry_iget:
 	}
 
 	/*
-	 * sess95 FIX2 (Gemini-confirmed, RULE 4 step 2b): TYPE-FLIP reuse where
+	 * sess95 FIX2 (Gemini-confirmed, instrument step 2b): TYPE-FLIP reuse where
 	 * eviction FAILED because the inode is REFERENCED.  The ftype-mismatch
 	 * eviction above (INODE-REUSE-EVICT) loops up to 4x without progress
 	 * when a live dentry/FD holds the wrong-type inode: xfs_irele never
@@ -1267,7 +1267,7 @@ xfs_create(
 		 */
 		mxfs_dlm_dir_modify_refresh(dp);
 
-		/* sess105 (RULE 4): PROVE the directory-inode divergence.  The
+		/* sess105 (instrumented): PROVE the directory-inode divergence.  The
 		 * rename_visibility loser's before-files are NEVER created into the
 		 * live shared dir block (its mv then fails "No such file").  Log the
 		 * PARENT dir inode each create targets so a cross-node merge shows
@@ -1305,7 +1305,7 @@ xfs_create(
 			int		lrc;
 
 			lrc = xfs_dir_lookup_locked(tp, dp, name, &existing_ino);
-			/* sess106 (RULE 4): PROVE the directory-inode divergence.
+			/* sess106 (instrumented): PROVE the directory-inode divergence.
 			 * The rename_visibility loser created its files into a
 			 * PRIVATE dir inode (ino=135) while peers used a different
 			 * one (ino=8388737): a peer's mkdir of the same name did NOT
@@ -1326,7 +1326,7 @@ xfs_create(
 				struct xfs_icreate_args orphan = *args;
 
 				/*
-				 * sess127 (RULE 4 PROVEN — corrects sess126): do NOT set
+				 * sess127 (PROVEN BY INSTRUMENT — corrects sess126): do NOT set
 				 * dp->i_dlm_stale here.  sess126's Phase-1 fix set it on the
 				 * premise that the loser's cached parent dir doesn't reflect
 				 * the winner's child — but that premise is FALSE.  To reach
@@ -1535,7 +1535,7 @@ xfs_create(
 	 * so the targeted flush is affordable.
 	 */
 	/*
-	 * sess115 (ccloop 4eef1f39) — DISABLED.  RULE 4: the P112-IFLUSH-CALLER
+	 * sess115 (ccloop 4eef1f39) — DISABLED.  Instrumented: the P112-IFLUSH-CALLER
 	 * probe named THIS call (mxfs_dlm_dir_inode_durable → mxfs_inode_cluster_-
 	 * durable) as the site that sets XFS_IFLUSHING on the hot SHARED parent
 	 * inode cluster (e.g. the mount root ino=128) and then abandons the flush,
@@ -2196,7 +2196,7 @@ xfs_inactive_ifree(
 	 * waits for THIS inode's log item to leave the AIL (its cluster
 	 * buffer written home); blkdev_issue_flush forces the block layer.
 	 *
-	 * sess129 (RULE 4 PROVEN): this MUST be a targeted per-inode drain,
+	 * sess129 (PROVEN BY INSTRUMENT): this MUST be a targeted per-inode drain,
 	 * NOT xfs_ail_push_all_sync.  The whole-AIL wait deadlocked
 	 * test_many_files single-node: a creator (xfs_create) holds the
 	 * parent dir's ILOCK_EXCL across xfs_icreate→xfs_iget, and iget
@@ -2381,7 +2381,7 @@ xfs_inactive(
 		uint32_t mxfs_coh_nlink;
 
 		/*
-		 * sess78 TOCTOU CLOSURE (Gemini RULE-5 design; see
+		 * sess78 TOCTOU CLOSURE (Gemini design-consult design; see
 		 * notes/sess78_inactive_toctou_fix.md).  The disk-state check
 		 * below is a point-in-time read.  Under concurrent multi-node
 		 * rsync TWO nodes can both hold this inode in-core with
@@ -2443,7 +2443,7 @@ xfs_inactive(
 		 *   inode + leave it on the AGI unlinked list — sess47 risk).
 		 */
 		/*
-		 * B3 (sess19 ccloop, Gemini RULE-5): the killer case B1/B2 both
+		 * B3 (sess19 ccloop, Gemini design-consult): the killer case B1/B2 both
 		 * MISS — disk_mode!=0 AND disk_gen==incore_gen, yet this is NOT our
 		 * inode to free.  Proven by the latest shutdown: test1 held a
 		 * cached in-core inode for a PEER's still-LIVE file (same gen, mode
@@ -2482,7 +2482,7 @@ xfs_inactive(
 			mxfs_coh_nlink != 0xFFFFFFFF && mxfs_coh_nlink > 0;
 
 		/*
-		 * sess19 (ccloop 4eef1f39) RULE-4 instrumentation: log the B3
+		 * sess19 (ccloop 4eef1f39) instrumentation: log the B3
 		 * decision INPUTS unconditionally for every multi-node nlink==0
 		 * inactivation, so a shutdown's pre-free state is captured even
 		 * when the guard does NOT skip (the failing case).  P19-B3DEC.
@@ -2612,7 +2612,7 @@ out:
 						     uint64_t);
 		mxfs_v5_dlm_inode_unlock(mp->m_mxfs_dlm, ip->i_ino);
 		/*
-		 * sess128 RULE-4 probe: the ON-DISK slot for this ino is now
+		 * sess128 instrumented probe: the ON-DISK slot for this ino is now
 		 * released, but in-core i_dlm_mode/i_dlm_unpublished are left
 		 * as-is.  If this in-core inode is later RECYCLED for a new
 		 * local create, publish-on-create bails (unpub flag clear) and
@@ -3177,7 +3177,7 @@ xfs_remove(
 	/*
 	 * sess97: PUBLISH-BEFORE-NOTIFY (dir-block lost-update fix).
 	 *
-	 * PROVEN root (sess96, RULE 4): under 4-node concurrent rename/unlink of
+	 * PROVEN root (sess96, instrumented): under 4-node concurrent rename/unlink of
 	 * a SHARED directory, a node's NEXT modify works from its own
 	 * pinned-stale dir buffer (DIR-STALE-SKIP at xfs_da_btree.c:3001 — the
 	 * read-time gen-invalidation CANNOT re-read a PINNED buffer, so it keeps
@@ -3657,7 +3657,7 @@ xfs_iflush(
 	dip = xfs_buf_offset(bp, ip->i_imap.im_boffset);
 
 	/*
-	 * sess102 RULE-4 DETECTOR (P-IRESURRECT): the bnobt double-free
+	 * sess102 INSTRUMENTED DETECTOR (P-IRESURRECT): the bnobt double-free
 	 * (`ltbno+ltlen>bno` xfs_alloc.c:2244 shutdown, ~13-session blocker)
 	 * is downstream of an INODE RESURRECTION: a node holds a stale in-core
 	 * inode (live, owns a block) that a PEER has freed on disk (di_mode=0,
@@ -3791,7 +3791,7 @@ xfs_iflush(
 		goto flush_out;
 
 	/*
-	 * sess118 RULE-4 GUARD (the sess102 P-IRESURRECT detector, now acting):
+	 * sess118 instrumented GUARD (the sess102 P-IRESURRECT detector, now acting):
 	 * do NOT resurrect a peer-reincarnated inode.  If the on-disk dinode is a
 	 * DIFFERENT incarnation than our in-core inode (disk di_gen != in-core
 	 * i_generation), the disk copy is the authoritative newer life (a peer
@@ -3823,7 +3823,7 @@ xfs_iflush(
 	 */
 	{
 		/*
-		 * sess119 (Gemini RULE-5 validated) — DLM-OWNERSHIP DISCRIMINATOR.
+		 * sess119 (Gemini design-consult validated) — DLM-OWNERSHIP DISCRIMINATOR.
 		 *
 		 * The ONLY architecturally correct test for "may THIS node write
 		 * this inode to the shared LUN" is DLM lock ownership: a node may
@@ -4063,7 +4063,7 @@ mxfs_iflush_cluster_merge_dirs(
 	    mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
 		return;
 	/*
-	 * sess113 (Gemini RULE-5, PROVEN ROOT): this merge does a SYNCHRONOUS
+	 * sess113 (Gemini design-consult, PROVEN ROOT): this merge does a SYNCHRONOUS
 	 * forced SCSI FUA read (mxfs_pal_scsi_read_fua_bdev) while xfsaild holds
 	 * the inode-CLUSTER buffer lock (b_lock_ip = xfs_inode_item_push trylock).
 	 * On the SCST target a forced-FUA read can stall/error (scsi_eh active) —

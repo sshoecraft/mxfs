@@ -12,7 +12,7 @@
 #       second remount, with no manual chk repair.
 # FAIL: not freed in time (stale-bit wedge) — that is a NEW confirmed defect.
 #
-# Budget (RULE 0): setup 20s + destroy 5s + boot 2x ~120s (parallel) +
+# Budget (budget): setup 20s + destroy 5s + boot 2x ~120s (parallel) +
 # prep 2x ~60s + converge <=240s => cap 540s.
 #
 # usage: openunlink_outage.sh [A=test1] [B=test2]
@@ -30,7 +30,12 @@ say() { echo "[$(date +%H:%M:%S)] $*"; }
 fail() { echo "RESULT: FAIL | case=openunlink_outage | $*"; exit 1; }
 
 DEV=$($SSH "$NA" "mount -t mxfs | awk '{print \$1; exit}'" 2>/dev/null | tr -d ' \r\n')
-[ -z "$DEV" ] && DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+[ -n "${DEV:-}" ] || { mxfs_dev_resolve "$NA"; DEV=$MXFS_DEV_RESOLVED; }
 
 for n in "$NA" "$NB"; do
   $SSH "$n" "mount -t mxfs | grep -q mxfs" || fail "$n not mounted (prep 2/caw first)"

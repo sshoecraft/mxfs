@@ -6,7 +6,7 @@
 #   shortform parent and *sometimes* one of them ends up mutating a superseded
 #   base.  On builds where the deterministic precursor (P195) fires 0-1 times a
 #   run, the storm passes on luck and neither a fix nor a regression can be
-#   measured.  RULE 6 is explicit that "cannot reproduce" is not a disposition,
+#   measured.  the zero-defect bar is explicit that "cannot reproduce" is not a disposition,
 #   so the answer is a harness that CONSTRUCTS the state instead of waiting for
 #   it.
 #
@@ -55,7 +55,7 @@
 # EXIT: 0 = every round consistent on every node.  1 = loss reproduced.
 #       2 = INFRASTRUCTURE failure (a node did not complete) — never a loss.
 #
-# RULE 0 budget: a round is 63 mkdirs spread over N nodes into one directory;
+# derived time budget: a round is 63 mkdirs spread over N nodes into one directory;
 # native XFS does that in milliseconds.  The slot is dominated by the
 # deliberate quiet window, not by filesystem time.  Total wall =
 # 12s setup + rounds*slot + ~25s settle/census.

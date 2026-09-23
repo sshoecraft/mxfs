@@ -19,7 +19,7 @@
 #   ytd         fair-handoff ticket deferrals taken while compatible
 #   caw_try/miss/err + caw_svc_ms   CAS attempt census + device service time
 #   reads       slot re-reads
-# Classification (sess24 RULE-5): long wait + 0-1 attempts -> admission POLICY;
+# Classification (sess24 design-consult): long wait + 0-1 attempts -> admission POLICY;
 # long wait + tens of miscompares -> single-sector CAS contention; few attempts
 # + slow caw_svc_ms -> block/target/multipath path.
 #
@@ -76,7 +76,7 @@ report)
     OUT=$(mktemp -d)
     for i in $(seq 1 "$N"); do
         ( tools/mxfs_sshpass.sh "test$i" \
-            "dmesg | awk '/$MARK begin/{f=1;next} f' | grep -a 'P138-WAIT'" \
+            "dmesg | awk '/$MARK begin/{f=1;next} f' | grep -a 'P138-WAIT\\|P138-AGWAIT\\|P138-ACQ'" \
             2>/dev/null > "$OUT/test$i" ) &
     done
     wait
@@ -85,9 +85,26 @@ import os, re, statistics, collections
 OUT = os.environ["OUT"]
 FIELD = re.compile(r"(\w+)=(-?\d+)")
 rows = []
+agrows = []   # sess435: AG-class waits (P138-AGWAIT), same fields keyed by ag=
+acq = []      # sess435: acquire-level P138-ACQ (>5 ms whole acquires)
+acqsum = {}   # (node,type) -> last P138-ACQSUM dict (cumulative per module load)
 pernode = collections.Counter()
 for name in sorted(os.listdir(OUT)):
     for line in open(os.path.join(OUT, name)):
+        if "P138-ACQSUM" in line:
+            d = dict((k, int(v)) for k, v in FIELD.findall(line.split("P138-ACQSUM", 1)[1]))
+            if "type" in d: acqsum[(name, d["type"])] = d
+            continue
+        if "P138-ACQ " in line:
+            d = dict((k, int(v)) for k, v in FIELD.findall(line.split("P138-ACQ", 1)[1]))
+            if "elapsed_ms" in d:
+                d["node"] = name; acq.append(d)
+            continue
+        if "P138-AGWAIT" in line:
+            d = dict((k, int(v)) for k, v in FIELD.findall(line.split("P138-AGWAIT", 1)[1]))
+            if "elapsed_ms" in d:
+                d["node"] = name; agrows.append(d)
+            continue
         if "P138-WAIT" not in line:
             continue
         d = dict((k, int(v)) for k, v in FIELD.findall(line.split("P138-WAIT", 1)[1]))
@@ -97,6 +114,53 @@ for name in sorted(os.listdir(OUT)):
         rows.append(d)
         pernode[name] += 1
 
+TYPEN = {1:"INODE",2:"EXTENT",3:"AG",4:"JOURNAL",5:"SUPER",6:"ICLUSTER"}
+if acqsum:
+    print("P138-ACQSUM (cumulative per node since module load, last line per node/type; fleet sums)")
+    bytype = collections.defaultdict(lambda: [0,0,0,0])
+    for (node, ty), d in acqsum.items():
+        a = bytype[ty]; a[0]+=d.get("n",0); a[1]+=d.get("sum_ms",0); a[2]+=d.get("gt5",0); a[3]+=1
+    for ty, a in sorted(bytype.items()):
+        print("   type=%d %-8s nodes=%d n=%d sum_ms=%d mean_ms=%.2f gt5=%d" % (ty, TYPEN.get(ty,"?"), a[3], a[0], a[1], a[1]/max(a[0],1), a[2]))
+if acq:
+    el = [r["elapsed_ms"] for r in acq]
+    v = sorted(el)
+    print("P138-ACQ (whole acquires >5 ms) n=%d nodes=%d TOTAL=%d ms p50=%d p90=%d p99=%d max=%d"
+          % (len(acq), len(set(r["node"] for r in acq)), sum(el), v[len(v)//2], v[min(len(v)-1,int(len(v)*0.9))], v[min(len(v)-1,int(len(v)*0.99))], max(el)))
+    byt = collections.defaultdict(lambda: [0,0])
+    for r in acq:
+        a = byt[r.get("type",0)]; a[0]+=r["elapsed_ms"]; a[1]+=1
+    for ty, a in sorted(byt.items(), key=lambda kv: -kv[1][0]):
+        print("   type=%d %-8s n=%d sum_ms=%d mean_ms=%.1f" % (ty, TYPEN.get(ty,"?"), a[1], a[0], a[0]/a[1]))
+    byres = collections.defaultdict(lambda: [0,0])
+    for r in acq:
+        k = (r.get("type",0), r.get("ino",0), r.get("ag",0))
+        a = byres[k]; a[0]+=r["elapsed_ms"]; a[1]+=1
+    print("   top resources by summed acquire ms:")
+    for k, a in sorted(byres.items(), key=lambda kv: -kv[1][0])[:8]:
+        print("     type=%d ino=%d ag=%d sum_ms=%d n=%d" % (k[0], k[1], k[2], a[0], a[1]))
+    print()
+def pct0(vals, p):
+    if not vals: return 0
+    v = sorted(vals); return v[min(len(v) - 1, int(len(v) * p / 100.0))]
+if agrows:
+    el = [r["elapsed_ms"] for r in agrows]
+    print("P138-AGWAIT (AG-class grants >5 ms) grants=%d nodes=%d TOTAL=%d ms  p50=%d p90=%d p99=%d max=%d mean=%.1f"
+          % (len(agrows), len(set(r["node"] for r in agrows)), sum(el),
+             pct0(el,50), pct0(el,90), pct0(el,99), max(el), statistics.mean(el)))
+    byag = collections.defaultdict(lambda: [0,0,0,0,0,0,0])
+    for r in agrows:
+        a = byag[r.get("ag",-1)]
+        a[0]+=r["elapsed_ms"]; a[1]+=1; a[2]+=r.get("ffw_ms",0); a[3]+=r.get("ytd",0)
+        a[4]+=r.get("caw_try",0); a[5]+=r.get("caw_miss",0); a[6]+=r.get("reads",0)
+    print("   %-4s %10s %8s %8s %9s %7s %8s %9s %7s" % ("ag","sum_ms","grants","mean_ms","ffw_share","ytd","caw_try","caw_miss","reads"))
+    for ag, a in sorted(byag.items(), key=lambda kv: -kv[1][0])[:16]:
+        print("   %-4d %10d %8d %8.1f %8.0f%% %7d %8d %9d %7d" % (ag, a[0], a[1], a[0]/a[1], 100.0*a[2]/max(a[0],1), a[3], a[4], a[5], a[6]))
+    pn = collections.Counter(r["node"] for r in agrows)
+    print("   per-node AG grants: " + " ".join("%s=%d" % (k.replace("test","t"), v) for k, v in sorted(pn.items(), key=lambda kv: int(kv[0][4:]))))
+    print()
+else:
+    print("P138-AGWAIT: no AG-class waits >5 ms recorded")
 if not rows:
     print("no P138-WAIT records — was `arm` run before the workload?")
     raise SystemExit(0)

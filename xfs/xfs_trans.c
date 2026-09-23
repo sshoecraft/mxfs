@@ -366,6 +366,18 @@ xfs_trans_alloc(
 retry:
 	tp = __xfs_trans_alloc(mp, flags);
 	WARN_ON(mp->m_super->s_writers.frozen == SB_FREEZE_COMPLETE);
+	/*
+	 * sess475 (D-0133 seal probe): after put_super's locked final SB
+	 * summary sync nothing may log any more — a transaction here is an
+	 * invariant violation; the late quiesce reads the count and refuses
+	 * the clean departure (see xfs_mount.h m_mxfs_sb_sealed).
+	 */
+	if (unlikely(READ_ONCE(mp->m_mxfs_sb_sealed))) {
+		atomic_inc(&mp->m_mxfs_seal_trans);
+		pr_warn("mxfs: P-SB-SEAL-TRANS slot=%u logres=%u comm=%s caller=%pS — transaction allocated after the SB summary seal\n",
+			mp->m_mxfs_node_slot, resp->tr_logres, current->comm,
+			(void *)_RET_IP_);
+	}
 	error = xfs_trans_reserve(tp, resp, blocks, rtextents);
 	if (error == -ENOSPC && want_retry) {
 		xfs_trans_cancel(tp);
@@ -460,8 +472,21 @@ xfs_trans_mod_sb(
 		 */
 		if (delta < 0) {
 			tp->t_blk_res_used += (uint)-delta;
-			if (tp->t_blk_res_used > tp->t_blk_res)
+			if (tp->t_blk_res_used > tp->t_blk_res) {
+				/*
+				 * MXFS (D-DIALLOC-REPICK-STORM): name the overrun
+				 * before the shutdown hides it — which task, how
+				 * much was reserved, how much this transaction has
+				 * now consumed, and the modifier that crossed the
+				 * line.  A shutdown with no such line was
+				 * attributed by reading code; this is the instrument.
+				 */
+				pr_err("mxfs: P-TRANS-BLKRES-OVERRUN comm=%s pid=%d blk_res=%u blk_res_used=%u delta=%lld — this transaction consumed more blocks than it reserved; shutting down\n",
+				       current->comm, task_pid_nr(current),
+				       tp->t_blk_res, tp->t_blk_res_used,
+				       (long long)delta);
 				xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
+			}
 		} else if (delta > 0 && (tp->t_flags & XFS_TRANS_RES_FDBLKS)) {
 			int64_t	blkres_delta;
 
@@ -1197,6 +1222,28 @@ retry:
 		return error;
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
+	/* sess446 D-0515 backstop: the DLM entry hook may have REFUSED this
+	 * acquire (quarantined victim domain); the transaction is still clean
+	 * here, so fail the op instead of committing without a grant. */
+	error = mxfs_quar_gate_locked(ip, "trans_alloc_inode");
+	if (unlikely(error)) {
+		xfs_trans_cancel(tp);
+		xfs_iunlock(ip, XFS_ILOCK_EXCL);
+		return error;
+	}
+	/*
+	 * 0.84.15 (D-0958): a caller that registered this inode as a fallible
+	 * boundary around this call, and whose cluster acquire under the lock
+	 * above was abandoned, holds the local lock with no grant.  The
+	 * reservation is clean and nothing is joined, so cancel it, drop the
+	 * lock and refuse; the registering caller reads the verdict and names
+	 * the operation.  An unregistered caller waited above as before.
+	 */
+	if (mp->m_mxfs_dlm && unlikely(mxfs_acqfall_refused(ip->i_ino))) {
+		xfs_trans_cancel(tp);
+		xfs_iunlock(ip, XFS_ILOCK_EXCL);
+		return -EIO;
+	}
 	xfs_trans_ijoin(tp, ip, 0);
 
 	error = xfs_qm_dqattach_locked(ip, false);
@@ -1367,6 +1414,27 @@ retry:
 		return error;
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
+	/* sess446 D-0515 backstop (see xfs_trans_alloc_inode); the join below
+	 * would hand the unlock to the transaction, so unlock here ourselves. */
+	error = mxfs_quar_gate_locked(ip, "trans_alloc_ichange");
+	if (unlikely(error)) {
+		xfs_trans_cancel(tp);
+		xfs_iunlock(ip, XFS_ILOCK_EXCL);
+		return error;
+	}
+	/*
+	 * 0.84.15 (D-0958): the attribute change's first cluster acquire is
+	 * the lock above (xfs_setattr_nonsize registers the inode around this
+	 * call).  If it was abandoned the local lock is held with no grant;
+	 * the reservation is clean and nothing is joined yet, so cancel it,
+	 * drop the lock and refuse.  The registering caller reads the verdict
+	 * and names the operation; an unregistered caller waited as before.
+	 */
+	if (mp->m_mxfs_dlm && unlikely(mxfs_acqfall_refused(ip->i_ino))) {
+		xfs_trans_cancel(tp);
+		xfs_iunlock(ip, XFS_ILOCK_EXCL);
+		return -EIO;
+	}
 	xfs_trans_ijoin(tp, ip, XFS_ILOCK_EXCL);
 
 	if (xfs_is_metadir_inode(ip))
@@ -1489,7 +1557,39 @@ retry:
 	if (error)
 		return error;
 
-	xfs_lock_two_inodes(dp, XFS_ILOCK_EXCL, ip, XFS_ILOCK_EXCL);
+	/*
+	 * 0.84.11 (D-0958): the pair acquire is a FALLIBLE boundary — the
+	 * transaction is reserved and clean and nothing is joined yet, so a
+	 * refused member (a live master that never acknowledged the request
+	 * past the budget, or a killed task) releases the pair and cancels the
+	 * reservation, and the caller (remove, link) returns the errno through
+	 * the same path a failed reservation takes.  Nothing dirty is ever
+	 * cancelled here.
+	 */
+	if (mp->m_mxfs_dlm) {
+		error = mxfs_lock_two_inodes_fallible(dp, XFS_ILOCK_EXCL,
+						      ip, XFS_ILOCK_EXCL);
+		if (unlikely(error)) {
+			mxfs_namespace_refused(dp,
+				resv == &M_RES(mp)->tr_link ? "link" : "remove",
+				error);
+			xfs_trans_cancel(tp);
+			return error;
+		}
+	} else {
+		xfs_lock_two_inodes(dp, XFS_ILOCK_EXCL, ip, XFS_ILOCK_EXCL);
+	}
+
+	/* sess446 D-0515 backstop (see xfs_trans_alloc_inode). */
+	error = mxfs_quar_gate_locked(dp, "trans_alloc_dir");
+	if (!error)
+		error = mxfs_quar_gate_locked(ip, "trans_alloc_dir");
+	if (unlikely(error)) {
+		xfs_trans_cancel(tp);
+		xfs_iunlock(dp, XFS_ILOCK_EXCL);
+		xfs_iunlock(ip, XFS_ILOCK_EXCL);
+		return error;
+	}
 
 	xfs_trans_ijoin(tp, dp, 0);
 	xfs_trans_ijoin(tp, ip, 0);

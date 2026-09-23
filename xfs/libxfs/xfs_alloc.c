@@ -4194,7 +4194,7 @@ xfs_alloc_vextent_finish(
 	} }
 
 	/*
-	 * sess55 (ccloop) RULE-4 SOURCE DETECTOR for the dir-data-over-inode-
+	 * sess55 (ccloop) instrumented SOURCE DETECTOR for the dir-data-over-inode-
 	 * cluster double-allocation (Face B, the posix_semantics_multi16
 	 * shutdown).  PROVEN symptom: a directory data block (dirents) lands on
 	 * top of a live inode cluster -> the cluster fails its verifier on the
@@ -4328,7 +4328,7 @@ xfs_alloc_vextent_finish(
 				 * holding a live inode cluster.  Removed: it slowed the
 				 * 16-node storm past the repro budget.  sess33 re-added it
 				 * (every-alloc sync read) and confirmed it TIMES OUT the
-				 * 2-node test (RULE 0) — too heavy for the alloc hot path
+				 * 2-node test (budget) — too heavy for the alloc hot path
 				 * holding the AGF; reverted.  A cheaper cross-node check is
 				 * needed (e.g. per-AG freed-then-realloc'd daddr bitmap, or
 				 * check only the cluster-start block once per allocation).
@@ -4338,7 +4338,7 @@ xfs_alloc_vextent_finish(
 	}
 
 	/*
-	 * ccloop P-DBLALLOC (RULE 4, dir_reuse_coherency 2/tcp): the proven
+	 * ccloop P-DBLALLOC (instrumented, dir_reuse_coherency 2/tcp): the proven
 	 * symptom is a dir LEAF block daddr that holds .md5 FILE data
 	 * (P54-DIRBLK-PROBE disk_magic="a27b" = md5 hex) -> the dir's leaf block
 	 * and a file's data block share one daddr (cross-node free-space
@@ -4360,7 +4360,7 @@ xfs_alloc_vextent_finish(
 	 * if it ALREADY holds live dir-block/leaf/inode magic, the allocator handed
 	 * a DATA request a block another object still uses (cross-node free-space
 	 * double-alloc → the urandom-file-data-over-inode-cluster shutdown).  One
-	 * plain read per DATA alloc; the 40000 cap bounds worst-case perf (RULE 0)
+	 * plain read per DATA alloc; the 40000 cap bounds worst-case perf (budget)
 	 * while covering well past the ~round-16 corruption point.  Counter
 	 * increments only after the multinode/data-fork gate (short-circuit).
 	 */
@@ -4623,6 +4623,25 @@ restart:
 	for_each_perag_wrap_range(mp, start_agno, restart_agno,
 			mp->m_sb.sb_agcount, agno, args->pag) {
 		args->agno = agno;
+		/*
+		 * MXFS 0.75.32 (D-AG-QUARANTINE-NOT-EXCLUDED-FROM-ALLOCATOR-
+		 * RELOCATABLE-WRITE-EIO-BY-LOTTERY-0538): a quarantined AG is
+		 * removed from the allocation DOMAIN, not merely refused on
+		 * encounter.  This walk is the fungible case — any AG will do —
+		 * so a quarantined one is skipped like a full one.  Measured on
+		 * the 2-node TCP rig (AG 1 quarantined): a fallocate whose
+		 * extents wrapped out of AG 0 met the quarantine gate on AG 1
+		 * (P240-QUAR-AG-EIO comm=fallocate) and failed EIO with 22
+		 * healthy AGs behind it.  Callers that need THIS AG (exact_bno,
+		 * this_ag: an in-domain object's own metadata) do not come
+		 * through here and still meet the gate.
+		 */
+		if (unlikely(mxfs_quarantine_covers_agno(mp, agno))) {
+			pr_warn_ratelimited("mxfs: P538-AG-SKIP agno=%u start=%u comm=%s — quarantined AG left out of the extent walk\n",
+				agno, start_agno, current->comm);
+			trace_xfs_alloc_vextent_loopfailed(args);
+			continue;
+		}
 		error = xfs_alloc_vextent_prepare_ag(args, alloc_flags);
 		if (error)
 			break;
@@ -5131,7 +5150,7 @@ xfs_agfl_walk(
 int __init
 xfs_extfree_intent_init_cache(void)
 {
-	xfs_extfree_item_cache = kmem_cache_create("mxfs_extfree_intent",
+	xfs_extfree_item_cache = mxfs_cache_create("mxfs_extfree_intent",
 			sizeof(struct xfs_extent_free_item),
 			0, 0, NULL);
 

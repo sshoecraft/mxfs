@@ -34,7 +34,12 @@
 #   gives every live node at least two chances to tick.
 set -u
 NODE="${1:-test1}"
-DEV="${2:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+DEV=${2:-}; [ -n "$DEV" ] || { mxfs_dev_resolve "$NODE"; DEV=$MXFS_DEV_RESOLVED; }
 SETTLE="${3:-5}"
 
 tools/mxfs_sshpass.sh "$NODE" "python3 - <<'EOF'

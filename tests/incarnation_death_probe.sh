@@ -33,7 +33,7 @@
 #   identity, which is exactly the category error sess87 removed from
 #   mark_recovery_pending (it used to read back "who is in this slot NOW").
 #
-# TIMING (RULE 0 — derived, not chosen)
+# TIMING (the budget rule — derived, not chosen)
 #   declare dead : MXFS_DISKLOCK_DEAD_THRESHOLD(31) * HB_INTERVAL_MS(2000) = 62s
 #   confirm      : the settle sweep re-samples the same 31 * 2000ms      = 62s
 #   fence+dispatch                                                       ~ 10s
@@ -45,7 +45,12 @@ set -u
 VICTIM="${1:-test32}"
 READER="${2:-test1}"
 WATCH_S="${3:-180}"
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 NODES_N="${MXFS_NODES:-32}"
 
 cd "$(dirname "$0")/.." || exit 2
@@ -135,7 +140,7 @@ ELAPSED=$(( $(date +%s) - T0 ))
 
 if [ -z "$FOUND" ]; then
     echo "probe: RESULT FAIL — no survivor logged P163-RECOVERY-PENDING within ${WATCH_S}s."
-    echo "       Death was not detected/dispatched inside the derived budget (RULE 0)."
+    echo "       Death was not detected/dispatched inside the derived budget (budget)."
     rm -rf "$TD"; exit 1
 fi
 

@@ -1,7 +1,7 @@
 # Ledger split — `OPEN_DEFECTS.json` → index + per-defect narratives
 
 **Status:** proposed, not implemented.
-**Scope:** this is a CORRECTNESS fix for the RULE 6 gate. It is *not* a
+**Scope:** this is a CORRECTNESS fix for the zero-defect bar gate. It is *not* a
 token-burn fix — see "What this does not buy" below.
 
 ---
@@ -78,13 +78,13 @@ FIXED AND VERIFIED or DISPROVED still counted as open. The board reported
 
 **And a second divergence is live right now.** The first four sites test
 *exclusion* (anything not in the closure set is open — correct under
-RULE 6). `showstat.sh` tests *inclusion*: only a literal `"OPEN"` counts.
+the zero-defect bar). `showstat.sh` tests *inclusion*: only a literal `"OPEN"` counts.
 They agree today only because every non-OPEN status happens to fall in the
 closure set. The first entry written as `IN PROGRESS`, `INVESTIGATING`,
 `REOPENED`, or with a typo diverges them: the gate blocks on it, and
 showstat's live count silently omits it.
 
-Under RULE 6 that is the dangerous direction. Over-counting blocks a
+Under the zero-defect bar that is the dangerous direction. Over-counting blocks a
 legitimate exit and is loud; under-counting hides an open defect and is
 silent.
 
@@ -114,7 +114,7 @@ One flat record per defect. No narrative. ~120 bytes each, ~8KB total.
 }
 ```
 
-`status` ∈ `OPEN | FIXED_AND_VERIFIED | DISPROVED` — exactly the two RULE 6
+`status` ∈ `OPEN | FIXED_AND_VERIFIED | DISPROVED` — exactly the two the zero-defect bar
 closure dispositions plus OPEN. `RESOLVED` is historical and migrates to
 `FIXED_AND_VERIFIED`.
 
@@ -124,7 +124,7 @@ that field moves to `summary`, which is where it was always trying to go.
 **2. Narratives — `tests/criteria/defects/<ID>.md`**
 
 Everything else: evidence, refuted hypotheses, session-tagged findings,
-RULE 4 loop history. One file per defect, markdown, loaded on demand by
+troubleshooting loop history. One file per defect, markdown, loaded on demand by
 `./defects.sh <ID>` or read directly when working that defect.
 
 **3. One closure implementation**
@@ -149,11 +149,11 @@ instead of silent at count time.
 1. Write `tools/ledger_split.py` — `--dry-run` by default. It reads the
    current file, emits the index plus 70 narrative files, and reports every
    field it could not place.
-2. Run dry, review the unplaceable-field report by hand. **RULE 6: no
+2. Run dry, review the unplaceable-field report by hand. **the zero-defect bar: no
    entry's disposition may change during migration.** The record count and
    the open-set membership before and after must be identical, and the
    script asserts it.
-3. Keep `OPEN_DEFECTS.json.backup` (per CLAUDE.md: back up in place, no
+3. Keep `OPEN_DEFECTS.json.backup` (per the project rules: back up in place, no
    `_old` suffixes).
 4. Convert the five call sites to `tools/ledger.py`.
 5. Verify: `./defects.sh -t` tally identical pre/post; `open_defects.sh`
@@ -177,7 +177,7 @@ numbers.
 
 ## Related
 
-- RULE 6 (`CLAUDE.md`) — the two permitted closure dispositions
+- the zero-defect bar (`CLAUDE.md`) — the two permitted closure dispositions
 - `docs/handoff-history.md`
 - The ledger grew 39 → 70 records and 11 → 28 open between 2026-08-03 and
   2026-08-07. Discovery is still outrunning closure; the schema should be

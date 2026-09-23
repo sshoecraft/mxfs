@@ -58,24 +58,83 @@ xfs_initialize_perag_data(
 	int			error = 0;
 
 	for (index = 0; index < agcount; index++) {
+		struct xfs_buf	*agfbp = NULL, *agibp = NULL;
+		struct xfs_agf	*agf;
+		struct xfs_agi	*agi;
+		uint64_t	a_ifree, a_icount, a_bfree, a_flcount, a_btree;
+
 		/*
 		 * Read the AGF and AGI buffers to populate the per-ag
 		 * structures for us.
 		 */
 		pag = xfs_perag_get(mp, index);
-		error = xfs_alloc_read_agf(pag, NULL, 0, NULL);
+		error = xfs_alloc_read_agf(pag, NULL, 0, &agfbp);
 		if (!error)
-			error = xfs_ialloc_read_agi(pag, NULL, 0, NULL);
+			error = xfs_ialloc_read_agi(pag, NULL, 0, &agibp);
 		if (error) {
+			if (agfbp)
+				xfs_buf_relse(agfbp);
 			xfs_perag_put(pag);
 			return error;
 		}
+		agf = agfbp->b_addr;
+		agi = agibp->b_addr;
+		a_ifree = be32_to_cpu(agi->agi_freecount);
+		a_icount = be32_to_cpu(agi->agi_count);
+		a_bfree = be32_to_cpu(agf->agf_freeblks);
+		a_flcount = be32_to_cpu(agf->agf_flcount);
+		a_btree = be32_to_cpu(agf->agf_btreeblks);
 
-		ifree += pag->pagi_freecount;
-		ialloc += pag->pagi_count;
-		bfree += pag->pagf_freeblks;
-		bfreelst += pag->pagf_flcount;
-		btree += pag->pagf_btreeblks;
+		/*
+		 * sess474 (D-0133, chain 115 s473c: sb icount 1856 vs inobt 2048
+		 * after a CLEAN fleet unmount = exactly 3 peer chunks of 64
+		 * missing; s473b: sb 64/61 = the mkfs snapshot).  In a cluster the
+		 * pagi_ and pagf_ summaries are rebuilt only on the FIRST header
+		 * read and on a fresh AG-DLM tenure (mxfs clears the INIT bits at
+		 * tenure change) — for an AG this node never acquires they stay
+		 * at their mount-time values forever, while the buffer itself is
+		 * FUA-refreshed by mxfs_ag_meta_invalidate_stale on every read.
+		 * The quiesce recompute (P30-QUIESCE-RECOUNT) therefore summed
+		 * stale per-AG counts and the last SB writer put them on the
+		 * platter.  Sum from the fresh buffers; name every stale summary.
+		 */
+		if (mp->m_mxfs_dlm &&
+		    (a_ifree != pag->pagi_freecount ||
+		     a_icount != pag->pagi_count ||
+		     a_bfree != pag->pagf_freeblks ||
+		     a_flcount != pag->pagf_flcount ||
+		     a_btree != pag->pagf_btreeblks)) {
+			static atomic_t p_rcs_n = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&p_rcs_n) <= 400)
+				xfs_warn(mp,
+	"P-SB-RECOUNT-STALE agno=%u pag[icount=%u ifree=%u freeblks=%u flcount=%u btreeblks=%u] buf[icount=%llu ifree=%llu freeblks=%llu flcount=%llu btreeblks=%llu] agi_init=%d agf_init=%d — per-AG summary stale vs the fresh header; summing the header",
+					index, pag->pagi_count,
+					pag->pagi_freecount, pag->pagf_freeblks,
+					pag->pagf_flcount, pag->pagf_btreeblks,
+					(unsigned long long)a_icount,
+					(unsigned long long)a_ifree,
+					(unsigned long long)a_bfree,
+					(unsigned long long)a_flcount,
+					(unsigned long long)a_btree,
+					xfs_perag_initialised_agi(pag) ? 1 : 0,
+					xfs_perag_initialised_agf(pag) ? 1 : 0);
+		}
+		if (mp->m_mxfs_dlm) {
+			ifree += a_ifree;
+			ialloc += a_icount;
+			bfree += a_bfree;
+			bfreelst += a_flcount;
+			btree += a_btree;
+		} else {
+			ifree += pag->pagi_freecount;
+			ialloc += pag->pagi_count;
+			bfree += pag->pagf_freeblks;
+			bfreelst += pag->pagf_flcount;
+			btree += pag->pagf_btreeblks;
+		}
+		xfs_buf_relse(agibp);
+		xfs_buf_relse(agfbp);
 		xfs_perag_put(pag);
 	}
 	fdblocks = bfree + bfreelst + btree;
@@ -115,6 +174,7 @@ xfs_perag_uninit(
 
 	cancel_delayed_work_sync(&pag->pag_blockgc_work);
 	xfs_buf_cache_destroy(&pag->pag_bcache);
+	xa_destroy(&pag->pag_disklive_q);	/* sess430 D-0351 containment */
 #endif
 }
 
@@ -246,6 +306,10 @@ xfs_perag_alloc(
 	pag->pag_dlm_skips_no_bast = 0;		/* v0.3.147 sess33 */
 	pag->pag_dlm_fua_window_until = 0;
 	mutex_init(&pag->pag_dlm_acquire_lock);
+	spin_lock_init(&pag->pag_resv_lock);	/* 0.23.0 sess392 */
+	pag->pag_resv_cursor = NULLAGINO;
+	xa_init(&pag->pag_disklive_q);		/* sess430 D-0351 containment */
+	pag->pag_disklive_n = 0;
 	pag->pag_dlm_cached = false;
 	pag->pag_dlm_bast_pending = false;
 	pag->pag_dlm_bast_scheduled = false;

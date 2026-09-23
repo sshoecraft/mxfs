@@ -118,7 +118,7 @@ that decides whether v6b is needed.
   project_caw_is_load_bearing.md`); CAW is the production primary.
   The cache architecture is transport-independent.
 - This is not "go back to mxfs.1."  mxfs.1 has measured single-node
-  corruption on element-web rsync (`reference_mxfs1_sess74_results.md`,
+  corruption on element-web rsync (`docs/project-history.md`,
   `dir_cache.c` format-transition bug) and 4.3× perf overhead on
   rsync.  It is reference material, not a target.
 
@@ -740,7 +740,7 @@ This is v6b, not v6a.  Listed for completeness.
 | **v6a total**                          | **3-8**  | **High**   |
 | 5: LVB cache (v6b, conditional)        | 3-5      | Speculative |
 
-For comparison: the v5 spec roadmap §11.3-11.6 (Phases 1-4) estimates
+For comparison: the v5 spec docs/project-history.md §11.3-11.6 (Phases 1-4) estimates
 **5-12 sessions** for partial overlap with this work plus SCSI
 root-cause investigation (Phase 3 D16).
 
@@ -865,7 +865,7 @@ Mode A directly, or is the pinned-resource + yield-quantum work
 still needed?
 
 **Hypothesis:** Mode A's root cause (per `sess27_lessons.md`,
-`sess26_lessons.md`) is partially "stale cached state on the
+`docs/history/session-26-lessons.md`) is partially "stale cached state on the
 acquiring node" (which v6a fixes) and partially "lock released
 mid-op on the releasing node" (which only D9/D10 fix).  v6a closes
 half of Mode A.  Phases 1+2 + D9/D10 close all of it.
@@ -1002,10 +1002,10 @@ Cited evidence and source documents.
   for the read path
 
 **Memory (sess26-30 lessons):**
-- `~/.claude/projects/-src-mxfs/memory/sess30_lessons.md`
+- `~/.claude/projects/-src-mxfs/memory/docs/history/session-30-lessons.md`
 - `~/.claude/projects/-src-mxfs/memory/sess27_lessons.md`
-- `~/.claude/projects/-src-mxfs/memory/sess26_lessons.md`
-- `~/.claude/projects/-src-mxfs/memory/reference_mxfs1_sess74_results.md`
+- `~/.claude/projects/-src-mxfs/memory/docs/history/session-26-lessons.md`
+- `~/.claude/projects/-src-mxfs/memory/docs/project-history.md`
 - `~/.claude/projects/-src-mxfs/memory/project_gfs2_coherency_pattern.md`
 
 ---

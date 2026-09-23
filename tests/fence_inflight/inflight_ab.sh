@@ -12,7 +12,7 @@
 #   (C) CONTINUED EXCLUSION — a NEW victim write after the fence is rejected
 #                       with RESERVATION CONFLICT and does not modify the store.
 #
-# Per the sess133 RULE-5 ruling the completion boundary is chosen PER ARM so
+# Per the sess133 design-consult ruling the completion boundary is chosen PER ARM so
 # each direction is conservative:
 #   0x05 (safety arm)    boundary = ftrace entry of scst_cmd_done_pr_preempt,
 #                        which is STRICTLY EARLIER than the wire GOOD, so

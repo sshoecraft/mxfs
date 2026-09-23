@@ -12,7 +12,7 @@ CFLAGS += -DMXFS_VERSION_MINOR=$(MXFS_VER_MINOR)
 CFLAGS += -DMXFS_VERSION_PATCH=$(MXFS_VER_PATCH)
 LDFLAGS =
 
-TOOLS = mkfs_mxfs chk_mxfs resize_mxfs fua_verify
+TOOLS = mkfs_mxfs chk_mxfs resize_mxfs mxfs_admin fua_verify
 HEADERS = ../include/mxfs/mxfs_super.h ../include/mxfs/mxfs_common.h ../VERSION
 
 all: $(TOOLS)
@@ -20,10 +20,13 @@ all: $(TOOLS)
 mkfs_mxfs: mkfs_mxfs.c $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-chk_mxfs: chk_mxfs.c $(HEADERS)
+chk_mxfs: chk_mxfs.c mxfs_offline.h $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 resize_mxfs: resize_mxfs.c $(HEADERS)
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+mxfs_admin: mxfs_admin.c mxfs_offline.h $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 fua_verify: fua_verify.c
@@ -36,5 +39,6 @@ install: $(TOOLS)
 	install -m 755 mkfs_mxfs /sbin/mkfs.mxfs
 	install -m 755 chk_mxfs /sbin/chk_mxfs
 	install -m 755 resize_mxfs /sbin/resize.mxfs
+	install -m 755 mxfs_admin /sbin/mxfs_admin
 
 .PHONY: all clean install

@@ -21,7 +21,7 @@
  * Check to see if a buffer matching the given parameters is already
  * a part of the given transaction.
  */
-STATIC struct xfs_buf *
+struct xfs_buf *
 xfs_trans_buf_item_match(
 	struct xfs_trans	*tp,
 	struct xfs_buftarg	*target,
@@ -309,6 +309,27 @@ xfs_trans_read_buf_map(
 	case 0:
 		break;
 	default:
+		/*
+		 * sess435 (D-CREATE-METADATA-READ-EIO-NODE-SHUTDOWN-378 item 1):
+		 * name WHAT could not be read.  The sess378 shutdown logged only
+		 * 'metadata I/O error' from the shutdown path; the buffer is
+		 * released inside xfs_buf_read_map on failure, so record the map
+		 * and verifier here, before the transaction is killed.
+		 */
+		{
+			int	mi, tot = 0;
+
+			for (mi = 0; mi < nmaps; mi++)
+				tot += map[mi].bm_len;
+			xfs_alert(mp,
+	"MXFS: P378-TRANS-READ-FAIL daddr=%lld bb=%d nmaps=%d ops=%s err=%d dirty=%d flags=0x%x caller=%pS — metadata read failed inside a transaction%s",
+				(long long)map[0].bm_bn, tot, nmaps,
+				ops ? ops->name : "(none)", error,
+				tp ? !!(tp->t_flags & XFS_TRANS_DIRTY) : 0,
+				(unsigned)flags, __return_address,
+				(tp && (tp->t_flags & XFS_TRANS_DIRTY)) ?
+				"; DIRTY transaction -> forcing shutdown" : "");
+		}
 		if (tp && (tp->t_flags & XFS_TRANS_DIRTY))
 			xfs_force_shutdown(tp->t_mountp, SHUTDOWN_META_IO_ERROR);
 		fallthrough;
@@ -537,7 +558,7 @@ xfs_trans_dirty_buf(
 	set_bit(XFS_LI_DIRTY, &bip->bli_item.li_flags);
 
 	/*
-	 * sess103 step 5.3 (sess102 RULE-5 ruling, P0/P1): capture the
+	 * sess103 step 5.3 (sess102 design-consult ruling, P0/P1): capture the
 	 * authority proof for this image HERE — the single seam every buffer
 	 * passes through to become dirty in a transaction, and the earliest
 	 * point at which the mutation is attributable to a tenure the
@@ -615,15 +636,18 @@ xfs_trans_log_buf(
 	 * MXFS multi-node: register AG-metadata buffers (AGF/AGI/AGFL/
 	 * btree blocks) for deferred-DLM-release tracking so the AG
 	 * lock is not handed to a peer until our changes have hit the
-	 * home block on disk.  Single-node mode skips this entirely.
-	 * Idempotent within a single dirty epoch.
+	 * home block on disk.  Idempotent within a single dirty epoch.
+	 *
+	 * 0.41.0 (sess434, D-0354 candidate A): no single-node exemption.
+	 * A lone node's AG/inode grants are now real on-disk grants that a
+	 * joining peer can BAST, so the deferred-release tracking and the
+	 * tenure-epoch stamps below must exist from the first dirtying —
+	 * there is no memory-only era whose buffers could be skipped.
 	 */
 	{
 		struct xfs_mount *mp = tp->t_mountp;
 
-		if (mp->m_mxfs_dlm &&
-		    !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
-		    mxfs_buf_is_ag_metadata(bp))
+		if (mp->m_mxfs_dlm && mxfs_buf_is_ag_metadata(bp))
 			mxfs_ag_meta_track(bp);
 		/*
 		 * sess66 (ccloop 14d31183): bmbt analogue — stamp a dir's
@@ -632,9 +656,7 @@ xfs_trans_log_buf(
 		 * leaf rather than clobber a peer's durable image (the proven
 		 * zero_silent_loss P66 leaf-clobber).  Self-gated to bmbt buf_ops.
 		 */
-		else if (mp->m_mxfs_dlm &&
-			 !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
-			 bp->b_ops == &xfs_bmbt_buf_ops)
+		else if (mp->m_mxfs_dlm && bp->b_ops == &xfs_bmbt_buf_ops)
 			mxfs_dir_bmbt_track(bp);
 		/*
 		 * sess17 (ccloop): dirent analogue — stamp a dir's DATA/leaf/
@@ -644,8 +666,7 @@ xfs_trans_log_buf(
 		 * 2/tcp crash_consistency stale re-flush).  Self-gates on the
 		 * dir3 owner decode; no-op for any non-dir buffer.
 		 */
-		else if (mp->m_mxfs_dlm &&
-			 !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
+		else if (mp->m_mxfs_dlm)
 			mxfs_dir_data_track(bp);
 	}
 }
@@ -708,6 +729,25 @@ xfs_trans_binval(
 		ASSERT(tp->t_flags & XFS_TRANS_DIRTY);
 		return;
 	}
+
+	/*
+	 * sess476 (D-FOREIGN-SLICE-INTENTS-ABANDONED, proven by instrument on chain
+	 * 105 s475b: every one of the 208 untagged buffer items that
+	 * ATOMIC-SKIPPED the victim's rm transactions was a CANCEL item —
+	 * P227-UNTAGGED blft=0 flags=0x2 cancel=1).  The free of a metadata
+	 * block is a mutation with a real replay effect (its CANCEL suppresses
+	 * every earlier image of the block), so it carries the same authority
+	 * proof as an image: capture it HERE, while the BLFT, the INODE_BUF
+	 * flag and the block's own header (the owner derivation reads it) are
+	 * still intact, and before XFS_BLI_STALE makes the capture a no-op.
+	 * First-capture semantics are the capture's own: a proof already taken
+	 * in this window is compared, never replaced.  The format side then
+	 * serializes the trailer on the CANCEL record (xfs_buf_item_format_
+	 * segment no longer excludes stale items), and foreign replay
+	 * evaluates a CANCEL exactly like an image.
+	 */
+	mxfs_bli_auth_capture(tp, bp);
+	mxfs_dbg_cancel_token_forge_apply(bp);	/* sess476 negative arms */
 
 	xfs_buf_stale(bp);
 
@@ -778,7 +818,7 @@ xfs_trans_inode_buf(
 	ASSERT(atomic_read(&bip->bli_refcount) > 0);
 
 	bip->bli_flags |= XFS_BLI_INODE_BUF;
-	bp->b_iodone = xfs_buf_inode_iodone;
+	mxfs_buf_iodone_install(bp, xfs_buf_inode_iodone, "trans_inode_buf");
 	xfs_trans_buf_set_type(tp, bp, XFS_BLFT_DINO_BUF);
 }
 
@@ -803,7 +843,7 @@ xfs_trans_stale_inode_buf(
 	ASSERT(atomic_read(&bip->bli_refcount) > 0);
 
 	bip->bli_flags |= XFS_BLI_STALE_INODE;
-	bp->b_iodone = xfs_buf_inode_iodone;
+	mxfs_buf_iodone_install(bp, xfs_buf_inode_iodone, "trans_stale_inode_buf");
 	xfs_trans_buf_set_type(tp, bp, XFS_BLFT_DINO_BUF);
 }
 
@@ -828,7 +868,7 @@ xfs_trans_inode_alloc_buf(
 	ASSERT(atomic_read(&bip->bli_refcount) > 0);
 
 	bip->bli_flags |= XFS_BLI_INODE_ALLOC_BUF;
-	bp->b_iodone = xfs_buf_inode_iodone;
+	mxfs_buf_iodone_install(bp, xfs_buf_inode_iodone, "trans_inode_alloc_buf");
 	xfs_trans_buf_set_type(tp, bp, XFS_BLFT_DINO_BUF);
 }
 
@@ -884,6 +924,9 @@ xfs_trans_buf_set_type(
 	ASSERT(atomic_read(&bip->bli_refcount) > 0);
 
 	xfs_blft_to_flags(&bip->__bli_format, type);
+	/* sess445 D-0512 (ruling A′): a type change after the authority
+	 * capture must be re-proven at the next dirty, not voided at commit */
+	mxfs_bli_auth_note_retype(tp, bp, (uint16_t)type);
 }
 
 void
@@ -939,6 +982,6 @@ xfs_trans_dquot_buf(
 		break;
 	}
 
-	bp->b_iodone = xfs_buf_dquot_iodone;
+	mxfs_buf_iodone_install(bp, xfs_buf_dquot_iodone, "trans_dquot_buf");
 	xfs_trans_buf_set_type(tp, bp, type);
 }

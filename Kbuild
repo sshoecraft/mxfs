@@ -105,6 +105,10 @@ mxfs-y += $(addprefix xfs/, \
 		xfs_extfree_item.o \
 		xfs_attr_item.o \
 		xfs_icreate_item.o \
+		xfs_relmark_item.o \
+		xfs_mxfs_icensus.o \
+		xfs_mxfs_recov_obl.o \
+		xfs_mxfs_dirshard.o \
 		xfs_inode_item.o \
 		xfs_inode_item_recover.o \
 		xfs_iunlink_item.o \
@@ -166,6 +170,14 @@ mxfs-y += $(addprefix dlm/, \
 		peer.o \
 		lease.o \
 		disklock.o \
+		recov_obl.o \
+		recov_obl_done.o \
+		hostid.o \
+		prledger.o \
+		bootstrap.o \
+		tauth_store.o \
+		tauth_ledger.o \
+		tauth_view.o \
 		scsipr.o \
 		journal.o \
 		v5_mount.o \
@@ -176,6 +188,7 @@ mxfs-y += $(addprefix dlm/, \
 		net2_fault.o \
 		)
 mxfs-y += pal/linux/kern.o
+mxfs-y += pal/linux/lureset.o
 
 # ═══════════════════════════════════════════════════════════
 # MXFS Cluster layer (D9 + D10 — Phase 2 onward)

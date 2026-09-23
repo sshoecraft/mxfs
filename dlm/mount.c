@@ -474,10 +474,7 @@ static void peer_msg_cb(void *data, mxfs_node_id_t sender,
         const struct mxfs_dlm_lock_req *req =
             (const struct mxfs_dlm_lock_req *)msg;
         if (len >= sizeof(*req))
-            mxfs_dlm_process_remote_request(mnt->dlm, sender,
-                                            &req->resource,
-                                            req->mode, req->flags,
-                                            req->hdr.epoch);
+            mxfs_dlm_process_remote_request(mnt->dlm, sender, req);
         break;
     }
     case MXFS_MSG_LOCK_GRANT:
@@ -485,21 +482,44 @@ static void peer_msg_cb(void *data, mxfs_node_id_t sender,
         const struct mxfs_dlm_lock_resp *resp =
             (const struct mxfs_dlm_lock_resp *)msg;
         if (len >= sizeof(*resp))
-            mxfs_dlm_process_remote_grant(mnt->dlm, &resp->resource,
-                                          resp->mode, resp->status,
-                                          resp->hdr.epoch,
-                                          resp->grant_gen,
-                                          resp->handoff,
-                                          resp->dir_epoch);
+            mxfs_dlm_process_remote_grant(mnt->dlm, resp);
+        break;
+    }
+    case MXFS_MSG_LOCK_QUEUED: {
+        /* Acceptance receipt, never a grant — it carries the blocking
+         * holder's mode, not ours. */
+        const struct mxfs_dlm_lock_resp *resp =
+            (const struct mxfs_dlm_lock_resp *)msg;
+        if (len >= sizeof(*resp))
+            mxfs_dlm_process_queued_ack(mnt->dlm, sender, resp);
+        break;
+    }
+    case MXFS_MSG_LOCK_CANCEL: {
+        const struct mxfs_dlm_lock_cancel *c =
+            (const struct mxfs_dlm_lock_cancel *)msg;
+        if (len >= sizeof(*c))
+            mxfs_dlm_process_cancel(mnt->dlm, sender, c);
+        break;
+    }
+    case MXFS_MSG_LOCK_CANCEL_ACK: {
+        const struct mxfs_dlm_cancel_ack *a =
+            (const struct mxfs_dlm_cancel_ack *)msg;
+        if (len >= sizeof(*a))
+            mxfs_dlm_process_cancel_ack(mnt->dlm, a);
         break;
     }
     case MXFS_MSG_LOCK_RELEASE: {
         const struct mxfs_dlm_lock_release *rel =
             (const struct mxfs_dlm_lock_release *)msg;
         if (len >= sizeof(*rel))
-            mxfs_dlm_process_remote_release(mnt->dlm, sender,
-                                            &rel->resource,
-                                            rel->grant_gen);
+            mxfs_dlm_process_remote_release(mnt->dlm, sender, rel);
+        break;
+    }
+    case MXFS_MSG_LOCK_RELEASE_ACK: {
+        const struct mxfs_dlm_release_ack *ack =
+            (const struct mxfs_dlm_release_ack *)msg;
+        if (len >= sizeof(*ack))
+            mxfs_dlm_process_release_ack(mnt->dlm, ack);
         break;
     }
     case MXFS_MSG_LOCK_BAST: {
@@ -1816,7 +1836,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
         probe_disc = mxfs_discovery_create(
             mnt->node_id, mnt->node_uuid, mnt->sb.uuid,
             mnt->volume_id, dlm_port, mcast_addr, disc_port,
-            opts->use_broadcast);
+            opts->use_broadcast, NULL);
 
         if (probe_disc) {
             /* Don't set peer callback — we just want to listen.
@@ -1966,10 +1986,10 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
          * will get RESERVATION CONFLICT (-52) if this node isn't
          * registered first. */
         mnt->scsipr = mxfs_scsipr_create(mnt->dev, opts->device,
-                                          mnt->node_id);
+                                          (uint64_t)mnt->node_id);
         if (mnt->scsipr) {
             mxfs_scsipr_observe_reservation(mnt->scsipr, NULL);
-            ret = mxfs_scsipr_register(mnt->scsipr);
+            ret = mxfs_scsipr_register(mnt->scsipr, false); /* sess433: legacy path has no operator assertion; fail closed */
             if (ret) {
                 mxfs_pal_log(MXFS_LOG_WARN,
                              "mxfs: hardware-level node fencing not available "
@@ -2001,7 +2021,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
          * because 1ULL << node_id is UB for node_id >= 64. */
         mnt->disklock = mxfs_disklock_create(mnt->dev,
                                               mnt->opts.disklock_offset,
-                                              mnt->node_id);
+                                              mnt->node_id, NULL);
         if (!mnt->disklock) {
             mxfs_pal_log(MXFS_LOG_ERR,
                          "mount: disklock create failed (required for CAW)");
@@ -2189,10 +2209,11 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
      * all disk I/O from other nodes to fail with -52 (RESERVATION
      * CONFLICT), crashing the entire cluster. */
     if (!mnt->scsipr && mnt->dlm_transport == MXFS_DLM_TRANSPORT_CAW) {
-        mnt->scsipr = mxfs_scsipr_create(mnt->dev, opts->device, mnt->node_id);
+        mnt->scsipr = mxfs_scsipr_create(mnt->dev, opts->device,
+                                          (uint64_t)mnt->node_id);
         if (mnt->scsipr) {
             mxfs_scsipr_observe_reservation(mnt->scsipr, NULL);
-            ret = mxfs_scsipr_register(mnt->scsipr);
+            ret = mxfs_scsipr_register(mnt->scsipr, false); /* sess433: legacy path has no operator assertion; fail closed */
             if (!ret)
                 ret = mxfs_scsipr_reserve(mnt->scsipr);   /* sess381 */
             if (ret) {
@@ -2213,7 +2234,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
         if (!mnt->disklock) {
             mnt->disklock = mxfs_disklock_create(mnt->dev,
                                                   mnt->opts.disklock_offset,
-                                                  mnt->node_id);
+                                                  mnt->node_id, NULL);
             if (mnt->disklock)
                 mxfs_disklock_claim_slot(mnt->disklock);
         }
@@ -2233,7 +2254,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
     mnt->discovery = mxfs_discovery_create(
         mnt->node_id, mnt->node_uuid, mnt->sb.uuid,
         mnt->volume_id, dlm_port, mcast_addr, disc_port,
-        opts->use_broadcast);
+        opts->use_broadcast, NULL);
 
     if (mnt->discovery) {
         mxfs_discovery_set_peer_cb(mnt->discovery, discovery_peer_cb, mnt);
@@ -2253,7 +2274,7 @@ int mxfs_mount(const struct mxfs_mount_opts *opts,
                                     mnt->sb.uuid,
                                     mcast_addr,
                                     0,  /* default port */
-                                    opts->use_broadcast);
+                                    opts->use_broadcast, NULL);
     if (mnt->lease) {
         mxfs_lease_set_expire_cb(mnt->lease, lease_expire_cb, mnt);
         mxfs_lease_start(mnt->lease);

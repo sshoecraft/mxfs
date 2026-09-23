@@ -236,6 +236,14 @@ struct xfs_trans_header {
 #define	XFS_LI_RUD_RT		0x124d	/* realtime rmap update done */
 #define	XFS_LI_CUI_RT		0x124e	/* realtime refcount update intent */
 #define	XFS_LI_CUD_RT		0x124f	/* realtime refcount update done */
+/*
+ * MXFS (sess403): clean-release marker — see struct mxfs_relmark_log_format.
+ * Deliberately far from the upstream range so a future upstream type cannot
+ * collide with it.  A pre-sess403 node cannot parse it (unknown item type
+ * fails recovery with -EFSCORRUPTED), which is why MXFS_PROTO_GEN moved 5->6
+ * with it: mixed-generation clusters are refused at admission.
+ */
+#define	XFS_LI_MXFS_RELMARK	0x12c0
 
 #define XFS_LI_TYPE_DESC \
 	{ XFS_LI_EFI,		"XFS_LI_EFI" }, \
@@ -261,7 +269,35 @@ struct xfs_trans_header {
 	{ XFS_LI_RUI_RT,	"XFS_LI_RUI_RT" }, \
 	{ XFS_LI_RUD_RT,	"XFS_LI_RUD_RT" }, \
 	{ XFS_LI_CUI_RT,	"XFS_LI_CUI_RT" }, \
-	{ XFS_LI_CUD_RT,	"XFS_LI_CUD_RT" }
+	{ XFS_LI_CUD_RT,	"XFS_LI_CUD_RT" }, \
+	{ XFS_LI_MXFS_RELMARK,	"XFS_LI_MXFS_RELMARK" }
+
+/*
+ * MXFS clean-release marker (sess403 design-consult ruling, D-FOREIGN-REPLAY-UNGATED-
+ * IMAGES / D-402).  Logged ALONE in its own transaction by the node that is
+ * releasing the named EX/PW tenure, after the Invariant-1 drain and before the
+ * on-disk unlock CAS, and forced synchronously.  Identity is the COMPLETE
+ * token key (class, resource, lineage, grant epoch) plus the emitting node's
+ * slot and incarnation, so a replayer can match it exactly against struct
+ * mxfs_blf_authority_v3 tokens from the same slice and never against another
+ * incarnation occupying the same slot.  mrl_type/mrl_size are CPU-endian like
+ * every other XFS log item header; everything else is big-endian.  64 bytes;
+ * a later version may append fields but must bump mrl_version.
+ */
+#define MXFS_RELMARK_VERSION	1
+struct mxfs_relmark_log_format {
+	uint16_t	mrl_type;	/* XFS_LI_MXFS_RELMARK */
+	uint16_t	mrl_size;	/* 1: single vector */
+	__be16		mrl_version;	/* MXFS_RELMARK_VERSION */
+	__be16		mrl_class;	/* MXFS_AUTH_CLASS_* of the tenure */
+	__be32		mrl_owner_slot;	/* emitting node's heartbeat slot */
+	__be32		mrl_owner_node;	/* emitting node id (diagnostic) */
+	__be64		mrl_resource;	/* class-typed resource id */
+	__be64		mrl_lineage;	/* resource_lineage of the binding */
+	__be64		mrl_grant_epoch;/* ex_grant_epoch of the released tenure */
+	__be64		mrl_owner_epoch;/* emitting mount incarnation */
+	__be64		mrl_reserved[2];/* must be zero */
+};
 
 /*
  * Inode Log Item Format definitions.
@@ -523,7 +559,7 @@ struct xfs_log_dinode {
 /*
  * Authority classes for mxfs_blf_authority.mba_class.
  *
- * sess95 RULE-5 ruling, release blocker 1 (the epoch NAMESPACE problem): an
+ * sess95 design-consult ruling, release blocker 1 (the epoch NAMESPACE problem): an
  * inode's grant may be backed by EITHER the per-inode CAW slot
  * (MXFS_LTYPE_INODE) or the inode-CLUSTER slot (MXFS_LTYPE_ICLUSTER), chosen
  * at acquire time and recorded in ip->i_dlm_routed_iclus.  A durable epoch
@@ -549,7 +585,7 @@ struct xfs_log_dinode {
 #define MXFS_AUTH_CLASS_MAX	5	/* wire values >= this are MALFORMED */
 
 /*
- * sess94 step 5.2, RULE-5 ruling item (a): the explicit token STATUS.
+ * sess94 step 5.2, design-consult ruling item (a): the explicit token STATUS.
  *
  * v1 had no status field, so class == NONE overloaded six distinct
  * conditions into one value — "no authority is required", "the capture
@@ -558,7 +594,12 @@ struct xfs_log_dinode {
  * cannot fail closed intelligently on an overloaded value, and report-only
  * mode cannot measure the population it needs to.  v2 carries the reason.
  *
- * Emitted by THIS build: VALID, UNPROVEN, MISLABELLED, INCOMPLETE.
+ * Emitted by THIS build: VALID, UNPROVEN, MISLABELLED, INCOMPLETE, and — from
+ * 0.75.82, on every arm that consults the inode authority rather than only on
+ * the one that reaches it without an AG grant — OWNER_UNKNOWN, AUTH_NOT_CACHED,
+ * AUTH_NOT_HELD and EPOCH_UNAVAIL.  MISLABELLED now means only what it says:
+ * an AG grant was held that is not this buffer's authority, and the inode arm
+ * beneath it had nothing more specific to report.
  * Reserved for later steps, defined here so the wire contract is fixed:
  *   NOT_REQUIRED  — no producer emits it (an image that needs no authority
  *                   carries no token at all today);
@@ -577,7 +618,7 @@ struct xfs_log_dinode {
 #define MXFS_AUTH_ST_WRITE_AUTH	7	/* write-tenure authority, not a grant */
 #define MXFS_AUTH_ST_UNSUPPORTED 8	/* producer cannot classify this image */
 /*
- * sess95 step 5.3, RULE-5 ruling Q5.  The v2 set cannot express the five ways
+ * sess95 step 5.3, design-consult ruling Q5.  The v2 set cannot express the five ways
  * an INODE-authority capture can fail to prove anything, and the ruling is
  * explicit that they must not be collapsed: recovery has to fail closed
  * DIFFERENTLY per reason, and report-only mode has to size each population
@@ -633,7 +674,7 @@ struct mxfs_blf_authority {
 };
 /*
  * VERSION 1 IS REPORT-ONLY AND MUST NEVER GATE AN APPLY/SKIP DECISION.
- * (sess82 step 5.0, from a RULE-5 ruling.)  Three defects are inherent to
+ * (sess82 step 5.0, from a design-consult ruling.)  Three defects are inherent to
  * the v1 shape, so no producer-side improvement can promote it:
  *   - mba_resource is a __be32 agno: it cannot name an inode, so a record
  *     whose real authority is an inode EX grant can only be labelled by its
@@ -843,6 +884,12 @@ enum xfs_blft {
 	XFS_BLFT_SB_BUF,
 	XFS_BLFT_RTBITMAP_BUF,
 	XFS_BLFT_RTSUMMARY_BUF,
+	/*
+	 * MXFS directory-sharding manifest block (docs/dir-sharding.md): slot
+	 * 30, high to keep clear of upstream's growing low allocations; pinned
+	 * to MXFS_DIRSHARD_BLFT by a build check in xfs_mxfs_dirshard.c.
+	 */
+	XFS_BLFT_MXFS_DIRSHARD_BUF = 30,
 	XFS_BLFT_MAX_BUF = (1 << XFS_BLFT_BITS),
 };
 
@@ -1289,6 +1336,30 @@ struct xfs_icreate_log {
 	__be32		icl_length;	/* length of extent to initialise */
 	__be32		icl_gen;	/* inode generation number to use */
 };
+
+/*
+ * MXFS (sess444, design-consult ruling): an ICREATE record's WRITER-TIME protocol,
+ * persisted on the record itself.  The icreate iovec is the upstream
+ * xfs_icreate_log immediately followed by this trailer; upstream replay
+ * reads only the struct and ignores the extra bytes.
+ *
+ * MXFS_ICL_F_SYNCINIT: every cluster of the chunk was durably initialised
+ * on the platter (raw SCSI FUA write, P133-ICLUSTER-SYNCINIT) BEFORE this
+ * record was written; a FUA failure fails the carve transaction instead
+ * of logging the record.  A replayer may therefore treat the init as
+ * already applied: it VERIFIES each cluster from the platter and never
+ * writes one that verifies (an allocated or peer-modified inode passes);
+ * a cluster that does not verify is a broken invariant and REFUSES the
+ * replay — it is never initialised without per-cluster authority.
+ * A record without the trailer carries no such proof and stays
+ * tainting on any MXFS mount.
+ */
+struct mxfs_icreate_trailer {
+	__be32		magic;		/* MXFS_ICL_TRAILER_MAGIC */
+	__be32		flags;		/* MXFS_ICL_F_* */
+};
+#define MXFS_ICL_TRAILER_MAGIC	0x4d584943	/* 'MXIC' */
+#define MXFS_ICL_F_SYNCINIT	(1u << 0)
 
 /*
  * Flags for deferred attribute operations.

@@ -2,7 +2,7 @@
 # drc_pace_ab.sh <arm_ms> [runs]
 #
 # Acceptance measurement for the sess24 bounded shared-class patience fix
-# (mxfs.caw_pr_defer_max_ms), stated in the units RULE 0 cares about: how many
+# (mxfs.caw_pr_defer_max_ms), stated in the units the budget rule cares about: how many
 # dir_reuse_coherency reuse ROUNDS fit inside the criterion's fixed 100s time box
 # at 32 nodes.
 #

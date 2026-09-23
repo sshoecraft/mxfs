@@ -1,6 +1,6 @@
 #!/bin/bash
 # tools/recover_wedged_domain.sh <domain> — recover a libvirt guest whose qemu
-# process cannot be killed, WITHOUT resetting the host (RULE 2 forbids that).
+# process cannot be killed, WITHOUT resetting the host (the never-reboot-the-host rule forbids that).
 #
 # THE FAILURE (measured on clyde 2026-08-20, sess384, domain test4):
 #   virsh destroy test4
@@ -29,7 +29,7 @@
 # The old image is left untouched: if those threads ever unblock they write to
 # the file nothing references any more.
 #
-# RULE 2: this NEVER reboots or sysrqs the host.  It restarts libvirtd/virtlogd,
+# the never-reboot-the-host rule: this NEVER reboots or sysrqs the host.  It restarts libvirtd/virtlogd,
 # which running guests survive.
 #
 # Usage:  sudo tools/recover_wedged_domain.sh test4

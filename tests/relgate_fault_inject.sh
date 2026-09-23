@@ -8,7 +8,7 @@
 #   grant away, with a bounded WEDGE (60s no-progress / 300s total ->
 #   P-ICLUS-WEDGE, grant pinned, admission closed, force shutdown) as the
 #   fail-safe end.  Board runs exercised the defer path only incidentally
-#   (5 natural episodes, sess310).  RULE 6 requires the enforcement
+#   (5 natural episodes, sess310).  the zero-defect bar requires the enforcement
 #   boundary to be exercised ON PURPOSE: force the proof to fail at each
 #   guarded stage and watch the machinery hold the invariant.
 #
@@ -23,7 +23,7 @@
 #   Stages driven: 7=OBLIG_ZERO (post-settle), 9=FLUSH_DONE (post-flush,
 #   pre-verify), 10=PROOF (post-proof-loop; downstream tripwire coverage).
 #
-# WHAT COUNTS AS PASS — defer mode (all of these, per RULE 6)
+# WHAT COUNTS AS PASS — defer mode (all of these, per the zero-defect bar)
 #   1. P282-RELGATE-FAULT fired at every driven stage (fault really ran).
 #   2. >=1 P280-RELEASE-CERT with cas=0 defer=N (a real deferral: the
 #      release path REFUSED to CAS without proof).
@@ -74,7 +74,7 @@
 #     npeers  contending peers, testK upward skipping target (default 3)
 #     nodes   fleet size for context only (default 32)
 #
-# RULE 0 budget:
+# derived time budget:
 #   defer mode: 3 stages x (arm 5s + churn 20s + settle 5s + harvest 5s)
 #     x <=2 attempts + final sweep ~20s  => <=240s.  Cap the invocation
 #     at 300s; longer means a wedge or an unreachable node, both FAIL.
@@ -342,6 +342,13 @@ if [ "$MODE" = "inode" ]; then
             p282=$(grep -c "P282-RELGATE-FAULT stage=$stage .*force=1" "$LOG")
             defers=$(grep 'P280-RELEASE-CERT class=1 ' "$LOG" | grep -c 'cas=0 .*defer=[1-4]:')
             p228=$(grep -c 'P228-RELBAR' "$LOG")
+            # sess449 (0.55.1, D-0516 prerequisite): a forced stage-10 hit
+            # must take the TICKET deferral exit, not the sess258 telemetry
+            # exit that CASed unproved.
+            tkdefer=$(grep -c 'P228-RELBAR-TICKET-DEFER' "$LOG")
+            if [ "$stage" = 10 ] && [ "$p282" -gt 0 ] && [ "$tkdefer" -eq 0 ]; then
+                echo "=== FAIL: stage 10 forced hit but no P228-RELBAR-TICKET-DEFER (INODE proof failure CASed unproved) ==="; fail=1
+            fi
             wedges=$(grep -c 'P-INODE-WEDGE' "$LOG")
             nocause=$(grep -c 'P-INODE-DEFER-NOCAUSE' "$LOG")
             faults=$(grep -ciE 'kernel BUG|BUG:|Oops|general protection|Call Trace' "$LOG")

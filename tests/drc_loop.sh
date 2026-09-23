@@ -4,7 +4,7 @@
 # (excludes the benign "DLM shutdown complete" teardown line).  run.sh's prep
 # asserts the build srcversion on every node, so all iters run the local .ko.
 #
-# RULE 0 budget: each iter = prep(mkfs/mount/load ~20s) + test(~284s) ~= 306s;
+# derived time budget: each iter = prep(mkfs/mount/load ~20s) + test(~284s) ~= 306s;
 # N iters => ~N*330s wall.  drc_cap2.sh overwrites tests/_cap/<host>.log each
 # run, so this snapshots fence counts + failing logs immediately after each iter.
 #

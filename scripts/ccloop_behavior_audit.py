@@ -4,9 +4,9 @@
 `ccloop_token_audit.py` answers "how many tokens". This answers "did the
 2026-08-07 behavioural interventions actually change what sessions do":
 
-  #4 handoff tier (RULE 8) -- how often is .ccloop/handoff.md FRESH at the
+  #4 handoff tier (the queue-integrity rule) -- how often is .ccloop/handoff.md FRESH at the
      start of a session, i.e. did the previous session actually maintain it
-  #5 RULE 7 (Read tool)    -- Read-tool calls vs Bash file-reads per session
+  #5 the Read-tool rule (Read tool)    -- Read-tool calls vs Bash file-reads per session
      (baseline 2026-08-07: 2.5 Read vs 19.5 Bash reads/session = 11% Read)
   orientation ramp         -- tool calls before the first productive action
      (baseline: median 16), and the most re-read files across the run
@@ -146,7 +146,7 @@ def main():
     print(f"run {args.run[:8]}  sessions {args.from_session}-{pairs[-1][0]} "
           f"({n} prompts, {seen} transcripts found)\n")
 
-    print("=== #4 handoff tier (RULE 8) ===")
+    print("=== #4 handoff tier (the queue-integrity rule) ===")
     tot = fresh + stale + missing
     print(f"  FRESH   : {fresh:4d}  ({100*fresh/tot:.0f}%)")
     print(f"  STALE   : {stale:4d}  ({100*stale/tot:.0f}%)")
@@ -156,7 +156,7 @@ def main():
               f"median {statistics.median(sizes):.0f}  "
               f"min {min(sizes)}  max {max(sizes)}")
 
-    print("\n=== #5 RULE 7 (Read tool vs Bash file-reads) ===")
+    print("\n=== #5 the Read-tool rule (Read tool vs Bash file-reads) ===")
     tr, tb = sum(read_tool), sum(bash_read)
     if tr + tb:
         print(f"  Read tool    : {tr:6d}  ({tr/max(seen,1):.1f}/session)  "

@@ -22,7 +22,7 @@ if [ "${#SHAPES[@]}" -eq 0 ]; then
             late-fswide ghost ghost-fswide ghost-badkind)
 fi
 
-# RULE 0: measured 2026-08-20, every shape completes in 13-20 s (the mount
+# budget: measured 2026-08-20, every shape completes in 13-20 s (the mount
 # either aborts on its first classification or admits normally).  Anything
 # past 60 s for one shape is a wedge, not a slow success.
 PER_SHAPE="${PER_SHAPE:-60}"

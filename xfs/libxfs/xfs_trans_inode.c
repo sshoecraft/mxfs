@@ -172,7 +172,7 @@ xfs_trans_log_inode(
 		uint8_t p234_m = READ_ONCE(ip->i_dlm_mode);
 
 		/*
-		 * sess33 refinement (RULE 4, attributed on the 289 board):
+		 * sess33 refinement (instrumented, attributed on the 289 board):
 		 * i_dlm_mode alone is the WRONG authority sensor during a
 		 * BAST drain — drain site 2 clears it to NL while the
 		 * on-disk mirror grant is still ours, and the FIX-25/26/27
@@ -294,7 +294,7 @@ xfs_trans_log_inode(
 	}
 
 	/*
-	 * sess6 (ccloop 46efd8b6) RULE-4 PROVEN (run 112803Z, test12 i!=1):
+	 * sess6 (ccloop 46efd8b6) PROVEN BY INSTRUMENT (run 112803Z, test12 i!=1):
 	 * on a multi-node MXFS mount di_changecount is the cross-node reload
 	 * freshness stamp (P-RELOAD-IDENTICAL / P3-REFUSE-OLDER / epoch
 	 * gates compare it to decide whether a peer modified the inode since

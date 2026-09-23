@@ -24,6 +24,7 @@
 #include "xfs_quota.h"
 #include "xfs_trans_space.h"
 #include "xfs_trace.h"
+#include "xfs_mxfs_dlm.h"	/* 0.84.19: mxfs_xattr_refused */
 #include "xfs_attr_item.h"
 #include "xfs_xattr.h"
 #include "xfs_parent.h"
@@ -284,7 +285,20 @@ xfs_attr_get(
 	/* Entirely possible to look up a name which doesn't exist */
 	args->op_flags = XFS_DA_OP_OKNOENT;
 
-	lock_mode = xfs_ilock_attr_map_shared(args->dp);
+	/*
+	 * 0.84.19: on a clustered mount this acquire may be refused — the
+	 * master never acknowledged the request past the budget, or the task
+	 * was killed — and the read fails with nothing held, instead of
+	 * waiting without bound (D-0958).  Nothing is dirty and no
+	 * transaction is open here for any caller.
+	 */
+	if (args->dp->i_mount->m_mxfs_dlm) {
+		error = xfs_ilock_attr_map_shared_fallible(args->dp, &lock_mode);
+		if (error)
+			return mxfs_xattr_refused(args->dp, "get", error);
+	} else {
+		lock_mode = xfs_ilock_attr_map_shared(args->dp);
+	}
 	error = xfs_attr_get_ilocked(args);
 	xfs_iunlock(args->dp, lock_mode);
 
@@ -1006,8 +1020,14 @@ xfs_attr_add_fork(
 
 	blks = XFS_ADDAFORK_SPACE_RES(mp);
 
-	error = xfs_trans_alloc_inode(ip, &M_RES(mp)->tr_addafork, blks, 0,
-			rsvd, &tp);
+	/* 0.84.20: on a clustered mount the reservation's ILOCK_EXCL is a
+	 * fallible boundary — the change's first request (D-0958). */
+	if (mp->m_mxfs_dlm)
+		error = mxfs_attr_trans_alloc_fallible(ip, &M_RES(mp)->tr_addafork,
+				blks, 0, rsvd, &tp, "addfork");
+	else
+		error = xfs_trans_alloc_inode(ip, &M_RES(mp)->tr_addafork, blks, 0,
+				rsvd, &tp);
 	if (error)
 		return error;
 
@@ -1142,6 +1162,27 @@ xfs_attr_set(
 
 	ASSERT(!args->trans);
 
+	/*
+	 * 0.84.21, instrument: which reservation a change will take first
+	 * depends on whether the inode already has an attr fork.  A fresh
+	 * file on a reused inode number (s606i) reached xfs_attr_set with a
+	 * fork already present; this line says what the change saw.
+	 */
+	if (mp->m_mxfs_dlm) {
+		static atomic_t p_xsp_n = ATOMIC_INIT(0);
+		int n = atomic_inc_return(&p_xsp_n);
+
+		if (n <= 64 || n % 256 == 0)
+			pr_warn("mxfs: P958-XATTRSET-PATH ino=%llu op=%d has_af=%d af_fmt=%d af_bytes=%lld af_nextents=%llu forkoff=%u nlink=%u comm=%s\n",
+				(unsigned long long)dp->i_ino, (int)op,
+				xfs_inode_has_attr_fork(dp) ? 1 : 0,
+				(int)dp->i_af.if_format,
+				(long long)dp->i_af.if_bytes,
+				(unsigned long long)dp->i_af.if_nextents,
+				(unsigned)dp->i_forkoff, VFS_I(dp)->i_nlink,
+				current->comm);
+	}
+
 	switch (op) {
 	case XFS_ATTRUPDATE_UPSERT:
 	case XFS_ATTRUPDATE_CREATE:
@@ -1181,7 +1222,14 @@ xfs_attr_set(
 	 * Root fork attributes can use reserved data blocks for this
 	 * operation if necessary
 	 */
-	error = xfs_trans_alloc_inode(dp, &tres, total, 0, rsvd, &args->trans);
+	/* 0.84.20: the same fallible boundary as xfs_attr_add_fork (D-0958). */
+	if (mp->m_mxfs_dlm)
+		error = mxfs_attr_trans_alloc_fallible(dp, &tres, total, 0, rsvd,
+				&args->trans,
+				op == XFS_ATTRUPDATE_REMOVE ? "remove" : "set");
+	else
+		error = xfs_trans_alloc_inode(dp, &tres, total, 0, rsvd,
+				&args->trans);
 	if (error)
 		return error;
 
@@ -1646,7 +1694,7 @@ xfs_attr_namecheck(
 int __init
 xfs_attr_intent_init_cache(void)
 {
-	xfs_attr_intent_cache = kmem_cache_create("mxfs_attr_intent",
+	xfs_attr_intent_cache = mxfs_cache_create("mxfs_attr_intent",
 			sizeof(struct xfs_attr_intent),
 			0, 0, NULL);
 

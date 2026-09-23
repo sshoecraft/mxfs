@@ -1,6 +1,6 @@
 #!/bin/bash
 # mass_umount_stall_probe.sh — D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B
-# RULE-4 step 2 instrumentation run.
+# instrument step 2 instrumentation run.
 #
 # Simultaneously unmounts EVERY node of a mounted fleet (the sess378 shape:
 # 32-way, no survivor — the worst case, in which the last node standing has
@@ -19,10 +19,10 @@
 #        Signature: P73-WAITSTALL state=4 acq_inflight>0, and/or a
 #        P139-LOCKTOTAL with a large total_ms and retries>0 on the same ino.
 #
-# RULE 0: native XFS umount of a quiescent fs is <1s.  The budget asserted
+# budget: native XFS umount of a quiescent fs is <1s.  The budget asserted
 # here is 5s per node (2x native, with generous infra slack).  The 330s
 # per-node `timeout` is NOT the budget — it exists only so a wedge cannot
-# hang the harness; any node over BUDGET_S is reported as a RULE 0 FAIL with
+# hang the harness; any node over BUDGET_S is reported as a budget rule FAIL with
 # its measured wall.
 #
 # Usage: tests/mass_umount_stall_probe.sh [N] [BUDGET_S]
@@ -159,7 +159,7 @@ if [ "$DEPART_N" -lt "$N" ]; then
         echo \"OBS worst_root_ms=\$wr worst_other_ms=\$wo pairs=\$n\"" \
       > "$OUT/observer" 2>&1 ) &
 
-    # sess380: the CONCLUSIVE per-LBA control the sess379 RULE-5 review
+    # sess380: the CONCLUSIVE per-LBA control the sess379 design-consult review
     # prescribed — direct READ(16)+FUA to the hot slot and to a cold LBA on the
     # same device and nexus, alternating, with dispatch-to-completion timing.
     # A stat() control cannot do this because two stats can differ in whether
@@ -170,7 +170,8 @@ if [ "$DEPART_N" -lt "$N" ]; then
     # no operation on a shared resource may exceed 2x the same operation on an
     # uncontended one.
     if [ -n "${LBA_PROBE_HOT:-}" ]; then
-        ( "$SSH" "$OBS" "bash /src/mxfs/tests/lba_probe.sh ${LBA_PROBE_DEV:-/dev/sda} $LBA_PROBE_HOT ${LBA_PROBE_COLD:-$((LBA_PROBE_HOT + 20000))} ${LBA_PROBE_SECS:-60}" \
+        : "${LBA_PROBE_DEV:=${MXFS_DEV:?the LBA probe reads the shared LUN directly: name it with LBA_PROBE_DEV or MXFS_DEV, never assumed from a rig path}}"
+        ( "$SSH" "$OBS" "bash /src/mxfs/tests/lba_probe.sh $LBA_PROBE_DEV $LBA_PROBE_HOT ${LBA_PROBE_COLD:-$((LBA_PROBE_HOT + 20000))} ${LBA_PROBE_SECS:-60}" \
           > "$OUT/lbaprobe" 2>&1 ) &
     fi
 fi
@@ -349,6 +350,6 @@ if [ "$NOVER" -eq 0 ]; then
     echo "evidence: $OUT"
     exit 0
 fi
-echo "=== mass_umount_stall_probe FAIL (RULE 0) — $NOVER/$N node(s) over ${BUDGET_S}s, max=${MAXW}s ==="
+echo "=== mass_umount_stall_probe FAIL (budget) — $NOVER/$N node(s) over ${BUDGET_S}s, max=${MAXW}s ==="
 echo "evidence: $OUT"
 exit 1

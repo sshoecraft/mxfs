@@ -32,7 +32,7 @@ for i in $(seq 1 "$ITERS"); do
         ( timeout 15 "$SSH" "test$n" "$PASS" "dmesg -C" >/dev/null 2>&1 ) &
     done
     wait
-    MXFS_DEV=/dev/mapper/mpatha TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
+    TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
         ./run.sh "$N" caw "$WARMUP" fence_during_write
     rc=$?
     hit=0

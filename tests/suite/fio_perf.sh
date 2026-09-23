@@ -83,7 +83,7 @@ trap 'rm -rf "$W" /tmp/fio_perf.$$.* 2>/dev/null' EXIT
 # first-touch performance on both sides, comparisons were dominated by that
 # mismatched penalty rather than real steady-state throughput. Discarding the
 # first pass isolates steady-state performance, which is what actually
-# matters for RULE 0 budgets and the vs-xfs comparison.
+# matters for derived time budgets and the vs-xfs comparison.
 run(){
     local n="$1" rw="$2" bs="$3" j="/tmp/fio_perf.$$.$1.json" pass
     for pass in 1 2; do

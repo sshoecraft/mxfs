@@ -52,7 +52,7 @@ if grep -q '=== done: ran=17' "$LOG" && [ "$nf" -eq 0 ] && [ "$np" -eq 17 ]; the
 fi
 echo "RESULT: RUN $LABEL PARTIAL pass=$np fail=$nf — FAILS:"
 grep '^  FAIL ' "$LOG" | sed 's/^/    /'
-[ "$rc" -eq 124 ] && echo "    (timeout: suite exceeded ${RUN_TIMEOUT}s — RULE 0 slowness FAIL)"
+[ "$rc" -eq 124 ] && echo "    (timeout: suite exceeded ${RUN_TIMEOUT}s — the budget rule slowness FAIL)"
 for h in "$N1" "$N2"; do
     nm=$([ "$h" = "$N1" ] && echo node1 || echo node2)
     timeout 25 sshpass -f "$P" ssh -o StrictHostKeyChecking=no \

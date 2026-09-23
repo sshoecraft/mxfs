@@ -4,7 +4,7 @@ Performance harnesses for MXFS.  Distinct from `tests/` (correctness)
 and `tests/decision_reproducers/` (per-spec-decision reproducers).
 These run on real cross-node hardware and produce wall-clock numbers.
 
-These scripts live in the source tree (per `CLAUDE.md` RULE 3) so they
+These scripts live in the source tree (per `CLAUDE.md` the source-tree rule) so they
 survive reboots of the dev host or test cluster.
 
 ## Inventory
@@ -101,6 +101,6 @@ sample entry like:
 
 ## Why bench/ is in the source tree, not /tmp
 
-See `/src/mxfs/CLAUDE.md` RULE 3.  Test cluster reboots regularly
+See `/src/mxfs/CLAUDE.md` the source-tree rule.  Test cluster reboots regularly
 (sysrq-b after wedged unmounts, cluster resets); /tmp evaporates.
 Persistent bench harnesses live here.

@@ -367,6 +367,10 @@ xfs_update_alignment(
 		error = xfs_check_new_dalign(mp, mp->m_dalign, &update_sb);
 		if (error || !update_sb)
 			return error;
+		/* sess419 D-0133: sunit/swidth are non-counter SB fields */
+		error = mxfs_sb_mutation_refuse(mp, "dalign mount option");
+		if (error)
+			return error;
 
 		sbp->sb_unit = mp->m_dalign;
 		sbp->sb_width = mp->m_swidth;
@@ -881,6 +885,10 @@ xfs_mountfs(
 	 * sb_bad_features2 before it is logged or written to disk.
 	 */
 	if (xfs_sb_has_mismatched_features2(sbp)) {
+		/* sess419 D-0133: a cluster mount may not repair the SB */
+		error = mxfs_sb_mutation_refuse(mp, "features2 mismatch repair");
+		if (error)
+			goto out;
 		xfs_warn(mp, "correcting sb_features alignment problem");
 		sbp->sb_features2 |= sbp->sb_bad_features2;
 		mp->m_update_sb = true;
@@ -889,6 +897,9 @@ xfs_mountfs(
 
 	/* always use v2 inodes by default now */
 	if (!(mp->m_sb.sb_versionnum & XFS_SB_VERSION_NLINKBIT)) {
+		error = mxfs_sb_mutation_refuse(mp, "NLINKBIT add");	/* sess419 D-0133 */
+		if (error)
+			goto out;
 		mp->m_sb.sb_versionnum |= XFS_SB_VERSION_NLINKBIT;
 		mp->m_features |= XFS_FEAT_NLINK;
 		mp->m_update_sb = true;
@@ -1164,12 +1175,25 @@ xfs_mountfs(
 	 * Get and sanity-check the root inode.
 	 * Save the pointer to it in the mount structure.
 	 */
-	error = xfs_iget(mp, NULL, sbp->sb_rootino, XFS_IGET_UNTRUSTED,
-			 XFS_ILOCK_EXCL, &rip);
+	/*
+	 * MXFS 0.84.5 (D-...-0960): the root inode's lookup and lock are the
+	 * first cluster acquires a joining mount makes (the untrusted iget
+	 * takes AG 0's lock, then the inode's), and both are taken here as a
+	 * fallible boundary — nothing dirty, no transaction, the mount not yet
+	 * published — so a cluster acquire that cannot complete fails the
+	 * MOUNT (unwinding through the ordinary failure path, which leaves
+	 * membership and releases the slot cleanly) instead of shutting the
+	 * filesystem down, withdrawing and being fenced by the peer it was
+	 * joining.  Measured before this: a joiner arriving inside the
+	 * bootstrap node's takeover of a dead authority's ledger pages.
+	 */
+	error = mxfs_iget_root_fallible(mp, sbp->sb_rootino, &rip);
 	if (error) {
 		xfs_warn(mp,
-			"Failed to read root inode 0x%llx, error %d",
-			sbp->sb_rootino, -error);
+			"Failed to read root inode 0x%llx, error %d%s",
+			sbp->sb_rootino, -error,
+			(error == -EREMCHG || error == -EAGAIN) ?
+			" — a cluster acquire was refused; the mount is refused, not shut down" : "");
 		goto out_free_metadir;
 	}
 
@@ -1209,6 +1233,11 @@ xfs_mountfs(
 	 * perform the update e.g. for the root filesystem.
 	 */
 	if (mp->m_update_sb && !xfs_is_readonly(mp)) {
+		/* sess419 D-0133: every m_update_sb source is gated above; this
+		 * is the fail-closed backstop for any future one. */
+		error = mxfs_sb_mutation_refuse(mp, "mount-time sb update");
+		if (error)
+			goto out_rtunmount;
 		error = xfs_sync_sb(mp, false);
 		if (error) {
 			xfs_warn(mp, "failed to write sb changes");
@@ -1220,6 +1249,14 @@ xfs_mountfs(
 	 * Initialise the XFS quota management subsystem for this mount
 	 */
 	if (XFS_IS_QUOTA_ON(mp)) {
+		/* sess419 D-0133: quota accounting flips sb_versionnum QUOTABIT
+		 * / sb_qflags and allocates quota inodes into the SB — whole-SB
+		 * producers (xfs_qm_prep_metadir_sb, qino_alloc, mount_quotas).
+		 * A cluster mount with quota options is refused outright, before
+		 * any of them run. */
+		error = mxfs_sb_mutation_refuse(mp, "quota mount option");
+		if (error)
+			goto out_rtunmount;
 		error = xfs_qm_newmount(mp, &quotamount, &quotaflags);
 		if (error)
 			goto out_rtunmount;
@@ -1230,6 +1267,11 @@ xfs_mountfs(
 		 * quotachecked license.
 		 */
 		if (mp->m_sb.sb_qflags & XFS_ALL_QUOTA_ACCT) {
+			/* sess419 D-0133: this reset is a non-counter SB log too;
+			 * a cluster mount refuses it (clear the flags offline). */
+			error = mxfs_sb_mutation_refuse(mp, "reset_sbqflags");
+			if (error)
+				goto out_rtunmount;
 			xfs_notice(mp, "resetting quota flags");
 			error = xfs_mount_reset_sbqflags(mp);
 			if (error)
@@ -1322,6 +1364,13 @@ xfs_mountfs(
 	if (error)
 		goto out_agresv;
 
+	/*
+	 * MXFS 0.84.5 (D-...-0960): the lifecycle mark a refused mount never
+	 * reaches; xfs_log_quiesce writes no SB summary, and takes no cluster
+	 * lock for one, on a mount without it.
+	 */
+	mp->m_mxfs_mount_complete = true;
+
 	return 0;
 
  out_agresv:
@@ -1387,13 +1436,22 @@ xfs_mountfs(
 /*
  * This flushes out the inodes,dquots and the superblock, unmounts the
  * log and makes sure that incore structures are freed.
+ *
+ * sess485 (D-0483): split in two.  A clustered unmount must finish every
+ * piece of metadata work that can still dirty an allocation group BEFORE it
+ * publishes its AG grants to the cluster, and only the log teardown may
+ * follow the publication.  The prepare half is everything up to and
+ * including the release of the special inodes and the disabling of inode
+ * inactivation; the finish half is the inode reclaim (which after the
+ * caller's quiesce only frees clean inodes), the quota teardown, the
+ * block-reserve return and the log covering plus unmount record.  A plain
+ * unmount and the failed-mount unwind call the two back to back through
+ * xfs_unmountfs.
  */
 void
-xfs_unmountfs(
+xfs_unmountfs_prepare(
 	struct xfs_mount	*mp)
 {
-	int			error;
-
 	/*
 	 * Perform all on-disk metadata updates required to inactivate inodes
 	 * that the VFS evicted earlier in the unmount process.  Freeing inodes
@@ -1413,8 +1471,30 @@ xfs_unmountfs(
 		xfs_unmount_zones(mp);
 	xfs_rtunmount_inodes(mp);
 	xfs_irele(mp->m_rootip);
-	if (mp->m_metadirip)
+	mp->m_rootip = NULL;	/* sess485: the mount's reference is gone; nothing below may use it */
+	if (mp->m_metadirip) {
 		xfs_irele(mp->m_metadirip);
+		mp->m_metadirip = NULL;
+	}
+
+	/*
+	 * sess485: the releases above are the last events on this mount that
+	 * could queue an inode for inactivation (none should: the root is a
+	 * directory, the rest are internal inodes).  Flush whatever they
+	 * queued and DISABLE the queue, so that from here on nothing can
+	 * schedule a metadata transaction behind the caller's back.  The stop
+	 * inside xfs_unmount_flush_inodes is then a no-op, and an inode
+	 * queued after this point is counted by the departure accounting as
+	 * the violation it is.
+	 */
+	xfs_inodegc_stop(mp);
+}
+
+void
+xfs_unmountfs_finish(
+	struct xfs_mount	*mp)
+{
+	int			error;
 
 	xfs_unmount_flush_inodes(mp);
 
@@ -1458,6 +1538,14 @@ xfs_unmountfs(
 	xfs_errortag_del(mp);
 	xchk_stats_unregister(mp->m_scrub_stats);
 	xfs_mount_sysfs_del(mp);
+}
+
+void
+xfs_unmountfs(
+	struct xfs_mount	*mp)
+{
+	xfs_unmountfs_prepare(mp);
+	xfs_unmountfs_finish(mp);
 }
 
 /*
@@ -1657,6 +1745,14 @@ xfs_add_incompat_log_feature(
 	ASSERT(hweight32(feature) == 1);
 	ASSERT(!(feature & XFS_SB_FEAT_INCOMPAT_LOG_UNKNOWN));
 
+	/* sess419 D-0133: log_incompat bits (LARP, XCHG) are non-counter SB
+	 * state written straight to the primary and then logged whole; in
+	 * cluster mode neither write is coordinated.  Refuse before the bwrite
+	 * — callers (exchange-range, logged xattrs) fail with -EOPNOTSUPP. */
+	error = mxfs_sb_mutation_refuse(mp, "add_incompat_log_feature");
+	if (error)
+		return error;
+
 	/*
 	 * Force the log to disk and kick the background AIL thread to reduce
 	 * the chances that the bwrite will stall waiting for the AIL to unpin
@@ -1732,6 +1828,11 @@ xfs_clear_incompat_log_features(
 				XFS_SB_FEAT_INCOMPAT_LOG_ALL) ||
 	    xfs_is_shutdown(mp) ||
 	    !xfs_is_done_with_log_incompat(mp))
+		return false;
+	/* sess419 D-0133: clearing the bits is a non-counter SB mutation too;
+	 * in cluster mode the bits stay as found (a higher protection level
+	 * than the log needs is harmless — see the caller's comment). */
+	if (mxfs_sb_mutation_refuse(mp, "clear_incompat_log_features"))
 		return false;
 
 	/*

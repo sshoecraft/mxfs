@@ -14,7 +14,7 @@ set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/lib.sh"
 result_init "zero_silent_loss"
-# RULE 0 budget (tests/criteria/TIMEOUT_BUDGETS.md): 3 iters × ~120 s
+# derived time budget (tests/criteria/TIMEOUT_BUDGETS.md): 3 iters × ~120 s
 # measured wall (incl. full remount, sess15 run14d) + one mount_cluster
 # retry (~60 s) + harness overhead = 480 s.  A run that needs more than
 # this is itself a FAIL — do not widen.

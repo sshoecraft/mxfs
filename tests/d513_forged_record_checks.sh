@@ -1,5 +1,5 @@
 #!/bin/bash
-# d513_forged_record_checks.sh — the sess333 RULE-5 "pre-rig unit checks" for
+# d513_forged_record_checks.sh — the sess333 design-consult "pre-rig unit checks" for
 # D-FOREIGN-REPLAY-REFUSAL-CLUSTERWIDE-SUICIDE-513, run against the REAL LUN
 # and the REAL mount path.
 #
@@ -33,16 +33,22 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 FORGE=/src/mxfs/tools/recov_forge
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 
 SHAPE="${1:?usage: d513_forged_record_checks.sh <shape> [slot] [target_node]}"
 SLOT="${2:-40}"
 TARGET="${3:-test32}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$TARGET"; DEV=$MXFS_DEV_RESOLVED
 PROBE="${PROBE:-test1}"
 SAVE="/tmp/d513_forge_slot${SLOT}.bin"
 
-# RULE 0 budget.  Measured on this rig: umount ~2 s, a clean mount ~8-15 s.
+# derived time budget.  Measured on this rig: umount ~2 s, a clean mount ~8-15 s.
 # A forged terminal slot aborts the barrier on its first classification, so it
 # is FASTER than a clean mount, not slower.  90 s covers the mount plus the ssh
 # fan-out; anything beyond that is a wedge, not a slow success.
@@ -162,6 +168,16 @@ node "$TARGET" "dmesg --clear; umount $MNT; echo umount_rc=\$?"
 say "--- forging shape=$SHAPE"
 forged=$(node "$PROBE" "$FORGE $DEV mkguard $SLOT $FORGE_ARGS") || { echo "FAIL: forge"; exit 1; }
 echo "$forged"
+# sess434 (D-0358): the forge's descriptor version MUST equal the kernel's, or
+# every shape below measures only the version gate.  recov_forge mirrors the
+# constant by hand (it cannot include dlm/disklock.h), so couple them here.
+KVER=$(sed -n 's/^#define MXFS_RECOV_DESC_VERSION[[:space:]]*\([0-9]*\).*/\1/p' "$REPO/dlm/disklock.h" | head -1)
+FVER=$(echo "$forged" | grep -ao 'desc: ver=[0-9]*' | head -1 | tr -dc '0-9')
+if [ -z "$KVER" ] || [ "$FVER" != "$KVER" ]; then
+    echo "FAIL: recov_forge wrote descriptor version '${FVER:-?}' but dlm/disklock.h MXFS_RECOV_DESC_VERSION is '${KVER:-?}' — the shape cannot reach the kernel's shape path (D-0358); restoring the sector"
+    node "$PROBE" "$FORGE $DEV restore $SLOT $SAVE"
+    exit 1
+fi
 FORGED_CRC=$(echo "$forged" | sed -n 's/.*sector_crc32c=\(0x[0-9a-f]*\).*/\1/p' | head -1)
 say "forged sector_crc32c=$FORGED_CRC"
 

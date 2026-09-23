@@ -1,7 +1,7 @@
 #!/bin/bash
 # drc_single_node.sh — SINGLE-NODE version of the dir_reuse_coherency churn.
 #
-# DECISIVE RULE-4 experiment (sess32): is the dir_reuse_coherency readdir-short /
+# DECISIVE instrumented experiment (sess32): is the dir_reuse_coherency readdir-short /
 # P31E-DATAINIT-ABA clobber a SINGLE-NODE self-clobber (a stale-buffer reload
 # reverts this node's OWN dir fork → data_init re-inits lblk 0), or does it
 # REQUIRE cross-node concurrency (dual-EX on the reused dir inode)?

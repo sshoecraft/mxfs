@@ -13,7 +13,7 @@
  *   3. the shared terminal classifier(mxfs_freplay_classify_terminal ->
  *                                     mxfs_freplay_import_verdict)
  *
- * The sess333 RULE-5 review demanded pre-disposition checks that a MALFORMED
+ * The sess333 design-consult review demanded pre-disposition checks that a MALFORMED
  * or MISPLACED record makes every one of them fail CLOSED, and that the
  * refusing path never rewrites the sector it refused.  Nothing in the tree can
  * produce those inputs: the kernel only ever writes well-formed records.  This
@@ -35,9 +35,38 @@
  *   --node N           heartbeat node_id / desc victim_node [4242]
  *   --epoch E          heartbeat epoch  / desc victim_epoch [7]
  *   --victim-slot S    desc.victim_slot [= slot]
- *   --stage S          desc.stage [2 = FENCED]
+ *   --stage S          desc.stage [2].  1=FENCING 2=SNAPSHOTTING 3=FENCED
+ *                      4=IMAGES_REPLAYED 5=OBLIGATIONS_DONE 6=GRANTS_RELEASED.
+ *                      This numbering MOVED when SNAPSHOTTING was inserted;
+ *                      2 has not meant FENCED since, and the help here said it
+ *                      did for long enough to be worth saying so.
  *   --live             omit MXFS_RECOV_F_QUARANTINED (live descriptor)
  *   --break-desc-crc   store a deliberately wrong descriptor crc
+ *   --victim-fsgen G   desc.victim_fs_gen [= the heartbeat's fs_gen].  Moving
+ *                      ONLY this leaves the record visible to every sweep and
+ *                      makes it claim a recovery from a different mkfs
+ *                      generation — the binding, not the ghost test.
+ *   --desc-version V   desc.version [3 = the version this build mirrors].
+ *                      Anything else is what an OLDER OR NEWER writer's record
+ *                      looks like to this build's shape gate.
+ *
+ * THE CERTIFICATE (bytes 76..115).  With --fence-kind the forged descriptor
+ * stops being a bare recovery lease and becomes a replay-AUTHORISING
+ * certificate of that kind — the one input the kernel cannot produce, because
+ * a build only ever mints the kinds it still supports.  That is what makes a
+ * REVOKED or RETIRED class reachable: the consuming side has to meet a durable
+ * certificate an older build would have written, and refuse it by name.
+ *   --fence-kind K     desc.fence_kind [0 = NONE, i.e. an intent, not a cert].
+ *                      16 RETIRED  17 SINGLE_NODE_EXCLUSIVE  19 REVOKED
+ *                      20/21 REVOKED absent-registration  23 PROVEN_V1.
+ *                      Implies --stage 3 unless --stage is given explicitly.
+ *   --fence-resv T     desc.fence_resv_type [0x07 Write Exclusive - All
+ *                      Registrants].  0x01 is the single-holder form the
+ *                      exclusive-write gate rests on.
+ *   --fence-key X      desc.fence_victim_key [0xfeedface00000001]
+ *   --fence-prover N   desc.fence_prover_node [1]
+ *   --fence-prover-epoch E   desc.fence_prover_epoch [1]
+ *   --fence-term T     desc.fence_term [1]
  *   --oc SHAPE         outcome region shape [none]
  *       none          all-zero outcome region (legacy intent quarantine)
  *       valid         TERMINAL_REFUSED / POLICY / AG_MASK(--oc-agmask), crc ok
@@ -84,7 +113,13 @@
 #define DL_FLAG_GUARD       3u
 
 #define RECOV_DESC_MAGIC    0x5643524Du   /* "MRCV" LE */
-#define RECOV_DESC_VERSION  2
+/* sess434: MUST track MXFS_RECOV_DESC_VERSION in dlm/disklock.h.  The kernel
+ * moved to 3 in sess405 (SNAPSHOTTING stage + manifest pointer; the 120-byte
+ * descriptor layout is unchanged) while this stayed at 2, so every forge
+ * since then read as a version-mismatch — the kernel's -EPROTO fail-closed
+ * arm and chk_mxfs's "will not interpret it" — and no shape exercised what it
+ * claimed to.  tests/chk_guard_inprogress_verify.sh caught it. */
+#define RECOV_DESC_VERSION  3
 #define RECOV_F_QUARANTINED 0x00000001u
 
 #define OC_MAGIC            0x4F435652u   /* "RVCO" LE */
@@ -225,14 +260,32 @@ static uint32_t oc_crc(const struct hb_rec *hb, const struct recov_outcome *oc)
 }
 
 /* ── device I/O: READ(16)/WRITE(16) with FUA ──────────────────────────────── */
+/*
+ * NOT EVERY TARGET TAKES FUA IN THE CDB.  The LUN this rig ships against
+ * answers a READ(16) carrying FUA — or DPO — with CHECK CONDITION, ILLEGAL
+ * REQUEST, "invalid field in cdb" (measured with sg_raw: 88 08 ... fails,
+ * 88 00 ... returns the sector).  The kernel's own passthrough already handles
+ * this: it latches the rejection and serves the read another way.  This tool
+ * had no such fallback, so every command it issued against that LUN failed
+ * before it read a byte.
+ *
+ * Same rule here: on ILLEGAL REQUEST, drop FUA and retry, once, then remember
+ * it for the rest of the run.  What is given up is stated rather than assumed
+ * — without FUA the target may answer a read from its own cache instead of the
+ * platter.  For this tool's job that is the same coherency the kernel runs
+ * under on this stack, and the sector it reads back is one it wrote itself
+ * through the same nexus.
+ */
+static int fua_rejected;
+
 static int sg_rw(int fd, int write, uint64_t lba, void *buf, uint32_t blocks)
 {
 	unsigned char cdb[16] = {0};
 	unsigned char sense[64];
 	sg_io_hdr_t hdr;
+	int attempt;
 
 	cdb[0]  = write ? 0x8A : 0x88;          /* WRITE(16) / READ(16) */
-	cdb[1]  = 0x08;                         /* FUA */
 	cdb[2]  = (uint8_t)(lba >> 56);
 	cdb[3]  = (uint8_t)(lba >> 48);
 	cdb[4]  = (uint8_t)(lba >> 40);
@@ -246,31 +299,49 @@ static int sg_rw(int fd, int write, uint64_t lba, void *buf, uint32_t blocks)
 	cdb[12] = (uint8_t)(blocks >> 8);
 	cdb[13] = (uint8_t)(blocks);
 
-	memset(&hdr, 0, sizeof(hdr));
-	memset(sense, 0, sizeof(sense));
-	hdr.interface_id = 'S';
-	hdr.cmd_len = sizeof(cdb);
-	hdr.cmdp = cdb;
-	hdr.dxferp = buf;
-	hdr.dxfer_len = blocks * SECTOR_SIZE;
-	hdr.dxfer_direction = write ? SG_DXFER_TO_DEV : SG_DXFER_FROM_DEV;
-	hdr.sbp = sense;
-	hdr.mx_sb_len = sizeof(sense);
-	hdr.timeout = TIMEOUT_MS;
+	for (attempt = 0; attempt < 2; attempt++) {
+		cdb[1] = fua_rejected ? 0x00 : 0x08;    /* FUA */
 
-	if (ioctl(fd, SG_IO, &hdr) < 0) {
-		fprintf(stderr, "SG_IO %s: %s\n", write ? "write" : "read",
-			strerror(errno));
-		return -1;
-	}
-	if (hdr.status || hdr.host_status || hdr.driver_status) {
+		memset(&hdr, 0, sizeof(hdr));
+		memset(sense, 0, sizeof(sense));
+		hdr.interface_id = 'S';
+		hdr.cmd_len = sizeof(cdb);
+		hdr.cmdp = cdb;
+		hdr.dxferp = buf;
+		hdr.dxfer_len = blocks * SECTOR_SIZE;
+		hdr.dxfer_direction = write ? SG_DXFER_TO_DEV : SG_DXFER_FROM_DEV;
+		hdr.sbp = sense;
+		hdr.mx_sb_len = sizeof(sense);
+		hdr.timeout = TIMEOUT_MS;
+
+		if (ioctl(fd, SG_IO, &hdr) < 0) {
+			fprintf(stderr, "SG_IO %s: %s\n", write ? "write" : "read",
+				strerror(errno));
+			return -1;
+		}
+		if (!hdr.status && !hdr.host_status && !hdr.driver_status)
+			return 0;
+		/* ILLEGAL REQUEST on the FIRST attempt means the CDB carried a
+		 * field this target will not take, and FUA is the only optional
+		 * one this tool sets. */
+		if (!fua_rejected && (sense[2] & 0x0F) == 0x05) {
+			fua_rejected = 1;
+			fprintf(stderr, "recov_forge: this target rejects FUA in "
+				"the CDB (ILLEGAL REQUEST %02x/%02x); reissuing "
+				"without it for the rest of this run, as the "
+				"kernel's own passthrough does on this stack.  "
+				"Reads are then answered from wherever the target "
+				"chooses, not forced from the platter\n",
+				sense[12], sense[13]);
+			continue;
+		}
 		fprintf(stderr, "SG_IO %s failed: status=%u host=%u driver=%u "
-			"sense=%02x/%02x/%02x\n", write ? "write" : "read",
+			"sense=%02x/%02x/%02x fua=%d\n", write ? "write" : "read",
 			hdr.status, hdr.host_status, hdr.driver_status,
-			sense[2] & 0x0F, sense[12], sense[13]);
+			sense[2] & 0x0F, sense[12], sense[13], !fua_rejected);
 		return -1;
 	}
-	return 0;
+	return -1;
 }
 
 static uint64_t hb_base;        /* byte offset of slot 0 */
@@ -319,8 +390,11 @@ static bool oc_present(const struct hb_rec *hb)
 static void dump_slot(int slot, const struct hb_rec *hb)
 {
 	bool dpres = desc_present(hb);
-	bool dvalid = dpres && hb->desc.version == RECOV_DESC_VERSION &&
-		      hb->desc.crc32c == desc_crc(hb, &hb->desc);
+	/* The crc and the version are two different facts and a forge can move
+	 * either one alone: folding them into a single "BAD" made a
+	 * deliberately-old descriptor read as a corrupt one. */
+	bool dcrc_ok = dpres && hb->desc.crc32c == desc_crc(hb, &hb->desc);
+	bool dvalid = dcrc_ok && hb->desc.version == RECOV_DESC_VERSION;
 	bool ovalid = dpres && hb->outcome.magic == OC_MAGIC &&
 		      hb->outcome.version == OC_VERSION &&
 		      hb->outcome.crc32c == oc_crc(hb, &hb->outcome);
@@ -343,9 +417,23 @@ static void dump_slot(int slot, const struct hb_rec *hb)
 	       (unsigned long long)hb->desc.victim_epoch,
 	       hb->desc.victim_slot, hb->desc.victim_fs_gen,
 	       hb->desc.owner_node, hb->desc.owner_term,
-	       dvalid ? "OK" : "BAD");
+	       dcrc_ok ? "OK" : "BAD");
+	if (!dvalid && dcrc_ok)
+		printf("        desc: version %u is not the %u this build "
+		       "mirrors — the kernel's shape gate refuses it before any "
+		       "certificate is read\n",
+		       hb->desc.version, RECOV_DESC_VERSION);
 	printf("        desc: QUARANTINED=%d\n",
 	       !!(hb->desc.flags & RECOV_F_QUARANTINED));
+	printf("        cert: kind=%u resv_type=0x%02x victim_key=0x%016llx "
+	       "prover=%u/%llu term=%u pr_gen=%u%s\n",
+	       hb->desc.fence_kind, hb->desc.fence_resv_type,
+	       (unsigned long long)hb->desc.fence_victim_key,
+	       hb->desc.fence_prover_node,
+	       (unsigned long long)hb->desc.fence_prover_epoch,
+	       hb->desc.fence_term, hb->desc.fence_pr_gen,
+	       hb->desc.fence_kind ? "" :
+	       "  (kind NONE: an intent, not a certificate)");
 	if (!oc_present(hb)) {
 		printf("        oc:   all-zero (no outcome record)\n");
 		return;
@@ -377,9 +465,18 @@ static void usage(void)
 		"       recov_forge <dev> copy    <src> <dst>\n"
 		"       recov_forge <dev> mkguard <slot> [--fsgen G] [--node N]\n"
 		"              [--epoch E] [--victim-slot S] [--stage S] [--live]\n"
-		"              [--break-desc-crc] [--oc SHAPE] [--oc-agmask M]\n"
+		"              [--break-desc-crc] [--desc-version V]\n"
+		"              [--victim-fsgen G]\n"
+		"              [--oc SHAPE] [--oc-agmask M]\n"
+		"              [--fence-kind K] [--fence-resv T] [--fence-key X]\n"
+		"              [--fence-prover N] [--fence-prover-epoch E]\n"
+		"              [--fence-term T]\n"
 		"  SHAPE: none valid fswide badkind badreason agmask0 slotmismatch\n"
-		"         fswidemask badcrc\n");
+		"         fswidemask badcrc\n"
+		"  STAGE: 1 FENCING 2 SNAPSHOTTING 3 FENCED 4 IMAGES_REPLAYED\n"
+		"         5 OBLIGATIONS_DONE 6 GRANTS_RELEASED\n"
+		"  KIND:  16 RETIRED  17 SINGLE_NODE_EXCLUSIVE  19 REVOKED\n"
+		"         20/21 REVOKED absent-registration  23 PROVEN_V1\n");
 	exit(2);
 }
 
@@ -505,6 +602,16 @@ int main(int argc, char **argv)
 		const char *ocshape = "none";
 		uint64_t agmask = 0x1;
 		bool have_fsgen = false;
+		bool have_stage = false;
+		uint32_t victim_fsgen = 0;
+		bool have_victim_fsgen = false;
+		uint32_t desc_version = RECOV_DESC_VERSION;
+		uint32_t fence_kind = 0;
+		uint32_t fence_resv = 0x07;   /* Write Exclusive - All Registrants */
+		uint64_t fence_key = 0xfeedface00000001ULL;
+		uint32_t fence_prover = 1;
+		uint64_t fence_prover_epoch = 1;
+		uint32_t fence_term = 1;
 
 		if (argc < 4)
 			usage();
@@ -522,6 +629,32 @@ int main(int argc, char **argv)
 				victim_slot = atoi(argv[++i]);
 			} else if (!strcmp(argv[i], "--stage") && i + 1 < argc) {
 				stage = (uint32_t)strtoul(argv[++i], NULL, 0);
+				have_stage = true;
+			} else if (!strcmp(argv[i], "--victim-fsgen") &&
+				   i + 1 < argc) {
+				victim_fsgen = (uint32_t)strtoul(argv[++i], NULL, 0);
+				have_victim_fsgen = true;
+			} else if (!strcmp(argv[i], "--desc-version") &&
+				   i + 1 < argc) {
+				desc_version = (uint32_t)strtoul(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--fence-kind") &&
+				   i + 1 < argc) {
+				fence_kind = (uint32_t)strtoul(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--fence-resv") &&
+				   i + 1 < argc) {
+				fence_resv = (uint32_t)strtoul(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--fence-key") &&
+				   i + 1 < argc) {
+				fence_key = strtoull(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--fence-prover") &&
+				   i + 1 < argc) {
+				fence_prover = (uint32_t)strtoul(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--fence-prover-epoch") &&
+				   i + 1 < argc) {
+				fence_prover_epoch = strtoull(argv[++i], NULL, 0);
+			} else if (!strcmp(argv[i], "--fence-term") &&
+				   i + 1 < argc) {
+				fence_term = (uint32_t)strtoul(argv[++i], NULL, 0);
 			} else if (!strcmp(argv[i], "--live")) {
 				quarantine = false;
 			} else if (!strcmp(argv[i], "--break-desc-crc")) {
@@ -537,6 +670,19 @@ int main(int argc, char **argv)
 		}
 		if (victim_slot < 0)
 			victim_slot = slot;
+		/*
+		 * A certificate that is not at FENCED is not a certificate — the
+		 * consuming gate refuses it at the STAGE test and never reaches
+		 * the kind, so the shape would grade the stage gate under a
+		 * fence-kind name.  Promote, and say so, unless the caller asked
+		 * for a stage on purpose.
+		 */
+		if (fence_kind && !have_stage) {
+			stage = 3;              /* MXFS_RECOV_STAGE_FENCED */
+			printf("auto stage=3 (FENCED): --fence-kind %u needs a "
+			       "stage the consuming gate will classify\n",
+			       fence_kind);
+		}
 
 		if (!have_fsgen) {
 			/* Adopt the live filesystem's generation: a record whose
@@ -571,7 +717,7 @@ int main(int argc, char **argv)
 		hb.epoch = epoch;
 
 		hb.desc.magic = RECOV_DESC_MAGIC;
-		hb.desc.version = RECOV_DESC_VERSION;
+		hb.desc.version = (uint16_t)desc_version;
 		hb.desc.stage = (uint16_t)stage;
 		hb.desc.victim_epoch = epoch;
 		hb.desc.owner_epoch = 1;
@@ -579,7 +725,11 @@ int main(int argc, char **argv)
 		hb.desc.owner_stamp_ms = 1000;
 		hb.desc.victim_node = node;
 		hb.desc.owner_node = 1;
-		hb.desc.victim_fs_gen = fsgen;
+		/* The heartbeat keeps the LIVE generation so the record is not a
+		 * pre-mkfs ghost that every sweep skips before anything reads it;
+		 * only the DESCRIPTOR's claim about which generation the recovery
+		 * belongs to is moved.  That is the binding under test. */
+		hb.desc.victim_fs_gen = have_victim_fsgen ? victim_fsgen : fsgen;
 		hb.desc.flags = quarantine ? RECOV_F_QUARANTINED : 0;
 		hb.desc.victim_slot = (uint16_t)victim_slot;
 		hb.desc.owner_slot = 0;
@@ -587,6 +737,25 @@ int main(int argc, char **argv)
 		hb.desc.slice_count = 4;
 		hb.desc.stage_seq = 1;
 		hb.desc.owner_term = 1;
+		/*
+		 * The certificate.  Left all-zero the kind is NONE, which every
+		 * gate reads as "an intent, never a certificate".  Filled in, the
+		 * record is a complete replay authorisation of the named kind,
+		 * with every supporting field the gate demands present and
+		 * non-zero — so the ONLY thing left for the gate to object to is
+		 * the kind itself.  That is the point: a refusal here names the
+		 * proof contract, not a missing field.
+		 */
+		hb.desc.fence_kind = (uint16_t)fence_kind;
+		if (fence_kind) {
+			hb.desc.fence_resv_type = (uint16_t)fence_resv;
+			hb.desc.fence_victim_key = fence_key;
+			hb.desc.fence_prover_epoch = fence_prover_epoch;
+			hb.desc.fence_stamp_ms = 1000;
+			hb.desc.fence_prover_node = fence_prover;
+			hb.desc.fence_pr_gen = 1;
+			hb.desc.fence_term = fence_term;
+		}
 		hb.desc.crc32c = desc_crc(&hb, &hb.desc);
 		if (break_desc)
 			hb.desc.crc32c ^= 0xFFFFFFFFu;
@@ -646,7 +815,9 @@ int main(int argc, char **argv)
 
 		if (slot_write(fd, slot, &hb) < 0)
 			return 1;
-		printf("forged slot=%d oc=%s%s%s\n", slot, ocshape,
+		printf("forged slot=%d stage=%u desc_ver=%u fence_kind=%u victim_fsgen=0x%08x oc=%s%s%s\n",
+		       slot, stage, desc_version, fence_kind,
+		       hb.desc.victim_fs_gen, ocshape,
 		       break_desc ? " +break-desc-crc" : "",
 		       quarantine ? " +QUARANTINED" : " (live desc)");
 		if (slot_read(fd, slot, &hb) < 0)

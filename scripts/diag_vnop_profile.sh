@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_vnop_profile.sh — RULE 4 step 2 (continued) for the scaling_curve
+# diag_vnop_profile.sh — instrument step 2 (continued) for the scaling_curve
 # multi-node penalty.  Profiles the VFS entry points (xfs_vn_*) on every
 # node over the scaling_curve rsync workload via the ftrace function
 # profiler.  These functions run only in the calling task's syscall

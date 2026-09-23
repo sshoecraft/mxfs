@@ -10,7 +10,7 @@
 # the lifted build (criteria-met protection, DLM_IMPL_PLAN "CAW-green
 # protection").
 #
-# ── RULE-0 budget (written BEFORE first run) ──
+# ── derived time budget (written BEFORE first run) ──
 #   infra    = run.sh 2/caw prep with up to 30 running extra nodes to
 #              tear down (parallel, ~100 s worst) + participant clean +
 #              NFS ensure + re-mkfs 0.6 s + mounts 2.7/4.8 s +
@@ -18,7 +18,7 @@
 #   workload = posix_multi + dlm_fairness, manifest budgets 30 s each
 #              (measured 3 s / 2 s at 2-node on 0.10.x)
 #   GATE3_BUDGET_S: provisional was 300; first healthy PASS measured
-#   32 s (prep 18 s + tests 5 s) => pinned 120 s (RULE-0
+#   32 s (prep 18 s + tests 5 s) => pinned 120 s (the budget rule
 #   tighten-toward-actual, retaining power-cycle-escalation variance).
 #   run.sh enforces the per-test budgets itself.
 #   Per DLM_IMPL_PLAN (ladder_rung.sh rationale) run.sh is NEVER

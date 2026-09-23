@@ -22,7 +22,7 @@ fi
 ck "pm barrier clean" coord_barrier "pm_clean"
 mkdir -p "$D" 2>/dev/null
 
-# sess1 (ccloop 0220f43f) RULE-4 PROVEN: FPN was a T-INDEPENDENT constant
+# sess1 (ccloop 0220f43f) PROVEN BY INSTRUMENT: FPN was a T-INDEPENDENT constant
 # (100/node), so the concurrent create storm below puts 100*T creates
 # through ONE shared dir's DLM-EX rotation (3200 at T=32) -- the same
 # "contended dir-EX handoff rotation" cost class documented at length

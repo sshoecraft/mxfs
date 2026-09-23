@@ -56,6 +56,7 @@
 #include <linux/sched.h>
 #include <linux/hashtable.h>
 #include <linux/sched/debug.h>	/* sess4: sched_show_task for mxfs_pal_dump_task_stack */
+#include <linux/sched/signal.h>	/* 0.75.29: signal_pending for the condition waits */
 #include <linux/sort.h>
 #include <linux/net.h>
 #include <linux/in.h>
@@ -292,7 +293,7 @@ static inline struct page *kaddr_to_page(void *addr)
  * Returns the bio and sets *batch_len to the number of bytes covered.
  * The caller is responsible for submitting and freeing the bio.
  */
-static struct bio *build_bio(struct mxfs_bdev *dev, uint64_t offset,
+static struct bio *build_bio(struct block_device *bdev, uint64_t abs_offset,
 			     void *buf, uint32_t len, unsigned int op,
 			     unsigned int *batch_len)
 {
@@ -306,7 +307,7 @@ static struct bio *build_bio(struct mxfs_bdev *dev, uint64_t offset,
 		npages = BIO_MAX_VECS;
 
 #if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(5, 18, 0)
-	bio = bio_alloc(dev->bdev, npages, op, GFP_KERNEL);
+	bio = bio_alloc(bdev, npages, op, GFP_KERNEL);
 #else
 	bio = bio_alloc(GFP_KERNEL, npages);
 #endif
@@ -314,10 +315,10 @@ static struct bio *build_bio(struct mxfs_bdev *dev, uint64_t offset,
 		return NULL;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)
-	bio_set_dev(bio, dev->bdev);
+	bio_set_dev(bio, bdev);
 	bio->bi_opf = op;
 #endif
-	bio->bi_iter.bi_sector = (offset + dev->base_offset) >> 9;
+	bio->bi_iter.bi_sector = abs_offset >> 9;
 
 	blen = 0;
 	for (i = 0; i < npages; i++) {
@@ -358,7 +359,7 @@ static int bdev_sync_io(struct mxfs_bdev *dev, uint64_t offset,
 		unsigned int batch_len;
 		int ret;
 
-		bio = build_bio(dev, offset + done,
+		bio = build_bio(dev->bdev, offset + done + dev->base_offset,
 				(char *)buf + done, len - done,
 				op, &batch_len);
 		if (!bio)
@@ -375,6 +376,60 @@ static int bdev_sync_io(struct mxfs_bdev *dev, uint64_t offset,
 
 	return 0;
 }
+
+/*
+ * sess444: synchronous bio I/O on a RAW struct block_device for callers
+ * that hold one (the XFS buftarg) and no mxfs_bdev handle.  Fallback for
+ * the SCSI passthrough FUA paths (mxfs_pal_scsi_{read,write}_fua_bdev
+ * return -EOPNOTSUPP on a non-SCSI device such as a loop device): the
+ * SYNCINIT inode-cluster init (xfs_ialloc_inode_init) and its replay-time
+ * verify read (xlog_recover_icreate_commit_pass2) must work on every
+ * MXFS mount, single-node loop mounts included.  lba_512 is absolute.
+ */
+static int mxfs_pal_bio_sync_bdev(struct block_device *bdev, uint64_t lba_512,
+				  void *buf, uint32_t len, unsigned int op)
+{
+	unsigned int done = 0;
+
+	if (!bdev || !buf || len == 0 || (len & 511) != 0)
+		return -EINVAL;
+	if (is_vmalloc_addr(buf))
+		return -EINVAL;
+	while (done < len) {
+		struct bio *bio;
+		unsigned int batch_len;
+		int ret;
+
+		bio = build_bio(bdev, (lba_512 << 9) + done, (char *)buf + done,
+				len - done, op, &batch_len);
+		if (!bio)
+			return -ENOMEM;
+		ret = submit_bio_wait(bio);
+		bio_put(bio);
+		if (ret)
+			return ret;
+		if (batch_len == 0 || (batch_len & 511) != 0)
+			return -EIO;
+		done += batch_len;
+	}
+	return 0;
+}
+
+int mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
+				const void *buf, uint32_t len)
+{
+	return mxfs_pal_bio_sync_bdev(bdev, lba_512, (void *)buf, len,
+				      REQ_OP_WRITE | REQ_SYNC | REQ_FUA);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_bio_write_fua_bdev);
+
+int mxfs_pal_bio_read_bdev(struct block_device *bdev, uint64_t lba_512,
+			   void *buf, uint32_t len)
+{
+	return mxfs_pal_bio_sync_bdev(bdev, lba_512, buf, len,
+				      REQ_OP_READ | REQ_SYNC);
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_bio_read_bdev);
 
 /*
  * Completion callback for pipelined bio reads.
@@ -430,7 +485,7 @@ static int bdev_pipelined_read(struct mxfs_bdev *dev, uint64_t offset,
 			struct bio *bio;
 			unsigned int blen;
 
-			bio = build_bio(dev, offset + done,
+			bio = build_bio(dev->bdev, offset + done + dev->base_offset,
 					(char *)buf + done, len - done,
 					REQ_OP_READ, &blen);
 			if (!bio) {
@@ -503,7 +558,7 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				 void *buf, uint32_t len);
 
 /*
- * sess-tcp (RULE 4 PROVEN): the LIO/tcm_loop test backstore REJECTS the
+ * sess-tcp (PROVEN BY INSTRUMENT): the LIO/tcm_loop test backstore REJECTS the
  * READ(16)+FUA passthrough with CHECK CONDITION / sense ILLEGAL REQUEST
  * (ASC 0x24 invalid-field-in-CDB) — proven with tools/fua_verify and the
  * P-IGET-ENOENT fua_disk_mode=0xffffffff dmesg.  That made every cross-node
@@ -517,6 +572,30 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
  * passthrough succeeds and this fallback never engages.
  */
 static int mxfs_fua_read_unsupported;	/* 0 = unknown/ok, 1 = proven-unsupported */
+
+/*
+ * The FUA bit on every SCSI passthrough CDB this file builds (READ(16),
+ * WRITE(16), COMPARE AND WRITE on both submission paths) follows the
+ * operator's durability declaration, not a constant.  fua_disable=1
+ * declares that target power loss / volatile write-cache loss is out of
+ * scope and that the target has no real FUA (the SCST rig, and every
+ * write-through NAS target measured so far); on that declaration a set
+ * FUA bit buys nothing and, on a target that rejects the bit outright,
+ * costs the whole mount.  Measured 2026-09-04 on a QNAP TS-453 Pro: any
+ * CDB carrying FUA returns ILLEGAL REQUEST / INVALID FIELD IN CDB
+ * (05/24/00) while the same COMPARE AND WRITE without it is correct
+ * (success, MISCOMPARE on a stale compare, readback proves the write
+ * landed).  Its first ledger CAW therefore failed with -EIO and the
+ * mount refused — one bit.  With fua_disable=0 the bit stays set and a
+ * rejection is a mount-time failure with a message naming the
+ * requirement, never a silent downgrade of the declared domain.
+ */
+static inline unsigned char mxfs_pal_cdb_fua(void)
+{
+	extern int mxfs_fua_disable;
+
+	return mxfs_fua_disable ? 0x00 : 0x08;
+}
 
 /* defined below; forward-declared for the fallback path above its definition */
 int mxfs_pal_bdev_read_plain_bdev(struct block_device *bdev, uint64_t lba_512,
@@ -680,6 +759,18 @@ static struct scsi_device *mxfs_bdev_to_sdev(struct block_device *bdev)
 	if (!bdev)
 		return NULL;
 
+	/*
+	 * sess444 (design-consult landing review, STOP-SHIP 2): a PARTITION's LBAs are
+	 * partition-relative, a passthrough CDB's are whole-LUN — resolving
+	 * the sdev here would let every passthrough caller write/read the
+	 * wrong LBA.  Refuse (callers get -EOPNOTSUPP and take their bio
+	 * fallback, which the block layer offsets correctly).  MXFS devices on
+	 * the rig are whole LUNs (/dev/mapper/mpatha), so this never fires
+	 * there; it makes the misuse impossible rather than merely unlikely.
+	 */
+	if (bdev_is_partition(bdev))
+		return NULL;
+
 	/* Plain SCSI disk: gendisk's parent is the scsi_device. */
 	parent = disk_to_dev(bdev->bd_disk)->parent;
 	if (parent && scsi_is_sdev_device(parent)) {
@@ -791,7 +882,7 @@ void mxfs_pal_sdev_cache_release(void)
 EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
 
 /*
- * ─── sess379: PER-TASK ABSOLUTE I/O BUDGET (RULE-5 ruling item 5) ───
+ * ─── sess379: PER-TASK ABSOLUTE I/O BUDGET (design-consult ruling item 5) ───
  *
  * D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, root-caused sess379: a plain
  * `statx()` of the mount point blocked 60.5 / 121 / 181.5 s on 30 of 32 nodes
@@ -810,7 +901,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_sdev_cache_release);
  *
  *     30 s scsi_execute_cmd timeout  x  1 SCSI retry  x  20 wrapper retries
  *
- * i.e. a worst case of ~20 minutes for ONE slot probe.  The RULE-5 ruling
+ * i.e. a worst case of ~20 minutes for ONE slot probe.  The design-consult ruling
  * (ccmemory ccloop-c7ee71c6-sess379-GPT-ruling-detector-io-off-the-fast-path)
  * names that stack as "exactly the failure-amplification pattern to remove"
  * and prescribes ONE absolute monotonic deadline per LOGICAL operation, with
@@ -878,7 +969,28 @@ static long mxfs_pal_io_budget_remaining_ms(void)
 		if (b->task == current) {
 			long d = (long)(b->deadline_j - jiffies);
 
-			left = (d <= 0) ? -1 : jiffies_to_msecs(d);
+			/*
+			 * BOTH CASTS ARE LOAD-BEARING AND THIS LINE HAD
+			 * NEITHER.  jiffies_to_msecs() returns unsigned int, so
+			 * in `(d <= 0) ? -1 : jiffies_to_msecs(d)` the usual
+			 * arithmetic conversions make the whole conditional
+			 * unsigned int and turn the -1 into 4294967295 — which
+			 * then widens into this long as a large POSITIVE value.
+			 * The exhausted signal this function exists to return
+			 * could therefore never be returned at all.
+			 *
+			 * The compiler said so, in the only way it can: with
+			 * the negative unreachable, it deleted the caller's
+			 * `if (budget_ms < 0)` arm outright, so the emitted
+			 * code held no `return -ETIME` and not even the static
+			 * counter behind the log line.  The visible damage was
+			 * the opposite of the intent — an exhausted budget
+			 * yielded ~49.7 days of "remaining", and the caller
+			 * handed that to msecs_to_jiffies as its per-command
+			 * timeout, giving the LARGEST possible timeout at
+			 * exactly the moment the deadline had passed.
+			 */
+			left = (d <= 0) ? -1L : (long)jiffies_to_msecs(d);
 			break;
 		}
 	}
@@ -886,8 +998,47 @@ static long mxfs_pal_io_budget_remaining_ms(void)
 	return left;
 }
 
+static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
+					     uint64_t lba_512, void *buf,
+					     uint32_t len);
+
+/*
+ * sess494 (D-32NODE-SHARED-DIR-CREATE-PACE): node-wide count and wall of
+ * every synchronous FUA passthrough read.  The create-cost probe samples both
+ * around its existence lookup so the in-tenure lookup term can be attributed
+ * to cold directory-block reads rather than guessed.  Always on: two atomic
+ * adds per read, no lock, nothing printed here.
+ */
+atomic64_t mxfs_fua_read_calls = ATOMIC64_INIT(0);
+atomic64_t mxfs_fua_read_ns = ATOMIC64_INIT(0);
+
 int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				 void *buf, uint32_t len)
+{
+	extern int mxfs_lkp_trace_open;
+	u64 t0 = ktime_get_ns();
+	int rc = mxfs_pal_scsi_read_fua_bdev_body(bdev, lba_512, buf, len);
+	u64 dt = ktime_get_ns() - t0;
+
+	atomic64_inc(&mxfs_fua_read_calls);
+	atomic64_add(dt, &mxfs_fua_read_ns);
+	/* sess495: see P495-LKP-RD kind=bio in xfs_buf.c — the FUA half of
+	 * the lookup-window read trace. */
+	if (unlikely(READ_ONCE(mxfs_lkp_trace_open))) {
+		static atomic_t p495f = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p495f) <= 300)
+			pr_warn("mxfs: P495-LKP-RD kind=fua lba=%llu len=%u us=%llu rc=%d pid=%d comm=%s\n",
+				(unsigned long long)lba_512, len,
+				(unsigned long long)(dt / 1000), rc,
+				current->pid, current->comm);
+	}
+	return rc;
+}
+
+static int mxfs_pal_scsi_read_fua_bdev_body(struct block_device *bdev,
+					     uint64_t lba_512, void *buf,
+					     uint32_t len)
 {
 	struct scsi_device *sdev;
 	struct scsi_sense_hdr sshdr;
@@ -915,7 +1066,7 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0]  = 0x88;                     /* READ(16) opcode */
-	cdb[1]  = 0x08;                     /* FUA bit set */
+	cdb[1]  = mxfs_pal_cdb_fua();       /* FUA per the durability declaration */
 	cdb[2]  = (u8)(lba_512 >> 56);
 	cdb[3]  = (u8)(lba_512 >> 48);
 	cdb[4]  = (u8)(lba_512 >> 40);
@@ -1072,7 +1223,7 @@ int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 }
 
 /*
- * sess103 RULE-4 instrumentation helper: COHERENT plain-bio read of an
+ * sess103 instrumentation helper: COHERENT plain-bio read of an
  * absolute 512-byte LBA, given only a struct block_device *.  Mirrors the
  * absolute-LBA contract of mxfs_pal_scsi_read_fua_bdev (lba_512 already
  * includes bt_sector_offset) but issues a plain REQ_OP_READ — which under
@@ -1198,7 +1349,7 @@ int mxfs_pal_scsi_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0]  = 0x8A;                     /* WRITE(16) opcode */
-	cdb[1]  = 0x08;                     /* FUA bit set */
+	cdb[1]  = mxfs_pal_cdb_fua();       /* FUA per the durability declaration */
 	cdb[2]  = (u8)(lba_512 >> 56);
 	cdb[3]  = (u8)(lba_512 >> 48);
 	cdb[4]  = (u8)(lba_512 >> 40);
@@ -1372,7 +1523,7 @@ static int bdev_pipelined_write(struct mxfs_bdev *dev, uint64_t offset,
 			struct bio *bio;
 			unsigned int blen;
 
-			bio = build_bio(dev, offset + done,
+			bio = build_bio(dev->bdev, offset + done + dev->base_offset,
 					(char *)buf + done, len - done,
 					REQ_OP_WRITE, &blen);
 			if (!bio) {
@@ -1472,7 +1623,7 @@ int mxfs_pal_bdev_write_scatter(mxfs_bdev_t *dev,
 			struct bio *bio;
 			unsigned int blen;
 
-			bio = build_bio(dev, offsets[i], (void *)bufs[i],
+			bio = build_bio(dev->bdev, offsets[i] + dev->base_offset, (void *)bufs[i],
 					lens[i], REQ_OP_WRITE, &blen);
 			if (!bio) {
 				if (nbios > 0)
@@ -1740,6 +1891,18 @@ void *mxfs_pal_alloc(size_t size)
 	return kzalloc(size, GFP_KERNEL);
 }
 
+void *mxfs_pal_alloc_io(size_t size)
+{
+	if (size == 0)
+		return NULL;
+	return kzalloc(size, GFP_NOFS);
+}
+
+void mxfs_pal_free_io(void *ptr)
+{
+	kfree(ptr);
+}
+
 void mxfs_pal_free(void *ptr)
 {
 	if (!ptr)
@@ -1937,6 +2100,44 @@ void mxfs_pal_mutex_unlock(mxfs_mutex_t *m)
 		mutex_unlock(&m->mtx);
 }
 
+/* sess454 (0.61.0, D1/D8) */
+int mxfs_pal_mutex_trylock(mxfs_mutex_t *m)
+{
+	if (!m)
+		return 1;
+	return mutex_trylock(&m->mtx) ? 1 : 0;
+}
+
+int mxfs_pal_current_pid(void)
+{
+	return current->pid;
+}
+
+int mxfs_pal_fatal_signal_pending(void)
+{
+	return fatal_signal_pending(current) ? 1 : 0;
+}
+
+bool mxfs_pal_module_pin(void)
+{
+	return try_module_get(THIS_MODULE);
+}
+
+void mxfs_pal_module_unpin(void)
+{
+	module_put(THIS_MODULE);
+}
+
+int mxfs_pal_flag_get(const int *p)
+{
+	return READ_ONCE(*p);
+}
+
+void mxfs_pal_flag_set(int *p, int v)
+{
+	WRITE_ONCE(*p, v);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
  * Spinlock — interactive session 2026-07-13: never sleeps, safe to nest
  * inside a caller's own spinlock-held section (unlike mxfs_mutex_t above).
@@ -2101,7 +2302,21 @@ void mxfs_pal_cond_wait(mxfs_cond_t *c, mxfs_mutex_t *m)
 		return;
 
 	gen = c->generation;
-	prepare_to_wait(&c->wq, &wait, TASK_INTERRUPTIBLE);
+	/*
+	 * 0.75.29 (D-DLM-WAIT-SPINS-UNKILLABLE-WITH-SIGNAL-PENDING-0913): a
+	 * task with a signal pending never sleeps in TASK_INTERRUPTIBLE —
+	 * schedule() returns at once — and every caller of these waits loops
+	 * on its own predicate, so the wait became a 100% CPU spin no signal
+	 * could end.  Measured s518g (2 nodes / TCP): a probe's own 10 s
+	 * SIGALRM landed inside a 1 s DLM lock wait on the root inode; the
+	 * task spun in pending_wait for 30+ minutes with SIGALRM pending,
+	 * and every root operation parked behind its ACQUIRING state.  These
+	 * waits carry no signal contract, so a pending signal makes the sleep
+	 * uninterruptible instead; a signal arriving mid-sleep costs one
+	 * early return, and the next lap sleeps properly.
+	 */
+	prepare_to_wait(&c->wq, &wait, signal_pending(current) ?
+			TASK_UNINTERRUPTIBLE : TASK_INTERRUPTIBLE);
 	mutex_unlock(&m->mtx);
 	if (gen == c->generation)
 		schedule();
@@ -2120,7 +2335,11 @@ int mxfs_pal_cond_timedwait(mxfs_cond_t *c, mxfs_mutex_t *m,
 		return -EINVAL;
 
 	gen = c->generation;
-	prepare_to_wait(&c->wq, &wait, TASK_INTERRUPTIBLE);
+	/* 0.75.29: see mxfs_pal_cond_wait — a pending signal must not turn
+	 * the timed sleep into an immediate return; the interval is honored
+	 * uninterruptibly instead. */
+	prepare_to_wait(&c->wq, &wait, signal_pending(current) ?
+			TASK_UNINTERRUPTIBLE : TASK_INTERRUPTIBLE);
 	mutex_unlock(&m->mtx);
 
 	if (gen == c->generation)
@@ -2307,6 +2526,20 @@ int mxfs_pal_tcp_send(mxfs_sock_t *s, const void *buf, uint32_t len)
 
 	if (!s || !s->sk || !buf)
 		return -EINVAL;
+
+	/*
+	 * 0.75.67: a send that takes EPIPE (the peer closed its side) makes
+	 * the TCP stack signal the CURRENT task with SIGPIPE unless the
+	 * message says not to (net/core/stream.c sk_stream_error).  This
+	 * send runs on whatever task is inside the DLM at the time — the
+	 * unmount process broadcasting its goodbye after the peer's socket
+	 * closed first (measured: umount exited 141 after the unmount had
+	 * completed, tests/evidence/unload_laps_s552base.log lap 2), or any
+	 * user process whose file operation sends a lock message as a peer
+	 * resets.  The error return is the whole report; the caller handles
+	 * it.  The user-mode PAL has always sent with MSG_NOSIGNAL.
+	 */
+	msg.msg_flags = MSG_NOSIGNAL;
 
 	while (done < len) {
 		iov.iov_base = (void *)((char *)buf + done);
@@ -2903,10 +3136,26 @@ uint32_t mxfs_pal_crc32c(uint32_t crc, const void *data, size_t len)
  * Logging
  * ═══════════════════════════════════════════════════════════════════ */
 
+/*
+ * sess452 (D-0518): a printk whose text does not end in '\n' is stored
+ * with LOG_CONT and its ringbuffer record is COMMITTED BUT NOT FINALIZED
+ * (kernel/printk/printk.c vprintk_store: prb_commit vs prb_final_commit).
+ * Readers — dmesg, /dev/kmsg, journald — cannot read an unfinalized
+ * record; it becomes visible only when the NEXT printk on the system
+ * reserves a record.  Nearly every mxfs_pal_log() format lacks the
+ * trailing newline, so whenever one of them was the last kernel message
+ * (e.g. P-DBG-RETIRE-SKIP-RESTAMP / P303 at the end of a departure, with
+ * ~2 s of silence after it) a `umount; dmesg` capture ended one line
+ * short and the harness read the marker as absent (chain 71: every
+ * crash-model arm "crash knob did not fire (vacuous)").  Append the
+ * newline here, at the chokepoint, exactly as the user-mode PAL does.
+ */
 void mxfs_pal_log(int level, const char *fmt, ...)
 {
 	struct va_format vaf;
 	va_list args;
+	size_t len = strlen(fmt);
+	bool nl = len && fmt[len - 1] == '\n';
 
 	va_start(args, fmt);
 	vaf.fmt = fmt;
@@ -2914,17 +3163,29 @@ void mxfs_pal_log(int level, const char *fmt, ...)
 
 	switch (level) {
 	case MXFS_LOG_DEBUG:
-		pr_debug("mxfs: %pV", &vaf);
+		if (nl)
+			pr_debug("mxfs: %pV", &vaf);
+		else
+			pr_debug("mxfs: %pV\n", &vaf);
 		break;
 	case MXFS_LOG_INFO:
-		pr_info("mxfs: %pV", &vaf);
+		if (nl)
+			pr_info("mxfs: %pV", &vaf);
+		else
+			pr_info("mxfs: %pV\n", &vaf);
 		break;
 	case MXFS_LOG_WARN:
-		pr_warn("mxfs: %pV", &vaf);
+		if (nl)
+			pr_warn("mxfs: %pV", &vaf);
+		else
+			pr_warn("mxfs: %pV\n", &vaf);
 		break;
 	case MXFS_LOG_ERR:
 	default:
-		pr_err("mxfs: %pV", &vaf);
+		if (nl)
+			pr_err("mxfs: %pV", &vaf);
+		else
+			pr_err("mxfs: %pV\n", &vaf);
 		break;
 	}
 
@@ -2977,6 +3238,263 @@ static const struct pr_ops *get_pr_ops(struct mxfs_bdev *dev)
  * TCP-branch mount-abort (unfenced-node prevention) can be verified
  * deterministically.  Never enable in production.
  */
+/*
+ * sess452 (0.59.2) DEBUG knobs for the deterministic UNKNOWN / slow-PR arms
+ * of tests/retire_pending_admission.sh (design-consult STOP-SHIP #2 required
+ * tests).  Consumed inside the PR IN wrappers so every consumer — the
+ * key-state bracket, verify_registered, validate_admission, the fence
+ * classifiers — sees the same failure.  Never enable in production.
+ *   dbg_pr_read_keys_fail=N     the next N READ KEYS return -EIO
+ *   dbg_pr_read_keys_trunc=1    one-shot: the next READ KEYS reports one
+ *                               more descriptor than it returned (view
+ *                               truncated)
+ *   dbg_pr_read_keys_delay_ms=M every READ KEYS sleeps M ms first (sticky)
+ *   dbg_pr_read_resv_fail=N     the next N READ RESERVATION return -EIO
+ */
+static int mxfs_dbg_pr_read_keys_fail;
+module_param_named(dbg_pr_read_keys_fail, mxfs_dbg_pr_read_keys_fail, int, 0644);
+MODULE_PARM_DESC(dbg_pr_read_keys_fail,
+	"DEBUG: fail the next N SCSI PR READ KEYS with -EIO (key-state UNKNOWN arm). Never enable in production.");
+static int mxfs_dbg_pr_read_keys_trunc;
+module_param_named(dbg_pr_read_keys_trunc, mxfs_dbg_pr_read_keys_trunc, int, 0644);
+MODULE_PARM_DESC(dbg_pr_read_keys_trunc,
+	"DEBUG one-shot: report the next READ KEYS view as truncated (total = count + 1). Never enable in production.");
+static int mxfs_dbg_pr_read_keys_delay_ms;
+module_param_named(dbg_pr_read_keys_delay_ms, mxfs_dbg_pr_read_keys_delay_ms, int, 0644);
+MODULE_PARM_DESC(dbg_pr_read_keys_delay_ms,
+	"DEBUG: sleep this many ms before every READ KEYS (slow-PR arm; heartbeats must keep flowing). Never enable in production.");
+static int mxfs_dbg_pr_read_resv_fail;
+module_param_named(dbg_pr_read_resv_fail, mxfs_dbg_pr_read_resv_fail, int, 0644);
+MODULE_PARM_DESC(dbg_pr_read_resv_fail,
+	"DEBUG: fail the next N SCSI PR READ RESERVATION with -EIO (bracket UNKNOWN arm). Never enable in production.");
+static int mxfs_dbg_pr_bracket_fail;
+module_param_named(dbg_pr_bracket_fail, mxfs_dbg_pr_bracket_fail, int, 0644);
+MODULE_PARM_DESC(dbg_pr_bracket_fail,
+	"DEBUG: fail the next N key-state brackets before any PR IN is issued (joiner-under-UNKNOWN arm). Never enable in production.");
+
+bool mxfs_pal_dbg_pr_bracket_fail_take(void)
+{
+	if (unlikely(READ_ONCE(mxfs_dbg_pr_bracket_fail) > 0)) {
+		mxfs_dbg_pr_bracket_fail--;
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-PR-BRACKET-FAIL injecting a failed "
+			     "key-state bracket (%d left, comm=%s)",
+			     mxfs_dbg_pr_bracket_fail, current->comm);
+		return true;
+	}
+	return false;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_pr_bracket_fail_take);
+
+/* D-0965: the own-registration proof's bracket budget (1 = the old
+ * single-bracket behaviour, for the A/B; never below 1). */
+static int mxfs_dbg_pr_own_proof_brackets = 4;
+module_param_named(dbg_pr_own_proof_brackets, mxfs_dbg_pr_own_proof_brackets, int, 0644);
+MODULE_PARM_DESC(dbg_pr_own_proof_brackets,
+	"how many fresh brackets the same-boot own-registration proof may run when a PROUT disturbs one (default 4; 1 = single bracket, the pre-0.87.11 behaviour)");
+
+uint32_t mxfs_pal_dbg_pr_own_proof_brackets(void)
+{
+	int n = READ_ONCE(mxfs_dbg_pr_own_proof_brackets);
+
+	return n < 1 ? 1u : (uint32_t)n;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_pr_own_proof_brackets);
+
+/* sess454 (0.61.0, D9 tests): settle-absent / probe-lifecycle injectors. */
+static int mxfs_dbg_settle_pause_ms;
+module_param_named(dbg_settle_pause_ms, mxfs_dbg_settle_pause_ms, int, 0644);
+MODULE_PARM_DESC(dbg_settle_pause_ms,
+	"DEBUG: hold the settle-absent path this many ms between the proof mint and the CAS (departure-mutex exclusion / local-PROUT-vs-settle arms). Never enable in production.");
+static int mxfs_dbg_settle_inval_after_mint;
+module_param_named(dbg_settle_inval_after_mint, mxfs_dbg_settle_inval_after_mint, int, 0644);
+MODULE_PARM_DESC(dbg_settle_inval_after_mint,
+	"DEBUG one-shot: invalidate the key-state snapshot after the proof token is minted (as a PR mutation would) — the CAS must be refused. Never enable in production.");
+static int mxfs_dbg_settle_double_consume;
+module_param_named(dbg_settle_double_consume, mxfs_dbg_settle_double_consume, int, 0644);
+MODULE_PARM_DESC(dbg_settle_double_consume,
+	"DEBUG one-shot: consume the proof token twice at the CAS — the second must be refused. Never enable in production.");
+static int mxfs_dbg_probe_hang_ms;
+module_param_named(dbg_probe_hang_ms, mxfs_dbg_probe_hang_ms, int, 0644);
+MODULE_PARM_DESC(dbg_probe_hang_ms,
+	"DEBUG one-shot: the PR probe thread ignores its stop flag for this many ms (models a PR IN parked on a wedged path; the bounded join must quarantine). Never enable in production.");
+
+uint32_t mxfs_pal_dbg_settle_pause_ms(void)
+{
+	int v = READ_ONCE(mxfs_dbg_settle_pause_ms);
+
+	if (unlikely(v > 0))
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-SETTLE-PAUSE %d ms between proof "
+			     "mint and CAS (comm=%s)", v, current->comm);
+	return v > 0 ? (uint32_t)v : 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_settle_pause_ms);
+
+bool mxfs_pal_dbg_settle_inval_after_mint_take(void)
+{
+	if (unlikely(mxfs_dbg_settle_inval_after_mint) &&
+	    xchg(&mxfs_dbg_settle_inval_after_mint, 0)) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-SETTLE-INVAL-AFTER-MINT: invalidating "
+			     "the snapshot after the proof mint (one-shot; the CAS "
+			     "must be refused)");
+		return true;
+	}
+	return false;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_settle_inval_after_mint_take);
+
+bool mxfs_pal_dbg_settle_double_consume_take(void)
+{
+	if (unlikely(mxfs_dbg_settle_double_consume) &&
+	    xchg(&mxfs_dbg_settle_double_consume, 0)) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-SETTLE-DOUBLE-CONSUME: consuming the "
+			     "proof token twice (one-shot; the second must be refused)");
+		return true;
+	}
+	return false;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_settle_double_consume_take);
+
+uint32_t mxfs_pal_dbg_probe_hang_take(void)
+{
+	int v = READ_ONCE(mxfs_dbg_probe_hang_ms);
+
+	if (unlikely(v > 0) && xchg(&mxfs_dbg_probe_hang_ms, 0) == v) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-PROBE-HANG: the PR probe thread "
+			     "ignores its stop for %d ms (one-shot)", v);
+		return (uint32_t)v;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_probe_hang_take);
+
+static int mxfs_dbg_depart_late_token_ms;
+module_param_named(dbg_depart_late_token_ms, mxfs_dbg_depart_late_token_ms, int, 0644);
+MODULE_PARM_DESC(dbg_depart_late_token_ms,
+	"DEBUG one-shot: at the next departure freeze take one synthetic buffer-I/O token and retire it this many ms later (models a completion landing after the drain gave up: the departure must be DIRTY and nothing may be freed under the late completion). Never enable in production.");
+
+uint32_t mxfs_pal_dbg_depart_late_token_take(void)
+{
+	int v = READ_ONCE(mxfs_dbg_depart_late_token_ms);
+
+	if (unlikely(v > 0) && xchg(&mxfs_dbg_depart_late_token_ms, 0) == v)
+		return (uint32_t)v;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_late_token_take);
+
+/* sess459 (review #5 condition 8 + the deterministic G3 arms): consumed
+ * one-shot by put_super; see mxfs_depart_dbg_inject (pal/linux/xfs_buf.c). */
+static int mxfs_dbg_depart_inject;
+module_param_named(dbg_depart_inject, mxfs_dbg_depart_inject, int, 0644);
+MODULE_PARM_DESC(dbg_depart_inject,
+	"DEBUG one-shot: departure-gate fault injector consumed at the next put_super (1=untokened completion, 2=post-teardown submission, 3=orphan buffer holding a token, 4=orphan with a pending rejection, 5=255-token overflow, 6=forced underflow, 7=retry carry resubmitted across the freeze). Every arm must leave the departure DIRTY with the PR key retained. Never enable in production.");
+
+int mxfs_pal_dbg_depart_inject_take(void)
+{
+	int v = READ_ONCE(mxfs_dbg_depart_inject);
+
+	if (unlikely(v > 0) && xchg(&mxfs_dbg_depart_inject, 0) == v)
+		return v;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_inject_take);
+
+/*
+ * sess460 (0.61.6, review #5 conditions 2/3/4 — ccmemory
+ * ccloop-c7ee71c6-sess456-GPT-ruling-review5-0611-NO-GO-untokened-failclosed-
+ * 6-conditions).  Three more injectors, all default-off, all consumed by
+ * production code paths that read 0 in production:
+ *
+ *   dbg_depart_crash_cut=N (one-shot) + dbg_depart_crash_hold_ms (sticky,
+ *   default 60000): put_super parks at departure cut N for the hold, printing
+ *   P-DBG-DEPART-CUT, so tests/depart_crash_cuts.sh can virsh-destroy the VM
+ *   exactly there — the release/unregister crash-cut state table (condition
+ *   3).  1 = before the release CAS, 2 = after the CAS before its flush,
+ *   3 = after the flush before the late unregister, 5 = after a successful
+ *   unregister before release_finish.
+ *
+ *   dbg_retire_hang_ms=M (one-shot): the retire settle worker ignores its
+ *   stop flag for M ms (dlm/v5_mount.c v5_retire_worker_fn) — the bounded
+ *   join must quarantine the whole DLM context (condition 2; the probe-thread
+ *   twin is dbg_probe_hang_ms).
+ *
+ *   dbg_cas_nocaw_ops=BITMASK (sticky): the named exact-image record CAS
+ *   classes in dlm/disklock.c (hb_caw: 1 heartbeat 2 release 4 withdraw
+ *   8 withdrawn 16 restamp 32 complete-self 64 empty 128 settle-own
+ *   256 recovery-milestone 512 guard 1024 guard-refresh 2048 guard-zero)
+ *   report -EOPNOTSUPP without issuing the COMPARE AND WRITE — runtime CAW
+ *   loss per writer class (condition 4; tests/cas_nocaw_arms.sh).
+ * Never enable any of them in production.
+ */
+static int mxfs_dbg_depart_crash_cut;
+module_param_named(dbg_depart_crash_cut, mxfs_dbg_depart_crash_cut, int, 0644);
+MODULE_PARM_DESC(dbg_depart_crash_cut,
+	"DEBUG one-shot: park the next put_super at departure cut N for dbg_depart_crash_hold_ms (1=before the release CAS, 2=after the CAS before its flush, 3=after the flush before the late unregister, 5=after a successful unregister) so the VM can be destroyed there. Never enable in production.");
+static int mxfs_dbg_depart_crash_hold_ms = 60000;
+module_param_named(dbg_depart_crash_hold_ms, mxfs_dbg_depart_crash_hold_ms, int, 0644);
+MODULE_PARM_DESC(dbg_depart_crash_hold_ms,
+	"DEBUG: how long put_super parks at a dbg_depart_crash_cut cut (default 60000 ms).");
+
+int mxfs_pal_dbg_depart_crash_cut_take(void)
+{
+	int v = READ_ONCE(mxfs_dbg_depart_crash_cut);
+
+	if (unlikely(v > 0) && xchg(&mxfs_dbg_depart_crash_cut, 0) == v)
+		return v;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_crash_cut_take);
+
+uint32_t mxfs_pal_dbg_depart_crash_hold_ms(void)
+{
+	int v = READ_ONCE(mxfs_dbg_depart_crash_hold_ms);
+
+	return v > 0 ? (uint32_t)v : 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_depart_crash_hold_ms);
+
+static int mxfs_dbg_retire_hang_ms;
+module_param_named(dbg_retire_hang_ms, mxfs_dbg_retire_hang_ms, int, 0644);
+MODULE_PARM_DESC(dbg_retire_hang_ms,
+	"DEBUG one-shot: the retire settle worker ignores its stop flag for this many ms (models a worker parked in a PR IN / record CAS on a wedged path; the bounded join must quarantine the DLM context). Never enable in production.");
+
+uint32_t mxfs_pal_dbg_retire_hang_take(void)
+{
+	int v = READ_ONCE(mxfs_dbg_retire_hang_ms);
+
+	if (unlikely(v > 0) && xchg(&mxfs_dbg_retire_hang_ms, 0) == v) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-RETIRE-HANG: the retire settle worker "
+			     "ignores its stop for %d ms (one-shot)", v);
+		return (uint32_t)v;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_retire_hang_take);
+
+static int mxfs_dbg_cas_nocaw_ops;
+module_param_named(dbg_cas_nocaw_ops, mxfs_dbg_cas_nocaw_ops, int, 0644);
+MODULE_PARM_DESC(dbg_cas_nocaw_ops,
+	"DEBUG bitmask: the named disklock record-CAS classes report -EOPNOTSUPP instead of issuing COMPARE AND WRITE (1 heartbeat 2 release 4 withdraw 8 withdrawn 16 restamp 32 complete-self 64 empty 128 settle-own 256 recovery-milestone 512 guard 1024 guard-refresh 2048 guard-zero). Never enable in production.");
+
+bool mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what)
+{
+	int v = READ_ONCE(mxfs_dbg_cas_nocaw_ops);
+
+	if (likely(!(v & (int)opbit)))
+		return false;
+	mxfs_pal_log(MXFS_LOG_INFO,
+		     "mxfs-pal: P-DBG-CAS-NOCAW op=%s — injecting -EOPNOTSUPP for "
+		     "this record CAS (mask=0x%x)", what, v);
+	return true;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_cas_nocaw);
+
 static int mxfs_dbg_pr_register_fail;
 module_param_named(dbg_pr_register_fail, mxfs_dbg_pr_register_fail, int, 0644);
 MODULE_PARM_DESC(dbg_pr_register_fail,
@@ -3003,8 +3521,61 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 		return -EIO;
 	}
 
-	/* REGISTER_AND_IGNORE: old_key=0, new_key=key (idempotent — safe
-	 * to reissue after a UA-consumed attempt) */
+	/*
+	 * sess433: PLAIN REGISTER (SA 0x00), reservation key 0, new key =
+	 * ours.  A nexus that already holds a registration answers
+	 * RESERVATION CONFLICT and nothing changes (dm_pr_register rolls back
+	 * the paths it did register, dm.c dm_pr_register).  Safe to reissue
+	 * after a UA-consumed attempt: a CHECK CONDITION means the command
+	 * was not executed.
+	 */
+	for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+		ret = ops->pr_register(dev->bdev, 0, key, 0);
+		if (ret != SAM_STAT_CHECK_CONDITION)
+			break;
+		msleep(2 << ua_try);
+	}
+	if (ret == SAM_STAT_CHECK_CONDITION) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: PR register still CHECK CONDITION "
+			     "after %d retries", MXFS_PR_UA_RETRIES);
+		return ret;
+	}
+	/*
+	 * Only the EXACT SCSI RESERVATION CONFLICT status is the nexus-
+	 * already-registered signal (sd_scsi_to_pr_err maps it to
+	 * PR_STS_RESERVATION_CONFLICT, 0x18).  A transport/path error, a
+	 * CHECK CONDITION or any errno is NOT — those are reported as what
+	 * they are and the mount fails on them as an ordinary register
+	 * failure (sess432 review: never infer a conflict from -EBUSY/-EIO).
+	 */
+	if (ret == PR_STS_RESERVATION_CONFLICT) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs-pal: P305-PR-NEXUS-ALREADY-REGISTERED plain "
+			     "REGISTER of key 0x%llx returned RESERVATION "
+			     "CONFLICT: an I_T nexus of this host already holds "
+			     "a different registration (dm-multipath rolled "
+			     "back any path it had registered).",
+			     (unsigned long long)key);
+		return -EEXIST;
+	}
+	return ret;
+}
+
+int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key)
+{
+	const struct pr_ops *ops;
+	int ret;
+	int ua_try;
+
+	if (!dev)
+		return -EINVAL;
+
+	ops = get_pr_ops(dev);
+	if (!ops || !ops->pr_register)
+		return -EOPNOTSUPP;
+
+	/* REGISTER AND IGNORE EXISTING KEY: old_key=0, new_key=key */
 	for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
 		ret = ops->pr_register(dev->bdev, 0, key, PR_FL_IGNORE_KEY);
 		if (ret != SAM_STAT_CHECK_CONDITION)
@@ -3013,8 +3584,50 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 	}
 	if (ret == SAM_STAT_CHECK_CONDITION)
 		mxfs_pal_log(MXFS_LOG_ERR,
-			     "mxfs-pal: PR register still CHECK CONDITION "
-			     "after %d retries", MXFS_PR_UA_RETRIES);
+			     "mxfs-pal: PR register(replace) still CHECK "
+			     "CONDITION after %d retries", MXFS_PR_UA_RETRIES);
+	return ret;
+}
+
+int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
+				   uint64_t new_key)
+{
+	const struct pr_ops *ops;
+	int ret;
+	int ua_try;
+
+	if (!dev || !old_key)
+		return -EINVAL;
+
+	ops = get_pr_ops(dev);
+	if (!ops || !ops->pr_register)
+		return -EOPNOTSUPP;
+
+	/* sess439: plain REGISTER (SA 0x00), RK = old_key, SARK = new_key.
+	 * SPC: executed only if this nexus is registered with RK; otherwise
+	 * RESERVATION CONFLICT and nothing changes.  A CHECK CONDITION means
+	 * the command was not executed — safe to reissue. */
+	for (ua_try = 0; ua_try < MXFS_PR_UA_RETRIES; ua_try++) {
+		ret = ops->pr_register(dev->bdev, old_key, new_key, 0);
+		if (ret != SAM_STAT_CHECK_CONDITION)
+			break;
+		msleep(2 << ua_try);
+	}
+	if (ret == SAM_STAT_CHECK_CONDITION) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: PR register(swap) still CHECK "
+			     "CONDITION after %d retries", MXFS_PR_UA_RETRIES);
+		return ret;
+	}
+	if (ret == PR_STS_RESERVATION_CONFLICT) {
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs-pal: P305-PR-SWAP-NOKEY REGISTER rk=0x%llx "
+			     "sark=0x%llx returned RESERVATION CONFLICT: this "
+			     "nexus does not hold rk; nothing changed",
+			     (unsigned long long)old_key,
+			     (unsigned long long)new_key);
+		return -ENOKEY;
+	}
 	return ret;
 }
 
@@ -3100,6 +3713,48 @@ int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
  * sd_pr_out_command() builds, so the ONLY difference from the in-tree path is
  * that the service action survives the journey.
  */
+/*
+ * 0.89.11 TEST ONLY — the fence matrix's lost-response entry (the design
+ * consult that fixed its shape is banked in
+ * docs/rulings/fence-lost-response-live-prover.md).
+ *
+ * The state under test is an ordinary transport ambiguity, and it is NOT the
+ * crash cut that precedes it: a PREEMPT AND ABORT really reaches the target
+ * and really executes — the victim's registration is removed and its task set
+ * aborted — and only the RESULT is lost on the way back to the fencing code,
+ * which keeps running.  The prover stays alive.  What that measures is whether
+ * a live prover, holding a durable "MAY HAVE RUN" arm and no proving response,
+ * can be talked into certifying exclusion it cannot prove.
+ *
+ * So the gate sits AFTER the real completion and before the caller classifies
+ * it.  Injecting earlier — refusing to submit, dropping the command, skipping
+ * this helper — would test "the command never ran", which is a different and
+ * strictly weaker state that the endpoint cuts already cover.  The real result
+ * is printed as a witness FOR THE TEST ONLY; no MXFS path reads it back, and
+ * it is never released to the caller afterwards, because a result delivered
+ * late is a delayed-completion experiment rather than a lost one.
+ *
+ * The withheld value is -ETIMEDOUT because that is what this stack's own
+ * unanswered command yields: it flows through the P302-PROUT-ABORT-FAIL line
+ * below and reaches the fencing code as kind ERROR at phase
+ * MAY_HAVE_SUBMITTED, which is the representation a genuinely lost response
+ * produces.  Nothing here invents a new error class to reach a convenient
+ * branch.
+ *
+ * Identity: armed with the victim's 64-bit PR key, which names the victim node
+ * AND its incarnation, on the one node that is to be the prover, and consumed
+ * by the first qualifying completion.  A completion that is NOT the qualifying
+ * success disarms the gate and passes through UNCHANGED, announcing itself, so
+ * that a lap which never reached the state is rejected rather than graded.
+ * Never set in production.
+ */
+static unsigned long long mxfs_dbg_prout_lose_key;
+module_param_named(dbg_prout_lose_key, mxfs_dbg_prout_lose_key, ullong, 0644);
+MODULE_PARM_DESC(dbg_prout_lose_key,
+		 "TEST ONLY one-shot: let the PREEMPT AND ABORT of this victim "
+		 "key really execute, then withhold its successful result from "
+		 "the fencing caller as -ETIMEDOUT (0=off)");
+
 static int mxfs_pal_prout_preempt_abort(struct scsi_device *sdev,
 					uint64_t my_key, uint64_t victim_key,
 					uint32_t type)
@@ -3155,6 +3810,36 @@ prout_submit:
 	 * timeout here fails CLOSED: the caller cannot certify what it cannot
 	 * confirm.
 	 */
+	/*
+	 * RETRIES = 0, AND THAT IS NOT A TUNING CHOICE.
+	 *
+	 * This is a STATE-CHANGING command.  The midlayer's retry count is the
+	 * number of times it may re-issue the CDB on its own after error
+	 * handling has aborted it, and the caller never learns that a second
+	 * execution happened — it sees one return value.  For a PREEMPT AND
+	 * ABORT that is a silent second execution against the same victim, and
+	 * it converts a success into a lockout:
+	 *
+	 *   the target takes longer than the timeout above (it is draining the
+	 *   victim's task set, which is exactly what we asked it to do);
+	 *   error handling aborts the command; the midlayer re-issues it; the
+	 *   FIRST execution has already removed the victim's registration, so
+	 *   the SECOND returns RESERVATION CONFLICT; we see only the second
+	 *   result, refuse to certify an exclusion that was in fact achieved —
+	 *   and the victim key is now consumed, so no successor can prove it
+	 *   again and the slice is unreplayable for good.
+	 *
+	 * With no midlayer retry there is exactly one execution attempt per
+	 * call.  A timeout then leaves the honest state — the outcome is
+	 * UNKNOWN, the durable "may have run" arm laid down before submission
+	 * says so, and reconciliation owns it — instead of a misleading
+	 * conflict manufactured by a retry we never asked for.
+	 *
+	 * The bounded UNIT ATTENTION reissue below is deliberately kept: a unit
+	 * attention is reported INSTEAD of executing the command, so it is not
+	 * a second execution, and that reissue is ours — bounded, logged, and
+	 * covered by the same durable submission boundary.
+	 */
 #if MXFS_EFFECTIVE_VERSION >= KERNEL_VERSION(6, 3, 0)
 	{
 		struct scsi_exec_args args = {
@@ -3162,11 +3847,11 @@ prout_submit:
 		};
 
 		ret = scsi_execute_cmd(sdev, cdb, REQ_OP_DRV_OUT,
-				       data, sizeof(data), 60 * HZ, 1, &args);
+				       data, sizeof(data), 60 * HZ, 0, &args);
 	}
 #else
 	ret = scsi_execute(sdev, cdb, DMA_TO_DEVICE, data, sizeof(data),
-			   NULL, &sshdr, 60 * HZ, 1, 0, 0, NULL);
+			   NULL, &sshdr, 60 * HZ, 0, 0, 0, NULL);
 #endif
 
 	/*
@@ -3187,7 +3872,45 @@ prout_submit:
 		goto prout_submit;
 	}
 
-	if (ret && !(ret == 0x18 || ret == -EBUSY))
+	/*
+	 * The post-completion result-loss gate.  The command above has already
+	 * run against the target; everything from here is about what the rest
+	 * of the system is allowed to learn.  It sits BEFORE the classification
+	 * and reporting below so that the substituted result travels the same
+	 * path a genuinely unanswered command travels — including the
+	 * P302-PROUT-ABORT-FAIL line.  Substituting after that block would
+	 * return the right value to the caller while silently omitting the log
+	 * line a real lost response emits, which is an observable difference
+	 * between the injected state and the state being modelled.
+	 */
+	if (mxfs_dbg_prout_lose_key &&
+	    victim_key == mxfs_dbg_prout_lose_key) {
+		mxfs_dbg_prout_lose_key = 0;		/* one-shot */
+		if (ret) {
+			pr_warn("mxfs: P305-PROUT-LOSS-NOTQUALIFIED victim_key=0x%llx my_key=0x%llx type=0x%x real_rc=%d sense=%d/0x%x/0x%x — TEST ONLY: the armed PREEMPT AND ABORT did not produce the successful completion this injection withholds, so the lost-response state was NOT reached; the real result is passed through unchanged and the gate is disarmed\n",
+				(unsigned long long)victim_key,
+				(unsigned long long)my_key, type, ret,
+				sshdr.sense_key, sshdr.asc, sshdr.ascq);
+		} else {
+			pr_warn("mxfs: P305-PROUT-RESPONSE-LOST victim_key=0x%llx my_key=0x%llx type=0x%x sa=0x05 real_rc=0 — TEST ONLY WITNESS: the PREEMPT AND ABORT above COMPLETED SUCCESSFULLY against the target (its registration is removed and its task set aborted); its result is being WITHHELD from the fencing caller, which sees -ETIMEDOUT and must not certify exclusion from it.  This line is evidence for the test only; no MXFS path reads it, and this result is never delivered later\n",
+				(unsigned long long)victim_key,
+				(unsigned long long)my_key, type);
+			ret = -ETIMEDOUT;
+		}
+	}
+
+	/*
+	 * 0.85.1: the result word carries the SAM status in its LOW byte and,
+	 * on this kernel, the midlayer's own byte above it (a RESERVATION
+	 * CONFLICT comes back as 0x118, not 0x18 — measured s614b on test2:
+	 * 'sd 3:0:0:0: reservation conflict' beside 'P302-PROUT-ABORT-FAIL
+	 * rc=280').  Compare the status byte, never the whole word, or the
+	 * conflict — the one outcome that means "nothing happened, the key was
+	 * not registered" — is reported as an unclassified failure.
+	 */
+	if (ret > 0 && status_byte(ret) == SAM_STAT_RESERVATION_CONFLICT)
+		ret = SAM_STAT_RESERVATION_CONFLICT;
+	if (ret && !(ret == SAM_STAT_RESERVATION_CONFLICT || ret == -EBUSY))
 		pr_warn("mxfs: P302-PROUT-ABORT-FAIL victim_key=0x%llx rc=%d "
 			"sense=%d/0x%x/0x%x — PREEMPT AND ABORT did not "
 			"complete; exclusion is NOT proved\n",
@@ -3288,6 +4011,85 @@ resubmit:
 }
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_report_capabilities);
 
+/*
+ * Copy one space-padded INQUIRY field out of the scan-time inquiry data.
+ * sdev->vendor / model / rev point INTO that buffer and are not
+ * NUL-terminated, so a plain string copy would run past the field.
+ */
+static void mxfs_pal_inquiry_field(char *out, size_t outsz,
+				   const char *src, size_t srclen)
+{
+	size_t n = 0;
+
+	if (!out || outsz == 0)
+		return;
+	out[0] = '\0';
+	if (!src)
+		return;
+	if (srclen > outsz - 1)
+		srclen = outsz - 1;
+	memcpy(out, src, srclen);
+	out[srclen] = '\0';
+	n = srclen;
+	while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t'))
+		out[--n] = '\0';
+}
+
+/* 0.89.33 — the running kernel release, for pinning a witness that rests on a
+ * kernel-internal invariant to the versions it was audited against.  See
+ * pal.h.  init_utsname() is the initial namespace deliberately: a container's
+ * UTS namespace can report anything, and the invariant belongs to the kernel
+ * that is actually running. */
+const char *mxfs_pal_kernel_release(void)
+{
+	return init_utsname()->release;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_kernel_release);
+
+/* 0.89.13 — the LUN's identity, for binding a target-behaviour contract to
+ * the exact target/firmware/LUN it was qualified against.  See pal.h. */
+int mxfs_pal_scsi_target_id(mxfs_bdev_t *dev, struct mxfs_pal_target_id *out)
+{
+	struct scsi_device *sdev;
+	int n;
+
+	if (!dev || !dev->bdev || !out)
+		return -EINVAL;
+
+	memset(out, 0, sizeof(*out));
+
+	sdev = mxfs_bdev_to_sdev(dev->bdev);
+	if (!sdev)
+		return -EOPNOTSUPP;
+
+	mxfs_pal_inquiry_field(out->vendor, sizeof(out->vendor), sdev->vendor, 8);
+	mxfs_pal_inquiry_field(out->model, sizeof(out->model), sdev->model, 16);
+	mxfs_pal_inquiry_field(out->rev, sizeof(out->rev), sdev->rev, 4);
+
+	/*
+	 * scsi_vpd_lun_id() returns the DESIGNATOR's length, and when that
+	 * exceeds the buffer it leaves the buffer unterminated — so a return
+	 * at or above the buffer size is a truncated identity and must be
+	 * refused rather than compared.
+	 */
+	n = scsi_vpd_lun_id(sdev, out->lun_id, sizeof(out->lun_id));
+	scsi_device_put(sdev);
+	if (n < 0) {
+		memset(out, 0, sizeof(*out));
+		return n == -ENXIO ? -ENXIO : n;
+	}
+	if ((size_t)n >= sizeof(out->lun_id)) {
+		memset(out, 0, sizeof(*out));
+		return -ENAMETOOLONG;
+	}
+	if (out->lun_id[0] == '\0') {
+		memset(out, 0, sizeof(*out));
+		return -ENXIO;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_target_id);
+
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 			     uint64_t victim_key, bool abort, uint32_t type)
 {
@@ -3297,9 +4099,22 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 	if (!dev)
 		return -EINVAL;
 
-	if (type != MXFS_PAL_PR_TYPE_WR_EX_RO &&
-	    type != MXFS_PAL_PR_TYPE_WR_EX_AR)
+	/*
+	 * The two types MXFS fences under, plus the single-holder WRITE
+	 * EXCLUSIVE the sole-survivor gate installs — and that one ONLY in the
+	 * abort form with a ZERO service-action key (the SPC-4 5.9.10.4.4
+	 * "preempt the all-registrants reservation itself" shape, dlm/scsipr.c
+	 * mxfs_scsipr_gate_sole_survivor).  A type-1 preempt naming a key is a
+	 * caller bug: it would hand a single-holder reservation to a path the
+	 * admission gate refuses to recognise.
+	 */
+	if (type == MXFS_PAL_PR_TYPE_WR_EX) {
+		if (!abort || victim_key != 0)
+			return -EINVAL;
+	} else if (type != MXFS_PAL_PR_TYPE_WR_EX_RO &&
+		   type != MXFS_PAL_PR_TYPE_WR_EX_AR) {
 		return -EINVAL;
+	}
 
 	if (abort) {
 		struct scsi_device *sdev;
@@ -3358,7 +4173,11 @@ int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
 					      scsi_pr_type_to_block(
 						      (enum scsi_pr_type)type),
 					      false);
-			if (ret != SAM_STAT_CHECK_CONDITION)
+			/* 0.85.1: the SAM status is the low byte of the result
+			 * word (see mxfs_pal_prout_preempt_abort) */
+			if (ret > 0 && status_byte(ret) == SAM_STAT_RESERVATION_CONFLICT)
+				ret = SAM_STAT_RESERVATION_CONFLICT;
+			if (!(ret > 0 && status_byte(ret) == SAM_STAT_CHECK_CONDITION))
 				break;
 			msleep(2 << ua_try);
 		}
@@ -3405,6 +4224,14 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
 	ops = get_pr_ops(dev);
 	if (!ops || !ops->pr_read_reservation)
 		return -EOPNOTSUPP;
+
+	if (unlikely(READ_ONCE(mxfs_dbg_pr_read_resv_fail) > 0)) {
+		mxfs_dbg_pr_read_resv_fail--;
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-PR-READ-RESV-FAIL injecting -EIO "
+			     "(%d left)", mxfs_dbg_pr_read_resv_fail);
+		return -EIO;
+	}
 
 	memset(&rsv, 0, sizeof(rsv));
 
@@ -3511,7 +4338,7 @@ int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
  *     a path refused.  The only valid reading is "the requested state was not
  *     established by this command — inspect global state".
  *
- * sess377 RULE-5 ruling (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling3-pr-
+ * sess377 design-consult ruling (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling3-pr-
  * unregister-leak-fix-shape): the symmetric unregister is the MECHANISM, the
  * READ KEYS read-back is the POSTCONDITION, and the load-bearing invariant is
  *
@@ -3605,6 +4432,47 @@ static int mxfs_pr_key_present_bdev(struct block_device *bdev, uint64_t key,
 #endif
 }
 
+/*
+ * sess449 DEBUG one-shot (D-0356 / D-377): make the next late unregister
+ * report NOT RETIRED without issuing anything — the key really stays
+ * registered, which is exactly the state the re-stamp handoff must cover.
+ * tests/pr_unregister_fail_restamp.sh.  Never enable in production.
+ */
+static int mxfs_dbg_pr_unregister_fail;
+module_param_named(dbg_pr_unregister_fail, mxfs_dbg_pr_unregister_fail,
+		   int, 0644);
+MODULE_PARM_DESC(dbg_pr_unregister_fail,
+	"DEBUG one-shot: report the next late SCSI PR unregister as NOT RETIRED without issuing it (departure fail-closed test). Never enable in production.");
+
+/*
+ * sess450 DEBUG one-shot: after a failed late unregister, SKIP the P303
+ * WITHDRAWN re-stamp — models a node that crashed (or lost the LUN) between
+ * writing RETIRE_PENDING and retiring its key.  Peers must expire the
+ * record to WITHDRAWN and fence the key on their own
+ * (P304-RETIRE-EXPIRED-WITHDRAWN).  tests/pr_unregister_fail_restamp.sh
+ * crash arm.  Never enable in production.
+ */
+static int mxfs_dbg_retire_skip_restamp;
+module_param_named(dbg_retire_skip_restamp, mxfs_dbg_retire_skip_restamp,
+		   int, 0644);
+MODULE_PARM_DESC(dbg_retire_skip_restamp,
+	"DEBUG one-shot: skip the WITHDRAWN re-stamp after a failed late PR unregister (models a crash after RETIRE_PENDING; peers must settle it). Never enable in production.");
+
+bool mxfs_pal_dbg_retire_skip_restamp_take(void);
+bool mxfs_pal_dbg_retire_skip_restamp_take(void)
+{
+	if (unlikely(mxfs_dbg_retire_skip_restamp) &&
+	    xchg(&mxfs_dbg_retire_skip_restamp, 0)) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-RETIRE-SKIP-RESTAMP: leaving our "
+			     "RETIRE_PENDING record un-restamped (one-shot; "
+			     "peers must settle it)");
+		return true;
+	}
+	return false;
+}
+EXPORT_SYMBOL_GPL(mxfs_pal_dbg_retire_skip_restamp_take);
+
 int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key);
 int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 {
@@ -3615,6 +4483,14 @@ int mxfs_pal_scsi_pr_unregister_bdev(struct block_device *bdev, uint64_t key)
 
 	if (!bdev)
 		return -EINVAL;
+	if (unlikely(mxfs_dbg_pr_unregister_fail) &&
+	    xchg(&mxfs_dbg_pr_unregister_fail, 0)) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-PR-UNREGISTER-FAIL key 0x%llx: "
+			     "injecting NOT-RETIRED (one-shot; the key stays "
+			     "registered)", (unsigned long long)key);
+		return -EBUSY;
+	}
 
 	if (!bdev->bd_disk || !bdev->bd_disk->fops ||
 	    !bdev->bd_disk->fops->pr_ops)
@@ -3738,6 +4614,24 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 	if (!ops || !ops->pr_read_keys)
 		return -EOPNOTSUPP;
 
+	/* sess452 debug arms (see the knobs' comment). */
+	if (unlikely(READ_ONCE(mxfs_dbg_pr_read_keys_delay_ms) > 0)) {
+		int d = READ_ONCE(mxfs_dbg_pr_read_keys_delay_ms);
+
+		mxfs_pal_log(MXFS_LOG_WARN,
+			     "mxfs-pal: P-DBG-PR-READ-KEYS-DELAY %d ms (comm=%s)",
+			     d, current->comm);
+		msleep(d);
+	}
+	if (unlikely(READ_ONCE(mxfs_dbg_pr_read_keys_fail) > 0)) {
+		mxfs_dbg_pr_read_keys_fail--;
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-PR-READ-KEYS-FAIL injecting -EIO "
+			     "(%d left, comm=%s)", mxfs_dbg_pr_read_keys_fail,
+			     current->comm);
+		return -EIO;
+	}
+
 	/* Allocate buffer for pr_read_keys */
 	pr_keys_buf = kzalloc(sizeof(*pr_keys_buf) +
 			      (size_t)max_keys * sizeof(u64), GFP_KERNEL);
@@ -3775,6 +4669,15 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
 		keys[i] = pr_keys_buf->keys[i];
 	if (generation)
 		*generation = pr_keys_buf->generation;
+	if (unlikely(mxfs_dbg_pr_read_keys_trunc) &&
+	    xchg(&mxfs_dbg_pr_read_keys_trunc, 0)) {
+		mxfs_pal_log(MXFS_LOG_ERR,
+			     "mxfs-pal: P-DBG-PR-READ-KEYS-TRUNC reporting total=%d "
+			     "for a %d-key view (one-shot, comm=%s)",
+			     *count + 1, *count, current->comm);
+		if (total)
+			*total = *count + 1;
+	}
 
 	kfree(pr_keys_buf);
 	return 0;
@@ -4087,7 +4990,7 @@ static int caw_manual_bio(struct scsi_device *sdev, u64 lba,
 	/* Build COMPARE AND WRITE CDB (16 bytes) — same shape as legacy path */
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0]  = 0x89;
-	cdb[1]  = 0x08;
+	cdb[1]  = mxfs_pal_cdb_fua();       /* FUA per the durability declaration */
 	cdb[2]  = (u8)(lba >> 56);
 	cdb[3]  = (u8)(lba >> 48);
 	cdb[4]  = (u8)(lba >> 40);
@@ -4198,7 +5101,7 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 	/* Build COMPARE AND WRITE CDB (16 bytes) */
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0]  = 0x89;                     /* COMPARE AND WRITE opcode */
-	cdb[1]  = 0x08;                     /* FUA bit set */
+	cdb[1]  = mxfs_pal_cdb_fua();       /* FUA per the durability declaration */
 	cdb[2]  = (u8)(lba >> 56);          /* LBA bytes 2-9 (big-endian) */
 	cdb[3]  = (u8)(lba >> 48);
 	cdb[4]  = (u8)(lba >> 40);
@@ -4321,6 +5224,18 @@ caw_submit:
 		if ((ret & 0xff) == SAM_STAT_RESERVATION_CONFLICT) {
 			ret = -EBADE;
 			goto done;
+		}
+		/* A target that rejects the FUA bit on COMPARE AND WRITE
+		 * (ILLEGAL REQUEST, invalid field in CDB) is not a media
+		 * fault: the operator has declared the crash-durable domain
+		 * in scope (fua_disable=0) on a target that cannot honour
+		 * it.  Fail closed here — the callers already refuse on -EIO
+		 * — but say why, once, so the fix is a declaration and not a
+		 * hunt through the ledger publish path. */
+		if ((cdb[1] & 0x08) && scsi_sense_valid(&sshdr) &&
+		    sshdr.sense_key == ILLEGAL_REQUEST) {
+			pr_warn_once("mxfs: COMPARE AND WRITE with FUA rejected by target (ILLEGAL REQUEST asc=0x%x ascq=0x%x) — this target cannot honour the crash-durable domain; either declare fua_disable=1 (write-through target, power loss out of scope) or use a target that accepts FUA\n",
+				     sshdr.asc, sshdr.ascq);
 		}
 		ret = -EIO;
 		goto done;
@@ -4499,6 +5414,8 @@ EXPORT_SYMBOL_GPL(mxfs_pal_bdev_write_async);
 EXPORT_SYMBOL_GPL(mxfs_pal_bdev_read_async);
 EXPORT_SYMBOL_GPL(mxfs_pal_alloc);
 EXPORT_SYMBOL_GPL(mxfs_pal_free);
+EXPORT_SYMBOL_GPL(mxfs_pal_alloc_io);
+EXPORT_SYMBOL_GPL(mxfs_pal_free_io);
 EXPORT_SYMBOL_GPL(mxfs_pal_realloc);
 EXPORT_SYMBOL_GPL(mxfs_pal_thread_create);
 EXPORT_SYMBOL_GPL(mxfs_pal_thread_create_rt);
@@ -4553,6 +5470,7 @@ EXPORT_SYMBOL_GPL(mxfs_pal_failstop_fn);
 EXPORT_SYMBOL_GPL(mxfs_pal_defer);
 EXPORT_SYMBOL_GPL(mxfs_pal_sort);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_register);
+EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_register_replace);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_reserve);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_preempt);
 EXPORT_SYMBOL_GPL(mxfs_pal_scsi_pr_unregister);

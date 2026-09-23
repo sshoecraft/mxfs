@@ -15,10 +15,10 @@
 #
 #   Run it once per arm, same criteria, and diff the two tables.
 #
-# RULE 0: no outer timeout is wrapped around run.sh -- run.sh already enforces
+# budget: no outer timeout is wrapped around run.sh -- run.sh already enforces
 # each criterion's manifest budget as a hard timeout and flips PASS->FAIL on
 # overrun.  Wrapping it again only delays the evidence.
-# RULE 9: the fleet sweeps are one call each, per-node output file, per-node rc,
+# the request-batching rule: the fleet sweeps are one call each, per-node output file, per-node rc,
 # per-node inner timeout.
 set -u
 cd "$(dirname "$0")/.."

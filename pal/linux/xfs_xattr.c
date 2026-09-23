@@ -18,6 +18,7 @@
 #include "xfs_log.h"
 #include "xfs_xattr.h"
 #include "xfs_quota.h"
+#include "xfs_mxfs_dirshard.h"	/* sess472: sharded parent — Model A refusal */
 
 #include <linux/posix_acl_xattr.h>
 
@@ -84,6 +85,25 @@ xfs_attr_change(
 
 	if (xfs_is_shutdown(mp))
 		return -EIO;
+
+	/*
+	 * sess472 (D-0531 item 4, design-consult review; docs/dir-sharding.md Model A):
+	 * a sharded parent's attr fork carries exactly the shortform locator and
+	 * must stay shortform — the holder-free transaction removes the locator
+	 * synchronously in the same commit as the holder's unlink, which
+	 * xfs_attr_removename only does for a shortform fork.  Any other xattr
+	 * (user.*, trusted.*, security.*, POSIX ACLs — every set/remove funnels
+	 * through here) could push the fork to leaf format and make that
+	 * removal defer by construction; and a trusted.* remove could take the
+	 * locator itself.  Refuse them all, like the other stage-1 refusals.
+	 */
+	if (mxfs_is_dirshard_parent(args->dp)) {
+		xfs_warn_ratelimited(mp,
+			"MXFS P-DIRSHARD-XATTR-REFUSED ino=%llu op=%d namelen=%u comm=%s — xattr change on a sharded directory refused (Model A)",
+			(unsigned long long)args->dp->i_ino, (int)op,
+			(unsigned)args->namelen, current->comm);
+		return -EOPNOTSUPP;
+	}
 
 	error = xfs_qm_dqattach(args->dp);
 	if (error)

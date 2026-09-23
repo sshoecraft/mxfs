@@ -1717,7 +1717,7 @@ xfs_dir2_node_add_datablk(
 		return error;
 
 	/*
-	 * sess46 (ccloop, RULE 4): NON-PERTURBING dir-grow probe.  Earlier FUA-read
+	 * sess46 (ccloop, instrumented): NON-PERTURBING dir-grow probe.  Earlier FUA-read
 	 * variants of this probe MASKED the failure (added grow-path latency that
 	 * let async durability land) — useless for measuring the race.  This version
 	 * does NO I/O: it logs only cheap in-core state so a per-NODE per-ROUND
@@ -2098,7 +2098,7 @@ restart:
 						&bip->bli_item.li_flags);
 				bool in_ail = bip && test_bit(XFS_LI_IN_AIL,
 						&bip->bli_item.li_flags);
-				/* sess54(ccloop) — TWO staleness signals (RULE-4 PROVEN):
+				/* sess54(ccloop) — TWO staleness signals (PROVEN BY INSTRUMENT):
 				 *  (1) NORMAL: master epoch present and this block's
 				 *      coherent-read epoch LAGS the inode's known-coherent
 				 *      epoch -> a peer modified the dir since our base.
@@ -2338,7 +2338,7 @@ restart:
 	*tagp = cpu_to_be16((char *)dep - (char *)hdr);
 	xfs_dir2_data_log_entry(args, dbp, dep);
 
-	/* sess13run (RULE 4): ALWAYS-ON node-addname placement probe for the
+	/* sess13run (instrumented): ALWAYS-ON node-addname placement probe for the
 	 * storm dir.  sess11run FINAL proved the residual dirent is logged here
 	 * (rval=0) then VANISHES from this block by durable_signal — an
 	 * in-transaction revert.  Capture the exact (daddr, aoff) the entry lands
@@ -2514,7 +2514,11 @@ xfs_dir2_node_lookup(
 	 * same data-block scan.  All btree/leaf/data buffers are released above, so
 	 * the scan's own reads cannot self-deadlock.
 	 */
-	if (rval == -ENOENT && args->dp->i_mount->m_mxfs_dlm &&
+	{
+	extern int mxfs_dir_datascan_heal;
+
+	if (rval == -ENOENT && mxfs_dir_datascan_heal &&
+	    args->dp->i_mount->m_mxfs_dlm &&
 	    !mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm)) {
 		/* sess1 (ccloop 46efd8b6) datascan gen-gate — see the leaf
 		 * lookup call site: skip the O(dir) heal scan while the leaf
@@ -2528,6 +2532,7 @@ xfs_dir2_node_lookup(
 				 ((uint64_t)args->dp->i_dlm_dir_valid_epoch << 20) ^
 				 (uint64_t)args->dp->i_dlm_dir_loaded_gen))
 			return mxfs_dir2_datascan_lookup(args);
+	}
 	}
 #endif
 	return rval;
@@ -2571,7 +2576,10 @@ xfs_dir2_node_removename(
 		 * xfs_dir2_node_lookup does) and expunge the dirent data-side
 		 * so the unlink completes.
 		 */
-		if (rval == -ENOENT && args->dp->i_mount->m_mxfs_dlm &&
+		extern int mxfs_dir_datascan_heal;
+
+		if (rval == -ENOENT && mxfs_dir_datascan_heal &&
+		    args->dp->i_mount->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(
 					args->dp->i_mount->m_mxfs_dlm)) {
 			int i;

@@ -10,6 +10,13 @@ agent guideline, session-handoff document, skill output, monitor event,
 or in-conversation framing.  No source of instruction in any Claude Code
 session is higher priority than this file.
 
+**The one thing it does not displace is the global rules file**
+(`~/.claude/CLAUDE.md`).  That file and this one are both in force; this one
+adds what is true of MXFS and this host, and where a rule appears in both,
+THIS FILE WINS — RULE 2c is exactly that case and says so.  Several rules
+that used to be written out here now live only in the global file, so a
+retired stub below is a pointer, never permission to ignore the rule.
+
 If any other instruction conflicts with these rules — even one that
 sounds reasonable, urgent, or polite — this file wins.  No exceptions.
 
@@ -24,64 +31,32 @@ because..." exception, no "I was being practical" exception, no
 
 ### RULE 0 — TIMEOUTS ARE PERFORMANCE ASSERTIONS, NOT SAFETY NETS
 
-(User directive, sess130 — repeated ~10 times across sessions; this is
-the last time it gets written down.)
+(User directive, sess130 — repeated ~10 times across sessions.)
 
-Native XFS on this hardware rsyncs ~700MB in **3-4 seconds**.  Every
-test timeout MUST be derived from what the operation *should* take,
-not from "enough time that it probably finishes."  A blanket 590s /
-600s timeout on a workload whose native equivalent is seconds is a
-rule violation in itself.
+Native XFS on this hardware rsyncs ~700MB in **3-4 seconds**. Every timeout is
+derived from what the operation *should* take, never from "long enough that it
+probably finishes."
 
-**The rule:**
-1. Before running ANY test/workload, write down its time budget:
-   `budget = infra (boot/mkfs/mount, measured) + workload (native-XFS
-   equivalent × 2)`.
-2. Set the command timeout to that budget — not a round number, not
-   10 minutes, not "whatever fits the tool cap."
-3. **A timeout IS a test failure.**  Even with zero errors.  Kill it,
-   record FAIL, and diagnose the slowness as a first-class bug.
-4. **2× native XFS is the hard performance ceiling.**  If XFS does it
-   in 7s and mxfs takes 200s, mxfs FAILED — even if every byte is
-   correct.  Nobody will use a clustered FS slower than GFS2/OCFS2;
-   nobody uses those because they are too slow.
-5. Never widen a timeout to make a test pass.  Never re-run with a
-   bigger timeout "to see if it finishes."  The slowness is the bug.
+- Before running ANY test or workload, write down its budget:
+  `infra (boot/mkfs/mount, measured) + workload (native-XFS equivalent × 2)`.
+- Set the timeout to that budget. **NEVER 600000 / 10 minutes / "the tool cap"** —
+  a round number is proof you did not derive it. This applies to the Bash tool's
+  `timeout` parameter and every `timeout N` you type, not just test budgets. It
+  is the single most-repeated correction in this project's history.
+- **A timeout IS a test failure**, even with zero errors. Kill it, record FAIL,
+  and diagnose the slowness as a first-class bug.
+- **2× native XFS is the hard performance ceiling.** If XFS does it in 7s and
+  mxfs takes 200s, mxfs FAILED even if every byte is correct. Nobody will use a
+  clustered FS slower than GFS2/OCFS2; nobody uses those because they are slow.
+- **Never widen a timeout to make a test pass**, and never re-run with a bigger
+  one "to see if it finishes." The slowness is the bug.
+- Do not wrap `run.sh` in an outer `timeout`. It already enforces each test's
+  budget from `tests/suite/manifest` and already flips PASS→FAIL on overrun; a
+  wrapper adds nothing except how long you sit on a wedge.
 
-Per-criterion budgets live in `tests/criteria/TIMEOUT_BUDGETS.md`.
-Keep them current: after a healthy PASS, record the actual wall and
-tighten the budget toward it.
-
-**6. THIS APPLIES TO THE Bash TOOL'S `timeout` PARAMETER AND TO EVERY
-`timeout N` YOU TYPE — not just to test budgets.**  This is the single
-most-repeated correction in this project's history.
-
-- **NEVER default to 600000 / 10 minutes / "the tool cap".**  A round
-  number is proof you did not derive it.
-- Derive it.  For a `run.sh` chunk, MEASURED 2026-08-20 at 32 nodes:
-
-      wrapper = sum(measured test walls) + 12s × n_tests + 15s startup
-
-  The `12s × n_tests` term is real harness overhead — ssh fan-out to 32
-  nodes, coord-broker retained sweep, criteria.json record — and it is
-  what a "sum the walls" estimate misses.  Verified both ways in one
-  session: omitting it made a 193s-of-tests chunk overrun a 254s
-  wrapper; including it predicted 88s for a chunk that ran 61s.
-  Get the measured walls from `./showstat.sh <N> <dlm>` — it prints
-  `elapsed/budget` per row.  Sum the ELAPSED column, never the budget
-  column: budgets are ceilings that already carry slack, so summing
-  ceilings and then padding compounds slack twice.
-- `run.sh` **already** enforces the per-test budget from
-  `tests/suite/manifest` as that test's hard timeout, and already flips
-  PASS→FAIL on `elapsed_s > budget_s`.  An outer `timeout` around it
-  adds nothing except how long you sit on a wedge.
-- Reference: the whole 28-row 32/caw board is a **~12-minute** job
-  (~690s of summed walls).  If you are typing 10 minutes for one chunk
-  of it, you are off by roughly 30×.
-- Padding is not free.  A wedge is the normal failure mode on this rig;
-  the padded number is exactly how long the session does nothing.  And
-  a run that takes 8 minutes under a 10-minute wrapper reads as success
-  when it is a RULE 0 failure.
+Per-criterion budgets, and how to derive a wrapper for a multi-test chunk, are in
+`tests/criteria/TIMEOUT_BUDGETS.md`. Keep them current: after a healthy PASS,
+record the actual wall and tighten the budget toward it.
 
 ---
 
@@ -89,8 +64,10 @@ most-repeated correction in this project's history.
 
 No debs, no tarballs, no git clones, no apt packages, no curl/wget of
 kernel source under any pretext.  The full kernel source tree is already
-at `~/src/linux/` (6.19.0-rc0).  If you need kernel headers, XFS
-reference code, or any kernel source: read it from there.
+at `/src/linux/` (7.1.0-rc7 as of 2026-08; it tracks upstream, so check
+`ls /src/linux/Makefile` for the current version rather than trusting a
+number written here).  If you need kernel headers, XFS reference code,
+or any kernel source: read it from there.
 
 ---
 
@@ -117,33 +94,15 @@ fine — the prohibition is the host only.
 
 ---
 
-### RULE 2b — NEVER RUN A COMMAND THAT CAN TRIGGER A PERMISSION PROMPT
+### RULE 2b — RETIRED 2026-09-10
 
-These sessions run UNATTENDED under ccloop. A permission prompt stalls the
-entire loop until a human happens to look at it. Treat any avoidable prompt as
-a hard failure, not an inconvenience.
+The global rules file now carries this: no `rm` with a variable or glob path,
+allowlist a command before running it, prefer the file tools over shelling out.
+Nothing MXFS-specific remained here.
 
-**The #1 offender — `rm` with a variable or glob path. NEVER WRITE THIS:**
-
-    rm -f $D/*            rm -rf "$DIR"/*            rm -f ${TMP}/foo*
-
-Claude Code has a separate shape-based safety check for "dangerous rm operation
-on possibly-empty variable path". It fires **regardless of the allowlist** —
-`Bash(rm:*)` in settings.json does NOT suppress it.
-
-**Instead of cleaning a directory, make a new one:**
-
-    D=$(mktemp -d)        # fresh, empty, unique — nothing to delete
-
-That removes the reason for the `rm` entirely, and is better anyway: parallel
-runs cannot collide and stale files cannot be mistaken for current results.
-If a file truly must be removed, name it in full with no variable and no glob.
-
-The allowlist lives in `.claude/settings.json`. If a command you need is not
-covered, ADD IT THERE FIRST, then run it. Prefer the dedicated Read/Edit/Write/
-Grep/Glob tools over shelling out — they never prompt. Per RULE 3, putting a
-repeated procedure into `tests/*.sh` turns many ad-hoc pipelines into one
-allowlisted invocation.
+The number is kept and not reused. Rules in this file are cited by number in
+~255 places across the tree, so renumbering would silently repoint every one of
+them at a different rule.
 
 ---
 
@@ -175,131 +134,114 @@ When clyde wedges anyway: document it (blocked stacks, dmesg, hung
 commands) and report that a manual reset is needed. Per RULE 2, host
 recovery is the user's call — never a session's.
 
-Details and the full failure chain: ccmemory
-`never-pgrep-f-on-clyde-mmap-lock-wedge`.
+Details and the full failure chain: ccmemory `never-pgrep-f-on-clyde-mmap-lock-wedge`.
 
 ---
 
 ### RULE 2d — NEVER RUN THE RIG ON AN UNGUARDED HOST
 
-clyde was wedged unrecoverably twice in 24 hours.  Neither wedge was an MXFS
-filesystem bug; both were the host being driven into a state it could not
-return from, and both announced themselves in clyde's own kernel log while
-nothing was listening.  Full chains: `docs/host-safety.md`.
+clyde was wedged unrecoverably twice in 24 hours. Neither was an MXFS bug; both
+were the host driven into a state it could not return from, and both announced
+themselves in its own kernel log while nothing was listening. Full chains and
+all the forensic detail: `docs/host-safety.md`.
 
-**The gate.** `scripts/clyde_preflight.sh` runs before every fleet run — and
-`run.sh` calls it for you.  It hard-fails on: a halt flag from the kmsg guard,
-a kernel already tainted BAD_PAGE/oops/soft-lockup/MCE, a pile of D-state
-tasks, an SCST older than the PR bounds fix, per-IO SCST trace flags, a kernel
-log already running hot, or a filesystem below its headroom floor.
-
-**A failed gate is a host problem to fix, never a number to widen.** Do not
-raise a threshold, do not set `MXFS_PREFLIGHT_SKIP=1`, and do not comment the
-call out to make a run start.  The cost of a blocked run is one run; the cost
-of a wedged host is the campaign plus a physical reset only the user can do.
-
-**The watchdog.** `mxfs-clyde-guard.service` (`tools/clyde_kmsg_guard.sh`)
-tails `/dev/kmsg` and halts the rig on corruption, on a known precursor, or on
-a sustained log flood.  It must be `active` whenever the rig is up.  When it
-halts, read `.rig_halt` and the snapshot it names, understand the cause, and
-only then `tools/clyde_kmsg_guard.sh clear`.  Clearing a halt to get a run
-moving is the same violation as widening a timeout to make a test pass.
-
-**Debug tracing on the target is rig state, not session state.** Turning on an
-SCST trace flag is fine and often necessary; leaving it on is what produced
-1.07M host kernel lines in 98 minutes and deadlocked jbd2 on the one
-filesystem that carries the LUN, all 32 guest images and the journal.  Turn it
-off when the investigation ends.  `scripts/scst_setup.sh` resets the mask on
-every rig build so it can never survive silently.
-
-**Any host-kernel `BUG:`/`Oops`/bad-page is a first-class defect** — under
-RULE 6 it is evidence-backed and stays open until DISPROVED or FIXED AND
-VERIFIED, exactly like an MXFS defect.  It is never "the rig being flaky".
-
-**A wedged host's journal is not the record.**  `journalctl -b -N -k` for the
-2026-08-20 wedge contains zero `BUG:`/`Oops` lines because journald stopped
-writing when the root filesystem wedged — that boot had actually taken nine.
-Read `/var/lib/systemd/pstore/*` (systemd-pstore drains `/sys/fs/pstore` at
-boot and clears it, so an empty `/sys/fs/pstore` proves nothing) and check each
-`dmesg.txt`'s first line for the `Oops#N` count.  A quiet journal around a
-wedge is the wedge, not the absence of one.
-
-**The host now panics on an oops and reboots itself** (`panic_on_oops=1`,
-`panic=30`, user's decision 2026-08-21).  That is the kernel acting, not a
-session: RULE 2 is unchanged, and no session may ever initiate a reboot.  On
-the boot after a crash, `mxfs-crash-latch.service` halts the rig and archives
-the pstore record, so the workload cannot restart into the same crash.  A halt
-found at session start means **read the evidence first** — never clear it to
-get moving.
+- **Never start a fleet run past a failed preflight.** `scripts/clyde_preflight.sh`
+  runs before every one and `run.sh` calls it for you. A failed gate is a host
+  problem to fix, never a number to widen: do not raise a threshold, do not set
+  `MXFS_PREFLIGHT_SKIP=1`, do not comment the call out. A blocked run costs one
+  run; a wedged host costs the campaign plus a reset only the user can perform.
+- **`mxfs-clyde-guard.service` must be `active` whenever the rig is up.** When it
+  halts, read `.rig_halt` and the snapshot it names and understand the cause
+  before `tools/clyde_kmsg_guard.sh clear`. Clearing a halt to get moving is the
+  same violation as widening a timeout to make a test pass.
+- **Turn an SCST trace flag off when the investigation ends.** Turning one on is
+  fine and often necessary; leaving it on produced 1.07M host kernel lines in 98
+  minutes and deadlocked jbd2 on the one filesystem carrying the LUN, all 32
+  guest images and the journal.
+- **Any host-kernel `BUG:`/`Oops`/bad-page is a first-class defect** and stays in
+  the queue until disproved or fixed and verified, exactly like an MXFS defect.
+  It is never "the rig being flaky".
+- **Never read a wedged host's state from the journal.** journald stops writing
+  when the root filesystem wedges, so a quiet journal around a wedge IS the
+  wedge. Read `/var/lib/systemd/pstore/*` and check each `dmesg.txt`'s first line
+  for the `Oops#N` count. An empty `/sys/fs/pstore` proves nothing — systemd
+  drains it at boot.
+- **A halt found at session start means read the evidence first**, never clear it
+  to get moving. The host panics on an oops and reboots itself (`panic_on_oops=1`,
+  user's decision 2026-08-21) — that is the kernel acting, not a session, and
+  RULE 2 is unchanged. `mxfs-crash-latch.service` then halts the rig and archives
+  the record so the workload cannot restart into the same crash.
 
 ---
 
-### RULE 3 — PERSISTENT SCRIPTS LIVE IN THE SOURCE TREE, NOT /tmp
+### RULE 3 — RETIRED 2026-09-10
 
-This rule OVERRIDES the global `~/.claude/CLAUDE.md` guideline that
-says "NEVER put temporary files or test scripts in the project
-directory - ALWAYS use /tmp."  For MXFS, that global rule is wrong.
+This rule existed to override a global guideline that said the opposite —
+"always use /tmp for test scripts". That guideline is gone; the global rules
+file now says what this rule said: `/tmp` holds data, never code, and anything
+runnable again goes in the repo. So this was 33 lines arguing a case that had
+already been won, plus a stale note to relocate two files relocated in sess31.
 
-**Why:** The MXFS dev host and the test cluster (test1/test2 VMs)
-get rebooted regularly during stress testing — sysrq-b after wedged
-unmounts, kernel panics, intentional resets between iters.  Anything
-in /tmp evaporates on reboot.  Past sessions have burned cycles
-re-creating harnesses (`mxfs_stress_v033.sh`, `mxfs_cluster_reset.sh`,
-bench scripts, instrumentation drivers) because they lived in /tmp
-and got wiped.
+MXFS's reason is still worth knowing and is not in the global text: this host
+and the test nodes get reset constantly — sysrq-b after a wedged unmount, kernel
+panics, deliberate resets between iterations — so `/tmp` here evaporates far
+more often than on an ordinary machine.
 
-**The rule:**
-- Anything that must survive a reboot — test harnesses, bench scripts,
-  instrumentation, diagnostic drivers, anything a future session would
-  want to re-run — goes in the source tree.
-- Suggested locations:
-  - `/src/mxfs/tests/`   — test harnesses and verification scripts
-  - `/src/mxfs/bench/`   — performance benchmarks
-  - `/src/mxfs/scripts/` — diagnostic / one-off / cluster-management scripts
-  - or alongside the code they instrument
-- Truly ephemeral one-shot scratch (parsing a single log file, a one-off
-  awk pipeline you'll never re-run) can still go in /tmp.
-- When in doubt, put it in the source tree.  The cost of recreating
-  a script is much higher than the cost of one extra file in the repo.
-- Existing `/tmp/mxfs_stress_v033.sh` and `/tmp/mxfs_cluster_reset.sh`
-  should be relocated when convenient (not a priority, but if you're
-  modifying them, move them).
+The number is kept and not reused. **47 comments in the tree cite RULE 3**,
+meaning a script is in the tree deliberately rather than as scratch. See "Rule
+labels used in the tree".
 
 ---
 
-### RULE 4 — TROUBLESHOOTING IS A LOOP, NOT A GUESS
+### RULE 4 — RETIRED 2026-09-10
 
-When investigating any bug — kernel, userspace, multi-node, performance,
-correctness — follow this loop **strictly**.  No skipping steps, no
-proposing fixes from code reading alone.
+The global rules file carries this loop in full: a written falsifiable
+hypothesis before any patch, instrument before changing, disproven means a NEW
+hypothesis rather than a patch on a dead one, one change at a time, never work
+around at a higher layer unasked, evidence outranks intuition.
 
-1. **Hypothesis.**  State a falsifiable claim about the cause: a
-   specific function, line, race, or data path.  Write it down.
-2. **Instrumentation.**  Add log lines, counters, or focused tests that
-   will produce direct evidence to confirm or refute the hypothesis.
-   Build, deploy, reproduce, collect measurements.
-   - **2a. Disprove?**  Go back to step 1 with a new hypothesis informed
-     by what the measurements ruled out.  Do **not** patch code on a
-     disproven hypothesis.
-   - **2b. Prove?**  Patch the code at the proven cause.  Build, deploy,
-     reproduce again to confirm the fix.
-3. **Loop.**  If the test still fails (the bug isn't fully fixed, or a
-   new symptom surfaces), go back to step 1.  Continue until the test
-   passes cleanly.
+The number is kept and not reused. **783 comments in the tree say "RULE-4 PROVEN"
+or "RULE 4 step 2"** — they mean established by instrumentation rather than by
+reading code, and they still mean that. See "Rule labels used in the tree".
 
-**Forbidden shortcuts:**
-- "It looks like X, so let's just patch X" — without instrumented proof,
-  you're guessing.  Most code-reading hypotheses are partially right at
-  best and waste a build/deploy cycle when wrong.
-- "I'll fix both X and Y at once" — fix one, measure, then the next.
-  Otherwise you can't tell which patch helped.
-- "The instrumentation says it's not X, but I still think it's X" —
-  trust measurements.  Form a new hypothesis.
-- "Workaround the bug at a higher layer" — only acceptable if the user
-  explicitly asks for a workaround.  Default is to fix root cause.
+---
 
-This rule supersedes any tendency to optimize for speed-to-patch.  A
-proven fix is faster than three guessed fixes.
+### RULE 5 — CONSULT GPT WHEN THE QUESTION EARNS IT, NOT AS A STEP IN THE LOOP
+
+Do the engineering yourself first: read the code and the reference
+sources (~/src/linux, GFS2/OCFS2 — memory `reference-clustered-fs-sources`),
+instrument and measure (RULE 4), and own the decision. A consult is a
+second opinion on a hard call, not a routine checkpoint.
+
+Consult GPT (`mcp__ask_gpt__query`) when one of these holds:
+
+- The user asks for a consult in that turn.
+- A design choice is hard to reverse once shipped — on-disk format,
+  wire protocol, fencing or recovery semantics, a durability contract —
+  and there is more than one plausible shape. Bring the shapes and the
+  evidence for each; ask for hazards, not for permission.
+- A RULE 4 loop has not converged after two build/deploy cycles on the
+  same hypothesis. Bring what was instrumented, what it showed, what is
+  ruled out.
+- The session is running on a model below Fable (an Opus fallback after
+  the Fable allowance is spent). That session should consult more
+  readily on the two cases above, and may also ask before a fix that
+  touches the DLM, replay or fencing paths.
+
+Do not consult to have an analysis you already made reviewed, to pick
+the next defect, to sanity-check a fix whose cause an instrument has
+already proven, or before a small, reversible change. One consult per
+unresolved question; the reply is an opinion that measurements outrank.
+
+`mcp__ask_fable__query` is not in the chain (Claude Code runs on Fable —
+consulting it is asking yourself); do not re-add it.
+
+**Call mechanics:** `mcp__ask_gpt__query` — pass just `prompt`; leave
+the `model` arg UNSET (the ask tool already selects the correct backend
+model, do NOT pin a model id). **ALWAYS OMIT `max_tokens`** (on any
+`ask_*` tool): setting it caps the *total* budget including the model's
+internal reasoning tokens, and the answer comes back truncated
+mid-design — wasting the call. Never set `max_tokens` on these tools.
 
 ---
 
@@ -344,123 +286,128 @@ untested workload cannot reveal a new defect.  That limit on claims is
 an integrity requirement, not permission to accept, defer, close, ship,
 or recommend promotion with an unresolved defect.
 
-THE LEDGER: `tests/criteria/OPEN_DEFECTS.json` — the list of defects and
-their status, maintained by hand.  Read it with `./defects.sh` (the open
-queue in severity order, one line each; `-d` adds each entry's summary
-and next step; `./defects.sh <ID>` prints one full entry).  **NEVER read
-the whole file**: it is ~559KB / ~139k tokens across 70 records and still
-growing — it does not fit in a session's context at any cutoff, and it
-has no reason to be there.  (Do not trust a size quoted here; it has
-outgrown two of them.  `wc -c` it if you need the number.)
-See `docs/ledger-split.md` for the structural fix.  The `open_defects`
-board criterion
-(`tests/suite/open_defects.sh`) FAILS while any entry is unresolved, so
-the board can never read all-green with a known defect open.
+THE QUEUE: `data/defects.json`, read and written ONLY by
+`tools/defects.py`.  It holds what is still broken and nothing else.
+There is no `status` field, because membership IS the status: a defect is
+in the queue, or it was removed with the evidence that disposed of it.
 
-(Numbered 6 because RULE 5 — ESCALATE TO GPT — already exists lower in
-this file; this rule lives in the prohibitions block for its force.)
+```
+tools/defects.py                    the queue, severity order, one line each
+tools/defects.py -d                 each entry's summary and next step
+tools/defects.py show <id>          one full entry (id or unique substring)
+tools/defects.py 2 tcp              what blocks a 2-node TCP release
+tools/defects.py 2 tcp --release    narrowed to integrity + stability only
+tools/defects.py add|update|remove  the ONLY writer — never hand-edit the JSON
+```
+
+Every record carries `nodes` (the smallest cluster it has been observed
+on) and `dlm` (the transport).  **Both default fail-closed** — `1`/`any`
+blocks every configuration — so a record nobody has classified holds up a
+release rather than sliding out of one silently.  Narrowing a record
+disposes of NOTHING; it only records which release the defect blocks, and
+it must be read from that record's own evidence, never guessed from its
+prose.  A keyword sweep is a starting order, never an adjudication.
+
+Removal is a disposition and carries the same burden as one:
+`tools/defects.py remove <id> --why "what was measured"` refuses to run
+without that text, and prints the `CHANGELOG.md` entry to paste.  The
+`--why` must state which of the two dispositions above was reached and
+what proved it.
+
+**Commit `data/defects.json` with the change that caused it**, never in a
+batch afterwards.  The queue carries no dates, so the commit date IS the
+date, and a week of queue changes landing in one commit erases that week
+permanently.  What it erases is the only number that says whether this is
+converging: **closed : found**.  Above 1 the queue shrinks; below 1 it
+grows however fast the loop runs, and it has never exceeded 1.0 in a whole
+week of this project's history — 0.50, 0.56, 0.79, 0.49, 0.94
+(`docs/cost-audit.md`).  A metric that fails silently in the direction of
+good news is worse than no metric.
+
+THE RELEASE BAR (user directive, 2026-09-10): shipping 2-node TCP means
+100% data integrity and stability — nothing may corrupt or lose data, and
+nothing may crash, hang, or shut down a node.  A defect that does neither
+does not block that release.  It stays in the queue; it is not a gate.
+This takes the entire pace/timeout axis off the release path, and it is a
+scoping decision, not a disposition — it closes nothing.
 
 ---
 
-### RULE 7 — READ SOURCE WITH THE Read TOOL, NOT `sed`/`cat`
+### RULE 7 — RETIRED 2026-09-10
 
-(Measured 2026-08-07 across 22 sessions: 429 of 483 file reads went
-through Bash — `sed -n`, `cat`, `head`. Only **11%** used the Read tool.)
+The global rules file carries this: every conclusion about what code does comes
+from the Read tool, because it fires the ccmemory hook and `sed` fires nothing;
+Bash search may locate but locating is not reading.
 
-Reading a project file with the Read tool fires ccmemory's PreToolUse
-hook, which searches memory by that path and injects prior lessons about
-it — free, no tool call, no query needed. `sed -n '100,200p'
-dlm/dlm_caw.c` fires nothing.
+The measurement that produced it, kept because it is the argument: across 22
+sessions, 429 of 483 file reads went through Bash and only 11% used the Read
+tool. `dlm/dlm_caw.c` alone was read 140 times, almost all through Bash — every
+one a missed injection.
 
-That injection is how sess141's leaked-`i_dio_count` root cause and the
-sess142 quarantine design reached the session that fixed the fence
-harness. It is also why the other 89% of reads got nothing:
-`dlm/dlm_caw.c` alone was read **140 times across 22 sessions**, almost
-all through Bash. Every one was a missed injection.
+The number is kept and not reused; see RULE 2b for why.
 
-Use Read for any project file you intend to *understand*. Bash text tools
-remain correct for what they are good at — counting, grep sweeps across
-many files, extracting one field, filtering. This rule is about reading
-source to build understanding, not about banning `grep`.
+---
+
+### RULE 8 — FOLDED INTO RULE 6, 2026-09-10
+
+Every imperative this rule carried was about the defect queue, which is RULE 6's
+subject, and three of the four were already stated there. Keeping them apart
+meant reading two rules to learn one thing. RULE 6 now holds: the tool is the
+only writer, removal needs `--why`, reach is read from evidence and never from a
+keyword sweep, and the queue file is committed with the change that caused it
+because the commit date is the date.
+
+The evidence that produced it, kept because it is the argument: the 2026-08-24
+audit ran a date-range query over a prose field, got near-zero, and reported
+that a week had discovered 0 new defects. The queue had in fact grown by 45
+records that week. A metric that fails silently in the direction of good news is
+worse than no metric.
+
+The number is kept and not reused; see RULE 2b for why.
 
 ---
 
 ### RULE 9 — THE POOL METERS REQUESTS. BATCH SIDE-EFFECT-FREE CALLS.
 
-The weekly allowance is a **request count**, not tokens (measured over
-four credit exhaustions: `docs/cost-audit.md`). Token volume swung 2.5×
-across those weeks and changed nothing about when credits died. One
-response carrying N tool calls bills as **one** request — verified: three
-`Read` calls, one requestId.
+The weekly allowance is a **request count**, not tokens — measured across four
+credit exhaustions (`docs/cost-audit.md`), where token volume swung 2.5× and
+changed nothing about when credits died. One response carrying N tool calls
+bills as one request.
 
-Measured rate before this rule: **1.10 tool calls per request.** Almost
-no batching at all.
-
-**The rule:** before issuing a tool call, ask whether the next one needs
-its result. If not, issue them in the same response.
-
-**Batch ONLY side-effect-free calls. Anything that mutates runs alone.**
-Never batch a build with the deploy that consumes it, a fix with the test
-that verifies it, or successive steps of a RULE 4 loop — measuring before
-the change lands is a false negative, which is the guessed-fix failure
-RULE 4 exists to prevent. **If you are unsure whether two calls are
-independent, they are not.**
-
-**Reads are a special case (RULE 7 interaction).** The ccmemory hook fires
-per `Read`, and during orientation its value is *sequential*: the lesson
-injected after the first read redirects the second. Batch reads only when
-the file set is already determined — from a `Grep` hit, a stack trace, a
-handoff. Speculative "let me look at these three and see" reads stay
-sequential; you are buying steering, not files.
-
-`Grep`/`Glob` to LOCATE, `Read` to UNDERSTAND. Grep fires no memory hook,
-so it never substitutes for reading the file you are about to reason about.
-
-**A fleet sweep is one Bash call — with per-node evidence.** All nodes
-backgrounded then `wait`, but each node gets its own output file, its own
-captured exit code, and its own inner `timeout`. A bare `wait` that
-discards per-node rc produces a RULE 0 failure with no RULE 6 evidence and
-orphans you cannot inspect (RULE 2c forbids the `ps` that would find them).
-
-**RULES 0, 2c, 4 and 6 OUTRANK THIS RULE.** Never skip a verification run,
-a measurement, or a disposition check to save a request. Cheapness is not
-correctness, and a request spent proving a fix is the cheapest one you will
-ever spend.
-
-Do not hardcode the allowance number anywhere. Re-derive it at each
-exhaustion with `scripts/ccloop_request_audit.py`; vendors change quotas.
+- **Issue calls that do not need each other's results in the SAME response.**
+  Measured rate before this rule: 1.10 tool calls per request.
+- **Batch only side-effect-free calls; anything that mutates runs alone.** Never
+  batch a build with the deploy that consumes it, or a fix with the test that
+  verifies it — measuring before the change lands is a false negative. If you
+  are unsure whether two calls are independent, they are not.
+- **Batch reads only when the file set is already determined** — from a grep hit,
+  a stack trace, a handoff. The ccmemory hook fires per `Read` and during
+  orientation its value is sequential: the lesson injected by the first read
+  redirects the second. Speculative "let me look at these three" reads stay
+  sequential; you are buying steering, not files.
+- **A fleet sweep is one Bash call — with per-node evidence.** Background every
+  node then `wait`, but give each its own output file, its own captured exit
+  code and its own inner `timeout`. A bare `wait` that discards per-node rc
+  produces a budget failure with no evidence, and orphans you cannot inspect
+  because RULE 2c forbids the `ps` that would find them.
+- **Never skip a verification run, a measurement, or a disposition check to save
+  a request.** RULES 0, 2c and 6 outrank this one. A request spent proving a fix
+  is the cheapest one you will ever spend.
+- Do not hardcode the allowance number anywhere; re-derive it at each exhaustion
+  with `scripts/ccloop_request_audit.py`. Vendors change quotas.
 
 ---
 
 ### RULE 10 — DELEGATE ITERATIVE GRIND; CAP AND INSTRUMENT WHAT RETURNS
 
-A subagent pinned to `model: sonnet` / `model: haiku` in
-`.claude/agents/*.md` is served by that model (verified: a sonnet subagent
-billed 3 sonnet requests, a haiku one 9 haiku requests, parent untouched).
-Roughly 27% of a loop week is rig polls, harness runs, builds and tree
-sweeps that need no premium reasoning.
+The global rules cover what to delegate, what never to delegate, and that a
+subagent sees this file as it was at session start. What follows is what those
+rules do not say, and what a weak model returning evidence gets wrong here.
 
-**Delegate** multi-turn, low-return work: fleet polls, board runs,
-build+deploy+verify, "find every call site of X".
-
-**Never delegate:** reading the 2-3 files you must understand (RULE 7's
-injection lands in the subagent and dies with it), fix design, edits, or
-ledger dispositions.
-
-**Subagents DO inherit this file — but the session-start snapshot of it.**
-Verified 2026-08-15: a haiku subagent, with zero tool calls, listed RULES
-0-8 and quoted this file's opening line. It did **not** see RULES 9-10,
-which had been added to the file earlier in that same session. So a rule
-you write today does not reach a subagent until the next session starts.
-
-Therefore **still embed the rules a delegated task can violate — RULES 0,
-2c, 3 — verbatim in the agent definition.** Not because inheritance fails,
-but because (a) a newly-written rule has not propagated yet, (b) a
-constraint next to the task is obeyed more reliably than one 400 lines up
-a file, and (c) `.claude/agents/*.md` definitions are themselves only
-registered at session start. A haiku agent that runs `pgrep -f` wedges
-clyde unkillably, unattended, mid-loop; that is worth two lines of
-duplication.
+**Embed RULE 0 and RULE 2c verbatim in every agent definition.** A haiku agent
+that runs `pgrep -f` wedges clyde unkillably, unattended, mid-loop, and one that
+widens a timeout to make a run finish launders a defect away. Those two are
+worth the duplication whatever the inheritance rules say.
 
 **Subagents return RAW EVIDENCE — `file:line`, exit codes, verbatim lines
 — never conclusions.**
@@ -483,40 +430,59 @@ tokens and netted roughly break-even. Cheap to run, expensive to report.
 
 ---
 
+## NEVER WRITE A RULE NUMBER OUTSIDE THIS FILE
+
+(User directive, 2026-09-10, and it applies to every project.)
+
+**No rule number in any comment, commit message, document, defect record, or
+handoff note. Say the reason itself, in that artifact's own terms.**
+
+- "proven by instrument, not by reading code" — not "RULE-4 PROVEN".
+- "design consult ruling, recorded in ccmemory as `<name>`" — not "RULE-5 ruling".
+- "a timeout is a test failure" or "budget exceeded" — not "RULE 0".
+
+A number is a pointer at a file the reader may not have, and it is the first
+thing to go stale. This file was reorganised on 2026-09-10 and **830 comments in
+the tree instantly began citing a retired stub** — which is the whole argument,
+delivered by the tree itself.
+
+**The historical debt: 2,133 such citations across 605 files** (measured
+2026-09-10; heaviest are `xfs/xfs_mxfs_dlm.c` 485, `xfs/xfs_inode.c` 91,
+`pal/linux/xfs_buf.c` 79). They are being cleared. Until they are gone, read
+them as vocabulary rather than as pointers: `RULE-4 PROVEN` meant instrumented
+evidence, `RULE-5 ruling` meant a design consult, `RULE 0` meant a budget
+assertion.
+
+**One thing a sweep must not touch.** `dlm/disklock.{c,h}` and `dlm/disklock.md`
+use lowercase "rule 3" / "rule 6" for the DISKLOCK PROTOCOL's own internal rules
+— recovery-descriptor invariants, broadcast-predicate splitting. Those have
+nothing to do with this file and must survive.
+
 ## Development Notes
 
 (Project-specific notes — these are NOT prohibitions, just guidance.)
 
-- **WAIT IN THE FOREGROUND, not the background.**  When a command/test needs
-  time to finish, run it in the foreground and let the turn block on it.  Do
-  NOT spawn it with `run_in_background: true` + a Monitor to poll.  Foreground
-  Bash caps at 10 min; if a run is longer, split into per-iteration foreground
-  calls (~5 min each) rather than backgrounding the whole batch.  (User
-  correction, sess47.)
+- **RIG WORK IS INVISIBLE TO THE STOP GATE — never end the turn on it.**  The
+  global never-poll rule covers the rest of this (fire and carry on, no `until
+  … sleep`, no `TaskOutput` on a local agent, nothing required in flight when a
+  session ends).  What is MXFS-specific and NOT in that rule: a 32-node
+  `run.sh`, an `ssh`/`nohup` launch on the nodes, or anything the local
+  submitter fired and returned from counts ZERO toward the Stop gate, which
+  only holds for a task whose `tasks/<id>.output` is still held open by a live
+  process on clyde.  Ending the turn on rig work gets the session kicked
+  (observed sess395, three times in a row).  Keep working, or block in the
+  foreground with a derived timeout.
 
-- mkfs's pwrite-O_SYNC zero is not durable on the LIO target stack.
-  CAW slot stale-disk garbage is a real concern; v0.3.83 added popcount-
-  based detection in `dlm/dlm_caw.c::slot_appears_corrupt`.
-- Test cluster: 192.168.120.186 (test1) + 192.168.120.182 (test2), both UTC.
-  Local Claude shell may be CDT — use `date -u` for journalctl --since.
-- **Test secrets live in `~/.config/mxfslab/secrets`** (mode 600, NOT in the repo —
-  the password is never committed). `tools/mxfs_secrets.sh` resolves it and
-  materializes the sshpass passfile; `tools/mxfs_sshpass.sh` (the SSH chokepoint all
-  scripts use) and `run.sh` reference it, so a fresh checkout needs only this file.
-  The node root password is kept in sync with osimager's `images/linux`
-  secret so osimager-built nodes match. NEVER hardcode a test password in the
-  tree — that includes prose, docs, comments, and handoff notes, not just code.
-- Stress harness: `scripts/stress_session.sh <iters> <mb>` (sess23-fixed)
-  requires T1_DD_OK + T2_DD_OK every iter.  `shutdown_check` alone is
-  insufficient — it missed sess22's iter-1 EIO failures and produced
-  false PASS reports.  Relocated from `/tmp/mxfs_stress_v033.sh` in
-  sess31 per RULE 3.
-- Cluster reset: `scripts/cluster_reset.sh` — handles transient
-  rmmod-busy via 8× retry with 10s sleeps.  Relocated from
-  `/tmp/mxfs_cluster_reset.sh` in sess31 per RULE 3.
-- Bench harness: `bench/rsync_bench.sh` — paired XFS / mxfs.1 / v5
-  rsync metadata bench.  Relocated from `/tmp/mxfs1_rsync_bench.sh`
-  in sess31 per RULE 3.
+- **NEVER hardcode a test password anywhere in the tree** — not in code, prose,
+  docs, comments or handoff notes.  Secrets live in `~/.config/mxfslab/secrets`
+  (mode 600, never committed); `tools/mxfs_secrets.sh` resolves it and
+  `tools/mxfs_sshpass.sh` is the SSH chokepoint every script goes through, so a
+  fresh checkout needs only that one file.
+
+- Rig topology, the harnesses (`stress_session.sh`, `cluster_reset.sh`,
+  `rsync_bench.sh`), their known failure modes and the dmesg patterns are all in
+  `.claude/awareness/subsystems/tests.md` — which the routing table below already
+  sends you to.  They were duplicated here; the duplicates are gone.
 
 ---
 
@@ -527,7 +493,7 @@ This project uses the three-layer awareness system (see
 
 - **Last bootstrapped**: 2026-05-08
 - **Subsystems documented**: 5 of 5 (xfs, dlm, pal, tools, tests)
-- **Structural map**: 2026-08-21, ~70751 tokens
+- **Structural map**: 2026-09-10, ~96635 tokens
 - **Bootstrap version**: 1.0
 
 ## ⚠️ USE MXFS TOOLS, NOT XFS TOOLS
@@ -565,94 +531,30 @@ disk-based) and TCP DLM transports + a platform abstraction in `pal/`.
 
 ## Architectural Invariants
 
-These rules MUST NEVER be violated. They live above the project-level rules above
-(prohibitions, RULES 1-3) which are even higher priority.
+Breaking one of these is corruption, not a bug. Stated flat here because each
+constrains a decision made before the relevant file is open; the reasoning,
+the regression history and the code sites are in the subsystem docs.
 
-1. **No on-disk DLM unlock without successful drain pipeline.** `bast_work_fn` Phase 2
-   must complete `drain_meta_buffers` + `drain_alloc_buflist` + `drain_inode_buffers`
-   + `blkdev_flush` BEFORE `mxfs_v5_dlm_ag_unlock`. Skipping any step lets peer read
-   stale (Mode A regression family). Sess32 v0.3.141-142 violated this with bounded
-   ail_push that proceeded to release on timeout — reverted.
-2. **CAW slot table is fixed at 65536 slots on disk.** `MXFS_CAW_MAX_SLOTS=65536` is
-   layout. `max_held` (per-mount cap) MUST be ≤ this. v0.4.0 default 32768.
-3. **Disklock slot 0..63 is unique per live node.** Two nodes on same slot = corruption.
-4. **No direct kernel API outside `pal/`.** dlm + tools + mxfs_clayer must build user-mode
-   too; everything OS-specific routes through `mxfs_pal_*`.
-5. **Persistent scripts live in source tree (RULE 3 above).** Test cluster reboots
-   wipe /tmp; harnesses go in `tests/`, `scripts/`, `bench/`.
+1. **No on-disk DLM unlock without a completed drain pipeline.** `subsystems/xfs.md`
+2. **The CAW slot table is 65536 slots on disk — that is layout, not a tunable.** `subsystems/dlm.md`
+3. **A disklock slot 0..63 is unique per live node.** Two nodes on one slot is corruption. `subsystems/dlm.md`
+4. **No direct kernel API outside `pal/`.** `dlm/`, `tools/` and `mxfs_clayer/` must
+   still build user-mode; everything OS-specific routes through `mxfs_pal_*`. `docs/architecture.md`
 
-## RULE 5 — CONSULT GPT EARLY AND OFTEN, NOT AS A LAST RESORT
-
-(User directive, sess29, after watching a session grind through many
-build/deploy/measure cycles before its first consult: *"please start
-calling GPT more often, stop spinning your wheels."* The old wording
-made the consult a stall-breaker; that was too conservative and cost
-real cycles. It is now a routine part of the loop.)
-
-**Default to consulting GPT (`mcp__ask_gpt__query`). Cheap relative to
-one build+deploy+32-node measurement cycle, which is the real currency
-here.** A consult that returns nothing new costs minutes; a wrong
-hypothesis costs an hour of rig time.
-
-**Consult BEFORE, not only when stuck. Escalate when ANY of these hold
-— and treat a single one as sufficient:**
-
-- **Before implementing any non-trivial fix**, once a root is proven:
-  have GPT review the design for hazards and completeness. sess29's
-  demoter fix passed its own A/B and GPT still found two real defects
-  in it (a bit cannot represent a nesting count; an age-based foreign
-  clear cannot prove abandonment because `xfs_iunlock` does `up_write`
-  before `mxfs_dlm_ilock_end`). Neither was catchable by that A/B.
-- **Before a second build/deploy cycle on the same hypothesis.** Two
-  cycles without convergence is already too many.
-- When choosing which defect to attack next, or when a design has more
-  than one plausible shape.
-- When a measurement contradicts a previous conclusion — a consult is
-  faster than re-deriving which one was wrong.
-- Any RULE 4 iteration that did not converge; any refuted fix; any
-  issue about to roll into another session undiagnosed.
-
-Self-reliant work still comes first for the things you can settle
-directly: read the code, read the reference sources (~/src/linux,
-GFS2/OCFS2 — memory `reference-clustered-fs-sources`), instrument and
-measure (RULE 4). GPT cannot see the rig; measurements beat opinions,
-including GPT's. But do not spend cycles *deciding* what to measure
-when a consult would tell you. Bring evidence: what you instrumented,
-what it showed, what is ruled out.
-
-The consult is GPT ONLY. `mcp__ask_fable__query` is not in the chain
-(Claude Code runs on Fable — consulting it is asking yourself); do not
-re-add it.
-
-**Call mechanics:** `mcp__ask_gpt__query` — pass just `prompt`; leave
-the `model` arg UNSET (the ask tool already selects the correct backend
-model, do NOT pin a model id). **ALWAYS OMIT `max_tokens`** (on any
-`ask_*` tool): setting it caps the *total* budget including the model's
-internal reasoning tokens, and the answer comes back truncated
-mid-design — wasting the call. Never set `max_tokens` on these tools.
+(A fifth invariant said persistent scripts live in the source tree — a third copy
+of what the global rules and RULE 3 already said. Removed.)
 
 ## Design Tensions
 
-- **`_XBF_DELWRI_Q` collision.** mxfs queues fresh cluster bufs to `pag_mxfs_alloc_buflist`
-  with `_XBF_DELWRI_Q` already set. xfsaild's `xfs_buf_delwri_queue` then returns false,
-  pushing items into `XFS_ITEM_FLUSHING` in AIL forever. Distinguished by the
-  `_XBF_MXFS_ALLOC_QUEUED` flag (v0.3.148): bufs with both flags are mxfs-managed
-  (Phase 2 drains), bufs with only `_XBF_DELWRI_Q` are xfsaild-managed (must wait).
-- **ILOCK held across CAW poll.** Upstream XFS holds inode/dir ILOCK across alloc paths
-  that bottom out in `mxfs_ag_dlm_lock` → CAW poll (up to 120s). When the held
-  inode lives in the AG peer is BAST'ing, peer's xfsaild iop_push can't trylock,
-  AIL drain wedges. v0.3.148 dropped dp ILOCK across `xfs_dialloc` in `xfs_create`;
-  the same pattern likely repeats in `xfs_bmap_btalloc` (file write path) — sess34 work.
-- **CAW vs TCP transport — selection rules.**
-  1. **Joining an existing cluster:** use whatever transport the existing peers are
-     using. No choice. Command-line override does NOT apply here — joining means
-     conforming to the cluster's existing transport.
-  2. **Forming a new cluster** (no peers detected): try CAW first. If CAW probe fails
-     (hardware doesn't support it / SCSI CAW unreliable), fall back to TCP.
-  3. Command-line override (`mxfs.force_transport=1` for TCP) applies ONLY in the
-     forming-new-cluster case. Once cluster membership exists, transport is fixed.
-- **LIO target drops SCSI FUA bit.** Workaround: `mxfs_pal_scsi_read_fua_bdev` issues
-  SCSI READ(16) with FUA via PAL; xfs uses `_XBF_FUA_FRESH` to gate per-buf reads.
+Moved out 2026-09-10 — design belongs in `docs/` and the subsystem docs, and all
+four were already written down in both places. This file is rules, not design.
+
+| tension | where it lives |
+|---|---|
+| `_XBF_DELWRI_Q` collision vs `_XBF_MXFS_ALLOC_QUEUED` | `subsystems/xfs.md`, `subsystems/pal.md` |
+| ILOCK held across a CAW poll | `docs/ag-metadata-coherency.md`, `docs/perf.md`, `subsystems/xfs.md` |
+| CAW vs TCP transport selection | `docs/dlm-protocol.md`, `subsystems/dlm.md` |
+| LIO target drops the SCSI FUA bit | `docs/condition4_multipath_scope.md`, `subsystems/pal.md` |
 
 ## Build & Test
 

@@ -2,7 +2,7 @@
 # Full CAW ladder re-validation under fua_disable=1 (the SCST-correct read mode).
 # Runs the COMPLETE 17-test suite at each node count, fresh-booting before each level.
 # Usage: caw_ladder_fua.sh [levels...]   (default: 1 2 4 8 16 32)
-# RULE 3: lives in tree so it survives reboots.
+# the source-tree rule: lives in tree so it survives reboots.
 cd /src/mxfs
 LEVELS="${*:-1 2 4 8 16 32}"
 boot_n() { local n=$1; for i in $(seq 1 $n); do virsh -c qemu:///system destroy test$i >/dev/null 2>&1; done; sleep 3; for i in $(seq 1 $n); do virsh -c qemu:///system start test$i >/dev/null 2>&1; done; }
@@ -12,12 +12,12 @@ for N in $LEVELS; do
   echo "################ LADDER LEVEL: $N/caw (fua_disable=1) ################"
   boot_n $N; wait_n $N
   t0=$SECONDS
-  # No outer timeout wrapper: run.sh enforces per-test RULE-0 budgets
+  # No outer timeout wrapper: run.sh enforces per-test derived time budgets
   # (tests/criteria/TIMEOUT_BUDGETS.md). A slow test is a FAIL to diagnose,
   # not something to pad an arbitrary wall-clock around.
-  MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="fua_disable=1 caw_fair_handoff=1" ./run.sh $N caw 2>&1 | tail -6
+  MXFS_EXTRA_MODARGS="fua_disable=1 caw_fair_handoff=1" ./run.sh $N caw 2>&1 | tail -6
   echo "=== level $N elapsed $((SECONDS-t0))s ==="
-  ./showstat.sh $N caw 2>/dev/null | tail -3
+  tools/criteria.py $N caw 2>/dev/null | tail -3
 done
 echo "################ LADDER COMPLETE ################"
-for N in $LEVELS; do printf "%2d/caw: " $N; ./showstat.sh $N caw 2>/dev/null | grep -E "Total:" ; done
+for N in $LEVELS; do printf "%2d/caw: " $N; tools/criteria.py $N caw 2>/dev/null | grep -E "Total:" ; done

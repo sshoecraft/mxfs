@@ -725,7 +725,7 @@ xfs_rtrmapbt_maxlevels_ondisk(void)
 int __init
 xfs_rtrmapbt_init_cur_cache(void)
 {
-	xfs_rtrmapbt_cur_cache = kmem_cache_create("mxfs_rtrmapbt_cur",
+	xfs_rtrmapbt_cur_cache = mxfs_cache_create("mxfs_rtrmapbt_cur",
 			xfs_btree_cur_sizeof(xfs_rtrmapbt_maxlevels_ondisk()),
 			0, 0, NULL);
 

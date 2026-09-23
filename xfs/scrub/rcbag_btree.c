@@ -277,7 +277,7 @@ rcbagbt_calc_size(
 int __init
 rcbagbt_init_cur_cache(void)
 {
-	rcbagbt_cur_cache = kmem_cache_create("mxfs_rcbagbt_cur",
+	rcbagbt_cur_cache = mxfs_cache_create("mxfs_rcbagbt_cur",
 			xfs_btree_cur_sizeof(rcbagbt_maxlevels_possible()),
 			0, 0, NULL);
 

@@ -17,7 +17,7 @@
 #                 PASS = marker file present with content B4-dirty-slice.
 #
 # Usage: tests/dirty_slice_release_repro.sh [node] [race|delay|remount|all]
-# Budget (RULE 0): mkfs 4G loop ~2s + mount/umount ~2s + module reload ~5s;
+# Budget (budget): mkfs 4G loop ~2s + mount/umount ~2s + module reload ~5s;
 # whole 'all' run must finish < 60s.
 set -u
 cd "$(dirname "$0")/.."

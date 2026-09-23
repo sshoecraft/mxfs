@@ -5,7 +5,7 @@
 # invocation (~5GB each: per-node logs + payload copies) and never prunes them.
 # A few boards' worth fills the 1.8T root fs (observed 100% full, session 23:
 # ~60 dirs from 2+ days of runs; host tooling then fails ENOSPC).  /tmp is
-# wiped on reboot by design (RULE 3), so nothing here is durable evidence —
+# wiped on reboot by design (the source-tree rule), so nothing here is durable evidence —
 # ledger evidence lives in tests/logs/.
 #
 # Deletes:

@@ -59,6 +59,32 @@ if mount | grep -q " on .* type mxfs .*$MXFS_DEV"; then
     fail "$MXFS_DEV appears mounted somewhere on this node — refusing to mkfs"
 fi
 
+# 3a. NEVER mkfs under a live heartbeat writer (measured s62e: a node from
+#     the previous lap was still mounted and heartbeating while mkfs zeroed
+#     and re-read the disklock region; the readback found the 'K' of its MXLK
+#     slot magic at 67118080 and mkfs blamed the storage, the prep FAILed, and
+#     the next lap started on the previous incarnations' records).  The
+#     cluster-wide teardown is the harness's job, but this is the last point
+#     at which a writer can still be caught: dump the heartbeat table twice,
+#     one heartbeat interval (2 s) plus slack apart, and refuse if any
+#     record's stamp advanced.  A dump that cannot be read is a refusal too —
+#     an unread table may hold anything.
+HBDUMP="$MXFS_REPO/tools/disklock_hb_dump.py"
+if [ -f "$HBDUMP" ]; then
+    hb1=$(python3 "$HBDUMP" "$MXFS_DEV" 2>&1) || fail "heartbeat table unreadable before mkfs ($MXFS_DEV): $(echo "$hb1" | tail -1)"
+    sleep 3
+    hb2=$(python3 "$HBDUMP" "$MXFS_DEV" 2>&1) || fail "heartbeat table unreadable before mkfs ($MXFS_DEV): $(echo "$hb2" | tail -1)"
+    writers=$(awk '
+        /^slot/ { slot=$2; ts=""; node="";
+                  for (i=1;i<=NF;i++) { if ($i ~ /^ts_ms=/) ts=substr($i,7); if ($i ~ /^node=/) node=substr($i,6) }
+                  if (FNR==NR) { first[slot]=ts } else if ((slot in first) && first[slot] != "" && ts != "" && ts+0 > first[slot]+0) printf "slot %s node %s ts_ms %s->%s; ", slot, node, first[slot], ts }
+    ' <(echo "$hb1") <(echo "$hb2"))
+    if [ -n "$writers" ]; then
+        fail "a node is still heartbeating into $MXFS_DEV — refusing to mkfs under a live writer: $writers(unmount it or power it off, then retry)"
+    fi
+    echo "heartbeat table: no live writer over 3 s"
+fi
+
 # 3b. Clear stale SCSI persistent reservations.  A hard node reboot leaves the
 #     LUN reserved (WE-RO) by a dead I_T nexus; this node's fresh session is
 #     unregistered, so every write gets RESERVATION CONFLICT (EBADE "Invalid

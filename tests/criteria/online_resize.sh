@@ -25,7 +25,7 @@
 #     (mkfs_mxfs.c, sess21 run14d: 64MB/slice fixed single_node_paired
 #     180%->102% and the rsync log-tail wedge; matches xfsprogs >=5.19's
 #     64MB minimum.  Shrinking the log to pass this test would regress
-#     RULE 0 performance criteria.)
+#     the budget rule performance criteria.)
 # Measured on 1G->2G loop: pre=672MB (928MB data region - 256MB log),
 # post=1696MB — the grow recovered post-pre = 1024MB = 100% of the
 # added space.  The old ">=1800MB of total" gate measured mkfs overhead,

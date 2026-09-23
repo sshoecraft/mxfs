@@ -1,5 +1,5 @@
 #!/bin/bash
-# sess12 (ccloop 4eef1f39): RULE-4 experiment — does forcing AG-meta reads FUA
+# sess12 (ccloop 4eef1f39): instrumented experiment — does forcing AG-meta reads FUA
 # eliminate the concurrent-create AG free-space double-allocation corruption?
 # Proven root (build C69013B3): bnobt/cntbt lost-update in agno=2 with
 # fua_fresh=0 buf_gen=0 -> allocator reads stale cached free-space btree after

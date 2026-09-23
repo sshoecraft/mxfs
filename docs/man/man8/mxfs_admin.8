@@ -1,0 +1,103 @@
+.\" mxfs_admin(8) man page
+.\" Copyright (c) 2026 MXFS Project
+.\" SPDX-License-Identifier: GPL-2.0
+.\"
+.TH MXFS_ADMIN 8 "2026-09-22" "MXFS 0.89" "System Administration"
+.SH NAME
+mxfs_admin \- show and change MXFS filesystem parameters
+.SH SYNOPSIS
+.B mxfs_admin
+.RB [ \-liuV ]
+.RB [ \-L
+.IR label ]
+.RB [ \-c
+.IR name ]
+.RB [ \-O
+.BR dirshard ]
+.I device
+.SH DESCRIPTION
+.B mxfs_admin
+is the MXFS counterpart of
+.BR xfs_admin (8).
+The stock XFS tools read the wrong sectors on an MXFS device, because the
+XFS superblock sits behind the MXFS envelope; use this tool instead.
+.PP
+The print options only read, and work while the filesystem is mounted.
+Every change is refused unless the tool can prove that no node can write
+the device:
+.IP \(bu 3
+the device opens exclusively on this host (not mounted here);
+.IP \(bu 3
+no node's heartbeat record on the device advances across a 10 second
+recheck (not mounted anywhere);
+.IP \(bu 3
+the LUN reports no SCSI persistent-reservation registrant (nothing can
+write it).  A block device that does not support persistent reservations
+cannot be proven exclusive, and the change is refused.
+.PP
+Unmount the filesystem on every node, then run the change once from any
+node that sees the device.
+.SH OPTIONS
+.TP
+.B \-l
+Print the filesystem label.
+.TP
+.BI \-L " label"
+Set the label, at most 12 bytes.  It is written to every allocation
+group's superblock, each with its checksum recomputed, as
+.B xfs_db
+does.
+.B \-\-
+clears it.
+.TP
+.B \-u
+Print the filesystem UUID.
+.TP
+.BI \-c " name"
+Set the cluster name.  Every mount must then pass
+.BI \-o " cluster=" name\fR;
+see
+.BR mxfs (5).
+A name is 1\(en63 characters of
+.BR A\-Z\ a\-z\ 0\-9\ .\ _\ \- .
+.B \-c \(dq\(dq
+clears it.  Use this to move a filesystem, data and all, to another
+cluster.
+.TP
+.B \-O dirshard
+Make directory sharding available on this filesystem (experimental).
+Creating a sharded directory also needs the module parameter
+.BR dirshard_mkdir_enable=1 .
+.TP
+.B \-i
+Print every MXFS setting: label, UUID, cluster name, format and protocol
+generation, node limit, geometry, and directory sharding state.
+.TP
+.B \-V
+Print the version and exit.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+The device could not be read, a check failed, or a change was refused.
+.SH EXAMPLES
+Move a filesystem to the cluster named
+.BR prod :
+.PP
+.RS
+.nf
+umount /mnt/shared          # on every node
+mxfs_admin \-c prod /dev/sdb
+mount \-t mxfs \-o cluster=prod /dev/sdb /mnt/shared   # on every node
+.fi
+.RE
+.SH SEE ALSO
+.BR mxfs (5),
+.BR mkfs.mxfs (8),
+.BR chk_mxfs (8),
+.BR resize_mxfs (8),
+.BR xfs_admin (8)
+.SH AUTHORS
+MXFS Project.

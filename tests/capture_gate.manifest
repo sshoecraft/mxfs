@@ -1,0 +1,94 @@
+# tests/capture_gate.manifest — the harnesses tests/capture_fault_gate.sh
+# drives through the capture contract's rejection test on the 2-node TCP rig.
+#
+#   <harness> | <fault lap timeout s> | <healthy lap timeout s> | <env> | <args after the label>
+#
+# The timeouts are each harness's own derived caller bound (its header); the
+# fault lap is bounded the same way because a harness whose first measurement
+# comes late (after its own prep) spends that time before the injection.
+# NOPREP=1 reuses the live mount: the gate verifies the boundary, not the
+# preparation.  join_during_takeover runs with NFILES=4000: the gate verifies
+# its measurement discipline, not the residue magnitude its default 32000
+# exists for (per-iteration bound 4000/25+60 + 120 + 180 + 180 + 240 + 120
+# ~= 1060 s; four arms + reads + the death re-form ~= 4900 s; its first
+# measurement follows the authority build and the unmounts, so the fault
+# lap is bounded at 940 s).  A kill-arm harness leaves the fleet unmounted
+# for the next entry: run those last in a chunk, or one per chunk.  Harnesses whose first positional argument is not the label
+# (inact_cert_arms <arm> <node> [label]) are lapped by hand, not here.
+peer_truncate_under_append_2node   | 420 | 420 | NOPREP=1 |
+hot_inode_peer_rename_2node        | 420 | 420 | NOPREP=1 |
+hot_inode_peer_unlink_2node        | 420 | 420 | NOPREP=1 |
+hot_writer_peer_reader_2node       | 450 | 450 | NOPREP=1 |
+d482_phantom_epoch_2node           | 420 | 420 | NOPREP=1 |
+create_race_last_free_inode_2node  | 300 | 300 | NOPREP=1 |
+affine_stale_dentry_2node          | 420 | 420 | NOPREP=1 |
+append_contention_2node            | 480 | 480 | NOPREP=1 |
+sb_runtime_cover_2node             | 420 | 420 | NOPREP=1 |
+tcp_stale_resend                   | 300 | 300 | - |
+dlm_wait_signal                    | 300 | 300 | - |
+transport_conformance              | 240 | 240 | - |
+rejoin_residue                     | 250 | 250 | - |
+d0965_remount_bracket_race         | 150 | 150 | - | test1 test2 3 {label}
+d0965_stalled_record_mount_thread  | 150 | 150 | - | test1 test2 1 {label}
+d0287_2node_death_rejoin           | 420 | 420 | - |
+# --- added sess57: every other adopted harness that runs on two TCP nodes.
+# Fault timeouts cover a harness's own prep (<=300 s) before its first
+# measurement; healthy timeouts are the header's caller bound where it states
+# one, else '-' until derived (the gate then uses the fault timeout).
+tcp_lockreq_blackhole              | 120 | 364   | ARMED_S=180 |
+live_holder_wait                   | 120 | 400 | - |
+# d0286_tcp_wedge: five nodes (W H2 H1 H3 H4); not runnable on the 2-node rig — converted by reading, its lap an open obligation (s58r: ABORT "fleet is not on TCP" before any measurement)
+d0924_iodone_stomp                 | 120 | 360   | - |
+d0947_nomagic_repick               | 90  | 240   | - |
+d0946_recycle_platter_assert       | 120 | 180   | - |
+d0963_sf_lagging_flush             | 120 | 180 | - |
+d0532_relog_live_holder            | 120 | 300 | - | test1 test2 2 {label}
+d0532_pending_bast_recycle         | 120 | 200 | - | test1 test2 3 {label}
+d0521_own_slice_cross_stamp_probe  | 360 | 520   | - |
+d0940_unknown_blocker_probe        | 420 | 480   | - |
+d0932_fence_takeover_probe         | 360 | 840   | - |
+d0932_retire_pending_takeover      | 360 | 1140   | - |
+d0932_owner_depart_takeover        | 360 | 1230   | - |
+d0932_platter_fallback             | 360 | 1300   | - |
+sole_survivor_gate_probe           | 360 | 600   | - |
+d0980_barrier_killable             | 360 | 480   | - |
+d0981_pending_victim_sweep         | 360 | 570   | - |
+prep_heartbeat_writer_guard        | 60  | 60    | - |
+chk_mounted_node_reads_platter     | 120 | 380   | - |
+# fence_crash_cuts: one cut per lap (tests/fence_crash_cuts.sh <label> <cut>); the gate carries the
+# volatile-proof cut (4, the hole the ledger record names); cuts 1-6 are lapped in sequence by hand
+# (each ~450-900 s, bound 1200) and their rows live in tests/criteria/TIMEOUT_BUDGETS.md
+fence_crash_cuts                   | 300 | 1200  | CUT=4 |
+# fence_lost_response: the matrix's lost-response entry — a real P&A acts, its
+# result is withheld from the fencing caller, and the prover keeps running. Its
+# first measurement follows its own prep, so the fault lap is bounded at 360.
+fence_lost_response                | 360 | 1000  | - |
+sole_survivor_restart              | 360 | 900   | - |
+d512_t1_reuse                      | 120 | 120 | - |
+d0977_open_unlink_tcp              | 200 | 200 | - |
+d512_t2_pause                      | 120 | 120 | - |
+d512_race_verify                   | 120 | 120 | - | test1
+recov_bmbt_reuse                   | 360 | 900 | - |
+tcp_death_replay                   | 120 | 240   | - |
+lone_mount_crash_replay            | 120 | 420 | - |
+d0531_stale_slice_recovery         | 360 | 1000 | - |
+agmeta_shutdown_retire             | 360 | 320   | - |
+ghost_slot_restart_probe           | 360 | 420   | - |
+depart_takeover_unmount            | 940 | 1930 | NFILES=8000 EXPECT=clean |
+join_during_takeover               | 940 | 4900 | NFILES=4000 |
+d0944_unpub_forms_probe            | 360 | 544   | - |
+dir_retype_authcap_probe           | 120 | 180 | - |
+# pr_retirement_probe: needs BOTH nodes unmounted with the module out (it clears the PR table and
+# writes a counter into the last 256 KiB of the LUN, then re-formats), and it power-cuts its victim.
+# Lapped by hand, never with the gate's mounted fleet; budget row in tests/criteria/TIMEOUT_BUDGETS.md
+# pr_preempt_sark0_probe: needs its victim V UNMOUNTED (a second I_T nexus for the preempt); lapped by hand with test2 unmounted, never with the gate's mounted fleet (s58r: ABORT "test2 is mounted")
+pr_session_drop_probe              | 120 | 300   | - |
+d0356_stranded_prover_return       | 360 | 900   | - |
+d0965_successor_killed_after_register | 120 | 430 | - | test1 test2 {label}
+# d0287_remaster_measure: three nodes (H W A); not runnable on the 2-node rig — converted by reading, its lap an open obligation (s58r: ABORT on test3 before any measurement)
+dir_node_middle_free_2node         | 360 | 420 | PREP=1 |
+intents_classless_attribute        | 120 | 60  | - | test1
+d_intents_2tcp_open_efi            | 120 | 420 | CHURN=0 MODE=complete |
+f2_iclus_refusal                   | 120 | 90   | - | test1
+# d0964: leaves the fleet unmounted on the control arm's fixture volume — prep after it
+d0964_chk_dangling_dirent          | 120 | 300 | - |

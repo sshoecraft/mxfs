@@ -22,7 +22,7 @@ wait
 DRC_TT=$(( 140 * N + 300 ))
 OUTER=$(( DRC_TT + 300 ))
 
-( MXFS_DEV=/dev/mapper/mpatha TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
+( TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
     ./run.sh "$N" caw dir_reuse_coherency fence_during_write \
     > "$OUT/run.log" 2>&1
   echo "RUN_EXIT=$?" >> "$OUT/run.log" ) &

@@ -9,7 +9,7 @@
 #   accounted for 38379 of 38402 ms of setup (mkdir 5 ms, sync 18 ms), and it was
 #   deterministic across four consecutive runs (38379/38391/38402/38454 ms,
 #   +/-0.2%).  That is ~33 directory removals at ~1.16 s each.  Native XFS does
-#   this in single-digit milliseconds, so under RULE 0 it is disqualifying on its
+#   this in single-digit milliseconds, so under the budget rule it is disqualifying on its
 #   own — and it is the same order as the recorded 1722 ms/op shared-directory
 #   create pace (D-32NODE-SHARED-DIR-CREATE-PACE), which suggests one defect
 #   measured on two sides rather than two defects.
@@ -27,7 +27,7 @@
 #   Same parent shape, same child count, same node, back to back, so nothing but
 #   the creator differs.
 #
-# RULE 0 BUDGET
+# the budget rule BUDGET
 #   Native XFS creates and removes 32 directories in well under 100 ms.  Each
 #   phase is budgeted 60 s (a deliberately loose 600x) purely so a pathological
 #   run still reports a number instead of being killed; the VERDICT threshold is
@@ -49,7 +49,7 @@ nodes() { local i; for ((i=1; i<=N; i++)); do echo "test$i"; done; }
 on() { timeout $((PHASE_BUDGET + 15)) tools/mxfs_sshpass.sh "$1" "$2" 2>/dev/null; }
 
 # Unique per invocation so a re-run never collides with, or has to delete, a
-# previous run's tree (RULE 2b: no rm on a variable path from this script).
+# previous run's tree (the permission-prompt rule: no rm on a variable path from this script).
 STAMP=$(date +%s)
 A="$MNT/.sup_${STAMP}_a"
 B="$MNT/.sup_${STAMP}_b"
@@ -169,7 +169,7 @@ echo "  BOTH small => the sustained_load setup cost is NOT reproduced by this"
 echo "            shape; go back and vary what else differs (child depth, files"
 echo "            inside the children, how long the peers held them)."
 echo
-# RULE 0: 2x native XFS is the ceiling.  Native does this in <100 ms total.
+# budget: 2x native XFS is the ceiling.  Native does this in <100 ms total.
 if [ "$B_MS" -gt 200 ] || [ "$A_MS" -gt 200 ]; then
     echo "RESULT: FAIL | test=shared_unlink_pace | measured=A=${A_MS}ms(${A_PER}/op) B=${B_MS}ms(${B_PER}/op) k=$K nodes=$N | reason=over the 2x-native ceiling (<=200ms for $K removals)"
     exit 1

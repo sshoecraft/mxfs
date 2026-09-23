@@ -33,7 +33,15 @@ F="${1:-8}"
 LBL="${2:-caw}"
 MNT=/mnt/shared
 STAMP=$(date -u +%H%M%S)
-OUT=$(mktemp -d)
+# sess480: the raw per-op samples ARE the measurement for the tail question --
+# p50 is 10 ms and flat in N while the mean is 255 ms, so everything that matters
+# about D-32NODE-SHARED-DIR-CREATE-PACE lives in the outliers, and summary
+# statistics alone cannot tell a queue from a timer.  Let the caller name a
+# durable output directory so the samples survive the run instead of dying with
+# a mktemp dir (a rig-run's evidence must not live in /tmp -- a host reboot has
+# already destroyed one long run's results).
+OUT=${CSC_OUT:-$(mktemp -d)}
+mkdir -p "$OUT"
 LADDER="${LADDER:-1 2 4 8 16 32}"
 
 W=$(cat <<'EOS'
@@ -103,6 +111,40 @@ print(f"{shape:8s} P={P:3d} creates={len(ops):5d}  "
       f"mean={statistics.fmean(ops):8.1f}  p50={ops[len(ops)//2]:6d}  "
       f"p95={ops[min(len(ops)-1,int(len(ops)*.95))]:6d}  max={max(ops):6d}  "
       f"wall_p50={walls[len(walls)//2]:6d}  (ms)")
+
+# sess480 TAIL SHAPE.  p50=10 ms with a multi-second max is a 100x+ outlier, and
+# "EX rotation among N contenders" locates where requests queue without
+# explaining why individual transitions cost seconds.  Two cheap discriminators,
+# computed from samples already collected:
+#
+#   MODES - bucket the slow samples.  Queueing spreads them roughly continuously
+#   and scales with contenders; a lease/quantum or a timeout-then-retry piles
+#   them at a FIXED value (or its multiples) regardless of queue depth.  A sharp
+#   single bucket holding most of the tail is near-dispositive for a timer.
+#
+#   BY-OP-INDEX - where in each node's run the stalls fall.  If they cluster at
+#   op 1 the cost is a one-time cold operation (directory block allocation, the
+#   first log reservation, first mastering of the DLM resource) amplified into a
+#   cluster-wide convoy; if they are spread evenly it is steady-state contention.
+#   This separates the cold-directory story from the contention story without a
+#   second run.
+slow = [o for o in ops if o >= 100]
+if slow:
+    buckets = {}
+    for o in slow:
+        # log-ish buckets so a fixed mode stands out as one dominant bin
+        b = 100 * (10 ** (len(str(o // 100)) - 1))
+        buckets[b] = buckets.get(b, 0) + 1
+    hist = " ".join(f">={b}ms:{c}" for b, c in sorted(buckets.items()))
+    print(f"{'':8s}         tail n={len(slow):4d} ({100.0*len(slow)/len(ops):.1f}% >=100ms)  modes[{hist}]")
+    idx = {}
+    for p in sorted(glob.glob(os.path.join(od, "n*.txt"))):
+        for ln in open(p, errors='replace'):
+            f = ln.split()
+            if len(f) == 3 and f[0] == 'OP' and int(f[2]) >= 100:
+                idx[int(f[1])] = idx.get(int(f[1]), 0) + 1
+    print(f"{'':8s}         stalls by op index: "
+          + " ".join(f"op{k}:{v}" for k, v in sorted(idx.items())))
 PY
 }
 

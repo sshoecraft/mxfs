@@ -6,7 +6,7 @@
 # admission re-read in mxfs_dlm_open_protect raced the BAST worker's
 # terminal release-to-NL store (16us apart) and the fail-closed arm turned
 # the benign lost race into -EIO on a live published file.  The sess236
-# cold-open restart (0.11.483+) did NOT close it: per the sess238 RULE-5
+# cold-open restart (0.11.483+) did NOT close it: per the sess238 design-consult
 # ruling, the opener's ilock ride lands in the ms-long post-terminal-store
 # tail ({mode=NL, DEMOTING, RELFLUSH set}) where the sess47 relflush-admit
 # arm admits it with NO mode check — so every restart lap is re-admitted
@@ -28,7 +28,7 @@
 # BUILD-2 EXPECTATION (epoch-aware wait landed): same injection, zero
 # P95-OPEN-PROTECT-FAIL, zero userspace failures → script PASSes.
 #
-# RULE 0 budgets (derived, not round numbers):
+# derived time budgets (derived, not round numbers):
 #   arm A: ITERS × (ride-hold ≤1s + gated-restart stalls ≤1s) + 60s infra
 #   arm B: 2×ITERS × (0.05s cadence + park 0.5s + flush tail ~0.3s) + 60s
 #

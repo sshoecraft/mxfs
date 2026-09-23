@@ -17,7 +17,7 @@
 # ~88ms is fast-path work: every node hits roughly ONE multi-second stall per 8
 # creates, and the stall rate grows with node count.
 #
-# Guessing which lock that is would violate RULE 4.  This harness instead reads
+# Guessing which lock that is would violate instrumented.  This harness instead reads
 # the answer off the kernel: while the 32-way create workload runs, a sampler on
 # each node polls /proc/<writer>/stack + wchan at 50ms and records every sample
 # where the writer is blocked.  The resulting histogram of blocking call sites IS

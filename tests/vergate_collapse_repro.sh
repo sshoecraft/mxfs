@@ -17,7 +17,7 @@
 #   c) full hb sequence: fake writer + PN umount/withdraw/rejoin
 #      (join_refuse shape) + workload    <- the H4 arm
 #
-# Budget (RULE 0): arm a ~4 min (writer 180s + settle), arm b ~5, arm c ~6;
+# Budget (budget): arm a ~4 min (writer 180s + settle), arm b ~5, arm c ~6;
 # total <= 16 min on a prepped cluster.
 #
 # usage: vergate_collapse_repro.sh [N=8] [arm: a|b|c|all=all]
@@ -25,7 +25,12 @@ set -u
 N="${1:-8}"
 ARM="${2:-all}"
 SSH=tools/mxfs_sshpass.sh
-LUN=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$PN"; LUN=$MXFS_DEV_RESOLVED
 PN="test$N"                       # probe node for the withdraw arm
 RID="vcr_$(date +%s)"
 say() { echo "[$(date +%H:%M:%S)] $*"; }

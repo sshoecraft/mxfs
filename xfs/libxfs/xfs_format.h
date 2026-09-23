@@ -411,6 +411,16 @@ xfs_sb_has_ro_compat_feature(
  */
 #define XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE	(1 << 30)
 
+/*
+ * MXFS symmetric directory sharding (sess464/466, docs/dir-sharding.md).
+ * Bit 29, next to PROTOGATE; the value is pinned to
+ * MXFS_DIRSHARD_SB_INCOMPAT in include/mxfs/mxfs_dirshard.h by a build check
+ * in xfs_mxfs_dirshard.c.  A kernel without this bit refuses the mount via
+ * the unknown-incompat check, so a pre-sharding kernel never sees a
+ * container inode.  Collision watch on every upstream merge.
+ */
+#define XFS_SB_FEAT_INCOMPAT_MXFS_DIRSHARD	(1 << 29)
+
 #define XFS_SB_FEAT_INCOMPAT_ALL \
 		(XFS_SB_FEAT_INCOMPAT_FTYPE | \
 		 XFS_SB_FEAT_INCOMPAT_SPINODES | \
@@ -423,7 +433,8 @@ xfs_sb_has_ro_compat_feature(
 		 XFS_SB_FEAT_INCOMPAT_METADIR | \
 		 XFS_SB_FEAT_INCOMPAT_ZONED | \
 		 XFS_SB_FEAT_INCOMPAT_ZONE_GAPS | \
-		 XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE)
+		 XFS_SB_FEAT_INCOMPAT_MXFS_PROTOGATE | \
+		 XFS_SB_FEAT_INCOMPAT_MXFS_DIRSHARD)
 
 #define XFS_SB_FEAT_INCOMPAT_UNKNOWN	~XFS_SB_FEAT_INCOMPAT_ALL
 static inline bool
@@ -1249,9 +1260,23 @@ static inline void xfs_dinode_put_rdev(struct xfs_dinode *dip, xfs_dev_t rdev)
 #define XFS_DIFLAG2_NREXT64	(1ULL << XFS_DIFLAG2_NREXT64_BIT)
 #define XFS_DIFLAG2_METADATA	(1ULL << XFS_DIFLAG2_METADATA_BIT)
 
+/*
+ * MXFS private di_flags2 bits (directory sharding, docs/dir-sharding.md):
+ * high bits, mirroring the sb-bit policy; values pinned to
+ * MXFS_DIFLAG2_DIRSHARD_* in include/mxfs/mxfs_dirshard.h by a build check
+ * in xfs_mxfs_dirshard.c.  CONTAINER marks a shard directory or the manifest
+ * holder (never named by a dirent); PARENT marks the visible sharded
+ * directory.  Legal only with XFS_SB_FEAT_INCOMPAT_MXFS_DIRSHARD.
+ */
+#define XFS_DIFLAG2_DIRSHARD_CONTAINER_BIT	60
+#define XFS_DIFLAG2_DIRSHARD_PARENT_BIT		61
+#define XFS_DIFLAG2_DIRSHARD_CONTAINER	(1ULL << XFS_DIFLAG2_DIRSHARD_CONTAINER_BIT)
+#define XFS_DIFLAG2_DIRSHARD_PARENT	(1ULL << XFS_DIFLAG2_DIRSHARD_PARENT_BIT)
+
 #define XFS_DIFLAG2_ANY \
 	(XFS_DIFLAG2_DAX | XFS_DIFLAG2_REFLINK | XFS_DIFLAG2_COWEXTSIZE | \
-	 XFS_DIFLAG2_BIGTIME | XFS_DIFLAG2_NREXT64 | XFS_DIFLAG2_METADATA)
+	 XFS_DIFLAG2_BIGTIME | XFS_DIFLAG2_NREXT64 | XFS_DIFLAG2_METADATA | \
+	 XFS_DIFLAG2_DIRSHARD_CONTAINER | XFS_DIFLAG2_DIRSHARD_PARENT)
 
 static inline bool xfs_dinode_has_bigtime(const struct xfs_dinode *dip)
 {

@@ -126,7 +126,7 @@ first_fail=""
 # ─── Environment warm-up (sess30 run14d) ───
 # After a VM reboot the first criterion silently absorbed the whole
 # cold-prep cost (sshd settling, NFS mount of /src, iSCSI login via
-# prep_tcm_node) inside its RULE-0 budget: chk_clean's 60s watchdog
+# prep_tcm_node) inside its derived time budget: chk_clean's 60s watchdog
 # killed it mid-prep with no RESULT line.  Warm every node's
 # environment up front so per-criterion budgets assert FS performance
 # only.  Changes no thresholds; aborts the gate early (clear env

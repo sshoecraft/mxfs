@@ -17,7 +17,12 @@
 set -u
 SPARE="${1:?spare (unmounted) host}"
 OBS="${2:?observer host}"
-DEV="${3:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+MXFS_DEV=${3:-${MXFS_DEV:-}}; mxfs_dev_resolve "$SPARE"; DEV=$MXFS_DEV_RESOLVED
 SK=0xdeadbeef
 SSH="$(dirname "$0")/../tools/mxfs_sshpass.sh"
 sp() { timeout 30 "$SSH" "$SPARE" "sg_persist $* $DEV 2>&1 | tail -6"; }
@@ -37,10 +42,10 @@ echo "### 6. state after holder unregisters  <-- THE QUESTION"; look | strip
 #  so a matching-scope/type RESERVE must be a successful no-op.)
 if [ "${PART2:-0}" = 1 ]; then
 KA=0xaaaa0001; KB=0xbbbb0002
-p1() { timeout 30 "$SSH" "$SPARE" "sg_persist $* /dev/sda 2>&1 | tail -4; echo rc=\$?"; }
-p2() { timeout 30 "$SSH" "$SPARE" "sg_persist $* /dev/sdb 2>&1 | tail -4; echo rc=\$?"; }
-echo "### P2.1 register KA on nexus /dev/sda"; p1 --out --register-ignore --param-sark=$KA | strip
-echo "### P2.2 register KB on nexus /dev/sdb"; p2 --out --register-ignore --param-sark=$KB | strip
+p1() { timeout 30 "$SSH" "$SPARE" "sg_persist $* /dev/sda 2>&1 | tail -4; echo rc=\$?"; }  # device-adjudicated: two I_T nexuses to the one LUN on the spare node are the subject (ALL_REGISTRANTS semantics per nexus); the LUN itself is resolved by identity above
+p2() { timeout 30 "$SSH" "$SPARE" "sg_persist $* /dev/sdb 2>&1 | tail -4; echo rc=\$?"; }  # device-adjudicated: two I_T nexuses to the one LUN on the spare node are the subject (ALL_REGISTRANTS semantics per nexus); the LUN itself is resolved by identity above
+echo "### P2.1 register KA on nexus /dev/sda"; p1 --out --register-ignore --param-sark=$KA | strip  # device-adjudicated: two I_T nexuses to the one LUN on the spare node are the subject (ALL_REGISTRANTS semantics per nexus); the LUN itself is resolved by identity above
+echo "### P2.2 register KB on nexus /dev/sdb"; p2 --out --register-ignore --param-sark=$KB | strip  # device-adjudicated: two I_T nexuses to the one LUN on the spare node are the subject (ALL_REGISTRANTS semantics per nexus); the LUN itself is resolved by identity above
 echo "### P2.3 RESERVE type7 with KA";         p1 --out --reserve --param-rk=$KA --prout-type=7 | strip
 echo "### P2.4 RESERVE type7 with KB  <-- expect GOOD, not CONFLICT"; p2 --out --reserve --param-rk=$KB --prout-type=7 | strip
 echo "### P2.5 state"; look | strip

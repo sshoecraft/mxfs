@@ -23,7 +23,7 @@ PHASE="all"
 SINGLE_TEST=""
 LIST_TESTS=0
 MOUNT_POINT="/mnt/shared"
-DEVICE="/dev/sdb"
+DEVICE=""   # resolved by identity below when not given
 PASS_FILE="/home/steve/.mxfs/pass"
 RESULTS_DIR="/home/steve/.mxfs/results"
 NO_COLOR=0
@@ -51,7 +51,7 @@ while [ $# -gt 0 ]; do
             echo "  --test NAME        Run a specific test by name (without .sh)"
             echo "  --list             List all available tests"
             echo "  --mount-point PATH Shared mount point. Default: /mnt/shared"
-            echo "  --device DEV       Block device. Default: /dev/sdb"
+            echo "  --device DEV       Block device. Default: the rig's declared LUN, resolved by identity on test1"
             echo "  --pass-file PATH   SSH password file. Default: /home/steve/.mxfs/pass"
             echo "  --results-dir PATH Where to write results. Default: /home/steve/.mxfs/results/"
             echo "  --no-color         Disable colored output"
@@ -69,6 +69,12 @@ done
 [ "$DEBUG" = "1" ] && export MXFS_DEBUG=1
 export MXFS_PASS_FILE="$PASS_FILE"
 export MXFS_MOUNT_POINT="$MOUNT_POINT"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+MXFS_DEV=$DEVICE; mxfs_dev_resolve test1; DEVICE=$MXFS_DEV_RESOLVED
 export MXFS_DEVICE="$DEVICE"
 
 source "${SCRIPT_DIR}/lib/common.sh"

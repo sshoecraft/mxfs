@@ -1,7 +1,7 @@
 #!/bin/bash
 # sess73: after a Face B (dir-block lost-update) failure, dump every dir-coherency
 # detector from all 4 nodes' dmesg.  catch_rename_fail.sh clears dmesg each iter and
-# stops on FAIL, so the failing iter's events are intact.  RULE 3: lives in the tree.
+# stops on FAIL, so the failing iter's events are intact.  the source-tree rule: lives in the tree.
 set -u
 cd /src/mxfs
 NODES="${NODES:-test1 test2 test3 test4}"

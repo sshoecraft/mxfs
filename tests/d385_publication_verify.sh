@@ -5,7 +5,7 @@
 #
 # sess385 proved the root cause and landed the fix, but did NOT close the
 # defect: the fixed arm published only 8 unlinked-list heads against the
-# control arm's 167, which is nowhere near enough exposure to satisfy RULE 6
+# control arm's 167, which is nowhere near enough exposure to satisfy the zero-defect bar
 # ("testing that exercises the cause passes cleanly").  This script is that
 # missing run, so nobody has to re-derive the protocol.
 #
@@ -27,10 +27,10 @@
 # BADHEAD is NOT part of the bar: by construction we cannot repair a head
 # another node published, so it only reaches zero once the fix is fleet-wide.
 #
-# RULE 0: budgets are derived from MEASURED walls, never padded.  Re-derive
+# budget: budgets are derived from MEASURED walls, never padded.  Re-derive
 # them from `./showstat.sh 32 caw` if the rig's numbers move; do not pad.
 #
-# RULE 2c: no `pgrep -f`, no unbounded ssh; every remote call is bounded and
+# the unkillable-wedge rule: no `pgrep -f`, no unbounded ssh; every remote call is bounded and
 # captures its own per-node rc and output.
 #
 # Usage: tests/d385_publication_verify.sh [laps_per_arm] [nodes]
@@ -60,8 +60,24 @@ SSH=tools/mxfs_sshpass.sh
 # budget = 201 + 12s*4 rows + 15s startup = 264 -> 280s of headroom for jitter
 # in the ROW walls only (never widen this to make a run pass; a row that
 # overruns its own manifest budget is already a FAIL inside run.sh).
+#
+# RE-DERIVED 2026-08-23 (sess401, 0.23.13, 32/caw) after all six laps of a
+# board died at 280 s with the 4th row (dirent_durability) in flight and no
+# row FAIL: the bound, not a row, was wrong.  Measured that day:
+#   rows   posix_multi 7-17 s, rsync_paired 16-32 s (lap-1 fresh fs 16 s,
+#          aged laps 25-32 s = the open lap-pace defect, within its 60 s
+#          budget), dir_reuse_coherency 102-109 s, dirent_durability 64-67 s
+#          -> worst-case sum 17+32+109+67 = 225 s
+#   harness ./run.sh per-invocation overhead 33 s (precond_readiness 2 s test
+#          = 35 s wall: preflight ~8 s + broker hygiene + marker + record) and
+#          ~9 s per additional row (dirent_durability alone: 64 s test, 106 s
+#          wall) -> 33 + 4*9 = 69 s
+#   => 225 + 69 = 294 s.  Set 295.  The "12 s/test + 15 s startup" model
+#   above under-counted the per-invocation cost by ~18 s; that is what ate the
+#   4th row.  Each row's own manifest budget is still enforced inside run.sh,
+#   so this bound only decides whether a lap can *record* all four rows.
 CHUNK=(posix_multi rsync_paired dir_reuse_coherency dirent_durability)
-CHUNK_TIMEOUT="${CHUNK_TIMEOUT:-280}"
+CHUNK_TIMEOUT="${CHUNK_TIMEOUT:-295}"
 PREP_TIMEOUT="${PREP_TIMEOUT:-320}"
 
 OUT="${D385_OUT:-$(mktemp -d)}"
@@ -135,7 +151,18 @@ arm_prep() {  # arm_prep <label> -- re-prep + probes + knob + dmesg -C
     echo "--- ARM $arm (publish_inodes=$knob) ---"
     timeout "$PREP_TIMEOUT" ./run.sh "$N" "$DLM" prep_cluster \
         > "$OUT/prep.$arm.log" 2>&1
-    echo "  prep rc=$? : $(tail -1 "$OUT/prep.$arm.log")"
+    local prc=$?
+    echo "  prep rc=$prc : $(tail -1 "$OUT/prep.$arm.log")"
+    # sess409: a failed prep_cluster (rc=3 "prep lock held by a stale run",
+    # rc=124 timeout, ...) used to fall through to the knobs + the arm, so the
+    # caller ran its workload on whatever cluster state the failed/concurrent
+    # prep left behind (sess409 lap1b: an orphaned prep from a timed-out lap
+    # was still forming the cluster while churn ran -> shutdowns, 805 AGIFC
+    # mismatches, all noise).  A failed prep is a failed run: stop here.
+    if [ "$prc" != 0 ]; then
+        echo "  arm_prep: prep_cluster FAILED rc=$prc — aborting (no workload runs on an unprepared cluster)"
+        exit 3
+    fi
 
     # Probes ON, fix knob per arm, dmesg cleared so the tally sees THIS arm only
     # (prep_cluster does NOT clear it -- mixing arms silently corrupts the counts).
@@ -147,6 +174,30 @@ arm_prep() {  # arm_prep <label> -- re-prep + probes + knob + dmesg -C
 
 arm_lap() {  # arm_lap <label> <lapno>
     local arm="$1" lap="$2"
+    if [ "${D385_ROWWISE:-1}" = 1 ]; then
+        # sess401: run the four rows as four run.sh invocations, each bounded
+        # by ITS OWN manifest budget + the measured per-invocation overhead
+        # (33 s + 9 s, TIMEOUT_BUDGETS.md 2026-08-23).  Two boards that day
+        # lost dirent_durability (laps 3-6, aged-fs rows 215 s + ~85 s
+        # harness) to the single 4-row chunk bound even after it was
+        # re-derived to 295 s; a row that never records is a hole in the
+        # protocol, not a result.  Row-wise costs ~+100 s/lap of harness
+        # overhead but every row lands and keeps its derived time budget inside
+        # run.sh.  D385_ROWWISE=0 restores the single-chunk form.
+        local row budget rc
+        : > "$OUT/lap.$arm.$lap.log"
+        for row in "${CHUNK[@]}"; do
+            budget=$(awk -v r="$row" '$2==r {print $5}' tests/suite/manifest | head -1)
+            budget=${budget:-240}
+            timeout $((budget + 42)) ./run.sh "$N" "$DLM" "$row" \
+                >> "$OUT/lap.$arm.$lap.log" 2>&1
+            rc=$?
+            echo "  [row $row rc=$rc bound=$((budget + 42))s]" >> "$OUT/lap.$arm.$lap.log"
+        done
+        echo "  lap $lap rowwise : $(grep -cE '^  PASS' "$OUT/lap.$arm.$lap.log") PASS, $(grep -cE '^  FAIL' "$OUT/lap.$arm.$lap.log") FAIL, $(grep -cE '^  \[row .* rc=[1-9]' "$OUT/lap.$arm.$lap.log") row(s) with non-zero rc"
+        grep -E '^  FAIL|^  \[row .* rc=[1-9]' "$OUT/lap.$arm.$lap.log" | sed 's/^/      /'
+        return 0
+    fi
     timeout "$CHUNK_TIMEOUT" ./run.sh "$N" "$DLM" "${CHUNK[@]}" \
         > "$OUT/lap.$arm.$lap.log" 2>&1
     echo "  lap $lap rc=$? : $(grep -cE '^  PASS' "$OUT/lap.$arm.$lap.log") PASS, $(grep -cE '^  FAIL' "$OUT/lap.$arm.$lap.log") FAIL"
@@ -195,7 +246,7 @@ if split:  fails.append("SPLIT=%d -- unrepaired split publications remain" % spl
 if dirty:  fails.append("P217-RENAME-DIRTYCANCEL x%d" % dirty)
 if corr:   fails.append("in-memory corruption shutdown x%d" % corr)
 if fails:
-    print("NOT CLOSED. RULE 6 keeps this defect OPEN:")
+    print("NOT CLOSED. the zero-defect bar keeps this defect OPEN:")
     for x in fails: print("  - " + x)
     sys.exit(1)
 print("Treatment arm: heads=%d joint_ok=%d REPAIRED=%d SPLIT=0 BADHEAD=%d"

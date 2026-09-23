@@ -1,4 +1,4 @@
-# v6a roadmap — mxfs_clayer/ (sess35 sketch)
+# v6a docs/project-history.md — mxfs_clayer/ (sess35 sketch)
 
 **Status: HEADERS ONLY.** invalidate.h, release.h, acquire.h are
 stubs documenting the intended structure per
@@ -24,7 +24,7 @@ The architectural fix per `docs/v6-cache-architecture-proposal.md`
 - Eliminates the skip_locked-style escapes that v5's
   BAST-DIR-STALE walk has
 
-This roadmap captures the architectural shape sess36+ should build
+This docs/project-history.md captures the architectural shape sess36+ should build
 toward.
 
 ## File map

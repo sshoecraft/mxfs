@@ -28,6 +28,7 @@
 #include "xfs_inode.h"
 #include "xfs_dir2.h"
 #include "xfs_mxfs_dlm.h"
+#include "xfs_mxfs_dirshard.h"	/* sess466: revalidate through the shard resolver */
 #include "xfs_trace.h"
 
 #include <linux/dcache.h>
@@ -84,7 +85,10 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 	 * name to verify the cached dentry still matches the parent.
 	 */
 	xfs_ilock(dp, XFS_ILOCK_SHARED);
-	error = xfs_dir_lookup(NULL, dp, &xname, &actual_ino, NULL, NULL);
+	if (mxfs_is_dirshard_parent(dp))	/* sess466: pin + resolver + one shard */
+		error = mxfs_dirshard_lookup_ino(dp, &xname, &actual_ino);
+	else
+		error = xfs_dir_lookup(NULL, dp, &xname, &actual_ino, NULL, NULL);
 	xfs_iunlock(dp, XFS_ILOCK_SHARED);
 
 	pr_warn_once("mxfs: H37-MXFS-DREVALIDATE active\n");
@@ -112,7 +116,7 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 	}
 
 	/*
-	 * ccloop cc87fed3 sess5 (RULE 4 — BUG3 hunt): this dentry is about to
+	 * ccloop cc87fed3 sess5 (instrumented — BUG3 hunt): this dentry is about to
 	 * be approved as VALID based on inode NUMBER match only — actual_ino
 	 * came from a fresh on-disk xfs_dir_lookup, but "valid" here only means
 	 * "this cached ip is still the right number", never "this cached ip is

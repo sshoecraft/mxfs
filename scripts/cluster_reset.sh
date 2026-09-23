@@ -35,10 +35,11 @@ echo "=== T1 unload ==="
 unload "$T1"
 
 echo "=== T1 insmod + mkfs + mount ==="
-run "$T1" "sudo insmod /mnt/mxfs-src/mxfs.ko && echo T1_INSMOD_OK; sudo /mnt/mxfs-src/tools/mkfs_mxfs -f /dev/sda > /tmp/mkfs.log 2>&1 && echo T1_MKFS_OK; sudo blockdev --flushbufs /dev/sda; sync; sleep 1; sudo mount -t mxfs /dev/sda /mnt/shared 2>&1 && echo T1_MOUNT_OK || (echo MOUNT_FAIL; cat /tmp/mkfs.log)"
+MXFS_DEV=${MXFS_DEV:?the shared LUN as this rig names it. This script predates tests/lib/rig.sh and takes the device it is given without an identity check}
+run "$T1" "sudo insmod /mnt/mxfs-src/mxfs.ko && echo T1_INSMOD_OK; sudo /mnt/mxfs-src/tools/mkfs_mxfs -f $MXFS_DEV > /tmp/mkfs.log 2>&1 && echo T1_MKFS_OK; sudo blockdev --flushbufs $MXFS_DEV; sync; sleep 1; sudo mount -t mxfs $MXFS_DEV /mnt/shared 2>&1 && echo T1_MOUNT_OK || (echo MOUNT_FAIL; cat /tmp/mkfs.log)"
 
 echo "=== T2 insmod + mount ==="
-run "$T2" "sudo insmod /mnt/mxfs-src/mxfs.ko && echo T2_INSMOD_OK; sleep 1; sudo mount -t mxfs /dev/sda /mnt/shared && echo T2_MOUNT_OK"
+run "$T2" "sudo insmod /mnt/mxfs-src/mxfs.ko && echo T2_INSMOD_OK; sleep 1; sudo mount -t mxfs $MXFS_DEV /mnt/shared && echo T2_MOUNT_OK"
 
 echo "=== Final state ==="
 run "$T1" "lsmod | grep mxfs; mount | grep '/mnt/shared'"

@@ -2,7 +2,7 @@
 """mxfs_stackprof.py — poor-man's wall-clock kernel profiler for a rig node.
 
 WHY: probe COUNTS (P50-RD 5646, P68-EVDECIDE 12069, ...) tell you what the
-code did, not where the wall went.  RULE 4 needs wall time tied to a NAMED
+code did, not where the wall went.  Instrumented needs wall time tied to a NAMED
 wait.  This samples /proc/<pid>/stack of the workload tasks at a fixed rate
 and histograms the blocking stack, which is exactly that: a task found in
 stack S on f% of ticks spent f% of its wall blocked in S.

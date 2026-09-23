@@ -44,7 +44,7 @@ LBA="${LBA:-131087}"
 echo "=== slot-poll READ(16)+FUA latency by device path (node=$NODE lba=$LBA iters=$ITERS) ==="
 "$SSH" "$NODE" "
 set -u
-for dev in /dev/mapper/mpatha /dev/sda /dev/sdb; do
+for dev in /dev/mapper/mpatha /dev/sda /dev/sdb; do  # device-adjudicated: compares the latency of each path spelling to the same LUN; the paths are the subject
     [ -e \"\$dev\" ] || { echo \"\$dev MISSING\"; continue; }
     # warm one command so first-command setup is not charged to the sample
     /src/mxfs/tools/caw_verify --retry-ua read \"\$dev\" $LBA >/dev/null 2>&1

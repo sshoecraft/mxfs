@@ -3,7 +3,7 @@
 #
 # The wedge: after a *forced shutdown* on a node, `umount` hangs forever in
 # xfs_buftarg_drain on ONE leaked xfs_agi b_hold (see ccmemory
-# pve-agi-buf-hold-leak-umount-wedge-not-sess76-readahead).  The forced
+# docs/history/docs/history/pve-agi-buf-hold-leak-umount-wedge-not-sess76-readahead.md).  The forced
 # shutdown itself comes from a DLM inode/dir EX *conversion* that returns
 # -EDEADLK (PR->EX convert-deadlock between the two nodes) AFTER its
 # transaction has already dirtied, so xfs_trans_cancel of the dirty tx shuts

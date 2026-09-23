@@ -1,5 +1,5 @@
 #!/bin/bash
-# tcp16_dircrc_repro.sh — RULE-4 repro driver for the tcp/16 stale-dir-read
+# tcp16_dircrc_repro.sh — instrumented repro driver for the tcp/16 stale-dir-read
 # defect (P-SFDIR-STALE-RMW -> P-DIRCRC-RETRY-FAIL payload-in-dirblock,
 # first seen sweep81 run_id 20260725T105522Z, ccloop c7ee71c6 sess2).
 #
@@ -7,7 +7,7 @@
 # load, dmesg -w streamers on every node (defeats the ring-roll that ate
 # sess8's GRANT/REL pairs), then the exact failing 11-cell sequence.
 # On ANY cell FAIL or any P-marker hit, collects all 16 streams +
-# run output into tests/logs/tcp16_forensics_r<iter>/ (persistent, RULE 3).
+# run output into tests/logs/tcp16_forensics_r<iter>/ (persistent, the source-tree rule).
 #
 # Usage: scripts/tcp16_dircrc_repro.sh <iter-label>
 set -u

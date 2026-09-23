@@ -18,6 +18,7 @@
 #include "xfs_btree.h"
 #include "xfs_log_recover.h"
 #include "xfs_fsops.h"
+#include "xfs_mxfs_dirshard.h"	/* sess467: MXFS_IOC_TYPE, mxfs_dirshard_ioctl */
 
 /* ── RT btree stubs ── */
 const struct xfs_buf_ops xfs_rtrefcountbt_buf_ops = { };
@@ -80,6 +81,17 @@ long xfs_file_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		return xfs_fs_goingdown(XFS_I(file_inode(f))->i_mount, in);
 	}
+	/*
+	 * sess467: MXFS private ioctls (type MXFS_IOC_TYPE 0xB7) — directory
+	 * sharding (docs/dir-sharding.md).  THIS stub is the ioctl entry the
+	 * module compiles (pal/linux/xfs_ioctl.c is not in Kbuild; sess466
+	 * wired the dispatch there and chain 97's stage-1 selftest failed every
+	 * ioctl with ENOTTY on the frozen 0.64.0 — objdump showed no reference
+	 * to mxfs_dirshard_ioctl anywhere in the module).  The dispatcher
+	 * refuses unknown numbers of the type itself.
+	 */
+	if (_IOC_TYPE(cmd) == MXFS_IOC_TYPE)
+		return mxfs_dirshard_ioctl(f, cmd, arg);
 	return -ENOTTY;
 }
 long xfs_file_compat_ioctl(struct file *f, unsigned int cmd, unsigned long arg) { return -ENOTTY; }

@@ -51,6 +51,11 @@ mxfs_stage_manpages "$STAGING"
 mkdir -p "$STAGING/etc/modules-load.d"
 echo "mxfs" > "$STAGING/etc/modules-load.d/mxfs.conf"
 
+# --- 4a. Transport: TCP is the released configuration; the module's own
+# default forms a new cluster on CAW, which is still in development.
+mkdir -p "$STAGING/etc/modprobe.d"
+cp "$SCRIPTDIR/mxfs-modprobe.conf" "$STAGING/etc/modprobe.d/mxfs.conf"
+
 # --- 4b. udev rule: teach blkid/lsblk/mount to auto-detect MXFS by its
 # on-disk magic, so `blkid`/`lsblk -f`/`mount` (no -t) recognize the fstype
 # without needing it explicitly specified.
@@ -75,6 +80,10 @@ Description: MXFS — Multinode XFS shared filesystem
  CAW (disk) or TCP (network) transport, per-inode lock caching,
  on-disk journaling, and zero-config UDP multicast peer discovery.
 EOF
+
+# conffiles: dpkg-deb marks nothing on its own, and an unmarked file is
+# overwritten on upgrade, discarding an operator's transport choice.
+echo "/etc/modprobe.d/mxfs.conf" > "$STAGING/DEBIAN/conffiles"
 
 # postinst: register and build DKMS module
 cat > "$STAGING/DEBIAN/postinst" << POSTEOF

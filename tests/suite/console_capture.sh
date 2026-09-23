@@ -12,7 +12,7 @@
 #   console_capture.sh stop
 #
 # Readers die automatically when the VM restarts (pty goes away); re-run
-# `start` after every VM cycle.  RULE 3: lives in the source tree.
+# `start` after every VM cycle.  the source-tree rule: lives in the source tree.
 #
 set -u
 CMD="${1:-}"

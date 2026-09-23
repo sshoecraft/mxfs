@@ -26,7 +26,7 @@
 # NOTE the victim node's mount is destroyed on a WEDGED verdict.  Re-prep
 # (./run.sh <n> caw prep_cluster) before running anything else.
 #
-# RULE 0: the 60s no-progress bound is the thing being waited on, so the poll
+# budget: the 60s no-progress bound is the thing being waited on, so the poll
 # window is derived from it (60s bound + 30s drain/BAST slack), not padded.
 set -u
 cd "$(dirname "$0")/.."

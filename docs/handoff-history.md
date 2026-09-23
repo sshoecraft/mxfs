@@ -271,7 +271,7 @@ MXFS_TESTS_DIR=/src/mxfs/tests tests/run_tests.sh --nodes 32 --phase stress --de
 ### Sessions 40-59 — Bug Fixes
 
 - Bugs 119-137 fixed. Key issues: btree allocation bugs, counter drift (Bug 129), superblock clobber (Bug 132-134), membership change race (Bug 135), guard map (Bug 136), cntbt duplicates (Bug 137).
-- See `memory/bugfix-history.md` for full details.
+- See `memory/docs/project-history.md` for full details.
 
 ### Sessions 60-62 — Btree Engine Replacement (ABANDONED)
 

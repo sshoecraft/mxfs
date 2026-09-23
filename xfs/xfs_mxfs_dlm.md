@@ -231,7 +231,7 @@ drain → a reader on another node reads 0 bytes).
   cumulatively converged: no wedges, no shutdowns, no over-budget cells
   at any node count on any transport.
 - 2026-07-19: **Freed-inode / write-once churn corruption class killed**
-  (v0.11.18). Root (RULE-4 proven, `xfs_inode.c`, not this file, but the
+  (v0.11.18). Root (proven by instrument, `xfs_inode.c`, not this file, but the
   bug lived in this file's release-side contract): an idle EX demote
   during the droplink→inactivation gap stripped an inode's EX lock, so
   the subsequent truncate/ifree ran at mode=NL; the non-EX release guard

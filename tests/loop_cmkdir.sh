@@ -15,7 +15,7 @@ for i in $(seq 1 "$MAX"); do
   echo "=== iter $i $(date -u +%T) ==="
   out=$(MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests timeout 120 \
         bash tests/run_tests.sh --nodes 16 --test test_concurrent_mkdir \
-        --pass-file "$P" --device /dev/sda --mount-point /mnt/shared --no-color 2>&1 \
+        --pass-file "$P" --mount-point /mnt/shared --no-color 2>&1 \
         | grep -v -E "Permanently added|Unauthorized|disconnect immediately|^$")
   line=$(echo "$out" | grep -iE "expected.*actual|test_concurrent_mkdir \(16" | head -3)
   echo "$line"

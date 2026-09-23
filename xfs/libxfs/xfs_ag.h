@@ -144,7 +144,7 @@ struct xfs_perag {
 	 * pag_mxfs_meta_wr_epoch for INODE CLUSTER buffers, which
 	 * mxfs_agmeta_ops deliberately excludes.  Stamped at every cluster
 	 * write completion; the cold-read side currently only REPORTS
-	 * (P-INOCL-COLDREAD) — fence action pending RULE-4 proof.
+	 * (P-INOCL-COLDREAD) — fence action pending instrumented proof.
 	 */
 	atomic64_t		pag_mxfs_inocl_wr_epoch;
 	/*
@@ -193,6 +193,27 @@ struct xfs_perag {
 	 * under the v3 lineage gate.  EQUALITY comparisons only.
 	 */
 	uint64_t		pag_mxfs_grant_lineage;
+	/*
+	 * sess432 (D-0353): the current AG grant came from the CAW single-node
+	 * fast path (MXFS_GAUTH_SINGLE_NODE): no slot image, no epoch, but a
+	 * legitimate tenure while the DLM is still single-node.  Lets the
+	 * P243 epochless-hint guard keep the cached hint within the single-
+	 * node era instead of forcing a false-fresh acquire on every call.
+	 * Same lifecycle as pag_mxfs_grant_epoch: set at the publish site,
+	 * cleared at every release-commit point and by the join barrier.
+	 */
+	bool			pag_mxfs_grant_single;
+	/*
+	 * sess403 (clean-release marker): the {epoch, lineage} of the tenure
+	 * the release COMMIT just detached, saved in the SAME critical section
+	 * that zeroes pag_mxfs_grant_epoch/lineage (mxfs_ag_handoff_commit).
+	 * Read ONLY by the release worker that follows the COMMIT, to publish
+	 * the XFS_LI_MXFS_RELMARK for exactly that tenure after the drain and
+	 * before the unlock CAS.  Never authority: nothing may stamp a token
+	 * from these.  Zeroed by the worker once the marker is published.
+	 */
+	uint64_t		pag_mxfs_rel_epoch;
+	uint64_t		pag_mxfs_rel_lineage;
 	/*
 	 * AG-metadata coherency across DLM AG-lock grants.
 	 *
@@ -307,7 +328,7 @@ struct xfs_perag {
 	 */
 	u64			pag_dlm_meta_gen;
 	/*
-	 * sess123 (ccloop, Gemini RULE-5 redesign): monotonic counter bumped
+	 * sess123 (ccloop, Gemini design-consult redesign): monotonic counter bumped
 	 * once per GENUINE fresh AG-DLM acquire from the cluster (the CAW-grant
 	 * path where Invariant #1 already drained our prior tenure, so no
 	 * this-node-ahead buffers survive).  A buffer whose b_tenure_id ==
@@ -374,7 +395,7 @@ struct xfs_perag {
 	 */
 	bool			pag_dlm_readopt_pending;
 	/*
-	 * sess391 (RULE-5 ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
+	 * sess391 (design-consult ruling ccloop-c7ee71c6-sess391-GPT-ruling-ag-handoff-
 	 * latch-closing-restartable; D-RSYNC-LAP-PACE-AG-SHARING-388): the
 	 * handoff LATCH.  The AG BAST worker's release COMMIT (cached=false,
 	 * demoting=true, epoch=0) used to be reachable only by the worker
@@ -398,6 +419,57 @@ struct xfs_perag {
 	bool			pag_dlm_prepass_done;
 	u64			pag_dlm_latch_ns;
 	u64			pag_dlm_bast_rx_ns;	/* first rx of this generation */
+	/*
+	 * 0.22.2 (sess392): BAST->COMMIT latency split for the handoff tail.
+	 * work_enter_ns = first worker entry for this generation (rx->enter is
+	 * workqueue/scheduling latency), armed_ns = prepass_done (enter->armed
+	 * is the publish + bounded push), armed->COMMIT is the drain of admitted
+	 * holders.  Zeroed at each new generation and at completion.
+	 */
+	u64			pag_dlm_work_enter_ns;
+	u64			pag_dlm_armed_ns;
+	u64			pag_dlm_queued_ns;	/* first worker queue after rx */
+	int			pag_dlm_rx_holders;	/* holders at first rx */
+	/*
+	 * 0.23.0 (sess392, design-consult ruling ccloop-c7ee71c6-sess392-GPT-ruling-
+	 * dialloc-try-reserve-candidate-rotation): dialloc candidate-rotation
+	 * state.  pag_resv_cool = inode numbers whose DLM slot a peer held at a
+	 * recent try-reserve (skipped without a probe until `until`); a bounded
+	 * ring, search advice only — never correctness state.  pag_resv_cursor =
+	 * the finobt record a budget-exhausted visit stopped at (NULLAGINO =
+	 * none), so the next visit continues instead of re-probing the same
+	 * first-free inode.  All under pag_resv_lock.
+	 */
+	spinlock_t		pag_resv_lock;
+#define MXFS_RESV_COOL_N	32
+	/*
+	 * 0.75.121 (D-0946): `pubpend` separates WHY an entry is cooling.  A
+	 * peer-held candidate is contention and belongs in the exhaustion
+	 * verdict; a candidate cooling because THIS node still owes its home a
+	 * write is not, and counting it as contention made the allocator declare
+	 * a healthy AG spent and grow a fresh chunk (measured: 'P-DIALLOC-RESV-
+	 * SWEPT agno=0 probes=0 contended=0 cool=56' -> RESV-GROW).  Fresh
+	 * carves are not free: each is an opportunity for D-0948.
+	 */
+	struct {
+		xfs_agino_t	agino;
+		unsigned long	until;
+		bool		pubpend;
+	}			pag_resv_cool[MXFS_RESV_COOL_N];
+	unsigned int		pag_resv_cool_next;
+	xfs_agino_t		pag_resv_cursor;
+	/*
+	 * sess430 (D-0351 containment, design-consult ruling ccloop-c7ee71c6-sess430-
+	 * GPT-ruling-d0351-dialloc-containment-two-phase): DISK-LIVE quarantine.
+	 * aginos dialloc found FREE in the inobt but LIVE on the platter (a
+	 * crossed FREE-PUBLISH invariant on some node).  Exact membership, no
+	 * expiry, never evicted for the life of the mount; the allocator skips
+	 * them and fails a create cleanly (-EUCLEAN, never a dirty cancel) when
+	 * nothing else is left.  Separate from the timed pag_resv_cool ring,
+	 * which is search advice only.  xarray: agino -> xa_mk_value(disk_gen).
+	 */
+	struct xarray		pag_disklive_q;
+	unsigned int		pag_disklive_n;
 	/*
 	 * sess12(a9a03929): identity of the last holders 0->1 adopter.  When a
 	 * peer's BAST finds the hold stuck (page_ms large, holders frozen>0),
@@ -435,6 +507,40 @@ struct xfs_perag {
 	 */
 	atomic_t		pag_mxfs_agwait_inflight;
 	u64			pag_mxfs_agwait_since_ns;
+	/*
+	 * 0.89.9: the ALLOCATION-COVERAGE WITNESS (design-consult ruling
+	 * docs/rulings/audit-gate-allocation-coverage-witness.md).  The cold
+	 * structural audit's CLEAN is a release claim only when the preceding
+	 * clustered workload demonstrably carved inode chunks in a shared AG
+	 * on both nodes at overlapping times, reached another AG, released a
+	 * chunk and moved the finobt on existing chunks; a final platter shows
+	 * none of that (net not gross, inherited finobt occupancy, no node).
+	 * These count SUCCESSFUL transitions on THIS node, per AG, read through
+	 * /sys/kernel/debug/mxfs/<dev>/alloc_witness and cleared by a write to
+	 * it; a snapshot before and after a phase is the phase's record.
+	 *   carves     xfs_ialloc_ag_alloc published a new chunk's inobt and
+	 *              finobt records and the AGI counts into its transaction
+	 *              (an abort after that point shuts the filesystem down,
+	 *              which fails the lap on its own; nothing here undoes it)
+	 *   releases   xfs_difree_inode_chunk handed a chunk's blocks to the
+	 *              deferred free-extent operation
+	 *   fino_ins   xfs_difree_finobt inserted the record of an EXISTING
+	 *              full chunk that just gained a free inode (full→partial)
+	 *   fino_del   xfs_dialloc_ag deleted the record of an EXISTING
+	 *              partial chunk that just became full (partial→full)
+	 *   carve_first/last_ns  ktime_get_real_ns at the first and last carve
+	 *              since the last clear — the overlap witness, paired with
+	 *              the clock-offset bound the harness measures per node
+	 * A newly carved chunk's own finobt insert and a released chunk's own
+	 * finobt delete are NOT counted as finobt transitions: the ruling's
+	 * lifecycle floor is about existing chunks.
+	 */
+	atomic64_t		pag_mxfs_wit_carves;
+	atomic64_t		pag_mxfs_wit_releases;
+	atomic64_t		pag_mxfs_wit_fino_ins;
+	atomic64_t		pag_mxfs_wit_fino_del;
+	atomic64_t		pag_mxfs_wit_carve_first_ns;
+	atomic64_t		pag_mxfs_wit_carve_last_ns;
 	struct work_struct	pag_dlm_bast_work;
 	/*
 	 * pag_dlm_demoting: set by mxfs_dlm_ag_bast_work_fn during the brief
@@ -448,6 +554,26 @@ struct xfs_perag {
 	 * which serialized the entire drain and starved peers' CAW retries.
 	 */
 	bool			pag_dlm_demoting;
+	/*
+	 * sess427 (D-0351): PUBLICATION-WRITE GATE.  Count of xfs_iflush
+	 * copy-ins in flight that were sanctioned by the FREE obligation
+	 * predicate (P55C) against pag_mxfs_grant_epoch.  The release COMMIT
+	 * zeroes the epoch and then WAITS for this to drain before its
+	 * buffer drain runs, so a copy-in that validated against the old
+	 * epoch is always drain-visible (the bare epoch read had a TOCTOU —
+	 * Design-consult ruling ccloop-c7ee71c6-sess427-GPT-ruling-free-publish-
+	 * invariant-d0351).  begin: inc, smp_mb, re-check epoch (dec on
+	 * mismatch); end: dec after the copy-in has attached the item to the
+	 * locked buffer.
+	 */
+	atomic_t		pag_mxfs_pubwrite;
+	/* sess427 (D-0351): FREE obligations the last release audit could not
+	 * publish (pending frees + unrepaired) — the release worker defers
+	 * the on-disk unlock while this is non-zero (bounded). */
+	int			pag_mxfs_freeob_split;
+	/* sess465 (D-0524): FREE_PENDING entries at the release gate that are
+	 * orphans or cross-tenure — refuse the release without deferral. */
+	int			pag_mxfs_freeob_fatal;
 	wait_queue_head_t	pag_dlm_demote_wq;
 	/*
 	 * sess39: deferred-release flush worker.  mxfs_dlm_ag_meta_iodone runs

@@ -51,7 +51,12 @@ RECOVERY_WAIT="${RECOVERY_WAIT:-210}"
 VICTIM_LOAD="${VICTIM_LOAD:-6}"
 JOIN_DELAY="${JOIN_DELAY:-55}"
 BOOT_WAIT="${BOOT_WAIT:-240}"
-DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$PROBE_HOST"; DEV=$MXFS_DEV_RESOLVED
 KO_MD5=$(md5sum "$REPO/mxfs.ko" 2>/dev/null | awk '{print $1}')
 
 [ "$VICTIM" = "$JOINER" ] && { echo "FAIL: victim and joiner must differ"; exit 1; }

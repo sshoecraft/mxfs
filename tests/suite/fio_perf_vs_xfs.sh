@@ -22,11 +22,76 @@ BENCH="${MXFS_BENCH:-/src/mxfs/bench.json}"
 #   MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.<cond>.json" \
 #     ./run.sh 1 xfs fio_perf
 # and this test picks the condition file up automatically.
+# 0.74.0 (sess506): the yardstick files are per PHYSICAL RIG, not per
+# transport name.  The "tcp" condition ran on the SCST/mpath rig when its
+# ceiling (2-sharer seqW 179 MiB/s) and baseline were captured (2026-07-25);
+# the same condition on the QNAP TS-453 Pro LUN, reached over a 1 GbE hop,
+# measured mxfs seqW 109 MiB/s and was scored "60% FAIL" against the other
+# rig's ceiling — the cross-rig comparison this script's own header calls
+# meaningless.  A rig tag (MXFS_RIG_TAG, or derived from MXFS_DEV: a by-path
+# name containing "qnap" -> qnap) selects
+# .xfs_fio_baseline.<dlm>.<tag>.json / .raw_fio_ceiling.<dlm>.<tag>.json;
+# untagged rigs keep the legacy files.  Capture for a tagged rig with
+#   MXFS_TEST_ENV="XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.<dlm>.<tag>.json" ./run.sh 1 xfs fio_perf
+#   RAWCEIL_DEV=<dev> scripts/raw_fio_ceiling.sh <dlm>.<tag> <Nlist>
+# 0.81.1: ONE resolver, and it asks the hardware rather than reading a device
+# name.  MXFS_RIG_TAG still wins; then the tag run.sh recorded at prep time;
+# then a by-path name that carries the vendor; then the LUN's own SCSI vendor
+# read from a prepped node, which is the only one a rename cannot defeat.  The
+# fallbacks below are kept so this still resolves against a marker written
+# before the `rig` field existed.
+RIG="${MXFS_RIG_TAG:-}"
+[ -z "$RIG" ] && RIG=$(/src/mxfs/tools/mxfs_rig_tag.sh 2>/dev/null || true)
+[ -z "$RIG" ] && case "${MXFS_DEV:-}" in *qnap*) RIG=qnap;; esac
+# 0.75.101: MXFS_DEV IS NOT GUARANTEED TO BE HERE, and its absence used to be
+# silent.  A run that reuses an already-prepped cluster never touches the
+# device, so nothing forces the caller to export MXFS_DEV; with it unset this
+# script saw no rig tag, picked the UNTAGGED legacy yardsticks, and scored the
+# QNAP rig's 111 MiB/s (1 GbE line rate, and its best of four consecutive
+# measurements) against the SCST/mpath rig's 179 MiB/s 2-sharer ceiling -- a
+# 62% FAIL with no filesystem change behind it.  The three runs on either side
+# of it recorded `rig=qnap` and 100-101% on the same builds.  The rig identity
+# belongs to the PREPPED CLUSTER, so read it from the cluster marker, which
+# run.sh now records at prep time.
+if [ -z "$RIG" ] && [ -s /src/mxfs/.cluster_marker.json ]; then
+    mk_dev=$(python3 -c 'import json;print(json.load(open("/src/mxfs/.cluster_marker.json")).get("dev",""))' 2>/dev/null)
+    case "$mk_dev" in *qnap*) RIG=qnap;; esac
+fi
+SUF="${RIG:+.$RIG}"
 BASE="${XFS_BASELINE:-/src/mxfs/.xfs_fio_baseline.json}"
-[ -z "${XFS_BASELINE:-}" ] && [ -s "/src/mxfs/.xfs_fio_baseline.${DLM}.json" ] \
-    && BASE="/src/mxfs/.xfs_fio_baseline.${DLM}.json"
+[ -z "${XFS_BASELINE:-}" ] && [ -s "/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json" ] \
+    && BASE="/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json"
 MIN_PCT="${FIO_MIN_PCT:-70}"
 emit(){ echo "RESULT: $1 | test=$SUITE_TEST_NAME | nodes=$NODES | measured=$2 | reason=${3:-}"; }
+
+# FAIL CLOSED ON AN UNKNOWN RIG.  If this transport has any rig-TAGGED
+# yardstick captured, then the untagged legacy files describe a DIFFERENT
+# physical rig, and scoring against them produces a verdict about the wrong
+# hardware -- in either direction: a false FAIL for a slower rig, and a false
+# PASS for a rig whose foreign ceiling happens to be lower.  A gate that
+# reports a confident number computed from an unknown-provenance yardstick is
+# worse than no gate.  Say so and decline to score.
+if [ -z "$RIG" ]; then
+    tagged=""
+    for f in /src/mxfs/.xfs_fio_baseline."$DLM".*.json /src/mxfs/.raw_fio_ceiling."$DLM".*.json; do
+        [ -s "$f" ] && tagged="$tagged $f"
+    done
+    if [ -n "$tagged" ]; then
+        emit SKIP rig-unknown "rig tag unresolved (MXFS_RIG_TAG and MXFS_DEV unset, cluster marker has no dev) while rig-tagged yardsticks exist for $DLM:$tagged — refusing to score against the untagged legacy files, which describe a different physical rig"
+        exit 0
+    fi
+fi
+# A RESOLVED rig with no yardstick of its own must not quietly fall through to
+# the untagged file.  That file describes whichever rig happened to capture it,
+# and using it here is the same cross-rig comparison the tag exists to prevent
+# -- only now with a tag in hand, which makes it look deliberate.  Name the
+# capture that is missing instead, so the answer is a command rather than a
+# mystery.
+if [ -n "$RIG" ] && [ -z "${XFS_BASELINE:-}" ] \
+   && [ ! -s "/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json" ]; then
+    emit SKIP "no-baseline-for-$RIG" "rig=$RIG has no native-XFS baseline for $DLM; capture it with  MXFS_TEST_ENV=\"XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.${DLM}${SUF}.json\" ./run.sh 1 xfs fio_perf  — refusing to score against the untagged file, which describes a different rig"
+    exit 0
+fi
 
 [ -s "$BASE" ] || { emit SKIP no-baseline "no $BASE yet -- run ./run.sh 1 xfs first"; exit 0; }
 [ -s "$BENCH" ] || { emit SKIP no-bench "no $BENCH -- fio_perf must run before this test"; exit 0; }
@@ -77,7 +142,7 @@ pct(){ { [ "${2:-0}" -gt 0 ] 2>/dev/null && echo $(( $1*100/$2 )); } || echo 0; 
 # median-of-K over the same shape, so it's the stable same-rig yardstick at
 # every N.  randW keeps the baseline compare unless the ceiling has it.
 ceil_sw=0; ceil_rw=0
-CEIL="/src/mxfs/.raw_fio_ceiling.${DLM}.json"
+CEIL="${RAW_CEILING:-/src/mxfs/.raw_fio_ceiling.${DLM}${SUF}.json}"
 if [ -s "$CEIL" ]; then
     read -r ceil_sw ceil_rw <<<"$(python3 - "$CEIL" "$NODES" <<'PY'
 import json, sys
@@ -110,7 +175,7 @@ prw=$(pct "$mxrw" "${eff_xrw:-0}"); prr=$(pct "$mxrr" "${xrr:-0}")
 # tests/tooling/fio_vs_xfs_baseline.sh). Read percentages are still reported
 # below for visibility, just excluded from `worst`.
 worst=$(printf '%s\n' "$psw" "$prw" | sort -n | head -1)
-measured="seqW=${psw}% seqR=${psr}% randW=${prw}% randR=${prr}% worst(write)=${worst}% (threshold>=${MIN_PCT}%, wsrc=${wsrc})"
+measured="seqW=${psw}% seqR=${psr}% randW=${prw}% randR=${prr}% worst(write)=${worst}% (threshold>=${MIN_PCT}%, wsrc=${wsrc}${RIG:+, rig=$RIG})"
 
 { [ "${worst:-0}" -ge "$MIN_PCT" ]; } 2>/dev/null \
     && emit PASS "$measured" \

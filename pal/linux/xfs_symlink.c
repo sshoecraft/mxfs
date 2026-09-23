@@ -151,7 +151,26 @@ xfs_symlink(
 	if (error)
 		goto out_parent;
 
-	xfs_ilock(dp, XFS_ILOCK_EXCL | XFS_ILOCK_PARENT);
+	/*
+	 * 0.84.11 (D-0958): the parent's first acquire is a FALLIBLE boundary,
+	 * exactly as in xfs_create — the transaction is reserved and clean, no
+	 * inode is allocated, nothing is joined.  A refusal cancels the
+	 * reservation through the ordinary unwind with the directory not held.
+	 */
+	if (mp->m_mxfs_dlm) {
+		extern int mxfs_ilock_fallible(struct xfs_inode *, uint);
+		extern int mxfs_namespace_refused(struct xfs_inode *,
+						  const char *, int);
+
+		error = mxfs_ilock_fallible(dp,
+					    XFS_ILOCK_EXCL | XFS_ILOCK_PARENT);
+		if (unlikely(error)) {
+			mxfs_namespace_refused(dp, "symlink", error);
+			goto out_trans_cancel;
+		}
+	} else {
+		xfs_ilock(dp, XFS_ILOCK_EXCL | XFS_ILOCK_PARENT);
+	}
 	unlock_dp_on_error = true;
 
 	/*
@@ -186,6 +205,44 @@ xfs_symlink(
 	xfs_qm_vop_create_dqattach(tp, du.ip, udqp, gdqp, pdqp);
 
 	resblks -= XFS_IALLOC_SPACE_RES(mp);
+
+	/*
+	 * A REMOTE symlink's target block is inode-owned metadata, and it is
+	 * logged in THIS transaction — the one that allocated the inode.
+	 *
+	 * Every other inode that owns metadata outside its core is diverted to a
+	 * real grant at its first exclusive modify, which happens in a later
+	 * transaction (see mxfs_inode_owns_logged_metadata).  A remote symlink
+	 * has no later transaction: the inode number does not exist before this
+	 * one and the target block is written inside it, so there is nowhere to
+	 * split.  Left alone, the target-block image ships
+	 * MXFS_AUTH_ST_AUTH_NOT_HELD — the owning inode's grant is still
+	 * local-only — and a peer replaying this node's slice after a death must
+	 * refuse the whole transaction and quarantine the allocation groups it
+	 * touched.  Measured on the two-node TCP rig before this call existed:
+	 * 40 of 40 symlinks with a 900-byte target produced exactly one such
+	 * image each, P239-OWNAUTH-NONDUR blft=9 outcome=6 unpub=1 comm=ln.
+	 *
+	 * So take the real grant here, for this form only.  An INLINE symlink
+	 * keeps its target in the inode core, logs no such block, and never
+	 * reaches this call — which is what keeps the cost off the common path:
+	 * this is the same synchronous slot acquire that publish-on-create was
+	 * removed for, paid only by symlinks too long to fit in an inode.
+	 *
+	 * Shares the unpub_publish_owned_meta knob with the ilock-time diversion
+	 * it completes: the two together are ONE fix for one defect, so an A/B
+	 * that turns the knob off must restore the pre-fix behaviour on every
+	 * form.  Left ungated, this call would keep publishing symlinks in the
+	 * control arm and quietly make it a second treatment arm.
+	 */
+	if (fs_blocks > 0) {
+		extern int mxfs_unpub_publish_owned_meta;
+		extern void mxfs_dlm_publish_inode(struct xfs_inode *);
+
+		if (mxfs_unpub_publish_owned_meta)
+			mxfs_dlm_publish_inode(du.ip);
+	}
+
 	error = xfs_symlink_write_target(tp, du.ip, du.ip->i_ino, target_path,
 			pathlen, fs_blocks, resblks);
 	if (error)

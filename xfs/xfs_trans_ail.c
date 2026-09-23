@@ -546,8 +546,43 @@ xfsaild_push(
 	while ((XFS_LSN_CMP(lip->li_lsn, ailp->ail_target) <= 0)) {
 		int	lock_result;
 
-		if (test_bit(XFS_LI_FLUSHING, &lip->li_flags))
+		if (test_bit(XFS_LI_FLUSHING, &lip->li_flags)) {
+			/*
+			 * sess396 DIAG (D-474 FLUSHING dead-end, armed only):
+			 * the AIL min sitting in FLUSHING is invisible to every
+			 * iop_push probe.  While the AIL-stuck probe is latched
+			 * (a noino fence froze on it), name the min item's
+			 * buffer state each ~2 s so the trace shows whether the
+			 * buffer is queued-and-skipped or off every list.
+			 */
+			if (unlikely(atomic_read(&mxfs_ailstuck_probe)) &&
+			    lip == xfs_ail_min(ailp) &&
+			    lip->li_type == XFS_LI_INODE) {
+				static unsigned long p129f_last;
+				unsigned long now = jiffies;
+
+				if (time_after(now, p129f_last + 2 * HZ)) {
+					struct xfs_inode_log_item *fiip =
+						container_of(lip,
+							struct xfs_inode_log_item,
+							ili_item);
+
+					p129f_last = now;
+					pr_warn("mxfs: P129-FLUSHING-SKIP ino=%llu lsn=0x%llx liflags=0x%lx fields=0x%x last=0x%x flush_lsn=0x%llx — AIL min is FLUSHING; xfsaild cannot push it, only its buffer's delwri write can retire it\n",
+						(unsigned long long)(fiip->ili_inode ?
+							fiip->ili_inode->i_ino : 0),
+						(unsigned long long)lip->li_lsn,
+						lip->li_flags, fiip->ili_fields,
+						fiip->ili_last_fields,
+						(unsigned long long)fiip->ili_flush_lsn);
+					mxfs_buf_diag_dump("P129-FLUSHING-BUF",
+						fiip->ili_inode ?
+							fiip->ili_inode->i_ino : 0,
+						lip->li_buf);
+				}
+			}
 			goto next_item;
+		}
 
 		/*
 		 * Note that iop_push may unlock and reacquire the AIL lock.  We
@@ -776,7 +811,7 @@ xfs_ail_push_all_sync(
 	spin_lock(&ailp->ail_lock);
 	while (xfs_ail_max(ailp) != NULL) {
 		/*
-		 * sess128 RULE-4 probe: this wait has no bound; when it wedges
+		 * sess128 instrumented probe: this wait has no bound; when it wedges
 		 * (test_many_files single-node inodegc pile-up) we need to see
 		 * WHAT is stuck.  Every ~30s of waiting (3000 × 10ms), dump
 		 * the first few AIL items: type/flags/lsn, plus buf flags or
@@ -1289,6 +1324,29 @@ xfs_ail_push_ag_sync_bounded(
 			 */
 			if (!found && iter > 0) {
 				spin_unlock(&ailp->ail_lock);
+				return 0;
+			}
+			/*
+			 * 0.75.56: a HARD-CAPPED caller is the AG release worker's
+			 * prepass, which sess391 made advisory — the post-COMMIT
+			 * drains (alloc buflist, xfs_iflush_cluster of the inode
+			 * cluster buffers, the AG-meta drains, the device flushes)
+			 * carry Invariant 1 synchronously, so the "force at least
+			 * one cycle" above no longer guards anything for it.
+			 * MEASURED (P12-AGREL-STAGES, tests/evidence/sess535_*):
+			 * with the AG's AIL set empty at entry every release paid
+			 * 11-13 ms here, all of it the msleep below, and the A/B
+			 * with the push skipped outright took the peer truncate
+			 * from 3 of 4 laps failing to 12 of 12 truncates inside
+			 * the bound.  Give xfsaild its head start — wake it and
+			 * start a checkpoint — and return without sleeping; a
+			 * capped caller that does find items keeps the polling
+			 * loop and its cadence unchanged.
+			 */
+			if (!found && max_iters) {
+				spin_unlock(&ailp->ail_lock);
+				xfs_ail_push_all(ailp);
+				xfs_log_force(mp, 0);
 				return 0;
 			}
 			spin_unlock(&ailp->ail_lock);

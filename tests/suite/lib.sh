@@ -15,10 +15,10 @@
 # Coordinated tests use it to carve their own per-node namespace.
 : "${RANK:=${MXFS_RANK:-1}}"
 
-# ─── RULE-0 TERMINAL-RECORD GUARANTEE (sess384) ────────────────────────────
+# ─── TERMINAL-RECORD GUARANTEE (sess384) ────────────────────────────
 #
 # D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374, root cause: run.sh runs
-# each node under `timeout <RULE-0 budget> ssh ...` and aggregates by grepping
+# each node under `timeout <derived time budget> ssh ...` and aggregates by grepping
 # ^RESULT: out of the captured stdout.  The node-side rendezvous cap
 # (COORD_TIMEOUT, default 120s) was larger than that budget for every criterion
 # except dir_reuse_coherency, so a genuine stall was SIGKILLed before the
@@ -80,8 +80,9 @@ fi
 suite_step() {
     SUITE_STEP="${1//|/ }"
     [ -n "$SUITE_STEP_FILE" ] || return 0
-    printf 'step=%s|checks=%s|passed=%s|failed=%s\n' \
+    printf 'step=%s|checks=%s|passed=%s|failed=%s|planned=%s\n' \
         "$SUITE_STEP" "$((PASS_N + FAIL_N))" "$PASS_N" "$FAIL_N" \
+        "${SUITE_PLANNED:-0}" \
         > "$SUITE_STEP_FILE" 2>/dev/null
     return 0
 }
@@ -162,14 +163,16 @@ suite_watchdog_start() {
             [ -n "$st" ] && [ "$st" = "$mainst" ] || exit 0
             i=$((i + 1))
         done
-        local snap ck pa fa lbl
+        local snap ck pa fa pl nr lbl
         snap=$(suite_step_read) || snap=""
         lbl=$(printf '%s' "$snap" | sed -n 's/^step=\([^|]*\).*/\1/p')
         ck=$(printf '%s' "$snap" | sed -n 's/.*|checks=\([0-9]*\).*/\1/p')
         pa=$(printf '%s' "$snap" | sed -n 's/.*|passed=\([0-9]*\).*/\1/p')
-        fa=$(printf '%s' "$snap" | sed -n 's/.*|failed=\([0-9]*\)/\1/p')
+        fa=$(printf '%s' "$snap" | sed -n 's/.*|failed=\([0-9]*\).*/\1/p')
+        pl=$(printf '%s' "$snap" | sed -n 's/.*|planned=\([0-9]*\).*/\1/p')
+        nr=$(( ${pl:-0} - ${ck:-0} )); [ "$nr" -lt 0 ] && nr=0
         suite_emit BUDGET_EXHAUSTED watchdog \
-            "checks=${ck:-0} passed=${pa:-0} failed=${fa:-0}" \
+            "checks=${ck:-0} passed=${pa:-0} failed=${fa:-0} planned=${pl:-0} notrun=$nr" \
             "step=${lbl:-unknown} report_s=$SUITE_REPORT_S elapsed_s=$(( $(date +%s) - SUITE_T0_S ))"
     ) &
     SUITE_WD_PID=$!
@@ -195,6 +198,45 @@ PASS_N=0
 FAIL_N=0
 FAILED=()
 
+# SUITE_PLANNED — how many assertions this test INTENDS to run, declared with
+# suite_plan before the work starts.  Without it, a run whose budget expires
+# BEFORE its assertions begin reports "checks=1 passed=1 failed=0", which reads
+# as "nothing failed" when the truth is "nothing was checked": the 32-node
+# crash_consistency row spends its whole 90 s writing and never reaches the
+# cross-node durability verify at all, and that record was read as a clean run
+# for a full session.  A count that cannot distinguish "no failures" from "no
+# checks" is not evidence.  Tests that never call suite_plan report planned=0
+# and behave exactly as before.
+SUITE_PLANNED=0
+
+# suite_plan <n> — declare the assertion count for this run.  Call it once the
+# count is known (it usually depends on NODES) and before the work begins.
+suite_plan() {
+    SUITE_PLANNED="${1:-0}"
+    suite_step "${SUITE_STEP:-plan}"
+    return 0
+}
+
+# suite_measured — the checks/passed/failed triple, plus the coverage terms when
+# a plan was declared.  One place, so finish() and finish_state() cannot drift.
+suite_measured() {
+    local m="checks=$((PASS_N + FAIL_N)) passed=$PASS_N failed=$FAIL_N" nr
+    if [ "${SUITE_PLANNED:-0}" -gt 0 ]; then
+        nr=$(( SUITE_PLANNED - PASS_N - FAIL_N )); [ "$nr" -lt 0 ] && nr=0
+        m="$m planned=$SUITE_PLANNED notrun=$nr"
+    fi
+    # A test may append its own key=value terms (SUITE_MEASURED_EXTRA) so a
+    # row that PASSES while stalling carries the stall in its record instead
+    # of a bare PASS: dir_reuse_coherency passed 8 of 8 laps on 0.75.116 with
+    # seven first-timeout stack dumps on one inode in every lap, and nothing
+    # in the board could tell that lap from a healthy one.  Terms only, no
+    # '|' (it is the RESULT line's field separator).
+    if [ -n "${SUITE_MEASURED_EXTRA:-}" ]; then
+        m="$m ${SUITE_MEASURED_EXTRA//|/_}"
+    fi
+    printf '%s' "$m"
+}
+
 # ck "<desc>" cmd args...   — pass if cmd exits 0
 ck() {
     local desc="$1"; shift
@@ -203,6 +245,12 @@ ck() {
         PASS_N=$((PASS_N + 1))
     else
         FAIL_N=$((FAIL_N + 1)); FAILED+=("$desc")
+        # A failed check is stamped into the kernel log at the moment it
+        # fails, so its time can be read against the probes around it (the
+        # cache_coherency 'uv gone' failure of 2026-09-12 could not be placed
+        # relative to the reload/adopt lines because no check carried a time).
+        # Only the failure path pays for it.
+        echo "mxfs-CCfail rank=${RANK:-?} $desc" > /dev/kmsg 2>/dev/null || true
     fi
 }
 
@@ -214,6 +262,7 @@ ckeq() {
         PASS_N=$((PASS_N + 1))
     else
         FAIL_N=$((FAIL_N + 1)); FAILED+=("$desc(exp=$exp got=$act)")
+        echo "mxfs-CCfail rank=${RANK:-?} $desc(exp=$exp got=$act)" > /dev/kmsg 2>/dev/null || true
     fi
 }
 
@@ -227,10 +276,16 @@ finish() {
     # Reset to the impossible-ino sentinel at every test exit.
     [ -w /sys/module/mxfs/parameters/watch_ino ] && \
         echo 1 > /sys/module/mxfs/parameters/watch_ino 2>/dev/null
-    measured="checks=$((PASS_N + FAIL_N)) passed=$PASS_N failed=$FAIL_N"
+    measured=$(suite_measured)
     if [ "$FAIL_N" -gt 0 ]; then
         status="FAIL"
         reason="${FAILED[*]}"
+    elif [ "${SUITE_PLANNED:-0}" -gt 0 ] &&
+         [ "$((PASS_N + FAIL_N))" -lt "$SUITE_PLANNED" ]; then
+        # Declared assertions that never ran.  Reporting this PASS would be a
+        # vacuous pass — the run proved nothing about what it did not check.
+        status="FAIL"
+        reason="assertions_not_run planned=$SUITE_PLANNED ran=$((PASS_N + FAIL_N))"
     fi
     suite_watchdog_stop
     suite_emit "$status" test "$measured" "$reason"
@@ -247,12 +302,13 @@ finish() {
 # (and a human) tell "N independent correctness failures" apart from "one
 # node hung and everyone else stopped cooperating" instead of both reading
 # as an undifferentiated nodes_pass=0/N (see ccmemory
-# gpt-consult-dir_reuse32-architectural-review, 2026-07-11).
+# docs/rulings/dir-reuse-32-architectural-review.md, 2026-07-11).
 finish_state() {
     local state="$1"; shift
     [ -w /sys/module/mxfs/parameters/watch_ino ] && \
         echo 1 > /sys/module/mxfs/parameters/watch_ino 2>/dev/null
-    local measured="checks=$((PASS_N + FAIL_N)) passed=$PASS_N failed=$FAIL_N"
+    local measured
+    measured=$(suite_measured)
     suite_watchdog_stop
     suite_emit "$state" test "$measured" "$*"
     [ "$state" = "PASS" ]

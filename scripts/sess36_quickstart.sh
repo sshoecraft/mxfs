@@ -1,4 +1,5 @@
 #!/bin/bash
+# device-adjudicated: host-side LIO backstore experiment: the target's backing device on the dev host is the subject, not an MXFS measurement
 # Sess36 quickstart — runs the diagnostic experiments documented in
 # notes/sess36_storage_diagnostic_plan.md, in the recommended order.
 #
@@ -6,7 +7,7 @@
 # results.  Stop after a phase whose result is conclusive — no need
 # to run later phases.
 #
-# Per RULE 3: persistent script lives in source tree.
+# Per the source-tree rule: persistent script lives in source tree.
 #
 # Usage:
 #   sess36_quickstart.sh                    # E2 + E1 + simple diagnostics

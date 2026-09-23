@@ -93,7 +93,7 @@ otherwise bound the drain so it can't exceed the initiator command timeout.
 
 - `scripts/scst_atomic_wedge_diag.py` — gdb script: walks `vdev_list`, prints
   blocked commands and the A↔B cycle. (gdb invocation + section-address recipe
-  is documented in memory `sess51-scst-caw-read-wedge-full-recovery-proven`.)
+  is documented in `docs/history/scst-caw-read-wedge-full-recovery-proven.md`.)
 - `scripts/scst_unwedge/` — kmod that removes a specific block edge to recover a
   live wedge without rebooting (workaround, not a fix).
 - `scripts/scst_block_diag.py`, `scripts/scst_mon.py`,

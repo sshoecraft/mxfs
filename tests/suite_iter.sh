@@ -24,7 +24,7 @@ done
 echo "iter: nodes up, launching suite"
 
 # sess14(a9a03929): the whole-suite cap is a WEDGE backstop, not a pace
-# assertion — pace lives in run.sh's per-test budgets (RULE 0).  1100s fit a
+# assertion — pace lives in run.sh's per-test budgets (budget).  1100s fit a
 # 4-node suite but truncated 8-node iters mid-dir_reuse (drc's budget alone is
 # 100*N=800s at 8 nodes; 12 tests + drc + its fail-path artifact pull > 1100),
 # silently dropping the last 4 tests (r4, 20260704T163522Z).  Budget: prep

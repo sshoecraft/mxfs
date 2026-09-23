@@ -46,7 +46,7 @@
 #       round/node detail printed, dmesg harvested).  2 = INFRASTRUCTURE
 #       failure (a node did not complete its storm) — never reported as loss.
 #
-# RULE 0 budget: a round is N concurrent mkdirs in one directory; native XFS
+# derived time budget: a round is N concurrent mkdirs in one directory; native XFS
 # does that in milliseconds, so a 2s slot is ~1000x headroom.  Total wall =
 # 10s setup + rounds*slot + ~20s verify/census.
 set -u

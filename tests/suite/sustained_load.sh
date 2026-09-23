@@ -17,7 +17,7 @@
 #   criterion runs early enough, or re-preps often enough, to miss it, which is
 #   exactly why the board stayed green through all three occurrences.
 #
-#   Under RULE 0 this is disqualifying on its own: a clustered filesystem that
+#   Under the budget rule this is disqualifying on its own: a clustered filesystem that
 #   must be remounted to stay inside its performance budget is not shippable.
 #   Suspects (untested): DLM lock-table growth, AG grant-cache churn, inode
 #   cache / AIL growth, CAW slot-table pressure, per-AG counters that never

@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_stacksample.sh — RULE 4 instrumentation: off-CPU profile of the
+# diag_stacksample.sh — instrumentation: off-CPU profile of the
 # scaling_curve rsync workload by sampling /proc/<pid>/stack of every
 # rsync process (and optionally xfsaild + mxfs workers) at ~50 ms
 # intervals on every node.  The slow node's dominant blocked-stack IS

@@ -48,7 +48,7 @@ ck "cwr barrier verify" coord_barrier "cwr_verify"
 
 # ---- subtest 3: rename_visibility — rename on each node visible everywhere
 D="$BASE/rename_visibility"; mkdir -p "$D" 2>/dev/null
-# sess1 (ccloop 0220f43f) RULE-4 + GPT consult: RPN was a T-INDEPENDENT
+# sess1 (ccloop 0220f43f) instrumented + GPT consult: RPN was a T-INDEPENDENT
 # constant (20/node), so the cross-node verify loop below (every node
 # checks every OTHER node's every file) is O(T^2) total cluster work --
 # fine at low N, but at T=32 that's 640 renames x 32 verifiers x 3 checks
@@ -82,7 +82,7 @@ ck "rv barrier verify" coord_barrier "rv_verify"
 
 # ---- subtest 4: unlink_visibility — unlink on each node visible everywhere
 D="$BASE/unlink_visibility"
-# sess1 (ccloop 0220f43f) RULE-4 PROVEN: this subtest never cleared its dir
+# sess1 (ccloop 0220f43f) PROVEN BY INSTRUMENT: this subtest never cleared its dir
 # on entry, only at its own uv-delete phase -- a run killed mid-test (e.g.
 # a pace timeout in an earlier phase) leaves its uv-create'd files behind,
 # and the NEXT run's "uv all files present"/"uv none remain" TOTAL-COUNT

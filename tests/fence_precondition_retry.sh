@@ -21,11 +21,21 @@ SPARE="${1:-test1}"; VICT="${2:-test5}"; OBS="${3:-test2}"
 REPO="$(cd -- "$(dirname "$0")/.." && pwd)"
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PROBE="$REPO/tests/pr_reservation_ownership_probe.sh"
-DEV=/dev/mapper/mpatha; MNT=/mnt/shared; KS=0xfeed0381
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$SPARE"; DEV=$MXFS_DEV_RESOLVED
+sp()  { timeout 30 "$SSH" "$SPARE" "sg_persist $* $DEV 2>&1 | tail -3"; }; MNT=/mnt/shared; KS=0xfeed0381
 fail=0
 say() { echo "[$(date -u +%H:%M:%SZ)] $*"; }
 chk() { if [ "$1" = 0 ]; then echo "   PASS: $2"; else echo "   FAIL: $2"; fail=$((fail+1)); fi; }
-sp()  { timeout 30 "$SSH" "$SPARE" "sg_persist $* /dev/sda 2>&1 | tail -3"; }
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+mxfs_dev_resolve "$SPARE"; DEV=$MXFS_DEV_RESOLVED
 # per-node dmesg since KILL, using each node's OWN uptime
 scan() {
     local pat="$1" age="$2" D; D=$(mktemp -d)

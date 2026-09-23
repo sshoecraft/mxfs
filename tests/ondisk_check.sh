@@ -28,4 +28,5 @@ echo "=== cached view per node ==="
 for n in "${NODES[@]}"; do printf "%s sees: " "$n"; timeout 20 $SSH "$n" $PASS "ls $DIR | grep -c _a_" 2>/dev/null; done
 
 echo "=== remount test1, count on-disk ==="
-timeout 60 $SSH test1 $PASS "umount $MNT 2>/dev/null; sleep 1; mount -t mxfs /dev/sda $MNT 2>&1 | tail -1; sleep 1; echo -n 'on-disk after-entries: '; ls $DIR | grep -c _a_" 2>/dev/null
+MXFS_DEV=${MXFS_DEV:?the shared LUN as this rig names it. This script predates tests/lib/rig.sh and takes the device it is given without an identity check}
+timeout 60 $SSH test1 $PASS "umount $MNT 2>/dev/null; sleep 1; mount -t mxfs $MXFS_DEV $MNT 2>&1 | tail -1; sleep 1; echo -n 'on-disk after-entries: '; ls $DIR | grep -c _a_" 2>/dev/null

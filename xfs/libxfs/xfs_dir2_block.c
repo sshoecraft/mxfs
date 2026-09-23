@@ -76,7 +76,7 @@ xfs_dir3_block_read_verify(
 
 	if (xfs_has_crc(mp) &&
 	     !xfs_buf_verify_cksum(bp, XFS_DIR3_DATA_CRC_OFF)) {
-		/* P-BLKRV (RULE-4): CRC fail on read of a dir3 block under
+		/* P-BLKRV (instrumented): CRC fail on read of a dir3 block under
 		 * multinode — log owner + daddr + caller so we can see if this
 		 * is a re-read of a freshly-realloc'd block whose stale prior
 		 * owner image is still on disk (the sf->block double-alloc). */
@@ -92,7 +92,7 @@ xfs_dir3_block_read_verify(
 	} else {
 		fa = xfs_dir3_block_verify(bp);
 		if (fa) {
-			/* P-BLKRV (RULE-4): structural fail — same instrumentation.
+			/* P-BLKRV (instrumented): structural fail — same instrumentation.
 			 * If owner != the reading dir inode, a foreign block was
 			 * read (stale extent map / block double-alloc). */
 			if (mp->m_mxfs_dlm &&
@@ -124,7 +124,7 @@ xfs_dir3_block_write_verify(
 		return;
 	}
 
-	/* P-BLKWR (RULE-4): log every WRITE-out of a block-format dir block under
+	/* P-BLKWR (instrumented): log every WRITE-out of a block-format dir block under
 	 * multinode so we can confirm whether the failing daddr (block0) is ever
 	 * written to disk at all (lost-write) vs written-but-read-elsewhere. */
 	if (mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm))
@@ -795,7 +795,7 @@ xfs_dir2_block_lookup_int(
 	dp = args->dp;
 	tp = args->trans;
 
-	/* P-BLKLK (RULE-4): log the reading dir inode's coherence state right
+	/* P-BLKLK (instrumented): log the reading dir inode's coherence state right
 	 * BEFORE the block read (survives the read-verify shutdown) so we can
 	 * tell whether an owner-mismatch is a STALE REUSED in-core inode
 	 * (incore state diverged from disk) vs a genuine block double-alloc. */
@@ -1122,7 +1122,7 @@ xfs_dir2_leaf_to_block(
 	       hdr->magic == cpu_to_be32(XFS_DIR3_DATA_MAGIC));
 
 	/*
-	 * sess69 RULE-4 PROBE (always-on, ratelimited): the leaf->block reshape
+	 * sess69 INSTRUMENTED PROBE (always-on, ratelimited): the leaf->block reshape
 	 * consolidates the dir into ONE block; the resulting active-entry set is
 	 * leafhdr.count-leafhdr.stale, copied verbatim from the LEAF buffer (lbp).
 	 * If lbp is a STALE cached image (gen lags i_dlm_dir_gen, or it was
@@ -1260,7 +1260,7 @@ xfs_dir2_sf_to_block(
 
 	trace_xfs_dir2_sf_to_block(args);
 
-	/* sess62 (RULE 4): UNGATED — is sf->block conversion even being called?
+	/* sess62 (instrumented): UNGATED — is sf->block conversion even being called?
 	 * P42-SFCONV logged 0x in a full failing run while the dir was block
 	 * format (3 data blocks) and node1_f1 (first dirent) was durably lost
 	 * every round.  This fires with NO multinode gate to settle whether the
@@ -1365,7 +1365,7 @@ xfs_dir2_sf_to_block(
 	 * is the suspected leak point for test_concurrent_mkdir's lost first
 	 * entry from peer's view.
 	 *
-	 * sess15 (RULE 4, GPT-confirmed #1 hypothesis): dump the FULL in-core
+	 * sess15 (instrumented, GPT-confirmed #1 hypothesis): dump the FULL in-core
 	 * shortform NAME LIST being frozen into block0.  Cross-reference with
 	 * P-SFREL (release-side raw on-disk SF names): if a peer's durably-
 	 * committed dirent (on-disk via P-SFREL) is ABSENT from this in-core SF

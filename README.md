@@ -9,21 +9,34 @@
 > single-host filesystem MXFS builds on. Everything that turns XFS into a
 > filesystem many machines can mount at once is AI-authored.
 
-> **✅ Core clustering validated — OS/hypervisor coverage still expanding.**
-> All four supported deployment conditions — TCP DLM, and three CAW variants
-> (direct iSCSI, FC-fabric passthrough, and dm-multipath) — pass the full
-> ship-gate test suite, real-budget-enforced (no relaxed timeouts), at every
-> cluster size from **1 to 32 nodes**. Validated so far on **Ubuntu 24.04 LTS**
-> (kernel 6.8) only; testing on Proxmox VE and other host OSes is starting
-> this week. Not recommended for production data until that broader
-> validation lands. To see the current ship-gate status for yourself:
+> ## ⚠️ Released configuration: 2 nodes, TCP transport — nothing else
+>
+> **The only supported configuration is a 2-node cluster using the TCP DLM
+> transport.** For that configuration no known defect corrupts or loses data,
+> or crashes, hangs or shuts down a node, and the full test suite passes.
+>
+> **In development — do not use:**
+> - **More than 2 nodes** (3 to 32), on any transport.
+> - **The CAW transport** (disk-based locking over SCSI COMPARE AND WRITE),
+>   at any cluster size, including 2 nodes.
+>
+> Those configurations still have open defects in the queue, including ones
+> that can lose data or hang a node. Performance work is also still open on
+> every configuration.
+>
+> **Validated on Ubuntu 24.04 LTS (kernel 6.8) only.** Proxmox VE and Red Hat
+> testing is next. Not yet recommended for production data.
+>
+> The release packages select TCP for you (`/etc/modprobe.d/mxfs.conf` sets
+> `options mxfs force_transport=1`). Building from source, load the module
+> with `modprobe mxfs force_transport=1`: without it a new cluster forms on
+> CAW. To see what still blocks each configuration:
 >
 > ```
-> ./showstat.sh 32 caw      # 32-node cluster, CAW (multipath) transport
-> ./showstat.sh 32 tcp      # 32-node cluster, TCP transport
+> tools/defects.py 2 tcp --release   # the released configuration
+> tools/defects.py 2 caw             # CAW, in development
+> tools/defects.py 32 tcp            # 32 nodes, in development
 > ```
->
-> `showstat.sh <nodes> <dlm>` renders the live test matrix from `criteria.json`.
 
 ---
 
@@ -54,16 +67,17 @@ MXFS is a fork of upstream Linux **XFS (6.19-rc0)** plus a coordination overlay.
   metadata, the inode cache, the buffer cache — and coordinates them across the
   cluster.
 - **Distributed lock manager (`dlm/`).** Two transports can carry lock state:
-  - **CAW (default)** — lock state lives *in-band on the shared disk*, claimed
-    with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic primitive plus
-    SCSI Persistent Reservations. No separate lock network is required, which is
-    what lets it scale past the point where a network DLM stops keeping up.
-  - **TCP (fallback)** — a network DLM spoken over TCP between nodes, used when
-    the shared transport can't provide reliable CAW.
+  - **TCP (released, 2 nodes)** — a network DLM spoken over TCP between nodes.
+  - **CAW (in development)** — lock state lives *in-band on the shared disk*,
+    claimed with the SCSI **COMPARE AND WRITE** (opcode `0x89`) atomic
+    primitive plus SCSI Persistent Reservations. No separate lock network is
+    required, which is what lets it scale past the point where a network DLM
+    stops keeping up.
 
-  Transport is auto-negotiated: a node joining an existing cluster adopts the
-  peers' transport; a node forming a new cluster probes CAW and falls back to
-  TCP.
+  The module parameter `force_transport` picks the transport a new cluster
+  forms on: `1` is TCP, `0` (the module's built-in default) is CAW. The
+  release packages set `1`. A node joining an existing cluster adopts the
+  transport the cluster's members are already using.
 - **Membership and fencing.** Peers are found by UDP-multicast discovery;
   liveness is tracked by an on-disk heartbeat with per-node slot claiming; a
   departed or partitioned node is fenced with SCSI Persistent Reservations
@@ -156,6 +170,10 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 
 ## Quick start
 
+The released configuration is **two nodes on the TCP transport**. Install the
+release package on both nodes (it loads the module with `force_transport=1`),
+or load a source build with `modprobe mxfs force_transport=1` on both.
+
 On the first node, format and mount the shared device:
 
 ```
@@ -163,20 +181,20 @@ mkfs.mxfs /dev/sdX
 mount -t mxfs /dev/sdX /mnt/shared
 ```
 
-On every other node, mount the **same** device — no reformat:
+On the second node, mount the **same** device — no reformat:
 
 ```
 mount -t mxfs /dev/sdX /mnt/shared
 ```
 
-The nodes discover each other, negotiate a transport, and coordinate through the
-kernel module. Files written on one node are visible on the others.
+The nodes discover each other and coordinate through the kernel module. Files
+written on one node are visible on the other.
 
-**Before trusting data, verify the transport.** The default CAW transport
-requires the shared LUN to honor SCSI COMPARE AND WRITE, Persistent Reservations,
-and durable (FUA) writes. See [`docs/iscsi_setup.md`](docs/iscsi_setup.md) for
-the storage requirements, and use `caw_verify` / `fua_verify` from two nodes to
-prove them before you format.
+**Before trusting data, verify the storage.** The shared LUN must honor durable
+(FUA) writes and SCSI Persistent Reservations, which MXFS uses to fence a failed
+node. See [`docs/iscsi_setup.md`](docs/iscsi_setup.md) for the storage
+requirements, and use `fua_verify` from both nodes to prove them before you
+format.
 
 ## Repository layout
 

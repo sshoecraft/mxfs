@@ -12,7 +12,7 @@ tags: [timeouts, parallelism, rule0]
 for cluster_reset_n.sh:**
 
 > "a _10_ minute timeout to reset the cluster? are you kidding me? ... why are
-> you not having subagents do this crap? ... You better be doing them in
+> you not having subagents do this? ... You better be doing them in
 > parallel. I'm not kidding."
 
 **Why:** RULE 0 already requires deriving budgets from measured operation

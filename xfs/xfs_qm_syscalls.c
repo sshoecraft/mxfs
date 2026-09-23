@@ -31,6 +31,12 @@ xfs_qm_scall_quotaoff(
 	 */
 	if ((mp->m_qflags & flags) == 0)
 		return -EEXIST;
+	{	/* sess419 D-0133: sb_qflags is non-counter SB state */
+		int rc = mxfs_sb_mutation_refuse(mp, "quotaoff");
+
+		if (rc)
+			return rc;
+	}
 
 	/*
 	 * We do not support actually turning off quota accounting any more.
@@ -173,6 +179,9 @@ xfs_qm_scall_quotaon(
 	 */
 	if ((mp->m_qflags & flags) == flags)
 		return -EEXIST;
+	error = mxfs_sb_mutation_refuse(mp, "quotaon");	/* sess419 D-0133 */
+	if (error)
+		return error;
 
 	/*
 	 * Change sb_qflags on disk but not incore mp->qflags

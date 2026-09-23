@@ -22,6 +22,7 @@
 #include "xfs_error.h"
 #include "xfs_health.h"
 #include "xfs_mxfs_dlm.h"
+#include "xfs_mxfs_dirshard.h"	/* sess470: container IOLOCK exemption */
 #include "../dlm/v5_mount.h"
 
 /*
@@ -47,7 +48,7 @@ xfs_dir3_get_dtype(
 }
 
 /*
- * sess10(a9a03929) RULE-4 readdir-tear instrumentation.
+ * sess10(a9a03929) instrumented readdir-tear instrumentation.
  *
  * r8 round-13 dir_reuse: every node's readdir returned the IDENTICAL short
  * view (341/400, and 390/400 in round 6) across two consecutive getdents
@@ -186,10 +187,16 @@ mxfs_dirdump(
 		uint32_t		pmagic = 0;
 		uint64_t		powner = 0;
 
+		/*
+		 * The nowait ILOCK takes no DLM begin, so it is released raw:
+		 * a plain xfs_iunlock would run an unpaired PR end and consume
+		 * the count of whichever task genuinely holds this dir's PR
+		 * (D-0532).  This dump touches no DLM state by design.
+		 */
 		if (xfs_ilock_nowait(dp, XFS_ILOCK_SHARED)) {
 			err = xfs_bmapi_read(dp, i * geo->fsbcount,
 					     geo->fsbcount, &map, &nmap, 0);
-			xfs_iunlock(dp, XFS_ILOCK_SHARED);
+			xfs_iunlock_nodlm(dp, XFS_ILOCK_SHARED);
 		}
 		if (err || nmap != 1 ||
 		    isnullstartblock(map.br_startblock) ||
@@ -379,7 +386,7 @@ xfs_dir2_block_getdents(
 	error = xfs_dir3_block_read(args->trans, dp, args->owner, &bp);
 	if (error) {
 		/*
-		 * ccloop sess31 P31-FACEA disambiguation (RULE 4, failure-only so
+		 * ccloop sess31 P31-FACEA disambiguation (instrumented, failure-only so
 		 * zero perf cost): the block-format readdir read failed (FACE A:
 		 * daddr 0x78 holds XDD3 leaf-data magic while xfs_dir3_block_verify
 		 * expects XDB3).  We are HERE only because the IN-CORE inode says
@@ -674,8 +681,29 @@ xfs_dir2_leaf_getdents(
 				bp = NULL;
 			}
 
-			if (*lock_mode == 0)
-				*lock_mode = xfs_ilock_data_map_shared(dp);
+			if (*lock_mode == 0) {
+				/*
+				 * 0.84.4: one cluster acquire per data block, and
+				 * each may be refused (the master never
+				 * acknowledged the request, or the task was
+				 * killed).  Entries from earlier blocks have been
+				 * emitted and stay emitted; the position is set
+				 * below from curoff, which still names this block,
+				 * so the next call resumes here.  Only the
+				 * readdir syscall reaches this with no transaction.
+				 */
+				if (!args->trans && dp->i_mount->m_mxfs_dlm) {
+					error = xfs_ilock_data_map_shared_fallible(
+							dp, lock_mode);
+					if (error) {
+						mxfs_readdir_refused(dp, "leaf",
+								     error);
+						break;
+					}
+				} else {
+					*lock_mode = xfs_ilock_data_map_shared(dp);
+				}
+			}
 			error = xfs_dir2_leaf_readbuf(args, bufsize, &curoff,
 					&rablk, &bp);
 			if (error || !bp)
@@ -683,6 +711,13 @@ xfs_dir2_leaf_getdents(
 
 			xfs_iunlock(dp, *lock_mode);
 			*lock_mode = 0;
+			/* 0.84.4, test only: widen the between-block gap so a
+			 * peer's modify can revoke the cached grant here and the
+			 * next block's acquire is a real request (see the knob). */
+			if (unlikely(mxfs_readdir_leaf_pause_ms) &&
+			    mxfs_ino_watched(dp->i_ino) &&
+			    dp->i_mount->m_mxfs_dlm)
+				msleep(mxfs_readdir_leaf_pause_ms);
 
 			xfs_dir3_data_check(dp, bp);
 
@@ -845,7 +880,17 @@ xfs_readdir(
 		return -ESTALE;
 
 	ASSERT(S_ISDIR(VFS_I(dp)->i_mode));
-	xfs_assert_ilocked(dp, XFS_IOLOCK_SHARED | XFS_IOLOCK_EXCL);
+	/*
+	 * sess470 (0.64.11): a dir-sharding CONTAINER is read by
+	 * mxfs_dirshard_readdir on behalf of its parent, whose i_rwsem the
+	 * VFS holds for the whole iterate_dir; the container has no dentry
+	 * and no VFS caller of its own, and every mutation of it runs under
+	 * that same parent i_rwsem EXCL.  Its IOLOCK is therefore never
+	 * taken — asserting it here WARNed 588 times (rwsem.h:80 via
+	 * xfs_assert_ilocked) on chain 103's crash_consistency laps.
+	 */
+	if (!mxfs_is_dirshard_container(dp))
+		xfs_assert_ilocked(dp, XFS_IOLOCK_SHARED | XFS_IOLOCK_EXCL);
 	XFS_STATS_INC(dp->i_mount, xs_dir_getdents);
 
 	args.dp = dp;
@@ -872,7 +917,7 @@ xfs_readdir(
 	    !mxfs_v5_dlm_is_single_node(dp->i_mount->m_mxfs_dlm)) {
 		extern int mxfs_instr_enabled;
 		bool p_rl = xfs_iflags_test(dp, MXFS_IF_DIR_RELOAD);
-		/* P-RDDIAG (RULE 4): observe the dir grant state at readdir time
+		/* P-RDDIAG (instrumented): observe the dir grant state at readdir time
 		 * for the tcp_dlm_scaling stale-readdir leftover.  mode==NL =>
 		 * slow-path PR reacquire should have reloaded; mode==PR/EX while a
 		 * peer modified => a LOST BAST left us a stale cached grant. */
@@ -892,7 +937,7 @@ xfs_readdir(
 		 * Gated (gen==loaded => no disk traffic); reload advances
 		 * loaded_gen so it fires once per peer change. */
 		/*
-		 * ccloop c7ee71c6 sess7 (GPT RULE-5 tenure-coherence ruling —
+		 * ccloop c7ee71c6 sess7 (design-consult tenure-coherence ruling —
 		 * the round-1 identical 112/128 first-view root): a DLM grant
 		 * proves EXCLUSION, not cache coherence.  The triggers below
 		 * are all event/gen driven and treat i_dlm_dir_gen==0 as
@@ -913,8 +958,8 @@ xfs_readdir(
 			dp->i_dlm_dir_gen > dp->i_dlm_dir_loaded_gen ||
 			rd_gg != dp->i_mxfs_rd_vgg;
 		/*
-		 * sess60 ROOT FIX (RULE 4, PROVEN root
-		 * [[sess59-drc-root-grantless-readdir-async-evict-latency]]):
+		 * sess60 ROOT FIX (instrumented, PROVEN root
+		 * `docs/history/drc-root-grantless-readdir-async-evict-latency.md`):
 		 * both triggers above (the MXFS_IF_DIR_RELOAD flag and the
 		 * i_dlm_dir_gen bump) are delivered SOLELY by the ASYNC disklock
 		 * heartbeat eviction ring.  At a concurrent barrier-release (4-node
@@ -939,7 +984,7 @@ xfs_readdir(
 		 * constraint against a per-readdir poll on every dir.
 		 */
 		/*
-		 * sess60 ROOT FIX v2 (RULE 4 — the FUA-di_size check above was
+		 * sess60 ROOT FIX v2 (instrumented — the FUA-di_size check above was
 		 * REFUTED: P26-RDDIR showed the miss is a SAME-SIZE stale dir DATA
 		 * block, disk_size==incore_size==12288, so a size compare never
 		 * fires — P60-RDSYNC=0 while readdir still missed an entry).  The
@@ -1081,7 +1126,7 @@ xfs_readdir(
 				    "mxfs: P48-RDRELOAD-RETRY ino=%llu tries=%d — readdir extent-map reload landed after contention (stale first-view prevented)\n",
 					(unsigned long long)dp->i_ino,
 					p48_try);
-			/* sess48 (RULE 4): decisive readdir-reload probe (light, gated
+			/* sess48 (instrumented): decisive readdir-reload probe (light, gated
 			 * dir_relverify).  Did the reload BAIL (stale kept) or change the
 			 * extent count?  A bail under i_lock contention leaves a stale
 			 * extent map -> readdir misses a peer's grown blocks (the proven
@@ -1143,7 +1188,21 @@ xfs_readdir(
 	if (dp->i_df.if_format == XFS_DINODE_FMT_LOCAL)
 		return xfs_dir2_sf_getdents(&args, ctx);
 
-	lock_mode = xfs_ilock_data_map_shared(dp);
+	/*
+	 * 0.84.4: the listing's cluster acquire may be refused — the master
+	 * never acknowledged the request past the budget, or the task was
+	 * killed.  Nothing is dirty and there is no transaction on the readdir
+	 * syscall path (the only caller with tp == NULL), so the listing fails
+	 * with nothing held instead of waiting without bound; the position is
+	 * untouched, so the next call asks again.
+	 */
+	if (!tp && dp->i_mount->m_mxfs_dlm) {
+		error = xfs_ilock_data_map_shared_fallible(dp, &lock_mode);
+		if (error)
+			return mxfs_readdir_refused(dp, "map", error);
+	} else {
+		lock_mode = xfs_ilock_data_map_shared(dp);
+	}
 	switch (xfs_dir2_format(&args, &error)) {
 	case XFS_DIR2_FMT_BLOCK:
 		error = xfs_dir2_block_getdents(&args, ctx, &lock_mode);
@@ -1157,7 +1216,7 @@ xfs_readdir(
 	}
 
 	/*
-	 * sess26 (ccloop 8ddb16a2) RULE-4 DETECTOR (P26-RDDIR, capped): the
+	 * sess26 (ccloop 8ddb16a2) INSTRUMENTED DETECTOR (P26-RDDIR, capped): the
 	 * dir_reuse_coherency residual is test2 reading SHORT (readdir=100-117
 	 * vs 200) while test1 reads the full 200 from the same LUN.  Log the
 	 * dir inode's extent/size/grant state at cold-read time so a cross-node

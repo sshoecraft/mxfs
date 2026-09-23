@@ -12,7 +12,7 @@
 #     (P89).  Partition-without-fence must NOT strip (not covered here — needs
 #     a netfilter arm, see ledger).
 #
-# Budget note (RULE 0): each case = fence detect (lease ~6-15s) + replay +
+# Budget note (budget): each case = fence detect (lease ~6-15s) + replay +
 # sweep + reap cadence (5s/30s) + VM restart/rejoin (~60-90s).  ~4 min/case.
 #
 # usage: openunlink_deaths.sh <case> [A=test1] [B=test2]
@@ -20,6 +20,7 @@ set -u
 CASE="${1:?case: unlinker_death|opener_death}"
 NA="${2:-test1}"
 NB="${3:-test2}"
+REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH=tools/mxfs_sshpass.sh
 VIRSH="virsh -c qemu:///system"
 RUNID="oud_$(date +%s)_$$"
@@ -27,6 +28,45 @@ D="/mnt/shared/.${RUNID}"
 PAY="DEATHS-$RUNID"
 
 say() { echo "[$(date +%H:%M:%S)] $*"; }
+
+# sess438: chain-14 s437c unlinker_death FAILED (got='' — A's fd ESTALE) with
+# forensics showing test1's foreign replay of B's slice REFUSED (ATOMIC-SKIP
+# lsn=0x100000005 items=3, POLICY-REFUSED -117, AG-MASK 0x1 quarantined):
+# P273-SHADOW-CAP enforce_cfg=0 — token enforcement was OFF (module default,
+# ledger #1 D-FOREIGN-REPLAY-UNGATED-IMAGES), so the replayer was in blanket
+# refusal and ino 132's AG went into quarantine.  That measures the default-off
+# refusal, not the open-unlink protocol.  Arm enforcement fleet-wide exactly as
+# the recovery harnesses do (tests/d_recov_advance_bounded_verify.sh) so the
+# death arms measure what they claim to; the default-on question stays #1's.
+NODES="${OUD_NODES:-32}"
+EVK="$REPO/tests/evidence/oud_${RUNID}_knobs"; mkdir -p "$EVK"
+# sess447 (0.54.0): PRODUCTION DEFAULTS — no harness arming.  The knob
+# defaults to 1 and prep declares target_cache_protected=1 at insmod; this
+# harness only VERIFIES the fleet is in that state (a node not at enforce=1
+# would be a prep/default regression, and the run must not paper over it).
+# OUD_ARM=1 restores the legacy explicit arming for A/B use only.
+if [ "${OUD_ARM:-0}" = 1 ]; then
+  if "$REPO/tests/fleet_set_params.sh" "target_cache_protected=1 foreign_replay_token_enforce=1" "$NODES" "$EVK/knobs.txt" > "$EVK/knobs.log" 2>&1; then
+    say "enforcement armed on $NODES nodes (foreign_replay_token_enforce=1) [OUD_ARM=1 legacy]"
+  else
+    say "FAIL: fleet_set_params could not arm enforcement: $(tail -2 "$EVK/knobs.log" | tr '\n' ' ')"
+    echo "RESULT: FAIL | case=$CASE | enforcement not armed"
+    exit 1
+  fi
+else
+  nbad=0
+  for i in $(seq 1 "$NODES"); do
+    ( timeout 20 "$REPO/tools/mxfs_sshpass.sh" "test$i" "echo test$i enforce=\$(cat /sys/module/mxfs/parameters/foreign_replay_token_enforce) tcp=\$(cat /sys/module/mxfs/parameters/target_cache_protected)" 2>/dev/null | grep -a '^test' ) >> "$EVK/knobs.txt" &
+  done; wait
+  nbad=$(grep -vc 'enforce=1 tcp=1' "$EVK/knobs.txt")
+  if [ "$nbad" -eq 0 ] && [ "$(grep -c '^test' "$EVK/knobs.txt")" -eq "$NODES" ]; then
+    say "production defaults verified on $NODES nodes (enforce=1 tcp=1, no harness arming)"
+  else
+    say "FAIL: production defaults not in force on $nbad node(s) / $(grep -c '^test' "$EVK/knobs.txt") read: $(grep -v 'enforce=1 tcp=1' "$EVK/knobs.txt" | head -3 | tr '\n' ' ')"
+    echo "RESULT: FAIL | case=$CASE | production defaults not in force"
+    exit 1
+  fi
+fi
 
 survivor_wait() { # survivor_wait <node> <tag> <ERE> <timeout> — dmesg-since poll
   local t=0
@@ -50,7 +90,12 @@ restart_node() { # restart_node <name> — start VM, restore /src+iSCSI, rejoin
   # rejoin via prep_node.sh.
   local DEV KOMD5
   DEV=$($SSH "$NA" "mount -t mxfs | awk '{print \$1; exit}'" 2>/dev/null | tr -d ' \r\n')
-  [ -z "$DEV" ] && DEV=/dev/mapper/mpatha
+  # the device under test by identity, not by path: the LUN this rig declares
+  # (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+  # mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+  # mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+  . "$(dirname "$0")/lib/rig.sh"
+  [ -n "${DEV:-}" ] || { mxfs_dev_resolve "$NA"; DEV=$MXFS_DEV_RESOLVED; }
   $SSH "$1" "
     mountpoint -q /src || { mkdir -p /src; mount -t nfs 192.168.1.4:/src /src -o rw,vers=4.1,hard,timeo=600,retrans=2,tcp 2>/dev/null; }
     iscsiadm -m discovery -t st -p 192.168.120.1:3260 >/dev/null 2>&1
@@ -99,6 +144,16 @@ unlinker_death)
   GOT=$($SSH "$NA" "P=\$(cat /tmp/${RUNID}.pid); dd if=/proc/\$P/fd/9 bs=256 count=1 2>/dev/null | tr -d '\0'" 2>/dev/null)
   P87S=$($SSH "$NA" "dmesg | sed -n \"/${RUNID}-M/,\\\$p\" | grep -cE 'P87-OPEN-DEFER ino=${INO} '" 2>/dev/null | tr -d ' \r\n')
   say "A's fd read: '${GOT:0:30}' (want intact); sweeper defer P87=$P87S"
+  # sess437: the s436i lap FAILED with got='' and NO forensics — A was
+  # power-cycled by the next prep and the node journal is volatile (sess433
+  # trap), so whether the fd's data was lost by the FS or the read was a
+  # harness artefact could not be told.  Preserve the discriminators NOW:
+  # the holder's state and dd rc (harness side), and A's kernel log for the
+  # ino since the marker (FS side), in the evidence tree.
+  EVD="$REPO/tests/evidence/oud_${RUNID}_unlinker_death"; mkdir -p "$EVD"
+  $SSH "$NA" "P=\$(cat /tmp/${RUNID}.pid 2>/dev/null); echo pid=\$P alive=\$(kill -0 \$P 2>/dev/null && echo 1 || echo 0); ls -l /proc/\$P/fd/9 2>&1; dd if=/proc/\$P/fd/9 bs=256 count=1 2>&1 | tail -3; echo dd_rc=\${PIPESTATUS[0]}; stat -c 'path ino=%i nlink=%h size=%s' $D/f 2>&1" > "$EVD/holder_A.txt" 2>&1
+  $SSH "$NA" "journalctl -k --no-pager -o short-precise --since '-15 min' 2>/dev/null | grep -a 'ino=${INO} \|P97-\|P89-\|P87-\|P163\|P238\|P233\|foreign replay\|${RUNID}\|slot=' | cut -c1-240" > "$EVD/journal_A.txt" 2>&1
+  say "forensics: $EVD ($(wc -l < "$EVD/journal_A.txt") journal lines; $(head -1 "$EVD/holder_A.txt"))"
   $SSH "$NA" "kill \$(cat /tmp/${RUNID}.pid) 2>/dev/null" >/dev/null 2>&1
   OK=1
   if [ "$GOT" = "$PAY" ]; then

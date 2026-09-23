@@ -16,7 +16,12 @@ REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 N="${1:-32}"; DEP="${2:-28}"; REPS="${3:-3}"; BUDGET_S="${4:-5}"
 MNT=/mnt/shared
-DEV="${MXFS_DEV_MOUNT:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+MXFS_DEV=${MXFS_DEV_MOUNT:-${MXFS_DEV:-}}; mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 
 echo "=== mass_umount_reps: N=$N depart=$DEP reps=$REPS budget=${BUDGET_S}s ==="
 for r in $(seq 1 "$REPS"); do

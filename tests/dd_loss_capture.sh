@@ -128,6 +128,6 @@ if [ "$caught" = "1" ]; then
 fi
 
 echo "=== NO failure in $ITERS iterations.  This is NOT evidence the defect is fixed"
-echo "    (RULE 6: 'cannot reproduce' is not a disposition) — it reproduces ~1 run in 3-10."
+echo "    (the zero-defect bar: 'cannot reproduce' is not a disposition) — it reproduces ~1 run in 3-10."
 echo "    evidence: $OUT"
 exit 1

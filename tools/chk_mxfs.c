@@ -54,7 +54,10 @@
 #include <libgen.h>
 
 #include <mxfs/mxfs_super.h>
+#include <mxfs/mxfs_dirshard.h>  /* sess466: dirshard gates + manifest check */
 #include <mxfs/mxfs_common.h>
+#include <mxfs/mxfs_tauth.h>     /* sess421: TCP authority ledger region */
+#include "mxfs_offline.h"         /* proving no node can write the device */
 
 /* ─── Version ─── */
 
@@ -117,6 +120,35 @@
 #define BTREE_SBLOCK_CRC_SIZE  56
 #define BTREE_CRC_OFF          0x34
 #define BTREE_REC_OFF          0x38
+
+/*
+ * Interior (level > 0) short-format btree block: the keys start at
+ * BTREE_REC_OFF and the child pointers start after the block's MAXIMUM
+ * number of keys, not after the numrecs in use — the kernel's
+ * xfs_btree_ptr_offset() is block_len + maxrecs * key_len + (n-1) * ptr_len.
+ * Every walker here used BTREE_REC_OFF + numrecs * key_len until 0.89.7,
+ * which lands inside the unused key slots (zero on a freshly split node):
+ * the child agbno decoded as 0, the walk read the AG's block 0 (the
+ * superblock, magic XFSB) and reported it as a corrupt btree block.  It was
+ * never hit before because no test filesystem had enough inodes in one AG
+ * to push its inobt past one leaf (252 chunk records = 16128 inodes at
+ * 4 KiB blocks); measured 0.89.6 s69a, AG 0 with 20224 inodes, root 2179
+ * level 1 numrecs 2, keys 128/8832 at byte 56, pointers 3/2178 at byte
+ * 2076, zeros at byte 64 where the walk looked.
+ *
+ * keylen is the key size of that btree: 4 (inobt/finobt: startino) or
+ * 8 (bnobt/cntbt: startblock+blockcount); the pointer is always a 4-byte
+ * agbno.
+ */
+static inline uint32_t sbtree_node_maxrecs(uint32_t blocksize, uint32_t keylen)
+{
+    return (blocksize - BTREE_REC_OFF) / (keylen + 4);
+}
+
+static inline uint32_t sbtree_ptr_off(uint32_t blocksize, uint32_t keylen)
+{
+    return BTREE_REC_OFF + sbtree_node_maxrecs(blocksize, keylen) * keylen;
+}
 
 /* XFS dinode format types */
 #define XFS_DINODE_FMT_DEV      0
@@ -262,6 +294,9 @@ struct xfs_geo {
     uint64_t    fdblocks;
     uint32_t    features_ro_compat;
     bool        has_finobt;
+    bool        has_ftype;      /* sb incompat FTYPE: dirents carry a type byte */
+    bool        has_nrext64;    /* sb incompat NREXT64: di_big_nextents at 0x18 */
+    uint8_t     dirblklog;      /* a directory block is blocksize << dirblklog */
     uint64_t    xfs_off;        /* byte offset of XFS data on device */
     uint8_t     uuid[16];       /* filesystem UUID for btree block headers */
 };
@@ -275,6 +310,11 @@ struct ag_summary {
     uint64_t    inobt_total;    /* total inodes from inobt records */
     uint64_t    inobt_free;     /* total free inodes from inobt records */
 };
+
+/* sess466: both directory-sharding gates present on this device (set by
+ * check_xfs_superblock; the inode walk verifies manifests only then, and
+ * reports any PARENT/CONTAINER flag as corruption otherwise). */
+static bool dirshard_gates_ok;
 
 /* Global summary accumulators */
 static uint64_t total_inobt_inodes;
@@ -498,8 +538,146 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
             (unsigned long long)s->device_size);
     }
 
+    /* sess404: the recovery manifest region (docs/recovery-manifest.md).
+     * Protocol gen 7 REQUIRES it: a gen-7 fleet fences victims by writing
+     * their manifests there, so a gated super without the flag is a format
+     * error, not a legacy layout. */
+    if (s->flags & MXFS_FORMAT_F_RMAN) {
+        if (s->rman_size != MXFS_RMAN_REGION_BYTES)
+            err("recovery manifest region size %llu != expected %llu",
+                (unsigned long long)s->rman_size,
+                (unsigned long long)MXFS_RMAN_REGION_BYTES);
+        if (s->rman_offset + s->rman_size > s->device_size)
+            err("recovery manifest region extends past device: offset=%llu + size=%llu > device=%llu",
+                (unsigned long long)s->rman_offset,
+                (unsigned long long)s->rman_size,
+                (unsigned long long)s->device_size);
+    } else if ((s->flags & MXFS_FORMAT_F_PROTOGATE) &&
+               s->cluster_proto_gen >= 7) {
+        err("cluster_proto_gen=%u requires the recovery manifest region (MXFS_FORMAT_F_RMAN) but the super does not carry it",
+            s->cluster_proto_gen);
+    }
+
+    /* sess421: the TCP authority ledger region (docs/tcp-authority-ledger.md).
+     * Protocol gen 8 REQUIRES it. */
+    if (s->flags & MXFS_FORMAT_F_TAUTH) {
+        /* sess427 (D-0348 step 2): mkfs-sized; whole pages, at least the
+         * minimum geometry.  The header's page count is checked against
+         * the size below. */
+        if (s->tauth_size < MXFS_TAUTH_REGION_BYTES ||
+            s->tauth_size % MXFS_TAUTH_PAGE_BYTES)
+            err("authority ledger region size %llu: below the minimum %llu or not page-aligned",
+                (unsigned long long)s->tauth_size,
+                (unsigned long long)MXFS_TAUTH_REGION_BYTES);
+        if (s->tauth_offset + s->tauth_size > s->device_size)
+            err("authority ledger region extends past device: offset=%llu + size=%llu > device=%llu",
+                (unsigned long long)s->tauth_offset,
+                (unsigned long long)s->tauth_size,
+                (unsigned long long)s->device_size);
+    } else if ((s->flags & MXFS_FORMAT_F_PROTOGATE) &&
+               s->cluster_proto_gen >= 8) {
+        err("cluster_proto_gen=%u requires the TCP authority ledger region (MXFS_FORMAT_F_TAUTH) but the super does not carry it",
+            s->cluster_proto_gen);
+    }
+    /* sess438: the PR registrant ledger region; gen 12 requires it. */
+    if (s->flags & MXFS_FORMAT_F_PRKEY64) {
+        if (s->prkey_size < MXFS_PRLEDGER_ENTRY_BYTES ||
+            s->prkey_size % MXFS_PRLEDGER_ENTRY_BYTES)
+            err("PR registrant ledger region size %llu: below one entry or not entry-aligned",
+                (unsigned long long)s->prkey_size);
+        if (s->prkey_offset + s->prkey_size > s->device_size)
+            err("PR registrant ledger region extends past device: offset=%llu + size=%llu > device=%llu",
+                (unsigned long long)s->prkey_offset,
+                (unsigned long long)s->prkey_size,
+                (unsigned long long)s->device_size);
+    } else if ((s->flags & MXFS_FORMAT_F_PROTOGATE) &&
+               s->cluster_proto_gen >= 12) {
+        err("cluster_proto_gen=%u requires the PR registrant ledger region (MXFS_FORMAT_F_PRKEY64) but the super does not carry it",
+            s->cluster_proto_gen);
+    }
+    /* sess439: the bootstrap record region; gen 13 requires it. */
+    if (s->flags & MXFS_FORMAT_F_BOOTSTRAP) {
+        if (s->bootstrap_size < MXFS_BOOTSTRAP_REC_BYTES ||
+            s->bootstrap_offset % 512)
+            err("bootstrap record region malformed: offset=%llu size=%llu",
+                (unsigned long long)s->bootstrap_offset,
+                (unsigned long long)s->bootstrap_size);
+        /* sess443 (§6.8): gen 17 needs the 32 KiB map (banks, tombstones,
+         * lineage, takeover journal); the kernel refuses a smaller region */
+        if ((s->flags & MXFS_FORMAT_F_PROTOGATE) && s->cluster_proto_gen >= 17 &&
+            s->bootstrap_size < MXFS_BOOTSTRAP_BYTES)
+            err("bootstrap region size=%llu < %u required by cluster_proto_gen=%u (re-mkfs)",
+                (unsigned long long)s->bootstrap_size, MXFS_BOOTSTRAP_BYTES,
+                s->cluster_proto_gen);
+        if (s->bootstrap_offset + s->bootstrap_size > s->device_size)
+            err("bootstrap record region extends past device: offset=%llu + size=%llu > device=%llu",
+                (unsigned long long)s->bootstrap_offset,
+                (unsigned long long)s->bootstrap_size,
+                (unsigned long long)s->device_size);
+    } else if ((s->flags & MXFS_FORMAT_F_PROTOGATE) &&
+               s->cluster_proto_gen >= 13) {
+        err("cluster_proto_gen=%u requires the bootstrap record region (MXFS_FORMAT_F_BOOTSTRAP) but the super does not carry it",
+            s->cluster_proto_gen);
+    }
+    /* 0.88.0: the slice lifecycle region; gen 20 requires it.  One 512 B
+     * record per log slice, so the region must hold xfs_log_node_count of
+     * them and end before the XFS data. */
+    if (s->flags & MXFS_FORMAT_F_SLIFE) {
+        if (s->slife_size < (uint64_t)s->xfs_log_node_count * MXFS_SLIFE_RECORD_SIZE ||
+            s->slife_size < MXFS_SLIFE_RECORD_SIZE ||
+            s->slife_offset % 512)
+            err("slice lifecycle region malformed: offset=%llu size=%llu for %u log slices",
+                (unsigned long long)s->slife_offset,
+                (unsigned long long)s->slife_size, s->xfs_log_node_count);
+        if (s->slife_offset + s->slife_size > s->device_size)
+            err("slice lifecycle region extends past device: offset=%llu + size=%llu > device=%llu",
+                (unsigned long long)s->slife_offset,
+                (unsigned long long)s->slife_size,
+                (unsigned long long)s->device_size);
+    } else if ((s->flags & MXFS_FORMAT_F_PROTOGATE) &&
+               s->cluster_proto_gen >= 20) {
+        err("cluster_proto_gen=%u requires the slice lifecycle region (MXFS_FORMAT_F_SLIFE) but the super does not carry it",
+            s->cluster_proto_gen);
+    }
+
+    /* sess466: directory sharding (docs/dir-sharding.md).  Optional on a
+     * gen 18+ format: mkfs sets MXFS_FORMAT_F_DIRSHARD only when asked
+     * (mkfs.mxfs -D), and a format without it simply has sharding off.  The
+     * XFS sb incompat bit 29 must agree with it (checked against the sb once
+     * the geometry is read), and a sharded inode on a device without both
+     * gates is an error (check_dirshard).  No region of its own. */
+    if ((s->flags & MXFS_FORMAT_F_DIRSHARD) &&
+        (s->flags & MXFS_FORMAT_F_PROTOGATE) && s->cluster_proto_gen < 18)
+        err("MXFS_FORMAT_F_DIRSHARD set on cluster_proto_gen=%u (< 18): flag without the protocol that understands it",
+            s->cluster_proto_gen);
+
+    /* The cluster name (MXFS_FORMAT_F_CLUSTER_NAME): with the flag the field
+     * holds a valid name the mount checks; without it the field is zero, so
+     * a name can never be half-set. */
+    {
+        char name[MXFS_CLUSTER_NAME_LEN + 1];
+
+        memcpy(name, s->cluster_name, MXFS_CLUSTER_NAME_LEN);
+        name[MXFS_CLUSTER_NAME_LEN] = '\0';
+        if (s->flags & MXFS_FORMAT_F_CLUSTER_NAME) {
+            if (!mxfs_cluster_name_valid(name))
+                err("cluster name flag set but the name field is not a valid name");
+            else
+                info("cluster name: %s", name);
+        } else {
+            int i, nz = 0;
+
+            for (i = 0; i < MXFS_CLUSTER_NAME_LEN; i++)
+                nz |= s->cluster_name[i];
+            if (nz)
+                err("cluster name field is not zero but MXFS_FORMAT_F_CLUSTER_NAME is clear");
+            else
+                info("cluster name: (none)");
+        }
+    }
+
     /* Region non-overlapping checks:
-     * Expected layout: [super 4KB] [journal] [disklock] [XFS data]
+     * Expected layout: [super 4KB] [journal] [disklock] [rman] [XFS data]
      * Check each pair for overlap.
      */
     {
@@ -507,7 +685,8 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
             const char *name;
             uint64_t start;
             uint64_t end;
-        } regions[4];
+        } regions[8];
+        int nreg = 4;
 
         regions[0].name = "super";
         regions[0].start = 0;
@@ -525,8 +704,39 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
         regions[3].start = s->xfs_data_offset;
         regions[3].end = s->xfs_data_offset + s->xfs_data_size;
 
-        for (int i = 0; i < 4; i++) {
-            for (int j = i + 1; j < 4; j++) {
+        if (s->flags & MXFS_FORMAT_F_RMAN) {
+            regions[nreg].name = "rman";
+            regions[nreg].start = s->rman_offset;
+            regions[nreg].end = s->rman_offset + s->rman_size;
+            nreg++;
+        }
+        if (s->flags & MXFS_FORMAT_F_TAUTH) {
+            regions[nreg].name = "tauth";
+            regions[nreg].start = s->tauth_offset;
+            regions[nreg].end = s->tauth_offset + s->tauth_size;
+            nreg++;
+        }
+        if (s->flags & MXFS_FORMAT_F_PRKEY64) {
+            regions[nreg].name = "prkey";
+            regions[nreg].start = s->prkey_offset;
+            regions[nreg].end = s->prkey_offset + s->prkey_size;
+            nreg++;
+        }
+        if (s->flags & MXFS_FORMAT_F_BOOTSTRAP) {
+            regions[nreg].name = "bootstrap";
+            regions[nreg].start = s->bootstrap_offset;
+            regions[nreg].end = s->bootstrap_offset + s->bootstrap_size;
+            nreg++;
+        }
+        if (s->flags & MXFS_FORMAT_F_SLIFE) {
+            regions[nreg].name = "slife";
+            regions[nreg].start = s->slife_offset;
+            regions[nreg].end = s->slife_offset + s->slife_size;
+            nreg++;
+        }
+
+        for (int i = 0; i < nreg; i++) {
+            for (int j = i + 1; j < nreg; j++) {
                 if (regions[i].start < regions[j].end &&
                     regions[j].start < regions[i].end) {
                     err("regions overlap: %s [%llu..%llu) and %s [%llu..%llu)",
@@ -549,9 +759,957 @@ static int check_mxfs_super(int fd, struct mxfs_ondisk_super *super)
            errors == 0 ? "OK" : "ERRORS", s->version, sizebuf);
     info("journal_offset=%llu", (unsigned long long)s->journal_offset);
     info("disklock_offset=%llu", (unsigned long long)s->disklock_offset);
+    if (s->flags & MXFS_FORMAT_F_RMAN)
+        info("rman_offset=%llu size=%llu", (unsigned long long)s->rman_offset,
+             (unsigned long long)s->rman_size);
+    if (s->flags & MXFS_FORMAT_F_TAUTH)
+        info("tauth_offset=%llu size=%llu", (unsigned long long)s->tauth_offset,
+             (unsigned long long)s->tauth_size);
+    if (s->flags & MXFS_FORMAT_F_PRKEY64)
+        info("prkey_offset=%llu size=%llu (%llu registrant entries)",
+             (unsigned long long)s->prkey_offset,
+             (unsigned long long)s->prkey_size,
+             (unsigned long long)(s->prkey_size / MXFS_PRLEDGER_ENTRY_BYTES));
+    if (s->flags & MXFS_FORMAT_F_BOOTSTRAP)
+        info("bootstrap_offset=%llu size=%llu",
+             (unsigned long long)s->bootstrap_offset,
+             (unsigned long long)s->bootstrap_size);
+    if (s->flags & MXFS_FORMAT_F_SLIFE)
+        info("slife_offset=%llu size=%llu (%u slice lifecycle records live)",
+             (unsigned long long)s->slife_offset,
+             (unsigned long long)s->slife_size, s->xfs_log_node_count);
     info("xfs_data_offset=%llu", (unsigned long long)s->xfs_data_offset);
 
     return 0;
+}
+
+/* ─── Check: TCP authority ledger region (sess421) ───
+ *
+ * Every page must have at least one valid committed copy: a page with none
+ * makes every resource on it UNKNOWN (never FREE), which the authority
+ * code fails closed on — an operator must see it here first.  A page with
+ * exactly one valid copy is normal after a crash mid-write (the shadow
+ * design's whole point) and is reported, not counted as an error. */
+/* sess428 (docs/tauth-view-table.md §13, build step 1): the control pages —
+ * view slots A/B and the ROOT.  The root must validate (fs identity, crc,
+ * zero pads, the 3584 B page tail zero); with gen 0 each slot is empty or a
+ * gen-1 proposal; with a committed gen the named slot must carry exactly
+ * {gen, digest} and the other slot must be empty, older, or the gen+1
+ * proposal chained to it.  Anything else is a control-page error: the
+ * membership barrier fails closed on it, so the operator sees it here. */
+static const char *tview_errname(int rc)
+{
+    switch (rc) {
+    case MXFS_TVIEW_OK:         return "ok";
+    case MXFS_TVIEW_E_MAGIC:    return "magic";
+    case MXFS_TVIEW_E_VERSION:  return "version";
+    case MXFS_TVIEW_E_COUNT:    return "count";
+    case MXFS_TVIEW_E_GEN:      return "gen";
+    case MXFS_TVIEW_E_PREV:     return "prev";
+    case MXFS_TVIEW_E_IDENTITY: return "identity";
+    case MXFS_TVIEW_E_PAD:      return "pad";
+    case MXFS_TVIEW_E_MEMBERS:  return "members";
+    case MXFS_TVIEW_E_REMOVED:  return "removed";
+    case MXFS_TVIEW_E_DIGEST:   return "digest";
+    case MXFS_TVIEW_E_CRC:      return "crc";
+    case MXFS_TVIEW_E_SLOT:     return "slot";
+    case MXFS_TVIEW_E_BALLOT:   return "ballot";
+    case MXFS_TVIEW_E_TAIL:     return "tail";
+    default:                    return "?";
+    }
+}
+
+static void check_tauth_ctrl(int fd, const struct mxfs_ondisk_super *s, uint32_t fs_gen)
+{
+    uint8_t *rpage;
+    struct mxfs_tauth_view *va, *vb;
+    const struct mxfs_tauth_view *committed = NULL;
+    int other = 0, rc, rrc, ra, rb;
+
+    rpage = calloc(1, MXFS_TAUTH_PAGE_BYTES);
+    va = calloc(1, sizeof(*va));
+    vb = calloc(1, sizeof(*vb));
+    if (!rpage || !va || !vb) {
+        err("out of memory checking the authority ledger control pages");
+        free(rpage); free(va); free(vb);
+        return;
+    }
+    if (read_at(fd, rpage, MXFS_TAUTH_PAGE_BYTES,
+                s->tauth_offset + mxfs_tauth_ctrl_off(MXFS_TAUTH_CTRL_ROOT)) < 0 ||
+        read_at(fd, va, sizeof(*va),
+                s->tauth_offset + mxfs_tauth_ctrl_off(MXFS_TAUTH_CTRL_VIEW_A)) < 0 ||
+        read_at(fd, vb, sizeof(*vb),
+                s->tauth_offset + mxfs_tauth_ctrl_off(MXFS_TAUTH_CTRL_VIEW_B)) < 0) {
+        err("authority ledger control pages: read failed");
+        free(rpage); free(va); free(vb);
+        return;
+    }
+    rrc = mxfs_tauth_root_validate(rpage, MXFS_TAUTH_PAGE_BYTES, fs_gen, s->fs_uuid, crc32c);
+    ra = mxfs_tauth_view_validate(va, fs_gen, s->fs_uuid, crc32c);
+    rb = mxfs_tauth_view_validate(vb, fs_gen, s->fs_uuid, crc32c);
+    rc = rrc ? rrc : mxfs_tauth_ctrl_validate((const struct mxfs_tauth_root *)rpage,
+                                              va, vb, fs_gen, s->fs_uuid, crc32c,
+                                              &committed, &other);
+    if (rc) {
+        const struct mxfs_tauth_root *root = (const struct mxfs_tauth_root *)rpage;
+
+        err("authority ledger control pages: %s (root=%s gen=%llu slot=%u ballot=%llu; A=%s gen=%llu; B=%s gen=%llu)",
+            tview_errname(rc), tview_errname(rrc), (unsigned long long)root->gen,
+            (unsigned)root->slot, (unsigned long long)root->coord_ballot,
+            tview_errname(ra), (unsigned long long)va->gen,
+            tview_errname(rb), (unsigned long long)vb->gen);
+    } else {
+        const struct mxfs_tauth_root *root = (const struct mxfs_tauth_root *)rpage;
+
+        printf("TCP authority view ...... OK  (gen=%llu slot=%s members=%u removed=%u ballot=%llu coord=%u other=%s)\n",
+               (unsigned long long)root->gen,
+               root->gen == 0 ? "none" : (root->slot == MXFS_TAUTH_CTRL_VIEW_A ? "A" : "B"),
+               committed ? committed->count : 0,
+               committed ? committed->nremoved : 0,
+               (unsigned long long)root->coord_ballot, root->coord_node,
+               other == 0 ? "empty" : (other == 1 ? "older" : "proposal"));
+    }
+    free(rpage); free(va); free(vb);
+}
+
+/*
+ * sess438: the PR REGISTRANT LEDGER region (dlm/prledger.h).  One 512-byte
+ * entry per registrant; crc32c(~0, entry with crc=0) folded with the index.
+ * Prints every non-FREE entry and validates its crc.  A PREPARED/REGISTERED
+ * entry is a key the target may still hold (PTPL) for a host boot that has
+ * not retired it; an operator reading this after a whole-cluster outage sees
+ * exactly which boots' keys are outstanding.
+ */
+static void hex_uuid(const uint8_t *u, char out[37]);
+
+struct chk_prledger_entry {
+    uint32_t magic; uint16_t ver; uint16_t state;
+    uint32_t key_gen; uint32_t node_id;
+    uint64_t pr_key;
+    uint8_t host_uuid[16]; uint8_t boot_uuid[16]; uint8_t fs_uuid[16];
+    uint64_t stamp_ms; uint64_t seq;
+    uint32_t host_src; uint32_t fenced_by; uint32_t crc32c;
+    uint32_t succ_pad0;
+    uint64_t succ_old_key; uint32_t succ_old_key_gen; uint32_t succ_pad;
+    uint8_t succ_old_boot[16];          /* sess439 self-succession */
+    uint8_t reserved[376];
+};
+_Static_assert(sizeof(struct chk_prledger_entry) == 512, "prledger entry");
+#define MXFS_PRLEDGER_MAGIC_C   0x4B50584Du
+
+static const char *prl_state(uint16_t st)
+{
+    switch (st) {
+    case 0: return "FREE"; case 1: return "PREPARED"; case 2: return "REGISTERED";
+    case 3: return "RETIRED"; case 4: return "FENCED"; default: return "?";
+    }
+}
+
+/*
+ * sess439: the WHOLE-CLUSTER BOOTSTRAP RECORD (dlm/bootstrap.h).  One
+ * 512-byte CAW-written record; mkfs writes it IDLE.  Validates magic/version/
+ * crc, prints state, term, owner and the sealed/complete bitmaps — after a
+ * total outage this is where an operator sees whether a bootstrap recovery
+ * is claimed, sealed, in progress or complete, and by which host boot.
+ */
+struct chk_bootstrap_rec {
+    uint32_t magic; uint16_t ver; uint16_t state;
+    uint64_t term; uint64_t seq; uint64_t stamp_ms;
+    uint32_t owner_node; uint32_t owner_key_gen;
+    uint64_t owner_epoch; uint64_t owner_pr_key; uint64_t owner_nonce;
+    uint8_t owner_host_uuid[16]; uint8_t owner_boot_uuid[16];
+    uint8_t fs_uuid[16];
+    uint32_t fs_gen; uint32_t host_src;
+    uint64_t victim_bitmap; uint64_t complete_bitmap;
+    uint64_t ledger_gen; uint64_t manifest_hash;
+    uint32_t registrants; uint32_t registrants_done;
+    uint64_t claim_stamp_ms; uint64_t seal_stamp_ms; uint64_t complete_stamp_ms;
+    uint32_t prev_owner_node; uint32_t prev_fence_kind;
+    uint64_t prev_owner_epoch; uint64_t prev_owner_pr_key;
+    uint32_t crc32c;
+    uint32_t refused_slot; uint32_t refused_reason;    /* sess440 v2 */
+    uint32_t escrow_pad;                               /* sess441 v3 */
+    struct {
+        uint8_t state; uint8_t cls; uint16_t slot;
+        uint32_t victim_node;
+        uint64_t victim_epoch; uint64_t victim_key;
+        uint32_t victim_key_gen; uint32_t old_sector_crc;
+        uint8_t victim_host[16]; uint8_t victim_boot[16];
+        uint8_t desc[120];
+        uint64_t claim_epoch; uint32_t claim_node; int32_t replay_rc;
+        uint8_t mptr[64];                              /* sess442 */
+    } escrow;
+    uint64_t episode_term; uint16_t lineage_count; uint16_t takeover_gen; /* sess443 v5 */
+    uint8_t reserved[12];
+};
+_Static_assert(sizeof(struct chk_bootstrap_rec) == 512, "bootstrap record");
+
+/* sess443 (docs/whole-cluster-restart.md §6.8): the region's other sectors. */
+#define CHK_BOOT_SEC_TAKEOVER   31
+#define CHK_BOOT_SEC_TOMB       32
+#define CHK_BOOT_SEC_LINEAGE    40
+#define CHK_BOOT_TOMB_MAGIC     0x4254584Du
+#define CHK_BOOT_LIN_MAGIC      0x4C42584Du
+#define CHK_BOOT_TK_MAGIC       0x4B42584Du
+struct chk_bootstrap_tomb {
+    uint32_t magic; uint8_t kind; uint8_t stage; uint16_t slot;
+    uint32_t victim_node; uint32_t victim_key_gen;
+    uint64_t victim_epoch; uint64_t victim_key; uint64_t term;
+    uint32_t obligation; uint32_t proof_crc; uint64_t source_term;
+    uint32_t pad; uint32_t crc32c;
+};
+_Static_assert(sizeof(struct chk_bootstrap_tomb) == 64, "tombstone");
+struct chk_bootstrap_lineage {
+    uint32_t magic; uint16_t ver; uint16_t idx;
+    uint64_t term; uint64_t episode_term;
+    uint32_t owner_node; uint32_t owner_key_gen;
+    uint64_t owner_epoch; uint64_t owner_pr_key;
+    uint8_t owner_host_uuid[16]; uint8_t owner_boot_uuid[16];
+    uint64_t manifest_hash; uint64_t victim_bitmap; uint64_t complete_bitmap;
+    uint32_t fence_kind; uint32_t fence_pr_gen;
+    uint16_t state; uint16_t pad16; uint32_t crc32c;
+    uint8_t escrow[264];
+    uint8_t reserved[128];
+};
+_Static_assert(sizeof(struct chk_bootstrap_lineage) == 512, "lineage entry");
+struct chk_bootstrap_takeover {
+    uint32_t magic; uint16_t ver; uint16_t stage;
+    uint64_t seq; uint64_t stamp_ms; uint64_t nonce;
+    uint64_t target_term; uint64_t target_nonce; uint64_t target_seq;
+    uint16_t target_state; uint16_t pad16;
+    uint32_t old_fence_kind; uint32_t old_fence_pr_gen;
+    uint32_t pred_fence_kind; uint32_t pred_fence_pr_gen;
+    uint32_t k_desc_crc; uint16_t k_slot; uint16_t pad16b; uint32_t crc32c;
+    struct { uint32_t node_id, key_gen; uint64_t epoch, pr_key; uint8_t host[16], boot[16]; } owner, us, pred;
+    uint8_t reserved[256];
+};
+_Static_assert(sizeof(struct chk_bootstrap_takeover) == 512, "takeover journal");
+static const char *bs_tk_stage(uint16_t st)
+{
+    switch (st) {
+    case 0: return "EMPTY"; case 1: return "CONTENDER";
+    case 2: return "OLD_FENCE_INTENT"; case 3: return "OLD_FENCE_DONE";
+    case 4: return "K_DESC_DONE"; case 5: return "CAPSULE_WRITTEN";
+    case 6: return "RECORD_COMMITTED"; default: return "?";
+    }
+}
+static const char *bs_escrow_name(uint8_t st)
+{
+    switch (st) {
+    case 0: return "NONE";
+    case 1: return "PREPARED";
+    case 2: return "K_CLAIMED";
+    case 3: return "K_REPLAY_OK";
+    case 4: return "K_REPLAY_REFUSED";
+    default: return "?";
+    }
+}
+#define MXFS_BOOTSTRAP_MAGIC_C  0x5342584Du
+
+static const char *bs_state(uint16_t st)
+{
+    switch (st) {
+    case 0: return "IDLE";
+    case 1: return "CLAIMED";
+    case 2: return "MANIFEST_SEALED";
+    case 3: return "RECOVERING";
+    case 4: return "RECOVERY_COMPLETE";
+    case 5: return "REFUSED";
+    default: return "?";
+    }
+}
+
+static void check_bootstrap(int fd, const struct mxfs_ondisk_super *s)
+{
+    struct chk_bootstrap_rec r, t;
+    char hu[37], bu[37], fu[37];
+    uint32_t c;
+
+    if (!(s->flags & MXFS_FORMAT_F_BOOTSTRAP))
+        return;
+    if (read_at(fd, &r, sizeof(r), (off_t)s->bootstrap_offset) < 0) {
+        err("bootstrap record: read failed");
+        return;
+    }
+    if (r.magic == 0) {
+        err("bootstrap record: UNFORMATTED (magic 0) — mkfs never wrote it; the kernel fails closed on this");
+        return;
+    }
+    if (r.magic != MXFS_BOOTSTRAP_MAGIC_C || r.ver != 5) {
+        err("bootstrap record: magic 0x%08x ver %u (this build reads v5)", r.magic, r.ver);
+        return;
+    }
+    t = r;
+    t.crc32c = 0;
+    c = crc32c(~0U, &t, sizeof(t));
+    if (c != r.crc32c || r.state > 5 || (r.state != 0 && r.owner_node == 0)) {
+        err("bootstrap record: crc expected 0x%08X got 0x%08X state=%u owner=%u",
+            c, r.crc32c, r.state, r.owner_node);
+        return;
+    }
+    if (memcmp(r.fs_uuid, s->fs_uuid, 16) != 0) {
+        hex_uuid(r.fs_uuid, fu);
+        err("bootstrap record: fs_uuid %s is not this volume's", fu);
+        return;
+    }
+    hex_uuid(r.owner_host_uuid, hu);
+    hex_uuid(r.owner_boot_uuid, bu);
+    info("bootstrap: %s term=%llu seq=%llu owner=%u/%llu key=0x%llx gen=%u host=%s boot=%s victims=0x%016llx complete=0x%016llx registrants=%u/%u prev=%u/%llu kind=%u",
+         bs_state(r.state), (unsigned long long)r.term,
+         (unsigned long long)r.seq, r.owner_node,
+         (unsigned long long)r.owner_epoch,
+         (unsigned long long)r.owner_pr_key, r.owner_key_gen,
+         r.state ? hu : "-", r.state ? bu : "-",
+         (unsigned long long)r.victim_bitmap,
+         (unsigned long long)r.complete_bitmap,
+         r.registrants_done, r.registrants, r.prev_owner_node,
+         (unsigned long long)r.prev_owner_epoch, r.prev_fence_kind);
+    if (r.escrow.state != 0) {
+        char vh[37], vb[37];
+
+        hex_uuid(r.escrow.victim_host, vh);
+        hex_uuid(r.escrow.victim_boot, vb);
+        info("bootstrap escrow: %s K=%u cls=%u victim=%u/%llu key=0x%llx gen=%u host=%s boot=%s old_crc=0x%08x claim=%u/%llu replay_rc=%d",
+             bs_escrow_name(r.escrow.state), r.escrow.slot, r.escrow.cls,
+             r.escrow.victim_node, (unsigned long long)r.escrow.victim_epoch,
+             (unsigned long long)r.escrow.victim_key, r.escrow.victim_key_gen,
+             vh, vb, r.escrow.old_sector_crc, r.escrow.claim_node,
+             (unsigned long long)r.escrow.claim_epoch, r.escrow.replay_rc);
+    }
+    /* sess443 (§6.8): episode, lineage, tombstones, takeover journal */
+    info("bootstrap episode: term=%llu lineage=%u takeover_gen=%u",
+         (unsigned long long)r.episode_term, r.lineage_count, r.takeover_gen);
+    {
+        struct chk_bootstrap_lineage l, lt;
+        struct chk_bootstrap_tomb tb[8];
+        struct chk_bootstrap_takeover tk, tkt;
+        unsigned int i, k, ntomb = 0, ndirect = 0, ninh = 0, nbad = 0;
+
+        for (i = 0; i < r.lineage_count && i < 8; i++) {
+            if (read_at(fd, &l, sizeof(l), (off_t)(s->bootstrap_offset +
+                        (uint64_t)(CHK_BOOT_SEC_LINEAGE + i) * 512)) < 0)
+                break;
+            lt = l; lt.crc32c = 0;
+            if (l.magic != CHK_BOOT_LIN_MAGIC || l.idx != i ||
+                crc32c(~0U, &lt, sizeof(lt)) != l.crc32c) {
+                err("bootstrap lineage[%u]: invalid (magic 0x%08x idx %u)", i, l.magic, l.idx);
+                continue;
+            }
+            info("bootstrap lineage[%u]: term=%llu owner=%u/%llu key=0x%llx state=%s manifest=0x%016llx victims=0x%016llx complete=0x%016llx fence=%u escrow=%s K=%u",
+                 i, (unsigned long long)l.term, l.owner_node,
+                 (unsigned long long)l.owner_epoch,
+                 (unsigned long long)l.owner_pr_key, bs_state(l.state),
+                 (unsigned long long)l.manifest_hash,
+                 (unsigned long long)l.victim_bitmap,
+                 (unsigned long long)l.complete_bitmap, l.fence_kind,
+                 bs_escrow_name(l.escrow[0]), l.escrow[2] | (l.escrow[3] << 8));
+        }
+        for (i = 0; i < 8; i++) {
+            if (read_at(fd, tb, sizeof(tb), (off_t)(s->bootstrap_offset +
+                        (uint64_t)(CHK_BOOT_SEC_TOMB + i) * 512)) < 0)
+                break;
+            for (k = 0; k < 8; k++) {
+                struct chk_bootstrap_tomb t = tb[k];
+                uint32_t want;
+
+                if (t.magic != CHK_BOOT_TOMB_MAGIC)
+                    continue;
+                t.crc32c = 0;
+                want = crc32c(~0U, &t, sizeof(t));
+                if (want != tb[k].crc32c || tb[k].slot != i * 8 + k) {
+                    nbad++;
+                    continue;
+                }
+                if (tb[k].term < r.episode_term)
+                    continue;               /* an older episode's */
+                ntomb++;
+                if (tb[k].kind == 1) ndirect++; else ninh++;
+                if (verbose)
+                    info("bootstrap tombstone: slot=%u kind=%s victim=%u/%llu key=0x%llx term=%llu obligation=0x%08x proof=0x%08x source_term=%llu",
+                         tb[k].slot, tb[k].kind == 1 ? "DIRECT" : tb[k].kind == 2 ? "INHERITED" : "?",
+                         tb[k].victim_node, (unsigned long long)tb[k].victim_epoch,
+                         (unsigned long long)tb[k].victim_key,
+                         (unsigned long long)tb[k].term, tb[k].obligation,
+                         tb[k].proof_crc, (unsigned long long)tb[k].source_term);
+            }
+        }
+        info("bootstrap tombstones: %u this episode (direct=%u inherited=%u) invalid=%u",
+             ntomb, ndirect, ninh, nbad);
+        if (r.state != 0 && r.state != 4) {
+            unsigned int missing = 0;
+
+            for (k = 0; k < 64; k++)
+                if ((r.complete_bitmap >> k) & 1) {
+                    /* every set bit needs a tombstone of this episode */
+                    unsigned int si = k / 8, sk = k % 8;
+
+                    if (read_at(fd, tb, sizeof(tb), (off_t)(s->bootstrap_offset +
+                                (uint64_t)(CHK_BOOT_SEC_TOMB + si) * 512)) < 0 ||
+                        tb[sk].magic != CHK_BOOT_TOMB_MAGIC || tb[sk].slot != k ||
+                        tb[sk].term < r.episode_term)
+                        missing++;
+                }
+            if (missing)
+                err("bootstrap: %u completion bit(s) carry no tombstone of this episode — a takeover would refuse them (INHERITANCE_UNPROVEN)", missing);
+        }
+        if (read_at(fd, &tk, sizeof(tk), (off_t)(s->bootstrap_offset +
+                    (uint64_t)CHK_BOOT_SEC_TAKEOVER * 512)) == 0) {
+            tkt = tk; tkt.crc32c = 0;
+            if (tk.magic == CHK_BOOT_TK_MAGIC &&
+                crc32c(~0U, &tkt, sizeof(tkt)) == tk.crc32c)
+                info("bootstrap takeover journal: %s seq=%llu target term=%llu state=%s owner=%u/%llu key=0x%llx contender=%u/%llu key=0x%llx pred=%u/%llu key=0x%llx old_fence=%u/%u pred_fence=%u/%u K=%u",
+                     bs_tk_stage(tk.stage), (unsigned long long)tk.seq,
+                     (unsigned long long)tk.target_term, bs_state(tk.target_state),
+                     tk.owner.node_id, (unsigned long long)tk.owner.epoch,
+                     (unsigned long long)tk.owner.pr_key,
+                     tk.us.node_id, (unsigned long long)tk.us.epoch,
+                     (unsigned long long)tk.us.pr_key,
+                     tk.pred.node_id, (unsigned long long)tk.pred.epoch,
+                     (unsigned long long)tk.pred.pr_key,
+                     tk.old_fence_kind, tk.old_fence_pr_gen,
+                     tk.pred_fence_kind, tk.pred_fence_pr_gen, tk.k_slot);
+            else if (tk.magic != 0)
+                err("bootstrap takeover journal: invalid (magic 0x%08x)", tk.magic);
+        }
+    }
+    if (r.state == 5)
+        err("bootstrap: REFUSED slot=%u reason=%u (1=terminal slice, 2=unclassified key, 3=fence unproven, 4=reconcile, 5=inheritance unproven) — a sealed victim could not be recovered; ACTIVE admission stays refused until the named verdict is repaired and the record is cleared",
+            r.refused_slot, r.refused_reason);
+    else if (r.state != 0 && r.state != 4)
+        info("bootstrap: WARNING a recovery is claimed (%s) — ACTIVE admission is refused until it completes",
+             bs_state(r.state));
+}
+
+/*
+ * 0.88.0: the SLICE LIFECYCLE records (mxfs_super.h, struct
+ * mxfs_slife_record; D-SLICE-CLAIM-TIME-INIT-UNTRUSTED-ZERO-531).  One per
+ * log slice.  INIT_REQUIRED means mkfs wrote it and no node has claimed the
+ * slot yet: the payload is whatever the format's userspace zero left, which
+ * the kernel treats as untrusted.  ZEROING means a claimant started the FUA
+ * zero and did not persist READY — a crash there, or a target that refused
+ * to persist the zero; the next claimant restarts the whole zero.  READY
+ * means the payload was zeroed through the kernel FUA path and read back,
+ * and the slice has been (or may be) journaled into by this incarnation.
+ * A record that is missing, malformed or another volume's is an error: the
+ * kernel refuses to mount that slot on it.
+ */
+static const char *slife_state(uint32_t s)
+{
+    switch (s) {
+    case MXFS_SLIFE_INIT_REQUIRED: return "INIT_REQUIRED";
+    case MXFS_SLIFE_ZEROING:       return "ZEROING";
+    case MXFS_SLIFE_READY:         return "READY";
+    default:                       return "?";
+    }
+}
+
+static void check_slife(int fd, const struct mxfs_ondisk_super *s)
+{
+    struct mxfs_slife_record r, t;
+    uint32_t i, c, n_init = 0, n_zeroing = 0, n_ready = 0, n_bad = 0;
+    char fu[37];
+
+    if (!(s->flags & MXFS_FORMAT_F_SLIFE))
+        return;
+    for (i = 0; i < s->xfs_log_node_count; i++) {
+        off_t off = (off_t)(s->slife_offset + (uint64_t)i * MXFS_SLIFE_RECORD_SIZE);
+
+        if (read_at(fd, &r, sizeof(r), off) < 0) {
+            err("slice lifecycle[%u]: read failed", i);
+            n_bad++;
+            continue;
+        }
+        if (r.magic == 0) {
+            err("slice lifecycle[%u]: UNFORMATTED (magic 0) — mkfs never wrote it; the kernel refuses to mount slot %u", i, i);
+            n_bad++;
+            continue;
+        }
+        t = r;
+        t.crc = 0;
+        c = crc32c(~0U, &t, sizeof(t));
+        if (r.magic != MXFS_SLIFE_MAGIC || r.version != MXFS_SLIFE_VERSION ||
+            r.slice != i || r.state < MXFS_SLIFE_INIT_REQUIRED ||
+            r.state > MXFS_SLIFE_READY || c != r.crc) {
+            err("slice lifecycle[%u]: invalid (magic 0x%08x ver %u slice %u state %u crc 0x%08x want 0x%08x)",
+                i, r.magic, r.version, r.slice, r.state, r.crc, c);
+            n_bad++;
+            continue;
+        }
+        if (memcmp(r.fs_uuid, s->fs_uuid, 16) != 0) {
+            hex_uuid(r.fs_uuid, fu);
+            err("slice lifecycle[%u]: fs_uuid %s is not this volume's", i, fu);
+            n_bad++;
+            continue;
+        }
+        switch (r.state) {
+        case MXFS_SLIFE_INIT_REQUIRED: n_init++; break;
+        case MXFS_SLIFE_ZEROING:       n_zeroing++; break;
+        default:                       n_ready++; break;
+        }
+        if (verbose || r.state == MXFS_SLIFE_ZEROING)
+            info("slice lifecycle[%u]: %s gen=%u owner=%llu/%llu when_ms=%llu",
+                 i, slife_state(r.state), r.generation,
+                 (unsigned long long)r.owner_node,
+                 (unsigned long long)r.owner_epoch,
+                 (unsigned long long)r.when_ms);
+    }
+    printf("Slice lifecycle ......... %s  (%u slices: %u INIT_REQUIRED, %u ZEROING, %u READY, %u invalid)\n",
+           n_bad == 0 ? "OK" : "ERRORS", s->xfs_log_node_count,
+           n_init, n_zeroing, n_ready, n_bad);
+    if (n_zeroing)
+        info("slice lifecycle: %u slice(s) ZEROING — a claimant's zero did not reach READY; the slot's next claimant restarts it", n_zeroing);
+}
+
+/*
+ * sess442 (docs/whole-cluster-restart.md §6.6/§6.7): `--clear-bootstrap`.
+ * A whole-cluster bootstrap term that ended REFUSED is terminal for the
+ * kernel: no node can claim, resume or take it over, and ACTIVE admission
+ * stays closed.  Only the operator, having repaired what the refusal names,
+ * may hand the record back to IDLE.  OFFLINE ONLY, and every pre-check fails
+ * closed:
+ *   - the device opens O_EXCL (not mounted here);
+ *   - no ACTIVE heartbeat advances across 3 s (not mounted anywhere);
+ *   - the record validates and is REFUSED (a CLAIMED/SEALED/RECOVERING term
+ *     is somebody's live or resumable claim — never cleared from here; the
+ *     owner resumes it, or a peer takes it over by fencing the owner);
+ *   - a TERMINAL_SLICE refusal names a slot: that sector must no longer
+ *     carry a recovery descriptor (`--accept-quarantine-loss` first), else
+ *     the same verdict refuses the next term on the spot.
+ * What is written: state IDLE, term/seq carried forward (the next claim is
+ * term+1, strictly above every certificate ever minted), the refused owner
+ * recorded in prev_owner_* with prev_fence_kind = 0 (no fence: the operator
+ * cleared it), everything else zeroed, crc sealed.
+ */
+/*
+ * `--bootstrap`: print the whole-cluster bootstrap record and exit.
+ *
+ * Read-only and WITHOUT O_EXCL, deliberately.  The record is exactly what an
+ * operator needs when a mount is refused because a bootstrap term is claimed —
+ * and at that moment the ordinary check cannot be run, because some other node
+ * may still hold the device and the full check wants it to itself.  This one
+ * answers from a mounted node and from an unmounted one.
+ *
+ * The live sectors are read O_DIRECT.  A buffered read of a shared device
+ * returns whatever this node's page cache captured the first time anything
+ * touched it, which on a volume another node is actively writing is an image
+ * of the past presented as the present.  The envelope superblock is mkfs-time
+ * and constant, so it may come through the ordinary fd.
+ *
+ * One machine-readable BOOTSTRAP line first, so a harness can assert on it
+ * without parsing prose, then the escrow detail when there is any.
+ */
+static int do_bootstrap_show(const char *device)
+{
+    struct mxfs_ondisk_super sup;
+    struct chk_bootstrap_rec r, t;
+    uint8_t supbuf[MXFS_SUPER_SIZE];
+    uint8_t *aligned = NULL;
+    char hu[37], bu[37];
+    uint64_t base;
+    uint32_t c;
+    int fd = -1, dfd = -1, rc = 4;
+
+    fd = open(device, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s: %s\n",
+                device, strerror(errno));
+        return 4;
+    }
+    if (read_at(fd, supbuf, MXFS_SUPER_SIZE, 0) < 0) {
+        fprintf(stderr, "chk_mxfs: cannot read the MXFS envelope\n");
+        goto out;
+    }
+    memcpy(&sup, supbuf, sizeof(sup));
+    if (sup.magic != MXFS_FORMAT_MAGIC ||
+        !(sup.flags & MXFS_FORMAT_F_BOOTSTRAP)) {
+        fprintf(stderr, "chk_mxfs: no MXFS envelope with a bootstrap record "
+                "region on %s\n", device);
+        goto out;
+    }
+    dfd = open(device, O_RDONLY | O_DIRECT);
+    if (dfd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s O_DIRECT: %s\n",
+                device, strerror(errno));
+        goto out;
+    }
+    if (posix_memalign((void **)&aligned, 4096, 4096) != 0) {
+        fprintf(stderr, "chk_mxfs: out of memory\n");
+        goto out;
+    }
+    base = sup.bootstrap_offset & ~(uint64_t)4095;
+    if (read_at(dfd, aligned, 4096, (off_t)base) < 0) {
+        fprintf(stderr, "chk_mxfs: cannot read the bootstrap record\n");
+        goto out;
+    }
+    memcpy(&r, aligned + (sup.bootstrap_offset - base), sizeof(r));
+    if (r.magic == 0) {
+        printf("BOOTSTRAP unformatted — mkfs never wrote the record; the "
+               "kernel fails closed on this\n");
+        goto out;
+    }
+    if (r.magic != MXFS_BOOTSTRAP_MAGIC_C || r.ver != 5) {
+        printf("BOOTSTRAP unreadable magic=0x%08x ver=%u (this build reads "
+               "v5)\n", r.magic, r.ver);
+        goto out;
+    }
+    t = r;
+    t.crc32c = 0;
+    c = crc32c(~0U, &t, sizeof(t));
+    hex_uuid(r.owner_host_uuid, hu);
+    hex_uuid(r.owner_boot_uuid, bu);
+    printf("BOOTSTRAP state=%s(%u) term=%llu seq=%llu owner=%u/%llu "
+           "key=0x%016llx key_gen=%u host=%s boot=%s victims=0x%016llx "
+           "complete=0x%016llx registrants=%u/%u escrow=%u K=%u prev=%u/%llu "
+           "prev_kind=%u lineage=%u episode=%llu refused_slot=%u "
+           "refused_reason=%u crc=%s\n",
+           bs_state(r.state), r.state, (unsigned long long)r.term,
+           (unsigned long long)r.seq, r.owner_node,
+           (unsigned long long)r.owner_epoch,
+           (unsigned long long)r.owner_pr_key, r.owner_key_gen,
+           r.state ? hu : "-", r.state ? bu : "-",
+           (unsigned long long)r.victim_bitmap,
+           (unsigned long long)r.complete_bitmap,
+           r.registrants_done, r.registrants, r.escrow.state, r.escrow.slot,
+           r.prev_owner_node, (unsigned long long)r.prev_owner_epoch,
+           r.prev_fence_kind, r.lineage_count,
+           (unsigned long long)r.episode_term, r.refused_slot,
+           r.refused_reason, c == r.crc32c ? "OK" : "BAD");
+    if (r.escrow.state != 0) {
+        char vh[37], vb[37];
+
+        hex_uuid(r.escrow.victim_host, vh);
+        hex_uuid(r.escrow.victim_boot, vb);
+        printf("BOOTSTRAP-ESCROW state=%u K=%u cls=%u victim=%u/%llu "
+               "key=0x%016llx key_gen=%u host=%s boot=%s old_crc=0x%08x "
+               "claim=%u/%llu replay_rc=%d\n",
+               r.escrow.state, r.escrow.slot, r.escrow.cls,
+               r.escrow.victim_node, (unsigned long long)r.escrow.victim_epoch,
+               (unsigned long long)r.escrow.victim_key, r.escrow.victim_key_gen,
+               vh, vb, r.escrow.old_sector_crc, r.escrow.claim_node,
+               (unsigned long long)r.escrow.claim_epoch, r.escrow.replay_rc);
+    }
+    rc = c == r.crc32c ? 0 : 4;
+out:
+    free(aligned);
+    if (dfd >= 0)
+        close(dfd);
+    if (fd >= 0)
+        close(fd);
+    return rc;
+}
+
+static int do_clear_bootstrap(const char *device)
+{
+    struct mxfs_ondisk_super sup;
+    struct chk_bootstrap_rec r, t;
+    uint8_t buf[MXFS_SUPER_SIZE];
+    uint8_t sec[512];
+    uint64_t hb_ts[64], hb_epoch[64];
+    bool hb_active[64];
+    uint32_t slot, nlive = 0, c;
+    int fd, rc;
+    struct hb_hdr {
+        uint32_t magic, flags, node_id, fs_gen;
+        uint64_t timestamp_ms, epoch;
+    } __attribute__((packed)) *h = (void *)sec;
+
+    fd = open(device, O_RDWR | O_EXCL);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s exclusively: %s (is it "
+                "mounted?)\n", device, strerror(errno));
+        return 4;
+    }
+    if (read_at(fd, buf, MXFS_SUPER_SIZE, 0) < 0) {
+        close(fd);
+        return 4;
+    }
+    memcpy(&sup, buf, sizeof(sup));
+    if (sup.magic != MXFS_FORMAT_MAGIC || !(sup.flags & MXFS_FORMAT_F_BOOTSTRAP)) {
+        fprintf(stderr, "clear-bootstrap: no MXFS envelope with a bootstrap "
+                "record region on this device\n");
+        close(fd);
+        return 4;
+    }
+    for (slot = 0; slot < 64; slot++) {
+        hb_active[slot] = false;
+        if (read_at(fd, sec, 512, sup.disklock_offset + (uint64_t)slot * 512) < 0) {
+            close(fd);
+            return 4;
+        }
+        if (h->magic == 0x4D584C4B && h->flags == 1) {
+            hb_active[slot] = true;
+            hb_ts[slot] = h->timestamp_ms;
+            hb_epoch[slot] = h->epoch;
+        }
+    }
+    printf("clear-bootstrap: rechecking heartbeat liveness (3 s)...\n");
+    sleep(3);
+    for (slot = 0; slot < 64; slot++) {
+        if (!hb_active[slot])
+            continue;
+        if (read_at(fd, sec, 512, sup.disklock_offset + (uint64_t)slot * 512) < 0) {
+            close(fd);
+            return 4;
+        }
+        if (h->magic == 0x4D584C4B && h->flags == 1 &&
+            (h->timestamp_ms != hb_ts[slot] || h->epoch != hb_epoch[slot])) {
+            fprintf(stderr, "clear-bootstrap: heartbeat slot %u is LIVE (node "
+                    "%u) — a node still has this filesystem mounted; unmount "
+                    "everywhere first\n", slot, h->node_id);
+            nlive++;
+        }
+    }
+    if (nlive) {
+        close(fd);
+        return 4;
+    }
+    if (read_at(fd, &r, sizeof(r), (off_t)sup.bootstrap_offset) < 0) {
+        close(fd);
+        return 4;
+    }
+    if (r.magic != MXFS_BOOTSTRAP_MAGIC_C || r.ver != 5) {
+        fprintf(stderr, "clear-bootstrap: record magic 0x%08x ver %u — not a "
+                "valid record; nothing written\n", r.magic, r.ver);
+        close(fd);
+        return 4;
+    }
+    t = r;
+    t.crc32c = 0;
+    c = crc32c(~0U, &t, sizeof(t));
+    if (c != r.crc32c || memcmp(r.fs_uuid, sup.fs_uuid, 16) != 0) {
+        fprintf(stderr, "clear-bootstrap: record crc/volume mismatch; nothing "
+                "written\n");
+        close(fd);
+        return 4;
+    }
+    if (r.state != 5) {
+        fprintf(stderr, "clear-bootstrap: record is %s, not REFUSED — %s; "
+                "nothing written\n", bs_state(r.state),
+                r.state == 0 ? "there is nothing to clear" :
+                r.state == 4 ? "the last bootstrap completed; ordinary "
+                               "membership retires it" :
+                "a claimed term belongs to its owner (same-boot resume) or to "
+                "the peer that fences the owner (takeover); an operator may "
+                "not clear it");
+        close(fd);
+        return 4;
+    }
+    if (r.refused_reason == 1 && r.refused_slot < 64) {
+        if (read_at(fd, sec, 512,
+                    sup.disklock_offset + (uint64_t)r.refused_slot * 512) < 0) {
+            close(fd);
+            return 4;
+        }
+        if (h->magic == 0x4D584C4B && h->flags == 3 /* RECOVERY_GUARD */) {
+            fprintf(stderr, "clear-bootstrap: the refusal names slot %u "
+                    "(terminal slice) and that sector still carries a recovery "
+                    "descriptor — the next term would refuse on the same "
+                    "verdict.  Repair it first (--show-quarantine / "
+                    "--accept-quarantine-loss); nothing written\n",
+                    r.refused_slot);
+            close(fd);
+            return 4;
+        }
+    }
+    printf("clear-bootstrap: REFUSED term=%llu owner=%u/%llu key=0x%llx "
+           "slot=%u reason=%u escrow=%s K=%u -> IDLE (term carried forward)\n",
+           (unsigned long long)r.term, r.owner_node,
+           (unsigned long long)r.owner_epoch,
+           (unsigned long long)r.owner_pr_key, r.refused_slot,
+           r.refused_reason, bs_escrow_name(r.escrow.state), r.escrow.slot);
+    t = r;
+    t.state = 0;
+    t.seq = r.seq + 1;
+    t.stamp_ms = 0;
+    t.prev_owner_node = r.owner_node;
+    t.prev_owner_epoch = r.owner_epoch;
+    t.prev_owner_pr_key = r.owner_pr_key;
+    t.prev_fence_kind = 0;              /* operator clear, no fence */
+    t.owner_node = 0;
+    t.owner_key_gen = 0;
+    t.owner_epoch = 0;
+    t.owner_pr_key = 0;
+    t.owner_nonce = 0;
+    memset(t.owner_host_uuid, 0, 16);
+    memset(t.owner_boot_uuid, 0, 16);
+    t.host_src = 0;
+    t.victim_bitmap = 0;
+    t.complete_bitmap = 0;
+    t.ledger_gen = 0;
+    t.manifest_hash = 0;
+    t.registrants = 0;
+    t.registrants_done = 0;
+    t.claim_stamp_ms = 0;
+    t.seal_stamp_ms = 0;
+    t.complete_stamp_ms = 0;
+    t.refused_slot = 0;
+    t.refused_reason = 0;
+    memset(&t.escrow, 0, sizeof(t.escrow));
+    t.episode_term = 0;                 /* sess443: the next claim opens an episode */
+    t.lineage_count = 0;
+    t.takeover_gen = 0;
+    memset(t.reserved, 0, sizeof(t.reserved));
+    t.crc32c = 0;
+    t.crc32c = crc32c(~0U, &t, sizeof(t));
+    /* sess443: a stale takeover journal must not outlive the term it names */
+    memset(sec, 0, sizeof(sec));
+    rc = write_at(fd, sec, 512, (off_t)(sup.bootstrap_offset +
+                                        (uint64_t)CHK_BOOT_SEC_TAKEOVER * 512));
+    if (rc == 0)
+        rc = write_at(fd, &t, sizeof(t), (off_t)sup.bootstrap_offset);
+    if (rc == 0)
+        rc = fsync(fd);
+    if (rc) {
+        fprintf(stderr, "clear-bootstrap: write failed: %s\n", strerror(errno));
+        close(fd);
+        return 4;
+    }
+    if (read_at(fd, &r, sizeof(r), (off_t)sup.bootstrap_offset) < 0 ||
+        memcmp(&r, &t, sizeof(r)) != 0) {
+        fprintf(stderr, "clear-bootstrap: read-back mismatch\n");
+        close(fd);
+        return 4;
+    }
+    close(fd);
+    printf("clear-bootstrap: record is IDLE; the next mount after a total "
+           "outage may claim term %llu\n", (unsigned long long)(t.term + 1));
+    return 0;
+}
+
+static void check_prledger(int fd, const struct mxfs_ondisk_super *s)
+{
+    struct chk_prledger_entry e, t;
+    uint32_t n, i, owned = 0, retired = 0, fenced = 0, bad = 0;
+    int pre_errors = errors;
+
+    if (!(s->flags & MXFS_FORMAT_F_PRKEY64))
+        return;
+    n = (uint32_t)(s->prkey_size / MXFS_PRLEDGER_ENTRY_BYTES);
+    for (i = 0; i < n; i++) {
+        uint32_t c;
+        char host[37], boot[37];
+
+        if (read_at(fd, &e, sizeof(e),
+                    s->prkey_offset + (uint64_t)i * MXFS_PRLEDGER_ENTRY_BYTES) < 0) {
+            err("prledger entry %u: read failed", i);
+            continue;
+        }
+        if (e.magic == 0)
+            continue;
+        if (e.magic != MXFS_PRLEDGER_MAGIC_C) {
+            err("prledger entry %u: magic 0x%08x", i, e.magic);
+            bad++;
+            continue;
+        }
+        t = e;
+        t.crc32c = 0;
+        c = crc32c(~0U, &t, sizeof(t));
+        c = crc32c(c, &i, sizeof(i));
+        if (c != e.crc32c || e.state > 4) {
+            err("prledger entry %u: crc expected 0x%08X got 0x%08X state=%u",
+                i, c, e.crc32c, e.state);
+            bad++;
+            continue;
+        }
+        hex_uuid(e.host_uuid, host);
+        hex_uuid(e.boot_uuid, boot);
+        if (e.state == 1 || e.state == 2)
+            owned++;
+        else if (e.state == 3)
+            retired++;
+        else if (e.state == 4)
+            fenced++;
+        if (verbose || e.state == 1 || e.state == 2)
+            info("prledger entry %u: %s key=0x%llx gen=%u node=%u host=%s "
+                 "boot=%s seq=%llu%s succeeds=0x%llx", i, prl_state(e.state),
+                 (unsigned long long)e.pr_key, e.key_gen, e.node_id, host,
+                 boot, (unsigned long long)e.seq,
+                 e.state == 4 ? " (fenced)" : "",
+                 (unsigned long long)e.succ_old_key);
+    }
+    printf("PR registrant ledger .... %s  (%u entries: %u owned, %u retired, "
+           "%u fenced, %u bad)\n",
+           errors == pre_errors ? "OK" : "ERRORS", n, owned, retired, fenced,
+           bad);
+}
+
+static void check_tauth(int fd, const struct mxfs_ondisk_super *s)
+{
+    struct mxfs_tauth_region_hdr *rh;
+    struct mxfs_tauth_page *pa, *pb;
+    uint32_t fs_gen = mxfs_tauth_fs_gen(s->fs_uuid);
+    uint32_t hdr_ok = 0, two = 0, one = 0, none = 0, p;
+    uint32_t npages = 0;
+    uint64_t hash_seed = 0;
+    uint64_t maxseq = 0;
+    unsigned c;
+
+    if (!(s->flags & MXFS_FORMAT_F_TAUTH))
+        return;
+    rh = calloc(1, sizeof(*rh));
+    pa = calloc(1, sizeof(*pa));
+    pb = calloc(1, sizeof(*pb));
+    if (!rh || !pa || !pb) {
+        err("out of memory checking the authority ledger");
+        free(rh); free(pa); free(pb);
+        return;
+    }
+    for (c = 0; c < MXFS_TAUTH_HDR_COPIES; c++) {
+        if (read_at(fd, rh, sizeof(*rh), s->tauth_offset + mxfs_tauth_hdr_off(c)) < 0)
+            continue;
+        if (mxfs_tauth_region_valid(rh, fs_gen, crc32c) &&
+            memcmp(rh->fs_uuid, s->fs_uuid, 16) == 0) {
+            if (hdr_ok && (rh->npages != npages || rh->hash_seed != hash_seed))
+                err("authority ledger: header copies disagree on geometry (%u/%016llx vs %u/%016llx)",
+                    rh->npages, (unsigned long long)rh->hash_seed,
+                    npages, (unsigned long long)hash_seed);
+            npages = rh->npages;
+            hash_seed = rh->hash_seed;
+            hdr_ok++;
+        }
+    }
+    if (!hdr_ok) {
+        err("authority ledger: no valid region header (unformatted, corrupt, or a pre-v2 format)");
+        free(rh); free(pa); free(pb);
+        return;
+    }
+    if (MXFS_TAUTH_REGION_BYTES_FOR(npages) > s->tauth_size) {
+        err("authority ledger: header geometry (%u pages = %llu bytes) exceeds the envelope region (%llu)",
+            npages, (unsigned long long)MXFS_TAUTH_REGION_BYTES_FOR(npages),
+            (unsigned long long)s->tauth_size);
+        free(rh); free(pa); free(pb);
+        return;
+    }
+    for (p = 0; p < npages; p++) {
+        int va = 0, vb = 0;
+
+        if (read_at(fd, pa, sizeof(*pa),
+                    s->tauth_offset + mxfs_tauth_page_off(npages, p, 0)) == 0)
+            va = mxfs_tauth_page_valid(pa, p, fs_gen, crc32c);
+        if (read_at(fd, pb, sizeof(*pb),
+                    s->tauth_offset + mxfs_tauth_page_off(npages, p, 1)) == 0)
+            vb = mxfs_tauth_page_valid(pb, p, fs_gen, crc32c);
+        if (va && pa->hdr.seq > maxseq)
+            maxseq = pa->hdr.seq;
+        if (vb && pb->hdr.seq > maxseq)
+            maxseq = pb->hdr.seq;
+        if (va && vb)
+            two++;
+        else if (va || vb)
+            one++;
+        else {
+            none++;
+            if (none <= 8)
+                err("authority ledger page %u: NO valid copy — every resource on it is UNKNOWN", p);
+        }
+    }
+    printf("TCP authority ledger .... %s  (hdr_copies=%u pages=%u records=%llu seed=%016llx two=%u one=%u none=%u maxseq=%llu)\n",
+           (hdr_ok && none == 0) ? "OK" : "ERRORS", hdr_ok, npages,
+           (unsigned long long)npages * MXFS_TAUTH_ENTRIES_PER_PAGE,
+           (unsigned long long)hash_seed, two, one, none,
+           (unsigned long long)maxseq);
+    check_tauth_ctrl(fd, s, fs_gen);
+    free(rh); free(pa); free(pb);
 }
 
 /* ─── Check: Journal Region ─── */
@@ -738,12 +1896,13 @@ static uint32_t crc32c_raw(uint32_t crc, const void *data, size_t len)
  */
 #define MXFS_DISKLOCK_FLAG_WITHDRAWN_C       2
 #define MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C  3
+#define MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C  4   /* sess450 */
 
 #define MXFS_RECOV_DESC_OFF_C       40      /* 40B header, then the body union */
 #define MXFS_RECOV_OUTCOME_OFF_C    (MXFS_RECOV_DESC_OFF_C + 120)
 
 #define MXFS_RECOV_DESC_MAGIC_C     0x5643524Du  /* "MRCV" LE */
-#define MXFS_RECOV_DESC_VERSION_C   2
+#define MXFS_RECOV_DESC_VERSION_C   3   /* sess405: SNAPSHOTTING + manifest pointer */
 #define MXFS_RECOV_OUTCOME_MAGIC_C  0x4F435652u  /* "RVCO" LE */
 
 #define MXFS_RECOV_F_QUARANTINED_C  0x00000001u
@@ -752,6 +1911,10 @@ static uint32_t crc32c_raw(uint32_t crc, const void *data, size_t len)
 #define MXFS_RECOV_REFUSAL_POLICY_REFUSED_COMPLETE_C    1u
 #define MXFS_RECOV_REFUSAL_PHYSICALLY_TORN_C            2u
 #define MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE_C   3u
+#define MXFS_RECOV_REFUSAL_AUTHORITY_MUTATED_C          4u  /* sess405 */
+#define MXFS_RECOV_REFUSAL_MANIFEST_INVALID_C           5u  /* sess405 */
+#define MXFS_RECOV_REFUSAL_ASSEMBLY_DISCONTINUITY_C     6u  /* sess412 */
+#define MXFS_RECOV_REFUSAL_INTENTS_UNDISCHARGED_C       8u  /* sess421 */
 #define MXFS_RECOV_DOMAIN_FSWIDE_C      1u
 #define MXFS_RECOV_DOMAIN_AG_MASK_C     2u
 #define MXFS_RECOV_OUTCOME_F_DIGEST_VALID_C  (1u << 0)
@@ -794,6 +1957,94 @@ _Static_assert(sizeof(struct chk_recov_outcome) == 96,
                "chk_recov_outcome must match dlm/disklock.h mxfs_recov_outcome (96B)");
 _Static_assert(offsetof(struct chk_recov_outcome, crc32c) == 92,
                "the outcome crc must remain the last field");
+
+/*
+ * sess462 (D-FOREIGN-SLICE-INTENTS-ABANDONED item 5, increment 2): the
+ * OBLIGATION RECORD at recovery-body byte 280 (sector byte 320) and the
+ * OBLIGATION LIST in the victim's rman slot zone [4 KiB, 64 KiB).  Mirrors
+ * dlm/recov_obl.h byte for byte; the validation here reproduces
+ * mxfs_recov_obl_rec_check / mxfs_rman_obl_hdr_check so the checker and the
+ * kernel can never disagree about what a record IS.
+ */
+#define MXFS_RECOV_OBL_OFF_C        (MXFS_RECOV_DESC_OFF_C + 280)
+#define MXFS_RECOV_OBL_MAGIC_C      0x424F5652u  /* "RVOB" LE */
+#define MXFS_RECOV_OBL_VERSION_C    1
+#define MXFS_RECOV_OBL_F_TERMINAL_C (1u << 0)
+#define MXFS_RECOV_OBL_F_FSWIDE_C   (1u << 1)
+#define MXFS_RECOV_OBL_F_LIST_C     (1u << 2)
+#define MXFS_RECOV_OBL_F_DONE_C     (1u << 3)   /* completion proven + OBLIGATIONS_DONE */
+#define MXFS_RECOV_OBL_F_ALL_C      15u
+/* the completion proof block (dlm/recov_obl_done.h), slot-relative */
+#define MXFS_RMAN_OBL_DONE_OFF_C    57344u  /* 56 KiB */
+#define MXFS_RMAN_OBL_DONE_BYTES_C  4096u
+#define MXFS_RMAN_OBL_DONE_MAGIC_C  0x444F584Du  /* "MXOD" LE */
+#define MXFS_RMAN_OBL_DONE_VERSION_C 1
+#define MXFS_RMAN_OBL_DONE_F_COMMITTED_C (1u << 0)
+#define MXFS_RMAN_OBL_DONE_BITMAP_BYTES_C 384u
+#define MXFS_RMAN_OBL_OFF_C         4096u
+#define MXFS_RMAN_OBL_HDR_BYTES_C   4096u
+#define MXFS_RMAN_OBL_ENTRIES_OFF_C 8192u
+#define MXFS_RECOV_OBL_MAX_EXTENTS_C 3072u
+#define MXFS_RMAN_OBL_MAGIC_C       0x424F584Du  /* "MXOB" LE */
+#define MXFS_RMAN_OBL_VERSION_C     1
+
+struct chk_recov_obl {
+    uint32_t magic; uint16_t version; uint16_t flags;
+    uint64_t obl_ag_mask;
+    uint32_t count; uint32_t list_crc32c;
+    uint64_t census_digest;
+    uint32_t pub_seq; uint32_t crc32c;
+} __attribute__((packed));
+
+struct chk_recov_obl_ext {
+    uint64_t fsbno; uint32_t agno; uint32_t len;
+} __attribute__((packed));
+
+struct chk_rman_obl_hdr {
+    uint32_t magic; uint16_t version; uint16_t flags;
+    uint64_t seq; uint64_t recovery_gen; uint64_t victim_epoch;
+    uint32_t victim_node; uint32_t victim_fs_gen;
+    uint16_t victim_slot; uint16_t slice_idx; uint16_t slice_count;
+    uint16_t entry_bytes;
+    uint32_t count; uint32_t byte_len; uint32_t entries_crc32c;
+    uint32_t publisher_node;
+    uint64_t publisher_epoch;
+    uint32_t publisher_term; uint32_t agcount;
+    uint64_t census_digest; uint64_t obl_ag_mask; uint64_t stamp_ms;
+    uint32_t agblocks; uint32_t hdr_crc32c;
+    uint8_t  pad[MXFS_RMAN_OBL_HDR_BYTES_C - 112];
+} __attribute__((packed));
+
+_Static_assert(sizeof(struct chk_recov_obl) == 40,
+               "chk_recov_obl must match dlm/recov_obl.h mxfs_recov_obl (40B)");
+_Static_assert(offsetof(struct chk_recov_obl, crc32c) == 36,
+               "the obligation record crc must remain the last field");
+_Static_assert(sizeof(struct chk_recov_obl_ext) == 16,
+               "chk_recov_obl_ext must match dlm/recov_obl.h (16B)");
+_Static_assert(sizeof(struct chk_rman_obl_hdr) == 4096 &&
+               offsetof(struct chk_rman_obl_hdr, hdr_crc32c) == 108,
+               "chk_rman_obl_hdr must match dlm/recov_obl.h mxfs_rman_obl_hdr");
+
+struct chk_rman_obl_done {
+    uint32_t magic; uint16_t version; uint16_t flags;
+    uint32_t length; uint32_t rman_slot;
+    uint64_t recovery_gen; uint64_t victim_epoch;
+    uint32_t victim_node; uint32_t victim_fs_gen;
+    uint8_t  fs_uuid[16];
+    uint32_t pub_seq; uint32_t count; uint32_t list_crc32c; uint32_t hdr_crc32c;
+    uint64_t obl_ag_mask;
+    uint32_t n_empty; uint32_t n_full; uint32_t n_sparse; uint32_t owner_term;
+    uint64_t stage_seq; uint64_t rcpt_digest;
+    uint32_t completer_node; uint32_t completer_slot;
+    uint64_t completer_epoch; uint64_t stamp_ms; uint64_t seq;
+    uint8_t  outcome[MXFS_RMAN_OBL_DONE_BITMAP_BYTES_C];
+    uint8_t  pad[MXFS_RMAN_OBL_DONE_BYTES_C - 144 - MXFS_RMAN_OBL_DONE_BITMAP_BYTES_C - 4];
+    uint32_t crc32c;
+} __attribute__((packed));
+_Static_assert(sizeof(struct chk_rman_obl_done) == 4096 &&
+               offsetof(struct chk_rman_obl_done, outcome) == 144 &&
+               offsetof(struct chk_rman_obl_done, crc32c) == 4092,
+               "chk_rman_obl_done must match dlm/recov_obl_done.h mxfs_rman_obl_done");
 
 /* The heartbeat header fields this decoder needs, by name. */
 struct chk_hb_hdr {
@@ -856,11 +2107,396 @@ static const char *chk_refusal_reason_name(uint16_t r)
         return "POLICY_REFUSED_COMPLETE (the replay gate refused every obligation)";
     case MXFS_RECOV_REFUSAL_PHYSICALLY_TORN_C:
         return "PHYSICALLY_TORN (the slice image is unreadable/corrupt)";
+    case 7u:
+        return "DBG_INJECTED (TEST: quarantine published by mxfs.dbg_purge_refreeze — not a real replay verdict; reformat or repair)";
     case MXFS_RECOV_REFUSAL_LEGACY_INTENT_QUARANTINE_C:
         return "LEGACY_INTENT_QUARANTINE (backfilled verdict, inherited)";
+    case MXFS_RECOV_REFUSAL_AUTHORITY_MUTATED_C:
+        return "AUTHORITY_MUTATED (fence-time manifest vs live CAW table mismatch)";
+    case MXFS_RECOV_REFUSAL_MANIFEST_INVALID_C:
+        return "MANIFEST_INVALID (sealed fence-time manifest fails validation)";
+    case MXFS_RECOV_REFUSAL_ASSEMBLY_DISCONTINUITY_C:
+        return "ASSEMBLY_DISCONTINUITY (item assembly crossed an ophdr discontinuity in a stable slice snapshot; not a media tear)";
+    case MXFS_RECOV_REFUSAL_INTENTS_UNDISCHARGED_C:
+        return "INTENTS_UNDISCHARGED (the victim's slice holds intent obligations with no done record; refused before purge, needs repair)";
+    case 9u:
+        return "OBLIGATION_UNRECONCILABLE (an open EFI extent was PARTIALLY free when the custodian examined it, or the mounted geometry/feature bits refuse the completion; refused before purge, needs repair)";
     default:
         return "UNKNOWN";
     }
+}
+
+/*
+ * sess462: decode + print the obligation record of one guard sector.
+ * Returns 1 when a valid record naming a published list (count > 0) was
+ * printed (the caller may then read the list), 0 when there is no record or
+ * it is empty, -1 when the record bytes are present but INVALID (reported
+ * loudly: after IMAGES_REPLAYED the kernel treats that as QUARANTINE, never
+ * as "no obligations").
+ */
+static int chk_print_obl_record(uint32_t slot, const uint8_t *sec,
+                                struct chk_recov_obl *out)
+{
+    const struct chk_hb_hdr *h = (const void *)sec;
+    struct chk_recov_obl ob;
+    uint32_t want;
+    bool present = false;
+    int i;
+
+    memcpy(&ob, sec + MXFS_RECOV_OBL_OFF_C, sizeof(ob));
+    if (out)
+        memset(out, 0, sizeof(*out));
+    for (i = 0; i < (int)sizeof(ob); i++)
+        if (((const uint8_t *)&ob)[i] != 0) { present = true; break; }
+    if (!present) {
+        printf("     obligations       none recorded (record region all zero)\n");
+        return 0;
+    }
+    if (ob.magic != MXFS_RECOV_OBL_MAGIC_C || ob.version != MXFS_RECOV_OBL_VERSION_C) {
+        err("slot %u: obligation record magic/version 0x%08X/%u — INVALID "
+            "(the kernel treats this as QUARANTINE)", slot, ob.magic, ob.version);
+        return -1;
+    }
+    want = chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch, &ob,
+                              offsetof(struct chk_recov_obl, crc32c));
+    if (want != ob.crc32c) {
+        err("slot %u: obligation record CRC 0x%08X != computed 0x%08X — "
+            "INVALID (the kernel treats this as QUARANTINE)", slot,
+            ob.crc32c, want);
+        return -1;
+    }
+    if ((ob.flags & ~MXFS_RECOV_OBL_F_ALL_C) ||
+        ob.count > MXFS_RECOV_OBL_MAX_EXTENTS_C ||
+        (ob.count == 0 && (ob.obl_ag_mask || ob.list_crc32c || ob.pub_seq ||
+                           (ob.flags & (MXFS_RECOV_OBL_F_LIST_C | MXFS_RECOV_OBL_F_FSWIDE_C)))) ||
+        (ob.count && (!(ob.flags & MXFS_RECOV_OBL_F_LIST_C) || ob.pub_seq == 0)) ||
+        (ob.count && (ob.flags & MXFS_RECOV_OBL_F_FSWIDE_C) && ob.obl_ag_mask) ||
+        (ob.count && !(ob.flags & MXFS_RECOV_OBL_F_FSWIDE_C) && !ob.obl_ag_mask)) {
+        err("slot %u: obligation record is structurally inconsistent "
+            "(flags=0x%04X count=%u ag_mask=0x%016llX seq=%u) — INVALID",
+            slot, ob.flags, ob.count, (unsigned long long)ob.obl_ag_mask,
+            ob.pub_seq);
+        return -1;
+    }
+    printf("     obligations       count=%u %s%s ag_mask=0x%016llX seq=%u "
+           "list_crc=0x%08X census=0x%016llX\n",
+           ob.count,
+           (ob.flags & MXFS_RECOV_OBL_F_TERMINAL_C) ?
+               "TERMINAL-EVIDENCE (published next to the verdict; gates nothing)" :
+           (ob.flags & MXFS_RECOV_OBL_F_DONE_C) ?
+               "DONE (every extent completed and proven; nothing owed)" :
+               "OPEN (a completion is owed before the purge)",
+           (ob.flags & MXFS_RECOV_OBL_F_FSWIDE_C) ? " FSWIDE" : "",
+           (unsigned long long)ob.obl_ag_mask, ob.pub_seq, ob.list_crc32c,
+           (unsigned long long)ob.census_digest);
+    if (ob.count && !(ob.flags & MXFS_RECOV_OBL_F_FSWIDE_C)) {
+        printf("                       AGs:");
+        for (i = 0; i < 64; i++)
+            if (ob.obl_ag_mask & (1ULL << i))
+                printf(" %d", i);
+        printf("\n");
+    }
+    if (out)
+        *out = ob;
+    return ob.count ? 1 : 0;
+}
+
+/*
+ * sess462: read + validate + print the obligation LIST a record names, from
+ * the victim's rman slot zone.  `sec` is the guard sector (for the identity
+ * the header must name).  Prints the verdict of every check; never treats a
+ * failed check as "no list".
+ */
+static void chk_print_obl_list(int dfd, uint64_t rman_offset, uint32_t slot,
+                               const uint8_t *sec, const struct chk_recov_obl *ob)
+{
+    const struct chk_hb_hdr *h = (const void *)sec;
+    struct chk_recov_desc d;
+    struct chk_rman_obl_hdr *hdr = NULL;
+    struct chk_recov_obl_ext *ents = NULL;
+    uint64_t base, io_len, mask = 0;
+    uint32_t i, crc;
+    bool fsw = false, ok = true;
+    int pad_i;
+
+    if (!ob || ob->count == 0)
+        return;
+    if (!rman_offset) {
+        err("slot %u: obligation record names a list but the volume has no "
+            "recovery-manifest region — INVALID", slot);
+        return;
+    }
+    memcpy(&d, sec + MXFS_RECOV_DESC_OFF_C, sizeof(d));
+    base = rman_offset + (uint64_t)slot * MXFS_RMAN_SLOT_BYTES + MXFS_RMAN_OBL_OFF_C;
+    if (posix_memalign((void **)&hdr, 4096, MXFS_RMAN_OBL_HDR_BYTES_C) != 0) {
+        err("slot %u: no memory for the obligation list header", slot);
+        return;
+    }
+    if (pread(dfd, hdr, MXFS_RMAN_OBL_HDR_BYTES_C, (off_t)base) !=
+        (ssize_t)MXFS_RMAN_OBL_HDR_BYTES_C) {
+        err("slot %u: obligation list header unreadable at %llu: %s", slot,
+            (unsigned long long)base, strerror(errno));
+        free(hdr);
+        return;
+    }
+    if (hdr->magic != MXFS_RMAN_OBL_MAGIC_C || hdr->version != MXFS_RMAN_OBL_VERSION_C) {
+        err("slot %u: obligation list header magic/version 0x%08X/%u — the "
+            "record names a list that is not there (INVALID => QUARANTINE)",
+            slot, hdr->magic, hdr->version);
+        free(hdr);
+        return;
+    }
+    crc = crc32c_raw(~0U, hdr, offsetof(struct chk_rman_obl_hdr, hdr_crc32c));
+    crc = crc32c_raw(crc, hdr->pad, sizeof(hdr->pad));
+    if (crc != hdr->hdr_crc32c) {
+        err("slot %u: obligation list header CRC 0x%08X != computed 0x%08X — "
+            "INVALID", slot, hdr->hdr_crc32c, crc);
+        ok = false;
+    }
+    for (pad_i = 0; pad_i < (int)sizeof(hdr->pad); pad_i++)
+        if (hdr->pad[pad_i]) { err("slot %u: obligation list header reserved bytes not zero", slot); ok = false; break; }
+    if (hdr->victim_node != h->node_id || hdr->victim_epoch != h->epoch ||
+        hdr->victim_fs_gen != h->fs_gen || hdr->victim_slot != slot ||
+        hdr->recovery_gen != d.recovery_gen) {
+        err("slot %u: obligation list header names another recovery case "
+            "(node=%u epoch=%llu fs_gen=0x%08X slot=%u gen=%llu vs sector "
+            "node=%u epoch=%llu fs_gen=0x%08X gen=%llu) — INVALID", slot,
+            hdr->victim_node, (unsigned long long)hdr->victim_epoch,
+            hdr->victim_fs_gen, hdr->victim_slot,
+            (unsigned long long)hdr->recovery_gen, h->node_id,
+            (unsigned long long)h->epoch, h->fs_gen,
+            (unsigned long long)d.recovery_gen);
+        ok = false;
+    }
+    if (hdr->seq != ob->pub_seq || hdr->count != ob->count ||
+        hdr->entries_crc32c != ob->list_crc32c ||
+        hdr->census_digest != ob->census_digest ||
+        hdr->obl_ag_mask != ob->obl_ag_mask ||
+        (hdr->flags & (MXFS_RECOV_OBL_F_FSWIDE_C | MXFS_RECOV_OBL_F_TERMINAL_C)) !=
+            (ob->flags & (MXFS_RECOV_OBL_F_FSWIDE_C | MXFS_RECOV_OBL_F_TERMINAL_C))) {
+        err("slot %u: obligation list header does not match the record "
+            "(seq %llu/%u count %u/%u crc 0x%08X/0x%08X) — INVALID", slot,
+            (unsigned long long)hdr->seq, ob->pub_seq, hdr->count, ob->count,
+            hdr->entries_crc32c, ob->list_crc32c);
+        ok = false;
+    }
+    if (hdr->entry_bytes != sizeof(struct chk_recov_obl_ext) ||
+        (uint64_t)hdr->byte_len != (uint64_t)hdr->count * hdr->entry_bytes ||
+        hdr->count == 0 || hdr->count > MXFS_RECOV_OBL_MAX_EXTENTS_C ||
+        hdr->agcount == 0 || hdr->agblocks == 0) {
+        err("slot %u: obligation list entry geometry (entry_bytes=%u count=%u "
+            "byte_len=%u agcount=%u agblocks=%u) — INVALID", slot,
+            hdr->entry_bytes, hdr->count, hdr->byte_len, hdr->agcount,
+            hdr->agblocks);
+        ok = false;
+    }
+    if (!ok) {
+        free(hdr);
+        return;
+    }
+    io_len = ((uint64_t)hdr->byte_len + 4095) & ~4095ULL;
+    if (posix_memalign((void **)&ents, 4096, io_len) != 0) {
+        err("slot %u: no memory for the obligation list entries", slot);
+        free(hdr);
+        return;
+    }
+    if (pread(dfd, ents, io_len, (off_t)(base + (MXFS_RMAN_OBL_ENTRIES_OFF_C - MXFS_RMAN_OBL_OFF_C))) !=
+        (ssize_t)io_len) {
+        err("slot %u: obligation list entries unreadable: %s", slot, strerror(errno));
+        free(ents); free(hdr);
+        return;
+    }
+    crc = crc32c_raw(~0U, ents, hdr->byte_len);
+    if (crc != hdr->entries_crc32c) {
+        err("slot %u: obligation list entries CRC 0x%08X != computed 0x%08X — "
+            "INVALID", slot, hdr->entries_crc32c, crc);
+        free(ents); free(hdr);
+        return;
+    }
+    /* canonical form: sorted by (agno, agbno), in bounds, no overlap */
+    {
+        unsigned agblklog = 0;
+        uint64_t agbno_mask;
+
+        while (agblklog < 63 && ((uint64_t)1 << agblklog) < (uint64_t)hdr->agblocks)
+            agblklog++;
+        agbno_mask = ((uint64_t)1 << agblklog) - 1;
+        for (i = 0; i < hdr->count; i++) {
+            const struct chk_recov_obl_ext *e = &ents[i];
+            uint64_t agbno = e->fsbno & agbno_mask;
+
+            if (e->len == 0 || e->agno >= hdr->agcount ||
+                (e->fsbno >> agblklog) != e->agno ||
+                agbno >= hdr->agblocks ||
+                (uint64_t)e->len > (uint64_t)hdr->agblocks - agbno) {
+                err("slot %u: obligation entry %u (fsbno=%llu agno=%u len=%u) "
+                    "is out of bounds — INVALID", slot, i,
+                    (unsigned long long)e->fsbno, e->agno, e->len);
+                ok = false;
+                break;
+            }
+            if (i > 0) {
+                const struct chk_recov_obl_ext *p = &ents[i - 1];
+
+                if (p->agno > e->agno ||
+                    (p->agno == e->agno &&
+                     (p->fsbno & agbno_mask) + p->len > agbno)) {
+                    err("slot %u: obligation entries %u/%u are not canonical "
+                        "(order/overlap) — INVALID", slot, i - 1, i);
+                    ok = false;
+                    break;
+                }
+            }
+            if (e->agno >= 64)
+                fsw = true;
+            else
+                mask |= (uint64_t)1 << e->agno;
+        }
+        if (ok && (fsw != !!(hdr->flags & MXFS_RECOV_OBL_F_FSWIDE_C) ||
+                   (fsw ? 0 : mask) != hdr->obl_ag_mask)) {
+            err("slot %u: obligation list recomputed mask 0x%016llX/fswide=%d "
+                "differs from the header 0x%016llX/%d — INVALID", slot,
+                (unsigned long long)mask, (int)fsw,
+                (unsigned long long)hdr->obl_ag_mask,
+                (hdr->flags & MXFS_RECOV_OBL_F_FSWIDE_C) ? 1 : 0);
+            ok = false;
+        }
+    }
+    if (ok) {
+        printf("     obligation list   VALID: %u extent(s), %u byte(s), "
+               "published seq=%llu by node=%u term=%u geometry agcount=%u "
+               "agblocks=%u\n", hdr->count, hdr->byte_len,
+               (unsigned long long)hdr->seq, hdr->publisher_node,
+               hdr->publisher_term, hdr->agcount, hdr->agblocks);
+        for (i = 0; i < hdr->count && i < 8; i++)
+            printf("                       [%u] ag=%u fsbno=%llu len=%u\n", i,
+                   ents[i].agno, (unsigned long long)ents[i].fsbno, ents[i].len);
+        if (hdr->count > 8)
+            printf("                       ... %u more\n", hdr->count - 8);
+    }
+    free(ents);
+    free(hdr);
+}
+
+/*
+ * The completion PROOF block a DONE (or completing) record's zone carries at
+ * 56 KiB of the victim's rman slot.  Mirrors mxfs_rman_obl_done_check: a
+ * COMMITTED, crc-valid block whose identity matches the record is the only
+ * evidence that OBLIGATIONS_DONE was earned; an uncommitted block is phase 1
+ * of a custodian that died mid-proof (no proof); anything else is reported
+ * loudly.  A record flagged DONE with no valid proof is INVALID.
+ */
+static void chk_print_obl_proof(int dfd, uint64_t rman_offset, uint32_t slot,
+                                const uint8_t *sec, const struct chk_recov_obl *ob)
+{
+    const struct chk_hb_hdr *h = (const void *)sec;
+    struct chk_recov_desc d;
+    struct chk_rman_obl_done *p = NULL;
+    uint64_t base;
+    uint32_t crc, i, pop = 0;
+    bool present = false, ok = true;
+    bool done = ob && (ob->flags & MXFS_RECOV_OBL_F_DONE_C);
+
+    if (!ob || ob->count == 0 || !rman_offset)
+        return;
+    memcpy(&d, sec + MXFS_RECOV_DESC_OFF_C, sizeof(d));
+    base = rman_offset + (uint64_t)slot * MXFS_RMAN_SLOT_BYTES + MXFS_RMAN_OBL_DONE_OFF_C;
+    if (posix_memalign((void **)&p, 4096, MXFS_RMAN_OBL_DONE_BYTES_C) != 0) {
+        err("slot %u: no memory for the completion proof block", slot);
+        return;
+    }
+    if (pread(dfd, p, MXFS_RMAN_OBL_DONE_BYTES_C, (off_t)base) !=
+        (ssize_t)MXFS_RMAN_OBL_DONE_BYTES_C) {
+        err("slot %u: completion proof block unreadable at %llu: %s", slot,
+            (unsigned long long)base, strerror(errno));
+        free(p);
+        return;
+    }
+    for (i = 0; i < MXFS_RMAN_OBL_DONE_BYTES_C; i++)
+        if (((const uint8_t *)p)[i]) { present = true; break; }
+    if (!present) {
+        if (done)
+            err("slot %u: record flagged DONE but the proof block is all zero "
+                "— INVALID (OBLIGATIONS_DONE without evidence)", slot);
+        else
+            printf("     completion proof  none (no custodian has completed this case yet)\n");
+        free(p);
+        return;
+    }
+    if (p->magic != MXFS_RMAN_OBL_DONE_MAGIC_C || p->version != MXFS_RMAN_OBL_DONE_VERSION_C ||
+        p->length != MXFS_RMAN_OBL_DONE_BYTES_C) {
+        err("slot %u: completion proof magic/version/length 0x%08X/%u/%u — INVALID",
+            slot, p->magic, p->version, p->length);
+        free(p);
+        return;
+    }
+    crc = chk_recov_body_crc(h->fs_gen, h->node_id, h->epoch, p,
+                             offsetof(struct chk_rman_obl_done, crc32c));
+    if (crc != p->crc32c) {
+        err("slot %u: completion proof CRC 0x%08X != computed 0x%08X — INVALID "
+            "(a torn proof is no proof)", slot, p->crc32c, crc);
+        free(p);
+        return;
+    }
+    if (p->rman_slot != slot || p->victim_node != h->node_id ||
+        p->victim_epoch != h->epoch || p->victim_fs_gen != h->fs_gen ||
+        p->recovery_gen != d.recovery_gen) {
+        err("slot %u: completion proof names another recovery case "
+            "(slot=%u node=%u epoch=%llu gen=%llu) — INVALID", slot,
+            p->rman_slot, p->victim_node, (unsigned long long)p->victim_epoch,
+            (unsigned long long)p->recovery_gen);
+        ok = false;
+    }
+    if (p->pub_seq != ob->pub_seq || p->count != ob->count ||
+        p->list_crc32c != ob->list_crc32c || p->obl_ag_mask != ob->obl_ag_mask) {
+        err("slot %u: completion proof does not match the record (seq %u/%u "
+            "count %u/%u crc 0x%08X/0x%08X) — INVALID", slot, p->pub_seq,
+            ob->pub_seq, p->count, ob->count, p->list_crc32c, ob->list_crc32c);
+        ok = false;
+    }
+    for (i = 0; i < MXFS_RMAN_OBL_DONE_BITMAP_BYTES_C * 8u; i++)
+        if ((p->outcome[i >> 3] >> (i & 7)) & 1u) {
+            if (i >= p->count) {
+                err("slot %u: completion proof outcome bit %u beyond count %u — INVALID",
+                    slot, i, p->count);
+                ok = false;
+                break;
+            }
+            pop++;
+        }
+    if (p->n_sparse || (uint64_t)p->n_empty + p->n_full != p->count || pop != p->n_empty ||
+        p->rcpt_digest != 0) {
+        err("slot %u: completion proof counters inconsistent (empty=%u full=%u "
+            "sparse=%u count=%u popcount=%u rcpt=%llu) — INVALID", slot,
+            p->n_empty, p->n_full, p->n_sparse, p->count, pop,
+            (unsigned long long)p->rcpt_digest);
+        ok = false;
+    }
+    for (i = 0; i < sizeof(p->pad); i++)
+        if (p->pad[i]) { err("slot %u: completion proof reserved bytes not zero — INVALID", slot); ok = false; break; }
+    if (ok && !(p->flags & MXFS_RMAN_OBL_DONE_F_COMMITTED_C)) {
+        printf("     completion proof  UNCOMMITTED (phase 1 only: the custodian died before "
+               "committing; no proof, the case is still OPEN)\n");
+        if (done)
+            err("slot %u: record flagged DONE over an UNCOMMITTED proof — INVALID", slot);
+        free(p);
+        return;
+    }
+    if (ok) {
+        printf("     completion proof  COMMITTED: count=%u freed=%u already-free=%u "
+               "ag_mask=0x%016llX by node=%u/%llu (slot %u) term=%u stage_seq=%llu "
+               "seq=%llu\n", p->count, p->n_empty, p->n_full,
+               (unsigned long long)p->obl_ag_mask, p->completer_node,
+               (unsigned long long)p->completer_epoch, p->completer_slot,
+               p->owner_term, (unsigned long long)p->stage_seq,
+               (unsigned long long)p->seq);
+        if (!done)
+            printf("                       (record not yet flagged DONE: the "
+                   "OBLIGATIONS_DONE advance did not land after this proof)\n");
+    } else if (done) {
+        err("slot %u: record flagged DONE but the proof is INVALID", slot);
+    }
+    free(p);
 }
 
 /*
@@ -937,11 +2573,16 @@ static int chk_print_guard(uint32_t slot, const uint8_t *sec,
                "slice=%u of %u\n",
                d.victim_node, (unsigned long long)d.victim_epoch,
                d.victim_slot, d.slice_idx, d.slice_count);
-        printf("     recovery          owner=%u term=%u gen=%llu stage=%u "
-               "flags=0x%08X%s\n",
+        printf("     recovery          owner=%u term=%u gen=%llu stage=%u%s "
+               "flags=0x%08X%s%s\n",
                d.owner_node, d.owner_term,
-               (unsigned long long)d.recovery_gen, d.stage, d.flags,
-               (d.flags & MXFS_RECOV_F_QUARANTINED_C) ? " QUARANTINED" : "");
+               (unsigned long long)d.recovery_gen, d.stage,
+               d.stage == 4 ? " (IMAGES_REPLAYED)" :
+               d.stage == 5 ? " (OBLIGATIONS_DONE)" :
+               d.stage == 6 ? " (GRANTS_RELEASED)" : "",
+               d.flags,
+               (d.flags & MXFS_RECOV_F_QUARANTINED_C) ? " QUARANTINED" : "",
+               (d.flags & 0x00000080u) ? " CENSUS_ZERO" : "");
         printf("     fence certificate kind=%u resv_type=0x%02X "
                "victim_key=0x%016llX prover=%u term=%u\n",
                d.fence_kind, d.fence_resv_type,
@@ -1011,11 +2652,22 @@ static int chk_print_guard(uint32_t slot, const uint8_t *sec,
                    "reread failed)\n");
     }
 
+    if (desc_ok)
+        chk_print_obl_record(slot, sec, NULL);      /* sess462 */
     printf("     VERDICT DIGEST    %016llX\n",
            (unsigned long long)chk_verdict_digest(fsuuid, slot, sec));
     if (slice_count_hint && slot >= slice_count_hint)
         printf("     NOTE: this slot is at or above the volume's slice count "
                "(%u) — it bears no journal.\n", slice_count_hint);
+    /*
+     * sess433 (D-379 item 5): a readable guard whose descriptor is NOT
+     * flagged QUARANTINED is a recovery IN PROGRESS (or stuck), not a
+     * terminal verdict — return 3 so the summary classifies and advises it
+     * separately instead of counting it as a quarantine and pointing the
+     * operator at the -376 repair.
+     */
+    if (desc_ok && !(d.flags & MXFS_RECOV_F_QUARANTINED_C))
+        return 3;
     return (desc_ok && (oc_ok || !oc_present)) ? 1 : 0;
 }
 
@@ -1023,6 +2675,110 @@ static int chk_print_guard(uint32_t slot, const uint8_t *sec,
  * record is self-validating (own magic + crc32c over bytes 0..39);
  * returns the committed epoch (0 if absent/PREPARED), errs on a
  * corrupt record. */
+/*
+ * sess438: the host/boot/PR-key IDENTITY block at offset 360 of a heartbeat
+ * record (dlm/disklock.h mxfs_hb_identity, 64 B).  crc mirrors
+ * dlm/disklock.c hb_ident_crc: packed {magic, ver, key_gen, host_uuid[16],
+ * boot_uuid[16], pr_key, host_src, slot, flags, fs_gen, node_id, epoch},
+ * crc32c seed ~0, no inversion.
+ */
+#define MXFS_HB_IDENT_OFF       360
+#define MXFS_HB_IDENT_MAGIC_C   0x4449584Du
+
+static void hex_uuid(const uint8_t *u, char out[37])
+{
+    static const char hx[] = "0123456789abcdef";
+    int i, o = 0;
+
+    for (i = 0; i < 16; i++) {
+        if (i == 4 || i == 6 || i == 8 || i == 10)
+            out[o++] = '-';
+        out[o++] = hx[u[i] >> 4];
+        out[o++] = hx[u[i] & 0xf];
+    }
+    out[o] = 0;
+}
+
+static void decode_hb_identity(const uint8_t *r, int slot)
+{
+    const uint8_t *id = r + MXFS_HB_IDENT_OFF;
+    uint32_t magic = *(const uint32_t *)(id + 0);
+    struct {
+        uint32_t magic; uint16_t ver; uint16_t key_gen;
+        uint8_t host[16]; uint8_t boot[16];
+        uint64_t pr_key; uint32_t host_src;
+        uint32_t slot; uint32_t flags; uint32_t fs_gen; uint32_t node_id;
+        uint64_t epoch;
+    } __attribute__((packed)) b;
+    char host[37], boot[37];
+    uint32_t want, have;
+
+    if (magic == 0) {
+        uint32_t fl; memcpy(&fl, r + 4, 4);
+        /* sess493 (D-0493): a re-flagged record (GUARD, RETIRE_PENDING)
+         * with no identity at all is a different finding from one whose
+         * identity no longer binds — say which. */
+        if (fl == 3 || fl == 4)
+            info("disklock HB slot %d: identity ABSENT (zeroed block) on a "
+                 "%s record", slot, fl == 3 ? "RECOVERY GUARD" : "RETIRE_PENDING");
+        return;                     /* pre-gen-12 or tool-written record */
+    }
+    if (magic != MXFS_HB_IDENT_MAGIC_C) {
+        err("disklock HB slot %d: identity magic 0x%08x (want 0x%08x)",
+            slot, magic, MXFS_HB_IDENT_MAGIC_C);
+        return;
+    }
+    b.magic = magic;
+    memcpy(&b.ver, id + 4, 2);
+    memcpy(&b.key_gen, id + 6, 2);
+    memcpy(b.host, id + 8, 16);
+    memcpy(b.boot, id + 24, 16);
+    memcpy(&b.pr_key, id + 40, 8);
+    memcpy(&b.host_src, id + 48, 4);
+    b.slot = (uint32_t)slot;
+    memcpy(&b.flags, r + 4, 4);
+    memcpy(&b.fs_gen, r + 12, 4);
+    memcpy(&b.node_id, r + 8, 4);
+    memcpy(&b.epoch, r + 24, 8);
+    memcpy(&have, id + 52, 4);
+    want = crc32c(~0U, &b, sizeof(b));
+    hex_uuid(b.host, host);
+    hex_uuid(b.boot, boot);
+    if (want != have) {
+        /* sess493 (D-0493): a recovery GUARD is the victim's record copied
+         * byte for byte with only `flags` moved and the identity crc NOT
+         * re-bound (dlm/disklock.c recovery_begin / fence intent), so the
+         * victim's own identity is still there and binds to the flags the
+         * victim wrote.  Report which binding validates instead of only
+         * "mismatch": that is what a bootstrap classifier may rely on. */
+        uint32_t as_flags = b.flags, alt, altcrc = 0;
+        const char *binds = NULL;
+
+        for (alt = 1; alt <= 2 && !binds; alt++) {
+            if (alt == as_flags)
+                continue;
+            b.flags = alt;
+            altcrc = crc32c(~0U, &b, sizeof(b));
+            if (altcrc == have)
+                binds = alt == 1 ? "ACTIVE" : "WITHDRAWN";
+        }
+        b.flags = as_flags;
+        if (binds)
+            info("disklock HB slot %d: identity host=%s boot=%s pr_key=0x%llx "
+                 "gen=%u src=%u crc binds as %s (record re-flagged to %u; "
+                 "the victim's own identity, carried byte for byte)",
+                 slot, host, boot, (unsigned long long)b.pr_key, b.key_gen,
+                 b.host_src, binds, as_flags);
+        else
+            err("disklock HB slot %d: identity crc expected 0x%08X, got 0x%08X "
+                "(key=0x%llx) — binds to no flag value", slot, want, have,
+                (unsigned long long)b.pr_key);
+    } else
+        info("disklock HB slot %d: identity host=%s boot=%s pr_key=0x%llx "
+             "gen=%u src=%u crc ok", slot, host, boot,
+             (unsigned long long)b.pr_key, b.key_gen, b.host_src);
+}
+
 static uint64_t decode_mepoch(const uint8_t *slot_buf, int slot,
                               uint64_t *members_out)
 {
@@ -1146,11 +2902,21 @@ static void check_disklock(int fd, const struct mxfs_ondisk_super *super)
         case MXFS_DISKLOCK_FLAG_ACTIVE:
             active++;
             info("disklock HB slot %d: ACTIVE (node_id=%u)", i, node_id);
+            decode_hb_identity(buf, i);         /* sess438 */
             break;
         case MXFS_DISKLOCK_FLAG_WITHDRAWN_C:
             withdrawn++;
             info("disklock HB slot %d: WITHDRAWN (node_id=%u) — dirty slice "
                  "awaiting fence+replay", i, node_id);
+            decode_hb_identity(buf, i);         /* sess438 */
+            break;
+        case MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C:
+            withdrawn++;
+            info("disklock HB slot %d: RETIRE_PENDING (node_id=%u) — clean "
+                 "release awaiting proof its PR key is retired (a live "
+                 "peer's READ KEYS settles it; key present past the grace "
+                 "-> WITHDRAWN + fence)", i, node_id);
+            decode_hb_identity(buf, i);         /* sess450 */
             break;
         case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C:
             guards++;
@@ -1280,11 +3046,34 @@ static int check_xfs_superblock(int fd, const struct mxfs_ondisk_super *super,
          (unsigned long long)icount,
          (unsigned long long)ifree,
          (unsigned long long)rootino);
-    info("sectsize=%u, inodesize=%u, inopblock=%u",
-         sectsize, inodesize, inopblock);
+    /* agblocks and the two log2 fields let a harness map an inode number to
+     * its AG (agno = ino >> (agblklog + inopblog)) without xfs_db, which
+     * cannot read the enveloped superblock. */
+    info("sectsize=%u, inodesize=%u, inopblock=%u, agblocks=%u, "
+         "agblklog=%u, inopblog=%u",
+         sectsize, inodesize, inopblock, agblocks, agblklog, inopblog);
     info("features_ro_compat=0x%08X (finobt=%s)",
          features_ro_compat,
          (features_ro_compat & XFS_SB_FEAT_RO_COMPAT_FINOBT) ? "yes" : "no");
+
+    /* sess466: the directory-sharding gates must agree — XFS sb incompat
+     * bit 29 (sb_features_incompat at 0xD8) and the envelope flag
+     * (docs/dir-sharding.md "THREE GATES"). */
+    {
+        uint32_t features_incompat = get_be32(buf + 0xD8);
+        int sbbit = (features_incompat & MXFS_DIRSHARD_SB_INCOMPAT) != 0;
+        int envf = (super->flags & MXFS_FORMAT_F_DIRSHARD) != 0;
+
+        info("features_incompat=0x%08X (dirshard: sb bit=%s envelope flag=%s)",
+             features_incompat, sbbit ? "yes" : "no", envf ? "yes" : "no");
+        if (sbbit != envf)
+            err("directory-sharding gates disagree: XFS sb incompat bit 29 is %s but envelope MXFS_FORMAT_F_DIRSHARD is %s",
+                sbbit ? "set" : "clear", envf ? "set" : "clear");
+        dirshard_gates_ok = sbbit && envf;
+        geo->has_ftype = (features_incompat & 0x1) != 0;      /* XFS_SB_FEAT_INCOMPAT_FTYPE */
+        geo->has_nrext64 = (features_incompat & 0x20) != 0;   /* XFS_SB_FEAT_INCOMPAT_NREXT64 */
+    }
+    geo->dirblklog = buf[0xC0];
 
     /* Populate geometry for subsequent checks */
     geo->blocksize = blocksize;
@@ -1500,6 +3289,165 @@ static int validate_btree_sblock(uint8_t *blk, uint32_t blocksize,
  * Each record is 8 bytes: [startblock(be32)] [blockcount(be32)]
  * Returns sum of blockcount values across all records.
  */
+/*
+ * D-0948: CROSS-TREE BLOCK-OWNERSHIP AUDIT.
+ *
+ * Checks 5 and 6 above each verify one btree against ITSELF — the free-space
+ * trees are checked for ordering, bounds and totals, and the inode trees for
+ * alignment, counts and free masks.  Neither has ever been checked against the
+ * other, and there is no block-ownership map anywhere in this program.  So the
+ * verdict "filesystem clean" has always been compatible with a block being
+ * claimed by an inobt inode chunk and by the free-space trees at the same
+ * time, which is the precursor to that block being handed to a directory and
+ * written over a live inode cluster.
+ *
+ * That is not hypothetical.  A create was shut down reading `58 44 44 33` —
+ * XDD3, a dir3 data block carrying its own address 0x41f1c0 in its header — at
+ * the home of an inode the allocator had just handed out, and eight FUA
+ * re-reads returned the same bytes and were logged "durable, not transient".
+ * This program called that filesystem clean, and was not wrong by its own
+ * rules: it simply never asked the question.
+ *
+ * THE INVARIANT: a block inside an allocated inode chunk is by definition
+ * allocated, so it must never also appear in the BNO free-space btree.  One
+ * bitmap per tree, then AND them.
+ */
+static uint8_t  *xtree_chunk;      /* block lies inside an inobt chunk */
+static uint8_t  *xtree_free;       /* block is free per the BNO btree */
+static uint64_t  xtree_nblocks;
+static uint32_t  xtree_agblocks;
+
+static void xtree_init(const struct xfs_geo *geo)
+{
+    xtree_agblocks = geo->agblocks;
+    xtree_nblocks  = (uint64_t)geo->agcount * geo->agblocks;
+    if (!xtree_nblocks || xtree_nblocks > (1ULL << 40))
+        return;
+    xtree_chunk = calloc((size_t)((xtree_nblocks + 7) / 8), 1);
+    xtree_free  = calloc((size_t)((xtree_nblocks + 7) / 8), 1);
+    if (!xtree_chunk || !xtree_free) {
+        free(xtree_chunk);
+        free(xtree_free);
+        xtree_chunk = NULL;
+        xtree_free = NULL;
+    }
+}
+
+static void xtree_mark(uint8_t *map, uint32_t agno, uint32_t agbno,
+                       uint32_t len)
+{
+    if (!map || agbno >= xtree_agblocks)
+        return;
+    if ((uint64_t)agbno + len > xtree_agblocks)
+        len = xtree_agblocks - agbno;
+    for (uint32_t i = 0; i < len; i++) {
+        uint64_t b = (uint64_t)agno * xtree_agblocks + agbno + i;
+
+        if (b < xtree_nblocks)
+            map[b >> 3] |= (uint8_t)(1u << (b & 7));
+    }
+}
+
+/*
+ * Mark the blocks an inobt chunk record occupies.  A sparse chunk's holemask
+ * has one bit per 4 inodes; a hole is a range that was never allocated, so its
+ * blocks are legitimately not ours and must not be marked.
+ */
+static void xtree_mark_chunk(const struct xfs_geo *geo, uint32_t agno,
+                             uint32_t startino, uint8_t count,
+                             uint16_t holemask)
+{
+    uint32_t inopblock = geo->inopblock;
+
+    if (!xtree_chunk || !inopblock)
+        return;
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t agino = startino + i;
+
+        if (holemask & (1u << ((i / 4) & 15)))
+            continue;
+        xtree_mark(xtree_chunk, agno, agino / inopblock, 1);
+    }
+}
+
+/*
+ * --free-query AGNO:AGBNO:LEN (repeatable): after the BNO btree walk, report
+ * whether every block of the range is free (FREE), none is (ALLOCATED) or some
+ * are (PARTIAL).  This is the platter-side answer to "did the custodian's
+ * completion of a dead peer's open EFI actually land": the extents the
+ * obligation list named must read FREE afterwards.  Read-only.
+ */
+#define CHK_FREE_QUERY_MAX 16
+static struct { uint32_t agno, agbno, len; } free_query[CHK_FREE_QUERY_MAX];
+static int free_query_n;
+
+static void xtree_free_query_report(const struct xfs_geo *geo)
+{
+    for (int q = 0; q < free_query_n; q++) {
+        uint32_t agno = free_query[q].agno, agbno = free_query[q].agbno;
+        uint32_t len = free_query[q].len, nfree = 0;
+
+        if (!xtree_free) {
+            printf("  FREE-QUERY ag=%u agbno=%u len=%u: UNKNOWN (no free map)\n",
+                   agno, agbno, len);
+            continue;
+        }
+        if (agno >= geo->agcount || len == 0 ||
+            (uint64_t)agbno + len > geo->agblocks) {
+            printf("  FREE-QUERY ag=%u agbno=%u len=%u: OUT-OF-RANGE (agcount=%u agblocks=%u)\n",
+                   agno, agbno, len, geo->agcount, geo->agblocks);
+            continue;
+        }
+        for (uint32_t i = 0; i < len; i++) {
+            uint64_t b = (uint64_t)agno * xtree_agblocks + agbno + i;
+
+            if (xtree_free[b >> 3] & (1u << (b & 7)))
+                nfree++;
+        }
+        printf("  FREE-QUERY ag=%u agbno=%u len=%u: %s (free=%u of %u)\n",
+               agno, agbno, len,
+               nfree == len ? "FREE" : nfree == 0 ? "ALLOCATED" : "PARTIAL",
+               nfree, len);
+    }
+}
+
+static void xtree_report(const struct xfs_geo *geo)
+{
+    uint64_t overlaps = 0;
+    uint64_t shown = 0;
+
+    xtree_free_query_report(geo);
+    if (!xtree_chunk || !xtree_free) {
+        printf("  Chunk/free-space aliasing . SKIPPED (no map)\n");
+        return;
+    }
+    for (uint64_t b = 0; b < xtree_nblocks; b++) {
+        if (!(xtree_chunk[b >> 3] & (1u << (b & 7))))
+            continue;
+        if (!(xtree_free[b >> 3] & (1u << (b & 7))))
+            continue;
+        overlaps++;
+        if (shown < 16) {
+            shown++;
+            err("AG %u block %u is inside an allocated inode chunk AND free in the BNO btree — the block can be handed to another consumer while the inobt still calls it an inode home",
+                (uint32_t)(b / xtree_agblocks),
+                (uint32_t)(b % xtree_agblocks));
+        }
+    }
+    if (overlaps == 0) {
+        printf("  Chunk/free-space aliasing . OK  (no inode-chunk block is also free)\n");
+    } else {
+        printf("  Chunk/free-space aliasing . ERRORS  (%llu block(s) claimed by both trees%s)\n",
+               (unsigned long long)overlaps,
+               overlaps > 16 ? ", first 16 listed" : "");
+    }
+    (void)geo;
+    free(xtree_chunk);
+    free(xtree_free);
+    xtree_chunk = NULL;
+    xtree_free = NULL;
+}
+
 static uint64_t validate_freespace_leaf(const uint8_t *blk, uint16_t numrecs,
                                         uint32_t agno, const char *name,
                                         bool sort_by_bno, uint32_t ag_length)
@@ -1544,6 +3492,9 @@ static uint64_t validate_freespace_leaf(const uint8_t *blk, uint16_t numrecs,
             prev_key = startblock;
             prev_count = blockcount;
         }
+
+        if (sort_by_bno)
+            xtree_mark(xtree_free, agno, startblock, blockcount);
 
         total += blockcount;
     }
@@ -1613,15 +3564,18 @@ static uint64_t walk_freespace_btree(int fd, const struct xfs_geo *geo,
         total = validate_freespace_leaf(blk, numrecs, agno, name,
                                         sort_by_bno, ag_length);
     } else {
-        /* Internal node — keys start at BTREE_REC_OFF, pointers after keys.
-         * For short-form btree internal nodes:
-         *   Keys: numrecs * 8 bytes at offset BTREE_REC_OFF
-         *   Ptrs: numrecs * 4 bytes at offset BTREE_REC_OFF + numrecs * 8
-         * Each key is [startblock(be32)][blockcount(be32)] (8 bytes).
-         * Each ptr is [agbno(be32)] (4 bytes).
-         */
-        uint32_t ptr_off = BTREE_REC_OFF + numrecs * 8;
+        /* Internal node.  Each key is [startblock(be32)][blockcount(be32)]
+         * (8 bytes) at BTREE_REC_OFF; each ptr is [agbno(be32)] after the
+         * block's maxrecs keys (sbtree_ptr_off). */
+        uint32_t maxrecs = sbtree_node_maxrecs(geo->blocksize, 8);
+        uint32_t ptr_off = sbtree_ptr_off(geo->blocksize, 8);
 
+        if (numrecs > maxrecs) {
+            err("AG %u %s btree block %u: numrecs=%u exceeds maxrecs=%u",
+                agno, name, agbno, numrecs, maxrecs);
+            free(blk);
+            return 0;
+        }
         for (uint16_t i = 0; i < numrecs; i++) {
             uint32_t child_agbno = get_be32(blk + ptr_off + i * 4);
 
@@ -1879,6 +3833,9 @@ static void validate_inobt_leaf(const uint8_t *blk, uint16_t numrecs,
             continue;
         }
 
+        if (strcmp(name, "inobt") == 0)
+            xtree_mark_chunk(geo, agno, startino, count, holemask);
+
         /* Check freecount <= count */
         if (freecount > count) {
             err("AG %u %s rec %u: freecount=%u > count=%u",
@@ -1927,8 +3884,12 @@ static void validate_inobt_leaf(const uint8_t *blk, uint16_t numrecs,
         totals->num_records++;
 
         if (verbose) {
-            info("AG %u %s rec %u: startino=%u count=%u freecount=%u holemask=0x%04X",
-                 agno, name, i, startino, count, freecount, holemask);
+            /* the free mask is printed so an offline reader can tell, per
+             * inode, whether its bit is still allocated (the retained-cohort
+             * confirmation of the allocation-coverage witness) */
+            info("AG %u %s rec %u: startino=%u count=%u freecount=%u holemask=0x%04X free=0x%016llX",
+                 agno, name, i, startino, count, freecount, holemask,
+                 (unsigned long long)free_mask);
         }
     }
 }
@@ -1990,13 +3951,17 @@ static void walk_inobt(int fd, const struct xfs_geo *geo,
         /* Leaf — validate records */
         validate_inobt_leaf(blk, numrecs, agno, name, geo, totals);
     } else {
-        /* Internal node.
-         * Inobt internal keys: [startino(be32)] = 4 bytes each.
-         * Inobt internal ptrs: [agbno(be32)] = 4 bytes each.
-         * Keys at BTREE_REC_OFF, ptrs at BTREE_REC_OFF + numrecs * 4.
-         */
-        uint32_t ptr_off = BTREE_REC_OFF + numrecs * 4;
+        /* Internal node.  Keys [startino(be32)] at BTREE_REC_OFF; ptrs
+         * [agbno(be32)] after the block's maxrecs keys (sbtree_ptr_off). */
+        uint32_t maxrecs = sbtree_node_maxrecs(geo->blocksize, 4);
+        uint32_t ptr_off = sbtree_ptr_off(geo->blocksize, 4);
 
+        if (numrecs > maxrecs) {
+            err("AG %u %s btree block %u: numrecs=%u exceeds maxrecs=%u",
+                agno, name, agbno, numrecs, maxrecs);
+            free(blk);
+            return;
+        }
         for (uint16_t i = 0; i < numrecs; i++) {
             uint32_t child_agbno = get_be32(blk + ptr_off + i * 4);
 
@@ -2539,7 +4504,7 @@ static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
         orphan_push(members, ((uint64_t)agno << (geo->agblklog + geo->inopblog))
                              | agino);
         /* sess389: -v names every chain member — the on-disk AGI chain-walk
-         * audit (RULE-5 ruling) needs the ino/mode/nlink/gen of each
+         * audit (design-consult ruling) needs the ino/mode/nlink/gen of each
          * leftover so its unlink trail can be found in the nodes' logs. */
         if (verbose)
             info("  AG %u unlinked bucket %d: member ino=%llu agino=%u "
@@ -2549,6 +4514,24 @@ static void orphan_walk_chain(int fd, const struct xfs_geo *geo,
                         (geo->agblklog + geo->inopblog)) | agino),
                  agino, get_be16(ibuf + 0x02), get_be32(ibuf + 0x10),
                  get_be32(ibuf + 0x44), get_be32(ibuf + 0x60));
+        /* sess408 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-ZERO-CORE-408):
+         * a chain member whose core is FREE (di_mode 0) is corruption, not a
+         * pending-reap zombie.  XFS links an inode into a bucket in the same
+         * transaction that writes its allocated core, and unlinks it in the
+         * same transaction that zeroes di_mode — so a bucket can never reach
+         * a mode-0 core on a consistent medium.  On this rig it means the
+         * dead node's creation image was never applied while its inobt/AGI
+         * images were (8 of 29 clean-unmount checks on 2026-08-23 listed one
+         * under -v and were read as PASS).  The slot's next mount re-drives
+         * this bucket and trips over it. */
+        if (get_be16(ibuf + 0x02) == 0)
+            err("AG %u unlinked bucket %d: member agino %u (ino %llu) has a "
+                "FREE core (mode 0, nlink %u, gen %u) — bucket chain points "
+                "at a freed/never-written inode",
+                agno, bucket, agino,
+                (unsigned long long)(((uint64_t)agno <<
+                       (geo->agblklog + geo->inopblog)) | agino),
+                get_be32(ibuf + 0x10), get_be32(ibuf + 0x5c));
         agino = get_be32(ibuf + 0x60);   /* di_next_unlinked */
     }
     free(ibuf);
@@ -2595,8 +4578,29 @@ static void orphan_collect_leaf(int fd, const struct xfs_geo *geo,
                     agno, startino + i, get_be16(dip + 0x00));
                 continue;
             }
-            if (get_be16(dip + 0x02) != 0 &&    /* di_mode */
-                get_be32(dip + 0x10) == 0)      /* di_nlink */
+            /* sess409 (D-FREPLAY-VICTIM-INODE-CORE-NOT-APPLIED-BUCKET-TO-
+             * ZERO-CORE-408, design-consult verification item "inobt allocated
+             * implies a valid allocated dinode core"): dialloc clears the
+             * inobt free bit and xfs_inode_init sets di_mode in ONE
+             * transaction, and xfs_ifree sets the bit and zeroes the mode in
+             * one transaction, so after a clean unmount an inobt-allocated
+             * inode whose platter core is FREE (mode 0) is a half-applied
+             * creation — the inode item skipped while the same transaction's
+             * inobt/AGI buffer items applied.  An ERROR, whatever bucket it
+             * is (or is not) on. */
+            if (get_be16(dip + 0x02) == 0) {
+                err("AG %u inobt-allocated agino %u (ino %llu) has a FREE "
+                    "core (mode 0, nlink %u, gen %u, changecount %llu) — "
+                    "P-ALLOC-FREE-CORE: creation half-applied (inobt yes, "
+                    "core no)",
+                    agno, startino + i,
+                    (unsigned long long)(((uint64_t)agno <<
+                        (geo->agblklog + geo->inopblog)) | (startino + i)),
+                    get_be32(dip + 0x10), get_be32(dip + 0x5c),
+                    (unsigned long long)get_be64(dip + 0x68));
+                continue;
+            }
+            if (get_be32(dip + 0x10) == 0)      /* di_nlink */
                 orphan_push(cand,
                     ((uint64_t)agno << (geo->agblklog + geo->inopblog))
                     | (startino + i));
@@ -2631,8 +4635,8 @@ static void orphan_walk_inobt(int fd, const struct xfs_geo *geo,
 
         if (level == 0) {
             orphan_collect_leaf(fd, geo, agno, blk, numrecs, cand, scanned);
-        } else {
-            uint32_t ptr_off = BTREE_REC_OFF + numrecs * 4;
+        } else if (numrecs <= sbtree_node_maxrecs(geo->blocksize, 4)) {
+            uint32_t ptr_off = sbtree_ptr_off(geo->blocksize, 4);
 
             for (uint16_t i = 0; i < numrecs; i++) {
                 uint32_t child = get_be32(blk + ptr_off + i * 4);
@@ -2890,6 +4894,1514 @@ static void print_summary(int fd, const struct xfs_geo *geo,
            (unsigned long long)allocated);
 }
 
+/* ─── Directory sharding (sess466, docs/dir-sharding.md) ─── */
+
+/*
+ * SipHash-2-4 reference mirror (the kernel uses <linux/siphash.h>; both
+ * consume the 16-byte per-directory key as two little-endian u64s).
+ * tests/dirshard_hash_vectors.sh pins this, the kernel
+ * (MXFS_IOC_DIRSHARD_INFO) and the published vector to each other.
+ */
+static inline uint64_t ds_rotl64(uint64_t x, int b)
+{
+    return (x << b) | (x >> (64 - b));
+}
+
+static inline uint64_t ds_le64(const uint8_t *p)
+{
+    uint64_t v = 0;
+    for (int i = 7; i >= 0; i--)
+        v = (v << 8) | p[i];
+    return v;
+}
+
+#define DS_SIPROUND do {                                   \
+        v0 += v1; v1 = ds_rotl64(v1, 13); v1 ^= v0; v0 = ds_rotl64(v0, 32); \
+        v2 += v3; v3 = ds_rotl64(v3, 16); v3 ^= v2;                          \
+        v0 += v3; v3 = ds_rotl64(v3, 21); v3 ^= v0;                          \
+        v2 += v1; v1 = ds_rotl64(v1, 17); v1 ^= v2; v2 = ds_rotl64(v2, 32); \
+    } while (0)
+
+static uint64_t ds_siphash24(const uint8_t key[16], const uint8_t *in,
+                             size_t len)
+{
+    uint64_t k0 = ds_le64(key), k1 = ds_le64(key + 8);
+    uint64_t v0 = 0x736f6d6570736575ULL ^ k0;
+    uint64_t v1 = 0x646f72616e646f6dULL ^ k1;
+    uint64_t v2 = 0x6c7967656e657261ULL ^ k0;
+    uint64_t v3 = 0x7465646279746573ULL ^ k1;
+    const uint8_t *end = in + (len & ~(size_t)7);
+    uint64_t b = (uint64_t)len << 56;
+
+    for (; in != end; in += 8) {
+        uint64_t m = ds_le64(in);
+        v3 ^= m;
+        DS_SIPROUND; DS_SIPROUND;
+        v0 ^= m;
+    }
+    switch (len & 7) {
+    case 7: b |= (uint64_t)in[6] << 48; /* fall through */
+    case 6: b |= (uint64_t)in[5] << 40; /* fall through */
+    case 5: b |= (uint64_t)in[4] << 32; /* fall through */
+    case 4: b |= (uint64_t)in[3] << 24; /* fall through */
+    case 3: b |= (uint64_t)in[2] << 16; /* fall through */
+    case 2: b |= (uint64_t)in[1] << 8;  /* fall through */
+    case 1: b |= (uint64_t)in[0];       /* fall through */
+    case 0: break;
+    }
+    v3 ^= b;
+    DS_SIPROUND; DS_SIPROUND;
+    v0 ^= b;
+    v2 ^= 0xff;
+    DS_SIPROUND; DS_SIPROUND; DS_SIPROUND; DS_SIPROUND;
+    return v0 ^ v1 ^ v2 ^ v3;
+}
+
+static int ds_hexval(int c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static int ds_parse_hex(const char *s, uint8_t *out, size_t max, size_t *lenp)
+{
+    size_t n = strlen(s), i;
+
+    if (n % 2 || n / 2 > max)
+        return -1;
+    for (i = 0; i < n / 2; i++) {
+        int hi = ds_hexval(s[2 * i]), lo = ds_hexval(s[2 * i + 1]);
+        if (hi < 0 || lo < 0)
+            return -1;
+        out[i] = (uint8_t)((hi << 4) | lo);
+    }
+    *lenp = n / 2;
+    return 0;
+}
+
+/*
+ * --dirshard-hash KEYHEX NAME|hex:NAMEHEX : print the routing hash and the
+ * shard index for every legal N.  No device access.
+ */
+static int dirshard_hash_cmd(const char *keyhex, const char *name)
+{
+    uint8_t key[16], buf[256];
+    const uint8_t *msg;
+    size_t klen = 0, mlen;
+    uint64_t h;
+
+    if (ds_parse_hex(keyhex, key, sizeof(key), &klen) < 0 || klen != 16) {
+        fprintf(stderr, "chk_mxfs: --dirshard-hash needs a 32-hex-digit key\n");
+        return 2;
+    }
+    if (strncmp(name, "hex:", 4) == 0) {
+        if (ds_parse_hex(name + 4, buf, sizeof(buf), &mlen) < 0) {
+            fprintf(stderr, "chk_mxfs: --dirshard-hash bad hex name\n");
+            return 2;
+        }
+        msg = buf;
+    } else {
+        msg = (const uint8_t *)name;
+        mlen = strlen(name);
+    }
+    h = ds_siphash24(key, msg, mlen);
+    printf("hash=0x%016llx len=%zu shard16=%u shard32=%u shard64=%u\n",
+           (unsigned long long)h, mlen,
+           mxfs_dirshard_index(h, 16), mxfs_dirshard_index(h, 32),
+           mxfs_dirshard_index(h, 64));
+    return 0;
+}
+
+/* On-platter walk: every PARENT's locator -> holder -> manifest block ->
+ * containers; every CONTAINER must be referenced by exactly one manifest
+ * (or be an unlinked leftover awaiting reap). */
+struct ds_ino {
+    uint64_t ino;
+    uint32_t gen;
+    uint16_t mode;
+    uint32_t nlink;
+    uint64_t flags2;
+    uint32_t refs;      /* manifests / locators naming it */
+};
+
+struct ds_list {
+    struct ds_ino *v;
+    uint32_t n, cap;
+    bool oom;
+};
+
+static void ds_push(struct ds_list *l, const struct ds_ino *e)
+{
+    if (l->n == l->cap) {
+        uint32_t ncap = l->cap ? l->cap * 2 : 64;
+        struct ds_ino *nv = realloc(l->v, (size_t)ncap * sizeof(*nv));
+        if (!nv) {
+            l->oom = true;
+            return;
+        }
+        l->v = nv;
+        l->cap = ncap;
+    }
+    l->v[l->n++] = *e;
+}
+
+static struct ds_ino *ds_find(struct ds_list *l, uint64_t ino)
+{
+    for (uint32_t i = 0; i < l->n; i++)
+        if (l->v[i].ino == ino)
+            return &l->v[i];
+    return NULL;
+}
+
+/* v3 dinode field offsets used here (libxfs xfs_format.h struct xfs_dinode) */
+#define DS_DI_MODE      0x02
+#define DS_DI_FORMAT    0x05
+#define DS_DI_NLINK     0x10
+#define DS_DI_SIZE      0x38
+#define DS_DI_NEXTENTS  0x4c
+#define DS_DI_FORKOFF   0x52
+#define DS_DI_AFORMAT   0x53
+#define DS_DI_GEN       0x5c
+#define DS_DI_FLAGS2    0x78
+#define DS_DI_LITERAL   0xb0
+#define DS_FMT_LOCAL    1
+#define DS_FMT_EXTENTS  2
+#define DS_S_IFMT       0xf000
+#define DS_S_IFDIR      0x4000
+#define DS_S_IFREG      0x8000
+
+static int ds_read_dinode(int fd, const struct xfs_geo *geo, uint64_t ino,
+                          uint8_t *dip)
+{
+    uint32_t agino_bits = geo->agblklog + geo->inopblog;
+    uint32_t agno = (uint32_t)(ino >> agino_bits);
+    uint32_t agino = (uint32_t)(ino & ((1ULL << agino_bits) - 1));
+
+    if (agno >= geo->agcount || (agino >> geo->inopblog) >= geo->agblocks)
+        return -1;
+    if (read_at(fd, dip, geo->inodesize, inode_disk_offset(geo, agno, agino)) < 0)
+        return -1;
+    if (get_be16(dip + 0x00) != XFS_DINODE_MAGIC)
+        return -1;
+    return 0;
+}
+
+/* Shortform ROOT xattr "mxfs.dirshard" -> locator.  0 found, -ENOENT absent,
+ * -EINVAL malformed, -EOPNOTSUPP non-shortform attr fork. */
+static int ds_locator_get(const struct xfs_geo *geo, const uint8_t *dip,
+                          uint64_t *hino, uint32_t *hgen)
+{
+    uint8_t forkoff = dip[DS_DI_FORKOFF];
+    const uint8_t *af, *p, *end;
+    uint16_t totsize;
+    uint8_t count;
+
+    if (forkoff == 0)
+        return -ENOENT;
+    if (dip[DS_DI_AFORMAT] != DS_FMT_LOCAL)
+        return -EOPNOTSUPP;
+    af = dip + DS_DI_LITERAL + (size_t)forkoff * 8;
+    if (af + 4 > dip + geo->inodesize)
+        return -EINVAL;
+    totsize = get_be16(af + 0);
+    count = af[2];
+    end = af + totsize;
+    if (end > dip + geo->inodesize || totsize < 4)
+        return -EINVAL;
+    p = af + 4;
+    for (uint8_t i = 0; i < count; i++) {
+        uint8_t namelen, valuelen, flags;
+
+        if (p + 3 > end)
+            return -EINVAL;
+        namelen = p[0]; valuelen = p[1]; flags = p[2];
+        if (p + 3 + namelen + valuelen > end)
+            return -EINVAL;
+        if ((flags & 0x02) /* XFS_ATTR_ROOT */ &&
+            namelen == MXFS_DIRSHARD_XATTR_NAMELEN &&
+            memcmp(p + 3, MXFS_DIRSHARD_XATTR_NAME, namelen) == 0) {
+            struct mxfs_dirshard_locator loc;
+
+            if (valuelen != MXFS_DIRSHARD_LOCATOR_LEN)
+                return -EINVAL;
+            memcpy(&loc, p + 3 + namelen, sizeof(loc));
+            *hino = mxfs_dirshard_be64(loc.manifest_ino);
+            *hgen = mxfs_dirshard_be32(loc.manifest_gen);
+            return (*hino && *hgen) ? 0 : -EINVAL;
+        }
+        p += 3 + namelen + valuelen;
+    }
+    return -ENOENT;
+}
+
+/* First (only) data extent of an extents-format inode: startoff, startblock,
+ * blockcount.  Returns 0, or -1 when the fork is not one real extent. */
+static int ds_single_extent(const uint8_t *dip, uint64_t *startoff,
+                            uint64_t *startblock, uint32_t *blockcount)
+{
+    uint64_t l0, l1;
+
+    if (dip[DS_DI_FORMAT] != DS_FMT_EXTENTS || get_be32(dip + DS_DI_NEXTENTS) != 1)
+        return -1;
+    l0 = get_be64(dip + DS_DI_LITERAL);
+    l1 = get_be64(dip + DS_DI_LITERAL + 8);
+    if (l0 >> 63)               /* unwritten */
+        return -1;
+    *startoff = (l0 >> 9) & ((1ULL << 54) - 1);
+    *startblock = ((l0 & 0x1ff) << 43) | (l1 >> 21);
+    *blockcount = (uint32_t)(l1 & ((1U << 21) - 1));
+    return 0;
+}
+
+static void ds_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
+                            const uint8_t *blk, uint16_t numrecs,
+                            struct ds_list *parents, struct ds_list *containers,
+                            uint64_t *scanned)
+{
+    size_t chunk_bytes = 64 * (size_t)geo->inodesize;
+    uint8_t *chunk = malloc(chunk_bytes);
+
+    if (!chunk) {
+        parents->oom = true;
+        return;
+    }
+    for (uint16_t r = 0; r < numrecs; r++) {
+        const uint8_t *rec = blk + BTREE_REC_OFF + r * 16;
+        uint32_t startino  = get_be32(rec + 0);
+        uint16_t holemask  = get_be16(rec + 4);
+        uint64_t free_mask = get_be64(rec + 8);
+
+        if ((startino >> geo->inopblog) >= geo->agblocks)
+            continue;
+        if (read_at(fd, chunk, chunk_bytes,
+                    inode_disk_offset(geo, agno, startino)) < 0)
+            continue;
+        for (int i = 0; i < 64; i++) {
+            const uint8_t *dip = chunk + (size_t)i * geo->inodesize;
+            struct ds_ino e;
+
+            if (holemask & (1U << (i / 4)))
+                continue;
+            if (free_mask & (1ULL << i))
+                continue;
+            if (get_be16(dip + 0x00) != XFS_DINODE_MAGIC)
+                continue;
+            if (get_be16(dip + DS_DI_MODE) == 0)
+                continue;
+            (*scanned)++;
+            e.flags2 = get_be64(dip + DS_DI_FLAGS2);
+            if (!(e.flags2 & MXFS_DIFLAG2_DIRSHARD_ANY))
+                continue;
+            e.ino = ((uint64_t)agno << (geo->agblklog + geo->inopblog)) |
+                    (startino + i);
+            e.gen = get_be32(dip + DS_DI_GEN);
+            e.mode = get_be16(dip + DS_DI_MODE);
+            e.nlink = get_be32(dip + DS_DI_NLINK);
+            e.refs = 0;
+            if (e.flags2 & MXFS_DIFLAG2_DIRSHARD_PARENT)
+                ds_push(parents, &e);
+            else
+                ds_push(containers, &e);
+        }
+    }
+    free(chunk);
+}
+
+static void ds_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
+                          uint32_t agbno, int depth, struct ds_list *parents,
+                          struct ds_list *containers, uint64_t *scanned)
+{
+    uint8_t *blk;
+
+    if (depth > MAX_BTREE_DEPTH)
+        return;
+    blk = malloc(geo->blocksize);
+    if (!blk) {
+        parents->oom = true;
+        return;
+    }
+    if (read_ag_block(fd, geo, agno, agbno, blk) < 0 ||
+        get_be32(blk + 0x00) != XFS_IBT_CRC_MAGIC) {
+        free(blk);
+        return;
+    }
+    {
+        uint16_t level   = get_be16(blk + 0x04);
+        uint16_t numrecs = get_be16(blk + 0x06);
+
+        if (level == 0) {
+            ds_collect_leaf(fd, geo, agno, blk, numrecs, parents, containers,
+                            scanned);
+        } else if (numrecs <= sbtree_node_maxrecs(geo->blocksize, 4)) {
+            uint32_t ptr_off = sbtree_ptr_off(geo->blocksize, 4);
+
+            for (uint16_t i = 0; i < numrecs; i++) {
+                uint32_t child = get_be32(blk + ptr_off + i * 4);
+
+                if (child == XFS_NULLAGBLOCK || child >= geo->agblocks)
+                    continue;
+                ds_walk_inobt(fd, geo, agno, child, depth + 1, parents,
+                              containers, scanned);
+            }
+        }
+    }
+    free(blk);
+}
+
+/* Verify one PARENT end to end.  Returns the number of errors it added. */
+static int ds_check_parent(int fd, const struct xfs_geo *geo,
+                           struct ds_ino *pe, struct ds_list *containers,
+                           uint64_t *published, uint64_t *unlinked_sets,
+                           uint64_t *skipped)
+{
+    int pre = errors;
+    uint8_t *pdip = malloc(geo->inodesize);
+    uint8_t *hdip = malloc(geo->inodesize);
+    uint8_t *cdip = malloc(geo->inodesize);
+    uint8_t *blk = malloc(geo->blocksize);
+    uint64_t hino = 0, startoff, startblock;
+    uint32_t hgen = 0, blockcount;
+    struct ds_ino *he;
+    struct mxfs_dirshard_view v;
+    enum mxfs_dirshard_check c;
+    uint64_t blk_off, daddr;
+    uint32_t agno, agbno;
+    bool crc_ok;
+    int rc;
+
+    if (!pdip || !hdip || !cdip || !blk) {
+        err("dirshard: out of memory checking parent %llu",
+            (unsigned long long)pe->ino);
+        goto out;
+    }
+    if ((pe->mode & DS_S_IFMT) != DS_S_IFDIR)
+        err("dirshard parent %llu: PARENT flag on a non-directory (mode 0%o)",
+            (unsigned long long)pe->ino, pe->mode);
+    if (pe->flags2 & MXFS_DIFLAG2_DIRSHARD_CONTAINER)
+        err("dirshard parent %llu: carries BOTH the PARENT and CONTAINER flags",
+            (unsigned long long)pe->ino);
+    if (ds_read_dinode(fd, geo, pe->ino, pdip) < 0) {
+        err("dirshard parent %llu: dinode re-read failed",
+            (unsigned long long)pe->ino);
+        goto out;
+    }
+    rc = ds_locator_get(geo, pdip, &hino, &hgen);
+    if (rc == -EOPNOTSUPP) {
+        info("dirshard parent %llu: attr fork is not shortform; locator not "
+             "decoded by chk_mxfs (skipped)", (unsigned long long)pe->ino);
+        (*skipped)++;
+        goto out;
+    }
+    if (rc == -ENOENT) {
+        if (pe->nlink == 0) {
+            info("dirshard parent %llu: no locator, nlink 0 — torn allocation "
+                 "anchor awaiting reap (legal)", (unsigned long long)pe->ino);
+            (*unlinked_sets)++;
+        } else {
+            err("dirshard parent %llu: linked (nlink %u) PARENT without a "
+                "locator xattr", (unsigned long long)pe->ino, pe->nlink);
+        }
+        goto out;
+    }
+    if (rc) {
+        err("dirshard parent %llu: malformed locator xattr (%d)",
+            (unsigned long long)pe->ino, rc);
+        goto out;
+    }
+
+    /* the holder */
+    he = ds_find(containers, hino);
+    if (ds_read_dinode(fd, geo, hino, hdip) < 0) {
+        if (pe->nlink == 0) {
+            info("dirshard parent %llu: holder %llu gone, nlink 0 — restart "
+                 "after the holder free (legal)",
+                 (unsigned long long)pe->ino, (unsigned long long)hino);
+            (*unlinked_sets)++;
+        } else {
+            err("dirshard parent %llu: locator names holder %llu which is not "
+                "an allocated inode", (unsigned long long)pe->ino,
+                (unsigned long long)hino);
+        }
+        goto out;
+    }
+    if (get_be32(hdip + DS_DI_GEN) != hgen) {
+        if (pe->nlink == 0) {
+            info("dirshard parent %llu: holder %llu gen %u != %u, nlink 0 — "
+                 "holder freed and reused after the set was torn down (legal)",
+                 (unsigned long long)pe->ino, (unsigned long long)hino,
+                 get_be32(hdip + DS_DI_GEN), hgen);
+            (*unlinked_sets)++;
+        } else {
+            err("dirshard parent %llu: holder %llu generation %u != locator %u",
+                (unsigned long long)pe->ino, (unsigned long long)hino,
+                get_be32(hdip + DS_DI_GEN), hgen);
+        }
+        goto out;
+    }
+    if (he)
+        he->refs++;
+    else
+        err("dirshard parent %llu: holder %llu lacks the CONTAINER flag",
+            (unsigned long long)pe->ino, (unsigned long long)hino);
+    if ((get_be16(hdip + DS_DI_MODE) & DS_S_IFMT) != DS_S_IFREG)
+        err("dirshard parent %llu: holder %llu is not a regular file (mode 0%o)",
+            (unsigned long long)pe->ino, (unsigned long long)hino,
+            get_be16(hdip + DS_DI_MODE));
+    if (get_be32(hdip + DS_DI_NLINK) != 1 && pe->nlink != 0)
+        err("dirshard parent %llu: holder %llu nlink %u != 1",
+            (unsigned long long)pe->ino, (unsigned long long)hino,
+            get_be32(hdip + DS_DI_NLINK));
+    if (ds_single_extent(hdip, &startoff, &startblock, &blockcount) < 0 ||
+        startoff != 0 || blockcount != 1) {
+        err("dirshard parent %llu: holder %llu data fork is not exactly one "
+            "real block at offset 0 (format %u nextents %u)",
+            (unsigned long long)pe->ino, (unsigned long long)hino,
+            hdip[DS_DI_FORMAT], get_be32(hdip + DS_DI_NEXTENTS));
+        goto out;
+    }
+    agno = (uint32_t)(startblock >> geo->agblklog);
+    agbno = (uint32_t)(startblock & ((1ULL << geo->agblklog) - 1));
+    if (agno >= geo->agcount || agbno >= geo->agblocks) {
+        err("dirshard parent %llu: holder %llu block %llu outside the geometry",
+            (unsigned long long)pe->ino, (unsigned long long)hino,
+            (unsigned long long)startblock);
+        goto out;
+    }
+    daddr = ((uint64_t)agno * geo->agblocks + agbno) *
+            (geo->blocksize / 512);
+    blk_off = geo->xfs_off + daddr * 512;
+    if (read_at(fd, blk, geo->blocksize, blk_off) < 0) {
+        err("dirshard parent %llu: manifest block read at %llu failed",
+            (unsigned long long)pe->ino, (unsigned long long)blk_off);
+        goto out;
+    }
+    crc_ok = xfs_verify_crc(blk, geo->blocksize, MXFS_DIRSHARD_BLK_CRC_OFF);
+    {
+        const struct mxfs_dirshard_blk *b = (const void *)blk;
+
+        if (mxfs_dirshard_be32(b->magic) == MXFS_DIRSHARD_BLK_MAGIC) {
+            if (memcmp(b->uuid, geo->uuid, 16) != 0)
+                err("dirshard parent %llu: manifest block uuid != sb_meta_uuid",
+                    (unsigned long long)pe->ino);
+            if (mxfs_dirshard_be64(b->blkno) != daddr)
+                err("dirshard parent %llu: manifest block blkno %llu != its "
+                    "daddr %llu", (unsigned long long)pe->ino,
+                    (unsigned long long)mxfs_dirshard_be64(b->blkno),
+                    (unsigned long long)daddr);
+        }
+    }
+    c = mxfs_dirshard_blk_check((const void *)blk, geo->blocksize, hino, hgen,
+                                pe->ino, pe->gen, crc_ok, &v);
+    if (c != MXFS_DSC_OK) {
+        err("dirshard parent %llu: manifest block invalid: reason=%s (holder "
+            "%llu gen %u, crc %s)", (unsigned long long)pe->ino,
+            mxfs_dirshard_check_name(c), (unsigned long long)hino, hgen,
+            crc_ok ? "ok" : "BAD");
+        goto out;
+    }
+
+    /* lifecycle vs namespace */
+    if (v.state == MXFS_DIRSHARD_ST_PUBLISHED) {
+        if (pe->nlink == 0)
+            err("dirshard parent %llu: manifest PUBLISHED but the parent is "
+                "unlinked (nlink 0)", (unsigned long long)pe->ino);
+        else
+            (*published)++;
+    } else {
+        if (pe->nlink != 0)
+            err("dirshard parent %llu: manifest state %u (not PUBLISHED) on a "
+                "linked parent (nlink %u)", (unsigned long long)pe->ino,
+                v.state, pe->nlink);
+        else
+            (*unlinked_sets)++;
+    }
+    if (verbose)
+        info("dirshard parent %llu gen %u: state=%u nshards=%u nentries=%u "
+             "mgen=%u valid_mask=0x%016llx holder=%llu blk=%llu",
+             (unsigned long long)pe->ino, pe->gen, v.state, v.nshards,
+             v.nentries, v.mgen, (unsigned long long)v.valid_mask,
+             (unsigned long long)hino, (unsigned long long)daddr);
+
+    /* the containers */
+    for (unsigned int i = 0; i < v.nshards; i++) {
+        struct ds_ino *ce;
+
+        if (!(v.valid_mask & (1ULL << i)))
+            continue;
+        ce = ds_find(containers, v.shard[i].ino);
+        if (ds_read_dinode(fd, geo, v.shard[i].ino, cdip) < 0 ||
+            get_be32(cdip + DS_DI_GEN) != v.shard[i].gen) {
+            if (v.state == MXFS_DIRSHARD_ST_DELETING || pe->nlink == 0) {
+                info("dirshard parent %llu: live entry %u (ino %llu gen %u) "
+                     "already gone during teardown (legal restart shape)",
+                     (unsigned long long)pe->ino, i,
+                     (unsigned long long)v.shard[i].ino, v.shard[i].gen);
+                continue;
+            }
+            err("dirshard parent %llu: live entry %u names ino %llu gen %u "
+                "which is not that allocated inode",
+                (unsigned long long)pe->ino, i,
+                (unsigned long long)v.shard[i].ino, v.shard[i].gen);
+            continue;
+        }
+        if (!ce) {
+            err("dirshard parent %llu: entry %u ino %llu lacks the CONTAINER "
+                "flag", (unsigned long long)pe->ino, i,
+                (unsigned long long)v.shard[i].ino);
+            continue;
+        }
+        ce->refs++;
+        if ((ce->mode & DS_S_IFMT) != DS_S_IFDIR)
+            err("dirshard parent %llu: container %llu is not a directory "
+                "(mode 0%o)", (unsigned long long)pe->ino,
+                (unsigned long long)ce->ino, ce->mode);
+        if (ce->flags2 & MXFS_DIFLAG2_DIRSHARD_PARENT)
+            err("dirshard parent %llu: container %llu also carries PARENT",
+                (unsigned long long)pe->ino, (unsigned long long)ce->ino);
+        if (v.state == MXFS_DIRSHARD_ST_PUBLISHED && ce->nlink != 2)
+            err("dirshard parent %llu: container %llu nlink %u != 2 (a child "
+                "directory inside a shard is not legal in stage 1)",
+                (unsigned long long)pe->ino, (unsigned long long)ce->ino,
+                ce->nlink);
+    }
+out:
+    free(pdip); free(hdip); free(cdip); free(blk);
+    return errors - pre;
+}
+
+static void check_dirshard(int fd, const struct xfs_geo *geo)
+{
+    int pre_errors = errors;
+    struct ds_list parents = { 0 }, containers = { 0 };
+    uint64_t scanned = 0, published = 0, unlinked_sets = 0, skipped = 0;
+    uint64_t unreferenced = 0, pending = 0;
+
+    printf("Directory sharding ...... ");
+    fflush(stdout);
+
+    for (uint32_t agno = 0; agno < geo->agcount; agno++) {
+        uint8_t agi_buf[512];
+        uint64_t agi_off = geo->xfs_off +
+                           (uint64_t)agno * geo->agblocks * geo->blocksize +
+                           1024;
+        uint32_t ino_root, ino_level;
+
+        if (read_at(fd, agi_buf, 512, agi_off) < 0 ||
+            get_be32(agi_buf + 0x00) != XFS_AGI_MAGIC)
+            continue;
+        ino_root  = get_be32(agi_buf + 0x14);
+        ino_level = get_be32(agi_buf + 0x18);
+        if (ino_level >= 1 && ino_root < geo->agblocks)
+            ds_walk_inobt(fd, geo, agno, ino_root, 0, &parents, &containers,
+                          &scanned);
+    }
+    if (parents.oom || containers.oom) {
+        err("dirshard: out of memory, audit incomplete");
+        goto out;
+    }
+
+    if (!dirshard_gates_ok && (parents.n || containers.n)) {
+        err("dirshard: %u PARENT and %u CONTAINER inode flags on a device "
+            "without both sharding gates", parents.n, containers.n);
+        goto out;
+    }
+
+    for (uint32_t i = 0; i < parents.n; i++)
+        ds_check_parent(fd, geo, &parents.v[i], &containers, &published,
+                        &unlinked_sets, &skipped);
+
+    for (uint32_t i = 0; i < containers.n; i++) {
+        struct ds_ino *ce = &containers.v[i];
+
+        if (ce->refs == 1)
+            continue;
+        if (ce->refs > 1) {
+            err("dirshard: container %llu is named by %u manifests/locators",
+                (unsigned long long)ce->ino, ce->refs);
+            continue;
+        }
+        if (ce->nlink == 0) {
+            pending++;          /* on an unlinked list, awaiting its reap */
+            if (verbose)
+                info("dirshard: container %llu unreferenced, nlink 0 — "
+                     "pending reap", (unsigned long long)ce->ino);
+            continue;
+        }
+        if (skipped) {
+            /* a parent whose locator we could not decode may own it */
+            info("dirshard: container %llu (nlink %u) not attributed — a "
+                 "skipped parent may own it", (unsigned long long)ce->ino,
+                 ce->nlink);
+            continue;
+        }
+        unreferenced++;
+        err("dirshard: container %llu (mode 0%o nlink %u gen %u) is named by "
+            "no manifest and is not unlinked — leaked internal inode",
+            (unsigned long long)ce->ino, ce->mode, ce->nlink, ce->gen);
+    }
+out:
+    printf("%s  (parents=%u published=%llu unlinked_sets=%llu containers=%u "
+           "pending_reap=%llu unreferenced=%llu skipped=%llu scanned=%llu)\n",
+           errors == pre_errors ? "OK" : "ERRORS", parents.n,
+           (unsigned long long)published, (unsigned long long)unlinked_sets,
+           containers.n, (unsigned long long)pending,
+           (unsigned long long)unreferenced, (unsigned long long)skipped,
+           (unsigned long long)scanned);
+    free(parents.v);
+    free(containers.v);
+}
+
+/* ─── Directory entries (D-0964) ───────────────────────────────────────────
+ *
+ * Every directory's entries are walked — shortform in the dinode, and the
+ * data blocks of block-, leaf- and node-format directories — and every entry's
+ * inode number is resolved against the inobt (the allocated set built from
+ * the same records the inode-btree pass validated) and the dinode it names.
+ * An entry naming an inode the inobt calls free, or whose dinode carries no
+ * mode, is a dangling entry: it lists on every node and resolves on none, and
+ * rm cannot remove it.  That is the durable outcome of a lost directory
+ * update (D-0963 published a stale name set), and before this pass the checker
+ * reported such a volume CLEAN because it never parsed a name.
+ *
+ * The counts are printed so a run that walked nothing cannot read as clean:
+ * zero directories, or a root directory never walked, is itself an error.
+ * Reporting only — a repair that removes a name has to maintain the block's
+ * bestfree table and the leaf hash index, and it destroys the evidence the
+ * pass exists to surface.
+ */
+#define DE_DIR3_BLOCK_MAGIC   0x58444233u   /* XDB3 */
+#define DE_DIR3_DATA_MAGIC    0x58444433u   /* XDD3 */
+#define DE_BMAP_CRC_MAGIC     0x424d4133u   /* BMA3 */
+#define DE_DATA_HDR_SIZE      64            /* struct xfs_dir3_data_hdr */
+#define DE_BLK_HDR_OWNER_OFF  40            /* xfs_dir3_blk_hdr.owner */
+#define DE_BLK_HDR_CRC_OFF    4
+#define DE_LBLOCK_HDR_SIZE    72            /* long-form btree block header */
+#define DE_LBLOCK_CRC_OFF     64
+#define DE_FREE_TAG           0xffff
+#define DE_LEAF_SPACE_BYTES   (1ULL << 35)  /* XFS_DIR2_LEAF_OFFSET */
+#define DE_DI_BIG_NEXTENTS    0x18
+#define DE_MAX_DIRENT_ERRORS  64            /* per volume, then a count */
+
+struct de_u64list {
+    uint64_t *v;
+    uint32_t n, cap;
+    bool oom;
+};
+
+static void de_push(struct de_u64list *l, uint64_t val)
+{
+    if (l->n == l->cap) {
+        uint32_t ncap = l->cap ? l->cap * 2 : 1024;
+        uint64_t *nv = realloc(l->v, (size_t)ncap * sizeof(*nv));
+
+        if (!nv) {
+            l->oom = true;
+            return;
+        }
+        l->v = nv;
+        l->cap = ncap;
+    }
+    l->v[l->n++] = val;
+}
+
+static int de_cmp_u64(const void *a, const void *b)
+{
+    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+
+    return x < y ? -1 : x > y;
+}
+
+static bool de_allocated(const struct de_u64list *set, uint64_t ino)
+{
+    return bsearch(&ino, set->v, set->n, sizeof(uint64_t), de_cmp_u64) != NULL;
+}
+
+/* one data extent of a directory's data fork */
+struct de_extent {
+    uint64_t startoff;      /* fsblocks */
+    uint64_t startblock;    /* fsbno */
+    uint32_t blockcount;
+};
+
+struct de_extlist {
+    struct de_extent *v;
+    uint32_t n, cap;
+    bool oom;
+};
+
+struct de_stats {
+    uint64_t dirs, entries, blocks, dangling, mode0, ftype_bad;
+    uint64_t dot_bad, dotdot_bad, blocks_bad, dirs_skipped, errors_shown;
+    bool root_seen;
+};
+
+static void de_ext_push(struct de_extlist *l, uint64_t startoff,
+                        uint64_t startblock, uint32_t blockcount)
+{
+    if (l->n == l->cap) {
+        uint32_t ncap = l->cap ? l->cap * 2 : 16;
+        struct de_extent *nv = realloc(l->v, (size_t)ncap * sizeof(*nv));
+
+        if (!nv) {
+            l->oom = true;
+            return;
+        }
+        l->v = nv;
+        l->cap = ncap;
+    }
+    l->v[l->n].startoff = startoff;
+    l->v[l->n].startblock = startblock;
+    l->v[l->n].blockcount = blockcount;
+    l->n++;
+}
+
+/* decode one packed xfs_bmbt_rec (two be64) into the list; unwritten
+ * extents are not directory data */
+static void de_ext_decode(struct de_extlist *l, const uint8_t *rec)
+{
+    uint64_t l0 = get_be64(rec), l1 = get_be64(rec + 8);
+
+    if (l0 >> 63)
+        return;
+    de_ext_push(l, (l0 >> 9) & ((1ULL << 54) - 1),
+                ((l0 & 0x1ff) << 43) | (l1 >> 21),
+                (uint32_t)(l1 & ((1U << 21) - 1)));
+}
+
+static int de_ext_cmp(const void *a, const void *b)
+{
+    const struct de_extent *x = a, *y = b;
+
+    return x->startoff < y->startoff ? -1 : x->startoff > y->startoff;
+}
+
+/* logical fsb offset -> physical fsbno through the sorted extent list */
+static bool de_ext_map(const struct de_extlist *l, uint64_t off, uint64_t *pb)
+{
+    uint32_t lo = 0, hi = l->n;
+
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2;
+        const struct de_extent *e = &l->v[mid];
+
+        if (off < e->startoff)
+            hi = mid;
+        else if (off >= e->startoff + e->blockcount)
+            lo = mid + 1;
+        else {
+            *pb = e->startblock + (off - e->startoff);
+            return true;
+        }
+    }
+    return false;
+}
+
+/* fsbno -> device byte offset */
+static uint64_t de_fsb_offset(const struct xfs_geo *geo, uint64_t fsbno,
+                              bool *ok)
+{
+    uint32_t agno = (uint32_t)(fsbno >> geo->agblklog);
+    uint32_t agbno = (uint32_t)(fsbno & ((1ULL << geo->agblklog) - 1));
+
+    *ok = agno < geo->agcount && agbno < geo->agblocks;
+    return geo->xfs_off +
+           ((uint64_t)agno * geo->agblocks + agbno) * geo->blocksize;
+}
+
+/* walk a bmbt block (BMA3) collecting leaf records */
+static void de_walk_bmbt(int fd, const struct xfs_geo *geo, uint64_t dirino,
+                         uint64_t fsbno, int depth, struct de_extlist *l,
+                         struct de_stats *st)
+{
+    uint8_t *blk;
+    bool ok;
+    uint64_t off = de_fsb_offset(geo, fsbno, &ok);
+
+    if (depth > MAX_BTREE_DEPTH || !ok) {
+        err("dirents: directory %llu bmbt block fsb %llu out of range (depth %d)",
+            (unsigned long long)dirino, (unsigned long long)fsbno, depth);
+        return;
+    }
+    blk = malloc(geo->blocksize);
+    if (!blk) {
+        l->oom = true;
+        return;
+    }
+    if (read_at(fd, blk, geo->blocksize, off) < 0 ||
+        get_be32(blk) != DE_BMAP_CRC_MAGIC) {
+        err("dirents: directory %llu bmbt block fsb %llu unreadable or not BMA3",
+            (unsigned long long)dirino, (unsigned long long)fsbno);
+        free(blk);
+        return;
+    }
+    if (!xfs_verify_crc(blk, geo->blocksize, DE_LBLOCK_CRC_OFF))
+        err("dirents: directory %llu bmbt block fsb %llu CRC mismatch",
+            (unsigned long long)dirino, (unsigned long long)fsbno);
+    if (get_be64(blk + 56) != dirino)
+        err("dirents: directory %llu bmbt block fsb %llu owner is %llu",
+            (unsigned long long)dirino, (unsigned long long)fsbno,
+            (unsigned long long)get_be64(blk + 56));
+    {
+        uint16_t level = get_be16(blk + 4);
+        uint16_t numrecs = get_be16(blk + 6);
+        uint32_t maxrecs = (geo->blocksize - DE_LBLOCK_HDR_SIZE) / 16;
+
+        if (level == 0) {
+            if (numrecs > maxrecs)
+                numrecs = maxrecs;
+            for (uint16_t i = 0; i < numrecs; i++)
+                de_ext_decode(l, blk + DE_LBLOCK_HDR_SIZE + (size_t)i * 16);
+        } else {
+            /* keys (be64 startoff) then pointers (be64 fsbno) */
+            size_t ptr_off = DE_LBLOCK_HDR_SIZE + (size_t)maxrecs * 8;
+
+            if (numrecs > maxrecs)
+                numrecs = maxrecs;
+            for (uint16_t i = 0; i < numrecs; i++)
+                de_walk_bmbt(fd, geo, dirino,
+                             get_be64(blk + ptr_off + (size_t)i * 8),
+                             depth + 1, l, st);
+        }
+    }
+    free(blk);
+}
+
+/* the data fork's extents: inline list, or the bmbt rooted in the dinode */
+static int de_collect_extents(int fd, const struct xfs_geo *geo,
+                              uint64_t dirino, const uint8_t *dip,
+                              struct de_extlist *l, struct de_stats *st)
+{
+    uint8_t forkoff = dip[DS_DI_FORKOFF];
+    size_t dfork = forkoff ? (size_t)forkoff * 8
+                           : (size_t)geo->inodesize - DS_DI_LITERAL;
+    const uint8_t *fork = dip + DS_DI_LITERAL;
+    uint64_t nextents = geo->has_nrext64 ? get_be64(dip + DE_DI_BIG_NEXTENTS)
+                                         : get_be32(dip + DS_DI_NEXTENTS);
+
+    if (dip[DS_DI_FORMAT] == DS_FMT_EXTENTS) {
+        if (nextents * 16 > dfork) {
+            err("dirents: directory %llu has %llu extents but a %zu-byte fork",
+                (unsigned long long)dirino, (unsigned long long)nextents,
+                dfork);
+            return -1;
+        }
+        for (uint64_t i = 0; i < nextents; i++)
+            de_ext_decode(l, fork + i * 16);
+        return 0;
+    }
+    if (dip[DS_DI_FORMAT] == XFS_DINODE_FMT_BTREE) {
+        uint16_t level = get_be16(fork), numrecs = get_be16(fork + 2);
+        uint32_t maxrecs = dfork >= 4 ? (uint32_t)((dfork - 4) / 16) : 0;
+        size_t ptr_off = 4 + (size_t)maxrecs * 8;
+
+        if (level == 0 || numrecs > maxrecs || maxrecs == 0) {
+            err("dirents: directory %llu bmbt root level %u numrecs %u "
+                "(fork %zu bytes)", (unsigned long long)dirino, level,
+                numrecs, dfork);
+            return -1;
+        }
+        for (uint16_t i = 0; i < numrecs; i++)
+            de_walk_bmbt(fd, geo, dirino,
+                         get_be64(fork + ptr_off + (size_t)i * 8), 1, l, st);
+        return 0;
+    }
+    err("dirents: directory %llu data fork format %u is not local, extents "
+        "or btree", (unsigned long long)dirino, dip[DS_DI_FORMAT]);
+    return -1;
+}
+
+static const char *de_ftype_name(uint8_t ft)
+{
+    static const char *names[] = { "unknown", "file", "dir", "chr", "blk",
+                                   "fifo", "sock", "symlink", "whiteout" };
+
+    return ft < 9 ? names[ft] : "invalid";
+}
+
+static uint8_t de_mode_ftype(uint16_t mode)
+{
+    switch (mode & DS_S_IFMT) {
+    case 0x8000: return 1;
+    case 0x4000: return 2;
+    case 0x2000: return 3;
+    case 0x6000: return 4;
+    case 0x1000: return 5;
+    case 0xC000: return 6;
+    case 0xA000: return 7;
+    default:     return 0;
+    }
+}
+
+static void de_report(struct de_stats *st, const char *fmt, ...)
+{
+    va_list ap;
+    char msg[512];
+
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    errors++;
+    if (st->errors_shown < DE_MAX_DIRENT_ERRORS) {
+        printf("  ERROR: %s\n", msg);
+    } else if (st->errors_shown == DE_MAX_DIRENT_ERRORS) {
+        printf("  ERROR: (further directory-entry errors counted, not listed)\n");
+    }
+    st->errors_shown++;
+}
+
+/* resolve one entry: the allocated set, then the dinode it names */
+static void de_check_entry(int fd, const struct xfs_geo *geo,
+                           const struct de_u64list *set, uint64_t dirino,
+                           const uint8_t *name, uint8_t namelen, uint64_t ino,
+                           int ftype, struct de_stats *st, uint8_t *dip)
+{
+    uint16_t mode;
+    bool dot = namelen == 1 && name[0] == '.';
+    bool dotdot = namelen == 2 && name[0] == '.' && name[1] == '.';
+
+    st->entries++;
+    if (dot && ino != dirino) {
+        st->dot_bad++;
+        de_report(st, "directory %llu: '.' names %llu",
+                  (unsigned long long)dirino, (unsigned long long)ino);
+        return;
+    }
+    if (!de_allocated(set, ino)) {
+        st->dangling++;
+        de_report(st, "directory %llu: entry '%.*s' names inode %llu which "
+                  "the inobt holds FREE (dangling entry)",
+                  (unsigned long long)dirino, (int)namelen, name,
+                  (unsigned long long)ino);
+        return;
+    }
+    if (ds_read_dinode(fd, geo, ino, dip) < 0) {
+        st->dangling++;
+        de_report(st, "directory %llu: entry '%.*s' names inode %llu whose "
+                  "dinode cannot be read (dangling entry)",
+                  (unsigned long long)dirino, (int)namelen, name,
+                  (unsigned long long)ino);
+        return;
+    }
+    if (dip[0x04] != 3 || get_be64(dip + 0x98) != ino ||
+        !xfs_verify_crc(dip, geo->inodesize, 0x64)) {
+        st->mode0++;
+        de_report(st, "directory %llu: entry '%.*s' names inode %llu whose "
+                  "dinode is not a valid v3 dinode for that number (version "
+                  "%u di_ino %llu crc %s)", (unsigned long long)dirino,
+                  (int)namelen, name, (unsigned long long)ino, dip[0x04],
+                  (unsigned long long)get_be64(dip + 0x98),
+                  xfs_verify_crc(dip, geo->inodesize, 0x64) ? "ok" : "BAD");
+        return;
+    }
+    mode = get_be16(dip + DS_DI_MODE);
+    if (mode == 0) {
+        st->mode0++;
+        de_report(st, "directory %llu: entry '%.*s' names inode %llu whose "
+                  "dinode has mode 0 (freed; dangling entry)",
+                  (unsigned long long)dirino, (int)namelen, name,
+                  (unsigned long long)ino);
+        return;
+    }
+    if (dotdot && (mode & DS_S_IFMT) != DS_S_IFDIR) {
+        st->dotdot_bad++;
+        de_report(st, "directory %llu: '..' names %llu which is not a "
+                  "directory (mode 0%o)", (unsigned long long)dirino,
+                  (unsigned long long)ino, mode);
+        return;
+    }
+    if (ftype > 0 && ftype != de_mode_ftype(mode)) {
+        st->ftype_bad++;
+        de_report(st, "directory %llu: entry '%.*s' -> inode %llu has ftype "
+                  "%s but the dinode mode 0%o is a %s",
+                  (unsigned long long)dirino, (int)namelen, name,
+                  (unsigned long long)ino, de_ftype_name((uint8_t)ftype), mode,
+                  de_ftype_name(de_mode_ftype(mode)));
+    }
+}
+
+/* shortform directory: header (count, i8count, parent), then entries */
+static void de_walk_shortform(int fd, const struct xfs_geo *geo,
+                              const struct de_u64list *set, uint64_t dirino,
+                              const uint8_t *dip, struct de_stats *st,
+                              uint8_t *tdip)
+{
+    uint8_t forkoff = dip[DS_DI_FORKOFF];
+    size_t dfork = forkoff ? (size_t)forkoff * 8
+                           : (size_t)geo->inodesize - DS_DI_LITERAL;
+    const uint8_t *sf = dip + DS_DI_LITERAL, *end = sf + dfork, *p;
+    uint8_t count, i8count, inolen;
+    uint64_t parent;
+    uint64_t di_size = get_be64(dip + DS_DI_SIZE);
+
+    if (dfork < 2 + 4) {
+        de_report(st, "directory %llu: shortform fork of %zu bytes",
+                  (unsigned long long)dirino, dfork);
+        return;
+    }
+    count = sf[0];
+    i8count = sf[1];
+    inolen = i8count ? 8 : 4;
+    parent = inolen == 8 ? get_be64(sf + 2) : get_be32(sf + 2);
+    if (di_size > dfork) {
+        de_report(st, "directory %llu: shortform di_size %llu exceeds the "
+                  "%zu-byte fork", (unsigned long long)dirino,
+                  (unsigned long long)di_size, dfork);
+        return;
+    }
+    /* the parent is the shortform '..' */
+    de_check_entry(fd, geo, set, dirino, (const uint8_t *)"..", 2, parent, 2,
+                   st, tdip);
+    p = sf + 2 + inolen;
+    for (uint8_t i = 0; i < count; i++) {
+        uint8_t namelen;
+        size_t esize;
+        uint64_t ino;
+        int ftype = -1;
+
+        if (p + 3 > end) {
+            de_report(st, "directory %llu: shortform entry %u runs past the "
+                      "fork", (unsigned long long)dirino, i);
+            return;
+        }
+        namelen = p[0];
+        esize = 3 + (size_t)namelen + (geo->has_ftype ? 1 : 0) + inolen;
+        if (namelen == 0 || p + esize > end) {
+            de_report(st, "directory %llu: shortform entry %u (namelen %u) "
+                      "runs past the fork", (unsigned long long)dirino, i,
+                      namelen);
+            return;
+        }
+        if (geo->has_ftype) {
+            ftype = p[3 + namelen];
+            if (ftype >= 9) {
+                de_report(st, "directory %llu: shortform entry %u has ftype "
+                          "%d, out of range (rest not walked)",
+                          (unsigned long long)dirino, i, ftype);
+                return;
+            }
+        }
+        ino = inolen == 8 ? get_be64(p + esize - 8) : get_be32(p + esize - 4);
+        de_check_entry(fd, geo, set, dirino, p + 3, namelen, ino, ftype, st,
+                       tdip);
+        p += esize;
+    }
+    /* the entries must consume exactly the advertised shortform payload */
+    if ((size_t)(p - sf) != di_size)
+        de_report(st, "directory %llu: shortform entries end at %zu bytes "
+                  "but di_size is %llu", (unsigned long long)dirino,
+                  (size_t)(p - sf), (unsigned long long)di_size);
+}
+
+/* one directory data block (XDB3 or XDD3) already in memory */
+static void de_walk_data_block(int fd, const struct xfs_geo *geo,
+                               const struct de_u64list *set, uint64_t dirino,
+                               uint64_t dboff, const uint8_t *blk,
+                               size_t dbsize, struct de_stats *st,
+                               uint8_t *tdip)
+{
+    uint32_t magic = get_be32(blk);
+    size_t data_end = dbsize, p;
+
+    if (magic != DE_DIR3_BLOCK_MAGIC && magic != DE_DIR3_DATA_MAGIC) {
+        st->blocks_bad++;
+        de_report(st, "directory %llu: data block at offset %llu has magic "
+                  "0x%08x, not XDB3/XDD3 (not walked)",
+                  (unsigned long long)dirino, (unsigned long long)dboff,
+                  magic);
+        return;
+    }
+    if (!xfs_verify_crc((void *)blk, dbsize, DE_BLK_HDR_CRC_OFF)) {
+        st->blocks_bad++;
+        de_report(st, "directory %llu: data block at offset %llu CRC "
+                  "mismatch (not walked)", (unsigned long long)dirino,
+                  (unsigned long long)dboff);
+        return;
+    }
+    if (get_be64(blk + DE_BLK_HDR_OWNER_OFF) != dirino) {
+        st->blocks_bad++;
+        de_report(st, "directory %llu: data block at offset %llu is owned by "
+                  "%llu (not walked)", (unsigned long long)dirino,
+                  (unsigned long long)dboff,
+                  (unsigned long long)get_be64(blk + DE_BLK_HDR_OWNER_OFF));
+        return;
+    }
+    if (memcmp(blk + 24, geo->uuid, 16) != 0) {
+        st->blocks_bad++;
+        de_report(st, "directory %llu: data block at offset %llu carries "
+                  "another filesystem's uuid (not walked)",
+                  (unsigned long long)dirino, (unsigned long long)dboff);
+        return;
+    }
+    if (magic == DE_DIR3_BLOCK_MAGIC) {
+        /* block format: leaf entries (8 bytes each) and the tail
+         * (count, stale: two be32) sit at the end of the block; count
+         * includes the stale slots */
+        uint32_t lcount = get_be32(blk + dbsize - 8);
+        uint32_t lstale = get_be32(blk + dbsize - 4);
+
+        if (lcount > (dbsize - DE_DATA_HDR_SIZE - 8) / 8 || lstale > lcount) {
+            st->blocks_bad++;
+            de_report(st, "directory %llu: block-format tail count %u stale "
+                      "%u does not fit (not walked)",
+                      (unsigned long long)dirino, lcount, lstale);
+            return;
+        }
+        data_end = dbsize - 8 - (size_t)lcount * 8;
+    }
+    st->blocks++;
+    p = DE_DATA_HDR_SIZE;
+    while (p < data_end) {
+        if (p + 8 > data_end) {
+            st->blocks_bad++;
+            de_report(st, "directory %llu: block at offset %llu has %zu "
+                      "trailing bytes that are no record",
+                      (unsigned long long)dirino, (unsigned long long)dboff,
+                      data_end - p);
+            return;
+        }
+        if (get_be16(blk + p) == DE_FREE_TAG) {
+            uint16_t len = get_be16(blk + p + 2);
+
+            if (len < 8 || (len & 7) || p + len > data_end ||
+                get_be16(blk + p + len - 2) != p) {
+                st->blocks_bad++;
+                de_report(st, "directory %llu: block at offset %llu has an "
+                          "unused span of %u bytes at %zu whose tag is %u "
+                          "(rest not walked)", (unsigned long long)dirino,
+                          (unsigned long long)dboff, len, p,
+                          len >= 8 && p + len <= data_end
+                              ? get_be16(blk + p + len - 2) : 0);
+                return;
+            }
+            p += len;
+            continue;
+        }
+        {
+            uint64_t ino = get_be64(blk + p);
+            uint8_t namelen = blk[p + 8];
+            size_t esize = 8 + 1 + (size_t)namelen + (geo->has_ftype ? 1 : 0) + 2;
+            int ftype = -1;
+
+            esize = (esize + 7) & ~(size_t)7;
+            if (namelen == 0 || p + esize > data_end) {
+                st->blocks_bad++;
+                de_report(st, "directory %llu: block at offset %llu entry at "
+                          "%zu (namelen %u) runs past the data area (rest "
+                          "not walked)", (unsigned long long)dirino,
+                          (unsigned long long)dboff, p, namelen);
+                return;
+            }
+            if (geo->has_ftype) {
+                ftype = blk[p + 9 + namelen];
+                if (ftype >= 9) {
+                    st->blocks_bad++;
+                    de_report(st, "directory %llu: block at offset %llu "
+                              "entry at %zu has ftype %d, out of range "
+                              "(rest not walked)", (unsigned long long)dirino,
+                              (unsigned long long)dboff, p, ftype);
+                    return;
+                }
+            }
+            /* the entry's tag must point back at itself */
+            if (get_be16(blk + p + esize - 2) != p) {
+                st->blocks_bad++;
+                de_report(st, "directory %llu: block at offset %llu entry at "
+                          "%zu tag is %u (rest not walked)",
+                          (unsigned long long)dirino,
+                          (unsigned long long)dboff, p,
+                          get_be16(blk + p + esize - 2));
+                return;
+            }
+            de_check_entry(fd, geo, set, dirino, blk + p + 9, namelen, ino,
+                           ftype, st, tdip);
+            p += esize;
+        }
+    }
+}
+
+/* every data-space directory block of a block/leaf/node directory */
+static void de_walk_blocks(int fd, const struct xfs_geo *geo,
+                           const struct de_u64list *set, uint64_t dirino,
+                           const uint8_t *dip, struct de_stats *st,
+                           uint8_t *tdip)
+{
+    struct de_extlist ext = { 0 };
+    size_t dbsize = (size_t)geo->blocksize << geo->dirblklog;
+    uint32_t dbfsb = 1U << geo->dirblklog;
+    uint64_t leaf_fsb = DE_LEAF_SPACE_BYTES / geo->blocksize;
+    uint8_t *buf;
+
+    if (de_collect_extents(fd, geo, dirino, dip, &ext, st) < 0 || ext.oom) {
+        if (ext.oom)
+            err("dirents: out of memory collecting directory %llu extents",
+                (unsigned long long)dirino);
+        st->dirs_skipped++;
+        free(ext.v);
+        return;
+    }
+    buf = malloc(dbsize);
+    if (!buf) {
+        err("dirents: out of memory for a %zu-byte directory block", dbsize);
+        st->dirs_skipped++;
+        free(ext.v);
+        return;
+    }
+    qsort(ext.v, ext.n, sizeof(*ext.v), de_ext_cmp);
+    for (uint32_t i = 1; i < ext.n; i++) {
+        const struct de_extent *a = &ext.v[i - 1], *b = &ext.v[i];
+
+        if (a->startoff + a->blockcount > b->startoff) {
+            st->blocks_bad++;
+            de_report(st, "directory %llu: data extents [%llu+%u] and "
+                      "[%llu+%u] overlap (directory not walked)",
+                      (unsigned long long)dirino,
+                      (unsigned long long)a->startoff, a->blockcount,
+                      (unsigned long long)b->startoff, b->blockcount);
+            st->dirs_skipped++;
+            free(buf);
+            free(ext.v);
+            return;
+        }
+    }
+    /* a directory block is dbfsb filesystem blocks and may span extents:
+     * every mapped data-space filesystem block names the directory block
+     * it belongs to, and each directory block is assembled once through
+     * the map.  A block with any unmapped member is partial: reported,
+     * never walked.  Holes between whole directory blocks are legal. */
+    {
+        uint64_t last_db = UINT64_MAX;
+
+        for (uint32_t i = 0; i < ext.n; i++) {
+            const struct de_extent *e = &ext.v[i];
+
+            for (uint64_t b = 0; b < e->blockcount; b++) {
+                uint64_t fsb_off = e->startoff + b;
+                uint64_t db = fsb_off - fsb_off % dbfsb;
+                bool complete = true;
+
+                if (fsb_off >= leaf_fsb)
+                    break;              /* leaf / free index space */
+                if (db == last_db)
+                    continue;
+                last_db = db;
+                for (uint32_t k = 0; k < dbfsb; k++) {
+                    uint64_t pb;
+                    bool ok = false;
+
+                    if (de_ext_map(&ext, db + k, &pb)) {
+                        uint64_t off = de_fsb_offset(geo, pb, &ok);
+
+                        if (ok && read_at(fd, buf + (size_t)k * geo->blocksize,
+                                          geo->blocksize, off) == 0)
+                            continue;
+                    }
+                    complete = false;
+                    break;
+                }
+                if (!complete) {
+                    st->blocks_bad++;
+                    de_report(st, "directory %llu: directory block at fsb "
+                              "offset %llu is partially mapped or unreadable "
+                              "(not walked)", (unsigned long long)dirino,
+                              (unsigned long long)db);
+                    continue;
+                }
+                de_walk_data_block(fd, geo, set, dirino, db, buf, dbsize, st,
+                                   tdip);
+            }
+        }
+    }
+    free(buf);
+    free(ext.v);
+}
+
+/* collect the allocated set and the directory list from one inobt leaf */
+static void de_collect_leaf(int fd, const struct xfs_geo *geo, uint32_t agno,
+                            const uint8_t *blk, uint16_t numrecs,
+                            struct de_u64list *set, struct de_u64list *dirs)
+{
+    size_t chunk_bytes = 64 * (size_t)geo->inodesize;
+    uint8_t *chunk = malloc(chunk_bytes);
+
+    if (!chunk) {
+        set->oom = true;
+        return;
+    }
+    for (uint16_t r = 0; r < numrecs; r++) {
+        const uint8_t *rec = blk + BTREE_REC_OFF + r * 16;
+        uint32_t startino  = get_be32(rec + 0);
+        uint16_t holemask  = get_be16(rec + 4);
+        uint64_t free_mask = get_be64(rec + 8);
+        bool have_chunk;
+
+        if ((startino >> geo->inopblog) >= geo->agblocks)
+            continue;
+        have_chunk = read_at(fd, chunk, chunk_bytes,
+                             inode_disk_offset(geo, agno, startino)) == 0;
+        /* an unreadable chunk hides every directory in it: an error, so
+         * the walk's coverage cannot silently shrink to CLEAN */
+        if (!have_chunk)
+            err("dirents: AG %u inode chunk at agino %u unreadable; its "
+                "directories cannot be walked", agno, startino);
+        for (int i = 0; i < 64; i++) {
+            uint64_t ino;
+
+            if (holemask & (1U << (i / 4)))
+                continue;
+            if (free_mask & (1ULL << i))
+                continue;
+            ino = ((uint64_t)agno << (geo->agblklog + geo->inopblog)) |
+                  (startino + i);
+            de_push(set, ino);
+            if (have_chunk) {
+                const uint8_t *dip = chunk + (size_t)i * geo->inodesize;
+
+                if (get_be16(dip) == XFS_DINODE_MAGIC &&
+                    (get_be16(dip + DS_DI_MODE) & DS_S_IFMT) == DS_S_IFDIR)
+                    de_push(dirs, ino);
+            }
+        }
+    }
+    free(chunk);
+}
+
+static void de_walk_inobt(int fd, const struct xfs_geo *geo, uint32_t agno,
+                          uint32_t agbno, int depth, struct de_u64list *set,
+                          struct de_u64list *dirs)
+{
+    uint8_t *blk;
+
+    if (depth > MAX_BTREE_DEPTH)
+        return;
+    blk = malloc(geo->blocksize);
+    if (!blk) {
+        set->oom = true;
+        return;
+    }
+    if (read_ag_block(fd, geo, agno, agbno, blk) < 0 ||
+        get_be32(blk + 0x00) != XFS_IBT_CRC_MAGIC) {
+        free(blk);
+        return;
+    }
+    {
+        uint16_t level   = get_be16(blk + 0x04);
+        uint16_t numrecs = get_be16(blk + 0x06);
+
+        if (level == 0) {
+            de_collect_leaf(fd, geo, agno, blk, numrecs, set, dirs);
+        } else if (numrecs <= sbtree_node_maxrecs(geo->blocksize, 4)) {
+            uint32_t ptr_off = sbtree_ptr_off(geo->blocksize, 4);
+
+            for (uint16_t i = 0; i < numrecs; i++) {
+                uint32_t child = get_be32(blk + ptr_off + i * 4);
+
+                if (child == XFS_NULLAGBLOCK || child >= geo->agblocks)
+                    continue;
+                de_walk_inobt(fd, geo, agno, child, depth + 1, set, dirs);
+            }
+        }
+    }
+    free(blk);
+}
+
+static void check_dirents(int fd, const struct xfs_geo *geo)
+{
+    int pre_errors = errors;
+    struct de_u64list set = { 0 }, dirs = { 0 };
+    struct de_stats st = { 0 };
+    uint8_t *dip = malloc(geo->inodesize);
+    uint8_t *tdip = malloc(geo->inodesize);
+
+    /* under -v the per-directory lines print during the walk, so the
+     * verdict line is printed whole at the end; otherwise the header shows
+     * progress the way the other passes do */
+    if (!verbose) {
+        printf("Directory entries ....... ");
+        fflush(stdout);
+    }
+    if (!dip || !tdip) {
+        err("dirents: out of memory");
+        goto out;
+    }
+    for (uint32_t agno = 0; agno < geo->agcount; agno++) {
+        uint8_t agi_buf[512];
+        uint64_t agi_off = geo->xfs_off +
+                           (uint64_t)agno * geo->agblocks * geo->blocksize +
+                           1024;
+        uint32_t ino_root, ino_level;
+
+        if (read_at(fd, agi_buf, 512, agi_off) < 0 ||
+            get_be32(agi_buf + 0x00) != XFS_AGI_MAGIC)
+            continue;
+        ino_root  = get_be32(agi_buf + 0x14);
+        ino_level = get_be32(agi_buf + 0x18);
+        if (ino_level >= 1 && ino_root < geo->agblocks)
+            de_walk_inobt(fd, geo, agno, ino_root, 0, &set, &dirs);
+    }
+    if (set.oom || dirs.oom) {
+        err("dirents: out of memory, audit incomplete");
+        goto out;
+    }
+    qsort(set.v, set.n, sizeof(uint64_t), de_cmp_u64);
+
+    for (uint32_t d = 0; d < dirs.n; d++) {
+        uint64_t dirino = dirs.v[d];
+
+        if (ds_read_dinode(fd, geo, dirino, dip) < 0) {
+            de_report(&st, "directory %llu: dinode re-read failed",
+                      (unsigned long long)dirino);
+            st.dirs_skipped++;
+            continue;
+        }
+        st.dirs++;
+        if (dirino == geo->rootino)
+            st.root_seen = true;
+        {
+            uint64_t e0 = st.entries, b0 = st.blocks, d0 = st.dangling +
+                          st.mode0, x0 = st.blocks_bad;
+
+            if (dip[DS_DI_FORMAT] == DS_FMT_LOCAL)
+                de_walk_shortform(fd, geo, &set, dirino, dip, &st, tdip);
+            else
+                de_walk_blocks(fd, geo, &set, dirino, dip, &st, tdip);
+            /* one line per directory under -v: a harness asserts the
+             * walk's count against what it created */
+            info("dirents: directory %llu format=%s entries=%llu blocks=%llu "
+                 "dangling=%llu bad_blocks=%llu",
+                 (unsigned long long)dirino,
+                 dip[DS_DI_FORMAT] == DS_FMT_LOCAL ? "shortform"
+                 : dip[DS_DI_FORMAT] == DS_FMT_EXTENTS ? "extents" : "btree",
+                 (unsigned long long)(st.entries - e0),
+                 (unsigned long long)(st.blocks - b0),
+                 (unsigned long long)(st.dangling + st.mode0 - d0),
+                 (unsigned long long)(st.blocks_bad - x0));
+        }
+    }
+    if (st.dirs == 0)
+        err("dirents: no directory was walked (the allocated set holds %u "
+            "inodes)", set.n);
+    else if (!st.root_seen)
+        err("dirents: the root directory %llu was not walked",
+            (unsigned long long)geo->rootino);
+out:
+    printf("%s%s  (dirs=%llu entries=%llu blocks=%llu dangling=%llu mode0=%llu "
+           "ftype_mismatch=%llu bad_blocks=%llu dirs_skipped=%llu "
+           "allocated=%u)\n",
+           verbose ? "Directory entries ....... " : "",
+           errors == pre_errors ? "OK" : "ERRORS",
+           (unsigned long long)st.dirs, (unsigned long long)st.entries,
+           (unsigned long long)st.blocks, (unsigned long long)st.dangling,
+           (unsigned long long)st.mode0, (unsigned long long)st.ftype_bad,
+           (unsigned long long)st.blocks_bad,
+           (unsigned long long)st.dirs_skipped, set.n);
+    free(dip);
+    free(tdip);
+    free(set.v);
+    free(dirs.v);
+}
+
 /* ─── Usage ─── */
 
 /*
@@ -3034,7 +6546,7 @@ static void sha256_hex(const uint8_t d[32], char out[65])
 /*
  * --show-quarantine — read the terminal recovery verdicts off the platter.
  *
- * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, sess377 RULE-5 ruling
+ * D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376, sess377 design-consult ruling
  * step 1 of the repair state machine ("validate and display": print volume
  * UUID, slice/slot, victim identity, incarnation, PR key, fence kind, refusal
  * reason, quarantine domain and digest; require confirmation tied to that
@@ -3056,6 +6568,7 @@ static int do_show_quarantine(const char *device)
     uint32_t slot, slice_count;
     int n_guard = 0, n_active = 0, n_withdrawn = 0, n_other = 0;
     int n_outofrange = 0, n_readable = 0, n_unreadable = 0, n_sweepguard = 0;
+    int n_inprogress = 0;   /* sess433 (D-379 item 5) */
     int n_released = 0;
     int rc = 4;
 
@@ -3149,6 +6662,12 @@ static int do_show_quarantine(const char *device)
             printf("  slot %2u: WITHDRAWN node=%u — a dirty journal slice "
                    "awaiting fence+replay (transient)\n", slot, h->node_id);
             break;
+        case MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C:
+            n_withdrawn++;
+            printf("  slot %2u: RETIRE_PENDING node=%u — clean release "
+                   "awaiting PR-key retirement proof (transient; a live "
+                   "peer settles it)\n", slot, h->node_id);
+            break;
         case MXFS_DISKLOCK_FLAG_RECOVERY_GUARD_C: {
             int gr = chk_print_guard(slot, aligned, sup.fs_uuid,
                                      (uint16_t)slice_count);
@@ -3157,10 +6676,21 @@ static int do_show_quarantine(const char *device)
                 n_sweepguard++;
                 if (slot >= slice_count)
                     n_outofrange--;   /* legitimate up here — see below */
+            } else if (gr == 3) {
+                n_inprogress++;       /* sess433: recovery guard, not a verdict */
             } else {
                 n_guard++;
                 if (gr == 1)
                     n_readable++;
+            }
+            /* sess462: a readable guard may name an obligation list */
+            if (gr == 1 || gr == 3) {
+                struct chk_recov_obl ob;
+
+                if (chk_print_obl_record(slot, aligned, &ob) == 1) {
+                    chk_print_obl_list(dfd, sup.rman_offset, slot, aligned, &ob);
+                    chk_print_obl_proof(dfd, sup.rman_offset, slot, aligned, &ob);
+                }
             }
             break;
         }
@@ -3187,6 +6717,8 @@ static int do_show_quarantine(const char *device)
     printf("  quarantined verdicts    %d  (%d readable, %d corrupt/absent)\n",
            n_guard, n_readable, n_guard - n_readable);
     printf("  withdrawn slices        %d\n", n_withdrawn);
+    printf("  recoveries in progress  %d  (RECOVERY GUARD without a terminal "
+           "verdict)\n", n_inprogress);
     printf("  bucket-sweep guards     %d  (transient; slots >= %u are their "
            "normal home)\n", n_sweepguard, slice_count);
     printf("  released slots          %d  (clean departures; free to claim)\n",
@@ -3224,6 +6756,42 @@ static int do_show_quarantine(const char *device)
         printf("\n  No terminal recovery quarantine on this volume.\n");
         rc = 0;
     }
+    if (n_inprogress) {
+        /*
+         * sess433 (D-379 item 5): a guard at stage 1 whose fence certificate
+         * is kind 0/6 (NONE / KEY_ABSENT_UNPROVEN) is a recovery that cannot
+         * advance by itself; while it stands the mount admission barrier
+         * refuses EVERY new mount of this volume (it requires the slice
+         * REPLAYED), not merely one slot.  Say so and name the remedy.
+         */
+        printf("\n  %d recovery guard(s) are IN PROGRESS (no terminal verdict). "
+               "While a\n"
+               "  guard stands, the mount admission barrier refuses every new "
+               "mount until\n"
+               "  the slice is replayed — this blocks the whole volume, not one "
+               "slot.\n"
+               "  A live recovery OWNER advances it.  If the guard's stage stays "
+               "at 1 with\n"
+               "  fence kind 0 (NONE) or 6 (KEY_ABSENT_UNPROVEN) it is STUCK: "
+               "the victim's PR\n"
+               "  key is gone and nothing can prove exclusion.  Remedy: bring "
+               "the victim\n"
+               "  back so its key is registered again, then mount a peer that "
+               "can PREEMPT\n"
+               "  AND ABORT it (0.40.0 retains the key on dirty departures).  "
+               "There is no\n"
+               "  operator override: single_node_exclusive=1 used to certify "
+               "this as fence\n"
+               "  kind 17 and no longer does, because asserting that no other "
+               "INITIATOR can\n"
+               "  write says nothing about writes the target already accepted "
+               "from the dead\n"
+               "  INCARNATION, and replaying against those corrupts silently.  "
+               "See D-0355.\n",
+               n_inprogress);
+        if (rc == 0)
+            rc = 5;
+    }
 
 out:
     free(aligned);
@@ -3251,66 +6819,7 @@ out:
  *           its heartbeat says.  If the LUN answers "no PR support", exclusion
  *           cannot be proved here and the repair refuses.
  */
-#define CHK_PR_MAX_KEYS 64
-
-/*
- * PERSISTENT RESERVE IN, service action 0x00 (READ KEYS).  Returns the number
- * of registered keys, or -1 if the command could not be issued / the device
- * does not implement PR (which the caller must treat as "cannot prove").
- */
-static int chk_pr_read_keys(int fd, uint64_t *keys, int max, int *unsupported)
-{
-    unsigned char cdb[10];
-    unsigned char sense[32];
-    unsigned char data[8 + CHK_PR_MAX_KEYS * 8];
-    sg_io_hdr_t io;
-    uint32_t list_len;
-    int n, i;
-
-    *unsupported = 0;
-    memset(cdb, 0, sizeof(cdb));
-    cdb[0] = 0x5E;                      /* PERSISTENT RESERVE IN */
-    cdb[1] = 0x00;                      /* READ KEYS */
-    cdb[7] = (unsigned char)(sizeof(data) >> 8);
-    cdb[8] = (unsigned char)(sizeof(data) & 0xFF);
-
-    memset(&io, 0, sizeof(io));
-    memset(sense, 0, sizeof(sense));
-    memset(data, 0, sizeof(data));
-    io.interface_id = 'S';
-    io.dxfer_direction = SG_DXFER_FROM_DEV;
-    io.cmd_len = sizeof(cdb);
-    io.mx_sb_len = sizeof(sense);
-    io.dxfer_len = sizeof(data);
-    io.dxferp = data;
-    io.cmdp = cdb;
-    io.sbp = sense;
-    io.timeout = 20000;
-
-    if (ioctl(fd, SG_IO, &io) < 0) {
-        *unsupported = 1;
-        return -1;
-    }
-    if (io.masked_status != 0 || io.host_status != 0) {
-        /* ILLEGAL REQUEST / INVALID COMMAND OPERATION CODE = no PR support. */
-        *unsupported = 1;
-        return -1;
-    }
-    list_len = ((uint32_t)data[4] << 24) | ((uint32_t)data[5] << 16) |
-               ((uint32_t)data[6] << 8) | (uint32_t)data[7];
-    n = (int)(list_len / 8);
-    if (n > max)
-        n = max;
-    for (i = 0; i < n; i++) {
-        uint64_t k = 0;
-        int b;
-
-        for (b = 0; b < 8; b++)
-            k = (k << 8) | data[8 + i * 8 + b];
-        keys[i] = k;
-    }
-    return n;
-}
+/* PR READ KEYS: mxfs_off_pr_read_keys, tools/mxfs_offline.h */
 
 /* ─── Backing-device disjointness for --archive-to ──────────────────────────
  *
@@ -3544,7 +7053,7 @@ static int chk_archive_dest_disjoint(const char *device, int destdirfd,
  *
  * The way out is not "clear the slot".  It is the operator ACCEPTING that the
  * refused slice's committed transactions are lost.  The command is named for
- * that, and the sess377 RULE-5 ruling fixes its shape:
+ * that, and the sess377 design-consult ruling fixes its shape:
  *
  *   THE CENTRAL INVARIANT — a quarantined slice remains UNASSIGNABLE until
  *   loss acceptance, slice invalidation, the required consistency repair and
@@ -3567,7 +7076,6 @@ static int chk_archive_dest_disjoint(const char *device, int destdirfd,
  * the next landing.  The command reports exactly where it stopped; it never
  * pretends to have repaired anything.
  */
-#define CHK_REPAIR_HB_RECHECK_MS   10000
 
 struct chk_quar_ctx {
     struct mxfs_ondisk_super sup;
@@ -3581,23 +7089,6 @@ struct chk_quar_ctx {
     int      have_desc, have_outcome;
 };
 
-/* Aligned O_DIRECT read of one 512-byte disklock sector. */
-static int chk_read_sector_direct(int dfd, uint64_t off, uint8_t *out512)
-{
-    uint8_t *buf = NULL;
-    uint64_t base = off & ~(uint64_t)4095;
-    uint64_t delta = off - base;
-    int rc = -1;
-
-    if (posix_memalign((void **)&buf, 4096, 4096) != 0)
-        return -1;
-    if (pread(dfd, buf, 4096, (off_t)base) == 4096) {
-        memcpy(out512, buf + delta, 512);
-        rc = 0;
-    }
-    free(buf);
-    return rc;
-}
 
 /*
  * Step 2b/3: every heartbeat slot must be either EMPTY, the quarantined guard
@@ -3621,7 +7112,7 @@ static int chk_repair_table_clear(int dfd, const struct mxfs_ondisk_super *sup,
 
         if (slot == keep_slot)
             continue;
-        if (chk_read_sector_direct(dfd, sup->disklock_offset +
+        if (mxfs_off_read_sector_direct(dfd, sup->disklock_offset +
                                    (uint64_t)slot * 512, sec) < 0) {
             fprintf(stderr, "  BLOCKED slot %2u: unreadable\n", slot);
             blocking++;
@@ -3648,6 +7139,17 @@ static int chk_repair_table_clear(int dfd, const struct mxfs_ondisk_super *sup,
                     "                   fence+replay.  A live peer recovers "
                     "it; this tool must not\n"
                     "                   repair around unsettled metadata.\n",
+                    slot, h->node_id);
+            blocking++;
+            break;
+        case MXFS_DISKLOCK_FLAG_RETIRE_PENDING_C:
+            fprintf(stderr,
+                    "  BLOCKED slot %2u: RETIRE_PENDING, node %u — a clean "
+                    "release whose PR key\n"
+                    "                   is not yet proven retired.  A live "
+                    "peer settles it (READ KEYS\n"
+                    "                   -> EMPTY, or fence -> WITHDRAWN); "
+                    "this tool must not consume it.\n",
                     slot, h->node_id);
             blocking++;
             break;
@@ -3890,7 +7392,7 @@ out:
  */
 static int do_pr_keys(const char *device)
 {
-    uint64_t keys[CHK_PR_MAX_KEYS];
+    uint64_t keys[MXFS_OFF_PR_MAX_KEYS];
     int fd, n, unsupported = 0, i;
 
     fd = open(device, O_RDONLY);
@@ -3899,7 +7401,7 @@ static int do_pr_keys(const char *device)
                 device, strerror(errno));
         return 4;
     }
-    n = chk_pr_read_keys(fd, keys, CHK_PR_MAX_KEYS, &unsupported);
+    n = mxfs_off_pr_read_keys(fd, keys, MXFS_OFF_PR_MAX_KEYS, &unsupported);
     close(fd);
     if (unsupported || n < 0) {
         printf("PR keys on %s: NOT SUPPORTED — this LUN does not answer "
@@ -3926,12 +7428,7 @@ static int do_accept_quarantine_loss(const char *device, long slice_arg,
     uint32_t want32;
     uint64_t given = 0;
     char *endp;
-    uint64_t hb_ts[MXFS_DISKLOCK_HB_SLOTS];
-    uint64_t hb_ep[MXFS_DISKLOCK_HB_SLOTS];
-    uint8_t  hb_live[MXFS_DISKLOCK_HB_SLOTS];
-    uint64_t keys[CHK_PR_MAX_KEYS];
-    uint32_t slot;
-    int nkeys, unsupported = 0, moved = 0, blocking;
+    int blocking;
 
     memset(&q, 0, sizeof(q));
 
@@ -3985,7 +7482,7 @@ static int do_accept_quarantine_loss(const char *device, long slice_arg,
            "passes and the evidence is archived off this volume.\n\n");
 
     /* ── step 1: validate and DISPLAY, then demand the digest back ── */
-    if (chk_read_sector_direct(dfd, q.sector_off, q.sector) < 0) {
+    if (mxfs_off_read_sector_direct(dfd, q.sector_off, q.sector) < 0) {
         fprintf(stderr, "repair: cannot read heartbeat slot %u\n", q.slot);
         goto out;
     }
@@ -4055,72 +7552,10 @@ static int do_accept_quarantine_loss(const char *device, long slice_arg,
     printf("\n  verdict digest CONFIRMED: %016llX\n",
            (unsigned long long)q.digest);
 
-    /* ── step 2, REMOTE half: no ACTIVE heartbeat may advance ── */
+    /* ── step 2, REMOTE and LUN halves (tools/mxfs_offline.h) ── */
     printf("\n── proving exclusion ──────────────────────────────────────────\n");
-    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
-        uint8_t sec[512];
-        const struct chk_hb_hdr *hh = (const void *)sec;
-
-        hb_live[slot] = 0;
-        if (chk_read_sector_direct(dfd, q.sup.disklock_offset +
-                                   (uint64_t)slot * 512, sec) < 0)
-            continue;
-        if (hh->magic == MXFS_DISKLOCK_MAGIC &&
-            hh->flags == MXFS_DISKLOCK_FLAG_ACTIVE) {
-            hb_live[slot] = 1;
-            hb_ts[slot] = hh->timestamp_ms;
-            hb_ep[slot] = hh->epoch;
-        }
-    }
-    printf("  rechecking heartbeat liveness for %d ms ...\n",
-           CHK_REPAIR_HB_RECHECK_MS);
-    usleep((useconds_t)CHK_REPAIR_HB_RECHECK_MS * 1000);
-    for (slot = 0; slot < MXFS_DISKLOCK_HB_SLOTS; slot++) {
-        uint8_t sec[512];
-        const struct chk_hb_hdr *hh = (const void *)sec;
-
-        if (!hb_live[slot])
-            continue;
-        if (chk_read_sector_direct(dfd, q.sup.disklock_offset +
-                                   (uint64_t)slot * 512, sec) < 0)
-            continue;
-        if (hh->magic == MXFS_DISKLOCK_MAGIC &&
-            hh->flags == MXFS_DISKLOCK_FLAG_ACTIVE &&
-            (hh->timestamp_ms != hb_ts[slot] || hh->epoch != hb_ep[slot])) {
-            fprintf(stderr, "  LIVE: heartbeat slot %u (node %u) is still "
-                    "beating — a node has this\n        filesystem mounted.  "
-                    "Unmount everywhere first.\n", slot, hh->node_id);
-            moved++;
-        }
-    }
-    if (moved)
+    if (mxfs_off_prove_no_writer(fd, dfd, q.sup.disklock_offset) < 0)
         goto out;
-    printf("  no heartbeat advanced: no node is mounted\n");
-
-    /* ── step 2, LUN half: SCSI PR must show no registrant ── */
-    nkeys = chk_pr_read_keys(fd, keys, CHK_PR_MAX_KEYS, &unsupported);
-    if (unsupported || nkeys < 0) {
-        fprintf(stderr,
-            "  CANNOT PROVE: this LUN does not answer PERSISTENT RESERVE IN, "
-            "so there is no\n        way to show that no initiator can write "
-            "to it right now.  A quiet\n        heartbeat table is not proof "
-            "of exclusion.  Refusing.\n");
-        goto out;
-    }
-    if (nkeys > 0) {
-        int i;
-
-        fprintf(stderr, "  REGISTERED: %d initiator key(s) are still "
-                "registered on this LUN and can\n        write to it right "
-                "now regardless of their heartbeats:\n", nkeys);
-        for (i = 0; i < nkeys; i++)
-            fprintf(stderr, "          0x%016llx\n",
-                    (unsigned long long)keys[i]);
-        fprintf(stderr, "        Fence or deregister them, then re-run.\n");
-        goto out;
-    }
-    printf("  SCSI PR: no registered initiator — nothing can write to this "
-           "LUN\n");
 
     /* ── step 3: every other slice must be settled ── */
     printf("\n── proving every other slice is settled ───────────────────────\n");
@@ -4225,6 +7660,54 @@ static int do_upgrade_protogate(int fd)
         return 4;
 
     /* ── step 2: envelope gate first ── */
+    /* sess404: gen 7 needs the recovery manifest REGION, which only mkfs can
+     * lay out (it sits between disklock and the XFS data; there is no room to
+     * carve it in place).  Refuse rather than gate a volume that cannot hold
+     * a victim's manifest. */
+    if (!(sup.flags & MXFS_FORMAT_F_RMAN)) {
+        fprintf(stderr,
+                "upgrade: this volume has no recovery manifest region "
+                "(MXFS_FORMAT_F_RMAN); protocol gen %u requires it and it can "
+                "only be created by mkfs_mxfs — re-mkfs\n",
+                (unsigned)MXFS_PROTO_GEN);
+        return 4;
+    }
+    /* sess421: gen 8 needs the TCP authority ledger region too. */
+    if (!(sup.flags & MXFS_FORMAT_F_TAUTH)) {
+        fprintf(stderr,
+                "upgrade: this volume has no TCP authority ledger region "
+                "(MXFS_FORMAT_F_TAUTH); protocol gen %u requires it and it can "
+                "only be created by mkfs_mxfs — re-mkfs\n",
+                (unsigned)MXFS_PROTO_GEN);
+        return 4;
+    }
+    /* sess438: gen 12 needs the PR registrant ledger region too. */
+    if (!(sup.flags & MXFS_FORMAT_F_PRKEY64)) {
+        fprintf(stderr,
+                "upgrade: this volume has no PR registrant ledger region "
+                "(MXFS_FORMAT_F_PRKEY64); protocol gen %u requires it and it "
+                "can only be created by mkfs_mxfs — re-mkfs\n",
+                (unsigned)MXFS_PROTO_GEN);
+        return 4;
+    }
+    /* sess439: gen 13 needs the bootstrap record region too. */
+    if (!(sup.flags & MXFS_FORMAT_F_BOOTSTRAP)) {
+        fprintf(stderr,
+                "upgrade: this volume has no bootstrap record region "
+                "(MXFS_FORMAT_F_BOOTSTRAP); protocol gen %u requires it and it "
+                "can only be created by mkfs_mxfs — re-mkfs\n",
+                (unsigned)MXFS_PROTO_GEN);
+        return 4;
+    }
+    /* 0.88.0: gen 20 needs the slice lifecycle region too. */
+    if (!(sup.flags & MXFS_FORMAT_F_SLIFE)) {
+        fprintf(stderr,
+                "upgrade: this volume has no slice lifecycle region "
+                "(MXFS_FORMAT_F_SLIFE); protocol gen %u requires it and it "
+                "can only be created by mkfs_mxfs — re-mkfs\n",
+                (unsigned)MXFS_PROTO_GEN);
+        return 4;
+    }
     if ((sup.flags & MXFS_FORMAT_F_PROTOGATE) &&
         sup.cluster_proto_gen == MXFS_PROTO_GEN) {
         printf("upgrade: envelope already gated (proto_gen=%u)\n",
@@ -4283,10 +7766,224 @@ static int do_upgrade_protogate(int fd)
     return 0;
 }
 
+/*
+ * sess444 (D-ICREATE-REPLAY-REINIT-CLOBBERS-PEER-INODES-0510 negative arm):
+ * print where an inode lives on the IMAGE — absolute byte offset of its
+ * dinode and of the inode cluster buffer that contains it, envelope-aware
+ * (xfs_data_offset added).  The harness zeroes the dinode magic there,
+ * offline, to prove a SYNCINIT ICREATE replay REFUSES a non-verifying
+ * cluster instead of re-initialising it.  Read-only; no geometry check.
+ */
+static int do_ino_offset(const char *device, unsigned long long ino)
+{
+    struct mxfs_ondisk_super sup;
+    uint8_t buf[MXFS_SUPER_SIZE];
+    uint8_t sb[512];
+    int fd;
+
+    fd = open(device, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s: %s\n", device,
+                strerror(errno));
+        return 4;
+    }
+    if (read_at(fd, buf, MXFS_SUPER_SIZE, 0) < 0) {
+        close(fd);
+        return 4;
+    }
+    memcpy(&sup, buf, sizeof(sup));
+    if (sup.magic != MXFS_FORMAT_MAGIC) {
+        fprintf(stderr, "ino-offset: no MXFS envelope on this device\n");
+        close(fd);
+        return 4;
+    }
+    if (read_at(fd, sb, 512, sup.xfs_data_offset) < 0) {
+        close(fd);
+        return 4;
+    }
+    close(fd);
+    if (get_be32(sb + 0) != 0x58465342) {
+        fprintf(stderr, "ino-offset: no XFS superblock at %llu\n",
+                (unsigned long long)sup.xfs_data_offset);
+        return 4;
+    }
+    {
+        uint32_t blocksize  = get_be32(sb + 4);
+        uint32_t agblocks   = get_be32(sb + 0x54);
+        uint32_t agcount    = get_be32(sb + 0x58);
+        uint32_t inodesize  = get_be16(sb + 0x68);
+        uint8_t  inopblog   = sb[0x7B];
+        uint8_t  agblklog   = sb[0x7C];
+        uint32_t inoalignmt = get_be32(sb + 0xB4);
+        uint32_t agino_bits = agblklog + inopblog;
+        uint32_t agno  = (uint32_t)(ino >> agino_bits);
+        uint32_t agino = (uint32_t)(ino & ((1ULL << agino_bits) - 1));
+        uint32_t agbno = agino >> inopblog;
+        uint32_t off_in_blk = (agino & ((1U << inopblog) - 1)) * inodesize;
+        /* v5 inode cluster: XFS_INODE_BIG_CLUSTER_SIZE scaled by the inode
+         * size over XFS_DINODE_MIN_SIZE (xfs_ialloc_setup_geometry) */
+        uint32_t cluster_bytes = 8192 * (inodesize / 256);
+        uint32_t bpc = cluster_bytes >= blocksize ? cluster_bytes / blocksize : 1;
+        uint32_t cl_agbno = agbno - (agbno % bpc);
+        uint64_t ag_base = sup.xfs_data_offset +
+                           (uint64_t)agno * agblocks * blocksize;
+        uint64_t dinode_off = ag_base + (uint64_t)agbno * blocksize + off_in_blk;
+        uint64_t cluster_off = ag_base + (uint64_t)cl_agbno * blocksize;
+
+        if (agno >= agcount || agbno >= agblocks) {
+            fprintf(stderr, "ino-offset: inode %llu is outside the geometry "
+                    "(agno=%u/%u agbno=%u/%u)\n", ino, agno, agcount, agbno,
+                    agblocks);
+            return 4;
+        }
+        printf("ino=%llu agno=%u agbno=%u agino=%u dinode_off=%llu "
+               "cluster_off=%llu cluster_bytes=%u inodesize=%u blocksize=%u "
+               "inoalignmt=%u xfs_off=%llu\n",
+               ino, agno, agbno, agino, (unsigned long long)dinode_off,
+               (unsigned long long)cluster_off, cluster_bytes, inodesize,
+               blocksize, inoalignmt,
+               (unsigned long long)sup.xfs_data_offset);
+    }
+    return 0;
+}
+
+/*
+ * --geometry: the envelope offsets and the XFS geometry, and no verdict.
+ *
+ * 0.89.7.  The full check opens the device O_EXCL, so a node whose own
+ * module holds the device is refused; a harness that only needs agcount,
+ * agblocks, inopblog or xfs_data_offset from a live node used to take them
+ * from `-v` and now gets rc 4 and nothing to parse (tcp_death_replay,
+ * closure_reuse_directed, closure_footprint_shapes, typeflip_dead_incarn
+ * at s69).  Those values are mkfs-time constants — resize_mxfs is their
+ * only other writer, and it runs offline under its own exclusive open — so
+ * the image the page cache holds from the first buffered read IS the
+ * current value, and the stale-image hazard the full check refuses under
+ * does not apply.  Hence: a plain read-only open, no exclusion, no cache
+ * drop.  The listing still carries icount/ifree/fdblocks, which are the
+ * platter's values at the last unmount and not live — a caller wanting a
+ * live count has the wrong tool.
+ */
+static int do_geometry(const char *device)
+{
+    struct mxfs_ondisk_super super;
+    struct xfs_geo geo;
+    int fd, rc = 0;
+
+    fd = open(device, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s: %s\n", device,
+                strerror(errno));
+        return 4;
+    }
+    verbose = true;
+    printf("chk_mxfs v%s -- geometry of %s (mkfs-time constants; the counts "
+           "on this listing are the platter's at its last unmount, not "
+           "live)\n", CHK_MXFS_VERSION, device);
+    memset(&super, 0, sizeof(super));
+    memset(&geo, 0, sizeof(geo));
+    if (check_mxfs_super(fd, &super) < 0 ||
+        check_xfs_superblock(fd, &super, &geo) < 0)
+        rc = 4;
+    close(fd);
+    return rc;
+}
+
+/*
+ * --query-only with --free-query: the platter's answer for the queried
+ * extents and nothing else — no verdict, no exclusion.
+ *
+ * 0.89.7 (ledger D-A-HARNESS-CAN-MEASURE-THE-WRONG-DEVICE-AND-REPORT-IT-AS-
+ * MXFS, s70): tests/d_intents_2tcp_open_efi.sh asked its free queries of the
+ * host image /home/steve/disk.img, which on the qnap rig is the OTHER rig's
+ * filesystem, and asserted "every obligation extent reads FREE on the
+ * platter" from that well-formed answer about the wrong device.  The query
+ * belongs on a node against the resolved LUN, and the node that has the
+ * answer is mounted, where the ordinary check is refused (O_EXCL).  So this
+ * mode opens read-only without exclusion, drops the device's cached pages
+ * first (the module's bios bypass that cache; a block is read once here, so
+ * the first read is the platter's), reads the geometry and only the AGs the
+ * queries name — their AGF and their BNO btree into the cross-tree free map
+ * — and prints the FREE-QUERY lines.  It is a point read of a live
+ * filesystem: an extent can be reallocated after it printed FREE, which is
+ * the caller's question to bound (the harness runs it with the churn off).
+ */
+static int do_free_query_live(const char *device)
+{
+    struct mxfs_ondisk_super super;
+    struct xfs_geo geo;
+    struct stat dst;
+    int fd, q;
+
+    if (free_query_n == 0) {
+        fprintf(stderr, "chk_mxfs: --query-only needs at least one --free-query\n");
+        return 2;
+    }
+    fd = open(device, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "chk_mxfs: cannot open %s: %s\n", device,
+                strerror(errno));
+        return 4;
+    }
+    if (fstat(fd, &dst) == 0 && S_ISBLK(dst.st_mode) &&
+        ioctl(fd, BLKFLSBUF, 0) < 0) {
+        fprintf(stderr, "chk_mxfs: cannot drop %s's cached pages (BLKFLSBUF: "
+                "%s); a query through a page cache the module's writes bypass "
+                "is not a read of the platter, so it is refused\n", device,
+                strerror(errno));
+        close(fd);
+        return 4;
+    }
+    printf("chk_mxfs v%s -- free query on %s (a point read of the live "
+           "platter; no verdict)\n", CHK_MXFS_VERSION, device);
+    memset(&super, 0, sizeof(super));
+    memset(&geo, 0, sizeof(geo));
+    if (check_mxfs_super(fd, &super) < 0 ||
+        check_xfs_superblock(fd, &super, &geo) < 0) {
+        close(fd);
+        return 4;
+    }
+    xtree_init(&geo);
+    for (q = 0; q < free_query_n; q++) {
+        uint32_t agno = free_query[q].agno;
+        struct ag_info agi;
+        int seen = 0, p;
+
+        for (p = 0; p < q; p++)
+            if (free_query[p].agno == agno)
+                seen = 1;
+        if (seen || agno >= geo.agcount)
+            continue;
+        memset(&agi, 0, sizeof(agi));
+        check_xfs_ag_headers(fd, &geo, agno, &agi);
+        if (agi.agf_ok && agi.bno_root < agi.agf_length && agi.bno_level >= 1)
+            walk_freespace_btree(fd, &geo, agno, agi.bno_root,
+                                 XFS_ABTB_CRC_MAGIC, "BNO", true,
+                                 agi.bno_level - 1, agi.agf_length);
+        else
+            printf("  AG %u: BNO btree not walked (AGF errors); its queries "
+                   "answer UNKNOWN\n", agno);
+    }
+    xtree_free_query_report(&geo);
+    free(xtree_chunk);
+    free(xtree_free);
+    xtree_chunk = NULL;
+    xtree_free = NULL;
+    close(fd);
+    return errors ? 4 : 0;
+}
+
 static void usage(const char *prog)
 {
     fprintf(stderr, "Usage: %s [-v] [-a|-p|-y|-n|-U] /dev/sdX\n", prog);
     fprintf(stderr, "  -v   verbose: show detailed info for each check\n");
+    fprintf(stderr, "  --geometry\n"
+                    "       print the envelope offsets and the XFS geometry "
+                    "(agcount, agblocks,\n"
+                    "       inopblog, ...) and exit; mkfs-time constants, so "
+                    "safe on a node that\n"
+                    "       has the device mounted.  The ordinary check is "
+                    "refused there (O_EXCL).\n");
     fprintf(stderr, "  -n   check only, no modifications (default)\n");
     fprintf(stderr, "  -a   auto-repair safe fixes\n");
     fprintf(stderr, "  -p   preen: same as -a (for boot scripts)\n");
@@ -4299,6 +7996,15 @@ static void usage(const char *prog)
                     "       (read-only, O_DIRECT; safe while the cluster is "
                     "up).  Exit 4 if any\n"
                     "       quarantine exists.\n");
+    fprintf(stderr, "  --bootstrap\n"
+                    "       print the whole-cluster bootstrap record: its "
+                    "state, term, owner host\n"
+                    "       boot and key, and the escrow.  Read-only and "
+                    "O_DIRECT, safe on a live\n"
+                    "       cluster and on a node that has the volume "
+                    "mounted -- which is where a\n"
+                    "       mount refused by a claimed term has to be "
+                    "diagnosed.\n");
     fprintf(stderr, "  --pr-keys\n"
                     "       print the SCSI persistent-reservation keys "
                     "registered on this LUN.\n"
@@ -4318,6 +8024,33 @@ static void usage(const char *prog)
                     "PATH must be on storage\n"
                     "       with no backing device in common with the volume "
                     "being repaired.\n");
+    fprintf(stderr, "  --dirshard-hash KEYHEX NAME|hex:NAMEHEX\n"
+                    "       print the directory-sharding routing hash "
+                    "(SipHash-2-4 under the\n"
+                    "       32-hex-digit key) and the shard index for N=16/32/64."
+                    "  No device.\n");
+    fprintf(stderr, "  --clear-bootstrap\n"
+                    "       hand a REFUSED whole-cluster bootstrap record back "
+                    "to IDLE after the\n"
+                    "       refusal it names has been repaired.  OFFLINE only "
+                    "(O_EXCL + no live\n"
+                    "       heartbeat); a CLAIMED/SEALED/RECOVERING term is "
+                    "never cleared here.\n");
+    fprintf(stderr, "  --query-only --free-query AGNO:AGBNO:LEN ...\n"
+                    "       the FREE-QUERY answers alone, from a read-only "
+                    "open without exclusion\n"
+                    "       (safe on a mounted node: the device's cached "
+                    "pages are dropped first);\n"
+                    "       a point read of the live platter, no verdict.\n");
+    fprintf(stderr, "  --free-query AGNO:AGBNO:LEN   (repeatable, up to 16)\n"
+                    "       with the ordinary check: report whether the range "
+                    "is FREE, ALLOCATED or\n       PARTIAL per the BNO btree "
+                    "walk (the platter-side proof that a completed\n       "
+                    "obligation extent was freed).  Read-only.\n");
+    fprintf(stderr, "  --ino-offset INO\n"
+                    "       print the absolute image byte offset of inode "
+                    "INO's dinode and of its\n       inode cluster buffer "
+                    "(envelope-aware).  Read-only.\n");
     fprintf(stderr, "\nExit codes:\n");
     fprintf(stderr, "  0  filesystem clean\n");
     fprintf(stderr, "  3  quarantine repair: pre-checks passed and the verdict "
@@ -4340,6 +8073,12 @@ int main(int argc, char **argv)
     bool show_quarantine = false;
     bool do_accept = false;
     bool show_pr_keys = false;
+    bool show_geometry = false;
+    bool show_bootstrap = false;
+    bool query_only = false;
+    bool clear_bootstrap = false;
+    bool ino_offset = false;
+    unsigned long long ino_offset_ino = 0;
     long accept_slice = -1;
     const char *accept_confirm = NULL;
     const char *accept_archive = NULL;
@@ -4377,6 +8116,40 @@ int main(int argc, char **argv)
                 do_accept = true;
             } else if (strcmp(a, "--pr-keys") == 0) {
                 show_pr_keys = true;
+            } else if (strcmp(a, "--geometry") == 0) {
+                show_geometry = true;
+            } else if (strcmp(a, "--query-only") == 0) {
+                query_only = true;
+            } else if (strcmp(a, "--dirshard-hash") == 0 && ai + 2 < argc) {
+                /* sess466: no device — routing hash cross-check */
+                return dirshard_hash_cmd(argv[ai + 1], argv[ai + 2]);
+            } else if (strcmp(a, "--bootstrap") == 0) {
+                show_bootstrap = true;
+            } else if (strcmp(a, "--clear-bootstrap") == 0) {
+                clear_bootstrap = true;
+            } else if (strcmp(a, "--ino-offset") == 0 && ai + 1 < argc) {
+                char *endp;
+
+                ino_offset_ino = strtoull(argv[++ai], &endp, 10);
+                if (*endp != 0) {
+                    fprintf(stderr, "chk_mxfs: --ino-offset needs an inode "
+                            "number\n");
+                    return 2;
+                }
+                ino_offset = true;
+            } else if (strcmp(a, "--free-query") == 0 && ai + 1 < argc) {
+                unsigned int qa, qb, ql;
+
+                if (free_query_n >= CHK_FREE_QUERY_MAX ||
+                    sscanf(argv[++ai], "%u:%u:%u", &qa, &qb, &ql) != 3) {
+                    fprintf(stderr, "chk_mxfs: --free-query needs AGNO:AGBNO:LEN "
+                            "(at most %d queries)\n", CHK_FREE_QUERY_MAX);
+                    return 2;
+                }
+                free_query[free_query_n].agno = qa;
+                free_query[free_query_n].agbno = qb;
+                free_query[free_query_n].len = ql;
+                free_query_n++;
             } else if (strcmp(a, "--confirm") == 0 && ai + 1 < argc) {
                 accept_confirm = argv[++ai];
             } else if (strcmp(a, "--archive-to") == 0 && ai + 1 < argc) {
@@ -4424,6 +8197,21 @@ int main(int argc, char **argv)
     if (show_pr_keys)
         return do_pr_keys(device);
 
+    if (show_geometry)
+        return do_geometry(device);
+
+    if (show_bootstrap)
+        return do_bootstrap_show(device);
+
+    if (query_only)
+        return do_free_query_live(device);
+
+    if (ino_offset)
+        return do_ino_offset(device, ino_offset_ino);
+
+    if (clear_bootstrap)
+        return do_clear_bootstrap(device);
+
     if (show_quarantine)
         return do_show_quarantine(device);
 
@@ -4455,19 +8243,76 @@ int main(int argc, char **argv)
         printf(" (repair all)");
     printf("\n");
 
-    int open_flags = can_repair() ? O_RDWR : O_RDONLY;
+    /*
+     * 0.89.6 (ledger D-A-TEST-HARNESS-CAN-REPORT-A-VERDICT-ABOUT-MXFS,
+     * buffered-reader class; design consult banked in
+     * docs/rulings/checker-page-cache-and-exclusion.md): the check reads
+     * the platter through this one buffered descriptor, and the kernel's
+     * block-device page cache is only dropped at the device's LAST close.
+     * The module writes the LUN with bios that never touch that cache, so
+     * on a node whose module holds the device open a buffered read returns
+     * whatever image the first buffered reader cached, for as long as the
+     * mount lasts (measured s67e: three dumps of a slot 3 s apart returned
+     * the same stamp while direct reads of the sector advanced).  Two
+     * defences, both before the first read:
+     *   - O_EXCL: a device this node's module (or any exclusive holder)
+     *     has open is refused with EBUSY.  The check is an offline check
+     *     and a node whose own mount is up is not offline; a refusal is a
+     *     result, a verdict read through that mount's page cache is not.
+     *     Another host's mount is not seen here — this is local exclusion,
+     *     not cluster quiescence, which the caller still owes.
+     *   - BLKFLSBUF: drops the clean pages any plain opener on this node
+     *     (a dd, an earlier tool run that is still holding the device)
+     *     cached before this run, so the first read of every block goes to
+     *     the platter.  It needs CAP_SYS_ADMIN and a failure is an abort on
+     *     a block device: a check that cannot say what it read is not a
+     *     check.  A regular-file image has no such cache to drop.
+     */
+    int open_flags = (can_repair() ? O_RDWR : O_RDONLY) | O_EXCL;
     int fd = open(device, open_flags);
     if (fd < 0) {
         /* If O_RDWR fails, fall back to read-only check */
-        if (open_flags == O_RDWR) {
+        if ((open_flags & O_RDWR) && errno != EBUSY) {
             fprintf(stderr, "chk_mxfs: cannot open %s read-write: %s, "
                     "falling back to check-only\n", device, strerror(errno));
             repair = REPAIR_NONE;
-            fd = open(device, O_RDONLY);
+            fd = open(device, O_RDONLY | O_EXCL);
         }
         if (fd < 0) {
-            fprintf(stderr, "chk_mxfs: cannot open %s: %s\n", device, strerror(errno));
+            if (errno == EBUSY)
+                fprintf(stderr, "chk_mxfs: %s is held open exclusively on "
+                        "this node (mounted, or a mount in progress): the "
+                        "check reads the platter, and a node whose module "
+                        "holds the device would read its page cache instead; "
+                        "unmount here first\n", device);
+            else
+                fprintf(stderr, "chk_mxfs: cannot open %s: %s\n", device,
+                        strerror(errno));
             return 4;
+        }
+    }
+    {
+        struct stat dst;
+        if (fstat(fd, &dst) < 0) {
+            fprintf(stderr, "chk_mxfs: cannot fstat %s: %s\n", device,
+                    strerror(errno));
+            close(fd);
+            return 4;
+        }
+        if (S_ISBLK(dst.st_mode)) {
+            if (ioctl(fd, BLKFLSBUF, 0) < 0) {
+                fprintf(stderr, "chk_mxfs: cannot drop %s's cached pages "
+                        "(BLKFLSBUF: %s); a read through a page cache the "
+                        "module's writes bypass is not a read of the "
+                        "platter, so the check is refused%s\n", device,
+                        strerror(errno),
+                        (errno == EACCES || errno == EPERM)
+                            ? " — it needs CAP_SYS_ADMIN (run as root)" : "");
+                close(fd);
+                return 4;
+            }
+            printf("  dropped the block device's cached pages before the "
+                   "first read (BLKFLSBUF)\n");
         }
     }
 
@@ -4486,6 +8331,12 @@ int main(int argc, char **argv)
 
     /* 3. Disklock */
     check_disklock(fd, &super);
+
+    /* 3b. TCP authority ledger (sess421) */
+    check_tauth(fd, &super);
+    check_prledger(fd, &super);         /* sess438 */
+    check_bootstrap(fd, &super);        /* sess439 */
+    check_slife(fd, &super);            /* 0.88.0 */
 
     /* 4. XFS superblock */
     struct xfs_geo geo;
@@ -4511,6 +8362,10 @@ int main(int argc, char **argv)
         return 4;
     }
 
+    /* D-0948: start the cross-tree block-ownership audit before the per-AG
+     * walks, which are what populate its two bitmaps. */
+    xtree_init(&geo);
+
     /* 5-7. Per-AG deep validation */
     for (uint32_t ag = 0; ag < geo.agcount; ag++) {
         struct ag_info agi;
@@ -4535,7 +8390,17 @@ int main(int argc, char **argv)
     /* 7b. Orphan inode audit (bucketless nlink=0 leak detection) */
     check_orphan_inodes(fd, &geo);
 
+    /* 7c. Directory sharding: PARENT -> locator -> holder -> manifest block
+     * -> containers; no unreferenced containers (sess466). */
+    check_dirshard(fd, &geo);
+
+    /* 7d. Directory entries: every name resolves to an allocated inode
+     * with a live dinode (D-0964: a dangling entry naming a freed inode
+     * passed CLEAN before this pass existed). */
+    check_dirents(fd, &geo);
+
     /* 8. Summary report */
+    xtree_report(&geo);
     print_summary(fd, &geo, ag_summaries);
 
     free(ag_summaries);

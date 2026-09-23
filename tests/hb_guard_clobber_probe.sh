@@ -2,7 +2,7 @@
 # tests/hb_guard_clobber_probe.sh — does a LIVE node's heartbeat destroy a
 # foreign write to its own disklock slot?
 #
-# WHY THIS EXISTS (sess77 GPT RULE-5 ruling, D-FENCED-STAGE-WITHOUT-PROVEN-
+# WHY THIS EXISTS (sess77 design-consult ruling, D-FENCED-STAGE-WITHOUT-PROVEN-
 # EXCLUSION / D-VICTIM-REPLAY-WITHOUT-PROVEN-EXCLUSION):
 #   disklock_hb_fn() fills a 512B record and BLIND-writes it every
 #   MXFS_DISKLOCK_HB_INTERVAL_MS (2000).  No read, no CAS.  So any recovery
@@ -46,7 +46,12 @@
 set -u
 VICTIM="${1:-test2}"
 WRITER="${2:-test1}"
-DEV="${3:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+DEV=${3:-}; [ -n "$DEV" ] || { mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED; }
 WATCH_S="${4:-12}"
 
 SSH=tools/mxfs_sshpass.sh

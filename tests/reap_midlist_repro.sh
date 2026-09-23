@@ -16,7 +16,7 @@
 # silent exit).  DEFECT REPRODUCED if either fires with error -117; FIXED
 # when all inos reach P89-REAP-DONE with no -117 / no shutdown.
 #
-# RULE 0 budget: setup 10s + defer<=20s + reclaim 10s + close/retire<=40s +
+# derived time budget: setup 10s + defer<=20s + reclaim 10s + close/retire<=40s +
 # reap<=40s + free-verify<=40s => 160s hard cap, no I/O-bound phases.
 #
 # usage: reap_midlist_repro.sh [UNL=test2] [OPN=test1] [NFILES=4]

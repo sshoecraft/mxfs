@@ -38,7 +38,7 @@ enum mxfs_lock_mode {
 /*
  * THE single test for "this mode authorizes a durable write image".
  *
- * sess105 RULE-5 ruling: one helper everywhere.  The tree previously mixed
+ * sess105 design-consult ruling: one helper everywhere.  The tree previously mixed
  * `>= MXFS_LOCK_PW` (ordering-based) with `== EX || == PW` (exact); they agree
  * only because of the current enum order, which is NOT part of the contract.
  * MXFS_LOCK_CW is deliberately excluded: concurrent-write is not a protected
@@ -67,7 +67,7 @@ enum mxfs_lock_type {
 /*
  * sess97 step 5.3(b) — immutable provenance of ONE successful durable grant.
  *
- * The sess96 RULE-5 ruling rejected reading the grant epoch back out of a
+ * The sess96 design-consult ruling rejected reading the grant epoch back out of a
  * cache after the fact.  A cache can only establish "this epoch came from
  * SOME grant on this resource"; what an authority certificate needs is "this
  * epoch came from THIS acquire, whose authority is now being installed".  The
@@ -113,6 +113,17 @@ enum mxfs_grant_auth_status {
 	MXFS_GAUTH_WRITE_ZERO_EPOCH,
 	/* No backing resource at all — nothing was acquired to describe. */
 	MXFS_GAUTH_NO_RESOURCE,
+	/*
+	 * sess432 (D-0353, design-consult ruling): the CAW single-node fast path — the
+	 * grant lives in memory only, no slot image was touched, no epoch was
+	 * minted.  NON-PROVING for journal replay (its images carry epoch 0),
+	 * but a legitimate tenure while the DLM stays single-node: the cached
+	 * hint may be reused within the same single-node era and must never
+	 * survive the single->multi join barrier.  Kept distinct from UNSET so
+	 * the acquire path never has to treat epoch==0 as both "invalid" and
+	 * "valid in a special mode".
+	 */
+	MXFS_GAUTH_SINGLE_NODE,
 	MXFS_GAUTH_STATUS_MAX
 };
 
@@ -242,6 +253,18 @@ enum mxfs_lock_state {
 	MXFS_LSTATE_GRANTED,
 	MXFS_LSTATE_CONVERTING,   /* mode upgrade/downgrade in flight */
 	MXFS_LSTATE_BLOCKED,      /* blocked by incompatible holder */
+	/*
+	 * sess422 (tcp-authority-ledger step 3d/3e, master-side only):
+	 * PENDING_DURABLE — the master DECIDED this grant and is committing
+	 * it to the authority ledger.  Counts as a holder in every
+	 * compatibility check, is never returned to a local caller and never
+	 * sent until the page transition verified on the platter.
+	 * PENDING_RELEASE — the holder released; the record is being retired
+	 * (one transition with its successors).  Still a holder for NEW
+	 * arrivals (they queue), excluded only from successor selection.
+	 */
+	MXFS_LSTATE_PENDING_DURABLE,
+	MXFS_LSTATE_PENDING_RELEASE,
 };
 
 /* Lock flags */
@@ -280,6 +303,36 @@ enum mxfs_dlm_msg_type {
 	MXFS_MSG_JOURNAL_RECOVER,
 	MXFS_MSG_JOURNAL_DONE,
 	MXFS_MSG_CACHE_INVAL,
+	/* sess422 (step 3e): master -> releaser, after the release transition
+	 * is durable.  The releaser keeps pending-release state (and retries
+	 * the LOCK_RELEASE) until this arrives. */
+	MXFS_MSG_LOCK_RELEASE_ACK,
+	MXFS_MSG_PAGE_HANDOFF,      /* sess423 step 4: ledger page handoff */
+	/*
+	 * Master -> requester, when a remote request cannot be granted now and
+	 * is queued behind a conflicting holder.  Before this existed the
+	 * master answered such a request with SILENCE, and silence is also
+	 * what a request that never arrived produces, so a requester whose
+	 * acquire budget ran out could not tell "queued behind a holder that
+	 * is draining" from "nothing will ever answer me" — and the acquire
+	 * path's decision to keep waiting rather than fail depends on exactly
+	 * that distinction.  Carried in a lock_resp; mode is the blocking
+	 * holder's mode, req_id the request being acknowledged.
+	 */
+	MXFS_MSG_LOCK_QUEUED,
+	/*
+	 * Requester -> master: the logical acquisition named by {hdr.sender,
+	 * owner_inc, acq_seq} is abandoned.  Carried in a lock_cancel.  The
+	 * master removes the waiter it may hold for it, retires a grant it
+	 * decided for it that the requester will never install, remembers the
+	 * acquisition so a late re-send cannot recreate it, and answers with a
+	 * cancel_ack saying which of those it found.  Abandonment is otherwise
+	 * invisible to the master: the requester's one-second re-sends simply
+	 * stop, and a waiter or a committed grant it had for that wait stays
+	 * a blocker for everyone else — with delivery suppressed, for ever.
+	 */
+	MXFS_MSG_LOCK_CANCEL,
+	MXFS_MSG_LOCK_CANCEL_ACK,
 
 	/*
 	 * sess67 ASYMMETRIC MDS (Phase 1, see ASYMMETRIC_MDS_PLAN.md).
@@ -321,6 +374,36 @@ struct mxfs_dlm_lock_req {
 	uint8_t                 mode;    /* requested mxfs_lock_mode */
 	uint8_t                 pad[3];
 	uint32_t                flags;   /* MXFS_LKF_* */
+	/* sess422 (tcp-authority-ledger step 3b): the requester's identity as
+	 * the ledger records it — {node (hdr.sender), mount incarnation,
+	 * heartbeat slot} — and a per-requester request id so a retried
+	 * request returns the already-durable grant instead of minting
+	 * another (idempotent retries). */
+	uint64_t                owner_inc;
+	uint32_t                req_id;
+	uint16_t                owner_slot;
+	uint16_t                pad2;
+	/*
+	 * The LOGICAL ACQUISITION this request belongs to, monotonic per mount
+	 * and qualified by {hdr.sender, owner_inc} so it cannot collide across
+	 * a requester's restarts.  req_id above names one TRANSPORT ATTEMPT and
+	 * is minted afresh for every one-second re-send; acq_seq names the wait
+	 * those attempts all belong to and is stable across every re-send and
+	 * every restart of the acquire classifier.
+	 *
+	 * The distinction is not cosmetic.  Without it the master could only
+	 * read a re-send as a NEW request, so it destroyed the requester's
+	 * queue entry and inserted another one every second — discarding the
+	 * entry's queue position and its first-enqueue time, and re-firing a
+	 * blocking notification at a holder that was already draining.
+	 * Measured on 2 nodes / TCP during a single 244 s acquire behind one
+	 * live holder: 238 blocking notifications fired at the holder against
+	 * 234 re-sends by the requester, for ONE logical wait.
+	 *
+	 * Zero means "a sender that does not mint acquisitions" and is treated
+	 * exactly as the old code treated every request.
+	 */
+	uint64_t                acq_seq;
 };
 
 /* Lock grant/deny response */
@@ -346,6 +429,26 @@ struct mxfs_dlm_lock_resp {
 	 * All cluster nodes run the same build, so growing this wire struct is
 	 * safe (no mixed-version peers within a mount). */
 	uint32_t                dir_epoch;
+	/* sess422 (step 3b): the DURABLE grant id {authority_epoch,
+	 * grant_seq64} the ledger minted for this grant (0/0 on DENY and on a
+	 * shared-mode grant, which records a holder bit, not a grant id), the
+	 * record's resource lineage, and the request id this answers. */
+	uint64_t                authority_epoch;
+	uint64_t                grant_seq64;
+	uint64_t                lineage;
+	uint32_t                req_id;
+	uint32_t                pad2;
+	/*
+	 * 0.89.0 (D-0977): the record's open-holder marks at the moment this
+	 * grant was decided (one bit per heartbeat slot).  On an exclusive
+	 * grant it is the snapshot the grantee's destructive-inactivation
+	 * guard reads: every peer that had the inode open published its mark
+	 * inside the release that preceded this grant, and no peer can
+	 * publish a new one while the EX is held, so the snapshot can only be
+	 * too conservative (a later clear defers one more reap retry), never
+	 * too permissive.  Zero on DENY.
+	 */
+	uint64_t                open_holders;
 };
 
 /* Lock release */
@@ -353,7 +456,134 @@ struct mxfs_dlm_lock_release {
 	struct mxfs_dlm_msg_hdr hdr;
 	struct mxfs_resource_id resource;
 	uint32_t                grant_gen;  /* gen the releaser believes it holds */
-	uint32_t                pad;
+	uint32_t                rel_id;     /* sess422: releaser's release id (ACK echo) */
+	/* sess422 (step 3e): full validation of the release — the ledger
+	 * clears the record only for {node, inc, grant_id} (exclusive) or
+	 * {lineage, slot, node, inc} (shared). */
+	uint64_t                authority_epoch;
+	uint64_t                grant_seq64;
+	uint64_t                owner_inc;
+	uint64_t                lineage;
+	uint16_t                owner_slot;
+	uint8_t                 mode;       /* mode held (shared vs exclusive) */
+	/*
+	 * 0.84.13: 1 when the releaser's ACQUISITION of this resource and mode
+	 * has ended — the wait that took the grant claimed it and retired its
+	 * record — so any LOCK_REQ still in flight that carries that
+	 * acquisition's acq_seq is stale and the master must not queue it as a
+	 * fresh request.  0 (the pre-0.84.13 wire value) says nothing: the
+	 * acquisition may still be live (a grant kept for a wait released under
+	 * it before the claim re-sends the same name and must be served).
+	 */
+	uint8_t                 acq_done;
+	/*
+	 * 0.89.0 (D-0977): the releaser's open-holder mark change, applied by
+	 * the master inside the same durable ledger transition that retires
+	 * this grant (MXFS_TAUTH_OPEN_*: +1 the file is still open or mapped
+	 * on the releaser, -1 it is not, -2 the genuine free erases every
+	 * node's mark, 0 leave it).  Publication is inseparable from release:
+	 * a release the ledger refuses applies no mark, and a mark the ledger
+	 * applied is durable before the ACK.  Was padding.
+	 */
+	int8_t                  open_op;
+	uint8_t                 pad2[3];
+};
+
+/* sess422 (step 3e): master -> releaser once the release transition is
+ * durable (or was already superseded: status MXFS_OK either way, the
+ * releaser holds nothing).  MXFS_ERR_LEDGER = the master could not retire
+ * the record; the releaser keeps its pending-release state and retries. */
+struct mxfs_dlm_release_ack {
+	struct mxfs_dlm_msg_hdr hdr;
+	struct mxfs_resource_id resource;
+	uint32_t                grant_gen;
+	uint32_t                rel_id;
+	uint64_t                authority_epoch;
+	uint64_t                grant_seq64;
+	uint8_t                 status;     /* mxfs_error */
+	uint8_t                 pad[7];
+};
+
+/*
+ * Abandonment of a logical acquisition (see MXFS_MSG_LOCK_CANCEL).  The
+ * identity is {hdr.sender, owner_inc, acq_seq}; mode is an attribute the
+ * master's entry must also match, never a substitute for the identity.
+ * cancel_id is this transmission's nonce, echoed by the ack so a retry can
+ * be told from a first send.
+ */
+struct mxfs_dlm_lock_cancel {
+	struct mxfs_dlm_msg_hdr hdr;
+	struct mxfs_resource_id resource;
+	uint64_t                owner_inc;
+	uint64_t                acq_seq;
+	uint32_t                cancel_id;
+	uint8_t                 mode;
+	uint8_t                 pad[3];
+};
+
+/* What the master found for a cancelled acquisition, in the ack. */
+enum mxfs_cancel_outcome {
+	MXFS_CANCEL_ABSENT = 1,         /* nothing held for it; remembered */
+	MXFS_CANCEL_WAITER_REMOVED,     /* a queued waiter was removed */
+	MXFS_CANCEL_GRANT_RETIRED,      /* a delivered-or-lost grant retired */
+	MXFS_CANCEL_GRANT_RETIRING,     /* a grant still committing will be
+					 * retired when it lands, not delivered */
+	MXFS_CANCEL_NOT_MASTER,         /* not the master under this view */
+};
+
+struct mxfs_dlm_cancel_ack {
+	struct mxfs_dlm_msg_hdr hdr;
+	struct mxfs_resource_id resource;
+	uint64_t                owner_inc;
+	uint64_t                acq_seq;
+	uint32_t                cancel_id;
+	uint8_t                 outcome;    /* mxfs_cancel_outcome */
+	uint8_t                 pad[3];
+};
+
+/*
+ * sess423 (tcp-authority-ledger step 4): ledger PAGE HANDOFF.  Page
+ * authority moves only through a durable PREPARED -> ACTIVE pair; these
+ * messages are the liveness side (a lost message is recovered by reading
+ * the page, never by thawing).  kinds:
+ *   FREEZE_REQ  requester -> the page's authority: "under configuration
+ *               config_id you and I agree I own page; freeze and prepare
+ *               it to me {hdr.sender, target_inc}"
+ *   FROZEN      authority -> target: "PREPARED to {target_node,target_inc}
+ *               is durable at prepared_seq" (also sent unsolicited by the
+ *               eager pass at a view change)
+ *   DEFER       authority -> requester: views differ / a transfer to a
+ *               live third node is in flight; retry later (never
+ *               authorises anything)
+ *   NOT_OWNER   sender is not the page's authority; auth_* name whom the
+ *               platter shows so the requester re-routes
+ */
+enum mxfs_dlm_handoff_kind {
+	MXFS_HANDOFF_FREEZE_REQ = 1,
+	MXFS_HANDOFF_FROZEN,
+	MXFS_HANDOFF_DEFER,
+	MXFS_HANDOFF_NOT_OWNER,
+};
+
+/* FROZEN flag: the sender is leaving the cluster and this hand-off is its
+ * clean-departure transfer.  The receiver excludes the sender from its
+ * hand-off routing from this message on (the goodbye that drops it from
+ * the membership follows on the same stream), so the page is served, not
+ * relayed back to a node that is going away.  0.75.20. */
+#define MXFS_HANDOFF_F_DEPARTING 0x01
+
+struct mxfs_dlm_page_handoff {
+	struct mxfs_dlm_msg_hdr hdr;
+	uint32_t                page;
+	uint8_t                 kind;       /* mxfs_dlm_handoff_kind */
+	uint8_t                 flags;      /* MXFS_HANDOFF_F_* */
+	uint8_t                 pad[2];
+	uint32_t                target_node;
+	uint32_t                auth_node;
+	uint64_t                target_inc;
+	uint64_t                config_id;
+	uint64_t                prepared_seq;
+	uint64_t                auth_inc;
 };
 
 /* Blocking AST — tell a holder to downgrade or release */
@@ -444,6 +674,12 @@ struct mxfs_dlm_node_msg {
 	uint16_t                port;
 	uint8_t                 pad[2];
 	mxfs_volume_id_t        volume_id; /* multi-LUN: identifies which mount */
+	/* sess426 (D-0350): the sender's mount incarnation (disklock epoch).
+	 * On NODE_LEAVE the receiver's takeover of the pages the departing
+	 * node left needs it, and the heartbeat slot may already be released
+	 * or unmonitored by the time the GOODBYE is processed (0 = unknown:
+	 * the receiver falls back to the slot lookup). */
+	uint64_t                incarnation;
 };
 
 /* ─── Timing parameters ─── */
@@ -478,6 +714,28 @@ struct mxfs_dlm_node_msg {
  * budget (retries * this) stays ~60s, still covering a release-fence drain.
  */
 #define MXFS_LOCK_ACQUIRE_WAIT_MS  1000
+
+/*
+ * One DEGRADED_UNCONFIRMED remote lock wait, as exported to the mount's
+ * debugfs (dlm/dlm.h, the acquisition table and its status-delivery
+ * contract).  confirm_ms is the ISSUE time of the attempt the master last
+ * confirmed, which is the absence clock's anchor; receipt_ms is when that
+ * confirmation arrived; degraded_ms is when the bound was crossed.
+ */
+struct mxfs_dlm_acq_state {
+	struct mxfs_resource_id resource;
+	uint64_t                acq_seq;
+	uint64_t                first_ms;
+	uint64_t                last_ms;
+	uint64_t                receipt_ms;
+	uint64_t                confirm_ms;
+	uint64_t                degraded_ms;
+	uint32_t                retx;
+	uint32_t                rejected;
+	mxfs_node_id_t          master;
+	uint8_t                 mode;
+	int                     owner_pid;
+};
 #define MXFS_BAST_TIMEOUT_MS      10000   /* time for holder to respond to BAST */
 
 #endif /* MXFS_DLM_H */

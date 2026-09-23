@@ -20,16 +20,16 @@
 # mxfs.ko actually contains the net2 objects, so it cannot be invoked
 # before the user has approved the Kbuild edit.
 #
-# ── RULE-0 budget (written BEFORE first run; tighten after healthy PASS) ──
+# ── derived time budget (written BEFORE first run; tighten after healthy PASS) ──
 #   infra    = harness clean build ×2 (normal + ASan): measured ~10 s
 #   workload = matrix: 19 scenarios ≈ 3 s/run compressed
 #              × 3 seeds + rt subset (~3 s) + ASan run (~6 s) ≈ 18 s
 #              native == the harness itself  =>  ×2 = 36 s
 #   SCEN_BUDGET_S (everything after first build) = 45
 #   (calibrated 2026-07-17: actual 27 s on clyde; provisional 60
-#   tightened toward it per RULE 0)
+#   tightened toward it per the budget rule)
 #   RULE0_CALIBRATE=1 => measure + report, do not enforce (budget-
-#   pinning run).  A timeout or overrun is a FAIL (RULE 0.3), never a
+#   pinning run).  A timeout or overrun is a FAIL (the budget rule.3), never a
 #   retry-with-bigger-timeout.
 #
 # Usage: gate2_midcomms.sh                 (user-mode gate)
@@ -57,7 +57,7 @@ if [ "${1:-}" = "--kernel-smoke" ]; then
         echo "RESULT: FAIL | test=net2_gate2_smoke | nodes=2 | measured=- | reason=checkpoint-A-not-approved"
         exit 1
     fi
-    # ── RULE-0 budget (written BEFORE first run; success.md provisional):
+    # ── derived time budget (written BEFORE first run; success.md provisional):
     #    infra    = node reset ×2: umount+rmmod fast path ~15 s each,
     #               power-cycle fallback ~50 s + NFS ensure  => ≤ 120 s
     #    workload = insmod stagger ~5 s + 16-msg echo both ways (native
@@ -67,10 +67,10 @@ if [ "${1:-}" = "--kernel-smoke" ]; then
     #               harvest only happens on the already-failed path)
     #    SMOKE_BUDGET_S: provisional was 180 (reset 120 + workload 60);
     #    first healthy PASS measured 13 s (fast-path reset, no
-    #    power-cycle) => pinned 60 (RULE-0 tighten-toward-actual; the
+    #    power-cycle) => pinned 60 (the budget rule tighten-toward-actual; the
     #    power-cycle fallback path exceeding it is a diagnosable FAIL,
     #    not routine — smoke nodes are idle by construction).
-    #    Overrun = FAIL (RULE 0.3).
+    #    Overrun = FAIL (the budget rule.3).
     SSH="$REPO/tools/mxfs_sshpass.sh"
     PF=/tmp/.mxfs_pass
     T1=192.168.120.186
@@ -116,7 +116,7 @@ EOS
     }
 
     # Power-cycle fallback for a wedged unload (VM reset is allowed;
-    # the HOST is never touched — RULE 2).
+    # the HOST is never touched — the never-reboot-the-host rule).
     node_powercycle() { # vmname host
         sudo virsh destroy "$1" >/dev/null 2>&1
         sudo virsh start "$1" >/dev/null 2>&1
@@ -255,7 +255,7 @@ make >/dev/null 2>&1
 t_scen=$(( $(date +%s) - t1 ))
 echo "scenario_wall_s=$t_scen budget_s=$SCEN_BUDGET_S"
 if [ "$CAL" != "1" ] && [ "$t_scen" -gt "$SCEN_BUDGET_S" ]; then
-    echo "RULE-0 overrun: ${t_scen}s > ${SCEN_BUDGET_S}s — FAIL"
+    echo "the budget rule overrun: ${t_scen}s > ${SCEN_BUDGET_S}s — FAIL"
     fail=1
 fi
 

@@ -4,7 +4,7 @@
 # WHY THIS EXISTS (ccloop c7ee71c6 sess24)
 # ----------------------------------------
 # `dir_reuse_coherency` completes a fixed 128-file workload in a 100s time box
-# and asserts it fits at least DRC_MIN_ROUNDS=8 reuse rounds (RULE 0: slowness
+# and asserts it fits at least DRC_MIN_ROUNDS=8 reuse rounds (budget: slowness
 # is a first-class failure).  Rounds completed, derived from the recorded check
 # counts (checks = 7*rounds + 2), scale badly with node count for IDENTICAL work:
 #

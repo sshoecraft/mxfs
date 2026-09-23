@@ -6,12 +6,12 @@
 # faultinj). These operate on the DEVICE / MODULE / block-layer / cluster
 # lifecycle — they format/check/resize/re-stack the device or measure the
 # module, so they are NOT part of the N-node FS battery. Run once / per-host.
-# BUDGET_S: see tests/suite/manifest header — same RULE 0 semantics.
+# BUDGET_S: see tests/suite/manifest header — same the budget rule semantics.
 #
 # Run:   tests/tooling/run_tooling.sh <N> [nodes]
 # View:  ./showstat.sh tooling
 
-# mkfs_timing/chk_clean/online_resize/cluster_ops_timing: REAL RULE 0 numbers,
+# mkfs_timing/chk_clean/online_resize/cluster_ops_timing: REAL budget numbers,
 # measured against native XFS via `./run.sh 1 xfs` (2026-07-14): mkfs.xfs=62ms,
 # xfs_repair -n=0s, mkfs.xfs+xfs_growfs=1s, mount/umount cycle=0s (31/20/6ms).
 # All floored at 10s (outer harness timer is 1s-granularity; sub-second native
@@ -20,7 +20,12 @@
 # (20s EIO probe + 30s remount) mean a legitimate slow-but-correct recovery can
 # take up to ~50s even though today's clean xfs/caw sample was 4s -- keep 60s.
 tooling    mkfs_timing             none      1   10
-tooling    chk_clean               none      1   10
+# alloc_witness runs IMMEDIATELY before chk_clean and nothing may run between
+# them: the cold audit's release verdict rests on the witness this row leaves
+# (tests/evidence/alloc_witness/<run id>/witness.txt, sealed by its sha256).
+tooling    alloc_witness           barrier   2   120
+tooling    chk_clean               barrier   1   180
+tooling    guard_census            none      1   20
 tooling    online_resize           none      1   25
 infra      dkms_install            none      1   240
 benchmark  single_node_paired      none      1   90

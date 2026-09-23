@@ -73,7 +73,7 @@
 #
 # `up` will not build on a poisoned inode: it reads i_dio_count directly before
 # attaching, and then proves the attached loop can complete a write+flush inside
-# a RULE-0 budget, using a scratch area at the end of the image that is outside
+# a derived time budget, using a scratch area at the end of the image that is outside
 # the dm-delay mapping (so the gate is non-destructive and can run on every up,
 # including a re-up of an already-built generation).
 #
@@ -232,7 +232,7 @@ dio_count() {   # <path> -> prints the integer, or "unknown"
 }
 
 # Prove the attached loop device can complete a write AND a flush inside a
-# RULE-0 budget.  Non-destructive: it writes only in the reserved tail, which
+# derived time budget.  Non-destructive: it writes only in the reserved tail, which
 # dm-delay does not map, so no LUN byte and no filesystem block is touched.
 # Budget 5 s against a measured 4-5 ms healthy path — three orders of headroom.
 loop_admission_probe() {   # <loopdev>
@@ -507,7 +507,7 @@ down() {
   if ! dm_try 60 remove "$DM" 2>/dev/null; then
     quarantine_gen "$GEN" "dmsetup remove $DM did not return within 60s"
     die "$DM removal is wedged and UNKILLABLE. Do NOT retry and do NOT attempt an
-     error-target swap — see ccmemory never-pgrep-f-on-clyde-mmap-lock-wedge."
+     error-target swap — see never-pgrep-f-on-clyde-mmap-lock-wedge."
   fi
   local LOOP; LOOP=$(loopdev)
   [ -n "$LOOP" ] && { timeout 30 sudo losetup -d "$LOOP" \
@@ -611,7 +611,7 @@ set_delay() {
     die "$DM has $inflw write(s) in flight at delay=0: they are stuck, not slow. Refusing to suspend."
   fi
 
-  # RULE 0 budget: suspend must drain bios ALREADY QUEUED at the CURRENT write
+  # derived time budget: suspend must drain bios ALREADY QUEUED at the CURRENT write
   # delay, so derive the bound from that delay instead of a round number.
   local budget=$(( prev / 1000 * 2 + 20 ))
 
@@ -625,7 +625,7 @@ set_delay() {
     die "suspend of $DM did not return within ${budget}s — it is now wedged and UNKILLABLE.
      Do NOT retry, and do NOT attempt a dmsetup error-target swap: the swap
      itself needs this same suspend lock and will only add another stuck task.
-     See tools/mxfs_pgrep.sh header and ccmemory never-pgrep-f-on-clyde-mmap-lock-wedge."
+     See tools/mxfs_pgrep.sh header and never-pgrep-f-on-clyde-mmap-lock-wedge."
   fi
 
   if ! echo "0 $(sectors) delay $LOOP 0 0 $LOOP 0 $ms" | timeout 20 sudo dmsetup reload "$DM"; then

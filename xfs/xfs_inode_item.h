@@ -54,6 +54,8 @@ static inline int xfs_inode_clean(struct xfs_inode *ip)
 extern void xfs_inode_item_init(struct xfs_inode *, struct xfs_mount *);
 extern void xfs_inode_item_destroy(struct xfs_inode *);
 extern void xfs_iflush_abort(struct xfs_inode *);
+/* TEST ONLY: dbg_ail_pin_ino names an inode xfsaild must never flush */
+bool mxfs_dbg_ail_pinned(struct xfs_inode *ip);
 extern void xfs_iflush_shutdown_abort(struct xfs_inode *);
 int xfs_inode_item_format_convert(struct kvec *buf,
 		struct xfs_inode_log_format *in_f);

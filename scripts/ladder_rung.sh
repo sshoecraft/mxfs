@@ -5,7 +5,7 @@
 # dependency-safe chunks, serialized, with NO outer kill-timeouts (the
 # harness's own per-test ceilings apply; killing run.sh mid-flight shuts
 # down nodes and poisons the next hour — see ccmemory
-# ccloop8ba7-sess7-clyde-memballoon-and-harness-timeouts).
+# docs/history/clyde-memballoon-and-harness-timeouts.md).
 #
 # Usage: scripts/ladder_rung.sh <N> [cond]
 #   cond = caw (dm-multipath, default) | cawd (direct iSCSI) |
@@ -38,7 +38,7 @@ run() {  # chunk name...
     fi
 }
 
-# Host hygiene (RULE 4, 2026-07-20): 1/tcp fio_perf_vs_xfs + fio_vs_xfs_baseline
+# Host hygiene (instrumented, 2026-07-20): 1/tcp fio_perf_vs_xfs + fio_vs_xfs_baseline
 # were FAILing at 51-59% of the xfs write baseline. Root-caused to clyde host
 # swap exhaustion (8G/8G used, neighbor workloads) inflating fio noise, NOT an
 # mxfs regression: a clean-host + freshly-paired-baseline rerun landed
@@ -58,19 +58,28 @@ free -h | tee -a "$LOG"
 # pairing-fix). Always N=1 (xfs mode is single-node-only, run.sh enforces
 # this); device must match this COND's real device, since xfs mode's own
 # DEV_DEFAULT only covers cawp/tcp (/dev/sda).
-case "$COND" in
-    caw)  XFS_BASE_DEV=/dev/mapper/mpatha ;;
-    cawd) XFS_BASE_DEV="/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0" ;;
-    *)    XFS_BASE_DEV=/dev/sda ;;
-esac
-echo "--- refreshing .xfs_fio_baseline.${COND}.json (dev=$XFS_BASE_DEV) ---" | tee -a "$LOG"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$REPO/tests/lib/rig.sh"
+MXFS_TRANSPORT=$COND mxfs_dev_resolve test1; XFS_BASE_DEV=$MXFS_DEV_RESOLVED
+# Per-TRANSPORT was not specific enough: the same transport exists on more
+# than one physical rig, so a rung run here refreshed the file another
+# rig's numbers were in and silently replaced them.  Tag the capture with
+# the rig when it can be established; when it cannot, keep the historical
+# name so nothing that worked before stops working, and say which happened.
+RIGSUF=""
+RT=$(MXFS_DEV="$XFS_BASE_DEV" "$REPO/tools/mxfs_rig_tag.sh" "$XFS_BASE_DEV" 2>/dev/null || true)
+[ -n "$RT" ] && RIGSUF=".$RT"
+echo "--- refreshing .xfs_fio_baseline.${COND}${RIGSUF}.json (dev=$XFS_BASE_DEV rig=${RT:-unresolved}) ---" | tee -a "$LOG"
 MXFS_DEV="$XFS_BASE_DEV" MXFS_FORCE_PREP=1 ./run.sh 1 xfs prep_cluster 2>&1 | tee -a "$LOG" | tail -3
 xfsprep_rc=${PIPESTATUS[0]}
 if [ "$xfsprep_rc" -ne 0 ]; then
     echo "=== rung ${N}/${COND} ABORTED: xfs baseline prep failed (exit $xfsprep_rc) ===" | tee -a "$LOG"
     exit 3
 fi
-MXFS_DEV="$XFS_BASE_DEV" MXFS_TEST_ENV="XFS_BASELINE=$REPO/.xfs_fio_baseline.${COND}.json" \
+MXFS_DEV="$XFS_BASE_DEV" MXFS_TEST_ENV="XFS_BASELINE=$REPO/.xfs_fio_baseline.${COND}${RIGSUF}.json" \
     ./run.sh 1 xfs fio_perf 2>&1 | tee -a "$LOG" | tail -5
 xfsfio_rc=${PIPESTATUS[0]}
 if [ "$xfsfio_rc" -ne 0 ]; then

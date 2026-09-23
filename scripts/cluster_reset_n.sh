@@ -1,7 +1,7 @@
 #!/bin/bash
 # Cluster reset for N nodes (sess34, generalizes cluster_reset.sh which is hard-coded for 2).
 # Usage: cluster_reset_n.sh <n>   — destroys VMs test1..testN, restarts, preps each.
-# Per RULE 3, this lives in the source tree because each session needs the same flow.
+# Per the source-tree rule, this lives in the source tree because each session needs the same flow.
 
 set -u
 N="${1:?node count required}"

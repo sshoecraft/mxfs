@@ -33,19 +33,44 @@ It does not spam the entire subnet.
 mount -t mxfs /dev/sdb /mnt/shared
 ```
 
-### Broadcast (`-o broadcast`)
+### Static peer list (`-o peers=`)
 
-Sends announcements to `255.255.255.255`, UDP port 7601. Every host on the
-local subnet receives the packet regardless of group membership. Required in
-environments where the network infrastructure does not forward multicast between
-nodes.
+Lists the cluster's addresses explicitly.  Every datagram that would have
+gone to the multicast group — discovery announcements, lease heartbeats, and
+on the CAW transport the BAST/grant nudges — is sent by unicast to each listed
+address instead; no socket joins the group, and no broadcast is sent.  A
+datagram, or an inbound DLM TCP connection, from an address that is not on the
+list is dropped.  The packets themselves are unchanged, so peer registration,
+the lease state machine and the TCP mesh behave exactly as under multicast.
 
 ```
-mount -t mxfs -o broadcast /dev/sdb /mnt/shared
+mount -t mxfs -o peers=192.168.1.10/192.168.1.11/192.168.1.12 /dev/sdb /mnt/shared
 ```
 
-**Use broadcast only when multicast does not work in your environment.** See
-the environment guide below.
+- Addresses are IPv4, separated by `/` (a mount option string is itself split
+  on `,`, so a comma cannot separate them).  Multicast, broadcast and
+  `0.0.0.0` are refused; duplicates collapse; at most 64 addresses.
+- The list may include the node's own address, so every node can carry the
+  identical option.
+- Every node of a cluster must use the same list, or none.  A node with a
+  list neither sends to nor listens on the group, so a node without one cannot
+  be heard by it — the same as a network partition, and handled as one.  The
+  node without a list logs `P-PEERS-MISMATCH` once when it hears a listed node
+  (the announcement carries a flag saying so).
+- Read at mount; a remount does not change it.
+
+This is the mode for deployments that want fully predictable network traffic:
+no multicast, no broadcast, only unicast between a defined set of addresses.
+
+### Broadcast, custom groups and ports — not mount options
+
+The discovery code can send to the broadcast address or another group, and
+the TCP and UDP ports are compile-time defaults (`include/mxfs/mxfs_ports.h`),
+but none of `broadcast`, `multicast=`, `discovery_port=` or `port=` is a mount
+option: the only parser that knew them belongs to the retired `dlm/mount.c`,
+which is not built into `mxfs.ko`.  The live mount always uses multicast
+`239.66.83.1` or, with `peers=`, unicast.  An environment that cannot pass
+multicast (the nested-virtualisation cases below) should use `peers=`.
 
 ---
 
@@ -53,35 +78,14 @@ the environment guide below.
 
 | Option | Default | Description |
 |---|---|---|
-| `broadcast` | off | Use broadcast instead of multicast for discovery |
-| `multicast=ADDR` | `239.66.83.1` | Override the multicast group address |
-| `discovery_port=N` | `7601` | UDP port for discovery packets |
-| `port=N` | `7600` | TCP port for DLM connections |
-
-### Examples
-
-Default (multicast, standard ports):
-```
-mount -t mxfs /dev/sdb /mnt/shared
-```
-
-Broadcast mode (nested ESXi, see below):
-```
-mount -t mxfs -o broadcast /dev/sdb /mnt/shared
-```
-
-Custom multicast group and ports:
-```
-mount -t mxfs -o multicast=239.100.1.1,discovery_port=9001,port=9000 /dev/sdb /mnt/shared
-```
-
-All nodes in a cluster must use the same discovery mode and ports.
+| `peers=A/B/...` | none (multicast) | Unicast to exactly these IPv4 addresses; drop everyone else |
+| `cluster=NAME` | none | Must match the cluster name recorded on the filesystem (`mkfs.mxfs -c`, `mxfs_admin -c`); a mismatch in either direction refuses the mount before any cluster traffic |
 
 ---
 
 ## Environment Guide
 
-The multicast/broadcast decision depends entirely on the network path between nodes.
+The multicast/unicast decision depends entirely on the network path between nodes.
 
 | Environment | Mode | Notes |
 |---|---|---|
@@ -91,13 +95,14 @@ The multicast/broadcast decision depends entirely on the network path between no
 | libvirt/QEMU with Linux bridge | Multicast | Same as VirtualBox |
 | Proxmox on physical hardware | Multicast | Proxmox Linux bridge + managed switch = correct |
 | VMware Workstation VMs (direct) | Multicast (unverified) | Needs testing |
-| **Nested ESXi on VMware Workstation** | **Broadcast** | See below |
-| Proxmox nested on VMware Workstation | Broadcast | Same issue as nested ESXi |
+| **Nested ESXi on VMware Workstation** | **`peers=`** | See below |
+| Proxmox nested on VMware Workstation | `peers=` | Same issue as nested ESXi |
+| Any network where policy forbids multicast | `peers=` | Unicast only, to the listed addresses |
 
 ### Nested ESXi Requirement
 
 When ESXi runs as a virtual machine inside VMware Workstation, multicast
-**does not work** and `-o broadcast` is required on every node.
+**does not work**; mount every node with the same `-o peers=` list.
 
 The failure is caused by VMware Workstation's internal vmnet switch, which does
 not forward multicast frames between guest VMs. The packet path is:
@@ -106,9 +111,10 @@ not forward multicast frames between guest VMs. The packet path is:
 test VM → ESXi vSwitch → ESXi VM's vmnet NIC → VMware vmnet switch → ESXi VM's vmnet NIC → ESXi vSwitch → test VM
 ```
 
-VMware's vmnet switch silently drops multicast at the second step. Broadcast
-frames (destination MAC `ff:ff:ff:ff:ff:ff`) are unconditionally flooded and
-pass through correctly.
+VMware's vmnet switch silently drops multicast at the second step.  Unicast
+frames are forwarded normally — the DLM's TCP traffic already crosses it — so
+a static peer list carries discovery and the lease heartbeats over the same
+path.
 
 This behavior is specific to nested virtualization — VMware's vmnet switch is
 the offending layer. Standard vSphere on physical hardware does not have this
@@ -119,41 +125,40 @@ Switching from VMware standard vSwitch (vSS) to Distributed Virtual Switch
 (vDS) on the inner ESXi does not fix this, because the vmnet layer is below the
 ESXi layer and remains in the path regardless.
 
-### Why Broadcast Is Not the Default
+### Why multicast is the default and broadcast is not offered
 
-Sending UDP broadcast (`255.255.255.255`) continuously reaches every host on
-the subnet, not just MXFS nodes. In corporate environments this generates
-unexpected traffic, triggers network monitoring alerts, and can result in the
-application being permanently blocked by the network team — even after the
-behavior is corrected.
-
-Multicast with IGMP snooping is the correct solution for production networks.
-Broadcast is provided as an explicit opt-in for lab and development environments
-where multicast infrastructure is absent.
+Multicast needs no configuration and, with IGMP snooping, reaches only the
+ports that joined the group.  Broadcast (`255.255.255.255`) would reach every
+host on the subnet, not just MXFS nodes; in corporate environments that
+generates unexpected traffic, triggers network monitoring alerts, and can get
+the application permanently blocked by the network team.  Where multicast is
+unavailable or unwanted, the static peer list gives the same result with
+unicast only.
 
 ---
 
-## Broadcast Traffic Volume
+## Unicast Traffic Volume
 
-In broadcast mode, each mounted node sends one 100-byte UDP announcement every
-2000ms. For a 32-node cluster that is 32 × 50 bytes/sec = 1600 bytes/sec of
-broadcast traffic on the subnet — negligible at any reasonable scale. The
-startup burst (10 packets per node at 500ms intervals) generates a brief spike
-of ~5000 bytes per node over 5 seconds at mount time, then drops to steady
-state.
+With `peers=`, each datagram MXFS would multicast once is sent once per listed
+address instead: a node sends one ~100-byte discovery announcement per address
+every 2000 ms (after a 10-packet, 500 ms-interval burst at mount), plus one
+lease heartbeat per address per renew interval.  For a 32-node cluster that is
+32 announcements every 2 s from each node — still small, and addressed only to
+cluster members.
 
 ---
 
-## Static Peer List (Planned)
+## Cluster Name
 
-A future `peers=` mount option will allow explicit peer addresses, eliminating
-all discovery traffic:
+A filesystem may record the cluster it belongs to (`mkfs.mxfs -c NAME`, or
+later `mxfs_admin -c NAME`; `mxfs_admin -c ""` clears it).  A mount of a named
+filesystem must pass `-o cluster=NAME` with the same name, and a mount that
+passes `cluster=` must find that name recorded; either mismatch refuses the
+mount before any heartbeat, network traffic or write.
 
-```
-mount -t mxfs -o peers=192.168.1.10,192.168.1.11,192.168.1.12 /dev/sdb /mnt/shared
-```
-
-This is the preferred mode for corporate deployments where administrators want
-fully auditable, predictable network traffic. No UDP, no multicast, no
-broadcast — pure unicast TCP between a defined set of addresses. Not yet
-implemented.
+The point is the node configured for a different cluster: it would hear none
+of this cluster's peers, conclude it is alone, and write the shared disk.  The
+name is an agreement check, not a secret — the same role as OCFS2's on-disk
+cluster name and GFS2's lock table name.  It is an incompatible envelope flag,
+so a kernel that does not check it refuses the volume outright.  Renaming is
+offline: `mxfs_admin -c` refuses while any node can write the device.

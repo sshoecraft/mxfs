@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_funcgraph.sh — RULE 4 instrumentation: function_graph trace of a
+# diag_funcgraph.sh — instrumentation: function_graph trace of a
 # target function (+children) during the multi-node parallel rsync
 # workload, filtered to invocations slower than a duration threshold.
 # Shows WHERE inside a slow call the time goes (which child blocked).

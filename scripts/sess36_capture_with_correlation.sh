@@ -7,7 +7,7 @@
 # 3. Categorizes the run as: clean, cache-divergence, or catastrophic
 # 4. Highlights events that explain WHY the bug fired
 #
-# Per RULE 3.
+# Per the source-tree rule.
 
 set -u
 SCRIPTS=/src/mxfs/scripts

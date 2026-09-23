@@ -45,6 +45,15 @@ int xfs_dialloc(struct xfs_trans **tpp, const struct xfs_icreate_args *args,
 int xfs_difree(struct xfs_trans *tp, struct xfs_perag *pag,
 		xfs_ino_t ino, struct xfs_icluster *ifree);
 
+/* sess399 P-AGIFC: multi-node AGI free-count vs inobt/finobt audit (kernel
+ * only; no-op elsewhere).  @agbp is the locked AGI buffer. */
+#ifdef __KERNEL__
+void mxfs_agifc_audit(struct xfs_perag *pag, struct xfs_trans *tp,
+		struct xfs_buf *agbp, const char *site);
+#else
+#define mxfs_agifc_audit(pag, tp, agbp, site) do { } while (0)
+#endif
+
 /*
  * Return the location of the inode in imap, for mapping it into a buffer.
  */

@@ -56,8 +56,18 @@ def parse_ts(rec):
         return None
 
 
+def family(model):
+    """Collapse a model id to the pool that meters it (fable-5-1 -> fable)."""
+    m = model.replace("claude-", "")
+    for f in ("fable", "opus", "sonnet", "haiku"):
+        if m.startswith(f):
+            return f
+    return m
+
+
 def collect(projects_dir, exclude):
-    """-> (turns, exhaustions). turns = [(ts, in, cw, cr, out, project, model)]."""
+    """-> (turns, exhaustions).
+    turns = [(ts, in, cw, cr, out, project, model, request_id)]."""
     turns, exhaustions = [], []
     for path in glob.glob(f"{projects_dir}/*/*.jsonl"):
         if any(e in path for e in exclude):
@@ -93,6 +103,7 @@ def collect(projects_dir, exclude):
                     u.get("output_tokens", 0) or 0,
                     project,
                     model,
+                    rec.get("requestId"),
                 ))
     turns.sort(key=lambda r: r[0])
     exhaustions.sort()
@@ -116,10 +127,19 @@ def totals(turns, lo, hi):
     inp = cw = cr = out = 0
     by_project = defaultdict(float)
     by_model = defaultdict(float)
+    # The quota is metered in REQUESTS, not tokens (settled 2026-08-15,
+    # docs/cost-audit.md). One
+    # requestId can carry many transcript records, so count distinct ids.
+    reqs_by_family = defaultdict(set)
+    reqs_mxfs = defaultdict(set)
     n = 0
-    for ts, i_, cw_, cr_, o_, proj, model in turns:
+    for ts, i_, cw_, cr_, o_, proj, model, req in turns:
         if not (lo <= ts < hi):
             continue
+        if req:
+            reqs_by_family[family(model)].add(req)
+            if proj == "-src-mxfs":
+                reqs_mxfs[family(model)].add(req)
         inp += i_
         cw += cw_
         cr += cr_
@@ -134,7 +154,9 @@ def totals(turns, lo, hi):
                 + cr * W_CACHE_READ + out * W_OUTPUT)
     return dict(turns=n, input=inp, cache_write=cw, cache_read=cr,
                 output=out, raw=raw, weighted=weighted,
-                by_project=by_project, by_model=by_model)
+                by_project=by_project, by_model=by_model,
+                reqs={k: len(v) for k, v in reqs_by_family.items()},
+                reqs_mxfs={k: len(v) for k, v in reqs_mxfs.items()})
 
 
 def m(x):
@@ -149,6 +171,18 @@ def main():
     ap.add_argument("--exclude", action="append", default=[],
                     help="substring of a transcript path to skip "
                          "(use for the auditing session itself -- gotcha #7)")
+    ap.add_argument("--boundary-grace-min", type=int, default=45,
+                    help="ignore an exhaustion message this many minutes "
+                         "after a week starts: the pool has just reset, so "
+                         "it is the previous week's refusal still being "
+                         "retried, not this week's cap. Without it the "
+                         "08-28 week truncated at 04:00:35Z and reported 7 "
+                         "turns for a week that actually ran 5.7 days.")
+    ap.add_argument("--terminal-quiet-min", type=int, default=30,
+                    help="an exhaustion counts as the week's cap only if no "
+                         "Fable request follows it by more than this many "
+                         "minutes; otherwise it is a shorter-horizon limit "
+                         "and the week continued past it.")
     args = ap.parse_args()
 
     turns, events = collect(args.projects_dir, args.exclude)
@@ -157,14 +191,34 @@ def main():
 
     exhausted = []
     for lo, hi in weeks(turns, args.weeks):
-        hits = [t for t, _ in events if lo <= t < hi]
-        end = min(hits) if hits else hi
+        grace = lo + timedelta(minutes=args.boundary_grace_min)
+        hits = [t for t, _ in events if grace <= t < hi]
+        # The week ends at the TERMINAL exhaustion -- the one after which the
+        # pool never serves again this week -- not the first one seen. A
+        # mid-week refusal that is followed by thousands more Fable requests
+        # is a shorter-horizon limit, not the weekly cap. Reading the first
+        # hit as the cap made the 08-28 week report 3,679 requests when it
+        # actually ran to 5,808, i.e. understated the week by 37%.
+        fable_ts = [ts for ts, *_r in
+                    [(t, f) for t, _i, _cw, _cr, _o, _p, mdl, _rq in turns
+                     for f in [mdl] if lo <= t < hi and "fable" in mdl]]
+        quiet = timedelta(minutes=args.terminal_quiet_min)
+        terminal = [h for h in hits
+                    if not any(ft > h + quiet for ft in fable_ts)]
+        end = min(terminal) if terminal else (max(hits) if hits else hi)
         t = totals(turns, lo, end)
         if not t["turns"]:
             continue
         tag = (f"EXHAUSTED {end:%m-%d %H:%M}Z"
                if hits else "not exhausted (partial/under-cap week)")
-        print(f"=== week {lo:%Y-%m-%d}Z .. {end:%m-%d %H:%M}Z   {tag} ===")
+        print(f"=== week {lo:%Y-%m-%d}Z .. {end:%m-%d %H:%M}Z   {tag} "
+              f"({(end - lo).total_seconds() / 86400:.2f}d) ===")
+        req = t["reqs"]
+        print("    REQUESTS : " + ", ".join(
+            f"{k} {v:,}" + (f" ({t['reqs_mxfs'].get(k, 0):,} mxfs)"
+                            if t['reqs_mxfs'].get(k) else "")
+            for k, v in sorted(req.items(), key=lambda kv: -kv[1]))
+            + "   <- the metered quantity")
         print(f"    {t['turns']:,} turns   cache read {m(t['cache_read'])}  "
               f"cache write {m(t['cache_write'])}  output {m(t['output'])}")
         print(f"    RAW      {m(t['raw'])}")
@@ -180,7 +234,16 @@ def main():
 
     if len(exhausted) >= 2:
         print("=== §5 discriminator: which metric is constant at 100% quota? ===")
-        for label, key in (("RAW", "raw"), ("WEIGHTED", "weighted")):
+        for label, key in (("FABLE REQ", "fable_reqs"),
+                           ("RAW", "raw"), ("WEIGHTED", "weighted")):
+            if key == "fable_reqs":
+                vals = [t["reqs"].get("fable", 0) for t in exhausted]
+                mean = sum(vals) / len(vals)
+                var = sum((v - mean) ** 2 for v in vals) / (len(vals) - 1)
+                cv = (var ** 0.5) / mean * 100 if mean else 0
+                print(f"  {label:9s} " + "  ".join(f"{v:,}" for v in vals)
+                      + f"   mean {mean:,.0f}  CV {cv:.1f}%")
+                continue
             vals = [t[key] for t in exhausted]
             mean = sum(vals) / len(vals)
             var = sum((v - mean) ** 2 for v in vals) / (len(vals) - 1)

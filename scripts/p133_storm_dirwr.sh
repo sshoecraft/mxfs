@@ -14,7 +14,12 @@ MODULE="${1:-/src/mxfs/mxfs.ko}"
 DPN="${2:-100}"
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
 PASS=/tmp/.mxfs_pass
-DEV=/dev/sda
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/../tests/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 MNT=/mnt/shared
 ALL=(test1 test2 test3 test4 test5 test6 test7 test8 test9 test10 test11 test12 test13 test14 test15 test16)
 NODES=()

@@ -1,4 +1,5 @@
 #!/bin/bash
+# device-adjudicated: switches and verifies the rig's storage wiring by vendor string and path; the configuration is the subject
 # rig.sh — switch the test cluster between the four deployment-condition rigs
 # (conditions.md; run.sh <dlm> axis) and verify the shared LUN is presented.
 #
@@ -25,7 +26,7 @@
 # disk.img is preserved across every transition (both target teardowns
 # guarantee that).  Exit 0 iff every node presents the expected device.
 #
-# RULE 3: this is cluster-management infrastructure; it lives in scripts/.
+# the source-tree rule: this is cluster-management infrastructure; it lives in scripts/.
 
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)

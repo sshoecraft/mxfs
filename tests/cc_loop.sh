@@ -1,7 +1,7 @@
 #!/bin/bash
 # cc_loop.sh — targeted reproducer loop for the sess15 crash_consistency face
 # (2/tcp r3: durably-corrupt dinode + inobt CRC read-fail + EIO shutdown;
-# see ccmemory sess15run-STATE-ladder-tally-and-crashcc-face).
+# see docs/history/sess15run-state-ladder-tally-and-crashcc-face.md).
 #
 # Recycles the cluster ONCE, then loops `./run.sh <N> <dlm> [pre] crash_consistency`
 # on the same boot.  Each lap gets a fresh mkfs from run.sh; the P15I probe
@@ -25,7 +25,7 @@ echo "cc_loop: nodes up"
 
 for lap in $(seq 1 "$LAPS"); do
     echo "=== cc_loop lap $lap/$LAPS $(date -u +%H:%M:%S) ==="
-    # budget: prep ~120s + drc 100*N + cc ~90s (RULE 0)
+    # budget: prep ~120s + drc 100*N + cc ~90s (budget)
     out=$(timeout $((240 + 100*N)) ./run.sh "$N" "$DLM" ${PRE:+$PRE} crash_consistency 2>&1 | tail -8)
     echo "$out"
     if echo "$out" | grep -q "FAIL"; then

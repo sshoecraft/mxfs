@@ -245,7 +245,7 @@ xfs_dir3_leaf_read_verify(
 
 	if (xfs_has_crc(mp) &&
 	     !xfs_buf_verify_cksum(bp, XFS_DIR3_LEAF_CRC_OFF)) {
-		/* sess38(ccloop) RULE-4 decisive probe: a leaf read that fails
+		/* sess38(ccloop) instrumented decisive probe: a leaf read that fails
 		 * CRC.  Dump the ACTUAL on-disk header so we can tell a torn
 		 * write of a real leaf (leaf magic, bad crc) from an extent-map
 		 * divergence / block double-alloc (a DATA/other block sitting at
@@ -731,6 +731,9 @@ mxfs_dir_rebuild_leaf_from_data(
 	struct xfs_dir2_leaf_tail *ltp;
 	__be16			*bestsp;
 	uint64_t		*kv = NULL;
+	uint64_t		*oldkv = NULL;	/* the leaf image this tenure ACQUIRED */
+	int			old_live = 0;	/* its live (non-stale) entries */
+	int			old_stale = 0;
 	__be16			*bests = NULL;
 	int			max_ents, nent = 0, ndb, i, db, error;
 
@@ -790,6 +793,48 @@ mxfs_dir_rebuild_leaf_from_data(
 	}
 
 	/*
+	 * Snapshot the leaf image we are about to discard, so the repair below
+	 * can also REPORT what it repaired.
+	 *
+	 * This rebuild is the first thing a cross-node tenure does to a shared
+	 * directory, before that tenure's first mutation.  So the leaf sitting
+	 * here is the one this node ACQUIRED from the handoff, and diffing it
+	 * against the set derived from the DATA blocks is a direct measurement
+	 * of whether the handoff delivered a directory whose index and data sit
+	 * at the same point in history.  The repair has always overwritten this
+	 * image and reported only the rebuilt count, so a directory that arrived
+	 * torn was silently made whole and never reached a board row -- which is
+	 * why the tear has never been attributed to a producer.  Detection has
+	 * to be separable from repair for the producer to be nameable.
+	 *
+	 * Costs one array and a merge over entries already in hand: no extra
+	 * I/O, and nothing below changes behaviour on either outcome.  If the
+	 * allocation fails the census is simply skipped and the repair proceeds.
+	 */
+	{
+		int e;
+
+		old_stale = leafhdr.stale;
+		oldkv = kmalloc_array(max_ents, sizeof(*oldkv), GFP_NOFS);
+		if (oldkv) {
+			for (e = 0; e < leafhdr.count && e < max_ents; e++) {
+				uint32_t addr =
+					be32_to_cpu(leafhdr.ents[e].address);
+
+				/* a stale slot is not a live index entry */
+				if (addr == XFS_DIR2_NULL_DATAPTR)
+					continue;
+				oldkv[old_live++] =
+					((uint64_t)be32_to_cpu(
+						leafhdr.ents[e].hashval) << 32) |
+					addr;
+			}
+			sort(oldkv, old_live, sizeof(*oldkv),
+			     mxfs_leaf_kv_cmp, NULL);
+		}
+	}
+
+	/*
 	 * sess21 union read: collect dirent hashes from BOTH the in-core data
 	 * block (this node's uncommitted adds; hook-refreshed when clean) AND a
 	 * COHERENT plain-bio snapshot of the same physical block (the peer's
@@ -810,6 +855,7 @@ mxfs_dir_rebuild_leaf_from_data(
 		if (!kv || !bests) {
 			kfree(kv);
 			kfree(bests);
+			kfree(oldkv);
 			xfs_trans_brelse(tp, lbp);
 			return 0;	/* OOM: skip repair (no harm) */
 		}
@@ -864,6 +910,7 @@ mxfs_dir_rebuild_leaf_from_data(
 				kfree(snap);
 				kfree(kv);
 				kfree(bests);
+				kfree(oldkv);
 				xfs_trans_brelse(tp, lbp);
 				return 0;
 			}
@@ -878,7 +925,7 @@ mxfs_dir_rebuild_leaf_from_data(
 				goto overflow_bail;
 
 			/*
-			 * ccloop c7ee71c6 sess2 (RULE 4, cache_coherency rv
+			 * ccloop c7ee71c6 sess2 (instrumented, cache_coherency rv
 			 * "old gone" fail ×8 nodes, P26-REBUILD-OK comm=mv on
 			 * the rv dir): the on-disk union is DELETE-UNSAFE.  A
 			 * dirent our committed-but-undestaged removename just
@@ -948,6 +995,7 @@ overflow_bail:
 			kfree(snap);
 			kfree(kv);
 			kfree(bests);
+			kfree(oldkv);
 			xfs_trans_brelse(tp, lbp);
 			return 0;
 		}
@@ -966,6 +1014,7 @@ overflow_bail:
 			if (u >= max_ents) {
 				kfree(kv);
 				kfree(bests);
+				kfree(oldkv);
 				xfs_trans_brelse(tp, lbp);
 				return 0;	/* overflow: bail w/o mutating */
 			}
@@ -976,6 +1025,69 @@ overflow_bail:
 			u++;
 		}
 		nent = u;
+	}
+
+	/*
+	 * The diff.  Both sides are sorted by (hashval, address) and deduped, so
+	 * one merge pass separates the two directions exactly:
+	 *
+	 *   missing -- derived from the DATA blocks, absent from the acquired
+	 *              leaf.  readdir lists the name; the hashed lookup ENOENTs.
+	 *   extra   -- present in the acquired leaf, not derived from the data.
+	 *              The index references a dirent the data does not carry.
+	 *
+	 * Either way the directory's two halves disagreed at the start of this
+	 * tenure, before this node modified anything, so it was handed over that
+	 * way rather than torn here.  Report both counts and let the repair
+	 * proceed unchanged; a clean acquisition is reported too, because an
+	 * instrument that only speaks on failure cannot be told apart from one
+	 * that never ran.
+	 *
+	 * src= records what the derived set was built from.  With the platter
+	 * snapshot off (the default) the comparison is against this node's
+	 * in-core data blocks, which is the base it would have destaged -- real,
+	 * but not by itself proof about the durable image.
+	 */
+	if (oldkv) {
+		extern int mxfs_dir_leaf_rebuild;
+		int a = 0, b = 0, missing = 0, extra = 0;
+
+		while (a < old_live || b < nent) {
+			uint64_t ok = (a < old_live) ? oldkv[a] : ~0ULL;
+			uint64_t nk = (b < nent) ?
+				(((uint64_t)be32_to_cpu(
+					leafhdr.ents[b].hashval) << 32) |
+				 be32_to_cpu(leafhdr.ents[b].address)) : ~0ULL;
+
+			if (ok == nk) {
+				a++;
+				b++;
+			} else if (ok < nk) {
+				extra++;
+				a++;
+			} else {
+				missing++;
+				b++;
+			}
+		}
+		if (missing || extra) {
+			static atomic_t p496d = ATOMIC_INIT(0);
+			if (atomic_inc_return(&p496d) <= 400)
+				pr_warn("mxfs: P496-ACQ-DIVERGE ino=%llu missing=%d extra=%d acquired=%d derived=%d stale=%d ndb=%d src=%s comm=%s — index and data disagreed at tenure start, before this node modified anything\n",
+					(unsigned long long)dp->i_ino,
+					missing, extra, old_live, nent,
+					old_stale, ndb,
+					mxfs_dir_leaf_rebuild >= 2 ?
+						"incore+platter" : "incore",
+					current->comm);
+		} else {
+			static atomic_t p496c = ATOMIC_INIT(0);
+			if (atomic_inc_return(&p496c) <= 400)
+				pr_warn("mxfs: P496-ACQ-CLEAN ino=%llu entries=%d ndb=%d src=%s — index and data agreed at tenure start\n",
+					(unsigned long long)dp->i_ino, nent, ndb,
+					mxfs_dir_leaf_rebuild >= 2 ?
+						"incore+platter" : "incore");
+		}
 	}
 
 	/* Overwrite the (possibly pinned) leaf header + bests, then RELOG. */
@@ -999,6 +1111,7 @@ overflow_bail:
 	}
 	kfree(kv);
 	kfree(bests);
+	kfree(oldkv);
 	/* leaf buffer stays joined to tp (logged) -- do NOT brelse it. */
 	return 0;
 }
@@ -1489,7 +1602,7 @@ xfs_dir2_leaf_addname(
 	tagp = xfs_dir2_data_entry_tag_p(dp->i_mount, dep);
 	*tagp = cpu_to_be16((char *)dep - (char *)hdr);
 	/*
-	 * sess13run (RULE 4): leaf-addname placement trace for the storm dir.
+	 * sess13run (instrumented): leaf-addname placement trace for the storm dir.
 	 * P13-COLLIDE proved entries land at off=64 (first slot) — i.e. the data
 	 * block's bestfree says it is near-EMPTY.  Distinguish a freshly-GROWN
 	 * block (grown=1, legitimately empty) from a REUSED existing block
@@ -1501,7 +1614,7 @@ xfs_dir2_leaf_addname(
 	    args->name[0] == 'n' && args->name[1] == 'o') {
 		uint32_t aoff = (uint32_t)((char *)dep - (char *)hdr);
 		uint32_t bf0 = be16_to_cpu(bf[0].length);
-		/* sess42(ccloop) RULE-4: ALWAYS-ON leaf-format placement trace,
+		/* sess42(ccloop) instrumented: ALWAYS-ON leaf-format placement trace,
 		 * the leaf-path twin of P13-NADD (node format).  PROVEN this run:
 		 * the insert-loss victim (node8_f14.md5) is added in LEAF format
 		 * (no P13-NADD), then dropped before its DATA block is durable.
@@ -1987,7 +2100,7 @@ mxfs_dir2_datascan_lookup(
 		return xfs_dir_cilookup_result(args, ci_name, ci_namelen);
 	/*
 	 * sess33 (ccloop 8ddb16a2) P33-DSCAN-ONDISK DECISIVE DISCRIMINATOR
-	 * (RULE 4): a leaf-referenced name is in NO data block this node's
+	 * (instrumented): a leaf-referenced name is in NO data block this node's
 	 * in-core extent map covers (ndb too small).  Is the ON-DISK dinode
 	 * itself missing the higher data block (durability/checkpoint gap —
 	 * the inode extent-map growth never reached the platter), or does the
@@ -2254,7 +2367,8 @@ xfs_dir2_leaf_lookup(
 					mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm) ? 1 : 0,
 					args->namelen, args->name);
 		}
-		if (error == -ENOENT && args->dp->i_mount->m_mxfs_dlm &&
+		if (error == -ENOENT && mxfs_dir_datascan_heal &&
+		    args->dp->i_mount->m_mxfs_dlm &&
 		    !mxfs_v5_dlm_is_single_node(args->dp->i_mount->m_mxfs_dlm)) {
 			/*
 			 * sess1 (ccloop 46efd8b6) datascan gen-gate: the scan
@@ -2433,7 +2547,7 @@ xfs_dir2_leaf_lookup_int(
 	ASSERT(cidb == -1);
 #ifdef __KERNEL__
 	/*
-	 * sess21 (ccloop 8ddb16a2) RULE-4 DETECTOR for the dir_reuse_coherency
+	 * sess21 (ccloop 8ddb16a2) INSTRUMENTED DETECTOR for the dir_reuse_coherency
 	 * durable LEAF-HASH HOLE: readdir lists a name (its dirent is in a data
 	 * block) but lookup ENOENTs because the leaf hash index lacks a usable
 	 * entry for it.  Two opposite roots need opposite fixes, distinguished
@@ -2514,7 +2628,7 @@ xfs_dir2_leaf_removename(
 		 * leaf entry but its dirent may still live in a data block
 		 * (the uv leafless-ghost chain).  Expunge it data-side so the
 		 * unlink transaction completes and the inode is reaped. */
-		if (error == -ENOENT)
+		if (error == -ENOENT && mxfs_dir_datascan_heal)
 			error = mxfs_dir2_leafless_removename(args);
 #endif
 		return error;

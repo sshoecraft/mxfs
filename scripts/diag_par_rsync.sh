@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_par_rsync.sh — RULE 4 instrumentation for the scaling_curve
+# diag_par_rsync.sh — instrumentation for the scaling_curve
 # multi-node penalty (sess23 of run 14d31183): warm 1-node rsync wall
 # ~3.4 s but ANY >=2-node parallel rsync (each node its own subdir)
 # flattens at ~6-7 s per node (ratio >150% = gate FAIL).  The penalty

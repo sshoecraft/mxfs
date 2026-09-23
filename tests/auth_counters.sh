@@ -5,7 +5,7 @@
 # per-node table plus a cluster aggregate.  Optionally diffs against a saved
 # snapshot so a workload's contribution can be isolated.
 #
-# The counters answer the sess96 RULE-5 ruling's question for
+# The counters answer the sess96 design-consult ruling's question for
 # D-FOREIGN-REPLAY-UNGATED-IMAGES: what fraction of the live acquire
 # population can actually PROVE a durable EX tenure, and when it cannot,
 # WHICH refusal reason applies.  A gate that refuses nearly every image is a

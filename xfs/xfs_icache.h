@@ -96,7 +96,7 @@ void xfs_inodegc_push(struct xfs_mount *mp);
  * no-inode BAST path.  xfs_iget(XFS_IGET_INCORE) says -EAGAIN/-ENOENT for
  * INEW / IRECLAIM / INACTIVATING / NEED_INACTIVE / IRECLAIMABLE / VFS teardown
  * alike, but only IRECLAIMABLE means "no local owner"; the others are a local
- * lifecycle op still running under the grant (RULE-5 sess390 ruling item 1).
+ * lifecycle op still running under the grant (design-consult sess390 ruling item 1).
  */
 enum xfs_ino_lifecycle {
 	XFS_ILC_ABSENT = 0,

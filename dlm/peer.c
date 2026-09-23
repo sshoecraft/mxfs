@@ -218,6 +218,21 @@ static void mxfs_peer_accept_fn(void *arg)
             break;
         }
 
+        /* peers=: only the listed addresses are the cluster */
+        if (mxfs_static_peers_active(&ctx->static_peers)) {
+            char from[64] = "";
+
+            if (mxfs_pal_tcp_getpeername(newsock, from, sizeof(from)) < 0 ||
+                !mxfs_static_peers_admit(&ctx->static_peers, from)) {
+                mxfs_pal_log(MXFS_LOG_WARN,
+                             "mxfs: P-PEERS-REFUSED connection from %s, "
+                             "which is not in peers=",
+                             from[0] ? from : "(unknown address)");
+                mxfs_pal_tcp_close(newsock);
+                continue;
+            }
+        }
+
         mxfs_pal_tcp_set_opts(newsock);
 
         /* Publish newsock so shutdown can wake us if we block
@@ -469,6 +484,13 @@ struct mxfs_peer_ctx *mxfs_peer_init(mxfs_node_id_t node_id,
                  "peer: listening on port %u for node %u",
                  port, node_id);
     return ctx;
+}
+
+void mxfs_peer_set_static_peers(struct mxfs_peer_ctx *ctx,
+                                const struct mxfs_static_peers *peers)
+{
+    if (ctx && mxfs_static_peers_active(peers))
+        ctx->static_peers = *peers;
 }
 
 int mxfs_peer_start(struct mxfs_peer_ctx *ctx)
@@ -853,7 +875,7 @@ static int peer_connect_impl(struct mxfs_peer_ctx *ctx,
                  "peer: connected to node %u at %s:%u",
                  node_id, peer->host, peer->port);
 
-    /* ccloop c7ee71c6 sess12 (16/tcp join-storm false death, RULE-4
+    /* ccloop c7ee71c6 sess12 (16/tcp join-storm false death, instrumented
      * PROVEN live): connect_cb fired ONLY from the accept path, so an
      * OUTBOUND reconnect — the announce-driven ensure-connected heal
      * after a duplicate-connection flap — restored the peer silently.

@@ -41,7 +41,7 @@ extern int mxfs_v5_dlm_inode_ex_count(struct mxfs_v5_dlm *ctx, uint64_t ino,
  * buffers (defined in xfs_mxfs_dlm.c) — see the in-AIL refresh below. */
 extern bool mxfs_dir_buf_is_undestaged(struct xfs_buf *bp);
 
-/* sess44 RULE-4 isolation lever: gate the unpublished-dir FUA-skip fast path.
+/* sess44 isolation lever: gate the unpublished-dir FUA-skip fast path.
  * Default 1 (on).  Set mxfs.dir_unpub_skip=0 to disable at runtime and test
  * deferred-publish in isolation. */
 extern int mxfs_dir_unpub_skip;
@@ -2396,7 +2396,7 @@ xfs_da_grow_inode_int(
 	args->total -= dp->i_nblocks - nblks;
 
 	/*
-	 * sess34 (ccloop 14d31183) P34C DOUBLE-MAP PROBE (RULE 4 step 2):
+	 * sess34 (ccloop 14d31183) P34C DOUBLE-MAP PROBE (instrument step 2):
 	 * every dir-space grow logs (startoff -> fsblock).  The orphaned-
 	 * block quiet loss (sess33 forensics: committed XDD3 block absent
 	 * from the on-disk bmbt) requires TWO nodes mapping the SAME dir
@@ -2843,7 +2843,7 @@ out_free_irecs:
 invalid_mapping:
 #ifdef __KERNEL__
 	/*
-	 * sess14(ccloop) SMOKING-GUN probe (RULE 4): on a multi-node DIR DATA-fork
+	 * sess14(ccloop) SMOKING-GUN probe (instrumented): on a multi-node DIR DATA-fork
 	 * hole, dump the inode coherency state.  Hypothesis: the async evict-ring
 	 * bumped i_dlm_dir_gen (so xfs_da_read_buf re-fetched a FRESH leaf that
 	 * references block `bno`) but the EXTENT MAP was NOT reloaded for that gen
@@ -2891,7 +2891,7 @@ invalid_mapping:
 				(unsigned long long)mxfs_vfs_inode_iversion(VFS_I(dp)),
 				current->comm);
 		/*
-		 * sess15(ccloop) EXTENT-SHAPE probe (RULE 4): the gen-coupling
+		 * sess15(ccloop) EXTENT-SHAPE probe (instrumented): the gen-coupling
 		 * hypothesis was REFUTED (loaded_gen==dir_gen at every hole).
 		 * Dump the in-core data-fork extent records so we can see the
 		 * map's actual shape (expected [0][3][leaf] = blocks 1,2 lost
@@ -2972,7 +2972,7 @@ xfs_da_get_buf(
 		goto out_free;
 
 	/*
-	 * sess55 (ccloop) RULE-4 M2 SOURCE DETECTOR.  Face B of
+	 * sess55 (ccloop) instrumented M2 SOURCE DETECTOR.  Face B of
 	 * posix_semantics_multi16 was PROVEN (sess55) to be a stale dir
 	 * extent-map mis-WRITE: this dir's in-core extent fork maps logical
 	 * dir block `bno` to a physical daddr that actually backs a LIVE
@@ -3039,7 +3039,7 @@ out_free:
 }
 
 /*
- * sess15 (RULE 4 — block-dir concurrent-create durable loss REQUIRES inode/daddr
+ * sess15 (instrumented — block-dir concurrent-create durable loss REQUIRES inode/daddr
  * REUSE): a dir DATA/BLOCK buffer cached at a physical daddr that has since been
  * FREED from its old owner inode and REALLOCATED to a different dir inode is an
  * ABA alias — XBF_DONE is set (the verifier passed when it was read for the OLD
@@ -3106,7 +3106,7 @@ xfs_da_read_buf(
 	bool			dir_stamp_fresh = false;
 	uint32_t		dir_gen_snap = 0;
 	/*
-	 * sess5 (ccloop 46efd8b6, RULE 4 PROVEN): the pre-read incore
+	 * sess5 (ccloop 46efd8b6, PROVEN BY INSTRUMENT): the pre-read incore
 	 * (XBF_TRYLOCK) invalidation below is SKIPPABLE — under concurrent
 	 * same-dir walkers the da-tree node/leaf buffers are locked at check
 	 * time on EVERY read (P34-TRYLOCK-STALE rc=-11 storms, 100-170/node/run,
@@ -3171,7 +3171,7 @@ xfs_da_read_buf(
 				  dp->i_dlm_mode >= MXFS_LOCK_PR &&
 				  !dp->i_dlm_dir_want_ex));
 
-	/* ccloop 12e0d157 sess4 P-DSCAN (RULE-4, dlm_scaling@32): the proven storm
+	/* ccloop 12e0d157 sess4 P-DSCAN (instrumented, dlm_scaling@32): the proven storm
 	 * is cold re-reads of the SHARED parent path (.dlm_scaling in AG0) — every
 	 * node re-reads it ~100x/op at 32-node load because the owned_ex skip above
 	 * requires EX, but the shared parent is held only at ≥PR (readers).  Log the
@@ -3232,7 +3232,7 @@ xfs_da_read_buf(
 				current->comm);
 	}
 
-	/* sess38(ccloop) RULE-4: log the logical->physical resolution of every
+	/* sess38(ccloop) instrumented: log the logical->physical resolution of every
 	 * NON-zero dir DATA-fork block (leaf / node / free / extra data) in
 	 * multinode mode.  Compared across nodes for the same (ino,i_gen,bno) at
 	 * the failing round this reveals an extent-map divergence: if node A
@@ -3362,7 +3362,7 @@ xfs_da_read_buf(
 			if (p5_rc == -EAGAIN) {
 				/*
 				 * v0.6.5 (sess5 186320ae) — SELF-JOINED refresh.
-				 * RULE 4 PROVEN (dlm_fairness 4/caw run 020719Z,
+				 * PROVEN BY INSTRUMENT (dlm_fairness 4/caw run 020719Z,
 				 * ino 6291584 daddr 6279744 @:52.727): the
 				 * "locked elsewhere" holder can be OUR OWN
 				 * transaction — the rename's earlier da_read
@@ -3558,7 +3558,7 @@ xfs_da_read_buf(
 		}
 	}
 
-	/* sess32 (GPT RULE-5): EX-side prior-tenure revalidation.  owned_ex
+	/* sess32 (design-consult): EX-side prior-tenure revalidation.  owned_ex
 	 * disables the freshness check entirely (it protects OUR unpublished
 	 * work), but the PROVEN dir_reuse loss is an EX holder RMW'ing a CLEAN
 	 * prior-tenure base block it did NOT modify this tenure (P-WMERGE
@@ -3591,7 +3591,7 @@ xfs_da_read_buf(
 		 */
 		inc_rc = xfs_buf_incore(mp->m_ddev_targp, mapp[0].bm_bn,
 					mapp[0].bm_len, XBF_TRYLOCK, &cbp);
-		/* P-RDPATH (RULE-4): decisive — for a dir block0 read, log whether
+		/* P-RDPATH (instrumented): decisive — for a dir block0 read, log whether
 		 * the buffer is in-core (and its state) or a true cache miss, so we
 		 * know if block0 is EVICTED (miss) vs INVALIDATED (in-core !DONE) vs
 		 * FUA-forced-reread.  Explains the 0xFF cold-read shutdown. */
@@ -3654,7 +3654,7 @@ xfs_da_read_buf(
 			 */
 			cbp->b_mxfs_dir_gen = dir_gen_snap;
 			/*
-			 * sess5 (ccloop, RULE 4 PROVEN) — UNDESTAGED COLD-READ
+			 * sess5 (ccloop, PROVEN BY INSTRUMENT) — UNDESTAGED COLD-READ
 			 * SALVAGE.  One of the ~10 DONE-clearing sites (evict /
 			 * reload / modify-refresh) cleared XBF_DONE on a dir DATA
 			 * buffer that is UNDESTAGED — i.e. this node's freshly
@@ -3733,7 +3733,7 @@ xfs_da_read_buf(
 			 * and clobbers in-core metadata.  The pin guard MUST stay.
 			 */
 			/*
-			 * sess133 (RULE 4, PROVEN true-silent-dirent-loss):
+			 * sess133 (instrumented, PROVEN true-silent-dirent-loss):
 			 * the blanket !in_ail guard above (sess43) also
 			 * blocked refreshing a buffer whose content was
 			 * DRAINED-DURABLE at the previous release but whose
@@ -3847,7 +3847,7 @@ xfs_da_read_buf(
 			     * This closes the residual where dir_tenure_evict caught
 			     * the read but the keep-guard preserved an in_ail-undestaged
 			     * stale base = the ~1/3 readdir=799 that slips through. */
-			    /* sess5 (ccloop, RULE 4 PROVEN): the `!in_ail` term was
+			    /* sess5 (ccloop, PROVEN BY INSTRUMENT): the `!in_ail` term was
 			     * a hole.  AIL presence outlives writeback — a freshly
 			     * get_buf-init'd dir block0 over a REUSED/freed daddr
 			     * (its disk image still holds the prior owner's un-zeroed
@@ -3949,7 +3949,7 @@ xfs_da_read_buf(
 				    !xfs_buf_ispinned(cbp) &&
 				    !(cbp->b_flags & _XBF_DELWRI_Q) &&
 				    !mxfs_dir_buf_is_undestaged(cbp)) {
-					xfs_buf_item_done(cbp);	/* ail_delete+relse */
+					xfs_buf_item_done(cbp, XFS_BLI_NO_IODONE);	/* ail_delete+relse */
 					if (unlikely(mxfs_instr_enabled ||
 						     mxfs_dirwr_enabled))
 						pr_warn_ratelimited("mxfs: P33-READ-RETIRE ino=%llu daddr=%lld — retired lingering destaged BLI before read-path invalidate (prevents stale reflush)\n",
@@ -4028,7 +4028,7 @@ xfs_da_read_buf(
 				   dp->i_ino != mp->m_sb.sb_rootino &&
 				   !dirty && !in_ail && !xfs_buf_ispinned(cbp)) {
 				/*
-				 * sess60 DECISIVE PROBE (RULE 4): the gen MATCHES
+				 * sess60 DECISIVE PROBE (instrumented): the gen MATCHES
 				 * (b_mxfs_dir_gen == i_dlm_dir_gen) so the two branches
 				 * above both skip — the block is treated as FRESH and
 				 * served as-is.  But if a peer modified this block while
@@ -4139,7 +4139,7 @@ xfs_da_read_buf(
 			    r_in_ail && !rdirty && !xfs_buf_ispinned(bp) &&
 			    !(bp->b_flags & _XBF_DELWRI_Q) &&
 			    !mxfs_dir_buf_is_undestaged(bp))
-				xfs_buf_item_done(bp);
+				xfs_buf_item_done(bp, XFS_BLI_NO_IODONE);
 			bp->b_flags &= ~(XBF_DONE | _XBF_FUA_FRESH);
 			bp->b_mxfs_dir_gen = dp->i_dlm_dir_gen;
 			if (tp)
@@ -4155,7 +4155,7 @@ xfs_da_read_buf(
 	}
 
 	/*
-	 * sess61 DECISIVE PROBE (RULE 4): after reading block0 of a multinode
+	 * sess61 DECISIVE PROBE (instrumented): after reading block0 of a multinode
 	 * non-root dir, scan the freshly-read IN-CORE buffer AND an independent
 	 * FUA read of the SAME daddr from the platter for node1's dirent name
 	 * bytes ("node1_f").  This separates the two surviving hypotheses for the
@@ -4529,7 +4529,7 @@ xfs_da_read_buf(
 	}
 
 	/*
-	 * sess50(ccloop) RULE-4 content-history trace: log the dirent count of the
+	 * sess50(ccloop) instrumented content-history trace: log the dirent count of the
 	 * dir DATA/BLOCK image populated into b_addr at READ-completion, with the
 	 * fresh/cache-hit + FUA-fresh state and wall-clock.  Merge by realns with the
 	 * write-submit P50-WR trace to reconstruct the daddr-120 count timeline and
@@ -4572,7 +4572,7 @@ xfs_da_read_buf(
 	}
 
 	/*
-	 * sess67 (GPT-5.5 RULE-5 design): UNDER-BUFFER-LOCK dir-block coherency
+	 * sess67 (GPT-5.5 design-consult design): UNDER-BUFFER-LOCK dir-block coherency
 	 * backstop.  The pre-read gen-invalidation above uses XBF_TRYLOCK and
 	 * SKIPS a transiently-locked cached buffer (P34-TRYLOCK-STALE) — serving a
 	 * STALE XBF_DONE dir DATA/leaf block to the RMW, which durably clobbers a
@@ -4593,7 +4593,7 @@ xfs_da_read_buf(
 		extern int mxfs_dir_postread_leaf_only;
 		extern bool mxfs_dir_buf_is_undestaged(struct xfs_buf *);
 		/*
-		 * sess20(ccloop) PROVEN (RULE 4): the dir_reuse low-mht
+		 * sess20(ccloop) PROVEN (instrumented): the dir_reuse low-mht
 		 * DABUF_MAP_HOLE shutdown is a STALE cached LEAF block that still
 		 * references DATA blocks a peer legitimately freed (P14/P15 probe:
 		 * extent map fresh+consistent {0,5,leaf}, but the leaf walk asks
@@ -4702,7 +4702,7 @@ xfs_da_read_buf(
 	}
 
 	/*
-	 * sess19 LEAF-HASH stale-read detector (RULE 4).  PROVEN this session:
+	 * sess19 LEAF-HASH stale-read detector (instrumented).  PROVEN this session:
 	 * the 2/tcp cc_blockdir_probe "loss" is a dir LEAF hash-index vs DATA
 	 * block inconsistency — the leaf block, read on the modify path from a
 	 * STALE base (the read keep-guard refused to refresh a pinned/undestaged
@@ -4790,7 +4790,7 @@ xfs_da_reada_buf(
 		goto out_free;
 
 	/*
-	 * sess19 (RULE 4, GPT Hole B): on a multinode shared dir, a dir-block
+	 * sess19 (instrumented, GPT Hole B): on a multinode shared dir, a dir-block
 	 * READAHEAD issued in one DLM tenure can complete LATER (after a peer
 	 * modified the block + this node re-acquired) and re-populate the buffer
 	 * cache with a STALE image marked XBF_DONE — which the acquire-side evict

@@ -1,5 +1,5 @@
 #!/bin/bash
-# clyde_wedge_diag.sh — RULE-2c-safe triage of a wedged clyde.
+# clyde_wedge_diag.sh — wedge-safe triage of a wedged clyde.
 #
 # Reads ONLY the /proc files that are safe on a wedged host:
 #   /proc/<pid>/stat, /proc/<pid>/comm, /proc/<pid>/task/*/stat,
@@ -8,9 +8,9 @@
 # `pgrep -f` / `ps aux` — each of those takes every process's mmap_lock, and one
 # task wedged holding its own mmap_lock hangs them forever, adding unkillable
 # tasks to a host that already has too many (memory
-# `never-pgrep-f-on-clyde-mmap-lock-wedge`).
+# ccmemory `never-pgrep-f-on-clyde-mmap-lock-wedge`).
 #
-# Per RULE 2 this script NEVER reboots, shuts down or sysrqs the host.  It only
+# Per the never-reboot-the-host rule this script NEVER reboots, shuts down or sysrqs the host.  It only
 # reports.  Host recovery is the user's call.
 #
 # Usage: sudo tools/clyde_wedge_diag.sh [max_stacks]
@@ -111,4 +111,4 @@ df -h / /home /var/log 2>/dev/null | tail -n +2 | sed 's/^/  /'
 echo
 echo "NOTE: if the disk is idle, memory is free, and hundreds of threads sit in"
 echo "ext4_buffered_write_iter, that is a LOCK deadlock on the host filesystem."
-echo "Per RULE 2 a host reset is the USER'S call — document and report, never act."
+echo "Per the never-reboot-the-host rule a host reset is the USER'S call — document and report, never act."

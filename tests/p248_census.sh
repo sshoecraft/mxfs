@@ -3,7 +3,7 @@
 # for the P248-family closures (D-RELEASEALL-LREQ-RETIRE-MISSING,
 # D-TEARDOWN-DRAIN-MOOT-TENURED-HOLDER-LEAK).
 #
-# sess153 RULE-5 fleet requirement: >=3x 32-node prep cycles, zero P248
+# sess153 design-consult fleet requirement: >=3x 32-node prep cycles, zero P248
 # aggregate + per-entry, kept=0, P253/255/257-262 deltas zero, 32/32 clean
 # departures, ioretry consistent with one-shot.  sess159 adds: P254/P259/
 # P269/P270 silent; P263/P267/P271 sane (with zero residue that means zero).

@@ -19,6 +19,7 @@
 #include "xfs_log_recover.h"
 #include "xfs_ialloc.h"
 #include "xfs_trace.h"
+#include "xfs_cksum.h"
 
 struct kmem_cache	*xfs_icreate_cache;		/* inode create item */
 
@@ -39,7 +40,8 @@ xfs_icreate_item_size(
 	int			*nbytes)
 {
 	*nvecs += 1;
-	*nbytes += sizeof(struct xfs_icreate_log);
+	*nbytes += sizeof(struct xfs_icreate_log) +
+		   sizeof(struct mxfs_icreate_trailer);
 }
 
 /*
@@ -52,9 +54,19 @@ xfs_icreate_item_format(
 	struct xlog_format_buf	*lfb)
 {
 	struct xfs_icreate_item	*icp = ICR_ITEM(lip);
+	size_t			len = sizeof(struct xfs_icreate_log);
 
-	xlog_format_copy(lfb, XLOG_REG_TYPE_ICREATE, &icp->ic_format,
-			sizeof(struct xfs_icreate_log));
+	/*
+	 * MXFS (sess444): the writer-time trailer rides contiguously after
+	 * the upstream struct (ic_mxfs follows ic_format in the item, both
+	 * 4-byte aligned, no padding).  Only a stamped item formats it.
+	 */
+	BUILD_BUG_ON(offsetof(struct xfs_icreate_item, ic_mxfs) !=
+		     offsetof(struct xfs_icreate_item, ic_format) +
+		     sizeof(struct xfs_icreate_log));
+	if (icp->ic_mxfs.magic == cpu_to_be32(MXFS_ICL_TRAILER_MAGIC))
+		len += sizeof(struct mxfs_icreate_trailer);
+	xlog_format_copy(lfb, XLOG_REG_TYPE_ICREATE, &icp->ic_format, len);
 }
 
 STATIC void
@@ -84,7 +96,7 @@ static const struct xfs_item_ops xfs_icreate_item_ops = {
  * that we don't need a separate call to do this, nor does the
  * caller need to know anything about the icreate item.
  */
-void
+struct xfs_icreate_item *
 xfs_icreate_log(
 	struct xfs_trans	*tp,
 	xfs_agnumber_t		agno,
@@ -113,6 +125,112 @@ xfs_icreate_log(
 	xfs_trans_add_item(tp, &icp->ic_item);
 	tp->t_flags |= XFS_TRANS_DIRTY;
 	set_bit(XFS_LI_DIRTY, &icp->ic_item.li_flags);
+	return icp;
+}
+
+/*
+ * MXFS (sess444): the caller proved every cluster of the chunk durably
+ * initialised on the platter (P133 FUA write returned 0 for each) before
+ * the transaction commits — stamp the record so a replayer knows the init
+ * is already applied.  Called before commit, while the item is still
+ * unformatted.
+ */
+void
+xfs_icreate_mark_syncinit(
+	struct xfs_icreate_item	*icp)
+{
+	icp->ic_mxfs.magic = cpu_to_be32(MXFS_ICL_TRAILER_MAGIC);
+	icp->ic_mxfs.flags = cpu_to_be32(MXFS_ICL_F_SYNCINIT);
+}
+
+uint32_t
+mxfs_icreate_record_flags(
+	const void		*iov_base,
+	size_t			iov_len)
+{
+	const struct mxfs_icreate_trailer *tr;
+
+	if (iov_len < sizeof(struct xfs_icreate_log) + sizeof(*tr))
+		return 0;
+	tr = (const struct mxfs_icreate_trailer *)
+		((const char *)iov_base + sizeof(struct xfs_icreate_log));
+	if (tr->magic != cpu_to_be32(MXFS_ICL_TRAILER_MAGIC))
+		return 0;
+	return be32_to_cpu(tr->flags);
+}
+
+/*
+ * MXFS (sess444, design-consult ruling on ICREATE authority): verify ONE cluster of
+ * a SYNCINIT chunk from the platter.  Every dinode must be structurally the
+ * inode the chunk position names (magic, v3, di_ino, meta uuid, CRC) — the
+ * init image, or any later valid state of it (an allocated inode, a peer's
+ * modification under inode authority).  0 = verifies; -EFSCORRUPTED = does
+ * not (which dinode and why is reported); other errno = read failure.
+ */
+static int
+mxfs_icreate_verify_cluster(
+	struct xfs_mount	*mp,
+	xfs_agnumber_t		agno,
+	xfs_agblock_t		agbno,
+	uint32_t		bb_per_cluster,
+	xfs_ino_t		first_ino,
+	const char		**why)
+{
+	extern int mxfs_pal_scsi_read_fua_bdev(struct block_device *,
+					       uint64_t, void *, uint32_t);
+	extern int mxfs_pal_bio_read_bdev(struct block_device *,
+					  uint64_t, void *, uint32_t);
+	struct xfs_buftarg	*btp = mp->m_ddev_targp;
+	uint32_t		len = BBTOB(bb_per_cluster);
+	xfs_daddr_t		daddr = XFS_AGB_TO_DADDR(mp, agno, agbno);
+	int			ni = XFS_BB_TO_FSB(mp, bb_per_cluster) *
+				     mp->m_sb.sb_inopblock;
+	char			*img;
+	int			i, rc;
+
+	*why = NULL;
+	img = kmalloc(len, GFP_NOFS);
+	if (!img)
+		return -ENOMEM;
+	rc = mxfs_pal_scsi_read_fua_bdev(btp->bt_bdev,
+			(uint64_t)daddr + btp->bt_sector_offset, img, len);
+	/* non-SCSI device (loop): a plain bio read is the platter */
+	if (rc == -EOPNOTSUPP)
+		rc = mxfs_pal_bio_read_bdev(btp->bt_bdev,
+			(uint64_t)daddr + btp->bt_sector_offset, img, len);
+	if (rc) {
+		*why = "fua-read";
+		kfree(img);
+		return rc;
+	}
+	for (i = 0; i < ni; i++) {
+		struct xfs_dinode *dip = (struct xfs_dinode *)
+					 (img + ((size_t)i << mp->m_sb.sb_inodelog));
+
+		if (dip->di_magic != cpu_to_be16(XFS_DINODE_MAGIC)) {
+			*why = "magic";
+		} else if (dip->di_version != 3) {
+			*why = "version";
+		} else if (be64_to_cpu(dip->di_ino) != first_ino + i) {
+			*why = "di_ino";
+		} else if (!uuid_equal(&dip->di_uuid, &mp->m_sb.sb_meta_uuid)) {
+			*why = "uuid";
+		} else if (!xfs_verify_cksum((char *)dip, mp->m_sb.sb_inodesize,
+					     XFS_DINODE_CRC_OFF)) {
+			*why = "crc";
+		}
+		if (*why) {
+			pr_warn("mxfs: P-ICREATE-VERIFY-FAIL agno=%u agbno=%u daddr=%lld dinode=%d ino=%llu why=%s magic=0x%x ver=%u di_ino=%llu\n",
+				agno, agbno, (long long)daddr, i,
+				(unsigned long long)(first_ino + i), *why,
+				be16_to_cpu(dip->di_magic), dip->di_version,
+				(unsigned long long)be64_to_cpu(dip->di_ino));
+			kfree(img);
+			return -EFSCORRUPTED;
+		}
+	}
+	kfree(img);
+	return 0;
 }
 
 static enum xlog_recover_reorder
@@ -246,6 +364,94 @@ xlog_recover_icreate_commit_pass2(
 	"WARNING: partial inode chunk cancellation, skipped icreate.");
 		trace_xfs_log_recover_icreate_cancel(log, icl);
 		return 0;
+	}
+
+	/*
+	 * MXFS (sess444, design-consult ruling; D-ICREATE-REPLAY-REINIT-CLOBBERS-
+	 * PEER-INODES): an ICREATE re-initialises WHOLE clusters, and in a
+	 * shared-LUN cluster an inode of this chunk may since have been
+	 * modified by a peer under inode authority — a blind re-init would
+	 * clobber it, and no LSN compare across slices can order it.  The
+	 * record's writer-time trailer decides:
+	 *
+	 *  SYNCINIT stamped: the clusters were durably initialised before the
+	 *  record existed, so the init is already applied.  Verify each
+	 *  cluster from the platter; a verifying cluster is SKIPPED (never
+	 *  written); a cluster that does not verify is a broken invariant
+	 *  and the replay is REFUSED (-EFSCORRUPTED -> TORN for a foreign
+	 *  replay, mount failure for an adopted one).  It is never
+	 *  initialised here without per-cluster authority.
+	 *
+	 *  no trailer on an MXFS mount or an untrusted log: no proof that the
+	 *  chunk's clusters are safe to write; REFUSE.  Only a non-MXFS mount
+	 *  replaying a trusted log keeps upstream's unconditional init.
+	 */
+	{
+		uint32_t flags = mxfs_icreate_record_flags(item->ri_buf[0].iov_base,
+							    item->ri_buf[0].iov_len);
+		bool mxfs = mp->m_mxfs_dlm ||
+			    xlog_is_mxfs_untrusted_replay(log);
+
+		if (flags & MXFS_ICL_F_SYNCINIT) {
+			static atomic_t p_ver = ATOMIC_INIT(0);
+			xfs_ino_t first_ino = XFS_AGINO_TO_INO(mp, agno,
+						XFS_AGB_TO_AGINO(mp, agbno));
+			int ipc = igeo->inodes_per_cluster;
+			int n;
+
+			for (i = 0; i < nbufs; i++) {
+				const char *why;
+				int rc = mxfs_icreate_verify_cluster(mp, agno,
+					agbno + i * igeo->blocks_per_cluster,
+					bb_per_cluster,
+					first_ino + (xfs_ino_t)i * ipc, &why);
+
+				if (rc) {
+					/*
+					 * Design-consult landing review (6): only a
+					 * CONTENT mismatch is a verdict
+					 * (-EFSCORRUPTED → TORN).  A read
+					 * failure (transport, path, reservation,
+					 * ENOMEM) is retryable: -EIO, no
+					 * terminal publication, nothing purged —
+					 * the same classification the evaluator
+					 * gives a failed current-safety read.
+					 */
+					bool content = (rc == -EFSCORRUPTED);
+
+					xfs_alert(mp,
+	"MXFS %s replay: P-ICREATE-REFUSE lsn=0x%llx agno=%u agbno=%u cluster=%d/%d rc=%d why=%s %s",
+						  xlog_is_mxfs_foreign_replay(log) ?
+						  "foreign" : (xlog_is_mxfs_untrusted_replay(log) ?
+						  "adopted" : "own"),
+						  (unsigned long long)lsn, agno,
+						  agbno, i, nbufs, rc,
+						  why ? why : "?",
+						  content ?
+	"— SYNCINIT chunk does not verify on the platter; refusing rather than re-initialising a cluster without per-cluster authority (verdict)" :
+	"— cluster could not be READ; aborting this attempt retryably (no verdict, nothing written)");
+					return content ? -EFSCORRUPTED : -EIO;
+				}
+			}
+			n = atomic_inc_return(&p_ver);
+			if (n <= 200)
+				xfs_notice(mp,
+	"MXFS %s replay: P-ICREATE-VERIFIED lsn=0x%llx agno=%u agbno=%u clusters=%d gen=%u — chunk already initialised on the platter (SYNCINIT); skipped, nothing written (n=%d)",
+					   xlog_is_mxfs_foreign_replay(log) ?
+					   "foreign" : (xlog_is_mxfs_untrusted_replay(log) ?
+					   "adopted" : "own"),
+					   (unsigned long long)lsn, agno, agbno,
+					   nbufs, be32_to_cpu(icl->icl_gen), n);
+			trace_xfs_log_recover_icreate_cancel(log, icl);
+			return 0;
+		}
+		if (mxfs) {
+			xfs_alert(mp,
+	"MXFS replay: P-ICREATE-REFUSE lsn=0x%llx agno=%u agbno=%u — ICREATE record carries no writer-time SYNCINIT proof (iov_len=%zu); refusing the blind cluster re-init on an MXFS mount",
+				  (unsigned long long)lsn, agno, agbno,
+				  item->ri_buf[0].iov_len);
+			return -EFSCORRUPTED;
+		}
 	}
 
 	trace_xfs_log_recover_icreate_recover(log, icl);

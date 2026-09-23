@@ -79,7 +79,7 @@ xfs_inode_buf_verify(
 				be16_to_cpu(dip->di_magic));
 #endif
 			/*
-			 * sess44 (ccloop 8ddb16a2) RULE-4 PROBE — the 2/tcp
+			 * sess44 (ccloop 8ddb16a2) INSTRUMENTED PROBE — the 2/tcp
 			 * cumulative-churn wedge reads a node's OWN-AG inode
 			 * cluster as ALL ZEROS (di_magic=0) -> verify fail ->
 			 * shutdown.  Capture WHO reads the dead cluster (the
@@ -126,7 +126,7 @@ xfs_inode_buf_readahead_verify(
 }
 
 /*
- * sess60 RULE-4 ALWAYS-ON: P-DIRFLUSH.
+ * sess60 instrumented ALWAYS-ON: P-DIRFLUSH.
  *
  * The cross_visibility lost-update was proven (sess59) to be a DISK REVERSION:
  * the on-disk shortform dir progresses through all 4 entries, then ~3s later
@@ -167,7 +167,7 @@ mxfs_inode_buf_write_dirlog(
 	ni = XFS_BB_TO_FSB(mp, bp->b_length) * mp->m_sb.sb_inopblock;
 
 	/*
-	 * sess62 RULE-4 H-A vs H-B discriminator: build the mask of slots being
+	 * sess62 instrumented H-A vs H-B discriminator: build the mask of slots being
 	 * flushed THIS round (inodes still attached to b_li_list in IFLUSHING
 	 * state until buffer I/O completes).  A dir written sub-max whose slot
 	 * is in this mask is an OWN-flush of a stale in-core dir inode (H-A:
@@ -194,7 +194,7 @@ mxfs_inode_buf_write_dirlog(
 	}
 
 	/*
-	 * sess45 (ccloop 8ddb16a2) RULE-4 PROBE — the 2/tcp durable wedge is a
+	 * sess45 (ccloop 8ddb16a2) INSTRUMENTED PROBE — the 2/tcp durable wedge is a
 	 * cluster persisted with mixed valid+zero slots (slots 0-3 magic IN,
 	 * 4-15 magic 0).  The write verifier checks EVERY slot's magic and would
 	 * -EFSCORRUPTED such a buffer, so a normal verified full-cluster write
@@ -402,7 +402,7 @@ xfs_inode_from_disk(
 		ip->i_projid = 0;
 	} else {
 		/*
-		 * sess9(a9a03929) RULE-4 s_remove_count skew ledger: soak FAILs
+		 * sess9(a9a03929) instrumented s_remove_count skew ledger: soak FAILs
 		 * on a WARN flood at fs/inode.c:289 (__destroy_inode decrements
 		 * s_remove_count at 0).  Log every counter-affecting nlink EDGE
 		 * (0 <-> nonzero) applied from a disk image, with the live
@@ -448,7 +448,7 @@ xfs_inode_from_disk(
 			      xfs_inode_from_disk_ts(from, from->di_ctime));
 
 	/*
-	 * sess33 (ccloop 8ddb16a2) P33-FROMDISK-DIRSHRINK (RULE 4, decisive):
+	 * sess33 (ccloop 8ddb16a2) P33-FROMDISK-DIRSHRINK (instrumented, decisive):
 	 * catch ANY adopt-from-disk path (reload, recycle, cache-miss-over-
 	 * existing) that REVERTS a directory's data-fork size to a SMALLER
 	 * value.  The dir grew to >1 data block, then a stale on-disk image
@@ -492,6 +492,33 @@ xfs_inode_from_disk(
 	ip->i_forkoff = from->di_forkoff;
 	ip->i_diflags = be16_to_cpu(from->di_flags);
 	ip->i_next_unlinked = be32_to_cpu(from->di_next_unlinked);
+
+	/*
+	 * sess395 (D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN, lap-3 test10
+	 * AG10 bucket-10 autopsy): a dinode image whose di_nlink > 0 can never
+	 * be an unlinked-list member, so a non-NULLAGINO di_next_unlinked on
+	 * such an image is a PLATTER FOSSIL — a prior life's chain pointer
+	 * whose removal never landed home.  This is the only site that copies
+	 * di_next_unlinked into core, so every ingress of a fossil into a live
+	 * in-core inode passes through here.  Name it with its caller: the
+	 * insert path (xfs_iunlink_insert_inode) assumes i_next_unlinked ==
+	 * NULLAGINO on entry, and with an EMPTY bucket it never logs the
+	 * dinode, so an imported fossil silently becomes the on-disk tail at
+	 * the next head remove (agino 0x133 resurrected 14:47:17 → BADHEAD
+	 * → mkdir orphan insert reload LIVE → -117 dirty cancel → shutdown).
+	 */
+	if (ip->i_mount->m_mxfs_dlm && ip->i_next_unlinked != NULLAGINO &&
+	    inode->i_nlink != 0 && inode->i_mode != 0) {
+		static atomic_t p_fossil_ingress = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p_fossil_ingress) <= 300)
+			pr_warn("mxfs: P-IUNL-FOSSIL-INGRESS ino=%llu agino=0x%x disk_next=0x%x nlink=%u mode=0%o gen=%u caller=%pS comm=%s — LINKED dinode image carries a non-NULL di_next_unlinked (platter fossil) and it is being imported into core\n",
+				(unsigned long long)ip->i_ino,
+				XFS_INO_TO_AGINO(ip->i_mount, ip->i_ino),
+				ip->i_next_unlinked, inode->i_nlink,
+				inode->i_mode, be32_to_cpu(from->di_gen),
+				__builtin_return_address(0), current->comm);
+	}
 
 	if (from->di_dmevmask || from->di_dmstate)
 		xfs_iflags_set(ip, XFS_IPRESERVE_DM_FIELDS);
@@ -590,7 +617,7 @@ xfs_inode_to_disk(
 	to->di_mode = cpu_to_be16(inode->i_mode);
 
 	/*
-	 * sess33 (ccloop 8ddb16a2) P33-TODISK-DIRSHRINK (RULE 4, decisive):
+	 * sess33 (ccloop 8ddb16a2) P33-TODISK-DIRSHRINK (instrumented, decisive):
 	 * write-side twin of P33-FROMDISK-DIRSHRINK.  `to` points into the
 	 * live cluster buffer, so to->di_size still holds the CURRENT on-disk
 	 * size.  If we are about to iflush a DIRECTORY whose in-core size is
@@ -623,7 +650,7 @@ xfs_inode_to_disk(
 	to->di_aformat = xfs_ifork_format(&ip->i_af);
 	to->di_flags = cpu_to_be16(ip->i_diflags);
 
-	/* P-CCREGRESS (sess10 ccloop 72513a13, RULE-4 drc@32 unanimous-48
+	/* P-CCREGRESS (sess10 ccloop 72513a13, instrumented drc@32 unanimous-48
 	 * dirent clobber): writing a di_changecount LOWER than the value the
 	 * live cluster buffer already carries (same incarnation) means this
 	 * iflush serializes an in-core image based on a STALE base — the
@@ -1052,6 +1079,31 @@ xfs_dinode_verify(
 	/* only regular files get reflink */
 	if ((flags2 & XFS_DIFLAG2_REFLINK) && (mode & S_IFMT) != S_IFREG)
 		return __this_address;
+
+	/*
+	 * MXFS directory sharding (sess466, docs/dir-sharding.md, ruling Q1
+	 * verifier split): only dinode-visible facts.  Either private flag
+	 * needs the sb feature; CONTAINER (a shard directory or the manifest
+	 * holder file) is S_IFDIR or S_IFREG; PARENT is S_IFDIR; never both.
+	 * Nothing about nlink (deletion and recovery pass through transient
+	 * values); the manifest itself is checked by the loader under the
+	 * parent lock.  mode 0 (freed/uninitialised) carries no flags2 bits
+	 * of ours, but is exempted from the mode checks like the rest.
+	 */
+	if (flags2 & (XFS_DIFLAG2_DIRSHARD_CONTAINER | XFS_DIFLAG2_DIRSHARD_PARENT)) {
+		if (!xfs_sb_has_incompat_feature(&mp->m_sb,
+					XFS_SB_FEAT_INCOMPAT_MXFS_DIRSHARD))
+			return __this_address;
+		if ((flags2 & XFS_DIFLAG2_DIRSHARD_CONTAINER) &&
+		    (flags2 & XFS_DIFLAG2_DIRSHARD_PARENT))
+			return __this_address;
+		if (mode && (flags2 & XFS_DIFLAG2_DIRSHARD_CONTAINER) &&
+		    (mode & S_IFMT) != S_IFDIR && (mode & S_IFMT) != S_IFREG)
+			return __this_address;
+		if (mode && (flags2 & XFS_DIFLAG2_DIRSHARD_PARENT) &&
+		    (mode & S_IFMT) != S_IFDIR)
+			return __this_address;
+	}
 
 	/* don't let reflink and realtime mix */
 	if ((flags2 & XFS_DIFLAG2_REFLINK) && (flags & XFS_DIFLAG_REALTIME) &&

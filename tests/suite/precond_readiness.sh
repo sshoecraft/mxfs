@@ -61,22 +61,47 @@ if [ "$sync_ok" != 1 ]; then
 fi
 ckeq "sync completes within 15s" "1" "$sync_ok"
 
-# 2) No MXFS or writeback kernel task may be stuck in uninterruptible sleep.
+# 2) No MXFS or writeback kernel task may be STUCK in uninterruptible sleep.
 #    Matches the captured signature: mxfs-ino-bast / mxfs-* kworkers, the
 #    flush-<dev> writeback worker, and any D-state `sync`.  Reported with the
 #    offending comm+wchan so the cell names the fault instead of just counting.
+#
+#    Stuck means persistent.  A single snapshot convicted healthy nodes twice
+#    on the 2-node TCP board (2026-09-04 18:59 'mxfs-worker[msleep]',
+#    2026-09-05 13:24 'mxfs-worker[bdev_pipelined_read]'): every msleep and
+#    every synchronous platter read is an uninterruptible sleep for the
+#    milliseconds it lasts, so a worker caught mid-I/O read as the deadlock.
+#    The deadlock's wchan (a folio or inode lock) does not move; sample twice,
+#    two seconds apart, and convict only a task in D at both samples with the
+#    SAME wchan.
+dsample() {
+    local dpid dcomm dwchan
+    for dpid in $(ps -eo stat,pid --no-headers 2>/dev/null | awk '$1 ~ /^D/ {print $2}'); do
+        dcomm=$(cat "/proc/$dpid/comm" 2>/dev/null)
+        case "$dcomm" in
+            *mxfs*|flush-*|sync|*xfsaild*)
+                dwchan=$(cat "/proc/$dpid/wchan" 2>/dev/null)
+                echo "$dpid ${dcomm}[${dwchan}]"
+                ;;
+        esac
+    done
+}
+dfirst=$(dsample)
 dstuck=""
-for dpid in $(ps -eo stat,pid --no-headers 2>/dev/null | awk '$1 ~ /^D/ {print $2}'); do
-    dcomm=$(cat "/proc/$dpid/comm" 2>/dev/null)
-    case "$dcomm" in
-        *mxfs*|flush-*|sync|*xfsaild*)
-            dwchan=$(cat "/proc/$dpid/wchan" 2>/dev/null)
-            dstuck="$dstuck ${dcomm}[${dwchan}]"
-            echo "mxfs-precond-DSTATE host=$(hostname) pid=$dpid comm=$dcomm wchan=$dwchan" \
+if [ -n "$dfirst" ]; then
+    sleep 2
+    dsecond=$(dsample)
+    while read -r dpid dsig; do
+        [ -n "$dpid" ] || continue
+        if echo "$dsecond" | grep -qx "$dpid $dsig"; then
+            dstuck="$dstuck $dsig"
+            echo "mxfs-precond-DSTATE host=$(hostname) pid=$dpid sig=$dsig persisted=2s" \
                 > /dev/kmsg 2>/dev/null
-            ;;
-    esac
-done
-ckeq "no D-state mxfs/writeback task" "" "$dstuck"
+        fi
+    done <<< "$dfirst"
+    [ -n "$dstuck" ] || echo "mxfs-precond-DSTATE-TRANSIENT host=$(hostname) first=[$dfirst] second=[$dsecond]" \
+        > /dev/kmsg 2>/dev/null
+fi
+ckeq "no D-state mxfs/writeback task persisting 2s" "" "$dstuck"
 
 finish

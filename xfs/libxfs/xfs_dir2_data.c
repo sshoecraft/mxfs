@@ -532,7 +532,7 @@ xfs_dir3_data_write_verify(
 		}
 	}
 
-	/* sess62 (RULE 4) ALWAYS-ON, capped, low-flood (writes only): the durable
+	/* sess62 (instrumented) ALWAYS-ON, capped, low-flood (writes only): the durable
 	 * dir_reuse loss is ALWAYS node1_f1 (the first dirent of the reused dir).
 	 * Track node1_f1's EXACT presence in every dir DATA block written to disk,
 	 * with daddr + comm.  A write of a daddr that earlier carried node1_f1 and
@@ -924,7 +924,7 @@ xfs_dir3_data_init(
 	bp->b_mxfs_dir_epoch = dp->i_dlm_dir_valid_epoch;
 
 	/*
-	 * sess54(ccloop) RULE-4: ALWAYS-ON, I/O-FREE dir-block DOUBLE-ALLOCATION
+	 * sess54(ccloop) instrumented: ALWAYS-ON, I/O-FREE dir-block DOUBLE-ALLOCATION
 	 * detector.  The durable round-N whole-block losses (LOOKUP_ENOENT, spread
 	 * across many nodes' entries, addname coherent-compare CLEAN = the clobber
 	 * is NOT a read-side RMW) point at xfs_dir3_data_init ZEROING a daddr that
@@ -963,7 +963,7 @@ xfs_dir3_data_init(
 	}
 
 	/*
-	 * ccloop sess31 P31E-DATAINIT-ABA (GPT-5.5 RULE-5 decisive detector):
+	 * ccloop sess31 P31E-DATAINIT-ABA (GPT-5.5 design-consult decisive detector):
 	 * xfs_da_get_buf returns a get_buf (NOT read) buffer about to be ZEROED
 	 * and re-initialized as an empty dir DATA block.  Under the
 	 * dir_reuse_coherency churn (rm-rf+recreate reuses the dir inode# and its
@@ -1088,7 +1088,7 @@ xfs_dir3_data_init(
 						}
 					}
 					if (isdir && live > 0) {
-						/* sess37 RULE-4 DECISIVE: is the on-disk INODE's
+						/* sess37 instrumented DECISIVE: is the on-disk INODE's
 						 * extent map missing the block we are about to
 						 * clobber (durability/drain gap) or does in-core
 						 * lag disk (reload gap)?  Dump the in-core data-
@@ -1140,7 +1140,7 @@ xfs_dir3_data_init(
 								VFS_I(p31e_dp)->i_generation, f_ex);
 							kfree(ict);
 						}
-						/* sess32 RULE-4 (a)-vs-(b) discriminator:
+						/* sess32 instrumented (a)-vs-(b) discriminator:
 						 * bast_pending=1 at the clobber => this node
 						 * is fast-path-serving an EX MODIFY while a
 						 * peer's BAST is deferred under MHT (sess10
@@ -1177,7 +1177,7 @@ xfs_dir3_data_init(
 		}
 	}
 
-	/* sess62 (RULE 4) ALWAYS-ON, no-FUA, decisive: log every data_init of a
+	/* sess62 (instrumented) ALWAYS-ON, no-FUA, decisive: log every data_init of a
 	 * multinode non-root dir's LOGICAL BLOCK 0.  The durable loss is ALWAYS
 	 * node1_f1 (first dirent of the reused dir); if data_init(blk0) is called
 	 * during the create wave (after node1_f1 exists) it ZEROES block0 ->
@@ -1210,7 +1210,7 @@ xfs_dir3_data_init(
 					VFS_I(dp)->i_generation, dp->i_dlm_mode,
 					current->comm);
 		}
-		/* P-DBLALLOC-BIRTH (RULE-4): FUA-read the CURRENT on-disk content of
+		/* P-DBLALLOC-BIRTH (instrumented): FUA-read the CURRENT on-disk content of
 		 * the block we are about to allocate+init as this dir's block0.  If
 		 * disk already holds a VALID dir3 block/data magic owned by a
 		 * DIFFERENT inode, the allocator just handed us a block that is LIVE
@@ -1243,7 +1243,7 @@ xfs_dir3_data_init(
 							(downer != dp->i_ino) ? 1 : 0,
 							(downer != dp->i_ino) ?
 							"FOREIGN LIVE" : "own-stale");
-						/* P-DBLALLOC-AGF (RULE 4, sess5): read-vs-write
+						/* P-DBLALLOC-AGF (instrumented, sess5): read-vs-write
 						 * discriminator for the bnobt double-alloc.  On a
 						 * FOREIGN-LIVE birth, compare this node's in-core AGF
 						 * summary (pag->pagf_freeblks/longest) against the
@@ -1291,7 +1291,7 @@ xfs_dir3_data_init(
 		}
 	}
 
-	/* sess68 (RULE 4) ALWAYS-ON, NO-IO: log every data_init of a multinode
+	/* sess68 (instrumented) ALWAYS-ON, NO-IO: log every data_init of a multinode
 	 * non-root dir at ANY logical block.  force_block converged block0 (all
 	 * nodes @ same daddr); the residual 4-node loss is now at HIGHER blocks
 	 * (BLOCK->LEAF grow).  Decisive question: does this node data_init a
@@ -1371,7 +1371,7 @@ xfs_dir3_data_init(
 }
 
 /*
- * sess49 (ccloop, RULE 4 DECISIVE): does a block image contain an active dirent
+ * sess49 (ccloop, instrumented DECISIVE): does a block image contain an active dirent
  * with the given name?  Walks active dirents from data_entry_offset, skipping
  * free entries by length, stopping defensively on a zero/garbage namelen so it
  * never wanders into a block-format leaf tail.  Pure in-memory, no I/O.
@@ -1491,7 +1491,7 @@ xfs_dir2_data_log_entry(
 				current->comm);
 	}
 
-	/* sess2(ccloop) ALWAYS-ON cheap epoch-at-placement probe (RULE 4): the
+	/* sess2(ccloop) ALWAYS-ON cheap epoch-at-placement probe (instrumented): the
 	 * mht=1500 residual is a CLEAN round-1 single-dirent loss = stale-base
 	 * free-slot double-alloc.  HYPOTHESIS: in round 1 the per-dir master/valid
 	 * epoch is still 0/low so the addname epoch-staleness gates never fire on
@@ -1522,7 +1522,7 @@ xfs_dir2_data_log_entry(
 					unestablished ? 1 : 0,
 					stale_base ? 1 : 0, current->comm);
 		}
-		/* sess13 PLACEMENT LEDGER (watch-gated, RULE 4): the drc f1 loss
+		/* sess13 PLACEMENT LEDGER (watch-gated, instrumented): the drc f1 loss
 		 * commits in-core and never reaches the platter (P13-COLLIDE
 		 * never fired for blk0; the final bins lack the names).  Log
 		 * EVERY placement on the watched dir with the dir's DLM
@@ -1563,7 +1563,7 @@ xfs_dir2_data_log_entry(
 	if (args->dp)
 		bp->b_mxfs_dir_epoch = args->dp->i_dlm_dir_valid_epoch;
 
-	/* sess13run (ccloop, RULE 4 DECISIVE): collision detector AT placement.
+	/* sess13run (ccloop, instrumented DECISIVE): collision detector AT placement.
 	 * The dir_reuse residual is a free-slot DOUBLE-ALLOCATION — two nodes place
 	 * different dirents at the same (daddr, byte offset).  Here, right as we
 	 * write our dirent, do a COHERENT plain-bdev read of THIS data block from
@@ -1606,7 +1606,7 @@ xfs_dir2_data_log_entry(
 				if (dnl >= 1 && off + 9 + dnl <= blen &&
 				    (dnl != dep->namelen ||
 				     memcmp(de->name, dep->name, dnl) != 0)) {
-					/* sess46 (ccloop, RULE 4 DECISIVE): capture the
+					/* sess46 (ccloop, instrumented DECISIVE): capture the
 					 * colliding buffer's clean/dirty/AIL state AT the
 					 * collision.  If dirty/in-AIL/pinned/delwri/!DONE,
 					 * mxfs_dir_addname_coherent_refresh SKIPPED this
@@ -1639,7 +1639,7 @@ xfs_dir2_data_log_entry(
 				}
 			}
 
-			/* sess49 (ccloop, RULE 4 DECISIVE): whole-block stale-base
+			/* sess49 (ccloop, instrumented DECISIVE): whole-block stale-base
 			 * detector.  P13-COLLIDE above only fires when the SAME byte
 			 * offset already holds a different durable dirent — i.e. a
 			 * free-slot DOUBLE-ALLOCATION.  The residual single-dirent loss
@@ -1827,7 +1827,7 @@ xfs_dir2_data_make_free(
 	hdr = bp->b_addr;
 
 	/*
-	 * sess9(a9a03929) RULE-4 free-side ledger — mirror of P13-LADD.  Every
+	 * sess9(a9a03929) instrumented free-side ledger — mirror of P13-LADD.  Every
 	 * byte-range free in a storm-dir data block, with the live dirent name
 	 * currently at the freed offset.  Discriminator for the readdir-tear:
 	 * a make_free that lands on a PEER's dirent leaves the entry's bytes as
@@ -2110,7 +2110,7 @@ mxfs_dir_addname_coherent_refresh(
 		return 0;
 
 	/* CLEAN only: never touch our own dirty/in-AIL in-tenure work.  This is
-	 * ALSO the natural RULE-0 throttle: once this node adds an entry the block
+	 * ALSO the natural the budget rule throttle: once this node adds an entry the block
 	 * becomes dirty, so the per-addname FUA platter check fires only on the
 	 * FIRST add into each still-CLEAN (potentially peer-stale) block per tenure
 	 * — not on every addname.  A gen/seq dedup is UNSOUND here: the proven root
@@ -2125,7 +2125,7 @@ mxfs_dir_addname_coherent_refresh(
 				&bip->bli_item.li_flags);
 
 		/*
-		 * sess54(ccloop) RULE-4 — relax the in-AIL half of the keep-guard.
+		 * sess54(ccloop) instrumented — relax the in-AIL half of the keep-guard.
 		 * The residual durable single .md5 loss survives ALL read-side
 		 * checks (P28E coherent, DOUBLEMAP=0, KEEPGUARD=0, MEPZERO=0) AND
 		 * is NOT a modify-without-EX hole (P54-NOTEX-MODIFY=0) NOR a
@@ -2144,7 +2144,7 @@ mxfs_dir_addname_coherent_refresh(
 		 * !DONE or UNDESTAGED-in-AIL block (real un-landed work).
 		 */
 		/*
-		 * sess5(a9a03929) run80 ROOT FIX (RULE 4, test2 r1 @69.966):
+		 * sess5(a9a03929) run80 ROOT FIX (instrumented, test2 r1 @69.966):
 		 * the undestaged keep-guard was conditioned on b_inail — but a
 		 * block whose fresh adds are still CIL-RESIDENT (committed,
 		 * not yet AIL-inserted: in_cil=1 in_ail=0, transient pin
@@ -2288,7 +2288,7 @@ xfs_dir2_data_use_free(
 	hdr = bp->b_addr;
 
 	/*
-	 * sess54(ccloop) RULE-4 SERIALIZATION-HOLE probe.  The durable dirent loss
+	 * sess54(ccloop) instrumented SERIALIZATION-HOLE probe.  The durable dirent loss
 	 * is NOT a stale-base RMW (read-side coherent) and NOT a stale reflush
 	 * (tenure_reflush_skip=1 did not help) => sess50/54 converge on a DLM
 	 * serialization hole.  DECISIVE test: a dirent is being PLACED here; if this

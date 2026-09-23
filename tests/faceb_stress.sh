@@ -5,7 +5,7 @@
 # shared dir data blocks), then EVERY node verifies that ALL N*K entries are
 # present.  A lost-update (a peer RMW-clobbers a shared dir block from a stale
 # cached copy) shows up as a missing file on one-or-more nodes — usually a
-# contiguous suffix of some node's creations.  RULE 3: lives in the tree.
+# contiguous suffix of some node's creations.  the source-tree rule: lives in the tree.
 #
 # Usage: faceb_stress.sh <iters> [files_per_node]
 #   Cluster must already be mounted (use tests/reset4.sh 4 first).

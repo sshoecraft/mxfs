@@ -3,7 +3,7 @@
 # Cleans the module (force rmmod to avoid "File exists" reset failures),
 # fresh-mounts N nodes, enables mxfs.instr, clears dmesg, runs the
 # cross_write_read cluster test once, and dumps the P97/P98/P99 detector
-# lines from every node's dmesg.  Lives in the source tree per RULE 3.
+# lines from every node's dmesg.  Lives in the source tree so it survives a reboot.
 #
 # Usage: tests/cwr_repro.sh [N]   (default 2 nodes: test1..testN)
 set -u
@@ -27,7 +27,7 @@ echo "== run cross_write_read =="
 export MXFS_NODE_OFFSET=16 MXFS_TESTS_DIR=/src/mxfs/tests
 timeout 200 tests/run_tests.sh --nodes "$N" --phase cluster \
   --test test_cross_write_read --pass-file "$PASS" \
-  --device /dev/sda --mount-point /mnt/shared > /tmp/cwr_run.log 2>&1
+  --mount-point /mnt/shared > /tmp/cwr_run.log 2>&1
 rc=$?
 echo "run rc=$rc"
 grep -iE 'PASS:|FAIL:|file is 1MB|correct md5' /tmp/cwr_run.log | head

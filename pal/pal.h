@@ -218,6 +218,17 @@ void *mxfs_pal_alloc(size_t size);
 void mxfs_pal_free(void *ptr);
 
 /*
+ * Allocate `size` zeroed bytes usable as the buffer of a direct block-device
+ * transfer (mxfs_pal_bdev_read_prio and friends).  In the kernel that means
+ * physically contiguous memory: the SCSI passthrough read path cannot map a
+ * vmalloc buffer, and mxfs_pal_alloc switches to vmalloc above 16 KiB.
+ * Bounded by the allocator's contiguous limit, so callers keep it to a few
+ * hundred KiB and fall back to page-sized transfers when it returns NULL.
+ */
+void *mxfs_pal_alloc_io(size_t size);
+void mxfs_pal_free_io(void *ptr);
+
+/*
  * Reallocate memory to a new size.
  * Returns NULL on failure (original ptr is still valid).
  */
@@ -282,6 +293,49 @@ void mxfs_pal_mutex_lock(mxfs_mutex_t *m);
  * Unlock a mutex.
  */
 void mxfs_pal_mutex_unlock(mxfs_mutex_t *m);
+
+/*
+ * sess454 (0.61.0, D1/D8): try to lock a mutex without blocking.
+ * Returns 1 when acquired, 0 when it is held by someone else.  A worker
+ * that must honour a stop flag while competing for a lock polls this.
+ */
+int mxfs_pal_mutex_trylock(mxfs_mutex_t *m);
+
+/*
+ * sess454: the OS task id of the CALLING thread (0 when unavailable).
+ * Pairs with mxfs_pal_thread_pid(); used to record and assert lock
+ * ownership (the host-wide PR departure mutex).
+ */
+int mxfs_pal_current_pid(void);
+
+/*
+ * Has the calling task been sent a fatal signal (SIGKILL, or an unhandled
+ * terminating signal)?  Kernel: fatal_signal_pending(current); user mode:
+ * never.  A lock wait that can be abandoned safely checks this at bounded
+ * opportunities so a killed task does not stay in the wait for as long as
+ * the master takes to answer.
+ */
+int mxfs_pal_fatal_signal_pending(void);
+
+/*
+ * sess454 (D8): pin / unpin this module while a quarantined thread — one
+ * whose join timed out because it is stuck in a SCSI command — may still
+ * be executing its code.  Kernel: try_module_get / module_put on the
+ * module itself; user mode: always succeeds, no-op.  Returns true when
+ * the pin was taken.
+ */
+bool mxfs_pal_module_pin(void);
+void mxfs_pal_module_unpin(void);
+
+/*
+ * sess454 (D8): single-word flags shared between a thread and its
+ * controller without a lock — a plain read/write that the compiler may
+ * not tear, cache or reorder with itself (READ_ONCE/WRITE_ONCE in the
+ * kernel PAL, relaxed atomics in user mode).  Not a memory barrier for
+ * OTHER data: use a lock for anything more than the flag itself.
+ */
+int  mxfs_pal_flag_get(const int *p);
+void mxfs_pal_flag_set(int *p, int v);
 
 /* ─── Spinlock ───
  *
@@ -712,10 +766,54 @@ void mxfs_pal_sort(void *base, size_t nmemb, size_t size,
 
 /*
  * Register this node's key with the device.
- * Uses REGISTER_AND_IGNORE for idempotent re-registration.
- * Returns 0 on success, negative errno on failure.
+ *
+ * sess433 (D-379(B) / D-0355, sess432 design-consult ruling): this is a PLAIN
+ * REGISTER (service action 0x00, reservation key 0).  SPC answers it with
+ * RESERVATION CONFLICT when this I_T nexus ALREADY holds a registration —
+ * which, since MXFS keys are minted per incarnation, can only be a
+ * predecessor incarnation of this host that departed dirty or unfenced and
+ * whose key was retained as the fence target.  That case returns -EEXIST
+ * with the LU's state UNCHANGED (on dm-multipath the driver rolls back any
+ * path it had registered).  REGISTER AND IGNORE EXISTING KEY (the previous
+ * behaviour) silently REPLACED that key, re-authorising any surviving
+ * predecessor I/O on the nexus under the successor's identity and turning
+ * a fenceable state into KEY_ABSENT_UNPROVEN.
+ *
+ * Returns 0 on success, -EEXIST as above, -EOPNOTSUPP without PR, other
+ * negative errno / PR_STS_* on failure.
  */
 int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key);
+
+/*
+ * REGISTER AND IGNORE EXISTING KEY: replace whatever registration this
+ * nexus holds with `key`.  ONLY for the operator-asserted
+ * single_node_exclusive path, where exclusion holds by topology and a
+ * retained predecessor key protects nothing (sess432 ruling).
+ */
+int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key);
+
+/*
+ * sess439: PR OUT REGISTER with reservation key = old_key, service action
+ * reservation key = new_key — the target-side COMPARE AND SWAP on THIS I_T
+ * nexus's registration.  It changes the registration only if the nexus
+ * currently holds exactly old_key; it never touches another nexus and
+ * never touches the reservation.  Two uses (docs/whole-cluster-restart.md
+ * §5.2, design-consult ruling ccmemory
+ * docs/rulings/prkey-register-before-ledger-derived-key.md):
+ *   old_key == new_key   prove that this nexus already holds our derived
+ *                        per-boot key (a same-boot module reload / retried
+ *                        mount whose earlier REGISTER landed but whose
+ *                        ledger record did not) — no change, GOOD;
+ *   old_key != new_key   self-succession: replace our own previous boot's
+ *                        key on our own nexus.  Needs no on-LUN intent
+ *                        because it fences nobody; the intent is required
+ *                        before any PREEMPT AND ABORT of old_key elsewhere.
+ * Returns 0 on success; -ENOKEY when the nexus does not hold old_key (the
+ * exact RESERVATION CONFLICT status — the command performed nothing);
+ * -EOPNOTSUPP without PR; other negative errno / PR_STS_* on failure.
+ */
+int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
+                                   uint64_t new_key);
 
 /*
  * Acquire a persistent reservation of `type` (an MXFS_PAL_PR_TYPE_* wire
@@ -827,6 +925,11 @@ int mxfs_pal_scsi_pr_read_full_status(mxfs_bdev_t *dev, uint64_t key,
                                       int *present, uint32_t *generation);
 
 /* SPC persistent-reservation type codes MXFS cares about (WIRE values). */
+#define MXFS_PAL_PR_TYPE_WR_EX      0x01    /* Write Exclusive (single holder):
+                                             * ONLY ever installed by the
+                                             * sole-survivor exclusive-write
+                                             * gate (dlm/scsipr.c), never at
+                                             * admission */
 #define MXFS_PAL_PR_TYPE_WR_EX_RO   0x05    /* Write Exclusive - Registrants Only */
 #define MXFS_PAL_PR_TYPE_WR_EX_AR   0x07    /* Write Exclusive - All Registrants */
 
@@ -860,6 +963,45 @@ struct mxfs_pal_pr_reservation {
  */
 int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
                                       struct mxfs_pal_pr_reservation *out);
+
+/*
+ * sess452 DEBUG (kernel module param dbg_pr_bracket_fail=N; user mode:
+ * always false): fail the next N key-state BRACKETS (dlm/scsipr.c) before
+ * they issue any command, so a mount's own admission checks — which use
+ * the same PR INs — pass while its barrier settlement answers UNKNOWN.
+ * tests/retire_pending_admission.sh joinerunk arm.  Never enable in
+ * production.
+ */
+bool mxfs_pal_dbg_pr_bracket_fail_take(void);
+/* D-0965: how many coherent-bracket attempts the own-registration proof may
+ * make when a PROUT disturbs one (kernel knob dbg_pr_own_proof_brackets,
+ * default 4; 1 = the single-bracket behaviour for A/B). */
+uint32_t mxfs_pal_dbg_pr_own_proof_brackets(void);
+/* sess454 (0.61.0, D9): settle-absent / probe-lifecycle injectors (kernel
+ * module params dbg_settle_pause_ms, dbg_settle_inval_after_mint,
+ * dbg_settle_double_consume, dbg_probe_hang_ms; user mode: always 0/false). */
+uint32_t mxfs_pal_dbg_settle_pause_ms(void);
+bool     mxfs_pal_dbg_settle_inval_after_mint_take(void);
+bool     mxfs_pal_dbg_settle_double_consume_take(void);
+uint32_t mxfs_pal_dbg_probe_hang_take(void);
+/* sess454 (0.61.0, D4 late-completion test): module param
+ * dbg_depart_late_token_ms (one-shot) — at the departure freeze, take one
+ * synthetic token retired this many ms later; user mode: always 0. */
+uint32_t mxfs_pal_dbg_depart_late_token_take(void);
+/* sess459: module param dbg_depart_inject (one-shot) — departure-gate fault
+ * injector arm consumed by put_super (1 untokened completion, 2 post-teardown
+ * submission, 3 orphan+token, 4 orphan+rejection, 5 overflow, 6 underflow);
+ * user mode: always 0. */
+int mxfs_pal_dbg_depart_inject_take(void);
+/* sess460 (0.61.6, review #5 conditions 2/3/4; user mode: always 0/false):
+ * dbg_depart_crash_cut (one-shot cut id) + dbg_depart_crash_hold_ms (park
+ * length) for the crash-cut state table; dbg_retire_hang_ms (one-shot) makes
+ * the retire settle worker ignore its stop; dbg_cas_nocaw_ops (bitmask) makes
+ * the named disklock record-CAS classes report -EOPNOTSUPP. */
+int      mxfs_pal_dbg_depart_crash_cut_take(void);
+uint32_t mxfs_pal_dbg_depart_crash_hold_ms(void);
+uint32_t mxfs_pal_dbg_retire_hang_take(void);
+bool     mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what);
 
 /*
  * PERSISTENT RESERVE IN / REPORT CAPABILITIES (service action 0x02).
@@ -900,6 +1042,114 @@ struct mxfs_pal_pr_caps {
  */
 int mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev,
                                          struct mxfs_pal_pr_caps *out);
+
+/*
+ * THE LUN'S OWN IDENTITY, AS THE TARGET REPORTS IT.
+ *
+ * 0.89.13.  A fence certificate proves ADMISSION — the dead incarnation
+ * cannot obtain permission to write again.  Whether the target has finished
+ * with the writes it ALREADY ACCEPTED from that incarnation's nexus is a
+ * property of the TARGET, not of this filesystem, and no standard SPC command
+ * reports it after the fact.  Where a deployment relies on a target's
+ * behaviour there, that reliance must be bound to the exact target, firmware
+ * and LUN it was qualified against, so that replacing any of the three
+ * withdraws it automatically instead of silently carrying it over.
+ *
+ * vendor/model/rev come from the standard INQUIRY data the target returned at
+ * scan time (trailing pad spaces trimmed, NUL-terminated); `rev` is the
+ * product revision level, which is where a firmware change shows up.  lun_id
+ * is the SCSI name string built from the device identification VPD page —
+ * "naa.6e843b..." — the same designator the by-id links and data/rigs.json
+ * carry.
+ *
+ * Returns 0 and fills *out on success; -EOPNOTSUPP where no SCSI device
+ * backs this block device; -ENXIO where the target reports no usable
+ * designator; other negative errno on failure.  On any non-zero return *out
+ * is zeroed: a caller must treat an unidentified LUN as unqualified, never as
+ * a match.
+ */
+struct mxfs_pal_target_id {
+    char vendor[9];     /* T10 VENDOR IDENTIFICATION  (INQUIRY bytes 8-15)  */
+    char model[17];     /* PRODUCT IDENTIFICATION     (INQUIRY bytes 16-31) */
+    char rev[5];        /* PRODUCT REVISION LEVEL     (INQUIRY bytes 32-35) */
+    char lun_id[72];    /* SCSI name string from VPD page 0x83              */
+};
+
+int mxfs_pal_scsi_target_id(mxfs_bdev_t *dev, struct mxfs_pal_target_id *out);
+
+/* ─── LOGICAL UNIT RESET, WITNESSED ───
+ *
+ * One task-management function against one logical unit, with the target's
+ * response as the evidence.  This is the operation that retires work the
+ * target already accepted from a nexus whose session is gone — the case a
+ * PREEMPT AND ABORT cannot reach, because there is no registration left for it
+ * to name.  Its scope is the logical unit, so it also terminates tasks
+ * belonging to any OTHER initiator attached to that unit; the caller owns the
+ * decision that nothing else may be holding work there, and that decision is
+ * not made here.
+ *
+ * The verdict is the only thing a caller may act on.  In particular
+ * INDETERMINATE means the reset MAY have been performed and the outcome is
+ * unknown; it is never equivalent to REFUSED, and treating it as "no reset
+ * happened" would license a retry under a state the caller has not
+ * established.
+ */
+enum mxfs_pal_lu_reset_verdict {
+    MXFS_PAL_LURESET_NOT_RUN       = 0, /* nothing executed; nothing issued */
+    MXFS_PAL_LURESET_REFUSED       = 1, /* a precondition failed BEFORE the
+                                         * command boundary; nothing issued */
+    MXFS_PAL_LURESET_WITNESSED     = 2, /* one LOGICAL UNIT RESET completed
+                                         * with a target task-management
+                                         * response, on a transport
+                                         * incarnation unchanged across it */
+    MXFS_PAL_LURESET_INDETERMINATE = 3, /* it may have been issued; the
+                                         * outcome is not known */
+};
+
+#define MXFS_PAL_LURESET_REPORT_MAX 2048
+
+struct mxfs_pal_lu_reset_req {
+    const char *lun_id;     /* the VPD page 0x83 designator, as
+                             * mxfs_pal_scsi_target_id() reports it.  A device
+                             * that does not carry it is refused: resetting the
+                             * wrong logical unit destroys in-flight I/O on
+                             * something nobody was fencing */
+    const char *victim;     /* the victim's tag, echoed back for the record */
+    uint64_t    epoch;      /* the fencing epoch this was issued under */
+};
+
+struct mxfs_pal_lu_reset_result {
+    uint8_t  verdict;       /* enum mxfs_pal_lu_reset_verdict */
+    bool     issued;        /* the command boundary was crossed */
+    uint64_t nonce;         /* what bound the answer to this question */
+    int      reset_rc;
+    uint32_t reset_wall_ms;
+    uint32_t upcall_wall_ms;
+    size_t   report_len;
+    char     krel[68];      /* the kernel release the witness argument was
+                             * made on, for the caller to accept or refuse */
+    char     reason[96];
+    char     report[MXFS_PAL_LURESET_REPORT_MAX];
+};
+
+/*
+ * The running kernel's release string, exactly as `uname -r` reports it.
+ *
+ * It is here because a witness can rest on a KERNEL-INTERNAL invariant rather
+ * than on a protocol field, and such an invariant belongs to a release rather
+ * than to a device.  The LU-reset witness is that case: the per-operation
+ * meaning of its return value comes from an enforced one-TMF-per-session
+ * serialization, not from a correlator on the wire, so the release it was
+ * taken on has to be one the fence layer has audited.  Never NULL; never a
+ * caller-freed pointer.
+ */
+const char *mxfs_pal_kernel_release(void);
+
+int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
+                              struct mxfs_pal_lu_reset_result *out);
+const char *mxfs_pal_lu_reset_verdict_name(int v);
+int mxfs_pal_lu_reset_init(void);
+void mxfs_pal_lu_reset_exit(void);
 
 /* ─── SCSI COMPARE AND WRITE ───
  *
@@ -950,7 +1200,7 @@ uint64_t mxfs_pal_bdev_get_base_offset(mxfs_bdev_t *dev);
 /* ─── Per-task absolute I/O budget (kernel only) ─── */
 
 /*
- * sess379 (D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, RULE-5 ruling item 5).
+ * sess379 (D-MASS-UMOUNT-ROOT-EX-SERIALIZE-100S-526B, design-consult ruling item 5).
  *
  * Puts ONE absolute deadline on every SCSI slot read this task issues for the
  * span of one logical operation, replacing the stacked
@@ -1040,6 +1290,24 @@ static inline int32_t mxfs_atomic32_dec(mxfs_atomic32_t *a)
     return atomic_dec_return(&a->val);
 }
 
+/* Compare-and-swap; returns the value observed BEFORE the operation (the
+ * swap happened iff the return equals `expect`).  Full barrier both ways —
+ * the D-0286 departure state machine uses it as a linearization point
+ * between a clean-leave publisher and a concurrent session poison, and
+ * everything the winner published before the CAS must be visible to the
+ * loser after it. */
+static inline int32_t mxfs_atomic32_cmpxchg(mxfs_atomic32_t *a,
+                                            int32_t expect, int32_t desired)
+{
+    return atomic_cmpxchg(&a->val, expect, desired);
+}
+
+/* Unconditional exchange; returns the prior value.  Full barrier. */
+static inline int32_t mxfs_atomic32_xchg(mxfs_atomic32_t *a, int32_t v)
+{
+    return atomic_xchg(&a->val, v);
+}
+
 #else /* userspace */
 
 typedef struct mxfs_atomic32 {
@@ -1064,6 +1332,21 @@ static inline int32_t mxfs_atomic32_inc(mxfs_atomic32_t *a)
 static inline int32_t mxfs_atomic32_dec(mxfs_atomic32_t *a)
 {
     return __atomic_sub_fetch(&a->val, 1, __ATOMIC_SEQ_CST);
+}
+
+static inline int32_t mxfs_atomic32_cmpxchg(mxfs_atomic32_t *a,
+                                            int32_t expect, int32_t desired)
+{
+    int32_t prior = expect;
+
+    __atomic_compare_exchange_n(&a->val, &prior, desired, false,
+                                __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return prior;
+}
+
+static inline int32_t mxfs_atomic32_xchg(mxfs_atomic32_t *a, int32_t v)
+{
+    return __atomic_exchange_n(&a->val, v, __ATOMIC_SEQ_CST);
 }
 
 #endif /* __KERNEL__ */

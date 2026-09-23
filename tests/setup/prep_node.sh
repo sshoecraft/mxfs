@@ -30,8 +30,21 @@ MODULE="$MXFS_REPO/mxfs.ko"
 fail() { echo "NODE_PREP_FAIL: $*" >&2; exit 1; }
 
 case "$TRANSPORT" in
-    tcp) MODARGS="force_transport=1" ;;
-    caw) MODARGS="" ;;
+    # sess447 (D-FOREIGN-REPLAY-UNGATED-IMAGES default-on, 0.54.0): the rig's
+    # PRODUCTION durability-domain declaration.  The SCST target runs with
+    # fua_disable=1 (no real FUA), so the clustered RW mount is admitted only
+    # in the coherence-only domain: the operator declares target power loss /
+    # volatile write-cache loss out of scope.  This is a configuration
+    # declaration, not a test override — no harness sets the enforcement
+    # knobs any more (foreign_replay_token_enforce defaults to 1).
+    #
+    # The declaration describes the TARGET, not the lock transport, so the
+    # tcp condition carries it too: without it the 0.54.0 domain gate refuses
+    # the clustered RW mount outright (P-DOMAIN-REFUSED, EACCES), which is
+    # what a 2/tcp prep on the QNAP LUN hit on 2026-09-04.  Every rig this
+    # harness targets (SCST fileio, LIO fileio, the QNAP) is write-through.
+    tcp) MODARGS="force_transport=1 target_cache_protected=1" ;;
+    caw) MODARGS="target_cache_protected=1" ;;
     *)   fail "unknown transport '$TRANSPORT' (expect tcp|caw)" ;;
 esac
 
@@ -91,7 +104,70 @@ if lsmod | grep -q '^mxfs'; then
 fi
 
 # 4. Load the module with the chosen transport.
+#
+# 0.89.13: the deployment's target-retirement contract travels here as its own
+# variable rather than inside MXFS_EXTRA_MODARGS, because its product field
+# contains a space ("iSCSI Storage") and the modargs expansion below is
+# deliberately unquoted.  Carried in an array, one argv element, so insmod sees
+# the whole five-field string.  Absent, the module refuses to certify a boot
+# succession at all — which is the intended state for a rig whose target
+# nobody has qualified, not something to paper over here.
+#
+# When the caller said nothing at all, the contract is resolved HERE from the
+# rig's own declaration, because most harnesses re-prep a rebooted victim by
+# calling this script directly and a boot succession is precisely what such a
+# victim's return needs certified.  Resolving it here keeps one rule for every
+# caller.  It is not the node asserting anything about itself: the assertion is
+# the human-authored data/rigs.json entry and the measurement recorded beside
+# it, and a rig with no entry still ships nothing.  A caller that sets
+# MXFS_RETIRE_CONTRACT — to a contract, or to the empty string to exercise the
+# refusal — is obeyed verbatim.
+RETIRE_ARGS=()
+if [ "${MXFS_RETIRE_CONTRACT+set}" != set ]; then
+    rig_tag=$("$MXFS_REPO/tools/mxfs_rig_tag.sh" "$MXFS_DEV" 2>/dev/null || true)
+    if [ -n "${rig_tag:-}" ]; then
+        MXFS_RETIRE_CONTRACT=$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1])); print((d.get(sys.argv[2]) or {}).get("task_retirement_contract") or "")' \
+            "$MXFS_REPO/data/rigs.json" "$rig_tag" 2>/dev/null || true)
+    fi
+fi
+if [ -n "${MXFS_RETIRE_CONTRACT:-}" ]; then
+    # The kernel joins insmod's argv into ONE string and splits it on
+    # whitespace (lib/cmdline.c next_arg), so a value containing a space — this
+    # target's product id is "iSCSI Storage" — must carry the quotes the
+    # parser understands, or the module receives only the first word.  Measured
+    # s80a: the module held "QNAP:iSCSI" and refused every certificate for a
+    # product mismatch it had invented itself.
+    RETIRE_ARGS+=("target_retire_contract=\"${MXFS_RETIRE_CONTRACT}\"")
+    echo "MXFS_RETIRE_CONTRACT=${MXFS_RETIRE_CONTRACT}"
+else
+    echo "MXFS_RETIRE_CONTRACT=NONE — a boot succession cannot be certified on this node"
+fi
 modprobe libcrc32c 2>/dev/null || true
+# 0.89.33 THE LU-RESET WITNESS HELPER, NODE-LOCAL AND INSTALLED BEFORE THE
+# MODULE LOADS.  The witnessed LOGICAL UNIT RESET is the only route that can
+# retire the accepted work of a node whose registration the target has already
+# purged, and the kernel has no in-tree caller for a task-management function,
+# so the module executes this helper and checks the report it writes back.  It
+# is copied to node-local disk on purpose: a fence that upcalled into the NFS
+# export would make one node's storage recovery depend on the build host being
+# reachable, at exactly the moment the cluster is already degraded.  The path
+# is the module parameter's own default, so nothing has to be passed at load.
+# A copy that fails is reported and not fatal: every other stage of the prep
+# still has work to do, and the fence refuses loudly on its own when the
+# helper is missing rather than resetting anything blind.
+LURESET_HELPER=/usr/local/sbin/mxfs_lu_reset_witness.py
+if [ -f /src/mxfs/tools/mxfs_lu_reset_witness.py ]; then
+    mkdir -p /usr/local/sbin
+    if cp -f /src/mxfs/tools/mxfs_lu_reset_witness.py "$LURESET_HELPER" 2>/dev/null; then
+        chmod 755 "$LURESET_HELPER"
+        echo "MXFS_LURESET_HELPER path=$LURESET_HELPER md5=$(md5sum "$LURESET_HELPER" 2>/dev/null | awk '{print $1}')"
+    else
+        echo "WARN: could not install $LURESET_HELPER — a witnessed LOGICAL UNIT RESET will refuse on this node"
+    fi
+else
+    echo "WARN: /src/mxfs/tools/mxfs_lu_reset_witness.py is not readable here — no LU-reset witness helper installed"
+fi
 case "$MODULE_SOURCE" in
     repo)
         # sess10 (ccloop c7ee71c6) NFS-STALENESS-PROOF LOAD.  The repo ko is
@@ -117,16 +193,24 @@ case "$MODULE_SOURCE" in
             sleep 2
         done
         [ "$ko_ok" = 1 ] || fail "mxfs.ko content never matched expected md5 ${MXFS_KO_MD5:-?} after cache-drop retries (NFS staleness)"
-        insmod "$LOCAL_KO" $MODARGS ${MXFS_EXTRA_MODARGS:-} \
-            || fail "insmod $LOCAL_KO $MODARGS ${MXFS_EXTRA_MODARGS:-} failed" ;;
+        insmod "$LOCAL_KO" $MODARGS ${MXFS_EXTRA_MODARGS:-} ${RETIRE_ARGS[@]+"${RETIRE_ARGS[@]}"} \
+            || fail "insmod $LOCAL_KO $MODARGS ${MXFS_EXTRA_MODARGS:-} ${RETIRE_ARGS[*]-} failed" ;;
     installed)
         # /etc/modprobe.d/mxfs.conf may already carry options (force_transport=1
         # is mandatory on rigs whose LUN has no real SCSI CAW); passing MODARGS
         # explicitly is still correct — modprobe merges both.
-        modprobe mxfs $MODARGS ${MXFS_EXTRA_MODARGS:-} \
-            || fail "modprobe mxfs $MODARGS ${MXFS_EXTRA_MODARGS:-} failed" ;;
+        modprobe mxfs $MODARGS ${MXFS_EXTRA_MODARGS:-} ${RETIRE_ARGS[@]+"${RETIRE_ARGS[@]}"} \
+            || fail "modprobe mxfs $MODARGS ${MXFS_EXTRA_MODARGS:-} ${RETIRE_ARGS[*]-} failed" ;;
 esac
 lsmod | grep -q '^mxfs' || fail "mxfs not loaded after load ($MODULE_SOURCE)"
+# 4a1. D-0924 instrument: SLUB allocation/free tracking on the buffer cache
+#      is a module parameter (MXFS_EXTRA_MODARGS='buf_slab_track=1'), because
+#      /sys/kernel/slab/<cache>/store_user is read-only on the 6.8 node
+#      kernel.  Record what the cache got so the prep log shows it.
+echo "MXFS_BUF_SLAB store_user=$(cat /sys/kernel/slab/mxfs_buf/store_user 2>/dev/null) object_size=$(cat /sys/kernel/slab/mxfs_buf/object_size 2>/dev/null)"
+# sess447: print the effective enforcement/domain knobs so every prep log
+# records the configuration the board ran under (production defaults).
+echo "MXFS_KNOBS enforce=$(cat /sys/module/mxfs/parameters/foreign_replay_token_enforce 2>/dev/null) rpe=$(cat /sys/module/mxfs/parameters/release_proof_enforce 2>/dev/null) fua=$(cat /sys/module/mxfs/parameters/fua_disable 2>/dev/null) tcp=$(cat /sys/module/mxfs/parameters/target_cache_protected 2>/dev/null) iclus=$(cat /sys/module/mxfs/parameters/icluster_dlm 2>/dev/null)"
 
 # 4a2. Catch in-guest wedges with stacks: run21 had a 112s whole-node stall
 #      that khungtaskd's default 120s window just missed.  30s + all-cpu
@@ -173,6 +257,16 @@ fi
 # allocation, i.e. a corruption shutdown with no obvious connection to the prep.
 # A silent WARN is how that class survives a prep, so fail here instead.
 blockdev --flushbufs "$MXFS_DEV" || fail "blockdev --flushbufs $MXFS_DEV failed — refusing to mount on a possibly stale block-device cache"
+
+# 5c. sess453 (D-377 item 3): refuse to mount when multipath-tools holds a
+#     reservation_key for this LUN — multipathd would REGISTER a second key on
+#     this nexus on every path event and after a peer's fence, which is exactly
+#     the re-registration the fence must exclude.  The kernel cannot see
+#     multipathd's configuration, so the gate is userspace and fails closed:
+#     ADMIT_REFUSED and ADMIT_INFRA (cannot decide) both stop the prep.
+ADMIT=$("$MXFS_REPO/tools/mxfs_admit_check.sh" "$MXFS_DEV" 2>&1); admit_rc=$?
+echo "$ADMIT" | tail -3
+[ "$admit_rc" = 0 ] || fail "admission preflight refused (rc=$admit_rc): $(echo "$ADMIT" | grep -m1 '^ADMIT_')"
 
 # 6. Mount the FS.
 mkdir -p "$MXFS_MOUNT"

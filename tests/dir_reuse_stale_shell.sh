@@ -13,7 +13,7 @@
 # xfs_ifork_zapped(dp) with no log).  A creates files INSIDE the reused dir
 # concurrently with B's walk to race the reload against an active writer.
 #
-# RULE 0 budget: cycle = 2 mkdir + walk + rm -rf + reuse-retry (<=12 * 0.5s)
+# derived time budget: cycle = 2 mkdir + walk + rm -rf + reuse-retry (<=12 * 0.5s)
 # + 20-file churn + 20-stat walk ~= 12s native-ish; 25 cycles ~= 300s cap.
 #
 # Modes:

@@ -1,12 +1,12 @@
 #!/bin/bash
 #
 # mxfs_revive_node.sh — rebuild a rig VM whose libvirt domain is permanently
-# wedged, WITHOUT rebooting clyde (RULE 2).
+# wedged, WITHOUT rebooting clyde (the never-reboot-the-host rule).
 #
 # WHY THIS EXISTS
 # ---------------
 # clyde's host kernel has been observed corrupting ext4 page-cache state (see
-# ccmemory `clyde-host-ext4-slab-corruption-kills-rig-nodes-sess377`).  When it
+# `docs/history/docs/history/docs/history/clyde-host-ext4-slab-corruption-kills-rig-nodes-sess377.md`).  When it
 # oopses inside ext4_buffered_write_iter the dying task never releases the
 # qcow2 file's inode rwsem, so:
 #
@@ -28,8 +28,8 @@
 #   donor  the image is unreadable/absent.  Clone a LIVE node, then rewrite
 #          hostname / iSCSI IQN / machine-id / ssh host keys inside the clone.
 #
-# RULE 0: every step is bounded.  RULE 2b: no rm on a variable or glob path.
-# RULE 2c: no `pgrep -f`, no unbounded dmsetup/umount.
+# budget: every step is bounded.  the permission-prompt rule: no rm on a variable or glob path.
+# the unkillable-wedge rule: no `pgrep -f`, no unbounded dmsetup/umount.
 #
 # Usage:
 #   tools/mxfs_revive_node.sh self  <deadN>
@@ -200,5 +200,5 @@ echo "$OUT" | grep -q "iqn.2004-10.com.ubuntu:01:${DEAD}-mxfs-node" \
 
 echo "=== REVIVE OK: $DEAD is back as libvirt domain $NEWDOM ==="
 echo "    The wedged domain '$DEAD' and its image stay on disk and stay"
-echo "    unreclaimable until clyde is reset by a human (RULE 2)."
+echo "    unreclaimable until clyde is reset by a human (the never-reboot-the-host rule)."
 exit 0

@@ -1,7 +1,7 @@
 #!/bin/bash
 # drc_capture_clobber.sh (sess49 ccloop 4cb2d0a2) — run 8-node dir_reuse ONCE and,
 # on FAIL, capture the durable write-side dir-block CLOBBER mechanism from every
-# node's dmesg into the SOURCE TREE (RULE 3: survives the reboot that wipes /tmp
+# node's dmesg into the SOURCE TREE (the source-tree rule: survives the reboot that wipes /tmp
 # + node dmesg).  Targets the node1_f1..f26 first-data-block durable loss.
 #
 # Detectors greped: P62-DATAINIT-BLK0 (data_init zeroing a block holding node1_f1),

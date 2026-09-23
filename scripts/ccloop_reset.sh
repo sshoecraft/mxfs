@@ -4,7 +4,7 @@
 # D-state, holding the mxfs module refcount so rmmod fails forever.  A plain
 # teardown loop then reports WEDGED and the next mkfs fails ("device is busy").
 # This helper tears down, and on a wedge it hard-resets that VM via virsh
-# (RULE 2: rebooting test VMs is allowed; only the host is off-limits) and waits
+# (the never-reboot-the-host rule: rebooting test VMs is allowed; only the host is off-limits) and waits
 # for it to come back clean.
 #
 # Usage: scripts/ccloop_reset.sh <N>      # reset test1..testN

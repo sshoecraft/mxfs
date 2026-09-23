@@ -24,4 +24,21 @@ bool xfs_task_in_ioend(void);
  * mxfs-ino-bast worker D in __folio_lock — permanent AB-BA). */
 bool xfs_task_in_writepages(void);
 
+/*
+ * D-0971: a task inside a direct-write completion for one inode
+ * (xfs_dio_write_end_io), registered so the DLM admits its unwritten
+ * conversion and size update as a nested holder while that inode's release
+ * pipeline waits for its direct I/O to drain.  Stack-resident, same idiom as
+ * the writepages registry.
+ */
+struct xfs_inode;
+struct xfs_diotask {
+	struct hlist_node	node;
+	struct task_struct	*task;
+	struct xfs_inode	*ip;
+};
+void xfs_diotask_enter(struct xfs_diotask *e, struct xfs_inode *ip);
+void xfs_diotask_exit(struct xfs_diotask *e);
+bool xfs_task_in_dio_end(struct xfs_inode *ip);
+
 #endif /* __XFS_AOPS_H__ */

@@ -4,7 +4,7 @@
  * were leaked because the driver thread owning them died mid-submission.
  *
  * Diagnosed in mxfs sess137 (ccmemory
- * ccloop-c7ee71c6-sess137-SCST-fileio-async-bvec-UAF-root-caused):
+ * docs/history/scst-fileio-async-bvec-uaf-root-caused.md):
  * a general protection fault in dma_direct_map_sg() killed the
  * loop_rootcg_workfn worker inside __iomap_dio_rw(), stranding that worker's
  * requests in MQ_RQ_IN_FLIGHT forever.  blk-mq cannot recover them: loop's

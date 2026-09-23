@@ -1,10 +1,11 @@
 #!/bin/bash
+# device-adjudicated: host-side LIO backstore experiment: the target's backing device on the dev host is the subject, not an MXFS measurement
 # Sess36 E1b: cross-initiator CONCURRENT writes test.
 # E1 showed simple writes work cross-initiator. This tests concurrent
 # writes (both VMs writing to same LBA simultaneously) which is closer
 # to what mxfs's CAW path does.
 #
-# Per RULE 3: persistent script lives in source tree.
+# Per the source-tree rule: persistent script lives in source tree.
 
 set -u
 SSH=/src/mxfs/tools/mxfs_sshpass.sh

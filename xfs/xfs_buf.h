@@ -128,6 +128,8 @@ struct xfs_buf_cache {
 
 int xfs_buf_cache_init(struct xfs_buf_cache *bch);
 void xfs_buf_cache_destroy(struct xfs_buf_cache *bch);
+void mxfs_report_leaked_buffers(const char *stage);
+extern bool mxfs_buf_caches_destroying;
 
 /*
  * The xfs_buftarg contains 2 notions of "sector size" -
@@ -198,7 +200,7 @@ struct xfs_buf_ops {
 };
 
 /*
- * sess-pve (AGI umount-wedge, RULE-4 instrumentation): per-buffer HOLD/RELE
+ * sess-pve (AGI umount-wedge, instrumentation): per-buffer HOLD/RELE
  * history ring.  The 2/tcp post-fence umount wedges in xfs_buftarg_drain on ONE
  * xfs_agi buffer stuck at b_hold=2 (XBF_ASYNC|XBF_DONE|_XBF_KMEM, no bli, not
  * pinned; NOT the sess75/76 readahead leak — XBF_READ_AHEAD is clear).  Exactly
@@ -274,7 +276,7 @@ struct xfs_buf {
 	atomic_t		b_pin_count;	/* pin count */
 	int			b_error;	/* error code on I/O */
 	uint32_t		b_mxfs_dir_gen;	/* sess37: dp->i_dlm_dir_gen stamp at last fresh dir-block read; read-time block-dir coherency */
-	uint32_t		b_mxfs_coherent_gen;	/* sess28: dp->i_dlm_dir_gen at last PLATTER-VERIFIED addname coherence check (mxfs_dir_addname_coherent_refresh). Distinct from b_mxfs_dir_gen (stamped on EVERY read, incl stale reads) — only the addname guard sets this, so it dedups the per-addname FUA platter check to ONCE per block per dir_gen (cheap, RULE-0). 0 = never verified -> check. */
+	uint32_t		b_mxfs_coherent_gen;	/* sess28: dp->i_dlm_dir_gen at last PLATTER-VERIFIED addname coherence check (mxfs_dir_addname_coherent_refresh). Distinct from b_mxfs_dir_gen (stamped on EVERY read, incl stale reads) — only the addname guard sets this, so it dedups the per-addname FUA platter check to ONCE per block per dir_gen (cheap, the budget rule). 0 = never verified -> check. */
 	uint32_t		b_mxfs_dir_incarn;	/* sess15: VFS i_generation stamp at last fresh dir-block read/init for the owning dir inode; a cached buffer whose stamp != the reading inode's current i_generation is a PREVIOUS-incarnation ABA alias of a reused inode# at a reused daddr (its in-AIL "undestaged" content belongs to the freed prior incarnation) -> invalidate+re-read even past the dirty/in-AIL guard. 0 = never stamped (treat as needs-fresh-read). */
 	uint32_t		b_mxfs_logged_seq;	/* sess35 run14d: bumped at every xfs_trans_log_buf; node-LOCAL modification counter */
 	uint32_t		b_mxfs_written_seq;	/* sess35 run14d: snapshot of b_mxfs_logged_seq at write submit; logged != written => committed-unwritten LOCAL mods (cross-node-safe destage test — payload LSNs are stamped by whichever node last wrote the block, so LSN compares across journals are meaningless) */
@@ -285,6 +287,11 @@ struct xfs_buf {
 	uint32_t		b_mxfs_dir_epoch;	/* sess16(ccloop) GPT-5.5 tenure model: owning dir inode's i_dlm_dir_valid_epoch (reliable level-triggered cross-node handoff epoch) at last COHERENT read of this dir block. If b_mxfs_dir_epoch < dp->i_dlm_dir_valid_epoch, this block was read under an EARLIER tenure than the inode now knows coherent (a peer was granted + modified the LUN since) -> the cached payload is a STALE RMW base -> re-read before use, OVERRIDING the payload-LSN undestaged keep-guard (epoch only advances after WE released EX, whose work Invariant-1 drained durable -> nothing un-drained to resurrect). 0 = never handed off (single-node / never-BAST'd) -> never stale. */
 	u64			b_mxfs_idirty_mask;	/* sess27: PERSISTENT per-sector mask of inode-cluster sectors THIS node has logged (modified) in this buffer incarnation. mxfs_submit_partial_inode_write accumulates currently-logged sectors here and writes the UNION, so a freshly-allocated inode whose log item already detached (but whose sector was never whole-written) is still written -> fixes the dir_reuse durable inode-alloc REVERT. A peer inode this node only READ is never logged -> never in the mask -> never written -> false-sharing still protected. Cleared on xfs_buf_stale (buffer invalidation/reuse) so an ABA-reused buffer does not carry a stale mask. */
 	bool			b_mxfs_dir_wr_counted;	/* sess40 (ccloop, GPT-5.5 writeback-completion-barrier): this dir DATA/leaf write bio was counted into mp->m_mxfs_dir_wr_inflight at submit; the matching __xfs_buf_ioend decrements + wakes exactly once.  The dir EX release fence waits for the counter to reach 0 so NO prior-tenure stale dir-block write can land after the next holder begins (root of dir_reuse readdir=799 single-dirent durable loss). */
+	u8			b_mxfs_io_tokens;	/* sess454/455 (0.61.0, D4): departure tokens this buffer holds — one per submission ADMITTED by xfs_buf_submit_bio, retired one per TERMINAL completion (the end of __xfs_buf_ioend, or the transient-error release exit of xfs_buf_ioend_handle_error), never at the retry decision, all under b_mxfs_acct->lock (struct mxfs_depart_acct, xfs_mount.h). */
+	u8			b_mxfs_io_rejected;	/* sess455: submissions of this buffer REJECTED after the departure freeze (or on token overflow) whose -EIO completion has not yet run — they took no token, and their completion is discounted here (and in acct->rejected_pending) before any token is retired, so a rejected generation can never retire an admitted generation's token. */
+	bool			b_mxfs_io_carry;	/* sess455: set at xfs_buf_ioend_handle_error's resubmit: the retry KEEPS the generation's token (no retire, no re-take); consumed by the next mxfs_depart_token_take. */
+	bool			b_mxfs_io_soft;		/* sess459: set by xfs_buf_ioend_fail_unsubmitted — this completion is an AUDITED no-I/O software completion (never entered xfs_buf_submit_ex); cleared at retire.  A completion with no token, no rejection and no soft mark is UNTOKENED and fails the departure closed. */
+	struct mxfs_depart_acct	*b_mxfs_acct;	/* the accounting object those tokens are counted in; holds one reference while b_mxfs_io_tokens != 0 (kept, never dropped, if the buffer is freed with tokens — P304-IOCNT-ORPHAN).  Helpers: mxfs_depart_token_take/retire/buf_free (pal/linux/xfs_buf.c). */
 	bool			b_mxfs_iclus_wr_counted;	/* sess256 step-5 F3: this inode-cluster (xfs_inode_buf_ops) home write was counted into its keyed mxfs_icwr_entry (+ the telemetry mirror) at submit; the matching __xfs_buf_ioend write-branch completion — placed AFTER the error/resubmit decision, so a resubmit KEEPS the single token with no transient zero — decrements + bumps complete_gen + wakes exactly once. */
 	struct mxfs_icwr_entry	*b_mxfs_icwr_ent;	/* keyed registry entry this buffer's counted write belongs to; paired with b_mxfs_iclus_wr_counted at the same submit (entries are never freed until unmount, so the pointer cannot dangle). */
 	bool			b_mxfs_fence_skipped;	/* ccloop c7ee71c6 sess7 (FENCE-V1): the P123 dir-block write fence SUPPRESSED this buffer's most recent write submission (sub-EX, no log obligation): the "success" completion the submitter saw put NOTHING on the LUN.  Consumed by mxfs_dir_flush_one_daddr's werr==0 postlude to skip the raw SCSI FUA re-publish (mxfs_dir_release_fua_write), which would otherwise bypass the fence and land the suppressed stale bytes on the platter anyway (the run-185647Z leaf1@PR regression).  Set in the fence's suppress arm; cleared whenever a dir-block write passes the fence (both under b_sema at submit). */
@@ -296,12 +303,19 @@ struct xfs_buf {
 	uint8_t			b_mxfs_relse_seen;	/* sess6 DIAG: count of completions that took the ASYNC (relse/queue_work) branch — a nonzero value on a stuck sync waiter = the wrongful-relse lost-wakeup. */
 	uint8_t			b_mxfs_evi;		/* sess9 (ccloop a864) DIAG: next slot in b_mxfs_evring (free-running, slot = evi & 7). */
 	uint64_t		b_mxfs_evring[8];	/* sess9 (ccloop a864) DIAG for the residual wedge#2 lost-wakeup: ring of the last 8 buffer lifecycle events (submit-snapshot / bio-issue / bio-end / ioend / worker / handle-error / resubmit / iowait-wake), each packing type|b_flags|sync_wait|force_sync|pid|~1ms-timestamp — see mxfs_buf_ev() in pal/linux/xfs_buf.c.  Dumped by the P-IOWAIT-STUCK probe so a stuck sync waiter names the EXACT ordered completion history (which submit reset the sync_wait snapshot, which path relse'd).  Diagnostic only; lock-free stores, races tolerated. */
+	uint32_t		b_mxfs_dwskip_n;	/* sess396 DIAG (D-NOINO-RELFENCE-AIL-FREEZE-474, test31 FLUSHING dead-end): number of xfs_buf_delwri_submit_nowait passes that SKIPPED this buffer (trylock failed / pinned) since its last actual delwri submission.  An AIL-min inode item stuck in XFS_LI_FLUSHING is only ever written by the delwri list it was queued to; a large count names "queued but never submittable", a zero count names "not on any list at all". */
+	uint32_t		b_mxfs_dwskip_ms;	/* sess396 DIAG: ktime_get_real_ns()>>20 (~1.05 ms units, same as the evring) of the last delwri skip. */
+	uint32_t		b_mxfs_dwsub_ms;	/* sess396 DIAG: same units, the last time a delwri submit (nowait or sync) actually issued this buffer. */
+	uint8_t			b_mxfs_dwskip_why;	/* sess396 DIAG: 1 = trylock failed (someone holds b_sema), 2 = pinned. */
 	bool			b_mxfs_force_sync;	/* sess8 (ccloop a864): caller-side (xfs_bwrite / _xfs_buf_read / handle_error resubmit) latch of "this submission is synchronous", set under b_sema BEFORE xfs_buf_submit and consumed (cleared) at submit entry.  ORed with !(b_flags & XBF_ASYNC) there to decide sync-vs-async intent for THIS submission. */
 	void			*b_mxfs_rd_preserve;	/* sess7 (ccloop 8ba7ae5c) READ-SIDE inode-cluster false-sharing fix (PROVEN iter_14 lost-final-shrink): snapshot of b_addr taken just before a cold DMA READ of an inode-cluster buffer that has inode log items attached (b_li_list non-empty = committed local state whose last iflush copy-in lives in this buffer).  The DMA brings peer-fresh platter bytes for the OTHER slots; at read completion the attached slots are restored from this snapshot (their platter image is never newer than the local one for an inode we may log), so the read can no longer clobber a just-iflushed image and let the delwri write push the pre-shrink platter bytes back (the AG22/295 dangling-extent double-alloc).  kmalloc'd; freed at completion / buffer free.  NULL = nothing preserved. */
 	unsigned long		b_mxfs_freeflag;	/* ccloop 72513a13: bit 0 set atomically by the FIRST xfs_buf_free; a second free trips a P-BUF-DOUBLEFREE alert+stack and becomes a no-op instead of a double call_rcu (test25 panic 2026-07-18: BUG mm/slub.c:553 double-free in xfs_buf_free_callback, plus the RCU-list corruption that later fired a callback into unloaded module text).  Object is zalloc'd, so legit slab reuse starts clear. */
+	struct list_head	b_mxfs_live;	/* 0.75.64: every allocated xfs_buf is on the live registry from xfs_buf_alloc until xfs_buf_free; mxfs_report_leaked_buffers names what is still on it at module unload (the "Slab cache still has objects" count with no name: six after the D-0923 reproducer). */
 	uint64_t		b_mxfs_alloc_gen;	/* ccloop 72513a13 sess2: allocation generation (global monotonic, stamped in _xfs_buf_alloc).  An inode log item records the gen of the buffer it attaches to (ili_mxfs_buf_gen); a mismatch at push/drain time proves li_buf points at a RECYCLED allocation (premature free of the attached buffer — the dir_reuse@32 P113 wedge: dirty ILI in AIL, li_buf set, b_li_list empty, iflush_cluster -EAGAIN forever). */
 	u64			b_mxfs_rd_preserve_mask;	/* bit i = inode slot i of this cluster is restored from b_mxfs_rd_preserve at read completion. */
 	atomic_t		b_mxfs_sync_waiters;
+	unsigned short		b_mxfs_done_site;	/* sess491 (D-0491): source line of the MXFS overlay caller that is retiring this buffer's log item through xfs_buf_item_done WITHOUT a write (release-drain and acquire-evict retire arms).  0 = the ordinary I/O-completion retire.  Read and cleared by xfs_buf_item_relse's committed-never-submitted census line (P285-F4-BLI-FREED-OPEN site=), so a log item freed with its F4 obligation open names the arm that freed it. */
+	bool			b_mxfs_ioend_ran;	/* sess490 (D-0490): the completion router that woke this submission's SYNC waiter had ALREADY run the terminal completion (__xfs_buf_ioend) for it — an emulated/no-bio completion through xfs_buf_ioend or xfs_buf_ioend_work.  A real bio's end_io only completes the waiter and never sets this.  xfs_buf_iowait consumes it and skips its own __xfs_buf_ioend, so a generation's terminal accounting (departure token, inode-cluster write token, F4 obligation, epoch stamps) runs exactly once; before this the second pass retired a token that was no longer there and every unmount after a directory-release drain departed DIRTY (untokened != 0).  Published after the wake credit is claimed and before complete(); cleared at each fresh submission under b_sema. */
 	/*
 	 * sess227 F4 obligation registry (D-FOREIGN-REPLAY-UNGATED-IMAGES
 	 * hard-barrier F4: dir-class committed-never-submitted).  All four
@@ -327,10 +341,12 @@ struct xfs_buf {
 	 * extra reference mxfs_ag_meta_track takes on an AG-meta buffer.
 	 * 1 = a track hold is outstanding for the current dirty epoch.
 	 * Consumed (cmpxchg 1->0) by EXACTLY ONE of mxfs_dlm_ag_meta_iodone
-	 * (normal writeback) or mxfs_ag_meta_reclaim_abort (shutdown/abort
-	 * detach with no writeback), which then drops the hold + decrements
-	 * pag_dlm_meta_pending.  Without it the abort path leaked the hold,
-	 * pinning agi/inobt/finobt at b_hold=2 -> xfs_buftarg_drain wedge.
+	 * (normal writeback) or mxfs_ag_meta_reclaim (shutdown/abort detach,
+	 * or the stale completion of a freed btree block — neither writes
+	 * back), which then drops the hold + decrements pag_dlm_meta_pending.
+	 * Without it the abort path leaked the hold, pinning agi/inobt/finobt
+	 * at b_hold=2 -> xfs_buftarg_drain wedge, and the stale path left every
+	 * later release of the AG waiting the 2 s Phase-3 bound (0.75.62).
 	 * 0 at alloc (zalloc).
 	 */
 	atomic_t		b_mxfs_agmeta_hold;
@@ -354,6 +370,34 @@ struct xfs_buf {
 	 * log and the shutdown is correct containment.
 	 */
 	bool			b_mxfs_foreign_recovery;
+	/*
+	 * This cached image was written by the replay of a dead peer's
+	 * journal slice and no read on this node has refreshed it since.  It
+	 * was produced under no inode tenure, so the tenure-end eviction that
+	 * retires a released inode's cached extent-tree images cannot see it;
+	 * mxfs_recov_image_evict clears XBF_DONE on every clean one at the end
+	 * of that recovery, before the slice is published, so a later reuse of
+	 * the address is re-read.  Set at the pass-2 delwri-queue site for a
+	 * foreign replay only; cleared by that evict and by any read
+	 * completion (a fresh image is a tenure's image again).  A read served
+	 * from the cache while it is set is counted (recov_cache_hit).
+	 */
+	bool			b_mxfs_recov_image;
+	/*
+	 * Inode-cluster buffers only: the slots a log recovery patched in
+	 * this image (an inode item applied, an unlinked pointer replayed)
+	 * and has not yet landed.  The recovery is the authority for those
+	 * slots — the dead node held them at death and its grants stay frozen
+	 * until the recovery completes — but this node holds no tenure for
+	 * them and has no inode item attached, so the inode-cluster write's
+	 * authority mask would otherwise drop them as un-owned passengers and,
+	 * with nothing else owed in the cluster, refuse the write while
+	 * completing the buffer as landed.  mxfs_submit_partial_inode_write
+	 * treats a set bit as "logged this round".  Set at the two replay
+	 * patch sites; cleared when a write of the buffer completes and when a
+	 * stale buffer is reused.
+	 */
+	u64			b_mxfs_recov_slots;
 
 	/*
 	 * async write failure retry count. Initialised to zero on the first
@@ -375,7 +419,7 @@ struct xfs_buf {
 	int			b_last_error;
 
 	/*
-	 * sess113 lock-holder tracking (Gemini RULE-5 instrumentation): the
+	 * sess113 lock-holder tracking (Gemini design-consult instrumentation): the
 	 * return address of whoever currently holds b_sema, set in
 	 * xfs_buf_lock/xfs_buf_trylock and cleared in xfs_buf_unlock.  The
 	 * cache_coherency drain wedge is a cluster buffer left LOCKED with no
@@ -488,6 +532,15 @@ extern void __xfs_buf_ioerror(struct xfs_buf *bp, int error,
 #define xfs_buf_ioerror(bp, err) __xfs_buf_ioerror((bp), (err), __this_address)
 extern void xfs_buf_ioerror_alert(struct xfs_buf *bp, xfs_failaddr_t fa);
 void xfs_buf_ioend_fail(struct xfs_buf *);
+/* sess459: the audited pre-submission failure completion (no I/O was ever
+ * issued for this generation); the ONLY sanctioned way to complete a buffer
+ * outside xfs_buf_submit_ex without the departure gate calling it untokened. */
+void xfs_buf_ioend_fail_unsubmitted(struct xfs_buf *);
+/* sess459: departure-gate fault injectors (module param dbg_depart_inject,
+ * one-shot; pal/linux/xfs_buf.c) — which: 1 untokened completion, 2
+ * post-teardown submission, 3 orphan with a token, 4 orphan with a pending
+ * rejection, 5 255-token overflow, 6 forced underflow. */
+void mxfs_depart_dbg_inject(struct xfs_mount *mp, int which, const char *phase);
 void __xfs_buf_mark_corrupt(struct xfs_buf *bp, xfs_failaddr_t fa);
 #define xfs_buf_mark_corrupt(bp) __xfs_buf_mark_corrupt((bp), __this_address)
 
@@ -507,6 +560,10 @@ extern void xfs_buf_stale(struct xfs_buf *bp);
 /* Delayed Write Buffer Routines */
 extern void xfs_buf_delwri_cancel(struct list_head *);
 extern bool xfs_buf_delwri_queue(struct xfs_buf *, struct list_head *);
+/* sess396 DIAG: one-line buffer state + event ring (see pal/linux/xfs_buf.c). */
+extern void mxfs_buf_diag_dump(const char *tag, uint64_t ino, struct xfs_buf *bp);
+/* D-0976: platter baseline for a recovery's first patch of an inode slot */
+int mxfs_recov_slot_refresh(struct xfs_buf *bp, int slot);
 int xfs_buf_delwri_queue_recovery(struct xfs_buf *bp,
 		struct list_head *buffer_list, bool foreign);
 void xfs_buf_delwri_queue_here(struct xfs_buf *bp, struct list_head *bl);

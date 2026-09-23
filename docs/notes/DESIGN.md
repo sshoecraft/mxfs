@@ -553,7 +553,7 @@ then runs four cluster sub-tests in sequence on that mount (state accumulates):
 
 ## 11. The remaining bug: read-side coherency under CAW (deep dive)
 
-This is the active blocker. The proven picture (RULE 4 — instrumented, not
+This is the active blocker. The proven picture (instrumented — instrumented, not
 guessed):
 
 ### 11.1 Two failing mechanisms, one family

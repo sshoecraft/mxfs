@@ -2,7 +2,7 @@
 # lba_probe.sh — run ON a node.  Times direct SCSI READ(16)+FUA to two LBAs,
 # alternating, for a fixed duration.  Reports worst and mean per LBA.
 #
-# sess379 (D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379): the RULE-5 review
+# sess379 (D-HOT-SLOT-CAW-SERIALIZES-LUN-PER-LBA-379): the design-consult review
 # rejected a stat()-based control as inconclusive, because two stat calls can
 # differ in whether they issue a SCSI command AT ALL.  This issues the command
 # itself, with the same opcode and FUA bit MXFS uses for a slot read, so a

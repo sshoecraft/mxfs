@@ -1,0 +1,23 @@
+<!-- sess442 RULE-5 ruling for item 5f (bootstrap owner died in another boot): new-term RESEAL with validated inheritance (receipts for zeroed slots), K c… -->
+# sess442 RULE-5 ruling — item 5f, bootstrap TAKEOVER (owner dead in a different boot)
+
+Proposed: fence the stale owner as a victim through the phase-3 pipeline on K, takeover CAS to T+1 with manifest/escrow RESET, then the ordinary fresh bootstrap flow (K PENDING preferred, FULL own-log replay of both incarnations).
+
+## Verdict: new-term RESEAL, but with VALIDATED INHERITANCE from T — neither blind carry-forward (today's mxfs_bootstrap_takeover) nor a blind reset.
+
+STOP-SHIP 1 — the T+1 manifest must contain: current registrants after fencing the old owner; every non-completed victim from surviving guards; every inherited-complete victim of T WITH validated completion evidence; the old owner as predecessor victim; K's original-victim provenance + the old owner's K incarnation; references/hashes to the sealed T manifest and imported certificates. Zeroed slots are NOT "simply absent": identity + completion imported from T. complete_bitmap bits are trustworthy only with durable evidence bound to {term, manifest hash, slot, victim identity, certificate/descriptor digest, GRANTS_RELEASED, the authorised completion transition}: a still-present GRANTS_RELEASED guard supplies it; a ZEROED sector needs a durable COMPLETION RECEIPT in the record region, else the takeover FAILS CLOSED (never omit or reprocess silently).
+
+STOP-SHIP 2 — K needs chained/composite provenance: (1) the original victim's certificate + fence-time manifest binding; (2) the new certificate fencing the failed owner; (3) the sealed T manifest under which the owner wrote. Replay gated by BOTH lineages: original-victim txns by the original certificate; old-owner txns by the owner fence + proof they were authorised under sealed T. The own-log authority evaluator can NOT stay advisory for a taken-over K (it is no longer a single-incarnation own log). Never overwrite the original certificate with the owner's: composite escrow / takeover chain.
+
+(c) Old-owner writes after K_REPLAY_OK may be replayed iff: committed recovery/bootstrap txns under T's valid grants, T manifest proves the relevant writers were fenced, owner now fenced, replay preserves the owner's historical epoch, idempotent.
+
+(d) An old completed slot still a GUARD at GRANTS_RELEASED: NOT a fresh victim, NO re-P&A on an absent key. Validate old manifest entry + descriptor/certificate + GRANTS_RELEASED + old bit + exact failed-owner incarnation; then import as completed (finish/zero) or take the descriptor over at its stage. Absent key + valid preserved certificate is the expected shape.
+
+STOP-SHIP 3 — dead-owner proof for descriptor takeover must be INCARNATION-scoped {node, epoch, key}; v5_note_dead_node(node) alone is too broad (a rebooted node must not make another incarnation's descriptors takeable).
+
+(e) Registering as a takeover contender is a narrow Q3 exception: only after the exact image is unchanged for ABANDON_MS; no FS/data writes; immediately run the takeover fence protocol; include own key in T+1; DEREGISTER on abandoning. Registration is not a fence.
+STOP-SHIP 4 — contenders must be SERIALIZED by a durable election/claim before registration/P&A (two contenders: one fences, the other wins the CAS with no certificate; unexplained keys). The takeover CAS must validate the winner OWNS the certificate, not accept a caller-supplied fence_kind. If the record advances after the snapshot, restart the ABANDON timer from the new image.
+
+Step-3 ordering: durable takeover/fence intent → P&A + abort completion (or valid self-succession proof) → certificate → K converted to a composite takeover descriptor → CAS exact image to T+1. Do not write an ordinary K guard before the fence while the owner may still write; if an intent must precede P&A, put it in a dedicated takeover location. When the owner never claimed K: the ledger class-3 registrant fence suffices but must be bound to the T+1 takeover certificate.
+
+(f) STOP-SHIP 5 — self-succession (own previous boot) counts as the takeover fence only if it proves the old boot cannot issue I/O (all old nexus registrations/commands gone), the successor-ledger transition is atomic+monotonic, the swap replaced the exact old key, bound to {host, old boot, old epoch, old key, new boot, new epoch, new key}, and marks the exact old incarnation dead. Registration replacement alone is not an abort unless the platform guarantees command termination; else P&A. Self-succession does not remove K's dual-provenance requirement.

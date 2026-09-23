@@ -79,7 +79,7 @@ evidence: $dest
 This host panicked or oopsed.  kernel.panic_on_oops=1 stopped it and it
 rebooted; the crash record is preserved above.  Read it before running
 anything: a host that crashed once under this workload will crash again.
-RULE 2: only the user reboots clyde.
+the never-reboot-the-host rule: only the user reboots clyde.
 Clear deliberately with: tools/clyde_kmsg_guard.sh clear
 "
     write_halt "$body"

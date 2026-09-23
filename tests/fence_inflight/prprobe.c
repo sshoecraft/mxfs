@@ -2,7 +2,7 @@
  * prprobe — SG_IO probe for the D-PR-FENCE-PREEMPT-WITHOUT-ABORT step-4
  * in-flight exclusion harness.
  *
- * Why this exists instead of sg_persist(8): the sess133 RULE-5 ruling requires
+ * Why this exists instead of sg_persist(8): the sess133 design-consult ruling requires
  * the harness to control sg_io_hdr.timeout itself (sg_persist 0.67 has no such
  * option, and the sysfs per-device timeout does NOT govern SG_IO), and to
  * report SCSI status, sense, host_status, driver_status, errno, residual and

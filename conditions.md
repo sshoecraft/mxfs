@@ -1,7 +1,7 @@
 # Deployment Conditions
 
 MXFS is validated against four deployment conditions — the "3+1" framing from
-`compiled-caw-multipath-deploy-conditions` (2026-07-05): TCP DLM as the
+`docs/history/docs/history/docs/history/compiled-caw-multipath-deploy-conditions.md` (2026-07-05): TCP DLM as the
 no-CAW fallback, plus three distinct CAW deployment shapes (two no-mpath
 variants and the primary enterprise dm-multipath target). Each has a short
 code used throughout the test harness (`rig.sh`, `ladder_rung.sh`,

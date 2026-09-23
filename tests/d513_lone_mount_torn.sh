@@ -46,7 +46,7 @@ DEV=$("$SSH" "$VICTIM" "mount -t mxfs | awk '{print \$1; exit}'" 2>/dev/null | t
 [ -n "$DEV" ] || { echo "FAIL: victim $VICTIM has no mxfs mount (fleet not prepped?)"; exit 1; }
 echo "shared device: $DEV"
 
-# 1. Unmount every node except the victim (parallel, bounded per RULE 2c).
+# 1. Unmount every node except the victim (parallel, bounded per the unkillable-wedge rule).
 echo "--- unmounting all nodes except $VICTIM"
 for i in $(seq 1 "$N"); do
     h="test$i"

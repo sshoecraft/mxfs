@@ -41,7 +41,7 @@
 #          question and is deliberately NOT asserted here; purge-anomaly
 #          probes (P23x) in the observer window are REPORTED, not asserted.
 #
-# RULE 0 budgets (native op is ms; walls are ssh + boot dominated):
+# derived time budgets (native op is ms; walls are ssh + boot dominated):
 #   basic 30s   wrap 90s (3 tries)   kill ~300s expected, 480s hard
 #   (kill = 45s purge window + boot wait <=240s + prep <=120s + 3 selftests)
 #
@@ -51,9 +51,15 @@ set -u
 REPO=/src/mxfs
 SSH="$REPO/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# device selection: after the node is named below (mxfs_dev_resolve)
 MODE="${1:-all}"
 NODE="${2:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$NODE"; DEV=$MXFS_DEV_RESOLVED
 VICTIM="${3:-test2}"
 STAMP=$(date -u +%Y%m%dT%H%M%S)
 OUT=$(mktemp -d)

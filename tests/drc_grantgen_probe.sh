@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_grantgen_probe.sh (sess50 ccloop 4cb2d0a2) — RULE-4 decisive measurement.
+# drc_grantgen_probe.sh (sess50 ccloop 4cb2d0a2) — instrumented decisive measurement.
 #
 # HYPOTHESIS (GPT-5.5 grant-epoch design): the durable dir-block clobber buffer
 # (comm=xfsaild, 1-behind durable disk) carries an OLD b_mxfs_grant_gen (lingered

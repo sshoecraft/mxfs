@@ -309,6 +309,11 @@ xfs_growfs_data(
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+	/* sess419 D-0133: whole-SB producer (geometry + imaxpct), cluster-refused
+	 * before m_sb is touched; grow offline with tools/resize_mxfs. */
+	error = mxfs_sb_mutation_refuse(mp, "growfs_data");
+	if (error)
+		return error;
 	if (!mutex_trylock(&mp->m_growlock))
 		return -EWOULDBLOCK;
 
@@ -361,6 +366,9 @@ xfs_growfs_log(
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
+	error = mxfs_sb_mutation_refuse(mp, "growfs_log");	/* sess419 D-0133 */
+	if (error)
+		return error;
 	if (!mutex_trylock(&mp->m_growlock))
 		return -EWOULDBLOCK;
 	error = xfs_growfs_log_private(mp, in);

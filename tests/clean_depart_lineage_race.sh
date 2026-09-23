@@ -3,7 +3,7 @@
 # PHANTOM-RECOVERY-526 closure races 6 and 7 (sess349 GPT ruling, revised
 # sess355 GPT ruling after the suspension choreography was measured
 # arithmetically impossible for race 7 — see ccmemory
-# ccloop-c7ee71c6-sess354-race67-p225-barrier-collision).
+# docs/history/race67-p225-barrier-collision.md).
 #
 # Race 6 (CYCLES=1): observer A misses B's ACTIVE->EMPTY->ACTIVE transition
 # entirely (both the clean release and the re-claim land inside one monitor
@@ -40,10 +40,10 @@
 #
 # Usage: [MODE=blind|suspend] tests/clean_depart_lineage_race.sh [CYCLES] [A] [B] [OBS]
 #
-# RULE 0 budget (blind): 2 slotdumps 4s + ACK poll <=8s + CYCLES x
+# derived time budget (blind): 2 slotdumps 4s + ACK poll <=8s + CYCLES x
 # (umount 1s + mount 5-12s) <=26s + clear+lineage poll <=30s + sweep 20s +
 # health 5s ~= 95s.  External timeout: 150s.
-# RULE 0 budget (suspend): + detached-mount poll <=30s + mount-completion
+# derived time budget (suspend): + detached-mount poll <=30s + mount-completion
 # wait <=90s ~= 180s.  External timeout: 240s.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -54,7 +54,12 @@ CYCLES="${1:-1}"
 A="${2:-test2}"
 B="${3:-test3}"
 OBS="${4:-test1}"
-DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$A"; DEV=$MXFS_DEV_RESOLVED
 MNT=/mnt/shared
 DUMP="/src/mxfs/tools/caw_slotdump"
 VIRSH="sudo virsh -c qemu:///system"

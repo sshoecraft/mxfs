@@ -89,7 +89,7 @@ rm -f /root/drc_dchang_r*.dmesg /root/drc_hang_rm_r*.dmesg \
 #     once DRC_TIME_BUDGET_S (default 100s) is spent.  A hard pace assertion
 #     stays: fewer than DRC_MIN_ROUNDS (default 8) completed rounds inside
 #     the window = FAIL SLOW_ROUNDS — slowness is a first-class failure
-#     (RULE 0), it just fails FAST now instead of after 24 slow rounds.
+#     (budget), it just fails FAST now instead of after 24 slow rounds.
 #   - FAIL-FAST: a failed round ends the test immediately (the old loop ran
 #     all remaining rounds after a failure, multiplying a wedge into 1380s).
 # Diagnosis-mode heavy shapes remain available via the env knobs.
@@ -124,9 +124,9 @@ DRC_HANG_THRESHOLD_S="${DRC_HANG_THRESHOLD_S:-$drc_hang_floor}"
 # a specific structured RESULT, instead of recording one more FAIL (via ck)
 # and cascading through every remaining round/barrier.  Proven costly
 # 2026-07-11 (run61b): one node's hung rm cost ~2h of repeated 120s
-# timeouts across 31 peers — itself a RULE 0 violation — before the outer
+# timeouts across 31 peers — itself a budget rule violation — before the outer
 # per-run timeout killed everything with zero RESULT lines anywhere (see
-# ccmemory gpt-consult-dir_reuse32-architectural-review).
+# docs/rulings/dir-reuse-32-architectural-review.md).
 drc_barrier() {
     local tag="$1" out rc
     out=$(coord_barrier_or_abort "$tag"); rc=$?
@@ -136,7 +136,11 @@ drc_barrier() {
            finish_aborted "round=${round:-?} barrier=${tag} peer_reason=[$out]"
            exit 1 ;;
         *) FAIL_N=$((FAIL_N + 1))
-           finish_state BARRIER_TIMEOUT "round=${round:-?} barrier=${tag}"
+           # The diag carries the barrier's own account of WHY it failed: a
+           # spent reporting budget (it never waited) versus a full window with
+           # the peer absent, plus the counts.  Without it the recorded reason
+           # names only the tag, which cannot distinguish those causes.
+           finish_state BARRIER_TIMEOUT "round=${round:-?} barrier=${tag} diag=[${out:-none}]"
            exit 1 ;;
     esac
 }
@@ -145,7 +149,7 @@ drc_barrier() {
 # md5 fork).  Size still varies 1-8 4k blocks by round (the multi-block dir
 # data/extent shapes the old test exercised).
 #
-# sess9 (16/tcp pace RULE-4): the original `yes | head -c` spawned a 2-fork
+# sess9 (16/tcp pace instrumented): the original `yes | head -c` spawned a 2-fork
 # pipeline PER CREATE; that 20-50ms client-side gap exceeds the DLM's 40ms
 # tenure grace, so every create forfeited the shared-dir EX tenure and
 # re-queued behind N-1 peers (~35ms/create × 128 = the 4.5-5.1s create wave
@@ -167,6 +171,28 @@ drc_pat() {  # name round -> stdout (kept for the verify-side cmp)
 
 drc_t0=$(date +%s)
 rounds_done=0
+
+# D-0939: the row's own stall evidence.  Eight consecutive PASS laps on
+# 0.75.116 each carried seven first-timeout stack dumps on the shared
+# directory inode (a 2 s wait per round on rank 1's stat, every round) and the
+# board could not tell those laps from healthy ones, because the only
+# assertion was the barrier.  Stamp a start marker so the end-of-run count is
+# scoped to THIS run whatever the ring holds from before, then carry the
+# per-node acquire-timeout counts and the allocator's failed-sweep count in the
+# RESULT line's measured= payload.  A PASS that stalls now says so.
+drc_mark="mxfs-drc-START rank=${R} run=$$"
+echo "$drc_mark" > /dev/kmsg 2>/dev/null || true
+drc_stall_counts() {  # -> SUITE_MEASURED_EXTRA
+    local ring n_retry n_rem n_hold n_sweep n_stack
+    ring=$(dmesg 2>/dev/null | sed -n "/${drc_mark}/,\$p")
+    n_retry=$(printf '%s\n' "$ring" | grep -c 'P36-RETRY ')
+    n_stack=$(printf '%s\n' "$ring" | grep -c 'P36-STACK ')
+    n_rem=$(printf '%s\n' "$ring" | grep -c 'P-LKTIMEOUT-REMOTE ')
+    n_hold=$(printf '%s\n' "$ring" | grep -c 'P-LKTIMEOUT-HOLDER ')
+    n_sweep=$(printf '%s\n' "$ring" | grep -c 'P-DIALLOC-SWEEP-RETRY ')
+    SUITE_MEASURED_EXTRA="rounds=${rounds_done} p36_retry=${n_retry} p36_stack=${n_stack} lkto_remote=${n_rem} lkto_holder=${n_hold} dialloc_sweep_retry=${n_sweep}"
+    echo "mxfs-drc-STALLCOUNT rank=${R} ${SUITE_MEASURED_EXTRA}" > /dev/kmsg 2>/dev/null || true
+}
 
 drc_barrier "drc_ready"
 
@@ -251,7 +277,7 @@ for round in $(seq 1 "$ROUNDS"); do
     # Cold reload so reads come coherently from the shared LUN (as a peer sees
     # them), then verify count AND per-entry lookup-ability.  drop_caches is
     # synchronous and mxfs reload-on-acquire is prompt, so no settle sleep is
-    # needed (RULE 0: a masking delay is debt — removed sess18 after the
+    # needed (budget: a masking delay is debt — removed sess18 after the
     # reliable-handoff + release-fast-path fixes made coherency immediate).
     #
     # sess14(a9a03929): r4/test7 and r6/test5 both died SILENTLY here —
@@ -261,7 +287,7 @@ for round in $(seq 1 "$ROUNDS"); do
     # barrier times out 120s — the "whole-blob 700/800 miss" + 62s/round
     # death spiral (the victim's blob is missing because it never CREATED
     # it).  Run drop_caches bounded in a subshell: on a hang, capture the
-    # hung task's kernel stack to kmsg (the RULE-4 instrument for the
+    # hung task's kernel stack to kmsg (the instrumented instrument for the
     # eviction interlock) and PROCEED with a warm verify — the loud
     # DROPCACHES-HUNG marker disqualifies the round from coherency claims,
     # but the cluster stays in lockstep instead of cascading timeouts.
@@ -271,7 +297,7 @@ for round in $(seq 1 "$ROUNDS"); do
     ( echo 3 > /proc/sys/vm/drop_caches 2>/dev/null; echo "mxfs-DRCph r=${round} rank=${R} PHASE=dc-real-done" > /dev/kmsg 2>/dev/null; : > "/tmp/.drc_dc_done.$$" ) &
     dc_pid=$!
     dc_ok=0
-    # sess1 (ccloop 0220f43f) RULE-4: TRIED a 0.05s poll granularity here
+    # sess1 (ccloop 0220f43f) instrumented: TRIED a 0.05s poll granularity here
     # (matching the coord_check_abort fix's reasoning) -- REVERTED, not a
     # proven win: live A/B on 32/cawp showed verify-phase time went UP
     # (~7.3s avg with only the coord.sh fix -> ~8.7s avg with this added),
@@ -448,12 +474,13 @@ for round in $(seq 1 "$ROUNDS"); do
     rounds_done=$((rounds_done + 1))
 done
 
-# Pace assertion (RULE 0): the time box must have fit at least MIN_ROUNDS
+# Pace assertion (budget): the time box must have fit at least MIN_ROUNDS
 # full reuse cycles.  Slower than that IS the failure — reported in seconds,
 # not discovered after 24 slow rounds.
 drc_elapsed=$(( $(date +%s) - drc_t0 ))
 ckeq "drc rounds_done>=${MIN_ROUNDS} (${rounds_done} in ${drc_elapsed}s)" \
      "1" "$(( rounds_done >= MIN_ROUNDS ? 1 : 0 ))"
 
+drc_stall_counts
 coord_done "$([ "$FAIL_N" -eq 0 ] && echo PASS || echo FAIL)"
 finish

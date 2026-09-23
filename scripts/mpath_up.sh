@@ -1,4 +1,5 @@
 #!/bin/bash
+# device-adjudicated: brings up and verifies the CAW rig's multipath map; the configuration is the subject
 # mpath_up.sh — bring up / verify / tear down the 2-path dm-multipath
 # presentation of the shared SCST LUN on N test nodes.
 #

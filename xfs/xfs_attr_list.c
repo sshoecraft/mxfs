@@ -23,6 +23,7 @@
 #include "xfs_trace.h"
 #include "xfs_dir2.h"
 #include "xfs_health.h"
+#include "xfs_mxfs_dlm.h"	/* 0.84.19: mxfs_xattr_refused */
 
 STATIC int
 xfs_attr_shortform_compare(const void *a, const void *b)
@@ -592,7 +593,14 @@ xfs_attr_list(
 	if (xfs_is_shutdown(dp->i_mount))
 		return -EIO;
 
-	lock_mode = xfs_ilock_attr_map_shared(dp);
+	/* 0.84.19: the same fallible acquire as xfs_attr_get (D-0958). */
+	if (dp->i_mount->m_mxfs_dlm) {
+		error = xfs_ilock_attr_map_shared_fallible(dp, &lock_mode);
+		if (error)
+			return mxfs_xattr_refused(dp, "list", error);
+	} else {
+		lock_mode = xfs_ilock_attr_map_shared(dp);
+	}
 	error = xfs_attr_list_ilocked(context);
 	xfs_iunlock(dp, lock_mode);
 	return error;

@@ -2,7 +2,7 @@
 # paired_perf_diag — instrumented single-leg pair for the single_node_paired
 # ~5% residual (sess16 a9a03929).  Runs ONE native-XFS leg and ONE mxfs leg of
 # the same rsync workload, each under a chosen instrument, and dumps per-leg
-# artifacts to /root/pdiag/.  NOT a pass/fail test — a RULE-4 measurement tool.
+# artifacts to /root/pdiag/.  NOT a pass/fail test — a instrumented measurement tool.
 #
 # Runs ON the node (like single_node_paired.sh).
 #   $1 = instrument: ftrace | perf | stats   (default ftrace)

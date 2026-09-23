@@ -53,7 +53,7 @@ for lap in $(seq 1 "$LAPS"); do
     # 2. remove the churn tree (frees the churned inos for reuse)
     timeout 120 "$SSH" test1 "$PASS" 'rm -rf /mnt/shared/.wedgeload' </dev/null
 
-    # 3. cache_coherency (budget enforced inside run.sh; RULE 0)
+    # 3. cache_coherency (budget enforced inside run.sh; the budget rule)
     out=$("$REPO/run.sh" 32 caw cache_coherency 2>&1 | grep -E '  (PASS|FAIL)')
     echo "$out"
 

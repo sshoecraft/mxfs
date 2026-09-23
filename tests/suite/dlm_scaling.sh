@@ -9,7 +9,7 @@
 # budget AND sustains an op-rate floor, and the aggregate op-rate exceeds the
 # fastest single node (positive scaling).
 #
-# RULE 0: native XFS does create+stat+unlink in tens of microseconds; OPS ops
+# budget: native XFS does create+stat+unlink in tens of microseconds; OPS ops
 # must finish well within WINDOW.  A node that cannot is a DLM scaling FAIL.
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/lib.sh"

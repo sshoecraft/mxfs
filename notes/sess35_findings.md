@@ -1306,7 +1306,7 @@ Sess35's net contribution:
 - 8 hypotheses tested with instrumentation (H22-H29, H35, H36)
 - 6 falsified, 2 proven (H24 H25 — bug-shape characterization)
 - Storage stack proven sound (E1, E1b)
-- v6a roadmap documented in mxfs_clayer/V6A_ROADMAP.md
+- v6a docs/project-history.md documented in mxfs_clayer/V6A_ROADMAP.md
 - **Identified the dentry_operations.d_revalidate gap** as the
   catastrophic Mode A root cause
 - Documented per RULE 4 throughout

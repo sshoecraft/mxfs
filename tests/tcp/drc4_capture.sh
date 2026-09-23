@@ -1,7 +1,7 @@
 #!/bin/bash
 # drc4_capture.sh — clean 4-node reset + prep (TCP, dirwr=2 content traces) then
 # run drc4_repro to capture the dir_reuse single-dirent loss with classification
-# + per-daddr release/acquire timeline probes.  RULE-4 decisive experiment for
+# + per-daddr release/acquire timeline probes.  Instrumented decisive experiment for
 # Rank1 (grant-before-flush ordering) vs Rank2 (drain coverage hole).
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"

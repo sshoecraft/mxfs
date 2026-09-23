@@ -32,7 +32,7 @@
 #   OBS  node for slotdump reads + health (default test1; != V)
 #   N    cluster size (default 32)
 #
-# RULE 0 budget: activity 10s + idle 90s + fence wait ~70s + replay poll
+# derived time budget: activity 10s + idle 90s + fence wait ~70s + replay poll
 # <=60s + sweep 15s + resume/cycle/boot/rejoin ~120s + converge 15s ~= 380s.
 # External timeout: 480s.
 set -u
@@ -42,7 +42,12 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 V="${1:-test2}"
 OBS="${2:-test1}"
 N="${3:-32}"
-DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$V"; DEV=$MXFS_DEV_RESOLVED
 MNT=/mnt/shared
 DUMP="/src/mxfs/tools/caw_slotdump"
 VIRSH="sudo virsh -c qemu:///system"

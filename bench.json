@@ -15404,5 +15404,2139 @@
         "iops": 386999
       }
     }
+  },
+  "fio_perf_32n_caw_1787448043": {
+    "ts": "2026-08-23T01:20:43Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3667
+      },
+      "seq_read_1m": {
+        "bw_mib": 7888
+      },
+      "rand_write_4k": {
+        "iops": 288459
+      },
+      "rand_read_4k": {
+        "iops": 397291
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787450320": {
+    "ts": "2026-08-23T01:58:40Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6988
+      },
+      "seq_read_1m": {
+        "bw_mib": 7613
+      },
+      "rand_write_4k": {
+        "iops": 467956
+      },
+      "rand_read_4k": {
+        "iops": 542210
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787453664": {
+    "ts": "2026-08-23T02:54:24Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6346
+      },
+      "seq_read_1m": {
+        "bw_mib": 5814
+      },
+      "rand_write_4k": {
+        "iops": 307274
+      },
+      "rand_read_4k": {
+        "iops": 607305
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787465836": {
+    "ts": "2026-08-23T06:17:16Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9173
+      },
+      "seq_read_1m": {
+        "bw_mib": 3921
+      },
+      "rand_write_4k": {
+        "iops": 291512
+      },
+      "rand_read_4k": {
+        "iops": 606279
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787469874": {
+    "ts": "2026-08-23T07:24:34Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5300
+      },
+      "seq_read_1m": {
+        "bw_mib": 8618
+      },
+      "rand_write_4k": {
+        "iops": 313186
+      },
+      "rand_read_4k": {
+        "iops": 617353
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787498570": {
+    "ts": "2026-08-23T15:22:50Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3009
+      },
+      "seq_read_1m": {
+        "bw_mib": 4416
+      },
+      "rand_write_4k": {
+        "iops": 311255
+      },
+      "rand_read_4k": {
+        "iops": 583679
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787531432": {
+    "ts": "2026-08-24T00:30:32Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5561
+      },
+      "seq_read_1m": {
+        "bw_mib": 4816
+      },
+      "rand_write_4k": {
+        "iops": 312663
+      },
+      "rand_read_4k": {
+        "iops": 521754
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787532140": {
+    "ts": "2026-08-24T00:42:20Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2845
+      },
+      "seq_read_1m": {
+        "bw_mib": 6604
+      },
+      "rand_write_4k": {
+        "iops": 273505
+      },
+      "rand_read_4k": {
+        "iops": 576325
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787534499": {
+    "ts": "2026-08-24T01:21:39Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4577
+      },
+      "seq_read_1m": {
+        "bw_mib": 4604
+      },
+      "rand_write_4k": {
+        "iops": 54991
+      },
+      "rand_read_4k": {
+        "iops": 361414
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787542071": {
+    "ts": "2026-08-24T03:27:51Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9116
+      },
+      "seq_read_1m": {
+        "bw_mib": 4642
+      },
+      "rand_write_4k": {
+        "iops": 295596
+      },
+      "rand_read_4k": {
+        "iops": 579985
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787546625": {
+    "ts": "2026-08-24T04:43:45Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7141
+      },
+      "seq_read_1m": {
+        "bw_mib": 3527
+      },
+      "rand_write_4k": {
+        "iops": 443643
+      },
+      "rand_read_4k": {
+        "iops": 473729
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787550008": {
+    "ts": "2026-08-24T05:40:08Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5916
+      },
+      "seq_read_1m": {
+        "bw_mib": 4284
+      },
+      "rand_write_4k": {
+        "iops": 324052
+      },
+      "rand_read_4k": {
+        "iops": 435855
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787551872": {
+    "ts": "2026-08-24T06:11:12Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6793
+      },
+      "seq_read_1m": {
+        "bw_mib": 7797
+      },
+      "rand_write_4k": {
+        "iops": 498128
+      },
+      "rand_read_4k": {
+        "iops": 476377
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787553360": {
+    "ts": "2026-08-24T06:36:00Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 11057
+      },
+      "seq_read_1m": {
+        "bw_mib": 10862
+      },
+      "rand_write_4k": {
+        "iops": 364552
+      },
+      "rand_read_4k": {
+        "iops": 487991
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787555029": {
+    "ts": "2026-08-24T07:03:49Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 10810
+      },
+      "seq_read_1m": {
+        "bw_mib": 13387
+      },
+      "rand_write_4k": {
+        "iops": 540204
+      },
+      "rand_read_4k": {
+        "iops": 549943
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787557195": {
+    "ts": "2026-08-24T07:39:55Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4803
+      },
+      "seq_read_1m": {
+        "bw_mib": 8324
+      },
+      "rand_write_4k": {
+        "iops": 526137
+      },
+      "rand_read_4k": {
+        "iops": 623052
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787560691": {
+    "ts": "2026-08-24T08:38:11Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 8625
+      },
+      "seq_read_1m": {
+        "bw_mib": 10665
+      },
+      "rand_write_4k": {
+        "iops": 336694
+      },
+      "rand_read_4k": {
+        "iops": 597821
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787889874": {
+    "ts": "2026-08-28T04:04:34Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 8865
+      },
+      "seq_read_1m": {
+        "bw_mib": 7261
+      },
+      "rand_write_4k": {
+        "iops": 549863
+      },
+      "rand_read_4k": {
+        "iops": 353848
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787893755": {
+    "ts": "2026-08-28T05:09:15Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 12166
+      },
+      "seq_read_1m": {
+        "bw_mib": 11567
+      },
+      "rand_write_4k": {
+        "iops": 521795
+      },
+      "rand_read_4k": {
+        "iops": 580626
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787899109": {
+    "ts": "2026-08-28T06:38:29Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5757
+      },
+      "seq_read_1m": {
+        "bw_mib": 6685
+      },
+      "rand_write_4k": {
+        "iops": 471749
+      },
+      "rand_read_4k": {
+        "iops": 600961
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787900954": {
+    "ts": "2026-08-28T07:09:14Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6793
+      },
+      "seq_read_1m": {
+        "bw_mib": 10025
+      },
+      "rand_write_4k": {
+        "iops": 500474
+      },
+      "rand_read_4k": {
+        "iops": 501927
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787903809": {
+    "ts": "2026-08-28T07:56:49Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 8941
+      },
+      "seq_read_1m": {
+        "bw_mib": 10051
+      },
+      "rand_write_4k": {
+        "iops": 475031
+      },
+      "rand_read_4k": {
+        "iops": 578148
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787906345": {
+    "ts": "2026-08-28T08:39:05Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5859
+      },
+      "seq_read_1m": {
+        "bw_mib": 12927
+      },
+      "rand_write_4k": {
+        "iops": 397906
+      },
+      "rand_read_4k": {
+        "iops": 653362
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787909358": {
+    "ts": "2026-08-28T09:29:18Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5165
+      },
+      "seq_read_1m": {
+        "bw_mib": 11105
+      },
+      "rand_write_4k": {
+        "iops": 529769
+      },
+      "rand_read_4k": {
+        "iops": 527082
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787911533": {
+    "ts": "2026-08-28T10:05:33Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3908
+      },
+      "seq_read_1m": {
+        "bw_mib": 7812
+      },
+      "rand_write_4k": {
+        "iops": 420776
+      },
+      "rand_read_4k": {
+        "iops": 479981
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787913570": {
+    "ts": "2026-08-28T10:39:30Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9807
+      },
+      "seq_read_1m": {
+        "bw_mib": 5330
+      },
+      "rand_write_4k": {
+        "iops": 412610
+      },
+      "rand_read_4k": {
+        "iops": 478940
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787915600": {
+    "ts": "2026-08-28T11:13:20Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9880
+      },
+      "seq_read_1m": {
+        "bw_mib": 10048
+      },
+      "rand_write_4k": {
+        "iops": 341442
+      },
+      "rand_read_4k": {
+        "iops": 395274
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787917983": {
+    "ts": "2026-08-28T11:53:03Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7710
+      },
+      "seq_read_1m": {
+        "bw_mib": 10520
+      },
+      "rand_write_4k": {
+        "iops": 497360
+      },
+      "rand_read_4k": {
+        "iops": 507820
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787920691": {
+    "ts": "2026-08-28T12:38:11Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7162
+      },
+      "seq_read_1m": {
+        "bw_mib": 11898
+      },
+      "rand_write_4k": {
+        "iops": 492446
+      },
+      "rand_read_4k": {
+        "iops": 552441
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787922717": {
+    "ts": "2026-08-28T13:11:57Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3237
+      },
+      "seq_read_1m": {
+        "bw_mib": 7433
+      },
+      "rand_write_4k": {
+        "iops": 261342
+      },
+      "rand_read_4k": {
+        "iops": 374039
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787925898": {
+    "ts": "2026-08-28T14:04:58Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5739
+      },
+      "seq_read_1m": {
+        "bw_mib": 6226
+      },
+      "rand_write_4k": {
+        "iops": 459448
+      },
+      "rand_read_4k": {
+        "iops": 543741
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787927657": {
+    "ts": "2026-08-28T14:34:17Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 10681
+      },
+      "seq_read_1m": {
+        "bw_mib": 9090
+      },
+      "rand_write_4k": {
+        "iops": 433511
+      },
+      "rand_read_4k": {
+        "iops": 374058
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787929414": {
+    "ts": "2026-08-28T15:03:34Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 8089
+      },
+      "seq_read_1m": {
+        "bw_mib": 6433
+      },
+      "rand_write_4k": {
+        "iops": 464519
+      },
+      "rand_read_4k": {
+        "iops": 471276
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787931731": {
+    "ts": "2026-08-28T15:42:11Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 12475
+      },
+      "seq_read_1m": {
+        "bw_mib": 17077
+      },
+      "rand_write_4k": {
+        "iops": 452430
+      },
+      "rand_read_4k": {
+        "iops": 390662
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787933616": {
+    "ts": "2026-08-28T16:13:36Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9456
+      },
+      "seq_read_1m": {
+        "bw_mib": 8714
+      },
+      "rand_write_4k": {
+        "iops": 471099
+      },
+      "rand_read_4k": {
+        "iops": 473284
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787936490": {
+    "ts": "2026-08-28T17:01:30Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 8324
+      },
+      "seq_read_1m": {
+        "bw_mib": 8509
+      },
+      "rand_write_4k": {
+        "iops": 539740
+      },
+      "rand_read_4k": {
+        "iops": 543548
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787938480": {
+    "ts": "2026-08-28T17:34:40Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 11094
+      },
+      "seq_read_1m": {
+        "bw_mib": 13518
+      },
+      "rand_write_4k": {
+        "iops": 328711
+      },
+      "rand_read_4k": {
+        "iops": 527076
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787940353": {
+    "ts": "2026-08-28T18:05:53Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6684
+      },
+      "seq_read_1m": {
+        "bw_mib": 6089
+      },
+      "rand_write_4k": {
+        "iops": 438134
+      },
+      "rand_read_4k": {
+        "iops": 543426
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787942145": {
+    "ts": "2026-08-28T18:35:45Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6978
+      },
+      "seq_read_1m": {
+        "bw_mib": 9936
+      },
+      "rand_write_4k": {
+        "iops": 382963
+      },
+      "rand_read_4k": {
+        "iops": 571341
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787943829": {
+    "ts": "2026-08-28T19:03:49Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9026
+      },
+      "seq_read_1m": {
+        "bw_mib": 9516
+      },
+      "rand_write_4k": {
+        "iops": 456603
+      },
+      "rand_read_4k": {
+        "iops": 590917
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787948525": {
+    "ts": "2026-08-28T20:22:05Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5854
+      },
+      "seq_read_1m": {
+        "bw_mib": 8388
+      },
+      "rand_write_4k": {
+        "iops": 419614
+      },
+      "rand_read_4k": {
+        "iops": 384208
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787956976": {
+    "ts": "2026-08-28T22:42:56Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4731
+      },
+      "seq_read_1m": {
+        "bw_mib": 12447
+      },
+      "rand_write_4k": {
+        "iops": 413273
+      },
+      "rand_read_4k": {
+        "iops": 619917
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787962455": {
+    "ts": "2026-08-29T00:14:15Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6840
+      },
+      "seq_read_1m": {
+        "bw_mib": 8635
+      },
+      "rand_write_4k": {
+        "iops": 441675
+      },
+      "rand_read_4k": {
+        "iops": 520165
+      }
+    }
+  },
+  "fio_perf_32n_caw_1787996018": {
+    "ts": "2026-08-29T09:33:38Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 2839
+      },
+      "seq_read_1m": {
+        "bw_mib": 6545
+      },
+      "rand_write_4k": {
+        "iops": 396797
+      },
+      "rand_read_4k": {
+        "iops": 336758
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788011800": {
+    "ts": "2026-08-29T13:56:40Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 5711
+      },
+      "seq_read_1m": {
+        "bw_mib": 5774
+      },
+      "rand_write_4k": {
+        "iops": 291794
+      },
+      "rand_read_4k": {
+        "iops": 626555
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788305048": {
+    "ts": "2026-09-01T23:24:08Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7691
+      },
+      "seq_read_1m": {
+        "bw_mib": 8790
+      },
+      "rand_write_4k": {
+        "iops": 465634
+      },
+      "rand_read_4k": {
+        "iops": 486576
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788312827": {
+    "ts": "2026-09-02T01:33:47Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4879
+      },
+      "seq_read_1m": {
+        "bw_mib": 12446
+      },
+      "rand_write_4k": {
+        "iops": 471875
+      },
+      "rand_read_4k": {
+        "iops": 522325
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788331909": {
+    "ts": "2026-09-02T06:51:49Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 17819
+      },
+      "seq_read_1m": {
+        "bw_mib": 13838
+      },
+      "rand_write_4k": {
+        "iops": 134335
+      },
+      "rand_read_4k": {
+        "iops": 450313
+      }
+    }
+  },
+  "fio_perf_16n_caw_1788334049": {
+    "ts": "2026-09-02T07:27:29Z",
+    "test": "fio_perf",
+    "nodes": 16,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "128m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 3254
+      },
+      "seq_read_1m": {
+        "bw_mib": 4887
+      },
+      "rand_write_4k": {
+        "iops": 254428
+      },
+      "rand_read_4k": {
+        "iops": 322769
+      }
+    }
+  },
+  "fio_perf_8n_caw_1788335196": {
+    "ts": "2026-09-02T07:46:36Z",
+    "test": "fio_perf",
+    "nodes": 8,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "256m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 893
+      },
+      "seq_read_1m": {
+        "bw_mib": 4937
+      },
+      "rand_write_4k": {
+        "iops": 177060
+      },
+      "rand_read_4k": {
+        "iops": 206978
+      }
+    }
+  },
+  "fio_perf_2n_caw_1788335807": {
+    "ts": "2026-09-02T07:56:47Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1787
+      },
+      "seq_read_1m": {
+        "bw_mib": 1105
+      },
+      "rand_write_4k": {
+        "iops": 40666
+      },
+      "rand_read_4k": {
+        "iops": 73785
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788341621": {
+    "ts": "2026-09-02T09:33:41Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 9146
+      },
+      "seq_read_1m": {
+        "bw_mib": 3324
+      },
+      "rand_write_4k": {
+        "iops": 363850
+      },
+      "rand_read_4k": {
+        "iops": 359412
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788344606": {
+    "ts": "2026-09-02T10:23:26Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 4206
+      },
+      "seq_read_1m": {
+        "bw_mib": 3790
+      },
+      "rand_write_4k": {
+        "iops": 298183
+      },
+      "rand_read_4k": {
+        "iops": 466322
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788361676": {
+    "ts": "2026-09-02T15:07:56Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7937
+      },
+      "seq_read_1m": {
+        "bw_mib": 11093
+      },
+      "rand_write_4k": {
+        "iops": 195979
+      },
+      "rand_read_4k": {
+        "iops": 661207
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788477609": {
+    "ts": "2026-09-03T23:20:09Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6761
+      },
+      "seq_read_1m": {
+        "bw_mib": 10004
+      },
+      "rand_write_4k": {
+        "iops": 361817
+      },
+      "rand_read_4k": {
+        "iops": 516629
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788480649": {
+    "ts": "2026-09-04T00:10:49Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6659
+      },
+      "seq_read_1m": {
+        "bw_mib": 7997
+      },
+      "rand_write_4k": {
+        "iops": 421181
+      },
+      "rand_read_4k": {
+        "iops": 611241
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788496782": {
+    "ts": "2026-09-04T04:39:42Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 7996
+      },
+      "seq_read_1m": {
+        "bw_mib": 9133
+      },
+      "rand_write_4k": {
+        "iops": 396876
+      },
+      "rand_read_4k": {
+        "iops": 332441
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788503172": {
+    "ts": "2026-09-04T06:26:12Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 8782
+      },
+      "seq_read_1m": {
+        "bw_mib": 7275
+      },
+      "rand_write_4k": {
+        "iops": 376567
+      },
+      "rand_read_4k": {
+        "iops": 391362
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788523172": {
+    "ts": "2026-09-04T11:59:32Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 6774
+      },
+      "seq_read_1m": {
+        "bw_mib": 5482
+      },
+      "rand_write_4k": {
+        "iops": 282271
+      },
+      "rand_read_4k": {
+        "iops": 371768
+      }
+    }
+  },
+  "fio_perf_32n_caw_1788531580": {
+    "ts": "2026-09-04T14:19:40Z",
+    "test": "fio_perf",
+    "nodes": 32,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "64m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 19690
+      },
+      "seq_read_1m": {
+        "bw_mib": 13792
+      },
+      "rand_write_4k": {
+        "iops": 444057
+      },
+      "rand_read_4k": {
+        "iops": 526047
+      }
+    }
+  },
+  "fio_perf_4n_caw_1788533325": {
+    "ts": "2026-09-04T14:48:45Z",
+    "test": "fio_perf",
+    "nodes": 4,
+    "dlm": "caw",
+    "fs": "caw",
+    "size": "512m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1373
+      },
+      "seq_read_1m": {
+        "bw_mib": 3017
+      },
+      "rand_write_4k": {
+        "iops": 75545
+      },
+      "rand_read_4k": {
+        "iops": 84571
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788548491": {
+    "ts": "2026-09-04T19:01:31Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 116
+      },
+      "seq_read_1m": {
+        "bw_mib": 130
+      },
+      "rand_write_4k": {
+        "iops": 27597
+      },
+      "rand_read_4k": {
+        "iops": 28507
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788549514": {
+    "ts": "2026-09-04T19:18:35Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 109
+      },
+      "seq_read_1m": {
+        "bw_mib": 145
+      },
+      "rand_write_4k": {
+        "iops": 25292
+      },
+      "rand_read_4k": {
+        "iops": 27583
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788599518": {
+    "ts": "2026-09-05T09:11:58Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 26507
+      },
+      "rand_read_4k": {
+        "iops": 27418
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788599688": {
+    "ts": "2026-09-05T09:14:48Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 112
+      },
+      "seq_read_1m": {
+        "bw_mib": 113
+      },
+      "rand_write_4k": {
+        "iops": 24954
+      },
+      "rand_read_4k": {
+        "iops": 29259
+      }
+    }
+  },
+  "fio_perf_1n_xfs_1788601988": {
+    "ts": "2026-09-05T09:53:08Z",
+    "test": "fio_perf",
+    "nodes": 1,
+    "dlm": "xfs",
+    "fs": "xfs",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 111
+      },
+      "rand_write_4k": {
+        "iops": 18714
+      },
+      "rand_read_4k": {
+        "iops": 26214
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788602161": {
+    "ts": "2026-09-05T09:56:01Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 115
+      },
+      "seq_read_1m": {
+        "bw_mib": 116
+      },
+      "rand_write_4k": {
+        "iops": 24509
+      },
+      "rand_read_4k": {
+        "iops": 29221
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788602333": {
+    "ts": "2026-09-05T09:58:53Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 27582
+      },
+      "rand_read_4k": {
+        "iops": 29602
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788610403": {
+    "ts": "2026-09-05T12:13:23Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 116
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 27686
+      },
+      "rand_read_4k": {
+        "iops": 30174
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788614786": {
+    "ts": "2026-09-05T13:26:26Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 123
+      },
+      "rand_write_4k": {
+        "iops": 34221
+      },
+      "rand_read_4k": {
+        "iops": 30368
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788616946": {
+    "ts": "2026-09-05T14:02:26Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 112
+      },
+      "seq_read_1m": {
+        "bw_mib": 117
+      },
+      "rand_write_4k": {
+        "iops": 24690
+      },
+      "rand_read_4k": {
+        "iops": 27398
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788621021": {
+    "ts": "2026-09-05T15:10:21Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 107
+      },
+      "seq_read_1m": {
+        "bw_mib": 152
+      },
+      "rand_write_4k": {
+        "iops": 26931
+      },
+      "rand_read_4k": {
+        "iops": 28969
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788622907": {
+    "ts": "2026-09-05T15:41:47Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 109
+      },
+      "seq_read_1m": {
+        "bw_mib": 111
+      },
+      "rand_write_4k": {
+        "iops": 29197
+      },
+      "rand_read_4k": {
+        "iops": 27877
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788627304": {
+    "ts": "2026-09-05T16:55:04Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 150
+      },
+      "rand_write_4k": {
+        "iops": 25946
+      },
+      "rand_read_4k": {
+        "iops": 27999
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788630586": {
+    "ts": "2026-09-05T17:49:46Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 113
+      },
+      "rand_write_4k": {
+        "iops": 21697
+      },
+      "rand_read_4k": {
+        "iops": 27572
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788885004": {
+    "ts": "2026-09-08T16:30:04Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 94
+      },
+      "rand_write_4k": {
+        "iops": 21820
+      },
+      "rand_read_4k": {
+        "iops": 28115
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1788897032": {
+    "ts": "2026-09-08T19:50:32Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 116
+      },
+      "rand_write_4k": {
+        "iops": 30123
+      },
+      "rand_read_4k": {
+        "iops": 31217
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789001497": {
+    "ts": "2026-09-10T00:51:37Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 114
+      },
+      "rand_write_4k": {
+        "iops": 19930
+      },
+      "rand_read_4k": {
+        "iops": 27824
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789005890": {
+    "ts": "2026-09-10T02:04:50Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 110
+      },
+      "rand_write_4k": {
+        "iops": 23434
+      },
+      "rand_read_4k": {
+        "iops": 28256
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789019848": {
+    "ts": "2026-09-10T05:57:28Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 104
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 26756
+      },
+      "rand_read_4k": {
+        "iops": 28056
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789027634": {
+    "ts": "2026-09-10T08:07:14Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 110
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 22432
+      },
+      "rand_read_4k": {
+        "iops": 27794
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789033505": {
+    "ts": "2026-09-10T09:45:05Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 112
+      },
+      "seq_read_1m": {
+        "bw_mib": 118
+      },
+      "rand_write_4k": {
+        "iops": 30058
+      },
+      "rand_read_4k": {
+        "iops": 27505
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789130689": {
+    "ts": "2026-09-11T12:44:49Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 109
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 25394
+      },
+      "rand_read_4k": {
+        "iops": 26505
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789228568": {
+    "ts": "2026-09-12T15:56:08Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 116
+      },
+      "seq_read_1m": {
+        "bw_mib": 126
+      },
+      "rand_write_4k": {
+        "iops": 26447
+      },
+      "rand_read_4k": {
+        "iops": 27160
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789230038": {
+    "ts": "2026-09-12T16:20:38Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 111
+      },
+      "rand_write_4k": {
+        "iops": 28887
+      },
+      "rand_read_4k": {
+        "iops": 30843
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789235884": {
+    "ts": "2026-09-12T17:58:04Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 111
+      },
+      "seq_read_1m": {
+        "bw_mib": 127
+      },
+      "rand_write_4k": {
+        "iops": 21794
+      },
+      "rand_read_4k": {
+        "iops": 27043
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789248256": {
+    "ts": "2026-09-12T21:24:16Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 124
+      },
+      "rand_write_4k": {
+        "iops": 26089
+      },
+      "rand_read_4k": {
+        "iops": 29521
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789251290": {
+    "ts": "2026-09-12T22:14:50Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 111
+      },
+      "rand_write_4k": {
+        "iops": 27227
+      },
+      "rand_read_4k": {
+        "iops": 26773
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789252378": {
+    "ts": "2026-09-12T22:32:58Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 108
+      },
+      "seq_read_1m": {
+        "bw_mib": 112
+      },
+      "rand_write_4k": {
+        "iops": 28496
+      },
+      "rand_read_4k": {
+        "iops": 28446
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1789262494": {
+    "ts": "2026-09-13T01:21:34Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 109
+      },
+      "seq_read_1m": {
+        "bw_mib": 110
+      },
+      "rand_write_4k": {
+        "iops": 26468
+      },
+      "rand_read_4k": {
+        "iops": 28985
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790107669": {
+    "ts": "2026-09-22T20:07:49Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1939
+      },
+      "seq_read_1m": {
+        "bw_mib": 3011
+      },
+      "rand_write_4k": {
+        "iops": 61941
+      },
+      "rand_read_4k": {
+        "iops": 77577
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790113679": {
+    "ts": "2026-09-22T21:47:59Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1741
+      },
+      "seq_read_1m": {
+        "bw_mib": 2999
+      },
+      "rand_write_4k": {
+        "iops": 60748
+      },
+      "rand_read_4k": {
+        "iops": 81179
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790116536": {
+    "ts": "2026-09-22T22:35:36Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1546
+      },
+      "seq_read_1m": {
+        "bw_mib": 2115
+      },
+      "rand_write_4k": {
+        "iops": 55111
+      },
+      "rand_read_4k": {
+        "iops": 79791
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790120711": {
+    "ts": "2026-09-22T23:45:11Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1985
+      },
+      "seq_read_1m": {
+        "bw_mib": 2961
+      },
+      "rand_write_4k": {
+        "iops": 55877
+      },
+      "rand_read_4k": {
+        "iops": 76819
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790128820": {
+    "ts": "2026-09-23T02:00:20Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1778
+      },
+      "seq_read_1m": {
+        "bw_mib": 3408
+      },
+      "rand_write_4k": {
+        "iops": 57681
+      },
+      "rand_read_4k": {
+        "iops": 73995
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790132083": {
+    "ts": "2026-09-23T02:54:43Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1705
+      },
+      "seq_read_1m": {
+        "bw_mib": 2922
+      },
+      "rand_write_4k": {
+        "iops": 62315
+      },
+      "rand_read_4k": {
+        "iops": 81170
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790135779": {
+    "ts": "2026-09-23T03:56:19Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1900
+      },
+      "seq_read_1m": {
+        "bw_mib": 1994
+      },
+      "rand_write_4k": {
+        "iops": 61372
+      },
+      "rand_read_4k": {
+        "iops": 76966
+      }
+    }
   }
 }

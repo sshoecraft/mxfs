@@ -10,7 +10,7 @@
 #   on test1 -> test26 waited 240 s on it while holding dir ino=138 EX ->
 #   all 31 peers starved -> force-shutdown -> 21 of 32 filesystems dead.
 #
-#   The fix then NEVER RAN — no strand recurred after it landed.  RULE 6 will
+#   The fix then NEVER RAN — no strand recurred after it landed.  the zero-defect bar will
 #   not accept that: "cannot reproduce" is not a disposition, and a recovery
 #   path that has never executed is not a verified fix.  So the strand is
 #   created on purpose and the recovery is measured.
@@ -29,7 +29,7 @@
 #       (bast_work_fn, release_work_fn, ag_meta_iodone).  Arming just one, then
 #       just another, produced 0 strands twice.
 #
-# WHAT COUNTS AS PASS (all four, per RULE 6)
+# WHAT COUNTS AS PASS (all four, per the zero-defect bar)
 #   1. P200-STRAND-INJECT fires  — the strand was really created
 #   2. P5N ... disk_held=1 repair=1 fires, and no (node, AG) that was DECLINED
 #      (repair=0) goes on without a repair.  A bare repair=0 is legitimate --
@@ -50,7 +50,7 @@
 #   tests/ag_strand_repair.sh [nodes] [storm_rounds]
 #     Assumes the cluster is already prepped with the build under test.
 #
-# RULE 0 budget: the injected strands must be repaired and released inside the
+# derived time budget: the injected strands must be repaired and released inside the
 # storm that follows.  A 15-round storm is ~60 s of workload; the cap below is
 # sized for that plus harvest, and a run that needs more is a wedge, not a slow
 # pass.

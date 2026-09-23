@@ -2,7 +2,7 @@
 # tcp2_characterize.sh — repeatedly run the full 2/tcp suite (or a subset),
 # clean-rebooting both nodes before each run, and log per-test PASS/FAIL plus
 # any dmesg shutdown/oops markers from both nodes.  Used to measure the true
-# flake rate of the 2/tcp criterion and capture failure evidence (RULE 4).
+# flake rate of the 2/tcp criterion and capture failure evidence (instrumented).
 #
 # Usage: tcp2_characterize.sh <iters> [test ...]
 #   <iters>      number of full clean-reboot suite runs

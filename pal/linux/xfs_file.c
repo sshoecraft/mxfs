@@ -30,6 +30,7 @@
 #include "xfs_error.h"
 #include "xfs_errortag.h"
 #include "xfs_mxfs_dlm.h"
+#include "xfs_mxfs_dirshard.h"	/* sess466: sharded-parent readdir/fsync */
 #include "../../dlm/v5_mount.h"	/* sess40: open-tracking publish at open() */
 #include <mxfs/mxfs_dlm.h>
 
@@ -76,6 +77,21 @@ xfs_dir_fsync(
 	int			datasync)
 {
 	struct xfs_inode	*ip = XFS_I(file->f_mapping->host);
+	int			error;
+
+	/* sess414 (D-512 ruling): -ESTALE, never stale durability — a
+	 * poisoned dead incarnation has nothing whose persistence could
+	 * be honestly acknowledged */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
+
+	/* sess466 (docs/dir-sharding.md, stage 1): a sharded parent's
+	 * durability spans N containers; until the barrier fsync lands an
+	 * honest refusal beats a force of the parent's own (always empty)
+	 * dir2 alone. */
+	if (mxfs_is_dirshard_parent(ip))
+		return -EOPNOTSUPP;
 
 	trace_xfs_dir_fsync(ip);
 	return xfs_log_force_inode(ip);
@@ -138,6 +154,14 @@ xfs_file_fsync(
 
 	trace_xfs_file_fsync(ip);
 
+	/* sess414 (D-512 ruling): -ESTALE, never stale durability — and
+	 * never flush this shell's pages through its dead bmap (the write-
+	 * and-wait below would submit them to blocks that may now belong
+	 * to another live file) */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
+
 	error = file_write_and_wait_range(file, start, end);
 	if (error)
 		return error;
@@ -192,6 +216,9 @@ xfs_ilock_iocb(
 {
 	struct xfs_inode	*ip = XFS_I(file_inode(iocb->ki_filp));
 
+	/* nowait-iolock-only: an IOLOCK nowait takes its own DLM try, so the
+	 * caller's plain xfs_iunlock pairs.  An ILOCK here would not (D-0532). */
+	WARN_ON_ONCE(lock_mode & (XFS_ILOCK_EXCL | XFS_ILOCK_SHARED));
 	if (iocb->ki_flags & IOCB_NOWAIT) {
 		if (!xfs_ilock_nowait(ip, lock_mode))
 			return -EAGAIN;
@@ -202,15 +229,103 @@ xfs_ilock_iocb(
 	return 0;
 }
 
+/*
+ * 0.84.2: the READ path's IOLOCK ride, as a fallible acquire.  The cluster
+ * grant under it may be abandoned (the master never acknowledged the
+ * request past the budget, or this task was killed); the read then fails
+ * with nothing held instead of waiting without bound.  Reads only: nothing
+ * is dirty here and no transaction is open.  The write path keeps
+ * xfs_ilock_iocb, because a failed acquire there has not been audited.
+ */
+static int
+xfs_ilock_iocb_read(
+	struct kiocb		*iocb,
+	unsigned int		lock_mode)
+{
+	struct xfs_inode	*ip = XFS_I(file_inode(iocb->ki_filp));
+	extern int		mxfs_ilock_fallible(struct xfs_inode *, uint);
+
+	/* nowait-iolock-only (see xfs_ilock_iocb) */
+	WARN_ON_ONCE(lock_mode & (XFS_ILOCK_EXCL | XFS_ILOCK_SHARED));
+	if (iocb->ki_flags & IOCB_NOWAIT) {
+		if (!xfs_ilock_nowait(ip, lock_mode))
+			return -EAGAIN;
+		return 0;
+	}
+	if (!ip->i_mount->m_mxfs_dlm) {
+		xfs_ilock(ip, lock_mode);
+		return 0;
+	}
+	return mxfs_ilock_fallible(ip, lock_mode);
+}
+
+/*
+ * 0.84.10 (D-0958): the WRITE path's IOLOCK ride, as a fallible acquire, at
+ * every acquire that precedes any data movement: the first ride of each
+ * writer (buffered, DAX, aligned / atomic / unaligned direct), the relock for
+ * security-attribute removal and the exclusive re-take before EOF zeroing in
+ * xfs_file_write_checks.  At each of these nothing has been copied, dirtied,
+ * allocated or submitted: generic_write_checks and the layout break are the
+ * only work behind them, and the ordinary error return unwinds them.  The
+ * cluster grant under the ride may be abandoned (unacknowledged by a live
+ * master past the budget, or this task killed), and the write then fails
+ * with -EIO holding nothing instead of waiting without bound.
+ *
+ * NOT converted: the exclusive retry of an unaligned direct write after an
+ * -EAGAIN under IOMAP_DIO_OVERWRITE_ONLY, and the COW retry of an atomic
+ * write.  Those re-acquire after a first attempt that may already have
+ * submitted part of the range, and an error there would report a write that
+ * partly landed as -EIO; they keep the blocking acquire until that boundary
+ * is audited for what it must return.  IOCB_NOWAIT never enters the wait:
+ * it takes the nowait local lock as before.
+ */
+static int
+xfs_ilock_iocb_write(
+	struct kiocb		*iocb,
+	unsigned int		lock_mode,
+	const char		*stage)
+{
+	struct xfs_inode	*ip = XFS_I(file_inode(iocb->ki_filp));
+	extern int		mxfs_ilock_fallible(struct xfs_inode *, uint);
+	int			ret;
+
+	/* nowait-iolock-only (see xfs_ilock_iocb) */
+	WARN_ON_ONCE(lock_mode & (XFS_ILOCK_EXCL | XFS_ILOCK_SHARED));
+	if (iocb->ki_flags & IOCB_NOWAIT) {
+		if (!xfs_ilock_nowait(ip, lock_mode))
+			return -EAGAIN;
+		return 0;
+	}
+	if (!ip->i_mount->m_mxfs_dlm) {
+		xfs_ilock(ip, lock_mode);
+		return 0;
+	}
+	ret = mxfs_ilock_fallible(ip, lock_mode);
+	if (ret)
+		pr_warn_ratelimited(
+		    "mxfs: P958-WRITE-REFUSED ino=%llu stage=%s mode=%s rc=%d comm=%s — write refused: the cluster acquire was abandoned; failing the write with nothing held instead of waiting on it\n",
+			(unsigned long long)ip->i_ino, stage,
+			lock_mode == XFS_IOLOCK_EXCL ? "excl" : "shared", ret,
+			current->comm);
+	return ret;
+}
+
+/*
+ * `stage` names the ride for the refusal line; NULL keeps the blocking
+ * acquire (no caller passes NULL since 0.84.12 — every writer's ride,
+ * first or retry, is an audited boundary).
+ */
 static int
 xfs_ilock_iocb_for_write(
 	struct kiocb		*iocb,
-	unsigned int		*lock_mode)
+	unsigned int		*lock_mode,
+	const char		*stage)
 {
 	ssize_t			ret;
 	struct xfs_inode	*ip = XFS_I(file_inode(iocb->ki_filp));
 
-	ret = xfs_ilock_iocb(iocb, *lock_mode);
+	ret = stage ? xfs_ilock_iocb_write(iocb, *lock_mode, stage) :
+		      xfs_ilock_iocb(iocb, *lock_mode);
 	if (ret)
 		return ret;
 
@@ -222,7 +337,9 @@ xfs_ilock_iocb_for_write(
 	    xfs_iflags_test(ip, XFS_IREMAPPING)) {
 		xfs_iunlock(ip, *lock_mode);
 		*lock_mode = XFS_IOLOCK_EXCL;
-		return xfs_ilock_iocb(iocb, *lock_mode);
+		return stage ?
+			xfs_ilock_iocb_write(iocb, *lock_mode, "remap-excl") :
+			xfs_ilock_iocb(iocb, *lock_mode);
 	}
 
 	return 0;
@@ -263,11 +380,36 @@ xfs_file_dio_read(
 	if (!iov_iter_count(to))
 		return 0; /* skip atime */
 
+	/*
+	 * D-0971: polled direct I/O is refused on a clustered mount.  A
+	 * polled completion is driven by the submitter's ring, and a later
+	 * submission on that ring parks in the release pipeline's demote-wait
+	 * while the pipeline waits for the polled I/O to complete: the ring
+	 * cannot poll, the I/O never completes, the release never happens.
+	 * Nothing here polls on the pipeline's behalf, so the mode is not
+	 * supported rather than half-supported.
+	 */
+	if ((iocb->ki_flags & IOCB_HIPRI) && ip->i_mount->m_mxfs_dlm) {
+		extern atomic_t mxfs_dio_hipri_refused;
+
+		atomic_inc(&mxfs_dio_hipri_refused);
+		pr_warn_ratelimited("mxfs: P971-DIO-HIPRI-REFUSED ino=%llu op=read comm=%s — polled direct I/O is not supported on a clustered mount\n",
+			(unsigned long long)ip->i_ino, current->comm);
+		return -EOPNOTSUPP;
+	}
+
 	file_accessed(iocb->ki_filp);
 
-	ret = xfs_ilock_iocb(iocb, XFS_IOLOCK_SHARED);
+	ret = xfs_ilock_iocb_read(iocb, XFS_IOLOCK_SHARED);
 	if (ret)
 		return ret;
+	/* 0.89.0 (D-0977): re-check under the I/O lock — the acquire the lock
+	 * ride just ran may have found the platter naming another incarnation
+	 * and poisoned this shell; the entry gate ran before that. */
+	if (mxfs_inode_incarn_estale(ip)) {
+		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
+		return -ESTALE;
+	}
 	if (mapping_stable_writes(iocb->ki_filp->f_mapping)) {
 		dio_ops = &xfs_dio_read_bounce_ops;
 		dio_flags |= IOMAP_DIO_BOUNCE;
@@ -292,7 +434,7 @@ xfs_file_dax_read(
 	if (!iov_iter_count(to))
 		return 0; /* skip atime */
 
-	ret = xfs_ilock_iocb(iocb, XFS_IOLOCK_SHARED);
+	ret = xfs_ilock_iocb_read(iocb, XFS_IOLOCK_SHARED);
 	if (ret)
 		return ret;
 	ret = dax_iomap_rw(iocb, to, &xfs_read_iomap_ops);
@@ -312,9 +454,17 @@ xfs_file_buffered_read(
 
 	trace_xfs_file_buffered_read(iocb, to);
 
-	ret = xfs_ilock_iocb(iocb, XFS_IOLOCK_SHARED);
+	ret = xfs_ilock_iocb_read(iocb, XFS_IOLOCK_SHARED);
 	if (ret)
 		return ret;
+	/* 0.89.0 (D-0977): see xfs_file_dio_read — the gate at entry ran
+	 * before the coherency envelope's acquire, which is where a freed or
+	 * reused incarnation is discovered and the shell poisoned; a read that
+	 * went on would copy the successor file's blocks to the caller. */
+	if (mxfs_inode_incarn_estale(ip)) {
+		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
+		return -ESTALE;
+	}
 	/*
 	 * sess46 NOTE: SIXTH and final VFS-layer trigger attempt — a di_size==0
 	 * gated DIRECT mxfs_dlm_reload_inode from the read path (build 8DA09749) —
@@ -358,8 +508,12 @@ xfs_file_read_iter(
 	 * non-regular.  Gating + the actual work live in the helper.
 	 */
 	{
-		extern void mxfs_read_coherency_envelope(struct xfs_inode *);
-		mxfs_read_coherency_envelope(XFS_I(inode));
+		extern int mxfs_read_coherency_envelope(struct xfs_inode *);
+		/* 0.84.2: the envelope's acquire was abandoned (unacknowledged
+		 * past the budget, or this task was killed) — fail the read. */
+		ret = mxfs_read_coherency_envelope(XFS_I(inode));
+		if (ret)
+			return ret;
 	}
 
 	if (IS_DAX(inode))
@@ -398,7 +552,22 @@ xfs_file_splice_read(
 
 	trace_xfs_file_splice_read(ip, *ppos, len);
 
-	xfs_ilock(ip, XFS_IOLOCK_SHARED);
+	/* 0.84.2: a read path; the acquire may be abandoned (see
+	 * xfs_ilock_iocb_read) and the splice then fails with nothing held. */
+	if (mp->m_mxfs_dlm) {
+		extern int mxfs_ilock_fallible(struct xfs_inode *, uint);
+
+		ret = mxfs_ilock_fallible(ip, XFS_IOLOCK_SHARED);
+		if (ret)
+			return ret;
+	} else {
+		xfs_ilock(ip, XFS_IOLOCK_SHARED);
+	}
+	/* 0.89.0 (D-0977): re-check under the lock (see xfs_file_dio_read) */
+	if (mxfs_inode_incarn_estale(ip)) {
+		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
+		return -ESTALE;
+	}
 	ret = filemap_splice_read(in, ppos, pipe, len, flags);
 	xfs_iunlock(ip, XFS_IOLOCK_SHARED);
 	if (ret > 0)
@@ -455,7 +624,13 @@ xfs_file_write_zero_eof(
 		if (*iolock == XFS_IOLOCK_SHARED) {
 			xfs_iunlock(ip, *iolock);
 			*iolock = XFS_IOLOCK_EXCL;
-			xfs_ilock(ip, *iolock);
+			/* 0.84.10: nothing zeroed yet — this re-take may be
+			 * refused, and the caller then unlocks nothing */
+			error = xfs_ilock_iocb_write(iocb, *iolock, "zero-eof-excl");
+			if (error) {
+				*iolock = 0;
+				return error;
+			}
 			iov_iter_reexpand(from, count);
 		}
 
@@ -499,6 +674,13 @@ xfs_file_write_checks(
 	bool			drained_dio = false;
 	ssize_t			error;
 
+	/* 0.89.0 (D-0977): the write's entry gate ran before the I/O lock
+	 * ride; the acquire it ran may have found the platter naming another
+	 * incarnation and poisoned this shell.  A write that went on would
+	 * dirty pages against a bmap whose blocks belong to the successor. */
+	if (mxfs_inode_incarn_estale(XFS_I(inode)))
+		return -ESTALE;
+
 restart:
 	error = generic_write_checks(iocb, from);
 	if (error <= 0)
@@ -518,15 +700,34 @@ restart:
 	/*
 	 * For changing security info in file_remove_privs() we need i_rwsem
 	 * exclusively.
+	 *
+	 * D-0970: on a clustered mount the timestamp update at the end of these
+	 * checks takes ILOCK_EXCL, a cluster EX, and a shared ride here is a
+	 * counted PR on the same inode held by this same task.  Two nodes each
+	 * doing that — both direct writers of one file — hold PR and ask EX;
+	 * the master denies the conversion (-EDEADLK), the self-demote cannot
+	 * release a PR its own requester holds, and after 65 retry laps the
+	 * node shuts down (measured: both nodes, plain O_DIRECT dd, ~70 s).
+	 * So a shared ride never reaches the timestamp update on a clustered
+	 * mount: retake it exclusive first, so the update's EX nests on the
+	 * EX the ride holds.  The aligned and atomic writers demote back to
+	 * shared for the transfer itself (holder accounting moves EX->PR).
 	 */
-	if (*iolock == XFS_IOLOCK_SHARED && !IS_NOSEC(inode)) {
+	if (*iolock == XFS_IOLOCK_SHARED &&
+	    (!IS_NOSEC(inode) || XFS_I(inode)->i_mount->m_mxfs_dlm)) {
+		extern atomic_t	mxfs_write_checks_excl;
+		bool		nosec = !IS_NOSEC(inode);
+
 		xfs_iunlock(XFS_I(inode), *iolock);
 		*iolock = XFS_IOLOCK_EXCL;
-		error = xfs_ilock_iocb(iocb, *iolock);
+		error = xfs_ilock_iocb_write(iocb, *iolock,
+				nosec ? "nosec-excl" : "timestamp-excl");
 		if (error) {
 			*iolock = 0;
 			return error;
 		}
+		if (!nosec)
+			atomic_inc(&mxfs_write_checks_excl);
 		goto restart;
 	}
 
@@ -549,6 +750,21 @@ restart:
 			return error;
 	}
 
+	/*
+	 * 0.84.14 (D-0958): the mtime/ctime update is the FIRST request a
+	 * direct write sends when its data grant is a cached PR — the shared
+	 * ride above fast-paths, and xfs_vn_update_time then takes ILOCK_EXCL,
+	 * a cluster EX, inside a transaction that is reserved and clean with
+	 * nothing joined.  Measured s596d: that acquire, not the exclusive
+	 * retry, is what a discarded request meets.  Register the inode for
+	 * the duration of the update so that acquire is fallible; a refusal
+	 * cancels the clean reservation inside xfs_vn_update_time and fails
+	 * the write here with nothing written (stage=timestamp).  IOCB_NOWAIT
+	 * never enters the wait and keeps the plain call.
+	 */
+	if (XFS_I(inode)->i_mount->m_mxfs_dlm &&
+	    !(iocb->ki_flags & IOCB_NOWAIT))
+		return mxfs_kiocb_modified_fallible(iocb);
 	return kiocb_modified(iocb);
 }
 
@@ -595,7 +811,7 @@ xfs_zoned_write_space_reserve(
 }
 
 static int
-xfs_dio_write_end_io(
+xfs_dio_write_end_io_body(
 	struct kiocb		*iocb,
 	ssize_t			size,
 	int			error,
@@ -687,6 +903,31 @@ out:
 	return error;
 }
 
+/*
+ * D-0971: the completion of an asynchronous direct write runs after its
+ * IOLOCK ride is gone, and its unwritten conversion and size update take
+ * ILOCK_EXCL.  While this inode's release pipeline waits for the inode's
+ * direct I/O to drain (its BAST state parks ordinary lock requests), this
+ * task must be recognised as that inode's completion so the DLM admits it
+ * as a nested holder under the still-granted mirror.  Bracket the whole
+ * completion, every return path included.
+ */
+static int
+xfs_dio_write_end_io(
+	struct kiocb		*iocb,
+	ssize_t			size,
+	int			error,
+	unsigned		flags)
+{
+	struct xfs_diotask	dt;
+	int			ret;
+
+	xfs_diotask_enter(&dt, XFS_I(file_inode(iocb->ki_filp)));
+	ret = xfs_dio_write_end_io_body(iocb, size, error, flags);
+	xfs_diotask_exit(&dt);
+	return ret;
+}
+
 static const struct iomap_dio_ops xfs_dio_write_ops = {
 	.end_io		= xfs_dio_write_end_io,
 };
@@ -701,6 +942,17 @@ xfs_dio_zoned_submit_io(
 	struct xfs_zone_alloc_ctx *ac = iter->private;
 	xfs_filblks_t		count_fsb;
 	struct iomap_ioend	*ioend;
+
+	/* The authority gate, on the one direct-write path that does own its
+	 * bio submission.  Same refusal, same error completion as the
+	 * over-reservation arm below. */
+	if (!mxfs_mount_write_admitted(mp, "dio-zoned")) {
+		pr_err_ratelimited("mxfs: P290-AUTH-REFUSED-DIO ino=%llu zoned off=%lld — this node's authority over the shared LUN has expired; the direct write is REFUSED\n",
+			(unsigned long long)XFS_I(iter->inode)->i_ino,
+			(long long)file_offset);
+		bio_io_error(bio);
+		return;
+	}
 
 	count_fsb = XFS_B_TO_FSB(mp, bio->bi_iter.bi_size);
 	if (count_fsb > ac->reserved_blocks) {
@@ -749,7 +1001,10 @@ xfs_file_dio_write_aligned(
 	if (xfs_is_always_cow_inode(ip))
 		dio_flags |= IOMAP_DIO_FSBLOCK_ALIGNED;
 
-	ret = xfs_ilock_iocb_for_write(iocb, &iolock);
+	/* 0.84.15: this passed the boolean `true` where the stage NAME goes,
+	 * so an aligned direct write's refusal line printed stage=(efault);
+	 * the ride itself was fallible (any non-NULL stage is) all along. */
+	ret = xfs_ilock_iocb_for_write(iocb, &iolock, "first");
 	if (ret)
 		return ret;
 	ret = xfs_file_write_checks(iocb, from, &iolock, ac);
@@ -770,7 +1025,9 @@ xfs_file_dio_write_aligned(
 	trace_xfs_file_direct_write(iocb, from);
 	ret = iomap_dio_rw(iocb, from, ops, dops, dio_flags, ac, 0);
 out_unlock:
-	xfs_iunlock(ip, iolock);
+	/* 0.84.10: a refused relock inside write_checks leaves iolock 0 */
+	if (iolock)
+		xfs_iunlock(ip, iolock);
 	return ret;
 }
 
@@ -815,6 +1072,7 @@ xfs_file_dio_write_atomic(
 	unsigned int		iolock = XFS_IOLOCK_SHARED;
 	ssize_t			ret, ocount = iov_iter_count(from);
 	unsigned int		dio_flags = 0;
+	bool			first_ride = true;
 	const struct iomap_ops	*dops;
 
 	/*
@@ -827,7 +1085,17 @@ xfs_file_dio_write_atomic(
 		dops = &xfs_direct_write_iomap_ops;
 
 retry:
-	ret = xfs_ilock_iocb_for_write(iocb, &iolock);
+	/*
+	 * 0.84.13 (D-0958): the COW retry's ride is fallible as well.  The
+	 * -ENOPROTOOPT that sends us here is answered by the FIRST mapping of
+	 * the request — an atomic write is a single extent or it is not
+	 * possible at all — so the attempt behind this re-acquire built no
+	 * bio and moved no bytes; a refusal here reports -EIO for a write
+	 * that landed nothing, exactly as the first ride does.
+	 */
+	ret = xfs_ilock_iocb_for_write(iocb, &iolock,
+				       first_ride ? "first" : "atomic-cow-retry");
+	first_ride = false;
 	if (ret)
 		return ret;
 
@@ -892,6 +1160,7 @@ xfs_file_dio_write_unaligned(
 	size_t			count = iov_iter_count(from);
 	unsigned int		iolock = XFS_IOLOCK_SHARED;
 	unsigned int		flags = IOMAP_DIO_OVERWRITE_ONLY;
+	bool			first_ride = true;
 	ssize_t			ret;
 
 	/*
@@ -907,7 +1176,21 @@ retry_exclusive:
 		flags = IOMAP_DIO_FORCE_WAIT;
 	}
 
-	ret = xfs_ilock_iocb_for_write(iocb, &iolock);
+	/*
+	 * 0.84.13 (D-0958): the exclusive retry's ride is fallible as well.
+	 * 0.84.10 left it blocking on the assumption that the -EAGAIN it
+	 * follows may come after part of the range was submitted.  It cannot:
+	 * under IOMAP_OVERWRITE_ONLY the direct-write mapping must span the
+	 * ENTIRE request with one written map or answer -EAGAIN at the first
+	 * ->iomap_begin (xfs_direct_write_iomap_begin, "avoid partial IO
+	 * failures"), and the iomap layer's own pre-check answers it before
+	 * the dio is even built.  So the attempt behind this re-acquire moved
+	 * no bytes, and a refusal here is a write that landed nothing: -EIO,
+	 * as at the first ride.
+	 */
+	ret = xfs_ilock_iocb_for_write(iocb, &iolock,
+				       first_ride ? "first" : "unaligned-excl-retry");
+	first_ride = false;
 	if (ret)
 		return ret;
 
@@ -971,6 +1254,42 @@ xfs_file_dio_write(
 	if ((iocb->ki_pos | count) & target->bt_logical_sectormask)
 		return -EINVAL;
 
+	/*
+	 * THE AUTHORITY GATE, direct-I/O arm.  An O_DIRECT overwrite of an
+	 * already-allocated block reaches the LUN without touching metadata or
+	 * the journal, so neither of the other two gates sees it — measured, it
+	 * was the arm that put a fenced incarnation's bytes on the platter in
+	 * 1 ms, and reading that block back off /dev/sda with no filesystem in
+	 * the path is what proved the defect.
+	 *
+	 * This is the entry to the path rather than its bio submission, because
+	 * iomap's default submission is crypto-aware and overriding it here
+	 * would change more than this gate is entitled to.  Refusing before
+	 * iomap_dio_rw means no bio is ever built, which covers everything this
+	 * call would have issued, synchronous or async.  What it does NOT cover
+	 * is a direct write already submitted when authority expired; nothing
+	 * at this layer can retract those, and that residue is the same open
+	 * obligation the design consult named — no software gate establishes
+	 * that an already-issued SCSI command can never execute later.
+	 */
+	if (!mxfs_mount_write_admitted(ip->i_mount, "dio")) {
+		pr_err_ratelimited("mxfs: P290-AUTH-REFUSED-DIO ino=%llu pos=%lld count=%zu comm=%s — this node's authority over the shared LUN has expired; the direct write is REFUSED (-EIO)\n",
+			(unsigned long long)ip->i_ino,
+			(long long)iocb->ki_pos, count, current->comm);
+		return -EIO;
+	}
+
+	/* D-0971: polled direct I/O is refused on a clustered mount; see
+	 * xfs_file_dio_read for why. */
+	if ((iocb->ki_flags & IOCB_HIPRI) && ip->i_mount->m_mxfs_dlm) {
+		extern atomic_t mxfs_dio_hipri_refused;
+
+		atomic_inc(&mxfs_dio_hipri_refused);
+		pr_warn_ratelimited("mxfs: P971-DIO-HIPRI-REFUSED ino=%llu op=write comm=%s — polled direct I/O is not supported on a clustered mount\n",
+			(unsigned long long)ip->i_ino, current->comm);
+		return -EOPNOTSUPP;
+	}
+
 	if ((iocb->ki_pos | count) & ip->i_mount->m_blockmask)
 		return xfs_file_dio_write_unaligned(ip, iocb, from);
 	if (xfs_is_zoned_inode(ip))
@@ -992,7 +1311,7 @@ xfs_file_dax_write(
 	ssize_t			ret, error = 0;
 	loff_t			pos;
 
-	ret = xfs_ilock_iocb(iocb, iolock);
+	ret = xfs_ilock_iocb_write(iocb, iolock, "first");
 	if (ret)
 		return ret;
 	ret = xfs_file_write_checks(iocb, from, &iolock, NULL);
@@ -1035,7 +1354,11 @@ xfs_file_buffered_write(
 
 write_retry:
 	iolock = XFS_IOLOCK_EXCL;
-	ret = xfs_ilock_iocb(iocb, iolock);
+	/* 0.84.10: fallible at the first ride and at the space-reclaim retry
+	 * alike — a retry runs only after -EDQUOT / -ENOSPC, which the
+	 * buffered write returns only when it wrote nothing */
+	ret = xfs_ilock_iocb_write(iocb, iolock,
+				   cleared_space ? "retry" : "first");
 	if (ret)
 		return ret;
 
@@ -1103,7 +1426,7 @@ xfs_file_buffered_write_zoned(
 	if (ret < 0)
 		return ret;
 
-	ret = xfs_ilock_iocb(iocb, iolock);
+	ret = xfs_ilock_iocb_write(iocb, iolock, "first");
 	if (ret)
 		goto out_unreserve;
 
@@ -1139,7 +1462,8 @@ retry:
 	}
 
 out_unlock:
-	xfs_iunlock(ip, iolock);
+	if (iolock)
+		xfs_iunlock(ip, iolock);
 out_unreserve:
 	xfs_zoned_space_unreserve(ip->i_mount, &ac);
 	if (ret > 0) {
@@ -1171,6 +1495,7 @@ xfs_file_write_iter(
 	 * a stale bmap (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
 	if (mxfs_inode_incarn_estale(ip))
 		return -ESTALE;
+	mxfs_dbg_incarn_racewin(ip, "write_iter");
 
 	if (iocb->ki_flags & IOCB_ATOMIC) {
 		if (ocount < xfs_get_atomic_write_min(ip))
@@ -1464,7 +1789,28 @@ __xfs_file_fallocate(
 	long			error;
 	uint			iolock = XFS_IOLOCK_EXCL | XFS_MMAPLOCK_EXCL;
 
-	xfs_ilock(ip, iolock);
+	/*
+	 * 0.84.15 (D-0958): this take is fallocate's first cluster acquire (a
+	 * cluster EX under IOLOCK_EXCL; the MMAPLOCK component is local) and
+	 * nothing precedes it, so an acquire the master never acknowledged
+	 * fails the fallocate with -EIO holding nothing instead of waiting
+	 * without bound.  file_modified below then runs unregistered on the
+	 * grant this take established.
+	 */
+	if (ip->i_mount->m_mxfs_dlm) {
+		extern int mxfs_ilock_fallible(struct xfs_inode *, uint);
+
+		error = mxfs_ilock_fallible(ip, iolock);
+		if (error) {
+			pr_warn_ratelimited(
+			    "mxfs: P958-FALLOCATE-REFUSED ino=%llu fmode=0x%x rc=%ld comm=%s — fallocate refused: the cluster acquire was abandoned; failing it with nothing held instead of waiting on it\n",
+				(unsigned long long)ip->i_ino, mode, error,
+				current->comm);
+			return error;
+		}
+	} else {
+		xfs_ilock(ip, iolock);
+	}
 	error = xfs_break_layouts(inode, &iolock, BREAK_UNMAP);
 	if (error)
 		goto out_unlock;
@@ -1681,6 +2027,59 @@ out_unlock:
 	return remapped > 0 ? remapped : ret;
 }
 
+/*
+ * sess414 (D-512 verification knob): force-poison the nominated inode at its
+ * next open on this node, exactly as a protective reload would on a genuine
+ * cross-incarnation detection.  Lets the gate/revocation matrix be exercised
+ * deterministically: establish fds/mappings, arm the knob, re-open the file.
+ * Self-clears after firing.  0 = disarmed.
+ */
+static unsigned long long mxfs_dbg_incarn_poison_ino;
+module_param_named(dbg_incarn_poison_ino, mxfs_dbg_incarn_poison_ino,
+		   ullong, 0644);
+MODULE_PARM_DESC(dbg_incarn_poison_ino,
+	"DEBUG: poison this inode number as a dead incarnation at next open (self-clears)");
+
+/*
+ * D-512 race-injection legs (sess413 ruling verification matrix; sess415
+ * ruling says these are safe on the current build): a debug window that
+ * holds a gated data path OPEN between its poison gate check and the work
+ * it guards, so a test can publish the poison mid-window (a second
+ * process's open() fires dbg_incarn_poison_ino) and assert the sync model:
+ * the racing op either completes with pre-poison semantics or fails
+ * -ESTALE, the revocation worker drains it without deadlock, and nothing
+ * of the dead incarnation survives the revoke (racing WRITES die with the
+ * discard; a mid-window writepages loses its folios to the worker's
+ * truncate via folio locks).  Windows: write_iter / filemap_fault /
+ * vm_writepages (see mxfs_dbg_incarn_racewin call sites).
+ */
+unsigned long long mxfs_dbg_incarn_race_ino;
+module_param_named(dbg_incarn_race_ino, mxfs_dbg_incarn_race_ino,
+		   ullong, 0644);
+MODULE_PARM_DESC(dbg_incarn_race_ino,
+	"DEBUG: inode whose gated data paths hold a post-gate-check window of dbg_incarn_racewin_ms (race injection)");
+unsigned int mxfs_dbg_incarn_racewin_ms;
+module_param_named(dbg_incarn_racewin_ms, mxfs_dbg_incarn_racewin_ms,
+		   uint, 0644);
+MODULE_PARM_DESC(dbg_incarn_racewin_ms,
+	"DEBUG: width of the dbg_incarn_race_ino post-gate window in ms (0=off)");
+
+#include <linux/delay.h>	/* msleep, debug-only race window below */
+void
+mxfs_dbg_incarn_racewin(
+	struct xfs_inode	*ip,
+	const char		*site)
+{
+	unsigned int	ms = READ_ONCE(mxfs_dbg_incarn_racewin_ms);
+
+	if (likely(!ms) ||
+	    READ_ONCE(mxfs_dbg_incarn_race_ino) != ip->i_ino)
+		return;
+	pr_warn("mxfs: P-D512-RACEWIN ino=%llu site=%s ms=%u — holding post-gate race window\n",
+		(unsigned long long)ip->i_ino, site, ms);
+	msleep(ms);
+}
+
 STATIC int
 xfs_file_open(
 	struct inode	*inode,
@@ -1688,6 +2087,14 @@ xfs_file_open(
 {
 	if (xfs_is_shutdown(XFS_M(inode->i_sb)))
 		return -EIO;
+	if (unlikely(READ_ONCE(mxfs_dbg_incarn_poison_ino) != 0) &&
+	    XFS_M(inode->i_sb)->m_mxfs_dlm &&
+	    READ_ONCE(mxfs_dbg_incarn_poison_ino) == XFS_I(inode)->i_ino) {
+		WRITE_ONCE(mxfs_dbg_incarn_poison_ino, 0);
+		pr_warn("mxfs: P34H-DBG-POISON ino=%llu — debug-forced incarnation poison at open\n",
+			(unsigned long long)XFS_I(inode)->i_ino);
+		mxfs_incarn_poison(XFS_I(inode));
+	}
 	/* sess318: never hand out an fd on a poisoned dead incarnation; the
 	 * -ESTALE makes the VFS re-walk with LOOKUP_REVAL → fresh lookup →
 	 * the retire arm re-igets the live incarnation. */
@@ -1722,8 +2129,17 @@ xfs_file_open(
 		 * moment a peer can be about to run destructive
 		 * inactivation, since it must BAST us off the grant first.
 		 */
-		if (!mxfs_rc)
+		if (!mxfs_rc) {
+			/* 0.89.1 (D-0979): in flight first, then counted — a
+			 * reader that sees the count sees the in-flight mark
+			 * too, so this open is never mistaken for a usable
+			 * descriptor of the shell's CURRENT incarnation while
+			 * its protecting acquire (and the reload under it) is
+			 * still deciding which incarnation that is. */
+			atomic_inc(&XFS_I(inode)->i_mxfs_open_inflight);
+			smp_mb__after_atomic();
 			atomic_inc(&XFS_I(inode)->i_mxfs_open_n);
+		}
 		/*
 		 * sess41 (GPT audit C3): a dcache-served open can complete
 		 * with the inode at NL (grant idle-released/close-demoted) —
@@ -1733,13 +2149,18 @@ xfs_file_open(
 		 * increment above must precede this call.
 		 */
 		if (!mxfs_rc) {
-			int mxfs_prc = mxfs_dlm_open_protect(XFS_I(inode));
+			int mxfs_prc = mxfs_dlm_open_protect(XFS_I(inode),
+					!!(file->f_mode & FMODE_WRITE));
 
 			if (mxfs_prc) {
 				if (atomic_read(&XFS_I(inode)->i_mxfs_open_n) > 0)
 					atomic_dec(&XFS_I(inode)->i_mxfs_open_n);
-				return mxfs_prc;
 			}
+			/* usable (or refused) from here: no longer in flight */
+			smp_mb__before_atomic();
+			atomic_dec(&XFS_I(inode)->i_mxfs_open_inflight);
+			if (mxfs_prc)
+				return mxfs_prc;
 		}
 		return mxfs_rc;
 	}
@@ -1761,7 +2182,7 @@ xfs_dir_open(
 		return error;
 
 	/*
-	 * sess71 INSTR (RULE 4): Face A decisive probe.  xfs_lookup correctly
+	 * sess71 INSTR (instrumented): Face A decisive probe.  xfs_lookup correctly
 	 * repairs the reused inode to REG (P-EVICT-RESULT final_ftype=1) and
 	 * splices a REG dentry, yet `cat node1_after_1` still gets EISDIR.
 	 * That means cat's open binds the DIRECTORY file_operations — i.e. it
@@ -1939,9 +2360,19 @@ xfs_file_readdir(
 	 * ILOCK_SHARED; done before the readdir lock so the read is a clean
 	 * cache miss.
 	 */
+	/*
+	 * 0.84.4: readdir is an audited fallible site — nothing dirty, no
+	 * transaction, the VFS holds only this directory's i_rwsem.  The
+	 * refresh's own cluster acquire may be refused (the master never
+	 * acknowledged the request past the budget, or this task was killed),
+	 * and then the listing fails here with nothing held and the refresh
+	 * still pending for the next read.
+	 */
 	{
-		extern void mxfs_dlm_dir_consumer_refresh(struct xfs_inode *);
-		mxfs_dlm_dir_consumer_refresh(ip);
+		extern int mxfs_dlm_dir_consumer_refresh_fallible(struct xfs_inode *);
+		error = mxfs_dlm_dir_consumer_refresh_fallible(ip);
+		if (error)
+			return error;
 	}
 
 	/*
@@ -1977,7 +2408,7 @@ xfs_file_readdir(
 	}
 
 	/*
-	 * sess74 (ccloop 14d31183) SELF-DEADLOCK FIX (RULE 4, PROVEN by
+	 * sess74 (ccloop 14d31183) SELF-DEADLOCK FIX (instrumented, PROVEN by
 	 * P73-ILOCK-STUCK ino=131 want=EX rd_held=1: find holds ILOCK_SHARED from
 	 * here while xfs_readdir's xfs_ilock_data_map_shared wants ILOCK_EXCL):
 	 * the old code unconditionally held ILOCK_SHARED across xfs_readdir on the
@@ -1999,8 +2430,29 @@ xfs_file_readdir(
 	 * already fires the DLM hook; holding an outer lock here only blocks that
 	 * EXCL upgrade.  consumer_refresh() above already settled any peer reload.
 	 */
+	/*
+	 * sess466 (docs/dir-sharding.md): a sharded parent's listing is the
+	 * concatenation of its containers under the pin; the module takes the
+	 * parent ILOCK_SHARED itself and applies the same per-format lock rule
+	 * to each shard.  bufsize from the parent's (empty) size would be 0;
+	 * use the readdir default so the shard leaf code gets a real window.
+	 */
+	if (mxfs_is_dirshard_parent(ip))
+		return mxfs_dirshard_readdir(ip, ctx, XFS_READDIR_BUFSIZE);
+
 	if (ip->i_df.if_format == XFS_DINODE_FMT_LOCAL) {
-		xfs_ilock(ip, XFS_ILOCK_SHARED);
+		/* 0.84.4: the shortform listing's only cluster acquire, and
+		 * it may be refused like the others on this path. */
+		if (ip->i_mount->m_mxfs_dlm) {
+			extern int mxfs_ilock_fallible(struct xfs_inode *, uint);
+			extern int mxfs_readdir_refused(struct xfs_inode *,
+							const char *, int);
+			error = mxfs_ilock_fallible(ip, XFS_ILOCK_SHARED);
+			if (error)
+				return mxfs_readdir_refused(ip, "sf", error);
+		} else {
+			xfs_ilock(ip, XFS_ILOCK_SHARED);
+		}
 		error = xfs_readdir(NULL, ip, ctx, bufsize);
 		xfs_iunlock(ip, XFS_ILOCK_SHARED);
 	} else {
@@ -2110,11 +2562,23 @@ __xfs_write_fault(
 	struct xfs_inode	*ip = XFS_I(inode);
 	unsigned int		lock_mode = XFS_MMAPLOCK_SHARED;
 	vm_fault_t		ret;
+	int			error;
 
 	trace_xfs_write_fault(ip, order);
 
 	sb_start_pagefault(inode->i_sb);
-	file_update_time(vmf->vma->vm_file);
+	/*
+	 * 0.84.21 (D-0958): the timestamp update's ILOCK_EXCL is the first
+	 * request a write fault sends when its grant is gone; registered, so
+	 * a request the live master never receipts refuses the fault (SIGBUS)
+	 * instead of parking the task for ever under mmap_lock.
+	 */
+	error = mxfs_fault_update_time_fallible(vmf->vma->vm_file);
+	if (unlikely(error)) {
+		mxfs_fault_refused(ip, "timestamp", error);
+		sb_end_pagefault(inode->i_sb);
+		return VM_FAULT_SIGBUS;
+	}
 
 	/*
 	 * Normally we only need the shared mmaplock, but if a reflink remap is
@@ -2138,11 +2602,19 @@ __xfs_write_fault(
 		 * iomap_begin takes ILOCK_EXCL -> cluster EX).  EX because
 		 * that inner acquire needs EX.  MMAPLOCK above is the local
 		 * invalidate_lock only; it counts nothing at the DLM.
+		 * 0.84.21: the hold is a fallible boundary — no folio is
+		 * locked yet and nothing is dirty, so a refusal ends the hook
+		 * for a begin that installed nothing and answers SIGBUS.
 		 */
-		mxfs_dlm_ilock_begin(ip, MXFS_LOCK_EX);
-		ret = mxfs_iomap_page_mkwrite(vmf, &xfs_buffered_write_iomap_ops,
-				ac);
-		mxfs_dlm_ilock_end(ip, MXFS_LOCK_EX);
+		error = mxfs_dlm_ilock_begin_fallible(ip, MXFS_LOCK_EX);
+		if (unlikely(error)) {
+			mxfs_fault_refused(ip, "write-hold", error);
+			ret = VM_FAULT_SIGBUS;
+		} else {
+			ret = mxfs_iomap_page_mkwrite(vmf,
+					&xfs_buffered_write_iomap_ops, ac);
+			mxfs_dlm_ilock_end(ip, MXFS_LOCK_EX);
+		}
 	}
 	xfs_iunlock(ip, lock_mode);
 
@@ -2207,6 +2679,7 @@ xfs_filemap_fault(
 	 * (D-INCARN-STALE-SHELL-UNGATED-FILE-READS-512) */
 	if (mxfs_inode_incarn_estale(ip))
 		return VM_FAULT_SIGBUS;
+	mxfs_dbg_incarn_racewin(ip, "fault");
 
 	/* DAX can shortcut the normal fault path on write faults! */
 	if (IS_DAX(inode)) {
@@ -2242,7 +2715,23 @@ xfs_filemap_fault(
 	 * DLM-independent — so the drain's invalidate only ever waits a
 	 * bounded time on them.
 	 */
-	mxfs_dlm_ilock_begin(ip, MXFS_LOCK_PR);
+	/* 0.84.21 (D-0958): the hold is a fallible boundary — no folio is
+	 * locked yet; a refused acquire answers SIGBUS instead of parking the
+	 * task under mmap_lock for ever. */
+	{
+		int error = mxfs_dlm_ilock_begin_fallible(ip, MXFS_LOCK_PR);
+
+		if (unlikely(error)) {
+			mxfs_fault_refused(ip, "read-hold", error);
+			return VM_FAULT_SIGBUS;
+		}
+	}
+	/* 0.89.0 (D-0977): re-check under the hold — the acquire may have
+	 * poisoned the shell (platter names another incarnation). */
+	if (mxfs_inode_incarn_estale(ip)) {
+		mxfs_dlm_ilock_end(ip, MXFS_LOCK_PR);
+		return VM_FAULT_SIGBUS;
+	}
 	ret = filemap_fault(vmf);
 	mxfs_dlm_ilock_end(ip, MXFS_LOCK_PR);
 	return ret;

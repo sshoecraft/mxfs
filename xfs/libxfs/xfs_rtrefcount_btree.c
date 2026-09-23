@@ -496,7 +496,7 @@ xfs_rtrefcountbt_maxlevels_ondisk(void)
 int __init
 xfs_rtrefcountbt_init_cur_cache(void)
 {
-	xfs_rtrefcountbt_cur_cache = kmem_cache_create("mxfs_rtrefcountbt_cur",
+	xfs_rtrefcountbt_cur_cache = mxfs_cache_create("mxfs_rtrefcountbt_cur",
 			xfs_btree_cur_sizeof(
 					xfs_rtrefcountbt_maxlevels_ondisk()),
 			0, 0, NULL);

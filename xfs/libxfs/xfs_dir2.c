@@ -198,8 +198,10 @@ xfs_da_unmount(
 
 /*
  * Return 1 if directory contains only "." and "..".
+ * sess466: exported for the directory-sharding rmdir emptiness check
+ * (xfs_mxfs_dirshard.c mxfs_dirshard_isempty walks every container).
  */
-static bool
+bool
 xfs_dir_isempty(
 	xfs_inode_t	*dp)
 {
@@ -323,7 +325,7 @@ xfs_dir2_format(
 	if (eof == XFS_B_TO_FSB(mp, geo->blksize)) {
 		if (XFS_IS_CORRUPT(mp, dp->i_disk_size != geo->blksize)) {
 			/*
-			 * sess58 (ccloop 14d31183) P58-FMT-DISIZE-CORRUPT — RULE-4
+			 * sess58 (ccloop 14d31183) P58-FMT-DISIZE-CORRUPT — instrumented
 			 * proof probe at the EXACT shutdown site.  This is the
 			 * dominant clean-gate root (sess57): a MODIFY path
 			 * (xfs_create/remove/rename) reached here with an extent
@@ -433,7 +435,7 @@ xfs_dir_createname_args(
 	fmt = xfs_dir2_format(args, &error);
 
 	/*
-	 * sess59 RULE-4 ALWAYS-ON: format-agnostic create-time detector for the
+	 * sess59 instrumented ALWAYS-ON: format-agnostic create-time detector for the
 	 * cross_visibility lost-update.  P-SFADD (xfs_dir2_sf.c) only fires for
 	 * the FMT_SF path; the sess58 timeline showed the victim node's add was
 	 * ABSENT from P-SFADD entirely (the dirent for node1.txt never appeared),
@@ -455,7 +457,7 @@ xfs_dir_createname_args(
 			(unsigned long long)ktime_get_real_ns());
 
 	/*
-	 * sess58 (ccloop 14d31183) P58-STALE-BASE-ADD — RULE-4 ALWAYS-ON
+	 * sess58 (ccloop 14d31183) P58-STALE-BASE-ADD — instrumented ALWAYS-ON
 	 * detector for the durable dirent lost-update (the silent=11 residual
 	 * in zero_silent_loss: e.g. node14_dir1 created by test14 but durably
 	 * absent from the shared parent).  A block/leaf-format parent dir whose
@@ -724,7 +726,7 @@ xfs_dir_lookup(
 
 	lock_mode = xfs_ilock_data_map_shared(dp);
 	/*
-	 * sess115 PROVEN ROOT FIX (RULE 4, dmesg EFSCORRUPTED trace):
+	 * sess115 PROVEN ROOT FIX (instrumented, dmesg EFSCORRUPTED trace):
 	 * xfs_ilock_data_map_shared above recurses into the MXFS DLM acquire
 	 * hook, which can RELOAD dp from a peer-committed on-disk image
 	 * (mxfs_dlm_reload_inode).  If a peer FREED dp (rm/teardown) or REUSED
@@ -752,9 +754,28 @@ xfs_dir_lookup(
 		kfree(args);
 		return -ENOENT;
 	}
+#ifdef __KERNEL__
+	/*
+	 * 0.84.13 (D-0958): when the caller registered this directory as a
+	 * fallible boundary (mxfs_dir_lookup_fallible) and the cluster acquire
+	 * under the lock above was abandoned, the local lock is held with no
+	 * grant.  Reading a directory block here would cache an image that no
+	 * tenure vouches for; return before the read, and let the registering
+	 * caller turn the verdict into the lookup's error.
+	 */
+	if (dp->i_mount->m_mxfs_dlm) {
+		extern bool mxfs_acqfall_refused(u64 ino);
+
+		if (unlikely(mxfs_acqfall_refused(dp->i_ino))) {
+			xfs_iunlock(dp, lock_mode);
+			kfree(args);
+			return -EIO;
+		}
+	}
+#endif
 	/*
 	 * ccloop c7ee71c6 sess21 — P194: FRESHNESS ASSERTION AT THE OPERATION
-	 * BOUNDARY (RULE-5 GPT prescription, first of its runtime assertions:
+	 * BOUNDARY (design-consult GPT prescription, first of its runtime assertions:
 	 * "no mutation if valid_epoch != grant_epoch").
 	 *
 	 * MEASUREMENT ONLY — no behaviour change.
@@ -858,7 +879,7 @@ xfs_dir_lookup(
 
 				if (atomic_inc_return(&p195_n) <= 2000) {
 					/*
-					 * sess21 RULE-4: P195 asserts we are in
+					 * sess21 instrumented: P195 asserts we are in
 					 * ONE continuous EX tenure
 					 * (dirty_seq == ex_grant_seq) while the
 					 * epoch says a peer PUBLISHED.  Both
@@ -1190,7 +1211,7 @@ xfs_dir2_grow_inode(
 		mxfs_dir_delalloc_tripwire(dp, "dir2_grow_inode");
 
 	/*
-	 * ccloop sess39 P-GROW0 (RULE 4 DECISIVE, low-perturbation, NO disk I/O):
+	 * ccloop sess39 P-GROW0 (instrumented DECISIVE, low-perturbation, NO disk I/O):
 	 * log every allocation of dir DATA logical block 0.  The dir_reuse_coherency
 	 * durable loss is a DIVERGENT extent map — node1 writes blk0 to one daddr,
 	 * node2 to another, for the SAME dir incarnation (i_generation).  If BOTH
@@ -1335,6 +1356,17 @@ xfs_dir2_shrink_inode(
 		 * DABUF_MAP_HOLE).  Confirm this is where the in-core gap is born. */
 		if (S_ISDIR(VFS_I(dp)->i_mode))
 			mxfs_dir_delalloc_tripwire(dp, "shrink_inode_midblock");
+#ifdef __KERNEL__
+		/*
+		 * 0.75.63: this hole has a known, legitimate local origin.  The
+		 * node-format removename path (xfs_dir2_leafn_remove) frees every
+		 * emptied middle block and lands here for each; the flush-time
+		 * P-IFLUSH-GAP-DETECT must not report the resulting map as a
+		 * divergent-grow tear (the 2026-09-08 20:25:41Z test2 line on a
+		 * 2000-entry private directory under rm was exactly this).
+		 */
+		dp->i_mxfs_dir_hole_known = true;
+#endif
 		return 0;
 	}
 	bno = da;
@@ -1554,7 +1586,37 @@ xfs_dir_add_child(
 		struct xfs_perag	*pag;
 
 		pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, ip->i_ino));
+		/*
+		 * MXFS sess399 (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399):
+		 * this is the linkat(AT_EMPTY_PATH) of an O_TMPFILE.  Upstream
+		 * pulls the inode off the AGI unlinked list here with only the
+		 * AGI buffer lock; in the cluster that is an AGI modification
+		 * with NO AG-DLM tenure (measured: 150/350 P82-REM per node ran
+		 * with holders=0).  The logged AGI then sits in the AIL with no
+		 * release drain owed; a peer's tenure advances the platter; at
+		 * our next acquire the read hook preserves the in-AIL (stale)
+		 * copy, the RMW against freshly re-read btree leaves yields
+		 * agi_freecount +-1 vs inobt/finobt, and the release publishes
+		 * it (+1 on a full AG = every create -EFSCORRUPTED).
+		 *
+		 * Bracket exactly like xfs_iunlink: AG DLM before xfs_read_agi,
+		 * immediate unlock on error (nothing is dirty yet), deferred to
+		 * commit on success so the release drain publishes the AGI.
+		 * Lock edge is AG(inode) -> AG(dir) (createname below), the same
+		 * edge xfs_create takes (dialloc -> createname); xfs_remove takes
+		 * AG(dir) -> AG(inode) (removename -> droplink), a pre-existing
+		 * cross edge this change neither adds nor removes.
+		 */
+		error = mxfs_ag_dlm_lock(mp, pag);
+		if (error) {
+			xfs_perag_put(pag);
+			return error;
+		}
 		error = xfs_iunlink_remove(tp, pag, ip);
+		if (error)
+			mxfs_ag_dlm_unlock(mp, pag);
+		else
+			mxfs_ag_dlm_unlock_deferred(tp, pag);
 		xfs_perag_put(pag);
 		if (error)
 			return error;
@@ -1656,7 +1718,7 @@ xfs_dir_remove_child(
 		 * drop the link.
 		 */
 		/*
-		 * ccloop-4dd7 DEAD-CHILD GUARD (RULE-4 proven, ino 2097824
+		 * ccloop-4dd7 DEAD-CHILD GUARD (proven by instrument, ino 2097824
 		 * droplink -117 autopsy): under multi-node churn our cached dir
 		 * base can still list a dirent for a child a PEER has already
 		 * unlinked+freed — the child's reload adopted the freed state
@@ -2007,7 +2069,26 @@ xfs_dir_rename_children(
 		ASSERT(VFS_I(du_wip->ip)->i_nlink == 0);
 
 		pag = xfs_perag_get(mp, XFS_INO_TO_AGNO(mp, du_wip->ip->i_ino));
+		/*
+		 * MXFS sess399 (D-AGI-FREECOUNT-BTREE-DIVERGENCE-STALE-AGI-RMW-399):
+		 * the whiteout's unlinked-list removal is an AGI modification and
+		 * needs AG-DLM tenure, same as the O_TMPFILE linkat in
+		 * xfs_dir_add_child.  Lock before the AGI read; the transaction
+		 * is still clean here, so an error unlocks immediately; success
+		 * defers the unlock to commit so the release drain publishes it.
+		 */
+		error = mxfs_ag_dlm_lock(mp, pag);
+		if (error) {
+			xfs_perag_put(pag);
+			mxfs_dir_rename_fail(mp, "iunlink_remove_dlm", error,
+					     du_wip->ip);
+			return error;
+		}
 		error = xfs_iunlink_remove(tp, pag, du_wip->ip);
+		if (error)
+			mxfs_ag_dlm_unlock(mp, pag);
+		else
+			mxfs_ag_dlm_unlock_deferred(tp, pag);
 		xfs_perag_put(pag);
 		if (error) {
 			mxfs_dir_rename_fail(mp, "iunlink_remove", error, du_wip->ip);

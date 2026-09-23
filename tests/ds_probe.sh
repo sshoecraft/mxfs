@@ -1,6 +1,6 @@
 #!/bin/bash
 # ds_probe.sh — per-phase latency breakdown for the dlm_scaling create/stat/unlink
-# op, to locate where the ~22ms/op at 32 nodes goes (RULE 4 instrumentation).
+# op, to locate where the ~22ms/op at 32 nodes goes (instrumentation).
 #
 # Runs the SAME primitive as tests/suite/dlm_scaling.sh (`: > f; stat f; rm -f f`)
 # in a FRESH private subdir, but times each phase separately and reports averages.

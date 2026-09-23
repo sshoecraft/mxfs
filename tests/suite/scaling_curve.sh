@@ -8,7 +8,7 @@
 # per-node floor (no node starved / collapsed) AND the aggregate exceeds the
 # fastest single node (positive scaling: 2 independent writers must beat 1).
 #
-# RULE 0: budget derived — PAYLOAD at a conservative floor rate must finish well
+# budget: budget derived — PAYLOAD at a conservative floor rate must finish well
 # inside WINDOW; a node that can't is a scaling FAIL, not a widen.
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/lib.sh"

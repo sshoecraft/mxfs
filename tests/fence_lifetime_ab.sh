@@ -21,7 +21,12 @@ REPO="$(cd -- "$(dirname "$0")/.." && pwd)"
 SSH="$REPO/tools/mxfs_sshpass.sh"
 PROBE="$REPO/tests/pr_reservation_ownership_probe.sh"
 MNT=/mnt/shared
-DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$RESV"; DEV=$MXFS_DEV_RESOLVED
 fail=0
 say() { echo "[$(date -u +%H:%M:%SZ)] $*"; }
 chk() { if [ "$1" = 0 ]; then echo "   PASS: $2"; else echo "   FAIL: $2"; fail=$((fail+1)); fi; }

@@ -9,7 +9,7 @@
 # 'watch_ino=1' — the sess10 probe-scope sentinel; dir_reuse/fence arm the
 # real storm-dir ino per round themselves).
 #
-# RULE 0: healthy 4/tcp suite wall is ~11-13 min; the 1100s cap makes a hung
+# budget: healthy 4/tcp suite wall is ~11-13 min; the 1100s cap makes a hung
 # suite a FAIL, not a wait.
 set -u
 N="${1:?usage: suite_cycle_run.sh <N> <dlm> [logfile] [test ...]}"

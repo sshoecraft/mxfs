@@ -47,7 +47,7 @@
 # is confirmed to have landed mid-body ("MOUNT DROPPED" printed BEFORE the
 # run's completion line).
 #
-# Budget (RULE 0): baseline ~90s, degraded ~90s + 45s thaw/settle.
+# Budget (budget): baseline ~90s, degraded ~90s + 45s thaw/settle.
 #
 # usage: degraded_member_cascade.sh [N=8] [test=cache_coherency]
 set -u
@@ -57,6 +57,12 @@ MODE="${3:-fsdown}"          # fsdown | freeze
 SSH=tools/mxfs_sshpass.sh
 VIRSH="virsh -c qemu:///system"
 VICTIM="test$N"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 SCRATCH=$(mktemp -d)/criteria_scratch.json
 say() { echo "[$(date +%H:%M:%S)] $*"; }
 cleanup() {
@@ -72,7 +78,7 @@ cleanup() {
   $SSH "$VICTIM" "pkill -f 'mxfs-CCph rank=' 2>/dev/null; pkill -f 'PHASE=cv-write-done' 2>/dev/null; true" >/dev/null 2>&1
   sleep 2
   $SSH "$VICTIM" "mountpoint -q /mnt/shared" >/dev/null 2>&1 || \
-    $SSH "$VICTIM" "MXFS_DEV=/dev/mapper/mpatha MXFS_KO_MD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}') bash /src/mxfs/tests/setup/prep_node.sh caw" >/dev/null 2>&1
+    $SSH "$VICTIM" "MXFS_DEV=$DEV MXFS_KO_MD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}') bash /src/mxfs/tests/setup/prep_node.sh caw" >/dev/null 2>&1
 }
 trap cleanup EXIT INT TERM
 
@@ -125,7 +131,7 @@ if [ "$MODE" = freeze ]; then
   $VIRSH resume "$VICTIM" >/dev/null 2>&1 && say "$VICTIM resumed"
 else
   KOMD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}')
-  $SSH "$VICTIM" "MXFS_DEV=/dev/mapper/mpatha MXFS_KO_MD5='$KOMD5' bash /src/mxfs/tests/setup/prep_node.sh caw" >/dev/null 2>&1
+  $SSH "$VICTIM" "MXFS_DEV=$DEV MXFS_KO_MD5='$KOMD5' bash /src/mxfs/tests/setup/prep_node.sh caw" >/dev/null 2>&1
   say "$VICTIM remounted"
 fi
 say "degraded: $DST | $DME"

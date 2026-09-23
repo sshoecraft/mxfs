@@ -15,7 +15,7 @@
 #     P195-STALE-BASE-ALREADY-DIRTY ino=X grant_epoch=2 valid_epoch=0
 #         — this tenure ALREADY mutated an epoch-stale base
 #
-#   Established sess21 (RULE-5 GPT review): once local mutations exist on an
+#   Established sess21 (design-consult GPT review): once local mutations exist on an
 #   epoch-stale base, NEITHER keep-mine NOR adopt-disk is correct, and merging
 #   is unsafe across the shortform->block conversion.  So reaching this state at
 #   all is the defect; whether a given run notices depends on timing.
@@ -27,7 +27,7 @@
 #
 # Threshold: 0 occurrences.  This is EXPECTED TO FAIL until the freshness gate
 # is implemented at EX acquire (adopt, then set valid_epoch, then expose the
-# tenure to the operation).  That is deliberate: RULE 6 forbids carrying an
+# tenure to the operation).  That is deliberate: the zero-defect bar forbids carrying an
 # unresolved credible defect as a green cell.  Do NOT silence this probe, widen
 # the threshold, or delete the criterion to make the board green.
 #

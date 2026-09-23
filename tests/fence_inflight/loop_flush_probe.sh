@@ -26,7 +26,7 @@
 # Exit 0 if every probed device flushed within the budget, 1 otherwise.
 # Prints one line per device: "<dev> FLUSH_OK <ms>" or "<dev> FLUSH_HUNG".
 #
-# RULE 0 budget: a flush of a 1 MiB freshly-written file on NVMe is a few ms.
+# derived time budget: a flush of a 1 MiB freshly-written file on NVMe is a few ms.
 # The budget is 5 s — three orders of magnitude of headroom; anything slower
 # is the wedge, not slowness.
 set -u

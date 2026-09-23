@@ -8,7 +8,7 @@
 #   after-poke node1>0 AND node2>0  => DURABLE CLOBBER: stale base durably written
 #   after-poke node1>0 AND node2=0  => REREAD STALE: per-initiator read gap
 #
-# Assumes the 2-node cluster is already mounted (run.sh prep).  RULE 3: in-tree.
+# Assumes the 2-node cluster is already mounted (run.sh prep).  the source-tree rule: in-tree.
 set -u
 cd "$(dirname "$0")/.."
 NODES=(test1 test2)

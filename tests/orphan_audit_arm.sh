@@ -12,7 +12,7 @@
 #       verify  (recheck: bucketed zombie = legal residue, exit 0)
 #   The tear is probabilistic per death — retries up to MAX_TRIES.
 #
-# Budget (RULE 0): NEG ~40s (umount+chk+remount).  Per POS try: setup ~10s
+# Budget (budget): NEG ~40s (umount+chk+remount).  Per POS try: setup ~10s
 # + B kill ~3s + A kill ~3s + A boot/restore ~90s + 3x chk ~30s + B boot +
 # 2x prep ~120s  => ~5 min/try.  3 tries + NEG => cap 18 min.
 #
@@ -32,7 +32,12 @@ say() { echo "[$(date +%H:%M:%S)] $*"; }
 fail() { echo "RESULT: FAIL | case=orphan_audit | $*"; exit 1; }
 
 DEV=$($SSH "$NA" "mount -t mxfs | awk '{print \$1; exit}'" 2>/dev/null | tr -d ' \r\n')
-[ -z "$DEV" ] && DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+[ -n "${DEV:-}" ] || { mxfs_dev_resolve "$NA"; DEV=$MXFS_DEV_RESOLVED; }
 KOMD5=$(md5sum mxfs.ko 2>/dev/null | awk '{print $1}')
 
 boot_nomount() { # boot_nomount <node> — start VM, restore /src + iSCSI, NO mxfs

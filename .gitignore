@@ -16,19 +16,25 @@ modules.order
 /tools/resize_mxfs
 /tools/fua_verify
 /tools/caw_verify
+/tools/mxfs_admin
+/tools/handle_probe
+/tools/mxfs_mmapio
 
 # ---- Test-run captures (dmesg / timeline / stream dumps) ----
 tests/**/*.txt
 tests/**/*.log
 tests/**/*.log.*
 
-# ---- RULE 6 evidence is NOT a test-run capture: keep it. ----
-# tests/evidence/ is cited by tests/criteria/OPEN_DEFECTS.json and must
-# survive a clone. The rules above were silently excluding the readable
-# proofs (e.g. sess138-scst-bvec-uaf-live-proof.txt, 4KB) while admitting
-# hundreds of MB of raw dumps beside them — exactly backwards.
-!tests/evidence/**/*.txt
-!tests/evidence/**/*.log
+# ---- Rig evidence: kept on the rig host, never published. ----
+# tests/evidence/ is raw rig capture (dmesg, traces, disk images): 22 GB and
+# 107k files by 2026-09, past what a git host accepts in one push. Defect
+# records still cite paths under it; those files exist on the rig host only.
+tests/evidence/
+
+# ---- ccloop run state: session prompts, logs and resume files. ----
+# Local loop state, not project source; it holds full local paths and
+# verbatim session text.
+.ccloop/runs/
 
 # ---- Harness output directory: regenerable, and enormous. ----
 # tests/logs/ is where the harnesses WRITE (sf_mkdir_storm.sh,
@@ -74,6 +80,10 @@ state.md
 # ---- More compiled tool binaries (rebuilt from the .c beside them) ----
 /tools/caw_slotdump
 /tools/recov_forge
+
+# ---- Release packages (scripts/release.sh): built output, attached to the
+# ---- GitHub release, never tracked.
+/dist/
 
 # ---- Python bytecode ----
 __pycache__/

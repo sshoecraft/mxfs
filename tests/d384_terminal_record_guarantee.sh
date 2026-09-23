@@ -1,9 +1,9 @@
 #!/bin/bash
 # tests/d384_terminal_record_guarantee.sh — LOCAL (single-host) verification of
-# the RULE-0 terminal-record guarantee added in sess384 for
+# the terminal-record guarantee added in sess384 for
 # D-CRASH-CONSISTENCY-NO-TERMINAL-RECORD-CAPTURE-374.
 #
-# The defect: run.sh kills each node's ssh at the criterion's RULE-0 budget,
+# The defect: run.sh kills each node's ssh at the criterion's derived time budget,
 # but the node-side rendezvous cap (COORD_TIMEOUT=120s) was LARGER than that
 # budget for every criterion except dir_reuse_coherency.  A genuine stall was
 # therefore SIGKILLed before the barrier layer could print BARRIER_TIMEOUT, and
@@ -63,7 +63,7 @@ ck "the record is tagged src=watchdog"         grep -q 'src=watchdog' "$W/hang.o
 ck "the same record is spooled node-locally"   grep -q '^RESULT: BUDGET_EXHAUSTED' "$SPOOL"
 # The stalled workload is NOT killed by the watchdog (a D-state wait cannot take
 # a signal), so the ssh still burns the whole budget and the row still FAILs on
-# RULE 0.  What must be true is that the RECORD was produced before the kill and
+# the budget rule.  What must be true is that the RECORD was produced before the kill and
 # survived it — measured from the spool file's mtime, not from the total wall.
 spool_ms=$(( $(stat -c %Y "$SPOOL") * 1000 ))
 ck "the record was written BEFORE the kill box (spool mtime +$(( spool_ms - t0 ))ms < ${BUDGET}000ms)" \

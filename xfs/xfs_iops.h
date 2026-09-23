@@ -7,8 +7,17 @@
 #define __XFS_IOPS_H__
 
 struct xfs_inode;
+struct inode;
 
 extern ssize_t xfs_vn_listxattr(struct dentry *, char *data, size_t size);
+
+/*
+ * Persist a timestamp a lazytime mount deferred.  Installed as
+ * inode_operations->sync_lazytime from 6.19 on, and reached through
+ * super_operations->dirty_inode before that — the older kernels have no
+ * ->sync_lazytime member to put it in.
+ */
+void xfs_vn_sync_lazytime(struct inode *inode);
 
 int xfs_vn_setattr_size(struct mnt_idmap *idmap,
 		struct dentry *dentry, struct iattr *vap);

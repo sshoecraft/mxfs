@@ -5,7 +5,7 @@ Reads an arm directory produced by inflight_ab.sh and places every event on the
 single host monotonic timeline (ftrace runs with trace_clock=mono, so its
 timestamps ARE CLOCK_MONOTONIC and compare directly with prprobe's
 clock_gettime output).  Scores the three properties separately and applies the
-sess133 RULE-5 validity predicate.
+sess133 design-consult validity predicate.
 
 Usage: verdict.py <armdir> [--json]
 """

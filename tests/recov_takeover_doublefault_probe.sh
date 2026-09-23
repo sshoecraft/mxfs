@@ -41,7 +41,7 @@
 #      Wiring a takeover that then wedges elsewhere is not a fix.
 #   4. Zero P238-COMPLETE-UNFENCED — nothing was published uncertified.
 #
-# TIMING (RULE 0 — derived, not chosen)
+# TIMING (the budget rule — derived, not chosen)
 #   A declared dead   : DEAD_THRESHOLD(31) * HB_INTERVAL_MS(2000)   = 62s
 #   claim appears     : fence + certify + elect + acquire           ~  3s
 #   -> CLAIM_S 150 is that plus slack for a slow scan phase.
@@ -59,8 +59,7 @@ VICTIM="${1:-test32}"
 CLAIM_S="${2:-150}"
 OBSERVE_S="${3:-200}"
 NODES_N="${MXFS_NODES:-32}"
-IMG="${MXFS_BACKING_IMG:-/home/steve/disk.img}"
-
+IMG=$(tools/mxfs_host_image.sh) || { echo "$IMG"; exit 2; }
 cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 [ -r "$IMG" ] || { echo "probe: cannot read backing store $IMG" >&2; exit 2; }

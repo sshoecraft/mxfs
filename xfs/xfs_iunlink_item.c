@@ -39,7 +39,15 @@ xfs_iunlink_item_release(
 	 * site also holds), so no observer can see divergent in-core state
 	 * without an explanation.  On the cancel path the trans is dirty and
 	 * shutdown follows anyway. */
-	WRITE_ONCE(iup->ip->i_mxfs_nu_cert_valid, 0);
+	/* sess398: retire the certificate only if it still describes THIS
+	 * item.  An O_TMPFILE create stacks two items for one inode in one
+	 * transaction (create-path INSERT NULL->NULL, then xfs_iunlink's
+	 * NULL->head); the later item's cert supersedes the earlier one's and
+	 * must survive the earlier item's precommit release so the in-core
+	 * edge stays explained until the later item's own precommit. */
+	if (READ_ONCE(iup->ip->i_mxfs_nu_cert_old) == iup->old_agino &&
+	    READ_ONCE(iup->ip->i_mxfs_nu_cert_next) == iup->next_agino)
+		WRITE_ONCE(iup->ip->i_mxfs_nu_cert_valid, 0);
 
 	xfs_perag_put(iup->pag);
 	kmem_cache_free(xfs_iunlink_cache, IUL_ITEM(lip));
@@ -84,6 +92,76 @@ xfs_iunlink_log_dinode(
 
 	/* Make sure the old pointer isn't garbage. */
 	old_ptr = be32_to_cpu(dip->di_next_unlinked);
+	/*
+	 * mxfs sess402 NEGATIVE-MISMATCH ARM (TESTING ONLY; ledger
+	 * D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN closure item "negative-
+	 * mismatch test"): iunl_mismatch_inject=N perturbs the value the strict
+	 * non-INSERT compare below sees for the next N non-INSERT items on this
+	 * node.  The BUFFER is not modified — only the local comparand — so the
+	 * transition that follows (FOSSILFIX repair or -EFSCORRUPTED) acts on the
+	 * true on-buffer value.  The arm proves the INSERT-mode item did not
+	 * blind the strict check: every injection MUST produce a
+	 * P53-IUNLINK-MISMATCH line; silence is the failure.
+	 */
+	if (!iup->insert && tp->t_mountp->m_mxfs_dlm) {
+		extern int mxfs_iunl_mismatch_inject;
+		int inj = READ_ONCE(mxfs_iunl_mismatch_inject);
+
+		if (inj > 0 && old_ptr == iup->old_agino) {
+			xfs_agino_t fake = (old_ptr == NULLAGINO) ? 1 : old_ptr + 1;
+
+			if (fake == iup->next_agino)
+				fake++;
+			WRITE_ONCE(mxfs_iunl_mismatch_inject, inj - 1);
+			pr_warn("mxfs: P-IUNL-MISMATCH-INJECT ino=0x%llx old_ptr=0x%x fake=0x%x old_agino=0x%x next_agino=0x%x left=%d comm=%s — negative arm: the strict non-INSERT compare must now fire P53-IUNLINK-MISMATCH\n",
+				(unsigned long long)ip->i_ino, old_ptr, fake,
+				iup->old_agino, iup->next_agino, inj - 1,
+				current->comm);
+			old_ptr = fake;
+		}
+	}
+	if (iup->insert) {
+		/*
+		 * mxfs sess396 INSERT mode (design-consult ruling, see the header):
+		 * the insert path proved this inode is on no unlinked list, so
+		 * the buffer's current pointer carries no chain meaning.  A
+		 * non-NULL value here is a prior-life platter fossil that the
+		 * in-core reset (P-IUNL-FOSSIL-ENTRY) could not reach — the
+		 * 0.23.5 test25 kill: core reset to NULL, buffer still 0x9dc,
+		 * upstream's equality check below returned -EFSCORRUPTED from
+		 * a dirty rename transaction.  Overwrite it with the
+		 * transition's target and say so loudly (every hit is a fossil
+		 * that reached a buffer; the producer is the standing alarm).
+		 * If the buffer already reads the target there is nothing to
+		 * write: the common empty-bucket NULL->NULL case stays a
+		 * lock/brelse with no log traffic.
+		 */
+		if (iup->old_agino != NULLAGINO) {
+			pr_warn("mxfs: P-IUNL-PRECOMMIT-INSERT-BADOLD ino=0x%llx old_agino=0x%x next_agino=0x%x old_ptr=0x%x — INSERT item with a non-NULL captured old value; falling back to the strict check\n",
+				(unsigned long long)ip->i_ino, iup->old_agino,
+				iup->next_agino, old_ptr);
+		} else {
+			if (old_ptr == iup->next_agino) {
+				error = 0;
+				goto out;
+			}
+			if (old_ptr != NULLAGINO) {
+				static atomic_t pif_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&pif_n) <= 4000)
+					pr_warn("mxfs: P-IUNL-PRECOMMIT-INSERT-FOSSIL ino=0x%llx site=%s agino=0x%x old_ptr=0x%x next_agino=0x%x dip_nlink=%u dip_gen=%u incore_gen=%u comm=%s — insert-path buffer dinode carried a dead chain value; overwritten by the insert transition at sorted precommit\n",
+						(unsigned long long)ip->i_ino,
+						iup->insert == 2 ? "create" : "unlink",
+						XFS_INO_TO_AGINO(tp->t_mountp, ip->i_ino),
+						old_ptr, iup->next_agino,
+						be32_to_cpu(dip->di_nlink),
+						be32_to_cpu(dip->di_gen),
+						VFS_I(ip)->i_generation,
+						current->comm);
+			}
+			goto apply;
+		}
+	}
 	if (old_ptr != iup->old_agino) {
 		struct xfs_buf_log_item *mbli = ibp->b_log_item;
 
@@ -110,7 +188,7 @@ xfs_iunlink_log_dinode(
 		}
 
 		/*
-		 * sess53 (RULE 4, PROVEN tcp_dlm_scaling iunlink corruption fix):
+		 * sess53 (instrumented, PROVEN tcp_dlm_scaling iunlink corruption fix):
 		 * under rapid free->reuse->free churn on a SHARED dir's child inodes
 		 * a concurrent reuse path advances BOTH the on-buffer di_next_unlinked
 		 * AND the in-core i_next_unlinked cache to THIS item's next_agino
@@ -244,12 +322,13 @@ static const struct xfs_item_ops xfs_iunlink_item_ops = {
  * that we don't need a separate call to do this, nor does the
  * caller need to know anything about the iunlink item.
  */
-int
-xfs_iunlink_log_inode(
+static int
+__xfs_iunlink_log_inode(
 	struct xfs_trans	*tp,
 	struct xfs_inode	*ip,
 	struct xfs_perag	*pag,
-	xfs_agino_t		next_agino)
+	xfs_agino_t		next_agino,
+	unsigned int		insert)
 {
 	struct xfs_mount	*mp = tp->t_mountp;
 	struct xfs_iunlink_item	*iup;
@@ -261,11 +340,16 @@ xfs_iunlink_log_inode(
 	 * Since we're updating a linked list, we should never find that the
 	 * current pointer is the same as the new value, unless we're
 	 * terminating the list.
+	 *
+	 * mxfs sess396: an INSERT item is created even for NULL -> NULL (the
+	 * empty-bucket insert) so the cluster buffer's di_next_unlinked is
+	 * examined and, if it carries a fossil, cleared at sorted precommit.
 	 */
 	if (ip->i_next_unlinked == next_agino) {
 		if (next_agino != NULLAGINO)
 			return -EFSCORRUPTED;
-		return 0;
+		if (!insert)
+			return 0;
 	}
 
 	iup = kmem_cache_zalloc(xfs_iunlink_cache, GFP_KERNEL | __GFP_NOFAIL);
@@ -275,6 +359,7 @@ xfs_iunlink_log_inode(
 	iup->ip = ip;
 	iup->next_agino = next_agino;
 	iup->old_agino = ip->i_next_unlinked;
+	iup->insert = (uint8_t)insert;
 	iup->pag = xfs_perag_hold(pag);
 
 	/* mxfs sess203: publish the pending-transition certificate BEFORE the
@@ -283,7 +368,14 @@ xfs_iunlink_log_inode(
 	 * (the item-init-to-precommit window is a legitimate skew window, not
 	 * record abandonment — GPT ruling sess203).  The trailing barrier
 	 * orders valid=1 before the caller's in-core store. */
-	if (ip->i_mxfs_nu_cert_valid)
+	/* sess398: an O_TMPFILE create carries TWO items for the same inode in
+	 * ONE transaction — the create-path INSERT (NULL->NULL, site 2, from
+	 * xfs_inode_init) and xfs_iunlink's insert — so a valid {NULL->NULL}
+	 * certificate under a new INSERT item is that legitimate pair, not a
+	 * leaked transition: the later item's cert simply supersedes it. */
+	if (ip->i_mxfs_nu_cert_valid &&
+	    !(insert && ip->i_mxfs_nu_cert_old == NULLAGINO &&
+	      ip->i_mxfs_nu_cert_next == NULLAGINO))
 		pr_warn_ratelimited("mxfs: P-IUNL-CERT-STACKED ino=0x%llx prev={0x%x->0x%x} new={0x%x->0x%x}\n",
 			(unsigned long long)ip->i_ino,
 			ip->i_mxfs_nu_cert_old, ip->i_mxfs_nu_cert_next,
@@ -298,5 +390,33 @@ xfs_iunlink_log_inode(
 	tp->t_flags |= XFS_TRANS_DIRTY;
 	set_bit(XFS_LI_DIRTY, &iup->item.li_flags);
 	return 0;
+}
+
+int
+xfs_iunlink_log_inode(
+	struct xfs_trans	*tp,
+	struct xfs_inode	*ip,
+	struct xfs_perag	*pag,
+	xfs_agino_t		next_agino)
+{
+	return __xfs_iunlink_log_inode(tp, ip, pag, next_agino, 0);
+}
+
+/*
+ * mxfs sess396: INSERT-mode transition for xfs_iunlink_insert_inode ONLY (the
+ * path that proves non-membership).  The caller must already have reset a
+ * fossil in-core pointer to NULLAGINO (P-IUNL-FOSSIL-ENTRY), so old_agino is
+ * NULLAGINO by construction; the precommit then overwrites whatever the
+ * buffer carries instead of requiring equality.  See xfs_iunlink_item.h.
+ */
+int
+xfs_iunlink_log_inode_insert(
+	struct xfs_trans	*tp,
+	struct xfs_inode	*ip,
+	struct xfs_perag	*pag,
+	xfs_agino_t		next_agino,
+	unsigned int		site)
+{
+	return __xfs_iunlink_log_inode(tp, ip, pag, next_agino, site ? site : 1);
 }
 

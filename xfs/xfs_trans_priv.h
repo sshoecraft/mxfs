@@ -15,7 +15,7 @@ struct xfs_log_vec;
 
 
 /*
- * sess129 RULE-4 probe: set (latched) by the P128-AILSTUCK dump in
+ * sess129 instrumented probe: set (latched) by the P128-AILSTUCK dump in
  * xfs_ail_push_all_sync after ~30s of a non-advancing AIL.  While set,
  * xfs_inode_item_push and xfs_iflush_cluster emit ratelimited branch-
  * outcome logs so we can see WHY the head item never flushes.  Zero

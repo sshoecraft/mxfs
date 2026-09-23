@@ -1,5 +1,5 @@
 #!/bin/bash
-# RULE-4: capture the SHARED-DIR inode's clean cross-node P-LKT timeline at a
+# Instrumented: capture the SHARED-DIR inode's clean cross-node P-LKT timeline at a
 # tcp_dlm_scaling failure.  tcp_dlm_scaling.sh now pins lkt_ino to the dir inode
 # (both nodes) and dumps on the rank1 drain-fail while still mounted, so the ring
 # holds only the dir's cross-node grant/release events (no child flood).

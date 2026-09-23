@@ -475,7 +475,7 @@ xfs_bmbt_write_verify(
 		return;
 	}
 	/*
-	 * sess66 (ccloop 14d31183) RULE-4 write-side probe for zero_silent_loss.
+	 * sess66 (ccloop 14d31183) instrumented write-side probe for zero_silent_loss.
 	 * Every bmbt LEAF (level 0) write submit passes here regardless of the
 	 * submit path (xfs_iflush force, release drain, OR plain xfsaild/delwri
 	 * background writeback that bypasses the xfs_iflush ownership guards).
@@ -913,7 +913,7 @@ xfs_bmbt_calc_size(
 int __init
 xfs_bmbt_init_cur_cache(void)
 {
-	xfs_bmbt_cur_cache = kmem_cache_create("mxfs_bmbt_cur",
+	xfs_bmbt_cur_cache = mxfs_cache_create("mxfs_bmbt_cur",
 			xfs_btree_cur_sizeof(xfs_bmbt_maxlevels_ondisk()),
 			0, 0, NULL);
 

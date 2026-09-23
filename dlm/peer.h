@@ -19,6 +19,7 @@
 #include "../pal/pal.h"
 #include "../include/mxfs/mxfs_common.h"
 #include "../include/mxfs/mxfs_dlm.h"
+#include "static_peers.h"
 
 /* Connection state for a single peer */
 enum mxfs_conn_state {
@@ -56,6 +57,9 @@ struct mxfs_peer_ctx {
     int                 peer_count;
     mxfs_sock_t         *listen_sock;
     mxfs_thread_t       *accept_thread;
+    /* peers=: an inbound connection from an unlisted address is closed
+     * before its handshake is read.  count 0 = accept any address. */
+    struct mxfs_static_peers static_peers;
     mxfs_node_id_t      local_node_id;
     uint8_t             local_node_uuid[16];
     uint16_t            local_port;
@@ -101,6 +105,9 @@ void mxfs_peer_set_msg_cb(struct mxfs_peer_ctx *ctx,
                             mxfs_peer_msg_cb cb, void *data);
 void mxfs_peer_set_disconnect_cb(struct mxfs_peer_ctx *ctx,
                                    mxfs_peer_disconnect_cb cb, void *data);
+/* peers=: set before mxfs_peer_start; NULL or empty accepts any address */
+void mxfs_peer_set_static_peers(struct mxfs_peer_ctx *ctx,
+                                const struct mxfs_static_peers *peers);
 void mxfs_peer_set_connect_cb(struct mxfs_peer_ctx *ctx,
                                 mxfs_peer_connect_cb cb, void *data);
 

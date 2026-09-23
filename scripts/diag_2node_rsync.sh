@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_2node_rsync.sh — RULE 4 instrumentation for the scaling_curve /
+# diag_2node_rsync.sh — instrumentation for the scaling_curve /
 # rsync perf pathology (sess19): solo rsync on a 2-node cluster (peer
 # idle) runs ~127 s vs ~5 s truly-single-node.  Locks are cached until
 # BAST and an idle peer sends no BASTs, so some per-op path is forcing

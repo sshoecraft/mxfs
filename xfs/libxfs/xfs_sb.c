@@ -1411,6 +1411,13 @@ xfs_log_sb(
 	struct xfs_mount	*mp = tp->t_mountp;
 	struct xfs_buf		*bp = xfs_trans_getsb(tp);
 
+	/* sess475 (D-0133 seal probe): no SB log after the summary seal. */
+	if (unlikely(READ_ONCE(mp->m_mxfs_sb_sealed))) {
+		atomic_inc(&mp->m_mxfs_seal_syncsb);
+		pr_warn("mxfs: P-SB-SEAL-SYNCSB slot=%u comm=%s caller=%pS — xfs_log_sb after the SB summary seal\n",
+			mp->m_mxfs_node_slot, current->comm, (void *)_RET_IP_);
+	}
+
 	/*
 	 * Lazy sb counters don't update the in-core superblock so do that now.
 	 * If this is at unmount, the counters will be exactly correct, but at
@@ -1419,7 +1426,41 @@ xfs_log_sb(
 	 * unclean shutdown, this will be corrected by log recovery rebuilding
 	 * the counters from the AGF block counts.
 	 */
-	if (xfs_has_lazysbcount(mp)) {
+	/*
+	 * 0.75.34 (D-0536): a clustered runtime cover has already placed the
+	 * DURABLE counters, read uncached under the summary lock, in m_sb;
+	 * folding this node's private lazy counters over them is exactly the
+	 * write the lock exists to prevent.  The other clustered SB loggers
+	 * that run outside the summary section (quota on/off, growfs, the
+	 * runtime feature upgrades) are rare and cannot take the cluster lock
+	 * from inside their transaction; they log the durable counters read
+	 * coherent right here instead of this node's private view, and are
+	 * named so any such write stays countable.  Under the lock (the
+	 * quiesce cover) the recount has already seeded both m_sb and the
+	 * percpu counters, so the fold is a no-op there.
+	 */
+	if (xfs_has_lazysbcount(mp) && mp->m_mxfs_dlm &&
+	    mp->m_mxfs_dlm_was_active &&
+	    !READ_ONCE(mp->m_mxfs_sb_cover_durable) &&
+	    !READ_ONCE(mp->m_mxfs_sb_lock_held)) {
+		extern int mxfs_sb_read_counters_coherent(struct xfs_mount *,
+				uint64_t *, uint64_t *, uint64_t *);
+		uint64_t d_ic = 0, d_if = 0, d_fd = 0;
+		int derr = mxfs_sb_read_counters_coherent(mp, &d_ic, &d_if, &d_fd);
+
+		if (!derr) {
+			mp->m_sb.sb_icount = d_ic;
+			mp->m_sb.sb_ifree = d_if;
+			mp->m_sb.sb_fdblocks = d_fd;
+		}
+		pr_warn("mxfs: P-SB-LOG-UNLOCKED slot=%u derr=%d icount=%llu ifree=%llu fdblocks=%llu comm=%s caller=%pS — SB logged outside the summary section with the durable counters (never this node's private view)\n",
+			mp->m_mxfs_node_slot, derr,
+			(unsigned long long)mp->m_sb.sb_icount,
+			(unsigned long long)mp->m_sb.sb_ifree,
+			(unsigned long long)mp->m_sb.sb_fdblocks,
+			current->comm, (void *)_RET_IP_);
+	} else if (xfs_has_lazysbcount(mp) &&
+		   !READ_ONCE(mp->m_mxfs_sb_cover_durable)) {
 		mp->m_sb.sb_icount = percpu_counter_sum_positive(&mp->m_icount);
 		mp->m_sb.sb_ifree = min_t(uint64_t,
 				percpu_counter_sum_positive(&mp->m_ifree),

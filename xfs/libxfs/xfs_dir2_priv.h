@@ -188,7 +188,7 @@ void xfs_dir2_sf_put_ftype(struct xfs_mount *mp,
 /* xfs_dir2_readdir.c */
 extern int xfs_readdir(struct xfs_trans *tp, struct xfs_inode *dp,
 		       struct dir_context *ctx, size_t bufsize);
-/* sess10(a9a03929) RULE-4 dir-block content probes (xfs_dir2_readdir.c) */
+/* sess10(a9a03929) instrumented dir-block content probes (xfs_dir2_readdir.c) */
 extern int mxfs_dirblk_count_active(struct xfs_mount *mp, void *blk,
 				    uint32_t blen);
 extern int mxfs_dirblk_platter_active(struct xfs_mount *mp, xfs_daddr_t daddr);

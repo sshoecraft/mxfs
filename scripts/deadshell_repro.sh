@@ -35,7 +35,7 @@ ssh1() { "$SSH" "$N1" "$PASS" "$1" 2>/dev/null | grep -v "Permanently added\|aut
 ssh2() { "$SSH" "$N2" "$PASS" "$1" 2>/dev/null | grep -v "Permanently added\|authorized\|disconnect"; }
 
 # NOTE: ssh1/ssh2 pipe through grep, so the REMOTE exit status is swallowed
-# (ccmemory runsh-ssh-node-pipeline-swallows-remote-exit-status) — use
+# (docs/history/docs/history/runsh-ssh-node-pipeline-swallows-remote-exit-status.md) — use
 # output-based checks only.
 [ "$(ssh1 "mountpoint -q $MNT && echo MOUNTED")" = "MOUNTED" ] || { echo "DEADSHELL_INFRA_FAIL: $N1 not mounted"; exit 3; }
 [ "$(ssh2 "mountpoint -q $MNT && echo MOUNTED")" = "MOUNTED" ] || { echo "DEADSHELL_INFRA_FAIL: $N2 not mounted"; exit 3; }

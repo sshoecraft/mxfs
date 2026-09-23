@@ -20,7 +20,7 @@
 # suite (wire+mc+shard — the lock plane rides midcomms; a shard-only
 # ASan run would miss cross-layer frees).
 #
-# ── RULE-0 budget (written BEFORE first run; tighten after healthy PASS) ──
+# ── derived time budget (written BEFORE first run; tighten after healthy PASS) ──
 #   infra    = harness clean build ×2 (normal + ASan): measured ~10 s
 #   workload = shard group: 11 scenarios with multi-second settle
 #              sleeps ≈ 45 s/run × 4 seeds + ASan build + full-suite
@@ -28,9 +28,9 @@
 #              native == the harness itself  =>  ×~1.5 headroom
 #   SCEN_BUDGET_S (everything after first build) = 300
 #   (calibrated 2026-07-17: actual 199 s on clyde; provisional 620
-#   tightened toward it per RULE 0.)
+#   tightened toward it per the budget rule.)
 #   RULE0_CALIBRATE=1 => measure + report, do not enforce (budget-
-#   pinning run).  A timeout or overrun is a FAIL (RULE 0.3), never a
+#   pinning run).  A timeout or overrun is a FAIL (the budget rule.3), never a
 #   retry-with-bigger-timeout.
 #
 # Usage: gate4_shard.sh
@@ -102,7 +102,7 @@ echo "scenario_wall_s=$t_scen budget_s=$SCEN_BUDGET_S"
 if [ "$CAL" = "1" ]; then
     echo "gate4: CALIBRATION run — wall $t_scen s (pin the budget near this)"
 elif [ "$t_scen" -gt "$SCEN_BUDGET_S" ]; then
-    echo "gate4: RULE-0 overrun: $t_scen s > $SCEN_BUDGET_S s — FAIL"
+    echo "gate4: the budget rule overrun: $t_scen s > $SCEN_BUDGET_S s — FAIL"
     fail=1
 fi
 

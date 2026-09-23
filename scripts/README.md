@@ -12,7 +12,7 @@ harnesses, and dev-host orchestration.  Distinct from:
   chk_mxfs, resize_mxfs, fua_verify, caw_verify, mxfs_sshpass.sh,
   prep_*.sh)
 
-These scripts live in the source tree per `CLAUDE.md` RULE 3
+These scripts live in the source tree per `CLAUDE.md` the source-tree rule
 (persistent scripts must survive cluster reboots).  Earlier sessions
 kept them in `/tmp` and burned cycles re-creating them after
 reboots.
@@ -80,7 +80,7 @@ Relocated from `/tmp/mxfs_stress_4node.sh` in sess31.
   `~/src/mxfs.1/` if still load-bearing for that line)
 
 These should be audited and either relocated to `scripts/` or
-`bench/` per RULE 3 if still in use, or deleted if obsolete.
+`bench/` so it survives a reboot if still in use, or deleted if obsolete.
 Sess31 did not do this scrub because the bench was running and
 breaking these scripts mid-run would be disruptive; sess32 should
 do it before any reboot.

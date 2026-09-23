@@ -1,6 +1,6 @@
 #!/bin/bash
 # revalidate_cell.sh — run one (N, caw) criteria-matrix cell-group on the
-# CURRENT build with fresh prep, cleared dmesg rings, RULE-0-derived
+# CURRENT build with fresh prep, cleared dmesg rings, the budget rule-derived
 # budgets, and a post-run probe sweep.  Built for the 0.10.66 full-matrix
 # re-validation (ccloop daf50d34): every recorded PASS must come from THIS
 # build, ship config (no MXFS_EXTRA_MODARGS), MXFS_DEV=/dev/mapper/mpatha.
@@ -12,7 +12,7 @@
 #   g1   — 32-node coherency/perf group (12 tests)        [N=32]
 #   g2   — 32-node membership/destructive group (4 tests) [N=32]
 #
-# TEST_TIMEOUT (per-test budget, RULE 0):
+# TEST_TIMEOUT (per-test budget, the budget rule):
 #   N>=32 -> 600s  (cache_coherency@32 measured "alone >=480s")
 #   N=16  -> 480s  (cache_coherency/posix scale; 300s calibrated at <=8)
 #   else  -> run.sh default 300s
@@ -71,7 +71,7 @@ wait
 echo "--- rings cleared on test1..test$N ---"
 
 cd "$REPO"
-MXFS_DEV=/dev/mapper/mpatha TEST_TIMEOUT="$TT" \
+TEST_TIMEOUT="$TT" \
     timeout "$OUTER" ./run.sh "$N" caw $TESTS
 rc=$?
 echo "=== run.sh rc=$rc (124=outer-timeout=FAIL) ==="

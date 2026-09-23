@@ -10,7 +10,7 @@
 #            (entries not durable on LUN; fix = writer durability).
 #   PROBE-2: after the probe, test2 re-counts its OWN files (sanity: it always
 #            sees them).
-# Loops until a short count is seen or $ITERS exhausted.  RULE 3: lives in-tree.
+# Loops until a short count is seen or $ITERS exhausted.  the source-tree rule: lives in-tree.
 #
 # Usage: cc_dirvis_probe.sh [iters] [nfiles]
 set -u

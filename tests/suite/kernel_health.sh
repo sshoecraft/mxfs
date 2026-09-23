@@ -19,7 +19,7 @@
 #   boot window.
 #
 # Threshold: 0 hits.  A kernel BUG / lockup / atomic-sleep is never acceptable
-# in a filesystem that has to stay up (RULE 6 — no accepted known defects).
+# in a filesystem that has to stay up (the zero-defect bar — no accepted known defects).
 #
 # NOTE: a node wedged badly enough cannot run this script at all — it then
 # produces NO_TERMINAL_RECORD, which the runner already scores as a failure.

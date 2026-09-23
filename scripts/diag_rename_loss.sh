@@ -33,7 +33,7 @@ bash /src/mxfs/tests/reset4.sh 4 | tail -1
 echo "=== cross_visibility churn"
 timeout 200 /src/mxfs/tests/run_tests.sh --nodes 4 --phase cluster \
     --test test_cross_visibility --pass-file "$PASS" \
-    --device /dev/sda --mount-point "$MNT" > "$OUT/cv.log" 2>&1
+    --mount-point "$MNT" > "$OUT/cv.log" 2>&1
 echo "cv rc=$?"
 
 # Loop rename attempts until one fails (the loss is intermittent;
@@ -57,7 +57,7 @@ for A in $(seq 1 "$MAX_ATTEMPTS"); do
 
     timeout 200 /src/mxfs/tests/run_tests.sh --nodes 4 --phase cluster \
         --test test_rename_visibility --pass-file "$PASS" \
-        --device /dev/sda --mount-point "$MNT" > "$OUT/rv_a$A.log" 2>&1
+        --mount-point "$MNT" > "$OUT/rv_a$A.log" 2>&1
     rv_rc=$?
     wait "$WPID" 2>/dev/null
     echo "attempt $A: rv rc=$rv_rc ino=$(cat "$OUT/ino_a$A.log" 2>/dev/null)"

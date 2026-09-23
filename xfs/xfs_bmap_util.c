@@ -560,7 +560,7 @@ xfs_can_free_eofblocks(
 	 * that inactivation doesn't fail to erase them.
 	 */
 	/*
-	 * sess37 (RULE-4 stack capture, 32/caw dir_reuse): this peek reads
+	 * sess37 (instrumented stack capture, 32/caw dir_reuse): this peek reads
 	 * ONLY in-core state (i_delayed_blks + the loaded extent tree) — its
 	 * answer needs no cluster coherency.  Routing it through xfs_ilock
 	 * costs a full DLM wire acquire on an in-core-NL inode, and the

@@ -26,10 +26,19 @@
 # usage: hb_live_count.sh [node=test1] [dev=/dev/mapper/mpatha] [gap_s=5]
 set -u
 NODE="${1:-test1}"
-DEV="${2:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+DEV=${2:-}; [ -n "$DEV" ] || { mxfs_dev_resolve "$NODE"; DEV=$MXFS_DEV_RESOLVED; }
 GAP="${3:-5}"
 
 tools/mxfs_sshpass.sh "$NODE" "
+# the envelope header read below is buffered on purpose: the disklock offset
+# is fixed at mkfs and never rewritten while the device is open, so the page
+# cache cannot hold a stale value of it; the heartbeat records that DO change
+# are read with iflag=direct (0.89.4)
 DL=\$(python3 -c \"
 import struct,os
 f=os.open('$DEV',os.O_RDONLY)

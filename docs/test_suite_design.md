@@ -3,7 +3,7 @@
 **Status:** design spec (2026-06-14). No scripts yet — this is the blueprint the
 test/harness/config scripts are built against. **Success = every test passes**;
 there is no separate success-criteria doc (premature — not yet). Companion docs:
-`TIMEOUT_BUDGETS.md` (RULE-0 per-criterion budgets), `docs/test_infra_lio_tcm.md`
+`TIMEOUT_BUDGETS.md` (the budget rule per-criterion budgets), `docs/test_infra_lio_tcm.md`
 (one concrete config stack), `docs/benchmark.md` (MQTT coordination protocol).
 
 ## 1. Goal
@@ -192,7 +192,7 @@ Two run modes: **fail-fast** (stop at first FAIL — for iteration) and
 - Each writes its entry to a results JSON (cross-session source of truth).
 - **Success = every test passes in one end-to-end run.** (No separate success-criteria doc — premature.)
 
-## 8. Timing — first class (RULE 0)
+## 8. Timing — first class (budget)
 Every criterion carries a budget = infra (measured) + workload (native-XFS × 2),
 recorded in `TIMEOUT_BUDGETS.md`. The budget IS the timeout; exceeding it is a
 FAIL even with zero errors. Never widen a budget to make a run pass.

@@ -15,7 +15,7 @@
 # (dlm/dlm_caw.c:3126, 3187-3279).  Waiting for random filesystem churn to
 # re-bind one specific freed index is hopeless.  sess375 first concluded from
 # that the transition was unreachable and tried to substitute "both defenses
-# exercised separately"; the RULE-5 review refuted it — resource_hash_raw
+# exercised separately"; the design-consult review refuted it — resource_hash_raw
 # (dlm/dlm_shared.c:34) is seedless FNV-1a over the raw resource bytes, so the
 # home slot of any resource is COMPUTABLE OUTSIDE THE KERNEL, and a colliding
 # pair can simply be looked up.  tools/caw_slot_hash.py does that;
@@ -67,13 +67,19 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 DUMP=/src/mxfs/tools/caw_slotdump
 HASH="$REPO/tools/caw_slot_hash.py"
 PARSE="$REPO/tests/closure_foot_parse.py"
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 CAW_LIVE_MAGIC=0x4d584357
 
 N="${1:?usage: closure_reuse_directed.sh <N> <victim>}"
 VICTIM="${2:?usage: closure_reuse_directed.sh <N> <victim>}"
 AUDIT_HOST="${AUDIT_HOST:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$AUDIT_HOST"; DEV=$MXFS_DEV_RESOLVED
 RECOVERY_WAIT="${RECOVERY_WAIT:-200}"
 PAUSE_MS="${PAUSE_MS:-75000}"
 PAUSE_N="${PAUSE_N:-4}"
@@ -83,7 +89,7 @@ PAUSE_N="${PAUSE_N:-4}"
 # the scrub that step 6 depends on is itself parked for PAUSE_MS, which is
 # what sess375 misread as "the demand scrub never fired".  1 = scan only.
 PAUSE_WHO="${PAUSE_WHO:-1}"
-# ABA ARM (sess376 RULE-5 review, question 3).  The default arm proves the
+# ABA ARM (sess376 design-consult review, question 3).  The default arm proves the
 # hint->authoritative-read window: the re-read finds a DIFFERENT resource.  The
 # ABA arm proves the authoritative-read->CAS window with the HARDEST shape the
 # review named — the slot goes A -> tombstone -> A, so resource comparison
@@ -121,13 +127,17 @@ VSLOT=$("$SSH" "$VICTIM" "dmesg | grep -oE 'node_slot=[0-9]+' | tail -1" 2>/dev/
         tr -d '[:space:]' | cut -d= -f2)
 [ -n "${VSLOT:-}" ] || { echo "FAIL: could not resolve the victim's heartbeat slot"; exit 1; }
 
-CHK=$("$SSH" "$AUDIT_HOST" "/src/mxfs/tools/chk_mxfs -v $DEV 2>/dev/null" 2>/dev/null)
+# --geometry, not -v: the audit host may be mounted, and the full check is
+# refused there (0.89.6, O_EXCL); the offsets are mkfs-time constants
+CHK=$("$SSH" "$AUDIT_HOST" "/src/mxfs/tools/chk_mxfs --geometry $DEV 2>/dev/null" 2>/dev/null)
 XOFF=$(echo "$CHK" | grep -oE 'xfs_data_offset=[0-9]+' | head -1 | cut -d= -f2)
 DLOFF=$(echo "$CHK" | grep -oE 'disklock_offset=[0-9]+' | head -1 | cut -d= -f2)
 AGCOUNT=$(echo "$CHK" | grep -oE 'agcount=[0-9]+' | head -1 | cut -d= -f2)
 [ -n "${XOFF:-}" ] && [ -n "${DLOFF:-}" ] || { echo "FAIL: could not read the MXFS envelope offsets"; exit 1; }
 TABOFF=$(( DLOFF + 64 * 512 ))
-LOGS=$("$SSH" "$AUDIT_HOST" "dd if=$DEV bs=1 skip=$(( XOFF + 123 )) count=2 2>/dev/null | od -An -tu1" 2>/dev/null |
+# O_DIRECT (a buffered read on a node whose module holds the device open is
+# served from the device's page cache, 0.89.4): whole sector, then offset in od
+LOGS=$("$SSH" "$AUDIT_HOST" "dd if=$DEV bs=512 skip=$(( (XOFF + 123) / 512 )) count=1 iflag=direct 2>/dev/null | od -An -tu1 -j $(( (XOFF + 123) % 512 )) -N2" 2>/dev/null |
        grep -vE 'known hosts|Unauthorized|authorized user' | tr -s ' ' | sed 's/^ //')
 INOSHIFT=$(( $(echo "$LOGS" | awk '{print $1}') + $(echo "$LOGS" | awk '{print $2}') ))
 echo "victim slot=$VSLOT  slot_table_offset=$TABOFF  ino>>agno shift=$INOSHIFT  agcount=$AGCOUNT"

@@ -1,9 +1,0 @@
-{
-  "source": [
-    "dlm/v5_mount.c",
-    "dlm/disklock.c"
-  ],
-  "docs": [],
-  "regen_done": false,
-  "nudges": 0
-}

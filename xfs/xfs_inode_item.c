@@ -186,7 +186,8 @@ xfs_inode_item_precommit(
 		/* ccloop 72513a13 sess2: record the buffer's allocation gen so a
 		 * later push/drain can prove li_buf was recycled under us. */
 		iip->ili_mxfs_buf_gen = bp->b_mxfs_alloc_gen;
-		bp->b_iodone = xfs_buf_inode_iodone;
+		mxfs_buf_iodone_install(bp, xfs_buf_inode_iodone,
+					"inode_item_precommit");
 		list_add_tail(&iip->ili_item.li_bio_list, &bp->b_li_list);
 		xfs_trans_brelse(tp, bp);
 	}
@@ -703,7 +704,7 @@ xfs_inode_item_pin(
 	atomic_inc(&ip->i_pincount);
 
 	/*
-	 * sess58 (ccloop 8ddb16a2) RULE-4 DECISIVE PROBE.  A directory can only
+	 * sess58 (ccloop 8ddb16a2) instrumented DECISIVE PROBE.  A directory can only
 	 * be logged (and thus pinned) under DLM EX authority.  The tcp_dlm_scaling
 	 * resurrection is a committed dir change that strands at NL un-durable:
 	 * P57-PREUNLOCK-DIRTY=0 (clean at EX release) yet P119-NONEX in_ail=1 at
@@ -781,6 +782,63 @@ xfs_inode_item_unpin(
 	}
 }
 
+/*
+ * TEST ONLY (foreign-replay verification of released-tenure images): while
+ * this names an inode number, xfsaild never flushes that inode — its push
+ * answers LOCKED and the cluster flush skips it — so its log item stays in the
+ * AIL and pins this node's log tail.  Every record this node logs after it
+ * then stays inside the node's replay window when the node dies.  That is the
+ * only deterministic way to put a cleanly RELEASED tenure's image in front of
+ * a survivor's replay verdict: on a live node the release drain lands the
+ * image before the unlock and the destage kick empties the AIL within
+ * milliseconds, so the on-disk tail moves past every released image and the
+ * survivor's window holds nothing but the release markers (measured s593h:
+ * txn=0 buf=0 relmarks=2).  Never set on a node meant to survive — a pinned
+ * tail eventually exhausts the log.  0 = off.
+ */
+unsigned long mxfs_dbg_ail_pin_ino;
+module_param_named(dbg_ail_pin_ino, mxfs_dbg_ail_pin_ino, ulong, 0644);
+MODULE_PARM_DESC(dbg_ail_pin_ino,
+	"TEST ONLY: inode number whose log item xfsaild must never flush, so it pins this node's log tail (0=off)");
+static atomic_t mxfs_dbg_ail_pin_hits = ATOMIC_INIT(0);
+
+bool
+mxfs_dbg_ail_pinned(
+	struct xfs_inode	*ip)
+{
+	unsigned long		pin = READ_ONCE(mxfs_dbg_ail_pin_ino);
+	int			n;
+
+	if (likely(!pin) || ip->i_ino != pin)
+		return false;
+	n = atomic_inc_return(&mxfs_dbg_ail_pin_hits);
+	if (n <= 4 || (n & 1023) == 0)
+		pr_warn("mxfs: P-AILPIN-HOLD ino=%llu n=%d — dbg_ail_pin_ino keeps this inode item in the AIL (log tail pinned)\n",
+			(unsigned long long)ip->i_ino, n);
+	return true;
+}
+
+/*
+ * 0.84.18, test only (D-0963): hold xfsaild's write of one inode's cluster
+ * buffer for a while AFTER the in-core image has been copied into it.  The
+ * defect's platter lag -- xfsaild's write of the directory inode landing one
+ * removal behind the in-core fork, read back by the next removal's refresh
+ * as if it were a peer's image -- is a race between an asynchronous write and
+ * a coherent read that a quiet rig loses almost always; this makes the
+ * in-flight window as long as the harness needs.  The buffer stays locked
+ * for the pause, so nothing else can write that cluster meanwhile, which is
+ * exactly the in-flight state.  0 = off.
+ */
+unsigned long mxfs_dbg_iflush_pause_ino;
+module_param_named(dbg_iflush_pause_ino, mxfs_dbg_iflush_pause_ino, ulong, 0644);
+MODULE_PARM_DESC(dbg_iflush_pause_ino,
+	"TEST ONLY: inode number whose cluster write xfsaild holds for dbg_iflush_pause_ms after the copy-in (0=off)");
+unsigned int mxfs_dbg_iflush_pause_ms = 1500;
+module_param_named(dbg_iflush_pause_ms, mxfs_dbg_iflush_pause_ms, uint, 0644);
+MODULE_PARM_DESC(dbg_iflush_pause_ms,
+	"TEST ONLY: how long dbg_iflush_pause_ino holds the write, in ms (default 1500)");
+extern atomic_t mxfs_dbg_iflush_pause_n;	/* xfs_mxfs_dlm.c: fired count, write resets */
+
 STATIC uint
 xfs_inode_item_push(
 	struct xfs_log_item	*lip,
@@ -793,6 +851,9 @@ xfs_inode_item_push(
 	struct xfs_buf		*bp = lip->li_buf;
 	uint			rval = XFS_ITEM_SUCCESS;
 	int			error;
+
+	if (mxfs_dbg_ail_pinned(ip))
+		return XFS_ITEM_LOCKED;
 
 	if (!bp || (ip->i_flags & XFS_ISTALE)) {
 		/*
@@ -847,6 +908,19 @@ xfs_inode_item_push(
 			(unsigned long long)ip->i_ino, error, ip->i_flags,
 			iip->ili_fields);
 	if (!error) {
+		if (unlikely(READ_ONCE(mxfs_dbg_iflush_pause_ino)) &&
+		    ip->i_ino == READ_ONCE(mxfs_dbg_iflush_pause_ino) &&
+		    mxfs_dbg_iflush_pause_ms) {
+			int n = atomic_inc_return(&mxfs_dbg_iflush_pause_n);
+
+			pr_warn("mxfs: P963-IFLUSH-PAUSE ino=%llu ms=%u n=%d fmt=%d size=%lld — holding xfsaild's cluster write after the copy-in\n",
+				(unsigned long long)ip->i_ino,
+				mxfs_dbg_iflush_pause_ms, n,
+				ip->i_df.if_format, (long long)ip->i_disk_size);
+			msleep(mxfs_dbg_iflush_pause_ms);
+			pr_warn("mxfs: P963-IFLUSH-PAUSE-END ino=%llu n=%d\n",
+				(unsigned long long)ip->i_ino, n);
+		}
 		if (!xfs_buf_delwri_queue(bp, buffer_list))
 			rval = XFS_ITEM_FLUSHING;
 		xfs_buf_relse(bp);
@@ -1104,7 +1178,7 @@ xfs_iflush_finish(
 		 * PASSING run).  This is the correct discharge point; the drain's
 		 * eager assignment is removed in the same change.
 		 */
-		/* sess35 P241 (RULE 4, classifier round 2): this discharge is
+		/* sess35 P241 (instrumented, classifier round 2): this discharge is
 		 * buffer-wide and overlay-blind.  If the cluster-merge overlay
 		 * replaced this inode's staged image in the submitted buffer
 		 * (MXFS_IF_CLMERGE_HIT, armed with the P239 trace), advancing
@@ -1144,6 +1218,10 @@ xfs_iflush_finish(
 		smp_wmb();
 		iip->ili_inode->i_mxfs_pub_durable_seq =
 			iip->ili_inode->i_mxfs_pub_flush_seq;
+		/* sess431 (D-0351): the claimed free image (if any) is durable —
+		 * the claim's job is done; the discharge below closes the
+		 * obligation itself. */
+		mxfs_freepub_claim_clear(iip->ili_inode, "durable");
 		/* sess387: the write that just completed carried this inode's
 		 * unlink conversion (flag set at copy-in under the IFLUSHING
 		 * interlock) — the publication obligation is discharged. */
@@ -1185,10 +1263,19 @@ xfs_buf_inode_iodone(
 			xfs_iflush_abort(iip->ili_inode);
 			continue;
 		}
-		if (!iip->ili_last_fields)
+		if (!iip->ili_last_fields) {
+			/* sess431 (design-consult review of 0.39.6): nothing of this
+			 * inode was flushed into this buffer this round, so a
+			 * skip verdict still set on it belongs to an OLDER,
+			 * already-landed image (P235 sets it unconditionally on a
+			 * re-logged landed slot) and must not survive into the
+			 * next copy-in's completion.  The copy-in clears it too;
+			 * this keeps the completion self-contained. */
+			xfs_iflags_clear(iip->ili_inode, MXFS_IF_PUB_SKIPPED);
 			continue;
+		}
 		/*
-		 * ccloop c7ee71c6 sess20 (H4 ROOT FIX, RULE-5 GPT-reviewed):
+		 * ccloop c7ee71c6 sess20 (H4 ROOT FIX, design-consult GPT-reviewed):
 		 * mxfs's partial inode-cluster write drops the sectors of
 		 * inodes this node may not publish, but the BUFFER still
 		 * completes — and everything below this point is buffer-wide.
@@ -1221,6 +1308,9 @@ xfs_buf_inode_iodone(
 			 * P241 tripwire so it cannot fire on the NEXT (honest)
 			 * discharge. */
 			xfs_iflags_clear(sk_ip, MXFS_IF_CLMERGE_HIT);
+			/* sess431: a dropped slot never carried its claimed free
+			 * image to the platter; the re-flush mints a new claim. */
+			mxfs_freepub_claim_clear(sk_ip, "pub-skipped");
 			spin_lock(&iip->ili_lock);
 			iip->ili_fields |= iip->ili_last_fields;
 			iip->ili_last_fields = 0;
@@ -1268,7 +1358,7 @@ xfs_iflush_abort_clean(
 	struct xfs_inode_log_item *iip)
 {
 	/* sess387 (d): name every silent evaporation of a live publication
-	 * obligation's dirty conversion (RULE-5 ruling: the obligation must
+	 * obligation's dirty conversion (design-consult ruling: the obligation must
 	 * survive re-log/stale/abort/detach; the corpse chain begins where
 	 * the fields vanish without a flush). */
 	if ((iip->ili_fields || iip->ili_last_fields) &&
@@ -1313,6 +1403,14 @@ xfs_iflush_abort(
 	 * obligation itself (MXFS_IF_PUBOB + store entry) stays armed,
 	 * fail-closed. */
 	xfs_iflags_clear(ip, MXFS_IF_PUBOB_FLUSHED);
+	{
+		/* sess465 (D-0524): the aborted write's in-flight token is
+		 * consumed too; the entry itself is untouched. */
+		extern void mxfs_pubob_flush_abort(struct xfs_mount *,
+						   struct xfs_inode *);
+		mxfs_pubob_flush_abort(ip->i_mount, ip);
+	}
+	mxfs_freepub_claim_clear(ip, "abort");
 
 	if (!iip) {
 		/* clean inode, nothing to do */

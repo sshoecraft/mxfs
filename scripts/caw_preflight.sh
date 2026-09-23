@@ -1,4 +1,5 @@
 #!/bin/bash
+# device-adjudicated: checks the multipath map is present before a CAW run; the configuration is the subject
 # caw_preflight.sh — make test1..testN clean + ready for a CAW-multipath run.sh.
 #
 # Why: run.sh's prep power-cycles any node whose mxfs won't rmmod, but a

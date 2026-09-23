@@ -1,6 +1,6 @@
 #!/bin/bash
 # Time `run.sh N tcp dir_reuse_coherency` (the actual criterion cmd, NO reboot)
-# at a given MHT, to compare against the RULE-0 budget (60*N). sess2 ccloop.
+# at a given MHT, to compare against the derived time budget (60*N). sess2 ccloop.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd); cd "$REPO"
 N="${1:-8}"; MHT="${2:-1500}"

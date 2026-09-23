@@ -65,11 +65,21 @@ must:
 
 ### 2.2 SCSI Persistent Reservations (PR) — for fencing
 MXFS fences dead/partitioned nodes with SCSI-3 PR. The cluster uses
-**type 5 — WRITE EXCLUSIVE, REGISTRANTS ONLY**: every live initiator registers a
+**type 7 — WRITE EXCLUSIVE, ALL REGISTRANTS**: every live initiator registers a
 key; a write from an unregistered nexus returns **RESERVATION CONFLICT (0x18)**.
 The target must implement PR **per I-T nexus** (each initiator session is one
 registrant). Targets that ignore PR cannot fence, so a partitioned node can
 corrupt the FS.
+
+**This is enforced, not advised.** Before a node becomes a member, on either
+DLM transport, the mount issues PERSISTENT RESERVE IN / REPORT CAPABILITIES
+and verifies its own registration and the reservation type; a target that
+does not answer, does not offer type 7, does not persist registrations, or
+cannot receive PREEMPT AND ABORT refuses the clustered read-write mount with a
+`P303-FENCECAP-*` line naming the failed condition. A target with no PR at all
+never mounts clustered. The only way past the gate is the operator's explicit
+pair `fence_capability_override=1 single_node_exclusive=1`, which asserts that
+no second initiator can write the device; the override alone is refused.
 
 ### 2.3 Durable writes — no volatile target-side write cache
 MXFS's coherency protocol releases a lock only after the data is on stable

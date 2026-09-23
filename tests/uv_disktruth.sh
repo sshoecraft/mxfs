@@ -1,5 +1,5 @@
 #!/bin/bash
-# uv_disktruth.sh — decisive RULE-4 probe for the unlink_visibility blocker.
+# uv_disktruth.sh — decisive instrumented probe for the unlink_visibility blocker.
 #
 # Loops concurrent create+delete-own on a shared BLOCK-format dir until the
 # per-node views DIVERGE (an outlier sees survivors the deleters don't).  Then,
@@ -17,7 +17,7 @@
 #   outlier>0 AND poker(EX)>0        => DURABLE CLOBBER: a stale base was durably
 #                                      written into the coherent store.
 #
-# Lives in the source tree per RULE 3.  Assumes the 4-node cluster is mounted.
+# Lives in the source tree so it survives a reboot.  Assumes the 4-node cluster is mounted.
 set -u
 cd "$(dirname "$0")/.."
 NODES=(test1 test2 test3 test4)

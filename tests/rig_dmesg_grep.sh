@@ -68,7 +68,7 @@ fi
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SSHPASS="$HERE/../tools/mxfs_sshpass.sh"
 
-# Budget (RULE 0): a dmesg snapshot + grep is a sub-second operation.  ssh
+# Budget (budget): a dmesg snapshot + grep is a sub-second operation.  ssh
 # ConnectTimeout is 10s in the chokepoint, so 25s is connect + login + read
 # with margin.  Anything slower is a sick node, which is ERROR — a fact worth
 # reporting, not a reason to widen the timeout.

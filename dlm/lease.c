@@ -78,6 +78,17 @@ static void mxfs_lease_renew_fn(void *arg)
             msg.view_count = mxfs_cpu_to_le32(vc);
             msg.view_hash = mxfs_cpu_to_le64(vh);
         }
+        /* 0.89.68: say what this node IS.  A closed authority renews as
+         * WITHDRAWN so a peer keeps the entry (mastership) but reads no
+         * liveness from it; the incarnation lets the peer tell this mount
+         * from a previous one under the same node id. */
+        if (ctx->member_state_cb) {
+            uint64_t inc = 0;
+            uint16_t st = ctx->member_state_cb(ctx->member_state_cb_data, &inc);
+
+            msg.state = mxfs_cpu_to_le16(st);
+            msg.incarnation = mxfs_cpu_to_le64(inc);
+        }
 
         /* Update local node's lease timestamp */
         mxfs_pal_mutex_lock(ctx->lock);
@@ -89,10 +100,15 @@ static void mxfs_lease_renew_fn(void *arg)
         }
         mxfs_pal_mutex_unlock(ctx->lock);
 
-        /* Single UDP multicast send — replaces N TCP unicast sends */
+        /* Single UDP multicast send — replaces N TCP unicast sends;
+         * with peers= one unicast send per listed address */
         if (ctx->udp_sock) {
-            mxfs_pal_udp_sendto(ctx->udp_sock, &msg, sizeof(msg),
-                                ctx->send_addr, ctx->udp_port);
+            if (mxfs_static_peers_active(&ctx->peers))
+                mxfs_static_peers_sendto(&ctx->peers, ctx->udp_sock, &msg,
+                                         sizeof(msg), ctx->udp_port);
+            else
+                mxfs_pal_udp_sendto(ctx->udp_sock, &msg, sizeof(msg),
+                                    ctx->send_addr, ctx->udp_port);
         }
 
         /* Sleep for the remainder of the renewal interval.
@@ -159,6 +175,10 @@ static void mxfs_lease_udp_recv_fn(void *arg)
         if (ret < (int)MXFS_LEASE_UDP_MSG_V1_LEN)
             continue;
 
+        /* peers=: only the listed addresses are the cluster */
+        if (!mxfs_static_peers_admit(&ctx->peers, sender_host))
+            continue;
+
         /* Validate magic and version */
         if (mxfs_le32_to_cpu(pkt.magic) != MXFS_LEASE_UDP_MAGIC)
             continue;
@@ -173,19 +193,27 @@ static void mxfs_lease_udp_recv_fn(void *arg)
         if (memcmp(pkt.volume_uuid, ctx->volume_uuid, 16) != 0)
             continue;
 
-        /* Process the renewal */
-        mxfs_lease_process_renewal(ctx, pkt.node_id, 0);
+        /* Process the renewal.  0.89.68: the state word is in every
+         * packet (older senders wrote 0 there); the incarnation only in a
+         * full-length one. */
+        mxfs_lease_process_renewal(ctx, pkt.node_id, 0,
+                                   mxfs_le16_to_cpu(pkt.state),
+                                   ret >= (int)sizeof(pkt) ?
+                                       mxfs_le64_to_cpu(pkt.incarnation) : 0);
 
-        /* v0.11.78 (D7): forward the peer's view signature (if carried) */
-        if (ret >= (int)sizeof(pkt) && ctx->view_report_cb) {
-            uint64_t vh = mxfs_le64_to_cpu(pkt.view_hash);
-
-            if (vh)
-                ctx->view_report_cb(ctx->view_report_cb_data,
-                                    pkt.node_id,
-                                    mxfs_le32_to_cpu(pkt.view_count),
-                                    vh);
-        }
+        /* v0.11.78 (D7): forward the peer's view signature (if carried).
+         * 0.84.8 (D-...-0960, s592e): a ZERO signature is a report too —
+         * the peer has installed no multi-node view (it still counts
+         * itself alone), which for a joiner is the incumbent not yet
+         * admitting it.  Dropping it here left the settle gate with no
+         * evidence against the wall clock, so it opened after 20 s and
+         * the joiner's first acquires were deferred by the incumbent until
+         * their budgets were gone and the mount was refused. */
+        if (ret >= (int)MXFS_LEASE_UDP_MSG_VIEW_LEN && ctx->view_report_cb)
+            ctx->view_report_cb(ctx->view_report_cb_data,
+                                pkt.node_id,
+                                mxfs_le32_to_cpu(pkt.view_count),
+                                mxfs_le64_to_cpu(pkt.view_hash));
     }
 
     mxfs_pal_log(MXFS_LOG_DEBUG, "lease: UDP recv thread exiting");
@@ -316,7 +344,8 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
                                           const uint8_t *volume_uuid,
                                           const char *mcast_addr,
                                           uint16_t lease_port,
-                                          bool use_broadcast)
+                                          bool use_broadcast,
+                                          const struct mxfs_static_peers *peers)
 {
     struct mxfs_lease_ctx *ctx;
     struct mxfs_node_lease *nl;
@@ -345,6 +374,10 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
     /* UDP multicast/broadcast configuration */
     ctx->udp_port = lease_port > 0 ? lease_port : MXFS_LEASE_PORT;
     ctx->use_broadcast = use_broadcast;
+    if (mxfs_static_peers_active(peers)) {
+        ctx->peers = *peers;
+        ctx->use_broadcast = false;
+    }
 
     if (mcast_addr && mcast_addr[0] != '\0')
         snprintf(ctx->mcast_addr, sizeof(ctx->mcast_addr), "%s", mcast_addr);
@@ -395,7 +428,12 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
     /* Set receive timeout for clean shutdown */
     mxfs_pal_udp_set_recv_timeout(ctx->udp_sock, 500);
 
-    if (use_broadcast) {
+    if (mxfs_static_peers_active(&ctx->peers)) {
+        /* unicast only: no group membership, no broadcast */
+        mxfs_pal_log(MXFS_LOG_INFO,
+                     "lease: static peer list, %u address(es), port %u",
+                     ctx->peers.count, ctx->udp_port);
+    } else if (ctx->use_broadcast) {
         ret = mxfs_pal_udp_set_broadcast(ctx->udp_sock);
         if (ret < 0) {
             mxfs_pal_log(MXFS_LOG_ERR,
@@ -446,7 +484,8 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
                  (unsigned long long)ctx->default_duration_ms,
                  (unsigned long long)ctx->renew_interval_ms,
                  (unsigned long long)ctx->timeout_ms,
-                 use_broadcast ? "broadcast" : ctx->mcast_addr,
+                 mxfs_static_peers_active(&ctx->peers) ? "peers" :
+                 ctx->use_broadcast ? "broadcast" : ctx->mcast_addr,
                  ctx->udp_port);
 
     return ctx;
@@ -646,7 +685,8 @@ int mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx,
 }
 
 int mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
-                                mxfs_node_id_t node_id, mxfs_epoch_t epoch)
+                                mxfs_node_id_t node_id, mxfs_epoch_t epoch,
+                                uint16_t state, uint64_t incarnation)
 {
     struct mxfs_node_lease *nl;
 
@@ -666,6 +706,61 @@ int mxfs_lease_process_renewal(struct mxfs_lease_ctx *ctx,
             "(may be joining or was recently removed)\n", node_id);
         return -ENOENT;
     }
+
+    /*
+     * 0.89.68: the entry belongs to ONE incarnation.  The first renewal
+     * that names one binds it; a later renewal naming another is a
+     * different mount of the same node id — a reboot the peer has not yet
+     * recovered — and stamping liveness for it would keep the old
+     * incarnation's entry ACTIVE while its slice is dirty.  Not liveness.
+     */
+    if (incarnation) {
+        if (!nl->incarnation) {
+            nl->incarnation = incarnation;
+            mxfs_pal_log(MXFS_LOG_INFO,
+                         "lease: P-LEASE-INCARNATION node %u renews as "
+                         "incarnation %llu (state=%u)",
+                         node_id, (unsigned long long)incarnation, state);
+        } else if (nl->incarnation != incarnation) {
+            uint64_t held = nl->incarnation;
+
+            mxfs_pal_mutex_unlock(ctx->lock);
+            pr_warn_ratelimited(
+                "mxfs: lease: P-LEASE-INCARNATION-MISMATCH node %u renews "
+                "as incarnation %llu but the entry holds %llu — not "
+                "liveness; the held incarnation must be recovered first\n",
+                node_id, (unsigned long long)incarnation,
+                (unsigned long long)held);
+            return -ESTALE;
+        }
+    }
+
+    /*
+     * 0.89.68: a WITHDRAWN renewal is the sender saying "my authority is
+     * closed; I am renewing only so mastership stays with me until my
+     * slice is replayed".  The entry is kept for exactly that, and nothing
+     * else is taken from the packet: the liveness clock is not stamped, so
+     * the monitor ages the entry to SUSPECT and DEAD on its own schedule
+     * if no other detector recovers the node first, and a SUSPECT entry is
+     * never promoted back to ACTIVE by a corpse.
+     */
+    if (state == MXFS_LEASE_STATE_WITHDRAWN) {
+        if (nl->sender_state != MXFS_LEASE_STATE_WITHDRAWN)
+            mxfs_pal_log(MXFS_LOG_INFO,
+                         "lease: P-LEASE-WITHDRAWN-RENEWAL node %u renews "
+                         "withdrawn (entry %s, incarnation %llu): kept for "
+                         "mastership retention, no liveness stamped, no "
+                         "promotion",
+                         node_id,
+                         nl->state == MXFS_NODE_ACTIVE ? "ACTIVE" :
+                         nl->state == MXFS_NODE_SUSPECT ? "SUSPECT" :
+                         nl->state == MXFS_NODE_JOINING ? "JOINING" : "other",
+                         (unsigned long long)nl->incarnation);
+        nl->sender_state = state;
+        mxfs_pal_mutex_unlock(ctx->lock);
+        return 0;
+    }
+    nl->sender_state = state;
 
     nl->last_renewal = mxfs_pal_time_ms();
     nl->epoch = epoch;
@@ -780,4 +875,14 @@ void mxfs_lease_set_view_report_cb(struct mxfs_lease_ctx *ctx,
         return;
     ctx->view_report_cb = cb;
     ctx->view_report_cb_data = data;
+}
+
+void mxfs_lease_set_member_state_provider(struct mxfs_lease_ctx *ctx,
+                                          uint16_t (*cb)(void *data, uint64_t *incarnation),
+                                          void *data)
+{
+    if (!ctx)
+        return;
+    ctx->member_state_cb = cb;
+    ctx->member_state_cb_data = data;
 }

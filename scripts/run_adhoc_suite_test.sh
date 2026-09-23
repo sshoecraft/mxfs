@@ -1,7 +1,7 @@
 #!/bin/bash
 # run_adhoc_suite_test.sh — launch a tests/suite/ script on the CURRENTLY
 # PREPPED cluster with the same env contract run.sh uses, WITHOUT touching
-# criteria.json/manifest.  For RULE-4 diagnostic tests that must not become
+# criteria.json/manifest.  For instrumented diagnostic tests that must not become
 # matrix rows (adding a manifest row retroactively un-greens every completed
 # board by growing its row count).
 #
@@ -22,7 +22,12 @@ RUN_ID="adhoc$(date -u +%H%M%S)"
 PREFIX="mxfs/coord/${RUN_ID}/${NAME}"
 CT="${COORD_TIMEOUT:-120}"
 MNT="${MXFS_MNT:-/mnt/shared}"
-DEV="${MXFS_DEV:-/dev/sda}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/../tests/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 SCRIPT="/src/mxfs/tests/suite/${NAME}.sh"
 [ -f "$REPO/tests/suite/${NAME}.sh" ] || { echo "no such test: $NAME"; exit 2; }
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # tests/openunlink_matrix.sh — cross-node open-unlink functional matrix.
 # Ledger: D-CROSSNODE-OPEN-UNLINK-DATA-LOSS + D-AGI-UNLINKED-CROSSNODE-RECOVERY-SHUTDOWN.
-# Design: GPT audit sess41 (memory ccloop-c7ee71c6-sess41-gpt-openunlink-audit-ruling),
+# Design: GPT audit sess41 (memory docs/rulings/gpt-openunlink-audit-ruling.md),
 # 9-group matrix.  This script covers the live-cluster groups:
 #   basic        — A holds fd, B rm; data intact; close -> reap frees (P89)
 #   reopen_nl    — C3 regression: open/read/close (grant demoted to NL), dcache
@@ -17,7 +17,7 @@
 # Crash-point groups (opener death, unlinker death, recovery-EX-failure,
 # TCP master failover) are separate arms — see the ledger entry.
 #
-# RULE 0 note: reap convergence is paced by MXFS_REAP_FIRST_MS=5s /
+# the budget rule note: reap convergence is paced by MXFS_REAP_FIRST_MS=5s /
 # MXFS_REAP_RETRY_MS=30s design cadence, not by I/O speed; per-case budgets
 # below are cadence + margin, not perf assertions.  Whole matrix ~<420s.
 #

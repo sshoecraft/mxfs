@@ -118,11 +118,30 @@ start_daemon() {
 # The mask is therefore rig state, owned by setup, not something a session
 # leaves behind.  Turn tracing on deliberately for the duration of an
 # investigation and turn it off; a rig rebuild always returns it to default.
+#
+# The RIG default is the build default MINUS mgmt_dbg (sess398).  Measured twice
+# on 2026-08-22 (kmsg-guard halts 16:53:42Z and 18:58:36Z, evidence in
+# .evidence/guard_20260822_{165342,185836}_106480): a 32-node re-login +
+# PR re-register burst (every tests/d385 arm re-prep, every prep_cluster after
+# a fenced node) emits ~4,400 kernel lines in ~30 s at up to 224 lines/s —
+# "Queuing new UA (6:2a:3)", "Setting pending UA", task_mgmt_fn_done, session
+# negotiation, "Clearing UA", thread start/finish — every one a
+# TRACE_MGMT_DEBUG print.  That trips the guard's FLOOD trip (60/s x 2 windows)
+# deterministically, and the guard's number must not be widened (the host-guard rule).
+# Per-line debug of UA/task-management is investigation tracing, not rig
+# state: turn it on deliberately (`echo 'add mgmt_dbg' | sudo tee <file>`) for
+# the duration of an investigation and off again; the gate in
+# scripts/clyde_preflight.sh refuses to start a run while it is on.
 reset_trace() {
-    local tl="$SCST_ROOT/trace_level"
+    local tl="$SCST_ROOT/trace_level" f
     [ -f "$tl" ] || return 0
     echo default | $SUDO tee "$tl" >/dev/null 2>&1
-    say "SCST trace mask reset to build default: $($SUDO head -1 "$tl" 2>/dev/null)"
+    for f in "$tl" "$SCST_ROOT"/handlers/*/trace_level \
+             "$SCST_ROOT"/targets/*/trace_level; do
+        [ -f "$f" ] || continue
+        echo 'del mgmt_dbg' | $SUDO tee "$f" >/dev/null 2>&1
+    done
+    say "SCST trace mask reset to rig default (build default - mgmt_dbg): $($SUDO head -1 "$tl" 2>/dev/null)"
 }
 
 setup() {
@@ -230,5 +249,6 @@ case "${1:-}" in
     setup)    setup ;;
     status)   status ;;
     teardown) teardown ;;
+    reset-trace) need_root; reset_trace ;;
     *) echo "usage: $0 {setup|status|teardown}" >&2; exit 2 ;;
 esac

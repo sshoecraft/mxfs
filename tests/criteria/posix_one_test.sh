@@ -2,7 +2,7 @@
 # posix_one_test.sh — diagnostic: mount a fresh N-node cluster (exactly
 # like posix_semantics.sh), clear dmesg on every node, run ONE named
 # test via run_tests.sh --test, then dump per-node dmesg tail.  For
-# fast RULE-4 iteration on a single failing cluster test (e.g.
+# fast instrumented iteration on a single failing cluster test (e.g.
 # test_dir_stress) without paying for the whole --phase all run.
 #
 # Usage: POSIX_TEST=test_dir_stress bash tests/criteria/posix_one_test.sh --nodes 16

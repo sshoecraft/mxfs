@@ -26,7 +26,7 @@
 #   fresh prep -> AGING BATCH -> same two                        => FAIL (3 hits)
 # Never judge this fix from a fresh-prep run; that shape passes in both arms.
 #
-# RULE 0.  Every timeout below is budget + measured harness overhead, never a
+# the budget rule.  Every timeout below is budget + measured harness overhead, never a
 # round number and never the tool cap.  Budgets come from tests/suite/manifest
 # (dir_reuse_coherency uses run.sh's own 140*N caw formula); OVERHEAD=30 is the
 # measured run.sh wrapper cost at 2 nodes (79s wall for a 63s test, 25s for a

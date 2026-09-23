@@ -12,7 +12,7 @@
 #   for h in $NODES; do tools/mxfs_sshpass.sh $h /tmp/.mxfs_pass \
 #     "echo 1 > /sys/module/mxfs/parameters/force_coherent"; done
 #
-# Persistent script (per RULE 3 / feedback_scripts_in_tree).
+# Persistent script (so it survives a reboot / feedback_scripts_in_tree).
 
 set -u
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)

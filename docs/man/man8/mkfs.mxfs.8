@@ -8,6 +8,9 @@ mkfs.mxfs \- format a block device for MXFS (Multinode XFS)
 .SH SYNOPSIS
 .B mkfs.mxfs
 .RB [ \-f ]
+.RB [ \-c
+.IR name ]
+.RB [ \-D ]
 .RB [ \-v ]
 .RB [ \-V ]
 .I device
@@ -62,6 +65,25 @@ disklock regions.  The remaining space is available for XFS data.
 .TP
 .BR \-f
 Force formatting.  Skip the interactive confirmation prompt.
+.TP
+.BI \-c " name"
+Record the cluster this filesystem belongs to.  Every mount must then pass
+.BI \-o " cluster=" name
+(see
+.BR mxfs (5)).
+Change or clear it later, offline, with
+.BR mxfs_admin (8).
+.TP
+.BR \-D
+Experimental: make directory sharding available on this filesystem.
+Sets the XFS superblock incompatible-feature bit 29 and the matching
+MXFS superblock flag.  Without it neither is set and no directory on the
+filesystem can ever be sharded.  Creating a sharded directory also
+requires the
+.B mxfs
+module parameter
+.BR dirshard_mkdir_enable=1 .
+Off by default; not for production data.
 .TP
 .BR \-v
 Verbose output.  Display detailed information about each formatting

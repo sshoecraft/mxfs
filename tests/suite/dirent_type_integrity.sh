@@ -36,7 +36,7 @@
 #                                          than publishing the mismatch
 #
 #   EXPECTED TO FAIL until the dirent side is rooted.  That is deliberate:
-#   RULE 6 forbids carrying an unresolved credible defect as a green cell.  Do
+#   the zero-defect bar forbids carrying an unresolved credible defect as a green cell.  Do
 #   NOT silence the probe, widen the threshold, or delete the criterion to make
 #   the board green.
 #

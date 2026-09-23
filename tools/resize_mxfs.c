@@ -772,10 +772,32 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    /* Open device for reading first (validation phase) */
-    fd = open(device, O_RDWR);
+    /*
+     * Open device for reading first (validation phase).
+     *
+     * 0.89.6 (ledger D-A-TEST-HARNESS-CAN-REPORT-A-VERDICT-ABOUT-MXFS,
+     * buffered-reader class): the geometry every later decision is made
+     * from is read here, so this descriptor is direct too — a buffered read
+     * on a node where another opener holds the device returns the page
+     * cache's first image, not the platter (measured s67e), and a resize
+     * planned from that image would be applied to a different filesystem.
+     * On a block device there is no fallback, and O_EXCL refuses a device
+     * this node has mounted.  A regular-file image (the unit-test target
+     * class) may be opened buffered when the file's filesystem has no
+     * direct I/O, and says so.
+     */
+    fd = open(device, O_RDWR | O_DIRECT | (is_blkdev ? O_EXCL : 0));
+    if (fd < 0 && !is_blkdev && (errno == EINVAL || errno == EOPNOTSUPP)) {
+        pr_info("resize_mxfs: %s: no direct I/O on this file's filesystem; "
+                "reading the image buffered\n", device);
+        fd = open(device, O_RDWR);
+    }
     if (fd < 0) {
-        pr_err("resize_mxfs: %s: %s\n", device, strerror(errno));
+        if (errno == EBUSY)
+            pr_err("resize_mxfs: %s: device is busy (mounted on this node?)\n",
+                   device);
+        else
+            pr_err("resize_mxfs: %s: %s\n", device, strerror(errno));
         return 1;
     }
 
@@ -1013,14 +1035,20 @@ int main(int argc, char *argv[])
 
     close(fd);
 
-    fd = open(device, O_RDWR | O_DIRECT | O_SYNC);
-    if (fd < 0) {
+    /* the same policy as the validation open: direct on a block device
+     * with no fallback, buffered only for a regular-file image whose
+     * filesystem has no direct I/O */
+    fd = open(device, O_RDWR | O_DIRECT | O_SYNC | (is_blkdev ? O_EXCL : 0));
+    if (fd < 0 && !is_blkdev && (errno == EINVAL || errno == EOPNOTSUPP)) {
+        pr_info("resize_mxfs: %s: no direct I/O on this file's filesystem; "
+                "writing the image buffered\n", device);
         fd = open(device, O_RDWR | O_SYNC);
-        if (fd < 0) {
-            pr_err("resize_mxfs: cannot reopen %s for writing: %s\n",
-                   device, strerror(errno));
-            return 1;
-        }
+    }
+    if (fd < 0) {
+        pr_err("resize_mxfs: cannot reopen %s for writing%s: %s\n",
+               device, is_blkdev ? " direct (O_DIRECT|O_SYNC)" : "",
+               strerror(errno));
+        return 1;
     }
 
     /* ─── Step 7: Update XFS superblock fields for new geometry ─── */

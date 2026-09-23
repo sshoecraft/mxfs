@@ -933,7 +933,7 @@ xmi_next(
 int __init
 xfs_exchmaps_intent_init_cache(void)
 {
-	xfs_exchmaps_intent_cache = kmem_cache_create("mxfs_exchmaps_intent",
+	xfs_exchmaps_intent_cache = mxfs_cache_create("mxfs_exchmaps_intent",
 			sizeof(struct xfs_exchmaps_intent),
 			0, 0, NULL);
 

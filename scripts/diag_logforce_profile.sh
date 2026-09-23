@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_logforce_profile.sh — RULE 4 step 2 for the scaling_curve
+# diag_logforce_profile.sh — instrument step 2 for the scaling_curve
 # multi-node penalty.  Hypothesis (from diag_par_rsync.sh stack
 # samples): the extra ~2 s per node in any >=2-node parallel rsync is
 # synchronous per-op durability work on the multi-node path —

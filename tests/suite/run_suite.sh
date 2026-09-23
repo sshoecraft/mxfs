@@ -57,4 +57,4 @@ while read -r ph test coord minn _rest; do
         printf "  SKIPPED  %-22s (coordinated; runner TBD)\n" "$test"
     fi
 done < "$MANIFEST"
-echo "=== done — see ./showstat.sh ==="
+echo "=== done — see tools/criteria.py ==="

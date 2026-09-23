@@ -21,7 +21,7 @@
 # WHAT IT ASSERTS
 #   1. SINGLE PROVER.  Exactly ONE survivor logs P236-FENCE-INTENT for the
 #      victim's slot, and exactly ONE logs P236-FENCEKIND.  This is the direct
-#      evidence for the sess93 RULE-5 ruling Q1: "one durable intent, one
+#      evidence for the sess93 design-consult ruling Q1: "one durable intent, one
 #      issuing prover, one command result, one possible certificate."  Before
 #      0.11.422 all 31 survivors issued a PREEMPT AND ABORT, 30 of them losing
 #      the race — and a loser that removes the key first makes the intent
@@ -37,7 +37,7 @@
 #      is correct but blocks every recovery is not a fix.
 #   5. NO UNGATED WORK.  Zero P238-COMPLETE-UNFENCED anywhere.
 #
-# TIMING (RULE 0 — derived, not chosen)
+# TIMING (the budget rule — derived, not chosen)
 #   declare dead : DEAD_THRESHOLD(31) * HB_INTERVAL_MS(2000)      = 62s
 #   fence        : intent CAS + READ KEYS + P&A + verify + certify
 #                  (5 SCSI round trips + 2 CAW writes)            ~  5s

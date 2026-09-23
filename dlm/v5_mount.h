@@ -23,6 +23,7 @@
 #include "../pal/pal.h"
 #include "../include/mxfs/mxfs_common.h"
 #include "../include/mxfs/mxfs_dlm.h"
+#include "static_peers.h"
 
 /* ─── DLM transport selection ─── */
 
@@ -39,11 +40,37 @@ struct mxfs_forcerel_attest;
 
 /* ─── Init options ─── */
 
+struct mxfs_authority;
+
 struct mxfs_v5_dlm_opts {
+    /*
+     * This incarnation's authority object, allocated by the mount BEFORE the
+     * DLM exists so the gate has an answer from the first instant a clustered
+     * mutation is possible, and outliving the DLM because the work it governs
+     * does.  NULL means the caller has no mount to own one and the DLM makes
+     * its own.
+     */
+    struct mxfs_authority *authority;
     int             transport;          /* MXFS_V5_TRANSPORT_* */
     uint16_t        dlm_port;           /* TCP port (default 7600) */
     uint16_t        discovery_port;     /* UDP port (default 7601) */
+    /*
+     * Mount option peers=: the cluster's addresses.  NULL or empty = find
+     * peers by multicast.  Owned by the mount and read only during init
+     * (each consumer copies it).
+     */
+    const struct mxfs_static_peers *peers;
     uint64_t        journal_offset;     /* from MXFS on-disk super */
+    uint64_t        rman_offset;        /* sess404: recovery manifest region (0 = none) */
+    uint64_t        rman_size;
+    uint64_t        tauth_offset;       /* sess421: TCP authority ledger region (0 = none) */
+    uint64_t        tauth_size;
+    uint64_t        prkey_offset;       /* sess438: PR registrant ledger region (0 = none) */
+    uint64_t        prkey_size;
+    uint64_t        bootstrap_offset;   /* sess439: bootstrap record region (0 = none) */
+    uint64_t        bootstrap_size;
+    uint64_t        slife_offset;       /* 0.88.0: slice lifecycle region (0 = none) */
+    uint64_t        slife_size;
     uint64_t        disklock_offset;    /* from MXFS on-disk super */
     uint32_t        max_nodes;          /* from MXFS on-disk super */
     void            *bdev;              /* struct block_device * (kernel) */
@@ -86,9 +113,18 @@ struct mxfs_v5_dlm_opts {
      */
     bool            single_node_exclusive;
     /*
+     * 0.74.0: the LIVE value of the same assertion — a pointer into the
+     * platform layer's parameter so the fence gate can honour an operator
+     * who sets single_node_exclusive=1 on a survivor whose peer's recovery is
+     * RECOVERY_BLOCKED, at the next re-drive, without a remount.  Only the
+     * fence gate reads it; every mount-time decision keeps the snapshot.
+     * NULL = no live source.
+     */
+    const unsigned int *single_node_exclusive_live;
+    /*
      * sess378: when the admission-time fencing-capability check
      * (mxfs_scsipr_validate_admission) fails, the default is to REFUSE the
-     * mount.  The sess93 RULE-5 ruling requires that a rig which cannot
+     * mount.  The sess93 design-consult ruling requires that a rig which cannot
      * produce fencing evidence be EXPLICITLY single-node, read-only or given
      * another fencing provider — never silently given weaker production
      * semantics.  This knob is that explicit operator statement; it makes the
@@ -132,16 +168,59 @@ void mxfs_v5_dlm_shutdown(struct mxfs_v5_dlm *ctx);
  * and recover the slice, then destroys the disklock and closes the dev
  * clone whose ownership travelled with it.  commit is a no-op on an
  * unfilled struct, so it is safe to call unconditionally.
+ *
+ * sess433 (D-379(B)): commit returns true iff the slot was DURABLY
+ * released (unmount_clean and the release write completed).  The caller
+ * may retire its SCSI PR key only in that case; on a dirty or failed
+ * departure the key stays registered as the fence target peers PREEMPT
+ * AND ABORT (a same-nexus successor cannot self-fence — sess432 ruling).
  */
 struct mxfs_disklock_ctx;
 struct mxfs_v5_dlm_slot_release {
     struct mxfs_disklock_ctx *disklock; /* heartbeat stopped; slot ACTIVE */
     mxfs_bdev_t              *dev;      /* dev clone the disklock borrows */
+    bool                      self_retire_ok; /* sess452: admitted under
+                                         * single_node_exclusive or
+                                         * fence_capability_override — may
+                                         * complete its own retirement */
 };
 void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
                                         struct mxfs_v5_dlm_slot_release *late);
-void mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late,
+bool mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late,
                                      bool unmount_clean);
+/*
+ * sess449 (D-0356 / D-377 two-phase departure): commit no longer destroys
+ * the disklock.  After the late PR unregister, call
+ *   mxfs_v5_dlm_slot_restamp_unretired(&late)  iff the key could not be
+ *     proven retired — CASes our RELEASED record back to WITHDRAWN (with the
+ *     key) so peers fence it; 0 ok, -ESTALE slot no longer ours, -ENOENT
+ *     nothing deferred;
+ *   mxfs_v5_dlm_slot_release_finish(&late)     ALWAYS, last — destroys the
+ *     disklock and closes the dev clone (no-op on an unfilled struct).
+ */
+int  mxfs_v5_dlm_slot_restamp_unretired(struct mxfs_v5_dlm_slot_release *late);
+/* sess450: the release stamp is RETIRE_PENDING (see disklock.h).  A
+ * departure that had NO PR key to retire completes it itself — CAS to
+ * EMPTY.  A departure whose key WAS unregistered leaves it to the peers'
+ * READ KEYS (a de-registered initiator cannot write the LUN). */
+int  mxfs_v5_dlm_slot_retire_complete(struct mxfs_v5_dlm_slot_release *late);
+void mxfs_v5_dlm_slot_release_finish(struct mxfs_v5_dlm_slot_release *late);
+/*
+ * sess451 (design-consult merge criterion 4, "serialize against any old
+ * shutdown/re-registration worker"): one host-wide lock that a departing
+ * unmount holds across its late phase (slot release → PR unregister →
+ * re-stamp/complete → finish) and a CAW mount holds from its PR REGISTER
+ * through the P305 same-boot settlement.  Same boot ⇒ same derived key, so
+ * an old unmount's late unregister racing a new mount's register on the
+ * same nexus could remove the NEW mount's registration, and the new mount's
+ * settlement could publish EMPTY while the old incarnation's late phase
+ * still owns the record.  Created at module init; the lock helpers are
+ * no-ops when it does not exist (user-mode tools).
+ */
+int  mxfs_v5_dlm_global_init(void);
+void mxfs_v5_dlm_global_exit(void);
+void mxfs_v5_dlm_departure_lock(void);
+void mxfs_v5_dlm_departure_unlock(void);
 
 /*
  * v0.11.74: detach the SCSI PR registration from the ctx before
@@ -150,7 +229,14 @@ void mxfs_v5_dlm_slot_release_commit(struct mxfs_v5_dlm_slot_release *late,
  * AFTER the unmount log record is on disk — unregistering inside
  * shutdown fenced the node's own final log write on WE-RO targets.
  */
-uint64_t mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx);
+/*
+ * sess454 (0.61.0, D8): *quarantined is set when the retire settle worker
+ * or the PR probe thread could not be joined within its bound (parked in a
+ * SCSI command).  The context is then leaked deliberately (module pinned)
+ * and the caller MUST treat the departure as DIRTY: no slot release, key
+ * retained as the fence target.
+ */
+uint64_t mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx, bool *quarantined);
 
 /*
  * sess9 (ccloop a864): owning FS force-shut-down (still mounted) — leave the
@@ -159,6 +245,15 @@ uint64_t mxfs_v5_dlm_detach_pr_key(struct mxfs_v5_dlm *ctx);
  * (<=5s thread join); process context only.  Idempotent.
  */
 void mxfs_v5_dlm_shutdown_withdraw(struct mxfs_v5_dlm *ctx);
+/*
+ * sess418 (D-TCP-WEDGE-PIN-NOOP-REPORTS-SUCCESS-0286): the NON-SLEEPING
+ * half of withdrawal — poison the session's departure state (terminal)
+ * and publish withdrawn, with full barriers, before any cleanup can run.
+ * Safe from xfs_do_force_shutdown context.  Idempotent; returns true on
+ * the call that did the poisoning.  `why` is a short label for the log.
+ */
+bool mxfs_v5_dlm_poison(struct mxfs_v5_dlm *ctx, const char *why);
+bool mxfs_v5_dlm_is_poisoned(struct mxfs_v5_dlm *ctx);
 /* sess9 (ccloop c7ee71c6) D2: called by the elected replayer after the
  * dead node's slice is durably replayed — shared purges + zeroing the
  * dead HB slot (the cluster-wide "replay done" signal). */
@@ -205,8 +300,38 @@ int  mxfs_v5_dlm_recovery_complete(struct mxfs_v5_dlm *ctx,
  * sleeps MXFS_RECOV_ABANDON_MS.
  */
 int  mxfs_v5_dlm_recovery_acquire(struct mxfs_v5_dlm *ctx, uint32_t dead_slot);
+/*
+ * The same acquire under a caller's remaining budget (ms; 0 = unbounded, the
+ * worker-context form above).  An arm that must pay the MXFS_RECOV_ABANDON_MS
+ * observation before it can take a descriptor over is NOT STARTED when that
+ * interval plus its bounded continuation would not fit: a takeover that
+ * cannot complete inside the budget is refused up front instead of running
+ * the mount past its own bound (D-0980).
+ */
+int  mxfs_v5_dlm_recovery_acquire_bounded(struct mxfs_v5_dlm *ctx,
+                                          uint32_t dead_slot,
+                                          uint32_t budget_ms);
+/* sess420: the typed completion — see struct mxfs_recov_complete_res.
+ * mxfs_v5_dlm_recovery_complete() is now a wrapper returning res.rc. */
+struct mxfs_recov_complete_res;
+int  mxfs_v5_dlm_recovery_complete2(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
+                                    struct mxfs_recov_complete_res *res);
+/* sess420 (ruling 5): the durable stage of the descriptor THIS node holds the
+ * execution lease on.  0 with *stage filled when the descriptor is ours (same
+ * recovery identity as our auth); -ENOENT when we hold no lease or the
+ * descriptor is not ours; -errno on a read failure.  Lets the replayer skip a
+ * redundant slice replay once IMAGES_REPLAYED is on the platter. */
+int  mxfs_v5_dlm_recovery_stage(struct mxfs_v5_dlm *ctx, uint32_t dead_slot,
+                                unsigned int *stage);
 /* Drop our cached lease tuple for a slot (the platter stays authoritative). */
 void mxfs_v5_dlm_recovery_release(struct mxfs_v5_dlm *ctx, uint32_t dead_slot);
+/*
+ * Give a held execution lease back DURABLY (owner -> none on the platter,
+ * stage and certificate preserved) and drop it locally — the state a prover
+ * leaves when it sealed a fence, claimed the lease and then failed its mount
+ * before replaying.  Returns the disklock relinquish rc (0 given back).
+ */
+int  mxfs_v5_dlm_recovery_relinquish(struct mxfs_v5_dlm *ctx, uint32_t dead_slot);
 
 /*
  * ── sess93: RECOVERY_BLOCKED_FENCE — the observable state ─────────────────
@@ -219,7 +344,7 @@ void mxfs_v5_dlm_recovery_release(struct mxfs_v5_dlm *ctx, uint32_t dead_slot);
  *
  * MEASURED (tests/excl_lapse_probe.sh, 0.11.424): a slice whose exclusion had
  * lapsed retried every ~30 s indefinitely with the whole story visible only in
- * dmesg.  GPT (RULE-5 ruling sess93, Q2): "Add an explicit durable and
+ * dmesg.  GPT (design-consult ruling sess93, Q2): "Add an explicit durable and
  * observable state, not merely repeated log lines... Mount status should
  * clearly say that the filesystem is blocked on unproven exclusion, rather
  * than appearing hung."
@@ -245,9 +370,95 @@ void mxfs_v5_dlm_recovery_release(struct mxfs_v5_dlm *ctx, uint32_t dead_slot);
 #define MXFS_RBLK_SN_LAPSED         10 /* kind-17: a peer appeared, or the operator
                                         * single_node_exclusive assertion was withdrawn,
                                         * while the recovery ran (sess188) */
+#define MXFS_RBLK_SNAPSHOT_PENDING  12 /* sess405: exclusion PROVED (SNAPSHOTTING)
+                                        * but the fence-time manifest is not
+                                        * sealed yet; re-driven automatically */
 #define MXFS_RBLK_NO_LOG_SLICE      11 /* victim slot >= log slice count: it has no
                                         * slice of its own, so any slice this path
                                         * could name belongs to a DIFFERENT slot */
+/* sess420 (D-RECOV-ADVANCE-UNBOUNDED-RETRY): the completion ladder's
+ * classified, TERMINATING outcomes.  Each names a recovery identity
+ * (recovery_gen + owner_term) in the record; a new identity clears it. */
+#define MXFS_RBLK_COMPLETE_INVARIANT 13 /* descriptor unchanged and still ours,
+                                         * yet our auth failed: invariant
+                                         * violation — FS withdrawn, descriptor
+                                         * left untouched for inspection */
+#define MXFS_RBLK_COMPLETE_DEADLINE  14 /* transient completion failures past
+                                         * the bounded deadline: lease given
+                                         * back, FS withdrawn so the next
+                                         * survivor is elected */
+#define MXFS_RBLK_COMPLETE_SUPERSEDED 15 /* the descriptor changed hands (or
+                                          * was published) under us: our
+                                          * recovery identity is cancelled */
+#define MXFS_RBLK_FENCE_BLOCKED     16 /* 0.74.0: the bounded series of
+                                        * non-proving pre-command attempts
+                                        * expired.  Durable on the descriptor
+                                        * (MXFS_RECOV_F_FENCE_BLOCKED), slow
+                                        * re-drive, path ops on the victim's
+                                        * grants fail fast.  Operator action:
+                                        * docs/dlm-protocol.md */
+
+/*
+ * sess420: typed outcome of one completion attempt
+ * (mxfs_v5_dlm_recovery_complete2).  Replaces "0 or -errno, the caller
+ * re-arms on any errno for ever" (the D-RECOV-ADVANCE-UNBOUNDED-RETRY loop).
+ * Only PUBLISHED retires the dead slot as recovered.  RETRY carries the
+ * caller's next delay (exponential 5/10/20/40 s with jitter, capped by the
+ * deadline).  SUPERSEDED cancels this node's stale work — the descriptor now
+ * belongs to another recovery identity or is already consumable — and the
+ * caller must NOT re-arm.  The two FATAL outcomes mean the DLM has done its
+ * part (INVARIANT: nothing touched; WITHDRAW: lease durably given back) and
+ * the filesystem MUST now be withdrawn (fail-stop) so that this node stops
+ * being the positional elected owner and a survivor takes the recovery over.
+ */
+#define MXFS_RECOV_COMPLETE_PUBLISHED        0
+#define MXFS_RECOV_COMPLETE_RETRY            1
+#define MXFS_RECOV_COMPLETE_SUPERSEDED       2
+#define MXFS_RECOV_COMPLETE_FATAL_INVARIANT  3
+#define MXFS_RECOV_COMPLETE_FATAL_WITHDRAW   4
+/*
+ * 0.85.0 (D-FOREIGN-SLICE-INTENTS-ABANDONED): the descriptor is durably at
+ * IMAGES_REPLAYED with an OPEN obligation record and this node holds the
+ * execution lease.  On the TCP transport the dead node's grants have already
+ * been retired (remaster, ledger purge, table purge) so the custodian can
+ * acquire the obligation AGs; the AGs in the record's mask are FROZEN against
+ * every other local caller by the filesystem layer.  The caller must now run
+ * the completion engine (mxfs_recov_obl_complete), which writes the proof and
+ * advances OBLIGATIONS_DONE, and then call complete2 again.  The ladder
+ * itself never completes an obligation: it has no transaction context.
+ * complete2 returns -EINPROGRESS with this outcome.
+ */
+#define MXFS_RECOV_COMPLETE_OBLIGATIONS_OPEN 5
+
+struct mxfs_recov_complete_res {
+    int             outcome;        /* MXFS_RECOV_COMPLETE_* */
+    int             rc;             /* the underlying -errno (0 on PUBLISHED) */
+    unsigned int    retry_ms;       /* RETRY: delay before the next attempt */
+    unsigned int    attempts;       /* failures charged to this identity so far */
+    const char      *site;          /* the ladder step that failed */
+};
+
+/* the budget rule derivations for the bounded completion ladder (sess420 ruling 5):
+ * a healthy descriptor CAS or purge completes in milliseconds; the reap
+ * cadence that used to drive the unbounded loop was 30 s.  Deadline from the
+ * FIRST failure of this recovery identity: 120 s (= four of the old cadence,
+ * >= the 62 s dead window so a peer-death storm during completion cannot
+ * itself expire it).  Absolute cap from the durable acquisition of the
+ * execution lease: 600 s (a 4-slice node_death_replay lap measured 312 s
+ * end to end; one slice's replay + completion is well inside). */
+#define MXFS_V5_COMPLETE_DEADLINE_MS    120000u
+#define MXFS_V5_COMPLETE_ABS_CAP_MS     600000u
+#define MXFS_V5_COMPLETE_BACKOFF0_MS    5000u
+#define MXFS_V5_COMPLETE_BACKOFF_MAX_MS 40000u
+
+/* sess467 (D-0523 ruling STOP-SHIP 4, second half): when every peer falls
+ * silent DURING the claim wait (disklock -ERESTART, P300-CLAIM-WAIT-PEERS-
+ * LOST) the joiner is the peerless cluster and must re-run the whole-cluster
+ * bootstrap IN THIS MOUNT rather than fail and hope the next attempt does.
+ * Bounded: one restart.  A second peer loss means the membership is churning
+ * faster than a bootstrap scan (one dead window) can settle, and the truthful
+ * answer is the failed mount, not a third scan. */
+#define MXFS_V5_CLAIM_BOOTSTRAP_RESTARTS 1
 
 struct mxfs_recov_blocked {
     uint32_t        reason;         /* MXFS_RBLK_* */
@@ -272,6 +483,39 @@ const char *mxfs_recov_blocked_reason(uint32_t reason);
  * (> prev) with *out filled, or -1 when exhausted. */
 int  mxfs_v5_dlm_blocked_iter(struct mxfs_v5_dlm *ctx, int prev,
                               struct mxfs_recov_blocked *out);
+/* 0.74.0: RECOVERY_BLOCKED queries for the acquire paths.  any_: O(1), read
+ * before anything else (0.75.33: true while any recovery is blocked OR any
+ * victim is terminally refused, matching node_'s answer); node_: is this dead
+ * member's slot blocked on our prover (its frozen grants will not be released
+ * by repetition). */
+int  mxfs_v5_dlm_any_recovery_blocked(struct mxfs_v5_dlm *ctx);
+int  mxfs_v5_dlm_node_recovery_blocked(struct mxfs_v5_dlm *ctx,
+                                       mxfs_node_id_t node);
+/* 0.75.25: a victim whose slice replay was terminally refused (quarantine
+ * imported for its slot) answers the node_ query the same way a blocked one
+ * does, for the life of the mount.  victim 0 = resolve from the slot.
+ * 0.75.30: on the first call for a slot the victim also LEAVES the view
+ * (identity retired, lease unregistered, pages remastered and taken over)
+ * with selective purges: fswide != 0 keeps every record of the victim
+ * frozen; otherwise the records whose resource lies provably outside
+ * ag_mask are retired and the rest stay frozen.  victim_inc = the
+ * victim's incarnation from the verdict (0 = the slot's last epoch). */
+void mxfs_v5_dlm_recovery_refused(struct mxfs_v5_dlm *ctx, int slot,
+                                  mxfs_node_id_t victim, uint64_t victim_inc,
+                                  int fswide, uint64_t ag_mask);
+int  mxfs_v5_dlm_inode_held_by_blocked(struct mxfs_v5_dlm *ctx, uint64_t ino);
+/* 0.75.28: after an exhausted acquire budget — is the grant this inode waits
+ * on held or mastered by a LIVE node?  1 = keep waiting, 0 = nothing live. */
+/* Degraded remote acquisitions (dlm.h struct mxfs_dlm_acq_state): first call
+ * prev = -1; returns the next degraded slot (> prev) with *out filled, or -1.
+ * Always -1 on the CAW transport, whose waits need no receipt. */
+int  mxfs_v5_dlm_acq_degraded_iter(struct mxfs_v5_dlm *ctx, int prev,
+                                   struct mxfs_dlm_acq_state *out);
+int  mxfs_v5_dlm_inode_wait_is_live(struct mxfs_v5_dlm *ctx, uint64_t ino);
+void mxfs_v5_dlm_inode_acq_abandon(struct mxfs_v5_dlm *ctx, uint64_t ino,
+                                   uint8_t mode);
+int  mxfs_v5_dlm_inode_wait_is_receipted(struct mxfs_v5_dlm *ctx, uint64_t ino,
+                                         uint64_t stale_ms);
 
 /*
  * sess53 (D-FOREIGN-REPLAY step 4a): post-recovery mount settle.  Closes
@@ -283,6 +527,10 @@ int  mxfs_v5_dlm_blocked_iter(struct mxfs_v5_dlm *ctx, int prev,
  * if the own-slot reclaim was refused (mount continues; slots leak).
  */
 int  mxfs_v5_dlm_mount_settle(struct mxfs_v5_dlm *ctx);
+/* 0.75.72: frozen heartbeat records the monitor has not yet declared dead,
+ * and the dead window they must stay silent for (the barrier's extension). */
+int  mxfs_v5_dlm_deaths_undeclared(struct mxfs_v5_dlm *ctx,
+                                   unsigned int *window_ms);
 /* sess58: can the mount barrier's unresolved (unfenceable) residue block
  * xfs_log_mount_finish?  0 = no, 1 = yes, <0 = could not tell (treat as 1). */
 int  mxfs_v5_dlm_mount_residue_blocking(struct mxfs_v5_dlm *ctx,
@@ -312,9 +560,31 @@ int  mxfs_v5_dlm_mount_residue_blocking(struct mxfs_v5_dlm *ctx,
 int  mxfs_v5_dlm_settle_own_slot(struct mxfs_v5_dlm *ctx);
 int  mxfs_v5_dlm_mount_recovery_cohort(struct mxfs_v5_dlm *ctx,
                                        uint64_t *out_slots);
+/* 0.85.0: *out_open = slots whose ladder returned OBLIGATIONS_OPEN (grants
+ * retired, AGs frozen, completion owed to the post-mount engine; not an
+ * error and not published). */
 int  mxfs_v5_dlm_mount_cohort_complete(struct mxfs_v5_dlm *ctx,
                                        uint64_t slots,
-                                       uint64_t *out_published);
+                                       uint64_t *out_published,
+                                       uint64_t *out_open);
+/*
+ * sess441 (docs/whole-cluster-restart.md §6.5-6.6, shape B): whole-cluster
+ * bootstrap OWNER hooks for xfs_mountfs.  _adopted: this mount's slot K is
+ * a certified victim's slice adopted under a RECOVERING bootstrap term —
+ * xfs_log_mount replays it FULLY but authority-evaluated
+ * (XLOG_MXFS_BOOTSTRAP_ADOPTED).  _terminal: a sealed slice ended terminal
+ * in the barrier → the term is REFUSED.  _finish: after the barrier —
+ * K_REPLAY_OK, completeness, READ KEYS reconciliation, RECOVERY_COMPLETE,
+ * normalise K; nonzero refuses the mount.
+ */
+bool mxfs_v5_dlm_bootstrap_adopted(struct mxfs_v5_dlm *ctx);
+void mxfs_v5_dlm_bootstrap_terminal(struct mxfs_v5_dlm *ctx, uint32_t slot);
+/* sess442: the TYPED refusal of the adopted slice K's own-log replay
+ * (authority refusal / torn K) — escrow K_REPLAY_REFUSED(rc) + record
+ * REFUSED naming K.  The only path that ends a term on K; every other unwind
+ * leaves K_CLAIMED for a same-boot resume. */
+void mxfs_v5_dlm_bootstrap_k_refused(struct mxfs_v5_dlm *ctx, int rc);
+int  mxfs_v5_dlm_bootstrap_finish(struct mxfs_v5_dlm *ctx);
 
 /*
  * sess62 (GPT sess57 review item 6B) — peers that die WHILE we are mounting.
@@ -338,10 +608,16 @@ int  mxfs_v5_dlm_mount_cohort_complete(struct mxfs_v5_dlm *ctx,
  * next mount or a survivor's re-election sweep still recovers it.
  */
 uint64_t mxfs_v5_dlm_mount_take_late_deaths(struct mxfs_v5_dlm *ctx);
+uint64_t mxfs_v5_dlm_mount_peek_late_deaths(struct mxfs_v5_dlm *ctx);	/* sess421 */
 int  mxfs_v5_dlm_mount_pending_recovery(struct mxfs_v5_dlm *ctx,
                                         uint64_t *out_mask);
 void mxfs_v5_dlm_mount_defer_late_deaths(struct mxfs_v5_dlm *ctx,
                                          uint64_t slots);
+/* sess424: subset of `mask` a survivor recovered while this mount waited
+ * (marker cleared + fresh sector no longer holds the victim); the barrier
+ * retires those bits from its cut without publishing them. */
+uint64_t mxfs_v5_dlm_mount_resolved_elsewhere(struct mxfs_v5_dlm *ctx,
+                                              uint64_t mask);
 
 bool mxfs_v5_dlm_is_withdrawn(struct mxfs_v5_dlm *ctx);
 
@@ -360,7 +636,7 @@ int  mxfs_v5_dlm_inode_lock_retries(struct mxfs_v5_dlm *ctx, uint64_t ino,
                              uint8_t mode, int retries,
                              struct mxfs_grant_result *gres);
 void mxfs_v5_dlm_inode_unlock(struct mxfs_v5_dlm *ctx, uint64_t ino);
-/* sess171 (D-EX-GRANT-EPOCH verification vehicle, RULE-5 approved sess170):
+/* sess171 (D-EX-GRANT-EPOCH verification vehicle, design-consult approved sess170):
  * drive the real CAW lock/convert/unlock paths on a geometry-reserved
  * unallocatable inode key and assert the tenure-token contract (mint /
  * convert-preserve / re-mint / acquire-upgrade-preserve).  Synchronous,
@@ -368,6 +644,14 @@ void mxfs_v5_dlm_inode_unlock(struct mxfs_v5_dlm *ctx, uint64_t ino);
  * 0 = PASS; -EREMOTEIO = assertion failed; other -errno = infra refusal.
  * Verdict + per-step evidence on the P274-PWTEST log lines. */
 int  mxfs_v5_dlm_caw_pw_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino);
+/* sess449: same-node reconcile exerciser (D-SAMENODE-WAITER-CANCEL-COLLISION
+ * closure vehicle).  mode 1 = hold EX 14 s (peer), 2 = collide (two local
+ * attempts, one forced give-up), 3 = negative control (one attempt).  Same
+ * contract as the pw selftest: 0 PASS, -EREMOTEIO assertion, -ENOLCK when no
+ * foreign EX holder is on the key, -ETIMEDOUT attempt thread never returned.
+ * Verdict on the P275-SAMENODE log line. */
+int  mxfs_v5_dlm_caw_samenode_selftest(struct mxfs_v5_dlm *ctx, uint64_t ino,
+				       unsigned int mode);
 /* ccloop cc87fed3 sess8: use in place of mxfs_v5_dlm_inode_unlock when the
  * caller has already verified nlink==0 and is doing destructive inactivation
  * (a genuine free, not an idle-gap release).  CAW transport piggybacks a
@@ -378,6 +662,10 @@ void mxfs_v5_dlm_inode_unlock_free(struct mxfs_v5_dlm *ctx, uint64_t ino);
 /* sess7 FIX-20b: phantom-grant reconcile (mirror-bypassing gen=0 release). */
 int  mxfs_v5_dlm_inode_release_unconditional(struct mxfs_v5_dlm *ctx,
                                              uint64_t ino);
+/* D-0966: release the generation-less grant of ours on `ino` (an imported
+ * ledger record of this incarnation nobody adopted); TCP only, -ENOENT if
+ * the mirror holds no such entry. */
+int  mxfs_v5_dlm_inode_unlock_genless(struct mxfs_v5_dlm *ctx, uint64_t ino);
 /* sess1(a9a03929): gen-aware release — -ESTALE = a newer tenure owns the
  * resource; caller must re-arm its BAST instead of assuming released. */
 /* sess41 (GPT audit C1): release with atomic open-bit change (open_op:
@@ -432,7 +720,7 @@ void mxfs_v5_dlm_set_evict_cb(struct mxfs_v5_dlm *ctx,
  */
 struct mxfs_recov_outcome;
 struct mxfs_recov_refusal_info;
-/* sess383 (RULE-5 ruling Q1): the consumer VALIDATES and returns an
+/* sess383 (design-consult ruling Q1): the consumer VALIDATES and returns an
  * enum mxfs_quar_disposition (dlm/disklock.h).  Callers may act on the record
  * beyond importing it — closure candidacy in particular — ONLY on a VALID_*
  * disposition, and never by inferring validity from the fact that something
@@ -441,17 +729,87 @@ void mxfs_v5_dlm_set_quarantine_cb(struct mxfs_v5_dlm *ctx,
                                    int (*cb)(void *data, int victim_slot,
                                         const struct mxfs_recov_outcome *oc),
                                    void *data);
+/* sess419 test injector: non-elected survivor runs the normal purge path. */
+int mxfs_v5_dlm_dbg_purge_node(struct mxfs_v5_dlm *ctx, mxfs_node_id_t node_id);
 int mxfs_v5_dlm_recovery_publish_refusal(struct mxfs_v5_dlm *ctx,
                                     int dead_slot,
                                     const struct mxfs_recov_refusal_info *info,
                                     struct mxfs_recov_outcome *oc_out);
+struct mxfs_recov_obl;
+struct mxfs_recov_obl_ext;
+struct mxfs_recov_obl_geom;
+/*
+ * sess462 (item 5 increment 2): the obligation list + record (disklock.h,
+ * recov_obl.h).  Both need the recovery execution lease like publish_refusal.
+ * obl_write makes the RECOVER extent list durable in the victim's rman zone
+ * and returns the sealed record; publish_refusal_obl carries that record in
+ * the SAME CAS as the terminal outcome (F_TERMINAL only: evidence, never an
+ * open obligation).  read_obl is the leaseless consumer.
+ */
+int mxfs_v5_dlm_recovery_obl_write(struct mxfs_v5_dlm *ctx, int dead_slot,
+                                   struct mxfs_recov_obl_ext *ext,
+                                   uint32_t count,
+                                   const struct mxfs_recov_obl_geom *geom,
+                                   uint64_t census_digest, uint16_t flags,
+                                   struct mxfs_recov_obl *out_rec);
+int mxfs_v5_dlm_recovery_publish_refusal_obl(struct mxfs_v5_dlm *ctx,
+                                    int dead_slot,
+                                    const struct mxfs_recov_refusal_info *info,
+                                    const struct mxfs_recov_obl *obl,
+                                    struct mxfs_recov_outcome *oc_out);
+int mxfs_v5_dlm_recovery_read_obl(struct mxfs_v5_dlm *ctx, int dead_slot,
+                                  struct mxfs_recov_obl *rec_out,
+                                  struct mxfs_recov_obl_ext *ext_out,
+                                  uint32_t *count_out);
+/*
+ * 0.85.0 (D-FOREIGN-SLICE-INTENTS-ABANDONED, completion on the TCP transport;
+ * docs/dlm-protocol.md "Item 5"):
+ *
+ * set_obligations / set_census_zero — the replayer hands the ladder its
+ * census verdict for dead_slot BEFORE calling complete2: the RECOVER extent
+ * list (copied; canonicalized and made durable by the ladder's list write)
+ * or "nothing owed".  The IMAGES_REPLAYED milestone carries that verdict in
+ * its compare-and-write; a ladder entered without one over a descriptor
+ * below IMAGES_REPLAYED is a HELD failure (nothing published).
+ *
+ * set_obl_cb — the OPEN-obligation observer (typedef in disklock.h): fired
+ * by the disklock monitor for every readable sector every pass, once
+ * synchronously at registration, and by the ladder itself the moment it
+ * publishes an OPEN case or reaches OBLIGATIONS_DONE (the publisher must not
+ * wait a monitor pass for its own freeze).
+ *
+ * obl_done_write / advance_obl_done — the custodian's completion proof and
+ * the OBLIGATIONS_DONE milestone (contracts in disklock.h); both need the
+ * execution lease.
+ */
+struct mxfs_rman_obl_done;
+int mxfs_v5_dlm_recovery_set_obligations(struct mxfs_v5_dlm *ctx, int dead_slot,
+                                         const struct mxfs_recov_obl_ext *ext,
+                                         uint32_t count,
+                                         const struct mxfs_recov_obl_geom *geom,
+                                         uint64_t census_digest);
+void mxfs_v5_dlm_recovery_set_census_zero(struct mxfs_v5_dlm *ctx,
+                                          int dead_slot);
+void mxfs_v5_dlm_set_obl_cb(struct mxfs_v5_dlm *ctx,
+                            void (*cb)(void *data, int slot, int state,
+                                       uint32_t victim_node,
+                                       uint64_t victim_epoch, uint32_t pub_seq,
+                                       uint64_t ag_mask, bool fswide),
+                            void *data);
+int mxfs_v5_dlm_recovery_obl_done_write(struct mxfs_v5_dlm *ctx, int dead_slot,
+                                        struct mxfs_rman_obl_done *proof);
+int mxfs_v5_dlm_recovery_platter_stage(struct mxfs_v5_dlm *ctx,
+                                       uint32_t dead_slot, unsigned int *stage,
+                                       bool *quarantined);
+int mxfs_v5_dlm_recovery_advance_obl_done(struct mxfs_v5_dlm *ctx,
+                                          int dead_slot);
 /* sess327 (sess325 ruling items 2+4): canonical-outcome read (return contract
  * in disklock.h) and the synchronous registration-time scan that replays
  * already-terminal verdicts into quar_cb before ops are exposed. */
 int mxfs_v5_dlm_recovery_read_outcome(struct mxfs_v5_dlm *ctx, int dead_slot,
                                       struct mxfs_recov_outcome *oc_out);
 /*
- * sess374 (sess363 RULE-5 ruling, D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356):
+ * sess374 (sess363 design-consult ruling, D-REFUSAL-GRANT-FREEZE-OUT-OF-CLOSURE-356):
  * after publish_refusal lands and BEFORE the caller releases the recovery
  * lease, force-revoke the victim's provably out-of-closure CAW grants so
  * survivors blocked on out-of-domain resources stop running to -110.
@@ -506,7 +864,7 @@ void mxfs_v5_dlm_set_closure_classify_fn(struct mxfs_v5_dlm *ctx,
                                         const struct mxfs_resource_id *res,
                                         uint64_t ag_mask),
                                     void *data);
-/* sess330 (RULE-5 ruling): leaseless terminalization of a LEGACY intent-path
+/* sess330 (design-consult ruling): leaseless terminalization of a LEGACY intent-path
  * quarantine (QUARANTINED descriptor, all-zero outcome region).  Predicate
  * and return contract in disklock.h. */
 int mxfs_v5_dlm_recovery_backfill_legacy(struct mxfs_v5_dlm *ctx,
@@ -546,11 +904,15 @@ int  mxfs_v5_dlm_ag_lock_nb(struct mxfs_v5_dlm *ctx, uint32_t agno,
 enum mxfs_unlock_state mxfs_v5_dlm_ag_unlock(struct mxfs_v5_dlm *ctx,
                                              uint32_t agno);
 int  mxfs_v5_dlm_ag_held(struct mxfs_v5_dlm *ctx, uint32_t agno);
+/* Is AG @agno still ours by the transport's own authority, for the
+ * stranded-AG repair: 1 yes, 0 no, <0 cannot tell / in flight. */
+int  mxfs_v5_dlm_ag_strand_held(struct mxfs_v5_dlm *ctx, uint32_t agno);
 /* ccloop c7ee71c6 sess6: orphan-grant NAK — when a bast arrives for an AG the
  * FS layer does not hold (holders=0, !cached, nothing scheduled), tell the
  * master to drop its zombie GRANTED entry for us.  Guarded: no-op if the
  * local dlm table holds any entry (incl. an in-flight acquire).  TCP only. */
 int  mxfs_v5_dlm_ag_orphan_nak(struct mxfs_v5_dlm *ctx, uint32_t agno);
+int  mxfs_v5_dlm_inode_orphan_nak(struct mxfs_v5_dlm *ctx, uint64_t ino);
 int  mxfs_v5_dlm_is_caw(struct mxfs_v5_dlm *ctx);
 int  mxfs_v5_dlm_inode_held_nb(struct mxfs_v5_dlm *ctx, uint64_t ino);
 /* sess19: read shared on-disk AG slot generation (cross-node coherency epoch) */
@@ -584,6 +946,48 @@ int  mxfs_v5_dlm_victim_inode_manifest_read(struct mxfs_v5_dlm *ctx,
                                             bool *out_holds_ex,
                                             uint64_t *out_ex_grant_epoch,
                                             uint64_t *out_lineage);
+/* sess405 (docs/recovery-manifest.md): load the victim's SEALED fence-time
+ * manifest, validated against the FENCED descriptor's pointer record.  The
+ * entry array is mxfs_pal_alloc'd (caller frees with mxfs_pal_free).  Any
+ * error means NO verdict may be taken from the manifest and the replay
+ * attempt must abort.  *out_no_caw: the manifest says the transport had no
+ * CAW table (structurally empty; per-resource lookups answer -ENODEV). */
+/* sess405: live slot read with exact mode + slot index (current-safety check).
+ * kind = MXFS_AUTH_CLASS_AG / _INODE; resource = agno / ino. */
+int  mxfs_v5_dlm_victim_live_read(struct mxfs_v5_dlm *ctx, uint8_t ltype,
+                                  uint64_t resource, uint32_t victim_slot,
+                                  bool *out_holds, uint64_t *out_epoch,
+                                  uint64_t *out_lineage, uint8_t *out_mode,
+                                  uint32_t *out_slot_idx);
+/* sess405 (GPT review item 17): revalidate every sealed-manifest entry against
+ * the live table right before the irreversible purge.  0 = consistent;
+ * -EPROTO = a mutation was found (caller publishes AUTHORITY_MUTATED, purges
+ * NOTHING); other negative = could not decide (retry, purge nothing). */
+int  mxfs_v5_dlm_rman_verify_live(struct mxfs_v5_dlm *ctx, uint32_t slot,
+                                  uint32_t victim_node, uint64_t victim_epoch,
+                                  uint32_t *out_checked);
+struct mxfs_rman_entry;
+struct mxfs_recov_manifest_ptr;
+/* sess443 (docs/whole-cluster-restart.md §6.8.5): the adopted K's earlier
+ * incarnations — one (descriptor, fence-time manifest) pair per lineage hop
+ * that ended with K adopted; idx 0 = the most recent predecessor.  The
+ * evaluator judges a transaction by the pair whose victim incarnation the
+ * token names; only the CURRENT pair is live-checked against K's CAW bits. */
+unsigned int mxfs_v5_dlm_victim_lineage_count(struct mxfs_v5_dlm *ctx,
+                                              uint32_t slot);
+int  mxfs_v5_dlm_victim_lineage_load(struct mxfs_v5_dlm *ctx, uint32_t slot,
+                                     unsigned int idx, uint32_t *out_node,
+                                     uint64_t *out_epoch, uint16_t *out_stage,
+                                     uint64_t *out_term,
+                                     struct mxfs_recov_manifest_ptr *out_ptr,
+                                     struct mxfs_rman_entry **out_ents,
+                                     uint32_t *out_count, bool *out_no_caw);
+int  mxfs_v5_dlm_victim_manifest_load(struct mxfs_v5_dlm *ctx, uint32_t slot,
+                                      uint32_t victim_node,
+                                      uint64_t victim_epoch,
+                                      struct mxfs_recov_manifest_ptr *out_ptr,
+                                      struct mxfs_rman_entry **out_ents,
+                                      uint32_t *out_count, bool *out_no_caw);
 /* Read the live recovery descriptor (if any) on `slot`'s heartbeat sector:
  * the shadow evaluator's capability check that a fence-certified freeze
  * actually covers the victim it is evaluating.  Returns 0 with the stage and
@@ -604,6 +1008,10 @@ int  mxfs_v5_dlm_victim_untagged_authority(struct mxfs_v5_dlm *ctx,
                                            uint32_t slot,
                                            bool *out_cert_sn_excl,
                                            bool *out_victim_snlocal);
+/* sess434: the victim's record carried MXFS_HB_FEAT_ADOPTED (pass-2 fresh
+ * claim: previous incarnations' records in its slice are published by
+ * construction).  Fail closed (false on any read/validation error). */
+bool mxfs_v5_dlm_victim_adopted(struct mxfs_v5_dlm *ctx, uint32_t slot);
 int  mxfs_v5_dlm_inode_held(struct mxfs_v5_dlm *ctx, uint64_t ino);
 /* sess42: raw held mode (MXFS_LOCK_NL/PR/EX) — phantom-lock callers compare
  * against the mode they believe they hold (NOT hardcoded EX, which
@@ -626,6 +1034,10 @@ uint8_t mxfs_v5_dlm_inode_granted_mode(struct mxfs_v5_dlm *ctx, uint64_t ino);
 int mxfs_v5_dlm_inode_open_holders(struct mxfs_v5_dlm *ctx, uint64_t ino,
                                    uint64_t *oh_out);
 void mxfs_v5_dlm_inode_open_clear(struct mxfs_v5_dlm *ctx, uint64_t ino);
+/* 0.89.0 (D-0977): true on the TCP transport, where a mark is cleared only
+ * by a release carrying MXFS_TAUTH_OPEN_CLEAR (mxfs_v5_dlm_inode_open_clear
+ * is a no-op there); false on CAW, whose standalone clear CAS is durable. */
+bool mxfs_v5_dlm_open_clear_rides_release(struct mxfs_v5_dlm *ctx);
 /* sess46 iclus open tracking: gated standalone SET + claim-less B6 probe. */
 int mxfs_v5_dlm_inode_open_set(struct mxfs_v5_dlm *ctx, uint64_t ino);
 int mxfs_v5_dlm_inode_open_probe(struct mxfs_v5_dlm *ctx, uint64_t ino,
@@ -655,6 +1067,50 @@ void mxfs_v5_dlm_inode_set_dir_block0(struct mxfs_v5_dlm *ctx, uint64_t ino,
                                       uint64_t fsb, uint32_t gen);
 /* v0.6.0: true iff this mount coordinates via the CAW (disk-slot) transport. */
 bool mxfs_v5_dlm_transport_caw(struct mxfs_v5_dlm *ctx);
+
+/* 0.89.31: the LU-reset admission gate's verdict, issuing nothing.  Contract
+ * at the definition in v5_mount.c; the gate itself is documented in scsipr.h.
+ * 0 = admitted, -EPERM = refused, other negative = could not be asked. */
+int mxfs_v5_dlm_lu_reset_admit_probe(struct mxfs_v5_dlm *ctx,
+                                     mxfs_node_id_t victim_node,
+                                     uint64_t victim_key);
+
+struct mxfs_lu_reset_convergence;   /* dlm/scsipr.h */
+
+/* 0.89.32: the whole post-reset convergence barrier — scsipr.h's storage half
+ * plus the authority half, which waits for a heartbeat ISSUED AFTER the reset
+ * to land and is bounded by the lease itself rather than by a chosen number.
+ * Contract at the definition in v5_mount.c.  0 = replay may proceed; -EPERM =
+ * STOP and leave the durable intent resumable; other negative = could not be
+ * asked.  `reset_issued_ms` is mxfs_pal_time_ms() captured before the reset. */
+int mxfs_v5_dlm_lu_reset_barrier(struct mxfs_v5_dlm *ctx,
+                                 mxfs_node_id_t victim_node,
+                                 uint64_t victim_key,
+                                 uint32_t gen_before,
+                                 uint64_t reset_issued_ms,
+                                 struct mxfs_lu_reset_convergence *conv);
+struct mxfs_lu_reset_fence;         /* dlm/scsipr.h */
+
+/* 0.89.33: the whole witnessed-LU-reset fence — admission, the witnessed
+ * reset, the audited-kernel pin, and both halves of the post-reset barrier —
+ * with the authority half supplied from this layer.  It is the only producer
+ * of a certificate of that kind.  Contract at the definition in v5_mount.c
+ * and at MXFS_FENCE_KIND_LU_RESET_WITNESSED_V1 in scsipr.h.  Read
+ * out->certified, never the return value; a refusal after the reset was
+ * issued is a refusal and never a retry. */
+int mxfs_v5_dlm_fence_by_lu_reset(struct mxfs_v5_dlm *ctx,
+                                  mxfs_node_id_t victim_node,
+                                  uint64_t victim_key,
+                                  int (*arm_submit)(void *), void *arm_data,
+                                  struct mxfs_lu_reset_fence *out);
+int mxfs_v5_dlm_fence_by_lu_reset_probe(struct mxfs_v5_dlm *ctx,
+                                        mxfs_node_id_t victim_node,
+                                        uint64_t victim_key);
+
+int mxfs_v5_dlm_lu_reset_barrier_probe(struct mxfs_v5_dlm *ctx,
+                                       mxfs_node_id_t victim_node,
+                                       uint64_t victim_key);
+bool mxfs_v5_dlm_transport_tcp(struct mxfs_v5_dlm *ctx);
 /* sess-tcp: true iff this mount runs the TCP DLM transport (grants live in the
  * dlm.c local mirror, so mxfs_v5_dlm_inode_held is a cheap in-mem lookup — the
  * dir-EX held verify can run un-throttled, unlike the CAW 512B slot read). */
@@ -667,6 +1123,14 @@ int  mxfs_v5_dlm_ag_ex_count(struct mxfs_v5_dlm *ctx, uint32_t agno,
 int  mxfs_v5_dlm_inode_lock_try(struct mxfs_v5_dlm *ctx, uint64_t ino,
                                  uint8_t mode,
                                  struct mxfs_grant_result *gres);
+/* 0.23.0 (sess392 design-consult ruling): the dialloc candidate reserve — ONE
+ * nonqueued CAS attempt for EX on an inode slot.  0 = reserved (the grant is
+ * node-cached, iget adopts it); -EAGAIN = held by a peer (no waiter, no
+ * request outlives the call); with demand=1 a sticky revoke + BAST hint is
+ * left on a held slot so the holder eventually lets go. */
+int  mxfs_v5_dlm_inode_reserve_try(struct mxfs_v5_dlm *ctx, uint64_t ino,
+                                    int demand,
+                                    struct mxfs_grant_result *gres);
 
 /* ─── BAST notification callback ─── */
 
@@ -719,10 +1183,22 @@ void mxfs_v5_dlm_set_ag_bast_notify(struct mxfs_v5_dlm *ctx,
  * the peer, or even this node after a subsequent DLM reload, will
  * read pre-allocation zeros and trip xfs_inode_buf_verify.
  */
-typedef void (*mxfs_v5_peer_joined_notify_fn)(void *data);
+/*
+ * 0.83.4 (D-0959): the transition is a PREPARE / COMMIT pair run on the
+ * DLM's join worker, never on a protocol thread.  PREPARE returns 0 once the
+ * filesystem is quiescent and its cached views are dropped (on a mounted
+ * filesystem it holds a kernel freeze until COMMIT); a non-zero return means
+ * "not yet" -- the worker retries, and the view is NOT installed until a
+ * prepare succeeds, so a peer is never admitted against undrained state.
+ * COMMIT releases whatever PREPARE holds; it is called only after the view
+ * is installed.
+ */
+typedef int (*mxfs_v5_peer_joined_notify_fn)(void *data);
+typedef void (*mxfs_v5_join_commit_fn)(void *data);
 
 void mxfs_v5_dlm_set_peer_joined_notify(struct mxfs_v5_dlm *ctx,
-                                          mxfs_v5_peer_joined_notify_fn fn,
+                                          mxfs_v5_peer_joined_notify_fn prepare,
+                                          mxfs_v5_join_commit_fn commit,
                                           void *data);
 
 /*
@@ -752,6 +1228,29 @@ void mxfs_v5_dlm_set_fence_notify(struct mxfs_v5_dlm *ctx,
  * from any sleepable context.
  */
 void mxfs_v5_dlm_note_resv_conflict(struct mxfs_v5_dlm *ctx);
+
+/*
+ * 0.89.20 — THE WRITE GATE.  True while this mount still holds authority over
+ * the shared LUN; false the instant its local authority lease has expired or
+ * been closed, at which point the caller MUST refuse the mutation.
+ *
+ * Every other detector this build has needs the LUN to answer — a write that
+ * bounces with RESERVATION CONFLICT, or a periodic PR IN.  Measured: a node
+ * that is issuing nothing, whose audit tick has not come round, is fenced and
+ * knows nothing, and once the last registrant is purged the reservation goes
+ * with it and the LUN refuses nobody.  Its bytes were read back off the
+ * platter.  This is the answer to that: authority expires on a deadline this
+ * node set for itself, so losing access does not require reaching the LUN in
+ * order to contain the mount.
+ *
+ * Contract for callers: two atomic loads and a compare on the fast path.  It
+ * takes no lock the withdrawal path needs, allocates nothing, touches no
+ * device and never sleeps, so it is safe from submission and completion
+ * context alike.  It does not shut the filesystem down — it records that a
+ * withdrawal is owed and the PR worker drives it — so a caller that gets
+ * false must complete its own I/O with an error itself.
+ */
+bool mxfs_v5_dlm_write_admitted(struct mxfs_v5_dlm *ctx);
 
 /*
  * v0.5.0 dead-node notification (foreign-slice replay trigger).  Fired from
@@ -851,12 +1350,37 @@ mxfs_node_id_t mxfs_v5_dlm_mds_node_id(struct mxfs_v5_dlm *ctx);
 /* ─── Query ─── */
 
 bool mxfs_v5_dlm_is_single_node(struct mxfs_v5_dlm *ctx);
+/* single-node NOW after having been multi-node in this mount: the caches
+ * still carry the departed peers' pending invalidations (0.72.2). */
+bool mxfs_v5_dlm_sole_survivor(struct mxfs_v5_dlm *ctx);
+/* There is no "single-node and never multi-node" predicate: 0.83.3 made it
+ * the only state in which an inode could be modified and published without
+ * a grant, and 0.87.16 removed that state -- a mount that is alone takes
+ * real grants from the master (itself) whatever its history, because the
+ * replayer of its slice after a death needs the grant behind every image. */
 int  mxfs_v5_dlm_get_node_slot(struct mxfs_v5_dlm *ctx);
 /* sess94: {slot, node_id, mount incarnation} — all or nothing, lock-free.
  * false (with the outputs zeroed) is a CAPTURE FAILURE, not "no identity". */
 bool mxfs_v5_dlm_mount_identity(struct mxfs_v5_dlm *ctx, uint32_t *slot,
                                 uint32_t *node, uint64_t *epoch);
 bool mxfs_v5_dlm_slice_adopted(struct mxfs_v5_dlm *ctx);
+/*
+ * 0.88.0 (D-SLICE-CLAIM-TIME-INIT-UNTRUSTED-ZERO-531): the slice lifecycle
+ * record of `slice` (dlm/bootstrap.h).  _claim: run the claimant's state
+ * machine for the slice this mount's heartbeat slot owns, zeroing the
+ * payload [payload_off, +payload_len) through the FUA path when the record
+ * says INIT_REQUIRED or ZEROING; -ENODEV when the volume carries no
+ * lifecycle region (legacy format).  _state: the validated state of any
+ * slice's record, for the foreign-slice recovery.
+ */
+int mxfs_v5_dlm_slice_lifecycle_claim(struct mxfs_v5_dlm *ctx, uint32_t slice,
+                                      uint64_t payload_off,
+                                      uint64_t payload_len,
+                                      uint32_t *before, uint32_t *after,
+                                      uint32_t *zero_ms);
+int mxfs_v5_dlm_slice_lifecycle_state(struct mxfs_v5_dlm *ctx, uint32_t slice,
+                                      uint32_t *state);
+const char *mxfs_v5_dlm_slice_lifecycle_name(uint32_t state);
 /* sess67 ASYMMETRIC MDS (Phase 1) — see ASYMMETRIC_MDS_PLAN.md */
 bool mxfs_v5_dlm_is_mds(struct mxfs_v5_dlm *ctx);
 int  mxfs_v5_dlm_get_mds_node_slot(struct mxfs_v5_dlm *ctx);

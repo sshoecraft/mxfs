@@ -1,7 +1,12 @@
 {
-  "nodes": 32,
-  "dlm": "caw",
-  "srcversion": "CE2A39E9E5FDCC0A57D2380",
-  "node_list": "test1,test2,test3,test4,test5,test6,test7,test8,test9,test10,test11,test12,test13,test14,test15,test16,test17,test18,test19,test20,test21,test22,test23,test24,test25,test26,test27,test28,test29,test30,test31,test32",
-  "iso": "2026-08-22T08:02:22Z"
+  "nodes": 2,
+  "dlm": "tcp",
+  "srcversion": "09EBACFC4803E44977E9F0C",
+  "node_list": "test1,test2",
+  "dev": "/dev/sda",
+  "rig": "liovm",
+  "wwid": "naa.60014054d58465342454e43482d4c554",
+  "fsid": "e0672086-e64d-4c96-ae41-c37a6c882cde",
+  "gen": 464,
+  "iso": "2026-09-23T03:55:52Z"
 }

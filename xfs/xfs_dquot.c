@@ -1517,13 +1517,13 @@ xfs_dqlockn(
 int __init
 xfs_qm_init(void)
 {
-	xfs_dquot_cache = kmem_cache_create("mxfs_dquot",
+	xfs_dquot_cache = mxfs_cache_create("mxfs_dquot",
 					  sizeof(struct xfs_dquot),
 					  0, 0, NULL);
 	if (!xfs_dquot_cache)
 		goto out;
 
-	xfs_dqtrx_cache = kmem_cache_create("mxfs_dqtrx",
+	xfs_dqtrx_cache = mxfs_cache_create("mxfs_dqtrx",
 					     sizeof(struct xfs_dquot_acct),
 					     0, 0, NULL);
 	if (!xfs_dqtrx_cache)

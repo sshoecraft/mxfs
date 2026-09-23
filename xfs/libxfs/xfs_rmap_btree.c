@@ -855,7 +855,7 @@ xfs_rmapbt_calc_reserves(
 int __init
 xfs_rmapbt_init_cur_cache(void)
 {
-	xfs_rmapbt_cur_cache = kmem_cache_create("mxfs_rmapbt_cur",
+	xfs_rmapbt_cur_cache = mxfs_cache_create("mxfs_rmapbt_cur",
 			xfs_btree_cur_sizeof(xfs_rmapbt_maxlevels_ondisk()),
 			0, 0, NULL);
 

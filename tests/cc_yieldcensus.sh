@@ -1,7 +1,7 @@
 #!/bin/bash
 # cc_yieldcensus.sh — census the fair-handoff YIELD TICKET, cluster-wide.
 #
-# WHY (ccloop c7ee71c6 sess130, GPT RULE-5 closure requirement for
+# WHY (ccloop c7ee71c6 sess130, design-consult closure requirement for
 # D-32NODE-SHARED-DIR-CREATE-PACE): the sess126 root was not merely "grant
 # waits are long" — it was that the cluster ran ON ITS SAFETY VALVE.  A PR
 # requester that is COMPATIBLE with every current holder defers anyway on a

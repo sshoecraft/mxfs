@@ -3,7 +3,7 @@
 #
 # crash_consistency emits `mxfs-CCph rank=$R PHASE=<p>` to /dev/kmsg at each
 # phase boundary (tests/suite/crash_consistency.sh).  When the criterion blows
-# its RULE-0 budget the harness records only NO_TERMINAL_RECORD=N, which says
+# its derived time budget the harness records only NO_TERMINAL_RECORD=N, which says
 # nothing about WHERE the nodes were.  This tool answers that: it harvests the
 # markers of the MOST RECENT run from every node and prints
 #   - per-node wall of each phase interval,

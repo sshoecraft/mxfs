@@ -3,7 +3,7 @@
 # coherency detectors), clean-rebooting before each iter, and on ANY failure of
 # the shared-dir-churn family (crash_consistency / dlm_fairness / tcp_dlm_scaling)
 # dump the dir detectors from BOTH nodes' dmesg so the exact stale-base / reload
-# mechanism is captured (RULE 4).  Loops until a capture is taken or ITERS done.
+# mechanism is captured (instrumented).  Loops until a capture is taken or ITERS done.
 #
 # Usage: cc_df_capture.sh [iters]
 set -u

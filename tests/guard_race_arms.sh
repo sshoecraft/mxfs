@@ -23,7 +23,7 @@
 # dmesg persists across invocations, so every detection below is a per-node
 # COUNT-GROWTH test against a snapshot, never "line exists".
 #
-# Budget (RULE 0):
+# Budget (budget):
 #   joiner:    death detect->hold <=150s + boot+rejoin ~120s (inside 180s
 #              hold) + sweep-done <=200s + reap <=90s + knob reset  => cap 560s
 #   abandoned: detect ~50s + destroy holder + peer takeover <=330s (62s lease
@@ -37,6 +37,13 @@
 #               frozen guard, judges it abandoned, reclaims, sweeps rc=0.
 #               The resumed holder must CAS-fail its next refresh
 #               (P99-GUARD-LOST), abort with rc=-116, and sweep NOTHING.
+#   peerloss  — (sess467, D-0523 STOP-SHIP 4) joiner shape, then EVERY
+#               survivor is destroyed while NB is inside the claim wait.
+#               NB must log PEERS-LOST, re-run the bootstrap in the same
+#               mount (RESTART-BOOTSTRAP), seal the total outage and mount
+#               as the owner within 480 s (measured: 288 s owner mount for
+#               32 victims + two dead windows + boot).  Fleet restored after.
+#               Cap 480 + 150 restore + ~60 setup => 700 s.
 #   inherit   — bucketed shape with NO holds: after B dies and the deferred
 #               zombie parks on B's bucket S, B rejoins, must re-claim the
 #               SAME slot S (only vacancy in a dense rig) and thereby inherit
@@ -46,8 +53,8 @@
 #
 # usage: guard_race_arms.sh joiner|abandoned|stale_resume|inherit [B=test2] [FDH=test1]
 set -u
-ARM="${1:?usage: guard_race_arms.sh joiner|abandoned|stale_resume|inherit [B] [FDH]}"
-case "$ARM" in joiner|abandoned|stale_resume|inherit) ;; *) echo "unknown arm '$ARM'"; exit 2 ;; esac
+ARM="${1:?usage: guard_race_arms.sh joiner|peerloss|abandoned|stale_resume|inherit [B] [FDH]}"
+case "$ARM" in joiner|peerloss|abandoned|stale_resume|inherit) ;; *) echo "unknown arm '$ARM'"; exit 2 ;; esac
 NB="${2:-test2}"          # the node that unlinks and dies (its slot gets guarded)
 FDH="${3:-test1}"         # the fd holder (stays alive; keeps the bucket nonempty)
 SSH=tools/mxfs_sshpass.sh
@@ -64,7 +71,12 @@ SURV=(); for n in "${ALL[@]}"; do [ "$n" != "$NB" ] && SURV+=("$n"); done
 say() { echo "[$(date +%H:%M:%S)] $*"; }
 
 DEV=$($SSH "$FDH" "mount -t mxfs | awk '{print \$1; exit}'" 2>/dev/null | tr -d ' \r\n')
-[ -z "$DEV" ] && DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+[ -n "${DEV:-}" ] || { mxfs_dev_resolve "$NB"; DEV=$MXFS_DEV_RESOLVED; }
 
 set_knob() { # set_knob <hold_ms> [stall_ms] — on every live survivor, parallel
   local hold="$1" stall="${2:-0}" n
@@ -277,33 +289,175 @@ H0=$(cnt "$HOLDER" "$PAT_HOLD"); D0=$(cnt "$HOLDER" "$PAT_DONE")
 
 if [ "$ARM" = joiner ]; then
   # ── joiner arm: boot+mount NB while the guard is HELD ───────────────────
+  # Two requirements, measured separately (sess464, D-REJOIN-CLAIM-ENOSPC-
+  # DURING-TRANSIENT-SWEEP-GUARD-AT-CAPACITY-0523):
+  #  SAFETY:       NB must never claim the guarded slot while the holder's
+  #                UBSWEEP for it is unfinished.
+  #  AVAILABILITY: NB's mount must SUCCEED within the hold window — on a
+  #                volume at capacity (32 slices / 32 nodes) the guarded slot
+  #                is NB's own former slot and the ONLY one it can ever get,
+  #                so the claim must wait out the live transient guard, not
+  #                fail -28.  Chain 88 (0.63.0) failed exactly there, and the
+  #                old arm hid the reason behind boot_rejoin's /dev/null.
+  # Budget: measured virsh-start -> claim attempt 35 s (chain 88) + the 180 s
+  # hold + one sweep; the holder's DONE is the event that frees the slot.
   say "booting $NB back INTO the hold window"
-  boot_rejoin "$NB" || fail "joiner $NB failed to boot+mount during hold"
-  # In-hold certificate, sampled within ~2s of the mount.  Holds are serial
-  # per node; each completed hold adds 1 to both counts, so unfinished-now =
-  # (dH - dD) + 1 (the detected hold was unfinished at baseline time).
+  JOIN_OUT=$(mktemp)
+  boot_rejoin "$NB" >"$JOIN_OUT" 2>&1 &
+  JOIN_PID=$!
+  JOIN_T0=$(date +%s); JOIN_BUDGET=240
+  CL=""; NEWSLOT=""; ND_AT_CLAIM=""
+  while kill -0 "$JOIN_PID" 2>/dev/null; do
+    CL=$($SSH "$NB" "dmesg | grep -E 'claimed heartbeat slot' | tail -1" 2>/dev/null | tr -d '\r')
+    if [ -n "$CL" ]; then
+      # Sample the holder's DONE count as close to the claim as possible:
+      # a claim of HSLOT with the hold still unfinished is the safety
+      # violation; a claim of HSLOT after DONE is the required behavior.
+      ND_AT_CLAIM=$(cnt "$HOLDER" "$PAT_DONE")
+      break
+    fi
+    [ $(( $(date +%s) - JOIN_T0 )) -lt $JOIN_BUDGET ] || break
+    sleep 5
+  done
+  wait "$JOIN_PID"; JOIN_RC=$?
   NH=$(cnt "$HOLDER" "$PAT_HOLD"); ND=$(cnt "$HOLDER" "$PAT_DONE")
-  INHOLD=$(( (NH - H0) - (ND - D0) + 1 ))
-  CL=$($SSH "$NB" "dmesg | grep -E 'claimed heartbeat slot' | tail -1" 2>/dev/null | tr -d '\r')
+  [ -n "$ND_AT_CLAIM" ] || ND_AT_CLAIM="$ND"
+  INHOLD=$(( (NH - H0) - (ND_AT_CLAIM - D0) + 1 ))
+  [ -n "$CL" ] || CL=$($SSH "$NB" "dmesg | grep -E 'claimed heartbeat slot' | tail -1" 2>/dev/null | tr -d '\r')
   NEWSLOT=$(sed -n 's/.*claimed heartbeat slot \([0-9]*\).*/\1/p' <<<"$CL")
   RACES=$($SSH "$NB" "dmesg | grep -c 'P130-CLAIM-RACE'" 2>/dev/null | tr -d ' \r\n')
-  say "joiner claim: '$CL' races=$RACES holder dH=$((NH-H0)) dD=$((ND-D0)) inhold=$INHOLD"
-  [ -n "$NEWSLOT" ] || fail "joiner has no claim line"
-  [ "$INHOLD" -gt 0 ] || fail "inconclusive: no hold in progress when joiner claimed (dH=$((NH-H0)) dD=$((ND-D0))) — raise HOLD_MS"
-  [ "$NEWSLOT" != "$HSLOT" ] || fail "joiner claimed the GUARDED slot $HSLOT"
-  # holder must finish this hold's sweep with the guard intact
+  REFUSE=$($SSH "$NB" "dmesg | grep -E 'P300-CLAIM-(EXHAUSTED|WITHDRAWN|QUARANTINE|FULL|WAIT-GAVE-UP|WAIT-PEERS-LOST|WAIT-PERMANENT)|claim_slot failed' | tail -3" 2>/dev/null | tr -d '\r' | cut -c1-300)
+  # sess465 (D-0523 fix, 0.63.1): the claim now WAITS on the live guard —
+  # the availability half is proven by P300-CLAIM-WAIT-START ... WAIT-DONE
+  WAITL=$($SSH "$NB" "dmesg | grep -E 'P300-CLAIM-WAIT-(START|DONE|SCAN)' | tail -3" 2>/dev/null | tr -d '\r' | cut -c1-300)
+  [ -n "$WAITL" ] && say "joiner claim-wait lines: $WAITL"
+  say "joiner claim: '$CL' races=$RACES rc=$JOIN_RC wall=$(( $(date +%s) - JOIN_T0 ))s holder dH=$((NH-H0)) dD=$((ND-D0)) dD_at_claim=$((ND_AT_CLAIM-D0)) inhold_at_claim=$INHOLD"
+  [ -n "$REFUSE" ] && say "joiner refusal lines: $REFUSE"
+  [ "$INHOLD" -gt 0 ] || [ -z "$NEWSLOT" ] || [ "$NEWSLOT" = "$HSLOT" ] || \
+    fail "inconclusive: no hold in progress when joiner claimed (dH=$((NH-H0)) dD=$((ND_AT_CLAIM-D0))) — raise HOLD_MS"
+  if [ "$NEWSLOT" = "$HSLOT" ] && [ "$INHOLD" -gt 0 ]; then
+    fail "SAFETY: joiner claimed the GUARDED slot $HSLOT while the holder's sweep was unfinished"
+  fi
+  if [ "$JOIN_RC" != 0 ] || [ -z "$NEWSLOT" ]; then
+    tail -5 "$JOIN_OUT" | sed 's/^/  prep: /'
+    fail "AVAILABILITY: joiner $NB did not mount within ${JOIN_BUDGET}s of the hold (rc=$JOIN_RC claim='$CL'); refusal: ${REFUSE:-none logged} (D-REJOIN-CLAIM-ENOSPC-DURING-TRANSIENT-SWEEP-GUARD-AT-CAPACITY-0523)"
+  fi
+  # holder must finish this hold's sweep with the guard intact.  sess467:
+  # compare against the DETECTION baseline D0, not ND — with the 0.63.1
+  # claim WAIT the holder's DONE precedes the claim (chain 94: dD_at_claim=1,
+  # inhold_at_claim=0 is the required order), so ND already contains it and
+  # waiting for ND to grow again waited for a second sweep that never comes
+  # (chain 94's false 'never finished UBSWEEP' FAIL).
   TW2=0; NDF="$ND"
   while [ $TW2 -lt 200 ]; do
     NDF=$(cnt "$HOLDER" "$PAT_DONE")
-    [ "${NDF:-0}" -gt "${ND:-0}" ] && break
+    [ "${NDF:-0}" -gt "${D0:-0}" ] && break
     sleep 10; TW2=$((TW2+10))
   done
-  [ "${NDF:-0}" -gt "${ND:-0}" ] || fail "holder $HOLDER never finished UBSWEEP on slot $HSLOT"
+  [ "${NDF:-0}" -gt "${D0:-0}" ] || fail "holder $HOLDER never finished UBSWEEP on slot $HSLOT"
   DONE=$($SSH "$HOLDER" "dmesg | grep '$PAT_DONE' | tail -1" 2>/dev/null | tr -d '\r')
   RC=$(sed -n 's/.*rc=\(-\?[0-9]*\).*/\1/p' <<<"$DONE")
   say "holder sweep done: '$DONE'"
   [ "$RC" = "0" ] || fail "holder sweep rc=$RC (guard lost or sweep error) — '$DONE'"
   RESTORE=()   # NB is already back
+elif [ "$ARM" = peerloss ]; then
+  # ── peerloss arm (sess467, D-0523 ruling STOP-SHIP 4 second half /
+  #    required test "last peer dies mid-wait -> bootstrap"): boot NB into
+  #    the hold window as the joiner arm does; once NB is INSIDE the claim
+  #    wait (P300-CLAIM-WAIT-START on NB), virsh-destroy EVERY survivor —
+  #    the guard holder included, so the sweep guard freezes on disk too.
+  #    NB's wait must then see no ACTIVE record re-stamp for a dead window
+  #    (P300-CLAIM-WAIT-PEERS-LOST), NOT fail the mount, but re-run the
+  #    whole-cluster bootstrap in the same mount (P300-CLAIM-WAIT-RESTART-
+  #    BOOTSTRAP attempt=1/1), own the total outage (P-BOOT-SEALED with every
+  #    former member a victim) and finish mounting as the bootstrap owner
+  #    (a 'claimed heartbeat slot' or an adopted K).  The old behaviour was
+  #    a -85 mount failure with the bootstrap deferred to the next attempt.
+  # Budget (budget, measured): virsh-start -> claim attempt 35 s (chain 88);
+  #   peer-loss detection = dead window 62 s (31 x 2 s) after the destroys;
+  #   bootstrap survivor scan = one dead window + early poll ~62 s; owner
+  #   replay of 31 victim slices: 288 s measured for 32 victims on 0.47.0
+  #   (tests/evidence/sess441_chain27_0470_bootstrap_full_restart_s441d.log
+  #   'mount attempt rc=32 wall=288s')  => mount cap 480 s.  Then the fleet
+  #   restore: 31 parallel boot_rejoin ~150 s (abandoned arm measurement).
+  say "booting $NB back INTO the hold window (peerloss arm)"
+  JOIN_OUT=$(mktemp)
+  boot_rejoin "$NB" >"$JOIN_OUT" 2>&1 &
+  JOIN_PID=$!
+  JOIN_T0=$(date +%s); JOIN_BUDGET=480
+  W0=$(cnt "$NB" "P300-CLAIM-WAIT-START")
+  WS=""; TWS=0
+  while [ $TWS -lt 150 ] && kill -0 "$JOIN_PID" 2>/dev/null; do
+    W1=$(cnt "$NB" "P300-CLAIM-WAIT-START")
+    if [ "${W1:-0}" -gt "${W0:-0}" ]; then WS=yes; break; fi
+    sleep 5; TWS=$((TWS+5))
+  done
+  [ -n "$WS" ] || { wait "$JOIN_PID"; fail "inconclusive: $NB never entered the claim wait within ${TWS}s (hold not in effect, or it claimed a free slot — rig not at capacity)"; }
+  say "$NB is inside the claim wait after ${TWS}s; destroying every survivor (${#SURV[@]} nodes, holder $HOLDER included)"
+  DESTROY_T0=$(date +%s)
+  # sess468 (chain 99): a bare `wait` here also reaped the backgrounded
+  # boot_rejoin ($JOIN_PID) — it blocked until NB's whole mount attempt had
+  # finished (267 s), the later `wait $JOIN_PID` returned 127 ('not a child')
+  # and the mount's real exit status was lost.  Wait for the destroys only.
+  DPIDS=()
+  for n in "${SURV[@]}"; do ( $VIRSH destroy "$n" >/dev/null 2>&1 ) & DPIDS+=($!); done
+  [ "${#DPIDS[@]}" -gt 0 ] && wait "${DPIDS[@]}"
+  RESTORE=("${SURV[@]}")
+  say "survivors destroyed in $(( $(date +%s) - DESTROY_T0 ))s; waiting for $NB's mount (cap ${JOIN_BUDGET}s)"
+  CL=""; NEWSLOT=""
+  while kill -0 "$JOIN_PID" 2>/dev/null; do
+    [ $(( $(date +%s) - JOIN_T0 )) -lt $JOIN_BUDGET ] || break
+    sleep 10
+  done
+  if kill -0 "$JOIN_PID" 2>/dev/null; then
+    kill "$JOIN_PID" 2>/dev/null; JOIN_RC=124
+  else
+    wait "$JOIN_PID"; JOIN_RC=$?
+  fi
+  MOUNTED=$($SSH "$NB" "mount -t mxfs | grep -c mxfs" 2>/dev/null | tr -d ' \r\n')
+  CL=$($SSH "$NB" "dmesg | grep -E 'claimed heartbeat slot|P-BOOT-ADOPT slot=' | tail -1" 2>/dev/null | tr -d '\r' | cut -c1-200)
+  NEWSLOT=$(sed -n 's/.*\(claimed heartbeat slot\|P-BOOT-ADOPT slot=\) *\([0-9]*\).*/\2/p' <<<"$CL")
+  LOST=$(cnt "$NB" "P300-CLAIM-WAIT-PEERS-LOST")
+  RESTARTS=$(cnt "$NB" "P300-CLAIM-WAIT-RESTART-BOOTSTRAP")
+  SEALED=$($SSH "$NB" "dmesg | grep 'P-BOOT-SEALED' | tail -1" 2>/dev/null | tr -d '\r' | cut -c1-240)
+  REFUSE=$($SSH "$NB" "dmesg | grep -E 'claim_slot failed|P-BOOT-MOUNT-REFUSED|P300-CLAIM-WAIT-(GAVE-UP|PERMANENT)' | tail -3" 2>/dev/null | tr -d '\r' | cut -c1-300)
+  say "peerloss: mount rc=$JOIN_RC wall=$(( $(date +%s) - JOIN_T0 ))s mounted=$MOUNTED claim='$CL' peers_lost=$LOST restarts=$RESTARTS sealed='${SEALED:-none}'"
+  [ -n "$REFUSE" ] && say "refusal lines: $REFUSE"
+  [ "${LOST:-0}" -ge 1 ] || { tail -5 "$JOIN_OUT" | sed 's/^/  prep: /'; fail "inconclusive: $NB never logged P300-CLAIM-WAIT-PEERS-LOST (the destroys did not land inside its wait, or a peer survived)"; }
+  [ "${RESTARTS:-0}" -ge 1 ] || fail "D-0523 STOP-SHIP 4: peers lost mid-wait but no in-mount bootstrap restart (P300-CLAIM-WAIT-RESTART-BOOTSTRAP absent); refusal: ${REFUSE:-none}"
+  [ -n "$SEALED" ] || fail "the restarted bootstrap did not seal a term (no P-BOOT-SEALED on $NB); refusal: ${REFUSE:-none}"
+  if [ "$JOIN_RC" != 0 ] || [ "${MOUNTED:-0}" != 1 ]; then
+    tail -5 "$JOIN_OUT" | sed 's/^/  prep: /'
+    fail "AVAILABILITY: peerless joiner $NB did not mount within ${JOIN_BUDGET}s (rc=$JOIN_RC mounted=$MOUNTED claim='$CL'); refusal: ${REFUSE:-none logged}"
+  fi
+  # sess469 (D-ORPHAN-SCAN-IGETS-A-ZOMBIE-EFSCORRUPTED-SHUTDOWN-0525): the mount is not the
+  # end of the story.  On 0.64.4 the lone survivor mounted, recovered all 31
+  # dead slots, and then SHUT DOWN 30 s later when inodegc freed the arm's own
+  # open-unlinked file through the legacy bucket (P-UNLREM-INCOMPLETE ->
+  # P71 agi-unlinked-garbage -> -117 -> P-SESSION-POISON).  Give the
+  # post-bootstrap reaping its window (the unclaimed-slot sweep + inodegc ran
+  # ~30 s after P-BOOT-RECOVERY-COMPLETE), then require: fs still mounted and
+  # writable, no corruption/shutdown lines, the zombie's bucket swept clean
+  # (P99-UBSWEEP-DONE rc=0) and no foreign-zombie or orphan-member anomaly
+  # left silent.
+  say "post-bootstrap settle: 45 s for the unclaimed-slot sweep + inodegc on $NB"
+  sleep 45
+  PB_SHUT=$(cnt "$NB" "Internal error xfs_iunlink_remove_inode\|P71-INSTR agi-unlinked-garbage\|P-UNLREM-INCOMPLETE\|P-SESSION-POISON\|Filesystem has been shut down\|Corruption detected")
+  PB_SWEEP_FAIL=$(cnt "$NB" "P97-SWEEP-IGET-FAIL")
+  PB_UB_OK=$(cnt "$NB" "P99-UBSWEEP-DONE slot=[0-9]* rc=0")
+  PB_MEMBER_LATE=$(cnt "$NB" "P98-ORPHAN-MEMBER-LATE\|P-INACT-FOREIGN-ZOMBIE-SKIP\|P-UNLPRE-FOUND")
+  PB_WRITE=$($SSH "$NB" "mount -t mxfs | grep -q mxfs && echo probe > $MNT/.peerloss_probe_$$ && sync && rm -f $MNT/.peerloss_probe_$$ && echo writable" 2>/dev/null | tr -d '\r' | grep -c writable)
+  say "post-bootstrap: shutdown_lines=$PB_SHUT sweep_iget_fail=$PB_SWEEP_FAIL ubsweep_ok=$PB_UB_OK member_late_or_found=$PB_MEMBER_LATE writable=$PB_WRITE"
+  [ "${PB_SHUT:-0}" = 0 ] || fail "D-0525: the peerless survivor $NB corrupted/shut down after its bootstrap (shutdown_lines=$PB_SHUT; grep P-UNLREM-INCOMPLETE/P71/P-SESSION-POISON on $NB)"
+  [ "${PB_WRITE:-0}" = 1 ] || fail "D-0525: the peerless survivor $NB is not mounted+writable after its bootstrap"
+  [ "${PB_SWEEP_FAIL:-0}" = 0 ] || fail "D-0525: a bucket sweep on $NB could not take a member (P97-SWEEP-IGET-FAIL x$PB_SWEEP_FAIL) — the orphan scan instantiated it first"
+  # The fleet comes back under the sealed term; cleanup restores every
+  # survivor in parallel and the caller's prep_cluster re-verifies 32/32.
+  cleanup
+  BACK=0; for n in "${SURV[@]}"; do $SSH "$n" "mount -t mxfs | grep -q mxfs" 2>/dev/null && BACK=$((BACK+1)); done
+  say "fleet restore: $BACK/${#SURV[@]} survivors remounted"
+  echo "RESULT: PASS | case=guard_race_peerloss | joiner=$NB new_slot=${NEWSLOT:-K} peers_lost=$LOST restarts=$RESTARTS sealed=1 mount_wall=$(( $(date +%s) - JOIN_T0 ))s survivors_back=$BACK/${#SURV[@]} ino=$INO"
+  exit 0
 elif [ "$ARM" = stale_resume ]; then
   # ── stale_resume arm: holder stalls (no refresh); NB rejoins and its
   #    settle scan reclaims the frozen guard; the resumed holder must lose

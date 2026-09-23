@@ -49,6 +49,12 @@ secrets_passfile() {  # [path]
     pw=$(secrets_get node password) || return 1
     [ -n "$pw" ] || return 1
     mkdir -p "$(dirname "$path")" 2>/dev/null
+    # sess452: a path that exists but belongs to another uid (a sudo'd sweep
+    # created it root:600) can be neither read nor rewritten by us, and sshpass
+    # hangs on the prompt when handed it.  Materialize a per-uid sibling instead.
+    if [ -e "$path" ] && [ ! -O "$path" ] && { [ ! -r "$path" ] || [ ! -w "$path" ]; }; then
+        path="${path}.uid$(id -u)"
+    fi
     # only (re)write when the content differs — avoids churn and concurrent-write races
     if [ ! -s "$path" ] || [ "$(cat "$path" 2>/dev/null)" != "$pw" ]; then
         ( umask 077; printf '%s' "$pw" > "$path" )

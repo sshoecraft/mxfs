@@ -35,7 +35,7 @@ VICTIM="test${VICTIM_N}"
 # in that file.
 #
 # Node IPs are dnsmasq leases, NOT sequential — always resolve by hostname.
-# (env-test1-dhcp-reservation-fix-sess29: only test1/test2 have reservations.)
+# (env-test1-needs-a-static-dhcp-reservation: only test1/test2 have reservations.)
 # A survivor we ask for wire state + logs.  Never the victim.
 if [ "$VICTIM_N" = "1" ]; then OBS=test2; else OBS=test1; fi
 
@@ -46,13 +46,19 @@ if [ "$VICTIM_N" = "1" ]; then OBS=test2; else OBS=test1; fi
 # One winner in 32 is exactly what a partial poll is guaranteed to miss.
 SURVIVORS="$(seq 1 "${MXFS_NODES:-32}")"
 
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$OBS"; DEV=$MXFS_DEV_RESOLVED
 sshq() { tools/mxfs_sshpass.sh "$1" "$2" 2>/dev/null | grep -v "^/tmp/\|Warning: Permanently\|^$\|Unauthorized access\|If you are not an authorized"; }
 
 pr_table() {
-    sshq "$OBS" 'sg_persist --in --read-keys /dev/mapper/mpatha 2>&1 | grep -E "generation.*keys follow"'
+    sshq "$OBS" "sg_persist --in --read-keys $DEV 2>&1 | grep -E 'generation.*keys follow'"
 }
 pr_holder() {
-    sshq "$OBS" 'sg_persist --in --read-reservation /dev/mapper/mpatha 2>&1 | grep -E "Key=|type:"'
+    sshq "$OBS" "sg_persist --in --read-reservation $DEV 2>&1 | grep -E 'Key=|type:'"
 }
 
 echo "=== MXFS PR fence evidence — victim=$VICTIM observe=${OBSERVE}s ==="

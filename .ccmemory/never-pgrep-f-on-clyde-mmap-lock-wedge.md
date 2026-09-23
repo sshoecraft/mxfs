@@ -3,7 +3,6 @@ name: never-pgrep-f-on-clyde-mmap-lock-wedge
 description: NEVER use `pgrep -f` / `ps -e` host-locally on clyde: it reads every /proc/cmdline and wedges forever on a stuck mmap_lock. Use tools/mxfs_pgrep.sh.
 metadata:
   type: reference
-tags: [clyde, host-safety, pgrep, test-harness, dstate, wedge]
 ---
 
 # NEVER `pgrep -f` (or `ps -e`/`ps aux`) host-locally on clyde

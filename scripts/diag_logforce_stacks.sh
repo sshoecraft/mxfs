@@ -1,5 +1,5 @@
 #!/bin/bash
-# diag_logforce_stacks.sh — RULE 4 instrumentation for the scaling_curve
+# diag_logforce_stacks.sh — instrumentation for the scaling_curve
 # residual: aggregate the call stacks of a target function (default
 # xfs_log_force) on every node during the 2-node parallel rsync workload.
 # Uses the ftrace function tracer with func_stack_trace, then collapses

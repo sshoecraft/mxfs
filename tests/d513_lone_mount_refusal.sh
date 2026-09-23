@@ -31,16 +31,22 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 FORGE=/src/mxfs/tools/recov_forge
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 
 SURV="${1:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$SURV"; DEV=$MXFS_DEV_RESOLVED
 VICTIM="${2:-test2}"
 SHAPE="${3:-4}"
 LOAD="${LOAD:-20}"
 TORN_ITEMS="${TORN_ITEMS:-3}"
 
-# RULE 0 budget for the lone mount: the barrier pays the full dead-confirm
+# derived time budget for the lone mount: the barrier pays the full dead-confirm
 # window for a peer that was already frozen when we mounted (dead_threshold x
 # hb interval ~= 62 s, TIMEOUT_BUDGETS.md), plus fence, plus the replay it is
 # about to refuse, plus the publish.  Measured clean mounts are 5-7 s; this one

@@ -8,7 +8,7 @@
 # D-state waiting on a degraded DLM, so `umount`/`rmmod` (even -l/-f) hang
 # uninterruptibly and the next run's mkfs fails "device busy".  D-state procs
 # can't be killed; only a VM reboot recovers.  Host (clyde) reboot is
-# PROHIBITED (CLAUDE.md RULE 2) — VM reboot via the system libvirt URI is fine
+# PROHIBITED (CLAUDE.md) — VM reboot via the system libvirt URI is fine
 # (memory reference_node_power_control).
 #
 # Usage: tests/reset2.sh        (reboots both)

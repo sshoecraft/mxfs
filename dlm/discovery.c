@@ -74,11 +74,17 @@ static void mxfs_discovery_send_fn(void *arg)
     mxfs_pal_log(MXFS_LOG_DEBUG, "discovery: sender thread started");
 
     while (ctx->running) {
-        ret = mxfs_pal_udp_sendto(ctx->sock,
-                                   &ctx->local_announce,
-                                   sizeof(ctx->local_announce),
-                                   ctx->send_addr,
-                                   ctx->port);
+        if (mxfs_static_peers_active(&ctx->peers))
+            ret = mxfs_static_peers_sendto(&ctx->peers, ctx->sock,
+                                           &ctx->local_announce,
+                                           sizeof(ctx->local_announce),
+                                           ctx->port);
+        else
+            ret = mxfs_pal_udp_sendto(ctx->sock,
+                                      &ctx->local_announce,
+                                      sizeof(ctx->local_announce),
+                                      ctx->send_addr,
+                                      ctx->port);
         if (ret < 0)
             mxfs_pal_log(MXFS_LOG_WARN,
                          "mxfs: discovery broadcast failed: %d "
@@ -158,6 +164,10 @@ static void mxfs_discovery_recv_fn(void *arg)
         if (ret < (int)sizeof(pkt))
             continue;
 
+        /* peers=: only the listed addresses are the cluster */
+        if (!mxfs_static_peers_admit(&ctx->peers, sender_host))
+            continue;
+
         /* Validate magic */
         if (mxfs_le32_to_cpu(pkt.magic) != MXFS_DISCOVERY_MAGIC)
             continue;
@@ -175,6 +185,24 @@ static void mxfs_discovery_recv_fn(void *arg)
         if (memcmp(pkt.volume_uuid,
                    ctx->local_announce.volume_uuid, 16) != 0)
             continue;
+
+        /*
+         * A listed node sends to us by unicast but never listens on the
+         * group, so it cannot hear this node's announcements or lease
+         * heartbeats: to it this node is partitioned away, and the lease
+         * machinery will treat it as such.  Say so once, loudly; the
+         * packet is still processed, as it would be under any partition.
+         */
+        if ((mxfs_le16_to_cpu(pkt.flags) & MXFS_DISCOVERY_FLAG_STATIC_PEERS) &&
+            !mxfs_static_peers_active(&ctx->peers) && !ctx->mismatch_warned) {
+            ctx->mismatch_warned = true;
+            mxfs_pal_log(MXFS_LOG_ERR,
+                         "mxfs: P-PEERS-MISMATCH node %u (%s) is mounted with "
+                         "peers= and this node is not; it cannot hear this "
+                         "node.  Every node of a cluster must use the same "
+                         "peers= list, or none",
+                         pkt.node_id, sender_host);
+        }
 
         /* Track whether this is a newly discovered peer */
         mxfs_pal_mutex_lock(ctx->seen_lock);
@@ -217,11 +245,13 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     uint16_t tcp_port,
     const char *mcast_addr,
     uint16_t disc_port,
-    bool use_broadcast)
+    bool use_broadcast,
+    const struct mxfs_static_peers *peers)
 {
     struct mxfs_discovery_ctx *ctx;
     char hostname[64];
     int ret;
+    uint16_t flags = MXFS_DISCOVERY_FLAG_HAS_VOLUME;
 
     ctx = mxfs_pal_alloc(sizeof(*ctx));
     if (!ctx)
@@ -235,6 +265,11 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     ctx->peer_cb_data = NULL;
     ctx->seen_count = 0;
     ctx->use_broadcast = use_broadcast;
+    if (mxfs_static_peers_active(peers)) {
+        ctx->peers = *peers;
+        ctx->use_broadcast = false;
+        flags |= MXFS_DISCOVERY_FLAG_STATIC_PEERS;
+    }
 
     ctx->port = disc_port > 0 ? disc_port : MXFS_DISCOVERY_PORT;
 
@@ -277,7 +312,7 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     /* Populate local announcement */
     ctx->local_announce.magic = mxfs_cpu_to_le32(MXFS_DISCOVERY_MAGIC);
     ctx->local_announce.version = mxfs_cpu_to_le16(MXFS_DISCOVERY_VERSION);
-    ctx->local_announce.flags = mxfs_cpu_to_le16(MXFS_DISCOVERY_FLAG_HAS_VOLUME);
+    ctx->local_announce.flags = mxfs_cpu_to_le16(flags);
     if (node_uuid)
         memcpy(ctx->local_announce.node_uuid, node_uuid, 16);
     ctx->local_announce.node_id = node_id;
@@ -308,7 +343,12 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     /* Set receive timeout for clean shutdown */
     mxfs_pal_udp_set_recv_timeout(ctx->sock, 500);
 
-    if (use_broadcast) {
+    if (mxfs_static_peers_active(&ctx->peers)) {
+        /* unicast only: no group membership, no broadcast */
+        mxfs_pal_log(MXFS_LOG_INFO,
+                     "discovery: static peer list, %u address(es), port %u",
+                     ctx->peers.count, ctx->port);
+    } else if (ctx->use_broadcast) {
         ret = mxfs_pal_udp_set_broadcast(ctx->sock);
         if (ret < 0) {
             mxfs_pal_log(MXFS_LOG_ERR,

@@ -27,6 +27,8 @@
 #include "xfs_sb.h"
 #include "xfs_rtgroup.h"
 #include "xfs_rtbitmap.h"
+#include "xfs_relmark_item.h"	/* sess459: MXFS_RI_VERDICT_APPLY */
+#include "xfs_mxfs_dirshard.h"	/* sess466: manifest block type + mgen veto */
 
 /*
  * This is the number of entries in the l_buf_cancel_table used during
@@ -118,7 +120,7 @@ xlog_is_buffer_cancelled(
  * buffer is re-used again after its last cancellation we actually replay the
  * changes made at that point.
  */
-static bool
+bool
 xlog_put_buffer_cancelled(
 	struct xlog		*log,
 	xfs_daddr_t		blkno,
@@ -328,6 +330,14 @@ xlog_recover_validate_buf_type(
 			break;
 		}
 		bp->b_ops = &xfs_symlink_buf_ops;
+		break;
+	case XFS_BLFT_MXFS_DIRSHARD_BUF:
+		/* sess466: directory-sharding manifest block (docs/dir-sharding.md) */
+		if (magic32 != MXFS_DIRSHARD_BLK_MAGIC) {
+			warnmsg = "Bad MXFS dirshard manifest block magic!";
+			break;
+		}
+		bp->b_ops = &mxfs_dirshard_buf_ops;
 		break;
 	case XFS_BLFT_DIR_BLOCK_BUF:
 		if (magic32 != XFS_DIR2_BLOCK_MAGIC &&
@@ -619,6 +629,12 @@ xlog_recover_do_inode_buffer(
 	int				inodes_per_buf;
 	xfs_agino_t			*logged_nextp;
 	xfs_agino_t			*buffer_nextp;
+	/* 0.89.35: the AG this image is allowed to name, and the single exit
+	 * that gives its perag reference back. */
+	xfs_daddr_t			bstart;
+	xfs_agnumber_t			agno;
+	struct xfs_perag		*pag;
+	int				error = 0;
 
 	trace_xfs_log_recover_buf_inode_buf(mp->m_log, buf_f);
 
@@ -629,7 +645,75 @@ xlog_recover_do_inode_buffer(
 	if (xfs_has_crc(mp))
 		bp->b_ops = &xfs_inode_buf_ops;
 
+	/*
+	 * 0.89.35 — THE AG THIS IMAGE MAY SPEAK FOR, DERIVED FROM THE BLOCK
+	 * NUMBER AND NOT FROM THE IMAGE.
+	 *
+	 * Everything below patches di_next_unlinked out of a log image, and
+	 * until now the only thing asked of that value was that it not be
+	 * zero.  An unlinked-list pointer is an AGINO: it names an inode in
+	 * the SAME allocation group as the cluster it lives in, or it is
+	 * NULLAGINO for the end of the chain.  Nothing checked either.
+	 *
+	 * The AG is taken from the buffer's own daddr, because the alternative
+	 * — reading the AG out of the first dinode's embedded identity — would
+	 * be deriving the bound from the same untrusted bytes the bound is
+	 * meant to constrain.  The buffer must also lie wholly inside that one
+	 * AG: an inode cluster that straddles an AG boundary has no single
+	 * correct agino range, so there is no honest way to validate it and it
+	 * is refused instead of guessed at.
+	 *
+	 * This matters more since the AG grant began authorizing this path.
+	 * An image that carries a wild agino would previously be adopted whole
+	 * and the corruption discovered later, by whoever walked the chain.
+	 */
+	bstart = xfs_buf_daddr(bp);
+	agno = xfs_daddr_to_agno(mp, bstart);
+	if (XFS_IS_CORRUPT(mp,
+			   agno != xfs_daddr_to_agno(mp,
+						     bstart + bp->b_length - 1))) {
+		xfs_alert(mp,
+	"Bad inode buffer log record (ptr = "PTR_FMT", bp = "PTR_FMT"). "
+	"Inode cluster at daddr %lld length %d straddles an AG boundary; refusing to replay it.",
+			item, bp, (long long)bstart, bp->b_length);
+		return -EFSCORRUPTED;
+	}
+	pag = xfs_perag_get(mp, agno);
+	if (XFS_IS_CORRUPT(mp, pag == NULL)) {
+		xfs_alert(mp,
+	"Bad inode buffer log record (ptr = "PTR_FMT", bp = "PTR_FMT"). "
+	"Inode cluster at daddr %lld names AG %u, which this mount does not have.",
+			item, bp, (long long)bstart, agno);
+		return -EFSCORRUPTED;
+	}
+
 	inodes_per_buf = BBTOB(bp->b_length) >> mp->m_sb.sb_inodelog;
+	/*
+	 * 0.89.35 — AND IT HAS TO BE A WHOLE NUMBER OF INODES.
+	 *
+	 * The loop below indexes inode i at i * sb_inodesize and patches four
+	 * bytes at di_next_unlinked's offset within it, so a buffer that is
+	 * not a whole multiple of the inode size has a last "inode" that runs
+	 * off the end of it.  Note what is deliberately NOT checked here: a
+	 * logged inode buffer is allowed to be a different size from THIS
+	 * kernel's inode_cluster_size — the log may have been written by a
+	 * kernel with unclustered inode buffers or a different cluster size,
+	 * and out_writebuf below handles exactly that by keeping the odd-sized
+	 * buffer out of the cache.  Refusing on cluster size would reject a
+	 * replay that is legitimate.
+	 */
+	if (XFS_IS_CORRUPT(mp, inodes_per_buf <= 0) ||
+	    XFS_IS_CORRUPT(mp,
+			   (BBTOB(bp->b_length) & (mp->m_sb.sb_inodesize - 1)))) {
+		xfs_alert(mp,
+	"Bad inode buffer log record (ptr = "PTR_FMT", bp = "PTR_FMT"). "
+	"Inode cluster at daddr %lld is %d bytes, not a whole multiple of the %d-byte inode size.",
+			item, bp, (long long)bstart, BBTOB(bp->b_length),
+			mp->m_sb.sb_inodesize);
+		error = -EFSCORRUPTED;
+		goto out;
+	}
+
 	for (i = 0; i < inodes_per_buf; i++) {
 		next_unlinked_offset = (i * mp->m_sb.sb_inodesize) +
 			offsetof(struct xfs_dinode, di_next_unlinked);
@@ -651,7 +735,7 @@ xlog_recover_do_inode_buffer(
 			 * buffer, then we're done.
 			 */
 			if (bit == -1)
-				return 0;
+				goto out;
 
 			nbits = xfs_contig_bits(buf_f->blf_data_map,
 						buf_f->blf_map_size, bit);
@@ -685,11 +769,59 @@ xlog_recover_do_inode_buffer(
 		"Bad inode buffer log record (ptr = "PTR_FMT", bp = "PTR_FMT"). "
 		"Trying to replay bad (0) inode di_next_unlinked field.",
 				item, bp);
-			return -EFSCORRUPTED;
+			error = -EFSCORRUPTED;
+			goto out;
 		}
 
+		/*
+		 * 0.89.35 — AND IT HAS TO BE AN AGINO OF THIS AG.
+		 *
+		 * di_next_unlinked is stored big-endian, so the value is
+		 * byte-swapped to be judged and the copy below still moves the
+		 * on-disk bytes unchanged.  xfs_verify_agino_or_null accepts
+		 * NULLAGINO (the end of an unlinked chain) and otherwise
+		 * requires the agino to fall inside this AG's inode range and
+		 * clear of its static metadata — the same predicate the
+		 * in-memory unlinked-list code asserts on every insert and
+		 * remove.  A value that fails it cannot be a pointer anything
+		 * in this filesystem could follow, so adopting it would write
+		 * a chain that only breaks later, in whoever walks it.
+		 */
+		if (XFS_IS_CORRUPT(mp,
+				   !xfs_verify_agino_or_null(
+					   pag,
+					   be32_to_cpu(*(__be32 *)logged_nextp)))) {
+			xfs_alert(mp,
+		"Bad inode buffer log record (ptr = "PTR_FMT", bp = "PTR_FMT"). "
+		"di_next_unlinked %u for inode %d of the cluster at daddr %lld is not NULLAGINO and not a valid agino of AG %u.",
+				item, bp,
+				be32_to_cpu(*(__be32 *)logged_nextp),
+				i, (long long)bstart, agno);
+			error = -EFSCORRUPTED;
+			goto out;
+		}
+
+		/*
+		 * D-0976: the patch is four bytes of a slot this node may hold
+		 * a stale cached copy of (a foreign replay reads through the
+		 * survivor's cache); give the slot the dead node's last durable
+		 * image as its baseline before the first patch of this
+		 * recovery, then own it until the write lands — the
+		 * inode-cluster write's authority mask would otherwise drop a
+		 * slot this node neither logged nor holds.
+		 */
+		if (xlog_is_mxfs_foreign_replay(mp->m_log)) {
+			int rerr = mxfs_recov_slot_refresh(bp, i);
+
+			if (rerr) {
+				error = rerr;
+				goto out;
+			}
+		}
 		buffer_nextp = xfs_buf_offset(bp, next_unlinked_offset);
 		*buffer_nextp = *logged_nextp;
+		if (i < 64)
+			bp->b_mxfs_recov_slots |= 1ULL << i;
 
 		/*
 		 * If necessary, recalculate the CRC in the on-disk inode. We
@@ -701,7 +833,9 @@ xlog_recover_do_inode_buffer(
 
 	}
 
-	return 0;
+out:
+	xfs_perag_put(pag);
+	return error;
 }
 
 /*
@@ -897,6 +1031,11 @@ xlog_recover_get_buf_lsn(
 		lsn = be64_to_cpu(((struct xfs_dsymlink_hdr *)blk)->sl_lsn);
 		uuid = &((struct xfs_dsymlink_hdr *)blk)->sl_uuid;
 		break;
+	case MXFS_DIRSHARD_BLK_MAGIC:
+		/* sess466: directory-sharding manifest block */
+		lsn = be64_to_cpu(((struct mxfs_dirshard_blk *)blk)->lsn);
+		uuid = (uuid_t *)((struct mxfs_dirshard_blk *)blk)->uuid;
+		break;
 	case XFS_DIR3_BLOCK_MAGIC:
 	case XFS_DIR3_DATA_MAGIC:
 	case XFS_DIR3_FREE_MAGIC:
@@ -983,6 +1122,72 @@ recover_immediately:
 }
 
 /*
+ * sess466 (docs/dir-sharding.md): decide whether a directory-sharding
+ * manifest image may be applied over the block on disk.  Every image of this
+ * type is complete — the module logs the whole formatted region from offset
+ * 0 (xfs_mxfs_dirshard.c mxfs_dirshard_blk_log) — so the first logged region
+ * carries the block header and the manifest header, and the image's mgen is
+ * comparable with the on-disk one.  A block on disk that does not carry the
+ * manifest magic (fresh allocation, or reused as another type) has nothing
+ * to protect and the image applies.  An image whose shape is not the one the
+ * module writes (first dirty chunk not at 0, or a short region) cannot be
+ * judged here and falls back to the token verdict alone — named, so the log
+ * shows it.  Returns true when the image must be skipped.
+ */
+static bool
+mxfs_dirshard_replay_mgen_veto(
+	struct xfs_mount		*mp,
+	struct xlog			*log,
+	struct xlog_recover_item	*item,
+	struct xfs_buf			*bp,
+	struct xfs_buf_log_format	*buf_f)
+{
+	const struct mxfs_dirshard_blk		*disk = bp->b_addr;
+	const struct mxfs_dirshard_blk		*img;
+	const struct mxfs_dirshard_manifest	*dm, *im;
+	const size_t	need = MXFS_DIRSHARD_BLK_HDR_LEN +
+			       MXFS_DIRSHARD_MANIFEST_HDR_LEN;
+	static atomic_t	veto_n = ATOMIC_INIT(0);
+	uint32_t	dmgen, imgen;
+	int		bit;
+
+	if (xfs_blft_from_flags(buf_f) != XFS_BLFT_MXFS_DIRSHARD_BUF)
+		return false;
+	if (BBTOB(bp->b_length) < need)
+		return false;
+	if (be32_to_cpu(disk->magic) != MXFS_DIRSHARD_BLK_MAGIC)
+		return false;
+	bit = xfs_next_bit(buf_f->blf_data_map, buf_f->blf_map_size, 0);
+	if (bit != 0 || item->ri_cnt < 2 || !item->ri_buf[1].iov_base ||
+	    item->ri_buf[1].iov_len < need) {
+		xfs_warn(mp,
+	"MXFS replay: P-DIRSHARD-MGEN-SHAPE blkno=%lld first_bit=%d regions=%d — manifest image does not start at offset 0; applying on the token verdict alone",
+			 (long long)buf_f->blf_blkno, bit, item->ri_cnt);
+		return false;
+	}
+	img = item->ri_buf[1].iov_base;
+	if (be32_to_cpu(img->magic) != MXFS_DIRSHARD_BLK_MAGIC)
+		return false;
+	dm = (const struct mxfs_dirshard_manifest *)
+		((const char *)disk + MXFS_DIRSHARD_BLK_HDR_LEN);
+	im = (const struct mxfs_dirshard_manifest *)
+		((const char *)img + MXFS_DIRSHARD_BLK_HDR_LEN);
+	dmgen = be32_to_cpu(dm->mgen);
+	imgen = be32_to_cpu(im->mgen);
+	if (imgen > dmgen)
+		return false;
+	if (atomic_inc_return(&veto_n) <= 2000)
+		xfs_notice(mp,
+	"MXFS %s replay: P-DIRSHARD-MGEN-VETO blkno=%lld parent=%llu image_mgen=%u disk_mgen=%u tokverdict=%u — image not newer than the on-disk manifest; skipped",
+			   xlog_is_mxfs_foreign_replay(log) ? "foreign" :
+			   xlog_is_mxfs_untrusted_replay(log) ? "adopted" : "own",
+			   (long long)buf_f->blf_blkno,
+			   (unsigned long long)be64_to_cpu(img->parent_ino),
+			   imgen, dmgen, (unsigned int)item->ri_mxfs_verdict);
+	return true;
+}
+
+/*
  * This routine replays a modification made to a buffer at runtime.
  * There are actually two types of buffer, regular and inode, which
  * are handled differently.  Inode buffers are handled differently
@@ -1017,20 +1222,86 @@ xlog_recover_buf_commit_pass2(
 	struct xfs_buf			*bp;
 	int				error;
 	xfs_lsn_t			lsn;
+	int				fr_cached = -1;
+	unsigned int			fr_cflags = 0;
 
 	/*
 	 * In this pass we only want to recover all the buffers which have
 	 * not been cancelled and are not cancellation buffers themselves.
 	 */
 	if (buf_f->blf_flags & XFS_BLF_CANCEL) {
-		if (xlog_put_buffer_cancelled(log, buf_f->blf_blkno,
-				buf_f->blf_len))
-			goto cancelled;
+		if (!xlog_put_buffer_cancelled(log, buf_f->blf_blkno,
+				buf_f->blf_len)) {
+			/*
+			 * sess476: upstream relies on pass 1 having added every
+			 * CANCEL, so a miss here was unreachable.  On an
+			 * untrusted replay the end-of-pass-1 decision removes
+			 * a REFUSED transaction's entries and pass 2 returns
+			 * before this point for it, so a miss is a pass-1/pass-2
+			 * disagreement: count it loudly and still treat the
+			 * record as the no-image cancel it is — never fall
+			 * through to a buffer write for a CANCEL record.
+			 */
+			log->l_mxfs_cancel_put_miss++;
+			xfs_warn_ratelimited(log->l_mp,
+	"MXFS replay: P-FR-CANCEL-PUT-MISS blkno=%lld len=%u lsn=0x%llx — CANCEL record with no pass-1 table entry (n=%u)",
+				(long long)buf_f->blf_blkno,
+				(unsigned)buf_f->blf_len,
+				(unsigned long long)current_lsn,
+				log->l_mxfs_cancel_put_miss);
+		}
+		goto cancelled;
 	} else {
 
 		if (xlog_is_buffer_cancelled(log, buf_f->blf_blkno,
-				buf_f->blf_len))
+				buf_f->blf_len)) {
+			/*
+			 * sess476: on an untrusted replay this is the pass-1
+			 * cancel table acting on an image — the witness the
+			 * CANCEL-token negative arm asserts is ZERO when every
+			 * cancel came from a refused transaction, and the
+			 * positive arm reports.
+			 */
+			if (xlog_is_mxfs_untrusted_replay(log)) {
+				log->l_mxfs_image_cancel_skips++;
+				if (log->l_mxfs_image_cancel_skips <= 400)
+					xfs_notice(mp,
+	"MXFS %s replay: P-FR-IMAGE-CANCELLED-SKIP blkno=%lld len=%u lsn=0x%llx (n=%u) — image suppressed by a later CANCEL in the pass-1 table",
+						   xlog_is_mxfs_foreign_replay(log) ?
+						   "foreign" : "adopted",
+						   (long long)buf_f->blf_blkno,
+						   (unsigned)buf_f->blf_len,
+						   (unsigned long long)current_lsn,
+						   log->l_mxfs_image_cancel_skips);
+			}
 			goto cancelled;
+		}
+	}
+
+	/*
+	 * sess456 (D-0517 instrument step 2): on a FOREIGN replay this read goes
+	 * through the live replayer's own buffer cache with no freshness flag,
+	 * so a cluster this node cached earlier (any peer stats the shared
+	 * directory's inodes) is served as-is: the unlinked-pointer patch
+	 * below then lands on a STALE image and the whole cluster is queued
+	 * for write.  Record whether the buffer was already in cache and DONE
+	 * before the read; P-FR-DINO-BUF below carries it, and the write-side
+	 * P-DINO-CLOBBER (xfs_buf.c) names the regression if there is one.
+	 */
+	if (xlog_is_mxfs_foreign_replay(log)) {
+		struct xfs_buf *ib = NULL;
+		int irc = xfs_buf_incore(mp->m_ddev_targp, buf_f->blf_blkno,
+					 buf_f->blf_len, XBF_TRYLOCK, &ib);
+
+		if (irc == 0 && ib) {
+			fr_cached = (ib->b_flags & XBF_DONE) ? 1 : 0;
+			fr_cflags = ib->b_flags;
+			xfs_buf_relse(ib);
+		} else if (irc == -ENOENT) {
+			fr_cached = 0;
+		} else {
+			fr_cached = 2;		/* present, locked elsewhere */
+		}
 	}
 
 	trace_xfs_log_recover_buf_recover(log, buf_f);
@@ -1059,7 +1330,117 @@ xlog_recover_buf_commit_pass2(
 	 * buffer into.
 	 */
 	lsn = xlog_recover_get_buf_lsn(mp, bp, buf_f);
+	if (xlog_is_mxfs_foreign_replay(log) &&
+	    be16_to_cpu(*((__be16 *)xfs_buf_offset(bp, 0))) == XFS_DINODE_MAGIC) {
+		static atomic_t fr_dino_n = ATOMIC_INIT(0);
+		bool skip = lsn && lsn != -1 && XFS_LSN_CMP(lsn, current_lsn) >= 0;
+
+		if (atomic_inc_return(&fr_dino_n) <= 4000)
+			xfs_notice(mp,
+	"MXFS foreign replay: P-FR-DINO-BUF blkno=%lld len=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=%s inode_buf=%d cached_before=%d cflags=0x%x now_done=%d fua_fresh=%d ino0=%llu — inode-cluster buffer image through the replayer's cache (cached_before: 1=served from cache, 0=read from disk, 2=present+locked)",
+				   (long long)buf_f->blf_blkno,
+				   (unsigned int)buf_f->blf_len,
+				   (unsigned long long)current_lsn,
+				   (unsigned long long)lsn,
+				   skip ? "LSN-SKIP" : "APPLY",
+				   (buf_f->blf_flags & XFS_BLF_INODE_BUF) ? 1 : 0,
+				   fr_cached, fr_cflags,
+				   (bp->b_flags & XBF_DONE) ? 1 : 0,
+				   (bp->b_flags & _XBF_FUA_FRESH) ? 1 : 0,
+				   (unsigned long long)be64_to_cpu(
+					((struct xfs_dinode *)xfs_buf_offset(bp, 0))->di_ino));
+	}
+	/*
+	 * sess459 (D-0517, proven by instrument on chain 80 laps 2-3 + chain 81; design-consult
+	 * ruling ccmemory ccloop-c7ee71c6-sess459-GPT-ruling-d0517-buf-lsn-skip-
+	 * bypass-STOP-SHIP-6-items): on an UNTRUSTED replay current_lsn is the
+	 * dead node's slice position while the on-disk stamp (bb_lsn / agi_lsn
+	 * / agf_lsn / dir lsn ...) was written by whichever node last flushed
+	 * the block from ITS slice.  Per-node slices have independent
+	 * cycle/block numbering, so the upstream "on-disk newer => skip" test
+	 * below compares unrelated numbers and DROPPED token-admitted
+	 * AGI/inobt/finobt images (chain 80 lap 2: AG 6 stamped 0x100001183 by
+	 * slice 31, slice 6 replaying 0x100000e48/e4c; the changecount-gated
+	 * inode item applied the free's core while its AG half was lost).
+	 *
+	 * The authority token is the node-independent gate: an image reaches
+	 * this point only with verdict APPLY (REDUNDANT_CLEAN / refused images
+	 * never enter pass 2), and APPLY for class AG or INODE means the victim
+	 * HELD that resource at death — the fence-time manifest says so and the
+	 * live CAW slot still carries the victim's bit with unchanged lineage
+	 * (P-RMAN live check; a mismatch aborts the whole attempt), the dead
+	 * slot is zeroed only after P163-RECOVERY-COMPLETE, so no successor
+	 * tenure can have written the block after this transaction.  Within
+	 * the victim's own slice replay is in LSN order from the tail, so
+	 * re-applying an image the victim had already flushed is idempotent
+	 * (partial-region images are followed by every later image).  Hence
+	 * for such an image the stamp is either the victim's own (comparable,
+	 * and re-application is harmless) or a PREDECESSOR tenure's (must not
+	 * veto).  The veto is bypassed ONLY for that case; SB-class images
+	 * (per-node SB semantics are D-0133), untagged/unsupported classes and
+	 * every trusted (standalone) recovery keep the upstream test.  All
+	 * non-LSN validation (type validation, verifier attach, cancel table)
+	 * is untouched: the token grants permission to write, not validity.
+	 * Every decision is named (P-FR-BUF-LSN) and counted on the completion
+	 * line: buflsn_skips must be 0 for APPLY images, buflsn_overrides > 0
+	 * proves the path was exercised.
+	 */
 	if (lsn && lsn != -1 && XFS_LSN_CMP(lsn, current_lsn) >= 0) {
+		bool override = false;
+
+		if (xlog_is_mxfs_untrusted_replay(log) &&
+		    item->ri_mxfs_verdict == MXFS_RI_VERDICT_APPLY &&
+		    (item->ri_mxfs_class == MXFS_AUTH_CLASS_AG ||
+		     item->ri_mxfs_class == MXFS_AUTH_CLASS_INODE))
+			override = true;
+
+		if (xlog_is_mxfs_untrusted_replay(log)) {
+			static atomic_t fr_buflsn_n = ATOMIC_INIT(0);
+
+			if (override)
+				log->l_mxfs_buflsn_overrides++;
+			else
+				log->l_mxfs_buflsn_skips++;
+			if (atomic_inc_return(&fr_buflsn_n) <= 4000)
+				xfs_notice(mp,
+	"MXFS %s replay: P-FR-BUF-LSN blkno=%lld len=%u magic=0x%08x blft=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=%s tokverdict=%u class=%u — on-disk LSN stamp vs dead slice LSN (cross-slice numbering; SKIP drops the image, OVERRIDE-APPLY applies it on the token's authority)",
+					   xlog_is_mxfs_foreign_replay(log) ?
+						"foreign" : "adopted",
+					   (long long)buf_f->blf_blkno,
+					   (unsigned int)buf_f->blf_len,
+					   be32_to_cpu(*(__be32 *)bp->b_addr),
+					   (unsigned int)xfs_blft_from_flags(buf_f),
+					   (unsigned long long)current_lsn,
+					   (unsigned long long)lsn,
+					   override ? "OVERRIDE-APPLY" : "SKIP",
+					   (unsigned int)item->ri_mxfs_verdict,
+					   (unsigned int)item->ri_mxfs_class);
+		}
+		if (override)
+			goto mxfs_apply;
+		/*
+		 * sess459 (D-OWN-SLICE-PASS1-RECLAIM-REPLAY-CROSS-SLICE-LSN-
+		 * VETO-0521): a TRUSTED recovery on a clustered mount (PASS-1
+		 * own-stamp reclaim) meets the same cross-slice stamps with no
+		 * token verdict to override them.  Observability only until that
+		 * path is routed through authority admission: name and count
+		 * each veto so the reproducer can see it.
+		 */
+		if (!xlog_is_mxfs_untrusted_replay(log) &&
+		    mp->m_mxfs_dlm_was_active) {
+			static atomic_t own_buflsn_n = ATOMIC_INIT(0);
+
+			log->l_mxfs_buflsn_skips++;
+			if (atomic_inc_return(&own_buflsn_n) <= 2000)
+				xfs_notice(mp,
+	"MXFS own recovery: P-OWN-BUF-LSN blkno=%lld len=%u magic=0x%08x blft=%u txn_lsn=0x%llx disk_lsn=0x%llx verdict=SKIP — on-disk LSN stamp vetoed this node's own slice image on a clustered mount (D-0521: the stamp may be another slice's number)",
+					   (long long)buf_f->blf_blkno,
+					   (unsigned int)buf_f->blf_len,
+					   be32_to_cpu(*(__be32 *)bp->b_addr),
+					   (unsigned int)xfs_blft_from_flags(buf_f),
+					   (unsigned long long)current_lsn,
+					   (unsigned long long)lsn);
+		}
 		trace_xfs_log_recover_buf_skip(log, buf_f);
 		xlog_recover_validate_buf_type(mp, bp, buf_f, NULLCOMMITLSN);
 
@@ -1068,6 +1449,25 @@ xlog_recover_buf_commit_pass2(
 		 * item LSN being behind the ondisk buffer.  Verify the buffer
 		 * contents since we aren't going to run the write verifier.
 		 */
+		if (bp->b_ops) {
+			bp->b_ops->verify_read(bp);
+			error = bp->b_error;
+		}
+		goto out_release;
+	}
+
+mxfs_apply:
+	/*
+	 * sess466 (docs/dir-sharding.md): manifest-generation veto — the
+	 * "belt" beside the token verdict "braces".  mgen increases by one on
+	 * every write of the manifest block, all under the visible parent's
+	 * DLM EX, so it orders the block's versions across nodes and journal
+	 * slices where LSNs cannot.  An image not newer than the block on disk
+	 * is never applied over it.
+	 */
+	if (mxfs_dirshard_replay_mgen_veto(mp, log, item, bp, buf_f)) {
+		trace_xfs_log_recover_buf_skip(log, buf_f);
+		xlog_recover_validate_buf_type(mp, bp, buf_f, NULLCOMMITLSN);
 		if (bp->b_ops) {
 			bp->b_ops->verify_read(bp);
 			error = bp->b_error;
@@ -1158,6 +1558,24 @@ out_writebuf:
 
 		ASSERT(bp->b_mount == mp);
 		bp->b_flags |= _XBF_LOGRECOVERY;
+		/*
+		 * A foreign replay writes this image through the survivor's
+		 * own cache under no inode tenure.  The read above already
+		 * tagged it for the recovery's image retirement
+		 * (mxfs_recov_image_evict); tag again here in case the read
+		 * was a cache hit on an untagged image, and count the queued
+		 * writes apart from the reads so a replay that read more than
+		 * it rewrote (skipped as already newer) shows in the census.
+		 */
+		if (xlog_is_mxfs_foreign_replay(log)) {
+			extern atomic_t mxfs_recov_tagged, mxfs_recov_queued;
+
+			if (!bp->b_mxfs_recov_image) {
+				bp->b_mxfs_recov_image = true;
+				atomic_inc(&mxfs_recov_tagged);
+			}
+			atomic_inc(&mxfs_recov_queued);
+		}
 		/*
 		 * sess340 513B: ownership-safe foreign provenance + queue.
 		 * A conflict (-EBUSY) refuses the replay; keep any earlier

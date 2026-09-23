@@ -32,7 +32,7 @@
 #   tests/p32e_fence_ab.sh <nodes> <dlm> <gate> [criteria...]
 #     gate = 1 (fixed arm) | 0 (pre-fix raw-compare control)
 #
-# RULE 0: this script sets NO timeout of its own around run.sh -- run.sh
+# budget: this script sets NO timeout of its own around run.sh -- run.sh
 # already enforces each criterion's manifest budget as a hard timeout and
 # flips PASS->FAIL on overrun.  Wrap the CALL, not the callee.
 set -u

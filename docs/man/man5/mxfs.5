@@ -95,60 +95,28 @@ after the
 .B \-o
 flag.
 .TP
-.BI dlm_transport= transport
-Set the DLM transport mode.  Valid values are:
-.RS
-.TP
-.B auto
-(Default.)  Auto-detect the transport.  Listen for peer discovery
-announcements for 3 seconds.  If an existing cluster is found, adopt
-that cluster's transport.  If no peers are found, probe the device for
-SCSI CAW support \(em use CAW if supported, otherwise fall back to TCP.
-.TP
-.B caw
-Force disk-based CAW DLM.  Requires SCSI Compare-And-Write support.
-.TP
-.B tcp
-Force network-based TCP DLM.  SCSI Persistent Reservations are skipped.
-.RE
-.TP
-.BI port= N
-DLM TCP port number.  Default:
-.BR 7600 .
-Valid range: 1\(en65535.
-.TP
-.BI discovery_port= N
-UDP discovery port number.  Default:
-.BR 7601 .
-Valid range: 1\(en65535.
-.TP
-.BI multicast= address
-IPv4 multicast address for peer discovery.  Default:
+.BI peers= addr [ / addr ...]
+The cluster's IPv4 addresses, separated by
+.B /
+(the option string itself is split on commas).  Discovery announcements,
+lease heartbeats and, on the CAW transport, BAST nudges are sent by unicast
+to each listed address instead of the multicast group; no multicast or
+broadcast is sent, and datagrams or DLM connections from unlisted addresses
+are dropped.  The list may include the node's own address.  Every node of a
+cluster must use the same list, or none.  Default: multicast discovery on
 .BR 239.66.83.1 .
 .TP
-.B broadcast
-Use UDP broadcast instead of multicast for peer discovery.
-.TP
-.BI block_cache= N
-Maximum number of cached disk blocks.  Default: auto-sized.
-.TP
-.BI inode_cache= N
-Maximum number of cached inodes.  Default: auto-sized.
-.TP
-.BI dir_cache= N
-Maximum number of cached directory entries.  Default: auto-sized.
-.TP
-.BI node_slot= N
-Override automatic journal slot assignment.  Normally each node claims
-a free journal slot on mount.  This option forces a specific slot.
-.TP
-.BI journal_offset= bytes
-Override the journal region byte offset.  Normally read from the MXFS
-on-disk superblock.  This option takes precedence.
-.TP
-.BI disklock_offset= bytes
-Override the disklock region byte offset.  Normally read from the MXFS
-on-disk superblock.  This option takes precedence.
+.BI cluster= name
+The cluster this node belongs to.  Must equal the name recorded on the
+filesystem by
+.B mkfs.mxfs \-c
+or
+.BR mxfs_admin (8)
+.BR \-c ;
+a named filesystem mounted without it, an unnamed one mounted with it, or a
+different name, is refused before any cluster traffic or write.  A name is
+1\(en63 characters of
+.BR A\-Z\ a\-z\ 0\-9\ .\ _\ \- .
 .TP
 .B noatime
 Do not update inode access times on reads.  This is the
@@ -171,6 +139,35 @@ Do not update directory access times.
 .B strictatime
 Update atime on every read.  Overrides the default noatime behavior.
 Warning: may reduce read performance by up to 20% on shared storage.
+.SH MODULE PARAMETERS
+Settings that apply to every MXFS mount on the host are parameters of the
+.B mxfs
+module (\fBmodprobe mxfs\fR \fIname\fR\fB=\fR\fIvalue\fR, or
+.IR /sys/module/mxfs/parameters/ ).
+.B modinfo mxfs
+lists them all; the ones an administrator is most likely to set:
+.TP
+.BI force_transport= N
+DLM transport: 0 = automatic (CAW when the device supports it), 1 = TCP.
+.TP
+.BI cache_mem_pct= N
+Percentage of host RAM available as the total cache budget (1\(en50,
+default 10).
+.TP
+.BI cache_mem_max_mb= N
+Hard cap on the total cache budget in MB (default 16384).
+.TP
+.BI inode_cache_max= N " , block_cache_max=" N
+Per-mount cache caps; 0 sizes them from
+.BR cache_mem_pct .
+.TP
+.BI dead_timeout_ms= N
+Dead-node detection window in milliseconds (0 = the 62 s default).
+.TP
+.BI dirshard_mkdir_enable= 0|1
+Allow directory sharding's mkdir ioctl (default 0).  Experimental; also
+needs a filesystem made with
+.BR "mkfs.mxfs \-D" .
 .SH FILES
 .TP
 .I /etc/mxfs/node.uuid
@@ -203,19 +200,21 @@ mount -t mxfs /dev/sdb /mnt/shared
 .fi
 .RE
 .PP
-Mount with TCP DLM transport (for storage without SCSI CAW):
+Use the TCP DLM transport (for storage without SCSI CAW), set before the
+first mount on each node:
 .PP
 .RS
 .nf
-mount -t mxfs -o dlm_transport=tcp /dev/sdb /mnt/shared
+modprobe mxfs force_transport=1
+mount -t mxfs /dev/sdb /mnt/shared
 .fi
 .RE
 .PP
-Mount with custom DLM port and discovery port:
+Mount a named cluster whose nodes are listed explicitly (no multicast):
 .PP
 .RS
 .nf
-mount -t mxfs -o port=9600,discovery_port=9601 /dev/sdb /mnt/shared
+mount -t mxfs -o cluster=prod,peers=10.0.0.11/10.0.0.12 /dev/sdb /mnt/shared
 .fi
 .RE
 .PP

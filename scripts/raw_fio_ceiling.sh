@@ -17,7 +17,7 @@
 #   Nlist = comma list, default "2,4,8,16,32"
 # Output: /src/mxfs/.raw_fio_ceiling.<cond>.json
 #   { "2": {"seqW_mib": 651, "randW_iops": 1100}, ... }
-# RULE 3: measurement infrastructure lives in scripts/.
+# the source-tree rule: measurement infrastructure lives in scripts/.
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
@@ -25,12 +25,26 @@ PASS="${MXFS_PASS:-/tmp/.mxfs_pass}"
 COND="${1:?usage: raw_fio_ceiling.sh <cond> [Nlist]}"
 NLIST="${2:-2,4,8,16,32}"
 OUT="$REPO/.raw_fio_ceiling.${COND}.json"
-DEV="${RAWCEIL_DEV:-/dev/sda}"   # guest-side shared LUN device on every rig
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/../tests/lib/rig.sh"
+MXFS_DEV=${RAWCEIL_DEV:-${MXFS_DEV:-}}; mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 # fio's --filename splits on ':' (multi-file syntax) — an unescaped by-path
 # device name silently becomes several CREATED regular files (one lands in
 # guest devtmpfs = RAM) and the "ceiling" measures memory bandwidth
 # (2026-07-25: cawd captured 95GiB/s seqW this way).  Escape every colon.
-DEV="${DEV//:/\\:}"
+# 2026-09-05 (s515h): ONE backslash is eaten by the remote shell that parses
+# the ssh command line (the unquoted word '\:' becomes ':'), so fio still
+# split the QNAP by-path name and wrote a 22 GB regular file under /root on
+# test2 (its root filesystem filled; every later prep failed) while the
+# "ceiling" read 5000 MiB/s from a local file.  Two backslashes survive the
+# remote shell as one, which fio then unescapes.  The fragment check after
+# the runs turns a repeat into a hard failure instead of a bogus number.
+DEV_RAW="$DEV"
+DEV="${DEV//:/\\\\:}"
+FRAG=$(basename "$DEV_RAW" | cut -d: -f2)   # the first fragment fio would create
 SIZE_MB="${RAWCEIL_SIZE_MB:-512}"
 
 say() { echo "[rawceil] $*"; }
@@ -99,23 +113,40 @@ sample_n() {
 K="${RAWCEIL_SAMPLES:-3}"
 json="{"
 first=1
+# 2026-09-05 (s516b): six 43 s samples = 260 s, yet the script ran past its
+# 330 s bound — the remainder is outside sample_n.  Stamp every phase.
+T0=$(date +%s)
+say "t=+0s start (dev=$DEV_RAW N=$NLIST K=$K)"
 for N in ${NLIST//,/ }; do
-    say "N=$N sharers: $K fio_perf-shape samples (median)"
+    say "t=+$(( $(date +%s) - T0 ))s N=$N sharers: $K fio_perf-shape samples (median)"
     sws=""; rws=""; swok=0; rwok=0
     for k in $(seq 1 "$K"); do
+        # 2026-09-05 (s516a): the chain's 330 s budget for 2 N x 3 samples
+        # was derived from "~45 s per sample" (two 20 s time_based legs)
+        # and the step was killed at 339 s before the JSON was written.
+        # Print the measured wall so the budget is derived, not assumed.
+        t0=$(date +%s)
         read -r s so r ro <<<"$(sample_n "$N")"
-        say "  sample $k: seqW=${s}MiB/s (${so}/$N legs) randW=${r}iops (${ro}/$N legs)"
+        say "  sample $k: seqW=${s}MiB/s (${so}/$N legs) randW=${r}iops (${ro}/$N legs) wall=$(( $(date +%s) - t0 ))s"
         [ "$so" -gt 0 ] && sws="$sws $s" && [ "$so" -gt "$swok" ] && swok=$so
         [ "$ro" -gt 0 ] && rws="$rws $r" && [ "$ro" -gt "$rwok" ] && rwok=$ro
     done
     sw=$(echo "$sws" | tr ' ' '\n' | grep -v '^$' | sort -n | awk '{a[NR]=$1} END{print (NR? a[int((NR+1)/2)] : 0)}')
     rw=$(echo "$rws" | tr ' ' '\n' | grep -v '^$' | sort -n | awk '{a[NR]=$1} END{print (NR? a[int((NR+1)/2)] : 0)}')
-    say "N=$N: MEDIAN seqW=${sw}MiB/s randW=${rw}iops (of${sws} /${rws})"
+    say "t=+$(( $(date +%s) - T0 ))s N=$N: MEDIAN seqW=${sw}MiB/s randW=${rw}iops (of${sws} /${rws})"
     [ "$first" = 1 ] || json="$json,"
     json="$json\"$N\":{\"seqW_mib\":$sw,\"randW_iops\":$rw,\"legs_sw\":$swok,\"legs_rw\":$rwok}"
     first=0
 done
 json="$json}"
+# 2026-09-05: a fragment file in any sharer's ssh cwd means fio split the
+# device name and the numbers above measured a local file — refuse to record.
+if [ -n "$FRAG" ]; then
+    for i in $(seq 1 32); do
+        f=$(timeout 8 "$SSH" "test$i" "$PASS" "ls -la ~ 2>/dev/null | grep -a ' $FRAG\$' | head -1" 2>/dev/null)
+        [ -n "$f" ] && { say "ABORT: test$i has a fio fragment file '$FRAG' in its home ($f) — the device name was split; nothing recorded"; exit 3; }
+    done
+fi
 # sess10 (ccloop 72513a13): MERGE into the existing file — a partial-N
 # capture used to REPLACE the whole JSON, wiping every other N's ceiling
 # (a 16-only recapture destroyed 2/4/8/32 and the 4/tcp vs row fell back

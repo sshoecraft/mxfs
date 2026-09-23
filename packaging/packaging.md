@@ -19,6 +19,18 @@ sudo dnf install mxfs-*.rpm  # RHEL/Fedora
 
 After install, no NFS source mount is needed — the package is self-contained.
 
+## Release Builds
+
+`make package` builds for the machine it runs on, and its tools link against
+that machine's glibc. That is fine for a local install but wrong for a release:
+tools built on a newer distribution refuse to start on an older one.
+
+`scripts/release.sh` builds every release package into `dist/<version>/`, each
+in a container of the OLDEST distribution it targets — Debian 12 for both
+.debs (Debian 12+, Ubuntu 24.04+, Proxmox 8+), AlmaLinux 8 for the RPM
+(RHEL 8+, Fedora). `scripts/release.sh --publish` then creates the GitHub
+release with the packages and `SHA256SUMS` attached.
+
 ## Package Formats
 
 | OS Family | Package | Builder | Status |
@@ -94,12 +106,9 @@ comes up automatically on reboot.
 
 ## Version
 
-Version is extracted from `include/mxfs/mxfs_common.h`:
-```c
-#define MXFS_VERSION_MAJOR  0
-#define MXFS_VERSION_MINOR  8
-#define MXFS_VERSION_PATCH  3
-```
+Version is read from the top-level `VERSION` file (`mxfs_version` in
+`common.sh`). The `MXFS_VERSION_*` defines in `include/mxfs/mxfs_common.h` are
+a legacy fallback only.
 
 ## History
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# closure_fault_matrix.sh — the sess363 RULE-5 ruling's Hazards-§7 fault
+# closure_fault_matrix.sh — the sess363 design-consult ruling's Hazards-§7 fault
 # tests for the out-of-closure purge/scrub (D-REFUSAL-GRANT-FREEZE-OUT-OF-
 # CLOSURE-356).
 #

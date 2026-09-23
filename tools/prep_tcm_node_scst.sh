@@ -49,10 +49,10 @@ done
 #     refcount forever, so EVERY later serialized command blocks in
 #     EXEC_CHECK_BLOCKING and the shared LUN is PERMANENTLY wedged for all nodes
 #     (proven sess14; recurred sess15/sess67/sess68 — each needed a host reset,
-#     which RULE 2 reserves for the user).  The measured guest timeout here was
+#     which the never-reboot-the-host rule reserves for the user).  The measured guest timeout here was
 #     30s — far too tight for a transiently-deep CAW serialization queue.  180s
 #     lets a slow-but-progressing command finish instead of escalating.  This
-#     does NOT mask mxfs slowness: the per-iter test budget (RULE 0) still fails
+#     does NOT mask mxfs slowness: the per-iter test budget (budget) still fails
 #     a genuinely slow run; this only stops a transient transport stall from
 #     converting into an unrecoverable host wedge.
 echo 180 > "/sys/block/$(basename "$DEVICE")/device/timeout" 2>/dev/null || true

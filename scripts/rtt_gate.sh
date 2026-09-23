@@ -26,7 +26,7 @@ P50=$(timeout 90 "$SSH" "$NODE" "$PASS" '
     rm -f /tmp/rttg.log
     for i in $(seq 1 '"$NS"'); do
         t0=$(date +%s%N)
-        dd if=/dev/sda of=/dev/null bs=4096 count=1 iflag=direct skip=$(( (RANDOM*7) % 100000 )) 2>/dev/null
+        dd if=/dev/sda of=/dev/null bs=4096 count=1 iflag=direct skip=$(( (RANDOM*7) % 100000 )) 2>/dev/null  # device-adjudicated: the iSCSI path round trip is the subject, a raw read of the transport rather than of the filesystem
         t1=$(date +%s%N)
         echo $(( (t1-t0)/1000 )) >> /tmp/rttg.log
     done

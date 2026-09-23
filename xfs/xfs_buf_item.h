@@ -47,7 +47,7 @@ struct xfs_mount;
  * D-FOREIGN-REPLAY-UNGATED-IMAGES needs every logged metadata image to carry
  * proof of the grant that authorized the MUTATION.  Until 0.11.435 that proof
  * was looked up in xfs_buf_item_format_segment, at CIL format time, and the
- * sess102 RULE-5 ruling declared that UNSOUND (release blocker P0):
+ * sess102 design-consult ruling declared that UNSOUND (release blocker P0):
  *
  *     modify under epoch E1 -> release E1 -> reacquire under E2
  *                           -> the formatter stamps E2
@@ -85,7 +85,10 @@ struct mxfs_bli_auth {
 	uint8_t		mba_status;	/* MXFS_AUTH_ST_* */
 	uint8_t		mba_outcome;	/* MXFS_OWNAUTH_* diagnostic bucket */
 	uint8_t		mba_dlm_mode;	/* i_dlm_mode at capture (inode arm) */
-	uint8_t		mba_pad;
+	uint8_t		mba_retype_pending;	/* sess445 D-0512: the BLFT changed
+					 * after capture in this window and the
+					 * proof has not been re-established under
+					 * the new type; serialize voids while set */
 };
 
 /*
@@ -102,8 +105,31 @@ struct xfs_buf_log_item {
 	int			bli_format_count;	/* count of headers */
 	struct xfs_buf_log_format *bli_formats;	/* array of in-log header ptrs */
 	struct mxfs_bli_auth	bli_mxfs_auth;	/* captured at first dirty */
+	/*
+	 * xfsaild authority refusal accounting (D-0487).  A dirty AG-metadata
+	 * or released-directory bmbt image that this node no longer holds the
+	 * grant for cannot be written (it would revert a peer) and cannot be
+	 * dropped (it is a committed change); the push refuses it and these
+	 * fields say for how long and how often, per item, so the terminal
+	 * report names the item rather than a count.  Zero = never refused.
+	 * bli_mxfs_refuse_first is jiffies|1 so it is never zero once set;
+	 * bli_mxfs_refuse_lsn is li_lsn at the first refusal, so a re-log of
+	 * a refused item is visible instead of silently restarting the clock.
+	 */
+	unsigned long		bli_mxfs_refuse_first;
+	unsigned int		bli_mxfs_refuse_count;
+	unsigned int		bli_mxfs_refuse_reported;
+	xfs_lsn_t		bli_mxfs_refuse_lsn;
 	struct xfs_buf_log_format __bli_format;	/* embedded in-log header */
 };
+
+/* D-0487: the mount-level fail-stop for a refused item that never clears */
+struct work_struct;
+void	mxfs_ailpin_work_fn(struct work_struct *work);
+/* module parameters: the grace before the fail-stop, the age a cleared
+ * refusal is reported at (pal/linux/xfs_buf_item.c) */
+extern unsigned int mxfs_ailpin_grace_ms;
+extern unsigned int mxfs_ailpin_clear_report_ms;
 
 /*
  * Capture the authority proof for this buffer in this transaction's window.
@@ -111,9 +137,37 @@ struct xfs_buf_log_item {
  */
 struct xfs_trans;
 void	mxfs_bli_auth_capture(struct xfs_trans *tp, struct xfs_buf *bp);
+/* sess476: negative-arm forge of a CANCEL record's captured proof */
+void	mxfs_dbg_cancel_token_forge_apply(struct xfs_buf *bp);
+void	mxfs_bli_auth_note_retype(struct xfs_trans *tp, struct xfs_buf *bp,
+				  uint16_t new_blft);
+
+/*
+ * Whether the caller retiring a buf log item is the I/O-completion
+ * continuation that will go on to run bp->b_iodone.
+ *
+ * This is the ONLY thing that may excuse a retirement from consuming the
+ * MXFS AG-metadata tracking token, and it is a property of the CALLER, not
+ * of the buffer: the token is dropped either by the write completion
+ * (mxfs_dlm_ag_meta_iodone, installed as b_iodone) or by
+ * mxfs_ag_meta_reclaim, and exactly one of them must run.  It cannot be
+ * inferred inside the retirement path — not from the return address (every
+ * caller reaches the funnel through xfs_buf_item_done, so they all look
+ * alike), not from XBF_WRITE (xfs_buf_ioend_fail_unsubmitted submits no
+ * write and still runs the completion), and not from a sticky field on the
+ * buffer (it can be stale or absent).  So the dispatcher states it.
+ *
+ * MXFS retires buf log items from about a dozen overlay sites that perform
+ * no I/O at all — the release-drain and acquire-evict "retire the zombie
+ * BLI" arms.  Those must reclaim; only the real completion may defer.
+ */
+enum xfs_bli_release_ctx {
+	XFS_BLI_NO_IODONE,		/* nothing will run b_iodone: reclaim */
+	XFS_BLI_IODONE_FOLLOWS,		/* __xfs_buf_ioend runs b_iodone next */
+};
 
 int	xfs_buf_item_init(struct xfs_buf *, struct xfs_mount *);
-void	xfs_buf_item_done(struct xfs_buf *bp);
+void	xfs_buf_item_done(struct xfs_buf *bp, enum xfs_bli_release_ctx ctx);
 void	xfs_buf_item_put(struct xfs_buf_log_item *bip);
 void	xfs_buf_item_log(struct xfs_buf_log_item *, uint, uint);
 bool	xfs_buf_item_dirty_format(struct xfs_buf_log_item *);

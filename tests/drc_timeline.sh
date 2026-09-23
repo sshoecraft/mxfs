@@ -1,5 +1,5 @@
 #!/bin/bash
-# drc_timeline.sh (sess50 ccloop) — RULE-4: reconstruct daddr-120 dirent-count
+# drc_timeline.sh (sess50 ccloop) — instrumented: reconstruct daddr-120 dirent-count
 # timeline across all nodes to find the BACKWARD step (sess69 reversion root).
 # Runs dirwr=1 (P50-RD read-completion + P50-WR write-submit counts; lightweight,
 # no per-write disk read), gathers all P50 lines for the storm dir block-0,

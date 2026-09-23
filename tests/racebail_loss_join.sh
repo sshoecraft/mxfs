@@ -35,7 +35,7 @@ cd "$REPO"
 ITERS="${1:-6}"
 N="${2:-8}"
 
-# RULE 0: derived from the manifest budget plus measured harness overhead.
+# budget: derived from the manifest budget plus measured harness overhead.
 # Measured this session at 8/caw: prep 35s, dirent_durability 91-119s.
 PREP_BUDGET=$((300 + 40))
 DD_BUDGET=$((240 + 40))

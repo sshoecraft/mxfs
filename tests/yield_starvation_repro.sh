@@ -18,7 +18,7 @@
 #   arm: "fix" (caw_fresh_register=1) | "control" (=0) | "asis" (leave knobs)
 # Exit: 0 = no exhaustion & no shutdown; 10 = exhaustion(s); 20 = shutdown(s).
 #
-# RULE 0 budget: DURATION + ~45s fan-out/harvest overhead.
+# derived time budget: DURATION + ~45s fan-out/harvest overhead.
 
 set -u
 cd "$(dirname "$0")/.."

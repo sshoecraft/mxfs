@@ -20,6 +20,7 @@
 #include "xfs_icache.h"
 #include "xfs_health.h"
 #include "xfs_trans.h"
+#include "xfs_mxfs_dirshard.h"	/* sess466: bulkstat skips containers */
 
 /*
  * Bulk Stat
@@ -122,8 +123,11 @@ xfs_bulkstat_one_int(
 		goto out;
 	}
 
-	/* If this is a private inode, don't leak its details to userspace. */
-	if (IS_PRIVATE(inode) || xfs_is_sb_inum(mp, ino)) {
+	/* If this is a private inode, don't leak its details to userspace.
+	 * sess466: MXFS shard containers and manifest holders are internal
+	 * (docs/dir-sharding.md) — skipped the same way. */
+	if (IS_PRIVATE(inode) || xfs_is_sb_inum(mp, ino) ||
+	    mxfs_is_dirshard_container(ip)) {
 		xfs_iunlock(ip, XFS_ILOCK_SHARED);
 		xfs_irele(ip);
 		error = -EINVAL;

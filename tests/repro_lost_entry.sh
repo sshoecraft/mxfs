@@ -1,11 +1,12 @@
 #!/bin/bash
-# RULE-4 repro for the concurrent shared-dir "one lost entry" bug seen in
+# Instrumented repro for the concurrent shared-dir "one lost entry" bug seen in
 # test_unlink_visibility / test_rename_vis_dbg at 2 nodes.
 # Orchestrated from clyde; phases sequenced via ssh (no in-test barriers).
 # Discriminates write-loss vs read-staleness with a fresh reader + remount.
 #
 # Usage: tests/repro_lost_entry.sh [FILES_PER_NODE] [ITERS]
 set -u
+MXFS_DEV=${MXFS_DEV:?the shared LUN as this rig names it. This script predates tests/lib/rig.sh and takes the device it is given without an identity check}
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
 PF=/tmp/.mxfs_pass
 M=/mnt/shared
@@ -33,7 +34,7 @@ for it in $(seq 1 "$ITERS"); do
     echo "node$n: count=$c/$exp  missing:[$miss]"
   done
   echo "--- node1 remount, recount (read-staleness test) ---"
-  run 1 "cd /; umount $M 2>/dev/null && mount -t mxfs /dev/sda $M 2>/dev/null; echo remounted rc=\$?"
+  run 1 "cd /; umount $M 2>/dev/null && mount -t mxfs $MXFS_DEV $M 2>/dev/null; echo remounted rc=\$?"
   sleep 1
   c1=$(run 1 "ls $T/node*_file* 2>/dev/null | wc -l")
   miss1=$(run 1 "for i in \$(seq 1 $FPN); do [ -e $T/node1_file\$i ] || echo -n n1f\$i' '; [ -e $T/node2_file\$i ] || echo -n n2f\$i' '; done")

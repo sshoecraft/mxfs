@@ -24,7 +24,7 @@
 #   N         fleet size currently prepped (default 32)
 #   survivor  node that keeps its mount (default test1)
 #
-# RULE 0 budget: 31-way umount ~100s (sess342 measured; the serialize is
+# derived time budget: 31-way umount ~100s (sess342 measured; the serialize is
 # ledgered separately as #93) + 120s observe window + sweeps ~40s = 260s;
 # budget 330s.
 set -u
@@ -44,7 +44,7 @@ ok=$("$SSH" "$SURV" "mountpoint -q $MNT && echo seed > $MNT/.cdmu_seed && sync $
 [ "$ok" = "W_OK" ] || { echo "FAIL: survivor $SURV not mounted/writable (fleet not prepped?)"; exit 1; }
 
 # 1. Mass-unmount every node except the survivor (parallel, bounded per
-#    RULE 2c).
+#    the unkillable-wedge rule).
 echo "--- mass-unmounting $((N-1)) nodes (all except $SURV)"
 UM_T0=$SECONDS
 for i in $(seq 1 "$N"); do

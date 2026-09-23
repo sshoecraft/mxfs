@@ -6,7 +6,7 @@
 # tests/drc_phase_profile.sh attributed dir_reuse_coherency's 13.5s round wall
 # at 32 nodes to two phases: create waves (~5.0s for only 4 files/node) and
 # verify (~5.7s for ls + 128 cold lookups).  That is 1.24s per file CREATE,
-# against a native-XFS cost of microseconds -- a RULE 0 violation by a factor of
+# against a native-XFS cost of microseconds -- a budget rule violation by a factor of
 # ~10^5, and the mechanism behind D-DIR-REUSE-COHERENCY-32-FLAKY (the criterion
 # lands exactly on its 8-round pace floor at 32 nodes, so jitter reads as a
 # coherent 32-node "wrong answer").

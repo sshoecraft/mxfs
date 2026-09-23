@@ -1,7 +1,7 @@
 #!/bin/bash
 # trace_reads.sh — capture block-layer READ sectors on this node for a bounded
 # window and histogram them by AG + within-AG offset, to identify which shared
-# buffer the 32-node dlm_scaling op-loop re-reads ~18x/op (RULE 4).
+# buffer the 32-node dlm_scaling op-loop re-reads ~18x/op (instrumented).
 #
 # Run ON a node while a 32-node workload is active. Maps device sector ->
 # FS 4K block -> (AG, within-AG block). AG-header reads land at within-AG
@@ -12,7 +12,7 @@ set -u
 SECS="${1:-4}"
 AGBLK="${2:-261653}"          # agblocks from chk_mxfs (50GB LUN default)
 T=/sys/kernel/debug/tracing
-dm=$(ls -l /dev/mapper/mpatha 2>/dev/null | grep -oE 'dm-[0-9]+')
+dm=$(ls -l /dev/mapper/mpatha 2>/dev/null | grep -oE 'dm-[0-9]+')  # device-adjudicated: traces the multipath dm device by name; the map is the subject
 
 echo 0 > "$T/tracing_on" 2>/dev/null
 echo > "$T/trace" 2>/dev/null

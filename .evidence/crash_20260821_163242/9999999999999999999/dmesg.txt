@@ -1,1 +1,0 @@
-SYNTHETIC latch test record — not a real crash

@@ -1,30 +1,24 @@
 ---
 name: trap-sudo-mpath-up-leaves-root-owned-passfile
-description: After `sudo mpath_up.sh`/any sudo harness call, /tmp/.mxfs_pass may be root:600 — steve's sshpass then HANGS silently at a password prompt. sudo rm +…
+description: FIXED IN TOOLING sess452: root:600 /tmp/.mxfs_pass (from any sudo'd harness) made steve's sshpass 1.09 HANG; wrapper now checks -r, secrets falls bac…
 metadata:
-  type: reference
+  type: feedback
+tags: [rig, ssh, sshpass, sudo, trap]
 ---
 
-## Symptom
+# Root-owned passfile hangs every fleet ssh (proven sess452, root cause of the sess451 chain-70 prep hang)
 
-`./run.sh N caw ...` produces ZERO output and hangs forever (or a bare
-`tools/mxfs_sshpass.sh testN cmd` hangs) while ping to the node is fine and
-`mpath_up.sh` just succeeded. bash -x trace stops at the first `ssh_node`.
+## Mechanism
+- Any harness run under `sudo` (rig-runner's `mpath_up.sh` at 21:44Z sess451) materializes `/tmp/.mxfs_pass` as **root:600**.
+- `tools/mxfs_sshpass.sh` tested `[ -s ]` (true for the unprivileged caller — stat works, size 8) and handed the path to sshpass.
+- **sshpass 1.09 prints `SSHPASS: Failed to open password file "/tmp/.mxfs_pass": Permission denied` to stderr and then HANGS** on the password prompt (does not exit). With stderr piped through `tail` nothing appears until the outer timeout kills it: rc=124, zero output.
+- Symptoms that discriminate it: `ssh -o BatchMode=yes root@node true` answers instantly (Permission denied), ping OK, port 22 open, VMs running — only the sshpass path stalls.
 
-## Cause
+## Fix (sess452, in tree)
+- `tools/mxfs_sshpass.sh`: readability test (`! -r || ! -s`) triggers re-materialization; if still unreadable, **refuse with exit 96** and a clear stderr line instead of letting sshpass hang.
+- `tools/mxfs_secrets.sh secrets_passfile`: if the path exists, is not ours (`! -O`) and is unreadable/unwritable, materialize `${path}.uid$(id -u)` instead and print that path.
+- Verified: root-owned probe file -> resolved `/tmp/.mxfs_pass_probe.uid1000`, ssh OK; with no secrets store -> rc=96 immediately.
+- Immediate unblock used: `sudo -n chown steve:steve /tmp/.mxfs_pass`.
 
-`tools/mxfs_secrets.sh passfile` materializes `/tmp/.mxfs_pass` as the CALLING
-user. Running `sudo -E bash scripts/mpath_up.sh up 32` (the documented rig
-recovery) creates it as **root:600**. The unprivileged harness's sshpass then
-cannot read it; sshpass falls through to an interactive password prompt that
-never returns. After a clyde reboot /tmp is empty, so the first creator wins —
-and the recovery sequence's first creator is the sudo call.
-
-## Fix (seconds)
-
-    sudo rm -f /tmp/.mxfs_pass
-    tools/mxfs_secrets.sh passfile     # as steve
-    ls -la /tmp/.mxfs_pass             # must be steve:steve 600
-
-Seen sess386 (2026-08-21) after the post-wedge host reboot: cost one 400s
-silent prep timeout before diagnosis.
+## Trap for diagnosis
+When fleet ssh "hangs" after a subagent sweep, check `ls -l /tmp/.mxfs_pass*` FIRST.

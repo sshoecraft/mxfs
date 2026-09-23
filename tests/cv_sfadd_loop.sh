@@ -15,7 +15,7 @@ for it in $(seq 1 "$ITERS"); do
     for n in $NODES; do timeout 8 $SSH $n $PASS 'dmesg -C >/dev/null 2>&1'; done
     RUNOUT=$(MXFS_TESTS_DIR=/src/mxfs/tests timeout 120 ./tests/run_tests.sh \
         --nodes 4 --phase cluster --test test_cv_disc --pass-file "$PASS" \
-        --device /dev/sda --mount-point /mnt/shared 2>&1)
+        --mount-point /mnt/shared 2>&1)
     echo "$RUNOUT" | grep -aE "DISC|cannot see|H1|H2" | tee -a "$OUT"
     if echo "$RUNOUT" | grep -qaE "=> H2"; then
         # extract the missing file name (nodeX.txt) from the DISC line

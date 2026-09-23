@@ -26,13 +26,14 @@ SCRIPT="/src/mxfs/$SUITE_DIR/$T.sh"   # path as seen on the node (NFS)
 
 [ -f "$REPO/$SUITE_DIR/$T.sh" ] || { echo "no such test: $T ($REPO/$SUITE_DIR/$T.sh)"; exit 2; }
 
-# RULE 0 (CLAUDE.md): look up this test's manifest-declared budget_s from
-# criteria.json (single source of truth) so a lone run_one.sh invocation
-# enforces + records the same budget the full run.sh conditions-runner would.
-CRIT="$REPO/criteria.json"
-budget=300
-[ -s "$CRIT" ] && command -v jq >/dev/null 2>&1 && \
-    budget=$(jq -r --arg k "$T" '[.categories[].tests[] | select(.name==$k) | (.budget_s // 300)][0] // 300' "$CRIT")
+# Look up this test's declared budget_s from the board so a
+# lone run_one.sh invocation enforces and records the same budget the full
+# run.sh conditions-runner would.  The board is read through tools/criteria.py,
+# which is the only thing that knows its shape.
+CRITPY="$REPO/tools/criteria.py"
+[ -x "$CRITPY" ] || { echo "ERROR: $CRITPY missing — nothing can record a result"; exit 1; }
+budget=$("$CRITPY" rows | awk -F'\t' -v k="$T" '$3==k{print $7; exit}')
+[ -n "$budget" ] || budget=300
 
 t0=$(date +%s)
 out=$(timeout "$budget" "$SSH" "$NODE" "$PASS" "MXFS_NODES=$NCOUNT MXFS_DLM=$DLM bash $SCRIPT '$MNT'" 2>&1 \
@@ -54,21 +55,19 @@ nodes=$(field nodes);  measured=$(field measured);  reason=$(field reason)
 [ -n "$nodes" ] || nodes="$NCOUNT"
 
 # elapsed_s > budget_s flips a functional PASS to FAIL even with zero
-# correctness errors (RULE 0: a timeout IS a test failure).
+# correctness errors (a timeout IS a test failure).
 if [ "$status" = PASS ] && [ "$elapsed" -gt "$budget" ] 2>/dev/null; then
     status=FAIL
-    reason="RULE-0 budget exceeded: elapsed=${elapsed}s > budget=${budget}s (functional checks passed)${reason:+; }$reason"
+    reason="budget exceeded: elapsed=${elapsed}s > budget=${budget}s (functional checks passed)${reason:+; }$reason"
 fi
 
-# Record into criteria.json (single source of truth): set this test's
-# runs["<nodes>/<dlm>"] entry, wherever the test lives in the matrix.
+# Record the cell through criteria.py.  It pushes the outgoing verdict onto the
+# bounded flake history first — the jq this replaced overwrote the cell whole
+# and dropped the history, so a lone run_one.sh silently erased the evidence
+# that a criterion was intermittent.
 cond="${nodes}/${DLM}"
-[ -s "$CRIT" ] || { echo "ERROR: $CRIT missing (run scripts/gen_criteria.py)"; exit 1; }
-tmp=$(mktemp)
-jq --arg k "$T" --arg c "$cond" --arg s "$status" \
-   --arg m "$measured" --arg r "$reason" --arg t "$(date -u +%FT%TZ)" \
-   --argjson e "$elapsed" --argjson b "$budget" \
-   '.categories[].tests |= map(if .name==$k then (.runs[$c] = {status:$s, measured:$m, reason:$r, iso:$t, elapsed_s:$e, budget_s:$b}) else . end)' \
-   "$CRIT" > "$tmp" && mv "$tmp" "$CRIT"
+args=(update "$T" --at "$cond" -s "$status" -m "$measured" -e "$elapsed")
+[ -n "$reason" ] && args+=(--reason "$reason")
+"$CRITPY" "${args[@]}" >/dev/null
 
 echo "recorded: $T = $status @ $cond (${elapsed}s/${budget}s)"

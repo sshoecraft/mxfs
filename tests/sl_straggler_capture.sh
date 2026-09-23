@@ -18,7 +18,7 @@
 #   the window, and reports only nodes that actually have a non-heartbeat
 #   blocked task.
 #
-# RULE 0
+# the budget rule
 #   The criterion's own budget is 180 s (tests/suite/manifest) and run.sh
 #   enforces it.  Sweeps are placed inside that window (default 45 s and 110 s)
 #   because the trail shows the stall begins ~5 s in and persists to the kill.

@@ -19,7 +19,7 @@
 # bugs — sess3 lesson), and an ASan sweep of the whole suite (mepoch
 # rides midcomms; a group-only sweep would miss cross-layer frees).
 #
-# ── RULE-0 budget (written BEFORE first run; tighten after healthy PASS) ──
+# ── derived time budget (written BEFORE first run; tighten after healthy PASS) ──
 #   infra    = harness clean build ×2 (normal + ASan): measured ~10 s
 #   workload = mepoch group ≈ 4 s/run × 5 runs (4 seeds + debug pass)
 #              + ASan build + ASan full-suite run (38 scenarios, the
@@ -28,7 +28,7 @@
 #   (calibrated 2026-07-18: actual 108 s on clyde; the success.md
 #   provisional 120 pins with ~11% headroom.  RULE0_CALIBRATE=1 =>
 #   measure + report without enforcing.)
-#   A timeout or overrun is a FAIL (RULE 0.3), never a retry with a
+#   A timeout or overrun is a FAIL (the budget rule.3), never a retry with a
 #   bigger budget.
 #
 # Usage: gate5_mepoch.sh
@@ -107,7 +107,7 @@ echo "scenario_wall_s=$t_scen budget_s=$SCEN_BUDGET_S"
 if [ "$CAL" = "1" ]; then
     echo "gate5: CALIBRATION run — wall $t_scen s (pin the budget near this)"
 elif [ "$t_scen" -gt "$SCEN_BUDGET_S" ]; then
-    echo "gate5: RULE-0 overrun: $t_scen s > $SCEN_BUDGET_S s — FAIL"
+    echo "gate5: the budget rule overrun: $t_scen s > $SCEN_BUDGET_S s — FAIL"
     fail=1
 fi
 

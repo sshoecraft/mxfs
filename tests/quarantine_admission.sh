@@ -1,8 +1,8 @@
 #!/bin/bash
 # quarantine_admission.sh — D-QUARANTINED-SLOT-EXHAUSTS-CLUSTER-ADMISSION-376,
 # ruling test A ("reproduce the original maximum-capacity defect") plus the
-# acceptance test for patch item 1 of the sess377 RULE-5 ruling
-# (ccmemory ccloop-c7ee71c6-sess377-GPT-ruling-quarantine-slot-repair-design).
+# acceptance test for patch item 1 of the sess377 design-consult ruling
+# (docs/rulings/quarantine-slot-repair-design.md).
 #
 # THE DEFECT.  A terminal replay refusal writes a RECOVERY_GUARD record into the
 # victim's disklock heartbeat slot.  That record IS the durable verdict, so it
@@ -44,13 +44,19 @@
 set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 
 N="${1:?usage: quarantine_admission.sh <N> <victim> [ag_mask_hex]}"
 VICTIM="${2:?usage: quarantine_admission.sh <N> <victim> [ag_mask_hex]}"
 AGMASK="${3:-0x2}"
 AUDIT_HOST="${AUDIT_HOST:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$AUDIT_HOST"; DEV=$MXFS_DEV_RESOLVED
 RECOVERY_WAIT="${RECOVERY_WAIT:-150}"
 REJOIN_WAIT="${REJOIN_WAIT:-240}"
 

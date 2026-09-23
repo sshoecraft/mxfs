@@ -20,6 +20,7 @@
 #include "xfs_errortag.h"
 #include "xfs_error.h"
 #include "xfs_mxfs_dlm.h"
+#include "../../dlm/v5_mount.h"	/* sess406: resv-conflict note */
 #include <mxfs/mxfs_dlm.h>	/* FIX-26/P26PRE: MXFS_LOCK_* modes */
 #include <linux/hashtable.h>	/* FIX-26 writepages task registry */
 
@@ -67,7 +68,7 @@ xfs_setfilesize(
 
 	xfs_ilock(ip, XFS_ILOCK_EXCL);
 	isize = xfs_new_eof(ip, offset + size);
-	/* P-SFS (sess10 ccloop 72513a13, RULE-4 for the drc size=0 loss):
+	/* P-SFS (sess10 ccloop 72513a13, instrumented for the drc size=0 loss):
 	 * xfs_new_eof clamps to VFS i_size — if a reload/evict reset the
 	 * in-core size to 0 while this ioend was pending, the append
 	 * setfilesize silently no-ops and di_size=0 becomes durable.
@@ -157,6 +158,28 @@ xfs_end_ioend(
 	 */
 	error = blk_status_to_errno(mxfs_ioend_bi_status(ioend));
 	if (unlikely(error)) {
+		/* sess406 (D-498): a DATA write bounced with SCSI RESERVATION
+		 * CONFLICT = this node is fenced; tell the DLM (flag only, the
+		 * PR worker runs the inspection) so a data-only writer withdraws
+		 * as promptly as a metadata writer. */
+		if (error == -EBADE) {
+			struct mxfs_v5_dlm *v5 = READ_ONCE(ip->i_mount->m_mxfs_dlm);
+
+			if (v5)
+				mxfs_v5_dlm_note_resv_conflict(v5);
+			/*
+			 * sess436 (D-RSYNC-OVERWRITE-LAP-USERSPACE-FAIL-ERRNO-
+			 * UNKNOWN item 2): iomap_finish_ioends() below feeds
+			 * this errno to the mapping's errseq, i.e. straight to
+			 * fsync(2)/write(2) — a raw SCSI RESERVATION CONFLICT
+			 * must not be what a fenced node's user sees.  Counted
+			 * above for the withdraw inspection; reported as EIO.
+			 */
+			pr_warn_ratelimited("mxfs: P-EBADE-BOUNDARY data ino=%llu off=%lld len=%zu — reservation conflict on writeback, reporting EIO (fence in progress)\n",
+				(unsigned long long)ip->i_ino, (long long)offset,
+				size);
+			error = -EIO;
+		}
 		if (mxfs_ioend_shared(ioend)) {
 			xfs_reflink_cancel_cow_range(ip, offset, size, true);
 			mxfs_bmap_punch_delalloc_range(ip, offset,
@@ -338,7 +361,7 @@ MODULE_PARM_DESC(fix27_delay_ms,
  * cancels QUEUED work means the work function never ran, so that reference is
  * released by nobody.  0 = reproduce the leak (historical behaviour),
  * 1 = release the reference the cancelled arm was holding.  Ships OFF until
- * the paired measurement proves the mechanism, per RULE 4.
+ * the paired measurement proves the mechanism, by instrument.
  */
 /*
  * sess25 A/B gate for D-BAST-IRELE-INACTIVE-SELF-WEDGE and its suspected
@@ -404,7 +427,7 @@ MODULE_PARM_DESC(demoter_legacy_clobber,
  *
  * 0 restores the pre-fix behaviour for A/B. Do NOT "fix" this by setting
  * p6_midtenure_skip=0: measured, that costs dirent_durability 120s -> 240s
- * timeout (RULE 0). This mask reloads only on peer notifications, which is a
+ * timeout (budget). This mask reloads only on peer notifications, which is a
  * small fraction of the skips.
  */
 unsigned int mxfs_p6_honor_src_mask = 0x1A4u;
@@ -577,6 +600,72 @@ xfs_wptask_exit(struct xfs_wptask *e)
 	spin_lock(&xfs_wptask_lock);
 	hash_del(&e->node);
 	spin_unlock(&xfs_wptask_lock);
+}
+
+/*
+ * D-0971: registry of tasks inside a direct-write completion for an inode.
+ * xfs_dio_write_end_io's unwritten conversion and size update take
+ * ILOCK_EXCL through a transaction.  The release pipeline waits for the
+ * inode's direct I/O to drain while its BAST state parks ordinary lock
+ * requests, so that completion must be admitted as a nested holder under
+ * the still-granted mirror — for this inode only, never as a general
+ * writeback privilege — or the wait and the completion deadlock.  The
+ * completion runs from iomap's completion workqueue or io_uring task work
+ * (process context); the lock is taken irq-safe regardless.
+ */
+static DEFINE_SPINLOCK(xfs_diotask_lock);
+static DEFINE_HASHTABLE(xfs_diotask_hash, XFS_WPTASK_HASH_BITS);
+
+void
+xfs_diotask_enter(struct xfs_diotask *e, struct xfs_inode *ip)
+{
+	extern atomic_t	mxfs_dioend_kthread, mxfs_dioend_task,
+			mxfs_dioend_in_drain;
+	unsigned long	flags;
+
+	/* telemetry for the release pipeline's direct-I/O wait: which
+	 * context this completion runs in, and whether a release of this
+	 * inode is in progress as it begins (an unlocked read; the count is
+	 * evidence of the path taken, not a decision) */
+	atomic_inc((current->flags & PF_KTHREAD) ? &mxfs_dioend_kthread
+						 : &mxfs_dioend_task);
+	if (ip->i_dlm_state == MXFS_DLM_ISTATE_BAST ||
+	    ip->i_dlm_state == MXFS_DLM_ISTATE_DEMOTING)
+		atomic_inc(&mxfs_dioend_in_drain);
+	e->task = current;
+	e->ip = ip;
+	spin_lock_irqsave(&xfs_diotask_lock, flags);
+	hash_add(xfs_diotask_hash, &e->node, (unsigned long)current);
+	spin_unlock_irqrestore(&xfs_diotask_lock, flags);
+}
+
+void
+xfs_diotask_exit(struct xfs_diotask *e)
+{
+	unsigned long	flags;
+
+	spin_lock_irqsave(&xfs_diotask_lock, flags);
+	hash_del(&e->node);
+	spin_unlock_irqrestore(&xfs_diotask_lock, flags);
+}
+
+bool
+xfs_task_in_dio_end(struct xfs_inode *ip)
+{
+	struct xfs_diotask	*e;
+	unsigned long		flags;
+	bool			found = false;
+
+	spin_lock_irqsave(&xfs_diotask_lock, flags);
+	hash_for_each_possible(xfs_diotask_hash, e, node,
+			       (unsigned long)current) {
+		if (e->task == current && e->ip == ip) {
+			found = true;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&xfs_diotask_lock, flags);
+	return found;
 }
 
 bool
@@ -1001,6 +1090,42 @@ allocate_blocks:
 
 static void xfs_discard_folio(struct folio *folio, loff_t pos);
 
+/*
+ * THE AUTHORITY GATE, buffered-data arm.  Writeback is the path that makes a
+ * fenced incarnation's dirty pages durable, and it runs long after the
+ * write(2) that dirtied them — under reclaim, from the flusher, from an
+ * fsync — so the authority it must be checked against is the one held NOW,
+ * not the one held when the page was dirtied.
+ *
+ * IT LIVES HERE, ABOVE THE VERSION SPLIT, BECAUSE THE TWO WRITEBACK SHAPES
+ * REACH SUBMISSION THROUGH DIFFERENT HOOKS AND ONLY ONE OF THEM IS COMPILED.
+ * Before 6.17 the last hook before the bio is ->prepare_ioend; from 6.17 it is
+ * ->writeback_submit.  The gate was wired only into the second, so on the
+ * kernel this module is built for it was not merely unreached — the compiler
+ * dropped the function entirely, and the built module carried no
+ * P290-AUTH-REFUSED-DATA string and no such symbol in xfs_aops.o at all.  A
+ * node whose authority over the shared LUN had closed therefore pushed
+ * buffered writeback to that LUN with nothing asking, while the other four
+ * classes (log, dio, dio-zoned, meta) were each refused.  Whichever hook the
+ * kernel offers, the same question has to be asked in it.
+ */
+static bool
+mxfs_ioend_write_admitted(
+	struct iomap_ioend	*ioend)
+{
+	struct xfs_inode	*ip = XFS_I(ioend->io_inode);
+
+	if (mxfs_mount_write_admitted(ip->i_mount, "data"))
+		return true;
+
+	pr_err_ratelimited(
+	    "mxfs: P290-AUTH-REFUSED-DATA ino=%llu off=%lld size=%zu comm=%s — this node's authority over the shared LUN has expired; the data writeback is REFUSED (-EIO) and no bio is issued\n",
+	    (unsigned long long)ip->i_ino,
+	    (long long)ioend->io_offset,
+	    (size_t)ioend->io_size, current->comm);
+	return false;
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 static int
 xfs_prepare_ioend(
@@ -1008,6 +1133,20 @@ xfs_prepare_ioend(
 	int			status)
 {
 	unsigned int		nofs_flag;
+
+	/*
+	 * THE AUTHORITY GATE runs first and before memalloc_nofs_save below,
+	 * so a refusal leaves nothing unbalanced.  Returning an error from
+	 * this hook is the mechanism iomap already provides for "do not issue
+	 * this": the ioend is failed and its folios are ended instead of a bio
+	 * being submitted, so nothing leaks and fsync sees the error through
+	 * the mapping's errseq.  It is asked only when the submission was
+	 * going to happen anyway — a status already carrying an error is left
+	 * exactly as it is, so this can neither mask nor replace an earlier
+	 * failure.
+	 */
+	if (!status && !mxfs_ioend_write_admitted(ioend))
+		return -EIO;
 
 	/*
 	 * We can allocate memory here while doing writeback on behalf of
@@ -1068,6 +1207,20 @@ xfs_writeback_submit(
 
 	if (!ioend)
 		return iomap_ioend_writeback_submit(wpc, error);
+
+	/*
+	 * THE AUTHORITY GATE, buffered-data arm — the same question the
+	 * pre-6.17 ->prepare_ioend asks, in the hook this kernel offers
+	 * instead.
+	 *
+	 * Passing a non-zero error into iomap_ioend_writeback_submit is the
+	 * mechanism iomap already provides for "do not issue this, complete it
+	 * with this error": the ioend is failed and its folios are ended, so
+	 * nothing leaks and fsync sees the error through the mapping's errseq.
+	 * It runs before memalloc_nofs_save below, so nothing is left unbalanced.
+	 */
+	if (!error && !mxfs_ioend_write_admitted(ioend))
+		return iomap_ioend_writeback_submit(wpc, -EIO);
 
 	nofs_flag = memalloc_nofs_save();
 
@@ -1155,6 +1308,16 @@ xfs_vm_writepages(
 	if (WARN_ON_ONCE(current->journal_info))
 		return 0;
 
+	/* sess414 (D-512 ruling, dirty-G1 sanitation): NEVER submit a
+	 * poisoned dead incarnation's pages — its bmap's blocks may already
+	 * belong to another live file.  Leave them dirty; the poison-time
+	 * revocation worker (mxfs_incarn_revoke_work_fn) discards them. */
+	if (unlikely(XFS_I(mapping->host)->i_mount->m_mxfs_dlm &&
+		     xfs_iflags_test(XFS_I(mapping->host),
+				     MXFS_IF_INCARN_STALE)))
+		return 0;
+	mxfs_dbg_incarn_racewin(XFS_I(mapping->host), "writepages");
+
 	xfs_iflags_clear(XFS_I(mapping->host), XFS_ITRUNCATED);
 	/* FIX-26: mark this task as writeback submission for the duration —
 	 * mxfs_dlm_ilock_begin admits it through a BAST/DEMOTING demote-wait
@@ -1178,6 +1341,12 @@ xfs_dax_writepages(
 	struct writeback_control *wbc)
 {
 	struct xfs_inode	*ip = XFS_I(mapping->host);
+
+	/* sess414 (D-512): same dead-incarnation writeback gate as
+	 * xfs_vm_writepages above */
+	if (unlikely(ip->i_mount->m_mxfs_dlm &&
+		     xfs_iflags_test(ip, MXFS_IF_INCARN_STALE)))
+		return 0;
 
 	xfs_iflags_clear(ip, XFS_ITRUNCATED);
 	return dax_writeback_mapping_range(mapping,

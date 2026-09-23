@@ -1,6 +1,6 @@
 #!/bin/bash
 # Repro tcp_dlm_scaling failure and capture always-on DLM detectors from both
-# nodes' dmesg at the failing run.  RULE-4 evidence collector.
+# nodes' dmesg at the failing run.  Instrumented evidence collector.
 #   usage: tests/tcp_scaling_capture.sh [max_iters]
 set -u
 cd /src/mxfs

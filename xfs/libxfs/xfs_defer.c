@@ -1196,7 +1196,7 @@ xfs_defer_resources_rele(
 static inline int __init
 xfs_defer_init_cache(void)
 {
-	xfs_defer_pending_cache = kmem_cache_create("mxfs_defer_pending",
+	xfs_defer_pending_cache = mxfs_cache_create("mxfs_defer_pending",
 			sizeof(struct xfs_defer_pending),
 			0, 0, NULL);
 

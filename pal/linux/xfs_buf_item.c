@@ -36,6 +36,7 @@
 #include "xfs_da_format.h"
 #include "xfs_dir2.h"
 #include "xfs_mxfs_dlm.h"
+#include "xfs_mxfs_dirshard.h"	/* sess466: manifest-block owner derivation */
 #include <mxfs/mxfs_dlm.h>	/* sess103 step 5.3: MXFS_LOCK_* modes */
 
 
@@ -73,6 +74,9 @@ xfs_buf_item_free_format(
 	}
 }
 
+static void mxfs_bli_refuse_clear(struct xfs_buf_log_item *bip,
+				  struct xfs_buf *bp);
+
 static void
 xfs_buf_item_free(
 	struct xfs_buf_log_item	*bip)
@@ -87,7 +91,9 @@ xfs_buf_item_free(
  */
 static void
 xfs_buf_item_relse(
-	struct xfs_buf_log_item	*bip)
+	struct xfs_buf_log_item	*bip,
+	const char		*why,
+	enum xfs_bli_release_ctx ctx)
 {
 	struct xfs_buf		*bp = bip->bli_buf;
 
@@ -95,6 +101,137 @@ xfs_buf_item_relse(
 
 	ASSERT(!test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags));
 	ASSERT(atomic_read(&bip->bli_refcount) == 0);
+
+	/*
+	 * sess448 instrumented probe for the f4truth GEN-OPEN-NOT-DIRTY residue
+	 * (0.54.0 census: dir buffers with an open committed-never-submitted
+	 * record, submit_gen=0, bli gone, clean, aborted=0): name the path
+	 * that frees a DIRTY-committed bli without a home write.  Ratelimited;
+	 * the first 200 carry the caller.
+	 */
+	if (bp->b_mxfs_f4_rec &&
+	    bp->b_mxfs_f4_submit_gen < bp->b_mxfs_f4_committed_gen) {
+		static atomic_t p_n = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p_n) <= 200)
+			pr_warn("mxfs: P285-F4-BLI-FREED-OPEN daddr=%lld len=%u committed_gen=%llu submit_gen=%llu bli_flags=0x%x li_flags=0x%lx b_flags=0x%x pin=%d hold=%d stale=%d lseq=%llu wseq=%llu site=%u caller=%pS\n",
+				(long long)bp->b_maps[0].bm_bn, bp->b_length,
+				(unsigned long long)bp->b_mxfs_f4_committed_gen,
+				(unsigned long long)bp->b_mxfs_f4_submit_gen,
+				bip->bli_flags, bip->bli_item.li_flags,
+				bp->b_flags, atomic_read(&bp->b_pin_count),
+				(int)bp->b_hold,
+				!!(bp->b_flags & XBF_STALE),
+				(unsigned long long)bp->b_mxfs_logged_seq,
+				(unsigned long long)bp->b_mxfs_written_seq,
+				(unsigned)bp->b_mxfs_done_site,
+				__builtin_return_address(0));
+	}
+	/*
+	 * sess564 (D-...-0924) INSTRUMENTED PROBE — DOES NOT CHANGE BEHAVIOUR.
+	 *
+	 * This function is the funnel every bli retirement path reaches, and it
+	 * does not consult the AG-meta one-shot token.  Only two callers reclaim
+	 * it: xfs_buf_item_finish_stale and the shutdown/abort branch of
+	 * xfs_buf_item_release.  xfs_buf_item_put reaches here without either —
+	 * and its own comment names the route, "a dirty BLI that isn't in the
+	 * AIL ... if there's another bli reference (e.g. a btree cursor holds a
+	 * clean reference) and it is released via xfs_trans_brelse()".
+	 *
+	 * That matches the only evidence we have of the leak happening: the
+	 * mxfs_ag_meta_track tripwire fired once on 0.75.63 (s543a, uptime
+	 * 21524) under xfs_btree_insert -> xfs_btree_make_block_unfull ->
+	 * xfs_btree_split -> xfs_btree_log_recs -> xfs_trans_log_buf, i.e. a
+	 * btree CURSOR's buffer, in the boot that then leaked six xfs_bufs to
+	 * module unload.  A tracked bli freed here leaves the token at 1, so the
+	 * buffer's next dirty epoch trips that tripwire and the hold + the AG's
+	 * pending count are never returned.
+	 *
+	 * Measure it before changing it: name the buffer and the caller whenever
+	 * a bli is retired with the token still outstanding.  If this fires, the
+	 * path is proven and the repair belongs HERE, at the funnel, where
+	 * mxfs_ag_meta_reclaim is a no-op on any buffer that has no hold.  If it
+	 * never fires under a workload that exercises the tripwire's own stack,
+	 * the leak is somewhere else and this probe has ruled a path out.
+	 *
+	 * THE IODONE CALLER IS NOT A LEAK, AND THE FIRST CUT OF THIS PROBE COULD
+	 * NOT TELL.  __xfs_buf_ioend calls xfs_buf_item_done (which reaches here)
+	 * at pal/linux/xfs_buf.c:3243 and only then calls bp->b_iodone at :3246,
+	 * so on EVERY healthy write completion of a tracked AG-meta buffer the
+	 * token is still 1 when this function runs and is consumed microseconds
+	 * later.  Measured: 145 firings across three agmeta laps on 0.75.94, ALL
+	 * of them caller=xfs_buf_item_done, with p3_max_us=0 and stuckmeta=0 in
+	 * the same laps — i.e. every one benign.  So the caller has to be part of
+	 * the condition.
+	 *
+	 * AND THE TAG WAS THE WRONG WAY TO ASK.  The condition was once
+	 * `strcmp(why, "iodone")`, on the reading that "iodone" identified the
+	 * write completion.  It does not: it identified xfs_buf_item_done, which
+	 * the MXFS overlay also calls directly from retirement arms that perform
+	 * no I/O, so those arms were silently exempted from the reclaim they
+	 * needed — and __builtin_return_address(0) below cannot tell them apart
+	 * either, because every one of them reaches this funnel through
+	 * xfs_buf_item_done.  The completion continuation now declares itself
+	 * (XFS_BLI_IODONE_FOLLOWS) and everything else is a reclaim site.
+	 */
+	if (atomic_read(&bp->b_mxfs_agmeta_hold) == 1 &&
+	    ctx == XFS_BLI_NO_IODONE) {
+		static atomic_t p_relse = ATOMIC_INIT(0);
+
+		if (atomic_inc_return(&p_relse) <= 100)
+			pr_warn("mxfs: P-AGMETA-RELSE-OUTSTANDING daddr=%lld len=%u ops=%s bli_flags=0x%x li_flags=0x%lx dirty=%d stale=%d aborted=%d inail=%d pin=%d hold=%d why=%s caller=%pS — a buf log item is being retired with its AG-meta track hold still outstanding; neither the write completion nor a reclaim consumed the token, so the hold and the AG's pending count leak from here\n",
+				(long long)bp->b_maps[0].bm_bn, bp->b_length,
+				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
+				bip->bli_flags, bip->bli_item.li_flags,
+				!!(bip->bli_flags & XFS_BLI_DIRTY),
+				!!(bip->bli_flags & XFS_BLI_STALE),
+				!!test_bit(XFS_LI_ABORTED, &bip->bli_item.li_flags),
+				!!test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags),
+				atomic_read(&bp->b_pin_count), (int)bp->b_hold, why,
+				__builtin_return_address(0));
+	}
+
+	/*
+	 * 0.75.96 — CLOSE THE ONE UNCOVERED ROUTE THE AUDIT ABOVE FOUND.
+	 *
+	 * xfs_buf_item_free has exactly one caller, this function, so this is
+	 * provably the only place a buf log item is freed.  Of the four call
+	 * sites, three cannot leave the AG-meta token outstanding: "iodone" is
+	 * followed immediately by the completion that consumes it, "stale"
+	 * reclaims in xfs_buf_item_finish_stale before it gets here, and
+	 * "release-clean" is only reached for a bli that was never dirtied and
+	 * therefore never tracked (mxfs_ag_meta_track runs from
+	 * xfs_trans_log_buf).  "put" is the exception: xfs_buf_item_put frees a
+	 * dirty bli that is not in the AIL — which upstream permits once the log
+	 * has shut down and a checkpoint aborted the item instead of inserting
+	 * it — and nothing on that path returns the track hold.  The extra
+	 * buffer reference then pins the buffer for the life of the module,
+	 * which is what leaves objects in the mxfs_buf slab at unload.
+	 *
+	 * Reclaiming here is a no-op on every other route: the token is one-shot
+	 * and the cmpxchg has already failed once someone else consumed it.  The
+	 * probe above runs FIRST and is unconditional on the fix, so a route that
+	 * needed this still announces itself instead of being silently repaired.
+	 *
+	 * THE EXEMPTION IS THE CALLER'S DECLARATION, NOT THE TAG.  It used to be
+	 * `strcmp(why, "iodone")`, and "iodone" is stamped by xfs_buf_item_done —
+	 * which the MXFS overlay calls directly from about a dozen release-drain
+	 * and acquire-evict arms that retire a log item WITHOUT any I/O.  On those
+	 * arms nothing runs b_iodone, so the string exemption dropped the log item
+	 * and left the tracking token armed: the extra buffer reference is then
+	 * held for the life of the module and the AG's pending count never
+	 * returns.  Only the completion continuation may defer, and only it passes
+	 * XFS_BLI_IODONE_FOLLOWS.
+	 */
+	if (ctx == XFS_BLI_NO_IODONE)
+		mxfs_ag_meta_reclaim(bp, why);
+
+	/* sess491: the overlay retire site is consumed by this free */
+	bp->b_mxfs_done_site = 0;
+
+	/* D-0487 (0.70.2): the retirement age of a refused item */
+	if (bip->bli_mxfs_refuse_first)
+		mxfs_bli_refuse_clear(bip, bp);
 
 	bp->b_log_item = NULL;
 	xfs_buf_rele(bp);
@@ -154,8 +291,15 @@ mxfs_buf_item_wants_authority(
 {
 	struct xfs_mount	*mp = bip->bli_buf->b_mount;
 
-	return mp && mp->m_mxfs_dlm &&
-	       !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm);
+	/*
+	 * 0.41.0 (sess434, D-0354 candidate A): single-node mode now mints
+	 * REAL durable grant epochs through the normal CAW grant state
+	 * machine, so a lone node's images are tokened exactly like a
+	 * cohort member's.  The former !is_single_node gate left every
+	 * lone-era image untagged and therefore unreplayable by any
+	 * successor (P227 untagged -> -117 -> quarantine).
+	 */
+	return mp && mp->m_mxfs_dlm;
 }
 
 /*
@@ -204,6 +348,124 @@ mxfs_buf_ag_authorized(
 }
 
 /*
+ * sess468 (D-FOREIGN-SLICE-INTENTS-ABANDONED, design-consult ruling fix shape B —
+ * ccmemory ccloop-c7ee71c6-sess467-GPT-ruling-intents-classless-images-fix-
+ * shapes-A-B-Q3, Q2): the IUNLINK image of an inode-cluster buffer is
+ * AG-authorized.
+ *
+ * Chain 93 (sess466/467 attribution): every rm of a fragmented file by a node
+ * that then dies leaves two len=32 DINODE_BUF images at one cluster daddr in
+ * the victim's slice — the di_next_unlinked updates xfs_iunlink_log_dinode /
+ * xfs_iunlink_update_dinode log through xfs_trans_inode_buf.  The owner
+ * derivation has no arm for xfs_inode_buf_ops (NOOWNER by construction) and
+ * mxfs_buf_ag_authorized() does not list it, so the image went out class NONE
+ * st MISLABELLED, the replayer POLICY-REFUSED the whole transaction and the
+ * cluster quarantined FSWIDE — on EVERY death with an unlink in flight.
+ *
+ * The ruling: the AG grant is the correct authority for exactly this image
+ * and nothing else about an inode cluster.  The inode whose di_next_unlinked
+ * changes, its cluster and the AGI whose unlinked bucket it threads all live
+ * in one AG by construction, and the unlinked list is AG-owned state mutated
+ * only under the AG's EX.  Producer conditions, every one required:
+ *   - the buffer is an inode cluster (b_ops + BLFT DINO), logged in the
+ *     xfs_trans_inode_buf form (XFS_BLI_INODE_BUF) and not stale in either
+ *     sense (XFS_BLI_STALE, XFS_BLI_STALE_INODE) — recovery of the INODE_BUF
+ *     form (xlog_recover_do_inode_buffer) applies ONLY di_next_unlinked, so
+ *     the AG grant never vouches for an inode core;
+ *
+ * sess99, proven by instrument on the 2-node TCP rig: this predicate ALSO
+ * excluded XFS_BLI_INODE_ALLOC_BUF, and that term made the whole shape dead
+ * on arrival.  A producer probe counted 14 unauthorized inode-cluster images
+ * and zero authorized ones, every one reading bli_flags=0x5a with comm=unlink
+ * — DIRTY|LOGGED|INODE_ALLOC_BUF|INODE_BUF on an UNLINK.  The allocation flag
+ * is set once by xfs_trans_inode_alloc_buf and is never cleared (the
+ * formatter clears only XFS_BLI_INODE_BUF), so it is sticky on the cached
+ * cluster buffer and disqualifies every later di_next_unlinked update to it —
+ * which is the ordinary case, and is why a dead peer's slice was terminally
+ * refused and its AGs quarantined on every death with an unlink in flight.
+ *
+ * The term also guarded a class that cannot exist here.  On v5 an allocating
+ * transaction marks the cluster image ORDERED (xfs_ialloc_inode_init), so it
+ * is never physically logged — only the logical xfs_icreate_log item is — and
+ * the formatter sets the wire flag XFS_BLF_INODE_BUF unconditionally under
+ * xfs_has_v3inodes(), so replay of any image reaching the wire from here
+ * applies nothing but di_next_unlinked.  The in-core allocation flag carries
+ * buffer-item ordering and lifetime semantics (unpin / AIL retention for a
+ * newly initialised cluster), not the later image's recovery semantics;
+ * reading it as an authority discriminator was a category error.  The feature
+ * gate below is xfs_has_v3inodes() for the same reason: it must be the SAME
+ * predicate the formatter uses to decide the wire flag.  Clearing the flag
+ * after the allocating transaction commits was considered and rejected as
+ * actively dangerous — the item is buffer-scoped and outlives the
+ * transaction, and a durable commit record is not the ordered initialisation
+ * reaching the platter.  (Design consult; ccmemory
+ * trap-xfs-bli-inode-alloc-buf-is-sticky-so-a-later-unlink-on-that-cluster-
+ * still-carries-the-allocation-flag.)
+ *   - the first dinode's identity is verified (magic, v3, meta uuid, ino
+ *     plausible) and maps this very buffer into this very AG;
+ *   - the transaction holds that AG's AGI (joined by xfs_read_agi under the
+ *     AG EX), the contemporaneous witness of the AG authority.
+ * The caller still requires a nonzero durable AG grant epoch, exactly as for
+ * an AGI/AGF/btree image.  Replay-side: the class-AG token is admitted by the
+ * exact {resource, epoch, lineage} manifest match, the D-0517 cross-slice
+ * buffer-LSN OVERRIDE covers the cluster's per-inode di_lsn stamps (written
+ * by whichever node last flushed a sibling inode), and a reallocated slot is
+ * excluded by the epoch: only the AG EX holder allocates or frees in the AG,
+ * and an image from an earlier tenure carries that tenure's epoch.  The
+ * replayer additionally refuses a class-AG DINODE image that lacks
+ * XFS_BLF_INODE_BUF (mxfs_blf_parse_authority), so a whole-cluster image can
+ * never ride this class.
+ */
+static bool
+mxfs_buf_iunlink_ag_authorized(
+	struct xfs_trans		*tp,
+	struct xfs_buf_log_item		*bip,
+	struct xfs_mount		*mp,
+	xfs_agnumber_t			agno,
+	uint16_t			blft)
+{
+	struct xfs_buf			*bp = bip->bli_buf;
+	const struct xfs_dinode		*dip;
+	struct xfs_log_item		*lip;
+	xfs_ino_t			ino;
+	xfs_agino_t			agino;
+
+	if (!tp || !bp->b_ops || bp->b_ops != &xfs_inode_buf_ops ||
+	    blft != XFS_BLFT_DINO_BUF)
+		return false;
+	if (!(bip->bli_flags & XFS_BLI_INODE_BUF) ||
+	    (bip->bli_flags & (XFS_BLI_STALE | XFS_BLI_STALE_INODE)))
+		return false;
+	if (!xfs_has_v3inodes(mp) || BBTOB(bp->b_length) < sizeof(*dip))
+		return false;
+	dip = xfs_buf_offset(bp, 0);
+	if (!dip || be16_to_cpu(dip->di_magic) != XFS_DINODE_MAGIC ||
+	    dip->di_version < 3 ||
+	    !uuid_equal(&dip->di_uuid, &mp->m_sb.sb_meta_uuid))
+		return false;
+	ino = be64_to_cpu(dip->di_ino);
+	if (!xfs_verify_ino(mp, ino) || XFS_INO_TO_AGNO(mp, ino) != agno)
+		return false;
+	agino = XFS_INO_TO_AGINO(mp, ino);
+	if (XFS_AGB_TO_DADDR(mp, agno, XFS_AGINO_TO_AGBNO(mp, agino)) !=
+	    xfs_buf_daddr(bp))
+		return false;
+
+	list_for_each_entry(lip, &tp->t_items, li_trans) {
+		struct xfs_buf_log_item	*abip;
+
+		if (lip->li_type != XFS_LI_BUF)
+			continue;
+		abip = container_of(lip, struct xfs_buf_log_item, bli_item);
+		if (!abip->bli_buf || abip->bli_buf->b_ops != &xfs_agi_buf_ops)
+			continue;
+		if (xfs_daddr_to_agno(mp, xfs_buf_daddr(abip->bli_buf)) == agno)
+			return true;
+	}
+	return false;
+}
+
+/*
  * sess96 step 5.3(a) — OWNER DERIVATION.
  *
  * The population step 5.1 measured as "mislabel" (4770 of 16384 tokens on the
@@ -212,7 +474,7 @@ mxfs_buf_ag_authorized(
  * must first know WHICH inode owns the image, and the only in-band source is
  * the v5 metadata header the block already carries.
  *
- * The sess95 RULE-5 ruling is explicit about how this may be done:
+ * The sess95 design-consult ruling is explicit about how this may be done:
  *
  *  - derive ONCE per logical buffer log item, from offset 0 (map 0), and reuse
  *    the cached answer for every segment.  Never derive per segment: all
@@ -371,6 +633,23 @@ mxfs_buf_derive_owner(
 		if (!mxfs_owner_hdr_ok(mp, addr, blen, sizeof(*h), &h->sl_uuid,
 				       owner))
 			return;
+	} else if (ops == &mxfs_dirshard_buf_ops) {
+		/*
+		 * sess466 (docs/dir-sharding.md): the manifest block is written
+		 * only under the visible PARENT's inode EX — that is the
+		 * authority its token must name, so the owner is blk->parent_ino.
+		 * blk->owner (the holder inode) is bmap identity only.
+		 */
+		const struct mxfs_dirshard_blk *h = addr;
+
+		if (sizeof(*h) > blen ||
+		    be32_to_cpu(h->magic) != MXFS_DIRSHARD_BLK_MAGIC ||
+		    blft != XFS_BLFT_MXFS_DIRSHARD_BUF)
+			return;
+		owner = be64_to_cpu(h->parent_ino);
+		if (!mxfs_owner_hdr_ok(mp, addr, blen, sizeof(*h),
+				       (const uuid_t *)h->uuid, owner))
+			return;
 	} else if (ops == &xfs_bmbt_buf_ops) {
 		const struct xfs_btree_block *h = addr;
 
@@ -406,7 +685,7 @@ mxfs_buf_derive_owner(
  * sess100 measured 13153 inodes entering UNPUBLISHED_EX against 321 durable
  * tenures installed on one rsync_paired lap, and concluded a DURABLE_EX gate
  * would refuse ~97.6% of the images a create-heavy workload produces.  The
- * sess101 RULE-5 ruling rejected that inference: `unpublished_noted` counts
+ * sess101 design-consult ruling rejected that inference: `unpublished_noted` counts
  * STATE ENTRIES, not IMAGES.  It cannot say how many logged images were
  * actually formatted while their owner was unpublished, nor which image types,
  * nor whether the allocating AG tenure was still live.  The 13153-vs-321
@@ -497,9 +776,37 @@ static atomic64_t	mxfs_authcap_mismatch;
 static atomic64_t	mxfs_authcap_noblft;
 static atomic64_t	mxfs_authcap_blftchg;
 static atomic64_t	mxfs_authcap_nocap;
+/*
+ * sess445 D-DIR-SF-TO-BLOCK-RETYPE-VOIDS-AUTHORITY-TOKEN-SLICE-REFUSED-0512
+ * (design-consult ruling A′): a BLFT change after the capture used to void the token
+ * at serialize time (blftchg above) — and xfs_dir2_sf_to_block ALWAYS does
+ * that (xfs_dir3_data_init logs the block as DIR_DATA, xfs_dir3_block_init
+ * re-types it DIR_BLOCK), so every shortform->block directory conversion
+ * produced an unprovable image and the slice holding it was refused on
+ * foreign replay.  Now the type change marks the capture PENDING and the
+ * NEXT protected dirty re-proves it under the new type: the same complete
+ * proof identity -> the witness is updated (retype_ok); a different proven
+ * authority -> MIXED (retype_mixed); no proof -> the old proof is NOT kept
+ * (retype_unproven); no dirty at all before commit -> void (retype_nodirty).
+ */
+static atomic64_t	mxfs_authcap_retype_ok;
+static atomic64_t	mxfs_authcap_retype_mixed;
+static atomic64_t	mxfs_authcap_retype_unproven;
+static atomic64_t	mxfs_authcap_retype_nodirty;
+/*
+ * TEST ONLY negative arms for the ruling's required refusal tests:
+ *   1 = a successful re-proof is recorded as MIXED (a proof change);
+ *   2 = the pending re-proof is skipped (a re-type never re-dirtied).
+ * Both must make the foreign replayer REFUSE the slice.
+ */
+int mxfs_authcap_inject;
+module_param_named(authcap_inject, mxfs_authcap_inject, int, 0644);
+MODULE_PARM_DESC(authcap_inject,
+		 "TEST ONLY: 1 = record a successful BLFT re-proof as MIXED, "
+		 "2 = skip the re-proof so the token is voided at commit");
 
 /*
- * P241-AUTHTRY — the decisive instrument the sess104 RULE-5 ruling asked for.
+ * P241-AUTHTRY — the decisive instrument the sess104 design-consult ruling asked for.
  *
  * The sess104 cross-tab established that every NONE image was dirtied while
  * this node held a WRITING mode, i.e. the authority RECORD is incomplete
@@ -580,8 +887,26 @@ mxfs_buf_owner_authority(
 		    (ip->i_flags & (XFS_IRECLAIM | XFS_IRECLAIMABLE))) {
 			out = MXFS_OWNAUTH_STALE;
 		} else {
-			uint8_t  st = READ_ONCE(ip->i_mxfs_auth_state);
-			uint64_t ep = READ_ONCE(ip->i_mxfs_auth_epoch);
+			uint8_t  st;
+			uint64_t ep, res = 0, lin = 0;
+			unsigned seq;
+
+			/*
+			 * sess469 (fix shape A review, STOP-SHIP 2): the tuple
+			 * is written under i_dlm_lock, which this RCU/i_flags_lock
+			 * section does not hold — read it through the seqcount
+			 * so {state, epoch, resource, lineage} come from ONE
+			 * writer's publication, never a torn mix of two tenures.
+			 */
+			do {
+				seq = read_seqcount_begin(&ip->i_mxfs_auth_seq);
+				st = READ_ONCE(ip->i_mxfs_auth_state);
+				ep = READ_ONCE(ip->i_mxfs_auth_epoch);
+				if (st == MXFS_AUTH_DURABLE_EX) {
+					res = READ_ONCE(ip->i_mxfs_auth_resource);
+					lin = READ_ONCE(ip->i_mxfs_auth_lineage);
+				}
+			} while (read_seqcount_retry(&ip->i_mxfs_auth_seq, seq));
 
 			/*
 			 * sess103: the ruling's decisive cross-tab is
@@ -617,10 +942,8 @@ mxfs_buf_owner_authority(
 				if (ep) {
 					out = MXFS_OWNAUTH_DURABLE;
 					sn->epoch = ep;
-					sn->res = READ_ONCE(
-						ip->i_mxfs_auth_resource);
-					sn->lineage = READ_ONCE(
-						ip->i_mxfs_auth_lineage);
+					sn->res = res;
+					sn->lineage = lin;
 				} else {
 					out = MXFS_OWNAUTH_DURABLE_NOEP;
 				}
@@ -706,10 +1029,29 @@ mxfs_ownauth_measure(
 		}
 	}
 	if (oc != MXFS_OWNAUTH_DURABLE) {
-		uint16_t bt = xfs_blft_from_flags(blfp);
+		static atomic_t	nondur_n[MXFS_OWNAUTH_MAX];
+		uint16_t	bt = xfs_blft_from_flags(blfp);
 
 		if (bt < XFS_BLFT_MAX_BUF)
 			atomic64_inc(&mxfs_ownauth_blft[bt]);
+		/*
+		 * sess467 (D-FOREIGN-SLICE-INTENTS-ABANDONED, instrumented): the
+		 * wire token flattens every non-durable inode-arm outcome to
+		 * MISLABELLED, so the replayer cannot say WHY an image is
+		 * classless.  Name each one here, on the producer, bounded
+		 * per outcome so a create-heavy lap's UNPUB population cannot
+		 * crowd out the rarer outcomes.  The comm attributes the
+		 * capture to its path (inodegc worker = inactivation).
+		 */
+		if (oc < MXFS_OWNAUTH_MAX &&
+		    atomic_inc_return(&nondur_n[oc]) <= 48)
+			pr_warn("mxfs: P239-OWNAUTH-NONDUR blkno=%lld len=%u blft=%u outcome=%d ino=%llu mode=%u unpub=%u gen=%llu try=%u comm=%s\n",
+				(long long)xfs_buf_daddr(bp),
+				(unsigned)bp->b_length, (unsigned)bt, oc,
+				(unsigned long long)(own.valid ? own.ino : 0),
+				(unsigned)mode, (unsigned)sn.unpublished,
+				(unsigned long long)sn.gen, (unsigned)sn.try,
+				current->comm);
 	}
 
 	out->mba_owner_ino = own.valid ? own.ino : 0;
@@ -759,7 +1101,7 @@ mxfs_ownauth_measure(
 
 /*
  * sess82 step 5.1(d): direct measurement of the false-APPLY exposure the
- * RULE-5 ruling predicted from code reading alone.  MISLABEL counts buffers
+ * Design-consult ruling predicted from code reading alone.  MISLABEL counts buffers
  * the OLD rule would have stamped class=AG but which are not AG-authorized at
  * all; NOEPOCH counts genuinely AG-authorized buffers that now stamp NONE
  * because the grant-state lifecycle says we do not positively hold the grant.
@@ -784,6 +1126,8 @@ static atomic64_t	mxfs_tokcls_noepoch;
 static atomic64_t	mxfs_tokcls_unknown;
 static atomic64_t	mxfs_tokcls_incomplete;
 static atomic64_t	mxfs_tokcls_blft[XFS_BLFT_MAX_BUF];
+/* sess468 fix shape B: iunlink DINODE images classified AG (counted inside ag=) */
+static atomic64_t	mxfs_tokcls_iunlink_ag;
 
 static const char * const mxfs_ownauth_name[MXFS_OWNAUTH_MAX] = {
 	"noowner", "badag", "nopag", "uncached", "stale",
@@ -808,6 +1152,7 @@ static const char * const mxfs_authtry_name[MXFS_AUTH_TRY_MAX] = {
 	[MXFS_AUTH_TRY_STATUS_BASE + MXFS_GAUTH_NONWRITE_MODE]	= "st_nonwr",
 	[MXFS_AUTH_TRY_STATUS_BASE + MXFS_GAUTH_WRITE_ZERO_EPOCH] = "st_wrzero",
 	[MXFS_AUTH_TRY_STATUS_BASE + MXFS_GAUTH_NO_RESOURCE]	= "st_nores",
+	[MXFS_AUTH_TRY_STATUS_BASE + MXFS_GAUTH_SINGLE_NODE]	= "st_single",
 };
 
 /*
@@ -851,9 +1196,13 @@ static void mxfs_authcap_report(void);
 static void
 mxfs_tokcls_report(void)
 {
+	extern void mxfs_inact_cert_report(void);
 	char	buf[160];
 	int	len = 0;
 	int	i;
+
+	/* sess469 fix shape A census rides beside the token-class census */
+	mxfs_inact_cert_report();
 
 	for (i = 0; i < XFS_BLFT_MAX_BUF; i++) {
 		long long v = atomic64_read(&mxfs_tokcls_blft[i]);
@@ -864,9 +1213,10 @@ mxfs_tokcls_report(void)
 				 i, v);
 	}
 	buf[len] = '\0';
-	pr_warn("mxfs: P228-TOKCLASS n=%lld ag=%lld sb=%lld mislabel=%lld noepoch=%lld unknown=%lld incomplete=%lld mis_blft:%s\n",
+	pr_warn("mxfs: P228-TOKCLASS n=%lld ag=%lld iunlink_ag=%lld sb=%lld mislabel=%lld noepoch=%lld unknown=%lld incomplete=%lld mis_blft:%s\n",
 		(long long)atomic64_read(&mxfs_tokcls_n),
 		(long long)atomic64_read(&mxfs_tokcls_ag),
+		(long long)atomic64_read(&mxfs_tokcls_iunlink_ag),
 		(long long)atomic64_read(&mxfs_tokcls_sb),
 		(long long)atomic64_read(&mxfs_tokcls_mislabel),
 		(long long)atomic64_read(&mxfs_tokcls_noepoch),
@@ -899,6 +1249,7 @@ mxfs_tokcls_report(void)
  */
 static void
 mxfs_auth_classify(
+	struct xfs_trans		*tp,
 	struct xfs_buf_log_item		*bip,
 	struct xfs_mount		*mp,
 	struct mxfs_bli_auth		*out)
@@ -964,6 +1315,53 @@ mxfs_auth_classify(
 		}
 		ge = READ_ONCE(apag->pag_mxfs_grant_epoch);
 		auth = mxfs_buf_ag_authorized(bp, blfp);
+		/*
+		 * sess468 fix shape B: the iunlink form of an inode-cluster
+		 * image is AG-authorized (see mxfs_buf_iunlink_ag_authorized).
+		 * Only with a durable epoch — the same "we positively hold the
+		 * grant" rule as every other AG image; without one it stays
+		 * NOEPOCH/UNPROVEN rather than falling to the inode arm, which
+		 * has no owner for it anyway.
+		 */
+		if (!auth && ge &&
+		    mxfs_buf_iunlink_ag_authorized(tp, bip, mp, agno, blft)) {
+			static atomic_t iunl_n = ATOMIC_INIT(0);
+
+			auth = true;
+			atomic64_inc(&mxfs_tokcls_iunlink_ag);
+			if (atomic_inc_return(&iunl_n) <= 24)
+				pr_warn("mxfs: P-IUNLINK-AGCLASS blkno=%lld len=%u ag=%u epoch=%llu ino0=%llu comm=%s — di_next_unlinked image classified under the AG grant (fix shape B)\n",
+					(long long)blkno, (unsigned)bp->b_length,
+					(unsigned)agno, (unsigned long long)ge,
+					(unsigned long long)be64_to_cpu(
+					    ((const struct xfs_dinode *)
+					     xfs_buf_offset(bp, 0))->di_ino),
+					current->comm);
+		}
+
+		/*
+		 * An inode-cluster image that reaches here unauthorized is the
+		 * population a foreign replay refuses: the inode arm cannot
+		 * derive an owner for it, so it goes out classless and one
+		 * ATOMIC-SKIP abandons the whole committed transaction.  Name
+		 * the discriminators the AG arm above tested — which logging
+		 * form the buffer is in, whether we hold the AG's grant epoch,
+		 * and which ops it carries — so the refusal is attributed to a
+		 * producer condition here rather than inferred from the token
+		 * the replayer finally sees.  Bounded; diagnostic only.
+		 */
+		if (!auth && blft == XFS_BLFT_DINO_BUF) {
+			static atomic_t dinona_n = ATOMIC_INIT(0);
+
+			if (atomic_inc_return(&dinona_n) <= 48)
+				pr_warn("mxfs: P239-DINO-NOAUTH blkno=%lld len=%u ag=%u ge=%llu bli_flags=0x%x blf_flags=0x%x inode_ops=%d comm=%s — inode-cluster image is not AG-authorized and the inode arm has no owner for it\n",
+					(long long)blkno, (unsigned)bp->b_length,
+					(unsigned)agno, (unsigned long long)ge,
+					(unsigned)bip->bli_flags,
+					(unsigned)blfp->blf_flags,
+					bp->b_ops == &xfs_inode_buf_ops ? 1 : 0,
+					current->comm);
+		}
 
 		if (auth && ge) {
 			out->mba_class = MXFS_AUTH_CLASS_AG;
@@ -978,7 +1376,34 @@ mxfs_auth_classify(
 			if (blft < XFS_BLFT_MAX_BUF)
 				atomic64_inc(&mxfs_tokcls_blft[blft]);
 			mxfs_ownauth_measure(bp, blfp, mp, out);
-			if (out->mba_status != MXFS_AUTH_ST_VALID)
+			/*
+			 * 0.75.82: keep the reason the inode arm gave.  This
+			 * arm used to overwrite every non-VALID answer with
+			 * MISLABELLED, which is the coarsest of the five and
+			 * says only "we held an AG grant that is not this
+			 * buffer's authority" — a fact the arm itself already
+			 * states.  The sess95 ruling reserved a distinct status
+			 * per outcome precisely because recovery has to fail
+			 * closed DIFFERENTLY per reason, and P239-OWNAUTH-NONDUR
+			 * exists on the producer only because the wire token had
+			 * lost it.  A producer's log does not survive the death
+			 * that makes the token matter: measured 2026-09-09, a
+			 * slice was refused over 'P227-TOKEN blft=13 class=0
+			 * st=4' and 'blft=11 class=0 st=4' with the victim's
+			 * journal already gone with its VM
+			 * (tests/evidence/20260909T153444Z_ghost_s571a), so the
+			 * whole AG was quarantined on a reason nobody could
+			 * name.  MISLABELLED now means what it says: the inode
+			 * arm had nothing more specific to add.
+			 *
+			 * Nothing about admission changes.  mxfs_auth_st_proves
+			 * is VALID and nothing else, the replayer's gate refuses
+			 * on `status != VALID`, and every status below is
+			 * already inside the fixed wire contract (< _MAX) and
+			 * already emitted by this same helper on the arm one
+			 * branch down.
+			 */
+			if (out->mba_status == MXFS_AUTH_ST_UNPROVEN)
 				out->mba_status = MXFS_AUTH_ST_MISLABELLED;
 		} else if (auth) {
 			out->mba_status = MXFS_AUTH_ST_UNPROVEN;
@@ -1026,6 +1451,49 @@ mxfs_auth_same(
 }
 
 /*
+ * sess476 (CANCEL authority tokens, design-consult verification bar — the NEGATIVE
+ * tests): forge the proof captured for a CANCEL record so foreign replay
+ * must REFUSE the freeing transaction, keep its cancel entries OUT of the
+ * pass-1 table, and leave the block's earlier admitted image unsuppressed.
+ *   dbg_cancel_token_forge=1  skew the grant epoch (+1): replay stale_epoch
+ *   dbg_cancel_token_forge=2  mis-target the resource (+1): replay not_held /
+ *                             wrong_lineage — authority for ANOTHER object
+ * Sticky while set (the arm resets it by module reload); never in production.
+ */
+int mxfs_dbg_cancel_token_forge;
+module_param_named(dbg_cancel_token_forge, mxfs_dbg_cancel_token_forge, int, 0644);
+MODULE_PARM_DESC(dbg_cancel_token_forge,
+	"DEBUG: forge the authority proof of every CANCEL record captured at xfs_trans_binval: 1=skew grant epoch, 2=mis-target resource (sess476 negative arms)");
+static atomic64_t mxfs_dbg_cancel_forged = ATOMIC64_INIT(0);
+
+void
+mxfs_dbg_cancel_token_forge_apply(
+	struct xfs_buf		*bp)
+{
+	struct xfs_buf_log_item	*bip = bp->b_log_item;
+	struct mxfs_bli_auth	*cap;
+	int			mode = READ_ONCE(mxfs_dbg_cancel_token_forge);
+
+	if (likely(!mode) || !bip)
+		return;
+	cap = &bip->bli_mxfs_auth;
+	if (!cap->mba_capseq || cap->mba_status != MXFS_AUTH_ST_VALID)
+		return;		/* nothing proven to forge: leave it as-is */
+	if (mode == 1)
+		cap->mba_epoch += 1;
+	else
+		cap->mba_resource += 1;
+	if (atomic64_inc_return(&mxfs_dbg_cancel_forged) <= 400)
+		pr_warn("mxfs: P-DBG-CANCEL-FORGE mode=%d blkno=%lld len=%u blft=%u class=%u res=%llu epoch=%llu owner_ino=%llu comm=%s — INJECTED: CANCEL proof forged\n",
+			mode, (long long)bip->bli_formats[0].blf_blkno,
+			(unsigned)bip->bli_formats[0].blf_len,
+			(unsigned)cap->mba_blft, (unsigned)cap->mba_class,
+			(unsigned long long)cap->mba_resource,
+			(unsigned long long)cap->mba_epoch,
+			(unsigned long long)cap->mba_owner_ino, current->comm);
+}
+
+/*
  * Capture the authority proof for `bp` in `tp`'s window.  Called from
  * xfs_trans_dirty_buf — the single seam every buffer passes through to become
  * dirty in a transaction, and the earliest point at which the mutation is
@@ -1053,9 +1521,10 @@ mxfs_bli_auth_capture(
 		return;
 
 	/*
-	 * A stale buffer logs nothing but the cancel record, and the formatter
-	 * emits it untokenized.  Capturing for it would count a window that
-	 * can never be serialized.
+	 * An already-stale buffer logs nothing but its cancel record, whose
+	 * proof was captured by xfs_trans_binval BEFORE the stale conversion
+	 * (sess476); a later call here would describe a type-less image and
+	 * must not disturb that proof.
 	 */
 	if (bip->bli_flags & XFS_BLI_STALE)
 		return;
@@ -1074,11 +1543,83 @@ mxfs_bli_auth_capture(
 	}
 
 	cap = &bip->bli_mxfs_auth;
+	if (cap->mba_capseq == seq && cap->mba_retype_pending) {
+		struct mxfs_bli_auth	now;
+
+		/*
+		 * sess445 A′: first protected dirty under the NEW type.  The
+		 * image is initialised for that type now (the re-typing path
+		 * writes its header before it logs), so the owner derivation
+		 * is trustworthy here and nowhere earlier.  The original proof
+		 * is compared, never replaced: only the witness may move.
+		 */
+		if (mxfs_authcap_inject == 2) {
+			pr_warn_ratelimited("mxfs: P-AUTHCAP-INJECT mode=2 blkno=%lld — leaving the re-type PENDING (token will be voided at commit)\n",
+				(long long)bip->bli_formats[0].blf_blkno);
+			return;
+		}
+		mxfs_auth_classify(tp, bip, mp, &now);
+		if (now.mba_status == MXFS_AUTH_ST_VALID &&
+		    mxfs_auth_same(cap, &now) && mxfs_authcap_inject != 1) {
+			cap->mba_blft = now.mba_blft;
+			cap->mba_outcome = now.mba_outcome;
+			cap->mba_dlm_mode = now.mba_dlm_mode;
+			cap->mba_retype_pending = 0;
+			atomic64_inc(&mxfs_authcap_retype_ok);
+			{
+				static atomic_t ok_n = ATOMIC_INIT(0);
+
+				if (atomic_inc_return(&ok_n) <= 50)
+					pr_warn("mxfs: P-AUTHCAP-RETYPE-OK blkno=%lld len=%u blft_now=%u class=%u res=%llu epoch=%llu owner_ino=%llu comm=%s\n",
+						(long long)bip->bli_formats[0].blf_blkno,
+						(unsigned)bip->bli_formats[0].blf_len,
+						(unsigned)now.mba_blft,
+						(unsigned)cap->mba_class,
+						(unsigned long long)cap->mba_resource,
+						(unsigned long long)cap->mba_epoch,
+						(unsigned long long)cap->mba_owner_ino,
+						current->comm);
+			}
+		} else if (now.mba_status == MXFS_AUTH_ST_VALID) {
+			/* proves a DIFFERENT authority (or the injected one) */
+			if (mxfs_authcap_inject == 1)
+				pr_warn_ratelimited("mxfs: P-AUTHCAP-INJECT mode=1 blkno=%lld — recording the re-proof as MIXED\n",
+					(long long)bip->bli_formats[0].blf_blkno);
+			cap->mba_blft = now.mba_blft;
+			cap->mba_status = MXFS_AUTH_ST_MIXED;
+			cap->mba_retype_pending = 0;
+			atomic64_inc(&mxfs_authcap_retype_mixed);
+			pr_warn_ratelimited("mxfs: P-AUTHCAP-RETYPE-MIXED blkno=%lld blft=%u class_cap=%u res_cap=%llu class_now=%u res_now=%llu comm=%s\n",
+				(long long)bip->bli_formats[0].blf_blkno,
+				(unsigned)now.mba_blft, (unsigned)cap->mba_class,
+				(unsigned long long)cap->mba_resource,
+				(unsigned)now.mba_class,
+				(unsigned long long)now.mba_resource,
+				current->comm);
+		} else {
+			/* cannot prove under the new type: the old proof is
+			 * not evidence about this image any more */
+			uint64_t capseq = cap->mba_capseq;
+
+			*cap = now;
+			cap->mba_capseq = capseq;
+			cap->mba_retype_pending = 0;
+			atomic64_inc(&mxfs_authcap_retype_unproven);
+			pr_warn_ratelimited("mxfs: P-AUTHCAP-VOID why=retype_unproven blkno=%lld len=%u blft=%u st=%u outcome=%u owner_ino=%llu comm=%s\n",
+				(long long)bip->bli_formats[0].blf_blkno,
+				(unsigned)bip->bli_formats[0].blf_len,
+				(unsigned)now.mba_blft, (unsigned)now.mba_status,
+				(unsigned)now.mba_outcome,
+				(unsigned long long)now.mba_owner_ino,
+				current->comm);
+		}
+		return;
+	}
 	if (cap->mba_capseq == seq) {
 		struct mxfs_bli_auth	now;
 
 		atomic64_inc(&mxfs_authcap_relog);
-		mxfs_auth_classify(bip, mp, &now);
+		mxfs_auth_classify(tp, bip, mp, &now);
 		if (!mxfs_auth_same(cap, &now)) {
 			/*
 			 * Two provenances in one whole-buffer image.  A single
@@ -1095,8 +1636,9 @@ mxfs_bli_auth_capture(
 	{
 		long long w = atomic64_inc_return(&mxfs_authcap_win);
 
-		mxfs_auth_classify(bip, mp, cap);
+		mxfs_auth_classify(tp, bip, mp, cap);
 		cap->mba_capseq = seq;
+		cap->mba_retype_pending = 0;
 		/*
 		 * Report from the CAPTURE path, not the format path: the
 		 * sess102 trap note measured that the old (tn & 8191) trigger
@@ -1108,6 +1650,31 @@ mxfs_bli_auth_capture(
 		if ((w & 1023) == 0)
 			mxfs_tokcls_report();
 	}
+}
+
+/*
+ * sess445 A′: xfs_trans_buf_set_type changed the BLFT of a buffer that may
+ * already hold a capture in this transaction window.  NEVER classify here —
+ * the re-typing path has not written the new format's header yet (STOP-SHIP
+ * 1 of the ruling); only mark the capture pending so the next protected
+ * dirty re-proves it, and so a commit without one voids it.  Several
+ * re-types before the next dirty collapse to whatever type is current then.
+ */
+void
+mxfs_bli_auth_note_retype(
+	struct xfs_trans	*tp,
+	struct xfs_buf		*bp,
+	uint16_t		new_blft)
+{
+	struct xfs_buf_log_item	*bip = bp->b_log_item;
+	struct mxfs_bli_auth	*cap;
+
+	if (!bip || !tp || !bp->b_mount || !mxfs_buf_item_wants_authority(bip))
+		return;
+	cap = &bip->bli_mxfs_auth;
+	if (!cap->mba_capseq || cap->mba_capseq != tp->t_mxfs_capseq)
+		return;			/* no capture in this window yet */
+	cap->mba_retype_pending = (new_blft != cap->mba_blft) ? 1 : 0;
 }
 
 static void
@@ -1126,13 +1693,17 @@ mxfs_authcap_report(void)
 				 mxfs_ownauth_name[i], v);
 	}
 	buf[len] = '\0';
-	pr_warn("mxfs: P240-AUTHCAP win=%lld relog=%lld mismatch=%lld noblft=%lld blftchg=%lld nocap=%lld pw_by_outcome:%s\n",
+	pr_warn("mxfs: P240-AUTHCAP win=%lld relog=%lld mismatch=%lld noblft=%lld blftchg=%lld nocap=%lld retype_ok=%lld retype_mixed=%lld retype_unproven=%lld retype_nodirty=%lld pw_by_outcome:%s\n",
 		(long long)atomic64_read(&mxfs_authcap_win),
 		(long long)atomic64_read(&mxfs_authcap_relog),
 		(long long)atomic64_read(&mxfs_authcap_mismatch),
 		(long long)atomic64_read(&mxfs_authcap_noblft),
 		(long long)atomic64_read(&mxfs_authcap_blftchg),
 		(long long)atomic64_read(&mxfs_authcap_nocap),
+		(long long)atomic64_read(&mxfs_authcap_retype_ok),
+		(long long)atomic64_read(&mxfs_authcap_retype_mixed),
+		(long long)atomic64_read(&mxfs_authcap_retype_unproven),
+		(long long)atomic64_read(&mxfs_authcap_retype_nodirty),
 		len ? buf : " none");
 
 	/*
@@ -1187,8 +1758,8 @@ xfs_buf_item_size_segment(
 	 * of the sess177 v3 wire (see mxfs_blf_authority_v3).  MUST mirror
 	 * the emission condition in xfs_buf_item_format_segment exactly —
 	 * an underestimate here overruns the CIL shadow buffer.  Stale
-	 * items never reach this function (handled in xfs_buf_item_size)
-	 * and are emitted untokenized.
+	 * items never reach this function (handled in xfs_buf_item_size,
+	 * which reserves the same trailer for the CANCEL record — sess476).
 	 */
 	if (mxfs_buf_item_wants_authority(bip))
 		*nbytes += MXFS_BLF_AUTHORITY_SIZE;
@@ -1274,6 +1845,15 @@ xfs_buf_item_size(
 		*nvecs += bip->bli_format_count;
 		for (i = 0; i < bip->bli_format_count; i++) {
 			*nbytes += xfs_buf_log_format_size(&bip->bli_formats[i]);
+			/*
+			 * sess476: a CANCEL record carries the authority
+			 * trailer too (captured at xfs_trans_binval).  MUST
+			 * mirror xfs_buf_item_format_segment's emission
+			 * condition exactly — an underestimate overruns the
+			 * CIL shadow buffer.
+			 */
+			if (mxfs_buf_item_wants_authority(bip))
+				*nbytes += MXFS_BLF_AUTHORITY_SIZE;
 		}
 		return;
 	}
@@ -1316,7 +1896,7 @@ xfs_buf_item_size(
 	trace_xfs_buf_item_size(bip);
 }
 
-static inline void
+static inline void *
 xfs_buf_item_copy_iovec(
 	struct xlog_format_buf	*lfb,
 	struct xfs_buf		*bp,
@@ -1325,8 +1905,136 @@ xfs_buf_item_copy_iovec(
 	uint			nbits)
 {
 	offset += first_bit * XFS_BLF_CHUNK;
-	xlog_format_copy(lfb, XLOG_REG_TYPE_BCHUNK, xfs_buf_offset(bp, offset),
-			nbits * XFS_BLF_CHUNK);
+	return xlog_format_copy(lfb, XLOG_REG_TYPE_BCHUNK,
+			xfs_buf_offset(bp, offset), nbits * XFS_BLF_CHUNK);
+}
+
+/*
+ * TEST-ONLY — EXERCISE THE INODE-BUFFER REPLAY GUARD BY SUBSTITUTING AT THE
+ * DURABLE WRITE RATHER THAN AT THE CHECK.
+ *
+ * xlog_recover_do_inode_buffer refuses a logged inode-cluster image whose
+ * di_next_unlinked is not an agino of the image's own AG, and one whose daddr
+ * and length straddle an AG boundary.  Both fire only on a value this build
+ * will never write, so running the code cannot reach either of them and the
+ * guard would ship unexercised.  The substitution therefore happens HERE, at
+ * the point the image becomes durable: the bytes copied into the log vector
+ * are changed and the buffer that goes to the platter is not, so the log
+ * carries exactly what a corrupt or foreign producer could have written while
+ * every check between here and the refusal is left intact.
+ *
+ * Each knob is cleared ONLY when its substitution actually lands.  An arming
+ * that finds no inode-buffer image stays armed and says so, because a lap that
+ * reported a refusal it never provoked would be measuring nothing.
+ */
+int mxfs_dbg_recov_inject_agino;
+int mxfs_dbg_recov_inject_straddle;
+
+static void
+mxfs_dbg_inject_logged_blf(
+	struct xfs_buf			*bp,
+	struct xfs_buf_log_format	*blfp)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	xfs_agnumber_t		agno;
+	xfs_daddr_t		boundary;
+
+	if (!(blfp->blf_flags & XFS_BLF_INODE_BUF) ||
+	    (blfp->blf_flags & XFS_BLF_CANCEL) || !mp) {
+		/*
+		 * 0.89.42 — THE SILENT RETURN WAS THE WHOLE MEASUREMENT.
+		 *
+		 * This arm's contract, stated above, is that an arming which
+		 * finds no inode-buffer image stays armed AND SAYS SO.  It did
+		 * not: this test — the one every image that is not an inode
+		 * buffer fails — returned without a word, so a lap could not
+		 * tell "the injector was never called" from "it was called on
+		 * every image and rejected them all".  Measured on 0.89.41:
+		 * both arms aborted with fired=0 AND declined=0, which named
+		 * neither case.  Rate-limited because every dirty buffer in
+		 * the window reaches here, and one line per reason is the
+		 * evidence; a flood is not.
+		 */
+		pr_err_ratelimited("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld flags=0x%x mp=%d — not an inode-buffer image (or a cancel record); the knob stays armed\n",
+				   (long long)blfp->blf_blkno,
+				   (unsigned int)blfp->blf_flags, mp ? 1 : 0);
+		return;
+	}
+	if (blfp->blf_len < 2) {
+		pr_err("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld len=%u — a one-block image cannot straddle anything; the knob stays armed\n",
+		       (long long)blfp->blf_blkno, blfp->blf_len);
+		return;
+	}
+
+	agno = xfs_daddr_to_agno(mp, blfp->blf_blkno);
+	if (agno + 1 >= mp->m_sb.sb_agcount) {
+		pr_err("mxfs: P-INJ-LOGGED-BLF-DECLINED daddr=%lld agno=%u agcount=%u — the image sits in the last AG, so no daddr below it crosses a boundary; the knob stays armed\n",
+		       (long long)blfp->blf_blkno, agno, mp->m_sb.sb_agcount);
+		return;
+	}
+	boundary = XFS_AGB_TO_DADDR(mp, agno + 1, 0);
+	pr_err("mxfs: P-INJ-LOGGED-BLF straddle daddr=%lld -> %lld len=%u agno=%u boundary=%lld — TEST: the LOG image now names an inode cluster that crosses an AG boundary; the buffer written to the platter is unchanged\n",
+	       (long long)blfp->blf_blkno, (long long)(boundary - 1),
+	       blfp->blf_len, agno, (long long)boundary);
+	blfp->blf_blkno = boundary - 1;
+	mxfs_dbg_recov_inject_straddle = 0;
+}
+
+static void
+mxfs_dbg_inject_logged_agino(
+	struct xfs_buf			*bp,
+	struct xfs_buf_log_format	*blfp,
+	void				*dst,
+	uint				offset,
+	int				first_bit,
+	uint				nbits)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	uint			isize, seg_start, seg_end, nu, i, ninodes;
+	__be32			*p;
+
+	if (!dst || !mp || !(blfp->blf_flags & XFS_BLF_INODE_BUF) ||
+	    (blfp->blf_flags & XFS_BLF_CANCEL)) {
+		/* see the companion note in mxfs_dbg_inject_logged_blf */
+		pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld flags=0x%x dst=%d mp=%d — not an inode-buffer image (or a cancel record); the knob stays armed\n",
+				   (long long)blfp->blf_blkno,
+				   (unsigned int)blfp->blf_flags,
+				   dst ? 1 : 0, mp ? 1 : 0);
+		return;
+	}
+
+	isize = mp->m_sb.sb_inodesize;
+	if (!isize) {
+		pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld — the mount reports inode size 0; the knob stays armed\n",
+				   (long long)blfp->blf_blkno);
+		return;
+	}
+	seg_start = offset + (uint)first_bit * XFS_BLF_CHUNK;
+	seg_end = seg_start + nbits * XFS_BLF_CHUNK;
+	ninodes = BBTOB(bp->b_length) / isize;
+
+	for (i = 0; i < ninodes; i++) {
+		nu = i * isize + offsetof(struct xfs_dinode, di_next_unlinked);
+		if (nu < seg_start)
+			continue;
+		if (nu + sizeof(__be32) > seg_end)
+			break;
+		p = (__be32 *)((char *)dst + (nu - seg_start));
+		pr_err("mxfs: P-INJ-LOGGED-AGINO daddr=%lld inode=%u di_next_unlinked 0x%x -> 0x%x — TEST: the LOG image now carries an agino no AG of this filesystem contains; the buffer written to the platter is unchanged\n",
+		       (long long)blfp->blf_blkno, i, be32_to_cpu(*p),
+		       (unsigned int)mxfs_dbg_recov_inject_agino);
+		*p = cpu_to_be32((uint32_t)mxfs_dbg_recov_inject_agino);
+		mxfs_dbg_recov_inject_agino = 0;
+		return;
+	}
+	/*
+	 * An inode-buffer image whose logged range holds no di_next_unlinked
+	 * at all — the third way this arm used to fail without saying so.
+	 * The range is printed because it is what decides the answer.
+	 */
+	pr_err_ratelimited("mxfs: P-INJ-LOGGED-AGINO-DECLINED daddr=%lld seg=[%u,%u) ninodes=%u isize=%u — an inode-buffer image, but its logged range carries no di_next_unlinked; the knob stays armed\n",
+			   (long long)blfp->blf_blkno, seg_start, seg_end,
+			   ninodes, isize);
 }
 
 static void
@@ -1360,8 +2068,13 @@ xfs_buf_item_format_segment(
 		return;
 	}
 
-	if (!(bip->bli_flags & XFS_BLI_STALE) &&
-	    mxfs_buf_item_wants_authority(bip)) {
+	/*
+	 * sess476: the STALE exclusion is gone — a CANCEL record is serialized
+	 * WITH its trailer (captured at xfs_trans_binval before the stale
+	 * conversion), so foreign replay can authorize the free.  The stale
+	 * early-return below still emits nothing but the (now tokened) format.
+	 */
+	if (mxfs_buf_item_wants_authority(bip)) {
 		/*
 		 * sess48 authority token (step 3a): emit the format struct
 		 * with the mxfs_blf_authority trailer appended in the SAME
@@ -1435,14 +2148,68 @@ xfs_buf_item_format_segment(
 				gepoch = 0;
 				lineage = 0;
 				st = MXFS_AUTH_ST_INCOMPLETE;
+				/*
+				 * sess445 (chain 35 point 13, 0.51.0): a create
+				 * transaction carried ONE class=NONE/INCOMPLETE image
+				 * (AG 24 agbno 9, len 8) and the elected replayer
+				 * refused the whole slice — terminal verdict, the
+				 * whole-cluster bootstrap REFUSED.  The producer's
+				 * counters name the reason only in aggregate; this
+				 * line names the BUFFER (type, blkno) and which void
+				 * path produced it, so the next occurrence is
+				 * attributable without the dead node's log.
+				 */
+				pr_warn_ratelimited("mxfs: P-AUTHCAP-VOID why=nocap blkno=%lld len=%u blft=%u flags=0x%x owner_ino=%llu outcome=%u comm=%s\n",
+					(long long)bip->bli_formats[0].blf_blkno,
+					(unsigned)bip->bli_formats[0].blf_len,
+					(unsigned)xfs_blft_from_flags(&bip->__bli_format),
+					(unsigned)bip->__bli_format.blf_flags,
+					(unsigned long long)cap->mba_owner_ino,
+					(unsigned)cap->mba_outcome, current->comm);
+			} else if (cap->mba_retype_pending) {
+				/* sess445 A′: re-typed, never re-dirtied — the
+				 * proof was established for another format */
+				atomic64_inc(&mxfs_authcap_retype_nodirty);
+				cls = MXFS_AUTH_CLASS_NONE;
+				res = 0;
+				gepoch = 0;
+				lineage = 0;
+				st = MXFS_AUTH_ST_INCOMPLETE;
+				pr_warn_ratelimited("mxfs: P-AUTHCAP-VOID why=retype_nodirty blkno=%lld len=%u blft_cap=%u blft_now=%u class_cap=%u comm=%s\n",
+					(long long)bip->bli_formats[0].blf_blkno,
+					(unsigned)bip->bli_formats[0].blf_len,
+					(unsigned)cap->mba_blft,
+					(unsigned)xfs_blft_from_flags(&bip->__bli_format),
+					(unsigned)cap->mba_class, current->comm);
 			} else if (cap->mba_blft !=
-				   xfs_blft_from_flags(&bip->__bli_format)) {
+				   xfs_blft_from_flags(&bip->__bli_format) &&
+				   !((bip->bli_flags & XFS_BLI_STALE) &&
+				     (bip->__bli_format.blf_flags & XFS_BLF_CANCEL) &&
+				     xfs_blft_from_flags(&bip->__bli_format) == 0)) {
+				/*
+				 * sess476: the ONE tolerated type change is the
+				 * stale conversion itself — xfs_trans_binval
+				 * captured under the original BLFT, then cleared
+				 * the BLFT mask and set CANCEL.  Any other change
+				 * still voids the proof (the ruling: never disable
+				 * the check for stale items wholesale).
+				 */
 				atomic64_inc(&mxfs_authcap_blftchg);
 				cls = MXFS_AUTH_CLASS_NONE;
 				res = 0;
 				gepoch = 0;
 				lineage = 0;
 				st = MXFS_AUTH_ST_INCOMPLETE;
+				pr_warn_ratelimited("mxfs: P-AUTHCAP-VOID why=blftchg blkno=%lld len=%u blft_cap=%u blft_now=%u flags=0x%x class_cap=%u st_cap=%u owner_ino=%llu outcome=%u comm=%s\n",
+					(long long)bip->bli_formats[0].blf_blkno,
+					(unsigned)bip->bli_formats[0].blf_len,
+					(unsigned)cap->mba_blft,
+					(unsigned)xfs_blft_from_flags(&bip->__bli_format),
+					(unsigned)bip->__bli_format.blf_flags,
+					(unsigned)cap->mba_class,
+					(unsigned)cap->mba_status,
+					(unsigned long long)cap->mba_owner_ino,
+					(unsigned)cap->mba_outcome, current->comm);
 			}
 
 			ident = mxfs_v5_dlm_mount_identity(mp->m_mxfs_dlm,
@@ -1481,6 +2248,14 @@ xfs_buf_item_format_segment(
 		blfp->blf_size = 1;
 	}
 
+	/*
+	 * blfp now points into the emitted copy, so what is changed here goes
+	 * to the log and nowhere else.  The data map, the map size and blf_size
+	 * are read below and are deliberately untouched.
+	 */
+	if (unlikely(mxfs_dbg_recov_inject_straddle))
+		mxfs_dbg_inject_logged_blf(bp, blfp);
+
 	if (bip->bli_flags & XFS_BLI_STALE) {
 		/*
 		 * The buffer is stale, so all we need to log
@@ -1497,11 +2272,17 @@ xfs_buf_item_format_segment(
 	 * Fill in an iovec for each set of contiguous chunks.
 	 */
 	do {
+		void *dst;
+
 		ASSERT(first_bit >= 0);
 		nbits = xfs_contig_bits(blfp->blf_data_map,
 					blfp->blf_map_size, first_bit);
 		ASSERT(nbits > 0);
-		xfs_buf_item_copy_iovec(lfb, bp, offset, first_bit, nbits);
+		dst = xfs_buf_item_copy_iovec(lfb, bp, offset, first_bit,
+					      nbits);
+		if (unlikely(mxfs_dbg_recov_inject_agino))
+			mxfs_dbg_inject_logged_agino(bp, blfp, dst, offset,
+						     first_bit, nbits);
 		blfp->blf_size++;
 
 		/*
@@ -1636,8 +2417,21 @@ xfs_buf_item_finish_stale(
 	 * cancel point for a committed-never-submitted obligation. */
 	mxfs_f4_cancel(bp, MXFS_F4_CANCEL_STALE);
 
+	/*
+	 * 0.75.62: a stale buffer never writes back, so bp->b_iodone
+	 * (mxfs_dlm_ag_meta_iodone) never fires for it.  An AG-metadata btree
+	 * block freed after being logged in this dirty epoch (xfs_trans_binval
+	 * on a leaf merge or a root collapse) otherwise keeps the track hold
+	 * and the per-AG pending count taken by mxfs_ag_meta_track for the life
+	 * of the mount, and every later release of that AG spins to the Phase-3
+	 * 2 s bound while the peer's request deadline expires.  Return them
+	 * here, while our caller still holds its own reference; the one-shot
+	 * token makes this a no-op for any buffer that was never tracked.
+	 */
+	mxfs_ag_meta_reclaim(bp, "stale");
+
 	if (bip->bli_flags & XFS_BLI_STALE_INODE) {
-		xfs_buf_item_done(bp);
+		xfs_buf_item_done(bp, XFS_BLI_NO_IODONE);
 		xfs_buf_inode_iodone(bp);
 		ASSERT(list_empty(&bp->b_li_list));
 		return;
@@ -1648,8 +2442,29 @@ xfs_buf_item_finish_stale(
 	 * the right thing regardless of the situation in which we are called.
 	 */
 	xfs_trans_ail_delete(lip, SHUTDOWN_LOG_IO_ERROR);
-	xfs_buf_item_relse(bip);
+	xfs_buf_item_relse(bip, "stale", XFS_BLI_NO_IODONE);
 	ASSERT(bp->b_log_item == NULL);
+
+	/*
+	 * 0.75.64: at this point exactly ONE reference should remain — the
+	 * caller's, which it releases right after we return — and a freed
+	 * AG-metadata btree block then leaves the buffer cache for good.
+	 * Six such buffers survived to module unload on test1 (2026-09-08,
+	 * "Slab cache still has objects" from xfs_destroy_caches) after the
+	 * 0.75.62 stale reclaim returned the track hold, so a second, unnamed
+	 * reference is being kept somewhere.  Name the count here so the leak
+	 * is attributed at the completion that should have ended the buffer.
+	 */
+	if (mxfs_buf_is_ag_metadata(bp)) {
+		int hold = bp->b_hold;
+
+		if (hold != 1)
+			pr_warn_ratelimited("mxfs: P-STALE-FIN daddr=%lld ops=%s hold=%d pin=%d flags=0x%x agmeta_hold=%d — stale AG-meta completion leaves more than the caller's reference (leak source)\n",
+				(long long)bp->b_maps[0].bm_bn,
+				(bp->b_ops && bp->b_ops->name) ? bp->b_ops->name : "?",
+				hold, atomic_read(&bp->b_pin_count), bp->b_flags,
+				atomic_read(&bp->b_mxfs_agmeta_hold));
+	}
 }
 
 /*
@@ -1727,7 +2542,8 @@ xfs_buf_item_unpin(
 		 */
 		xfs_buf_lock(bp);
 		bp->b_flags |= XBF_ASYNC;
-		xfs_buf_ioend_fail(bp);
+		/* sess459: audited no-I/O completion (post log-error remove) */
+		xfs_buf_ioend_fail_unsubmitted(bp);
 		return;
 	}
 
@@ -1737,6 +2553,232 @@ xfs_buf_item_unpin(
 	 * us to do here so drop the pin reference to the buffer.
 	 */
 	xfs_buf_rele(bp);
+}
+
+/*
+ * D-0487: grace period, in ms, between xfsaild's first coherent refusal of a
+ * committed image whose grant this node does not hold and the fail-stop.
+ * The only legitimate reason the refusal predicate is transiently true is a
+ * lock-free read across an acquire's publication (the epoch, holders and the
+ * cached hint are written back to back under pag_dlm_lock), which lasts
+ * microseconds; xfsaild's own retry interval when it backs off is 50 ms; no
+ * actor ever re-acquires a grant on a refused item's behalf.  Ten seconds is
+ * therefore four orders above the transient and well inside every budget
+ * the refusal can hang (the 90 s coherency rows, the 240 s mass unmount).
+ * The alert lands at the grace period plus one xfsaild retry.
+ */
+unsigned int mxfs_ailpin_grace_ms = 10000;
+module_param_named(ailpin_grace_ms, mxfs_ailpin_grace_ms, uint, 0644);
+MODULE_PARM_DESC(ailpin_grace_ms,
+		 "ms a committed AG-metadata/bmbt image may sit refused by xfsaild "
+		 "(grant not held) before the mount fails stop; default 10000");
+
+/*
+ * 0.70.2: a refused item that clears (is written home once the grant is
+ * back, or is failed by a shutdown) is reported by name when it took at
+ * least this long from its first coherent refusal.  The steady-state
+ * producer of refusals is the AG handoff itself — xfsaild meets the
+ * committed image in the gap between the release commit and the drain that
+ * writes it — and those clear in the drain, i.e. in milliseconds.  Anything
+ * slower is a refusal the grace period could turn into a fail-stop, and the
+ * census (debugfs ailpin_stats) is what says how much margin the grace has.
+ */
+unsigned int mxfs_ailpin_clear_report_ms = 1000;
+module_param_named(ailpin_clear_report_ms, mxfs_ailpin_clear_report_ms,
+		   uint, 0644);
+MODULE_PARM_DESC(ailpin_clear_report_ms,
+		 "report by name a refused AG-metadata/bmbt image that took at "
+		 "least this many ms to clear; default 1000");
+
+static const char *
+mxfs_agmeta_ops_name(
+	const struct xfs_buf	*bp)
+{
+	if (!bp->b_ops)
+		return "null";
+	return (bp->b_ops == &xfs_bnobt_buf_ops) ? "bnobt" :
+	       (bp->b_ops == &xfs_cntbt_buf_ops) ? "cntbt" :
+	       (bp->b_ops == &xfs_agf_buf_ops)   ? "agf"   :
+	       (bp->b_ops == &xfs_agfl_buf_ops)  ? "agfl"  :
+	       (bp->b_ops == &xfs_agi_buf_ops)   ? "agi"   :
+	       (bp->b_ops == &xfs_inobt_buf_ops) ? "inobt" :
+	       (bp->b_ops == &xfs_finobt_buf_ops)? "finobt":
+	       (bp->b_ops == &xfs_bmbt_buf_ops)  ? "bmbt"  :
+	       bp->b_ops->name ? bp->b_ops->name : "?";
+}
+
+/*
+ * D-0487: account one xfsaild refusal of `bip` and say whether the item has
+ * now been refused for longer than the grace period.  Called under ail_lock
+ * with the buffer locked, so it must not sleep; it prints (rate-limited per
+ * mount) the identity the old P126 line lacked — the item's LSN, its
+ * captured authority (class/status/epoch/window), the AG's current epoch
+ * and hold state, its age and refusal count — and, once per item, the
+ * PINNED alert with the same identity.  It never changes the item.
+ *
+ * `agno` is the AG the arm derived the item to belong to (the buffer's perag
+ * for AG metadata, the owner inode's AG for a bmbt leaf); `owner` is the
+ * bmbt owner inode or 0.
+ */
+static bool
+mxfs_bli_refuse_account(
+	struct xfs_buf_log_item	*bip,
+	struct xfs_buf		*bp,
+	const char		*arm,
+	xfs_agnumber_t		agno,
+	uint64_t		owner,
+	uint64_t		cur_epoch,
+	bool			cached,
+	int			holders)
+{
+	struct xfs_log_item	*lip = &bip->bli_item;
+	struct mxfs_bli_auth	*cap = &bip->bli_mxfs_auth;
+	unsigned long		now = jiffies;
+	unsigned int		age_ms;
+	bool			pinned;
+
+	if (!bip->bli_mxfs_refuse_first) {
+		bip->bli_mxfs_refuse_first = now | 1;
+		bip->bli_mxfs_refuse_lsn = lip->li_lsn;
+		bip->bli_mxfs_refuse_count = 1;
+		if (bp->b_mount)
+			atomic64_inc(&bp->b_mount->m_mxfs_ailpin_refused_n);
+		pr_warn_ratelimited("mxfs: P126-XFSAILD-REFUSE arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d in_ail=%d dirty=%d pin=%d — committed image for a grant this node does not hold; not written\n",
+			arm, agno, (long long)bp->b_maps[0].bm_bn,
+			mxfs_agmeta_ops_name(bp),
+			(unsigned long long)lip->li_lsn,
+			(unsigned long long)owner,
+			(unsigned)cap->mba_class, (unsigned)cap->mba_status,
+			(unsigned long long)cap->mba_epoch,
+			(unsigned long long)cap->mba_capseq,
+			(unsigned long long)cur_epoch, cached ? 1 : 0, holders,
+			test_bit(XFS_LI_IN_AIL, &lip->li_flags) ? 1 : 0,
+			(bip->bli_flags & XFS_BLI_DIRTY) ? 1 : 0,
+			xfs_buf_ispinned(bp) ? 1 : 0);
+		return false;
+	}
+	if (bip->bli_mxfs_refuse_count < UINT_MAX)
+		bip->bli_mxfs_refuse_count++;
+	if (lip->li_lsn != bip->bli_mxfs_refuse_lsn) {
+		/*
+		 * Re-logged while refused: a second unauthorized mutation of
+		 * the same image.  Visible, and NOT a restart of the clock.
+		 */
+		pr_warn_ratelimited("mxfs: P126-XFSAILD-REFUSE-RELOG arm=%s agno=%u daddr=%lld lsn_first=0x%llx lsn_now=0x%llx count=%u\n",
+			arm, agno, (long long)bp->b_maps[0].bm_bn,
+			(unsigned long long)bip->bli_mxfs_refuse_lsn,
+			(unsigned long long)lip->li_lsn,
+			bip->bli_mxfs_refuse_count);
+		bip->bli_mxfs_refuse_lsn = lip->li_lsn;
+	}
+	age_ms = jiffies_to_msecs(now - (bip->bli_mxfs_refuse_first & ~1UL));
+	pinned = age_ms >= READ_ONCE(mxfs_ailpin_grace_ms);
+	if (pinned && !bip->bli_mxfs_refuse_reported) {
+		struct xfs_mount	*mp = bp->b_mount;
+
+		bip->bli_mxfs_refuse_reported = 1;
+		pr_alert("mxfs: P126-AIL-PINNED arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx owner=%llu cap_class=%u cap_st=%u cap_epoch=%llu cap_win=%llu cur_epoch=%llu cached=%d holders=%d age_ms=%u count=%u — this node committed a change to metadata it holds no grant for: writing it would clobber the holder, dropping it would lose a committed change, and nothing will ever make it writable\n",
+			arm, agno, (long long)bp->b_maps[0].bm_bn,
+			mxfs_agmeta_ops_name(bp),
+			(unsigned long long)lip->li_lsn,
+			(unsigned long long)owner,
+			(unsigned)cap->mba_class, (unsigned)cap->mba_status,
+			(unsigned long long)cap->mba_epoch,
+			(unsigned long long)cap->mba_capseq,
+			(unsigned long long)cur_epoch, cached ? 1 : 0, holders,
+			age_ms, bip->bli_mxfs_refuse_count);
+		if (mp && mp->m_mxfs_dlm &&
+		    atomic_cmpxchg(&mp->m_mxfs_ailpin_fired, 0, 1) == 0) {
+			mp->m_mxfs_ailpin_arm = arm;
+			mp->m_mxfs_ailpin_ops = mxfs_agmeta_ops_name(bp);
+			mp->m_mxfs_ailpin_daddr = bp->b_maps[0].bm_bn;
+			mp->m_mxfs_ailpin_lsn = lip->li_lsn;
+			mp->m_mxfs_ailpin_agno = agno;
+			mp->m_mxfs_ailpin_count = bip->bli_mxfs_refuse_count;
+			mp->m_mxfs_ailpin_age_ms = age_ms;
+			queue_work(system_unbound_wq, &mp->m_mxfs_ailpin_work);
+		}
+	}
+	return pinned;
+}
+
+/*
+ * D-0487 (0.70.2): a refused item is being freed — retired by its home
+ * write after the grant came back (the healthy case: the release drain
+ * writes it milliseconds after the refusal) or by the failed submit that
+ * follows a shutdown.  Record its age from the first coherent refusal in
+ * the mount census and name it if it was slow.  Called from
+ * xfs_buf_item_relse, which every retirement path funnels through; the item
+ * is already off the AIL and unreferenced, so nothing here can race the
+ * push's accounting on the same item.
+ */
+static void
+mxfs_bli_refuse_clear(
+	struct xfs_buf_log_item	*bip,
+	struct xfs_buf		*bp)
+{
+	struct xfs_mount	*mp = bp->b_mount;
+	unsigned int		age_ms;
+	bool			shutdown;
+	int			old;
+
+	age_ms = jiffies_to_msecs(jiffies - (bip->bli_mxfs_refuse_first & ~1UL));
+	shutdown = mp && mp->m_log && xlog_is_shutdown(mp->m_log);
+	if (mp) {
+		atomic64_inc(&mp->m_mxfs_ailpin_clear_n);
+		atomic64_add(age_ms, &mp->m_mxfs_ailpin_clear_sum_ms);
+		if (shutdown)
+			atomic64_inc(&mp->m_mxfs_ailpin_clear_shutdown_n);
+		if (age_ms >= READ_ONCE(mxfs_ailpin_clear_report_ms))
+			atomic64_inc(&mp->m_mxfs_ailpin_clear_slow_n);
+		old = atomic_read(&mp->m_mxfs_ailpin_clear_max_ms);
+		while ((unsigned int)old < age_ms) {
+			int seen = atomic_cmpxchg(&mp->m_mxfs_ailpin_clear_max_ms,
+						  old, (int)age_ms);
+			if (seen == old)
+				break;
+			old = seen;
+		}
+	}
+	if (age_ms >= READ_ONCE(mxfs_ailpin_clear_report_ms) ||
+	    bip->bli_mxfs_refuse_reported)
+		pr_warn_ratelimited("mxfs: P126-REFUSE-CLEARED daddr=%lld ops=%s lsn_first=0x%llx lsn_last=0x%llx age_ms=%u count=%u pinned_reported=%u shutdown=%d ioerr=%d — a refused image was retired\n",
+			(long long)bp->b_maps[0].bm_bn,
+			mxfs_agmeta_ops_name(bp),
+			(unsigned long long)bip->bli_mxfs_refuse_lsn,
+			(unsigned long long)bip->bli_item.li_lsn,
+			age_ms, bip->bli_mxfs_refuse_count,
+			bip->bli_mxfs_refuse_reported, shutdown ? 1 : 0,
+			bp->b_error);
+}
+
+/*
+ * The mount-level response to a pinned item, in process context (the push
+ * that found it runs under ail_lock and cannot force a shutdown itself).
+ * 0.70.0: the fail-stop.  The item is a committed change to metadata this
+ * node holds no grant for; it can be neither written nor dropped, and left
+ * alone it pins the log tail until unmount hangs on it (D-0486) and, on the
+ * pre-0.69.3 ordering, took the whole cluster with it (D-0487 convoy).  A
+ * named shutdown is the only honest terminal state; the same policy the
+ * acquire-time preflight already applies to the same condition
+ * (P131-INVAL-REFUSED).  After the shutdown the refused push falls through
+ * and the failed submit retires the item, so the pending AIL wait returns.
+ */
+void
+mxfs_ailpin_work_fn(
+	struct work_struct	*work)
+{
+	struct xfs_mount	*mp = container_of(work, struct xfs_mount,
+						   m_mxfs_ailpin_work);
+
+	xfs_alert(mp,
+	"mxfs: P126-AIL-PINNED-MOUNT arm=%s agno=%u daddr=%lld ops=%s lsn=0x%llx age_ms=%u count=%u — this node committed a change to metadata it holds no grant for and xfsaild has refused it past the grace period; it can be neither written (clobbers the holder) nor dropped (loses a committed change); shutting down so the log tail is released and the slice goes to recovery",
+		mp->m_mxfs_ailpin_arm ? mp->m_mxfs_ailpin_arm : "?",
+		mp->m_mxfs_ailpin_agno, (long long)mp->m_mxfs_ailpin_daddr,
+		mp->m_mxfs_ailpin_ops ? mp->m_mxfs_ailpin_ops : "?",
+		(unsigned long long)mp->m_mxfs_ailpin_lsn,
+		mp->m_mxfs_ailpin_age_ms, mp->m_mxfs_ailpin_count);
+	xfs_force_shutdown(mp, SHUTDOWN_CORRUPT_INCORE);
 }
 
 STATIC uint
@@ -1781,26 +2823,82 @@ xfs_buf_item_push(
 	 * runs (so single-node / uncontended mounts are unaffected).
 	 */
 	if (mxfs_buf_xfsaild_skip_agmeta_write(bp)) {
-		pr_warn_ratelimited("mxfs: P126-XFSAILD-SKIP-AGMETA agno=%u daddr=%lld ops=%s in_ail=%d dirty=%d pin=%d — not held in-core; staling stale prior-tenure AG-meta instead of reverting peer\n",
-			bp->b_pag ? pag_agno(bp->b_pag) : (unsigned)-1,
-			(long long)bp->b_maps[0].bm_bn,
-			(bp->b_ops == &xfs_bnobt_buf_ops) ? "bnobt" :
-			(bp->b_ops == &xfs_cntbt_buf_ops) ? "cntbt" :
-			(bp->b_ops == &xfs_agf_buf_ops)   ? "agf"   :
-			(bp->b_ops == &xfs_agfl_buf_ops)  ? "agfl"  :
-			(bp->b_ops == &xfs_agi_buf_ops)   ? "agi"   :
-			(bp->b_ops == &xfs_inobt_buf_ops) ? "inobt" :
-			(bp->b_ops == &xfs_finobt_buf_ops)? "finobt": "?",
-			test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags) ? 1 : 0,
-			(bip->bli_flags & XFS_BLI_DIRTY) ? 1 : 0,
-			xfs_buf_ispinned(bp) ? 1 : 0);
-		xfs_buf_stale(bp);
-		xfs_buf_unlock(bp);
-		return XFS_ITEM_SUCCESS;
+		struct xfs_perag	*pag = bp->b_pag;
+		uint64_t		e0 = READ_ONCE(pag->pag_mxfs_grant_epoch);
+		bool			cached = READ_ONCE(pag->pag_dlm_cached);
+		int			holders = READ_ONCE(pag->pag_dlm_holders);
+		uint64_t		e1 = READ_ONCE(pag->pag_mxfs_grant_epoch);
+
+		/*
+		 * D-0487 (0.70.0): REFUSE, do not stale, do not report success.
+		 * The item is this node's committed change to metadata it holds
+		 * no grant for.  Writing it would clobber the holder's newer
+		 * image (the sess23 clobber); dropping it from the AIL would lose
+		 * a committed change, and nothing at push time can prove the
+		 * image durable; staling it (0.69.6 and before) left the item in
+		 * the AIL anyway — xfs_buf_stale sets flags and nothing more —
+		 * and then let a later cache lookup reuse the buffer with b_ops
+		 * cleared and the item still attached, so the next push wrote
+		 * whatever the buffer then held.  So the item stays as it is,
+		 * unlocked, reported as LOCKED (retained, retried, no I/O),
+		 * which xfsaild already treats as stuck and backs off from.
+		 *
+		 * Only a COHERENT "not held" snapshot — the epoch read unchanged
+		 * around the hint and the holder count, and zero, which is what
+		 * every release-commit point publishes before its on-disk unlock
+		 * — is accounted; a snapshot taken across an acquire's
+		 * publication is a transient and starts no clock.  Past the grace
+		 * period the accounting queues the fail-stop (mxfs_ailpin_work_fn):
+		 * the only producers of such an item are exclusion defects, and
+		 * the honest terminal state is a named shutdown, not a quiet
+		 * skip that pins the log tail forever.
+		 *
+		 * Once the log is shut down the item is retired the ordinary way:
+		 * fall through, the submit fails without I/O and the completion
+		 * deletes the item, so xfs_ail_push_all_sync returns.
+		 */
+		if (!xlog_is_shutdown(bp->b_mount->m_log)) {
+			if (e0 == e1 && e0 == 0 && !cached && holders == 0)
+				mxfs_bli_refuse_account(bip, bp, "agmeta",
+							pag_agno(pag), 0, e0,
+							cached, holders);
+			else
+				pr_warn_ratelimited("mxfs: P126-XFSAILD-REFUSE-TRANSIENT agno=%u daddr=%lld ops=%s epoch=%llu/%llu cached=%d holders=%d — not held at the predicate, hold state in motion; retained, not written\n",
+					pag_agno(pag),
+					(long long)bp->b_maps[0].bm_bn,
+					mxfs_agmeta_ops_name(bp),
+					(unsigned long long)e0,
+					(unsigned long long)e1,
+					cached ? 1 : 0, holders);
+			xfs_buf_unlock(bp);
+			return XFS_ITEM_LOCKED;
+		}
+	} else if (bp->b_pag && bip->bli_mxfs_auth.mba_class == MXFS_AUTH_CLASS_AG &&
+		   bip->bli_mxfs_auth.mba_status == MXFS_AUTH_ST_VALID &&
+		   bip->bli_mxfs_auth.mba_epoch &&
+		   mxfs_buf_is_ag_metadata(bp)) {
+		/*
+		 * D-0487 (0.70.0) DIAGNOSTIC ONLY: the node holds the AG, but
+		 * this image was captured under a different tenure's epoch and
+		 * was never re-logged under this one.  A correct release drains
+		 * every such item before the on-disk unlock, so this line
+		 * should never print; it is measured before it is enforced.
+		 */
+		uint64_t	ge = READ_ONCE(bp->b_pag->pag_mxfs_grant_epoch);
+
+		if (ge && ge != bip->bli_mxfs_auth.mba_epoch)
+			pr_warn_ratelimited("mxfs: P126-EPOCH-MISMATCH agno=%u daddr=%lld ops=%s lsn=0x%llx cap_epoch=%llu cur_epoch=%llu cap_win=%llu — held now, but the image was committed under an earlier tenure and never re-logged; written as before, counted here\n",
+				pag_agno(bp->b_pag),
+				(long long)bp->b_maps[0].bm_bn,
+				mxfs_agmeta_ops_name(bp),
+				(unsigned long long)bip->bli_item.li_lsn,
+				(unsigned long long)bip->bli_mxfs_auth.mba_epoch,
+				(unsigned long long)ge,
+				(unsigned long long)bip->bli_mxfs_auth.mba_capseq);
 	}
 
 	/*
-	 * sess60 (RULE 4, zero_silent_loss residual): the bmbt analogue of the
+	 * sess60 (instrumented, zero_silent_loss residual): the bmbt analogue of the
 	 * AG-meta interlock above.  A bmbt extent-map block whose owner dir we
 	 * have released (i_dlm_mode==NL) must NOT be written from our lingering
 	 * prior-tenure BLI — that reverts a peer's newer leaf records and is the
@@ -1811,15 +2909,25 @@ xfs_buf_item_push(
 	 * only — files and held dirs fall through to the normal write.
 	 */
 	if (mxfs_buf_xfsaild_skip_bmbt_write(bp)) {
-		pr_warn_ratelimited("mxfs: P60-XFSAILD-SKIP-BMBT owner=%llu daddr=%lld in_ail=%d dirty=%d pin=%d — released dir, staling stale prior-tenure bmbt leaf instead of reverting peer\n",
-			(unsigned long long)be64_to_cpu(((struct xfs_btree_block *)bp->b_addr)->bb_u.l.bb_owner),
-			(long long)bp->b_maps[0].bm_bn,
-			test_bit(XFS_LI_IN_AIL, &bip->bli_item.li_flags) ? 1 : 0,
-			(bip->bli_flags & XFS_BLI_DIRTY) ? 1 : 0,
-			xfs_buf_ispinned(bp) ? 1 : 0);
-		xfs_buf_stale(bp);
-		xfs_buf_unlock(bp);
-		return XFS_ITEM_SUCCESS;
+		uint64_t	owner = be64_to_cpu(((struct xfs_btree_block *)
+					bp->b_addr)->bb_u.l.bb_owner);
+
+		/*
+		 * D-0487 (0.70.0): the same terminal shape as the AG-metadata
+		 * arm — retained unwritten and unstaled, LOCKED, fail-stop past
+		 * the grace period.  The predicate reads the owner's mode under
+		 * pag_ici_lock, so every refusal here is a coherent one.  (This
+		 * arm has not fired in any captured run since the release drain
+		 * was rebuilt; the shape is kept identical so that if it does,
+		 * it is named and bounded rather than quietly pinned.)
+		 */
+		if (!xlog_is_shutdown(bp->b_mount->m_log)) {
+			mxfs_bli_refuse_account(bip, bp, "bmbt",
+						XFS_INO_TO_AGNO(bp->b_mount, owner),
+						owner, 0, false, 0);
+			xfs_buf_unlock(bp);
+			return XFS_ITEM_LOCKED;
+		}
 	}
 
 	/*
@@ -1914,7 +3022,7 @@ xfs_buf_item_put(
 	ASSERT(!(bip->bli_flags & XFS_BLI_DIRTY) ||
 			test_bit(XFS_LI_ABORTED, &bip->bli_item.li_flags));
 	ASSERT(!(bip->bli_flags & XFS_BLI_STALE));
-	xfs_buf_item_relse(bip);
+	xfs_buf_item_relse(bip, "put", XFS_BLI_NO_IODONE);
 }
 
 /*
@@ -2012,12 +3120,12 @@ xfs_buf_item_release(
 		 * outstanding mxfs_ag_meta_track hold here or it leaks and wedges
 		 * xfs_buftarg_drain at unmount (agi/inobt/finobt stuck at b_hold=2).
 		 */
-		mxfs_ag_meta_reclaim_abort(bp);
+		mxfs_ag_meta_reclaim(bp, "shutdown/abort");
 		/* sess227 F4: shutdown is the only terminal cancel; a plain
 		 * abort keeps the obligation open + probes (ruling item 3). */
 		mxfs_f4_cancel(bp, xlog_is_shutdown(lip->li_log) ?
 				MXFS_F4_CANCEL_SHUTDOWN : MXFS_F4_CANCEL_ABORT);
-		xfs_buf_item_done(bp);
+		xfs_buf_item_done(bp, XFS_BLI_NO_IODONE);
 		goto out_release;
 	}
 
@@ -2028,7 +3136,7 @@ xfs_buf_item_release(
 	 * Dirty, unreferenced BLIs *must* be in the AIL awaiting writeback.
 	 */
 	if (!dirty)
-		xfs_buf_item_relse(bip);
+		xfs_buf_item_relse(bip, "release-clean", XFS_BLI_NO_IODONE);
 	else
 		ASSERT(test_bit(XFS_LI_IN_AIL, &lip->li_flags));
 
@@ -2354,7 +3462,8 @@ xfs_buf_item_dirty_format(
 
 void
 xfs_buf_item_done(
-	struct xfs_buf		*bp)
+	struct xfs_buf		*bp,
+	enum xfs_bli_release_ctx ctx)
 {
 	/*
 	 * sess1(e8e920f7) — atomically CLAIM the BLI.  The stock code read
@@ -2385,6 +3494,15 @@ xfs_buf_item_done(
 			if (n <= 8)
 				dump_stack();
 		}
+		/*
+		 * No log item to retire, and on a no-I/O retirement nothing will
+		 * run b_iodone either — so if this buffer is still carrying an
+		 * AG-metadata tracking token, this is its last chance to return
+		 * it.  The reclaim may drop the final reference, so touch nothing
+		 * on bp afterwards.
+		 */
+		if (ctx == XFS_BLI_NO_IODONE)
+			mxfs_ag_meta_reclaim(bp, "retire-no-bli");
 		return;
 	}
 
@@ -2412,5 +3530,8 @@ xfs_buf_item_done(
 			     ((bp->b_flags & _XBF_LOGRECOVERY) ||
 			      bp->b_mxfs_foreign_recovery) ? 0 :
 			     SHUTDOWN_CORRUPT_INCORE);
-	xfs_buf_item_relse(bip);
+	xfs_buf_item_relse(bip,
+			   ctx == XFS_BLI_IODONE_FOLLOWS ? "iodone"
+							 : "retire-noio",
+			   ctx);
 }

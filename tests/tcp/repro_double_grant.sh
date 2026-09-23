@@ -4,7 +4,7 @@
 # PROVEN ROOT (sess-tcp): tcp_dlm_scaling's ~50%-flaky durable leftover dirent is
 # a TCP DLM double-grant of the parent-dir inode EX — both nodes hold EX
 # concurrently and one durably reverts the other's rename+rm.  See ccmemory
-# sess-tcp-double-grant-mechanism-refinement.
+# docs/history/docs/history/sess-tcp-double-grant-mechanism-refinement.md.
 #
 # This driver loops the STANDALONE test via the real harness (which reproduces,
 # unlike a manual churn that lacks the MQTT-barrier timing), and on the first

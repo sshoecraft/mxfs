@@ -42,7 +42,7 @@ OUTER=$(( DRC_TT + 300 ))
 
 echo "$(date -u +%H:%M:%S) launching run.sh N=$N modargs='$EXTRA_MODARGS' DRC_TT=$DRC_TT OUTER=$OUTER" | tee "$OUT/monitor.log"
 
-( MXFS_DEV=/dev/mapper/mpatha MXFS_EXTRA_MODARGS="$EXTRA_MODARGS" TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
+( MXFS_EXTRA_MODARGS="$EXTRA_MODARGS" TEST_TIMEOUT="$DRC_TT" timeout "$OUTER" \
     ./run.sh "$N" caw dir_reuse_coherency fence_during_write \
     > "$OUT/run.log" 2>&1
   echo "RUN_EXIT=$?" >> "$OUT/run.log" ) &

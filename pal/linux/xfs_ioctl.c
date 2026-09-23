@@ -43,6 +43,7 @@
 #include "xfs_rtgroup.h"
 #include "xfs_healthmon.h"
 #include "xfs_verify_media.h"
+#include "xfs_mxfs_dirshard.h"	/* sess466: MXFS_IOC_DIRSHARD_* */
 
 #include <linux/mount.h>
 #include <linux/fileattr.h>
@@ -1019,6 +1020,11 @@ xfs_ioc_setlabel(
 	len = strnlen(label, XFSLABEL_MAX + 1);
 	if (len > sizeof(sbp->sb_fname))
 		return -EINVAL;
+	/* sess419 D-0133: label is a non-counter SB field; cluster-refused
+	 * before sb_fname is touched (set it offline, all nodes unmounted). */
+	error = mxfs_sb_mutation_refuse(mp, "setlabel");
+	if (error)
+		return error;
 
 	error = mnt_want_write_file(filp);
 	if (error)
@@ -1188,6 +1194,14 @@ xfs_file_ioctl(
 	int			error;
 
 	trace_xfs_file_ioctl(ip);
+
+	/* sess414 (D-512 ruling): a poisoned dead incarnation serves
+	 * NOTHING — not data, not metadata, not space manipulation.
+	 * FIEMAP/bmap/allocsp/reflink ioctls would otherwise walk or
+	 * mutate the stale bmap. */
+	error = mxfs_inode_incarn_estale(ip);
+	if (error)
+		return error;
 
 	switch (cmd) {
 	case FITRIM:
@@ -1427,6 +1441,10 @@ xfs_file_ioctl(
 		return xfs_ioc_verify_media(filp, arg);
 
 	default:
+		/* sess466: MXFS private ioctls (type 0xB7) — directory sharding
+		 * (docs/dir-sharding.md); the module refuses unknown numbers. */
+		if (_IOC_TYPE(cmd) == MXFS_IOC_TYPE)
+			return mxfs_dirshard_ioctl(filp, cmd, arg);
 		return -ENOTTY;
 	}
 }

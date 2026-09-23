@@ -7,8 +7,8 @@
 ## 2026-06-06 — Phase 0 begins
 
 ### Setup
-- Read NEWARCH.md, DESIGN.md §4-6/§11, .ccmemory/sess106_lessons.md,
-  .ccmemory/sess107_lessons.md, .ccmemory/tcp_dlm_straggler.md,
+- Read NEWARCH.md, DESIGN.md §4-6/§11, .ccmemory/docs/history/session-106-lessons.md,
+  .ccmemory/docs/history/session-107-lessons.md, .ccmemory/tcp_dlm_straggler.md,
   .ccmemory/project_caw_is_load_bearing.md, feedback memories.
 - Baseline build at session start: srcversion `EED6A769B0BA85B48F6B6BC`
   (sess107 deploy on test1..test4).
@@ -120,7 +120,7 @@ Call Trace:
 **Outcome 3 — Cannot pass even fully synchronous → Phase 1 first.**
 (see `phase0_results.md` for the full evidence package).
 
-Stopping here for Phase 0.  Recommendation to Steve: do NOT proceed to
+Stopping here for Phase 0.  Recommendation to the user: do NOT proceed to
 Phase 2 (TCP mesh) until Phase 1 (single chokepoint for release/demote/
 yield, coupled in-core mode reset, permanent divergence assertion) is
 in place AND Phase 0 is re-run with a clean instrument.  The two races
@@ -151,7 +151,7 @@ notification layer can help.
 ### Phase 1.2 — collect evidence
 - Clean cycle + 4-node rename repro (20 files) with `mxfs.instr=1`:
   - cross-node coherency PASSED 4/4 (instr=1 slowdown masks the race —
-    see [[sess39_lessons]]).
+    see `docs/history/session-39-lessons.md`).
   - `P109-CLR-UPGRADE-DDL` fires 19× on test2, 20× on test4 in a
     normal contended run.  Confirms the suspected window-open clear
     path is exercised under realistic load.
@@ -231,7 +231,7 @@ session's deliverables are:
 
 ### Phase 1.3 (proper) — Gemini chokepoint (LANDED)
 Per the user's "the design IS solved, look at Lustre / BeeGFS / GFS2" pushback
-and the timing-is-first-class rule, asked Gemini (RULE 5 escalation — 3 failed
+and the timing-is-first-class rule, asked Gemini (design-consult escalation — 3 failed
 local attempts) for the codebase-aware chokepoint design.  Gemini's answer:
 
 1. **Remove UPGRADE-DDL from `mxfs_dlm_caw_lock`.**  Instead of silently

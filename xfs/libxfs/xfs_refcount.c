@@ -2230,7 +2230,7 @@ xfs_refcount_query_range(
 int __init
 xfs_refcount_intent_init_cache(void)
 {
-	xfs_refcount_intent_cache = kmem_cache_create("mxfs_refc_intent",
+	xfs_refcount_intent_cache = mxfs_cache_create("mxfs_refc_intent",
 			sizeof(struct xfs_refcount_intent),
 			0, 0, NULL);
 

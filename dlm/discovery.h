@@ -20,6 +20,7 @@
 #include "../pal/pal.h"
 #include "../include/mxfs/mxfs_common.h"
 #include "../include/mxfs/mxfs_ports.h"
+#include "static_peers.h"
 
 #define MXFS_DISCOVERY_MAGIC            0x4D584644  /* "MXFD" */
 #define MXFS_DISCOVERY_VERSION          1
@@ -31,6 +32,10 @@
 #define MXFS_DISCOVERY_BURST_INTERVAL_MS 500
 
 #define MXFS_DISCOVERY_FLAG_HAS_VOLUME  0x01
+/* The sender was mounted with peers= and neither sends to nor listens on the
+ * multicast group.  A node that is NOT using a list and sees this flag is
+ * misconfigured against it: the listed node can never hear it. */
+#define MXFS_DISCOVERY_FLAG_STATIC_PEERS 0x02
 
 /* Announcement packet sent periodically over UDP — wire-compatible */
 #pragma pack(push, 1)
@@ -67,6 +72,8 @@ struct mxfs_discovery_ctx {
     char                    send_addr[64];
     uint16_t                port;
     bool                    use_broadcast;
+    struct mxfs_static_peers peers;     /* count 0 = multicast/broadcast */
+    bool                    mismatch_warned;
 
     struct mxfs_discovery_seen seen[MXFS_MAX_NODES];
     int                     seen_count;
@@ -93,7 +100,8 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     uint16_t tcp_port,
     const char *mcast_addr,
     uint16_t disc_port,
-    bool use_broadcast);
+    bool use_broadcast,
+    const struct mxfs_static_peers *peers);
 
 void mxfs_discovery_destroy(struct mxfs_discovery_ctx *ctx);
 int  mxfs_discovery_start(struct mxfs_discovery_ctx *ctx);

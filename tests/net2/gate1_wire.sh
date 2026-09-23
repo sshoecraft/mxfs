@@ -8,7 +8,7 @@
 # determinism; kernel build still compiles (net2_wire.h static asserts
 # compile in the kernel via v5_mount.c's include — no Kbuild change yet).
 #
-# ── RULE-0 budget (written BEFORE first run; tighten after healthy PASS) ──
+# ── derived time budget (written BEFORE first run; tighten after healthy PASS) ──
 #   infra    = harness clean build: pure gcc of 2 TUs, est < 10 s
 #            + kernel `make modules` compile check: measured separately,
 #              reported as infra (first run = calibration; record actual
@@ -16,7 +16,7 @@
 #   workload = 4 scenarios, pure CPU; native est < 10 s  =>  x2 = 20 s
 #   HARNESS_BUDGET_S (build + scenarios, excl. kernel) = 30
 #   RULE0_CALIBRATE=1 => measure + report, do not enforce (budget-pinning
-#   run).  A timeout or overrun is a FAIL (RULE 0.3), not a retry.
+#   run).  A timeout or overrun is a FAIL (the budget rule.3), not a retry.
 #
 # Usage: gate1_wire.sh [--skip-kernel]
 #   SKIP_KERNEL=1 (or --skip-kernel) skips the `make modules` check —
@@ -73,7 +73,7 @@ t_scen=$(( $(date +%s) - t1 ))
 harness_total=$(( t_build + t_scen ))
 echo "scenario_wall_s=$t_scen harness_total_s=$harness_total budget_s=$HARNESS_BUDGET_S"
 if [ "$CAL" != "1" ] && [ "$harness_total" -gt "$HARNESS_BUDGET_S" ]; then
-    echo "RULE-0 overrun: ${harness_total}s > ${HARNESS_BUDGET_S}s — FAIL"
+    echo "the budget rule overrun: ${harness_total}s > ${HARNESS_BUDGET_S}s — FAIL"
     fail=1
 fi
 

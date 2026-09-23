@@ -27,7 +27,7 @@
 #   obs     observer/survivor          (default test1)
 #   clean   clean-unmount nodes        (default test26 test27 test28 test29)
 #
-# RULE 0 budget: preflight+slots 20s + I/O spin-up 8s + death declare 62s +
+# derived time budget: preflight+slots 20s + I/O spin-up 8s + death declare 62s +
 # confirm 62s + fence+dispatch 10s + slice replay ~20s (WATCH 240s cap) +
 # concurrent umounts (overlap the window; 150s cap each) + sweep 40s
 # = ~370s worst case; run under `timeout 420`.
@@ -35,12 +35,18 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 NODES_N="${MXFS_NODES:-32}"
 WATCH_S="${WATCH_S:-240}"
 
 VICTIM="${1:-test30}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 OBS="${2:-test1}"
 shift 2 2>/dev/null || shift $# 2>/dev/null
 CLEAN=("${@:-}")

@@ -119,7 +119,7 @@ EOS
 REMOTE=${REMOTE//FLOODN/$FLOOD}
 REMOTE=${REMOTE//POLLSN/$POLLS}
 
-# Budget (RULE 0): the flood is $FLOOD userspace writes to /dev/kmsg (~10k/s on
+# Budget (budget): the flood is $FLOOD userspace writes to /dev/kmsg (~10k/s on
 # these VMs) plus 4 full dmesg reads per poll.  180s covers 20k lines and 8
 # polls with margin; a timeout here is itself a finding, not a reason to widen.
 OUT=$(timeout 180 "$SSHPASS" "$HOST" "sh -c '$REMOTE'" 2>&1 | grep -v "authorized user\|disconnect immediately\|Warning: Permanently\|^$")
@@ -154,7 +154,7 @@ fi
 if [ "${km:-0}" -gt 0 ] && [ "${sm:-0}" -gt 0 ]; then
     echo "VERDICT: BOTH BACKENDS MISSED — not a /dev/kmsg reader artifact."
     echo "         The record is in the buffer after the flood but was invisible"
-    echo "         during it.  Escalate (RULE 5); this is worse than a skip."
+    echo "         during it.  Escalate (design consult); this is worse than a skip."
     exit 0
 fi
 echo "VERDICT: NOT REPRODUCED at flood=$FLOOD polls=$POLLS — dmesg never missed."

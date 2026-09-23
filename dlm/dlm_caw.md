@@ -516,7 +516,7 @@ added in store/prebump/release_mark makes the residual ones harmless.
   5. **`mxfs_dlm_caw_granted_mode()`** (ccloop cc87fed3 sess3) — real
      per-node mode accessor, added because `mxfs_v5_dlm_inode_granted_mode`
      upgrading in-core mode from a collapsed boolean `mxfs_dlm_caw_held()`
-     result could mistake a shared hold for exclusive (RULE-4 proven
+     result could mistake a shared hold for exclusive (proven by instrument
      against a fence_during_write@8/caw D-state deadlock).
   6. **`mxfs_dlm_caw_self_held_scan()` / `mxfs_dlm_caw_force_release_self()`**
      (ccloop a864 sess3) — scan-based orphan-bit recovery. See "Additional

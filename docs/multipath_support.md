@@ -165,4 +165,4 @@ TCP-era coherency pipeline):
 
 See `criteria.json` (`./showstat.sh N caw`) — the matrix ladder
 1/2/4/8/16/32 nodes is tracked there; `.ccmemory/`
-`caw-multipath-matrix-progress` holds the session log.
+`docs/history/docs/history/caw-multipath-matrix-progress.md` holds the session log.

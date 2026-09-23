@@ -21,7 +21,7 @@ TEST_NAME=""
 NODE_ID=""
 TOTAL_NODES=""
 MOUNT_POINT="/mnt/shared"
-DEVICE="/dev/sdb"
+DEVICE=""   # required: the runner (tests/run_tests.sh) resolves it by identity and passes --device
 PHASE=""
 
 while [ $# -gt 0 ]; do
@@ -44,6 +44,7 @@ if [ -z "$TEST_NAME" ] || [ -z "$NODE_ID" ] || [ -z "$TOTAL_NODES" ]; then
 fi
 
 # ---------- Export environment for test scripts ----------
+[ -n "$DEVICE" ] || { echo "mxfs_test: --device is required; the runner resolves the LUN by identity and passes it" >&2; exit 2; }
 export NODE_ID TOTAL_NODES MOUNT_POINT DEVICE
 export TEST_DIR="${MOUNT_POINT}/.mxfs_test"
 export RESULTS_DIR="${MOUNT_POINT}/.mxfs_results/node${NODE_ID}"

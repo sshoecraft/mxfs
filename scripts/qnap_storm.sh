@@ -24,7 +24,12 @@ ITERS="${3:-3}"
 MODE="${4:-1}"
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
 PASS=/tmp/.mxfs_pass
-DEV=/dev/sdb            # QNAP iSCSI LUN (sda is the legacy SCST passthrough)
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/../tests/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 MNT=/mnt/shared
 # This harness runs the workload-A storm on the QNAP hardware iSCSI target with
 # TCP DLM (no CAW), to separate FS-logic bugs from clyde-SCST infra fragility.

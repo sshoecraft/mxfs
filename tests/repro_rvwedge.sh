@@ -28,12 +28,12 @@ RT=/src/mxfs/tests/run_tests.sh
 
 echo "=== test_cross_visibility (warm-up) ==="
 timeout 200 "$RT" --nodes "$N" --phase cluster --test test_cross_visibility \
-  --pass-file "$PASS" --device /dev/sda --mount-point /mnt/shared >> "$OUT" 2>&1
+  --pass-file "$PASS" --mount-point /mnt/shared >> "$OUT" 2>&1
 echo "cross_visibility rc=$?"
 
 echo "=== test_rename_visibility with wedge watcher ==="
 ( timeout 300 "$RT" --nodes "$N" --phase cluster --test test_rename_visibility \
-    --pass-file "$PASS" --device /dev/sda --mount-point /mnt/shared >> "$OUT" 2>&1
+    --pass-file "$PASS" --mount-point /mnt/shared >> "$OUT" 2>&1
   echo "RV_DONE rc=$?" >> "$OUT" ) &
 RUNPID=$!
 

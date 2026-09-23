@@ -26,16 +26,22 @@ set -u
 REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 FORGE=/src/mxfs/tools/recov_forge
-DEV=/dev/mapper/mpatha
+# device selection: after the node is named below (mxfs_dev_resolve)
 MNT=/mnt/shared
 
 SURV="${1:-test1}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$SURV"; DEV=$MXFS_DEV_RESOLVED
 VICTIM="${2:-test2}"
 SLOT="${3:-40}"
 LOAD="${LOAD:-15}"
 SAVE="/tmp/d513_abort_slot${SLOT}.bin"
 
-# RULE 0: both mounts pay the ~62 s dead-confirm window for the frozen peer.
+# budget: both mounts pay the ~62 s dead-confirm window for the frozen peer.
 # The first also aborts FSWIDE (fast, once classification runs); the second
 # additionally replays the victim's slice.
 MOUNT_BUDGET="${MOUNT_BUDGET:-150}"

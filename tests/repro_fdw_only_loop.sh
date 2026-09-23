@@ -2,7 +2,7 @@
 # repro_fdw_only_loop.sh — rapid-fire fence_during_write-ONLY iterations
 # (skips dir_reuse_coherency) to maximize repro attempts/wall-clock for a
 # rare bug that only shows up under fence_during_write's hot-dir churn.
-# Per RULE 3 this lives in the source tree (reusable for any future rare-bug
+# Per the source-tree rule this lives in the source tree (reusable for any future rare-bug
 # hunt under this specific test, not just this session's).
 #
 # Usage: repro_fdw_only_loop.sh <N_nodes> <iters> <outdir>
@@ -27,7 +27,7 @@ wait
 for i in $(seq 1 "$ITERS"); do
     echo "$(date -u +%H:%M:%S) === iter $i/$ITERS ===" | tee -a "$OUT/loop.log"
     rm -f /tmp/mxfs_run.lock
-    MXFS_DEV=/dev/mapper/mpatha TEST_TIMEOUT=180 timeout 240 ./run.sh "$N" caw fence_during_write \
+    TEST_TIMEOUT=180 timeout 240 ./run.sh "$N" caw fence_during_write \
         > "$OUT/iter${i}.log" 2>&1
     rc=$?
     tail -5 "$OUT/iter${i}.log" | tee -a "$OUT/loop.log"

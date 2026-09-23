@@ -6,7 +6,7 @@
 #   tests/pr_reregister_probe.sh MEASURED that a PREEMPT-AND-ABORTed node can
 #   re-register with a fresh key and write to the shared LUN seconds later.  So
 #   the fence certificate is evidence of a completed EVICTION EVENT, not
-#   evidence that the host stays fenced (GPT RULE-5 ruling, sess93 follow-up:
+#   evidence that the host stays fenced (design-consult ruling, sess93 follow-up:
 #   "PREEMPT AND ABORT alone is ... not evidence that the host remains fenced").
 #
 #   0.11.423 adds mxfs_scsipr_exclusion_holds() and calls it at four points —
@@ -32,7 +32,7 @@
 #   frozen — that is the fail-closed outcome under test.  Re-prep afterwards:
 #   MXFS_FORCE_PREP=1 ./run.sh 32 caw prep_cluster
 #
-# TIMING (RULE 0 — derived)
+# TIMING (the budget rule — derived)
 #   certificate appears : DEAD_THRESHOLD(31) * HB_INTERVAL_MS(2000) + fence = 65s
 #   -> CERT_S 150 (slack for a slow scan phase)
 #   replay window       : claim -> replay -> complete                      ~ 10s
@@ -45,10 +45,14 @@ VICTIM="${1:-test32}"
 INJ="${2:-test1}"
 CERT_S="${3:-150}"
 OBSERVE_S="${4:-90}"
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 NODES_N="${MXFS_NODES:-32}"
-IMG="${MXFS_BACKING_IMG:-/home/steve/disk.img}"
-
+IMG=$(tools/mxfs_host_image.sh) || { echo "$IMG"; exit 2; }
 cd "$(dirname "$0")/.." || exit 2
 SSH=tools/mxfs_sshpass.sh
 [ "$VICTIM" = "$INJ" ] && { echo "probe: victim and injector must differ" >&2; exit 2; }
@@ -59,7 +63,10 @@ SLOT=$(printf '%s\n' "$claim" | sed -n 's/.*claimed heartbeat slot \([0-9]*\) .*
 VID=$(printf '%s\n' "$claim" | sed -n 's/.*for node \([0-9]*\).*/\1/p')
 [ -n "${SLOT:-}" ] && [ -n "${VID:-}" ] || {
     echo "probe: could not learn $VICTIM's slot/node id" >&2; exit 2; }
-VKEY=$(printf '0x%x' "$VID")
+# sess439: the PR key is the 64-bit per-boot key (P-PRKEY-PUBLISHED) since
+# 0.43.0; node_id only for a pre-0.43.0 module.
+VKEY=$($SSH "$VICTIM" "(journalctl -k -o cat --since -30min 2>/dev/null; dmesg) | grep -a 'P-PRKEY-PUBLISHED\|P-PRKEY-REGISTERED' | tail -1 | sed -n 's/.*key=\(0x[0-9a-f]*\).*/\1/p'" 2>/dev/null | grep -av '^Unauthorized\|^Warning:\|^If you' | tail -1)
+[ -n "${VKEY:-}" ] || VKEY=$(printf '0x%x' "$VID")
 echo "probe: victim=$VICTIM slot=$SLOT node=$VID key=$VKEY injector=$INJ"
 
 MARK="EXCLLAPSE-$$-$(date -u +%s)"

@@ -24,6 +24,8 @@
 #include <sched.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
+#include <sys/utsname.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -274,6 +276,18 @@ void mxfs_pal_free(void *ptr)
     free(ptr);
 }
 
+void *mxfs_pal_alloc_io(size_t size)
+{
+    if (size == 0)
+        return NULL;
+    return calloc(1, size);
+}
+
+void mxfs_pal_free_io(void *ptr)
+{
+    free(ptr);
+}
+
 void *mxfs_pal_realloc(void *ptr, size_t new_size)
 {
     return realloc(ptr, new_size);
@@ -386,6 +400,12 @@ void mxfs_pal_dump_task_stack(int pid)
     (void)pid;
 }
 
+/* sess422: the DLM engine builds in usermode (tests/tauth); a stack dump
+ * is a kernel diagnostic — no-op here. */
+void mxfs_pal_dump_stack(void)
+{
+}
+
 /* ─── Mutex ─── */
 
 struct mxfs_mutex {
@@ -425,6 +445,43 @@ void mxfs_pal_mutex_unlock(mxfs_mutex_t *m)
 {
     if (m)
         pthread_mutex_unlock(&m->mtx);
+}
+
+/* sess454 (0.61.0, D1/D8) */
+int mxfs_pal_mutex_trylock(mxfs_mutex_t *m)
+{
+    if (!m)
+        return 1;
+    return pthread_mutex_trylock(&m->mtx) == 0 ? 1 : 0;
+}
+
+int mxfs_pal_current_pid(void)
+{
+    return (int)syscall(SYS_gettid);
+}
+
+int mxfs_pal_fatal_signal_pending(void)
+{
+    return 0;
+}
+
+bool mxfs_pal_module_pin(void)
+{
+    return true;
+}
+
+void mxfs_pal_module_unpin(void)
+{
+}
+
+int mxfs_pal_flag_get(const int *p)
+{
+    return __atomic_load_n(p, __ATOMIC_RELAXED);
+}
+
+void mxfs_pal_flag_set(int *p, int v)
+{
+    __atomic_store_n(p, v, __ATOMIC_RELAXED);
 }
 
 /* ─── Spinlock — user-mode has no atomic-context restriction, a plain
@@ -1316,8 +1373,37 @@ int mxfs_pal_scsi_pr_register(mxfs_bdev_t *dev, uint64_t key)
 {
     if (!dev)
         return -EINVAL;
+    /* sess433: PLAIN REGISTER (SA 0x00), reservation key 0.  A nexus that
+     * already holds a registration answers RESERVATION CONFLICT (-EBUSY
+     * from scsi_pr_out) and nothing changes — that is a predecessor
+     * incarnation's retained fence target; see pal.h. */
+    int ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, 0, key, 0);
+
+    if (ret == -EBUSY)
+        return -EEXIST;
+    return ret;
+}
+
+int mxfs_pal_scsi_pr_register_replace(mxfs_bdev_t *dev, uint64_t key)
+{
+    if (!dev)
+        return -EINVAL;
     /* REGISTER AND IGNORE EXISTING KEY: old_key=0, new_key=key */
     return scsi_pr_out(dev->fd, PR_SA_REG_IGNORE, 0, key, 0);
+}
+
+int mxfs_pal_scsi_pr_register_swap(mxfs_bdev_t *dev, uint64_t old_key,
+                                   uint64_t new_key)
+{
+    int ret;
+
+    if (!dev || !old_key)
+        return -EINVAL;
+    /* sess439: REGISTER rk=old_key sark=new_key — executed only if this
+     * nexus holds old_key; RESERVATION CONFLICT (-EBUSY from scsi_pr_out)
+     * means it does not and nothing changed. */
+    ret = scsi_pr_out(dev->fd, PR_SA_REGISTER, old_key, new_key, 0);
+    return ret == -EBUSY ? -ENOKEY : ret;
 }
 
 int mxfs_pal_scsi_pr_reserve(mxfs_bdev_t *dev, uint64_t key, uint32_t type)
@@ -1396,13 +1482,267 @@ int mxfs_pal_scsi_pr_report_capabilities(mxfs_bdev_t *dev,
     return 0;
 }
 
+/*
+ * 0.89.13 — the LUN's identity (pal.h mxfs_pal_scsi_target_id).
+ *
+ * The kernel build reads this out of the scan-time INQUIRY data and the
+ * cached device-identification VPD page; user mode has neither, so it issues
+ * the two INQUIRYs itself.  The designator preference and the string form
+ * below deliberately MIRROR the kernel's scsi_vpd_lun_id(), because a
+ * deployment's contract is written once and must resolve to the same
+ * identity whichever build reads the LUN.
+ */
+static uint8_t inquiry_designator_prio(const uint8_t *d)
+{
+    if (d[1] & 0x30)            /* not associated with the logical unit */
+        return 0;
+    if (d[3] == 0)              /* invalid length */
+        return 0;
+
+    switch (d[1] & 0x0f) {
+    case 8:                                     /* SCSI name string       */
+        return 9;
+    case 3:                                     /* NAA                    */
+        switch (d[4] >> 4) {
+        case 6: return 8;                       /* registered extended    */
+        case 5: return 5;                       /* registered             */
+        case 4: return 4;                       /* extended               */
+        case 3: return 1;                       /* locally assigned       */
+        default: break;
+        }
+        break;
+    case 2:                                     /* EUI-64                 */
+        switch (d[3]) {
+        case 16: return 7;
+        case 12: return 6;
+        case 8:  return 3;
+        default: break;
+        }
+        break;
+    case 1:                                     /* T10 vendor ID          */
+        return 1;
+    default:
+        break;
+    }
+    return 0;
+}
+
+static int inquiry_hexcat(char *out, size_t outsz, const char *prefix,
+                          const uint8_t *src, size_t len)
+{
+    size_t need = strlen(prefix) + len * 2 + 1;
+    size_t i;
+
+    if (need > outsz)
+        return -ENAMETOOLONG;
+    strcpy(out, prefix);
+    for (i = 0; i < len; i++)
+        sprintf(out + strlen(prefix) + i * 2, "%02x", src[i]);
+    return 0;
+}
+
+static int scsi_inquiry(int fd, int evpd, uint8_t page, uint8_t *resp,
+                        uint32_t resp_len)
+{
+    uint8_t cdb[6];
+    struct sg_io_hdr io;
+    uint8_t sense[32];
+
+    memset(cdb, 0, sizeof(cdb));
+    cdb[0] = 0x12;                      /* INQUIRY */
+    cdb[1] = evpd ? 0x01 : 0x00;
+    cdb[2] = evpd ? page : 0x00;
+    cdb[3] = (uint8_t)(resp_len >> 8);
+    cdb[4] = (uint8_t)resp_len;
+
+    memset(resp, 0, resp_len);
+    memset(&io, 0, sizeof(io));
+    io.interface_id = 'S';
+    io.dxfer_direction = SG_DXFER_FROM_DEV;
+    io.cmd_len = sizeof(cdb);
+    io.cmdp = cdb;
+    io.dxfer_len = resp_len;
+    io.dxferp = resp;
+    io.sbp = sense;
+    io.mx_sb_len = sizeof(sense);
+    io.timeout = 30000;
+
+    if (ioctl(fd, SG_IO, &io) < 0)
+        return -errno;
+    if (io.status != 0)
+        return -EIO;
+    return 0;
+}
+
+static void inquiry_field(char *out, size_t outsz, const uint8_t *src,
+                          size_t srclen)
+{
+    size_t n;
+
+    if (!out || outsz == 0)
+        return;
+    out[0] = '\0';
+    if (srclen > outsz - 1)
+        srclen = outsz - 1;
+    memcpy(out, src, srclen);
+    out[srclen] = '\0';
+    n = srclen;
+    while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t'))
+        out[--n] = '\0';
+}
+
+/*
+ * THE WITNESSED LOGICAL UNIT RESET IS NOT AVAILABLE IN USER MODE.
+ *
+ * The kernel build performs it by executing a node-local helper and checking
+ * its report against a nonce it generated; a user-mode build of this code IS
+ * the userspace side and has no such separation to offer -- there would be
+ * nobody to bind the answer to.  So this reports that the platform does not
+ * provide the operation, and reports it as NOT_RUN, which is the one verdict
+ * that says nothing was issued.  A caller that receives it refuses, which is
+ * exactly what a build with no way to retire a dead nexus's work must do.
+ */
+const char *mxfs_pal_lu_reset_verdict_name(int v)
+{
+    switch (v) {
+    case MXFS_PAL_LURESET_REFUSED:       return "REFUSED";
+    case MXFS_PAL_LURESET_WITNESSED:     return "WITNESSED";
+    case MXFS_PAL_LURESET_INDETERMINATE: return "INDETERMINATE";
+    default:                             return "NOT_RUN";
+    }
+}
+
+/* 0.89.33 — see pal.h.  The buffer is static and written once: callers hold
+ * the pointer and compare against it, and no user-mode caller can free it. */
+const char *mxfs_pal_kernel_release(void)
+{
+    static char rel[68];
+    struct utsname u;
+
+    if (rel[0])
+        return rel;
+    if (uname(&u) == 0)
+        snprintf(rel, sizeof(rel), "%s", u.release);
+    else
+        snprintf(rel, sizeof(rel), "unknown");
+    return rel;
+}
+
+int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
+                              struct mxfs_pal_lu_reset_result *out)
+{
+    (void)req;
+    if (!out)
+        return -EINVAL;
+    memset(out, 0, sizeof(*out));
+    out->verdict = MXFS_PAL_LURESET_NOT_RUN;
+    snprintf(out->reason, sizeof(out->reason), "no-user-mode-lu-reset-witness");
+    return -EOPNOTSUPP;
+}
+
+int mxfs_pal_lu_reset_init(void)
+{
+    return 0;
+}
+
+void mxfs_pal_lu_reset_exit(void)
+{
+}
+
+int mxfs_pal_scsi_target_id(mxfs_bdev_t *dev, struct mxfs_pal_target_id *out)
+{
+    uint8_t std[96];
+    uint8_t vpd[512];
+    uint32_t page_len;
+    uint32_t off;
+    uint8_t best = 0;
+    int rc;
+
+    if (!dev || !out)
+        return -EINVAL;
+
+    memset(out, 0, sizeof(*out));
+
+    rc = scsi_inquiry(dev->fd, 0, 0x00, std, sizeof(std));
+    if (rc)
+        return rc;
+    inquiry_field(out->vendor, sizeof(out->vendor), std + 8, 8);
+    inquiry_field(out->model, sizeof(out->model), std + 16, 16);
+    inquiry_field(out->rev, sizeof(out->rev), std + 32, 4);
+
+    rc = scsi_inquiry(dev->fd, 1, 0x83, vpd, sizeof(vpd));
+    if (rc) {
+        memset(out, 0, sizeof(*out));
+        return rc;
+    }
+    page_len = ((uint32_t)vpd[2] << 8) | (uint32_t)vpd[3];
+    if (page_len + 4 > sizeof(vpd))
+        page_len = sizeof(vpd) - 4;
+
+    for (off = 4; off + 4 <= page_len + 4; ) {
+        const uint8_t *d = vpd + off;
+        uint8_t dlen = d[3];
+        uint8_t prio;
+
+        if (off + 4 + dlen > page_len + 4)
+            break;
+        prio = inquiry_designator_prio(d);
+        if (prio == 0 || prio < best) {
+            off += dlen + 4;
+            continue;
+        }
+        switch (d[1] & 0x0f) {
+        case 0x1:
+            if (inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "t10.",
+                               d + 4, dlen) == 0)
+                best = prio;
+            break;
+        case 0x2:
+            if ((dlen == 8 || dlen == 12 || dlen == 16) &&
+                inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "eui.",
+                               d + 4, dlen) == 0)
+                best = prio;
+            break;
+        case 0x3:
+            if ((dlen == 8 || dlen == 16) &&
+                inquiry_hexcat(out->lun_id, sizeof(out->lun_id), "naa.",
+                               d + 4, dlen) == 0)
+                best = prio;
+            break;
+        case 0x8:
+            if (dlen < sizeof(out->lun_id)) {
+                memcpy(out->lun_id, d + 4, dlen);
+                out->lun_id[dlen] = '\0';
+                best = prio;
+            }
+            break;
+        default:
+            break;
+        }
+        off += dlen + 4;
+    }
+
+    if (out->lun_id[0] == '\0') {
+        memset(out, 0, sizeof(*out));
+        return -ENXIO;
+    }
+    return 0;
+}
+
 int mxfs_pal_scsi_pr_preempt(mxfs_bdev_t *dev, uint64_t my_key,
                              uint64_t victim_key, bool abort, uint32_t type)
 {
     if (!dev)
         return -EINVAL;
-    if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR)
+    /* Same contract as the kernel PAL: the single-holder WRITE EXCLUSIVE is
+     * accepted only as PREEMPT AND ABORT with a zero service-action key (the
+     * sole-survivor gate); see pal/linux/kern.c. */
+    if (type == MXFS_PAL_PR_TYPE_WR_EX) {
+        if (!abort || victim_key != 0)
+            return -EINVAL;
+    } else if (type != PR_TYPE_WR_EX_RO && type != PR_TYPE_WR_EX_AR) {
         return -EINVAL;
+    }
 
     /*
      * RESERVATION CONFLICT comes back as -EBUSY and is returned VERBATIM:
@@ -1450,6 +1790,71 @@ int mxfs_pal_scsi_pr_read_keys(mxfs_bdev_t *dev, uint64_t *keys,
  * ADDITIONAL LENGTH of 0 means the LUN is NOT reserved, which is a
  * successful read reporting "none held", not an error.
  */
+/* sess452: debug bracket failure is a kernel module param; never in user mode. */
+bool mxfs_pal_dbg_pr_bracket_fail_take(void)
+{
+    return false;
+}
+
+uint32_t mxfs_pal_dbg_pr_own_proof_brackets(void)
+{
+    return 4;
+}
+
+/* sess454: settle/probe injectors are kernel module params only. */
+uint32_t mxfs_pal_dbg_settle_pause_ms(void)
+{
+    return 0;
+}
+
+bool mxfs_pal_dbg_settle_inval_after_mint_take(void)
+{
+    return false;
+}
+
+bool mxfs_pal_dbg_settle_double_consume_take(void)
+{
+    return false;
+}
+
+uint32_t mxfs_pal_dbg_probe_hang_take(void)
+{
+    return 0;
+}
+
+uint32_t mxfs_pal_dbg_depart_late_token_take(void)
+{
+    return 0;
+}
+
+int mxfs_pal_dbg_depart_inject_take(void)
+{
+    return 0;
+}
+
+/* sess460: crash-cut / worker-hang / CAS-nocaw injectors are kernel-only. */
+int mxfs_pal_dbg_depart_crash_cut_take(void)
+{
+    return 0;
+}
+
+uint32_t mxfs_pal_dbg_depart_crash_hold_ms(void)
+{
+    return 0;
+}
+
+uint32_t mxfs_pal_dbg_retire_hang_take(void)
+{
+    return 0;
+}
+
+bool mxfs_pal_dbg_cas_nocaw(unsigned int opbit, const char *what)
+{
+    (void)opbit;
+    (void)what;
+    return false;
+}
+
 int mxfs_pal_scsi_pr_read_reservation(mxfs_bdev_t *dev,
                                       struct mxfs_pal_pr_reservation *out)
 {
@@ -1642,6 +2047,34 @@ int mxfs_pal_bdev_compare_and_write(mxfs_bdev_t *dev, uint64_t offset,
 
     if (!dev || dev->fd < 0 || !compare_buf || !write_buf)
         return -EINVAL;
+
+    /* sess426 (D-0347): a REGULAR FILE backs the usermode tests — emulate
+     * the sector CAW under one process-wide lock (atomic for every thread
+     * of the harness; the kernel PAL issues the real SCSI command). */
+    {
+        struct stat st;
+
+        if (fstat(dev->fd, &st) == 0 && S_ISREG(st.st_mode)) {
+            static pthread_mutex_t caw_lock = PTHREAD_MUTEX_INITIALIZER;
+            uint8_t cur[512];
+            off_t o = (off_t)(offset + dev->base_offset);
+            ssize_t n;
+            int rc = 0;
+
+            pthread_mutex_lock(&caw_lock);
+            n = pread(dev->fd, cur, 512, o);
+            if (n != 512)
+                rc = n < 0 ? -errno : -EIO;
+            else if (memcmp(cur, compare_buf, 512) != 0)
+                rc = -EAGAIN;
+            else if (pwrite(dev->fd, write_buf, 512, o) != 512)
+                rc = -EIO;
+            else if (fdatasync(dev->fd) != 0)
+                rc = -errno;
+            pthread_mutex_unlock(&caw_lock);
+            return rc;
+        }
+    }
 
     lba = (offset + dev->base_offset) / 512;
 

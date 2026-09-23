@@ -53,7 +53,7 @@
 # The umount SYSCALL must succeed in every case, including c3 -- P259 is a
 # cluster-departure verdict, not a umount error.
 #
-# RULE 0 budgets: 20-create workload ~1s (30s cap incl. ssh), umount incl.
+# derived time budgets: 20-create workload ~1s (30s cap incl. ssh), umount incl.
 # 2000ms drain budget + release_all I/O ~4s (45s cap), rejoin mount ~5s (60s
 # cap), census ssh ~2s (25s cap), churn round 45s by design (75s cap).
 #
@@ -67,7 +67,12 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO=$(cd -- "$SCRIPT_DIR/.." && pwd)
 SSH="$REPO/tools/mxfs_sshpass.sh"
 MNT=/mnt/shared
-DEV="${MXFS_DEV:-/dev/mapper/mpatha}"
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 NONCE=$$
 WANT_SV=$(modinfo "$REPO/mxfs.ko" 2>/dev/null | awk '/^srcversion/{print $2}')
 cd "$REPO" || exit 2

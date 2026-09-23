@@ -345,7 +345,7 @@ groups and the full-suite ASan sweeps.
 - 2026-07-17 (ccloop sess03): step 4 COMPLETED as 0.11.4 — gate 4 GREEN
   (`gate4_shard.sh`: 11 shard scenarios × 4 seeds + full-suite ASan,
   199 s wall / 300 s pinned). Five engine defects found and fixed via
-  instrumented RULE-4 loops: (1) self-appointed empty rank-0 could
+  instrumented troubleshooting loops: (1) self-appointed empty rank-0 could
   serve after restart — leader-completeness rule set added
   (immutable-committed NACK, abdicate-on-more-complete-follower,
   term_proven serve-gate, lazy-create pull-from-all); (2) the snapshot

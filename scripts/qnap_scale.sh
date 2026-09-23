@@ -10,7 +10,12 @@ set -u
 SSH=/src/mxfs/tools/mxfs_sshpass.sh
 PASS=/tmp/.mxfs_pass
 MODULE=/src/mxfs/mxfs.ko
-DEV=/dev/sdb
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/../tests/lib/rig.sh"
+mxfs_dev_resolve test1; DEV=$MXFS_DEV_RESOLVED
 MNT=/mnt/shared
 OPTS="force_transport=1 fua_disable=0 inode_mht_ms=50"   # TCP DLM + FUA reads (separate-initiator iSCSI) + LOW inode hold-time: the scaling storm needs fast DLM handoff (mht=300 default blows the per-step window -> acquire-timeout cascade -> conn-drop wedge). sess20(ccloop): tcp_dlm_scaling reloads its OWN module here, decoupled from the suite's high-mht main mount used by dir_reuse_coherency.
 TGT=iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772

@@ -26,7 +26,17 @@
 #               "Too big response data len" errors — which is what
 #               tools/clyde_kmsg_guard.sh now watches for.
 #
-# Every check here is cheap, read-only, and RULE-2c-safe: it never runs
+#   2026-08-23  SCST core sBUG (host panic, panic_on_oops): a survivor's
+#               PREEMPT AND ABORT for a dead node's key queued an abort TM on
+#               the victim's iSCSI session while that session was mid
+#               scst_unregister_session() (scst_targ.c:6794 "New mgmt cmd
+#               while shutting down the session").  Fixed in
+#               +caw-abort-reclaim.5 (scst_pr_abort_reg pins the session with
+#               percpu_ref_tryget; PR_ABORT_ALL exempt from the READY sBUG).
+#               The window opens on EVERY kill-fence whose P&A lands ~60 s
+#               after the kill.  Observable beforehand: the SCST version.
+#
+# Every check here is cheap, read-only, and wedge-safe: it never runs
 # `pgrep -f`, `ps aux`, or anything that reads /proc/<pid>/cmdline or maps.
 #
 # Usage:
@@ -114,13 +124,13 @@ for b in 4 5 7 14; do
 done
 if [ -n "$damaged" ]; then
     bad "kernel is tainted:$damaged (tainted=$taint) — this host needs a reboot"
-    bad "  RULE 2: a session never reboots clyde.  Report it and stop."
+    bad "  the never-reboot-the-host rule: a session never reboots clyde.  Report it and stop."
 else
     ok "no BAD_PAGE / oops / soft-lockup / MCE taint (tainted=$taint)"
 fi
 
 # Uninterruptible-sleep tasks.  Read only /proc/<pid>/stat — never cmdline or
-# maps (RULE 2c: those take each task's mmap_lock and hang forever on a task
+# maps (the unkillable-wedge rule: those take each task's mmap_lock and hang forever on a task
 # that is itself wedged holding it).
 # The state is the field after the ")" that closes comm — comm itself may
 # contain spaces and parentheses, so never index by whitespace from the left.
@@ -148,13 +158,24 @@ else
         bad "scst $sver predates the PR READ FULL STATUS bounds fix (.4)"
         bad "  that build corrupts host memory once the registrant list"
         bad "  outgrows an initiator's probe buffer — see tests/scst_pr_bounds_check.sh"
+    elif [ "$minor" -lt 5 ]; then
+        bad "scst $sver predates the PREEMPT-AND-ABORT vs session-teardown fix (.5)"
+        bad "  that build panics the host (scst_targ.c:6794 sBUG) when a fence's P&A"
+        bad "  races the victim's iSCSI session teardown — 2026-08-23 crash,"
+        bad "  D-HOST-SCST-PR-ABORT-SESSION-SHUTDOWN-PANIC-408; see tests/scst_pr_abort_shutdown_race.sh"
     else
-        ok "scst $sver carries the PR bounds fix"
+        ok "scst $sver carries the PR bounds fix (.4) and the P&A/teardown fix (.5)"
+    fi
+    # The test-only teardown delay must never be left armed on a rig run.
+    pad=$(cat /sys/module/scst/parameters/pr_abort_shutdown_delay_ms 2>/dev/null || echo 0)
+    if [ "${pad:-0}" != "0" ]; then
+        bad "scst pr_abort_shutdown_delay_ms=$pad is armed (TEST ONLY knob) — every"
+        bad "  session teardown sleeps ${pad} ms twice; tests/scst_pr_abort_shutdown_race.sh"
+        bad "  must reset it to 0 when it ends"
     fi
 fi
 
 if [ -f "$SCST_ROOT/trace_level" ]; then
-    mask=$(head -1 "$SCST_ROOT/trace_level" 2>/dev/null)
     # ALLOWLIST, not a hazard list.  A hazard list has to name the dangerous
     # flag correctly and stay current: the first version of this check looked
     # for "blocking", while SCST's token for TRACE_BLOCKING is "block" — it
@@ -162,27 +183,38 @@ if [ -f "$SCST_ROOT/trace_level" ]; then
     # would miss any flag added to SCST later.
     #
     # This is the union of SCST_DEFAULT_LOG_FLAGS for the debug and release
-    # builds (scst/src/scst_priv.h).  Anything else was switched on by hand.
-    ALLOWED=" out_of_mem minor pid line function special mgmt mgmt_dbg retry "
+    # builds (scst/src/scst_priv.h) MINUS mgmt_dbg: the 32-node re-login/
+    # re-register burst at every fleet re-prep prints ~4,400 mgmt_dbg lines in
+    # ~30 s (224/s), which trips the kmsg guard's FLOOD trip deterministically
+    # (two halts on 2026-08-22; see scripts/scst_setup.sh::reset_trace).
+    # Checked on the core mask AND every handler/target mask — the UA and
+    # session prints are gated by the handler's and the iscsi target's masks.
+    ALLOWED=" out_of_mem minor pid line function special mgmt retry conn "
     hot=""
-    for f in $(printf '%s' "$mask" | tr '|' ' '); do
-        case "$f" in
-            '['*) continue ;;   # sysfs appends a trailing "[key]" marker
-        esac
-        case "$ALLOWED" in *" $f "*) ;; *) hot="$hot $f" ;; esac
+    for tf in "$SCST_ROOT/trace_level" "$SCST_ROOT"/handlers/*/trace_level \
+              "$SCST_ROOT"/targets/*/trace_level; do
+        [ -f "$tf" ] || continue
+        mask=$(head -1 "$tf" 2>/dev/null)
+        for f in $(printf '%s' "$mask" | tr '|' ' '); do
+            case "$f" in
+                '['*) continue ;;   # sysfs appends a trailing "[key]" marker
+            esac
+            case "$ALLOWED" in *" $f "*) ;; *) hot="$hot ${tf#$SCST_ROOT/}:$f" ;; esac
+        done
     done
     if [ -n "$hot" ]; then
         if [ "${MXFS_PREFLIGHT_ALLOW_TRACE:-0}" = 1 ]; then
             warn "high-volume SCST trace flags enabled:$hot (allowed by override)"
             warn "  turn them off the moment the investigation ends:"
-            warn "  echo default | sudo tee $SCST_ROOT/trace_level"
+            warn "  sudo scripts/scst_setup.sh reset-trace"
         else
             bad "high-volume SCST trace flags enabled:$hot"
-            bad "  this is what wedged clyde on 2026-08-20 (1.07M kernel lines/98min)"
-            bad "  fix: echo default | sudo tee $SCST_ROOT/trace_level"
+            bad "  per-IO flags wedged clyde on 2026-08-20 (1.07M kernel lines/98min);"
+            bad "  mgmt_dbg floods the guard at every 32-node re-prep (2026-08-22 x2)"
+            bad "  fix: sudo scripts/scst_setup.sh reset-trace"
         fi
     else
-        ok "SCST trace mask has no per-IO flags"
+        ok "SCST trace masks (core/handlers/targets) carry no per-IO or mgmt_dbg flags"
     fi
 else
     ok "SCST not loaded (no trace mask to check)"
@@ -302,6 +334,33 @@ if printf '%s' "$jconf" | grep -qi '^SystemMaxUse='; then
     ok "journald has SystemMaxUse set ($(printf '%s' "$jconf" | grep -i '^SystemMaxUse=' | head -1))"
 else
     warn "journald has no SystemMaxUse cap — a kernel log flood is unbounded on disk"
+fi
+
+# ---------------------------------------------------------------------------
+# 6. The guests' panic channel must be open.
+#
+#    Every node netconsoles its kernel log to this host, and for the whole
+#    history of this rig nothing listened on that port -- so every datagram a
+#    guest ever sent while dying was discarded here.  That is not a redundant
+#    channel: these guests keep no pstore, journald does not retain the boot
+#    that crashed, and libvirt logs nothing for a guest that resets itself, so
+#    netconsole is the ONLY record a guest panic can leave.  Without it a panic
+#    and a node that "just rebooted" are the same observation.
+#
+#    This does not gate a run -- a missing listener costs evidence, not safety,
+#    and refusing to start would trade a certain loss for a possible one.  It
+#    starts the listener and says so.
+# ---------------------------------------------------------------------------
+echo "-- guest panic channel (netconsole)"
+if "$REPO/tools/netconsole_listen.sh" status >/dev/null 2>&1; then
+    ok "netconsole listener is running — a guest panic will be recorded"
+else
+    if "$REPO/tools/netconsole_listen.sh" start >/dev/null 2>&1 &&
+       "$REPO/tools/netconsole_listen.sh" status >/dev/null 2>&1; then
+        ok "netconsole listener was down; started it (tests/evidence/netconsole.log)"
+    else
+        warn "netconsole listener is DOWN and could not be started — a guest panic in this run will leave NO record anywhere"
+    fi
 fi
 
 echo

@@ -8,7 +8,7 @@
 # Prints one summary line:  LAP arm=<arm> verdict=<PASS|FAIL> exh=N shut=N p221=N
 # Exit 0 always (the caller reads the line); exit 2 on setup failure.
 #
-# RULE 0 budget: dirent_durability 240s manifest budget + ~60s overhead.
+# derived time budget: dirent_durability 240s manifest budget + ~60s overhead.
 
 set -u
 cd "$(dirname "$0")/.."

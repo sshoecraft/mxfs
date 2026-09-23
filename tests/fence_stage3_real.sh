@@ -2,8 +2,8 @@
 # fence_stage3_real.sh — STAGE (iii) of the D-PR-FENCE-PREEMPT-WITHOUT-ABORT
 # closure plan: MXFS INTEGRATION EVIDENCE.
 #
-# The sess133 RULE-5 ruling is explicit that the sg_persist/prprobe A/B (stages
-# (i) and (ii)) is NOT RULE-6 closure evidence, because it does not exercise the
+# The sess133 design-consult ruling is explicit that the sg_persist/prprobe A/B (stages
+# (i) and (ii)) is NOT defect-bar closure evidence, because it does not exercise the
 # patched call chain.  Stage (iii) has to show that MXFS'S OWN KERNEL FENCE, on
 # the SHIPPED production LUN, emits PREEMPT AND ABORT (0x05) and that nothing
 # downstream is authorised until that success is CONSUMED.
@@ -45,9 +45,14 @@ SSH="$REPO/tools/mxfs_sshpass.sh"
 VICTIM="${1:-test30}"
 N="${2:-32}"
 MNT=/mnt/shared
-DEV=/dev/mapper/mpatha
+# the device under test by identity, not by path: the LUN this rig declares
+# (data/rigs.json), verified by its WWID on the node, and the node's live mxfs
+# mount when it has one; MXFS_DEV names a candidate that must be that LUN.
+# mxfs_dev_resolve (tests/lib/rig.sh) ABORTs on anything else, never defaults
+. "$(dirname "$0")/lib/rig.sh"
+mxfs_dev_resolve "$VICTIM"; DEV=$MXFS_DEV_RESOLVED
 
-# RULE 0 budgets, each derived rather than picked:
+# derived time budgets, each derived rather than picked:
 #   dead-confirmation window = dead_threshold(31) x HB interval(2000ms) = 62 s
 #   + fence issue/certify (measured single-digit seconds) + margin
 FENCE_WAIT=150

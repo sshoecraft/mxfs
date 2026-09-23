@@ -74,14 +74,14 @@ census() {     # <label> — windowed per-node probe counts, cluster totals only
         "$d"/* 2>/dev/null | sort
 }
 
-# RULE 0: every timeout below is the criterion's own recorded budget from
+# budget: every timeout below is the criterion's own recorded budget from
 # tests/suite/manifest -- not a round number and not "whatever fits the tool
 # cap".  A blanket outer timeout was the original sin here: it hid the fact that
 # prep(300) + dd(240) + cc(60) + ti(60) + ssh(100) = 760s exceeds the 600s
 # foreground cap, so the arm is SPLIT into prep and measure.  Measured walls
 # this session: prep 118-133, dd 114-123, cc 28-48, ti 3-8, census 10-15.
 # run.sh ITSELF enforces each criterion's manifest budget and flips PASS->FAIL on
-# overrun -- that is the RULE 0 assertion.  The timeouts here are OUTER
+# overrun -- that is the budget assertion.  The timeouts here are OUTER
 # backstops on the whole run.sh invocation, so each must be the criterion budget
 # PLUS harness overhead (flock, prep-marker check, coord-broker hygiene, 32-node
 # dispatch and aggregation).  Setting the outer value EQUAL to the budget killed

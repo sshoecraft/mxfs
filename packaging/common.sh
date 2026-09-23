@@ -118,6 +118,9 @@ mxfs_build_tools() {
 
     echo "  Building resize_mxfs ..."
     $cc $cflags -o "$dest/resize_mxfs" "$SRCDIR/tools/resize_mxfs.c"
+
+    echo "  Building mxfs_admin ..."
+    $cc $cflags -o "$dest/mxfs_admin" "$SRCDIR/tools/mxfs_admin.c"
 }
 
 # Install gzipped man pages into a staging directory
