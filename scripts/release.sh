@@ -21,7 +21,8 @@
 # no outbound TCP, so apt/dnf inside a bridged container cannot reach a mirror.
 #
 # --publish creates GitHub release v<version> on sshoecraft/mxfs with the
-# packages attached.  Release notes are this version's CHANGELOG.md section
+# packages attached.  If dist/<version>/ already holds a build, --publish
+# checks it against its SHA256SUMS and publishes it without rebuilding.  Release notes are this version's CHANGELOG.md section
 # unless --notes-file is given.  Commit and push first: the tag is created
 # on the remote's main.
 #
@@ -49,40 +50,51 @@ done
 VERSION=$(mxfs_version)
 OUT="$SRCDIR/dist/$VERSION"
 
-if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
-    echo "ERROR: $OUT already holds files; remove it to rebuild $VERSION" >&2
-    exit 1
+built=0
+if [ -f "$OUT/SHA256SUMS" ]; then
+    if [ "$publish" = 0 ]; then
+        echo "ERROR: $OUT already holds a build; remove it to rebuild $VERSION" >&2
+        exit 1
+    fi
+    # Publish what was built and inspected, never a silent rebuild of it.
+    (cd "$OUT" && sha256sum -c SHA256SUMS) || {
+        echo "ERROR: $OUT does not match its SHA256SUMS" >&2
+        exit 1
+    }
+    built=1
 fi
 mkdir -p "$OUT"
 
 owner="$(id -u):$(id -g)"
 
-echo "=== MXFS $VERSION — .deb packages in $DEB_IMAGE ==="
-docker run --rm --network host -v "$SRCDIR:/src/mxfs:ro" -v "$OUT:/out" "$DEB_IMAGE" bash -ec "
-    apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gcc make rsync dpkg-dev >/dev/null
-    /src/mxfs/packaging/mkdeb.sh /out
-    /src/mxfs/packaging/mkdeb_pve.sh /out
-    chown $owner /out/*.deb
-"
+if [ "$built" = 0 ]; then
+    echo "=== MXFS $VERSION — .deb packages in $DEB_IMAGE ==="
+    docker run --rm --network host -v "$SRCDIR:/src/mxfs:ro" -v "$OUT:/out" "$DEB_IMAGE" bash -ec "
+        apt-get update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gcc make rsync dpkg-dev >/dev/null
+        /src/mxfs/packaging/mkdeb.sh /out
+        /src/mxfs/packaging/mkdeb_pve.sh /out
+        chown $owner /out/*.deb
+    "
 
-echo "=== MXFS $VERSION — .rpm package in $RPM_IMAGE ==="
-docker run --rm --network host -v "$SRCDIR:/src/mxfs:ro" -v "$OUT:/out" "$RPM_IMAGE" bash -ec "
-    dnf install -y -q gcc make rsync rpm-build tar gzip >/dev/null
-    /src/mxfs/packaging/mkrpm.sh /out
-    chown $owner /out/*.rpm
-"
+    echo "=== MXFS $VERSION — .rpm package in $RPM_IMAGE ==="
+    docker run --rm --network host -v "$SRCDIR:/src/mxfs:ro" -v "$OUT:/out" "$RPM_IMAGE" bash -ec "
+        dnf install -y -q gcc make rsync rpm-build tar gzip >/dev/null
+        /src/mxfs/packaging/mkrpm.sh /out
+        chown $owner /out/*.rpm
+    "
 
-(cd "$OUT" && sha256sum *.deb *.rpm > SHA256SUMS)
+    (cd "$OUT" && sha256sum *.deb *.rpm > SHA256SUMS)
 
-echo ""
-echo "=== Built in $OUT ==="
-ls -l "$OUT"
+    echo ""
+    echo "=== Built in $OUT ==="
+    ls -l "$OUT"
+fi
 
 [ "$publish" = 1 ] || exit 0
 
 if [ -z "$notes" ]; then
-    notes="$OUT/RELEASE_NOTES.md"
+    notes="$OUT/CHANGELOG_NOTES.md"
     awk -v v="$VERSION" '
         /^## / { if (found) exit; if (index($0, "— " v " —")) found = 1 }
         found' "$SRCDIR/CHANGELOG.md" > "$notes"
