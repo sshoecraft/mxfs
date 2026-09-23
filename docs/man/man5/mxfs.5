@@ -95,6 +95,17 @@ after the
 .B \-o
 flag.
 .TP
+.BI peer= addr
+An IPv4 address to reach in addition to multicast discovery; repeat the
+option for more than one
+.RB ( peer=10.0.1.5,peer=10.0.2.7 ).
+Multicast discovery runs as usual, and every discovery announcement, lease
+heartbeat and, on the CAW transport, BAST nudge is also sent by unicast to
+each listed address.  Nobody is dropped.  Use it for a node the multicast
+group cannot reach, such as one on another network: that node must list every
+member of the cluster, and every member must list it, since neither hears the
+other's multicast.
+.TP
 .BI peers= addr [ / addr ...]
 The cluster's IPv4 addresses, separated by
 .B /
@@ -103,7 +114,11 @@ lease heartbeats and, on the CAW transport, BAST nudges are sent by unicast
 to each listed address instead of the multicast group; no multicast or
 broadcast is sent, and datagrams or DLM connections from unlisted addresses
 are dropped.  The list may include the node's own address.  Every node of a
-cluster must use the same list, or none.  Default: multicast discovery on
+cluster must use the same list, or none.
+.B peer=
+addresses given with it join the same exclusive list, and a repeated
+.B peers=
+adds to it.  Default: multicast discovery on
 .BR 239.66.83.1 .
 .TP
 .BI cluster= name

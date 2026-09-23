@@ -458,13 +458,37 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "elapsed=82s (fresh prep)",
+          "measured": "elapsed=54s (fresh prep)",
           "reason": "",
-          "iso": "2026-09-23T03:55:52Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 82,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:46:12Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 54,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:44:50Z",
+              "measured": "elapsed=59s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:14:39Z",
+              "measured": "elapsed=81s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:12:52Z",
+              "measured": "elapsed=87s (fresh prep)",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:55:52Z",
+              "measured": "elapsed=82s (fresh prep)",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:49:35Z",
@@ -499,30 +523,6 @@
               "status": "PASS",
               "iso": "2026-09-23T02:47:08Z",
               "measured": "elapsed=65s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-23T02:43:58Z",
-              "measured": "elapsed=72s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-23T02:39:50Z",
-              "measured": "elapsed=64s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-23T02:36:22Z",
-              "measured": "elapsed=74s (fresh prep)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-23T02:33:11Z",
-              "measured": "elapsed=72s (fresh prep)",
               "reason": ""
             }
           ]
@@ -621,11 +621,23 @@
           "status": "PASS",
           "measured": "checks=9 passed=9 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:55:58Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 1,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:46:18Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 2,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:14:46Z",
+              "measured": "checks=9 passed=9 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:55:58Z",
+              "measured": "checks=9 passed=9 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:54:22Z",
@@ -671,18 +683,6 @@
             {
               "status": "PASS",
               "iso": "2026-09-12T22:31:10Z",
-              "measured": "checks=9 passed=9 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:13:03Z",
-              "measured": "checks=9 passed=9 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:22:29Z",
               "measured": "checks=9 passed=9 failed=0",
               "reason": ""
             }
@@ -1465,13 +1465,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=5.70 seqW=1900MiB/s seqR=1994MiB/s randW=61372iops randR=76966iops",
+          "measured": "nodes_pass=2/2 hostload=29.87 seqW=123MiB/s seqR=151MiB/s randW=24331iops randR=26543iops",
           "reason": "",
-          "iso": "2026-09-23T03:56:26Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 18,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:48:21Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 114,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:15:25Z",
+              "measured": "nodes_pass=2/2 hostload=30.02 seqW=1384MiB/s seqR=2462MiB/s randW=58758iops randR=48154iops",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:56:26Z",
+              "measured": "nodes_pass=2/2 hostload=5.70 seqW=1900MiB/s seqR=1994MiB/s randW=61372iops randR=76966iops",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:54:49Z",
@@ -1518,18 +1530,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:33:05Z",
               "measured": "nodes_pass=2/2 hostload=6.02 seqW=108MiB/s seqR=112MiB/s randW=28496iops randR=28446iops",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:14:57Z",
-              "measured": "nodes_pass=2/2 hostload=6.66 seqW=108MiB/s seqR=111MiB/s randW=27227iops randR=26773iops",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:24:22Z",
-              "measured": "nodes_pass=2/2 hostload=5.73 seqW=108MiB/s seqR=124MiB/s randW=26089iops randR=29521iops",
               "reason": ""
             }
           ]
@@ -1849,14 +1849,26 @@
           "recorded": "2026-07-26"
         },
         "2/tcp": {
-          "status": "SKIP",
-          "measured": "no-baseline-for-liovm",
-          "reason": "rig=liovm has no native-XFS baseline for tcp; capture it with  MXFS_TEST_ENV=\"XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.tcp.liovm.json\" ./run.sh 1 xfs fio_perf  \u2014 refusing to score against the untagged file, which describes a different rig",
-          "iso": "2026-09-23T03:56:27Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 1,
-          "build": "09EBACFC4803E44977E9F0C",
+          "status": "PASS",
+          "measured": "seqW=113% seqR=136% randW=130% randR=101% worst(write)=113% (threshold>=70%, wsrc=xfs-baseline, rig=qnap)",
+          "reason": "",
+          "iso": "2026-09-23T15:48:23Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 0,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "SKIP",
+              "iso": "2026-09-23T15:15:26Z",
+              "measured": "no-baseline-for-liovm",
+              "reason": "rig=liovm has no native-XFS baseline for tcp; capture it with  MXFS_TEST_ENV=\"XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.tcp.liovm.json\" ./run.sh 1 xfs fio_perf  \u2014 refusing to score against the untagged file, which describes a different rig"
+            },
+            {
+              "status": "SKIP",
+              "iso": "2026-09-23T03:56:27Z",
+              "measured": "no-baseline-for-liovm",
+              "reason": "rig=liovm has no native-XFS baseline for tcp; capture it with  MXFS_TEST_ENV=\"XFS_BASELINE=/src/mxfs/.xfs_fio_baseline.tcp.liovm.json\" ./run.sh 1 xfs fio_perf  \u2014 refusing to score against the untagged file, which describes a different rig"
+            },
             {
               "status": "SKIP",
               "iso": "2026-09-23T02:54:50Z",
@@ -1903,18 +1915,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:33:06Z",
               "measured": "seqW=100% seqR=100% randW=152% randR=108% worst(write)=100% (threshold>=70%, wsrc=xfs-baseline, rig=qnap)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:14:58Z",
-              "measured": "seqW=100% seqR=100% randW=145% randR=102% worst(write)=100% (threshold>=70%, wsrc=xfs-baseline, rig=qnap)",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:24:23Z",
-              "measured": "seqW=100% seqR=111% randW=139% randR=112% worst(write)=100% (threshold>=70%, wsrc=xfs-baseline, rig=qnap)",
               "reason": ""
             }
           ]
@@ -1996,13 +1996,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=5.34 checks=534 passed=534 failed=0",
+          "measured": "nodes_pass=2/2 hostload=31.03 checks=534 passed=534 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:56:49Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 12,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:48:48Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 14,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:15:56Z",
+              "measured": "nodes_pass=2/2 hostload=28.00 checks=534 passed=534 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:56:49Z",
+              "measured": "nodes_pass=2/2 hostload=5.34 checks=534 passed=534 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:55:15Z",
@@ -2049,18 +2061,6 @@
               "status": "PASS",
               "iso": "2026-09-22T23:24:00Z",
               "measured": "nodes_pass=2/2 hostload=4.32 checks=534 passed=534 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-22T23:23:22Z",
-              "measured": "nodes_pass=2/2 hostload=4.20 checks=534 passed=534 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-22T23:22:42Z",
-              "measured": "nodes_pass=2/2 hostload=4.06 checks=534 passed=534 failed=0",
               "reason": ""
             }
           ]
@@ -2453,13 +2453,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=5.05 checks=3 passed=3 failed=0",
+          "measured": "nodes_pass=2/2 hostload=31.62 checks=3 passed=3 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:57:00Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:48:59Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 1,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:16:08Z",
+              "measured": "nodes_pass=2/2 hostload=28.54 checks=3 passed=3 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:57:00Z",
+              "measured": "nodes_pass=2/2 hostload=5.05 checks=3 passed=3 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:55:26Z",
@@ -2506,18 +2518,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:33:36Z",
               "measured": "nodes_pass=2/2 hostload=5.62 checks=3 passed=3 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:15:29Z",
-              "measured": "nodes_pass=2/2 hostload=5.50 checks=3 passed=3 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:24:54Z",
-              "measured": "nodes_pass=2/2 hostload=4.72 checks=3 passed=3 failed=0",
               "reason": ""
             }
           ]
@@ -2885,13 +2885,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.61 checks=140 passed=140 failed=0",
+          "measured": "nodes_pass=2/2 hostload=30.53 checks=140 passed=140 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:57:12Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 3,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:49:15Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 5,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:16:23Z",
+              "measured": "nodes_pass=2/2 hostload=27.61 checks=140 passed=140 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:57:12Z",
+              "measured": "nodes_pass=2/2 hostload=4.61 checks=140 passed=140 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:55:40Z",
@@ -2938,18 +2950,6 @@
               "status": "PASS",
               "iso": "2026-09-20T17:45:35Z",
               "measured": "nodes_pass=2/2 hostload=3.45 checks=140 passed=140 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-20T16:18:27Z",
-              "measured": "nodes_pass=2/2 hostload=4.52 checks=140 passed=140 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-13T01:22:26Z",
-              "measured": "nodes_pass=2/2 hostload=9.82 checks=140 passed=140 failed=0",
               "reason": ""
             }
           ]
@@ -3323,13 +3323,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.43 checks=5 passed=5 failed=0",
+          "measured": "nodes_pass=2/2 hostload=28.82 checks=5 passed=5 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:57:23Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 1,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:49:26Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 2,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:16:34Z",
+              "measured": "nodes_pass=2/2 hostload=28.50 checks=5 passed=5 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:57:23Z",
+              "measured": "nodes_pass=2/2 hostload=4.43 checks=5 passed=5 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:55:50Z",
@@ -3376,18 +3388,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:34:00Z",
               "measured": "nodes_pass=2/2 hostload=5.39 checks=5 passed=5 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:15:52Z",
-              "measured": "nodes_pass=2/2 hostload=5.15 checks=5 passed=5 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:25:18Z",
-              "measured": "nodes_pass=2/2 hostload=4.41 checks=5 passed=5 failed=0",
               "reason": ""
             }
           ]
@@ -3749,13 +3749,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.36 checks=44 passed=44 failed=0",
+          "measured": "nodes_pass=2/2 hostload=29.72 checks=44 passed=44 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:57:35Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 3,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:49:41Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 5,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:16:49Z",
+              "measured": "nodes_pass=2/2 hostload=29.02 checks=44 passed=44 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:57:35Z",
+              "measured": "nodes_pass=2/2 hostload=4.36 checks=44 passed=44 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:56:02Z",
@@ -3802,18 +3814,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:34:11Z",
               "measured": "nodes_pass=2/2 hostload=5.49 checks=44 passed=44 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:16:04Z",
-              "measured": "nodes_pass=2/2 hostload=4.79 checks=44 passed=44 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:25:30Z",
-              "measured": "nodes_pass=2/2 hostload=4.27 checks=44 passed=44 failed=0",
               "reason": ""
             }
           ]
@@ -4186,13 +4186,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.49 checks=5 passed=5 failed=0",
+          "measured": "nodes_pass=2/2 hostload=28.60 checks=5 passed=5 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:57:46Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:49:54Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 4,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:17:03Z",
+              "measured": "nodes_pass=2/2 hostload=29.13 checks=5 passed=5 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:57:46Z",
+              "measured": "nodes_pass=2/2 hostload=4.49 checks=5 passed=5 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:56:14Z",
@@ -4239,18 +4251,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:34:23Z",
               "measured": "nodes_pass=2/2 hostload=4.71 checks=5 passed=5 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:16:16Z",
-              "measured": "nodes_pass=2/2 hostload=4.90 checks=5 passed=5 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:25:42Z",
-              "measured": "nodes_pass=2/2 hostload=4.20 checks=5 passed=5 failed=0",
               "reason": ""
             }
           ]
@@ -4608,13 +4608,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.27 checks=6 passed=6 failed=0",
+          "measured": "nodes_pass=2/2 hostload=28.35 checks=6 passed=6 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:58:01Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 5,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:50:09Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 6,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:17:20Z",
+              "measured": "nodes_pass=2/2 hostload=29.53 checks=6 passed=6 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:58:01Z",
+              "measured": "nodes_pass=2/2 hostload=4.27 checks=6 passed=6 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:56:28Z",
@@ -4661,18 +4673,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:34:38Z",
               "measured": "nodes_pass=2/2 hostload=4.26 checks=6 passed=6 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:16:31Z",
-              "measured": "nodes_pass=2/2 hostload=4.39 checks=6 passed=6 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:25:57Z",
-              "measured": "nodes_pass=2/2 hostload=4.16 checks=6 passed=6 failed=0",
               "reason": ""
             }
           ]
@@ -4987,13 +4987,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.12 checks=8 passed=8 failed=0",
+          "measured": "nodes_pass=2/2 hostload=27.87 checks=8 passed=8 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:58:13Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:50:25Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 7,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:17:32Z",
+              "measured": "nodes_pass=2/2 hostload=29.31 checks=8 passed=8 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:58:13Z",
+              "measured": "nodes_pass=2/2 hostload=4.12 checks=8 passed=8 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:56:40Z",
@@ -5040,18 +5052,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:34:54Z",
               "measured": "nodes_pass=2/2 hostload=3.85 checks=8 passed=8 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:16:46Z",
-              "measured": "nodes_pass=2/2 hostload=3.64 checks=8 passed=8 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:26:12Z",
-              "measured": "nodes_pass=2/2 hostload=4.01 checks=8 passed=8 failed=0",
               "reason": ""
             }
           ]
@@ -5372,13 +5372,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=3.66 checks=7 passed=7 failed=0",
+          "measured": "nodes_pass=2/2 hostload=28.93 checks=7 passed=7 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:58:28Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 6,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:50:44Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 10,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:17:48Z",
+              "measured": "nodes_pass=2/2 hostload=29.17 checks=7 passed=7 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:58:28Z",
+              "measured": "nodes_pass=2/2 hostload=3.66 checks=7 passed=7 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:56:55Z",
@@ -5425,18 +5437,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:35:10Z",
               "measured": "nodes_pass=2/2 hostload=4.39 checks=7 passed=7 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:17:02Z",
-              "measured": "nodes_pass=2/2 hostload=4.09 checks=7 passed=7 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:26:28Z",
-              "measured": "nodes_pass=2/2 hostload=4.14 checks=7 passed=7 failed=0",
               "reason": ""
             }
           ]
@@ -5757,13 +5757,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.73 checks=6 passed=6 failed=0",
+          "measured": "nodes_pass=2/2 hostload=28.79 checks=6 passed=6 failed=0",
           "reason": "",
-          "iso": "2026-09-23T03:58:53Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 15,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:51:07Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 13,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:18:12Z",
+              "measured": "nodes_pass=2/2 hostload=29.97 checks=6 passed=6 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:58:53Z",
+              "measured": "nodes_pass=2/2 hostload=4.73 checks=6 passed=6 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:57:17Z",
@@ -5810,18 +5822,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:35:29Z",
               "measured": "nodes_pass=2/2 hostload=4.60 checks=6 passed=6 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:17:23Z",
-              "measured": "nodes_pass=2/2 hostload=4.14 checks=6 passed=6 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:26:47Z",
-              "measured": "nodes_pass=2/2 hostload=4.18 checks=6 passed=6 failed=0",
               "reason": ""
             }
           ]
@@ -6255,13 +6255,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.94 checks=104 passed=104 failed=0 planned=104 notrun=0",
+          "measured": "nodes_pass=2/2 hostload=29.50 checks=104 passed=104 failed=0 planned=104 notrun=0",
           "reason": "",
-          "iso": "2026-09-23T03:59:21Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 19,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:51:32Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 16,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:18:36Z",
+              "measured": "nodes_pass=2/2 hostload=30.81 checks=104 passed=104 failed=0 planned=104 notrun=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T03:59:21Z",
+              "measured": "nodes_pass=2/2 hostload=4.94 checks=104 passed=104 failed=0 planned=104 notrun=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:57:40Z",
@@ -6308,18 +6320,6 @@
               "status": "PASS",
               "iso": "2026-09-20T17:45:55Z",
               "measured": "nodes_pass=2/2 hostload=3.46 checks=104 passed=104 failed=0 planned=104 notrun=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-13T01:24:28Z",
-              "measured": "nodes_pass=2/2 hostload=6.89 checks=104 passed=104 failed=0 planned=104 notrun=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:35:50Z",
-              "measured": "nodes_pass=2/2 hostload=4.50 checks=104 passed=104 failed=0 planned=104 notrun=0",
               "reason": ""
             }
           ]
@@ -6717,13 +6717,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.95 checks=100 passed=100 failed=0 rounds=14 p36_retry=0 p36_stack=0 lkto_remote=0 lkto_holder=0 dialloc_sweep_retry=0",
+          "measured": "nodes_pass=2/2 hostload=28.06 checks=100 passed=100 failed=0 rounds=14 p36_retry=0 p36_stack=0 lkto_remote=0 lkto_holder=0 dialloc_sweep_retry=0",
           "reason": "",
-          "iso": "2026-09-23T04:01:24Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 105,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:53:40Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 109,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:20:49Z",
+              "measured": "nodes_pass=2/2 hostload=31.21 checks=79 passed=79 failed=0 rounds=11 p36_retry=0 p36_stack=0 lkto_remote=0 lkto_holder=0 dialloc_sweep_retry=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:01:24Z",
+              "measured": "nodes_pass=2/2 hostload=4.95 checks=100 passed=100 failed=0 rounds=14 p36_retry=0 p36_stack=0 lkto_remote=0 lkto_holder=0 dialloc_sweep_retry=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T02:59:46Z",
@@ -6770,18 +6782,6 @@
               "status": "PASS",
               "iso": "2026-09-18T16:05:40Z",
               "measured": "nodes_pass=2/2 hostload=5.33 checks=128 passed=128 failed=0 rounds=18 p36_retry=0 p36_stack=0 lkto_remote=0 lkto_holder=0 dialloc_sweep_retry=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-18T16:03:11Z",
-              "measured": "nodes_pass=2/2 hostload=4.13 checks=121 passed=121 failed=0 rounds=17 p36_retry=0 p36_stack=0 lkto_remote=0 lkto_holder=0 dialloc_sweep_retry=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-18T15:29:58Z",
-              "measured": "nodes_pass=2/2 hostload=4.21 checks=93 passed=93 failed=0",
               "reason": ""
             }
           ]
@@ -7181,13 +7181,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=5.18 checks=8 passed=8 failed=0",
+          "measured": "nodes_pass=2/2 hostload=29.74 checks=8 passed=8 failed=0",
           "reason": "",
-          "iso": "2026-09-23T04:01:50Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 16,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:54:07Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 18,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:21:18Z",
+              "measured": "nodes_pass=2/2 hostload=31.08 checks=8 passed=8 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:01:50Z",
+              "measured": "nodes_pass=2/2 hostload=5.18 checks=8 passed=8 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:00:12Z",
@@ -7234,18 +7246,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:38:16Z",
               "measured": "nodes_pass=2/2 hostload=4.17 checks=8 passed=8 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "FAIL",
-              "iso": "2026-09-12T22:20:19Z",
-              "measured": "nodes_pass=1/2 states:FAIL=1 hostload=3.70 first_fail[test2:checks=7 passed=6 failed=1] rank1[checks=8 passed=8 failed=0] faildist[1x1]",
-              "reason": "test2:FAIL:fdw setup mkdir clean(exp=0 got=1)"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:29:34Z",
-              "measured": "nodes_pass=2/2 hostload=4.58 checks=8 passed=8 failed=0",
               "reason": ""
             }
           ]
@@ -7596,13 +7596,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.67 checks=5 passed=5 failed=0",
+          "measured": "nodes_pass=2/2 hostload=29.32 checks=5 passed=5 failed=0",
           "reason": "",
-          "iso": "2026-09-23T04:02:17Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 9,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:54:37Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 10,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:21:47Z",
+              "measured": "nodes_pass=2/2 hostload=31.91 checks=5 passed=5 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:02:17Z",
+              "measured": "nodes_pass=2/2 hostload=4.67 checks=5 passed=5 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:00:39Z",
@@ -7649,18 +7661,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:38:41Z",
               "measured": "nodes_pass=2/2 hostload=3.94 checks=5 passed=5 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:20:46Z",
-              "measured": "nodes_pass=2/2 hostload=3.67 checks=5 passed=5 failed=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:30:01Z",
-              "measured": "nodes_pass=2/2 hostload=4.13 checks=5 passed=5 failed=0",
               "reason": ""
             }
           ]
@@ -8235,13 +8235,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=3.92 rounds=30 durable_loss=0 late_ok=8 mkdir_err=0",
+          "measured": "nodes_pass=2/2 hostload=27.21 rounds=30 durable_loss=0 late_ok=13 mkdir_err=0",
           "reason": "",
-          "iso": "2026-09-23T04:03:38Z",
-          "recorded": "2026-09-22",
+          "iso": "2026-09-23T15:56:00Z",
+          "recorded": "2026-09-23",
           "elapsed_s": 63,
-          "build": "09EBACFC4803E44977E9F0C",
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:23:10Z",
+              "measured": "nodes_pass=2/2 hostload=29.66 rounds=30 durable_loss=0 late_ok=13 mkdir_err=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:03:38Z",
+              "measured": "nodes_pass=2/2 hostload=3.92 rounds=30 durable_loss=0 late_ok=8 mkdir_err=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:01:58Z",
@@ -8289,18 +8301,6 @@
               "iso": "2026-09-22T23:37:16Z",
               "measured": "nodes_pass=2/2 hostload=3.82 rounds=30 durable_loss=0 late_ok=15 mkdir_err=0",
               "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-22T23:35:42Z",
-              "measured": "nodes_pass=2/2 hostload=3.88 rounds=30 durable_loss=0 late_ok=20 mkdir_err=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-22T23:34:09Z",
-              "measured": "nodes_pass=2/2 hostload=2.70 rounds=30 durable_loss=0 late_ok=18 mkdir_err=0",
-              "reason": ""
             }
           ]
         }
@@ -8321,13 +8321,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "dur=30s ops=1525 errs=0 dmesg_hits=0",
+          "measured": "dur=30s ops=809 errs=0 dmesg_hits=0",
           "reason": "",
-          "iso": "2026-09-23T04:04:09Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 31,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:56:32Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 32,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:23:43Z",
+              "measured": "dur=30s ops=996 errs=0 dmesg_hits=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:04:09Z",
+              "measured": "dur=30s ops=1525 errs=0 dmesg_hits=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:02:30Z",
@@ -8374,18 +8386,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:40:33Z",
               "measured": "dur=30s ops=1218 errs=0 dmesg_hits=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:22:38Z",
-              "measured": "dur=30s ops=1233 errs=0 dmesg_hits=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:31:53Z",
-              "measured": "dur=30s ops=1206 errs=0 dmesg_hits=0",
               "reason": ""
             }
           ]
@@ -8980,13 +8980,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.95 checks=4 failed=0 dstate=0",
+          "measured": "nodes_pass=2/2 hostload=29.10 checks=4 failed=0 dstate=0",
           "reason": "",
-          "iso": "2026-09-23T04:04:19Z",
-          "recorded": "2026-09-22",
+          "iso": "2026-09-23T15:56:43Z",
+          "recorded": "2026-09-23",
           "elapsed_s": 1,
-          "build": "09EBACFC4803E44977E9F0C",
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:23:54Z",
+              "measured": "nodes_pass=2/2 hostload=30.12 checks=4 failed=0 dstate=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:04:19Z",
+              "measured": "nodes_pass=2/2 hostload=4.95 checks=4 failed=0 dstate=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:02:50Z",
@@ -9033,18 +9045,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:40:53Z",
               "measured": "nodes_pass=2/2 hostload=4.40 checks=4 failed=0 dstate=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:22:58Z",
-              "measured": "nodes_pass=2/2 hostload=3.86 checks=4 failed=0 dstate=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:32:03Z",
-              "measured": "nodes_pass=2/2 hostload=4.17 checks=4 failed=0 dstate=0",
               "reason": ""
             }
           ]
@@ -9261,13 +9261,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.49 hits=0 kinds=[]",
+          "measured": "nodes_pass=2/2 hostload=29.83 hits=0 kinds=[]",
           "reason": "",
-          "iso": "2026-09-23T04:04:30Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:56:55Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 1,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:24:05Z",
+              "measured": "nodes_pass=2/2 hostload=29.35 hits=0 kinds=[]",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:04:30Z",
+              "measured": "nodes_pass=2/2 hostload=4.49 hits=0 kinds=[]",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:03:01Z",
@@ -9314,18 +9326,6 @@
               "status": "PASS",
               "iso": "2026-09-13T01:29:30Z",
               "measured": "nodes_pass=2/2 hostload=3.97 hits=0 kinds=[]",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:41:04Z",
-              "measured": "nodes_pass=2/2 hostload=4.30 hits=0 kinds=[]",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:23:09Z",
-              "measured": "nodes_pass=2/2 hostload=4.08 hits=0 kinds=[]",
               "reason": ""
             }
           ]
@@ -9574,13 +9574,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.16 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
+          "measured": "nodes_pass=2/2 hostload=30.90 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
           "reason": "",
-          "iso": "2026-09-23T04:04:41Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:57:08Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 4,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:24:18Z",
+              "measured": "nodes_pass=2/2 hostload=30.44 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:04:41Z",
+              "measured": "nodes_pass=2/2 hostload=4.16 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:03:12Z",
@@ -9627,18 +9639,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:41:15Z",
               "measured": "nodes_pass=2/2 hostload=4.48 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:23:21Z",
-              "measured": "nodes_pass=2/2 hostload=4.29 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:32:26Z",
-              "measured": "nodes_pass=2/2 hostload=3.75 stale_base_mutations=0 unlanded_at_unlock=0 probe=1 window=1 win_src=marker win_trunc=0",
               "reason": ""
             }
           ]
@@ -9842,13 +9842,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.14 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
+          "measured": "nodes_pass=2/2 hostload=31.30 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
           "reason": "",
-          "iso": "2026-09-23T04:04:53Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:57:20Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 3,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:24:31Z",
+              "measured": "nodes_pass=2/2 hostload=29.82 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:04:53Z",
+              "measured": "nodes_pass=2/2 hostload=4.14 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:03:24Z",
@@ -9895,18 +9907,6 @@
               "status": "PASS",
               "iso": "2026-09-12T22:41:27Z",
               "measured": "nodes_pass=2/2 hostload=4.48 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:23:32Z",
-              "measured": "nodes_pass=2/2 hostload=4.45 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:32:37Z",
-              "measured": "nodes_pass=2/2 hostload=3.65 unresolved=0 failed_estale=0 total_flips=0 stale_skips=0 probe=1 window=1 win_src=marker win_trunc=0",
               "reason": ""
             }
           ]
@@ -10110,13 +10110,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=3.25 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
+          "measured": "nodes_pass=2/2 hostload=31.43 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
           "reason": "",
-          "iso": "2026-09-23T04:05:46Z",
-          "recorded": "2026-09-22",
+          "iso": "2026-09-23T15:58:13Z",
+          "recorded": "2026-09-23",
           "elapsed_s": 44,
-          "build": "09EBACFC4803E44977E9F0C",
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:25:25Z",
+              "measured": "nodes_pass=2/2 hostload=31.65 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:05:46Z",
+              "measured": "nodes_pass=2/2 hostload=3.25 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:04:17Z",
@@ -10164,18 +10176,6 @@
               "iso": "2026-09-22T20:21:02Z",
               "measured": "nodes_pass=0/2 states:BUDGET_EXHAUSTED=2 hostload=4.08 first_fail[test1:checks=0 passed=0 failed=0 planned=0 notrun=0] rank1[checks=0 passed=0 failed=0 planned=0 notrun=0] faildist[0x2] steps[agstrand start=2]",
               "reason": "test1:BUDGET_EXHAUSTED:step=agstrand start report_s=235 elapsed_s=236 test2:BUDGET_EXHAUSTED:step=agstrand start report_s=235 elapsed_s=236 last_phase_census[barrier-done-done=2]"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-13T01:30:46Z",
-              "measured": "nodes_pass=2/2 hostload=3.17 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T22:42:20Z",
-              "measured": "nodes_pass=2/2 hostload=3.88 strands=1 repaired=1 declined=0 abandoned=0 write_ok=1 faults=0",
-              "reason": ""
             }
           ]
         }
@@ -10386,13 +10386,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.62 ops=60 wall=3893ms per_op=64ms setup=66ms rmrf=4ms mkb=39ms syn=23ms bar1=59ms mkd=65ms bar2=147ms twall=4234ms errs=0",
+          "measured": "nodes_pass=2/2 hostload=31.03 ops=60 wall=3909ms per_op=65ms setup=55ms rmrf=5ms mkb=27ms syn=23ms bar1=67ms mkd=14ms bar2=215ms twall=4265ms errs=0",
           "reason": "",
-          "iso": "2026-09-23T04:06:01Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 5,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:58:29Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 6,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:25:42Z",
+              "measured": "nodes_pass=2/2 hostload=31.32 ops=60 wall=4988ms per_op=83ms setup=99ms rmrf=5ms mkb=59ms syn=35ms bar1=69ms mkd=114ms bar2=586ms twall=5863ms errs=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:06:01Z",
+              "measured": "nodes_pass=2/2 hostload=4.62 ops=60 wall=3893ms per_op=64ms setup=66ms rmrf=4ms mkb=39ms syn=23ms bar1=59ms mkd=65ms bar2=147ms twall=4234ms errs=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:04:31Z",
@@ -10439,18 +10451,6 @@
               "status": "PASS",
               "iso": "2026-09-20T17:47:26Z",
               "measured": "nodes_pass=2/2 hostload=3.12 ops=60 wall=2916ms per_op=48ms setup=48ms rmrf=6ms mkb=21ms syn=21ms bar1=59ms mkd=53ms bar2=306ms twall=3385ms errs=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-20T16:20:02Z",
-              "measured": "nodes_pass=2/2 hostload=4.23 ops=60 wall=3296ms per_op=54ms setup=51ms rmrf=6ms mkb=20ms syn=25ms bar1=62ms mkd=41ms bar2=60ms twall=3514ms errs=0",
-              "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-13T01:31:00Z",
-              "measured": "nodes_pass=2/2 hostload=3.46 ops=60 wall=2858ms per_op=47ms setup=43ms rmrf=3ms mkb=21ms syn=19ms bar1=57ms mkd=14ms bar2=325ms twall=3299ms errs=0",
               "reason": ""
             }
           ]
@@ -10509,13 +10509,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=3.60 coverage=PASS floors=partition:PASS,own_ag:PASS,overlap:PASS,breadth:PASS,relaxed:PASS,release:PASS,reuse:PASS,finobt:PASS,cohort:PASS run=20260923T035421Z fsid=e0672086-e64d-4c96-ae41-c37a6c882cde witness=tests/evidence/alloc_witness/20260923T035421Z/witness.txt",
+          "measured": "nodes_pass=2/2 hostload=30.75 coverage=PASS floors=partition:PASS,own_ag:PASS,overlap:PASS,breadth:PASS,relaxed:PASS,release:PASS,reuse:PASS,finobt:PASS,cohort:PASS run=20260923T154507Z fsid=7d4952fa-31d2-4467-bde7-9db4ee3de1a7 witness=tests/evidence/alloc_witness/20260923T154507Z/witness.txt",
           "reason": "",
-          "iso": "2026-09-23T04:08:04Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 114,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T15:59:24Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 46,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:27:09Z",
+              "measured": "nodes_pass=2/2 hostload=32.14 coverage=PASS floors=partition:PASS,own_ag:PASS,overlap:PASS,breadth:PASS,relaxed:PASS,release:PASS,reuse:PASS,finobt:PASS,cohort:PASS run=20260923T151307Z fsid=7831398f-6646-442d-81d5-7f158a3efeab witness=tests/evidence/alloc_witness/20260923T151307Z/witness.txt",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:08:04Z",
+              "measured": "nodes_pass=2/2 hostload=3.60 coverage=PASS floors=partition:PASS,own_ag:PASS,overlap:PASS,breadth:PASS,relaxed:PASS,release:PASS,reuse:PASS,finobt:PASS,cohort:PASS run=20260923T035421Z fsid=e0672086-e64d-4c96-ae41-c37a6c882cde witness=tests/evidence/alloc_witness/20260923T035421Z/witness.txt",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:06:25Z",
@@ -10563,18 +10575,6 @@
               "iso": "2026-09-19T18:54:51Z",
               "measured": "nodes_pass=2/2 hostload=58.99 coverage=PASS floors=partition:PASS,own_ag:PASS,overlap:PASS,breadth:PASS,relaxed:PASS,release:PASS,reuse:PASS,finobt:PASS,cohort:PASS run=20260919T185343Z fsid=fa34d85f-95bf-4915-b82b-74d4637e7fcc witness=tests/evidence/alloc_witness/20260919T185343Z/witness.txt",
               "reason": ""
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-19T18:52:41Z",
-              "measured": "nodes_pass=2/2 hostload=57.07 coverage=PASS floors=partition:PASS,own_ag:PASS,overlap:PASS,breadth:PASS,relaxed:PASS,release:PASS,reuse:PASS,finobt:PASS,cohort:PASS run=20260919T185101Z fsid=fa34d85f-95bf-4915-b82b-74d4637e7fcc witness=tests/evidence/alloc_witness/20260919T185101Z/witness.txt",
-              "reason": ""
-            },
-            {
-              "status": "FAIL",
-              "iso": "2026-09-19T18:26:03Z",
-              "measured": "nodes_pass=1/2 states:FAIL=1 hostload=59.22 first_fail[test1:coverage=INSUFFICIENT floors=same_ag:FAIL,overlap:FAIL,breadth:PASS,release:FAIL,finobt:PASS,cohort:PASS run=20260919T182412Z fsid=27fcdb75-a50f-47a8-83f4-6a6613801bae witness=tests/evidence/alloc_witness/20260919T182412Z/witness.txt] rank1[coverage=INSUFFICIENT floors=same_ag:FAIL,overlap:FAIL,breadth:PASS,release:FAIL,finobt:PASS,cohort:PASS run=20260919T182412Z fsid=27fcdb75-a50f-47a8-83f4-6a6613801bae witness=tests/evidence/alloc_witness/20260919T182412Z/witness.txt]",
-              "reason": "test1:FAIL:a coverage floor was not met with complete measurements; the cold audit that follows can only be VACUOUS (see /src/mxfs/tests/evidence/alloc_witness/20260919T182412Z/witness.txt)"
             }
           ]
         }
@@ -10630,13 +10630,25 @@
         },
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=4.93 verdict=CLEAN release=CLEAN rc=0 errors=0 remounted=1 icount=9088 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260923T040850Z.log release=CLEAN coverage=PASS cohort=PASS finobt=PASS targets=PASS accounting=PASS witness=/src/mxfs/tests/evidence/alloc_witness/20260923T035421Z/witness.txt",
+          "measured": "nodes_pass=2/2 hostload=31.39 verdict=CLEAN release=CLEAN rc=0 errors=0 remounted=1 icount=3968 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260923T155944Z.log release=CLEAN coverage=PASS cohort=PASS finobt=PASS targets=PASS accounting=PASS witness=/src/mxfs/tests/evidence/alloc_witness/20260923T154507Z/witness.txt",
           "reason": "",
-          "iso": "2026-09-23T04:09:02Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 48,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T16:00:04Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 29,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:27:56Z",
+              "measured": "nodes_pass=2/2 hostload=31.98 verdict=CLEAN release=CLEAN rc=0 errors=0 remounted=1 icount=5440 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260923T152744Z.log release=CLEAN coverage=PASS cohort=PASS finobt=PASS targets=PASS accounting=PASS witness=/src/mxfs/tests/evidence/alloc_witness/20260923T151307Z/witness.txt",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:09:02Z",
+              "measured": "nodes_pass=2/2 hostload=4.93 verdict=CLEAN release=CLEAN rc=0 errors=0 remounted=1 icount=9088 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260923T040850Z.log release=CLEAN coverage=PASS cohort=PASS finobt=PASS targets=PASS accounting=PASS witness=/src/mxfs/tests/evidence/alloc_witness/20260923T035421Z/witness.txt",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:07:22Z",
@@ -10684,18 +10696,6 @@
               "iso": "2026-09-19T18:55:35Z",
               "measured": "nodes_pass=2/2 hostload=58.83 verdict=CLEAN release=CLEAN rc=0 errors=0 remounted=1 icount=3584 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260919T185515Z.log release=CLEAN coverage=PASS cohort=PASS finobt=PASS targets=PASS accounting=PASS witness=/src/mxfs/tests/evidence/alloc_witness/20260919T185343Z/witness.txt",
               "reason": ""
-            },
-            {
-              "status": "FAIL",
-              "iso": "2026-09-19T18:51:41Z",
-              "measured": "nodes_pass=1/2 states:FAIL=1 hostload=58.54 first_fail[test1:verdict=CLEAN release=INDETERMINATE rc=0 errors=0 remounted=1 icount=64 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260919T185127Z.log release=INDETERMINATE coverage=? cohort=? finobt=? targets=? accounting=? witness=/src/mxfs/tests/evidence/alloc_witness/20260919T185101Z/witness.txt] rank1[verdict=CLEAN release=INDETERMINATE rc=0 errors=0 remounted=1 icount=64 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260919T185127Z.log release=INDETERMINATE coverage=? cohort=? finobt=? targets=? accounting=? witness=/src/mxfs/tests/evidence/alloc_witness/20260919T185101Z/witness.txt]",
-              "reason": "test1:FAIL:the audit was clean but no trustworthy coverage witness exists for this run, so the CLEAN is not a release claim: no sealed witness for run 20260919T185101Z"
-            },
-            {
-              "status": "FAIL",
-              "iso": "2026-09-19T18:26:57Z",
-              "measured": "nodes_pass=1/2 states:FAIL=1 hostload=57.37 first_fail[test1:verdict=CLEAN release=INDETERMINATE rc=0 errors=0 remounted=1 icount=2176 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260919T182643Z.log release=INDETERMINATE coverage=? cohort=? finobt=? witness=/src/mxfs/tests/evidence/alloc_witness/20260919T182607Z/witness.txt] rank1[verdict=CLEAN release=INDETERMINATE rc=0 errors=0 remounted=1 icount=2176 Chunk/free-space aliasing . OK (no inode-chunk block is also free) evidence=/src/mxfs/tests/evidence/chk_clean_2node_20260919T182643Z.log release=INDETERMINATE coverage=? cohort=? finobt=? witness=/src/mxfs/tests/evidence/alloc_witness/20260919T182607Z/witness.txt]",
-              "reason": "test1:FAIL:the audit was clean but no trustworthy coverage witness exists for this run, so the CLEAN is not a release claim: no sealed witness for run 20260919T182607Z"
             }
           ]
         }
@@ -10718,11 +10718,23 @@
           "status": "PASS",
           "measured": "guards=72 new=0 grown=0",
           "reason": "",
-          "iso": "2026-09-23T04:09:04Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 2,
-          "build": "09EBACFC4803E44977E9F0C",
+          "iso": "2026-09-23T16:00:13Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 9,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:28:03Z",
+              "measured": "guards=72 new=0 grown=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:09:04Z",
+              "measured": "guards=72 new=0 grown=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:07:24Z",
@@ -10768,18 +10780,6 @@
             {
               "status": "PASS",
               "iso": "2026-09-12T22:43:09Z",
-              "measured": "guards=75 new=0 grown=0",
-              "reason": ""
-            },
-            {
-              "status": "FAIL",
-              "iso": "2026-09-12T22:28:29Z",
-              "measured": "no-result",
-              "reason": "no RESULT line from test1 after 3 attempts"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:34:11Z",
               "measured": "guards=75 new=0 grown=0",
               "reason": ""
             }
@@ -11353,13 +11353,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "nodes_pass=2/2 hostload=5.66 checks=7 passed=7 failed=0",
+          "measured": "nodes_pass=2/2 hostload=31.29 checks=7 passed=7 failed=0",
           "reason": "",
-          "iso": "2026-09-23T04:09:37Z",
-          "recorded": "2026-09-22",
+          "iso": "2026-09-23T16:00:47Z",
+          "recorded": "2026-09-23",
           "elapsed_s": 24,
-          "build": "09EBACFC4803E44977E9F0C",
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T15:28:52Z",
+              "measured": "nodes_pass=2/2 hostload=31.89 checks=7 passed=7 failed=0",
+              "reason": ""
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:09:37Z",
+              "measured": "nodes_pass=2/2 hostload=5.66 checks=7 passed=7 failed=0",
+              "reason": ""
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:07:54Z",
@@ -11407,18 +11419,6 @@
               "iso": "2026-09-12T22:43:38Z",
               "measured": "nodes_pass=2/2 hostload=4.11 checks=7 passed=7 failed=0",
               "reason": ""
-            },
-            {
-              "status": "FAIL",
-              "iso": "2026-09-12T22:28:32Z",
-              "measured": "pre-assert",
-              "reason": "PRE-ASSERT: mxfs not mounted/readable on test1 \u2014 a prior test broke cluster formation state (unmounted or shutdown zombie); reform required"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-12T21:34:40Z",
-              "measured": "nodes_pass=2/2 hostload=3.98 checks=7 passed=7 failed=0",
-              "reason": ""
             }
           ]
         },
@@ -11455,13 +11455,25 @@
       "per_config": {
         "2/tcp": {
           "status": "PASS",
-          "measured": "oracle=PASS acked=200 replay_s=70 ns_ls=0 ns_mkdir=0 quar=0 shut=0 umount_ms=2539 chk_rc=0 errs=0 icount=9088 Chunk/free-space aliasing . OK (no inode-chunk block is also free) ALLOC checked=234 allocated=234 missing=0  wall=234s oracle_evidence=tests/evidence/20260923T040939Z_tcpdr_ca_20260923T035421Z",
-          "reason": " (evidence tests/evidence/board_20260923T035421Z_crash_audit)",
-          "iso": "2026-09-23T04:13:32Z",
-          "recorded": "2026-09-22",
-          "elapsed_s": 234,
-          "build": "09EBACFC4803E44977E9F0C",
+          "measured": "oracle=PASS acked=165 replay_s=77 ns_ls=0 ns_mkdir=0 quar=0 shut=0 umount_ms=911 chk_rc=0 errs=0 icount=3968 Chunk/free-space aliasing . OK (no inode-chunk block is also free) ALLOC checked=199 allocated=199 missing=0  wall=248s oracle_evidence=tests/evidence/20260923T160049Z_tcpdr_ca_20260923T154507Z",
+          "reason": " (evidence tests/evidence/board_20260923T154507Z_crash_audit)",
+          "iso": "2026-09-23T16:04:57Z",
+          "recorded": "2026-09-23",
+          "elapsed_s": 248,
+          "build": "EDB0D0BF2AC901EDC1A661E",
           "history": [
+            {
+              "status": "FAIL",
+              "iso": "2026-09-23T15:32:53Z",
+              "measured": "oracle=FAIL acked=0",
+              "reason": "the death oracle passed (V's slice fenced, sealed and replayed by W, every acknowledged file verified) (got 124:); the replayed slice carried acknowledged files (acked >= 1) (got no(none)) (evidence tests/evidence/board_20260923T151307Z_crash_audit)"
+            },
+            {
+              "status": "PASS",
+              "iso": "2026-09-23T04:13:32Z",
+              "measured": "oracle=PASS acked=200 replay_s=70 ns_ls=0 ns_mkdir=0 quar=0 shut=0 umount_ms=2539 chk_rc=0 errs=0 icount=9088 Chunk/free-space aliasing . OK (no inode-chunk block is also free) ALLOC checked=234 allocated=234 missing=0  wall=234s oracle_evidence=tests/evidence/20260923T040939Z_tcpdr_ca_20260923T035421Z",
+              "reason": " (evidence tests/evidence/board_20260923T035421Z_crash_audit)"
+            },
             {
               "status": "PASS",
               "iso": "2026-09-23T03:11:45Z",
@@ -11509,18 +11521,6 @@
               "iso": "2026-09-21T01:09:24Z",
               "measured": "oracle=PASS acked=314 replay_s=79 ns_ls=0 ns_mkdir=0 quar=0 shut=0 umount_ms=1392 chk_rc=0 errs=0 icount=384 Chunk/free-space aliasing . OK (no inode-chunk block is also free) ALLOC checked=348 allocated=348 missing=0  wall=133s oracle_evidence=tests/evidence/20260921T010712Z_tcpdr_ca_20260921T010656Z",
               "reason": " (evidence tests/evidence/board_20260921T010656Z_crash_audit)"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-21T00:56:50Z",
-              "measured": "oracle=PASS acked=338 replay_s=80 umount_ms=1892 chk_rc=0 errs=0 icount=448 Chunk/free-space aliasing . OK (no inode-chunk block is also free) ALLOC checked=372 allocated=372 missing=0  wall=135s oracle_evidence=tests/evidence/20260921T005435Z_tcpdr_ca_20260921T005420Z",
-              "reason": " (evidence tests/evidence/board_20260921T005420Z_crash_audit)"
-            },
-            {
-              "status": "PASS",
-              "iso": "2026-09-21T00:40:55Z",
-              "measured": "oracle=PASS acked=342 replay_s=74 umount_ms=1813 chk_rc=0 errs=0 icount=448 Chunk/free-space aliasing . OK (no inode-chunk block is also free) ALLOC checked=376 allocated=376 missing=0  wall=127s oracle_evidence=tests/evidence/20260921T003848Z_tcpdr_ca_20260921T003832Z",
-              "reason": " (evidence tests/evidence/board_20260921T003832Z_crash_audit)"
             }
           ]
         }

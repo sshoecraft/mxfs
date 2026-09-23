@@ -31,6 +31,15 @@ mxfs_version() {
     echo "${major:-0}.${minor:-0}.${patch:-0}"
 }
 
+# Compiler flags that stamp the package version into the tools.  Without
+# them include/mxfs/mxfs_common.h falls back to a fixed version, and every
+# tool reports that instead of the package it came from.
+mxfs_version_cflags() {
+    local major minor patch
+    IFS=. read -r major minor patch <<< "$(mxfs_version)"
+    echo "-DMXFS_VERSION_MAJOR=${major:-0} -DMXFS_VERSION_MINOR=${minor:-0} -DMXFS_VERSION_PATCH=${patch:-0}"
+}
+
 # Detect what OS family we're running on
 # Returns: debian, redhat, suse, freebsd, darwin, unknown
 mxfs_detect_os() {
@@ -106,7 +115,7 @@ mxfs_stage_kmod_source() {
 mxfs_build_tools() {
     local dest="$1"
     local cc="${CC:-gcc}"
-    local cflags="-Wall -Wextra -O2 -I${SRCDIR}/include"
+    local cflags="-Wall -Wextra -O2 -I${SRCDIR}/include $(mxfs_version_cflags)"
 
     mkdir -p "$dest"
 

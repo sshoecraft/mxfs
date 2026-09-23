@@ -1866,7 +1866,7 @@ retry_iget:
 				"mxfs: P34H-POISON-EVICT ino=%llu gen=%u try=%d i_count=%d i_state=0x%lx nlink=%u iflags=0x%x pin=%d ili=0x%x in_ail=%d dlm_mode=%u reclaimable=%d need_inact=%d inactivating=%d iflushing=%d — retiring poisoned shell for re-iget\n",
 				(unsigned long long)(*ipp)->i_ino,
 				vi->i_generation, poison_tries,
-				atomic_read(&vi->i_count), vi->i_state,
+				atomic_read(&vi->i_count), mxfs_istate(vi),
 				vi->i_nlink,
 				(*ipp)->i_flags,
 				atomic_read(&(*ipp)->i_pincount),
@@ -1983,7 +1983,7 @@ retry_iget:
 				(*ipp)->i_flags,
 				atomic_read(&(*ipp)->i_pincount),
 				(*ipp)->i_itemp ? (*ipp)->i_itemp->ili_fields : 0,
-				(*ipp)->i_dlm_mode, vi->i_state,
+				(*ipp)->i_dlm_mode, mxfs_istate(vi),
 				name->len, (const char *)name->name);
 
 			/*
@@ -2082,7 +2082,7 @@ retry_iget:
 			"mxfs: P34H-POISON-UNRETIRED ino=%llu gen=%u i_count=%d i_state=0x%lx tries=%d name=%.*s — retirement failed; failing lookup -ESTALE rather than serving a dead incarnation\n",
 			(unsigned long long)(*ipp)->i_ino,
 			vi->i_generation, atomic_read(&vi->i_count),
-			vi->i_state, poison_tries,
+			mxfs_istate(vi), poison_tries,
 			name->len, (const char *)name->name);
 		xfs_irele(*ipp);
 		*ipp = NULL;
@@ -2591,7 +2591,7 @@ retry_iget:
 			vi2->i_mode,
 			vi2->i_mode ? xfs_mode_to_ftype(vi2->i_mode) : 0,
 			dirent_ftype, vi2->i_generation,
-			(vi2->i_state & I_NEW) ? 1 : 0,
+			(inode_state_read_once(vi2) & I_NEW) ? 1 : 0,
 			(vi2->i_fop == &xfs_dir_file_operations) ? 1 : 0,
 			evict_tries + poison_tries,
 			name->len, (const char *)name->name);

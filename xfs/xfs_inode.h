@@ -2005,7 +2005,7 @@ static inline void mxfs_set_nlink(struct xfs_inode *ip, unsigned int nlink)
 	 * nlink RAW on corpses; xfs_reinit_inode re-opens accounting from
 	 * the adopted value at recycle (0 -> clear_nlink inc; N -> no edge).
 	 */
-	if (inode->i_state & I_CLEAR) {
+	if (inode_state_read_once(inode) & I_CLEAR) {
 		inode->__i_nlink = nlink;
 		return;
 	}

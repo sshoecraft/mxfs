@@ -131,7 +131,7 @@ enum {
 	Opt_uqnoenforce, Opt_gqnoenforce, Opt_pqnoenforce, Opt_qnoenforce,
 	Opt_discard, Opt_nodiscard, Opt_dax, Opt_dax_enum, Opt_max_open_zones,
 	Opt_lifetime, Opt_nolifetime, Opt_max_atomic_write, Opt_errortag,
-	Opt_peers, Opt_cluster,
+	Opt_peer, Opt_peers, Opt_cluster,
 };
 
 #define fsparam_dead(NAME) \
@@ -191,34 +191,47 @@ static const struct fs_parameter_spec xfs_fs_parameters[] = {
 	fsparam_flag("nolifetime",	Opt_nolifetime),
 	fsparam_string("max_atomic_write",	Opt_max_atomic_write),
 	fsparam_string("errortag",	Opt_errortag),
+	fsparam_string("peer",		Opt_peer),
 	fsparam_string("peers",		Opt_peers),
 	fsparam_string("cluster",	Opt_cluster),
 	{}
 };
 
 /*
- * peers=ADDR[/ADDR...]: the cluster's IPv4 addresses, replacing multicast
- * discovery (dlm/static_peers.h).  Separated by '/', because the mount
- * option string itself is split on ','.  Stored canonical (dotted, as the socket
- * layer reports a sender) so a receiver's admit check is a string compare.
- * A multicast, broadcast or unspecified address is refused: none of them
- * names one node.  Duplicates collapse.
+ * peer=ADDR (repeatable) and peers=ADDR[/ADDR...]: IPv4 addresses to unicast
+ * every discovery, lease and nudge datagram to (dlm/static_peers.h).  peer=
+ * adds them to multicast discovery; peers= makes the list the whole cluster,
+ * replacing multicast and dropping everyone else.  Both add to one list, so a
+ * repeated option extends it rather than replacing it, and any peers= makes
+ * the whole list exclusive.  Within one value addresses are separated by '/',
+ * because the mount option string itself is split on ','.  Stored canonical
+ * (dotted, as the socket layer reports a sender) so a receiver's admit check
+ * is a string compare.  A multicast, broadcast or unspecified address is
+ * refused: none of them names one node.  Duplicates collapse.
  */
 static int
 mxfs_parse_peers(
 	struct xfs_mount	*mp,
-	const char		*arg)
+	const char		*arg,
+	bool			exclusive)
 {
 	struct mxfs_static_peers *p;
+	const char		*opt = exclusive ? "peers=" : "peer=";
 	char			*copy, *cur, *tok;
+	uint32_t		given = 0;
 	int			error = 0;
 
+	/* Build on a copy of the list so far; a bad address leaves it as it was. */
 	p = kzalloc(sizeof(*p), GFP_KERNEL);
 	copy = kstrdup(arg, GFP_KERNEL);
 	if (!p || !copy) {
 		error = -ENOMEM;
 		goto out;
 	}
+	if (mp->m_mxfs_peers)
+		*p = *mp->m_mxfs_peers;
+	if (exclusive)
+		p->exclusive = true;
 	cur = copy;
 	while ((tok = strsep(&cur, "/")) != NULL) {
 		__be32		ip;
@@ -231,10 +244,12 @@ mxfs_parse_peers(
 		if (!in4_pton(tok, -1, (u8 *)&ip, '\0', &end) ||
 		    ipv4_is_multicast(ip) || ipv4_is_lbcast(ip) ||
 		    ipv4_is_zeronet(ip)) {
-			xfs_warn(mp, "peers=: '%s' is not a unicast IPv4 address", tok);
+			xfs_warn(mp, "%s: '%s' is not a unicast IPv4 address",
+				 opt, tok);
 			error = -EINVAL;
 			goto out;
 		}
+		given++;
 		snprintf(canon, sizeof(canon), "%pI4", &ip);
 		for (i = 0; i < p->count; i++)
 			if (!strcmp(p->addr[i], canon))
@@ -242,14 +257,15 @@ mxfs_parse_peers(
 		if (i < p->count)
 			continue;
 		if (p->count >= MXFS_MAX_NODES) {
-			xfs_warn(mp, "peers=: more than %d addresses", MXFS_MAX_NODES);
+			xfs_warn(mp, "%s: more than %d addresses in all",
+				 opt, MXFS_MAX_NODES);
 			error = -EINVAL;
 			goto out;
 		}
 		strscpy(p->addr[p->count++], canon, MXFS_PEER_ADDR_LEN);
 	}
-	if (!p->count) {
-		xfs_warn(mp, "peers=: no address given");
+	if (!given) {
+		xfs_warn(mp, "%s: no address given", opt);
 		error = -EINVAL;
 		goto out;
 	}
@@ -314,11 +330,18 @@ xfs_fs_show_options(
 	if (mp->m_mxfs_cluster_name)
 		seq_show_option(m, "cluster", mp->m_mxfs_cluster_name);
 	if (mp->m_mxfs_peers) {
+		const struct mxfs_static_peers *sp = mp->m_mxfs_peers;
 		uint32_t i;
 
-		for (i = 0; i < mp->m_mxfs_peers->count; i++)
-			seq_printf(m, "%s%s", i ? "/" : ",peers=",
-				   mp->m_mxfs_peers->addr[i]);
+		/* Show the mode in effect: one exclusive peers= list, or
+		 * one additive peer= per address. */
+		for (i = 0; i < sp->count; i++) {
+			if (sp->exclusive)
+				seq_printf(m, "%s%s", i ? "/" : ",peers=",
+					   sp->addr[i]);
+			else
+				seq_printf(m, ",peer=%s", sp->addr[i]);
+		}
 	}
 
 	if (mp->m_dalign > 0)
@@ -1030,7 +1053,7 @@ xfs_fs_evict_inode(
 			(unsigned long long)XFS_I(inode)->i_ino,
 			inode->i_generation,
 			atomic_read(&XFS_I(inode)->i_mxfs_revoke_refs),
-			inode->i_state);
+			mxfs_istate(inode));
 		dump_stack();
 	}
 
@@ -2405,10 +2428,10 @@ restart_armsweep:
 				int cnt = atomic_read(&vinode->i_count);
 
 				if (cnt < 2 ||
-				    (vinode->i_state & (I_FREEING | I_CLEAR))) {
+				    (mxfs_istate(vinode) & (I_FREEING | I_CLEAR))) {
 					pr_warn("mxfs: P6S-SWEEP-BADREF ino=%llu i_count=%d i_state=0x%lx — NOT releasing\n",
 						(unsigned long long)sip->i_ino,
-						cnt, vinode->i_state);
+						cnt, mxfs_istate(vinode));
 					break;
 				}
 				xfs_irele(sip);
@@ -3443,8 +3466,10 @@ xfs_fs_parse_param(
 		return 0;
 	case Opt_errortag:
 		return xfs_errortag_add_name(parsing_mp, param->string);
+	case Opt_peer:
+		return mxfs_parse_peers(parsing_mp, param->string, false);
 	case Opt_peers:
-		return mxfs_parse_peers(parsing_mp, param->string);
+		return mxfs_parse_peers(parsing_mp, param->string, true);
 	case Opt_cluster:
 		if (!mxfs_cluster_name_valid(param->string)) {
 			xfs_warn(parsing_mp,

@@ -7,8 +7,9 @@
 # Builds into dist/<version>/:
 #   mxfs_<v>_amd64.deb              Debian / Ubuntu / Proxmox (DKMS + tools)
 #   pve-storage-mxfs_<v>_all.deb    Proxmox VE storage plugin
-#   mxfs-<v>-1.el8.x86_64.rpm       RHEL / Alma / Rocky / Fedora / SUSE
-#   SHA256SUMS
+#   mxfs-<v>-1.el8.x86_64.rpm       built for development, NOT published: the
+#                                   module does not yet build on RHEL kernels
+#   SHA256SUMS                      the published .deb files
 #
 # Each package is built in a container running the OLDEST distribution it
 # targets, never on the host.  The userspace tools are linked against the
@@ -68,6 +69,14 @@ mkdir -p "$OUT"
 owner="$(id -u):$(id -g)"
 
 if [ "$built" = 0 ]; then
+    # Proxmox VE is the primary target and its kernel is not the rig's: the
+    # DKMS module must compile against it before any package is built.
+    echo "=== MXFS $VERSION — module build against Proxmox VE kernel headers ==="
+    "$SRCDIR/scripts/pve_kbuild_check.sh" || {
+        echo "ERROR: mxfs.ko does not build against the Proxmox VE kernel; no packages built" >&2
+        exit 1
+    }
+
     echo "=== MXFS $VERSION — .deb packages in $DEB_IMAGE ==="
     docker run --rm --network host -v "$SRCDIR:/src/mxfs:ro" -v "$OUT:/out" "$DEB_IMAGE" bash -ec "
         apt-get update -qq
@@ -84,7 +93,10 @@ if [ "$built" = 0 ]; then
         chown $owner /out/*.rpm
     "
 
-    (cd "$OUT" && sha256sum *.deb *.rpm > SHA256SUMS)
+    # The RPM is built for development only and is not published: the module
+    # does not yet build on RHEL-family kernels (RHEL 9's 5.14 carries
+    # backports the version-gated shims in xfs/xfs_platform.h collide with).
+    (cd "$OUT" && sha256sum *.deb > SHA256SUMS)
 
     echo ""
     echo "=== Built in $OUT ==="
@@ -106,4 +118,4 @@ fi
 
 gh release create "v$VERSION" -R "$REPO" --target main \
     --title "MXFS $VERSION" --notes-file "$notes" \
-    "$OUT"/*.deb "$OUT"/*.rpm "$OUT/SHA256SUMS"
+    "$OUT"/*.deb "$OUT/SHA256SUMS"

@@ -33,6 +33,27 @@ It does not spam the entire subnet.
 mount -t mxfs /dev/sdb /mnt/shared
 ```
 
+### Additional peers (`-o peer=`)
+
+Adds addresses to multicast discovery rather than replacing it.  Multicast
+runs as usual, and every datagram that goes to the group — discovery
+announcements, lease heartbeats, and on the CAW transport the BAST/grant
+nudges — is also sent by unicast to each listed address.  Nothing is dropped:
+senders are admitted exactly as under multicast.
+
+```
+mount -t mxfs -o peer=10.0.2.7 /dev/sdb /mnt/shared
+mount -t mxfs -o peer=10.0.2.7,peer=10.0.3.9 /dev/sdb /mnt/shared
+```
+
+- One address per option; repeat the option for more.  Multicast, broadcast
+  and `0.0.0.0` are refused; duplicates collapse.
+- This is for a node the multicast group cannot reach, such as one on another
+  network.  Neither side hears the other's multicast, so the off-network node
+  must list every member, and every member must list it.  Members on the same
+  network keep finding each other by multicast.
+- With two nodes, each simply lists the other.
+
 ### Static peer list (`-o peers=`)
 
 Lists the cluster's addresses explicitly.  Every datagram that would have
@@ -58,6 +79,8 @@ mount -t mxfs -o peers=192.168.1.10/192.168.1.11/192.168.1.12 /dev/sdb /mnt/shar
   node without a list logs `P-PEERS-MISMATCH` once when it hears a listed node
   (the announcement carries a flag saying so).
 - Read at mount; a remount does not change it.
+- A repeated `peers=` adds to the list, and `peer=` addresses given with it
+  join the same list, which stays exclusive.
 
 This is the mode for deployments that want fully predictable network traffic:
 no multicast, no broadcast, only unicast between a defined set of addresses.
@@ -78,6 +101,7 @@ multicast (the nested-virtualisation cases below) should use `peers=`.
 
 | Option | Default | Description |
 |---|---|---|
+| `peer=A` (repeatable) | none | Also unicast to this IPv4 address, alongside multicast; nobody is dropped |
 | `peers=A/B/...` | none (multicast) | Unicast to exactly these IPv4 addresses; drop everyone else |
 | `cluster=NAME` | none | Must match the cluster name recorded on the filesystem (`mkfs.mxfs -c`, `mxfs_admin -c`); a mismatch in either direction refuses the mount before any cluster traffic |
 

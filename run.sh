@@ -92,11 +92,20 @@ MNT="${MXFS_MOUNT:-/mnt/shared}"
 #   caw  -> the multipathd-assembled map (2 paths).
 #   cawd -> the stable by-path node for the single-portal login; identical on
 #           every node regardless of sdX ordering.
-#   cawp/tcp -> the XML-wired guest disk (virsh target dev=sda).
+#   tcp  -> the 2/tcp rig's LUN (data/rigs.json "qnap") by its WWN.  Never
+#           /dev/sda: the nodes also see the LIO bench target on test32, and
+#           which of the two enumerates as sda is not fixed — the 2/tcp suite
+#           ran on the bench target for a day that way, and a PREEMPT AND
+#           ABORT that deadlocked LIO read as an MXFS recovery failure.
+#   cawp -> the XML-wired guest disk (virsh target dev=sda).
 #   xfs  -> whatever LUN the live rig presents at sda (baseline only).
 case "$DLM" in
     caw)  DEV_DEFAULT=/dev/mapper/mpatha ;;
     cawd) DEV_DEFAULT="/dev/disk/by-path/ip-192.168.120.1:3260-iscsi-iqn.2026-05.local.mxfs:shared-lun-0" ;;
+    tcp)  TCP_RIG_WWID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["qnap"]["lun_wwid"])' \
+                         "$REPO/data/rigs.json" 2>/dev/null)
+          [ -n "$TCP_RIG_WWID" ] || { echo "data/rigs.json has no qnap lun_wwid; set MXFS_DEV"; exit 2; }
+          DEV_DEFAULT="/dev/disk/by-id/wwn-0x${TCP_RIG_WWID#naa.}" ;;
     *)    DEV_DEFAULT=/dev/sda ;;
 esac
 DEV="${MXFS_DEV:-$DEV_DEFAULT}"

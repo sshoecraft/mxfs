@@ -88,6 +88,21 @@ static inline void inode_state_clear_raw(struct inode *inode, unsigned long flag
 }
 #endif
 
+/* The inode's VFS state flags as an unsigned long on every kernel.  From v6.19
+ * i_state is a struct read through inode_state_read_once(), which returns an
+ * enum; MXFS tests the flags and prints them with %lx, so every read goes
+ * through here rather than touching i_state or passing the enum to a format. */
+static inline unsigned long mxfs_istate(struct inode *inode)
+{
+	return (unsigned long)inode_state_read_once(inode);
+}
+
+/* destroy_timer_on_stack() was renamed timer_destroy_on_stack() in v6.16 and
+ * the old name removed; Proxmox VE 9's 6.17 kernel has only the new one. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#define timer_destroy_on_stack(timer)	destroy_timer_on_stack(timer)
+#endif
+
 /* dax_break_layout helpers — stub for non-DAX builds */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
 static inline int dax_break_layout(struct inode *inode, loff_t start,

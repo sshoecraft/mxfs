@@ -74,17 +74,10 @@ static void mxfs_discovery_send_fn(void *arg)
     mxfs_pal_log(MXFS_LOG_DEBUG, "discovery: sender thread started");
 
     while (ctx->running) {
-        if (mxfs_static_peers_active(&ctx->peers))
-            ret = mxfs_static_peers_sendto(&ctx->peers, ctx->sock,
-                                           &ctx->local_announce,
-                                           sizeof(ctx->local_announce),
-                                           ctx->port);
-        else
-            ret = mxfs_pal_udp_sendto(ctx->sock,
-                                      &ctx->local_announce,
-                                      sizeof(ctx->local_announce),
-                                      ctx->send_addr,
-                                      ctx->port);
+        ret = mxfs_static_peers_send(&ctx->peers, ctx->sock,
+                                     &ctx->local_announce,
+                                     sizeof(ctx->local_announce),
+                                     ctx->send_addr, ctx->port);
         if (ret < 0)
             mxfs_pal_log(MXFS_LOG_WARN,
                          "mxfs: discovery broadcast failed: %d "
@@ -164,7 +157,7 @@ static void mxfs_discovery_recv_fn(void *arg)
         if (ret < (int)sizeof(pkt))
             continue;
 
-        /* peers=: only the listed addresses are the cluster */
+        /* peers= (exclusive): only the listed addresses are the cluster */
         if (!mxfs_static_peers_admit(&ctx->peers, sender_host))
             continue;
 
@@ -194,13 +187,15 @@ static void mxfs_discovery_recv_fn(void *arg)
          * packet is still processed, as it would be under any partition.
          */
         if ((mxfs_le16_to_cpu(pkt.flags) & MXFS_DISCOVERY_FLAG_STATIC_PEERS) &&
-            !mxfs_static_peers_active(&ctx->peers) && !ctx->mismatch_warned) {
+            !mxfs_static_peers_listed(&ctx->peers, sender_host) &&
+            !ctx->mismatch_warned) {
             ctx->mismatch_warned = true;
             mxfs_pal_log(MXFS_LOG_ERR,
                          "mxfs: P-PEERS-MISMATCH node %u (%s) is mounted with "
-                         "peers= and this node is not; it cannot hear this "
-                         "node.  Every node of a cluster must use the same "
-                         "peers= list, or none",
+                         "peers= and does not listen on the group, and this "
+                         "node does not send to it; it cannot hear this "
+                         "node.  List it with peer= here, or mount every "
+                         "node with the same peers= list",
                          pkt.node_id, sender_host);
         }
 
@@ -265,8 +260,11 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     ctx->peer_cb_data = NULL;
     ctx->seen_count = 0;
     ctx->use_broadcast = use_broadcast;
-    if (mxfs_static_peers_active(peers)) {
+    if (mxfs_static_peers_active(peers))
         ctx->peers = *peers;
+    /* The flag tells receivers this node does not listen on the group,
+     * which is true of an exclusive list (peers=) only; peer= still does. */
+    if (mxfs_static_peers_exclusive(peers)) {
         ctx->use_broadcast = false;
         flags |= MXFS_DISCOVERY_FLAG_STATIC_PEERS;
     }
@@ -343,11 +341,14 @@ struct mxfs_discovery_ctx *mxfs_discovery_create(
     /* Set receive timeout for clean shutdown */
     mxfs_pal_udp_set_recv_timeout(ctx->sock, 500);
 
-    if (mxfs_static_peers_active(&ctx->peers)) {
-        /* unicast only: no group membership, no broadcast */
+    if (mxfs_static_peers_active(&ctx->peers))
         mxfs_pal_log(MXFS_LOG_INFO,
-                     "discovery: static peer list, %u address(es), port %u",
-                     ctx->peers.count, ctx->port);
+                     "discovery: %s peer list, %u address(es), port %u",
+                     ctx->peers.exclusive ? "exclusive (peers=)" :
+                     "additive (peer=)", ctx->peers.count, ctx->port);
+
+    if (mxfs_static_peers_exclusive(&ctx->peers)) {
+        /* unicast only: no group membership, no broadcast */
     } else if (ctx->use_broadcast) {
         ret = mxfs_pal_udp_set_broadcast(ctx->sock);
         if (ret < 0) {

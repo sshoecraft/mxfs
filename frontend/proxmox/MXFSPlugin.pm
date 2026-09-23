@@ -26,13 +26,28 @@ sub api {
 
 # Helper functions
 
+# Do two paths name the same block device?  The configured blockdevice is
+# usually a stable name (/dev/disk/by-path/..., /dev/disk/by-id/...) while
+# /proc/mounts records the kernel name (/dev/sda), so comparing the strings
+# never matches: the storage then reads as inactive and every activation
+# mounts it again on top of itself.  Compare device numbers instead.
+sub mxfs_same_device {
+    my ($dev1, $dev2) = @_;
+
+    return 1 if $dev1 eq $dev2;
+    return 0 if !-b $dev1 || !-b $dev2;
+    my $rdev1 = (stat($dev1))[6];
+    my $rdev2 = (stat($dev2))[6];
+    return defined($rdev1) && defined($rdev2) && $rdev1 == $rdev2;
+}
+
 sub mxfs_is_mounted {
     my ($device, $mountpoint, $mountdata) = @_;
 
     $mountdata = PVE::ProcFSTools::parse_proc_mounts() if !$mountdata;
     return $mountpoint if grep {
         $_->[2] eq 'mxfs'
-            && $_->[0] eq $device
+            && mxfs_same_device($_->[0], $device)
             && $_->[1] eq $mountpoint
     } @$mountdata;
     return undef;
@@ -44,7 +59,7 @@ sub mxfs_device_mounted_at {
 
     $mountdata = PVE::ProcFSTools::parse_proc_mounts() if !$mountdata;
     for my $entry (@$mountdata) {
-        if ($entry->[2] eq 'mxfs' && $entry->[0] eq $device) {
+        if ($entry->[2] eq 'mxfs' && mxfs_same_device($entry->[0], $device)) {
             return $entry->[1];
         }
     }

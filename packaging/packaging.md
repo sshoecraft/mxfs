@@ -27,17 +27,18 @@ tools built on a newer distribution refuse to start on an older one.
 
 `scripts/release.sh` builds every release package into `dist/<version>/`, each
 in a container of the OLDEST distribution it targets — Debian 12 for both
-.debs (Debian 12+, Ubuntu 24.04+, Proxmox 8+), AlmaLinux 8 for the RPM
-(RHEL 8+, Fedora). `scripts/release.sh --publish` then creates the GitHub
-release with the packages and `SHA256SUMS` attached.
+.debs (Debian 12+, Ubuntu 24.04+, Proxmox 8+), AlmaLinux 8 for the RPM.
+`scripts/release.sh --publish` then creates the GitHub release with the .deb
+packages and `SHA256SUMS` attached. The RPM is built but not published: the
+module does not yet compile on RHEL-family kernels.
 
 ## Package Formats
 
 | OS Family | Package | Builder | Status |
 |-----------|---------|---------|--------|
 | Debian/Ubuntu/Proxmox | .deb | mkdeb.sh | Done |
-| RHEL/AlmaLinux/Rocky/Fedora | .rpm | mkrpm.sh | Done |
-| SUSE/openSUSE | .rpm | mkrpm.sh | Done |
+| RHEL/AlmaLinux/Rocky/Fedora | .rpm | mkrpm.sh | Package builds; the module does not yet compile on RHEL 9's 5.14 kernel (backported APIs collide with the version-gated shims) |
+| SUSE/openSUSE | .rpm | mkrpm.sh | Untested |
 | FreeBSD | .pkg | — | Needs porting |
 | macOS | .pkg | — | Needs porting |
 

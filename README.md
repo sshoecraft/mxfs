@@ -24,13 +24,24 @@
 > that can lose data or hang a node. Performance work is also still open on
 > every configuration.
 >
-> **Validated on Ubuntu 24.04 LTS (kernel 6.8) only.** Proxmox VE and Red Hat
-> testing is next. Not yet recommended for production data.
+> **Released for Proxmox VE 9** (kernels 6.17 and 7.0), installed from the
+> release packages and verified on two Proxmox nodes sharing an iSCSI LUN.
+> Ubuntu 24.04 is the development platform. RHEL-family and FreeBSD support are
+> in development or planned — see `data/platforms.json`. Not yet recommended
+> for production data.
 >
-> The release packages select TCP for you (`/etc/modprobe.d/mxfs.conf` sets
-> `options mxfs force_transport=1`). Building from source, load the module
-> with `modprobe mxfs force_transport=1`: without it a new cluster forms on
-> CAW. To see what still blocks each configuration:
+> **Storage:** the shared storage's write cache must survive a power loss
+> (battery- or flash-backed, as enterprise SAN and NAS arrays provide), or
+> losing the storage target's power must be outside what the cluster has to
+> survive. Crash-durable operation on unprotected caches is in development.
+>
+> The release packages configure both for you: `/etc/modprobe.d/mxfs.conf`
+> sets `options mxfs force_transport=1` (TCP) and
+> `options mxfs target_cache_protected=1` (the storage declaration above).
+> Building from source, load the module with
+> `modprobe mxfs force_transport=1 target_cache_protected=1`: without the
+> first a new cluster forms on CAW, and without the second a clustered mount
+> is refused. To see what still blocks each configuration:
 >
 > ```
 > tools/defects.py 2 tcp --release   # the released configuration
@@ -171,8 +182,9 @@ resize.mxfs [-v] [-n] [-V] DEVICE               # -n = dry run
 ## Quick start
 
 The released configuration is **two nodes on the TCP transport**. Install the
-release package on both nodes (it loads the module with `force_transport=1`),
-or load a source build with `modprobe mxfs force_transport=1` on both.
+release package on both nodes (it loads the module with `force_transport=1
+target_cache_protected=1`), or load a source build with
+`modprobe mxfs force_transport=1 target_cache_protected=1` on both.
 
 On the first node, format and mount the shared device:
 
@@ -189,6 +201,19 @@ mount -t mxfs /dev/sdX /mnt/shared
 
 The nodes discover each other and coordinate through the kernel module. Files
 written on one node are visible on the other.
+
+Discovery uses multicast (`239.66.83.1`). Where multicast does not pass, such
+as Proxmox or ESXi nested inside VMware Workstation, or where one node sits on
+another network, name the other node's address at mount time:
+
+```
+mount -t mxfs -o peer=10.0.0.12 /dev/sdX /mnt/shared      # on 10.0.0.11
+mount -t mxfs -o peer=10.0.0.11 /dev/sdX /mnt/shared      # on 10.0.0.12
+```
+
+`peer=` adds unicast to multicast discovery and may be repeated;
+`peers=A/B/...` replaces multicast with exactly that list and drops every
+other sender. See `mxfs(5)` and [`docs/discovery.md`](docs/discovery.md).
 
 **Before trusting data, verify the storage.** The shared LUN must honor durable
 (FUA) writes and SCSI Persistent Reservations, which MXFS uses to fence a failed

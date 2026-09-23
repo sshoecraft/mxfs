@@ -17538,5 +17538,49 @@
         "iops": 76966
       }
     }
+  },
+  "fio_perf_2n_tcp_1790176519": {
+    "ts": "2026-09-23T15:15:19Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 1384
+      },
+      "seq_read_1m": {
+        "bw_mib": 2462
+      },
+      "rand_write_4k": {
+        "iops": 58758
+      },
+      "rand_read_4k": {
+        "iops": 48154
+      }
+    }
+  },
+  "fio_perf_2n_tcp_1790178495": {
+    "ts": "2026-09-23T15:48:15Z",
+    "test": "fio_perf",
+    "nodes": 2,
+    "dlm": "tcp",
+    "fs": "tcp",
+    "size": "1024m",
+    "fio": {
+      "seq_write_1m": {
+        "bw_mib": 123
+      },
+      "seq_read_1m": {
+        "bw_mib": 151
+      },
+      "rand_write_4k": {
+        "iops": 24331
+      },
+      "rand_read_4k": {
+        "iops": 26543
+      }
+    }
   }
 }

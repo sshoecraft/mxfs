@@ -2793,9 +2793,16 @@ xfs_file_mmap_prepare(
 	struct inode		*inode = file_inode(file);
 	struct xfs_buftarg	*target = xfs_inode_buftarg(XFS_I(inode));
 
+	/* From 7.0 the descriptor's flags are a vma_flags_t behind helpers. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	if (!daxdev_mapping_supported(desc, file_inode(file),
+				      target->bt_daxdev))
+		return -EOPNOTSUPP;
+#else
 	if (!daxdev_mapping_supported(desc->vm_flags, file_inode(file),
 				      target->bt_daxdev))
 		return -EOPNOTSUPP;
+#endif
 
 	/* sess318: no new mapping of a poisoned dead incarnation */
 	if (mxfs_inode_incarn_estale(XFS_I(inode)))
@@ -2804,7 +2811,11 @@ xfs_file_mmap_prepare(
 	file_accessed(file);
 	desc->vm_ops = &xfs_file_vm_ops;
 	if (IS_DAX(inode))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+		vma_desc_set_flags(desc, VMA_HUGEPAGE_BIT);
+#else
 		desc->vm_flags |= VM_HUGEPAGE;
+#endif
 	return 0;
 }
 #else

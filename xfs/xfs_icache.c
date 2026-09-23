@@ -238,7 +238,7 @@ mxfs_report_leaked_inodes(void)
 			continue;
 		pr_warn("mxfs: P202-LEAKED-INODE-AT-UNLOAD ino=%llu ip=%px icount=%d i_state=0x%lx mode=0%o nlink=%u iflags=0x%lx pincount=%d dlm_mode=%u dlm_state=%u ex_h=%u pr_h=%u pin=%u bast_pending=%d unpublished=%d stale_src=%u bastq_src=%u itemp=%d in_ail=%d age_ms=%u GRAB=file%u:line%u dwork_pending=%d dwork_timer=%d bwork_pending=%d unpub_linked=%d demoter=%d dentries=%d lru_linked=%d sblist_linked=%d hashed=%d wcount=%d iget_caller=%pS — xfs_inode still allocated at module unload; this is why kmem_cache_destroy(mxfs_inode) reports objects in use\n",
 			(unsigned long long)ip->i_ino, ip,
-			atomic_read(&vip->i_count), vip->i_state,
+			atomic_read(&vip->i_count), mxfs_istate(vip),
 			vip->i_mode, vip->i_nlink, ip->i_flags,
 			atomic_read(&ip->i_pincount),
 			ip->i_dlm_mode, ip->i_dlm_state,
@@ -302,7 +302,7 @@ mxfs_report_leaked_inodes(void)
 				vip->i_private ? 1 : 0,
 				vip->i_data.nrpages,
 				atomic_read(&vip->i_readcount),
-				nd, vip->i_state, (unsigned)vip->i_opflags);
+				nd, mxfs_istate(vip), (unsigned)vip->i_opflags);
 		}
 		/*
 		 * sess26 P205-REFBAL — which HALF of the code holds the survivor.
@@ -459,7 +459,7 @@ xfs_inode_alloc(
 
 	/* VFS doesn't initialise i_mode or i_state on 6.8! */
 	VFS_I(ip)->i_mode = 0;
-	VFS_I(ip)->i_state = 0;
+	inode_state_assign_raw(VFS_I(ip), 0);
 	mapping_set_folio_min_order(VFS_I(ip)->i_mapping,
 				    M_IGEO(mp)->min_folio_order);
 
@@ -854,7 +854,7 @@ xfs_reinit_inode(
 	 * inc this restore must perform.  This inode is becoming LIVE again:
 	 * re-open its VFS accounting before the nlink restore.
 	 */
-	inode->i_state = 0;
+	inode_state_assign_raw(inode, 0);
 	mxfs_set_nlink(XFS_I(inode), nlink);
 	inode->i_generation = generation;
 	inode_set_iversion_queried(inode, version);
@@ -863,7 +863,7 @@ xfs_reinit_inode(
 	inode->i_uid = uid;
 	inode->i_gid = gid;
 	/* 6.8: inode_init_always doesn't reset i_state; clear stale flags */
-	inode->i_state = 0;
+	inode_state_assign_raw(inode, 0);
 	mapping_set_folio_min_order(inode->i_mapping,
 				    M_IGEO(mp)->min_folio_order);
 	return error;
@@ -1792,7 +1792,7 @@ xfs_icache_ino_lifecycle(
 	}
 	fl = ip->i_flags;
 	nl = VFS_I(ip)->i_nlink;
-	st = READ_ONCE(VFS_I(ip)->i_state);
+	st = mxfs_istate(VFS_I(ip));
 	spin_unlock(&ip->i_flags_lock);
 	rcu_read_unlock();
 	xfs_perag_put(pag);
@@ -1962,7 +1962,7 @@ xfs_iget_cache_hit(
 			(unsigned long long)ip->i_ino, VFS_I(ip)->i_mode,
 			VFS_I(ip)->i_nlink,
 			(unsigned long long)ip->i_nblocks,
-			ip->i_flags, VFS_I(ip)->i_state,
+			ip->i_flags, mxfs_istate(VFS_I(ip)),
 			cr63_reclaimable ? 1 : 0,
 			ip->i_dlm_mode, ip->i_dlm_state,
 			ip->i_dlm_stale ? 1 : 0, ip->i_dlm_stale_src,
@@ -1980,7 +1980,7 @@ xfs_iget_cache_hit(
 			}
 			pr_warn("mxfs: P-CR63-IGRAB-FAIL ino=0x%llx istate=0x%lx — mid-teardown shell falls through to check_free_state\n",
 				(unsigned long long)ip->i_ino,
-				VFS_I(ip)->i_state);
+				mxfs_istate(VFS_I(ip)));
 		} else if (VFS_I(ip)->i_nlink == 0) {
 			/*
 			 * ccloop-4dd7 FIX (proven by instrument chain, vmrig ino 139:
@@ -2965,7 +2965,7 @@ out_destroy:
 		pr_warn("mxfs: P-REVOKE-DIRECT-FREE ino=%llu gen=%u error=%d revoke_refs=%d i_count=%d i_state=0x%lx iflags=0x%lx — uninserted inode freed directly while a queued incarnation revocation owns a reference to it\n",
 			(unsigned long long)ino, VFS_I(ip)->i_generation, error,
 			atomic_read(&ip->i_mxfs_revoke_refs),
-			atomic_read(&VFS_I(ip)->i_count), VFS_I(ip)->i_state,
+			atomic_read(&VFS_I(ip)->i_count), mxfs_istate(VFS_I(ip)),
 			(unsigned long)ip->i_flags);
 		dump_stack();
 	}

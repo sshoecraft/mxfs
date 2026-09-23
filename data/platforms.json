@@ -1,0 +1,60 @@
+{
+  "_": "The operating systems MXFS is released for, in development for, or planned for. Read and written by tools/platforms.py. status: released = a release claims it, so every release must pass its build_check and record a verification of that exact version (scripts/release.sh refuses to publish otherwise); development = worked on, never claimed; planned = not started. A defect's `platform` field (tools/defects.py) names one of these keys, or `any`.",
+  "platforms": {
+    "pve9": {
+      "name": "Proxmox VE 9",
+      "status": "released",
+      "kernels": ["6.17.2-1-pve (PVE 9.1 install)", "7.0.x-pve (proxmox-default-kernel)"],
+      "packages": ["mxfs_<v>_amd64.deb", "pve-storage-mxfs_<v>_all.deb"],
+      "build_check": "scripts/pve_kbuild_check.sh 6.17.2-1-pve",
+      "verify_env": "pve9-1 192.168.120.194, pve9-2 192.168.120.138 (libvirt on the rig host), shared QNAP LUN over in-guest iSCSI",
+      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; repeated peers=; pvesm add/status/remove holds one mount; proxmox-default-kernel upgrade + reboot, remount, earlier data intact",
+      "verified": {
+        "version": "0.89.78",
+        "date": "2026-09-23",
+        "evidence": "tests/evidence/pve9_release_0.89.78/, tests/evidence/pve9_release_0.89.78b/"
+      }
+    },
+    "ubuntu2404": {
+      "name": "Ubuntu 24.04 LTS",
+      "status": "development",
+      "kernels": ["6.8.0-x-generic"],
+      "packages": ["mxfs_<v>_amd64.deb"],
+      "build_check": "make modules (the rig host runs 6.8.0-101-generic)",
+      "verify_env": "the rig (test1..test32 on the rig host); vstest1 192.168.120.177, vstest2 192.168.120.150 (vSphere)",
+      "verify_tests": "the full 2/tcp suite (run.sh 2 tcp) on the rig; .deb install and the two-node round on the vSphere pair",
+      "notes": "The development rig's platform: every suite verdict is measured here. Not claimed by a release until the packaged install is verified on a non-rig host."
+    },
+    "rhel9": {
+      "name": "RHEL / AlmaLinux / Rocky 9",
+      "status": "development",
+      "kernels": ["5.14.0-x.el9 (heavily backported)"],
+      "packages": ["mxfs-<v>-1.el8.x86_64.rpm (built, not published)"],
+      "build_check": "none yet: a DKMS build on alma-97",
+      "verify_env": "alma-97 192.168.120.187 (vSphere)",
+      "verify_tests": "RPM install with EPEL dkms; DKMS build; module load; single-node mount",
+      "notes": "Does not compile: LINUX_VERSION_CODE says 5.14 but Red Hat has backported newer block/super APIs, which the version-gated shims in xfs/xfs_platform.h then redefine. Record: D-MODULE-DOES-NOT-BUILD-ON-RHEL9-KERNEL-BACKPORTS-COLLIDE-WITH-VERSION-SHIMS."
+    },
+    "rhel10": {
+      "name": "RHEL / AlmaLinux / Rocky 10",
+      "status": "planned",
+      "kernels": ["6.12.0-x.el10"],
+      "packages": ["rpm"],
+      "notes": "Not attempted. Same backport question as RHEL 9 on a newer base."
+    },
+    "rhel8": {
+      "name": "RHEL / AlmaLinux / Rocky 8",
+      "status": "planned",
+      "kernels": ["4.18.0-x.el8"],
+      "packages": ["rpm"],
+      "notes": "Not attempted. The widest API gap of the Linux targets (docs/future.md)."
+    },
+    "freebsd14": {
+      "name": "FreeBSD 14",
+      "status": "planned",
+      "kernels": ["FreeBSD 14.x"],
+      "packages": ["pkg"],
+      "notes": "A port, not a build target: MXFS is a fork of Linux XFS built as a Linux kernel module. The DLM layer sits behind the platform abstraction (pal/) and carries over; the filesystem needs a new FreeBSD VFS frontend and buffer cache integration (docs/future.md)."
+    }
+  }
+}

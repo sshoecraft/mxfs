@@ -101,15 +101,12 @@ static void mxfs_lease_renew_fn(void *arg)
         mxfs_pal_mutex_unlock(ctx->lock);
 
         /* Single UDP multicast send — replaces N TCP unicast sends;
-         * with peers= one unicast send per listed address */
-        if (ctx->udp_sock) {
-            if (mxfs_static_peers_active(&ctx->peers))
-                mxfs_static_peers_sendto(&ctx->peers, ctx->udp_sock, &msg,
-                                         sizeof(msg), ctx->udp_port);
-            else
-                mxfs_pal_udp_sendto(ctx->udp_sock, &msg, sizeof(msg),
-                                    ctx->send_addr, ctx->udp_port);
-        }
+         * plus one unicast send per peer= address, or only those under
+         * peers= */
+        if (ctx->udp_sock)
+            mxfs_static_peers_send(&ctx->peers, ctx->udp_sock, &msg,
+                                   sizeof(msg), ctx->send_addr,
+                                   ctx->udp_port);
 
         /* Sleep for the remainder of the renewal interval.
          * Use condvar timed wait instead of sleep so that
@@ -175,7 +172,7 @@ static void mxfs_lease_udp_recv_fn(void *arg)
         if (ret < (int)MXFS_LEASE_UDP_MSG_V1_LEN)
             continue;
 
-        /* peers=: only the listed addresses are the cluster */
+        /* peers= (exclusive): only the listed addresses are the cluster */
         if (!mxfs_static_peers_admit(&ctx->peers, sender_host))
             continue;
 
@@ -374,10 +371,10 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
     /* UDP multicast/broadcast configuration */
     ctx->udp_port = lease_port > 0 ? lease_port : MXFS_LEASE_PORT;
     ctx->use_broadcast = use_broadcast;
-    if (mxfs_static_peers_active(peers)) {
+    if (mxfs_static_peers_active(peers))
         ctx->peers = *peers;
+    if (mxfs_static_peers_exclusive(peers))
         ctx->use_broadcast = false;
-    }
 
     if (mcast_addr && mcast_addr[0] != '\0')
         snprintf(ctx->mcast_addr, sizeof(ctx->mcast_addr), "%s", mcast_addr);
@@ -428,11 +425,14 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
     /* Set receive timeout for clean shutdown */
     mxfs_pal_udp_set_recv_timeout(ctx->udp_sock, 500);
 
-    if (mxfs_static_peers_active(&ctx->peers)) {
-        /* unicast only: no group membership, no broadcast */
+    if (mxfs_static_peers_active(&ctx->peers))
         mxfs_pal_log(MXFS_LOG_INFO,
-                     "lease: static peer list, %u address(es), port %u",
-                     ctx->peers.count, ctx->udp_port);
+                     "lease: %s peer list, %u address(es), port %u",
+                     ctx->peers.exclusive ? "exclusive (peers=)" :
+                     "additive (peer=)", ctx->peers.count, ctx->udp_port);
+
+    if (mxfs_static_peers_exclusive(&ctx->peers)) {
+        /* unicast only: no group membership, no broadcast */
     } else if (ctx->use_broadcast) {
         ret = mxfs_pal_udp_set_broadcast(ctx->udp_sock);
         if (ret < 0) {
@@ -484,7 +484,7 @@ struct mxfs_lease_ctx *mxfs_lease_create(mxfs_node_id_t local_node,
                  (unsigned long long)ctx->default_duration_ms,
                  (unsigned long long)ctx->renew_interval_ms,
                  (unsigned long long)ctx->timeout_ms,
-                 mxfs_static_peers_active(&ctx->peers) ? "peers" :
+                 mxfs_static_peers_exclusive(&ctx->peers) ? "peers" :
                  ctx->use_broadcast ? "broadcast" : ctx->mcast_addr,
                  ctx->udp_port);
 

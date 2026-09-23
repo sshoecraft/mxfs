@@ -1,3 +1,97 @@
+## 2026-09-23 — 0.89.78 — the module builds on Proxmox VE 9's kernels, and no package is built unless it does
+
+0.89.77's .deb failed to install on every Proxmox VE 9 node: its DKMS build of
+`mxfs.ko` broke against the Proxmox kernel (6.17.2-1-pve on PVE 9.1.1) and
+against PVE 9's current default kernel (7.0.14-19-pve). The rig builds only
+against Ubuntu's 6.8, so the release gate never compiled these paths.
+Record: D-PVE9-DKMS-BUILD-FAILS-ON-PROXMOX-KERNELS-6.17-AND-7.0-0.89.77.
+
+- **6.16+:** `d_hash_and_lookup()` is VFS-internal; the dirshard mkdir ioctl
+  uses `try_lookup_noperm()` there (arguments reversed) and now skips an
+  `ERR_PTR` return, which the old call could also produce and the code used as
+  a dentry. `destroy_timer_on_stack()` became `timer_destroy_on_stack()`;
+  `xfs_platform.h` maps the new name back for older kernels.
+- **7.0:** `i_state` is a struct behind accessors. Every MXFS read now goes
+  through `mxfs_istate()` (`xfs_platform.h`), which returns the flags as an
+  unsigned long on every kernel, so the `%lx` diagnostics print correctly
+  instead of passing a struct through varargs (41 reads); the three writes use
+  `inode_state_assign_raw()`. The iomap read path uses the
+  `iomap_bio_read_folio`/`iomap_bio_readahead` wrappers (the read context is
+  now an argument); `mmap_prepare` uses the `vma_flags` descriptor helpers;
+  `kernel_bind`/`kernel_connect` take their address through `void *`, which
+  converts to both the old `struct sockaddr *` and the new
+  `struct sockaddr_unsized *`.
+- The 7.0 version gates are proven at the ends that exist here (6.17 old
+  form, 7.0 new form); 6.18 and 6.19 were not compiled.
+- **`scripts/pve_kbuild_check.sh`** compiles the module, staged exactly as the
+  .deb stages it, against Proxmox VE kernel headers in a Debian 13 container
+  (the current default kernel, plus any version named). `scripts/release.sh`
+  runs it first and builds no package if it fails.
+- Verified builds: clyde 6.8.0-101 (rc 0), 6.17.2-1-pve and 7.0.14-19-pve
+  (`PVE_KBUILD_OK`, srcversion 1822F50D479D56C14C76006 on both).
+- **The packages now declare `target_cache_protected=1`.** 0.89.77's
+  `/etc/modprobe.d/mxfs.conf` set only `force_transport=1`, and with the
+  module's `fua_disable=1` default every clustered mount was refused
+  (`P-DOMAIN-REFUSED`): no one could mount the released package. The rig
+  never saw it because its prep loads the option itself. It is the released,
+  tested configuration: the storage's write cache survives power loss, or
+  target power loss is out of scope. The README states that scope where it
+  describes the released configuration. Record:
+  D-RELEASE-PACKAGE-CONFIG-REFUSES-EVERY-CLUSTERED-MOUNT-0.89.77.
+- **New mount option `peer=ADDR` (repeatable): additional peers on top of
+  multicast discovery.** Multicast runs as usual and every discovery, lease
+  and nudge datagram is also unicast to each listed address; nobody is
+  dropped. It reaches a node the multicast group cannot, such as one on
+  another network. `peers=` keeps its meaning — the list is the whole
+  cluster, multicast off, everyone else dropped — and is now the exclusive
+  form of one shared list: a repeated `peers=` adds to it instead of silently
+  replacing the earlier addresses, and `peer=` addresses given with it join
+  it. `dlm/static_peers.h` carries an `exclusive` flag and one
+  `mxfs_static_peers_send()` used by discovery, lease and both CAW nudges; the
+  multicast join and the sender filters apply only to an exclusive list.
+  `P-PEERS-MISMATCH` now fires only when this node does not unicast to the
+  sender. `/proc/mounts` shows `peers=A/B` or `peer=A,peer=B`. Documented in
+  `mxfs(5)` and `docs/discovery.md`.
+- **Proxmox storage plugin: one mount, not a stack.** It compared the
+  configured `blockdevice` to `/proc/mounts` as a string, so a stable name
+  (`/dev/disk/by-path/...`) never matched `/dev/sdX`: the storage read
+  inactive while mounted and every activation mounted it again (pve9-1: three
+  stacked mounts after `pvesm add`, four after `pvesm remove`). It now compares
+  device numbers. Record: D-PVE-PLUGIN-STACKS-MOUNTS-WHEN-BLOCKDEVICE-IS-A-STABLE-NAME.
+- The packaged tools report the package version; they reported the
+  `mxfs_common.h` fallback, 0.10.0, because nothing passed the version in.
+- **Proxmox VE 9 verification of the module fixes** (pve9-1/pve9-2, QNAP LUN,
+  `tests/evidence/pve9_release_0.89.78/`): the .deb DKMS-built in 259-272 s
+  on 2 vCPUs over the broken 0.89.77; two-node TCP mount, 256 MiB cross-node
+  checksums, 500 creates / 111 remote deletes (389 on both), `chk_mxfs` clean;
+  `peers=` mount and five refused values; then `proxmox-default-kernel` to
+  7.0.14-19-pve, DKMS auto-built, reboot, iSCSI back by itself, the earlier
+  file's checksum unchanged and new cross-node writes matching. The rebuilt
+  packages then mounted with no hand-set option, `peer=` joined both nodes
+  with multicast blocked by iptables, a repeated `peers=` merged into one
+  list, and the plugin held exactly one mount (`pve9_release_0.89.78b/`).
+- **The 2/tcp suite binds the rig's LUN by WWN, never `/dev/sda`.** On
+  test1/test2 `sda` was the LIO bench target on test32, not the QNAP LUN
+  `data/rigs.json` names, so every 2/tcp suite since 2026-09-22 ran there. On
+  s173 a PREEMPT AND ABORT against the destroyed node deadlocked LIO
+  (`core_scsi3_pro_preempt → core_tmr_lun_reset → target_put_cmd_and_wait`),
+  the survivor lost its storage and self-fenced as designed, and crash_audit
+  failed on the target. `run.sh` now defaults tcp to
+  `/dev/disk/by-id/wwn-0x<qnap lun_wwid>` from `data/rigs.json`. Record:
+  D-2TCP-SUITE-BINDS-SDA-AND-RUNS-ON-THE-LIO-BENCH-TARGET-NOT-THE-QNAP.
+- **No RPM is published.** On AlmaLinux 9.7 (kernel 5.14.0-611.5.1.el9_7) the
+  module does not compile: RHEL's 5.14 carries backports that the
+  version-gated shims in `xfs/xfs_platform.h` redefine, and lacks APIs they
+  call. The RPM is removed from the 0.89.77 release (asset, SHA256SUMS and
+  notes) and `scripts/release.sh` builds it but attaches only the .deb files.
+  The RPM's `%post` also reported success with no module built. Records:
+  D-MODULE-DOES-NOT-BUILD-ON-RHEL9-KERNEL-BACKPORTS-COLLIDE-WITH-VERSION-SHIMS,
+  D-RPM-INSTALL-REPORTS-SUCCESS-WHEN-THE-DKMS-BUILD-FAILED.
+- **Regression (rig, 6.8):** full 2/tcp suite on the QNAP LUN, s174 on
+  EDB0D0BF2AC901EDC1A661E: 30/30 PASS, crash_audit 248 s with the fence
+  proving exclusion, replay complete in 77 s and all 165 acknowledged files
+  verified (`tests/evidence/suite_2tcp_s174.log`).
+
 ## 2026-09-23 — 0.89.77 — release packages for Debian, Proxmox and RPM systems, built so their tools run on the systems they target
 
 - **`scripts/release.sh` builds every release package** into `dist/<version>/`:

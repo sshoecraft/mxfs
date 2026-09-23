@@ -2422,8 +2422,9 @@ mxfs_sock_t *mxfs_pal_tcp_connect(const char *host, uint16_t port)
 		return NULL;
 	}
 
-	ret = kernel_connect(s->sk, (struct sockaddr *)&addr,
-			     sizeof(addr), 0);
+	/* void *: kernel_connect/kernel_bind take struct sockaddr_unsized *
+	 * from 7.0 and struct sockaddr * before; void * converts to either. */
+	ret = kernel_connect(s->sk, (void *)&addr, sizeof(addr), 0);
 	if (ret) {
 		sock_release(s->sk);
 		kfree(s);
@@ -2475,7 +2476,7 @@ mxfs_sock_t *mxfs_pal_tcp_listen(uint16_t port)
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(port);
 
-	ret = kernel_bind(s->sk, (struct sockaddr *)&addr, sizeof(addr));
+	ret = kernel_bind(s->sk, (void *)&addr, sizeof(addr));
 	if (ret) {
 		sock_release(s->sk);
 		kfree(s);
@@ -2811,7 +2812,7 @@ mxfs_sock_t *mxfs_pal_udp_open(uint16_t port)
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(port);
 
-	ret = kernel_bind(s->sk, (struct sockaddr *)&addr, sizeof(addr));
+	ret = kernel_bind(s->sk, (void *)&addr, sizeof(addr));
 	if (ret) {
 		sock_release(s->sk);
 		kfree(s);

@@ -22,6 +22,7 @@ SCRIPTDIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPTDIR/common.sh"
 
 VERSION=$(mxfs_version)
+VERSION_CFLAGS=$(mxfs_version_cflags)
 OUTDIR="${1:-$SRCDIR}"
 
 mxfs_banner "Building .rpm package"
@@ -104,10 +105,10 @@ on-disk journaling, and zero-config UDP multicast peer discovery.
 
 %build
 cd tools
-gcc -Wall -Wextra -O2 -Iinclude -o mkfs.mxfs mkfs_mxfs.c
-gcc -Wall -Wextra -O2 -Iinclude -o chk_mxfs chk_mxfs.c
-gcc -Wall -Wextra -O2 -Iinclude -o resize_mxfs resize_mxfs.c
-gcc -Wall -Wextra -O2 -Iinclude -o mxfs_admin mxfs_admin.c
+gcc -Wall -Wextra -O2 -Iinclude ${VERSION_CFLAGS} -o mkfs.mxfs mkfs_mxfs.c
+gcc -Wall -Wextra -O2 -Iinclude ${VERSION_CFLAGS} -o chk_mxfs chk_mxfs.c
+gcc -Wall -Wextra -O2 -Iinclude ${VERSION_CFLAGS} -o resize_mxfs resize_mxfs.c
+gcc -Wall -Wextra -O2 -Iinclude ${VERSION_CFLAGS} -o mxfs_admin mxfs_admin.c
 
 %install
 # DKMS source

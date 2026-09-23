@@ -63,6 +63,8 @@
 #include "xfs_ag.h"
 #include "xfs_inode_util.h"
 #include "xfs_mxfs_dlm.h"
+#include <linux/version.h>
+#include <linux/namei.h>	/* try_lookup_noperm, 6.16+ */
 #include "../dlm/v5_mount.h"	/* sess473: mxfs_v5_dlm_is_single_node (D-0533 probe revalidation) */
 #include <linux/delay.h>	/* sess470: msleep in the per-shard settle */
 #include "xfs_mxfs_dirshard.h"
@@ -2291,8 +2293,18 @@ mxfs_dirshard_ioc_mkdir(
 		q.name = req.name;
 		q.len = name.len;
 		q.hash_len = hashlen_string(filp->f_path.dentry, req.name);
+		/*
+		 * From 6.16 d_hash_and_lookup() is VFS-internal; its public
+		 * replacement is try_lookup_noperm(), arguments reversed.  Both
+		 * return an ERR_PTR when the filesystem's ->d_hash fails (the
+		 * ASCII case-insensitive dentry ops have one), never a dentry.
+		 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 16, 0)
+		dentry = try_lookup_noperm(&q, filp->f_path.dentry);
+#else
 		dentry = d_hash_and_lookup(filp->f_path.dentry, &q);
-		if (dentry) {
+#endif
+		if (!IS_ERR_OR_NULL(dentry)) {
 			if (d_is_negative(dentry))
 				d_invalidate(dentry);
 			dput(dentry);

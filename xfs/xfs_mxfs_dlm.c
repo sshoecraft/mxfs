@@ -19933,7 +19933,7 @@ mxfs_drain_watch_disarm(
 	if (!w->armed)
 		return;
 	timer_delete_sync(&w->timer);
-	destroy_timer_on_stack(&w->timer);
+	timer_destroy_on_stack(&w->timer);
 	w->armed = false;
 }
 
@@ -21802,7 +21802,7 @@ skip_bast_cluster_stale:
 					orphan_only ? "orphan_rearm" :
 					drain_retry ? "drain_rearm" :
 						      "obligation_rearm",
-					vip->i_state);
+					mxfs_istate(vip));
 			}
 		}
 		/* sess387 design-consult ruling (c): a deferred obligation LIVELOCKS if
@@ -22077,7 +22077,7 @@ skip_bast_cluster_stale:
 				xfs_irele(ip);	/* dwork already armed */
 		} else {
 			pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=terminal_rearm i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
-				(unsigned long long)ip->i_ino, vip->i_state);
+				(unsigned long long)ip->i_ino, mxfs_istate(vip));
 		}
 		wake_up_all(&ip->i_dlm_wait);
 		return;
@@ -22126,7 +22126,7 @@ skip_bast_cluster_stale:
 				xfs_irele(ip);	/* dwork already armed */
 		} else {
 			pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=admit_gate_rearm i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
-				(unsigned long long)ip->i_ino, vip->i_state);
+				(unsigned long long)ip->i_ino, mxfs_istate(vip));
 		}
 		wake_up_all(&ip->i_dlm_wait);
 		return;
@@ -22169,7 +22169,7 @@ skip_bast_cluster_stale:
 				xfs_irele(ip);	/* dwork already armed */
 		} else {
 			pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=dio_rearm i_state=0x%lx (inode evicting; skipping dwork re-arm)\n",
-				(unsigned long long)ip->i_ino, vip->i_state);
+				(unsigned long long)ip->i_ino, mxfs_istate(vip));
 		}
 		wake_up_all(&ip->i_dlm_wait);
 		return;
@@ -25039,7 +25039,7 @@ reg_durable_done:
 			} else {
 				pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=rel_stale_defer i_state=0x%lx (inode evicting; skipping deferred release)\n",
 					(unsigned long long)ip->i_ino,
-					vip->i_state);
+					mxfs_istate(vip));
 			}
 			wake_up_all(&ip->i_dlm_wait);
 			return;
@@ -25219,7 +25219,7 @@ stale:
 			mp ? mp->m_sb.sb_agcount : 0,
 			pag, pag ? (int)pag_agno(pag) : -1,
 			ip->i_dlm_bastq_src,
-			atomic_read(&VFS_I(ip)->i_count), VFS_I(ip)->i_state);
+			atomic_read(&VFS_I(ip)->i_count), mxfs_istate(VFS_I(ip)));
 		if (n <= 4)
 			dump_stack();
 	}
@@ -25311,7 +25311,7 @@ mxfs_dlm_bast_work_fn(
 	 */
 	{
 		int cnt = atomic_read(&VFS_I(ip)->i_count);
-		unsigned long st = VFS_I(ip)->i_state;
+		unsigned long st = mxfs_istate(VFS_I(ip));
 		if (unlikely(cnt < 1 || (st & I_CLEAR)))
 			pr_warn("mxfs: P60-BWFN-BADREF ino=%llu i_count=%d i_state=0x%lx I_CLEAR=%d (phantom bast queue — NOT releasing)\n",
 				(unsigned long long)ip->i_ino, cnt, st,
@@ -25417,7 +25417,7 @@ static bool
 mxfs_dlm_dwork_safe_irele(struct xfs_inode *ip, int site)
 {
 	int cnt = atomic_read(&VFS_I(ip)->i_count);
-	unsigned long st = VFS_I(ip)->i_state;
+	unsigned long st = mxfs_istate(VFS_I(ip));
 
 	if (unlikely(cnt < 1 || (st & (I_FREEING | I_CLEAR)))) {
 		pr_warn("mxfs: P124-DWFN-BADREF ino=%llu site=%d i_count=%d i_state=0x%lx (phantom dwork queue — NOT releasing)\n",
@@ -27586,7 +27586,7 @@ __mxfs_dlm_bast_notify(
 				pr_warn_ratelimited(
 				    "mxfs: P-ACQ-ORPHAN-FREEING ino=%llu i_state=0x%lx (inode evicting; teardown will release)\n",
 					(unsigned long long)ino,
-					VFS_I(ip)->i_state);
+					mxfs_istate(VFS_I(ip)));
 			}
 			xfs_irele(ip);
 			return;
@@ -28638,7 +28638,7 @@ mxfs_incarn_revoke_work_fn(
 	 * state that proves it, before iput trips its BUG on a cleared inode.
 	 */
 	{
-		unsigned long st = READ_ONCE(vi->i_state);
+		unsigned long st = mxfs_istate(vi);
 		int cnt = atomic_read(&vi->i_count);
 
 		if (cnt < 1 || (st & (I_FREEING | I_CLEAR | I_WILL_FREE)))
@@ -28732,7 +28732,7 @@ mxfs_incarn_poison(
 					(unsigned long long)ip->i_ino,
 					VFS_I(ip)->i_generation,
 					atomic_read(&VFS_I(ip)->i_count),
-					VFS_I(ip)->i_state,
+					mxfs_istate(VFS_I(ip)),
 					(unsigned long)ip->i_flags,
 					cur, ip, n, __builtin_return_address(0));
 			if (n <= 4)
@@ -37536,7 +37536,7 @@ restart:
 				 */
 				pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=demwait_redrive i_state=0x%lx — evicting; running dead-demote release INLINE\n",
 					(unsigned long long)ip->i_ino,
-					VFS_I(ip)->i_state);
+					mxfs_istate(VFS_I(ip)));
 				{
 					struct mxfs_dirdrain_task dde;
 
@@ -37612,7 +37612,7 @@ restart:
 		u64 t0, dt;
 		static atomic64_t caw_n, caw_ns, caw_new_n;
 		s64 cn;
-		bool is_new = (VFS_I(ip)->i_state & I_NEW) ||
+		bool is_new = (mxfs_istate(VFS_I(ip)) & I_NEW) ||
 			      (ip->i_flags & XFS_INEW);
 
 		/*
@@ -37912,7 +37912,7 @@ restart:
 				pr_warn_ratelimited(
 				    "mxfs: P60-EDEADLK-FREEING ino=%llu i_state=0x%lx (inode evicting; draining inline)\n",
 					(unsigned long long)ip->i_ino,
-					VFS_I(ip)->i_state);
+					mxfs_istate(VFS_I(ip)));
 				MXFS_SET_DEMOTER(ip);
 				{
 					struct mxfs_dirdrain_task dde;
@@ -38843,7 +38843,7 @@ restart:
 					pr_warn_ratelimited(
 					    "mxfs: P60-ACQBAST-FREEING ino=%llu i_state=0x%lx (inode evicting; ilock_end/teardown will release)\n",
 						(unsigned long long)ip->i_ino,
-						VFS_I(ip)->i_state);
+						mxfs_istate(VFS_I(ip)));
 				}
 			}
 		} else {
@@ -38912,7 +38912,7 @@ restart:
 		} else {
 			pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=batch_arm i_state=0x%lx (inode evicting; skipping MHT dwork arm — eviction serves the parked BAST)\n",
 				(unsigned long long)ip->i_ino,
-				VFS_I(ip)->i_state);
+				mxfs_istate(VFS_I(ip)));
 		}
 	}
 	wake_up_all(&ip->i_dlm_wait);
@@ -39247,7 +39247,7 @@ mxfs_dlm_ilock_end(
 		} else {
 			pr_warn_ratelimited("mxfs: P134-ILEND-FREEING ino=%llu site=idle_arm i_state=0x%lx (inode evicting; skipping idle-release arm — in-flight eviction owns teardown)\n",
 				(unsigned long long)ip->i_ino,
-				VFS_I(ip)->i_state);
+				mxfs_istate(VFS_I(ip)));
 		}
 	}
 
@@ -39315,7 +39315,7 @@ mxfs_dlm_ilock_end(
 		} else {
 			pr_warn_ratelimited("mxfs: P134-ILEND-FREEING ino=%llu site=need_flush i_state=0x%lx (inode evicting; release owned by in-flight eviction)\n",
 				(unsigned long long)ip->i_ino,
-				VFS_I(ip)->i_state);
+				mxfs_istate(VFS_I(ip)));
 		}
 	}
 
@@ -41092,7 +41092,7 @@ mxfs_dlm_evict(
 				ip->i_dlm_demoter != NULL,
 				ip->i_dlm_bast_pending, ip->i_dlm_stale,
 				atomic_read(&VFS_I(ip)->i_count),
-				VFS_I(ip)->i_state, current->comm,
+				mxfs_istate(VFS_I(ip)), current->comm,
 				ip->i_dlm_exh_pid, ip->i_dlm_exh_comm,
 				ip->i_dlm_exh_since_ns ?
 				(s64)((ktime_get_real_ns() -
@@ -41275,7 +41275,7 @@ mxfs_dlm_evict(
 
 				while (n--) {
 					int cnt = atomic_read(&VFS_I(ip)->i_count);
-					unsigned long st = VFS_I(ip)->i_state;
+					unsigned long st = mxfs_istate(VFS_I(ip));
 
 					if (cnt < 1 || (st & (I_FREEING | I_CLEAR))) {
 						pr_warn("mxfs: P204-CANCEL-BADREF ino=%llu i_count=%d i_state=0x%lx — NOT releasing\n",
@@ -49905,7 +49905,7 @@ mxfs_dlm_queue_pr_demote(struct xfs_inode *ip, unsigned int delay_ms,
 		ip->i_dlm_bast_pending = false;
 		spin_unlock(&ip->i_dlm_lock);
 		pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=pr_demote src=%u i_state=0x%lx (inode evicting; skipping PR demote arm)\n",
-			(unsigned long long)ip->i_ino, src, vip->i_state);
+			(unsigned long long)ip->i_ino, src, mxfs_istate(vip));
 		return false;
 	}
 	ip->i_dlm_bastq_src = src;
@@ -49983,7 +49983,7 @@ mxfs_dlm_queue_ex_demote(struct xfs_inode *ip, unsigned int delay_ms,
 		ip->i_dlm_bast_pending = false;
 		spin_unlock(&ip->i_dlm_lock);
 		pr_warn_ratelimited("mxfs: P134-BASTQ-FREEING ino=%llu site=ex_demote src=%u i_state=0x%lx (inode evicting; skipping EX demote arm)\n",
-			(unsigned long long)ip->i_ino, src, vip->i_state);
+			(unsigned long long)ip->i_ino, src, mxfs_istate(vip));
 		return false;
 	}
 	ip->i_dlm_bastq_src = src;
@@ -50611,7 +50611,7 @@ mxfs_dlm_pr_sweep_work_fn(struct work_struct *work)
 		bool p135_cyc = false;
 		int p135_i;
 
-		if (!(inode->i_state & (I_FREEING | I_WILL_FREE | I_NEW)) &&
+		if (!(mxfs_istate(inode) & (I_FREEING | I_WILL_FREE | I_NEW)) &&
 		    S_ISREG(inode->i_mode)) {
 			ip = XFS_I(inode);
 			/* cheap unlocked prefilter — the demote helper
@@ -51506,7 +51506,7 @@ static int mxfs_pin_census_set(const char *val, const struct kernel_param *kp)
 		struct xfs_inode *ip;
 		int cnt = atomic_read(&inode->i_count);
 
-		if (inode->i_state & (I_FREEING | I_WILL_FREE | I_NEW))
+		if (mxfs_istate(inode) & (I_FREEING | I_WILL_FREE | I_NEW))
 			continue;
 		ip = XFS_I(inode);
 		if (n++ > 400) {
@@ -51514,7 +51514,7 @@ static int mxfs_pin_census_set(const char *val, const struct kernel_param *kp)
 			break;
 		}
 		pr_warn("mxfs: PIN-CENSUS ino=%llu i_count=%d i_state=0x%lx on_lru=%d nlink=%u mode_reg=%d dlm_mode=%u dlm_state=%u exh=%u prh=%u bpend=%d work_busy=%d dwork_busy=%d\n",
-			(unsigned long long)ip->i_ino, cnt, inode->i_state,
+			(unsigned long long)ip->i_ino, cnt, mxfs_istate(inode),
 			list_empty(&inode->i_lru) ? 0 : 1,
 			inode->i_nlink, S_ISREG(inode->i_mode) ? 1 : 0,
 			ip->i_dlm_mode, ip->i_dlm_state,
@@ -51592,7 +51592,7 @@ static void mxfs_lru_sweep_fn(struct work_struct *work)
 		if (nb >= MXFS_LRU_SWEEP_BATCH)
 			break;
 		spin_lock(&inode->i_lock);
-		if (!(inode->i_state & (I_DIRTY_ALL | I_SYNC | I_FREEING |
+		if (!(mxfs_istate(inode) & (I_DIRTY_ALL | I_SYNC | I_FREEING |
 					I_WILL_FREE | I_NEW)) &&
 		    !atomic_read(&inode->i_count) &&
 		    list_empty(&inode->i_lru)) {
@@ -54360,7 +54360,7 @@ mxfs_inode_dlm_defer_bast(
 				pr_warn("mxfs: P130-DEFERBAST-DUP ino=%llu already_pending=%d i_count=%d i_state=0x%lx dlm_mode=%u dlm_state=%u tp=%px pid=%d comm=%s\n",
 					(unsigned long long)ip->i_ino, p130_ndup,
 					atomic_read(&VFS_I(ip)->i_count),
-					VFS_I(ip)->i_state,
+					mxfs_istate(VFS_I(ip)),
 					(unsigned)ip->i_dlm_mode,
 					(unsigned)ip->i_dlm_state, tp,
 					current->pid, current->comm);
@@ -54577,7 +54577,7 @@ mxfs_trans_drain_inode_unlocks(
 		 */
 		{
 			int p_cnt = atomic_read(&VFS_I(ip)->i_count);
-			unsigned long p_st = VFS_I(ip)->i_state;
+			unsigned long p_st = mxfs_istate(VFS_I(ip));
 			static atomic_t p127_n = ATOMIC_INIT(0);
 			if (atomic_inc_return(&p127_n) <= 8000)
 				pr_warn("mxfs: P127-TRANSDRAIN ino=%llu i_count=%d i_state=0x%lx ip=%px pid=%d comm=%s\n",

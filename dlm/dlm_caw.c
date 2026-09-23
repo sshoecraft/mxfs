@@ -4666,12 +4666,9 @@ static void caw_send_bast_mcast(struct mxfs_dlm_caw_ctx *ctx,
 	memcpy(msg.volume_uuid, ctx->volume_uuid, 16);
 
 	/* Fire and forget — best effort hint */
-	if (mxfs_static_peers_active(&ctx->bast_peers))
-		mxfs_static_peers_sendto(&ctx->bast_peers, ctx->bast_mcast_sock,
-					 &msg, sizeof(msg), MXFS_CAW_BAST_PORT);
-	else
-		mxfs_pal_udp_sendto(ctx->bast_mcast_sock, &msg, sizeof(msg),
-				     MXFS_DISCOVERY_MCAST, MXFS_CAW_BAST_PORT);
+	mxfs_static_peers_send(&ctx->bast_peers, ctx->bast_mcast_sock,
+			       &msg, sizeof(msg), MXFS_DISCOVERY_MCAST,
+			       MXFS_CAW_BAST_PORT);
 }
 
 /* ccloop 72513a13 sess3: GRANT NUDGE send — fired after a successful slot
@@ -4701,12 +4698,9 @@ static void caw_send_grant_mcast(struct mxfs_dlm_caw_ctx *ctx,
 	memcpy(msg.volume_uuid, ctx->volume_uuid, 16);
 	msg.wake_mask = wake_mask;
 
-	if (mxfs_static_peers_active(&ctx->bast_peers))
-		mxfs_static_peers_sendto(&ctx->bast_peers, ctx->bast_mcast_sock,
-					 &msg, sizeof(msg), MXFS_CAW_BAST_PORT);
-	else
-		mxfs_pal_udp_sendto(ctx->bast_mcast_sock, &msg, sizeof(msg),
-				     MXFS_DISCOVERY_MCAST, MXFS_CAW_BAST_PORT);
+	mxfs_static_peers_send(&ctx->bast_peers, ctx->bast_mcast_sock,
+			       &msg, sizeof(msg), MXFS_DISCOVERY_MCAST,
+			       MXFS_CAW_BAST_PORT);
 }
 
 /* Snapshot the nudge sequence BEFORE the caller's slot read; the paired
@@ -15395,7 +15389,7 @@ static void bast_recv_fn(void *data)
 			continue;
 		}
 
-		/* peers=: only the listed addresses are the cluster */
+		/* peers= (exclusive): only the listed addresses are the cluster */
 		if (!mxfs_static_peers_admit(&ctx->bast_peers, sender_host))
 			continue;
 
@@ -15881,8 +15875,8 @@ int mxfs_dlm_caw_start(struct mxfs_dlm_caw_ctx *ctx)
 	if (ctx->bast_mcast_sock) {
 		mxfs_pal_udp_set_recv_timeout(ctx->bast_mcast_sock, 500);
 
-		/* peers=: unicast only, never join the group */
-		rc = mxfs_static_peers_active(&ctx->bast_peers) ? 0 :
+		/* peers= (exclusive): unicast only, never join the group */
+		rc = mxfs_static_peers_exclusive(&ctx->bast_peers) ? 0 :
 		     mxfs_pal_udp_join_multicast(ctx->bast_mcast_sock,
 						 MXFS_DISCOVERY_MCAST);
 		if (rc < 0) {
@@ -15906,7 +15900,7 @@ int mxfs_dlm_caw_start(struct mxfs_dlm_caw_ctx *ctx)
 				mxfs_pal_log(MXFS_LOG_DEBUG,
 					     "dlm_caw: BAST nudges enabled "
 					     "on %s:%u",
-					     mxfs_static_peers_active(&ctx->bast_peers) ?
+					     mxfs_static_peers_exclusive(&ctx->bast_peers) ?
 						     "static peers" : MXFS_DISCOVERY_MCAST,
 					     MXFS_CAW_BAST_PORT);
 			}

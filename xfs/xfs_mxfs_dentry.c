@@ -131,7 +131,7 @@ mxfs_drevalidate(struct inode *dir, const struct qstr *name,
 	 */
 	{
 		struct inode *vip = VFS_I(ip);
-		unsigned long istate = READ_ONCE(vip->i_state);
+		unsigned long istate = mxfs_istate(vip);
 		int icount = atomic_read(&vip->i_count);
 
 		if (unlikely((istate & (I_FREEING | I_WILL_FREE | I_CLEAR | I_NEW)) ||

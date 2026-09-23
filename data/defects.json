@@ -1399,6 +1399,32 @@
       "next": "Measure native XFS on the same LUN with the same loop for the ceiling. Then profile one node's private-dir create loop (the per-create phases: dialloc/CAW inode reservation, the grant on the new inode, the directory's grant, log force) to find where ~29 ms per create goes; the related shared-directory records attribute most blocked time to the CAW inode-grant wait.",
       "impact": "noblock",
       "impact_why": "a create rate is pace only: the fills that measured it completed every create with no error, loss or crash (s168b alloc_witness PASS, chk_clean release=CLEAN)"
+    },
+    {
+      "id": "D-MODULE-DOES-NOT-BUILD-ON-RHEL9-KERNEL-BACKPORTS-COLLIDE-WITH-VERSION-SHIMS",
+      "severity": "major",
+      "nodes": 1,
+      "dlm": "any",
+      "opened": "2026-09-23",
+      "summary": "mxfs.ko does not compile on RHEL 9 (AlmaLinux 9.7, kernel 5.14.0-611.5.1.el9_7): LINUX_VERSION_CODE says 5.14, so xfs/xfs_platform.h defines shims for APIs Red Hat has already backported (redefinition/conflicting types) and calls APIs RHEL has removed.",
+      "evidence": "alma-97 (192.168.120.187, vSphere), dnf install of mxfs-0.89.78-1.el8.x86_64.rpm with EPEL dkms and kernel-devel present: DKMS build failed in 260 s; make.log: xfs_platform.h:145 redefinition of super_set_uuid; :156 static declaration of bdev_file_open_by_path follows non-static; :160 implicit bdev_open_by_path; :166 file_bdev; :168 struct bdev_handle undefined; :172 implicit bdev_release; :315-317 bdev_can_atomic_write/unit_min/max redefinition; :334 super_set_sysfs_name_id; :379 generic_fill_statx_atomic_writes conflicting types; :638 generic_atomic_write_valid conflicting types. Only the first header's errors were reached.",
+      "next": "Gate the shims on what the kernel provides (RHEL_RELEASE_CODE, or a configure-time probe of the headers) rather than on LINUX_VERSION_CODE, then iterate against the Alma 9.7 headers until it builds; RPM stays unpublished until then.",
+      "impact": "noblock",
+      "impact_why": "A compile failure on a platform no release ships for: the RPM is removed from 0.89.77 and not published for 0.89.78 (scripts/release.sh attaches .deb only), so no user can install MXFS on RHEL; nothing corrupts, loses data, crashes or hangs.",
+      "updated": "2026-09-23"
+    },
+    {
+      "id": "D-RPM-INSTALL-REPORTS-SUCCESS-WHEN-THE-DKMS-BUILD-FAILED",
+      "severity": "medium",
+      "nodes": 1,
+      "dlm": "any",
+      "opened": "2026-09-23",
+      "summary": "The RPM's %post runs dkms build/install without failing the transaction, so dnf prints Complete! and the package is installed with no kernel module when the DKMS build fails; the .deb correctly fails its configure step.",
+      "evidence": "alma-97: dnf install mxfs-0.89.78-1.el8.x86_64.rpm -> DKMS 'Bad return status for module build', then 'Installed: mxfs-0.89.78-1.el8.x86_64 ... Complete!' mxfs_rc=0; dkms status 'mxfs/0.89.78: added' (not built).",
+      "next": "Make %post exit non-zero on a dkms build/install failure (as the .deb postinst does under set -e), with a message naming make.log.",
+      "impact": "noblock",
+      "impact_why": "The RPM is not published (removed from 0.89.77, not attached to 0.89.78), so no user receives this package; the failure mode leaves no module loaded and cannot touch data.",
+      "updated": "2026-09-23"
     }
   ]
 }

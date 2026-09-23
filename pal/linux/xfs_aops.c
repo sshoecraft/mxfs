@@ -1381,14 +1381,28 @@ xfs_vm_read_folio(
 	struct file		*unused,
 	struct folio		*folio)
 {
+	/*
+	 * From 7.0 iomap_read_folio/iomap_readahead take a read context; the
+	 * iomap_bio_* wrappers build one with the plain bio read ops, which is
+	 * what the older calls did.
+	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	iomap_bio_read_folio(folio, &xfs_read_iomap_ops);
+	return 0;
+#else
 	return iomap_read_folio(folio, &xfs_read_iomap_ops);
+#endif
 }
 
 STATIC void
 xfs_vm_readahead(
 	struct readahead_control	*rac)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
+	iomap_bio_readahead(rac, &xfs_read_iomap_ops);
+#else
 	iomap_readahead(rac, &xfs_read_iomap_ops);
+#endif
 }
 
 static int

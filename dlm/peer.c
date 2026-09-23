@@ -218,8 +218,8 @@ static void mxfs_peer_accept_fn(void *arg)
             break;
         }
 
-        /* peers=: only the listed addresses are the cluster */
-        if (mxfs_static_peers_active(&ctx->static_peers)) {
+        /* peers= (exclusive): only the listed addresses are the cluster */
+        if (mxfs_static_peers_exclusive(&ctx->static_peers)) {
             char from[64] = "";
 
             if (mxfs_pal_tcp_getpeername(newsock, from, sizeof(from)) < 0 ||

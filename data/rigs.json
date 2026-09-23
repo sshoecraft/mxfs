@@ -14,7 +14,7 @@
     "restart_forbidden": true,
     "restart_forbidden_note": "This rig's iSCSI target is not restartable for tests: its service is never restarted and its host is never rebooted, by a script or by hand, and no session asks for either (owner's directive, 2026-09-22). A harness whose subject is the target's behaviour across its own restart (tests/target_restart_pr.sh) reads this field first and ABORTs on it before resolving any credential. That tranche runs against a restartable target declared under its own tag here, without this field.",
     "lun_wwid": "naa.6e843b6393a5a6ed918bd4f4fdb8e7d6",
-    "note": "the 50 GiB QNAP iSCSI LUN both TCP-rig nodes reach as /dev/sda; by-id wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6",
+    "note": "the 50 GiB QNAP iSCSI LUN of the 2/tcp rig, bound by run.sh as /dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6. Never by /dev/sda: the nodes also see the liovm bench target, and either can enumerate as sda.",
     "host_image": null,
     "host_image_note": "the LUN lives on the QNAP; no file on this host backs it. /home/steve/disk.img is the fileio image of the earlier SCST rig and is NOT this LUN.",
     "pr_registration_on_session_loss": "purged",
