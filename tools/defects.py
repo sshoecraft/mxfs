@@ -25,6 +25,10 @@ say it, and they DEFAULT TO BLOCKING EVERYTHING:
             `any` blocks both.  It is the default, and it is the honest answer until
             someone has actually looked -- narrowing it is a claim about reach and
             needs the evidence to say so, exactly like a severity does.
+    platform  the operating system it reaches: a key of data/platforms.json (pve9,
+            rhel9, ...) or `any`, the default.  A defect in the RHEL 9 build does not
+            block a Proxmox release; one that has only been seen on the Ubuntu rig
+            still blocks every platform until someone shows it cannot reach them.
 
 Narrowing these fields DISPOSES OF NOTHING. It records which release an open defect blocks; the
 defect stays open, stays in the queue, and still has to be fixed.
@@ -44,6 +48,7 @@ DISPOSES OF NOTHING: the defect stays open, stays in the queue, and still has to
     tools/defects.py -d                       the same queue with each one's next step
     tools/defects.py --at 2/tcp               only what blocks a 2-node TCP release
     tools/defects.py --at 2/tcp --release --gate    exit 1 while anything still blocks it
+    tools/defects.py --at 2/tcp@pve9 --release --gate  the same, for one platform
     tools/defects.py show <id>                one entry in full
     tools/defects.py add     -s high -m "..." [-N 2] [-D tcp] [-n "next step"] [-w "how it shows"]
     tools/defects.py update  <id> [-s ...] [-m ...] [-N ...] [-D ...] [-n ...] [-w ...]
@@ -93,6 +98,22 @@ TRANSPORTS = ("any", "xfs", "caw", "cawd", "cawp", "tcp")
 DEFAULT_NODES = 1
 DEFAULT_DLM = "any"
 
+#: The platforms a defect can be scoped to are the keys of data/platforms.json, plus `any`, the
+#: fail-closed default. Read from the registry so a platform added there is valid here at once.
+DEFAULT_PLATFORM = "any"
+PLATFORM_REGISTRY = Path(__file__).resolve().parents[1] / "data" / "platforms.json"
+
+
+def platform_keys() -> tuple:
+    try:
+        with open(PLATFORM_REGISTRY) as handle:
+            return (DEFAULT_PLATFORM,) + tuple(json.load(handle)["platforms"])
+    except (OSError, ValueError, KeyError):
+        return (DEFAULT_PLATFORM,)
+
+
+PLATFORMS = platform_keys()
+
 #: HOW a record's reach was set, which is not the same question as what it was set to.
 #:
 #: A keyword sweep over a record's prose gives a useful number today; only reading the evidence
@@ -113,7 +134,7 @@ IMPACTS = ("integrity", "stability", "verify", "noblock")
 IMPACT_CLEAR = ("noblock",)
 
 FIELDS = {"severity": "s", "summary": "m", "next": "n", "evidence": "w",
-          "nodes": "N", "dlm": "D", "impact": "I", "impact_why": "impact-why"}
+          "nodes": "N", "dlm": "D", "platform": "P", "impact": "I", "impact_why": "impact-why"}
 
 #: Held across the whole read-modify-write of every mutating subcommand. The ledger is one JSON
 #: document rewritten whole, so without this two concurrent `remove`s each read the same snapshot,
@@ -131,7 +152,8 @@ LOCK_WAIT_SECONDS = 30
 SUBCOMMANDS = ("show", "add", "update", "remove", "rename")
 VALUE_FLAGS = ("-s", "--severity", "--at")
 
-ORDERED = ("id", "severity", "nodes", "dlm", "opened", "updated", "summary", "evidence", "next")
+ORDERED = ("id", "severity", "nodes", "dlm", "platform", "opened", "updated", "summary",
+           "evidence", "next")
 
 
 #: The open lock file, kept for the process's lifetime so the lock is held until it exits. Nothing
@@ -230,15 +252,24 @@ def reach(entry: dict) -> tuple:
     return max(nodes, 1), dlm
 
 
-def blocks(entry: dict, nodes: int, dlm) -> bool:
-    """Does this defect block a release of the `nodes`/`dlm` configuration?
+def platform_of(entry: dict) -> str:
+    """The platform a defect reaches, fail-closed: missing or unknown reads as `any`."""
+    value = str(entry.get("platform", DEFAULT_PLATFORM)).lower()
+    return value if value in PLATFORMS else DEFAULT_PLATFORM
+
+
+def blocks(entry: dict, nodes: int, dlm, platform=None) -> bool:
+    """Does this defect block a release of the `nodes`/`dlm` configuration on `platform`?
 
     It does if that configuration can exercise it: the cluster is at least as large as the
-    smallest one the defect was seen on, and the transport matches or the defect is on both.
-    A `dlm` of None means no transport was named, so every transport counts.
+    smallest one the defect was seen on, the transport matches or the defect is on both, and
+    the defect is not confined to some other platform. A `dlm` or `platform` of None means none
+    was named, so every transport or platform counts.
     """
     seen_nodes, seen_dlm = reach(entry)
     if seen_nodes > nodes:
+        return False
+    if platform is not None and platform_of(entry) not in ("any", platform):
         return False
     if dlm is None:
         return True
@@ -246,26 +277,33 @@ def blocks(entry: dict, nodes: int, dlm) -> bool:
 
 
 def parse_at(text: str) -> tuple:
-    """`2/tcp`, or a bare `2` meaning every transport at that size.
+    """`2/tcp`, `2/tcp@pve9`, or a bare `2` meaning every transport at that size.
 
-    Same notation as the board, the run keys and showstat.sh. A tool that spells the cluster a
-    different way from the harness is one nobody types correctly the first time.
+    Same notation as the board, the run keys and showstat.sh, with `@platform` for the operating
+    system a release is for. A tool that spells the cluster a different way from the harness is
+    one nobody types correctly the first time.
     """
-    match = re.fullmatch(r"\s*(\d+)\s*(?:/\s*([A-Za-z]+))?\s*", str(text))
+    match = re.fullmatch(r"\s*(\d+)\s*(?:/\s*([A-Za-z]+))?\s*(?:@\s*([a-z0-9]+))?\s*", str(text))
     if not match:
-        sys.exit(f"defects: wanted NODES or NODES/TRANSPORT such as 2 or 2/tcp, not {text!r}")
+        sys.exit(f"defects: wanted NODES[/TRANSPORT][@PLATFORM] such as 2, 2/tcp or 2/tcp@pve9, "
+                 f"not {text!r}")
     nodes = int(match.group(1))
     dlm = match.group(2).lower() if match.group(2) else None
+    platform = match.group(3).lower() if match.group(3) else None
     if nodes < 1:
         sys.exit("defects: node count must be at least 1")
     if dlm is not None and dlm not in TRANSPORTS:
         sys.exit(f"defects: transport {dlm!r}; expected one of {list(TRANSPORTS)}")
-    return nodes, dlm
+    if platform is not None and platform not in PLATFORMS:
+        sys.exit(f"defects: platform {platform!r}; expected one of {list(PLATFORMS)} "
+                 f"(data/platforms.json)")
+    return nodes, dlm, platform
 
 
 def gate_label(gate: tuple) -> str:
-    nodes, dlm = gate
-    return "%d-node" % nodes if dlm is None else "%d/%s" % (nodes, dlm)
+    nodes, dlm, platform = gate
+    label = "%d-node" % nodes if dlm is None else "%d/%s" % (nodes, dlm)
+    return label if platform is None else "%s@%s" % (label, platform)
 
 
 def lift_config(argv: list) -> list:
@@ -288,13 +326,13 @@ def lift_config(argv: list) -> list:
             #: `-s 2` is a severity, not a cluster.
             skip = token in VALUE_FLAGS
             continue
-        match = re.fullmatch(r"(\d+)(?:/([A-Za-z]+))?", token)
+        match = re.fullmatch(r"(\d+)(?:/([A-Za-z]+))?(@[a-z0-9]+)?", token)
         if not match:
             break
         nodes, dlm, consumed = match.group(1), match.group(2), 1
         if dlm is None and index + 1 < len(rest) and rest[index + 1].lower() in TRANSPORTS:
             dlm, consumed = rest[index + 1], 2
-        spec = nodes if dlm is None else "%s/%s" % (nodes, dlm)
+        spec = (nodes if dlm is None else "%s/%s" % (nodes, dlm)) + (match.group(3) or "")
         return argv[:1] + rest[:index] + ["--at", spec] + rest[index + consumed:]
     return argv
 
@@ -329,7 +367,9 @@ def config_of(entry: dict) -> str:
     """
     seen_nodes, seen_dlm = reach(entry)
     mark = "?" if source_of(entry) == "heuristic" else ""
-    return "%d/%s%s" % (seen_nodes, seen_dlm, mark)
+    #: `any` is left off: it is every record's default and would widen every line to say nothing.
+    where = "" if platform_of(entry) == DEFAULT_PLATFORM else "@" + platform_of(entry)
+    return "%d/%s%s%s" % (seen_nodes, seen_dlm, where, mark)
 
 
 #: An id is something a person types, greps for, and reads in a one-line queue listing. Past the
@@ -554,6 +594,8 @@ def cmd_add(data: dict, args) -> int:
     if args.impact:
         entry["impact"] = str(args.impact).lower()
         entry["impact_why"] = args.impact_why
+    if args.platform:
+        entry["platform"] = args.platform.lower()
 
     data["defects"].append(entry)
     save(data)
@@ -567,7 +609,7 @@ def cmd_update(data: dict, args) -> int:
     for field in FIELDS:
         value = getattr(args, field if field != "next" else "next_step", None)
         if value is not None and value != "":
-            entry[field] = value.lower() if field in ("dlm", "impact") else value
+            entry[field] = value.lower() if field in ("dlm", "platform", "impact") else value
             changed.append(field)
     #: A record's next step is its investigation, oldest finding first; every
     #: session so far rebuilt it by hand as "old ===== new" because -n replaces.
@@ -582,7 +624,7 @@ def cmd_update(data: dict, args) -> int:
         entry["next"] = (have + " ===== " if have else "") + appended
         changed.append("next")
     if not changed:
-        sys.exit("defects: update needs at least one of -s/-m/-n/-a/-w/-N/-D/-I")
+        sys.exit("defects: update needs at least one of -s/-m/-n/-a/-w/-N/-D/-P/-I")
     #: Checked against what the record will HOLD, not only against what this call passed, so that
     #: `-I noblock` on a record whose reason was written earlier is accepted while `-I noblock` with
     #: no reason anywhere is not.
@@ -593,7 +635,7 @@ def cmd_update(data: dict, args) -> int:
                  "Set both, with -I/--impact.")
     #: Setting reach BY HAND means someone read the record. That is the only thing that upgrades a
     #: heuristic guess to a claim the release gate can rest on.
-    if "nodes" in changed or "dlm" in changed:
+    if "nodes" in changed or "dlm" in changed or "platform" in changed:
         entry["reach_source"] = "evidence"
     if "severity" in changed and str(entry["severity"]).lower() not in SEVERITIES:
         sys.exit(f"defects: severity {entry['severity']!r}; expected one of {list(SEVERITIES)}")
@@ -659,9 +701,9 @@ def main() -> int:
     parser.add_argument("-d", "--detail", action="store_true",
                         help="include each one's next step")
     parser.add_argument("-s", "--severity", help="filter the queue by severity")
-    parser.add_argument("--at", metavar="NODES/DLM",
-                        help="only what blocks that release configuration, e.g. 2/tcp. "
-                             "May also be given bare: `defects.py 2 tcp`")
+    parser.add_argument("--at", metavar="NODES/DLM[@PLATFORM]",
+                        help="only what blocks that release configuration, e.g. 2/tcp or "
+                             "2/tcp@pve9. May also be given bare: `defects.py 2 tcp`")
     parser.add_argument("--release", action="store_true",
                         help="only what blocks a release: data integrity and stability. "
                              "An unadjudicated record blocks.")
@@ -684,6 +726,9 @@ def main() -> int:
                      help="smallest cluster it was observed on (default %d)" % DEFAULT_NODES)
     add.add_argument("-D", "--dlm", choices=TRANSPORTS,
                      help="transport the evidence is on (default %s)" % DEFAULT_DLM)
+    add.add_argument("-P", "--platform", choices=PLATFORMS,
+                     help="platform it reaches, from data/platforms.json (default %s)"
+                          % DEFAULT_PLATFORM)
     add.add_argument("-I", "--impact", choices=IMPACTS,
                      help="the release bar this behaviour crosses; absent blocks every release")
     add.add_argument("--impact-why", dest="impact_why",
@@ -704,6 +749,8 @@ def main() -> int:
                         help="smallest cluster it was observed on")
     update.add_argument("-D", "--dlm", choices=TRANSPORTS,
                         help="transport the evidence is on")
+    update.add_argument("-P", "--platform", choices=PLATFORMS,
+                        help="platform it reaches, from data/platforms.json")
     update.add_argument("-I", "--impact", choices=IMPACTS,
                         help="the release bar this behaviour crosses; %s is the only value that "
                              "takes a record out of --release" % IMPACT_CLEAR[0])
@@ -721,8 +768,8 @@ def main() -> int:
                         "at most %d characters" % MAX_ID)
 
     args = parser.parse_args(lift_config(sys.argv)[1:])
-    for missing in ("at", "release", "gate", "nodes", "dlm", "next_step", "summary", "evidence",
-                    "id", "next", "impact", "impact_why"):
+    for missing in ("at", "release", "gate", "nodes", "dlm", "platform", "next_step", "summary",
+                    "evidence", "id", "next", "impact", "impact_why"):
         if not hasattr(args, missing):
             setattr(args, missing, None)
     #: BEFORE `load`, because the window that loses a record spans the read as well as the write.

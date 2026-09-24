@@ -1,3 +1,216 @@
+## 2026-09-24 — 0.89.81 — the vSphere failures were the guests' clock, not MXFS
+
+No module change. Three vSphere-only records (a lone mount that never renewed
+its lease, a survivor that declared its peer dead after 836 s and then
+returned EIO, and a joiner stuck past its survivor-scan window) had one cause,
+now measured: the Ubuntu 24.04 guests on the nested ESXi hosts lose their
+kernel jiffies clock.
+
+- **What the guest does.** On vstest2, jiffies jumped 516,630 ticks (~516 s at
+  HZ=1000) in 1.4 s of real time, then stood still until real time caught up,
+  resuming at uptime ~630.7 s against the ~632 s the jump predicts. Both
+  CPUs kept taking timer interrupts, userspace kept running, and uptime
+  tracked clyde's clock. Every jiffies-timed sleep in the guest stalls through
+  that window, and every MXFS thread sat asleep with a flat wake count. MXFS
+  then did what it is built to do: a node whose heartbeat stops landing
+  self-fences at lease expiry, and a node whose peer goes silent recovers it.
+  In the same run the peer whose clock did not jump dropped the stalled node
+  and finished recovery 3 s later. No clocksource warning is logged: a VMware
+  guest trusts the TSC and runs no clocksource watchdog. Evidence:
+  `tests/evidence/vsphere_lone_mount_stall/20260923T212257`.
+- **The EIO was the survivor's own self-fence.** In the original run, the
+  node called the survivor had logged nothing for 495 s while its userspace
+  answered every second. Its own lease expired and it withdrew at 683 s,
+  long before the late death declaration.
+- **`tests/vsphere_lone_mount_stall.sh` records the guest's clock.** Each
+  sampler tick now carries jiffies, each CPU's local-timer interrupt count
+  and each MXFS thread's last CPU and voluntary context switches. The verdict
+  reports the longest stretch over which jiffies or any CPU's count stood
+  still.
+- **0.89.80 builds on 6.8.0-53.** The DKMS build installed and loaded on both
+  vSphere guests (`tests/evidence/vsphere_ubuntu_0.89.80`).
+- **Ubuntu 24.04 is a released platform.** The packaged `.deb` was verified
+  at 0.89.80 on two KVM guests (test3/test4, 6.8.0-101): DKMS build and a
+  module loaded from `updates/dkms`, a two-node mount with no options,
+  cross-node checksums, 500 files created on one node and removed from the
+  other (7.2 s and 8.6 s), `chk_mxfs` clean, `peer=` with multicast blocked,
+  and a reboot after which the module auto-loaded and every checksum matched
+  from both nodes (`tests/evidence/ubuntu2404_release_0.89.80`). Together
+  with the rig's 2/tcp suite, that is what `platforms.py` now requires there.
+  A reboot of these guests takes about 3 minutes, and not because of MXFS:
+  with the module unloaded, `lvm2-monitor`'s stop still ran 2 min 40 s,
+  scanning the iSCSI LUN after its session had logged out.
+- **`tools/platforms.py set`** changes a platform's status, `build_check`,
+  `verify_env`, `verify_tests` or `notes`, so `data/platforms.json` keeps one
+  writer. A promotion to `released` still fails `check` until `verify`
+  records the release's version, and it is refused without a `build_check`,
+  because `release.sh` runs that string with `eval`.
+- **`scripts/release.sh --publish --version V`** publishes the verified build
+  in `dist/V/` after the tree has moved on to a later version, and never
+  builds: a rebuild from the later tree would be an unverified package
+  carrying V's number. 0.89.80 was published this way.
+- **`scripts/rhel_kbuild_check.sh`** compiles the module against a RHEL-family
+  kernel's headers in a kept AlmaLinux container (`-i almalinux:9` by
+  default), since a RHEL kernel's version number does not say which APIs Red
+  Hat has backported. Written, not yet run. **`scripts/vnc_screenshot.py`** saves one frame of a
+  VNC console, connecting shared so a watching client keeps its session.
+- Records removed:
+  D-FIRST-MOUNT-HEARTBEAT-LEASE-NEVER-RENEWED-SELF-FENCES-VSPHERE-6.8.0-53,
+  D-SURVIVOR-TAKES-836S-TO-DECLARE-HUNG-PEER-DEAD-THEN-CANNOT-FENCE-MOUNT-EIO,
+  D-JOIN-MOUNT-STUCK-UNKILLABLE-IN-SURVIVOR-SCAN-PAST-ITS-WINDOW (disproved as
+  MXFS defects), and
+  D-MODULE-DOES-NOT-BUILD-ON-UBUNTU-6.8.0-53-FALLOC-CONSTANTS-ABSENT (fixed in
+  0.89.79; its verification had been recorded but the record never removed).
+
+## 2026-09-23 — 0.89.80 — a hung node no longer freezes a Proxmox cluster
+
+A frozen node on Proxmox VE 9 left its survivor unable to write
+indefinitely: death was declared at +60 s, and then no fence could be
+certified, so the dead node's journal was never replayed and its locks stayed
+frozen. 0.89.79 had passed every Proxmox round, and none of them killed a node.
+
+- **Why the survivor could not fence.** The QNAP drops a frozen initiator's
+  registration about 40 s after the freeze, without moving the PR generation
+  (READ KEYS sampled every 2 s: the victim's key gone at +41.8 s), before
+  death is declared. With the key gone, PREEMPT AND ABORT has nothing to
+  name, and the only certifying route is the witnessed LOGICAL UNIT RESET.
+  That route failed twice over on Proxmox:
+  - it was admitted only on two exact kernel releases, `7.1.0-rc7` and
+    `6.8.0-101-generic`, so every Proxmox kernel was refused before issuing
+    (`P238-FENCE-LURESET verdict=kernel-unaudited`);
+  - its user-mode helper was never packaged. The module upcalled
+    `/usr/local/sbin/mxfs_lu_reset_witness.py`, which only the rig's prep
+    installed, so on every packaged install the reset was refused with ENOENT
+    (`P305-LURESET-NOEXEC rc=-2`) whatever the kernel.
+- **Kernels are admitted by the shape of their libiscsi declarations.** New
+  `pal/linux/libiscsi_fingerprint.sh` hashes the TMF enum and the eight
+  serialization members of `struct iscsi_session`; Kbuild runs it against the
+  headers of the kernel being built and compiles the result in. The pin keeps
+  its exact rows and also admits a kernel when that fingerprint equals a read
+  tree's, the running release is the one the module was built for, and the
+  release is not on the new denylist. The log names the admission as
+  structural (`P308-LURESET-PIN-FINGERPRINT`): declarations unchanged, bodies
+  not read. The read 7.1.0-rc7 tree, 6.8.0-101-generic, 6.17.2-1-pve and
+  7.0.14-19-pve all hash to the same value
+  (`scripts/pve_libiscsi_crosscheck.sh`); a Proxmox update that leaves those
+  declarations alone stays admitted.
+- **The helper ships with the module**: `/usr/sbin/mxfs_lu_reset_witness.py`
+  in the .deb and .rpm, which now depend on `python3`, and the module's
+  default `lu_reset_helper` points there. The rig's prep installs it at the
+  same path.
+- **Verified on Proxmox** (`tests/tcp_peer_freeze_death.sh`, `PREP=pve`,
+  pve9-2 frozen): 4 of 4 laps pass, three on 7.0.14-19-pve and one on
+  6.17.2-1-pve — each kernel admitted structurally, the fence certified at
+  about +66 s, the slice replayed, recovery complete by +77 s, the survivor
+  writing from +73–75 s; `chk_mxfs` clean after recovery; the resumed
+  victim's writes bounced off the target with RESERVATION CONFLICT and it
+  withdrew without re-registering. The Ubuntu rig passes the same freeze on
+  the new build. Record:
+  D-PVE-FROZEN-PEER-UNFENCEABLE-LURESET-PIN-REFUSES-PVE-KERNELS-CLUSTER-FROZEN.
+- **The blkid udev rule works.** udev rejected `60-mxfs-blkid.rules` at every
+  boot ("invalid substitution type") because the shell's `$(...)` and
+  `$magic` are udev substitutions too, so filesystem auto-detection never ran.
+  Shell dollars are now written `$$`. On both pve9 nodes the previous boot
+  logged the rejection and the boot on the fixed rule does not, and `lsblk`
+  reports the LUN as `mxfs`. Record:
+  D-UDEV-BLKID-RULE-REJECTED-INVALID-SUBSTITUTION-FS-AUTODETECT-NEVER-WORKS.
+- **Release verification.** The 2/tcp rig suite passes 30 of 30 on this
+  build, and Proxmox VE 9 is verified at 0.89.80 (`platforms.py verify`):
+  install and DKMS on both PVE kernels, no-option mount, cross-node checksums,
+  create and remote delete, `chk_mxfs` clean, `peer=` with multicast blocked,
+  `peers=`, `pvesm` add/remove holding one mount, and a reboot into the default
+  kernel with every checksum intact
+  (`tests/evidence/pve9_release_0.89.80/`). The remote delete took 30.4 s for
+  500 files; that pace is recorded as
+  D-TCP-REMOTE-DELETE-OF-PEER-CREATED-FILES-16-PER-SECOND.
+- **Tooling.** The freeze test gained a Proxmox mode and a reservation-key
+  sampler; `scripts/pve_kbuild_check.sh` prints each build's libiscsi
+  fingerprint.
+
+## 2026-09-23 — 0.89.79 — platforms are release criteria
+
+The release criteria had two dimensions, node count and transport, and no
+notion of the operating system a release is for. That is how 0.89.77 passed
+every gate on the rig's Ubuntu kernel and shipped a .deb that did not build on
+Proxmox VE, the product's target.
+
+- **`data/platforms.json`** lists each platform with a status — `released`
+  (a release claims it), `development`, `planned` — its kernels, packages,
+  build check, verification environment and required tests, and the version
+  last verified with its evidence. Today: `pve9` released (verified at
+  0.89.78); `ubuntu2404` and `rhel9` in development; `rhel10`, `rhel8` and
+  `freebsd14` planned.
+- **`tools/platforms.py`** is its reader and writer: `verify <platform>
+  --version V --evidence DIR` records a verification (the evidence must
+  exist), and `check --version V` fails unless every released platform was
+  verified at exactly that version.
+- **`scripts/release.sh`** runs every released platform's `build_check`
+  before building packages, and `--publish` refuses unless `platforms.py
+  check` passes for the version being published.
+- **Defects carry a `platform`** (`-P`, default `any`, fail-closed like
+  `nodes`/`dlm`), and the gate takes `--at 2/tcp@pve9`. The two RHEL 9
+  records are scoped `@rhel9`.
+- **The .deb pulls in kernel headers.** Proxmox's `dkms` neither depends on
+  nor recommends headers, so an install on a node without them failed its
+  DKMS build. The package now depends on
+  `proxmox-default-headers | linux-headers-generic | linux-headers-amd64 |
+  linux-headers` — the meta-package that tracks the default kernel, so a
+  kernel update brings its headers and DKMS rebuilds. The RPM requires
+  `kernel-devel`.
+- **The .deb builds the module for every installed kernel with headers**, not
+  only the running one. The header meta-package installs the default
+  kernel's headers, which is not the running kernel on a node that has not
+  rebooted since an update, and a fallback kernel keeps a module. It fails if
+  any build fails or no kernel has headers, and says so when the running
+  kernel is the one without them.
+- **Builds on Ubuntu 24.04 kernels before 6.8.0-101.** 6.8.0-53 lacks
+  `FALLOC_FL_ALLOCATE_RANGE` and `FALLOC_FL_MODE_MASK`, which Ubuntu
+  backported later in the 6.8 series; `xfs/xfs_platform.h` defines each only
+  where the kernel headers did not (a version number cannot tell). Verified by
+  a DKMS build on vstest1 (6.8.0-53) and on the rig host (6.8.0-101).
+  Record: D-MODULE-DOES-NOT-BUILD-ON-UBUNTU-6.8.0-53-FALLOC-CONSTANTS-ABSENT.
+- **Rig VMs get ACPI.** The libvirt definitions of test1..test32 and
+  pve9-1/pve9-2 had no `<features>` section: `virsh shutdown` was ignored and
+  a guest's own poweroff halted without switching the VM off (pve9-1's journal
+  reached "System Power Off"; the domain stayed running). New
+  `scripts/libvirt_add_acpi.sh` adds `<acpi/><apic/>` to a definition that has
+  no `<features>`; applied to all 36 lab domains, effective at each one's next
+  start.
+- **Lab VM sizing.** pve9-1/pve9-2 raised to 8 vCPUs (the DKMS build took
+  ~4.5 min per kernel on 2). New `scripts/vsphere_vm_cpus.sh` resizes vSphere
+  VMs through govc with the osimager vCenter credentials, never forcing a
+  power-off; vstest1/vstest2 are at 2 vCPUs.
+- **The vSphere lab's ESXi hosts are nested VMs in VMware Workstation on the
+  rig host**, and were oversubscribed: esxhost1 had 14 vCPUs on threads 0-31
+  (both sockets, overlapping esxhost2's cores), esxhost2 14 vCPUs on 8 cores.
+  Both are now 8 vCPUs on 8 physical cores of their own socket (`0-7,28-35`,
+  `14-21,42-49`). vstest1/vstest2 at 4 vCPUs on those hosts soft-locked on
+  every CPU; at 2 vCPUs vstest1 booted clean 5 of 5.
+- **The vSphere guest lockups are the nested platform, not MXFS.** With the
+  mxfs module file moved out of the module tree (kernel "Not tainted"),
+  vstest2 soft-locked anyway under NFS and raw-LUN load: CPU 0 stuck 48 s in
+  `smp_call_function_many_cond` waiting on a TLB-flush IPI while CPU 1 ran
+  `dd`, and one 12 s load iteration took 379.5 s. Removed from the queue:
+  D-VSPHERE-GUEST-SOFT-LOCKUP-IN-USER-PAGE-FAULT-MAS-WALK-WITH-MXFS-LOADED.
+  The two earlier records seen only on those guests are scoped `@ubuntu2404`
+  and stay open.
+- **New harnesses.** `tests/vsphere_lone_mount_stall.sh` (lone mount, or a
+  timed two-node join, with every instrument streamed off the guest:
+  netconsole, `dmesg -w` over ssh, a per-second sampler, clyde-side uptime
+  probes — a hung guest loses its unflushed page cache on reset);
+  `tests/vsphere_boot_lockup_ab.sh` (repeated idle boots, lockup counts);
+  `tests/vsphere_nfs_control.sh` (the same guests under I/O load with mxfs
+  unloadable); `tests/tcp_peer_freeze_death.sh` (freeze one node of a 2/tcp
+  rig cluster with `virsh suspend`, and time the survivor's death
+  declaration, fence and first write — the suite never froze a node).
+- **A frozen peer is recovered on the rig.** First run of
+  `tcp_peer_freeze_death.sh` (2/tcp, test2 frozen): disconnect seen at
+  +26.7 s, death declared with slot and incarnation at +64.8 s, fence
+  certified at +67.2 s, slice replayed and recovery complete at +78.3 s, the
+  survivor writing by +76 s. On vSphere the survivor's death worker stopped
+  running for ~800 s on a guest proven to lose inter-processor interrupts;
+  that record (D-SURVIVOR-TAKES-836S-...) is scoped `@ubuntu2404` and open.
+
 ## 2026-09-23 — 0.89.78 — the module builds on Proxmox VE 9's kernels, and no package is built unless it does
 
 0.89.77's .deb failed to install on every Proxmox VE 9 node: its DKMS build of

@@ -43,6 +43,12 @@ mxfs_build_tools "$STAGING/usr/sbin"
 # fsck.mxfs symlink for fstab integration
 ln -sf chk_mxfs "$STAGING/usr/sbin/fsck.mxfs"
 
+# The witnessed LOGICAL UNIT RESET helper the module upcalls when a dead
+# node's registration is already gone from the target (pal/linux/lureset.c's
+# default path).  Without it that fence is refused and the survivor stays
+# frozen, so it ships with the module, not with the test rig.
+install -m 755 "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$STAGING/usr/sbin/mxfs_lu_reset_witness.py"
+
 # --- 3. Man pages ---
 echo "--- Installing man pages ---"
 mxfs_stage_manpages "$STAGING"
@@ -70,7 +76,7 @@ Package: mxfs
 Version: ${VERSION}
 Architecture: ${ARCH}
 Maintainer: MXFS Project
-Depends: dkms
+Depends: dkms, python3, proxmox-default-headers | linux-headers-generic | linux-headers-amd64 | linux-headers
 Recommends: open-iscsi
 Section: kernel
 Priority: optional
@@ -91,8 +97,30 @@ cat > "$STAGING/DEBIAN/postinst" << POSTEOF
 set -e
 echo "Registering MXFS ${VERSION} with DKMS ..."
 dkms add -m mxfs -v ${VERSION} 2>/dev/null || true
-dkms build -m mxfs -v ${VERSION}
-dkms install -m mxfs -v ${VERSION}
+# Build for every installed kernel that has headers, not only the running
+# one: the header dependency installs the DEFAULT kernel's headers, which is
+# not the running kernel on a node that has not rebooted since an update,
+# and a fallback kernel with headers should keep a module too.
+built=0
+for kdir in /lib/modules/*; do
+    k=\${kdir##*/}
+    [ -e "\$kdir/build/Makefile" ] || continue
+    echo "Building MXFS ${VERSION} for kernel \$k ..."
+    if ! dkms build -m mxfs -v ${VERSION} -k "\$k" || ! dkms install -m mxfs -v ${VERSION} -k "\$k"; then
+        echo "ERROR: MXFS ${VERSION} did not build for kernel \$k; see /var/lib/dkms/mxfs/${VERSION}/build/make.log" >&2
+        exit 1
+    fi
+    built=\$((built + 1))
+done
+if [ "\$built" = 0 ]; then
+    echo "ERROR: no installed kernel has headers; install the headers package for your kernel" >&2
+    exit 1
+fi
+if [ ! -e "/lib/modules/\$(uname -r)/build/Makefile" ]; then
+    echo "NOTE: the running kernel \$(uname -r) has no headers, so MXFS was built for the"
+    echo "      other installed kernels only. Reboot into one of them, or install the"
+    echo "      headers for \$(uname -r) and run: dkms install -m mxfs -v ${VERSION}"
+fi
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block 2>/dev/null || true
 echo "MXFS ${VERSION} installed. Module will auto-load on boot."

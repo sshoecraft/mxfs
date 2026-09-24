@@ -1,3 +1,6 @@
 # Teach blkid/mount to auto-detect MXFS filesystems.
 # MXFS superblock magic "MXFS" (4D 58 46 53) at byte offset 0.
-SUBSYSTEM=="block", ENV{ID_FS_TYPE}=="", IMPORT{program}="/bin/sh -c 'magic=$(dd if=$env{DEVNAME} bs=1 count=4 2>/dev/null) && [ \"$magic\" = MXFS ] && echo ID_FS_TYPE=mxfs'"
+# udev substitutes $-sequences itself, so every dollar meant for the shell is
+# written $$; only $env{DEVNAME} is udev's.  A bare $( or $magic made udev
+# reject the whole rule ("invalid substitution type"), so it never ran.
+SUBSYSTEM=="block", ENV{ID_FS_TYPE}=="", IMPORT{program}="/bin/sh -c 'magic=$$(dd if=$env{DEVNAME} bs=1 count=4 2>/dev/null) && [ \"$$magic\" = MXFS ] && echo ID_FS_TYPE=mxfs'"

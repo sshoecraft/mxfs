@@ -103,6 +103,27 @@ static inline unsigned long mxfs_istate(struct inode *inode)
 #define timer_destroy_on_stack(timer)	destroy_timer_on_stack(timer)
 #endif
 
+/* FALLOC_FL_ALLOCATE_RANGE and FALLOC_FL_MODE_MASK are newer than 6.8, and
+ * vendors backport them inside a point series: Ubuntu's 6.8.0-101 has both,
+ * its 6.8.0-53 has neither.  A kernel version cannot say which, so define them
+ * only where the kernel's own headers did not. */
+#include <linux/falloc.h>
+#ifndef FALLOC_FL_ALLOCATE_RANGE
+#define FALLOC_FL_ALLOCATE_RANGE	0x00
+#endif
+#ifndef FALLOC_FL_MODE_MASK
+#ifdef FALLOC_FL_WRITE_ZEROES
+#define FALLOC_FL_MODE_MASK	(FALLOC_FL_ALLOCATE_RANGE | FALLOC_FL_PUNCH_HOLE | \
+				 FALLOC_FL_COLLAPSE_RANGE | FALLOC_FL_ZERO_RANGE | \
+				 FALLOC_FL_INSERT_RANGE | FALLOC_FL_UNSHARE_RANGE | \
+				 FALLOC_FL_WRITE_ZEROES)
+#else
+#define FALLOC_FL_MODE_MASK	(FALLOC_FL_ALLOCATE_RANGE | FALLOC_FL_PUNCH_HOLE | \
+				 FALLOC_FL_COLLAPSE_RANGE | FALLOC_FL_ZERO_RANGE | \
+				 FALLOC_FL_INSERT_RANGE | FALLOC_FL_UNSHARE_RANGE)
+#endif
+#endif
+
 /* dax_break_layout helpers — stub for non-DAX builds */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
 static inline int dax_break_layout(struct inode *inode, loff_t start,

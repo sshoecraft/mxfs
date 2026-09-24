@@ -1628,6 +1628,18 @@ const char *mxfs_pal_kernel_release(void)
     return rel;
 }
 
+/* 0.89.80 — see pal.h.  A user-mode build has no build kernel and no libiscsi
+ * headers of its own, so nothing here can be admitted by fingerprint. */
+const char *mxfs_pal_kernel_build_release(void)
+{
+    return "";
+}
+
+const char *mxfs_pal_libiscsi_fingerprint(void)
+{
+    return "absent:user-mode";
+}
+
 int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
                               struct mxfs_pal_lu_reset_result *out)
 {

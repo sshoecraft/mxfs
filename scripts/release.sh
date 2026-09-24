@@ -3,6 +3,7 @@
 # MXFS — build every release package, and optionally publish a GitHub release
 #
 # Usage: scripts/release.sh [--publish] [--notes-file FILE]
+#        scripts/release.sh --publish --version V [--notes-file FILE]
 #
 # Builds into dist/<version>/:
 #   mxfs_<v>_amd64.deb              Debian / Ubuntu / Proxmox (DKMS + tools)
@@ -27,6 +28,11 @@
 # unless --notes-file is given.  Commit and push first: the tag is created
 # on the remote's main.
 #
+# --version V publishes the existing build in dist/V/ when the tree has
+# already moved on to a later VERSION (work committed after V was verified).
+# It never builds: the source that made dist/V/ is no longer the tree's, so a
+# build now would be a different, unverified package carrying V's number.
+#
 
 set -e
 
@@ -39,17 +45,23 @@ REPO="sshoecraft/mxfs"
 
 publish=0
 notes=""
+version=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --publish) publish=1 ;;
         --notes-file) notes="$2"; shift ;;
-        *) echo "usage: $0 [--publish] [--notes-file FILE]" >&2; exit 2 ;;
+        --version) version="$2"; shift ;;
+        *) echo "usage: $0 [--publish] [--notes-file FILE] [--version V]" >&2; exit 2 ;;
     esac
     shift
 done
 
-VERSION=$(mxfs_version)
+VERSION=${version:-$(mxfs_version)}
 OUT="$SRCDIR/dist/$VERSION"
+if [ -n "$version" ] && { [ "$publish" = 0 ] || [ ! -f "$OUT/SHA256SUMS" ]; }; then
+    echo "ERROR: --version publishes an existing build only: needs --publish and $OUT/SHA256SUMS" >&2
+    exit 1
+fi
 
 built=0
 if [ -f "$OUT/SHA256SUMS" ]; then
@@ -69,13 +81,18 @@ mkdir -p "$OUT"
 owner="$(id -u):$(id -g)"
 
 if [ "$built" = 0 ]; then
-    # Proxmox VE is the primary target and its kernel is not the rig's: the
-    # DKMS module must compile against it before any package is built.
-    echo "=== MXFS $VERSION — module build against Proxmox VE kernel headers ==="
-    "$SRCDIR/scripts/pve_kbuild_check.sh" || {
-        echo "ERROR: mxfs.ko does not build against the Proxmox VE kernel; no packages built" >&2
-        exit 1
-    }
+    # Every platform a release claims (data/platforms.json, status released)
+    # must compile the module before any package is built: the rig's kernel
+    # is not the product's, and 0.89.77 shipped a .deb that failed on Proxmox.
+    checks=$(python3 "$SRCDIR/tools/platforms.py" build-checks) || exit 1
+    while IFS= read -r check; do
+        [ -n "$check" ] || continue
+        echo "=== MXFS $VERSION — platform build check: $check ==="
+        (cd "$SRCDIR" && eval "$check") || {
+            echo "ERROR: '$check' failed; no packages built" >&2
+            exit 1
+        }
+    done <<< "$checks"
 
     echo "=== MXFS $VERSION — .deb packages in $DEB_IMAGE ==="
     docker run --rm --network host -v "$SRCDIR:/src/mxfs:ro" -v "$OUT:/out" "$DEB_IMAGE" bash -ec "
@@ -104,6 +121,12 @@ if [ "$built" = 0 ]; then
 fi
 
 [ "$publish" = 1 ] || exit 0
+
+# A release may only claim platforms this exact version was verified on.
+python3 "$SRCDIR/tools/platforms.py" check --version "$VERSION" || {
+    echo "ERROR: record each verification with tools/platforms.py verify, then publish" >&2
+    exit 1
+}
 
 if [ -z "$notes" ]; then
     notes="$OUT/CHANGELOG_NOTES.md"

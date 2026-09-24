@@ -1440,6 +1440,23 @@ int mxfs_scsipr_lu_reset_converge(struct mxfs_scsipr_ctx *ctx,
  *
  * Refusal is the default, including for a release this build has never heard
  * of.  On false, *why names what was rejected.
+ *
+ * TWO KINDS OF ADMISSION, and the true return names which one held in *why:
+ *
+ *   an EXACT ROW — a release whose bodies were read, or whose headers were
+ *   cross-checked by hand against a read tree — as before; and
+ *
+ *   (0.89.80) a STRUCTURAL FINGERPRINT — the hash of the TMF enum and the eight
+ *   serialization members of struct iscsi_session, taken by Kbuild from the
+ *   headers of the kernel this module was compiled for — equal to a
+ *   fingerprint whose tree was read, AND `krel` equal to that build's release,
+ *   AND `krel` not on the denylist.  This admits the same evidence the
+ *   hand-checked rows rest on, taken mechanically, so a distribution kernel
+ *   rebuilt without touching those declarations (every Proxmox VE update) is
+ *   not refused merely for having a new version string.  It is what it says:
+ *   the declarations the state machine is built from are unchanged.  It is not
+ *   a reading of the bodies, and a patched body with unchanged declarations
+ *   would pass it — which is what the denylist is for once one is known.
  */
 bool mxfs_fence_lu_reset_kernel_audited(const char *krel, const char **why);
 

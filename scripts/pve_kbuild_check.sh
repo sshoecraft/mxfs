@@ -61,7 +61,7 @@ for hdr in /usr/src/linux-headers-*-pve; do
     # -k: keep compiling past a failed object, so one run lists every file
     # that does not build rather than only the first few make reached.
     if make -k -s -j"$(nproc)" -C "$hdr" M=/build modules >/tmp/kbuild.log 2>&1; then
-        echo "PVE_KBUILD_OK $krel $(modinfo -F srcversion /build/mxfs.ko)"
+        echo "PVE_KBUILD_OK $krel $(modinfo -F srcversion /build/mxfs.ko) libiscsi_fp=$(grep -o -E "[0-9a-f]{64}|absent:[^\"]*" /build/pal/linux/mxfs_libiscsi_fp.h)"
     else
         echo "PVE_KBUILD_FAIL $krel"
         # Compiler errors, and the tool failures (a missing command or

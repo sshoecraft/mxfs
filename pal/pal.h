@@ -1145,6 +1145,25 @@ struct mxfs_pal_lu_reset_result {
  */
 const char *mxfs_pal_kernel_release(void);
 
+/*
+ * The release this module was COMPILED for (the kernel build's UTS_RELEASE),
+ * which is the kernel whose headers the libiscsi fingerprint below was taken
+ * from.  The LU-reset pin admits a kernel by that fingerprint only when this
+ * equals mxfs_pal_kernel_release(): a fingerprint describes the headers of the
+ * build, and says nothing about a different kernel the module was loaded into.
+ * "" where there is no build kernel (user mode).  Never NULL.
+ */
+const char *mxfs_pal_kernel_build_release(void);
+
+/*
+ * The structural fingerprint of the libiscsi TMF declarations in the headers
+ * this module was compiled against (pal/linux/libiscsi_fingerprint.sh, run by
+ * Kbuild): a 64-hex-digit hash, or "absent:<reason>" when the header was
+ * missing or did not have the recognised shape, which no admission accepts.
+ * Never NULL.
+ */
+const char *mxfs_pal_libiscsi_fingerprint(void);
+
 int mxfs_pal_lu_reset_witness(const struct mxfs_pal_lu_reset_req *req,
                               struct mxfs_pal_lu_reset_result *out);
 const char *mxfs_pal_lu_reset_verdict_name(int v);

@@ -3710,6 +3710,83 @@ static const struct mxfs_lu_reset_audited_kernel mxfs_lu_reset_audited[] = {
     },
 };
 
+/*
+ * THE STRUCTURAL ADMISSION (0.89.80).  Fingerprints of the libiscsi TMF
+ * declarations (pal/linux/libiscsi_fingerprint.sh) of trees whose BODIES were
+ * read.  A kernel whose own build headers produce one of these — and which is
+ * the kernel the module was built for — has the declarations that
+ * serialization is built from, unchanged.
+ *
+ * Measured with the script itself: /src/linux 7.1.0-rc7 (read) gives the value
+ * below, and so do the headers of 6.8.0-101-generic, 6.17.2-1-pve and
+ * 7.0.14-19-pve (scripts/pve_libiscsi_crosscheck.sh; 7.0.14-19-pve's three
+ * iSCSI headers are byte-identical to the read tree, 6.17.2-1-pve's libiscsi.h
+ * differs only in the return type of iscsi_queuecommand).
+ */
+static const char *const mxfs_lu_reset_audited_fp[] = {
+    "d5ee9d1ecdea95baf6f96d4321cab4c9fce04c32854e8ed646e58bec9598c3a1",
+    NULL,
+};
+
+/*
+ * Releases refused whatever their fingerprint: a kernel found to break the
+ * one-TMF-per-session invariant with its declarations unchanged is named here.
+ * None is known.
+ */
+static const char *const mxfs_lu_reset_denied_krel[] = {
+    NULL,
+};
+
+static bool mxfs_lu_reset_fp_admitted(const char *krel, const char **why)
+{
+    const char *build = mxfs_pal_kernel_build_release();
+    const char *fp = mxfs_pal_libiscsi_fingerprint();
+    bool known = false;
+    size_t i;
+
+    for (i = 0; mxfs_lu_reset_denied_krel[i]; i++) {
+        if (!strcmp(krel, mxfs_lu_reset_denied_krel[i])) {
+            if (why)
+                *why = "REFUSED: this kernel release is on the denylist — its "
+                       "libiscsi declarations match an audited shape but it is "
+                       "known not to keep the one-TMF-per-session invariant";
+            return false;
+        }
+    }
+    if (!build[0] || strcmp(krel, build) != 0) {
+        if (why)
+            *why = "REFUSED: this module was not built for the running kernel, "
+                   "so the libiscsi fingerprint it carries describes some other "
+                   "kernel's headers and says nothing about this one";
+        return false;
+    }
+    for (i = 0; mxfs_lu_reset_audited_fp[i]; i++)
+        if (!strcmp(fp, mxfs_lu_reset_audited_fp[i]))
+            known = true;
+    mxfs_pal_log(known ? MXFS_LOG_WARN : MXFS_LOG_ERR,
+                 "scsipr: P308-LURESET-PIN-FINGERPRINT krel=%s build=%s fp=%s "
+                 "%s",
+                 krel, build, fp,
+                 known ? "— matches a read tree's libiscsi TMF declarations; "
+                         "admitted STRUCTURALLY (declarations, not bodies)" :
+                         "— not the shape of any read tree; refused");
+    if (!known) {
+        if (why)
+            *why = "REFUSED: this kernel's libiscsi TMF declarations do not "
+                   "have the shape of any tree the LU-reset witness was read "
+                   "on (or its headers were absent at build)";
+        return false;
+    }
+    if (why)
+        *why = "STRUCTURAL FINGERPRINT, and named as exactly that: the TMF_* "
+               "enum and the eh_mutex, ehwait, tmhdr, tmf_timer, tmf_state, "
+               "lu_reset_timeout, frwd_lock and back_lock members of this "
+               "kernel's own build headers hash to a read tree's; the running "
+               "kernel is the one the module was built for.  Declarations "
+               "unchanged is strong evidence and is not a body-level audit";
+    return true;
+}
+
 bool mxfs_fence_lu_reset_kernel_audited(const char *krel, const char **why)
 {
     size_t i;
@@ -3730,13 +3807,7 @@ bool mxfs_fence_lu_reset_kernel_audited(const char *krel, const char **why)
             return true;
         }
     }
-    if (why)
-        *why = "REFUSED: this kernel release is not one the LU-reset witness "
-               "was audited on.  The witness has no protocol correlator and "
-               "rests on one-TMF-per-session serialization, which would "
-               "degrade into an inference with no change to the value read if "
-               "a later version allowed two in flight";
-    return false;
+    return mxfs_lu_reset_fp_admitted(krel, why);
 }
 
 /*

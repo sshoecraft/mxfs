@@ -58,6 +58,7 @@ cp "$SRCDIR/tools/chk_mxfs.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/resize_mxfs.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_admin.c" "$TARDIR/tools/"
 cp "$SRCDIR/tools/mxfs_offline.h" "$TARDIR/tools/"
+cp "$SRCDIR/tools/mxfs_lu_reset_witness.py" "$TARDIR/tools/"
 cp -r "$SRCDIR/include" "$TARDIR/tools/"
 
 # udev rule
@@ -92,6 +93,8 @@ Source0:        mxfs-${VERSION}.tar.gz
 
 BuildRequires:  gcc make
 Requires:       dkms
+Requires:       kernel-devel
+Requires:       python3
 Recommends:     iscsi-initiator-utils
 
 %description
@@ -122,6 +125,8 @@ install -m 755 tools/chk_mxfs %{buildroot}/usr/sbin/chk_mxfs
 install -m 755 tools/resize_mxfs %{buildroot}/usr/sbin/resize_mxfs
 install -m 755 tools/mxfs_admin %{buildroot}/usr/sbin/mxfs_admin
 ln -sf chk_mxfs %{buildroot}/usr/sbin/fsck.mxfs
+# the witnessed LOGICAL UNIT RESET helper the module upcalls (see mkdeb.sh)
+install -m 755 tools/mxfs_lu_reset_witness.py %{buildroot}/usr/sbin/mxfs_lu_reset_witness.py
 
 # Man pages
 mkdir -p %{buildroot}/usr/share/man/man5
@@ -165,6 +170,7 @@ udevadm control --reload-rules 2>/dev/null || true
 /usr/sbin/resize_mxfs
 /usr/sbin/mxfs_admin
 /usr/sbin/fsck.mxfs
+/usr/sbin/mxfs_lu_reset_witness.py
 /usr/share/man/man5/*.5.gz
 /usr/share/man/man8/*.8.gz
 /etc/modules-load.d/mxfs.conf

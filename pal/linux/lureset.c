@@ -70,8 +70,15 @@
  * one node's storage recovery depend on a third machine's file server.  The
  * deployment sets this; a path that does not exist produces NOT_RUN, which is
  * a refusal, so a mis-set path costs availability and never integrity.
+ *
+ * 0.89.80: the default is where the .deb and .rpm install it.  Until then no
+ * package shipped the helper at all and the default pointed into /usr/local,
+ * which only the rig's prep populated — so on every packaged install the
+ * witnessed-reset fence was refused before issuing (P305-LURESET-NOEXEC
+ * rc=-2), and a hung node on a target that drops its registration (the QNAP)
+ * froze the cluster.
  */
-static char *mxfs_lu_reset_helper = "/usr/local/sbin/mxfs_lu_reset_witness.py";
+static char *mxfs_lu_reset_helper = "/usr/sbin/mxfs_lu_reset_witness.py";
 module_param_named(lu_reset_helper, mxfs_lu_reset_helper, charp, 0644);
 MODULE_PARM_DESC(lu_reset_helper,
 		 "absolute path to the node-local LOGICAL UNIT RESET witness helper");

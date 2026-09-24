@@ -190,6 +190,20 @@ mxfs-y += $(addprefix dlm/, \
 mxfs-y += pal/linux/kern.o
 mxfs-y += pal/linux/lureset.o
 
+# The LU-reset fence admits a kernel by the shape of its libiscsi TMF
+# declarations (dlm/scsipr.c, the audited-kernel pin).  The fingerprint is
+# taken from the headers of the kernel this build is FOR, so the module carries
+# the shape of the kernel it was compiled against; a header that is missing or
+# unrecognised yields "absent:...", which the pin refuses, and never fails the
+# build.  filechk rewrites the header only when its content changes, and the
+# content names the header it was read from, so building one tree for a second
+# kernel cannot keep the first kernel's value.
+filechk_mxfs_libiscsi_fp = $(CONFIG_SHELL) $(src)/pal/linux/libiscsi_fingerprint.sh $(abspath $(srctree))/include/scsi/libiscsi.h
+$(obj)/pal/linux/mxfs_libiscsi_fp.h: FORCE
+	$(call filechk,mxfs_libiscsi_fp)
+$(obj)/pal/linux/kern.o: $(obj)/pal/linux/mxfs_libiscsi_fp.h
+clean-files += pal/linux/mxfs_libiscsi_fp.h
+
 # ═══════════════════════════════════════════════════════════
 # MXFS Cluster layer (D9 + D10 — Phase 2 onward)
 # Phase 7 will progressively migrate cluster code from xfs/ here.

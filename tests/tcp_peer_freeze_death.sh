@@ -1,0 +1,202 @@
+#!/bin/bash
+#
+# tcp_peer_freeze_death.sh — freeze one node of a 2-node TCP cluster and
+# measure whether the survivor declares it dead, fences it and writes again.
+#
+# The shape comes from the vSphere pair: vstest2 stopped being scheduled
+# (a hung guest answers nothing and closes nothing), vstest1 logged "TCP peer
+# disconnected — deferring death 40000 ms; EX frozen" 10 s later, and then
+# neither "did not reconnect … declaring dead" nor "grace expired but peer
+# socket is ACTIVE" in the next 495 s; its P-D8-TICK line, which the same
+# worker prints every 30 s, also stopped.  When the peer came back the
+# reconnect cancelled the still-pending death; the lease layer expired it at
+# 836 s with no incarnation, so no fence ran and the survivor's mount went to
+# EIO.  The 2/tcp suite never freezes a node: fault_netpartition drops only
+# the DLM's TCP port while lease and disk heartbeats keep flowing.
+#
+# virsh suspend is that shape without vSphere: the guest's vCPUs stop, its
+# sockets stay open, its disk heartbeat stops advancing.
+#
+# The survivor is instrumented over ssh streams from clyde:
+#   - dmesg -w
+#   - once a second, the death worker's nr_switches from /proc/<pid>/sched:
+#     it wakes every 500 ms, so a looping worker adds ~2/s; a flat count
+#     means it is not running its loop, which its stack alone cannot show
+#   - every 5 s, a bounded write to the mount: when EX is usable again
+#
+# Pass: "did not reconnect … declaring dead" within DEATH_BUDGET_S of the
+# freeze, and a survivor write succeeding within WRITE_BUDGET_S.  The window
+# runs WATCH_S either way, so a death that never comes is measured, not
+# waited out.
+#
+# Budgets: disconnect detection measured 10.8 s on vSphere + the 40 s grace
+# = ~51 s, doubled -> DEATH_BUDGET_S=120; fence + replay of an idle 2-node
+# slice is seconds, so the write bar is death + 60 s -> WRITE_BUDGET_S=180.
+# prep_cluster measured 39 s on the QNAP LUN; run.sh enforces its own budget.
+#
+# Usage: tests/tcp_peer_freeze_death.sh [victim] [survivor] [watch_seconds]
+#   Victim and survivor are libvirt domain names.  PREP=rig (default) forms
+#   the cluster with ./run.sh 2 tcp prep_cluster on test1/test2.  PREP=pve
+#   uses the release platform's pair (pve9-1/pve9-2) as a user installs it:
+#   the packaged module, in-guest iSCSI to the QNAP, mkfs.mxfs from the
+#   survivor, mount -o peer=<the other node> at /mnt/mxfs; the rig nodes are
+#   unmounted first so the LUN is free.
+#   Leaves the victim resumed and the cluster as it ended, for inspection.
+#
+set -u
+
+V="${1:-test2}"
+S="${2:-test1}"
+WATCH_S="${3:-300}"
+DEATH_BUDGET_S=120
+WRITE_BUDGET_S=180
+PREP="${PREP:-rig}"
+MNT=/mnt/shared
+[ "$PREP" = pve ] && MNT=/mnt/mxfs
+QNAP_PORTAL=192.168.1.4
+QNAP_TGT="iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772"
+LUN=${MXFS_LUN:-/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6}   # MXFS_LUN: another target (e.g. the LIO bench LUN)
+
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+SSH="$HERE/tools/mxfs_sshpass.sh"
+VIRSH="virsh -c qemu:///system"
+EV="$HERE/tests/evidence/tcp_peer_freeze_death/$(date +%Y%m%dT%H%M%S)"
+mkdir -p "$EV"
+exec > >(tee -a "$EV/run.log") 2>&1
+say() { echo "[$(date +%T)] $*"; }
+fail() { say "FAIL: $*"; exit 1; }
+# domain name -> address: the rig nodes resolve by name; the PVE pair has
+# static addresses that no resolver knows
+addr() { case $1 in pve9-1) echo 192.168.120.194 ;; pve9-2) echo 192.168.120.138 ;; *) echo "$1" ;; esac; }
+on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect"; return "${PIPESTATUS[0]}"; }
+
+say "victim=$V survivor=$S watch=${WATCH_S}s evidence=$EV"
+$VIRSH domstate "$V" | grep -q running || fail "$V is not running"
+
+# --- 1. a fresh 2/tcp cluster on the QNAP LUN
+if [ "$PREP" = rig ]; then
+    (cd "$HERE" && ./run.sh 2 tcp prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
+else
+    # free the LUN: nothing on the rig may hold it while it is reformatted
+    for h in test1 test2; do
+        $VIRSH domstate $h 2>/dev/null | grep -q running || continue
+        on $h 90 "[ -f /root/freeze_busy.pid ] && kill \$(cat /root/freeze_busy.pid) 2>/dev/null; rm -f /root/freeze_busy.pid
+            for i in 1 2 3; do grep -q \" /mnt/shared mxfs \" /proc/mounts || break; timeout 20 umount /mnt/shared || sleep 2; done
+            grep -c ' mxfs ' /proc/mounts; true" > "$EV/rig_umount_$h.txt"
+        [ "$(tail -1 "$EV/rig_umount_$h.txt")" = 0 ] || fail "$h still has MXFS mounted"
+    done
+    for h in $S $V; do
+        on $h 60 "
+            # /proc/mounts, not mountpoint(1): a fenced node's withdrawn mount
+            # answers stat() with EIO, so mountpoint calls it unmounted
+            grep -q \" $MNT mxfs \" /proc/mounts && timeout 30 umount $MNT
+            iscsiadm -m session 2>/dev/null | grep -q f35772 || iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL --login >/dev/null 2>&1 || { iscsiadm -m discovery -t st -p $QNAP_PORTAL >/dev/null && iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL --login >/dev/null; }
+            for i in 1 2 3 4 5 6 7 8 9 10; do [ -b $LUN ] && break; sleep 1; done
+            [ -b $LUN ] && echo lun_ok
+            lsmod | grep -q '^mxfs' || modprobe mxfs
+            cat /sys/module/mxfs/version /sys/module/mxfs/srcversion; uname -r
+        " | tee "$EV/prep_$h.txt"
+        grep -q lun_ok "$EV/prep_$h.txt" || fail "$h: QNAP LUN not present"
+    done
+    on $S 120 "mkfs.mxfs -f $LUN 2>&1 | tail -2; echo mkfs_rc=\${PIPESTATUS[0]}" | tee "$EV/format.txt"
+    grep -q 'mkfs_rc=0' "$EV/format.txt" || fail "mkfs.mxfs"
+    on $S 60 "mkdir -p $MNT && mount -t mxfs -o peer=$(addr $V) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$S.txt"
+    on $V 120 "mkdir -p $MNT && mount -t mxfs -o peer=$(addr $S) $LUN $MNT; echo mount_rc=\$?" | tee "$EV/mount_$V.txt"
+fi
+for h in $S $V; do
+    on $h 20 "mountpoint -q $MNT && echo mounted; cat /sys/module/mxfs/srcversion; grep MEMBERSHIP /dev/null; dmesg | grep MXFS-MEMBERSHIP | tail -1" | tee "$EV/node_$h.txt"
+    grep -q mounted "$EV/node_$h.txt" || fail "$h not mounted after prep_cluster"
+done
+
+# --- 2. both nodes write, so the victim holds grants and journal content
+on $V 60 "mkdir -p $MNT/freeze && for i in \$(seq 1 20); do dd if=/dev/urandom of=$MNT/freeze/v\$i bs=64k count=4 conv=fsync status=none; done; echo victim_writes_ok" | tee "$EV/victim_writes.txt"
+on $S 60 "for i in \$(seq 1 20); do dd if=/dev/urandom of=$MNT/freeze/s\$i bs=64k count=4 conv=fsync status=none; done; ls $MNT/freeze | wc -l" | tee "$EV/survivor_writes.txt"
+# the victim keeps a write in flight when it freezes: an open EX it never releases
+on $V 10 "nohup setsid bash -c 'while :; do dd if=/dev/urandom of=$MNT/freeze/busy bs=64k count=16 conv=fsync status=none; done' >/dev/null 2>&1 < /dev/null & echo \$! > /root/freeze_busy.pid; echo busy_started"
+
+# --- 3. survivor instruments
+DW=$(on $S 20 "for p in /proc/[0-9]*; do grep -q v5_tcp_death_worker_fn \$p/stack 2>/dev/null && { echo \${p#/proc/}; break; }; done")
+[ -n "$DW" ] || fail "death worker thread not found on $S"
+say "survivor death worker pid=$DW"
+BG=""
+# -W follows only messages printed from now on: replaying the ring (-w) let a
+# death line left by an earlier run satisfy the death check at +0 s.
+on $S $(( WATCH_S + 120 )) "dmesg -W" > "$EV/dmesg_$S.log" &
+BG="$BG $!"
+on $S $(( WATCH_S + 120 )) "while :; do echo \"\$(date +%s.%N) \$(cut -d' ' -f1 /proc/uptime) \$(awk '/^nr_switches/{print \$3}' /proc/$DW/sched) \$(cut -d' ' -f3 /proc/$DW/stat)\"; sleep 1; done" > "$EV/deathworker_$S.log" &
+BG="$BG $!"
+# the target's registrations, read by the survivor every 2 s: when (if ever)
+# the frozen victim's key leaves the target decides whether PREEMPT can fence it
+KEYDEV=$MNT; [ "$PREP" = pve ] && KEYDEV=$LUN
+on $S $(( WATCH_S + 120 )) "d=\$(findmnt -n -o SOURCE $MNT); [ \"$PREP\" = pve ] && d=$LUN; while :; do echo \"\$(date +%s.%N) \$(sg_persist --in --read-keys \$d 2>&1 | tr -s ' \n' ' ')\"; sleep 2; done" > "$EV/prkeys_$S.log" &
+BG="$BG $!"
+sleep 3
+
+# --- 4. freeze
+T0=$(date +%s)
+$VIRSH suspend "$V" >/dev/null || fail "virsh suspend $V"
+say "froze $V at T0"
+death_at=""; write_at=""; i=0
+while [ $(( $(date +%s) - T0 )) -lt "$WATCH_S" ]; do
+    i=$((i+1))
+    e=$(( $(date +%s) - T0 ))
+    if on $S 8 "timeout 5 dd if=/dev/zero of=$MNT/freeze/probe$i bs=4k count=1 conv=fsync status=none && echo W_OK" | grep -q W_OK; then
+        echo "+${e}s write ok" >> "$EV/survivor_write_probe.log"
+        [ -n "$death_at" ] && [ -z "$write_at" ] && write_at=$e
+    else
+        echo "+${e}s write BLOCKED/FAILED" >> "$EV/survivor_write_probe.log"
+    fi
+    if [ -z "$death_at" ] && grep -q -E "did not reconnect within|has left the cluster" "$EV/dmesg_$S.log"; then
+        death_at=$e; say "death declared by +${e}s"
+    fi
+    sleep 5
+done
+say "--- window over: death_at=${death_at:-never} first_write_after_death=${write_at:-never}"
+
+# --- 5. resume the victim and collect
+BUSY_BEFORE=""
+if [ "${REMOUNT_ON_RESUME:-0}" = 1 ]; then
+    # The same host mounting again while the fenced incarnation's writes may
+    # still be queued: a new incarnation registers a key on the same I_T
+    # nexus, which would re-authorise that nexus.  The survivor records the
+    # victim's in-flight file first; if any old write lands afterwards, the
+    # file changes under a victim that never wrote it again.
+    BUSY_BEFORE=$(on $S 30 "md5sum < $MNT/freeze/busy | cut -c1-32; stat -c %s $MNT/freeze/busy")
+    say "busy file on the survivor before resume: $(echo $BUSY_BEFORE)"
+fi
+$VIRSH resume "$V" >/dev/null && say "$V resumed"
+if [ "${REMOUNT_ON_RESUME:-0}" = 1 ]; then
+    on $V 150 "t0=\$(date +%s.%N); umount -l $MNT; echo umount_l_rc=\$?; mount -t mxfs $( [ "$PREP" = pve ] && echo "-o peer=$(addr $S) $LUN" || echo "\$(findmnt -n -o SOURCE $MNT 2>/dev/null || echo /dev/sda)") $MNT; echo remount_rc=\$? after_s=\$(echo \"\$(date +%s.%N) - \$t0\" | awk '{print \$1 - \$3}'); grep ' $MNT ' /proc/mounts; dmesg | grep -E 'PRKEY-REGISTER|P305|QUARANTINE|P-BOOT|MEMBERSHIP|already mounted|EBUSY' | tail -8" | tee "$EV/victim_remount.txt"
+    sleep 30
+    BUSY_AFTER=$(on $S 30 "md5sum < $MNT/freeze/busy | cut -c1-32; stat -c %s $MNT/freeze/busy")
+    say "busy file on the survivor 30 s after the victim's remount: $(echo $BUSY_AFTER)"
+    [ "$(echo $BUSY_BEFORE)" = "$(echo $BUSY_AFTER)" ] && say "REMOUNT-CHECK busy file UNCHANGED" || say "REMOUNT-CHECK busy file CHANGED — an old write may have landed"
+fi
+sleep 20
+# the busy writer outlives the fence and would hold the victim's mount busy
+on $V 20 "kill \$(cat /root/freeze_busy.pid) 2>/dev/null; rm -f /root/freeze_busy.pid" >/dev/null
+kill $BG 2>/dev/null
+on $V 30 "dmesg | tail -80" > "$EV/dmesg_${V}_after_resume.log"
+on $S 20 "grep ' mxfs ' /proc/mounts; ls $MNT/freeze | wc -l" > "$EV/survivor_state_at_end.txt"
+
+python3 - "$EV/deathworker_$S.log" <<'EOF' | tee "$EV/deathworker_rate.txt"
+import sys
+rows = [l.split() for l in open(sys.argv[1]) if len(l.split()) >= 3 and l.split()[2].isdigit()]
+flat, run = 0, 0
+for a, b in zip(rows, rows[1:]):
+    if b[2] == a[2]:
+        run += float(b[0]) - float(a[0]); flat = max(flat, run)
+    else:
+        run = 0
+if len(rows) > 1:
+    rate = (int(rows[-1][2]) - int(rows[0][2])) / (float(rows[-1][0]) - float(rows[0][0]))
+    print("death worker: %d samples, %.2f switches/s overall, longest flat stretch %.1f s" % (len(rows), rate, flat))
+EOF
+grep -h -E "TCP peer .* (disconnected|reconnected)|did not reconnect|grace expired|has left the cluster|P309-DEATH|P238-FENCE|PREEMPT|foreign replay|RECOVERY-COMPLETE|P131-SELF-FENCE|P-D8-TICK" "$EV/dmesg_$S.log" | cut -c1-200
+
+v=PASS
+[ -n "$death_at" ] && [ "$death_at" -le "$DEATH_BUDGET_S" ] || v=FAIL
+[ -n "$write_at" ] && [ "$write_at" -le "$WRITE_BUDGET_S" ] || v=FAIL
+say "VERDICT $v: death declared at +${death_at:-never}s (budget ${DEATH_BUDGET_S}s), survivor wrote at +${write_at:-never}s (budget ${WRITE_BUDGET_S}s)"
+say "done: $EV"
+[ "$v" = PASS ]

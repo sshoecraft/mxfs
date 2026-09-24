@@ -156,7 +156,7 @@ modprobe libcrc32c 2>/dev/null || true
 # A copy that fails is reported and not fatal: every other stage of the prep
 # still has work to do, and the fence refuses loudly on its own when the
 # helper is missing rather than resetting anything blind.
-LURESET_HELPER=/usr/local/sbin/mxfs_lu_reset_witness.py
+LURESET_HELPER=/usr/sbin/mxfs_lu_reset_witness.py
 if [ -f /src/mxfs/tools/mxfs_lu_reset_witness.py ]; then
     mkdir -p /usr/local/sbin
     if cp -f /src/mxfs/tools/mxfs_lu_reset_witness.py "$LURESET_HELPER" 2>/dev/null; then
