@@ -1,3 +1,278 @@
+## 2026-09-24 — 0.89.84 — RHEL 9.8 release; an O_DIRECT read no longer panics a 6.8 node
+
+0.89.83 was never released; its changes ship here and are marked by version.
+
+This release is verified on exactly these kernels, each installed from these
+packages on two x86-64 nodes sharing an iSCSI LUN, in the released
+configuration (2 nodes, TCP transport). Any other kernel is untested, even on
+the same distribution — MXFS builds against each kernel's own API, and a RHEL
+9 minor release or an Ubuntu HWE kernel is a different build.
+
+| platform | kernel verified | package |
+|---|---|---|
+| RHEL / AlmaLinux / Rocky 9.8 | 5.14.0-687.49.1.el9_8 | `mxfs-0.89.84-1.el8.x86_64.rpm` (DKMS from EPEL) |
+| Ubuntu 24.04 LTS | 6.8.0-101-generic (GA kernel) | `mxfs_0.89.84_amd64.deb` |
+| Proxmox VE 9 | 6.17.2-1-pve, 7.0.14-19-pve | `mxfs_0.89.84_amd64.deb`, `pve-storage-mxfs_0.89.84_all.deb` |
+
+RHEL 9.8 was verified on AlmaLinux 9.8, which rebuilds Red Hat's 9.8 kernel:
+DKMS install, firewalld, mount with no options, cross-node checksums,
+create and remote delete, `chk_mxfs`, `peer=` with multicast dropped, reboot,
+SELinux enforcing including a libvirt sVirt guest on MXFS, and a hung node
+declared dead and fenced while the survivor keeps writing
+(`tests/evidence/packaged_round/alma_0.89.84_*`,
+`tests/evidence/tcp_peer_freeze_death/20260924T070058`).
+
+### An O_DIRECT read on a stable-writes device panicked Ubuntu 6.8 (0.89.83)
+
+Below 6.15, `xfs/xfs_platform.h` defined `iomap_ioend_bioset` as a per-file
+static `struct bio_set` that nothing ever initialized. The bounce-read ops in
+`pal/linux/xfs_file.c` named it as `iomap_dio_ops.bio_set`, and
+`xfs_file_dio_read` installs those ops whenever the mapping has stable writes,
+which every inode gets when the block device reports stable writes (iSCSI with
+`DataDigest=CRC32C`, dm-integrity). On 6.8 `iomap_dio_ops` has a `bio_set`
+member, so iomap allocated the read's bio from the zero-filled set and got
+NULL.
+
+- **Reproduced first**, on 0.89.82 (srcversion `5A60D0391468F333D662A76`,
+  Ubuntu 6.8.0-101, 2-node TCP on the QNAP LUN):
+  `tests/dio_stable_writes_read.sh` set `stable_writes=1`, remounted, and a
+  `dd iflag=direct` read panicked test1 with a NULL write at offset 0x20 in
+  `iomap_dio_bio_iter+0x311` (`tests/evidence/dio_stable_writes_read/20260924T063255`).
+- **The cause is gone.** The static stand-in set is removed. The bounce-read
+  ops are compiled only where the kernel's iomap defines `IOMAP_DIO_BOUNCE`
+  and exports `iomap_ioend_bioset` (two new build probes), and the zoned ops'
+  `bio_set` only where that set is exported — so on 6.8, as on RHEL 9, a zoned
+  filesystem is refused at mount.
+- **Verified** on 0.89.83 (srcversion `10A5B93816D92E3B84B6FFE`), same kernel,
+  same script, `stable_writes=1`: 64 MiB on test1 and 256 MiB on test2 read
+  with matching sha256 and no oops
+  (`tests/evidence/dio_stable_writes_read/20260924T063930`, `…T064002`).
+  Record: D-DIO-READ-BOUNCE-USES-UNINITIALIZED-COMPAT-BIOSET-BELOW-6.15-STABLE-WRITES-LUN.
+
+### Symbol probes answered "absent" on every kernel from 6.13 (0.89.83)
+
+The "is this symbol exported" half of a probe read a relative
+`Module.symvers` that does not exist when Kbuild runs from the kernel's tree,
+so every such probe answered absent on both Proxmox kernels. Kbuild now
+passes the kernel's own `$(objtree)/Module.symvers`. On pve9-1, 7.0 now gets
+the bounce path and 6.17 correctly does not; nothing else changes on Proxmox.
+`MXFS_KCOMPAT_DEBUG=1` prints why a probe failed, and both build-check scripts
+print the kernel APIs the probes found.
+
+### The RPM (0.89.83-0.89.84)
+
+- **`scripts/release.sh` publishes the RPM** and covers it in `SHA256SUMS`.
+- **SELinux labeling.** The RPM ships `packaging/mxfs.cil` — `fs_use_xattr`
+  for `mxfs`, the rule the reference policy gives XFS — and loads it with
+  `semodule` in `%post` (removed on erase, kept across an upgrade). Verified
+  on AlmaLinux 9.8, enforcing, on both nodes: `restorecon` gives the root
+  `mnt_t`, new files inherit it, `chcon virt_image_t` sticks and the other
+  node reads it from the platter, no AVC denials. A confined guest works:
+  `tests/selinux_svirt_mxfs.sh` has libvirt start a KVM guest from an image on
+  MXFS — QEMU in `svirt_t:s0:c91,c378`, the image relabeled
+  `svirt_image_t:s0:c91,c378` and restored on destroy, no AVC denials. A fresh
+  filesystem's root is `unlabeled_t` until `restorecon`, exactly as a fresh XFS
+  on the same host (`tests/evidence/selinux_svirt/`). Record:
+  D-SELINUX-HAS-NO-LABELING-RULE-FOR-MXFS-FILES-ARE-UNLABELED_T.
+- **A failed DKMS build fails the install's scriptlet (0.89.84).** `%post`
+  ran `dkms build`, then `udevadm` and `semodule`; a scriptlet's status is its
+  last command's, so a build failure installed the package with no module and
+  `dnf` printed `Complete!`. The build now runs last, for every installed
+  kernel that has headers, and a failure exits 1 naming `make.log`, as the
+  .deb's postinst does. It also no longer builds only for the running kernel:
+  `Requires: kernel-devel` installs the newest kernel's headers, which is not
+  the running kernel on a node that has not rebooted since an update.
+  `tests/rpm_post_dkms_failure.sh` installs an RPM in a fresh `almalinux:9`
+  container with a failing kernel tree, and with no headers at all. On
+  0.89.82 both cases printed `Complete!`, rc 0, `dkms status` `added`, and no
+  error. On 0.89.84 both print the `ERROR:` line naming the cause, and rpm and
+  dnf report `%post … scriptlet failed, exit status 1` / `Error in POSTIN
+  scriptlet` (`tests/evidence/rpm_post_dkms_failure/`). dnf's own exit status
+  stays 0: RPM treats a `%post` failure as non-fatal and cannot roll back an
+  installed package. Record:
+  D-RPM-INSTALL-REPORTS-SUCCESS-WHEN-THE-DKMS-BUILD-FAILED.
+
+### Platforms
+
+- **A release claims kernels, not distributions.** Each released platform's
+  name and `kernels` now list exactly the kernels verified, and the README
+  lists them in a table and says any other kernel is untested: Proxmox VE 9 on
+  6.17.2-1-pve and 7.0.14-19-pve, Ubuntu 24.04 on its 6.8 GA kernel, RHEL /
+  AlmaLinux / Rocky 9.8 on 5.14.0-687.49.1.el9_8. MXFS probes each kernel's
+  API at build time, so kernels that differ compile different code — every
+  RHEL 9 minor reports 5.14 and carries different backports, and Ubuntu point
+  releases install HWE kernels. `docs/platforms.md` holds the rule, and the
+  open design for widening a claim to a range (one runtime verification per
+  distinct probe fingerprint).
+- **Each platform names its CPU architectures.** `arch` lists them by Debian
+  name. `verified` holds one record per architecture, `verify` takes `--arch`
+  when a platform lists more than one, and `check` requires every listed
+  architecture verified at the release's version — and refuses one that
+  `scripts/release.sh` builds no packages for (amd64 only today). The packages
+  carry compiled tools and the module is built per architecture, so a
+  verification on one architecture says nothing about another. Existing
+  records are amd64; macOS 26 is arm64 and amd64.
+- **Debian 11** (5.10, bullseye) is planned after RHEL 8, for an HP server;
+  **Raspberry Pi OS 11** (arm64, the Raspberry Pi kernel) after it. SLES 16,
+  FreeBSD 14 and macOS 26 move down one each.
+
+### Release verification
+
+- **The 2/tcp rig suite passes 30 of 30** on this build (srcversion
+  `10A5B93816D92E3B84B6FFE`, `tests/evidence/suite_2tcp_0.89.84.log`).
+  crash_audit first failed at 241 s of its 300 s budget with every MXFS
+  assertion of its death oracle passing — fence certified, replay complete 78 s
+  after the kill, 200 of 200 acknowledged files verified — because the
+  rebooted victim took 2 min 31 s to boot: its iSCSI node records still logged
+  in at boot to the SCST target on the rig host, which was not running
+  (`systemd-analyze blame`: open-iscsi 2 min 2 s). Those records are now
+  manual on the rig VMs (`scripts/mpath_up.sh` sets them back when it brings
+  that rig up), and crash_audit passes in 155 s
+  (`tests/evidence/suite_2tcp_0.89.84_crash_audit_rerun.log`).
+- **Proxmox VE 9**, one round per claimed kernel, each pinned and rebooted
+  into: 7.0.14-19-pve and 6.17.2-1-pve both pass install, DKMS on both
+  kernels, no-option mount, checksums, create and remote delete, `chk_mxfs`,
+  `peer=` with multicast blocked, `peers=`, `pvesm` add/status/remove, the
+  O_DIRECT stable-writes read, and a reboot on that kernel with the data
+  intact (`tests/evidence/packaged_round/pve_0.89.84_20260924T075412`,
+  `…T075809`).
+- **RHEL 9.8** as in the table above.
+- **Found, not fixed:** a mount with no `peer=` that cannot discover its live
+  peer (multicast blocked) retries the root lock for ~30 s, withdraws without
+  writing anything, and `mount` reports "can't read superblock" — the kernel
+  log names the discovery failure, the user-facing error does not. Recorded as
+  D-A-MOUNT-THAT-CANNOT-DISCOVER-ITS-LIVE-PEER-FAILS-AS-CANT-READ-SUPERBLOCK.
+
+### Tests
+
+- **`tests/packaged_round.sh` measured the harness on its first runs, not
+  MXFS**, four times, each fixed: it asserted a module version the module does
+  not declare (the loaded build is now identified by srcversion against the
+  DKMS tree); it gave `peer=` a hostname, which the mount correctly refuses
+  (addresses are resolved now); it left the QNAP login manual, so the LUN did
+  not return after its reboot (the target is set to log in at boot, as on a
+  host with a persistent LUN); and it read the marker while systemd's
+  pam_nologin banner still prefixed every ssh reply (it now waits for
+  `/run/nologin` to clear). A round that dies also restores the multicast it
+  blocked and removes a kernel pin; a block left behind by one aborted round
+  made the next round's no-option mount fail to find its peer. `KERNEL=`
+  pins a Proxmox kernel for the round.
+- `tests/dio_stable_writes_read.sh` — the O_DIRECT stable-writes read above.
+- `tests/packaged_round.sh <ubuntu|pve|alma>` — one platform's whole packaged
+  verification: install, mount, checksums, create/delete, `chk_mxfs`, `peer=`,
+  the stable-writes read, SELinux (alma), `pvesm` and `peers=` (pve), reboot.
+- `tests/rpm_post_dkms_failure.sh` — the RPM install with a failing DKMS build.
+- `tests/selinux_svirt_mxfs.sh` — a libvirt sVirt guest whose disk is on MXFS.
+
+## 2026-09-24 — 0.89.82 — the module builds on RHEL 9; the platform roadmap is in the registry
+
+`data/platforms.json` now carries every platform MXFS intends to support, in
+order:
+
+| priority | platform | status | kernel |
+|---|---|---|---|
+| 1 | Ubuntu 24.04 LTS | released | 6.8 |
+| 2 | RHEL / AlmaLinux / Rocky 9 | development | 5.14 + backports |
+| 3 | Debian 13 | development | 6.12 |
+| 4 | Proxmox VE 9 | released | 6.17 / 7.0 |
+| 5 | Ubuntu 26.04 LTS | development | 7.0 |
+| 6 | RHEL / AlmaLinux / Rocky 10 | development | 6.12 + backports |
+| 7 | Debian 12 | planned | 6.1 |
+| 8 | RHEL / AlmaLinux / Rocky 8 | planned | 4.18 |
+| 9 | SUSE Linux Enterprise Server 16 | planned | 6.12 |
+| 10 | FreeBSD 14 | planned | a port, not a build |
+| 11 | macOS 26 Tahoe | planned | a kernel extension (XNU) |
+
+The order is estimated installed base among servers, with RHEL 8 moved below
+RHEL 10 and Debian 12 because 4.18 is the widest API gap of the Linux
+targets. Proxmox VE 9 is fourth by count and remains the product's reason to
+exist. Debian 13, RHEL 10 and SLES 16 share a 6.12 base, so one port serves
+the three. For the
+RHEL family, the minor release decides a kernel's APIs, not the vendor:
+AlmaLinux and Rocky rebuild Red Hat's kernel, so runtime verification runs on
+RHEL and build checks run on all three. SLES 15 (6.4 with SUSE's own
+backports) is left out. macOS will be a kernel extension: it needs Apple's
+kext-signing entitlement, notarization, and on Apple Silicon a one-time
+Reduced Security setting on every Mac, and macOS has no built-in iSCSI
+initiator, so MXFS either sits on a third-party initiator or ships one.
+
+### The module builds on RHEL 9 (AlmaLinux, Rocky)
+
+RHEL 9 reports kernel 5.14 for every minor release, while Red Hat backports
+newer APIs into it and keeps older ones. The shims in `xfs/xfs_platform.h`
+were gated on `LINUX_VERSION_CODE`, so on RHEL 9 they redefined what the
+kernel already had. On 9.8 (`5.14.0-687.49.1.el9_8`) that stopped the build
+at the first header.
+
+- **Kernel APIs are probed, not inferred from a version.** New
+  `pal/linux/kcompat_probe.sh` compiles one small test per API against the
+  target kernel's own headers, with the flags every module object gets, and
+  Kbuild writes the answers to `pal/linux/mxfs_kcompat.h` as `MXFS_HAVE_<API>`.
+  Where a declaration is not enough, the probe also requires the symbol in the
+  kernel's `Module.symvers`: RHEL 9.8 declares `bio_add_folio` and does not
+  export it. The shims that collided are gated on their own probes. On Ubuntu
+  6.8 and on both Proxmox kernels, every probe answers as the version gate
+  did.
+- **What RHEL 9.8 carries, by probe:** `super_set_uuid`, the bdev file API,
+  `s_bdev_file`, `bio_add_vmalloc*`, `bio_add_virt_nofail`, `bdev_rw_virt`,
+  the atomic-write helpers (without `bdev_validate_blocksize`),
+  `super_set_sysfs_name_id`, `generic_atomic_write_valid`, the three-argument
+  `generic_fill_statx_atomic_writes`, `iomap_last_written_block` and an
+  exported `iomap_write_delalloc_release`, which RHEL now uses in place of
+  MXFS's own variant.
+- **What RHEL 9.8 keeps from before, and the port for each:**
+  - `->update_time(inode, timespec64 *, int)`: a wrapper drops the time
+    argument. The body sets the current time itself, which is how the VFS
+    computed it.
+  - An `int` `filldir_t`, where 0 means "keep going": the shard directory
+    actor returns and reads through `mxfs_filldir_ok()`. Under the int
+    convention the old `!actor()` test would have read every entry that fit
+    as "buffer full".
+  - `iomap_page_ops`: the mapping revalidation hook is installed there.
+  - No `iomap_iter.private`, no `iomap_dio_ops.bio_set` and a six-argument
+    `iomap_dio_rw`: the private context is dropped, it is only ever non-NULL
+    for a zoned write, and a zoned filesystem is refused at mount on such a
+    kernel. A direct read on a stable-writes device is issued without the
+    bounce ops, as XFS did before bouncing existed.
+  - `error_remove_page` instead of `error_remove_folio`.
+  - `struct scsi_request` still inside `scsi_cmnd`: the compare-and-write
+    passthrough puts its CDB in `scsi_req(rq)->cmd` and reads result, sense
+    and residual from there. Writing the CDB through `scmd->cmnd`, which is
+    unset until dispatch there, would have faulted.
+  - `bio_add_folio_nofail` is built on `bio_add_page`, which every supported
+    kernel exports.
+- **Verified at runtime on AlmaLinux 9.8** (`5.14.0-687.49.1.el9_8`), two
+  QEMU guests, packaged RPM (`tests/evidence/alma_rhel9_0.89.82`): DKMS build
+  and load; with firewalld active and only 7600/tcp, 7601/udp and 7603/udp
+  opened, a two-node mount with no options, cross-node checksums, 500 files
+  created on one node and removed from the other (7.5 s and 9.8 s),
+  `chk_mxfs` clean, `peer=` with multicast dropped, and a reboot after which
+  the module auto-loaded and every checksum matched. With SELinux enforcing
+  after a full relabel: mount, cross-node writes, create/remove, symlinks and
+  user xattrs with no AVC denial. Files are `unlabeled_t`, though; filed as
+  D-SELINUX-HAS-NO-LABELING-RULE-FOR-MXFS-FILES-ARE-UNLABELED_T.
+- **A hung node on RHEL 9 is fenced and recovered.** Freezing alma9-2
+  (`tests/tcp_peer_freeze_death.sh`, `PREP=alma`): death declared at +60 s.
+  The QNAP had dropped the victim's key, so the LU-reset fence ran, admitted
+  by fingerprint (RHEL 9.8's libiscsi TMF declarations hash to the audited
+  value), and was certified. The journal was replayed, and the survivor wrote
+  again at +71 s (`tests/evidence/tcp_peer_freeze_death/20260924T055819`).
+  The harness now freezes a guest that is not a libvirt domain through QMP
+  `stop`/`cont` on its monitor socket.
+- **RHEL 9 is a released platform** in `data/platforms.json`. Its
+  `build_check` runs the AlmaLinux and Rocky container builds.
+- **Build checks:** `scripts/rhel_kbuild_check.sh` passes against AlmaLinux 9
+  and Rocky Linux 9 kernel-devel (both `5.14.0-687.49.1.el9_8`), and the
+  existing checks pass on Ubuntu 6.8.0-101 and PVE 6.17.2 / 7.0.14. Each run
+  now restarts its container first, because a build whose `docker exec`
+  client had died was still compiling in there, competing with the next run.
+
+- **`tools/platforms.py add`** registers a platform as development or planned.
+  It refuses `released`: a release claim comes only through `set --status
+  released`, which needs a `build_check`, and then `verify`.
+- **`priority`** orders the work within a status, and the listing sorts by it.
+  `set` also takes `--priority`, `--kernels` and `--packages`.
+
 ## 2026-09-24 — 0.89.81 — the vSphere failures were the guests' clock, not MXFS
 
 No module change. Three vSphere-only records (a lone mount that never renewed

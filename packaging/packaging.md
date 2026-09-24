@@ -29,15 +29,24 @@ tools built on a newer distribution refuse to start on an older one.
 in a container of the OLDEST distribution it targets — Debian 12 for both
 .debs (Debian 12+, Ubuntu 24.04+, Proxmox 8+), AlmaLinux 8 for the RPM.
 `scripts/release.sh --publish` then creates the GitHub release with the .deb
-packages and `SHA256SUMS` attached. The RPM is built but not published: the
-module does not yet compile on RHEL-family kernels.
+packages, the RPM and `SHA256SUMS` attached. The RPM is built on EL8 so its
+tools run on EL8's glibc and everything newer; its DKMS build compiles the
+module against the host's own kernel headers, and the build-time API probes
+(`pal/linux/kcompat_probe.sh`) adapt it to what that kernel carries.
+
+The RPM also installs `/usr/share/selinux/packages/mxfs.cil` and loads it with
+`semodule` in `%post`: an `fs_use_xattr` rule for `mxfs`, the rule XFS has, so
+files carry real labels instead of `unlabeled_t`. As on XFS, a newly made
+filesystem's root has no label until `restorecon` gives it one; new files
+inherit from their directory.
 
 ## Package Formats
 
 | OS Family | Package | Builder | Status |
 |-----------|---------|---------|--------|
 | Debian/Ubuntu/Proxmox | .deb | mkdeb.sh | Done |
-| RHEL/AlmaLinux/Rocky/Fedora | .rpm | mkrpm.sh | Package builds; the module does not yet compile on RHEL 9's 5.14 kernel (backported APIs collide with the version-gated shims) |
+| RHEL/AlmaLinux/Rocky 9 | .rpm | mkrpm.sh | Released (9.8 kernel, DKMS from EPEL) |
+| Fedora, RHEL 8/10 | .rpm | mkrpm.sh | Not verified |
 | SUSE/openSUSE | .rpm | mkrpm.sh | Untested |
 | FreeBSD | .pkg | — | Needs porting |
 | macOS | .pkg | — | Needs porting |
@@ -70,8 +79,14 @@ and dispatches to the platform-specific builder.
 
 On `dpkg -i` / `rpm -i`:
 1. Source placed in `/usr/src/mxfs-VERSION/`
-2. postinst runs `dkms add` + `dkms build` + `dkms install`
-3. Module available for the running kernel
+2. postinst (.deb) / `%post` (.rpm) runs `dkms add`, then `dkms build` +
+   `dkms install` for every installed kernel whose headers are present — not
+   only the running one, since the header dependency pulls in the newest
+   kernel's headers
+3. A build failure fails the script with the path of `make.log`. The .deb's
+   configure step fails; RPM cannot undo an install from `%post`, so rpm and
+   dnf report the scriptlet failure. The RPM's DKMS build runs last in `%post`,
+   because a scriptlet's exit status is its last command's.
 4. On kernel update, DKMS automatically rebuilds
 
 ### Auto-Mount at Boot
@@ -93,6 +108,7 @@ comes up automatically on reboot.
 - `mkdeb.sh` — Debian/Ubuntu .deb builder
 - `mkdeb_pve.sh` — Proxmox VE storage plugin .deb builder
 - `mkrpm.sh` — RPM builder (RHEL, Fedora, SUSE)
+- `mxfs.cil` — the SELinux labeling rule the RPM loads
 
 ## Dependencies
 

@@ -1401,36 +1401,6 @@
       "impact_why": "a create rate is pace only: the fills that measured it completed every create with no error, loss or crash (s168b alloc_witness PASS, chk_clean release=CLEAN)"
     },
     {
-      "id": "D-MODULE-DOES-NOT-BUILD-ON-RHEL9-KERNEL-BACKPORTS-COLLIDE-WITH-VERSION-SHIMS",
-      "severity": "major",
-      "nodes": 1,
-      "dlm": "any",
-      "opened": "2026-09-23",
-      "summary": "mxfs.ko does not compile on RHEL 9 (AlmaLinux 9.7, kernel 5.14.0-611.5.1.el9_7): LINUX_VERSION_CODE says 5.14, so xfs/xfs_platform.h defines shims for APIs Red Hat has already backported (redefinition/conflicting types) and calls APIs RHEL has removed.",
-      "evidence": "alma-97 (192.168.120.187, vSphere), dnf install of mxfs-0.89.78-1.el8.x86_64.rpm with EPEL dkms and kernel-devel present: DKMS build failed in 260 s; make.log: xfs_platform.h:145 redefinition of super_set_uuid; :156 static declaration of bdev_file_open_by_path follows non-static; :160 implicit bdev_open_by_path; :166 file_bdev; :168 struct bdev_handle undefined; :172 implicit bdev_release; :315-317 bdev_can_atomic_write/unit_min/max redefinition; :334 super_set_sysfs_name_id; :379 generic_fill_statx_atomic_writes conflicting types; :638 generic_atomic_write_valid conflicting types. Only the first header's errors were reached.",
-      "next": "Gate the shims on what the kernel provides (RHEL_RELEASE_CODE, or a configure-time probe of the headers) rather than on LINUX_VERSION_CODE, then iterate against the Alma 9.7 headers until it builds; RPM stays unpublished until then.",
-      "impact": "noblock",
-      "impact_why": "A compile failure on a platform no release ships for: the RPM is removed from 0.89.77 and not published for 0.89.78 (scripts/release.sh attaches .deb only), so no user can install MXFS on RHEL; nothing corrupts, loses data, crashes or hangs.",
-      "updated": "2026-09-23",
-      "platform": "rhel9",
-      "reach_source": "evidence"
-    },
-    {
-      "id": "D-RPM-INSTALL-REPORTS-SUCCESS-WHEN-THE-DKMS-BUILD-FAILED",
-      "severity": "medium",
-      "nodes": 1,
-      "dlm": "any",
-      "opened": "2026-09-23",
-      "summary": "The RPM's %post runs dkms build/install without failing the transaction, so dnf prints Complete! and the package is installed with no kernel module when the DKMS build fails; the .deb correctly fails its configure step.",
-      "evidence": "alma-97: dnf install mxfs-0.89.78-1.el8.x86_64.rpm -> DKMS 'Bad return status for module build', then 'Installed: mxfs-0.89.78-1.el8.x86_64 ... Complete!' mxfs_rc=0; dkms status 'mxfs/0.89.78: added' (not built).",
-      "next": "Make %post exit non-zero on a dkms build/install failure (as the .deb postinst does under set -e), with a message naming make.log.",
-      "impact": "noblock",
-      "impact_why": "The RPM is not published (removed from 0.89.77, not attached to 0.89.78), so no user receives this package; the failure mode leaves no module loaded and cannot touch data.",
-      "updated": "2026-09-23",
-      "platform": "rhel9",
-      "reach_source": "evidence"
-    },
-    {
       "id": "D-TCP-REMOTE-DELETE-OF-PEER-CREATED-FILES-16-PER-SECOND",
       "severity": "major",
       "nodes": 2,
@@ -1441,6 +1411,19 @@
       "next": "Time the same rm on the creating node (local) and on the peer to split lock-handoff cost from unlink cost; then instrument per-unlink lock acquire wait (the directory and each inode move from the creator to the deleter) to name where the ~60 ms per file goes.",
       "impact": "noblock",
       "impact_why": "pace only: every file was deleted and both nodes agree on the result (count 0 on the creator after the remote delete); the 2-node TCP release bar is data integrity and stability, not pace",
+      "platform": "any"
+    },
+    {
+      "id": "D-A-MOUNT-THAT-CANNOT-DISCOVER-ITS-LIVE-PEER-FAILS-AS-CANT-READ-SUPERBLOCK",
+      "severity": "medium",
+      "nodes": 2,
+      "dlm": "tcp",
+      "opened": "2026-09-24",
+      "summary": "When a mount with no peer= option cannot discover a live peer (multicast blocked or unrouted), it retries the root inode lock for ~30 s, shuts its filesystem down, withdraws, and mount(8) reports 'can't read superblock' (rc 32). The kernel log says why (discovery broadcast failed, P-MEMB-SETTLE-TIMEOUT: 1 active foreign slot but lease sees only 1 node), but the user-facing error points at the superblock, not at discovery or the peer= option that fixes it.",
+      "evidence": "0.89.84, Ubuntu 24.04 6.8.0-101, test3/test4 on the QNAP LUN, 2026-09-24 12:53-12:54 UTC: multicast DROP rules left on both nodes by an aborted harness round; test3 mounted alone, test4's plain mount logged 'discovery broadcast failed: -1' every 1-2 s, P-MEMB-SETTLE-TIMEOUT at +11 s, three 'lock request failed after 60 retries ... ino=128 mode=EX', 'DLM inode lock unrecoverable: ino=128 ... shutting down filesystem', P-WITHDRAW, P960-REFUSED-MOUNT-NOCOVER; mount printed \"can't read superblock on /dev/sda\", rc=32, wall ~40 s. Nothing was written (P960 quiesce writes no SB summary); test3 unaffected. tests/evidence/packaged_round/ubuntu_0.89.84_20260924T075303/plain_mount_test4.log",
+      "next": "When the membership settle sees an active foreign slot that discovery never reached, refuse the mount at that point with a distinct errno and a kernel message naming the cause and the fix (peer=<address>), instead of proceeding into lock retries that end in a filesystem shutdown.",
+      "impact": "noblock",
+      "impact_why": "The mount fails closed: it withdraws before completing, writes nothing (P960-REFUSED-MOUNT-NOCOVER), and the live peer keeps running; no data is lost or corrupted and no node crashes or hangs. The defect is the misleading error and the 40 s spent reaching it.",
       "platform": "any"
     }
   ]

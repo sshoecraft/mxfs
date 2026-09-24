@@ -35,12 +35,16 @@
 # prep_cluster measured 39 s on the QNAP LUN; run.sh enforces its own budget.
 #
 # Usage: tests/tcp_peer_freeze_death.sh [victim] [survivor] [watch_seconds]
-#   Victim and survivor are libvirt domain names.  PREP=rig (default) forms
-#   the cluster with ./run.sh 2 tcp prep_cluster on test1/test2.  PREP=pve
-#   uses the release platform's pair (pve9-1/pve9-2) as a user installs it:
-#   the packaged module, in-guest iSCSI to the QNAP, mkfs.mxfs from the
-#   survivor, mount -o peer=<the other node> at /mnt/mxfs; the rig nodes are
-#   unmounted first so the LUN is free.
+#   Victim and survivor are VM names.  PREP=rig (default) forms the cluster
+#   with ./run.sh 2 tcp prep_cluster on test1/test2.  PREP=pve and PREP=alma
+#   use a release platform's pair (pve9-1/pve9-2, alma9-1/alma9-2) as a user
+#   installs it: the packaged module, in-guest iSCSI to the QNAP, mkfs.mxfs
+#   from the survivor, mount -o peer=<the other node> at /mnt/mxfs; the rig
+#   nodes are unmounted first so the LUN is free.
+#   A VM that is a libvirt domain is frozen with virsh suspend; one that is
+#   not (osimager's QEMU guests, alma9-*) through QMP stop/cont on its monitor
+#   socket, ~/vms/qemu/<name>/<name>.monitor, which is what virsh suspend
+#   sends underneath.
 #   Leaves the victim resumed and the cluster as it ended, for inspection.
 #
 set -u
@@ -51,8 +55,9 @@ WATCH_S="${3:-300}"
 DEATH_BUDGET_S=120
 WRITE_BUDGET_S=180
 PREP="${PREP:-rig}"
+PACKAGED=0
 MNT=/mnt/shared
-[ "$PREP" = pve ] && MNT=/mnt/mxfs
+case "$PREP" in pve|alma) PACKAGED=1; MNT=/mnt/mxfs ;; esac
 QNAP_PORTAL=192.168.1.4
 QNAP_TGT="iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772"
 LUN=${MXFS_LUN:-/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6}   # MXFS_LUN: another target (e.g. the LIO bench LUN)
@@ -67,11 +72,35 @@ say() { echo "[$(date +%T)] $*"; }
 fail() { say "FAIL: $*"; exit 1; }
 # domain name -> address: the rig nodes resolve by name; the PVE pair has
 # static addresses that no resolver knows
-addr() { case $1 in pve9-1) echo 192.168.120.194 ;; pve9-2) echo 192.168.120.138 ;; *) echo "$1" ;; esac; }
+addr() { case $1 in pve9-1) echo 192.168.120.194 ;; pve9-2) echo 192.168.120.138 ;;
+                    alma9-1) echo 192.168.120.100 ;; alma9-2) echo 192.168.120.157 ;; *) echo "$1" ;; esac; }
+# QMP on a non-libvirt guest's monitor socket: qmp NAME COMMAND prints the reply
+qmp() {
+    python3 - "$HOME/vms/qemu/$1/$1.monitor" "$2" <<'EOF'
+import json, socket, sys
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(10)
+s.connect(sys.argv[1])
+f = s.makefile("rw")
+f.readline()
+for cmd in ("qmp_capabilities", sys.argv[2]):
+    f.write(json.dumps({"execute": cmd}) + "\n")
+    f.flush()
+    while True:
+        r = json.loads(f.readline())
+        if "event" not in r:
+            break
+print(json.dumps(r))
+EOF
+}
+is_domain() { $VIRSH domstate "$1" >/dev/null 2>&1; }
+vm_running() { if is_domain "$1"; then $VIRSH domstate "$1" | grep -q running; else qmp "$1" query-status | grep -q '"running": true'; fi; }
+vm_freeze() { if is_domain "$1"; then $VIRSH suspend "$1" >/dev/null; else qmp "$1" stop | grep -q '"return"'; fi; }
+vm_thaw() { if is_domain "$1"; then $VIRSH resume "$1" >/dev/null; else qmp "$1" cont | grep -q '"return"'; fi; }
 on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect"; return "${PIPESTATUS[0]}"; }
 
 say "victim=$V survivor=$S watch=${WATCH_S}s evidence=$EV"
-$VIRSH domstate "$V" | grep -q running || fail "$V is not running"
+vm_running "$V" || fail "$V is not running"
 
 # --- 1. a fresh 2/tcp cluster on the QNAP LUN
 if [ "$PREP" = rig ]; then
@@ -127,14 +156,14 @@ on $S $(( WATCH_S + 120 )) "while :; do echo \"\$(date +%s.%N) \$(cut -d' ' -f1 
 BG="$BG $!"
 # the target's registrations, read by the survivor every 2 s: when (if ever)
 # the frozen victim's key leaves the target decides whether PREEMPT can fence it
-KEYDEV=$MNT; [ "$PREP" = pve ] && KEYDEV=$LUN
-on $S $(( WATCH_S + 120 )) "d=\$(findmnt -n -o SOURCE $MNT); [ \"$PREP\" = pve ] && d=$LUN; while :; do echo \"\$(date +%s.%N) \$(sg_persist --in --read-keys \$d 2>&1 | tr -s ' \n' ' ')\"; sleep 2; done" > "$EV/prkeys_$S.log" &
+KEYDEV=$MNT; [ $PACKAGED = 1 ] && KEYDEV=$LUN
+on $S $(( WATCH_S + 120 )) "d=\$(findmnt -n -o SOURCE $MNT); [ $PACKAGED = 1 ] && d=$LUN; while :; do echo \"\$(date +%s.%N) \$(sg_persist --in --read-keys \$d 2>&1 | tr -s ' \n' ' ')\"; sleep 2; done" > "$EV/prkeys_$S.log" &
 BG="$BG $!"
 sleep 3
 
 # --- 4. freeze
 T0=$(date +%s)
-$VIRSH suspend "$V" >/dev/null || fail "virsh suspend $V"
+vm_freeze "$V" || fail "could not freeze $V"
 say "froze $V at T0"
 death_at=""; write_at=""; i=0
 while [ $(( $(date +%s) - T0 )) -lt "$WATCH_S" ]; do
@@ -164,9 +193,9 @@ if [ "${REMOUNT_ON_RESUME:-0}" = 1 ]; then
     BUSY_BEFORE=$(on $S 30 "md5sum < $MNT/freeze/busy | cut -c1-32; stat -c %s $MNT/freeze/busy")
     say "busy file on the survivor before resume: $(echo $BUSY_BEFORE)"
 fi
-$VIRSH resume "$V" >/dev/null && say "$V resumed"
+vm_thaw "$V" && say "$V resumed"
 if [ "${REMOUNT_ON_RESUME:-0}" = 1 ]; then
-    on $V 150 "t0=\$(date +%s.%N); umount -l $MNT; echo umount_l_rc=\$?; mount -t mxfs $( [ "$PREP" = pve ] && echo "-o peer=$(addr $S) $LUN" || echo "\$(findmnt -n -o SOURCE $MNT 2>/dev/null || echo /dev/sda)") $MNT; echo remount_rc=\$? after_s=\$(echo \"\$(date +%s.%N) - \$t0\" | awk '{print \$1 - \$3}'); grep ' $MNT ' /proc/mounts; dmesg | grep -E 'PRKEY-REGISTER|P305|QUARANTINE|P-BOOT|MEMBERSHIP|already mounted|EBUSY' | tail -8" | tee "$EV/victim_remount.txt"
+    on $V 150 "t0=\$(date +%s.%N); umount -l $MNT; echo umount_l_rc=\$?; mount -t mxfs $( [ $PACKAGED = 1 ] && echo "-o peer=$(addr $S) $LUN" || echo "\$(findmnt -n -o SOURCE $MNT 2>/dev/null || echo /dev/sda)") $MNT; echo remount_rc=\$? after_s=\$(echo \"\$(date +%s.%N) - \$t0\" | awk '{print \$1 - \$3}'); grep ' $MNT ' /proc/mounts; dmesg | grep -E 'PRKEY-REGISTER|P305|QUARANTINE|P-BOOT|MEMBERSHIP|already mounted|EBUSY' | tail -8" | tee "$EV/victim_remount.txt"
     sleep 30
     BUSY_AFTER=$(on $S 30 "md5sum < $MNT/freeze/busy | cut -c1-32; stat -c %s $MNT/freeze/busy")
     say "busy file on the survivor 30 s after the victim's remount: $(echo $BUSY_AFTER)"

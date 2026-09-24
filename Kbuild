@@ -213,3 +213,18 @@ mxfs-y += $(addprefix mxfs_clayer/, \
 		pinned_resource.o \
 		yield_quantum.o \
 		)
+
+# Which kernel APIs the kernel this build is FOR provides, probed by compiling
+# against its own headers with the flags every object below is compiled with
+# (pal/linux/kcompat_probe.sh says why a version number cannot answer that).
+# xfs/xfs_platform.h includes the result, so every object depends on it.
+# $(objtree) is the kernel's build directory: the working directory on older
+# kernels, an absolute path on 6.13+, where an M= build runs from the module.
+filechk_mxfs_kcompat = MXFS_SYMVERS=$(objtree)/Module.symvers \
+	$(CONFIG_SHELL) $(src)/pal/linux/kcompat_probe.sh "$(CC)" \
+	$(KBUILD_CPPFLAGS) $(NOSTDINC_FLAGS) $(LINUXINCLUDE) $(KBUILD_CFLAGS) \
+	$(KBUILD_CFLAGS_MODULE)
+$(obj)/pal/linux/mxfs_kcompat.h: FORCE
+	$(call filechk,mxfs_kcompat)
+$(addprefix $(obj)/,$(mxfs-y)): $(obj)/pal/linux/mxfs_kcompat.h
+clean-files += pal/linux/mxfs_kcompat.h

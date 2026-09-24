@@ -24,11 +24,24 @@
 > that can lose data or hang a node. Performance work is also still open on
 > every configuration.
 >
-> **Released for Proxmox VE 9** (kernels 6.17 and 7.0), installed from the
-> release packages and verified on two Proxmox nodes sharing an iSCSI LUN.
-> Ubuntu 24.04 is the development platform. RHEL-family and FreeBSD support are
-> in development or planned — see `data/platforms.json`. Not yet recommended
-> for production data.
+> **Released for exactly these kernels**, each installed from the release
+> packages and verified on two x86-64 nodes sharing an iSCSI LUN:
+>
+> | platform | kernel verified |
+> |---|---|
+> | Proxmox VE 9 | 6.17.2-1-pve, 7.0.14-19-pve |
+> | Ubuntu 24.04 LTS | 6.8.0-101-generic (the GA kernel) |
+> | RHEL / AlmaLinux / Rocky 9.8 | 5.14.0-687.49.1.el9_8 |
+>
+> **Any other kernel is untested, even on the same distribution.** MXFS builds
+> against each kernel's own API, and a distribution's kernels differ: every
+> RHEL 9 minor release reports 5.14 but carries different backports (9.2 has
+> far fewer than 9.8), and Ubuntu 24.04 point releases install newer HWE
+> kernels. The module may not build, or may build different code, on a kernel
+> not listed here. On RHEL the RPM builds the module with DKMS (from EPEL) and
+> installs an SELinux rule that labels MXFS files as XFS files are labeled.
+> Other platforms are in development or planned — see `data/platforms.json`.
+> Not yet recommended for production data.
 >
 > **Storage:** the shared storage's write cache must survive a power loss
 > (battery- or flash-backed, as enterprise SAN and NAS arrays provide), or
@@ -185,6 +198,15 @@ The released configuration is **two nodes on the TCP transport**. Install the
 release package on both nodes (it loads the module with `force_transport=1
 target_cache_protected=1`), or load a source build with
 `modprobe mxfs force_transport=1 target_cache_protected=1` on both.
+
+```
+apt install ./mxfs_<version>_amd64.deb                  # Ubuntu 24.04, Proxmox VE 9
+dnf install epel-release kernel-devel-$(uname -r)       # RHEL / AlmaLinux / Rocky 9.8: DKMS is in EPEL
+dnf install ./mxfs-<version>-1.el8.x86_64.rpm
+```
+
+With firewalld on, open the DLM and discovery ports on both nodes:
+`firewall-cmd --permanent --add-port=7600/tcp --add-port=7601/udp --add-port=7603/udp && firewall-cmd --reload`.
 
 On the first node, format and mount the shared device:
 

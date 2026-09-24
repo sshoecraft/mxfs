@@ -2,7 +2,7 @@
   "_": "The operating systems MXFS is released for, in development for, or planned for. Read and written by tools/platforms.py. status: released = a release claims it, so every release must pass its build_check and record a verification of that exact version (scripts/release.sh refuses to publish otherwise); development = worked on, never claimed; planned = not started. A defect's `platform` field (tools/defects.py) names one of these keys, or `any`.",
   "platforms": {
     "pve9": {
-      "name": "Proxmox VE 9",
+      "name": "Proxmox VE 9 (kernels 6.17 and 7.0)",
       "status": "released",
       "kernels": [
         "6.17.2-1-pve (PVE 9.1 install)",
@@ -14,18 +14,24 @@
       ],
       "build_check": "scripts/pve_kbuild_check.sh 6.17.2-1-pve",
       "verify_env": "pve9-1 192.168.120.194, pve9-2 192.168.120.138 (libvirt on the rig host), shared QNAP LUN over in-guest iSCSI",
-      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; repeated peers=; pvesm add/status/remove holds one mount; proxmox-default-kernel upgrade + reboot, remount, earlier data intact",
+      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (tests/packaged_round.sh pve with KERNEL=)",
       "verified": {
-        "version": "0.89.80",
-        "date": "2026-09-23",
-        "evidence": "tests/evidence/pve9_release_0.89.80/"
-      }
+        "amd64": {
+          "version": "0.89.84",
+          "date": "2026-09-24",
+          "evidence": "tests/evidence/packaged_round/pve_0.89.84_20260924T075412/ tests/evidence/packaged_round/pve_0.89.84_20260924T075809/"
+        }
+      },
+      "priority": 4,
+      "arch": [
+        "amd64"
+      ]
     },
     "ubuntu2404": {
-      "name": "Ubuntu 24.04 LTS",
+      "name": "Ubuntu 24.04 LTS (GA kernel 6.8)",
       "status": "released",
       "kernels": [
-        "6.8.0-x-generic"
+        "6.8.0-101-generic (the 24.04 GA kernel; the HWE kernels 6.11+ are not verified)"
       ],
       "packages": [
         "mxfs_<v>_amd64.deb"
@@ -33,37 +39,58 @@
       "build_check": "make modules -j16",
       "verify_env": "two Ubuntu 24.04 KVM guests on the rig host (test3/test4, 6.8.0-101-generic) sharing the QNAP LUN over in-guest iSCSI, for the packaged install; the rig (test1..test32) for the suite",
       "verify_tests": "the full 2/tcp suite (run.sh 2 tcp) on the rig; install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; reboot, module auto-loaded, remount, earlier data intact",
-      "notes": "The development rig's platform. A reboot of a guest logged in to the iSCSI LUN takes ~3 min on Ubuntu 24.04 whether or not mxfs is loaded: lvm2-monitor's stop scans the LUN after the session has logged out (control: tests/evidence/ubuntu2404_release_0.89.80/control_test3_nomxfs_serial.log).",
+      "notes": "The development rig's platform. Reboots of the rig guests took ~3 min because their iSCSI node records for the SCST target on the rig host (iqn.2026-05.local.mxfs:shared, 192.168.120.1/.2) were set to log in at boot and waited out their timeouts whenever that target was down (systemd-analyze blame: open-iscsi 2 min); set to manual on test1-test4 in 0.89.84, a reboot takes ~30 s. scripts/mpath_up.sh sets them back to automatic when it brings that rig up.",
       "verified": {
-        "version": "0.89.80",
-        "date": "2026-09-23",
-        "evidence": "tests/evidence/ubuntu2404_release_0.89.80/"
-      }
+        "amd64": {
+          "version": "0.89.84",
+          "date": "2026-09-24",
+          "evidence": "tests/evidence/packaged_round/ubuntu_0.89.84_20260924T070957/ tests/evidence/packaged_round/ubuntu_0.89.84_20260924T081518/ tests/evidence/suite_2tcp_0.89.84.log tests/evidence/suite_2tcp_0.89.84_crash_audit_rerun.log"
+        }
+      },
+      "priority": 1,
+      "arch": [
+        "amd64"
+      ]
     },
     "rhel9": {
-      "name": "RHEL / AlmaLinux / Rocky 9",
-      "status": "development",
+      "name": "RHEL / AlmaLinux / Rocky 9.8",
+      "status": "released",
       "kernels": [
-        "5.14.0-x.el9 (heavily backported)"
+        "5.14.0-687.49.1.el9_8 (9.8; earlier minors carry fewer backports and are not verified)"
       ],
       "packages": [
-        "mxfs-<v>-1.el8.x86_64.rpm (built, not published)"
+        "mxfs-<v>-1.el8.x86_64.rpm (DKMS; EPEL dkms)"
       ],
-      "build_check": "none yet: a DKMS build on alma-97",
-      "verify_env": "alma-97 192.168.120.187 (vSphere)",
-      "verify_tests": "RPM install with EPEL dkms; DKMS build; module load; single-node mount",
-      "notes": "Does not compile: LINUX_VERSION_CODE says 5.14 but Red Hat has backported newer block/super APIs, which the version-gated shims in xfs/xfs_platform.h then redefine. Record: D-MODULE-DOES-NOT-BUILD-ON-RHEL9-KERNEL-BACKPORTS-COLLIDE-WITH-VERSION-SHIMS."
+      "build_check": "scripts/rhel_kbuild_check.sh -i almalinux:9 && scripts/rhel_kbuild_check.sh -i rockylinux:9",
+      "verify_env": "two AlmaLinux 9.8 QEMU guests on the rig host (alma9-1 192.168.120.100, alma9-2 192.168.120.157; osimager spec alma-9.7 updated to 9.8), kernel 5.14.0-687.49.1.el9_8, firewalld active, SELinux enforcing, shared QNAP LUN over in-guest iSCSI. AlmaLinux and Rocky rebuild Red Hat's kernel for each minor release; runtime runs on AlmaLinux, build checks on AlmaLinux and Rocky.",
+      "verify_tests": "install the .rpm from the built packages with a DKMS build and the module loaded from /lib/modules/<krel>/extra; firewalld with only 7600/tcp 7601/udp 7603/udp opened; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast dropped; reboot, module auto-loaded, remount, earlier data intact; SELinux enforcing: mount, cross-node writes, no AVC denials; hung-node freeze (tests/tcp_peer_freeze_death.sh, PREP=alma): death declared, fence certified, replay, survivor writing",
+      "notes": "Ported in 0.89.82: kernel APIs are probed at build time (pal/linux/kcompat_probe.sh), since RHEL 9 reports 5.14 for every minor release while carrying backports, so each minor is a different build. The claim is 9.8 only. Runtime runs on AlmaLinux 9.8 (alma9-1/alma9-2), which rebuilds Red Hat's kernel: the lab has no Red Hat subscription, so the RHEL VMs (rhel9-1/rhel9-2) stay on 9.2 and are the pair for a 9.2 claim. Guests on QEMU need x86-64-v2 (-cpu host).",
+      "priority": 2,
+      "verified": {
+        "amd64": {
+          "version": "0.89.84",
+          "date": "2026-09-24",
+          "evidence": "tests/evidence/packaged_round/alma_0.89.84_20260924T065149/ tests/evidence/packaged_round/alma_0.89.84_20260924T065727/ tests/evidence/tcp_peer_freeze_death/20260924T070058/ tests/evidence/selinux_svirt/20260924T070654/ tests/evidence/selinux_svirt/xfs_control/"
+        }
+      },
+      "arch": [
+        "amd64"
+      ]
     },
     "rhel10": {
       "name": "RHEL / AlmaLinux / Rocky 10",
-      "status": "planned",
+      "status": "development",
       "kernels": [
         "6.12.0-x.el10"
       ],
       "packages": [
         "rpm"
       ],
-      "notes": "Not attempted. Same backport question as RHEL 9 on a newer base."
+      "notes": "RHEL 10 runs 6.12 plus Red Hat backports: nearer the tree than RHEL 9's 5.14, so it is expected to be cheaper than RHEL 9. Build with scripts/rhel_kbuild_check.sh -i almalinux:10; osimager has rhel-10.x and alma-10.x specs. AlmaLinux and Rocky rebuild the same kernel: runtime on RHEL, build checks on all three.",
+      "priority": 6,
+      "arch": [
+        "amd64"
+      ]
     },
     "rhel8": {
       "name": "RHEL / AlmaLinux / Rocky 8",
@@ -74,7 +101,11 @@
       "packages": [
         "rpm"
       ],
-      "notes": "Not attempted. The widest API gap of the Linux targets (docs/future.md)."
+      "notes": "Ordered after RHEL 10 and Debian 12 by user decision, despite its large installed base: 4.18 is the widest API gap of the Linux targets (docs/future.md), and RHEL 8 is in its maintenance phase, so supporting it is a port in its own right, not a build check.",
+      "priority": 8,
+      "arch": [
+        "amd64"
+      ]
     },
     "freebsd14": {
       "name": "FreeBSD 14",
@@ -85,7 +116,119 @@
       "packages": [
         "pkg"
       ],
-      "notes": "A port, not a build target: MXFS is a fork of Linux XFS built as a Linux kernel module. The DLM layer sits behind the platform abstraction (pal/) and carries over; the filesystem needs a new FreeBSD VFS frontend and buffer cache integration (docs/future.md)."
+      "notes": "A port, not a build target: MXFS is a fork of Linux XFS built as a Linux kernel module. The DLM layer sits behind the platform abstraction (pal/) and carries over; the filesystem needs a new FreeBSD VFS frontend and buffer cache integration (docs/future.md).",
+      "priority": 12,
+      "arch": [
+        "amd64"
+      ]
+    },
+    "ubuntu2604": {
+      "name": "Ubuntu 26.04 LTS",
+      "status": "development",
+      "priority": 5,
+      "kernels": [
+        "7.0.x-generic"
+      ],
+      "packages": [
+        "mxfs_<v>_amd64.deb"
+      ],
+      "notes": "The current Ubuntu LTS. Its kernel is close to the upstream tree MXFS forks, so the port should be a build check and a packaged round.",
+      "arch": [
+        "amd64"
+      ]
+    },
+    "debian13": {
+      "name": "Debian 13",
+      "status": "development",
+      "priority": 3,
+      "kernels": [
+        "6.12.x (trixie)"
+      ],
+      "packages": [
+        "mxfs_<v>_amd64.deb"
+      ],
+      "notes": "Proxmox VE 9 is built on it, with Proxmox's own newer kernel. Plain Debian runs 6.12, which is also the base of RHEL 10 and SLES 16, so the 6.12 build serves all three.",
+      "arch": [
+        "amd64"
+      ]
+    },
+    "sles16": {
+      "name": "SUSE Linux Enterprise Server 16",
+      "status": "planned",
+      "priority": 11,
+      "kernels": [
+        "6.12.x-default"
+      ],
+      "packages": [
+        "KMP rpm (DKMS via PackageHub)"
+      ],
+      "notes": "Rides on the 6.12 build that Debian 13 and RHEL 10 need. Packaging differs: SUSE ships out-of-tree modules as KMPs, not DKMS. SUSE already supports OCFS2 in its HA extension. SLES 15 (6.4 with SUSE backports) is a separate port and is not planned.",
+      "arch": [
+        "amd64"
+      ]
+    },
+    "macos26": {
+      "name": "macOS 26 Tahoe",
+      "status": "planned",
+      "priority": 13,
+      "kernels": [
+        "XNU (kernel extension)"
+      ],
+      "packages": [
+        "signed and notarized kext in a .pkg (universal arm64 + x86_64)"
+      ],
+      "notes": "A kernel extension (user decision, 2026-09-24): the XFS layer and DLM run in XNU behind a new pal/ implementation. Requirements: Apple must grant the kext-signing entitlement on request (a Developer ID alone does not sign kexts); notarization; user approval in System Settings on first load; on Apple Silicon, every Mac must first be set to Reduced Security in Recovery with kernel extensions from identified developers allowed, a one-time documented install step (ATTO's customers do the same). Universal binary: macOS 26 is the last release for Intel Macs. Storage: macOS has no built-in iSCSI initiator; either sit on ATTO's or globalSAN's initiator, where fencing depends on SCSI persistent reservations passing through their stack, or ship one. Apple's Xsan (StorNext-compatible) is the incumbent shared-SAN filesystem on the Mac.",
+      "arch": [
+        "arm64",
+        "amd64"
+      ]
+    },
+    "debian12": {
+      "name": "Debian 12",
+      "status": "planned",
+      "kernels": [
+        "6.1.x (bookworm)"
+      ],
+      "packages": [
+        "mxfs_<v>_amd64.deb"
+      ],
+      "notes": "Large installed base (Debian's previous stable, LTS to mid-2028). 6.1 is below the 6.8 floor MXFS builds on today, so it is a port (VFS/block API shims for 6.1), smaller than RHEL 8's. The release packages are already built in a debian:bookworm container, so the userspace tools run there.",
+      "priority": 7,
+      "arch": [
+        "amd64"
+      ]
+    },
+    "debian11": {
+      "name": "Debian 11",
+      "status": "planned",
+      "priority": 9,
+      "kernels": [
+        "5.10.x (bullseye)"
+      ],
+      "packages": [
+        "mxfs_<v>_amd64.deb"
+      ],
+      "verify_env": "the user's HP server running Debian 11",
+      "notes": "Added at the user's request for an HP server running Debian 11 (bullseye, LTS to mid-2026, ELTS after). 5.10 is below both the 6.8 floor MXFS builds on today and Debian 12's 6.1, so it is a port that extends the 6.1 shims further back. The release packages are built in a debian:bookworm container (glibc 2.36); bullseye has glibc 2.31, so the userspace tools need a bullseye build before they run there.",
+      "arch": [
+        "amd64"
+      ]
+    },
+    "raspios11": {
+      "name": "Raspberry Pi OS 11",
+      "status": "planned",
+      "priority": 10,
+      "kernels": [
+        "Raspberry Pi Foundation kernel 5.10 / 6.1 (bullseye)"
+      ],
+      "packages": [
+        "mxfs_<v>_arm64.deb"
+      ],
+      "verify_env": "the user's Raspberry Pi running Raspberry Pi OS 11 (bullseye)",
+      "notes": "Added at the user's request for a Raspberry Pi running Raspberry Pi OS 11 (Debian 11 bullseye base). A new architecture as well as a new kernel: every package MXFS builds today is amd64, and the module has never been compiled for ARM. It needs an arm64 (or, on a 32-bit install, armhf) .deb with the tools built in a bullseye container, and a DKMS build against raspberrypi-kernel-headers, the Foundation's own kernel rather than Debian's. The kernel API port is the Debian 11 one; the architecture work is separate, and a 32-bit armhf userland also needs every 64-bit on-disk and DLM quantity checked for 32-bit long and size_t. Check uname -m on the Pi before choosing arm64 or armhf.",
+      "arch": [
+        "arm64"
+      ]
     }
   }
 }

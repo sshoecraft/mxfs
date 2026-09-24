@@ -42,12 +42,17 @@ if [ "${1:-}" = "--drop" ]; then
     exit 0
 fi
 
-if ! docker inspect "$NAME" >/dev/null 2>&1; then
+if docker inspect "$NAME" >/dev/null 2>&1; then
+    # A build whose docker exec client died (a timeout, a killed shell) keeps
+    # running inside the container, a -j$(nproc) make competing with the next
+    # one; restarting ends everything in it and keeps the installed packages.
+    docker restart -t 0 "$NAME" >/dev/null
+else
     docker run -d --name "$NAME" --network host -v "$SRCDIR:/src/mxfs:ro" \
         "$IMAGE" sleep infinity >/dev/null
     docker exec "$NAME" bash -c '
         set -e
-        dnf -q -y install gcc make rsync kmod elfutils-libelf-devel \
+        dnf -q -y install gcc make rsync kmod diffutils elfutils-libelf-devel \
             kernel-devel >/dev/null
     '
 fi
@@ -70,11 +75,13 @@ for hdr in /usr/src/kernels/*; do
     # that does not build rather than only the first few make reached.
     if make -k -s -j"$(nproc)" -C "$hdr" M=/build modules >/tmp/kbuild.log 2>&1; then
         echo "RHEL_KBUILD_OK $krel $(modinfo -F srcversion /build/mxfs.ko)"
+        # which kernel APIs the probes found: the build a release ships differs per kernel
+        echo "  kcompat $krel: $(sed -n "s/^#define MXFS_HAVE_\([A-Z0-9_]*\) 1$/\1/p" /build/pal/linux/mxfs_kcompat.h | paste -sd " ")"
     else
         echo "RHEL_KBUILD_FAIL $krel"
         # Compiler errors, and the tool failures (a missing command or
         # shared library exits 127) that would otherwise read as "Error 127".
-        grep -E "error:|not found|error while loading|No such file|Error [0-9]" \
+        grep -E "error:|ERROR:|undefined!|not found|error while loading|No such file|Error [0-9]" \
             /tmp/kbuild.log | sort | uniq -c | sort -rn | head -300
         rc=1
     fi

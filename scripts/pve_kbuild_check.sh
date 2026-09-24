@@ -62,6 +62,8 @@ for hdr in /usr/src/linux-headers-*-pve; do
     # that does not build rather than only the first few make reached.
     if make -k -s -j"$(nproc)" -C "$hdr" M=/build modules >/tmp/kbuild.log 2>&1; then
         echo "PVE_KBUILD_OK $krel $(modinfo -F srcversion /build/mxfs.ko) libiscsi_fp=$(grep -o -E "[0-9a-f]{64}|absent:[^\"]*" /build/pal/linux/mxfs_libiscsi_fp.h)"
+        # which kernel APIs the probes found: the build a release ships differs per kernel
+        echo "  kcompat $krel: $(sed -n "s/^#define MXFS_HAVE_\([A-Z0-9_]*\) 1$/\1/p" /build/pal/linux/mxfs_kcompat.h | paste -sd " ")"
     else
         echo "PVE_KBUILD_FAIL $krel"
         # Compiler errors, and the tool failures (a missing command or

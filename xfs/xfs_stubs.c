@@ -120,11 +120,17 @@ int xfs_break_leased_layouts(struct inode *inode, uint *iolock, bool *retry)
 /* ── Dahash test stub ── */
 int xfs_dahash_test(void) { return 0; }
 
-/* ── bio_add_folio_nofail — may be missing on 6.8 ── */
+/* ── bio_add_folio_nofail — may be missing on 6.8 ──
+ * Upstream's body (block/bio.c), through bio_add_page: RHEL 9 declares
+ * bio_add_folio and bio_add_folio_nofail but exports neither to modules, and
+ * bio_add_page is exported on every kernel this builds for. */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 void bio_add_folio_nofail(struct bio *bio, struct folio *folio,
 	size_t len, size_t off)
 {
-	bio_add_folio(bio, folio, len, off);
+	unsigned long nr = off / PAGE_SIZE;
+
+	WARN_ON_ONCE(bio_add_page(bio, folio_page(folio, nr), len,
+				  off % PAGE_SIZE) != len);
 }
 #endif

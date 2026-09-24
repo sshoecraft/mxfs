@@ -1992,7 +1992,7 @@ struct mxfs_dirshard_rdctx {
 	bool			full;	/* the outer actor refused an entry */
 };
 
-static bool
+static mxfs_filldir_ret_t
 mxfs_dirshard_readdir_actor(
 	struct dir_context	*sub,
 	const char		*name,
@@ -2006,16 +2006,17 @@ mxfs_dirshard_readdir_actor(
 	uint64_t		cookie;
 
 	if (namelen == 1 && name[0] == '.')
-		return true;
+		return MXFS_FILLDIR_CONTINUE;
 	if (namelen == 2 && name[0] == '.' && name[1] == '.')
-		return true;
+		return MXFS_FILLDIR_CONTINUE;
 	cookie = mxfs_dirshard_cookie(r->slot, (uint32_t)local);
 	r->outer->pos = cookie;
-	if (!r->outer->actor(r->outer, name, namelen, cookie, ino, type)) {
+	if (!mxfs_filldir_ok(r->outer->actor(r->outer, name, namelen, cookie,
+					     ino, type))) {
 		r->full = true;
-		return false;
+		return MXFS_FILLDIR_STOP;
 	}
-	return true;
+	return MXFS_FILLDIR_CONTINUE;
 }
 
 /*

@@ -8,6 +8,8 @@
 #   - /etc/modules-load.d/mxfs.conf (auto-load at boot)
 #   - /etc/udev/rules.d/60-mxfs-blkid.rules (blkid/lsblk detect MXFS)
 #   - fsck.mxfs symlink (for fstab fsck dispatch)
+#   - an SELinux module giving mxfs the xattr labeling rule XFS has (RPM
+#     only: the Debian family ships no SELinux policy by default)
 #
 # Contents must match mkdeb.sh: an RPM system gets the same package a
 # Debian system does.
@@ -64,6 +66,10 @@ cp -r "$SRCDIR/include" "$TARDIR/tools/"
 # udev rule
 mkdir -p "$TARDIR/udev"
 cp "$SCRIPTDIR/60-mxfs-blkid.rules" "$TARDIR/udev/"
+
+# SELinux labeling rule
+mkdir -p "$TARDIR/selinux"
+cp "$SCRIPTDIR/mxfs.cil" "$TARDIR/selinux/"
 
 # modprobe config: TCP transport, the released configuration
 mkdir -p "$TARDIR/modprobe"
@@ -150,18 +156,59 @@ install -m 644 udev/60-mxfs-blkid.rules %{buildroot}/etc/udev/rules.d/60-mxfs-bl
 mkdir -p %{buildroot}/etc/modprobe.d
 install -m 644 modprobe/mxfs.conf %{buildroot}/etc/modprobe.d/mxfs.conf
 
+# SELinux: loaded in %post where the host has SELinux tooling
+mkdir -p %{buildroot}/usr/share/selinux/packages
+install -m 644 selinux/mxfs.cil %{buildroot}/usr/share/selinux/packages/mxfs.cil
+
 %post
-dkms add -m mxfs -v %{version} 2>/dev/null || true
-dkms build -m mxfs -v %{version}
-dkms install -m mxfs -v %{version}
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=block 2>/dev/null || true
+# installed into the policy store even while SELinux is disabled, so a host
+# that enables it later labels MXFS from its first boot enforcing
+if command -v semodule >/dev/null 2>&1; then
+    semodule -i /usr/share/selinux/packages/mxfs.cil ||
+        echo "mxfs: the SELinux module did not load; files on MXFS stay unlabeled_t" >&2
+fi
+# The module build runs last and decides the scriptlet's exit status: a
+# scriptlet's status is its last command's, so a build failure followed by
+# anything else was reported as a successful install with no module.  RPM
+# cannot undo an install from %post; a non-zero exit is what makes rpm and
+# dnf report the failure.
+dkms add -m mxfs -v %{version} 2>/dev/null || true
+# Build for every installed kernel that has headers, not only the running
+# one: Requires: kernel-devel installs the NEWEST kernel's headers, which is
+# not the running kernel on a node that has not rebooted since an update.
+built=0
+for kdir in /lib/modules/*; do
+    k=\${kdir##*/}
+    [ -e "\$kdir/build/Makefile" ] || continue
+    echo "Building MXFS %{version} for kernel \$k ..."
+    if ! dkms build -m mxfs -v %{version} -k "\$k" || ! dkms install -m mxfs -v %{version} -k "\$k"; then
+        echo "ERROR: MXFS %{version} did not build for kernel \$k; see /var/lib/dkms/mxfs/%{version}/build/make.log" >&2
+        exit 1
+    fi
+    built=\$((built + 1))
+done
+if [ "\$built" = 0 ]; then
+    echo "ERROR: no installed kernel has headers; install kernel-devel for your kernel" >&2
+    exit 1
+fi
+if [ ! -e "/lib/modules/\$(uname -r)/build/Makefile" ]; then
+    echo "NOTE: the running kernel \$(uname -r) has no headers, so MXFS was built for the"
+    echo "      other installed kernels only. Reboot into one of them, or install"
+    echo "      kernel-devel-\$(uname -r) and run: dkms install -m mxfs -v %{version}"
+fi
 
 %preun
 dkms remove -m mxfs -v %{version} --all 2>/dev/null || true
 
 %postun
 udevadm control --reload-rules 2>/dev/null || true
+# \$1 is 0 on erase, 1 on upgrade: an upgrade's %post has already loaded the
+# new module, so only an erase removes it
+if [ "\$1" = 0 ] && command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | grep -qx mxfs; then
+    semodule -r mxfs
+fi
 
 %files
 /usr/src/mxfs-%{version}/
@@ -176,6 +223,7 @@ udevadm control --reload-rules 2>/dev/null || true
 /etc/modules-load.d/mxfs.conf
 /etc/udev/rules.d/60-mxfs-blkid.rules
 %config(noreplace) /etc/modprobe.d/mxfs.conf
+/usr/share/selinux/packages/mxfs.cil
 SPECEOF
 
 # Build RPM

@@ -8,9 +8,8 @@
 # Builds into dist/<version>/:
 #   mxfs_<v>_amd64.deb              Debian / Ubuntu / Proxmox (DKMS + tools)
 #   pve-storage-mxfs_<v>_all.deb    Proxmox VE storage plugin
-#   mxfs-<v>-1.el8.x86_64.rpm       built for development, NOT published: the
-#                                   module does not yet build on RHEL kernels
-#   SHA256SUMS                      the published .deb files
+#   mxfs-<v>-1.el8.x86_64.rpm       RHEL / AlmaLinux / Rocky (DKMS + tools)
+#   SHA256SUMS                      every published package
 #
 # Each package is built in a container running the OLDEST distribution it
 # targets, never on the host.  The userspace tools are linked against the
@@ -110,10 +109,7 @@ if [ "$built" = 0 ]; then
         chown $owner /out/*.rpm
     "
 
-    # The RPM is built for development only and is not published: the module
-    # does not yet build on RHEL-family kernels (RHEL 9's 5.14 carries
-    # backports the version-gated shims in xfs/xfs_platform.h collide with).
-    (cd "$OUT" && sha256sum *.deb > SHA256SUMS)
+    (cd "$OUT" && sha256sum *.deb *.rpm > SHA256SUMS)
 
     echo ""
     echo "=== Built in $OUT ==="
@@ -141,4 +137,4 @@ fi
 
 gh release create "v$VERSION" -R "$REPO" --target main \
     --title "MXFS $VERSION" --notes-file "$notes" \
-    "$OUT"/*.deb "$OUT/SHA256SUMS"
+    "$OUT"/*.deb "$OUT"/*.rpm "$OUT/SHA256SUMS"

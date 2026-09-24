@@ -93,3 +93,7 @@ __pycache__/
 # ---- 47 files / 555MB stood untracked on 2026-08-22. Harvested .txt proofs
 # ---- beside them stay tracked via the tests/evidence rules above.
 *.klog
+
+# generated at build time from the target kernel's headers (Kbuild filechk)
+/pal/linux/mxfs_libiscsi_fp.h
+/pal/linux/mxfs_kcompat.h

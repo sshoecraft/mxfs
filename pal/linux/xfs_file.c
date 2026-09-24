@@ -345,6 +345,12 @@ xfs_ilock_iocb_for_write(
 	return 0;
 }
 
+/* Bouncing a direct read for a stable-writes mapping needs the kernel's iomap
+ * to bounce (IOMAP_DIO_BOUNCE) and iomap_dio_ops to name its ioend bio_set.
+ * Where either is missing (6.8, RHEL 9, any kernel before iomap bounced) the
+ * read is issued directly, as that kernel's own XFS issues it. */
+#if defined(MXFS_HAVE_IOMAP_DIO_BOUNCE) && defined(MXFS_DIO_IOEND_BIOSET)
+#define MXFS_DIO_READ_BOUNCE 1
 /*
  * Bounce buffering dio reads need a user context to copy back the data.
  * Use an ioend to provide that.
@@ -364,6 +370,7 @@ static const struct iomap_dio_ops xfs_dio_read_bounce_ops = {
 	.submit_io	= xfs_dio_read_bounce_submit_io,
 	.bio_set	= &iomap_ioend_bioset,
 };
+#endif
 
 STATIC ssize_t
 xfs_file_dio_read(
@@ -410,11 +417,13 @@ xfs_file_dio_read(
 		xfs_iunlock(ip, XFS_IOLOCK_SHARED);
 		return -ESTALE;
 	}
+#ifdef MXFS_DIO_READ_BOUNCE
 	if (mapping_stable_writes(iocb->ki_filp->f_mapping)) {
 		dio_ops = &xfs_dio_read_bounce_ops;
 		dio_flags |= IOMAP_DIO_BOUNCE;
 	}
-	ret = iomap_dio_rw(iocb, to, &xfs_read_iomap_ops, dio_ops, dio_flags,
+#endif
+	ret = mxfs_iomap_dio_rw(iocb, to, &xfs_read_iomap_ops, dio_ops, dio_flags,
 			NULL, 0);
 	xfs_iunlock(ip, XFS_IOLOCK_SHARED);
 
@@ -939,7 +948,7 @@ xfs_dio_zoned_submit_io(
 	loff_t			file_offset)
 {
 	struct xfs_mount	*mp = XFS_I(iter->inode)->i_mount;
-	struct xfs_zone_alloc_ctx *ac = iter->private;
+	struct xfs_zone_alloc_ctx *ac = mxfs_iomap_iter_private(iter);
 	xfs_filblks_t		count_fsb;
 	struct iomap_ioend	*ioend;
 
@@ -971,8 +980,12 @@ xfs_dio_zoned_submit_io(
 	xfs_zone_alloc_and_submit(ioend, &ac->open_zone);
 }
 
+/* Without iomap's ioend bio_set (6.8, RHEL 9) a zoned filesystem is refused
+ * at mount (xfs_super.c), so these ops are never installed there. */
 static const struct iomap_dio_ops xfs_dio_zoned_write_ops = {
+#ifdef MXFS_DIO_IOEND_BIOSET
 	.bio_set	= &iomap_ioend_bioset,
+#endif
 	.submit_io	= xfs_dio_zoned_submit_io,
 	.end_io		= xfs_dio_write_end_io,
 };
@@ -1023,7 +1036,7 @@ xfs_file_dio_write_aligned(
 	if (mapping_stable_writes(iocb->ki_filp->f_mapping))
 		dio_flags |= IOMAP_DIO_BOUNCE;
 	trace_xfs_file_direct_write(iocb, from);
-	ret = iomap_dio_rw(iocb, from, ops, dops, dio_flags, ac, 0);
+	ret = mxfs_iomap_dio_rw(iocb, from, ops, dops, dio_flags, ac, 0);
 out_unlock:
 	/* 0.84.10: a refused relock inside write_checks leaves iolock 0 */
 	if (iolock)
@@ -1112,7 +1125,7 @@ retry:
 	trace_xfs_file_direct_write(iocb, from);
 	if (mapping_stable_writes(iocb->ki_filp->f_mapping))
 		dio_flags |= IOMAP_DIO_BOUNCE;
-	ret = iomap_dio_rw(iocb, from, dops, &xfs_dio_write_ops, dio_flags,
+	ret = mxfs_iomap_dio_rw(iocb, from, dops, &xfs_dio_write_ops, dio_flags,
 			NULL, 0);
 
 	/*
@@ -1221,7 +1234,7 @@ retry_exclusive:
 		flags |= IOMAP_DIO_BOUNCE;
 
 	trace_xfs_file_direct_write(iocb, from);
-	ret = iomap_dio_rw(iocb, from, &xfs_direct_write_iomap_ops,
+	ret = mxfs_iomap_dio_rw(iocb, from, &xfs_direct_write_iomap_ops,
 			   &xfs_dio_write_ops, flags, NULL, 0);
 
 	/*

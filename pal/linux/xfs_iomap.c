@@ -141,10 +141,20 @@ const struct iomap_write_ops xfs_iomap_write_ops = {
  *
  * get_folio and put_folio stay unset: iomap tests each member separately and
  * falls back to its own handling for the two we do not supply.
+ *
+ * Before 6.4 the same struct was iomap_page_ops, reached through
+ * iomap->page_ops, and RHEL 9 still has it by that name, with the same
+ * iomap_valid hook and the same validity_cookie.
  */
+#ifdef MXFS_HAVE_IOMAP_FOLIO_OPS
 static const struct iomap_folio_ops xfs_iomap_folio_ops = {
 	.iomap_valid		= xfs_iomap_valid,
 };
+#else
+static const struct iomap_page_ops xfs_iomap_page_ops = {
+	.iomap_valid		= xfs_iomap_valid,
+};
+#endif
 const struct iomap_write_ops xfs_iomap_write_ops = { NULL };
 #endif
 
@@ -227,7 +237,11 @@ xfs_bmbt_to_iomap(
 	 * where the mapping used to point.  Above 6.15 the same function is
 	 * delivered as iomap_write_ops by the write call itself.
 	 */
+#ifdef MXFS_HAVE_IOMAP_FOLIO_OPS
 	iomap->folio_ops = &xfs_iomap_folio_ops;
+#else
+	iomap->page_ops = &xfs_iomap_page_ops;
+#endif
 #endif
 	return 0;
 }
@@ -1780,7 +1794,7 @@ xfs_zoned_buffered_write_iomap_begin(
 {
 	struct iomap_iter	*iter =
 		container_of(iomap, struct iomap_iter, iomap);
-	struct xfs_zone_alloc_ctx *ac = iter->private;
+	struct xfs_zone_alloc_ctx *ac = mxfs_iomap_iter_private(iter);
 	struct xfs_inode	*ip = XFS_I(inode);
 	struct xfs_mount	*mp = ip->i_mount;
 	xfs_fileoff_t		offset_fsb = XFS_B_TO_FSBT(mp, offset);
@@ -2236,7 +2250,7 @@ xfs_buffered_write_delalloc_punch(
 	xfs_bmap_punch_delalloc_range(XFS_I(inode),
 			(iomap->flags & IOMAP_F_SHARED) ?
 				XFS_COW_FORK : XFS_DATA_FORK,
-			offset, offset + length, iter->private);
+			offset, offset + length, mxfs_iomap_iter_private(iter));
 }
 
 static int

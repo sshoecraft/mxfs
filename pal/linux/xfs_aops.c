@@ -1426,7 +1426,12 @@ const struct address_space_operations xfs_address_space_operations = {
 	.bmap			= xfs_vm_bmap,
 	.migrate_folio		= filemap_migrate_folio,
 	.is_partially_uptodate  = iomap_is_partially_uptodate,
+	/* the folio form is v6.8; RHEL 9 has the page form it replaced */
+#ifdef MXFS_HAVE_ERROR_REMOVE_FOLIO
 	.error_remove_folio	= generic_error_remove_folio,
+#else
+	.error_remove_page	= generic_error_remove_page,
+#endif
 	.swap_activate		= xfs_iomap_swapfile_activate,
 };
 

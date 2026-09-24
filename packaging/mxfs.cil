@@ -1,0 +1,14 @@
+; MXFS — SELinux labeling rule for the mxfs filesystem type
+;
+; A distribution policy has no rule for a filesystem type it has never heard
+; of, so without this every file on an MXFS mount is unlabeled_t, and a
+; confined service (libvirt's sVirt QEMU, httpd, containers) is denied it.
+; MXFS stores labels in security.* extended attributes and labels a new inode
+; through security_inode_init_security, exactly as XFS does, so it takes the
+; rule the reference policy gives xfs: fs_use_xattr with fs_t for the
+; filesystem object itself.
+;
+; Installed by the RPM's %post with semodule -i; a mount made before the
+; module was loaded keeps its old labeling until it is remounted.
+
+(fsuse xattr mxfs (system_u object_r fs_t ((s0) (s0))))

@@ -1656,6 +1656,26 @@ xfs_vn_update_time(
 }
 
 /*
+ * RHEL 9 keeps the pre-6.6 ->update_time slot, which hands in the time to set
+ * while carrying the 6.6 helpers (generic_update_time(inode, flags),
+ * inode_set_ctime_current).  The body above sets the current time itself, and
+ * the VFS computed `now` with current_time() too, so the argument is dropped.
+ */
+#ifdef MXFS_HAVE_UPDATE_TIME_TIMESPEC
+STATIC int
+xfs_vn_update_time_timespec(
+	struct inode		*inode,
+	struct timespec64	*now,
+	int			flags)
+{
+	return xfs_vn_update_time(inode, flags);
+}
+#define XFS_VN_UPDATE_TIME	xfs_vn_update_time_timespec
+#else
+#define XFS_VN_UPDATE_TIME	xfs_vn_update_time
+#endif
+
+/*
  * Not static: below 6.19 the VFS has no ->sync_lazytime to install this in, and
  * the deferred timestamp is completed through super_operations->dirty_inode
  * instead — which lives in xfs_super.c and calls straight through to here, so
@@ -1720,7 +1740,7 @@ static const struct inode_operations xfs_inode_operations = {
 	.setattr		= xfs_vn_setattr,
 	.listxattr		= xfs_vn_listxattr,
 	.fiemap			= xfs_vn_fiemap,
-	.update_time		= xfs_vn_update_time,
+	.update_time		= XFS_VN_UPDATE_TIME,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	.sync_lazytime		= xfs_vn_sync_lazytime,
@@ -1754,7 +1774,7 @@ static const struct inode_operations xfs_dir_inode_operations = {
 	.getattr		= xfs_vn_getattr,
 	.setattr		= xfs_vn_setattr,
 	.listxattr		= xfs_vn_listxattr,
-	.update_time		= xfs_vn_update_time,
+	.update_time		= XFS_VN_UPDATE_TIME,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	.sync_lazytime		= xfs_vn_sync_lazytime,
 #endif
@@ -1784,7 +1804,7 @@ static const struct inode_operations xfs_dir_ci_inode_operations = {
 	.getattr		= xfs_vn_getattr,
 	.setattr		= xfs_vn_setattr,
 	.listxattr		= xfs_vn_listxattr,
-	.update_time		= xfs_vn_update_time,
+	.update_time		= XFS_VN_UPDATE_TIME,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	.sync_lazytime		= xfs_vn_sync_lazytime,
 #endif
@@ -1798,7 +1818,7 @@ static const struct inode_operations xfs_symlink_inode_operations = {
 	.getattr		= xfs_vn_getattr,
 	.setattr		= xfs_vn_setattr,
 	.listxattr		= xfs_vn_listxattr,
-	.update_time		= xfs_vn_update_time,
+	.update_time		= XFS_VN_UPDATE_TIME,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 	.sync_lazytime		= xfs_vn_sync_lazytime,
 #endif

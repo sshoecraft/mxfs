@@ -5066,6 +5066,20 @@ xfs_fs_fill_super(
 			error = -EINVAL;
 			goto out_filestream_unmount;
 		}
+#if !defined(MXFS_HAVE_IOMAP_ITER_PRIVATE) || !defined(MXFS_DIO_IOEND_BIOSET)
+		/*
+		 * A zoned write carries its allocation context to the iomap
+		 * callbacks in iomap_iter->private and allocates its bios from
+		 * iomap_ioend_bioset through iomap_dio_ops->bio_set.  This
+		 * kernel's iomap lacks one of them (6.8 exports no ioend set,
+		 * RHEL 9 has neither), so no zoned write could reach its
+		 * reservation: refused here, before anything runs.
+		 */
+		xfs_alert(mp,
+	"zoned realtime devices need an iomap with a private context and a dio bio_set, which this kernel does not have");
+		error = -EOPNOTSUPP;
+		goto out_filestream_unmount;
+#endif
 		xfs_warn_experimental(mp, XFS_EXPERIMENTAL_ZONED);
 	}
 
