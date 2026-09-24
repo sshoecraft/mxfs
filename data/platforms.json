@@ -13,13 +13,13 @@
         "pve-storage-mxfs_<v>_all.deb"
       ],
       "build_check": "scripts/pve_kbuild_check.sh 6.17.2-1-pve",
-      "verify_env": "pve9-1 192.168.120.194, pve9-2 192.168.120.138 (libvirt on the rig host), shared QNAP LUN over in-guest iSCSI",
-      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (tests/packaged_round.sh pve with KERNEL=)",
+      "verify_env": "two Proxmox VE 9 nodes built as lab/vms.md describes (pve9), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh)",
+      "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel)",
       "verified": {
         "amd64": {
-          "version": "0.89.84",
+          "version": "0.89.85",
           "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/pve_0.89.84_20260924T075412/ tests/evidence/packaged_round/pve_0.89.84_20260924T075809/"
+          "evidence": "tests/evidence/packaged_round/pve9_0.89.85_20260924T123555/ tests/evidence/packaged_round/pve9_0.89.85_20260924T121832/"
         }
       },
       "priority": 4,
@@ -37,14 +37,14 @@
         "mxfs_<v>_amd64.deb"
       ],
       "build_check": "make modules -j16",
-      "verify_env": "two Ubuntu 24.04 KVM guests on the rig host (test3/test4, 6.8.0-101-generic) sharing the QNAP LUN over in-guest iSCSI, for the packaged install; the rig (test1..test32) for the suite",
+      "verify_env": "two Ubuntu 24.04 nodes on the GA kernel built as lab/vms.md describes (ubuntu2404), sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh), for the packaged round (tests/packaged_round.sh ubuntu2404); the development rig for the 2/tcp suite",
       "verify_tests": "the full 2/tcp suite (run.sh 2 tcp) on the rig; install the .deb from the built packages with a DKMS build and a module loaded from updates/dkms; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; reboot, module auto-loaded, remount, earlier data intact",
-      "notes": "The development rig's platform. Reboots of the rig guests took ~3 min because their iSCSI node records for the SCST target on the rig host (iqn.2026-05.local.mxfs:shared, 192.168.120.1/.2) were set to log in at boot and waited out their timeouts whenever that target was down (systemd-analyze blame: open-iscsi 2 min); set to manual on test1-test4 in 0.89.84, a reboot takes ~30 s. scripts/mpath_up.sh sets them back to automatic when it brings that rig up.",
+      "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.89.84",
+          "version": "0.89.85",
           "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/ubuntu_0.89.84_20260924T070957/ tests/evidence/packaged_round/ubuntu_0.89.84_20260924T081518/ tests/evidence/suite_2tcp_0.89.84.log tests/evidence/suite_2tcp_0.89.84_crash_audit_rerun.log"
+          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.85_20260924T120408/ tests/evidence/suite_2tcp_0.89.85.log tests/evidence/suite_2tcp_0.89.85_soak_rerun1.log tests/evidence/suite_2tcp_0.89.85_soak_rerun2.log"
         }
       },
       "priority": 1,
@@ -62,15 +62,15 @@
         "mxfs-<v>-1.el8.x86_64.rpm (DKMS; EPEL dkms)"
       ],
       "build_check": "scripts/rhel_kbuild_check.sh -i almalinux:9 && scripts/rhel_kbuild_check.sh -i rockylinux:9",
-      "verify_env": "two AlmaLinux 9.8 QEMU guests on the rig host (alma9-1 192.168.120.100, alma9-2 192.168.120.157; osimager spec alma-9.7 updated to 9.8), kernel 5.14.0-687.49.1.el9_8, firewalld active, SELinux enforcing, shared QNAP LUN over in-guest iSCSI. AlmaLinux and Rocky rebuild Red Hat's kernel for each minor release; runtime runs on AlmaLinux, build checks on AlmaLinux and Rocky.",
-      "verify_tests": "install the .rpm from the built packages with a DKMS build and the module loaded from /lib/modules/<krel>/extra; firewalld with only 7600/tcp 7601/udp 7603/udp opened; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast dropped; reboot, module auto-loaded, remount, earlier data intact; SELinux enforcing: mount, cross-node writes, no AVC denials; hung-node freeze (tests/tcp_peer_freeze_death.sh, PREP=alma): death declared, fence certified, replay, survivor writing",
-      "notes": "Ported in 0.89.82: kernel APIs are probed at build time (pal/linux/kcompat_probe.sh), since RHEL 9 reports 5.14 for every minor release while carrying backports, so each minor is a different build. The claim is 9.8 only. Runtime runs on AlmaLinux 9.8 (alma9-1/alma9-2), which rebuilds Red Hat's kernel: the lab has no Red Hat subscription, so the RHEL VMs (rhel9-1/rhel9-2) stay on 9.2 and are the pair for a 9.2 claim. Guests on QEMU need x86-64-v2 (-cpu host).",
+      "verify_env": "two AlmaLinux 9.8 nodes built as lab/vms.md describes (rhel9), on kernel 5.14.0-687.49.1.el9_8, firewalld active, SELinux enforcing, sharing one iSCSI LUN that supports SCSI persistent reservations, attached in-guest; which nodes and which LUN come from this site's lab file (tools/mxfs_lab.sh). AlmaLinux and Rocky rebuild Red Hat's kernel for each minor release; runtime runs on AlmaLinux, build checks on AlmaLinux and Rocky.",
+      "verify_tests": "install the .rpm from the built packages with a DKMS build and the module loaded from /lib/modules/<krel>/extra; firewalld with only 7600/tcp 7601/udp 7603/udp opened; mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast dropped; reboot, module auto-loaded, remount, earlier data intact; SELinux enforcing: mount, cross-node writes, no AVC denials; hung-node freeze (PREP=rhel9 tests/tcp_peer_freeze_death.sh): death declared, fence certified, replay, survivor writing (tests/packaged_round.sh rhel9)",
+      "notes": "Ported in 0.89.82: kernel APIs are probed at build time (pal/linux/kcompat_probe.sh), since RHEL 9 reports 5.14 for every minor release while carrying backports, so each minor is a different build. The claim is 9.8 only. Runtime runs on AlmaLinux 9.8, which rebuilds Red Hat's kernel, so verifying it needs no Red Hat subscription; a claim for another minor needs a pair on that minor.",
       "priority": 2,
       "verified": {
         "amd64": {
-          "version": "0.89.84",
+          "version": "0.89.85",
           "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/alma_0.89.84_20260924T065149/ tests/evidence/packaged_round/alma_0.89.84_20260924T065727/ tests/evidence/tcp_peer_freeze_death/20260924T070058/ tests/evidence/selinux_svirt/20260924T070654/ tests/evidence/selinux_svirt/xfs_control/"
+          "evidence": "tests/evidence/packaged_round/rhel9_0.89.85_20260924T122152/ tests/evidence/tcp_peer_freeze_death/20260924T122924/ tests/evidence/selinux_svirt/20260924T123531/"
         }
       },
       "arch": [

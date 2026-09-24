@@ -1,3 +1,148 @@
+## 2026-09-24 — 0.89.85 — a concurrent 2-node unmount no longer oopses; the lab is a recipe, not one site
+
+This release is verified on exactly these kernels, each installed from these
+packages on two x86-64 nodes sharing an iSCSI LUN, in the released
+configuration (2 nodes, TCP transport). Any other kernel is untested, even on
+the same distribution.
+
+| platform | kernel verified | package |
+|---|---|---|
+| RHEL / AlmaLinux / Rocky 9.8 | 5.14.0-687.49.1.el9_8 | `mxfs-0.89.85-1.el8.x86_64.rpm` (DKMS from EPEL) |
+| Ubuntu 24.04 LTS | 6.8.0-101-generic (GA kernel) | `mxfs_0.89.85_amd64.deb` |
+| Proxmox VE 9 | 6.17.2-1-pve, 7.0.14-19-pve | `mxfs_0.89.85_amd64.deb`, `pve-storage-mxfs_0.89.85_all.deb` |
+
+Each kernel had one full packaged round booted into that kernel, its reboot
+step included: DKMS install, mount with no options, cross-node checksums,
+create and remote delete, `chk_mxfs`, `peer=` with multicast dropped, O_DIRECT
+read with stable writes, reboot with the module auto-loaded and data intact.
+Proxmox also ran `peers=` and the storage plugin. RHEL 9.8 (on AlmaLinux 9.8)
+also ran with firewalld on and SELinux enforcing, a hung node declared dead at
++60 s with the survivor writing at +71 s, and a libvirt sVirt guest on MXFS.
+Ubuntu also ran the full 2/tcp suite.
+
+### A peer's GOODBYE during unmount wrote through a freed lease context
+
+When both nodes of a 2-node TCP cluster unmounted at once, one of them could
+oops in `memmove` on the `mxfs-worker` thread. DLM teardown
+(`mxfs_v5_dlm_shutdown_defer_release`, `dlm/v5_mount.c`) stopped *and freed*
+the lease context, then went on with the peer transport, discovery and the
+disklock heartbeat still running, and never cleared `ctx->lease`. A GOODBYE
+arriving in that window made the peer receive thread call
+`mxfs_lease_unregister_node` on the freed context. The context is 5448 bytes,
+so it lives in kmalloc-8192, where SLUB keeps its freelist pointer at offset
+0x1000 — exactly where `node_count` is. The departing peer was still at
+`nodes[1]`, so the lookup matched, and the shift of the array ran with the
+freelist pointer as its count.
+
+- **Found** in the packaged round of this release's lab work: test3 oopsed
+  unmounting 0.89.84 (`RIP: memmove+0x24`, `Comm: mxfs-worker`, length
+  `0x8359fd200`; `tests/evidence/packaged_round/ubuntu2404_0.89.84_20260924T094458`).
+  The registers alone fit: a 64-byte stride is `struct mxfs_node_lease`, the
+  destination was page-aligned `nodes[1]`, and no other `memmove` in MXFS's
+  own code has that element size (`struct v5_depart_req` is 48 bytes).
+- **Reproduced on demand** by `tests/concurrent_umount_lease.sh`, which holds
+  the victim's teardown just past the lease stop with the new one-shot knob
+  `dbg_teardown_lease_hold_ms` and unmounts the peer inside the hold. On the
+  unfixed ordering the GOODBYE arrived 1.7 s into the hold and unregister read
+  `node_count=1847140297` (`tests/evidence/concurrent_umount_lease/20260924T105636`).
+- **Fix:** teardown still stops the lease at the same point, which joins its
+  own renew, monitor and UDP threads, but frees it only after the peer
+  transport, discovery, the disklock heartbeat and the DLM engine are torn
+  down, and clears the pointer. A quarantined context, whose peer transport is
+  still live, leaks the lease along with everything else it leaks.
+- **Detector kept:** `mxfs_lease_unregister_node` refuses a `node_count`
+  outside 0..`MXFS_MAX_NODES`, which only a freed context produces, and logs
+  `P-LEASE-COUNT-INSANE` instead of writing past the array.
+- **Verified:** the same reproducer passed 3 of 3 on the fix, with the
+  victim as test1, test2, and test1 again, each with the peer's GOODBYE landing
+  inside the hold and both unmounts clean. The full 2/tcp suite on the fix
+  (srcversion `C46F4EF317B7E80B3DDAE03`) passed 29 of 30; the one failure is
+  the matcher below, and `soak` passed twice once it was corrected
+  (`tests/evidence/suite_2tcp_0.89.85*.log`).
+
+### `soak` failed a clean run on the allocator's own diagnostics
+
+`tests/suite/soak.sh` fails on kernel-log lines matching its error pattern,
+which included a bare, case-insensitive `Free inode`. That also matched
+`P-DIALLOC-RESV-SWEPT … every free inode in this AG is peer-held` and
+`P-DIALLOC-RESV-GROW … all free inodes peer-held`, both routine
+`pr_warn_ratelimited` lines from the inode allocator, and failed the suite
+run above with `ops=1181 errs=0`. The alternative now requires the inode
+number XFS prints (`Free inode 0x85 not marked free`, `… has blocks
+allocated`): checked to match all three real message forms and neither
+diagnostic. Both real messages also begin `Corruption detected!`, which the
+pattern still matches on its own.
+
+### What a crash mid-unmount leaves behind: nothing lost, a slow remount
+
+The oops also raised a second question: can a node that dies in the middle of
+its own unmount, after its peer has already left, come back? The new
+`tests/crash_mid_umount_remount.sh` reproduces this: 500 files synced, peer
+unmounted cleanly, victim powered off 1 s into its unmount. It counts the
+inodes on the platter before and after recovery.
+
+- **Nothing is lost.** In both arms the platter held 504 allocated inodes
+  before recovery and 504 after, `chk_mxfs` was clean, and the peer read all
+  500 files.
+- **The remount is slow.** Alone, the crashed node took 143 s, almost all of
+  it in the whole-cluster bootstrap's two ~64 s frozen-table windows. When
+  both nodes mount at once, one wins the bootstrap (139 s) and the other is
+  refused with EBUSY, which `mount` reports as "Transport endpoint is not
+  connected".
+
+This stays open as
+`D-A-NODE-CRASHED-MID-UNMOUNT-REMOUNTS-INTO-OVER-60S-OF-SELF-RECOVERY`. It does
+not block a 2-node TCP release, because the measurements show no data loss
+and no crash, hang or shutdown, only mount pace and a misleading errno.
+
+### `lab/` says how to build every platform to test on
+
+`lab/vms.md` was a July wish list of 19 OS images, about five of which existed,
+and `lab/README.md` sent readers to `/src/osimager/bin/mkosimage`, a path only
+the development host has. Both now describe how anyone builds a platform's
+verification pair:
+
+- `lab/vms.md` has one row per platform in `data/platforms.json`: the
+  osimager spec that builds a node and what to do to it afterwards. The kernel
+  to boot is not repeated; it is the one the platform record claims. Every spec
+  named is one the published osimager 1.9.1 ships. The `rhel9` pair is built
+  from `alma-9.7` and updated to 9.8, because osimager has no 9.8 spec yet.
+- `lab/README.md` gives the procedure once: `pip install osimager`, build with
+  `-D libvirt_uri=qemu:///system` (an unprivileged build otherwise lands in
+  `qemu:///session`, where nothing looks), prepare the node, give the pair a
+  LUN with SCSI persistent reservations, name the pair in the lab file, and
+  run `tests/packaged_round.sh`. The dead `state.md` pointer and the list of
+  one site's physical hosts are gone.
+
+### Which nodes and which LUN are the user's, not the tree's
+
+`tests/packaged_round.sh` and `tests/tcp_peer_freeze_death.sh` hardcoded the
+development host's node names, four IP addresses, the storage portal, target
+and LUN id, and a QMP socket path under one home directory. Nobody else could
+run the release verification without editing them.
+
+- New `tools/mxfs_lab.sh` reads `~/.config/mxfslab/lab` (override
+  `$MXFS_LAB`), the same `key field=value` format as the secrets store:
+  `storage` (portal, target, lun, and `also=` for other nodes on the LUN),
+  `pair <platform>=A,B`, `addr` for a node no resolver knows, and
+  `qemu monitor_dir`. A missing file or line stops the harness with exit 2
+  and names what is missing.
+- `tests/packaged_round.sh` takes a `data/platforms.json` key
+  (`ubuntu2404`, `pve9`, `rhel9`) instead of `ubuntu|pve|alma`, and derives
+  the package family from it: `pve*` .deb plus the Proxmox plugin, `rhel*`
+  .rpm with the firewalld and SELinux steps, `debian*`/`ubuntu*` .deb. It
+  frees the LUN on every node the lab file names, skipping those that do not
+  answer, instead of asking libvirt about a fixed list.
+- `tests/tcp_peer_freeze_death.sh`: `PREP=<platform>` replaces
+  `PREP=pve|alma`, and the victim and survivor default to that platform's
+  pair.
+- The `pve9`, `ubuntu2404` and `rhel9` records no longer name any host or
+  address in `verify_env`, and their `verify_tests` name the new invocations.
+- Verified by this release's own verification: every round in the table
+  above resolved its pair, addresses, LUN and package family from the lab
+  file and passed all its steps, and `PREP=rhel9` drove the hung-node test.
+  The first attempt, with 0.89.84 packages, is what found the unmount oops.
+
 ## 2026-09-24 — 0.89.84 — RHEL 9.8 release; an O_DIRECT read no longer panics a 6.8 node
 
 0.89.83 was never released; its changes ship here and are marked by version.

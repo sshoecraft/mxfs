@@ -12,7 +12,11 @@ trap 'rm -rf "$W" 2>/dev/null' EXIT
 # only inspect this run's window.
 MARKER="MXFS_SOAK_$(date +%s)_$$"
 echo "$MARKER" > /dev/kmsg 2>/dev/null
-DPAT='Internal error|Corruption|SHUTDOWN|shutting down|Free inode|reservation conflict|BUG:|Oops|stuck for|call trace'
+# "Free inode" takes an inode number: XFS reports "Free inode 0x85 not marked
+# free" and "... has blocks allocated".  Bare, case-insensitive, it also
+# matched the allocator's own diagnostics ("every free inode in this AG is
+# peer-held", "all free inodes peer-held"), which failed a clean 0.89.85 run.
+DPAT='Internal error|Corruption|SHUTDOWN|shutting down|Free inode (0x)?[0-9a-f]+|reservation conflict|BUG:|Oops|stuck for|call trace'
 end=$(( $(date +%s) + DUR )); ops=0; errs=0
 while [ "$(date +%s)" -lt "$end" ]; do
   f="$W/f$((ops % 50))"

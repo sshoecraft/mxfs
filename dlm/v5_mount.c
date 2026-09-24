@@ -410,6 +410,23 @@ MODULE_PARM_DESC(dbg_auth_pump_pause_ms,
                  "submission to discover that authority has expired");
 #endif
 /*
+ * TEST ONLY, one-shot: DLM teardown sleeps N ms right after it stops the
+ * lease context, with the peer transport, discovery and the disklock
+ * heartbeat still running.  A GOODBYE or announce arriving in that window is
+ * handled by threads that still reach the lease, which is the window a
+ * concurrent 2-node unmount crashed in (0.89.84: the lease was freed there
+ * and the peer receive thread unregistered the departing node from freed
+ * memory).  Test: tests/concurrent_umount_lease.sh.
+ */
+int mxfs_dbg_teardown_lease_hold_ms;
+#ifdef __KERNEL__
+module_param_named(dbg_teardown_lease_hold_ms, mxfs_dbg_teardown_lease_hold_ms,
+                   int, 0644);
+MODULE_PARM_DESC(dbg_teardown_lease_hold_ms,
+                 "DEBUG one-shot: DLM teardown sleeps N ms after stopping the "
+                 "lease, while peers can still deliver GOODBYE and announces");
+#endif
+/*
  * 0.89.66: the complement of the knob above.  The lease is still evaluated
  * every tick; only the withdrawal pump — the conversion of a closure into
  * the shutdown that wakes tasks parked in the log — is held off.
@@ -18361,9 +18378,28 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
         v5_depart_race_inject(ctx, 4);
     }
 
-    if (ctx->lease) {
+    /*
+     * Stop only: its own renew, monitor and UDP threads are joined here, but
+     * the context stays allocated until every thread that can still reach it
+     * is gone — the peer receive thread (a GOODBYE unregisters the sender),
+     * discovery (an announce registers one), the disklock heartbeat (clean
+     * departure and recovery callbacks unregister) and the DLM engine's view
+     * queries.  0.89.84 freed it here, and a concurrent 2-node unmount's
+     * GOODBYE made the peer receive thread shift nodes[] of the freed context
+     * with the slab's freelist pointer as node_count: a memmove oops.  It is
+     * freed below, after the peer transport and the engine are torn down.
+     */
+    if (ctx->lease)
         mxfs_lease_stop(ctx->lease);
-        mxfs_lease_destroy(ctx->lease);
+    if (unlikely(mxfs_dbg_teardown_lease_hold_ms > 0)) {
+        int hold = mxfs_dbg_teardown_lease_hold_ms;
+
+        mxfs_dbg_teardown_lease_hold_ms = 0;
+        mxfs_pal_log(MXFS_LOG_WARN,
+                     "mxfs: P-DBG-TEARDOWN-LEASE-HOLD node=%u hold_ms=%d — "
+                     "teardown held after the lease stop, peer transport live",
+                     ctx->node_id, hold);
+        mxfs_pal_sleep_ms(hold);
     }
 
     if (ctx->discovery) {
@@ -18513,6 +18549,16 @@ void mxfs_v5_dlm_shutdown_defer_release(struct mxfs_v5_dlm *ctx,
                      "admitted on this host meanwhile", ctx,
                      ctx->depart_quarantined ? ", engine, ledger" : "");
         return;
+    }
+    /*
+     * Every thread that reaches the lease context is gone by here: the peer
+     * transport, discovery, the disklock heartbeat and the DLM engine were
+     * torn down above, and a quarantined context (whose peer transport is
+     * still live) returned before this point, leaking the lease with it.
+     */
+    if (ctx->lease) {
+        mxfs_lease_destroy(ctx->lease);
+        ctx->lease = NULL;
     }
     if (ctx->dev)
         mxfs_pal_bdev_close_clone(ctx->dev);

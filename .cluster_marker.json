@@ -1,12 +1,12 @@
 {
   "nodes": 2,
   "dlm": "tcp",
-  "srcversion": "10A5B93816D92E3B84B6FFE",
+  "srcversion": "C46F4EF317B7E80B3DDAE03",
   "node_list": "test1,test2",
   "dev": "/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6",
   "rig": "qnap",
   "wwid": "naa.6e843b6393a5a6ed918bd4f4fdb8e7d6",
-  "fsid": "b6d79f22-041b-4f80-827d-ab34ce930146",
-  "gen": 475,
-  "iso": "2026-09-24T12:50:12Z"
+  "fsid": "67fe58cc-49be-4a05-83a9-74d02b51ff25",
+  "gen": 486,
+  "iso": "2026-09-24T16:54:12Z"
 }

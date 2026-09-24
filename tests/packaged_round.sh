@@ -10,7 +10,7 @@
 #
 #   1. install     the package(s) from dist/<version>/; DKMS builds the module
 #                  on the node's kernel; the loaded module must be that build
-#   2. format      free the QNAP LUN (rig nodes unmounted), clear stale PR
+#   2. format      free the shared LUN (every other node on it unmounted), clear stale PR
 #                  keys, mkfs.mxfs from node A
 #   3. mount       no options, both nodes (multicast discovery)
 #   4. checksums   64 MiB written on each node, md5 read on the other
@@ -22,13 +22,17 @@
 #                  in /lib/modules; pvesm add/status/remove holds one mount
 #   8. dio        an O_DIRECT read on a stable-writes device
 #                  (tests/dio_stable_writes_read.sh)
-#   9. selinux     (alma) SELinux enforcing: labels on new files, restorecon,
+#   9. selinux     (rhel*) SELinux enforcing: labels on new files, restorecon,
 #                  no AVC denials since boot
 #  10. reboot      a marker written and unmounted, both nodes rebooted: module
 #                  auto-loaded, iSCSI back, mount, marker md5 intact
 #
-# Pairs: ubuntu = test3/test4 (Ubuntu 24.04), pve = pve9-1/pve9-2 (PVE 9),
-# alma = alma9-1/alma9-2 (AlmaLinux 9.8, firewalld on, SELinux enforcing).
+# The platform is a data/platforms.json key.  Which two nodes verify it, their
+# addresses and the shared LUN are this site's own, read from the lab file
+# (tools/mxfs_lab.sh); how to build the nodes is in lab/README.md.  The
+# package family follows the key: pve* installs the .deb and the Proxmox
+# plugin, rhel* the .rpm (firewalld on, SELinux enforcing), debian*/ubuntu*
+# the .deb.
 #
 # Budgets (a step over budget FAILS the round):
 #   INSTALL_S  DKMS compiles the whole module on the node.  The same compile
@@ -41,7 +45,7 @@
 #   REBOOT_S   Ubuntu 24.04 logged in to the LUN takes ~3 min to reboot whether
 #              or not mxfs is loaded (lvm2-monitor, platforms.json note) -> 420 s.
 #
-# Usage: [KERNEL=<krel>] tests/packaged_round.sh <ubuntu|pve|alma> [version]
+# Usage: [KERNEL=<krel>] tests/packaged_round.sh <platform> [version]
 #   version defaults to VERSION; the packages come from dist/<version>/.
 #   KERNEL (pve only): pin that installed kernel with proxmox-boot-tool, reboot
 #   into it, and run the round there, its reboot step included; unpinned when
@@ -51,17 +55,19 @@
 #
 set -u
 
-PLAT="${1:?usage: packaged_round.sh <ubuntu|pve|alma> [version]}"
+PLAT="${1:?usage: packaged_round.sh <platform> [version]}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 V="${2:-$(cat "$HERE/VERSION")}"
 KERNEL="${KERNEL:-}"
 DIST="$HERE/dist/$V"
 SSH="$HERE/tools/mxfs_sshpass.sh"
-VIRSH="virsh -c qemu:///system"
 MNT=/mnt/mxfs
-QNAP_PORTAL=192.168.1.4
-QNAP_TGT="iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772"
-LUN=/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6
+. "$HERE/tools/mxfs_lab.sh"
+PORTAL=$(lab_need storage portal) || exit 2
+TGT=$(lab_need storage target) || exit 2
+LUN=$(lab_need storage lun) || exit 2
+PAIR=$(lab_pair "$PLAT") || exit 2
+read -r A B <<< "$PAIR"
 INSTALL_S=660
 MOUNT_S=60
 IO_S=60
@@ -69,10 +75,10 @@ CHK_S=60
 REBOOT_S=420
 
 case "$PLAT" in
-    ubuntu) A=test3;   B=test4;   PKGS="mxfs_${V}_amd64.deb" ;;
-    pve)    A=pve9-1;  B=pve9-2;  PKGS="mxfs_${V}_amd64.deb pve-storage-mxfs_${V}_all.deb" ;;
-    alma)   A=alma9-1; B=alma9-2; PKGS="mxfs-${V}-1.el8.x86_64.rpm" ;;
-    *) echo "platform must be ubuntu|pve|alma" >&2; exit 2 ;;
+    pve*)             FAM=pve; PKGS="mxfs_${V}_amd64.deb pve-storage-mxfs_${V}_all.deb" ;;
+    rhel*)            FAM=rpm; PKGS="mxfs-${V}-1.el8.x86_64.rpm" ;;
+    debian*|ubuntu*)  FAM=deb; PKGS="mxfs_${V}_amd64.deb" ;;
+    *) echo "no package family for platform '$PLAT'" >&2; exit 2 ;;
 esac
 
 EV="$HERE/tests/evidence/packaged_round/${PLAT}_${V}_$(date +%Y%m%dT%H%M%S)"
@@ -86,10 +92,7 @@ die() { say "FAIL: $* — round stopped"; say "RESULT FAIL ($((FAILS + 1)) faile
 
 # A node's IPv4 address: peer= and peers= take addresses only, never names
 # (the mount refuses "'test4' is not a unicast IPv4 address").
-addr() { local a
-         case $1 in pve9-1) echo 192.168.120.194 ;; pve9-2) echo 192.168.120.138 ;;
-                    alma9-1) echo 192.168.120.100 ;; alma9-2) echo 192.168.120.157 ;;
-                    *) a=$(getent ahostsv4 "$1" | awk 'NR == 1 {print $1}'); echo "${a:-$1}" ;; esac; }
+addr() { lab_addr "$1"; }
 # on HOST SECONDS CMD — output to stdout, rc of the remote command (124 = over budget)
 # (pam_nologin's banner prefixes every reply while a node is still booting)
 on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1 | grep --line-buffered -v -E "^Warning: Permanently|^$|Unauthorized access|authorized user, disconnect|System is booting up\. Unprivileged users"; return "${PIPESTATUS[0]}"; }
@@ -162,7 +165,7 @@ for h in $A $B; do
     say "$h: $(tr '\n' ' ' < "$EV/os_$h.log")"
 done
 if [ -n "$KERNEL" ] && ! { grep -qx "$KERNEL" "$EV/os_$A.log" && grep -qx "$KERNEL" "$EV/os_$B.log"; }; then
-    [ "$PLAT" = pve ] || die "KERNEL= selects a kernel only on pve (proxmox-boot-tool)"
+    [ $FAM = pve ] || die "KERNEL= selects a kernel only on Proxmox (proxmox-boot-tool)"
     PINNED=1
     both pin 30 "proxmox-boot-tool kernel pin $KERNEL" || die "pinning $KERNEL"
     reboot_pair
@@ -179,8 +182,8 @@ for h in $A $B; do
     for p in $PKGS; do "$SSH" "$(addr $h)" SCP "$DIST/$p" /root/ > /dev/null 2>&1 || die "scp $p to $h"; done
 done
 files=""; for p in $PKGS; do files="$files /root/$p"; done
-case "$PLAT" in
-    alma) inst="dnf install -y $files" ;;
+case $FAM in
+    rpm) inst="dnf install -y $files" ;;
     *)    inst="DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades $files" ;;
 esac
 t0=$(now)
@@ -211,25 +214,22 @@ for h in $A $B; do is_dkms_build $h "$EV/modload_$h.log" || die "$h did not load
 pass "the DKMS-built module is loaded on both"
 
 # --- 2. free the LUN and format
-for h in test1 test2 test3 test4 pve9-1 pve9-2 alma9-1 alma9-2; do
+# a node that does not answer is not running, so it holds nothing
+for h in $(lab_lun_nodes); do
     case " $A $B " in *" $h "*) continue ;; esac
-    if [ "${h#test}" != "$h" ] || [ "${h#pve9}" != "$h" ]; then
-        $VIRSH domstate $h 2>/dev/null | grep -q running || continue
-    else
-        on $h 5 true >/dev/null 2>&1 || continue
-    fi
+    on $h 5 true >/dev/null 2>&1 || continue
     on $h 60 "for m in \$(awk '\$3 == \"mxfs\" {print \$2}' /proc/mounts); do timeout 30 umount \$m; done; grep -c ' mxfs ' /proc/mounts; true" > "$EV/free_lun_$h.log"
     [ "$(tail -1 "$EV/free_lun_$h.log")" = 0 ] || die "$h still has MXFS mounted; the LUN is not free"
 done
 both lun 60 "
-    iscsiadm -m session 2>/dev/null | grep -q f35772 || iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL --login >/dev/null 2>&1 || { iscsiadm -m discovery -t st -p $QNAP_PORTAL >/dev/null && iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL --login >/dev/null; }
+    iscsiadm -m session 2>/dev/null | grep -qF $TGT || iscsiadm -m node -T $TGT -p $PORTAL --login >/dev/null 2>&1 || { iscsiadm -m discovery -t st -p $PORTAL >/dev/null && iscsiadm -m node -T $TGT -p $PORTAL --login >/dev/null; }
     # log in again at boot, as a host with a persistent shared LUN is set up;
     # a discovered node record defaults to manual on Debian and Proxmox
-    iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL -o update -n node.startup -v automatic
-    echo startup=\$(iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL | sed -n 's/^node.startup = //p')
+    iscsiadm -m node -T $TGT -p $PORTAL -o update -n node.startup -v automatic
+    echo startup=\$(iscsiadm -m node -T $TGT -p $PORTAL | sed -n 's/^node.startup = //p')
     for i in \$(seq 1 10); do [ -b $LUN ] && break; sleep 1; done
-    [ -b $LUN ] && echo lun_ok; mkdir -p $MNT" || die "QNAP LUN not present on both"
-for h in $A $B; do grep -q "^startup=automatic" "$EV/lun_$h.log" || die "$h: the QNAP target is not set to log in at boot"; done
+    [ -b $LUN ] && echo lun_ok; mkdir -p $MNT" || die "the shared LUN is not present on both"
+for h in $A $B; do grep -q "^startup=automatic" "$EV/lun_$h.log" || die "$h: the storage target is not set to log in at boot"; done
 on $A 30 "sg_persist --in --read-keys $LUN; sg_persist --out --register --param-sark=0x4d58465352455431 $LUN >/dev/null 2>&1; sg_persist --out --clear --param-rk=0x4d58465352455431 $LUN >/dev/null 2>&1; sg_persist --in --read-keys $LUN" > "$EV/pr_clear_$A.log" 2>&1
 grep -q "NO registered reservation keys" "$EV/pr_clear_$A.log" || die "stale PR keys remain on the LUN (see pr_clear_$A.log)"
 on $A 120 "mkfs.mxfs -f $LUN; echo mkfs_rc=\$?" > "$EV/mkfs_$A.log" 2>&1
@@ -282,8 +282,8 @@ on $A $CHK_S "chk_mxfs $LUN; echo chk_rc=\$?" > "$EV/chk_$A.log" 2>&1
 grep -q "chk_rc=0" "$EV/chk_$A.log" && pass "chk_mxfs clean" || fail "chk_mxfs (see chk_$A.log)"
 
 # --- 7. peer= with multicast dropped
-case "$PLAT" in
-    alma) blk="firewall-cmd --direct --add-rule ipv4 filter INPUT 0 -d 224.0.0.0/4 -j DROP && firewall-cmd --direct --add-rule ipv4 filter OUTPUT 0 -d 224.0.0.0/4 -j DROP"
+case $FAM in
+    rpm)  blk="firewall-cmd --direct --add-rule ipv4 filter INPUT 0 -d 224.0.0.0/4 -j DROP && firewall-cmd --direct --add-rule ipv4 filter OUTPUT 0 -d 224.0.0.0/4 -j DROP"
           unblk="firewall-cmd --direct --remove-rule ipv4 filter INPUT 0 -d 224.0.0.0/4 -j DROP; firewall-cmd --direct --remove-rule ipv4 filter OUTPUT 0 -d 224.0.0.0/4 -j DROP" ;;
     *)    blk="iptables -I INPUT -d 224.0.0.0/4 -j DROP && iptables -I OUTPUT -d 224.0.0.0/4 -j DROP"
           unblk="iptables -D INPUT -d 224.0.0.0/4 -j DROP; iptables -D OUTPUT -d 224.0.0.0/4 -j DROP" ;;
@@ -296,7 +296,7 @@ umount_pair peer
 both mcast_unblock 20 "$unblk" && MCAST_BLOCKED=0 || fail "restoring multicast"
 
 # --- 7b. Proxmox: peers=, the storage plugin, DKMS on every installed kernel
-if [ "$PLAT" = pve ]; then
+if [ $FAM = pve ]; then
     mount_pair peers "peers=$(addr $A)/$(addr $B)" "peers=$(addr $A)/$(addr $B)"
     xsum peers
     umount_pair peers
@@ -326,7 +326,7 @@ mount_pair dio "" ""
 grep -q "RESULT PASS" "$EV/dio_stable_writes_$A.log" && pass "O_DIRECT read with stable writes" || die "O_DIRECT read with stable writes (see dio_stable_writes_$A.log)"
 
 # --- 9. SELinux
-if [ "$PLAT" = alma ]; then
+if [ $FAM = rpm ]; then
     # A new filesystem's root carries no label until restorecon gives it one,
     # exactly as on XFS; new files then inherit from their directory.  Both
     # nodes remount after the relabel so neither holds the root's old label.

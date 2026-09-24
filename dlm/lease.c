@@ -662,6 +662,25 @@ int mxfs_lease_unregister_node(struct mxfs_lease_ctx *ctx,
 
     mxfs_pal_mutex_lock(ctx->lock);
 
+    /*
+     * node_count never leaves 0..MXFS_MAX_NODES while the context is alive.
+     * Outside it the context has been freed under the caller (the slab's
+     * freelist pointer sits where node_count is), and the shift below would
+     * write that many entries past the array: 0.89.84 oopsed in this memmove
+     * with a length of ~35 GB.  Say so and write nothing.
+     */
+    if (ctx->node_count < 0 || ctx->node_count > MXFS_MAX_NODES) {
+        int bad = ctx->node_count;
+
+        mxfs_pal_mutex_unlock(ctx->lock);
+        mxfs_pal_log(MXFS_LOG_ERR,
+                     "mxfs: P-LEASE-COUNT-INSANE ctx=%p node=%u node_count=%d — "
+                     "the lease context is not live (freed under its caller); "
+                     "unregister refused",
+                     ctx, node_id, bad);
+        return -EUCLEAN;
+    }
+
     for (i = 0; i < ctx->node_count; i++) {
         if (ctx->nodes[i].node_id == node_id) {
             /* Shift remaining entries down */

@@ -36,33 +36,40 @@
 #
 # Usage: tests/tcp_peer_freeze_death.sh [victim] [survivor] [watch_seconds]
 #   Victim and survivor are VM names.  PREP=rig (default) forms the cluster
-#   with ./run.sh 2 tcp prep_cluster on test1/test2.  PREP=pve and PREP=alma
-#   use a release platform's pair (pve9-1/pve9-2, alma9-1/alma9-2) as a user
-#   installs it: the packaged module, in-guest iSCSI to the QNAP, mkfs.mxfs
-#   from the survivor, mount -o peer=<the other node> at /mnt/mxfs; the rig
-#   nodes are unmounted first so the LUN is free.
+#   with ./run.sh 2 tcp prep_cluster on test1/test2.  PREP=<platform>, a
+#   data/platforms.json key, uses that platform's verification pair from the
+#   lab file (tools/mxfs_lab.sh; survivor = its first node, victim = its
+#   second, unless named) as a user installs it: the packaged module, in-guest
+#   iSCSI to the lab's shared LUN, mkfs.mxfs from the survivor, mount
+#   -o peer=<the other node> at /mnt/mxfs; every other node on the LUN is
+#   unmounted first so the LUN is free.
 #   A VM that is a libvirt domain is frozen with virsh suspend; one that is
-#   not (osimager's QEMU guests, alma9-*) through QMP stop/cont on its monitor
-#   socket, ~/vms/qemu/<name>/<name>.monitor, which is what virsh suspend
-#   sends underneath.
+#   not (a QEMU guest started outside libvirt) through QMP stop/cont on its
+#   monitor socket, <qemu monitor_dir>/<name>/<name>.monitor from the lab
+#   file, which is what virsh suspend sends underneath.
 #   Leaves the victim resumed and the cluster as it ended, for inspection.
 #
 set -u
 
-V="${1:-test2}"
-S="${2:-test1}"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+. "$HERE/tools/mxfs_lab.sh"
 WATCH_S="${3:-300}"
 DEATH_BUDGET_S=120
 WRITE_BUDGET_S=180
 PREP="${PREP:-rig}"
-PACKAGED=0
-MNT=/mnt/shared
-case "$PREP" in pve|alma) PACKAGED=1; MNT=/mnt/mxfs ;; esac
-QNAP_PORTAL=192.168.1.4
-QNAP_TGT="iqn.2004-04.com.qnap:ts-453pro:iscsi.target-0.f35772"
-LUN=${MXFS_LUN:-/dev/disk/by-id/wwn-0x6e843b6393a5a6ed918bd4f4fdb8e7d6}   # MXFS_LUN: another target (e.g. the LIO bench LUN)
+if [ "$PREP" = rig ]; then
+    PACKAGED=0; MNT=/mnt/shared
+    V="${1:-test2}"; S="${2:-test1}"; LUN=${MXFS_LUN:-}
+else
+    PACKAGED=1; MNT=/mnt/mxfs
+    PAIR=$(lab_pair "$PREP") || exit 2
+    read -r PA PB <<< "$PAIR"
+    V="${1:-$PB}"; S="${2:-$PA}"
+    PORTAL=$(lab_need storage portal) || exit 2
+    TGT=$(lab_need storage target) || exit 2
+    LUN=${MXFS_LUN:-$(lab_need storage lun)} || exit 2   # MXFS_LUN: another target (e.g. the LIO bench LUN)
+fi
 
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SSH="$HERE/tools/mxfs_sshpass.sh"
 VIRSH="virsh -c qemu:///system"
 EV="$HERE/tests/evidence/tcp_peer_freeze_death/$(date +%Y%m%dT%H%M%S)"
@@ -70,13 +77,12 @@ mkdir -p "$EV"
 exec > >(tee -a "$EV/run.log") 2>&1
 say() { echo "[$(date +%T)] $*"; }
 fail() { say "FAIL: $*"; exit 1; }
-# domain name -> address: the rig nodes resolve by name; the PVE pair has
-# static addresses that no resolver knows
-addr() { case $1 in pve9-1) echo 192.168.120.194 ;; pve9-2) echo 192.168.120.138 ;;
-                    alma9-1) echo 192.168.120.100 ;; alma9-2) echo 192.168.120.157 ;; *) echo "$1" ;; esac; }
+addr() { lab_addr "$1"; }
 # QMP on a non-libvirt guest's monitor socket: qmp NAME COMMAND prints the reply
 qmp() {
-    python3 - "$HOME/vms/qemu/$1/$1.monitor" "$2" <<'EOF'
+    local dir
+    dir=$(lab_need qemu monitor_dir) || return 1
+    python3 - "$dir/$1/$1.monitor" "$2" <<'EOF'
 import json, socket, sys
 s = socket.socket(socket.AF_UNIX)
 s.settimeout(10)
@@ -102,13 +108,15 @@ on() { local h t=$2; h=$(addr "$1"); shift 2; timeout "$t" "$SSH" "$h" "$@" 2>&1
 say "victim=$V survivor=$S watch=${WATCH_S}s evidence=$EV"
 vm_running "$V" || fail "$V is not running"
 
-# --- 1. a fresh 2/tcp cluster on the QNAP LUN
+# --- 1. a fresh 2/tcp cluster on the shared LUN
 if [ "$PREP" = rig ]; then
     (cd "$HERE" && ./run.sh 2 tcp prep_cluster) > "$EV/prep_cluster.log" 2>&1 || { tail -20 "$EV/prep_cluster.log"; fail "prep_cluster"; }
 else
-    # free the LUN: nothing on the rig may hold it while it is reformatted
-    for h in test1 test2; do
-        $VIRSH domstate $h 2>/dev/null | grep -q running || continue
+    # free the LUN: no other node may hold it while it is reformatted; one
+    # that does not answer is not running, so it holds nothing
+    for h in $(lab_lun_nodes); do
+        case " $S $V " in *" $h "*) continue ;; esac
+        on $h 5 true >/dev/null 2>&1 || continue
         on $h 90 "[ -f /root/freeze_busy.pid ] && kill \$(cat /root/freeze_busy.pid) 2>/dev/null; rm -f /root/freeze_busy.pid
             for i in 1 2 3; do grep -q \" /mnt/shared mxfs \" /proc/mounts || break; timeout 20 umount /mnt/shared || sleep 2; done
             grep -c ' mxfs ' /proc/mounts; true" > "$EV/rig_umount_$h.txt"
@@ -119,13 +127,13 @@ else
             # /proc/mounts, not mountpoint(1): a fenced node's withdrawn mount
             # answers stat() with EIO, so mountpoint calls it unmounted
             grep -q \" $MNT mxfs \" /proc/mounts && timeout 30 umount $MNT
-            iscsiadm -m session 2>/dev/null | grep -q f35772 || iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL --login >/dev/null 2>&1 || { iscsiadm -m discovery -t st -p $QNAP_PORTAL >/dev/null && iscsiadm -m node -T $QNAP_TGT -p $QNAP_PORTAL --login >/dev/null; }
+            iscsiadm -m session 2>/dev/null | grep -qF $TGT || iscsiadm -m node -T $TGT -p $PORTAL --login >/dev/null 2>&1 || { iscsiadm -m discovery -t st -p $PORTAL >/dev/null && iscsiadm -m node -T $TGT -p $PORTAL --login >/dev/null; }
             for i in 1 2 3 4 5 6 7 8 9 10; do [ -b $LUN ] && break; sleep 1; done
             [ -b $LUN ] && echo lun_ok
             lsmod | grep -q '^mxfs' || modprobe mxfs
             cat /sys/module/mxfs/version /sys/module/mxfs/srcversion; uname -r
         " | tee "$EV/prep_$h.txt"
-        grep -q lun_ok "$EV/prep_$h.txt" || fail "$h: QNAP LUN not present"
+        grep -q lun_ok "$EV/prep_$h.txt" || fail "$h: the shared LUN is not present"
     done
     on $S 120 "mkfs.mxfs -f $LUN 2>&1 | tail -2; echo mkfs_rc=\${PIPESTATUS[0]}" | tee "$EV/format.txt"
     grep -q 'mkfs_rc=0' "$EV/format.txt" || fail "mkfs.mxfs"

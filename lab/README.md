@@ -12,11 +12,55 @@ deep infra docs stay in `docs/`; this README points at both.
 the **substrate** those run on. Keeping them separate stops the fleet definition
 from drowning in the ~150-script repro pile.
 
-## The fleet
-See **`vms.md`** — the OS/kernel matrix, VM name templates, and per-cluster VM
-counts (≥3). Primary scale cluster = Ubuntu 24.04 **`test1..test32`** (existing,
-carries the full 1→32 ladder); per-kernel **compat clusters** for the rest of the
-kernel spread. Images are built from `/src/osimager/bin/mkosimage <spec>`.
+## The platforms to test on
+**`vms.md`** lists, for every platform in `data/platforms.json`, the osimager
+spec that builds its nodes and what to do to them after the build. Everything
+below is the part that is the same for every platform.
+
+### Building a platform's pair
+1. **Install osimager** — `pip install osimager` (it drives HashiCorp Packer,
+   which must be installed too). Run `mkosimage` with no arguments once: it
+   says what to set up. Its documentation covers locations, credentials and
+   specs: <https://sshoecraft.github.io/osimager>. A *location* is your
+   network — bridge, addressing, DNS — and is yours to define.
+2. **Build each node** from the row's spec:
+   ```
+   mkosimage -D libvirt_uri=qemu:///system qemu/<location>/<spec> <name> <ip>
+   ```
+   osimager's QEMU build registers the finished VM with libvirt. Name the URI:
+   without it, a build run as an ordinary user lands in `qemu:///session`,
+   where nothing in this tree looks.
+3. **Do the row's "after the build" steps**, and boot the kernel
+   `data/platforms.json` claims for the platform. Then on every node:
+   - headers for the running kernel (DKMS compiles the module against them)
+   - an iSCSI initiator and `sg3_utils`
+   - root SSH with the password in your secrets store (below)
+4. **Give the pair a shared LUN.** An iSCSI LUN that supports SCSI persistent
+   reservations, reachable from both nodes. MXFS fences a dead node through
+   the reservation, so a target without one cannot verify a release. The
+   harness logs each node in to it.
+5. **Name the pair in your lab file** (next section).
+6. **Verify:** `tests/packaged_round.sh <platform>` installs the release's
+   package on the pair and runs the checks the platform's `verify_tests`
+   lists; `tools/platforms.py verify` records the result.
+
+### Your lab file → `~/.config/mxfslab/lab`
+Which nodes verify each platform, their addresses and the shared LUN are this
+site's alone, so they are never in the tree. The harness reads them from
+`~/.config/mxfslab/lab` (override with `$MXFS_LAB`) through
+`tools/mxfs_lab.sh`, whose header is the format reference:
+```
+storage portal=<ip> target=<iqn> lun=/dev/disk/by-id/<id> also=<nodes>
+pair ubuntu2404=<nodeA>,<nodeB> rhel9=<nodeA>,<nodeB>
+addr <node>=<ipv4>
+qemu monitor_dir=<dir>
+```
+`also=` lists nodes outside the pairs that attach to the same LUN; they are
+unmounted before the harness formats it. `addr` is only for a node no
+resolver knows. `qemu monitor_dir` is only for a guest started outside
+libvirt, which `tests/tcp_peer_freeze_death.sh` freezes through its QMP
+socket. A platform with no `pair` line cannot be verified here, and the
+harness says so and stops.
 
 ## `run.sh` is virsh-coupled on the VM path (gated), with an external escape hatch
 - **VMs (default):** `prep_cluster()` **directly** `virsh list`s the `test[0-9]+`
@@ -56,8 +100,10 @@ the faithful CAW/FC emulation (the LIO stack is CAW-off, used only for `tcp`).
 
 ## Test harness (in `scripts/` + root)
 - `run.sh <N> <cond>` — one test run (`xfs` baseline also accepted).
-- `scripts/ladder_rung.sh <N> <cond>` — full rung; `RULE0_CALIBRATE=0` = real
-  RULE-0 enforcement.
+- `scripts/ladder_rung.sh <N> <cond>` — full rung; `RULE0_CALIBRATE=0` enforces
+  each test's time budget, so a run over budget fails.
+- `tests/packaged_round.sh <platform>` — a release installed on a platform's
+  pair as a user installs it, and verified there.
 - `scripts/matrix_check.py --cond <c|all>` — 4-condition × node-count board.
 - `showstat.sh <N> <cond>` — recorded results; `criteria.json` = the board.
 
@@ -75,14 +121,13 @@ a password. The node root password is kept in sync with osimager's
 To rotate: change it in `~/.config/mxfslab/secrets` (and osimager's `images/linux`),
 then `chpasswd` the fleet.
 
-## Physical / external hosts (optional — extra real-hardware kernels)
-Real hardware reachable only via the `MXFS_NODE_LIST` escape hatch (no libvirt,
-so run.sh skips virsh recovery for these). They're just additional kernels to run
-on when useful — **not** a required validation gate or a "parity" mandate:
-- **pve1 / pve2** — 6.17-pve, QNAP iSCSI, `tcp` (QNAP has no CAW).
-- **serv / z440** (192.168.1.5) — Debian 11, kernel **5.10**.
+## Physical / external hosts
+Real hardware, reached only through the `MXFS_NODE_LIST` escape hatch (no
+libvirt, so run.sh skips virsh recovery for these). A platform whose pair is
+real hardware (`vms.md` says so) is named in the lab file like any other.
 
-## Status pointers
-Current work + open bugs: `state.md`. Awareness map:
+## Where the rest lives
+Open defects: `tools/defects.py`. Platforms and what each release claims:
+`tools/platforms.py`. Awareness map:
 `.claude/awareness/structural-map.md` + `subsystems/*.md`. Deep infra history:
 `docs/test_infra_*.md`, `docs/notes/SCST_PROBLEM.md`.
