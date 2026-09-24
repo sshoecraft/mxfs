@@ -32,6 +32,10 @@
 # It never builds: the source that made dist/V/ is no longer the tree's, so a
 # build now would be a different, unverified package carrying V's number.
 #
+# --target COMMIT tags the release on that pushed commit instead of main.
+# With --version, name the commit V was built and verified from, so the tag's
+# source is the packages' source and not the later work on main.
+#
 
 set -e
 
@@ -45,12 +49,14 @@ REPO="sshoecraft/mxfs"
 publish=0
 notes=""
 version=""
+target=main
 while [ $# -gt 0 ]; do
     case "$1" in
         --publish) publish=1 ;;
         --notes-file) notes="$2"; shift ;;
         --version) version="$2"; shift ;;
-        *) echo "usage: $0 [--publish] [--notes-file FILE] [--version V]" >&2; exit 2 ;;
+        --target) target="$2"; shift ;;
+        *) echo "usage: $0 [--publish] [--notes-file FILE] [--version V] [--target COMMIT]" >&2; exit 2 ;;
     esac
     shift
 done
@@ -135,6 +141,6 @@ if [ -z "$notes" ]; then
     fi
 fi
 
-gh release create "v$VERSION" -R "$REPO" --target main \
+gh release create "v$VERSION" -R "$REPO" --target "$target" \
     --title "MXFS $VERSION" --notes-file "$notes" \
     "$OUT"/*.deb "$OUT"/*.rpm "$OUT/SHA256SUMS"

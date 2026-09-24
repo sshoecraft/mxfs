@@ -44,7 +44,7 @@ case "$TRANSPORT" in
     # what a 2/tcp prep on the QNAP LUN hit on 2026-09-04.  Every rig this
     # harness targets (SCST fileio, LIO fileio, the QNAP) is write-through.
     tcp) MODARGS="force_transport=1 target_cache_protected=1" ;;
-    caw) MODARGS="target_cache_protected=1" ;;
+    caw) MODARGS="force_transport=0 target_cache_protected=1" ;;   # CAW must be asked for: the module defaults to TCP
     *)   fail "unknown transport '$TRANSPORT' (expect tcp|caw)" ;;
 esac
 

@@ -6861,6 +6861,7 @@ exit_xfs_fs(void)
 module_init(init_xfs_fs);
 module_exit(exit_xfs_fs);
 
-MODULE_AUTHOR("Stephen P. Shoecraft");
+MODULE_AUTHOR("Silicon Graphics, Inc.");
+MODULE_AUTHOR("Stephen P. Shoecraft (MXFS)");
 MODULE_DESCRIPTION("MXFS — Multinode XFS with " XFS_BUILD_OPTIONS " enabled");
 MODULE_LICENSE("GPL");

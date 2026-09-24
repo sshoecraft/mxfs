@@ -29,19 +29,20 @@
 #include "peer.h"
 
 /*
- * v0.3.110 (sess26): module param to force DLM transport.
- * 0 = auto/use sb (default = CAW), 1 = force TCP.
- * Sess27 set to 1 to test TCP DLM path once fully implemented.
+ * The DLM transport a new cluster forms on: 1 = TCP, 0 = CAW (disk-based,
+ * over SCSI COMPARE AND WRITE).  The default is TCP because TCP is the only
+ * released transport; CAW is in development and must be asked for.  The
+ * release packages set 1 in /etc/modprobe.d/mxfs.conf as well.
  */
 /* 0.89.69: closure-withdraw threads running; the read-only module parameter
  * auth_withdraw_threads below exposes it (see there for why). */
 static int mxfs_auth_withdraw_threads;
 
 #ifdef __KERNEL__
-static int mxfs_force_transport;
+static int mxfs_force_transport = 1;
 module_param_named(force_transport, mxfs_force_transport, int, 0644);
 MODULE_PARM_DESC(force_transport,
-                 "Force DLM transport: 0=auto (default CAW), 1=TCP");
+                 "DLM transport a new cluster forms on: 1=TCP (default, the released transport), 0=CAW (in development)");
 
 /* sess1 (ccloop 46efd8b6): A/B gate for the stale-HB evict-ring monotonic
  * consume fix (see the ROOT FIX note in disklock.c).  Param lives here

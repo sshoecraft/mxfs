@@ -61,9 +61,9 @@
 > sets `options mxfs force_transport=1` (TCP) and
 > `options mxfs target_cache_protected=1` (the storage declaration above).
 > Building from source, load the module with
-> `modprobe mxfs force_transport=1 target_cache_protected=1`: without the
-> first a new cluster forms on CAW, and without the second a clustered mount
-> is refused. To see what still blocks each configuration:
+> `modprobe mxfs target_cache_protected=1`: without it a clustered mount is
+> refused. The module forms a new cluster on TCP by default; CAW has to be
+> asked for with `force_transport=0`. To see what still blocks each configuration:
 >
 > ```
 > tools/defects.py 2 tcp --release   # the released configuration
@@ -113,8 +113,8 @@ overlay.
     stops keeping up.
 
   The module parameter `force_transport` picks the transport a new cluster
-  forms on: `1` is TCP, `0` (the module's built-in default) is CAW. The
-  release packages set `1`. A node joining an existing cluster adopts the
+  forms on: `1` (the default) is TCP, `0` is CAW. The release packages also
+  set `1` explicitly. A node joining an existing cluster adopts the
   transport the cluster's members are already using.
 - **Membership and fencing.** Peers are found by UDP-multicast discovery;
   liveness is tracked by an on-disk heartbeat with per-node slot claiming; a

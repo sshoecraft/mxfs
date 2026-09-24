@@ -1,3 +1,27 @@
+## 2026-09-24 — 0.89.87 — a source build forms TCP clusters by default; XFS authorship restored
+
+- **`force_transport` now defaults to TCP (1).** Before, a module built from
+  source and loaded without options formed a new cluster on CAW, the
+  transport still in development. The release packages always set `1` in
+  `/etc/modprobe.d/mxfs.conf`, so installed systems do not change. CAW now has
+  to be asked for with `force_transport=0`. The rig's CAW preparation
+  (`tests/setup/prep_node.sh caw`) passes it explicitly. Verified: the 0.89.87
+  module (srcversion `D483B47F4740427DADB3906`) loaded with no transport option
+  reports `force_transport=1`.
+- **`MODULE_AUTHOR` names Silicon Graphics, Inc. again**, as upstream XFS
+  does, with MXFS's author listed alongside. It had been replaced outright.
+- **README:** the fork is described as what it is: XFS from the Linux 6.19
+  development tree, heavily modified, with no exact upstream commit recorded
+  (the old "6.19-rc0" was not a real tag, and "the entire `xfs/` tree is
+  upstream XFS" was untrue). Authorship now says every change to the forked
+  files since the fork is AI-written. The released-configuration notice now
+  states the open defect queue: 93 open, 23 reaching 2-node TCP, with their
+  severities and how they are classified.
+- **`scripts/release.sh --target COMMIT`** tags a release on the commit its
+  packages were built and verified from. Until now it always tagged `main`,
+  which, once later work had landed, put a verified version's tag on source
+  its packages do not contain.
+
 ## 2026-09-24 — 0.89.86 — small-file creates about 4x faster
 
 ### A created file no longer pays a durable grant for an empty attr fork
