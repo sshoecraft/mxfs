@@ -19,6 +19,15 @@
 #include "xfs_log_recover.h"
 #include "xfs_fsops.h"
 #include "xfs_mxfs_dirshard.h"	/* sess467: MXFS_IOC_TYPE, mxfs_dirshard_ioctl */
+/* the real prototypes, so each stub is checked against what its callers call */
+#include "xfs_rtrefcount_btree.h"
+#include "xfs_rtrmap_btree.h"
+#include "xfs_ioctl.h"
+#include "xfs_acl.h"
+#include "xfs_pnfs.h"
+#include "xfs_exchmaps_item.h"
+#include "xfs_zone_alloc.h"
+#include "xfs_dahash_test.h"
 
 /* ── RT btree stubs ── */
 const struct xfs_buf_ops xfs_rtrefcountbt_buf_ops = { };
@@ -36,18 +45,18 @@ void xfs_rtrefcountbt_compute_maxlevels(struct xfs_mount *mp) { }
 void xfs_rtrmapbt_compute_maxlevels(struct xfs_mount *mp) { }
 unsigned int xfs_rtrefcountbt_maxrecs(struct xfs_mount *mp, unsigned int bl, bool l) { return 0; }
 unsigned int xfs_rtrmapbt_maxrecs(struct xfs_mount *mp, unsigned int bl, bool l) { return 0; }
-int xfs_rtrefcountbt_calc_reserves(struct xfs_mount *mp, struct xfs_trans *tp,
-	struct xfs_group *g, xfs_filblks_t *a, xfs_filblks_t *b) { return 0; }
-int xfs_rtrmapbt_calc_reserves(struct xfs_mount *mp, struct xfs_trans *tp,
-	struct xfs_group *g, xfs_filblks_t *a, xfs_filblks_t *b) { return 0; }
-void xfs_rtrefcountbt_to_disk(struct xfs_mount *mp, struct xfs_btree_block *rblock,
-	int lev, struct xfs_btree_block *dblock) { }
+xfs_filblks_t xfs_rtrefcountbt_calc_reserves(struct xfs_mount *mp) { return 0; }
+xfs_filblks_t xfs_rtrmapbt_calc_reserves(struct xfs_mount *mp) { return 0; }
+void xfs_rtrefcountbt_to_disk(struct xfs_mount *mp,
+	struct xfs_btree_block *rblock, int rblocklen,
+	struct xfs_rtrefcount_root *dblock, int dblocklen) { }
 void xfs_rtrmapbt_to_disk(struct xfs_mount *mp, struct xfs_btree_block *rblock,
-	int lev, struct xfs_btree_block *dblock) { }
+	unsigned int rblocklen, struct xfs_rtrmap_root *dblock,
+	unsigned int dblocklen) { }
 struct xfs_btree_cur *xfs_rtrefcountbt_init_cursor(struct xfs_trans *tp,
-	struct xfs_group *g) { return NULL; }
+	struct xfs_rtgroup *rtg) { return NULL; }
 struct xfs_btree_cur *xfs_rtrmapbt_init_cursor(struct xfs_trans *tp,
-	struct xfs_group *g) { return NULL; }
+	struct xfs_rtgroup *rtg) { return NULL; }
 int xfs_iformat_rtrefcount(struct xfs_inode *ip, struct xfs_dinode *dip) { return -EOPNOTSUPP; }
 int xfs_iformat_rtrmap(struct xfs_inode *ip, struct xfs_dinode *dip) { return -EOPNOTSUPP; }
 void xfs_iflush_rtrefcount(struct xfs_inode *ip, struct xfs_dinode *dip) { }
@@ -99,22 +108,31 @@ int xfs_fileattr_get(struct dentry *d, struct file_kattr *fa) { return -EOPNOTSU
 int xfs_fileattr_set(struct mnt_idmap *idmap, struct dentry *d, struct file_kattr *fa) { return -EOPNOTSUPP; }
 
 /* ── ACL stubs ── */
+#ifdef CONFIG_XFS_POSIX_ACL
 void xfs_forget_acl(struct inode *inode, const char *name) { }
+#endif
 
 /* ── pNFS stubs ── */
 int xfs_fs_get_uuid(struct super_block *sb, u8 *buf, u32 *len, u64 *offset) { return -EOPNOTSUPP; }
 int xfs_fs_map_blocks(struct inode *inode, loff_t offset, u64 length,
-	void *block, int flags) { return -EOPNOTSUPP; }
-int xfs_fs_commit_blocks(struct inode *inode, void *lcl, u32 bc, void *ds) { return -EOPNOTSUPP; }
+	struct iomap *iomap, bool write, u32 *device_generation) { return -EOPNOTSUPP; }
+int xfs_fs_commit_blocks(struct inode *inode, struct iomap *maps, int nr_maps,
+	struct iattr *iattr) { return -EOPNOTSUPP; }
 
 /* ── Exchmaps stubs ── */
-void xfs_exchmaps_defer_add(void *tp, void *req) { }
+void xfs_exchmaps_defer_add(struct xfs_trans *tp,
+	struct xfs_exchmaps_intent *xmi) { }
 
 /* ── Zone stubs ── */
-void xfs_zone_alloc_and_submit(void *ctx, struct bio *bio) { bio_endio(bio); }
+/* Unreachable: xfs_fs_fill_super refuses every zoned filesystem. */
+void xfs_zone_alloc_and_submit(struct iomap_ioend *ioend,
+	struct xfs_open_zone **oz)
+{
+	WARN_ON_ONCE(1);
+}
 
 /* ── Break layouts stub ── */
-int xfs_break_leased_layouts(struct inode *inode, uint *iolock, bool *retry)
+int xfs_break_leased_layouts(struct inode *inode, uint *iolock, bool *did_unlock)
 { return 0; }
 
 /* ── Dahash test stub ── */

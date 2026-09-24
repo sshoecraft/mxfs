@@ -4980,7 +4980,7 @@ mxfs_sb_read_counters_coherent(struct xfs_mount *mp, uint64_t *icount,
  * The last serialized writer is the last node out and its sums are terminal.
  * Lock order: nothing (no inode/AG grant is held by the quiesce task).
  */
-uint64_t
+static uint64_t
 mxfs_sb_summary_key(struct xfs_mount *mp)
 {
 	return ((uint64_t)(mp->m_sb.sb_agcount + 1 + 65)
@@ -5225,7 +5225,7 @@ static void mxfs_dbg_sliced_sleep(int ms)
 		msleep(left > 100 ? 100 : left);
 }
 
-void
+static void
 mxfs_dbg_bast_pause(struct xfs_inode *ip)
 {
 	int ms;
@@ -5325,7 +5325,7 @@ mxfs_dbg_relog_force_armed(struct xfs_inode *ip)
 	return unlikely(v && v == ip->i_ino);
 }
 
-bool
+static bool
 mxfs_dbg_relog_force_take(struct xfs_inode *ip)
 {
 	if (!mxfs_dbg_ino_take(&mxfs_dbg_relog_force_ino, ip->i_ino))
@@ -5675,7 +5675,7 @@ mxfs_dir_evict_bmbt_by_root(struct xfs_inode *ip)
  * = the poisoning release, caught at its own node with a complete local
  * context.  Capped; contended multinode BTREE dirs only.
  */
-void
+static void
 mxfs_dir_platter_audit(struct xfs_inode *ip)
 {
 	struct xfs_mount	*mp = ip->i_mount;
@@ -5684,7 +5684,7 @@ mxfs_dir_platter_audit(struct xfs_inode *ip)
 	uint32_t		clen;
 	uint64_t		lba;
 	int			i, disk_nx, nmap = 0;
-	struct xfs_bmbt_irec	xmap[64];
+	struct xfs_bmbt_irec	*xmap;		/* 64 entries; 1.5 KB off the stack */
 	static atomic_t		fired = ATOMIC_INIT(0);
 	extern int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev,
 					       uint64_t lba_512, void *buf,
@@ -5696,10 +5696,13 @@ mxfs_dir_platter_audit(struct xfs_inode *ip)
 	if (atomic_inc_return(&fired) > 50)
 		return;
 
+	xmap = kmalloc_array(64, sizeof(*xmap), GFP_NOFS);
+	if (!xmap)
+		return;
 	clen = (uint32_t)ip->i_imap.im_len << BBSHIFT;
 	cbuf = kmalloc(clen, GFP_NOFS);
 	if (!cbuf)
-		return;
+		goto out;
 	lba = (uint64_t)ip->i_imap.im_blkno + mp->m_ddev_targp->bt_sector_offset;
 	if (mxfs_pal_scsi_read_fua_bdev(mp->m_ddev_targp->bt_bdev, lba, cbuf,
 					clen) != 0)
@@ -5859,6 +5862,7 @@ out:
 	kfree(lbuf);
 	kfree(chbuf);
 	kfree(cbuf);
+	kfree(xmap);
 }
 
 /*
@@ -6559,7 +6563,7 @@ EXPORT_SYMBOL(mxfs_sfconv_disk_check);
  * the durable-loss revert window.  No I/O (xfs_buf_incore only); caller holds
  * dp ILOCK_EXCL so the fork is stable.  Gated by the caller on dirwr + ino<=256.
  */
-void
+static void
 mxfs_dir_dump_block_names(struct xfs_inode *ip, const char *tag)
 {
 	struct xfs_mount	*mp = ip->i_mount;
@@ -6598,7 +6602,6 @@ mxfs_dir_dump_block_names(struct xfs_inode *ip, const char *tag)
 		}
 	}
 }
-EXPORT_SYMBOL(mxfs_dir_dump_block_names);
 
 /*
  * sess11(ccloop) ROOT FIX for 4/tcp dir_reuse durable loss — cross-node dir
@@ -10445,82 +10448,6 @@ MODULE_PARM_DESC(dir_leaf_rebuild,
 	"reliably rebuild the dir LEAF hash index from coherent DATA blocks once per cross-node tenure; 0=off (default — perturbs data coherency), 1=on");
 EXPORT_SYMBOL(mxfs_dir_leaf_rebuild);
 
-/*
- * sess492 (D-0492) discriminator: is every live dirent of the in-core image
- * `core` present by name in the platter image `snap` (both dir3 DATA/BLOCK
- * images of `blen` bytes)?  Byte equality is the wrong test at a tenure
- * boundary — a peer that held EX in between legitimately leaves a NEWER
- * image on the LUN — so the question that decides whether a retire drops an
- * obligation is containment: our committed entries are on the platter
- * (superset, nothing of ours is lost if the log item goes) or they are not.
- * Returns 1 (every core entry found), 0 (some missing; *missing counts them),
- * -1 (either image is not a dir3 data/block image, or owners differ).
- * Bounded: one linear scan of snap per core entry, a few hundred entries.
- */
-static int
-mxfs_dir3_data_superset(struct xfs_mount *mp, const void *core,
-			const void *snap, uint32_t blen, int *missing)
-{
-	const struct xfs_dir3_blk_hdr	*ch = core, *sh = snap;
-	unsigned int	off0 = mp->m_dir_geo->data_entry_offset;
-	unsigned int	end = mp->m_dir_geo->blksize;
-	unsigned int	o, p;
-	uint32_t	cm = be32_to_cpu(ch->magic), sm = be32_to_cpu(sh->magic);
-	int		miss = 0;
-
-	*missing = 0;
-	if (end > blen)
-		end = blen;
-	if ((cm != XFS_DIR3_DATA_MAGIC && cm != XFS_DIR3_BLOCK_MAGIC) ||
-	    (sm != XFS_DIR3_DATA_MAGIC && sm != XFS_DIR3_BLOCK_MAGIC) ||
-	    be64_to_cpu(ch->owner) != be64_to_cpu(sh->owner))
-		return -1;
-	for (o = off0; o + 8 <= end; ) {
-		const struct xfs_dir2_data_unused *u = core + o;
-		const struct xfs_dir2_data_entry *e = core + o;
-		bool	found = false;
-
-		if (be16_to_cpu(u->freetag) == XFS_DIR2_DATA_FREE_TAG) {
-			unsigned int l = be16_to_cpu(u->length);
-
-			if (l < 8)
-				break;
-			o += l;
-			continue;
-		}
-		if (e->namelen == 0 ||
-		    o + xfs_dir2_data_entsize(mp, e->namelen) > end)
-			break;
-		for (p = off0; p + 8 <= end; ) {
-			const struct xfs_dir2_data_unused *su = snap + p;
-			const struct xfs_dir2_data_entry *se = snap + p;
-
-			if (be16_to_cpu(su->freetag) == XFS_DIR2_DATA_FREE_TAG) {
-				unsigned int l = be16_to_cpu(su->length);
-
-				if (l < 8)
-					break;
-				p += l;
-				continue;
-			}
-			if (se->namelen == 0 ||
-			    p + xfs_dir2_data_entsize(mp, se->namelen) > end)
-				break;
-			if (se->namelen == e->namelen &&
-			    memcmp(se->name, e->name, e->namelen) == 0) {
-				found = true;
-				break;
-			}
-			p += xfs_dir2_data_entsize(mp, se->namelen);
-		}
-		if (!found)
-			miss++;
-		o += xfs_dir2_data_entsize(mp, e->namelen);
-	}
-	*missing = miss;
-	return miss ? 0 : 1;
-}
-
 static bool
 mxfs_dir_evict_data_blocks(struct xfs_inode *ip)
 {
@@ -12853,7 +12780,7 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 	{
 		long f = atomic64_inc_return(&mxfs_rb_fired);
 		if ((f & 255) == 0)
-			pr_warn("mxfs: P21-RBSTAT fired=%ld genbail=%ld cohskip=%ld merged=%ld adopted=%ld verbail=%ld\n",
+			pr_warn("mxfs: P21-RBSTAT fired=%ld genbail=%lld cohskip=%lld merged=%lld adopted=%lld verbail=%lld\n",
 				f, atomic64_read(&mxfs_rb_genbail),
 				atomic64_read(&mxfs_rb_cohskip),
 				atomic64_read(&mxfs_rb_merged),
@@ -12880,12 +12807,12 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 
 		atomic64_inc(&mxfs_rb_verbail);
 		if (atomic_inc_return(&p178n) <= 2000)
-			pr_warn("mxfs: P178-REBASE-OLDER-DISK ino=%llu disk_chg=%llu incore_chg=%llu disk_sz=%llu incore_bytes=%d own_work=%d gen=%u comm=%s — home shortform older than in-core; rebase refused (would revert peers' committed dirents)\n",
+			pr_warn("mxfs: P178-REBASE-OLDER-DISK ino=%llu disk_chg=%llu incore_chg=%llu disk_sz=%llu incore_bytes=%lld own_work=%d gen=%u comm=%s — home shortform older than in-core; rebase refused (would revert peers' committed dirents)\n",
 				(unsigned long long)dp->i_ino,
 				(unsigned long long)be64_to_cpu(dip->di_changecount),
 				(unsigned long long)inode_peek_iversion(VFS_I(dp)),
 				(unsigned long long)be64_to_cpu(dip->di_size),
-				ifp->if_bytes, own_work ? 1 : 0,
+				(long long)ifp->if_bytes, own_work ? 1 : 0,
 				VFS_I(dp)->i_generation, current->comm);
 		goto out;
 	}
@@ -12912,9 +12839,9 @@ mxfs_dir_rebase_shortform(struct xfs_inode *dp)
 				 (int)xfs_dir2_sf_hdr_size(0)) ?
 				((struct xfs_dir2_sf_hdr *)ifp->if_data)->count : 0xff;
 		if (atomic_inc_return(&p21n) <= 4000)
-			pr_warn("mxfs: P21-RB ino=%llu own_work=%d incore_cnt=%u disk_cnt=%u incore_bytes=%d disk_sz=%llu comm=%s\n",
+			pr_warn("mxfs: P21-RB ino=%llu own_work=%d incore_cnt=%u disk_cnt=%u incore_bytes=%lld disk_sz=%llu comm=%s\n",
 				(unsigned long long)dp->i_ino, own_work ? 1 : 0,
-				incnt, dsf->count, ifp->if_bytes,
+				incnt, dsf->count, (long long)ifp->if_bytes,
 				(unsigned long long)dsize, current->comm);
 	}
 	/*
@@ -16166,7 +16093,7 @@ mxfs_dir_base_stamp(
 /* Clear the validity bit: the baseline can no longer vouch for the in-core
  * base (EX leaving this node / adopt in progress / phantom bail).  Pure store;
  * safe in any context. */
-void
+static void
 mxfs_dir_base_invalidate(
 	struct xfs_inode	*ip,
 	unsigned int		site)
@@ -20315,9 +20242,9 @@ mxfs_dlm_bast_process(
 		if (ip->i_df.if_format == XFS_DINODE_FMT_LOCAL &&
 		    ip->i_disk_size != ip->i_df.if_bytes) {
 			mxfs_idbg("mxfs: P58-INSTR ino=%llu DISK_SIZE_MISMATCH "
-				"if_bytes=%u disk_size=%lld vfs_size=%llu\n",
+				"if_bytes=%lld disk_size=%lld vfs_size=%llu\n",
 				(unsigned long long)ip->i_ino,
-				ip->i_df.if_bytes,
+				(long long)ip->i_df.if_bytes,
 				(long long)ip->i_disk_size,
 				(unsigned long long)i_size_read(vip));
 		}
@@ -23484,9 +23411,9 @@ skip_bast_cluster_stale:
 							   ip->i_df.if_bytes)) {
 							v_behind = true;
 							pr_warn_ratelimited(
-							    "mxfs: P175-SFCONTENT-UNLANDED ino=%llu if_bytes=%u dfork_dsize=%d — header fields match but SHORTFORM CONTENT differs from platter; publication still owed (drain would have released silently)\n",
+							    "mxfs: P175-SFCONTENT-UNLANDED ino=%llu if_bytes=%lld dfork_dsize=%d — header fields match but SHORTFORM CONTENT differs from platter; publication still owed (drain would have released silently)\n",
 								(unsigned long long)ip->i_ino,
-								ip->i_df.if_bytes, dlen);
+								(long long)ip->i_df.if_bytes, dlen);
 						}
 					}
 
@@ -28204,6 +28131,7 @@ mxfs_dir_hole_disk_probe(struct xfs_inode *ip, xfs_fileoff_t want_bno)
 	int			rrc, i, disk_nx;
 	bool			disk_maps_want = false;
 	char			*recs;
+	struct xfs_bmbt_irec	*xmap;		/* 64 entries; 1.5 KB off the stack */
 	static atomic_t		fired = ATOMIC_INIT(0);
 	extern int mxfs_pal_scsi_read_fua_bdev(struct block_device *bdev,
 					       uint64_t lba_512, void *buf,
@@ -28288,8 +28216,8 @@ mxfs_dir_hole_disk_probe(struct xfs_inode *ip, xfs_fileoff_t want_bno)
 	 * into map holes.  All reads are raw plain-bdev (coherent SCST cache),
 	 * bounded (<=16 extents walked, <=8 dir blocks read).
 	 */
-	{
-		struct xfs_bmbt_irec	xmap[64];
+	xmap = kmalloc_array(64, sizeof(*xmap), GFP_NOFS);
+	if (xmap) {
 		int			nmap = 0;
 		int			fmt = fdip->di_format;
 
@@ -28495,6 +28423,7 @@ mxfs_dir_hole_disk_probe(struct xfs_inode *ip, xfs_fileoff_t want_bno)
 					  : "PLATTER-CONSISTENT (walker used a stale CACHED structure block)");
 		}
 	}
+	kfree(xmap);
 	kfree(cbuf);
 }
 
@@ -29526,7 +29455,7 @@ mxfs_dlm_reload_inode_under(
 
 			atomic64_inc(&mxfs_p6_skip_after_rb);
 			if (atomic_inc_return(&p80n) <= 400)
-				pr_warn("mxfs: P80-P6-SKIP-AFTER-RACEBAIL ino=%llu racebail_age_ms=%llu epoch=%u valid_epoch=%u fmt=%d size=%lld post_release=%d comm=%s — clearing staleness without reloading an image a race bail discarded\n",
+				pr_warn("mxfs: P80-P6-SKIP-AFTER-RACEBAIL ino=%llu racebail_age_ms=%llu epoch=%lu valid_epoch=%u fmt=%d size=%lld post_release=%d comm=%s — clearing staleness without reloading an image a race bail discarded\n",
 					(unsigned long long)ip->i_ino,
 					(unsigned long long)rb_age_ms,
 					ip->i_dlm_epoch,
@@ -32616,9 +32545,9 @@ mxfs_dlm_reload_inode_under(
 		 */
 		if (ip->i_df.if_format == XFS_DINODE_FMT_LOCAL &&
 		    ip->i_df.if_bytes > 0 && !ip->i_df.if_data) {
-			pr_warn("mxfs: P181R-FROMDISK-FAIL-TEAR ino=%llu if_bytes=%u — from_disk failed after the fork destroy; resetting to empty EXTENTS rather than leaving a NULL-backed LOCAL fork\n",
+			pr_warn("mxfs: P181R-FROMDISK-FAIL-TEAR ino=%llu if_bytes=%lld — from_disk failed after the fork destroy; resetting to empty EXTENTS rather than leaving a NULL-backed LOCAL fork\n",
 				(unsigned long long)ip->i_ino,
-				ip->i_df.if_bytes);
+				(long long)ip->i_df.if_bytes);
 			ip->i_df.if_format = XFS_DINODE_FMT_EXTENTS;
 			ip->i_df.if_bytes = 0;
 			ip->i_df.if_nextents = 0;
@@ -34066,9 +33995,9 @@ mxfs_dir_sf_release_base(struct xfs_inode *ip, bool held_ex)
 	}
 	n = atomic_inc_return(&pn);
 	if (n <= 32 || (n % 500) == 0)
-		pr_warn("mxfs: P963-SF-RELEASE-BASE ino=%llu rrc=%d gen_match=%d fmt=%d disk_size=%u incore_bytes=%d n=%d\n",
+		pr_warn("mxfs: P963-SF-RELEASE-BASE ino=%llu rrc=%d gen_match=%d fmt=%d disk_size=%u incore_bytes=%lld n=%d\n",
 			(unsigned long long)ip->i_ino, rrc, gen_match, fmt,
-			disk_size, ip->i_df.if_bytes, n);
+			disk_size, (long long)ip->i_df.if_bytes, n);
 	kfree(rb);
 }
 
@@ -34291,8 +34220,8 @@ mxfs_dir_sf_merge_into(struct xfs_inode *ip, struct xfs_dir2_sf_hdr *base,
 	mxfs_dir_sf_capture_base(ip, theirs, theirs_bytes);
 	if (changed) {
 		pr_warn_ratelimited(
-			"mxfs: P-SFMERGE ino=%llu incore_bytes=%d theirs_bytes=%u merged_bytes=%u count=%d\n",
-			(unsigned long long)ip->i_ino, ip->i_df.if_bytes,
+			"mxfs: P-SFMERGE ino=%llu incore_bytes=%lld theirs_bytes=%u merged_bytes=%u count=%d\n",
+			(unsigned long long)ip->i_ino, (long long)ip->i_df.if_bytes,
 			theirs_bytes, size, count);
 		xfs_idestroy_fork(&ip->i_df);
 		xfs_init_local_fork(ip, XFS_DATA_FORK, out, size);
@@ -34526,9 +34455,9 @@ mxfs_dir_sf_premerge_for_release(struct xfs_inode *ip)
 	}
 
 	if (atomic_inc_return(&p182n) <= 2000)
-		pr_warn("mxfs: P182-RELMERGE ino=%llu disk_size=%u merged_bytes=%d nlink=%u chg=%llu disk_chg=%llu comm=%s realns=%llu — release drain reconciled its shortform image with the platter before publishing\n",
+		pr_warn("mxfs: P182-RELMERGE ino=%llu disk_size=%u merged_bytes=%lld nlink=%u chg=%llu disk_chg=%llu comm=%s realns=%llu — release drain reconciled its shortform image with the platter before publishing\n",
 			(unsigned long long)ip->i_ino, disk_size,
-			ip->i_df.if_bytes, VFS_I(ip)->i_nlink,
+			(long long)ip->i_df.if_bytes, VFS_I(ip)->i_nlink,
 			(unsigned long long)inode_peek_iversion(VFS_I(ip)),
 			(unsigned long long)be64_to_cpu(ddip->di_changecount),
 			current->comm,
@@ -34607,9 +34536,9 @@ mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip)
 
 		atomic_inc(&mxfs_sf_own_image_hits);
 		if (n <= 32 || (n % 500) == 0)
-			pr_warn("mxfs: P963-SF-OWN-IMAGE ino=%llu disk_size=%u incore_bytes=%d disk_count=%u incore_count=%u dir_gen=%u loaded_gen=%u same=%d n=%d\n",
+			pr_warn("mxfs: P963-SF-OWN-IMAGE ino=%llu disk_size=%u incore_bytes=%lld disk_count=%u incore_count=%u dir_gen=%u loaded_gen=%u same=%d n=%d\n",
 				(unsigned long long)ip->i_ino, disk_size,
-				ip->i_df.if_bytes,
+				(long long)ip->i_df.if_bytes,
 				((struct xfs_dir2_sf_hdr *)((char *)ddip +
 					xfs_dinode_size(ddip->di_version)))->count,
 				((struct xfs_dir2_sf_hdr *)ip->i_df.if_data)->count,
@@ -34695,9 +34624,9 @@ mxfs_dir_sf_refresh_if_disk_differs(struct xfs_inode *ip)
 	}
 	/* CLEAN: adopt the authoritative on-disk shortform. */
 	pr_warn_ratelimited(
-		"mxfs: P9-SFREFRESH ino=%llu incore_bytes=%u disk_size=%u — clean in-core shortform fork differs from coherent disk; reloading\n",
+		"mxfs: P9-SFREFRESH ino=%llu incore_bytes=%lld disk_size=%u — clean in-core shortform fork differs from coherent disk; reloading\n",
 		(unsigned long long)ip->i_ino,
-		ip->i_df.if_bytes, disk_size);
+		(long long)ip->i_df.if_bytes, disk_size);
 	ip->i_dlm_stale = true; ip->i_dlm_stale_src = 9;
 	mxfs_dlm_reload_inode(ip, XFS_DIR3_FT_UNKNOWN, false);
 	if (ddip->di_format == XFS_DINODE_FMT_LOCAL)
@@ -36059,8 +35988,9 @@ restart:
 			if (mode == MXFS_LOCK_EX) {
 				ip->i_dlm_ex_holders++; MXFS_DLMTR_H(ip);
 				mxfs_exh_stamp_locked(ip);
-			} else
+			} else {
 				ip->i_dlm_pr_holders++; MXFS_DLMTR_H(ip);
+			}
 			/*
 			 * sess9 ROBUST FIX (both PR reads and EX writes): a
 			 * SHARED (peer-reachable) shortform dir taking the cached
@@ -36106,58 +36036,58 @@ restart:
 					ip->i_dlm_pin_count,
 					(unsigned long long)ip->i_dlm_dir_gen,
 					(unsigned long long)ktime_get_real_ns());
-				/* sess84 ALWAYS-ON (ratelimited): a dir EX fast-path
-				 * re-grant RMWs the CACHED shortform image with NO
-				 * reload.  Dump the cached dirent names used as the RMW
-				 * base so a cross-node timeline (vs P-SFDIR-RELOAD) shows
-				 * a node clobbering a peer's just-committed entry from a
-				 * stale cached fork.  EX writers on LOCAL dirs only. */
-				if (S_ISDIR(VFS_I(ip)->i_mode) &&
-				    mode == MXFS_LOCK_EX &&
-				    ip->i_df.if_format == XFS_DINODE_FMT_LOCAL &&
-				    ip->i_df.if_data) {
-					struct xfs_dir2_sf_hdr *sfh = ip->i_df.if_data;
-					struct xfs_dir2_sf_entry *e =
-						xfs_dir2_sf_firstentry(sfh);
-					char names[200];
-					int  pos = 0, k;
+			/* sess84 ALWAYS-ON (ratelimited): a dir EX fast-path
+			 * re-grant RMWs the CACHED shortform image with NO
+			 * reload.  Dump the cached dirent names used as the RMW
+			 * base so a cross-node timeline (vs P-SFDIR-RELOAD) shows
+			 * a node clobbering a peer's just-committed entry from a
+			 * stale cached fork.  EX writers on LOCAL dirs only. */
+			if (S_ISDIR(VFS_I(ip)->i_mode) &&
+			    mode == MXFS_LOCK_EX &&
+			    ip->i_df.if_format == XFS_DINODE_FMT_LOCAL &&
+			    ip->i_df.if_data) {
+				struct xfs_dir2_sf_hdr *sfh = ip->i_df.if_data;
+				struct xfs_dir2_sf_entry *e =
+					xfs_dir2_sf_firstentry(sfh);
+				char names[200];
+				int  pos = 0, k;
 
-					names[0] = '\0';
-					for (k = 0; k < sfh->count &&
-					     pos < (int)sizeof(names) - 12; k++) {
-						int nl = min_t(int, e->namelen, 10);
-						pos += scnprintf(names + pos,
-							sizeof(names) - pos,
-							"%.*s ", nl, e->name);
-						e = (void *)e +
-						    xfs_dir2_sf_entsize(ip->i_mount,
-								sfh, e->namelen);
-					}
-					if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
-						pr_warn_ratelimited(
-							"mxfs: P-SFDIR-FASTEX ino=%llu count=%u names=[%s] state=%u pin=%d size=%lld realns=%llu\n",
-							(unsigned long long)ip->i_ino,
-							sfh->count, names, ip->i_dlm_state,
-							ip->i_dlm_pin_count,
-							(long long)ip->i_disk_size,
-							(unsigned long long)ktime_get_real_ns());
-					/* sess94 DETECTION (instrumented prove-first): this
-					 * cached-EX fast-path is about to RMW the
-					 * shortform fork.  If i_dlm_dir_gen advanced past
-					 * the gen the fork was loaded at, a PEER modified
-					 * this dir while we held the cached grant — the
-					 * fork is STALE and this RMW will clobber the
-					 * peer's dirents (unlink_visibility lost-update).
-					 * No behavior change yet; just confirm it fires. */
-					if (ip->i_dlm_dir_gen > ip->i_dlm_dir_loaded_gen)
-						pr_warn_ratelimited(
-							"mxfs: P-SFDIR-STALE-RMW ino=%llu dir_gen=%u loaded_gen=%u count=%u pin=%d — STALE shortform fork RMW (peer modified; would clobber)\n",
-							(unsigned long long)ip->i_ino,
-							ip->i_dlm_dir_gen,
-							ip->i_dlm_dir_loaded_gen,
-							sfh->count,
-							ip->i_dlm_pin_count);
+				names[0] = '\0';
+				for (k = 0; k < sfh->count &&
+				     pos < (int)sizeof(names) - 12; k++) {
+					int nl = min_t(int, e->namelen, 10);
+					pos += scnprintf(names + pos,
+						sizeof(names) - pos,
+						"%.*s ", nl, e->name);
+					e = (void *)e +
+					    xfs_dir2_sf_entsize(ip->i_mount,
+							sfh, e->namelen);
 				}
+				if (unlikely(mxfs_dirwr_enabled || mxfs_instr_enabled))
+					pr_warn_ratelimited(
+						"mxfs: P-SFDIR-FASTEX ino=%llu count=%u names=[%s] state=%u pin=%d size=%lld realns=%llu\n",
+						(unsigned long long)ip->i_ino,
+						sfh->count, names, ip->i_dlm_state,
+						ip->i_dlm_pin_count,
+						(long long)ip->i_disk_size,
+						(unsigned long long)ktime_get_real_ns());
+				/* sess94 DETECTION (instrumented prove-first): this
+				 * cached-EX fast-path is about to RMW the
+				 * shortform fork.  If i_dlm_dir_gen advanced past
+				 * the gen the fork was loaded at, a PEER modified
+				 * this dir while we held the cached grant — the
+				 * fork is STALE and this RMW will clobber the
+				 * peer's dirents (unlink_visibility lost-update).
+				 * No behavior change yet; just confirm it fires. */
+				if (ip->i_dlm_dir_gen > ip->i_dlm_dir_loaded_gen)
+					pr_warn_ratelimited(
+						"mxfs: P-SFDIR-STALE-RMW ino=%llu dir_gen=%u loaded_gen=%u count=%u pin=%d — STALE shortform fork RMW (peer modified; would clobber)\n",
+						(unsigned long long)ip->i_ino,
+						ip->i_dlm_dir_gen,
+						ip->i_dlm_dir_loaded_gen,
+						sfh->count,
+						ip->i_dlm_pin_count);
+			}
 			/* sess98 P-DIRFASTEX: block/leaf-format dir EX fast-path
 			 * re-grant — the non-shortform sibling of P-SFDIR-FASTEX
 			 * above.  This cached-EX grant does NO reload + NO gen-bump
@@ -37126,8 +37056,9 @@ restart:
 				if (mode == MXFS_LOCK_EX) {
 					ip->i_dlm_ex_holders++; MXFS_DLMTR_H(ip);
 					mxfs_exh_stamp_locked(ip);
-				} else
+				} else {
 					ip->i_dlm_pr_holders++; MXFS_DLMTR_H(ip);
+				}
 				if (atomic_inc_return(&p79_n) <= 4000)
 					pr_warn("mxfs: P79-NESTADMIT ino=%llu req=%u granted=%u now_ex=%u now_pr=%u comm=%s\n",
 						(unsigned long long)ip->i_ino,
@@ -37485,8 +37416,9 @@ restart:
 					if (mode == MXFS_LOCK_EX) {
 						ip->i_dlm_ex_holders++; MXFS_DLMTR_H(ip);
 						mxfs_exh_stamp_locked(ip);
-					} else
+					} else {
 						ip->i_dlm_pr_holders++; MXFS_DLMTR_H(ip);
+					}
 					if (atomic_inc_return(&p79l_n) <= 4000)
 						pr_warn("mxfs: P79-NESTADMIT-LOOP ino=%llu req=%u granted=%u now_ex=%u now_pr=%u comm=%s\n",
 							(unsigned long long)ip->i_ino,
@@ -39779,8 +39711,9 @@ mxfs_dlm_grant_local_new(
 	if (mode == MXFS_LOCK_EX) {
 		ip->i_dlm_ex_holders++; MXFS_DLMTR_H(ip);
 		mxfs_exh_stamp_locked(ip);
-	} else
+	} else {
 		ip->i_dlm_pr_holders++; MXFS_DLMTR_H(ip);
+	}
 	spin_unlock(&ip->i_dlm_lock);
 
 	/* v0.5.4 sess24: fresh cache-miss create — no peer can hold a stale
@@ -42186,7 +42119,7 @@ EXPORT_SYMBOL(mxfs_iunl_store_fossil_match);
  * called at EX acquisition as a belt (why="acquire"): any record found
  * there survived a release without purge — protocol violation.
  */
-void mxfs_iunl_store_purge_ag(struct xfs_mount *mp, xfs_agnumber_t agno,
+static void mxfs_iunl_store_purge_ag(struct xfs_mount *mp, xfs_agnumber_t agno,
 			      const char *why)
 {
 	struct mxfs_iunl_rec *r, *tmp;
@@ -42220,7 +42153,6 @@ void mxfs_iunl_store_purge_ag(struct xfs_mount *mp, xfs_agnumber_t agno,
 		pr_info_ratelimited("mxfs: P-IUNLSTORE-AGPURGE agno=%u dropped=%d unhomed=%d why=%s\n",
 			agno, dropped, unhomed, why);
 }
-EXPORT_SYMBOL(mxfs_iunl_store_purge_ag);
 
 /* Home write COMPLETED (target cache, not platter) for [daddr,
  * daddr+bblen): stamp the flush epoch; also lazily drop any record whose
@@ -45164,7 +45096,7 @@ mxfs_ag_buf_disk_differs(struct xfs_buf *bp)
  * records than disk (and a different rec0), our buffer is BEHIND the medium
  * (a peer wrote a newer version while we did not hold the AG, and our cached
  * in-AIL buffer survived the release) -> we are clobbering a durable peer
- * version.  Returns 0 on success and fills *disk_nr/*disk_s0/*disk_l0;
+ * version.  Returns 0 on success and fills *disk_nr, *disk_s0, *disk_l0;
  * negative on error.
  */
 int
@@ -45752,7 +45684,7 @@ EXPORT_SYMBOL(mxfs_dbg_disk_di_mode_coherent);
 
 /*
  * sess81: FUA-read the ON-DISK dinode of `ino` and decode its DATA-fork extent
- * map (EXTENTS format only).  Fills *sb0/*len0/*off0 with the first data extent
+ * map (EXTENTS format only).  Fills *sb0, *len0, *off0 with the first data extent
  * and *ndext with di_nextents, *fmt with di_format.  Lets the bnobt
  * double-free site (xfs_alloc.c:2244) decide WHICH side is wrong when a live
  * inode is being inactivated yet its block shows free in the bnobt:
@@ -49897,7 +49829,6 @@ static bool
 mxfs_dlm_queue_pr_demote(struct xfs_inode *ip, unsigned int delay_ms,
 			 uint8_t src)
 {
-	struct xfs_mount	*mp = ip->i_mount;
 	struct inode		*vip = VFS_I(ip);
 	bool			queue = false;
 
@@ -49978,7 +49909,6 @@ static bool
 mxfs_dlm_queue_ex_demote(struct xfs_inode *ip, unsigned int delay_ms,
 			 uint8_t src)
 {
-	struct xfs_mount	*mp = ip->i_mount;
 	struct inode		*vip = VFS_I(ip);
 	bool			queue = false;
 
@@ -51402,9 +51332,13 @@ extern void mxfs_dlm_lkt_dump(uint64_t want_ino);
 static int mxfs_lktdump_set(const char *val, const struct kernel_param *kp)
 {
 	unsigned long long ino = 0;
+	int error;
 
-	if (val)
-		(void)kstrtoull(val, 0, &ino);
+	if (val) {
+		error = kstrtoull(val, 0, &ino);
+		if (error)
+			return error;
+	}
 	mxfs_dlm_lkt_dump((uint64_t)ino);
 	return 0;
 }

@@ -454,25 +454,6 @@ xfs_lock_flags_assert(
  * free manner (e.g. truncate, hole punch and other extent manipulation
  * functions).
  */
-/* sess73 (instrumented): forensic dump for a wedged ip->i_lock acquire — names the
- * last writer/reader/unlock call sites + outstanding SHARED-hold count + raw
- * rwsem count, so the leaking storm path that stranded the lock is identified
- * from the victim's context.  Ratelimited by the caller's 5s/30s gate. */
-static void
-mxfs_ilk_dump_stuck(struct xfs_inode *ip, uint lock_flags, unsigned int waited_ms)
-{
-	pr_warn("mxfs: P73-ILOCK-STUCK ino=%llu want=%s waited_ms=%u rd_held=%d cnt=%ld wr_last=%pS wr_pid=%d wr_comm=%s rd_last=%pS rd_pid=%d rd_comm=%s un_last=%pS\n",
-		(unsigned long long)ip->i_ino,
-		(lock_flags & XFS_ILOCK_EXCL) ? "EX" : "SH",
-		waited_ms,
-		atomic_read(&ip->i_mxfs_ilk_rd_held),
-		atomic_long_read(&ip->i_lock.count),
-		(void *)ip->i_mxfs_ilk_wr_ret,
-		ip->i_mxfs_ilk_wr_pid, ip->i_mxfs_ilk_wr_comm,
-		(void *)ip->i_mxfs_ilk_rd_ret,
-		ip->i_mxfs_ilk_rd_pid, ip->i_mxfs_ilk_rd_comm,
-		(void *)ip->i_mxfs_ilk_un_ret);
-}
 void
 xfs_ilock(
 	xfs_inode_t		*ip,
@@ -1111,9 +1092,6 @@ again:
 		 * caller's xfs_iunlock(ips[i]) -> mxfs_dlm_ilock_end.
 		 */
 		{
-			bool ipi_dir = (lock_mode & XFS_ILOCK_EXCL) &&
-				       S_ISDIR(VFS_I(ips[i])->i_mode);
-
 			/*
 			 * sess58 lesson retained: xfs_ilock_nowait takes ONLY
 			 * the rwsem.  A dir modified at a stale cached mode
@@ -1122,7 +1100,8 @@ again:
 			 * authority — Phase A holds it (dlm_pre, FIX-L3 all
 			 * members).
 			 */
-			ASSERT(!ipi_dir || dlm_pre[i]);
+			ASSERT(!((lock_mode & XFS_ILOCK_EXCL) &&
+				 S_ISDIR(VFS_I(ips[i])->i_mode)) || dlm_pre[i]);
 			if (xfs_ilock_nowait(ips[i],
 					     xfs_lock_inumorder(lock_mode, i)))
 				continue;
@@ -1863,7 +1842,7 @@ retry_iget:
 			 * nearby.
 			 */
 			pr_warn_ratelimited(
-				"mxfs: P34H-POISON-EVICT ino=%llu gen=%u try=%d i_count=%d i_state=0x%lx nlink=%u iflags=0x%x pin=%d ili=0x%x in_ail=%d dlm_mode=%u reclaimable=%d need_inact=%d inactivating=%d iflushing=%d — retiring poisoned shell for re-iget\n",
+				"mxfs: P34H-POISON-EVICT ino=%llu gen=%u try=%d i_count=%d i_state=0x%lx nlink=%u iflags=0x%lx pin=%d ili=0x%x in_ail=%d dlm_mode=%u reclaimable=%d need_inact=%d inactivating=%d iflushing=%d — retiring poisoned shell for re-iget\n",
 				(unsigned long long)(*ipp)->i_ino,
 				vi->i_generation, poison_tries,
 				atomic_read(&vi->i_count), mxfs_istate(vi),
@@ -1976,7 +1955,7 @@ retry_iget:
 				}
 			}
 			pr_warn(
-				"mxfs: P566-POISON-DRAINWAIT ino=%llu gen=%u i_count_first=%d i_count_after=%d drained_at_ms=%d waited_ms=%d iflags=0x%x pin=%d ili=0x%x dlm_mode=%u i_state=0x%lx name=%.*s\n",
+				"mxfs: P566-POISON-DRAINWAIT ino=%llu gen=%u i_count_first=%d i_count_after=%d drained_at_ms=%d waited_ms=%d iflags=0x%lx pin=%d ili=0x%x dlm_mode=%u i_state=0x%lx name=%.*s\n",
 				(unsigned long long)(*ipp)->i_ino,
 				vi->i_generation, pc_first, pc_now,
 				drained_at, waited_ms,
@@ -8428,7 +8407,7 @@ out_trans_cancel:
 		static atomic_t p217n = ATOMIC_INIT(0);
 
 		if (atomic_inc_return(&p217n) <= 400)
-			pr_warn("mxfs: P217-RENAME-DIRTYCANCEL rc=%d src_dp=%llu tgt_dp=%llu src=\"%.*s\" tgt=\"%.*s\" armed=%d pre[iv=%llu bytes=%u fmt=%d dgen=%llu ve=%u] now[iv=%llu bytes=%u fmt=%d dgen=%llu ve=%u] exch=%d wip=%d comm=%s — dirty cancel imminent (0x8 shutdown); cookie names the class\n",
+			pr_warn("mxfs: P217-RENAME-DIRTYCANCEL rc=%d src_dp=%llu tgt_dp=%llu src=\"%.*s\" tgt=\"%.*s\" armed=%d pre[iv=%llu bytes=%u fmt=%d dgen=%llu ve=%u] now[iv=%llu bytes=%lld fmt=%d dgen=%llu ve=%u] exch=%d wip=%d comm=%s — dirty cancel imminent (0x8 shutdown); cookie names the class\n",
 				error,
 				(unsigned long long)src_dp->i_ino,
 				(unsigned long long)target_dp->i_ino,
@@ -8441,7 +8420,7 @@ out_trans_cancel:
 				(unsigned long long)p217_src_dgen,
 				p217_src_ve,
 				(unsigned long long)inode_peek_iversion(VFS_I(src_dp)),
-				src_dp->i_df.if_bytes,
+				(long long)src_dp->i_df.if_bytes,
 				src_dp->i_df.if_format,
 				(unsigned long long)src_dp->i_dlm_dir_gen,
 				src_dp->i_dlm_dir_valid_epoch,

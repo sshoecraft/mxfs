@@ -42,6 +42,8 @@
 #include <linux/iversion.h>
 #include <linux/fiemap.h>
 
+struct mxfs_v5_dlm;
+
 /*
  * Directories have different lock order w.r.t. mmap_lock compared to regular
  * files. This is due to readdir potentially triggering page faults on a user

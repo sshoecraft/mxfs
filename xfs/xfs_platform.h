@@ -329,7 +329,7 @@ static inline bool bio_add_vmalloc(struct bio *bio, void *vaddr,
 static inline void bio_add_virt_nofail(struct bio *bio, void *data,
 				       unsigned int len)
 {
-	bio_add_page(bio, virt_to_page(data), len, offset_in_page(data));
+	__bio_add_page(bio, virt_to_page(data), len, offset_in_page(data));
 }
 #endif
 

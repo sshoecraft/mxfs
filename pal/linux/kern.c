@@ -418,6 +418,13 @@ static int mxfs_pal_bio_sync_bdev(struct block_device *bdev, uint64_t lba_512,
 	return 0;
 }
 
+/* declared in xfs/xfs_mxfs_dlm.h for its callers; see the note above
+ * mxfs_pal_scsi_read_fua_bdev's redeclaration for why it is repeated here */
+int mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
+				const void *buf, uint32_t len);
+int mxfs_pal_bio_read_bdev(struct block_device *bdev, uint64_t lba_512,
+			   void *buf, uint32_t len);
+
 int mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
 				const void *buf, uint32_t len)
 {

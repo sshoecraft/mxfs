@@ -3136,6 +3136,7 @@ xfs_fs_show_stats(
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
 static void
 xfs_fs_report_error(
 	const struct fserror_event	*event)
@@ -3144,6 +3145,7 @@ xfs_fs_report_error(
 	if (event->inode && event->type != FSERR_METADATA)
 		xfs_healthmon_report_file_ioerror(XFS_I(event->inode), event);
 }
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 19, 0)
 /*
@@ -5066,21 +5068,17 @@ xfs_fs_fill_super(
 			error = -EINVAL;
 			goto out_filestream_unmount;
 		}
-#if !defined(MXFS_HAVE_IOMAP_ITER_PRIVATE) || !defined(MXFS_DIO_IOEND_BIOSET)
 		/*
-		 * A zoned write carries its allocation context to the iomap
-		 * callbacks in iomap_iter->private and allocates its bios from
-		 * iomap_ioend_bioset through iomap_dio_ops->bio_set.  This
-		 * kernel's iomap lacks one of them (6.8 exports no ioend set,
-		 * RHEL 9 has neither), so no zoned write could reach its
-		 * reservation: refused here, before anything runs.
+		 * The zoned allocator (xfs_zone_alloc.c and its GC) is not built
+		 * into this module; xfs_stubs.c stands in for its entry points.
+		 * A zoned write would reach a stub that cannot place it, so a
+		 * zoned filesystem is refused here on every kernel, before
+		 * anything runs.
 		 */
 		xfs_alert(mp,
-	"zoned realtime devices need an iomap with a private context and a dio bio_set, which this kernel does not have");
+	"zoned realtime devices are not supported by MXFS");
 		error = -EOPNOTSUPP;
 		goto out_filestream_unmount;
-#endif
-		xfs_warn_experimental(mp, XFS_EXPERIMENTAL_ZONED);
 	}
 
 	if (xfs_has_reflink(mp)) {

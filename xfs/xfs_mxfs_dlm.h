@@ -1595,3 +1595,144 @@ void mxfs_iclus_purge_all(struct xfs_mount *mp);
 					(site), n);			\
 		}							\
 	} while (0)
+
+/*
+ * Functions defined in one file and called from others.  Each caller used to
+ * carry its own extern; declaring them here lets the compiler check every
+ * caller against the definition.
+ */
+/* xfs_mxfs_dlm.c */
+int
+mxfs_acq_task_fallible_for(uint64_t ino);
+int
+mxfs_acq_task_fallible_for_ag(uint32_t agno);
+bool
+mxfs_ail_drain_inode_sync_bounded(struct xfs_inode *ip, unsigned int max_ms);
+void
+mxfs_bmbt_lookup_bad_probe(struct xfs_mount *mp, struct xfs_buf *bp,
+			   xfs_ino_t want, int want_level);
+void
+mxfs_danode_crcfail_probe(struct xfs_buf *bp);
+int
+mxfs_dbg_disk_di_first_dext(struct xfs_mount *mp, xfs_ino_t ino,
+			    uint64_t *sb0, uint64_t *len0, uint64_t *off0,
+			    uint64_t *ndext, uint8_t *fmt);
+uint16_t
+mxfs_dbg_disk_di_mode_coherent(struct xfs_mount *mp, xfs_ino_t ino,
+			       uint32_t *genp);
+uint32_t
+mxfs_dbg_disk_di_nlink_coherent(struct xfs_mount *mp, xfs_ino_t ino);
+void
+mxfs_dbg_iolock_hold(struct xfs_inode *ip);
+int
+mxfs_dbg_sb_inject_unheld_take(void);
+int
+mxfs_dbg_sb_late_dirty_take(void);
+bool
+mxfs_dbg_validate_nomagic_take(unsigned long long ino);
+void
+mxfs_destage_kick_fn(struct work_struct *work);
+void
+mxfs_dir_base_stamp(
+	struct xfs_inode	*ip,
+	uint32_t		ep,
+	uint32_t		gg,
+	unsigned int		site);
+bool
+mxfs_dir_choke_merge_remset(struct xfs_buf *bp, uint64_t *rbuf, uint32_t rcap,
+			    uint32_t *rn);
+void
+mxfs_dir_hole_disk_probe(struct xfs_inode *ip, xfs_fileoff_t want_bno);
+bool
+mxfs_dir_op_needs_publish(struct xfs_inode *dp);
+void
+mxfs_dir_refresh_stale_data_blocks(struct xfs_inode *ip);
+void
+mxfs_dland_record(u64 daddr, u64 owner, u32 incarn, u32 sum, int cnt,
+		  const char *ops);
+void
+mxfs_dlm_force_peer_flush(struct xfs_inode *ip);
+int
+mxfs_dlm_iget_miss_reload(
+	struct xfs_mount	*mp,
+	xfs_ino_t		ino);
+int
+mxfs_dlm_iget_shell_reload(
+	struct xfs_mount	*mp,
+	xfs_ino_t		ino);
+int
+mxfs_dlm_iget_visibility_nudge(
+	struct xfs_mount	*mp,
+	xfs_ino_t		ino);
+void
+mxfs_dlmtr_dump(void);
+int
+mxfs_getattr_dlm_lock(struct xfs_inode *ip);
+void
+mxfs_getattr_dlm_unlock(struct xfs_inode *ip);
+void
+mxfs_iflush_force_bmbt_durable(struct xfs_inode *ip);
+int
+mxfs_inject_unheld_agmeta_dirty(struct xfs_mount *mp, unsigned int agno);
+uint64_t
+mxfs_inode_disk_di_size(struct xfs_inode *ip, uint16_t *modep, uint32_t *genp);
+bool
+mxfs_inode_is_peer_ag(struct xfs_inode *ip);
+bool mxfs_iunl_store_fossil_match(struct xfs_mount *mp, uint64_t ino,
+				  uint32_t gen, xfs_daddr_t daddr,
+				  uint16_t boffset, uint32_t expect);
+int mxfs_iunl_store_overlay(struct xfs_mount *mp, xfs_daddr_t daddr,
+			    int bblen, void *base, unsigned int len);
+void mxfs_iunl_store_query_print(struct xfs_mount *mp, uint64_t ino);
+void mxfs_iunl_store_record(struct xfs_mount *mp, uint64_t ino, uint32_t gen,
+			    uint32_t next_agino, xfs_daddr_t daddr,
+			    uint16_t boffset);
+void mxfs_iunl_store_retire_range(struct xfs_mount *mp, xfs_daddr_t daddr,
+				  int bblen, void *base, unsigned int len);
+void
+mxfs_p98_getattr_check(struct xfs_inode *ip);
+void mxfs_pubob_arm(struct xfs_mount *mp, struct xfs_inode *ip);
+int
+mxfs_read_coherency_envelope(struct xfs_inode *ip);
+int
+mxfs_sb_read_counters_coherent(struct xfs_mount *mp, uint64_t *icount,
+			       uint64_t *ifree, uint64_t *fdblocks);
+int
+mxfs_sb_summary_lock(struct xfs_mount *mp, uint64_t *epoch);
+int
+mxfs_sb_summary_master_self(struct xfs_mount *mp);
+void
+mxfs_sb_summary_pause(struct xfs_mount *mp, int point);
+int
+mxfs_sb_summary_recount_uncached(struct xfs_mount *mp, unsigned int *ags_read);
+void
+mxfs_sb_summary_unlock(struct xfs_mount *mp);
+void
+mxfs_sf_disk_names(struct xfs_mount *mp, struct xfs_dinode *dip,
+		   char *out, size_t outsz);
+bool
+mxfs_task_in_dir_drain(void);
+u64
+mxfs_vfs_inode_iversion(struct inode *vip);
+/* xfs_buf.c */
+int
+mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp);
+uint32_t
+mxfs_dir3_data_fingerprint(struct xfs_mount *mp, const void *blk,
+			   uint32_t blklen, bool block_form,
+			   uint32_t *fp_sum, uint32_t *fp_xor);
+int
+mxfs_dir3_disk_has_extra_inum(struct xfs_mount *mp, const void *incore,
+			      const void *disk, uint32_t blklen,
+			      bool incore_block_form, bool disk_block_form);
+/* pal/linux/kern.c */
+int mxfs_pal_bio_write_fua_bdev(struct block_device *bdev, uint64_t lba_512,
+				const void *buf, uint32_t len);
+int mxfs_pal_bio_read_bdev(struct block_device *bdev, uint64_t lba_512,
+			   void *buf, uint32_t len);
+/* xfs_dir2_data.c */
+struct xfs_da_args;
+int
+mxfs_dir_addname_coherent_refresh(
+	struct xfs_da_args	*args,
+	struct xfs_buf		*dbp);

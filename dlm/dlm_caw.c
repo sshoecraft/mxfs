@@ -1080,20 +1080,6 @@ static uint8_t recompute_waiter_mode(const struct mxfs_caw_lock_slot *slot)
 static int caw_unlk_delta_classify(const struct mxfs_caw_lock_slot *prev,
 				   const struct mxfs_caw_lock_slot *now,
 				   struct mxfs_caw_lock_slot *scratch,
-				   uint64_t self_bit);
-
-static bool caw_unlk_delta_is_registration(const struct mxfs_caw_lock_slot *prev,
-					   const struct mxfs_caw_lock_slot *now,
-					   struct mxfs_caw_lock_slot *scratch,
-					   uint64_t self_bit)
-{
-	return caw_unlk_delta_classify(prev, now, scratch, self_bit) ==
-	       CAW_UNLKD_BENIGN;
-}
-
-static int caw_unlk_delta_classify(const struct mxfs_caw_lock_slot *prev,
-				   const struct mxfs_caw_lock_slot *now,
-				   struct mxfs_caw_lock_slot *scratch,
 				   uint64_t self_bit)
 {
 	uint64_t added_w, added_wex;
@@ -10446,7 +10432,7 @@ static int caw_unlock_gen_body(struct mxfs_dlm_caw_ctx *ctx,
 	uint32_t p381_find_ms = 0, p381_backoff_ms = 0;
 	uint64_t p381_t0 = 0, p381_ts = 0, p381_tf = 0;
 	/* sess380 fast-retry classification state; see
-	 * caw_unlk_delta_is_registration and the mxfs_caw_unlock_fastretry
+	 * caw_unlk_delta_classify and the mxfs_caw_unlock_fastretry
 	 * block comment. */
 	struct mxfs_caw_lock_slot *prev_slot = NULL, *scratch_slot = NULL;
 	bool unlk_classify_pending = false;

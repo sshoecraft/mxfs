@@ -1446,10 +1446,23 @@
       "dlm": "tcp",
       "opened": "2026-09-24",
       "summary": "tests/suite/fio_perf.sh takes 104-112 s of its 120 s budget on 2/tcp, so an ordinary rise in host load exhausts it: the 0.89.86 suite run failed it BUDGET_EXHAUSTED on both nodes.",
-      "evidence": "2/tcp, test1/test2, QNAP LUN. 0.89.85 suite (C46F4EF317B7E80B3DDAE03): PASS 107s/120s, seqW=102MiB/s seqR=173MiB/s randW=28832iops randR=30515iops, hostload 8.57. 0.89.86 suite (67FB1FBF8A0DED66E87731F, tests/evidence/suite_2tcp_0.89.86.log): FAIL nodes_pass=0/2 states:BUDGET_EXHAUSTED=2 hostload=8.27. Same build rerun twice (tests/evidence/suite_2tcp_0.89.86_fio_rerun{1,2}.log): PASS 112s/120s (seqW=109 seqR=142 randW=28809 randR=31137, hostload 25.73) and PASS 104s/120s (seqW=111 seqR=112 randW=26954 randR=32574, hostload 24.99). Throughput is the same across builds; only the wall's margin is thin. The 0.89.86 change (the owned-metadata gate) touches unpublished-inode grants, which a fio job on existing files does not reach.",
+      "evidence": "2/tcp, test1/test2, QNAP LUN. 0.89.85 suite (C46F4EF317B7E80B3DDAE03): PASS 107s/120s, seqW=102MiB/s seqR=173MiB/s randW=28832iops randR=30515iops, hostload 8.57. 0.89.86 suite (67FB1FBF8A0DED66E87731F, tests/evidence/suite_2tcp_0.89.86.log): FAIL nodes_pass=0/2 states:BUDGET_EXHAUSTED=2 hostload=8.27. Same build rerun twice (tests/evidence/suite_2tcp_0.89.86_fio_rerun{1,2}.log): PASS 112s/120s (seqW=109 seqR=142 randW=28809 randR=31137, hostload 25.73) and PASS 104s/120s (seqW=111 seqR=112 randW=26954 randR=32574, hostload 24.99). Throughput is the same across builds; only the wall's margin is thin. The 0.89.86 change (the owned-metadata gate) touches unpublished-inode grants, which a fio job on existing files does not reach. 0.89.88 suite (4F12CE2378A09CD0A647E46, tests/evidence/suite_2tcp_0.89.88.log): FAIL BUDGET_EXHAUSTED=2 hostload=10.06, the other 29 tests PASS. Same build after a fresh prep, rerun twice (tests/evidence/suite_2tcp_0.89.88_fio_rerun{1,2}.log): PASS 105s/120s (seqW=111 seqR=192 randW=26652 randR=23641, hostload 20.12) and PASS 104s/120s (seqW=112 seqR=125 randW=27454 randR=25405, hostload 12.41) - the same margin and throughput as 0.89.86.",
       "next": "Find where the 104-112 s goes before touching the budget, which must not be widened: read fio_perf.sh's job list and per-phase timing (fixed-runtime jobs vs fixed-size), time each phase on one run, and compare the fixed-size phases against native XFS on the same LUN with fio_perf_vs_xfs's numbers. If the jobs are time-based, the budget's derivation is what is wrong and must be re-derived from the jobs' runtimes; if they are size-based, the slow phase is the defect.",
       "impact": "noblock",
-      "impact_why": "Pace only: in every run, failed or passed, fio completed its I/O on both nodes, the suite continued, and no node crashed, hung, shut down or logged a BUG/Oops; no data check failed."
+      "impact_why": "Pace only: in every run, failed or passed, fio completed its I/O on both nodes, the suite continued, and no node crashed, hung, shut down or logged a BUG/Oops; no data check failed.",
+      "updated": "2026-09-24"
+    },
+    {
+      "id": "D-WARN-SITES-PAST-LINE-65535-OF-XFS-MXFS-DLM-C-REPORT-A-TRUNCATED-LINE",
+      "severity": "minor",
+      "nodes": 1,
+      "dlm": "any",
+      "opened": "2026-09-24",
+      "summary": "xfs/xfs_mxfs_dlm.c is longer than 65,535 lines and the kernel's bug table stores a WARN/BUG site's line in 16 bits, so every WARN_ON_ONCE past that line reports a wrong line number (the assembler truncates it).",
+      "evidence": "0.89.88 build on 6.8.0-101: 'xfs/xfs_mxfs_dlm.c:65638: Warning: value 0x10062 truncated to 0x62' and ':65664: Warning: value 0x1007c truncated to 0x7c' (the two WARN_ON_ONCE in the iclus teardown loop); present in 0.89.87 as well at 65704/65730. Any warning those sites fire names line 98 / 124 of the file.",
+      "next": "Split xfs/xfs_mxfs_dlm.c so no compilation unit exceeds 65,535 lines (the file is 65,700 lines; the split is already wanted for readability), then confirm a clean build prints no 'truncated' assembler warning.",
+      "impact": "noblock",
+      "impact_why": "Diagnostic only: the WARN still fires and prints its stack; only the reported line number is wrong. No data path reads it."
     }
   ]
 }

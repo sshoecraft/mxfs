@@ -6355,7 +6355,8 @@ TRACE_EVENT(xfs_verify_media,
 		__entry->flags = me->me_flags;
 		__entry->daddr = daddr;
 		__entry->bbcount = bbcount;
-		__entry->bufsize = folio_size(folio);
+		/* folio_size() takes a const folio only from Linux 6.9 */
+		__entry->bufsize = folio_size((struct folio *)folio);
 	),
 	TP_printk("dev %d:%d fdev %d:%d start_daddr 0x%llx end_daddr 0x%llx flags 0x%x daddr 0x%llx bbcount 0x%llx bufsize 0x%x",
 		  MAJOR(__entry->dev), MINOR(__entry->dev),

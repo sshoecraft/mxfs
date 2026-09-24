@@ -89,6 +89,7 @@ extern struct kmem_cache	*xfs_efi_cache;
 extern struct kmem_cache	*xfs_efd_cache;
 
 struct xfs_extent_free_item;
+struct xfs_defer_pending;
 
 void xfs_extent_free_defer_add(struct xfs_trans *tp,
 		struct xfs_extent_free_item *xefi,

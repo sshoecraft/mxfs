@@ -820,6 +820,8 @@ struct mxfs_dlm_ctx {
 
 struct mxfs_dlm_ctx *mxfs_dlm_create(mxfs_node_id_t local_node);
 void mxfs_dlm_destroy(struct mxfs_dlm_ctx *ctx);
+/* dump the P-LKT lock-table event ring (0 = every inode) */
+void mxfs_dlm_lkt_dump(uint64_t want_ino);
 
 /* ─── Lock operations (called from cache on miss) ─── */
 

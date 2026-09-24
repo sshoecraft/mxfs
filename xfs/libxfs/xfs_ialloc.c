@@ -1445,7 +1445,11 @@ xfs_ialloc_get_rec(
  * Return the offset of the first free inode in the record. If the inode chunk
  * is sparsely allocated, we convert the record holemask to inode granularity
  * and mask off the unallocated regions from the inode free mask.
+ *
+ * Only the user-mode build picks this way; the kernel's
+ * mxfs_dialloc_pick_in_rec walks the record under a reservation instead.
  */
+#ifndef __KERNEL__
 STATIC int
 xfs_inobt_first_free_inode(
 	struct xfs_inobt_rec_incore	*rec)
@@ -1461,6 +1465,7 @@ xfs_inobt_first_free_inode(
 
 	return xfs_lowbit64(realfree);
 }
+#endif
 
 /*
  * If this AG has corrupt inodes, check if allocating this inode would fail

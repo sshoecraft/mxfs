@@ -1152,7 +1152,7 @@ xfs_buftarg_buf_cache(
  * destaged is the canonical instance or a stale ghost that was removed from
  * the rhashtable (mechanism B).  RCU-only; never dereferenced after unlock.
  */
-struct xfs_buf *
+static struct xfs_buf *
 mxfs_dir_canonical_buf_ptr(
 	struct xfs_buftarg	*btp,
 	xfs_daddr_t		blkno,
@@ -6407,7 +6407,13 @@ EXPORT_SYMBOL(mxfs_wrtr_dump_auto);
  * the durable lost-update (a peer added it under EX after we cached our base).
  * The fingerprint (count+sum+xor) detects DIVERGENCE but not direction; this is
  * the real subset test sess25 said is required.  Returns the count of disk
- * inumbers absent from in-core (0 = in-core is a superset = safe to write).
+ * inumbers absent from in-core (0 = in-core is a superset = safe to write),
+ * or -ENOMEM when it could not build the in-core index and so cannot tell.
+ * Every caller acts only on "> 0" or "== 0", so an unknown answer never
+ * licenses dropping a write.  The index is sized from the block (an entry is
+ * at least 16 bytes), so no block is too full to answer; a fixed 256-entry
+ * index used to report 0 for a block with more entries than that, which read
+ * as "nothing of ours would be lost".
  * Bounded O(n*m) over one block's dirents (rare suppression path).
  */
 int
@@ -6415,8 +6421,8 @@ mxfs_dir3_disk_has_extra_inum(struct xfs_mount *mp, const void *incore,
 			      const void *disk, uint32_t blklen,
 			      bool incore_block_form, bool disk_block_form)
 {
-	uint64_t	ino_in[256];
-	int		nin = 0, extra = 0;
+	uint64_t	*ino_in;
+	int		nin = 0, extra = 0, cap;
 	const char	*p, *endp;
 	const struct xfs_dir3_data_hdr *hi = incore, *hd = disk;
 
@@ -6428,6 +6434,10 @@ mxfs_dir3_disk_has_extra_inum(struct xfs_mount *mp, const void *incore,
 	if (hd->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
 	    hd->hdr.magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
 		return 0;
+	cap = blklen / 16 + 1;
+	ino_in = kmalloc_array(cap, sizeof(*ino_in), GFP_NOFS);
+	if (!ino_in)
+		return -ENOMEM;
 
 	/* collect in-core inumbers */
 	p = (const char *)incore + sizeof(struct xfs_dir3_data_hdr);
@@ -6454,7 +6464,7 @@ mxfs_dir3_disk_has_extra_inum(struct xfs_mount *mp, const void *incore,
 		{
 			const struct xfs_dir2_data_entry *dep = (const void *)p;
 			if (dep->namelen == 0 || dep->namelen > MAXNAMELEN) break;
-			if (nin < 256)
+			if (nin < cap)
 				ino_in[nin++] = be64_to_cpu(dep->inumber);
 			p += xfs_dir2_data_entsize(mp, dep->namelen);
 		}
@@ -6491,12 +6501,13 @@ mxfs_dir3_disk_has_extra_inum(struct xfs_mount *mp, const void *incore,
 			di = be64_to_cpu(dep->inumber);
 			for (i = 0; i < nin; i++)
 				if (ino_in[i] == di) { found = true; break; }
-			if (!found && nin < 256)	/* nin==256 => can't prove absence */
+			if (!found)
 				extra++;
 			p += xfs_dir2_data_entsize(mp, dep->namelen);
 		}
 	}
-	return (nin < 256) ? extra : 0;	/* overflow => inconclusive => don't skip */
+	kfree(ino_in);
+	return extra;
 }
 
 /*
@@ -6552,8 +6563,8 @@ mxfs_dir3_reintro_free_count(struct xfs_mount *mp, void *incore,
 			    xfs_ino_t, struct xfs_imap *, uint);
 	extern int mxfs_pal_bdev_read_plain_bdev(struct block_device *,
 			uint64_t, void *, uint32_t);
-	uint64_t	ino_disk[256];
-	int		ndisk = 0, freecnt = 0, livecnt = 0;
+	uint64_t	*ino_disk;
+	int		ndisk = 0, freecnt = 0, livecnt = 0, cap;
 	const char	*p, *endp;
 	const struct xfs_dir3_data_hdr *hi = incore, *hd = disk;
 
@@ -6566,6 +6577,12 @@ mxfs_dir3_reintro_free_count(struct xfs_mount *mp, void *incore,
 		return 0;
 	if (hd->hdr.magic != cpu_to_be32(XFS_DIR3_DATA_MAGIC) &&
 	    hd->hdr.magic != cpu_to_be32(XFS_DIR3_BLOCK_MAGIC))
+		return 0;
+	/* sized from the block (an entry is at least 16 bytes); without it
+	 * nothing can be proven free, and 0 trims and suppresses nothing */
+	cap = blklen / 16 + 1;
+	ino_disk = kmalloc_array(cap, sizeof(*ino_disk), GFP_NOFS);
+	if (!ino_disk)
 		return 0;
 
 	/* collect disk inumbers */
@@ -6595,13 +6612,11 @@ mxfs_dir3_reintro_free_count(struct xfs_mount *mp, void *incore,
 			const struct xfs_dir2_data_entry *dep = (const void *)p;
 			if (dep->namelen == 0 || dep->namelen > MAXNAMELEN)
 				break;
-			if (ndisk < 256)
+			if (ndisk < cap)
 				ino_disk[ndisk++] = be64_to_cpu(dep->inumber);
 			p += xfs_dir2_data_entsize(mp, dep->namelen);
 		}
 	}
-	if (ndisk >= 256)	/* can't prove absence => inconclusive */
-		return 0;
 
 	/* walk in-core dirents; for each inum absent on disk, check free-ness.
 	 * Non-const (ip2/iendp, not the shared disk-only p/endp) so a proven
@@ -6766,6 +6781,7 @@ mxfs_dir3_reintro_free_count(struct xfs_mount *mp, void *incore,
 		}
 	}
 	}
+	kfree(ino_disk);
 	if (live_extra)
 		*live_extra = livecnt;
 	return freecnt;
@@ -6835,6 +6851,17 @@ mxfs_dir3_data_graft_one(struct xfs_mount *mp, void *blk, uint32_t blen,
 }
 
 /*
+ * The in-core name index and removed-set snapshot the two dir3 data merges
+ * build.  About 6.6 KB, so it is heap-allocated: on the stack it made
+ * mxfs_dir3_data_writemerge a 6.8 KB frame on the buffer write path.
+ */
+struct mxfs_dir3_merge_names {
+	const char	*nm[512];
+	uint8_t		nl[512];
+	uint64_t	remsnap[256];
+};
+
+/*
  * sess29(ccloop) WRITE-SIDE 3-WAY MERGE — the decisive fix for the dir_reuse
  * durable dirent loss (criteria: 8/tcp 100%).  PROVEN root (sess28 smoking gun):
  * the dir EX holder destages a dir DATA block whose on-disk image moved forward
@@ -6869,8 +6896,9 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 			uint64_t, void *, uint32_t);
 	struct xfs_mount		*mp = bp->b_mount;
 	struct xfs_dir3_data_hdr	*hi, *hd;
-	const char			*nm_in[512];
-	uint8_t				nl_in[512];
+	struct mxfs_dir3_merge_names	*nms = NULL;
+	const char			**nm_in;
+	uint8_t				*nl_in;
 	int				nin = 0;
 	uint32_t			blen, need;
 	void				*dsk;
@@ -6880,7 +6908,7 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 	int				dko = 0;	/* sess41: disk-only-by-name count */
 	int				ret = 0;
 	/* sess41: disambiguated chokepoint-merge removed-set snapshot. */
-	uint64_t			remsnap[256];
+	uint64_t			*remsnap;
 	uint32_t			remn = 0;
 	bool				disamb = false;
 
@@ -6904,6 +6932,12 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 	dsk = kmalloc(blen, GFP_NOFS);
 	if (!dsk)
 		return 0;
+	nms = kmalloc(sizeof(*nms), GFP_NOFS);
+	if (!nms)
+		goto out;
+	nm_in = nms->nm;
+	nl_in = nms->nl;
+	remsnap = nms->remsnap;
 	lba = (uint64_t)bp->b_maps[0].bm_bn + bp->b_target->bt_sector_offset;
 	/* PLAIN read (NOT FUA): the peer published its add to the target write-back
 	 * cache before notifying us; a FUA read hits the lagging platter and tears
@@ -7104,6 +7138,7 @@ mxfs_dir3_data_writemerge(struct xfs_buf *bp)
 				dko, disamb, remn, current->comm);
 	}
 out:
+	kfree(nms);
 	kfree(dsk);
 	return ret;
 }
@@ -7128,8 +7163,9 @@ mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp)
 			uint64_t, void *, uint32_t);
 	struct xfs_mount		*mp = bp->b_mount;
 	struct xfs_dir3_data_hdr	*hi, *hd;
-	const char			*nm_in[512];
-	uint8_t				nl_in[512];
+	struct mxfs_dir3_merge_names	*nms = NULL;
+	const char			**nm_in;
+	uint8_t				*nl_in;
 	int				nin = 0;
 	uint32_t			blen, need;
 	void				*dsk;
@@ -7162,6 +7198,11 @@ mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp)
 	dsk = kmalloc(blen, GFP_NOFS);
 	if (!dsk)
 		return 0;
+	nms = kmalloc(sizeof(*nms), GFP_NOFS);
+	if (!nms)
+		goto out;
+	nm_in = nms->nm;
+	nl_in = nms->nl;
 	lba = (uint64_t)bp->b_maps[0].bm_bn + bp->b_target->bt_sector_offset;
 	/* PLAIN read (matches writemerge): the peer published its add to the
 	 * target's coherent cache; a FUA read can hit a lagging platter. */
@@ -7252,6 +7293,7 @@ mxfs_dir3_data_drain_merge(struct xfs_inode *dp, struct xfs_buf *bp)
 		}
 	}
 out:
+	kfree(nms);
 	kfree(dsk);
 	return ret;
 }
@@ -10239,7 +10281,7 @@ xfs_buf_submit_ex(
 	 * suspected source (Gemini): a buffer enters this node's AIL AFTER
 	 * bast_work_fn released the grant (CIL->AIL insertion raced the drain's
 	 * log_force), and xfsaild later flushes the STALE in-core image to disk.
-	 * current->comm == "xfsaild/*" at this trap == 100% confirmation.
+	 * current->comm == "xfsaild/<dev>" at this trap == 100% confirmation.
 	 * Cheap (in-core field reads, racy-but-diagnostic), always-on, fires
 	 * only on the illegal write.
 	 */

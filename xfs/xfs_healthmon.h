@@ -175,6 +175,7 @@ void xfs_healthmon_report_shutdown(struct xfs_mount *mp, uint32_t flags);
 void xfs_healthmon_report_media(struct xfs_mount *mp, enum xfs_device fdev,
 		xfs_daddr_t daddr, uint64_t bbcount);
 
+struct fserror_event;
 void xfs_healthmon_report_file_ioerror(struct xfs_inode *ip,
 		const struct fserror_event *p);
 

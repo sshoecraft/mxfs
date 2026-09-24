@@ -1992,11 +1992,11 @@ mxfs_dir_rename_fail(
 {
 	if (likely(!error) || !mp->m_mxfs_dlm)
 		return;
-	pr_warn_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%u size=%lld nextents=%llu comm=%s — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
+	pr_warn_ratelimited("mxfs: P217-RENAME-FAILSITE site=%s rc=%d ino=%llu fmt=%u if_bytes=%lld size=%lld nextents=%llu comm=%s — first failing helper inside xfs_dir_rename_children; the caller cancels a DIRTY transaction next\n",
 		site, error,
 		(unsigned long long)(subject ? subject->i_ino : 0),
 		subject ? subject->i_df.if_format : 0,
-		subject ? subject->i_df.if_bytes : 0,
+		subject ? (long long)subject->i_df.if_bytes : 0,
 		subject ? (long long)subject->i_disk_size : -1,
 		subject ? (unsigned long long)subject->i_df.if_nextents : 0,
 		current->comm);

@@ -708,7 +708,7 @@ void mxfs_bootstrap_rec_init_idle(struct mxfs_bootstrap_rec *r,
  *   payload back and require zeros, persist READY (FUA) and read it back.
  *   Any failure leaves the record ZEROING (the next claimant restarts the
  *   full zero) and returns the error; the caller must not mount the log.
- *   Returns 0 with *before/*after the states seen/left and *zero_ms the
+ *   Returns 0 with *before, *after the states seen/left and *zero_ms the
  *   wall of the zero+verify (0 when nothing was zeroed).
  */
 int mxfs_slife_read(mxfs_bdev_t *dev, uint64_t region_off,

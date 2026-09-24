@@ -5283,7 +5283,6 @@ static int v5_boot_tk_fence_key(struct mxfs_v5_dlm *ctx,
                  contender ? 1 : 0, rc, lstate, antecedent,
                  same_host ? 1 : 0, boot_moved ? 1 : 0, ours_present ? 1 : 0);
     rc = -ENOKEY;
-out:
     mxfs_pal_free(le);
     return rc;
 }

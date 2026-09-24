@@ -45,6 +45,20 @@ struct xfs_dquot;
 
 struct mxfs_dirshard_cache;	/* sess466: xfs_mxfs_dirshard.h */
 
+/*
+ * sess469 fix shape A: the EXACT identity of the certificate xfs_inactive
+ * installed, read back under i_dlm_lock at install time (the installer may
+ * ADVANCE an existing same-tenure certificate to max(epoch), so the grant
+ * result's own epoch is not necessarily what got installed).  The revoke at
+ * INACT-EXREL matches on this, never on the grant result.
+ */
+struct mxfs_inact_cert_id {
+	uint64_t		resource;
+	uint64_t		epoch;
+	uint64_t		lineage;
+	uint8_t			kind;
+};
+
 typedef struct xfs_inode {
 	/* Inode linking and identification information. */
 	struct xfs_mount	*i_mount;	/* fs mount struct ptr */
@@ -383,19 +397,6 @@ typedef struct xfs_inode {
 #define MXFS_AUTH_TRY_RECLAIM		9	/* reclaiming or shut down */
 #define MXFS_AUTH_TRY_STATUS_BASE	16	/* + enum mxfs_grant_auth_status */
 #define MXFS_AUTH_TRY_MAX		24
-/*
- * sess469 fix shape A: the EXACT identity of the certificate xfs_inactive
- * installed, read back under i_dlm_lock at install time (the installer may
- * ADVANCE an existing same-tenure certificate to max(epoch), so the grant
- * result's own epoch is not necessarily what got installed).  The revoke at
- * INACT-EXREL matches on this, never on the grant result.
- */
-struct mxfs_inact_cert_id {
-	uint64_t		resource;
-	uint64_t		epoch;
-	uint64_t		lineage;
-	uint8_t			kind;
-};
 /* mxfs_dlm_inactive_authority_revoke() outcomes */
 #define MXFS_INACT_REVOKED	0	/* the certificate named our grant; now NONE */
 #define MXFS_INACT_REVOKE_GONE	1	/* no proving certificate left (release side moved it) */

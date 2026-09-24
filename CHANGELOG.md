@@ -1,4 +1,72 @@
-## 2026-09-24 — 0.89.87 — a source build forms TCP clusters by default; XFS authorship restored
+## 2026-09-24 — 0.89.88 — the module builds without compiler warnings; four latent bugs they hid are fixed
+
+A clean build against Ubuntu's 6.8 headers printed 236 warnings (145
+distinct). It now prints four, all stack frames of 1.0-1.3 KB against the
+1024-byte threshold Ubuntu's kernel is configured with (the upstream default
+is 2048). Working through them found four real bugs:
+
+- **A probe wrote through a garbage pointer.** `xfs_icache.c` declared
+  `mxfs_inode_disk_di_size()` locally with two parameters; the definition
+  takes three and stores through the third. With instrumentation on
+  (`mxfs.instr=1`), both `P99-IGET` probes passed whatever was left in the
+  third argument register, and the function wrote the on-disk generation
+  there. The callers now pass `NULL` for it, and every function one file
+  calls in another is declared once in `xfs/xfs_mxfs_dlm.h`, so the compiler
+  checks each caller against the definition.
+- **A directory write could be dropped on an "I don't know".**
+  `mxfs_dir3_disk_has_extra_inum()` indexed a block's entries in a fixed
+  256-slot array and answered 0 when a block held more. 0 also means
+  "nothing of ours is missing from the disk image", which is the condition
+  under which `P39-EXSUBSET-DROP` and `P26-SUBSET-SKIP` discard our write as
+  a stale subset. The index is now sized from the block, and an allocation
+  failure answers `-ENOMEM`, which no caller reads as a licence to drop.
+  A 4 KB directory block holds at most 252 entries, so only filesystems with
+  larger directory blocks could reach this.
+- **A zoned filesystem could mount on Proxmox kernels and corrupt memory.**
+  The zoned allocator is not built into MXFS; its entry point is a stub. The
+  mount refused zoned devices only on kernels without the iomap hooks
+  (6.8, RHEL 9), so on 6.17 and 7.0 a zoned filesystem mounted, and the stub
+  (declared `(void *, struct bio *)` while callers pass
+  `(struct iomap_ioend *, struct xfs_open_zone **)`) would have ended a
+  "bio" that was really the open-zone pointer. Zoned filesystems are now
+  refused on every kernel, and every stub in `xfs/xfs_stubs.c` is compiled
+  against its real header, which corrected nine more stub signatures.
+- **Two inode-lock fast paths recorded the exclusive holder twice.** An
+  `else` guarded only the shared-holder count; the trace record after it on
+  the same line ran for both branches (`-Wmisleading-indentation`, four
+  sites). The ring now records one event per admission.
+
+Also:
+
+- The `lktdump` parameter rejects a value that is not a number instead of
+  dumping every inode's ring.
+- The two directory merges that run just before a directory block is written
+  (`mxfs_dir3_data_writemerge`, `mxfs_dir3_data_drain_merge`) kept a 6.6 KB
+  name index on the stack (frames of 6.8 KB and 4.8 KB on a 16 KB kernel
+  stack); it is heap-allocated with the disk image they already allocate.
+  Four other diagnostic scans lost 1.5-2 KB arrays the same way.
+- 16 log formats printed 64-bit values with `%d`/`%u`/`%ld`; one struct was
+  defined inside `struct xfs_inode`; five uncalled functions and several
+  unused variables are gone; `bio_add_virt_nofail`'s fallback no longer
+  ignores `bio_add_page`'s result.
+- New `scripts/extern_decl_audit.py` compares every `extern` function
+  declaration in the tree with its definition, resolving typedefs and
+  same-width integer spellings. It finds none disagreeing now, and flags the
+  `P99-IGET` declaration when it is put back.
+- Verified: a clean 6.8 build (four frame-size warnings, listed above), the
+  user-mode DLM tests (`make -C tests/tauth test`, 8/8 pass), the tools
+  build, and the platform build checks (Proxmox 6.17 and 7.0, AlmaLinux 9
+  and Rocky 9).
+- 2/tcp suite on this build (srcversion `4F12CE2378A09CD0A647E46`): 29 of 30
+  pass. `fio_perf` ran out of its 120 s budget at host load 10, the open
+  `D-FIO-PERF-RUNS-AT-87-93-PCT-OF-ITS-BUDGET-AND-A-LOADED-HOST-TIPS-IT-OVER`;
+  rerun twice after a fresh prep it passed in 105 s and 104 s at the same
+  throughput as 0.89.86.
+
+`xfs/xfs_mxfs_dlm.c` is 65,700 lines. The kernel's bug table stores a line
+number in 16 bits, so the assembler truncates the two `WARN_ON_ONCE` sites
+past line 65,535 and they would report the wrong line. Splitting the file is
+the fix; it is in the defect queue.
 
 - **`force_transport` now defaults to TCP (1).** Before, a module built from
   source and loaded without options formed a new cluster on CAW, the

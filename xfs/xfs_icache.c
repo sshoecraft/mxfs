@@ -2245,12 +2245,11 @@ xfs_iget_cache_hit(
 	 * returns the stale size.  That is the di_size=0 cross_write_read root.
 	 */
 	{ extern int mxfs_instr_enabled;
-	  extern uint64_t mxfs_inode_disk_di_size(struct xfs_inode *, uint16_t *);
 	  if (unlikely(mxfs_instr_enabled) &&
 	      mp->m_mxfs_dlm && !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 	      !(flags & XFS_IGET_INCORE) &&
 	      S_ISREG(VFS_I(ip)->i_mode) && ip->i_disk_size == 0) {
-		uint64_t dsz = mxfs_inode_disk_di_size(ip, NULL);
+		uint64_t dsz = mxfs_inode_disk_di_size(ip, NULL, NULL);
 		pr_warn_ratelimited("mxfs: P99-IGET-HIT ino=%llu incore_size=0 disk_di_size=%lld dlm_mode=%u stale=%d (disk!=0 => STALE CACHE HIT)\n",
 			(unsigned long long)ino, (long long)dsz,
 			ip->i_dlm_mode, ip->i_dlm_stale);
@@ -2738,12 +2737,11 @@ xfs_iget_cache_miss(
 		 * v0.4.9 invalidate+FUA-reread did NOT pierce to current data).
 		 */
 		{ extern int mxfs_instr_enabled;
-		  extern uint64_t mxfs_inode_disk_di_size(struct xfs_inode *, uint16_t *);
 		  if (unlikely(mxfs_instr_enabled) && !error &&
 		      mp->m_mxfs_dlm &&
 		      !mxfs_v5_dlm_is_single_node(mp->m_mxfs_dlm) &&
 		      S_ISREG(VFS_I(ip)->i_mode) && ip->i_disk_size == 0) {
-			uint64_t dsz = mxfs_inode_disk_di_size(ip, NULL);
+			uint64_t dsz = mxfs_inode_disk_di_size(ip, NULL, NULL);
 			pr_warn_ratelimited("mxfs: P99-IGET-MISS ino=%llu incore_size=0 disk_di_size=%lld dlm_acq=%d stale=%d (disk!=0 => reread missed current; disk==0 => writer not durable)\n",
 				(unsigned long long)ino, (long long)dsz,
 				dlm_acquired, ip->i_dlm_stale);
