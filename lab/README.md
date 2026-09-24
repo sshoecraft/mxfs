@@ -29,7 +29,14 @@ below is the part that is the same for every platform.
    ```
    osimager's QEMU build registers the finished VM with libvirt. Name the URI:
    without it, a build run as an ordinary user lands in `qemu:///session`,
-   where nothing in this tree looks.
+   where nothing in this tree looks. Then run
+   `scripts/vm_reclaim_disk.sh <name>`: osimager defines the disk without
+   discard, and a qcow2 without discard never gives back what the guest
+   frees. The rig's busiest nodes grew to their full 26 GB virtual disks while
+   each guest held about 5 GB. The script adds `discard='unmap'`, cold-starts
+   the VM and trims it. If a build left the guest running inside Packer's
+   QEMU instead of libvirt, `scripts/libvirt_adopt_qemu_guest.sh` moves it
+   under libvirt on the same disk, MAC and PCI layout.
 3. **Do the row's "after the build" steps**, and boot the kernel
    `data/platforms.json` claims for the platform. Then on every node:
    - headers for the running kernel (DKMS compiles the module against them)

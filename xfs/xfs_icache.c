@@ -495,6 +495,7 @@ xfs_inode_alloc(
 	atomic_set(&ip->i_mxfs_open_n, 0);
 	atomic_set(&ip->i_mxfs_open_inflight, 0);
 	atomic_set(&ip->i_mxfs_open_admit_n, 0);
+	atomic_set(&ip->i_mxfs_attr_setting, 0);
 	ip->i_mxfs_openprot_pid = 0;
 	ip->i_mxfs_openprot_arm = 0;
 	ip->i_mxfs_open_pub = false;

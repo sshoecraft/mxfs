@@ -35287,12 +35287,15 @@ mxfs_unpub_owned_meta_note(
 	long long		n = atomic64_inc_return(&mxfs_unpub_owned_meta_n);
 
 	if (n <= 64 || (n & 1023) == 0)
-		pr_warn("mxfs: P-UNPUB-OWNED-META n=%lld ino=%llu fmt=%d nextents=%llu forkoff=%u mode=%u comm=%s — unpublished inode owns metadata outside its core; taking a real grant before it can log an unreplayable image\n",
+		pr_warn("mxfs: P-UNPUB-OWNED-META n=%lld ino=%llu fmt=%d nextents=%llu forkoff=%u af_fmt=%d af_nextents=%llu mode=%u comm=%s — unpublished inode owns metadata outside its core; taking a real grant before it can log an unreplayable image\n",
 			n, (unsigned long long)ip->i_ino,
 			(int)ip->i_df.if_format,
 			(unsigned long long)ip->i_df.if_nextents,
-			(unsigned)ip->i_forkoff, ip->i_dlm_mode,
-			current->comm);
+			(unsigned)ip->i_forkoff,
+			xfs_inode_has_attr_fork(ip) ? (int)ip->i_af.if_format : -1,
+			xfs_inode_has_attr_fork(ip) ?
+				(unsigned long long)ip->i_af.if_nextents : 0ULL,
+			ip->i_dlm_mode, current->comm);
 	return true;
 }
 
@@ -35320,9 +35323,29 @@ mxfs_inode_owns_logged_metadata(
 			return true;
 	}
 
-	if (xfs_inode_has_attr_fork(ip) &&
-	    READ_ONCE(ip->i_af.if_format) != XFS_DINODE_FMT_LOCAL)
+	/*
+	 * The attr fork owns logged blocks once it has one — a btree, or extents
+	 * with at least one extent — and may gain its first inside a single
+	 * xattr set, which xfs_attr_change announces in i_mxfs_attr_setting.
+	 * Without a set in flight, a fork with no block (LOCAL, or the EXTENTS
+	 * fork with zero extents that create sets up for a possible xattr) owns
+	 * nothing.  Treating that empty fork as owning cost nearly every created
+	 * file a durable grant (0.89.85 rsync: af_fmt=2 af_nextents=0 on every
+	 * P-UNPUB-OWNED-META, one ledger page commit per file); narrowing it
+	 * WITHOUT the in-flight count let a 3000-byte xattr's leaf ship
+	 * unauthorized (tests/lone_mount_crash_replay.sh: blft=ATTR_LEAF class=0
+	 * st=11, the adopted slice refused).
+	 */
+	if (atomic_read(&ip->i_mxfs_attr_setting) > 0)
 		return true;
+	if (xfs_inode_has_attr_fork(ip)) {
+		int8_t	afmt = READ_ONCE(ip->i_af.if_format);
+
+		if (afmt == XFS_DINODE_FMT_BTREE ||
+		    (afmt == XFS_DINODE_FMT_EXTENTS &&
+		     READ_ONCE(ip->i_af.if_nextents) > 0))
+			return true;
+	}
 
 	/* A remote symlink's target block is logged and inode-owned. */
 	if (S_ISLNK(VFS_I(ip)->i_mode) && fmt != XFS_DINODE_FMT_LOCAL)

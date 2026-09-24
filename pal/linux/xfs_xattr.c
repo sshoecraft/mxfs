@@ -145,8 +145,23 @@ xfs_attr_change(
 	 * pool is largely to avoid the worst case reservation from preventing
 	 * the xattr from being created at ENOSPC.
 	 */
-	return xfs_attr_set(args, op,
+	/*
+	 * A set can give an attr fork its first block inside this one call —
+	 * shortform overflowing to a leaf, a value too big for shortform, a
+	 * first xattr on an inode with no fork — and the image of that block
+	 * must be logged under a durable grant.  The DLM EX acquire inside
+	 * xfs_attr_set asks mxfs_inode_owns_logged_metadata, which cannot see
+	 * the operation; this count tells it one is in flight.  A remove never
+	 * adds a block.
+	 */
+	if (op == XFS_ATTRUPDATE_REMOVE)
+		return xfs_attr_set(args, op,
+				args->attr_filter & (XFS_ATTR_ROOT | XFS_ATTR_SECURE));
+	atomic_inc(&args->dp->i_mxfs_attr_setting);
+	error = xfs_attr_set(args, op,
 			args->attr_filter & (XFS_ATTR_ROOT | XFS_ATTR_SECURE));
+	atomic_dec(&args->dp->i_mxfs_attr_setting);
+	return error;
 }
 
 

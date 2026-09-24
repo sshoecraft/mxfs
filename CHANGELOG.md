@@ -1,3 +1,72 @@
+## 2026-09-24 — 0.89.86 — small-file creates about 4x faster
+
+### A created file no longer pays a durable grant for an empty attr fork
+
+Before a not-yet-published inode logs a metadata block outside its core, it
+must take a real durable grant, or a peer replaying its log after a crash
+cannot authorize that image. The check (`mxfs_inode_owns_logged_metadata`)
+treated any attribute fork that was not LOCAL as owning such a block. But
+create sets the fork up EXTENTS-format with zero extents for an xattr it may
+add, so nearly every created file took a durable ledger page commit it did
+not need.
+
+- **Measured** with the new `af_fmt`/`af_nextents` fields on
+  `P-UNPUB-OWNED-META`: on an 8714-file, 659 MB rsync (2/tcp, one node
+  mounted), every diversion was `af_fmt=2 af_nextents=0`. 0.89.85 landed
+  3822 files in 60 s with 3811 page commits.
+- **The obvious narrowing is unsafe, and was not shipped.** Answering "owns
+  nothing" for a fork with no extents let `tests/lone_mount_crash_replay.sh`'s
+  3000-byte xattr leaf ship unauthorized (`blft=ATTR_LEAF class=0 st=11`),
+  and the crashed node's slice was refused until operator repair. The check
+  runs in the lock fast path and cannot see that the next operation is an
+  xattr set, which gives the fork its first block inside one call.
+- **Fix:** `xfs_attr_change`, which every xattr set passes through (user,
+  trusted, security, ACLs, the handle ioctl), now counts sets in flight on
+  the inode (`i_mxfs_attr_setting`). While one is in flight the inode is
+  treated as owning, whatever the fork's shape. Otherwise only a btree fork,
+  or an extents fork with at least one extent, owns a block. This also closes
+  a window the old check left open: a LOCAL fork overflowing to a leaf, or a
+  first xattr on an inode with no fork, inside one set.
+- **Result:** the same rsync lands all 8714 files in 37.9 s with 729 page
+  commits and no diversions, and the crash-replay test passes 25 of 25 with
+  the xattr leaf replayed authorized (`class=3 st=1`).
+- **Regression:** the crash-replay test also passes its `peer` arm (the other
+  node fences and replays), and the full 2/tcp suite passed 29 of 30
+  (`tests/evidence/suite_2tcp_0.89.86.log`). `fio_perf` exhausted its 120 s
+  budget once and passed twice on the same build (112 s and 104 s) at the
+  same throughput as 0.89.85. It runs at 87-93% of its budget on either
+  build, and is filed as
+  `D-FIO-PERF-RUNS-AT-87-93-PCT-OF-ITS-BUDGET-AND-A-LOADED-HOST-TIPS-IT-OVER`.
+- **Still slow.** Native XFS does the tree in about 4 s, so
+  `D-TCP-LEDGER-SMALLFILE-WORKLOAD-PACE-RULE0-0349` stays open for the
+  per-grant commit cost. A host whose creates set a security xattr (SELinux)
+  still takes one grant per create through the in-flight count.
+
+### `lone_mount_crash_replay.sh` reached no verdict
+
+The test required `claimed heartbeat slot` in the recovering node's log. A node
+returning alone now adopts its dead incarnation's slot through the
+whole-cluster bootstrap (`P-BOOT-ADOPTED slot N`), so every run aborted as
+infrastructure after recovery had already succeeded. Either line is now
+accepted as proof the mount reached its slot.
+
+### Lab VM images give back what their guests free
+
+Every lab VM disk was qcow2 without discard, so an image grew with each new
+block the guest wrote and never shrank. The rig's busiest nodes reached their
+full 26 GB virtual disks while each guest held about 5 GB.
+
+- New `scripts/vm_reclaim_disk.sh` adds `discard='unmap' detect_zeroes='unmap'`
+  to a domain's disks, cold-starts it, runs `fstrim` in the guest and returns
+  it to its power state. Across the lab the VM store went from about 344 GB
+  to 188 GB; test1-test4 each went from about 26 GB to about 5 GB.
+- New `scripts/libvirt_adopt_qemu_guest.sh` moves a guest still running inside
+  Packer's build QEMU under libvirt, on the same disk, MAC and PCI slots, so it
+  keeps its interface name and address. alma9-1/alma9-2 (the RHEL 9.8 pair)
+  were such guests.
+- `lab/README.md` tells a builder to run the reclaim script after osimager
+  registers a VM, since osimager defines the disk without discard.
+
 ## 2026-09-24 — 0.89.85 — a concurrent 2-node unmount no longer oopses; the lab is a recipe, not one site
 
 This release is verified on exactly these kernels, each installed from these

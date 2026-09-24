@@ -179,6 +179,12 @@ typedef struct xfs_inode {
 	 * restarts lost the race; dropped on every open_protect exit. */
 	atomic_t		i_mxfs_open_admit_n;
 
+	/* xattr sets in flight on this inode (xfs_attr_change).  One can turn
+	 * an attr fork with no blocks — none, LOCAL, or EXTENTS with zero
+	 * extents — into a leaf or remote block inside a single operation, so
+	 * mxfs_inode_owns_logged_metadata answers "owns" while it is nonzero. */
+	atomic_t		i_mxfs_attr_setting;
+
 	/* sess40: this node has PUBLISHED an open-holder bit for the inode
 	 * (BAST release while still open here).  The clear paths consult it
 	 * first: without it, evict and every unlinked-inode exit would run a

@@ -130,8 +130,13 @@ fi
 RMARK=$(date +%s)
 fault_before recover
 rsx 200 "$R" "MXFS_DEV=$MXFS_DEV timeout 180 bash /src/mxfs/tests/setup/prep_node.sh $TR 2>&1 | grep -a 'NODE_PREP_OK\|FAIL\|refused\|rc=' | head -3; mountpoint -q $MNT && echo MOUNTED || echo NOT_MOUNTED; echo WCOUNT=\$(ls $MNT/w 2>/dev/null | wc -l); echo WMD5=\$(cd $MNT && md5sum w/f* 2>/dev/null | md5sum | cut -c1-32); echo BTEXT=\$(filefrag -v $MNT/bt 2>/dev/null | grep -cE '^ +[0-9]+:'); echo XALEN=\$(getfattr --only-values -n user.big $MNT/xa 2>/dev/null | wc -c); echo ROOTLS=\$(ls $MNT 2>&1 | tr '\n' ' ')" > "$OUT/recover.txt" 2>&1
-rsx 60 "$R" "journalctl -k --since @$RMARK --no-pager 2>/dev/null | grep -a 'XFS\|MXFS\|mxfs' | grep -ai 'recover\|mismatch\|corrupt\|torn\|refus\|quarantin\|ATOMIC-SKIP\|P227-TOKEN \|P241\|P240\|claimed heartbeat' | cut -c1-300" > "$OUT/recovery_lines.txt"
-capture_require "$OUT/recovery_lines.txt" 'claimed heartbeat slot' "the recovery kernel log on $R"
+# A node returning ALONE to a volume whose only other record is its own dead
+# incarnation is a whole-cluster bootstrap: it adopts that slot
+# (P-BOOT-ADOPTED slot N) instead of claiming a free one, so either line
+# proves the mount reached its slot.  Requiring only the claim line aborted
+# every run after recovery had already succeeded.
+rsx 60 "$R" "journalctl -k --since @$RMARK --no-pager 2>/dev/null | grep -a 'XFS\|MXFS\|mxfs' | grep -ai 'recover\|mismatch\|corrupt\|torn\|refus\|quarantin\|ATOMIC-SKIP\|P227-TOKEN \|P241\|P240\|claimed heartbeat\|P-BOOT-ADOPTED slot' | cut -c1-300" > "$OUT/recovery_lines.txt"
+capture_require "$OUT/recovery_lines.txt" 'claimed heartbeat slot|P-BOOT-ADOPTED slot' "the recovery kernel log on $R"
 rsx 60 "$R" "journalctl -k --since @$RMARK --no-pager 2>/dev/null | cut -c1-600" > "$OUT/recovery_journal.txt"
 capture_require "$OUT/recovery_journal.txt" 'kernel: ' "the kernel journal on $R after recovery"
 echo "--- recovery lines ($(wc -l < "$OUT/recovery_lines.txt")):"
