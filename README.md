@@ -4,16 +4,25 @@
 >
 > Every line of the clustering, coordination, distributed-lock, fencing, and
 > on-disk-envelope code in this repository was written by an autonomous AI agent
-> (Anthropic's Claude Code) — **not** by a human using an AI tool. The only
-> human-written code is the upstream Linux kernel **XFS** tree it forks — the
-> single-host filesystem MXFS builds on. Everything that turns XFS into a
-> filesystem many machines can mount at once is AI-authored.
+> (Anthropic's Claude Code) — **not** by a human using an AI tool. MXFS starts
+> from the upstream Linux kernel **XFS** code, written by the XFS developers,
+> and the AI has since modified much of it heavily (see "How this was built").
+> Everything that turns XFS into a filesystem many machines can mount at once
+> is AI-authored.
 
 > ## ⚠️ Released configuration: 2 nodes, TCP transport — nothing else
 >
 > **The only supported configuration is a 2-node cluster using the TCP DLM
-> transport.** For that configuration no known defect corrupts or loses data,
-> or crashes, hangs or shuts down a node, and the full test suite passes.
+> transport.** For that configuration no known defect has been shown to
+> corrupt or lose data, or to crash, hang or shut down a node, and the full
+> test suite passes. That is not the same as having no defects: the public
+> queue (`data/defects.json`, read with `tools/defects.py`) holds **93 open
+> defects**, and **23 of them reach the released configuration** (1 critical,
+> 3 high, 16 major, 2 medium, 1 minor). Each of the 23 is classified as not
+> crossing the data-loss or crash bar, most of them as slowness. Each record
+> carries its own evidence, and for 20 of them the reach to 2-node TCP has not
+> been examined individually. Read them before relying on MXFS:
+> `tools/defects.py 2 tcp -d`.
 >
 > **In development — do not use:**
 > - **More than 2 nodes** (3 to 32), on any transport.
@@ -83,13 +92,18 @@ fork of XFS.
 
 ## How it works
 
-MXFS is a fork of upstream Linux **XFS (6.19-rc0)** plus a coordination overlay.
+MXFS is a fork of upstream Linux **XFS**, taken from the Linux 6.19
+development tree (no exact upstream commit was recorded), plus a coordination
+overlay.
 
-- **Forked XFS + overlay.** The entire `xfs/` tree is upstream XFS. The MXFS
-  overlay (`xfs/xfs_mxfs_dlm.c` plus per-allocation-group and per-inode hooks)
+- **Forked and heavily modified XFS.** `xfs/` began as upstream XFS and has been
+  changed throughout, not only extended: it is about 314k lines against about
+  226k in upstream `fs/xfs`, and core files such as `xfs_inode.c` and
+  `xfs_buf.c` are several times their upstream size. The MXFS overlay
+  (`xfs/xfs_mxfs_dlm.c` plus per-allocation-group and per-inode hooks)
   intercepts the points where nodes would otherwise collide — allocation-group
   metadata, the inode cache, the buffer cache — and coordinates them across the
-  cluster.
+  cluster. It is not a patch series against upstream today.
 - **Distributed lock manager (`dlm/`).** Two transports can carry lock state:
   - **TCP (released, 2 nodes)** — a network DLM spoken over TCP between nodes.
   - **CAW (in development)** — lock state lives *in-band on the shared disk*,
@@ -147,12 +161,14 @@ an autonomous AI coding agent — across many development sessions. No human wro
 hand-edited, or line-by-line reviewed the clustering code. The human/AI boundary
 is clean:
 
-- **Human-written:** the upstream Linux kernel **XFS** source (the `xfs/` tree),
-  which MXFS forks — the local, single-host filesystem MXFS is built on.
+- **Human-written:** the upstream Linux kernel **XFS** source MXFS forked,
+  written by the XFS developers (their copyright notices are kept in every
+  forked file).
 - **AI-written:** everything that makes it *multinode* — the DLM (`dlm/`), the
   coordination overlay (`xfs/xfs_mxfs_dlm.c` and the per-AG / per-inode hooks),
   the platform abstraction (`pal/`), the on-disk envelope, the userspace tools
-  (`tools/`), and the test and benchmark harnesses.
+  (`tools/`), and the test and benchmark harnesses — **and every change made
+  to the forked XFS files since the fork**, which is a large share of `xfs/`.
 
 ## Build
 
@@ -167,8 +183,9 @@ make unload      # rmmod mxfs
 ```
 
 A matching kernel build tree must be present at `/lib/modules/$(uname -r)/build`.
-The module is developed against a **6.8.x** host kernel; its XFS source is forked
-from upstream **6.19-rc0**, bridged by the `pal/` compatibility layer. The
+The module is developed against a **6.8.x** host kernel; its XFS source was
+forked from the Linux 6.19 development tree, bridged by the `pal/`
+compatibility layer. The
 current version is recorded in [`VERSION`](VERSION).
 
 ## Tools
@@ -247,7 +264,7 @@ format.
 
 | Path | Contents |
 |---|---|
-| `xfs/` | Forked upstream XFS (6.19-rc0) + the MXFS coordination overlay — the bulk of the code. |
+| `xfs/` | XFS forked from the Linux 6.19 development tree and heavily modified, plus the MXFS coordination overlay — the bulk of the code. |
 | `dlm/` | Distributed lock manager: CAW + TCP transports, discovery, membership, lease, disklock heartbeat, SCSI-PR fencing, journal slicing. |
 | `pal/` | Platform abstraction layer — kernel/userspace split, VFS + block-I/O glue, module init. |
 | `mxfs_clayer/` | Cluster-layer helpers (pinned resources, adaptive yield quantum). |
