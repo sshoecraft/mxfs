@@ -17,9 +17,9 @@
       "verify_tests": "install both .debs from the built packages; DKMS builds on every installed PVE kernel; for EACH claimed kernel (pinned with proxmox-boot-tool, rebooted into): mount with no options on both nodes; cross-node checksums; create/remote-delete counts; chk_mxfs clean; peer= with multicast blocked; peers=; pvesm add/status/remove holds one mount; O_DIRECT read on a stable-writes device; reboot on that kernel, module auto-loaded, remount, earlier data intact (KERNEL=<krel> tests/packaged_round.sh pve9, once per claimed kernel)",
       "verified": {
         "amd64": {
-          "version": "0.89.85",
+          "version": "0.89.88",
           "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/pve9_0.89.85_20260924T123555/ tests/evidence/packaged_round/pve9_0.89.85_20260924T121832/"
+          "evidence": "tests/evidence/packaged_round/pve9_0.89.88_20260924T174734/ tests/evidence/packaged_round/pve9_0.89.88_20260924T175519/"
         }
       },
       "priority": 4,
@@ -42,9 +42,9 @@
       "notes": "The development rig's platform.",
       "verified": {
         "amd64": {
-          "version": "0.89.85",
+          "version": "0.89.88",
           "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.85_20260924T120408/ tests/evidence/suite_2tcp_0.89.85.log tests/evidence/suite_2tcp_0.89.85_soak_rerun1.log tests/evidence/suite_2tcp_0.89.85_soak_rerun2.log"
+          "evidence": "tests/evidence/packaged_round/ubuntu2404_0.89.88_20260924T173959/ tests/evidence/suite_2tcp_0.89.88.log tests/evidence/suite_2tcp_0.89.88_fio_rerun1.log tests/evidence/suite_2tcp_0.89.88_fio_rerun2.log"
         }
       },
       "priority": 1,
@@ -68,9 +68,9 @@
       "priority": 2,
       "verified": {
         "amd64": {
-          "version": "0.89.85",
+          "version": "0.89.88",
           "date": "2026-09-24",
-          "evidence": "tests/evidence/packaged_round/rhel9_0.89.85_20260924T122152/ tests/evidence/tcp_peer_freeze_death/20260924T122924/ tests/evidence/selinux_svirt/20260924T123531/"
+          "evidence": "tests/evidence/packaged_round/rhel9_0.89.88_20260924T175933/ tests/evidence/tcp_peer_freeze_death/20260924T180732/ tests/evidence/selinux_svirt/20260924T181335/"
         }
       },
       "arch": [

@@ -62,6 +62,12 @@ Also:
   `D-FIO-PERF-RUNS-AT-87-93-PCT-OF-ITS-BUDGET-AND-A-LOADED-HOST-TIPS-IT-OVER`;
   rerun twice after a fresh prep it passed in 105 s and 104 s at the same
   throughput as 0.89.86.
+- Released for exactly the kernels verified with the 0.89.88 packages:
+  Ubuntu 24.04 (6.8.0-101-generic), Proxmox VE 9 (6.17.2-1-pve and
+  7.0.14-19-pve) and RHEL 9.8 (5.14.0-687.49.1.el9_8, on AlmaLinux 9.8), each
+  a packaged install/mkfs/two-node round; on RHEL 9.8 also the hung-node
+  freeze (death declared at +60 s, survivor writing at +72 s) and sVirt with
+  SELinux enforcing.
 
 `xfs/xfs_mxfs_dlm.c` is 65,700 lines. The kernel's bug table stores a line
 number in 16 bits, so the assembler truncates the two `WARN_ON_ONCE` sites
